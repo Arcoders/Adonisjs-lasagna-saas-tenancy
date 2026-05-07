@@ -173,6 +173,7 @@ export default defineConfig({
           text: 'Operate',
           items: [
             { text: 'Deployment', link: '/docs/deployment' },
+            { text: 'Security', link: '/security' },
             {
               text: 'Cookbook',
               link: '/docs/cookbook/',
@@ -201,6 +202,7 @@ export default defineConfig({
           items: [
             { text: 'Quickstart', link: '/quickstart' },
             { text: 'Why Lasagna', link: '/why' },
+            { text: 'Security', link: '/security' },
           ],
         },
         {

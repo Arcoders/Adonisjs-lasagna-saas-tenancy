@@ -96,9 +96,9 @@ The complete documentation lives at
 Direct links:
 
 - 🚀 [Quickstart](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/quickstart)
-- 🚢 [Deployment guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/deployment) (Dockerfile, docker-compose, Helm chart)
+- 🚢 [Deployment guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/deployment) (Dockerfile, docker-compose, Helm chart)
 - 🛡️ [Security guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/security) (what the package guarantees vs what the host owns)
-- ⚖️  [Comparison vs `stancl/tenancy`](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/comparison)
+- ⚖️  [Comparison vs `stancl/tenancy`](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/comparison)
 
 ## Reference app
 
