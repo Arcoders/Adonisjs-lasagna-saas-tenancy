@@ -7,6 +7,11 @@ export default defineConfig({
   title: 'Lasagna SaaS Tenancy',
   description:
     'SaaS multi-tenancy for AdonisJS 7. Connection routing, circuit breaker, queues, contextual logging, plans/quotas, backups, replicas, audit logs, webhooks, SSO.',
+  // Project-pages base — required so CSS/JS resolve under
+  // arcoders.github.io/Adonisjs-lasagna-saas-tenancy/. Drop the
+  // base (or set to '/') if you later move the site behind a
+  // custom domain via a CNAME file.
+  base: '/Adonisjs-lasagna-saas-tenancy/',
   cleanUrls: true,
   lastUpdated: true,
 
@@ -79,7 +84,6 @@ export default defineConfig({
           { text: 'Deployment', link: '/docs/deployment' },
           { text: 'Cookbook', link: '/docs/cookbook/' },
           { text: 'Comparison vs stancl', link: '/docs/comparison' },
-          { text: 'Migrate v1 → v2', link: '/docs/migrating-v1-to-v2' },
           { text: 'Contributing', link: '/docs/contributing' },
           { text: 'Release notes', link: '/docs/release-notes' },
         ],
@@ -186,7 +190,6 @@ export default defineConfig({
           text: 'Reference',
           items: [
             { text: 'Comparison vs stancl', link: '/docs/comparison' },
-            { text: 'Migrating v1 → v2', link: '/docs/migrating-v1-to-v2' },
             { text: 'Contributing', link: '/docs/contributing' },
             { text: 'Release notes', link: '/docs/release-notes' },
           ],

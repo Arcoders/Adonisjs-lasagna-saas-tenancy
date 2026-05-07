@@ -98,7 +98,6 @@ Direct links:
 - 🚀 [Quickstart](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/quickstart)
 - 🚢 [Deployment guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/deployment) (Dockerfile, docker-compose, Helm chart)
 - 🛡️ [Security guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/security) (what the package guarantees vs what the host owns)
-- 🔄 [Migrating v1 → v2](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/migrating-v1-to-v2)
 - ⚖️  [Comparison vs `stancl/tenancy`](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/comparison)
 
 ## Reference app

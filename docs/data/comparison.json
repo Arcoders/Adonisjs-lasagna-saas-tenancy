@@ -94,7 +94,6 @@
 
     { "category": "ecosystem", "feature": "Auth integration (Adonis Auth / Bouncer / Laravel Auth)", "lasagna": "partial", "stancl": "yes", "advantage": "stancl", "lasagnaNote": "host-app responsibility, auth bridge package planned" },
     { "category": "ecosystem", "feature": "Billing integration (Stripe / Cashier)", "lasagna": "no", "stancl": "yes", "advantage": "stancl", "lasagnaNote": "billing package planned" },
-    { "category": "ecosystem", "feature": "Migration codemod v1 → v2", "lasagna": "yes", "stancl": "no" },
     { "category": "ecosystem", "feature": "Production deploy artefacts (Dockerfile, docker-compose, Helm chart)", "lasagna": "yes", "stancl": "no", "advantage": "lasagna" },
     { "category": "ecosystem", "feature": "Subpath exports / tree-shake friendly", "lasagna": "yes", "stancl": "no", "advantage": "lasagna" },
 

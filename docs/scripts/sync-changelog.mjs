@@ -8,11 +8,7 @@ const TARGET_PATH = resolve(__dirname, '../docs/release-notes.md')
 
 const raw = readFileSync(CHANGELOG_PATH, 'utf8')
 
-const body = raw
-  .replace(/^# Changelog\s*\n/, '')
-  // Rewrite repo-relative migration-guide links to the docs site path.
-  .replace(/docs\/MIGRATING_V1_TO_V2\.md/g, '/docs/migrating-v1-to-v2')
-  .trimStart()
+const body = raw.replace(/^# Changelog\s*\n/, '').trimStart()
 
 const frontmatter = `---
 title: Release notes
