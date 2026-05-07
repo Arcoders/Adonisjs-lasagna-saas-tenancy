@@ -80,7 +80,7 @@ async function copy() {
   padding: 0.5rem 0.875rem;
   background-image:
     linear-gradient(0deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 100%),
-    url('/patterns/tile-border.svg');
+    url('../assets/patterns/tile-border.svg');
   background-size: auto, 80px;
   background-blend-mode: overlay;
   border-bottom: 1px dashed var(--lg-line-strong);

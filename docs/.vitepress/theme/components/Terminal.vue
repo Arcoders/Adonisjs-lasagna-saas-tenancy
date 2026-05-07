@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { withBase } from 'vitepress'
 
 interface CastFrame {
   /**
@@ -39,7 +40,12 @@ const visibleBuffer = computed(() => buffer.value)
 
 async function load() {
   try {
-    const res = await fetch(props.src)
+    // Absolute repo paths (e.g. "/casts/foo.cast.json") need the
+    // VitePress base prepended; otherwise they hit the apex domain
+    // when the site is hosted under a project-pages subpath.
+    // Fully-qualified URLs are left as-is.
+    const url = /^https?:\/\//i.test(props.src) ? props.src : withBase(props.src)
+    const res = await fetch(url)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     cast.value = (await res.json()) as Cast
   } catch (err) {

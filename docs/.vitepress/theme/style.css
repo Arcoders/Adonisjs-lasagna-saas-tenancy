@@ -167,8 +167,8 @@ code, pre, kbd, samp {
   margin-right: 0.55em;
   vertical-align: -0.04em;
   background: linear-gradient(135deg, var(--lg-accent) 0%, var(--lg-accent-3) 100%);
-  -webkit-mask: url('/patterns/star-8.svg') center / contain no-repeat;
-          mask: url('/patterns/star-8.svg') center / contain no-repeat;
+  -webkit-mask: url('./assets/patterns/star-8.svg') center / contain no-repeat;
+          mask: url('./assets/patterns/star-8.svg') center / contain no-repeat;
 }
 
 /* ─── Links ─────────────────────────────────────────────────────── */
@@ -188,7 +188,7 @@ code, pre, kbd, samp {
 
 /* ─── Subtle Zellige texture on top of the page ─────────────────── */
 .VPNavBar {
-  background-image: url('/patterns/tile-border.svg');
+  background-image: url('./assets/patterns/tile-border.svg');
   background-size: 240px;
   background-repeat: repeat;
   background-position: center;
@@ -309,8 +309,8 @@ code, pre, kbd, samp {
     var(--lg-accent-3) 50%,
     var(--lg-accent-2) 100%
   );
-  -webkit-mask: url('/patterns/wave.svg') repeat-x center / 24px 6px;
-          mask: url('/patterns/wave.svg') repeat-x center / 24px 6px;
+  -webkit-mask: url('./assets/patterns/wave.svg') repeat-x center / 24px 6px;
+          mask: url('./assets/patterns/wave.svg') repeat-x center / 24px 6px;
 }
 
 /* Reduce motion: respect the user. */

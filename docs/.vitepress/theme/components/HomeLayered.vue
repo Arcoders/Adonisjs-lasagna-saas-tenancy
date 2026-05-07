@@ -406,7 +406,7 @@ const pillars: Pillar[] = [
   content: '';
   position: absolute;
   inset: 0;
-  background: url('/patterns/tile-border.svg') repeat;
+  background: url('../assets/patterns/tile-border.svg') repeat;
   background-size: 100px;
   opacity: 0.4;
   pointer-events: none;

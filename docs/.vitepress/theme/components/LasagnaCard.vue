@@ -48,8 +48,8 @@ withDefaults(
     var(--lg-accent-2) 50%,
     var(--lg-accent) 100%
   );
-  -webkit-mask: url('/patterns/wave.svg') repeat-x center / 24px 6px;
-          mask: url('/patterns/wave.svg') repeat-x center / 24px 6px;
+  -webkit-mask: url('../assets/patterns/wave.svg') repeat-x center / 24px 6px;
+          mask: url('../assets/patterns/wave.svg') repeat-x center / 24px 6px;
 }
 .lg-card--accent {
   background-color: rgba(194, 106, 75, 0.04);
