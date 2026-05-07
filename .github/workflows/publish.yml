@@ -1,0 +1,55 @@
+name: Publish Package
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  publish:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Repo .npmrc sets `ignore-scripts=true` for local-dev safety; CI needs
+      # esbuild's postinstall to run so the platform binary lands on disk.
+      - name: Install dependencies
+        env:
+          npm_config_ignore_scripts: 'false'
+        run: npm install --include=optional
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      # Prerelease versions (anything after a `-`, e.g. `0.2.0-beta.1`) are
+      # published under the `next` dist-tag so they NEVER override `latest`.
+      # Stable versions get the default `latest` tag.
+      - name: Resolve npm dist-tag
+        id: tag
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *-* ]]; then
+            echo "name=next" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=latest" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Publishing $VERSION under dist-tag $(grep '^name=' $GITHUB_OUTPUT | tail -1 | cut -d= -f2)"
+
+      - name: Publish to npm
+        run: npm publish --access public --tag ${{ steps.tag.outputs.name }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

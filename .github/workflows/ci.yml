@@ -1,0 +1,214 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # Repo .npmrc sets `ignore-scripts=true` for local-dev safety. CI is a
+      # controlled environment and tsx/esbuild rely on the postinstall fallback
+      # to fetch the platform binary (`@esbuild/<os>-<arch>`) when optional-dep
+      # resolution doesn't pick it up — so we re-enable scripts here.
+      - name: Install dependencies
+        env:
+          npm_config_ignore_scripts: 'false'
+        run: npm install --legacy-peer-deps --include=optional
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Test (unit)
+        run: npm test
+
+      # Surfaces unused exports / orphaned files / unused deps. `--no-exit-code`
+      # so the report is informational; flip to required once the baseline
+      # is enforced.
+      - name: Knip (unused-code report)
+        run: npm run knip
+
+      # Production-only audit so we don't trip on devDependency-only CVEs that
+      # never ship to consumers. `high` level matches the publish-gate bar.
+      - name: npm audit (production deps)
+        run: npm run audit:prod
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: multitenancy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7.0.5-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TZ: UTC
+      NODE_ENV: test
+      HOST: 127.0.0.1
+      PORT: 3333
+      APP_KEY: a-32-character-long-secret-key!!
+      LOG_LEVEL: error
+      TENANT_HEADER_KEY: x-tenant-id
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: multitenancy_test
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      QUEUE_REDIS_HOST: 127.0.0.1
+      QUEUE_REDIS_PORT: 6379
+      QUEUE_REDIS_DB: 1
+      CACHE_REDIS_HOST: 127.0.0.1
+      CACHE_REDIS_PORT: 6379
+      CACHE_REDIS_DB: 2
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        env:
+          npm_config_ignore_scripts: 'false'
+        run: npm install --legacy-peer-deps --include=optional
+
+      - name: Test (integration)
+        run: npm run test:integration
+
+  test-e2e-demo:
+    name: E2E (demo app)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: lasagna_demo
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U app -d lasagna_demo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 56379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      mailcatcher:
+        image: schickling/mailcatcher
+        ports:
+          - 1025:1025
+          - 1080:1080
+
+    env:
+      TZ: UTC
+      NODE_ENV: development
+      HOST: 127.0.0.1
+      PORT: 3333
+      APP_KEY: a-32-character-long-secret-key!!
+      LOG_LEVEL: error
+      TENANT_HEADER_KEY: x-tenant-id
+      APP_DOMAIN: localhost
+      DB_HOST: 127.0.0.1
+      DB_PORT: 55432
+      DB_USER: app
+      DB_PASSWORD: app
+      DB_DATABASE: lasagna_demo
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 56379
+      QUEUE_REDIS_HOST: 127.0.0.1
+      QUEUE_REDIS_PORT: 56379
+      QUEUE_REDIS_DB: 1
+      CACHE_REDIS_HOST: 127.0.0.1
+      CACHE_REDIS_PORT: 56379
+      CACHE_REDIS_DB: 2
+      BACKUP_STORAGE_PATH: ./storage/backups
+      DEMO_ADMIN_TOKEN: demo-admin-token-change-me
+      MAILCATCHER_HOST: 127.0.0.1
+      MAILCATCHER_PORT: 1025
+      MAIL_FROM_ADDRESS: demo@example.test
+      MAIL_FROM_NAME: Demo Multitenancy
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # `pg_dump` / `pg_restore` / `psql` on PATH so backups_real.spec.ts +
+      # the import / clone tests run instead of skipping. The suite skips
+      # gracefully when these are absent, but we want them green in CI.
+      - name: Install postgresql-client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Install dependencies
+        env:
+          npm_config_ignore_scripts: 'false'
+        run: npm install --legacy-peer-deps --include=optional
+
+      # Demo's `@adonisjs-lasagna/saas-tenancy` is a workspace symlink that
+      # resolves through `build/`, so a fresh build is mandatory before the
+      # e2e suite imports from it.
+      - name: Build package
+        run: npm run build
+
+      - name: Backoffice setup (creates backoffice schema + tenants table)
+        working-directory: examples/api
+        run: npx tsx ace.ts backoffice:setup
+
+      - name: Run e2e suite
+        working-directory: examples/api
+        run: npx tsx ace.ts test e2e

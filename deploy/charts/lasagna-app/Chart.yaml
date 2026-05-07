@@ -1,0 +1,20 @@
+apiVersion: v2
+name: lasagna-app
+description: |
+  Reference Helm chart for an AdonisJS 7 application using
+  @adonisjs-lasagna/saas-tenancy. Ships a Deployment, Service, optional
+  Ingress (with wildcard support for the subdomain resolver), HPA, and
+  PodDisruptionBudget. Postgres and Redis are NOT bundled — wire them
+  via values to managed services (RDS, ElastiCache, etc.).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - adonisjs
+  - multitenancy
+  - saas
+home: https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy
+sources:
+  - https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy
+maintainers:
+  - name: Ismael Haytam Tanane

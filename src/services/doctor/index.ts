@@ -1,0 +1,23 @@
+export { default as DoctorService } from './doctor_service.js'
+export type {
+  DiagnosisSeverity,
+  DiagnosisIssue,
+  DiagnosisReport,
+  DoctorCheck,
+  DoctorContext,
+  DoctorRunOptions,
+  DoctorRunResult,
+} from './types.js'
+export {
+  builtInChecks,
+  schemaDriftCheck,
+  migrationStateCheck,
+  circuitBreakerCheck,
+  queueStuckCheck,
+  backupRecencyCheck,
+  provisioningStalledCheck,
+  failedTenantsCheck,
+  replicaLagCheck,
+  connectionPoolCheck,
+  longRunningQueriesCheck,
+} from './checks/index.js'

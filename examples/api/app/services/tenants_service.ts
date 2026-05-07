@@ -1,0 +1,74 @@
+import { DateTime } from 'luxon'
+import { InstallTenant, UninstallTenant } from '@adonisjs-lasagna/saas-tenancy/jobs'
+import Tenant, { type DemoMeta } from '#app/models/backoffice/tenant'
+
+export interface CreateTenantInput {
+  name: string
+  email: string
+  plan?: DemoMeta['plan']
+  tier?: DemoMeta['tier']
+}
+
+/**
+ * Tenant lifecycle operations the controller delegates to. Keeps the model
+ * write + queue dispatch out of the request handler so the controller stays
+ * a thin transport layer.
+ */
+export default class TenantsService {
+  list() {
+    return Tenant.query().orderBy('created_at', 'desc')
+  }
+
+  show(id: string) {
+    return Tenant.query().where('id', id).first()
+  }
+
+  /**
+   * Create the registry row and queue the InstallTenant job. The
+   * `beforeProvision` hook in `config/multitenancy.ts` runs inside the job
+   * and may abort provisioning by throwing.
+   */
+  async create(input: CreateTenantInput) {
+    const tenant = await new Tenant()
+      .merge({
+        name: input.name,
+        email: input.email,
+        status: 'provisioning',
+        metadata: {
+          plan: input.plan ?? 'free',
+          tier: input.tier ?? 'standard',
+        },
+      })
+      .save()
+
+    await InstallTenant.dispatch({ tenantId: tenant.id })
+    return tenant
+  }
+
+  async activate(id: string) {
+    const tenant = await Tenant.findOrFail(id)
+    await tenant.activate()
+    return tenant
+  }
+
+  async suspend(id: string) {
+    const tenant = await Tenant.findOrFail(id)
+    await tenant.suspend()
+    return tenant
+  }
+
+  /** Marks the tenant deleted but preserves the `tenant_<uuid>` schema. */
+  async softDelete(id: string) {
+    const tenant = await Tenant.findOrFail(id)
+    tenant.deletedAt = DateTime.now()
+    await tenant.save()
+    return tenant
+  }
+
+  /** Queues UninstallTenant — the job drops the schema. */
+  async destroy(id: string) {
+    const tenant = await Tenant.findOrFail(id)
+    await UninstallTenant.dispatch({ tenantId: tenant.id })
+    return tenant
+  }
+}

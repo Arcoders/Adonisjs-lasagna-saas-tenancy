@@ -1,0 +1,10 @@
+node_modules/
+build/
+.env
+*.log
+.claude
+CLAUDE.md
+cmultitenancy-packagetestsunitadmin
+# VitePress build output (the markdown under docs/ IS tracked)
+docs/.vitepress/cache/
+docs/.vitepress/dist/

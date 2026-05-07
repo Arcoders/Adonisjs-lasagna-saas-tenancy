@@ -1,0 +1,79 @@
+import router from '@adonisjs/core/services/router'
+import { middleware } from '#start/kernel'
+import { enforceQuota } from '@adonisjs-lasagna/saas-tenancy/middleware'
+import { multitenancyRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
+import { multitenancyAdminRoutes } from '@adonisjs-lasagna/saas-tenancy/admin'
+
+/**
+ * Lazy controller imports — keeps the route file small and lets the
+ * framework instantiate controllers per request via the IoC container,
+ * which is required for `@inject()`-decorated constructor parameters.
+ */
+const TenantsController = () => import('#app/controllers/demo/tenants_controller')
+const NotesController = () => import('#app/controllers/demo/notes_controller')
+const QuotaController = () => import('#app/controllers/demo/quota_controller')
+const DoctorController = () => import('#app/controllers/demo/doctor_controller')
+const CircuitController = () => import('#app/controllers/demo/circuit_controller')
+const AuditController = () => import('#app/controllers/demo/audit_controller')
+const LogController = () => import('#app/controllers/demo/log_controller')
+const WebhooksController = () => import('#app/controllers/demo/webhooks_controller')
+const FeatureFlagsController = () => import('#app/controllers/demo/feature_flags_controller')
+const BrandingController = () => import('#app/controllers/demo/branding_controller')
+const SsoController = () => import('#app/controllers/demo/sso_controller')
+
+/* ─── Operational endpoints (livez / readyz / healthz / metrics) ─────────── */
+multitenancyRoutes()
+
+/* ─── Package admin REST API (header-token gated) ────────────────────────── */
+multitenancyAdminRoutes({
+  prefix: '/admin',
+  middleware: [middleware.demoAdminAuth()],
+})
+
+/* ─── /demo: tenant CRUD (no tenant guard — no tenant context yet) ───────── */
+router
+  .group(() => {
+    router.get('/tenants', [TenantsController, 'list'])
+    router.post('/tenants', [TenantsController, 'create'])
+    router.get('/tenants/:id', [TenantsController, 'show'])
+    router.post('/tenants/:id/activate', [TenantsController, 'activate'])
+    router.post('/tenants/:id/suspend', [TenantsController, 'suspend'])
+    router.delete('/tenants/:id', [TenantsController, 'destroy'])
+  })
+  .prefix('/demo')
+
+/* ─── /demo: tenant-scoped feature surface (TenantGuardMiddleware) ───────── */
+router
+  .group(() => {
+    // Schema isolation probe
+    router.get('/connection', [TenantsController, 'connection'])
+
+    // Notes (raw-SQL through the tenant connection) + per-day quota gate
+    router.get('/notes', [NotesController, 'list'])
+    router.get('/notes/read', [NotesController, 'listFromReplica'])
+    router.post('/notes', [NotesController, 'create']).use(enforceQuota('apiCallsPerDay'))
+
+    // Quotas / doctor / circuit / audit / contextual-logging probe
+    router.get('/quota/state', [QuotaController, 'state'])
+    router.post('/quota/track', [QuotaController, 'track'])
+    router.get('/doctor', [DoctorController, 'run'])
+    router.get('/circuit', [CircuitController, 'state'])
+    router.get('/audit', [AuditController, 'list'])
+    router.get('/log/emit', [LogController, 'emit'])
+
+    // Webhook subscriptions + manual fire
+    router.get('/webhooks', [WebhooksController, 'list'])
+    router.post('/webhooks', [WebhooksController, 'subscribe'])
+    router.post('/webhooks/fire', [WebhooksController, 'fire'])
+
+    // Satellites: feature flags / branding / SSO
+    router.get('/feature-flags', [FeatureFlagsController, 'list'])
+    router.post('/feature-flags', [FeatureFlagsController, 'set'])
+    router.delete('/feature-flags/:flag', [FeatureFlagsController, 'destroy'])
+    router.get('/branding', [BrandingController, 'show'])
+    router.put('/branding', [BrandingController, 'update'])
+    router.get('/sso', [SsoController, 'show'])
+    router.put('/sso', [SsoController, 'update'])
+  })
+  .prefix('/demo')
+  .use(middleware.tenantGuard())

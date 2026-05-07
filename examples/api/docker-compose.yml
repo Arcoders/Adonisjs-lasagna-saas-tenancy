@@ -1,0 +1,57 @@
+# Local infrastructure for the multitenancy example.
+# Single Postgres + single Redis is plenty — the package handles 3 schemas
+# inside one PG instance, and Redis uses logical DBs 0/1/2 for default/queue/cache.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lasagna_demo_postgres
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: lasagna_demo
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d lasagna_demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: lasagna_demo_redis
+    ports:
+      - "56379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: lasagna_demo_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: dev@local
+      PGADMIN_DEFAULT_PASSWORD: dev
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # MailCatcher captures outgoing email sent by the demo. The Welcome mailer
+  # (fired from TenantActivated) writes to it. The web UI is at
+  # http://localhost:1080 and the JSON API at http://localhost:1080/messages.
+  mailcatcher:
+    image: schickling/mailcatcher
+    container_name: lasagna_demo_mailcatcher
+    ports:
+      - "1025:1025"  # SMTP
+      - "1080:1080"  # HTTP
+
+volumes:
+  pgdata:

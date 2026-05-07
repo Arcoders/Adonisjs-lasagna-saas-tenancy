@@ -1,0 +1,156 @@
+{{{
+  exports({ to: app.appPath('models/backoffice/tenant.ts') })
+}}}
+import { column, computed } from '@adonisjs/lucid/orm'
+import { DateTime } from 'luxon'
+import { BackofficeBaseModel } from '@adonisjs-lasagna/saas-tenancy/base-models'
+import type { TenantStatus } from '@adonisjs-lasagna/saas-tenancy/types'
+import { getConfig } from '@adonisjs-lasagna/saas-tenancy'
+import db from '@adonisjs/lucid/services/db'
+import cache from '@adonisjs/cache/services/main'
+
+export default class Tenant extends BackofficeBaseModel {
+  static readonly table = 'tenants'
+
+  @column({ isPrimary: true })
+  declare id: string
+
+  @column()
+  declare name: string
+
+  @column()
+  declare email: string
+
+  @column()
+  declare status: TenantStatus
+
+  @column()
+  declare customDomain: string | null
+
+  @column()
+  declare maintenance: boolean
+
+  @column()
+  declare maintenanceMessage: string | null
+
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+
+  @column.dateTime()
+  declare deletedAt: DateTime | null
+
+  @computed()
+  get schemaName(): string {
+    return `${getConfig().tenantSchemaPrefix}${this.id.replace(/-/g, '_')}`
+  }
+
+  @computed()
+  get connectionName(): string {
+    return `${getConfig().tenantConnectionNamePrefix}${this.id}`
+  }
+
+  @computed()
+  get isActive(): boolean {
+    return this.status === 'active'
+  }
+
+  @computed()
+  get isSuspended(): boolean {
+    return this.status === 'suspended'
+  }
+
+  @computed()
+  get isProvisioning(): boolean {
+    return this.status === 'provisioning'
+  }
+
+  @computed()
+  get isFailed(): boolean {
+    return this.status === 'failed'
+  }
+
+  @computed()
+  get isDeleted(): boolean {
+    return this.deletedAt !== null
+  }
+
+  @computed()
+  get isMaintenance(): boolean {
+    return this.maintenance === true
+  }
+
+  async getConnection() {
+    const { tenantConnectionNamePrefix } = getConfig()
+    const connName = `${tenantConnectionNamePrefix}${this.id}`
+    if (!db.manager.has(connName)) {
+      db.manager.add(connName, {
+        client: 'pg',
+        connection: {
+          ...db.getRawConnection('pg')?.config?.connection,
+          searchPath: this.schemaName,
+        },
+      })
+    }
+    return db.connection(connName)
+  }
+
+  async closeConnection() {
+    const { tenantConnectionNamePrefix } = getConfig()
+    const connName = `${tenantConnectionNamePrefix}${this.id}`
+    if (db.manager.has(connName)) {
+      await db.manager.close(connName)
+    }
+  }
+
+  async install() {
+    const conn = await this.getConnection()
+    await conn.rawQuery(`CREATE SCHEMA IF NOT EXISTS "${this.schemaName}"`)
+    // Run tenant migrations here
+  }
+
+  async uninstall() {
+    await this.closeConnection()
+    const { centralConnectionName } = getConfig()
+    await db.connection(centralConnectionName).rawQuery(
+      `DROP SCHEMA IF EXISTS "${this.schemaName}" CASCADE`
+    )
+  }
+
+  async migrate(options: { direction: 'up' | 'down' }) {
+    // Implement migration logic
+    void options
+  }
+
+  async suspend() {
+    this.status = 'suspended'
+    await this.save()
+    await this.invalidateCache()
+  }
+
+  async activate() {
+    this.status = 'active'
+    await this.save()
+    await this.invalidateCache()
+  }
+
+  async enterMaintenance(message?: string | null) {
+    this.maintenance = true
+    this.maintenanceMessage = message ?? null
+    await this.save()
+    await this.invalidateCache()
+  }
+
+  async exitMaintenance() {
+    this.maintenance = false
+    this.maintenanceMessage = null
+    await this.save()
+    await this.invalidateCache()
+  }
+
+  async invalidateCache() {
+    await cache.delete(`tenant:${this.id}`)
+  }
+}

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FBF7F4"/>
+      <stop offset="100%" stop-color="#F2E6DA"/>
+    </linearGradient>
+    <pattern id="tile" x="0" y="0" width="120" height="120" patternUnits="userSpaceOnUse">
+      <g fill="none" stroke="#C26A4B" stroke-width="1.2" opacity="0.10">
+        <path d="M60 5 L75 45 L115 45 L82 70 L95 110 L60 85 L25 110 L38 70 L5 45 L45 45 Z"/>
+        <circle cx="60" cy="60" r="22"/>
+      </g>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#tile)"/>
+
+  <!-- Logo mark -->
+  <g transform="translate(80 80)">
+    <g fill="none" stroke="#C26A4B" stroke-width="3">
+      <path d="M40 5 L50 30 L77 30 L55 47 L63 75 L40 58 L17 75 L25 47 L3 30 L30 30 Z"/>
+      <circle cx="40" cy="40" r="14"/>
+    </g>
+  </g>
+
+  <!-- Eyebrow -->
+  <text x="80" y="240" font-family="JetBrains Mono, ui-monospace, monospace" font-size="22" fill="#6E6358" letter-spacing="3">
+    ADONISJS · POSTGRESQL · SCHEMA-BASED
+  </text>
+
+  <!-- Title -->
+  <text x="80" y="330" font-family="Newsreader, Georgia, serif" font-size="78" font-weight="600" fill="#2E2A26">
+    Lasagna Multitenancy
+  </text>
+
+  <!-- Subtitle -->
+  <text x="80" y="410" font-family="Newsreader, Georgia, serif" font-size="38" font-style="italic" fill="#C26A4B">
+    The only multi-tenant layer your AdonisJS app
+  </text>
+  <text x="80" y="455" font-family="Newsreader, Georgia, serif" font-size="38" font-style="italic" fill="#C26A4B">
+    will ever need.
+  </text>
+
+  <!-- Footer band -->
+  <line x1="80" y1="540" x2="1120" y2="540" stroke="#C26A4B" stroke-width="1.5" opacity="0.4"/>
+
+  <text x="80" y="580" font-family="Inter, system-ui, sans-serif" font-size="22" fill="#6E6358">
+    Schema isolation · Bootstrappers · Doctor · Backups · Replicas · OpenAPI · 32 commands
+  </text>
+
+  <text x="1120" y="580" text-anchor="end" font-family="JetBrains Mono, ui-monospace, monospace" font-size="20" fill="#C26A4B">
+    v0.1.0
+  </text>
+</svg>

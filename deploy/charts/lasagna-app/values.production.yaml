@@ -1,0 +1,54 @@
+# Example overrides for a real production deploy. Copy and adapt.
+image:
+  repository: ghcr.io/acme/lasagna-app
+  tag: "v2.0.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 4
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 10m
+  hosts:
+    - host: app.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+    - host: "*.app.example.com"
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - app.example.com
+        - "*.app.example.com"
+      secretName: app-example-com-tls
+
+autoscaling:
+  enabled: true
+  minReplicas: 4
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 65
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 1Gi
+
+# Production secrets are managed externally (sealed-secrets, External
+# Secrets Operator, etc.). Reference an existing Secret rather than letting
+# the chart create one inline.
+app:
+  env:
+    NODE_ENV: production
+    BASE_DOMAIN: app.example.com
+    RESOLVER_STRATEGY: subdomain
+    LOG_LEVEL: info
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability:4318
+  existingSecret: lasagna-app-secrets

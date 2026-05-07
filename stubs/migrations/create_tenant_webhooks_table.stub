@@ -1,0 +1,25 @@
+{{{
+  exports({ to: app.migrationsPath(`${Date.now()}_create_tenant_webhooks_table.ts`) })
+}}}
+import { BaseSchema } from '@adonisjs/lucid/schema'
+
+export default class extends BaseSchema {
+  protected tableName = 'tenant_webhooks'
+
+  async up() {
+    this.schema.withSchema('backoffice').createTable(this.tableName, (table) => {
+      table.uuid('id').primary().defaultTo(this.db.rawQuery('gen_random_uuid()').knexQuery)
+      table.uuid('tenant_id').notNullable().index()
+      table.string('url').notNullable()
+      table.specificType('events', 'text[]').notNullable().defaultTo('{}')
+      table.text('secret').nullable()
+      table.boolean('enabled').notNullable().defaultTo(true)
+      table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(this.now())
+      table.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(this.now())
+    })
+  }
+
+  async down() {
+    this.schema.withSchema('backoffice').dropTable(this.tableName)
+  }
+}

@@ -1,0 +1,22 @@
+{{{
+  exports({ to: app.migrationsPath(`${Date.now()}_add_maintenance_to_tenants_table.ts`) })
+}}}
+import { BaseSchema } from '@adonisjs/lucid/schema'
+
+export default class extends BaseSchema {
+  protected tableName = 'tenants'
+
+  async up() {
+    this.schema.withSchema('backoffice').alterTable(this.tableName, (table) => {
+      table.boolean('maintenance').notNullable().defaultTo(false)
+      table.text('maintenance_message').nullable()
+    })
+  }
+
+  async down() {
+    this.schema.withSchema('backoffice').alterTable(this.tableName, (table) => {
+      table.dropColumn('maintenance_message')
+      table.dropColumn('maintenance')
+    })
+  }
+}

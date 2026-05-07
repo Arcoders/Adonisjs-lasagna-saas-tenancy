@@ -1,0 +1,51 @@
+{
+  "name": "@adonisjs-lasagna/saas-tenancy-example-api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reference AdonisJS v7 API project demonstrating every feature of @adonisjs-lasagna/saas-tenancy",
+  "imports": {
+    "#config/*": "./config/*.js",
+    "#app/*": "./app/*.js",
+    "#start/*": "./start/*.js",
+    "#database/*": "./database/*.js",
+    "#tests/*": "./tests/*.js"
+  },
+  "scripts": {
+    "ace": "tsx ace.ts",
+    "dev": "tsx ace.ts serve --hmr",
+    "start": "tsx bin/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx ace.ts test",
+    "test:e2e": "bash ./scripts/e2e.sh",
+    "test:e2e:keep": "bash ./scripts/e2e.sh --keep",
+    "test:e2e:win": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/e2e.ps1",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down -v",
+    "setup": "tsx ace.ts backoffice:setup"
+  },
+  "dependencies": {
+    "@adonisjs-lasagna/saas-tenancy": "file:../..",
+    "@adonisjs/core": "^7.0.0",
+    "@adonisjs/lucid": "^22.0.0",
+    "@adonisjs/mail": "^10.2.0",
+    "@adonisjs/queue": "^0.6.0",
+    "@adonisjs/redis": "^10.0.0",
+    "@poppinss/ts-exec": "^1.4.4",
+    "@vinejs/vine": "^4.1.0",
+    "luxon": "^3.0.0",
+    "nodemailer": "^7.0.0",
+    "pg": "^8.13.0",
+    "reflect-metadata": "^0.2.0"
+  },
+  "devDependencies": {
+    "@japa/api-client": "^3.2.1",
+    "@japa/assert": "^4.0.1",
+    "@japa/plugin-adonisjs": "^5.0.0",
+    "@japa/runner": "^4.2.0",
+    "@types/luxon": "^3.0.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "~5.7"
+  }
+}

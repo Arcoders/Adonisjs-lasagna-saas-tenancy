@@ -1,0 +1,79 @@
+{{{
+  exports({ to: app.configPath('multitenancy.ts') })
+}}}
+import env from '#start/env'
+import { defineConfig } from '@adonisjs-lasagna/saas-tenancy'
+import type { TenantResolverStrategy } from '@adonisjs-lasagna/saas-tenancy/types'
+
+export default defineConfig({
+  backofficeSchemaName: 'backoffice',
+  backofficeConnectionName: 'backoffice',
+  centralSchemaName: 'public',
+  centralConnectionName: 'public',
+  tenantConnectionNamePrefix: 'tenant_',
+  tenantSchemaPrefix: env.get('TENANT_SCHEMA_PREFIX', 'tenant_'),
+
+  // Strategy: 'header' | 'subdomain' | 'path'
+  resolverStrategy: env.get('TENANT_RESOLVER', 'header') as TenantResolverStrategy,
+  tenantHeaderKey: env.get('TENANT_HEADER_KEY', 'x-tenant-id'),
+  baseDomain: env.get('APP_DOMAIN', 'localhost'),
+
+  schemaCacheTtl: 300,
+  ignorePaths: ['/admin', '/api/webhooks', '/health'],
+
+  maintenanceSchedule: {
+    backupHour: 2,
+    migrateAllHour: 3,
+  },
+
+  circuitBreaker: {
+    threshold: 50,
+    resetTimeout: 30_000,
+    rollingCountTimeout: 10_000,
+    volumeThreshold: 10,
+  },
+
+  queue: {
+    tenantQueuePrefix: 'tenant_queue_',
+    defaultConcurrency: 1,
+    attempts: 3,
+    redis: {
+      host: env.get('QUEUE_REDIS_HOST', '127.0.0.1'),
+      port: env.get('QUEUE_REDIS_PORT', 6379),
+      db: env.get('QUEUE_REDIS_DB', 1),
+    },
+  },
+
+  backup: {
+    storagePath: env.get('BACKUP_STORAGE_PATH', './storage/backups'),
+    metadataTtl: 60 * 60 * 24 * 30,
+    pgConnection: {
+      host: env.get('DB_HOST', '127.0.0.1'),
+      port: env.get('DB_PORT', 5432),
+      user: env.get('DB_USER', 'postgres'),
+      password: env.get('DB_PASSWORD', ''),
+      database: env.get('DB_DATABASE', 'postgres'),
+    },
+    // Optional — remove if not using S3 backup storage
+    // s3: {
+    //   enabled: true,
+    //   bucket: env.get('BACKUP_S3_BUCKET', ''),
+    //   region: env.get('BACKUP_S3_REGION', 'us-east-1'),
+    //   endpoint: env.get('BACKUP_S3_ENDPOINT', ''),   // leave empty for AWS
+    //   accessKeyId: env.get('BACKUP_S3_KEY_ID', ''),
+    //   secretAccessKey: env.get('BACKUP_S3_SECRET', ''),
+    // },
+  },
+
+  // BentoCache (L1 memory + L2 Redis). Uses a dedicated Redis DB to avoid
+  // key collisions with the queue Redis DB.
+  // Cron suggestion: nothing — cache is self-maintaining via TTL.
+  cache: {
+    ttl: 300,
+    redis: {
+      host: env.get('CACHE_REDIS_HOST', env.get('QUEUE_REDIS_HOST', '127.0.0.1')),
+      port: env.get('CACHE_REDIS_PORT', env.get('QUEUE_REDIS_PORT', 6379)),
+      db: env.get('CACHE_REDIS_DB', 2),
+    },
+  },
+})

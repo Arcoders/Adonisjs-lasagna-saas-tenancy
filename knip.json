@@ -1,0 +1,35 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/index.ts",
+    "src/admin/index.ts",
+    "src/commands/main.ts",
+    "src/events/index.ts",
+    "src/exceptions/index.ts",
+    "src/extensions/request.ts",
+    "src/health/index.ts",
+    "src/jobs/index.ts",
+    "src/middleware/index.ts",
+    "src/models/adapters/index.ts",
+    "src/models/base/index.ts",
+    "src/models/satellites/index.ts",
+    "src/providers/multitenancy_provider.ts",
+    "src/services/index.ts",
+    "src/testing/index.ts",
+    "src/types/index.ts",
+    "configure.ts",
+    "bin/test.ts",
+    "bin/test.integration.ts",
+    "tests/**/*.spec.ts",
+    "tests/fixtures/**/*.ts"
+  ],
+  "project": ["src/**/*.ts", "configure.ts", "bin/**/*.ts", "tests/**/*.ts"],
+  "ignoreDependencies": [
+    "@aws-sdk/client-s3",
+    "better-sqlite3",
+    "@adonisjs/drive",
+    "@adonisjs/mail",
+    "@adonisjs/session"
+  ],
+  "ignoreExportsUsedInFile": true
+}

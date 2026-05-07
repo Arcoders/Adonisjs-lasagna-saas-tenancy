@@ -1,0 +1,150 @@
+image:
+  repository: ghcr.io/your-org/lasagna-app
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 3
+podAnnotations: {}
+podLabels: {}
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3333
+
+# When `enabled`, an Ingress is rendered. For multi-tenant apps using the
+# `subdomain` resolver, declare both the apex (`example.com`) and a
+# wildcard (`*.example.com`) so cert-manager can provision certs for
+# every tenant subdomain via DNS-01.
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: example.com
+      paths:
+        - path: /
+          pathType: Prefix
+    - host: "*.example.com"
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Horizontal Pod Autoscaler. Disabled by default — turn on once you have
+# baseline traffic numbers; HPA on a fresh deploy oscillates.
+autoscaling:
+  enabled: false
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# PodDisruptionBudget — at least one pod must remain during voluntary
+# disruptions (node drains, rolling updates).
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 768Mi
+
+# Pod-level security defaults. The container does not need root, raw
+# sockets, or a writable rootfs. `tmpfs` mounts cover the few writable
+# paths the runtime needs (Adonis tmp dir, npm cache).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+# Mount points the read-only rootfs needs as tmpfs. Override only if your
+# app writes elsewhere (and reconsider if it does).
+tmpfsMounts:
+  - name: tmp
+    mountPath: /tmp
+  - name: app-tmp
+    mountPath: /app/tmp
+
+# Optional NetworkPolicy. Disabled by default — most operators add their
+# own at the namespace level. When enabled, we deny all egress except
+# DNS, the configured database, and Redis.
+networkPolicy:
+  enabled: false
+  egressDatabasePort: 5432
+  egressRedisPort: 6379
+  ingressFromNamespaces: []  # NamespaceSelector matchLabels each entry
+
+# Probe paths must match what the app exposes. The package's default
+# health endpoints (mounted via @adonisjs-lasagna/saas-tenancy/health) are
+# /livez, /readyz, /healthz. Override below if your app mounts elsewhere.
+livenessProbe:
+  httpGet:
+    path: /livez
+    port: http
+  initialDelaySeconds: 20
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# These values flow into a ConfigMap (non-secret) and a Secret. Anything
+# under `app.secrets.*` becomes a Secret entry; anything under `app.env.*`
+# becomes a ConfigMap entry. The chart maps them to env vars verbatim.
+app:
+  env:
+    NODE_ENV: production
+    HOST: 0.0.0.0
+    PORT: "3333"
+    LOG_LEVEL: info
+    TENANT_HEADER_KEY: x-tenant-id
+    BASE_DOMAIN: example.com
+    RESOLVER_STRATEGY: subdomain
+  # IMPORTANT: provide via --set-string or a sealed-secrets manifest.
+  # The chart will create a Secret with these keys; if you'd rather mount
+  # an existing one, set `app.existingSecret: <name>`.
+  secrets:
+    APP_KEY: ""
+    DB_HOST: ""
+    DB_PORT: "5432"
+    DB_USER: ""
+    DB_PASSWORD: ""
+    DB_DATABASE: ""
+    REDIS_HOST: ""
+    REDIS_PORT: "6379"
+    REDIS_PASSWORD: ""
+  existingSecret: ""
+
+# Extra raw env entries — useful for things the chart doesn't know about
+# (DataDog API keys, custom OpenTelemetry exporter URLs, etc.).
+extraEnv: []
+extraEnvFrom: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

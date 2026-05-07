@@ -1,0 +1,6 @@
+export { default as InstallTenant } from './install_tenant.js'
+export { default as UninstallTenant } from './uninstall_tenant.js'
+export { default as CloneTenant } from './clone_tenant.js'
+export type { CloneTenantPayload } from './clone_tenant.js'
+export { default as BackupTenant } from './backup_tenant.js'
+export { default as RestoreTenant } from './restore_tenant.js'

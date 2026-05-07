@@ -1,0 +1,30 @@
+import { TenantBaseModel } from '@adonisjs-lasagna/saas-tenancy/base-models'
+import { column } from '@adonisjs/lucid/orm'
+import { DateTime } from 'luxon'
+
+/**
+ * A trivial tenant-scoped model. Lives in `tenant_<uuid>.notes` thanks to
+ * TenantBaseModel routing. Use this to prove schema isolation:
+ *
+ *   POST /demo/notes  → writes to tenant_A.notes
+ *   GET  /demo/notes  → reads from the same schema
+ *   Switch x-tenant-id header → completely separate row set.
+ */
+export default class Note extends TenantBaseModel {
+  static table = 'notes'
+
+  @column({ isPrimary: true })
+  declare id: number
+
+  @column()
+  declare title: string
+
+  @column()
+  declare body: string | null
+
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+}
