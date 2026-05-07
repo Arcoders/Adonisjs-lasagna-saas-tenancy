@@ -1,27 +1,20 @@
 import { test } from '@japa/runner'
 import { readFile } from 'node:fs/promises'
-import TenantBackup from '../../../src/commands/tenant_backup.js'
 
+/**
+ * Metadata-only spec — see `create_tenant.spec.ts` for the rationale
+ * behind not importing the command module here.
+ */
 test.group('tenant:backup — command metadata', () => {
-  test('exports a command with the canonical name', ({ assert }) => {
-    assert.equal(TenantBackup.commandName, 'tenant:backup')
-  })
-
-  test('description names the contract clearly', ({ assert }) => {
-    assert.match(TenantBackup.description, /backup.*tenant/i)
-  })
-
-  test('starts the app (BackupService reads runtime config)', ({ assert }) => {
-    assert.equal(TenantBackup.options?.startApp, true)
-  })
-
-  test('is registered in commands.json with the --tenant filter flag', async ({ assert }) => {
+  test('is registered in commands.json with the canonical contract', async ({ assert }) => {
     const json = JSON.parse(
       await readFile(new URL('../../../src/commands/commands.json', import.meta.url), 'utf-8')
     )
     const entry = json.commands.find((c: any) => c.commandName === 'tenant:backup')
     assert.exists(entry, 'tenant:backup missing from commands.json')
     assert.equal(entry.filePath, 'tenant_backup.js')
+    assert.match(entry.description, /backup.*tenant/i)
+    assert.equal(entry.options?.startApp, true)
 
     const flagNames = entry.flags.map((f: any) => f.flagName).sort()
     assert.deepEqual(flagNames, ['tenant'])

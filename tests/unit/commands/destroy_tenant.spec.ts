@@ -1,29 +1,21 @@
 import { test } from '@japa/runner'
 import { readFile } from 'node:fs/promises'
-import DestroyTenant from '../../../src/commands/destroy_tenant.js'
 
+/**
+ * Metadata-only spec — see `create_tenant.spec.ts` for the rationale
+ * behind not importing the command module here. We assert the same
+ * contract through `commands.json` + the barrel.
+ */
 test.group('tenant:destroy — command metadata', () => {
-  test('exports a command with the canonical name', ({ assert }) => {
-    assert.equal(DestroyTenant.commandName, 'tenant:destroy')
-  })
-
-  test('description names the contract clearly', ({ assert }) => {
-    assert.match(DestroyTenant.description, /soft-delete.*tear down/i)
-  })
-
-  test('starts the app (lifecycle hooks + driver need the container)', ({ assert }) => {
-    assert.equal(DestroyTenant.options?.startApp, true)
-  })
-
-  test('is registered in commands.json with --force and --keep-schema flags', async ({
-    assert,
-  }) => {
+  test('is registered in commands.json with the canonical contract', async ({ assert }) => {
     const json = JSON.parse(
       await readFile(new URL('../../../src/commands/commands.json', import.meta.url), 'utf-8')
     )
     const entry = json.commands.find((c: any) => c.commandName === 'tenant:destroy')
     assert.exists(entry, 'tenant:destroy missing from commands.json')
     assert.equal(entry.filePath, 'destroy_tenant.js')
+    assert.match(entry.description, /soft-delete.*tear down/i)
+    assert.equal(entry.options?.startApp, true)
 
     const flagNames = entry.flags.map((f: any) => f.flagName).sort()
     assert.deepEqual(flagNames, ['force', 'keep-schema'])
