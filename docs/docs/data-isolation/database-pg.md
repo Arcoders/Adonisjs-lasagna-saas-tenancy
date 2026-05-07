@@ -10,7 +10,7 @@ Use this driver when compliance or contracts require OS-level
 isolation between tenants; separate WAL streams, separate
 credentials, the option to host individual tenants on different
 machines. Otherwise prefer
-<a href="/docs/data-isolation/schema-pg"><code>schema-pg</code></a>.
+[`schema-pg`](/docs/data-isolation/schema-pg).
 </Callout>
 
 ## What it does

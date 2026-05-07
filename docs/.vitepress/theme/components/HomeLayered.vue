@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, type Component } from 'vue'
+import { withBase } from 'vitepress'
 import {
   PhCopy,
   PhCheck,
@@ -94,11 +95,11 @@ const pillars: Pillar[] = [
         </div>
 
         <div class="hl-cta">
-          <a class="hl-btn hl-btn--primary" href="/quickstart">
+          <a class="hl-btn hl-btn--primary" :href="withBase('/quickstart')">
             Start building
             <PhArrowRight :size="16" weight="bold" />
           </a>
-          <a class="hl-btn hl-btn--ghost" href="/why">
+          <a class="hl-btn hl-btn--ghost" :href="withBase('/why')">
             Why Lasagna
           </a>
           <a
@@ -144,7 +145,7 @@ const pillars: Pillar[] = [
       <p class="hl-quote__attr">
         Each tenant is its own layer — isolated, secure, perfectly stacked
         over your AdonisJS foundation. Read the
-        <a href="/why">full story</a>.
+        <a :href="withBase('/why')">full story</a>.
       </p>
     </section>
 
@@ -159,7 +160,7 @@ const pillars: Pillar[] = [
           schema-isolated tenant with audit logs, quotas, and a doctor
           report — without ever writing the words <code>tenant_id =</code>.
         </p>
-        <a class="hl-btn hl-btn--primary hl-btn--lg" href="/quickstart">
+        <a class="hl-btn hl-btn--primary hl-btn--lg" :href="withBase('/quickstart')">
           Open the quickstart
           <PhArrowRight :size="18" weight="bold" />
         </a>
