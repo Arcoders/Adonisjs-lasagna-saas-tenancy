@@ -1,0 +1,58 @@
+{{{
+  exports({ to: app.migrationsPath(`${Date.now()}_create_stripe_subscriptions_table.ts`) })
+}}}
+import { BaseSchema } from '@adonisjs/lucid/schema'
+
+/**
+ * Local mirror of Stripe subscriptions. Reconciled by `tenant:billing:sync`.
+ *
+ * `last_event_at` is the ordering guard: webhook handlers reject events with
+ * `event.created < last_event_at - 5s`. Stripe does NOT guarantee delivery
+ * order; without this column a stale `subscription.updated` could revive a
+ * canceled subscription.
+ *
+ * `raw` jsonb preserves the full Stripe payload so we can re-derive any
+ * fields we didn't model explicitly without re-fetching from Stripe.
+ */
+export default class extends BaseSchema {
+  protected tableName = 'stripe_subscriptions'
+
+  async up() {
+    this.schema.withSchema('backoffice').createTable(this.tableName, (table) => {
+      table.string('stripe_subscription_id').primary()
+      table
+        .uuid('tenant_id')
+        .notNullable()
+        .references('tenant_id')
+        .inTable('backoffice.stripe_customers')
+        .onDelete('RESTRICT')
+      table
+        .enum('status', [
+          'incomplete',
+          'incomplete_expired',
+          'trialing',
+          'active',
+          'past_due',
+          'canceled',
+          'unpaid',
+          'paused',
+        ])
+        .notNullable()
+      table.timestamp('current_period_start', { useTz: true }).notNullable()
+      table.timestamp('current_period_end', { useTz: true }).notNullable()
+      table.boolean('cancel_at_period_end').notNullable().defaultTo(false)
+      table.timestamp('cancel_at', { useTz: true }).nullable()
+      table.timestamp('canceled_at', { useTz: true }).nullable()
+      table.timestamp('trial_end', { useTz: true }).nullable()
+      table.string('plan_name').notNullable()
+      table.timestamp('last_event_at', { useTz: true }).notNullable()
+      table.jsonb('raw').notNullable()
+      table.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(this.now())
+      table.index(['tenant_id', 'status'])
+    })
+  }
+
+  async down() {
+    this.schema.withSchema('backoffice').dropTable(this.tableName)
+  }
+}

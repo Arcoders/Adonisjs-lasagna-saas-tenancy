@@ -50,9 +50,99 @@ export interface PlanDefinition {
 export interface PlansConfig {
   defaultPlan: string
   definitions: Record<string, PlanDefinition>
-  /** Per-tenant plan resolver. Must return a plan name from `definitions`. */
+  /**
+   * Per-tenant plan resolver. Must return a plan name from `definitions`.
+   * When omitted and `storage` is `'tenant_plans'` (or auto and the table
+   * exists), the package falls back to reading the `tenant_plans` row
+   * populated by `QuotaService.assignPlan` (storage-backed default).
+   */
   getPlan?: (tenant: TenantModelContract) => string | undefined | Promise<string | undefined>
+  /**
+   * Where the tenant→plan assignment lives:
+   *   - `'config-only'` (default for backwards compat when `getPlan` is set):
+   *     resolution comes only from `getPlan`. `assignPlan` becomes a no-op
+   *     unless the host explicitly wires it.
+   *   - `'tenant_plans'`: resolution falls back to the backoffice
+   *     `tenant_plans` table when `getPlan` is undefined. `assignPlan`
+   *     writes to this table.
+   *   - `'auto'` (default when omitted): probe at boot for the table; use
+   *     it if present, else `config-only`.
+   */
+  storage?: 'config-only' | 'tenant_plans' | 'auto'
+  /**
+   * Emit a `QuotaTracked` event after every `track`/`consume` call. Default
+   * `false` (zero overhead). Set to `true` to enable the metered-billing
+   * auto-bridge to Stripe — `BillingService` listens and reports usage.
+   */
+  emitTracked?: boolean
 }
+
+/**
+ * Stripe billing satellite — opt-in via `--with=billing` and declaring
+ * `config.billing`. Documented end-to-end in `docs/cookbook/stripe-quotas.md`.
+ *
+ * Plays platform-mode only in v1 (one Stripe account, tenants are subscribers).
+ * Stripe Connect is a v1.1 add-on (`resolveAccount` callback).
+ */
+export interface BillingConfig {
+  /** Reserved for future drivers (`'paddle'`, `'lemonsqueezy'`). v1 only ships `'stripe'`. */
+  driver: 'stripe'
+  stripe: {
+    /** Secret key. Read from `STRIPE_API_KEY`. Boot fails if `sk_live_*` and `NODE_ENV !== 'production'` unless `STRIPE_ALLOW_LIVE_IN_DEV=true`. */
+    apiKey: string
+    /** Webhook signing secret. Read from `STRIPE_WEBHOOK_SECRET`. */
+    webhookSecret: string
+    /** Pin Stripe API version. Default `'2025-08-27.basil'`. */
+    apiVersion?: string
+    /** SDK request timeout in ms. Default 10_000. */
+    timeout?: number
+    /** SDK network retry attempts. Default 3. */
+    maxNetworkRetries?: number
+  }
+  /** Stripe product (or price) ID → plan name. Plan must exist in `plans.definitions`. */
+  products: Record<string, string>
+  /** Plan assigned when a subscription is canceled or no mapping is found. Must exist in `plans.definitions`. */
+  defaultPlan: string
+  webhook?: {
+    /** Mount path. Default `'/webhooks/stripe'`. Must be in `config.ignorePaths`. */
+    path?: string
+    /** BullMQ queue for `ProcessStripeEventJob`. Default `'billing-events'`. */
+    queueName?: string
+    /** Retention for `stripe_processed_events.completed` rows. Default 90 (Stripe's max retry window). */
+    idempotencyTtlDays?: number
+    /** Hard-fail webhook delivery from non-Stripe IPs. Default `false`. */
+    enforceIpAllowlist?: boolean
+    /** CIDR/IP list. Default fetched from Stripe's published ranges (cached 24h). */
+    allowedIps?: string[]
+  }
+  /** Dunning state-machine config — what happens after `invoice.payment_failed` retries. */
+  dunning?: {
+    /** After this many failed attempts, mark `status='past_due'` and emit `PaymentFailed{final:true}`. Default 3 (matches Stripe Smart Retries). */
+    maxAttempts?: number
+    /** Action when dunning hits `maxAttempts`. Default `'none'`. */
+    action?: 'none' | 'downgrade' | 'block'
+    /** Days to wait after `past_due` before applying `action`. Default 0. */
+    gracePeriodDays?: number
+  }
+  /** Send `QuotaWarningMailer` on `TenantQuotaExceeded`. Requires `@adonisjs/mail`. Default `false`. */
+  notifyOnQuotaExceeded?: boolean
+  /** What to do with the Stripe subscription on tenant hard-delete. Default `'cancel'`. */
+  onTenantDelete?: 'cancel' | 'detach' | 'preserve'
+  /**
+   * Auto-bridge `QuotaService.track` → `stripe.billing.meterEvents.create`.
+   * Requires `plans.emitTracked = true`. Each entry maps a quota name to
+   * the Stripe meter event name. Reports are batched in-memory and flushed
+   * every `batchFlushMs` (default 10_000ms) per (tenant, meter).
+   */
+  usageMapping?: Record<string, { meterEventName: string; batchFlushMs?: number }>
+  observability?: {
+    /** Emit Prometheus metrics via MetricsService. Default `true` if MetricsService is active. */
+    metrics?: boolean
+    /** Redact PII (email, last4, phone, etc.) in logs and audit entries. Default `true`. */
+    redactPii?: boolean
+  }
+}
+
 
 export type ReadReplicaStrategy = 'round-robin' | 'random' | 'sticky'
 
@@ -282,6 +372,8 @@ export interface MultitenancyConfig {
     retentionDays: number
   }
   plans?: PlansConfig
+  /** Optional Stripe billing satellite. See {@link BillingConfig}. */
+  billing?: BillingConfig
   tenantReadReplicas?: ReadReplicasConfig
   /**
    * Optional thresholds for `tenant:doctor` checks. Each field overrides the
