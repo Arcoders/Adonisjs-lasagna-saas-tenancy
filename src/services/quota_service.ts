@@ -4,13 +4,77 @@ import type { TenantModelContract } from '../types/contracts.js'
 import type { PlanDefinition, PlansConfig } from '../types/config.js'
 import QuotaExceededException from '../exceptions/quota_exceeded_exception.js'
 import TenantQuotaExceeded from '../events/tenant_quota_exceeded.js'
+import { cacheFor } from '../utils/cache.js'
 
 const lazyRedis = () =>
   import('@adonisjs/redis/services/main')
     .then((m) => m.default)
     .catch(() => null)
 
+const lazyTenantPlan = () =>
+  import('../models/satellites/tenant_plan.js').then((m) => m.default)
+
 const ROLLING_TTL_SECONDS = 60 * 60 * 48
+const PLAN_CACHE_TTL_MS = 60_000
+const PLAN_CACHE_KEY = 'plan'
+
+type PlanStorageMode = 'config-only' | 'tenant_plans'
+
+let _storageProbe: PlanStorageMode | null = null
+
+/**
+ * Decide once per process whether the storage-backed plan resolver is
+ * available. With `storage: 'tenant_plans'` we trust the operator and fail
+ * loudly on first read if the table is missing. With `storage: 'auto'`
+ * (or omitted) we probe `to_regclass`; result is memoised so we don't pay
+ * the round-trip on every getPlanFor.
+ *
+ * Tests that need to flip the answer should call `__resetStorageProbe()`.
+ */
+async function resolveStorageMode(): Promise<PlanStorageMode> {
+  if (_storageProbe) return _storageProbe
+
+  const cfg = getConfig().plans
+  const declared = cfg?.storage
+
+  if (declared === 'config-only') {
+    _storageProbe = 'config-only'
+    return _storageProbe
+  }
+  if (declared === 'tenant_plans') {
+    _storageProbe = 'tenant_plans'
+    return _storageProbe
+  }
+
+  // 'auto' (or undefined) — probe the table.
+  try {
+    const TenantPlan = await lazyTenantPlan()
+    const conn = TenantPlan.$adapter
+    if (!conn) {
+      _storageProbe = 'config-only'
+      return _storageProbe
+    }
+    // We can't query through Lucid before the adapter is wired in tests, so
+    // go straight to the underlying connection by name.
+    const { default: db } = await import('@adonisjs/lucid/services/db')
+    const result = await db
+      .connection(getConfig().backofficeConnectionName)
+      .rawQuery(
+        `SELECT to_regclass(?) AS reg`,
+        [`${getConfig().backofficeSchemaName}.tenant_plans`]
+      )
+    const rows = (result?.rows ?? result) as Array<{ reg: string | null }>
+    _storageProbe = rows[0]?.reg ? 'tenant_plans' : 'config-only'
+  } catch {
+    _storageProbe = 'config-only'
+  }
+  return _storageProbe
+}
+
+/** @internal — for tests only */
+export function __resetPlanStorageProbe(): void {
+  _storageProbe = null
+}
 
 /**
  * Atomic check-and-increment for `consume()`. Single round-trip to
@@ -60,13 +124,29 @@ const DEFAULT_FALLBACK: PlansConfig = {
 export default class QuotaService {
   /**
    * Returns the plan name + definition currently applied to a tenant.
-   * Throws if the resolved plan name is not declared in `definitions`.
+   *
+   * Resolution order:
+   *   1. `config.plans.getPlan(tenant)` if defined — host callback wins.
+   *   2. Storage-backed `tenant_plans` row when `config.plans.storage` is
+   *      `'tenant_plans'` (or `'auto'` and the table exists). Cached 60s in
+   *      BentoCache; cross-process invalidation runs through the redis bus
+   *      so an `assignPlan` on one node is visible everywhere within the
+   *      next request.
+   *   3. `defaultPlan`.
+   *
+   * Throws if the resolved name is not declared in `definitions`.
    */
   async getPlanFor(
     tenant: TenantModelContract
   ): Promise<{ name: string; plan: PlanDefinition }> {
     const cfg = getConfig().plans ?? DEFAULT_FALLBACK
-    const resolved = (await cfg.getPlan?.(tenant)) ?? cfg.defaultPlan
+
+    let resolved = await cfg.getPlan?.(tenant)
+    if (!resolved) {
+      const stored = await this.getAssignedPlan(tenant.id)
+      resolved = stored ?? cfg.defaultPlan
+    }
+
     const plan = cfg.definitions[resolved]
     if (!plan) {
       throw new Error(
@@ -74,6 +154,98 @@ export default class QuotaService {
       )
     }
     return { name: resolved, plan }
+  }
+
+  /**
+   * Persist a tenant→plan mapping. Source-of-truth for billing-driven plan
+   * changes; the Stripe webhook job calls this after `syncSubscription`.
+   *
+   * Idempotent: re-assigning the same plan is a no-op (no cache churn). A
+   * different plan upserts and invalidates the cache so the next read sees
+   * the new plan immediately.
+   *
+   * Validates that `planName` exists in `config.plans.definitions` — guards
+   * against a Stripe product that drifted out of config.
+   */
+  async assignPlan(
+    tenantId: string,
+    planName: string,
+    opts?: { source?: string; expiresAt?: DateTime }
+  ): Promise<void> {
+    const cfg = getConfig().plans
+    if (cfg && !cfg.definitions[planName]) {
+      throw new Error(
+        `QuotaService.assignPlan: plan "${planName}" is not declared in config.plans.definitions`
+      )
+    }
+
+    const TenantPlan = await lazyTenantPlan()
+    const existing = await TenantPlan.find(tenantId)
+    const desiredSource = opts?.source ?? 'manual'
+    const desiredExpires = opts?.expiresAt ?? null
+
+    if (
+      existing &&
+      existing.planName === planName &&
+      existing.source === desiredSource &&
+      ((existing.expiresAt === null && desiredExpires === null) ||
+        existing.expiresAt?.equals(desiredExpires as DateTime))
+    ) {
+      // No-op: same row, skip the write and the cache bust.
+      return
+    }
+
+    if (existing) {
+      existing.planName = planName
+      existing.source = desiredSource
+      existing.expiresAt = desiredExpires
+      existing.assignedAt = DateTime.utc()
+      await existing.save()
+    } else {
+      await TenantPlan.create({
+        tenantId,
+        planName,
+        source: desiredSource,
+        expiresAt: desiredExpires,
+        assignedAt: DateTime.utc(),
+      })
+    }
+
+    await cacheFor(tenantId).delete({ key: PLAN_CACHE_KEY })
+  }
+
+  /**
+   * Reads the persisted plan name for a tenant, honouring `expires_at`
+   * (an expired row is treated as missing — caller falls back to
+   * `defaultPlan`). Returns `null` when storage is disabled or the row
+   * doesn't exist.
+   *
+   * Caches 60s in BentoCache. Cross-node invalidation arrives via the redis
+   * bus on `assignPlan`/`clearAssignedPlan`.
+   */
+  async getAssignedPlan(tenantId: string): Promise<string | null> {
+    const mode = await resolveStorageMode()
+    if (mode === 'config-only') return null
+
+    const result = await cacheFor(tenantId).getOrSet({
+      key: PLAN_CACHE_KEY,
+      factory: async () => {
+        const TenantPlan = await lazyTenantPlan()
+        const row = await TenantPlan.find(tenantId)
+        if (!row) return { plan: null }
+        if (row.expiresAt && row.expiresAt < DateTime.utc()) return { plan: null }
+        return { plan: row.planName }
+      },
+      ttl: PLAN_CACHE_TTL_MS,
+    })
+    return result?.plan ?? null
+  }
+
+  /** Remove a tenant's plan assignment. Subsequent reads fall back to `defaultPlan`. */
+  async clearAssignedPlan(tenantId: string): Promise<void> {
+    const TenantPlan = await lazyTenantPlan()
+    await TenantPlan.query().where('tenantId', tenantId).delete()
+    await cacheFor(tenantId).delete({ key: PLAN_CACHE_KEY })
   }
 
   /**
@@ -96,7 +268,12 @@ export default class QuotaService {
     const key = this.#rollingKey(tenant.id, quota)
     const next = await redis.incrby(key, amount)
     await redis.expire(key, ROLLING_TTL_SECONDS)
-    return Number(next) || 0
+    const total = Number(next) || 0
+    if (getConfig().plans?.emitTracked) {
+      const { default: QuotaTracked } = await import('../events/quota_tracked.js')
+      await QuotaTracked.dispatch(tenant, quota, amount, total)
+    }
+    return total
   }
 
   /**
@@ -209,7 +386,12 @@ export default class QuotaService {
         attempted: amount,
       })
     }
-    return Number(currentOrAfter) || 0
+    const newTotal = Number(currentOrAfter) || 0
+    if (getConfig().plans?.emitTracked) {
+      const { default: QuotaTracked } = await import('../events/quota_tracked.js')
+      await QuotaTracked.dispatch(tenant, quota, amount, newTotal)
+    }
+    return newTotal
   }
 
   /**

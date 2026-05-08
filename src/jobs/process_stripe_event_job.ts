@@ -1,0 +1,120 @@
+import { Job } from '@adonisjs/queue'
+import app from '@adonisjs/core/services/app'
+import logger from '@adonisjs/core/services/logger'
+import { DateTime } from 'luxon'
+import StripeProcessedEvent from '../models/satellites/stripe_processed_event.js'
+import BillingService from '../services/billing_service.js'
+import BillingException from '../exceptions/billing_exception.js'
+import { dispatchStripeEvent } from '../services/billing/stripe_event_dispatcher.js'
+import { redactStripeEvent } from '../services/billing/redact.js'
+
+interface ProcessStripeEventPayload {
+  eventId: string
+}
+
+/**
+ * Async handler for Stripe webhooks.
+ *
+ * Why async (not inline in the controller): Stripe expects a 200 ack
+ * within 5s. A handler doing DB writes + a Stripe re-fetch can easily
+ * exceed that under contention. Async also gives us free retries with
+ * exponential backoff via the queue layer — the webhook ack is
+ * idempotent (controller stamps `stripe_processed_events`), so a retry
+ * loop on the job side never causes double-acks back to Stripe.
+ *
+ * The job re-fetches the event from Stripe (`stripe.events.retrieve`)
+ * rather than trusting the queue payload. Two reasons:
+ *   - tampering — a compromised queue entry can't slip a forged event past
+ *     the signature check (we already validated at webhook receive time,
+ *     but re-fetching is cheap insurance).
+ *   - size — keeping the queue payload to `{ eventId }` lets us hold a
+ *     deeper retry buffer per worker.
+ */
+export default class ProcessStripeEventJob extends Job<ProcessStripeEventPayload> {
+  async execute(): Promise<void> {
+    const { eventId } = this.payload
+    const row = await StripeProcessedEvent.find(eventId)
+    if (!row) {
+      // The controller writes the row before dispatch — missing means
+      // someone hand-dispatched without a controller pass. Refuse, log.
+      logger.error(
+        { event_id: eventId },
+        'stripe.event.no_ledger_row: refusing to process — event_id not in stripe_processed_events'
+      )
+      return
+    }
+    if (row.status === 'completed') {
+      logger.debug({ event_id: eventId }, 'stripe.event.already_completed: skipping')
+      return
+    }
+
+    row.attempts = (row.attempts ?? 0) + 1
+    await row.save()
+
+    let event
+    try {
+      const billing = await app.container.make(BillingService)
+      event = await billing.retrieveEvent(eventId)
+    } catch (err) {
+      await this.#markFailed(row, err)
+      throw err
+    }
+
+    const start = Date.now()
+    try {
+      const billing = await app.container.make(BillingService)
+      const result = await dispatchStripeEvent(event, { billing, logger })
+      row.status = 'completed'
+      row.completedAt = DateTime.utc()
+      row.lastError = null
+      if (result.tenant_id) row.tenantId = result.tenant_id
+      await row.save()
+
+      logger.info(
+        {
+          ...redactStripeEvent(event),
+          duration_ms: Date.now() - start,
+          outcome: result.outcome,
+        },
+        'stripe.event.processed'
+      )
+    } catch (err) {
+      await this.#markFailed(row, err)
+      throw err
+    }
+  }
+
+  async failed(error: Error): Promise<void> {
+    // Final retry exhausted. Promote the row to `failed` so the doctor
+    // surfaces it and the operator can `tenant:billing:replay` after a
+    // fix. Also fire a dead-letter event for paging integrations.
+    const { eventId } = this.payload
+    logger.error(
+      { event_id: eventId, error: error.message },
+      'stripe.event.dead_lettered: all retries exhausted'
+    )
+    try {
+      const row = await StripeProcessedEvent.find(eventId)
+      if (row && row.status !== 'completed') {
+        row.status = 'failed'
+        row.lastError = error.message?.slice(0, 500) ?? 'unknown error'
+        await row.save()
+      }
+      const { default: BillingEventDeadLettered } = await import(
+        '../events/billing/billing_event_dead_lettered.js'
+      )
+      await BillingEventDeadLettered.dispatch({ eventId, error: error.message })
+    } catch (innerErr) {
+      logger.error(
+        { event_id: eventId, err: (innerErr as Error)?.message },
+        'stripe.event.dead_letter_emit_failed'
+      )
+    }
+  }
+
+  async #markFailed(row: StripeProcessedEvent, err: unknown): Promise<void> {
+    const message = err instanceof BillingException ? err.message : (err as Error)?.message
+    row.lastError = message?.slice(0, 500) ?? 'unknown error'
+    await row.save()
+  }
+}
