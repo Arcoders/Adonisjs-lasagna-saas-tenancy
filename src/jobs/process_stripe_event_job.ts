@@ -88,22 +88,28 @@ export default class ProcessStripeEventJob extends Job<ProcessStripeEventPayload
     // Final retry exhausted. Promote the row to `failed` so the doctor
     // surfaces it and the operator can `tenant:billing:replay` after a
     // fix. Also fire a dead-letter event for paging integrations.
+    //
+    // We DO NOT log `error.message` directly: a raw StripeError can carry
+    // request IDs, payment fragments, or unredacted payload bits. Wrap
+    // first into our own taxonomy.
     const { eventId } = this.payload
+    const { errorCode, details } = classifyError(error)
+
     logger.error(
-      { event_id: eventId, error: error.message },
+      { event_id: eventId, error_code: errorCode },
       'stripe.event.dead_lettered: all retries exhausted'
     )
     try {
       const row = await StripeProcessedEvent.find(eventId)
       if (row && row.status !== 'completed') {
         row.status = 'failed'
-        row.lastError = error.message?.slice(0, 500) ?? 'unknown error'
+        row.lastError = (details ?? errorCode).slice(0, 500)
         await row.save()
       }
       const { default: BillingEventDeadLettered } = await import(
         '../events/billing/billing_event_dead_lettered.js'
       )
-      await BillingEventDeadLettered.dispatch({ eventId, error: error.message })
+      await BillingEventDeadLettered.dispatch({ eventId, errorCode, details })
     } catch (innerErr) {
       logger.error(
         { event_id: eventId, err: (innerErr as Error)?.message },
@@ -113,8 +119,21 @@ export default class ProcessStripeEventJob extends Job<ProcessStripeEventPayload
   }
 
   async #markFailed(row: StripeProcessedEvent, err: unknown): Promise<void> {
-    const message = err instanceof BillingException ? err.message : (err as Error)?.message
-    row.lastError = message?.slice(0, 500) ?? 'unknown error'
+    // BillingException messages are package-controlled (we wrote them) and
+    // safe to persist. Anything else collapses to a stable code so an
+    // unredacted Stripe error message never lands in `last_error`.
+    const { errorCode, details } = classifyError(err)
+    row.lastError = (details ?? errorCode).slice(0, 500)
     await row.save()
   }
+}
+
+function classifyError(err: unknown): {
+  errorCode: BillingException['billingCode'] | 'unhandled_error'
+  details: string | null
+} {
+  if (err instanceof BillingException) {
+    return { errorCode: err.billingCode, details: err.message }
+  }
+  return { errorCode: 'unhandled_error', details: null }
 }

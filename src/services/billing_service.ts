@@ -83,14 +83,18 @@ export default class BillingService {
 
     if (isProduction && isTestKey) {
       throw new BillingException(
-        'live_in_production_required',
+        'test_in_production',
         'STRIPE_API_KEY is a test key but NODE_ENV=production. Refusing to boot — set a live key or revert NODE_ENV.'
       )
     }
+    // Mirror guard for live keys outside production. Hard-fail by default
+    // because a stray .env from prod into dev silently moves real money.
+    // The escape hatch (STRIPE_ALLOW_LIVE_IN_DEV=true) requires explicit
+    // operator intent.
     if (!isProduction && isLiveKey && process.env.STRIPE_ALLOW_LIVE_IN_DEV !== 'true') {
-      const logger = await lazyLogger()
-      logger?.warn(
-        '[billing] STRIPE_API_KEY is a LIVE key in non-production env. Set STRIPE_ALLOW_LIVE_IN_DEV=true to silence.'
+      throw new BillingException(
+        'live_key_outside_production',
+        '[billing] STRIPE_API_KEY is a LIVE key but NODE_ENV is not "production". Refusing to boot — set NODE_ENV=production or STRIPE_ALLOW_LIVE_IN_DEV=true to opt in.'
       )
     }
 
@@ -390,11 +394,20 @@ export default class BillingService {
       )
     }
 
+    // Default key is deterministic per (tenant, meter, minute-bucket).
+    // A retry within the same minute hits Stripe's idempotency cache and
+    // doesn't double-count usage. Random UUIDs would defeat the purpose
+    // of an idempotency key — they're not a security boundary, they're a
+    // dedupe contract. Callers needing tighter scope (e.g. per-request
+    // dedupe) pass `opts.idempotencyKey`.
+    const minuteBucket = Math.floor((opts?.timestamp ?? DateTime.utc()).toSeconds() / 60)
     const idempotencyKey =
-      opts?.idempotencyKey ?? `${tenant.id}:${meter.eventName}:${randomUUID()}`
+      opts?.idempotencyKey ?? `${tenant.id}:${meter.eventName}:${minuteBucket}`
     const timestamp = opts?.timestamp ?? DateTime.utc()
 
     const audit = new StripeMeterEvent()
+    // Explicit uuid for the audit row (model is selfAssignPrimaryKey).
+    audit.id = randomUUID()
     audit.tenantId = tenant.id
     audit.meterEventName = meter.eventName
     audit.quantity = quantity

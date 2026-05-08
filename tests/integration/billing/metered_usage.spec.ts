@@ -147,7 +147,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     await assert.rejects(() => billing.reportUsage(fakeTenant, { eventName: 'x' }, Infinity))
   })
 
-  test('UsageAutoBridgeListener aggregates QuotaTracked into a single batch dispatch', async ({
+  test('emitter wires QuotaTracked → listener aggregates into one batch dispatch', async ({
     assert,
   }) => {
     const tenant = await createTestTenant()
@@ -158,10 +158,14 @@ test.group('Metered/usage-based billing (integration)', (group) => {
       email: tenant.email,
     } as unknown as TenantModelContract
 
-    const listener = new UsageAutoBridgeListener()
+    // Resolve the listener via the container so it shares the singleton
+    // instance the provider would register at start(). We then subscribe
+    // it to the emitter ourselves — same call shape as
+    // `MultitenancyProvider.#wireBillingListeners`. If a future refactor
+    // changes the wiring signature, this test breaks loudly.
+    const emitter = (await import('@adonisjs/core/services/emitter')).default
+    const listener = await app.container.make(UsageAutoBridgeListener)
 
-    // Stub the dispatch capture by replacing the static .dispatch on
-    // ReportUsageBatchJob.
     const ReportUsageBatchJob = (
       await import('../../../src/jobs/report_usage_batch_job.js')
     ).default
@@ -175,12 +179,17 @@ test.group('Metered/usage-based billing (integration)', (group) => {
       dispatched.push(p)
     }
 
+    const off = emitter.on(QuotaTracked, async (event) => {
+      await listener.handle(event)
+    })
+
     try {
-      // Three QuotaTracked events for the same (tenant, meter) — should
-      // collapse to one batch.
-      await listener.handle(new QuotaTracked(fakeTenant, 'apiRequests', 1, 1))
-      await listener.handle(new QuotaTracked(fakeTenant, 'apiRequests', 2, 3))
-      await listener.handle(new QuotaTracked(fakeTenant, 'apiRequests', 5, 8))
+      // Drive QuotaTracked through the REAL emitter — no `.handle()`
+      // shortcut. This proves both that (a) the listener wires correctly
+      // and (b) it aggregates across emit calls.
+      await emitter.emit(QuotaTracked, new QuotaTracked(fakeTenant, 'apiRequests', 1, 1))
+      await emitter.emit(QuotaTracked, new QuotaTracked(fakeTenant, 'apiRequests', 2, 3))
+      await emitter.emit(QuotaTracked, new QuotaTracked(fakeTenant, 'apiRequests', 5, 8))
 
       // Force flush (don't wait for the timer in tests).
       await listener.drainAll()
@@ -190,13 +199,15 @@ test.group('Metered/usage-based billing (integration)', (group) => {
       assert.equal(dispatched[0].meterEventName, 'api_request')
       assert.equal(dispatched[0].quantity, 8, 'sum of all amounts')
     } finally {
+      off()
       ;(ReportUsageBatchJob as unknown as {
         dispatch: typeof originalDispatch
       }).dispatch = originalDispatch
+      await listener.drainAll().catch(() => {})
     }
   })
 
-  test('UsageAutoBridgeListener ignores quotas without a meter mapping', async ({ assert }) => {
+  test('emitted QuotaTracked for an unmapped quota produces no batch', async ({ assert }) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
     const fakeTenant = {
@@ -205,7 +216,8 @@ test.group('Metered/usage-based billing (integration)', (group) => {
       email: tenant.email,
     } as unknown as TenantModelContract
 
-    const listener = new UsageAutoBridgeListener()
+    const emitter = (await import('@adonisjs/core/services/emitter')).default
+    const listener = await app.container.make(UsageAutoBridgeListener)
     const ReportUsageBatchJob = (
       await import('../../../src/jobs/report_usage_batch_job.js')
     ).default
@@ -217,12 +229,19 @@ test.group('Metered/usage-based billing (integration)', (group) => {
       dispatchedCount += 1
     }
 
+    const off = emitter.on(QuotaTracked, async (event) => {
+      await listener.handle(event)
+    })
+
     try {
-      // `unmappedQuota` has no entry in usageMapping → listener skips.
-      await listener.handle(new QuotaTracked(fakeTenant, 'unmappedQuota', 100, 100))
+      await emitter.emit(
+        QuotaTracked,
+        new QuotaTracked(fakeTenant, 'unmappedQuota', 100, 100)
+      )
       await listener.drainAll()
-      assert.equal(dispatchedCount, 0)
+      assert.equal(dispatchedCount, 0, 'emitter delivered, listener saw it, but no batch')
     } finally {
+      off()
       ;(ReportUsageBatchJob as unknown as {
         dispatch: typeof originalDispatch
       }).dispatch = originalDispatch

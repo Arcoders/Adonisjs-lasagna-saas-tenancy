@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import { randomUUID } from 'node:crypto'
 import { DateTime } from 'luxon'
-import { BillingService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { BillingService, HookRegistry } from '@adonisjs-lasagna/saas-tenancy/services'
 import { MockStripe } from '@adonisjs-lasagna/saas-tenancy/testing'
 import {
   StripeCustomer,
@@ -20,18 +20,44 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
  *   - 'cancel' (default) — cancel active subs in Stripe + drop local mapping
  *   - 'detach' — leave Stripe alone, drop local mapping
  *   - 'preserve' — no-op (operator handles cleanup)
+ *
+ * Tests route through `HookRegistry.run('before', 'destroy', { tenant })`
+ * so a regression that breaks the wiring in `MultitenancyProvider.start()`
+ * is caught — calling the listener's `.handle()` directly would skip
+ * the wiring layer and give false confidence.
  */
 test.group('Tenant destroy billing listener (integration)', (group) => {
   const cleanupTenants: string[] = []
   let originalConfig: ReturnType<typeof getConfig>
+  let cancelLog: string[] = []
 
   group.each.setup(async () => {
     originalConfig = getConfig()
     setupBillingConfig({ defaultPlan: 'starter' })
     await clearBillingTables()
+
+    // Wire the listener as the provider would — once per test, removed
+    // in teardown. Wiring HERE (not in the global container) lets us
+    // also exercise the hook unregistration on teardown without
+    // polluting other specs.
+    const hooks = await app.container.make(HookRegistry)
+    hooks.before('destroy', async (ctx) => {
+      const listener = new TenantDestroyBillingListener()
+      await listener.handle(ctx.tenant)
+    })
+
+    cancelLog = []
   })
 
   group.each.teardown(async () => {
+    // HookRegistry has no public unregister; rebuild it instead. The
+    // singleton is a per-process instance so we manipulate its state.
+    const hooks = await app.container.make(HookRegistry)
+    ;(hooks as unknown as { ['_hooks']?: Map<unknown, unknown> })['_hooks']?.clear?.()
+    // Best-effort: re-set declarative hooks from config for any other
+    // declarative hook the host might have configured (we don't, in tests).
+    hooks.loadDeclarative(getConfig().hooks)
+
     await clearBillingTables()
     while (cleanupTenants.length) {
       const id = cleanupTenants.pop()!
@@ -76,54 +102,59 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
     return { tenant: fakeTenant, stripeCustomerId, stripeSubscriptionId }
   }
 
-  test("default 'cancel' policy: calls stripe.subscriptions.cancel + drops local customer", async ({
+  /**
+   * Wire MockStripe and patch `subscriptions.cancel` to record the call.
+   * The mock's auto-generated subscription id won't match our local one
+   * (we seeded a specific subId), so the patched cancel just acks any
+   * id and records what was passed. That's the contract under test —
+   * the listener calls cancel(subId), not which Stripe state is left.
+   */
+  function wireMock(): MockStripe {
+    const mock = new MockStripe('whsec_test_billing_helper')
+    const originalCancel = mock.subscriptions.cancel
+    mock.subscriptions.cancel = async (id: string) => {
+      cancelLog.push(id)
+      try {
+        return await originalCancel.call(mock.subscriptions, id)
+      } catch {
+        return {
+          id,
+          status: 'canceled' as const,
+          customer: 'cus_x',
+          items: { data: [] },
+          current_period_start: 0,
+          current_period_end: 0,
+          cancel_at_period_end: false,
+        }
+      }
+    }
+    return mock
+  }
+
+  test("default 'cancel' policy: routes through HookRegistry → cancel called + customer dropped", async ({
     assert,
   }) => {
-    const { tenant, stripeCustomerId, stripeSubscriptionId } = await seed()
+    const { tenant, stripeSubscriptionId } = await seed()
     const billing = await app.container.make(BillingService)
-    const mock = new MockStripe('whsec_test_billing_helper')
+    billing.__setStripeForTests(wireMock())
 
-    // Pre-seed the mock with this subscription so cancel() finds it.
-    await mock.subscriptions.create({
-      customer: stripeCustomerId,
-      items: [{ price: 'price_pro_monthly' }],
-    })
-    // Manually swap the mock's id to our subId so cancel(subId) hits.
-    ;(mock as unknown as { _buildSubscriptions: () => unknown })._buildSubscriptions
-    // Easier: just inject by calling cancel through retrieve/store path.
-    const all = (mock.subscriptions as unknown as { list: (p: unknown) => AsyncIterable<{ id: string }> })
-      .list({})
-    // We can't easily rename the mock's auto-generated id. Instead we
-    // monkey-patch cancel to record the input.
-    const cancelled: string[] = []
-    const originalCancel = mock.subscriptions.cancel
-    mock.subscriptions.cancel = async (id) => {
-      cancelled.push(id)
-      return originalCancel.call(mock.subscriptions, id).catch(() => ({
-        id,
-        status: 'canceled' as const,
-        customer: stripeCustomerId,
-        items: { data: [] },
-        current_period_start: 0,
-        current_period_end: 0,
-        cancel_at_period_end: false,
-      }))
-    }
-    void all
-    billing.__setStripeForTests(mock)
+    // Critical: invoke the registry, not the listener directly.
+    const hooks = await app.container.make(HookRegistry)
+    await hooks.run('before', 'destroy', { tenant })
 
-    await new TenantDestroyBillingListener().handle(tenant)
+    assert.deepEqual(cancelLog, [stripeSubscriptionId], 'cancel called with the active sub id')
 
-    assert.deepEqual(cancelled, [stripeSubscriptionId], 'cancel called with the active sub')
     const cus = await StripeCustomer.find(tenant.id)
     assert.isNull(cus, 'local stripe_customers row removed')
-    // The subscription row stays (audit value > storage cost).
+
     const sub = await StripeSubscription.find(stripeSubscriptionId)
-    assert.isNotNull(sub)
+    assert.isNotNull(sub, 'subscription audit row preserved')
     assert.equal(sub?.status, 'canceled')
   })
 
-  test("'detach' policy: NO Stripe call, only drops local mapping", async ({ assert }) => {
+  test("'detach' policy: hook fires but no Stripe call; only local mapping dropped", async ({
+    assert,
+  }) => {
     const cfg = getConfig()
     setConfig({
       ...cfg,
@@ -132,33 +163,21 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
 
     const { tenant, stripeSubscriptionId } = await seed()
     const billing = await app.container.make(BillingService)
-    const mock = new MockStripe('whsec_test_billing_helper')
-    let cancelled = false
-    mock.subscriptions.cancel = async (id) => {
-      cancelled = true
-      return {
-        id,
-        status: 'canceled' as const,
-        customer: 'cus_x',
-        items: { data: [] },
-        current_period_start: 0,
-        current_period_end: 0,
-        cancel_at_period_end: false,
-      }
-    }
-    billing.__setStripeForTests(mock)
+    billing.__setStripeForTests(wireMock())
 
-    await new TenantDestroyBillingListener().handle(tenant)
+    const hooks = await app.container.make(HookRegistry)
+    await hooks.run('before', 'destroy', { tenant })
 
-    assert.isFalse(cancelled, 'detach must NOT call Stripe cancel')
+    assert.lengthOf(cancelLog, 0, 'detach must not call Stripe cancel')
+
     const cus = await StripeCustomer.find(tenant.id)
     assert.isNull(cus, 'local mapping still removed')
+
     const sub = await StripeSubscription.find(stripeSubscriptionId)
-    assert.isNotNull(sub, 'sub row preserved')
-    assert.equal(sub?.status, 'active', 'status untouched on detach')
+    assert.equal(sub?.status, 'active', 'subscription untouched on detach')
   })
 
-  test("'preserve' policy: no-op", async ({ assert }) => {
+  test("'preserve' policy: hook fires but the listener short-circuits", async ({ assert }) => {
     const cfg = getConfig()
     setConfig({
       ...cfg,
@@ -167,46 +186,31 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
 
     const { tenant, stripeSubscriptionId } = await seed()
     const billing = await app.container.make(BillingService)
-    const mock = new MockStripe('whsec_test_billing_helper')
-    let cancelled = false
-    mock.subscriptions.cancel = async (id) => {
-      cancelled = true
-      return {
-        id,
-        status: 'canceled' as const,
-        customer: 'cus_x',
-        items: { data: [] },
-        current_period_start: 0,
-        current_period_end: 0,
-        cancel_at_period_end: false,
-      }
-    }
-    billing.__setStripeForTests(mock)
+    billing.__setStripeForTests(wireMock())
 
-    await new TenantDestroyBillingListener().handle(tenant)
+    const hooks = await app.container.make(HookRegistry)
+    await hooks.run('before', 'destroy', { tenant })
 
-    assert.isFalse(cancelled, 'preserve = no Stripe call')
+    assert.lengthOf(cancelLog, 0)
+
     const cus = await StripeCustomer.find(tenant.id)
     assert.isNotNull(cus, 'preserve keeps the local mapping intact')
+
     const sub = await StripeSubscription.find(stripeSubscriptionId)
     assert.isNotNull(sub)
   })
 
-  test('without a customer mapping, the listener does nothing', async ({ assert }) => {
+  test('without a customer mapping the hook is a no-op', async ({ assert }) => {
     const t = await createTestTenant()
     cleanupTenants.push(t.id)
     const fakeTenant = { id: t.id, name: t.name, email: t.email } as unknown as TenantModelContract
 
     const billing = await app.container.make(BillingService)
-    const mock = new MockStripe('whsec_test_billing_helper')
-    let cancelCalls = 0
-    mock.subscriptions.cancel = async () => {
-      cancelCalls += 1
-      throw new Error('should not be called')
-    }
-    billing.__setStripeForTests(mock)
+    billing.__setStripeForTests(wireMock())
 
-    await new TenantDestroyBillingListener().handle(fakeTenant) // must not throw
-    assert.equal(cancelCalls, 0, 'no Stripe call when there is nothing to clean')
+    const hooks = await app.container.make(HookRegistry)
+    await hooks.run('before', 'destroy', { tenant: fakeTenant })
+
+    assert.lengthOf(cancelLog, 0)
   })
 })

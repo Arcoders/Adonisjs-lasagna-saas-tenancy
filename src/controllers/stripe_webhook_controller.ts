@@ -1,9 +1,10 @@
 import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
+import db from '@adonisjs/lucid/services/db'
 import type { HttpContext } from '@adonisjs/core/http'
 import type Stripe from 'stripe'
-import StripeProcessedEvent from '../models/satellites/stripe_processed_event.js'
 import BillingException from '../exceptions/billing_exception.js'
+import { getConfig } from '../config.js'
 import { redactStripeEvent } from '../services/billing/redact.js'
 import ProcessStripeEventJob from '../jobs/process_stripe_event_job.js'
 
@@ -35,41 +36,45 @@ export default class StripeWebhookController {
       )
     }
 
-    // Insert + race-safe dedupe. Reading `existing` after a race-loss
-    // returns the duplicate's row, which lets us reply 200 deterministically.
-    let isDuplicate = false
-    try {
-      const row = new StripeProcessedEvent()
-      row.eventId = event.id
-      row.eventType = event.type
-      row.status = 'pending'
-      row.attempts = 0
-      // Persist the redacted payload as a fallback for events older than
-      // Stripe's 30-day retrieval window. We DO NOT store the full event
-      // body (it can contain PII via metadata).
-      row.payload = redactStripeEvent(event) as unknown as Record<string, unknown>
-      await row.save()
-    } catch (err) {
-      // PK collision = duplicate event_id. That's the success path under
-      // Stripe retry — log it once and proceed to ack.
-      const existing = await StripeProcessedEvent.find(event.id)
-      if (existing) {
-        isDuplicate = true
-        logger.debug(
-          { event_id: event.id, event_type: event.type, status: existing.status },
-          'stripe.webhook.duplicate'
-        )
-      } else {
-        // A non-PK error — surface it.
-        throw err
-      }
-    }
+    // Race-safe dedupe in a single round-trip: `INSERT ... ON CONFLICT
+    // (event_id) DO NOTHING` returns the inserted row only when this
+    // worker won the race. Two webhook deliveries with the same event_id
+    // arriving simultaneously: one inserts, one no-ops. The losing call
+    // sees rowCount === 0 and acks 200 without dispatching the job.
+    //
+    // Why not Lucid's `.save()` with try/catch on PK violation: the
+    // try/catch can hide non-PK errors (constraint check, deadlock) by
+    // misclassifying them as duplicates if a row coincidentally exists.
+    // The raw INSERT is unambiguous and one less round-trip.
+    const schema = getConfig().backofficeSchemaName
+    const redactedPayload = redactStripeEvent(event) as unknown as Record<string, unknown>
+    const inserted = await db
+      .connection(getConfig().backofficeConnectionName)
+      .rawQuery(
+        `INSERT INTO ??.stripe_processed_events
+           (event_id, event_type, processed_at, status, attempts, payload)
+         VALUES (?, ?, now(), 'pending', 0, ?)
+         ON CONFLICT (event_id) DO NOTHING
+         RETURNING event_id`,
+        [schema, event.id, event.type, JSON.stringify(redactedPayload)]
+      )
 
-    if (!isDuplicate) {
-      // Fire-and-forget — the job re-fetches the event from Stripe and
-      // owns retry/dunning. We don't await dispatch failure cause the
-      // webhook MUST return < 5s; a queue outage shouldn't replay every
-      // future event from Stripe's retry tier.
+    // pg returns { rows: [...] }; the count of returned rows tells us
+    // whether the INSERT actually happened.
+    const rowCount = Array.isArray(inserted?.rows) ? inserted.rows.length : 0
+    const isDuplicate = rowCount === 0
+
+    if (isDuplicate) {
+      logger.debug(
+        { event_id: event.id, event_type: event.type },
+        'stripe.webhook.duplicate'
+      )
+    } else {
+      // Dispatch async — Stripe expects 200 within 5s, and the job owns
+      // retry/dunning. We log dispatch failures (queue outage) but don't
+      // fail the webhook — Stripe would retry the whole delivery and
+      // re-trigger ON CONFLICT next round. Manual `tenant:billing:replay`
+      // covers the rare case where the queue is down for hours.
       try {
         await app.container.make(ProcessStripeEventJob)
         await ProcessStripeEventJob.dispatch({ eventId: event.id })

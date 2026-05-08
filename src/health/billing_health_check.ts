@@ -6,7 +6,14 @@ import StripeSubscription from '../models/satellites/stripe_subscription.js'
 import { getConfig } from '../config.js'
 import type { CheckResult, HealthCheckFn } from './health_service.js'
 
-const SLOW_API_THRESHOLD_MS = 3_000
+/**
+ * Threshold above which the Stripe API call is considered slow and the
+ * health check reports `pass` with `meta.degraded = true`. Exported so
+ * tests can trigger the degraded branch without race conditions on a
+ * hard-coded magic number — bumping this constant in code requires
+ * updating the test that asserts "API > threshold ⇒ degraded".
+ */
+export const SLOW_API_THRESHOLD_MS = 3_000
 const STALE_PROCESSING_WARN_MIN = 5
 const STALE_PROCESSING_FAIL_MIN = 15
 

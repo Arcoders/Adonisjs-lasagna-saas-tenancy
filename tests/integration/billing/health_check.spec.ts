@@ -10,6 +10,7 @@ import {
   StripeSubscription,
 } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { billingHealthCheck } from '@adonisjs-lasagna/saas-tenancy/health'
+import { SLOW_API_THRESHOLD_MS } from '../../../src/health/billing_health_check.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '../../helpers/config.js'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
@@ -131,9 +132,10 @@ test.group('billingHealthCheck (integration)', (group) => {
     setupBillingConfig({ defaultPlan: 'starter' })
     const billing = await app.container.make(BillingService)
     const mock = new MockStripe('whsec_test_billing_helper')
-    // Make balance.retrieve slow (>3s threshold).
+    // Sleep just past the exported threshold — if someone bumps the
+    // threshold without updating the test, the magic number break here.
     mock.balance.retrieve = async () => {
-      await new Promise((r) => setTimeout(r, 3100))
+      await new Promise((r) => setTimeout(r, SLOW_API_THRESHOLD_MS + 100))
       return { object: 'balance', available: [], pending: [] }
     }
     billing.__setStripeForTests(mock)
@@ -141,6 +143,11 @@ test.group('billingHealthCheck (integration)', (group) => {
     const result = await billingHealthCheck()
     assert.equal(result.status, 'pass')
     assert.equal(result.meta?.degraded, true, 'meta marks it degraded')
+    assert.isAbove(
+      result.meta?.api_duration_ms as number,
+      SLOW_API_THRESHOLD_MS,
+      'measured duration crossed the documented threshold'
+    )
   }).timeout(10_000)
 
   test('fails when Stripe API is unreachable', async ({ assert }) => {

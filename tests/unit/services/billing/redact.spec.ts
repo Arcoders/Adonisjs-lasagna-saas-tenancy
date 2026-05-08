@@ -1,6 +1,11 @@
 import { test } from '@japa/runner'
-import { redactStripeEvent } from '../../../../src/services/billing/redact.js'
+import {
+  redactStripeEvent,
+  REDACTED_EVENT_KEYS,
+} from '../../../../src/services/billing/redact.js'
 import type Stripe from 'stripe'
+
+const SAFE_KEYS = new Set<string>(REDACTED_EVENT_KEYS)
 
 const FORBIDDEN_KEYS = [
   'email',
@@ -107,5 +112,38 @@ test.group('redactStripeEvent — strip-list semantics', () => {
     // For invoice events, `obj.id` is the invoice.
     const invEvent = event('invoice.payment_succeeded', { id: 'in_zzz', customer: 'cus_zzz' })
     assert.equal(redactStripeEvent(invEvent).invoice_id, 'in_zzz')
+  })
+
+  test('future-proof: every key on the output is in REDACTED_EVENT_KEYS', ({ assert }) => {
+    // A regression that copies the raw object into the result (e.g. via a
+    // `...obj` spread someone introduces in a refactor) would surface here:
+    // an unknown key in the output means a strip-list violation.
+    const cases = [
+      event('customer.subscription.created', {
+        id: 'sub_a',
+        customer: 'cus_a',
+        status: 'active',
+        items: { data: [{ price: { id: 'price_x' } }] },
+        metadata: { junk: 'value' },
+      }),
+      event('invoice.payment_failed', {
+        id: 'in_a',
+        customer: { id: 'cus_b', email: 'leak@example.com' },
+        amount_due: 500,
+        currency: 'eur',
+        attempt_count: 2,
+      }),
+      event('checkout.session.completed', {
+        id: 'cs_a',
+        customer: 'cus_c',
+        mode: 'subscription',
+      }),
+    ]
+    for (const e of cases) {
+      const safe = redactStripeEvent(e)
+      for (const key of Object.keys(safe)) {
+        assert.isTrue(SAFE_KEYS.has(key), `output key "${key}" not in REDACTED_EVENT_KEYS`)
+      }
+    }
   })
 })

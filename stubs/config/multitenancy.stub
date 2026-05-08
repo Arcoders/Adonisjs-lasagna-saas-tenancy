@@ -19,7 +19,12 @@ export default defineConfig({
   baseDomain: env.get('APP_DOMAIN', 'localhost'),
 
   schemaCacheTtl: 300,
-  ignorePaths: ['/admin', '/api/webhooks', '/health'],
+  // Paths that bypass TenantGuardMiddleware. Any inbound endpoint that
+  // doesn't carry a resolvable tenant must live here — Stripe webhook is
+  // the obvious case (the tenant is resolved later from the event's
+  // customer id). If you change `billing.webhook.path` from the default,
+  // update this list to match.
+  ignorePaths: ['/admin', '/api/webhooks', '/health', '/webhooks/stripe'],
 
   maintenanceSchedule: {
     backupHour: 2,

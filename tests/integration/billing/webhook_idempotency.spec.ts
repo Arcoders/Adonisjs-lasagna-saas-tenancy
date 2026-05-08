@@ -8,6 +8,7 @@ import {
   StripeProcessedEvent,
   StripeCustomer,
 } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import ProcessStripeEventJob from '../../../src/jobs/process_stripe_event_job.js'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import {
   setupBillingConfig,
@@ -28,14 +29,33 @@ import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 test.group('Webhook idempotency (integration)', (group) => {
   const cleanupTenants: string[] = []
   let originalConfig: ReturnType<typeof getConfig>
+  let originalDispatch: typeof ProcessStripeEventJob.dispatch
+  let dispatchCount = 0
 
   group.each.setup(async () => {
     originalConfig = getConfig()
     setupBillingConfig({ defaultPlan: 'starter' })
     await clearBillingTables()
+
+    // Stub the queue dispatch so the test runs without BullMQ wiring
+    // AND so we can assert how many times it was invoked. The load-bearing
+    // contract is "duplicate event_id ⇒ job dispatched once". A row count
+    // of 1 in the ledger doesn't prove that — it only proves the INSERT
+    // dedupe worked. The dispatch counter proves the controller skipped
+    // the dispatch on the duplicate path.
+    dispatchCount = 0
+    originalDispatch = ProcessStripeEventJob.dispatch
+    ;(ProcessStripeEventJob as unknown as {
+      dispatch: (payload: { eventId: string }) => Promise<void>
+    }).dispatch = async () => {
+      dispatchCount += 1
+    }
   })
 
   group.each.teardown(async () => {
+    ;(ProcessStripeEventJob as unknown as {
+      dispatch: typeof originalDispatch
+    }).dispatch = originalDispatch
     await clearBillingTables()
     while (cleanupTenants.length) {
       const id = cleanupTenants.pop()!
@@ -89,6 +109,12 @@ test.group('Webhook idempotency (integration)', (group) => {
 
     const rows = await StripeProcessedEvent.query().where('event_id', 'evt_idem_dup')
     assert.lengthOf(rows, 1, 'exactly one ledger row for the duplicated event')
+
+    // The actual contract: the heavy job runs ONCE even though Stripe
+    // delivered the event twice. Without this assertion, a regression
+    // that moves dispatch before the dedupe insert would still see one
+    // ledger row but charge the customer twice.
+    assert.equal(dispatchCount, 1, 'job dispatched exactly once across two POSTs')
   })
 
   test('a missing stripe-signature header returns 400', async ({ assert, client }) => {

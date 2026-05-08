@@ -1,22 +1,44 @@
 import type Stripe from 'stripe'
 
 /**
- * Returns ONLY the safe-to-log fields of a Stripe event. Strip-list (not
- * mask-list) is intentional: a strip-list breaks loudly if Stripe adds a
- * new PII field, whereas a mask-list silently leaks it.
+ * OUTPUT IS A STRIP-LIST: only fields explicitly added below are returned.
+ * Adding a field requires deliberate review against the PII matrix —
+ * never copy `obj` into the result, never spread `event.data.object`,
+ * never `Object.assign(result, obj)`. The shape is intentionally narrow
+ * so that a future code path that logs `redactStripeEvent(event)` cannot
+ * leak a new PII field that Stripe might introduce.
  *
- * Safe fields:
+ * Safe fields kept:
  *   - event id, type, created (timestamp), api_version
- *   - object id (sub_, in_, ...) — Stripe IDs are opaque, non-PII
- *   - customer id (cus_) — same
+ *   - object id (sub_, in_, …) — Stripe IDs are opaque, non-PII
+ *   - customer id (cus_)
  *   - subscription id, invoice id when implicit on the event object
  *   - amount + currency on invoices (no card data)
  *   - dunning attempt_count
+ *   - top-level status string (subscription/invoice state)
  *
- * NEVER include: email, name, phone, address, payment_method.card.last4,
- * customer.shipping, metadata (host-supplied — could contain anything),
- * description, statement_descriptor, raw billing_details.
+ * Fields with PII risk that MUST NEVER be added without review:
+ *   email, name, phone, address, customer.shipping, billing_details,
+ *   payment_method.card.last4, description, statement_descriptor,
+ *   receipt_email, receipt_number, metadata (host-supplied; could be
+ *   anything).
  */
+
+/** Set of keys that may appear on the redacted output — used by tests. */
+export const REDACTED_EVENT_KEYS = [
+  'id',
+  'type',
+  'created',
+  'api_version',
+  'customer_id',
+  'subscription_id',
+  'invoice_id',
+  'amount',
+  'currency',
+  'attempt_count',
+  'status',
+] as const
+
 export interface RedactedStripeEvent {
   id: string
   type: string
