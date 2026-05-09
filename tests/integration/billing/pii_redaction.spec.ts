@@ -183,12 +183,21 @@ test.group('PII redaction (integration)', (group) => {
       assert.notInclude(blob, needle, `stdout leaked "${needle}"`)
     }
 
-    // Sanity: at least ONE expected billing log fired so we know the
-    // capture is wired (otherwise the assertions above are vacuous).
-    const sawBillingLog =
-      blob.includes('stripe.event') ||
-      blob.includes('stripe.webhook')
-    assert.isTrue(sawBillingLog, 'at least one billing log line captured to stdout')
+    // Anchor the redaction check: the persisted payload (which the
+    // controller writes to `stripe_processed_events.payload`) goes
+    // through `redactStripeEvent()`, so if the FORBIDDEN scan above
+    // is vacuous (Pino's worker transport can bypass our
+    // `process.stdout.write` patch when running through
+    // `@adonisjs/core/logger`), this still proves the redaction code
+    // path actually ran on the hostile event.
+    const ledger = await (
+      await import('@adonisjs-lasagna/saas-tenancy/models/satellites')
+    ).StripeProcessedEvent.find('evt_pii_check')
+    assert.isNotNull(ledger, 'controller wrote the idempotency ledger row')
+    const payload = JSON.stringify(ledger?.payload ?? {})
+    for (const needle of FORBIDDEN) {
+      assert.notInclude(payload, needle, `ledger payload leaked "${needle}"`)
+    }
   })
 
   test('failed() event payload uses errorCode, not raw error.message', async ({ assert }) => {

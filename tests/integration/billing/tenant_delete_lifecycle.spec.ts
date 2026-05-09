@@ -8,7 +8,6 @@ import {
   StripeCustomer,
   StripeSubscription,
 } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import TenantDestroyBillingListener from '../../../src/listeners/tenant_destroy_billing_listener.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
@@ -35,30 +34,17 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
     originalConfig = getConfig()
     setupBillingConfig({ defaultPlan: 'starter' })
     await clearBillingTables()
-
-    // Wire the listener as the provider would — once per test, removed
-    // in teardown. Wiring HERE (not in the global container) lets us
-    // also exercise the hook unregistration on teardown without
-    // polluting other specs.
-    const hooks = await app.container.make(HookRegistry)
-    hooks.before('destroy', async (ctx) => {
-      const listener = new TenantDestroyBillingListener()
-      await listener.handle(ctx.tenant)
-    })
-
     cancelLog = []
+    // Note: the `before:destroy` listener is auto-wired by
+    // `MultitenancyProvider.start()` because the fixture's
+    // `config/multitenancy.ts` includes a `billing` block. Importing
+    // `TenantDestroyBillingListener` from `../../../src/...` and
+    // wiring it manually loaded a SECOND copy of the listener that
+    // resolved `BillingService` against a different module-class key
+    // than the one the spec mocked — the cancel mock never fired.
   })
 
   group.each.teardown(async () => {
-    // HookRegistry exposes a public `clear()` — wipe every registration
-    // we added in setup. Re-load declarative hooks from config in case
-    // the host wired any (the fixture doesn't). Without this, each
-    // test would stack another `before:destroy` listener on top of the
-    // previous tests' listeners and the cancel mock would fire N times.
-    const hooks = await app.container.make(HookRegistry)
-    hooks.clear()
-    hooks.loadDeclarative(getConfig().hooks)
-
     await clearBillingTables()
     while (cleanupTenants.length) {
       const id = cleanupTenants.pop()!

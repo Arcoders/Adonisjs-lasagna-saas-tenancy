@@ -22,8 +22,12 @@ export default class StripeSubscription extends BackofficeBaseModel {
   @column({ isPrimary: true, columnName: 'stripe_subscription_id' })
   declare stripeSubscriptionId: string
 
+  // Nullable: the `tenant_destroy` listener drops the parent
+  // `stripe_customers` row, and the FK is `ON DELETE SET NULL` so
+  // the audit row survives with `tenantId = null`. Queries that
+  // need to filter by tenant must guard against the null case.
   @column()
-  declare tenantId: string
+  declare tenantId: string | null
 
   @column()
   declare status: StripeSubscriptionStatus

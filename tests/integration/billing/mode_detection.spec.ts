@@ -3,7 +3,14 @@ import app from '@adonisjs/core/services/app'
 import { BillingService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '../../helpers/config.js'
-import MultitenancyProvider from '../../../src/providers/multitenancy_provider.js'
+// Imported via the package path (build/) so we don't pull a parallel
+// copy of `src/`. tsx will happily evaluate both copies of any module
+// it can find, and a duplicate `extensions/request.ts` evaluation
+// re-installs the `request.tenant()` macro under a SECOND closure that
+// reads from a fresh `IsolationDriverRegistry` class — different class
+// identity than the one the booted provider bound, so `getActiveDriver()`
+// throws "no active driver" on the next request that hits the macro.
+import MultitenancyProvider from '@adonisjs-lasagna/saas-tenancy/providers/multitenancy_provider'
 import type { MultitenancyConfig } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
@@ -219,7 +226,16 @@ test.group('MultitenancyProvider.boot — billing.verify wiring', (group) => {
     setConfig(evilConfig)
 
     const provider = new MultitenancyProvider(app as never)
-    provider.register()
+    // Do NOT call `provider.register()` here — the singletons are
+    // already bound on the global container from the suite-level boot.
+    // Re-registering would replace the live `HookRegistry` /
+    // `IsolationDriverRegistry` / `BillingService` instances (the
+    // singleton resolver gets a fresh `enqueue()` wrapper, so the
+    // *next* `container.make(...)` returns a freshly-constructed
+    // instance, not the one the suite booted). The
+    // `tenant_delete_lifecycle` spec's auto-wired before:destroy hook
+    // lives on the originally-bound `HookRegistry` — replacing it
+    // silently drops the hook.
 
     const billing = await app.container.make(BillingService)
     billing.__resetForTests()

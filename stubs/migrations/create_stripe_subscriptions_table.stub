@@ -20,12 +20,19 @@ export default class extends BaseSchema {
   async up() {
     this.schema.withSchema('backoffice').createTable(this.tableName, (table) => {
       table.string('stripe_subscription_id').primary()
+      // tenant_id is nullable + ON DELETE SET NULL so the
+      // `tenant_destroy` lifecycle hook can drop a `stripe_customers`
+      // row without violating the FK while keeping the subscription
+      // audit row intact (status='canceled' after the cancel call).
+      // Without this the FK RESTRICTed the parent delete and the
+      // listener's `customer.delete()` threw silently — the local
+      // mapping never got cleaned up.
       table
         .uuid('tenant_id')
-        .notNullable()
+        .nullable()
         .references('tenant_id')
         .inTable('backoffice.stripe_customers')
-        .onDelete('RESTRICT')
+        .onDelete('SET NULL')
       table
         .enum('status', [
           'incomplete',

@@ -14,22 +14,6 @@ class FixtureErrorHandler {
       typeof error?.status === 'number' && error.status >= 100 && error.status < 600
         ? error.status
         : 500
-    // Surface unexpected 500s in the test runner output. The integration
-    // suite asserts on response status, so a surprise 500 (which usually
-    // means an exception threw before the package's typed exceptions
-    // could handle it) would otherwise be invisible — only the assertion
-    // failure shows in CI logs, not the underlying cause.
-    if (status === 500) {
-      // eslint-disable-next-line no-console
-      console.error('[fixture] unhandled', {
-        url: ctx.request.url(true),
-        method: ctx.request.method(),
-        message: error?.message ?? String(error),
-        code: error?.code,
-        name: error?.name,
-        stack: error?.stack,
-      })
-    }
     return ctx.response.status(status).send({
       error: error?.message ?? String(error),
       code: error?.code,

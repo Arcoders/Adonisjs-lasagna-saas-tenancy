@@ -44,11 +44,33 @@ export default {
       db: env.get('CACHE_REDIS_DB', 2),
     },
   },
-  // Note: no `billing` / `plans` here on purpose. Billing-aware specs
-  // call `setupBillingConfig(...)` in their own `setup` hook so the
-  // tenant_delete and metered_usage specs (which wire their own listeners
-  // ad-hoc) don't end up with the auto-wired provider listener firing
-  // alongside their manual one — that would double the cancel/dispatch
-  // count and break the assertions. The Stripe webhook route is still
-  // mounted in `start/routes.ts` so HTTP-level specs can POST to it.
+  // Plans + billing are present at fixture-boot so
+  // `MultitenancyProvider.start()` wires `TenantDestroyBillingListener`
+  // into `HookRegistry` via the BUILD container — same identity the
+  // tenant_delete spec resolves through `app.container.make(BillingService)`,
+  // so its `__setStripeForTests(mock)` lands on the same instance the
+  // listener uses to cancel.
+  //
+  // No `usageMapping` here: the metered_usage spec wires its own
+  // listener (it stubs `ReportUsageBatchJob.dispatch` per-test), and
+  // an auto-wired listener would fire too and double-dispatch the
+  // batch.
+  plans: {
+    defaultPlan: 'starter',
+    definitions: {
+      starter: { limits: { apiRequests: 100 } },
+      pro: { limits: { apiRequests: 10_000 } },
+      team: { limits: { apiRequests: 50_000 } },
+    },
+    storage: 'tenant_plans',
+  },
+  billing: {
+    driver: 'stripe',
+    stripe: {
+      apiKey: 'sk_test_fixture',
+      webhookSecret: 'whsec_test_billing_helper',
+    },
+    products: { prod_starter: 'starter', prod_pro: 'pro', prod_team: 'team' },
+    defaultPlan: 'starter',
+  },
 }

@@ -74,8 +74,16 @@ export function multitenancyBillingRoutes(options: MultitenancyBillingRoutesOpti
   const cfg = getConfig().billing
   const path = options.path ?? cfg?.webhook?.path ?? '/webhooks/stripe'
 
+  // Wrap the class middleware as a function so the router invokes it
+  // with the standard `(ctx, next)` signature. Passing the instance
+  // directly via `.use([instance])` doesn't unpack into a class call —
+  // the router treats it as a function middleware and `ctx` lands on
+  // the wrong argument, which surfaces as
+  // `Cannot read properties of undefined (reading 'ip')` at the first
+  // request.ip() access.
+  const verify = new VerifyStripeWebhookMiddleware()
   router
     .post(path, (ctx) => new StripeWebhookController().handle(ctx))
-    .use([new VerifyStripeWebhookMiddleware()] as never)
+    .use(async (ctx, next) => verify.handle(ctx, next))
     .as('billing.webhook')
 }

@@ -132,7 +132,7 @@ async function ensureBackofficeSchema(): Promise<void> {
      )`,
     `CREATE TABLE IF NOT EXISTS backoffice.stripe_subscriptions (
        stripe_subscription_id varchar(255) PRIMARY KEY,
-       tenant_id              uuid NOT NULL REFERENCES backoffice.stripe_customers(tenant_id) ON DELETE RESTRICT,
+       tenant_id              uuid REFERENCES backoffice.stripe_customers(tenant_id) ON DELETE SET NULL,
        status                 varchar(255) NOT NULL,
        current_period_start   timestamptz NOT NULL,
        current_period_end     timestamptz NOT NULL,
