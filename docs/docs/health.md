@@ -69,6 +69,32 @@ health.addCheck(
 | `backofficeDbCheck` | `SELECT 1` against the backoffice connection | DB unreachable, credentials wrong |
 | `redisCheck` | `PING` against the default Redis | Redis down or misconfigured |
 | `makeCircuitBreakerCheck(fn)` | Reports `fail` if any tenant circuit is `OPEN` | One or more tenant DBs are tripped |
+| `billingHealthCheck` | Pings the Stripe API + asserts webhooks are flowing (when active subs exist) | API unreachable, webhook secret missing, or last processed > 15 min |
+
+When billing is enabled, register `billingHealthCheck` alongside the
+others. The check skips quietly when `config.billing` is unset, so
+it's safe to register unconditionally:
+
+```ts
+import { billingHealthCheck } from '@adonisjs-lasagna/saas-tenancy/health'
+
+health.addCheck('billing', billingHealthCheck)
+```
+
+Thresholds (`SLOW_API_THRESHOLD_MS = 3000`, stale-warn 5 min, fail
+15 min) are documented in
+[Billing satellite#health](/docs/satellites/billing#health). The
+exposed `SLOW_API_THRESHOLD_MS` constant is importable for tests
+that need to drive the degraded branch deterministically.
+
+The Stripe webhook receiver itself is mounted via a separate helper
+(it's a route, not a check):
+
+```ts
+import { multitenancyBillingRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
+
+multitenancyBillingRoutes()
+```
 
 ## Custom checks
 
@@ -77,16 +103,16 @@ Any function returning `Promise<CheckResult> | CheckResult` works:
 ```ts
 import type { HealthCheckFn } from '@adonisjs-lasagna/saas-tenancy/health'
 
-const stripeCheck: HealthCheckFn = async () => {
+const customCheck: HealthCheckFn = async () => {
   try {
-    await stripe.balance.retrieve()
+    await someExternalDependency.ping()
     return { status: 'pass', durationMs: 0 }
   } catch (error: any) {
     return { status: 'fail', durationMs: 0, message: error.message }
   }
 }
 
-health.addCheck('stripe', stripeCheck)
+health.addCheck('custom_dependency', customCheck)
 ```
 
 `HealthService` enforces a 2-second timeout per check (`Promise.race`)

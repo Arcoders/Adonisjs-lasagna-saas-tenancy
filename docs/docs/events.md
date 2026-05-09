@@ -1,6 +1,6 @@
 ---
 title: Lifecycle events
-description: 13 typed events fire across the tenant lifecycle. Subscribe with `emitter.on()` and react to provisioning, status changes, backups, clones, quota breaches, and maintenance toggles.
+description: 23 typed events fire across the tenant lifecycle and Stripe billing pipeline. Subscribe with `emitter.on()` and react to provisioning, status changes, backups, clones, quota breaches, maintenance toggles, subscription transitions, payments, and dead-letter alerts.
 ---
 
 # Lifecycle events
@@ -10,7 +10,7 @@ transition. Each event is a class extending the AdonisJS `BaseEvent`,
 so you subscribe with the standard `emitter.on(EventClass, listener)`
 API and get full payload typing for free.
 
-## When each event fires
+## Tenant lifecycle
 
 | Event | Payload | Dispatched by |
 |---|---|---|
@@ -33,6 +33,33 @@ The class is exported and ready to dispatch from host code (e.g. an
 admin controller mutating tenant metadata), but Lasagna does not emit
 it on its own. If you maintain a typed audit trail, dispatch it from
 the same writer that mutates the row.
+:::
+
+## Billing events
+
+Available when `--with=billing` is configured. All ten are dispatched
+from `ProcessStripeEventJob` in response to verified Stripe webhook
+events. Full reference (and the dunning/ordering semantics) lives in
+the [Billing satellite](/docs/satellites/billing#events).
+
+| Event | Payload | Dispatched by |
+|---|---|---|
+| `SubscriptionActivated` | `tenantId`, `stripeSubscriptionId`, `planName` | `customer.subscription.created` (or `.updated` flipping to active) |
+| `SubscriptionUpdated` | `tenantId`, `stripeSubscriptionId`, `previousPlan`, `newPlan` | `customer.subscription.updated` when plan changes |
+| `SubscriptionCanceled` | `tenantId`, `stripeSubscriptionId`, `previousPlan`, `reason` | `customer.subscription.deleted` (`reason`: `user_canceled` \| `dunning_failed` \| `unknown`) |
+| `SubscriptionPaused` | `tenantId`, `stripeSubscriptionId` | Stripe pause-collection or `customer.subscription.paused` |
+| `SubscriptionResumed` | `tenantId`, `stripeSubscriptionId` | `customer.subscription.resumed` |
+| `TrialEnding` | `tenantId`, `stripeSubscriptionId`, `daysLeft` | `customer.subscription.trial_will_end` |
+| `PaymentSucceeded` | `tenantId`, `invoiceId`, `amount`, `currency` | `invoice.payment_succeeded` |
+| `PaymentFailed` | `tenantId`, `invoiceId`, `amount`, `currency`, `attempts`, `final`, `nextRetry` | `invoice.payment_failed` (every attempt — match on `final: true` for the terminal step) |
+| `BillingMisconfigured` | `stripeSubscriptionId`, `productId`, `priceId` | A Stripe product/price has no mapping in `config.billing.products`. |
+| `BillingEventDeadLettered` | `eventId`, `errorCode`, `details` | Webhook event exhausted all queue retries. `errorCode` is a stable enum (`BillingErrorCode \| 'unhandled_error'`). |
+
+::: tip Subscribe paging to BillingEventDeadLettered
+This is the canary for "we permanently failed to process a Stripe
+event". Wire PagerDuty / Slack / Sentry to it. The payload is
+PII-safe: only the event id, an opaque code, and an optional
+package-controlled detail string.
 :::
 
 ## Subscribing

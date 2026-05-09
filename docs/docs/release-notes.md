@@ -15,6 +15,66 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.0] — 2026-05-09
+
+Adds the **Stripe billing satellite** as the ninth opt-in feature.
+Opt in with `node ace configure @adonisjs-lasagna/saas-tenancy --with=billing`
+and `npm install stripe@^18`.
+
+### Added
+
+- **Billing satellite** — full Stripe integration:
+  - Idempotent webhook receiver (`POST /webhooks/stripe`) with raw
+    `INSERT ... ON CONFLICT (event_id) DO NOTHING`. HMAC-SHA256
+    signature verification. Optional IP allowlist supporting both
+    literal and CIDR entries via `node:net.BlockList` (zero deps).
+  - Configurable dunning state machine (`maxAttempts`, `action`,
+    `gracePeriodDays`) matching Stripe Smart Retries.
+  - Metered billing — `BillingService.reportUsage()` plus the
+    `usageMapping` auto-bridge that batches `QuotaTracked` events
+    into a single `ReportUsageBatchJob` per `(tenant, meter)`.
+  - Checkout (`createCheckoutSession`) and Billing Portal
+    (`createBillingPortalSession`) helpers.
+  - Tenant hard-delete policy (`onTenantDelete`: `cancel` / `detach`
+    / `preserve`) wired via `HookRegistry.beforeDestroy`.
+- **6 ace commands**: `tenant:billing:sync`, `tenant:billing:backfill`,
+  `tenant:billing:replay`, `tenant:billing:cleanup`,
+  `tenant:billing:doctor`, `tenant:billing:test-webhook`.
+- **10 events**: `SubscriptionActivated`, `SubscriptionUpdated`,
+  `SubscriptionCanceled`, `SubscriptionPaused`, `SubscriptionResumed`,
+  `TrialEnding`, `PaymentSucceeded`, `PaymentFailed`,
+  `BillingMisconfigured`, `BillingEventDeadLettered`.
+- **3 jobs**: `ProcessStripeEventJob`, `ReportUsageBatchJob`,
+  `BillingCleanupJob`.
+- **4 satellite tables**: `stripe_customers`, `stripe_subscriptions`,
+  `stripe_processed_events`, `stripe_meter_events`. Plus
+  `tenant_plans` (shared with the quotas satellite).
+- **Health check** `billingHealthCheck` (Stripe API ping + webhook
+  freshness; `SLOW_API_THRESHOLD_MS` exported for test tuning).
+- **Testing helpers** under `@adonisjs-lasagna/saas-tenancy/testing`:
+  `MockStripe` (in-memory SDK double) and `signWebhookPayload`.
+- **PII redaction**: `redactStripeEvent()` strip-list (whitelist) for
+  webhook payloads and structured logs. `BillingEventDeadLettered`
+  carries a stable `errorCode` enum, never raw `error.message`.
+- **Documentation**: full reference at
+  [Billing satellite](/docs/satellites/billing); end-to-end recipe
+  at [Stripe + quotas (cookbook)](/docs/cookbook/stripe-quotas).
+
+### Changed
+
+- Total ace command count is now 33 (was 27).
+- Total typed events is now 23 (13 tenant lifecycle + 10 billing).
+- Total bundled jobs is now 8 (5 tenant + 3 billing).
+- Boot guard: `BillingService.verify()` now **throws** when a
+  `sk_live_*` key is loaded outside production without
+  `STRIPE_ALLOW_LIVE_IN_DEV=true` (was warn-only). Same hard-fail in
+  the other direction (`sk_test_*` + `NODE_ENV=production`).
+- `multitenancy.stub` adds `/webhooks/stripe` to the default
+  `ignorePaths`. Hosts that change `webhook.path` must update
+  `ignorePaths` accordingly.
+
+---
+
 ## [0.1.0] — 2026-05-07
 
 Initial release of `@adonisjs-lasagna/saas-tenancy`.

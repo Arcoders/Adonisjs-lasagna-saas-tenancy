@@ -1,6 +1,6 @@
 ---
 title: Satellites
-description: Eight opt-in features attached to tenants; audit logs, feature flags, webhooks, branding, SSO, metrics, quotas, impersonation.
+description: Nine opt-in features attached to tenants; audit logs, feature flags, webhooks, branding, SSO, metrics, quotas, impersonation, Stripe billing.
 ---
 
 # Satellites
@@ -25,7 +25,7 @@ node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,webhooks,sso
 The configure command is idempotent; re-running it does not
 duplicate migrations or tenant model scaffolding.
 
-## The eight satellites
+## The nine satellites
 
 | Satellite | What it gives you | Storage |
 |---|---|---|
@@ -36,6 +36,7 @@ duplicate migrations or tenant model scaffolding.
 | [SSO](/docs/satellites/sso) | Per-tenant OIDC config with JWKS-backed verification. | `tenant_sso_configs` |
 | [Metrics](/docs/satellites/metrics) | Time-series counters per tenant with cursor-based aggregation. | `tenant_metrics` |
 | [Quotas](/docs/satellites/quotas) | Plan-bound limits; rolling and snapshot, served as middleware. | `tenant_quotas`, `tenant_plans` |
+| [Billing](/docs/satellites/billing) | Stripe integration — idempotent webhook, dunning, metered, checkout/portal, lifecycle hook. | `stripe_customers`, `stripe_subscriptions`, `stripe_processed_events`, `stripe_meter_events` |
 | [Impersonation](/docs/satellites/impersonation) | Admin enters a tenant as a target user, time-boxed and audited. | Redis (no DB row) |
 
 ## Cross-satellite invariants

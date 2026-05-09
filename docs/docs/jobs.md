@@ -1,14 +1,16 @@
 ---
 title: Background jobs
-description: Five tenant-aware queue jobs (install, uninstall, backup, restore, clone) that wrap their work in `tenancy.run()` for AsyncLocalStorage isolation.
+description: Eight tenant-aware queue jobs (install, uninstall, backup, restore, clone, plus the Stripe webhook processor, batch usage reporter, and idempotency-ledger cleanup) that wrap their work in `tenancy.run()` for AsyncLocalStorage isolation.
 ---
 
 # Background jobs
 
 Long-running tenant operations run on the AdonisJS queue so they can
 be retried, observed, and parallelized without blocking the HTTP
-request that triggered them. Lasagna ships five jobs you can dispatch
-directly or rely on through ace commands.
+request that triggered them. Lasagna ships eight jobs you can
+dispatch directly or rely on through ace commands. Three are
+exclusive to the [Billing satellite](/docs/satellites/billing) and
+only enqueue work when `--with=billing` is configured.
 
 ## What ships
 
@@ -19,8 +21,11 @@ directly or rely on through ace commands.
 | `BackupTenant` | Run `pg_dump` for a single tenant, mirror to S3 if configured | `tenant:backups:run` cron, ad-hoc dispatch |
 | `RestoreTenant` | Run `pg_restore` against a stored dump | `tenant:restore` |
 | `CloneTenant` | Provision a destination tenant + copy rows from source | `tenant:clone` |
+| `ProcessStripeEventJob` | Process a verified Stripe webhook event (retrieve from Stripe, ordering guard, syncSubscription/dispatch table, mark completed) | `StripeWebhookController` after the idempotent `INSERT ... ON CONFLICT DO NOTHING` |
+| `ReportUsageBatchJob` | Send aggregated meter events to Stripe in a single batch | `UsageAutoBridgeListener` flush (every `batchFlushMs`, default 10 s) |
+| `BillingCleanupJob` | Purge `stripe_processed_events` older than `webhook.idempotencyTtlDays` | `tenant:billing:cleanup` command (also exposes `runBillingCleanup()` for direct invocation) |
 
-All five are exported from `@adonisjs-lasagna/saas-tenancy/jobs`:
+All eight are exported from `@adonisjs-lasagna/saas-tenancy/jobs`:
 
 ```ts
 import {
@@ -29,6 +34,9 @@ import {
   BackupTenant,
   RestoreTenant,
   CloneTenant,
+  ProcessStripeEventJob,
+  ReportUsageBatchJob,
+  BillingCleanupJob,
 } from '@adonisjs-lasagna/saas-tenancy/jobs'
 ```
 

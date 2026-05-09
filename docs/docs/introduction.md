@@ -8,8 +8,9 @@ description: Why Lasagna exists, what it solves, and the principles that shape i
 `@adonisjs-lasagna/saas-tenancy` is a schema-based PostgreSQL
 multi-tenancy package for AdonisJS 7. It assumes you'll need every
 piece of operational plumbing a real SaaS eventually wants (circuit
-breakers, replicas, audit logs, webhooks, backups, SSO, quotas) and
-ships them as opt-in satellites instead of a god-class.
+breakers, replicas, audit logs, webhooks, backups, SSO, quotas,
+Stripe billing) and ships them as opt-in satellites instead of a
+god-class.
 
 <Callout type="tip" title="One sentence">
 Each tenant lives in its own PostgreSQL schema. Everything else
@@ -26,14 +27,14 @@ Lasagna handles the seams.
   broadcasting. Each scoped to the active tenant via
   `AsyncLocalStorage`. Database routing is handled by the active
   isolation driver itself, not as a separate bootstrapper.
-- **Eight satellites**: audit logs, feature flags, webhooks,
-  branding, SSO, metrics, quotas, impersonation. None required, all
-  consistent.
+- **Nine satellites**: audit logs, feature flags, webhooks,
+  branding, SSO, metrics, quotas, impersonation, Stripe billing.
+  None required, all consistent.
 - **Operational kit**: `tenant:doctor` (ten checks, `--fix`,
   `--watch`, `--json`), backups with retention tiers, read replicas,
   Prometheus, OpenTelemetry, health probes.
-- **27 ace commands** spanning provisioning, migrations, backups,
-  cloning, exec-under-tenant, maintenance mode, REPL.
+- **33 ace commands** spanning provisioning, migrations, backups,
+  cloning, exec-under-tenant, maintenance mode, REPL, billing.
 - **REST admin API**: 36 endpoints, OpenAPI 3.1 spec, Swagger UI.
 
 ## What you *don't* get (yet)
