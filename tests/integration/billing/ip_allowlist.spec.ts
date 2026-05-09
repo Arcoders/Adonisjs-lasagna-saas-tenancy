@@ -1,125 +1,34 @@
 import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import { BillingService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { VerifyStripeWebhookMiddleware } from '@adonisjs-lasagna/saas-tenancy/middleware'
 import { MockStripe, signWebhookPayload } from '@adonisjs-lasagna/saas-tenancy/testing'
-import VerifyStripeWebhookMiddleware from '../../../src/middleware/verify_stripe_webhook_middleware.js'
-import {
-  isStripeWebhookOriginAllowed,
-  __resetIpAllowlistCache,
-} from '../../../src/services/billing/stripe_ip_allowlist.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { setupBillingConfig, buildEvent, buildSubscription, clearBillingTables } from './helpers.js'
+import { buildEvent, buildSubscription, clearBillingTables } from './helpers.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
 
 /**
- * Two layers of coverage:
+ * Middleware-level coverage. Imports `VerifyStripeWebhookMiddleware`
+ * via the package path (build), so the middleware shares the booted
+ * provider's `_config` singleton. Importing it from `../../../src/...`
+ * loads a separate module instance whose `_config` is null at runtime
+ * (the provider booted from build/ never wrote to it) and every test
+ * fails with "saas-tenancy not configured".
  *
- *   1. Helper unit-level: literal/CIDR/IPv6-mapped/malformed forms in
- *      `isStripeWebhookOriginAllowed`. Cheap, fast, exhaustive.
- *
- *   2. Middleware-level: the helper integration via
- *      `VerifyStripeWebhookMiddleware.handle()`. We feed a stub
- *      HttpContext with a controlled `request.ip()` and observe whether
- *      the middleware short-circuits with 401 before the signature step
- *      (or progresses to next() when the IP passes).
- *
- * Layer 2 is what catches a regression where a future refactor stops
- * calling `isStripeWebhookOriginAllowed` from the middleware (helper
- * works, middleware skips it, tests still pass under helper-only).
+ * Helper-level CIDR/IPv6/literal/malformed coverage lives in
+ * `tests/unit/services/billing/stripe_ip_allowlist.spec.ts`.
  */
-test.group('IP allowlist — helper (CIDR/IPv6/malformed)', (group) => {
-  let originalConfig: ReturnType<typeof getConfig>
-
-  group.each.setup(async () => {
-    originalConfig = getConfig()
-    await clearBillingTables()
-    __resetIpAllowlistCache()
-  })
-
-  group.each.teardown(() => {
-    setConfig(originalConfig)
-    __resetIpAllowlistCache()
-  })
-
-  function withAllowlist(allowedIps: string[]): void {
-    setConfig({
-      ...originalConfig,
-      plans: {
-        defaultPlan: 'starter',
-        definitions: { starter: { limits: {} } },
-        storage: 'tenant_plans',
-      },
-      billing: {
-        driver: 'stripe',
-        stripe: { apiKey: 'sk_test_x', webhookSecret: 'whsec_test_billing_helper' },
-        products: { prod_starter: 'starter' },
-        defaultPlan: 'starter',
-        webhook: { enforceIpAllowlist: true, allowedIps },
-      },
-    } as never)
-    __resetIpAllowlistCache()
-  }
-
-  test('off by default: every IP allowed when enforce flag is unset', ({ assert }) => {
-    setupBillingConfig({ defaultPlan: 'starter' })
-    assert.isTrue(isStripeWebhookOriginAllowed('1.2.3.4'))
-    assert.isTrue(isStripeWebhookOriginAllowed(undefined))
-    assert.isTrue(isStripeWebhookOriginAllowed('::1'))
-  })
-
-  test('literal IPv4 match', ({ assert }) => {
-    withAllowlist(['54.187.174.169', '54.187.205.235'])
-    assert.isTrue(isStripeWebhookOriginAllowed('54.187.174.169'))
-    assert.isTrue(isStripeWebhookOriginAllowed('54.187.205.235'))
-    assert.isFalse(isStripeWebhookOriginAllowed('54.187.174.170'))
-  })
-
-  test('CIDR /24 — IP inside range matches, outside does not', ({ assert }) => {
-    withAllowlist(['54.187.174.0/24'])
-    assert.isTrue(isStripeWebhookOriginAllowed('54.187.174.1'))
-    assert.isTrue(isStripeWebhookOriginAllowed('54.187.174.255'))
-    assert.isFalse(isStripeWebhookOriginAllowed('54.187.175.0'))
-  })
-
-  test('mixed literal + CIDR list', ({ assert }) => {
-    withAllowlist(['10.0.0.5', '192.168.0.0/16'])
-    assert.isTrue(isStripeWebhookOriginAllowed('10.0.0.5'))
-    assert.isTrue(isStripeWebhookOriginAllowed('192.168.42.42'))
-    assert.isFalse(isStripeWebhookOriginAllowed('10.0.0.6'))
-    assert.isFalse(isStripeWebhookOriginAllowed('172.16.0.1'))
-  })
-
-  test('IPv4-mapped IPv6 normalised then matched against IPv4 entry', ({ assert }) => {
-    withAllowlist(['54.187.174.169'])
-    assert.isTrue(isStripeWebhookOriginAllowed('::ffff:54.187.174.169'))
-  })
-
-  test('malformed IP rejected without throwing', ({ assert }) => {
-    withAllowlist(['10.0.0.1'])
-    assert.isFalse(isStripeWebhookOriginAllowed('not-an-ip'))
-    assert.isFalse(isStripeWebhookOriginAllowed(''))
-  })
-
-  test('empty allowedIps with enforce on rejects everything (fail-closed)', ({ assert }) => {
-    withAllowlist([])
-    assert.isFalse(isStripeWebhookOriginAllowed('10.0.0.1'))
-    assert.isFalse(isStripeWebhookOriginAllowed(undefined))
-  })
-})
-
 test.group('IP allowlist — middleware integration', (group) => {
   let originalConfig: ReturnType<typeof getConfig>
 
   group.each.setup(async () => {
     originalConfig = getConfig()
     await clearBillingTables()
-    __resetIpAllowlistCache()
   })
 
   group.each.teardown(async () => {
     setConfig(originalConfig)
-    __resetIpAllowlistCache()
     const billing = await app.container.make(BillingService)
     billing.__resetForTests()
   })
@@ -140,7 +49,6 @@ test.group('IP allowlist — middleware integration', (group) => {
         webhook: { enforceIpAllowlist: true, allowedIps },
       },
     } as never)
-    __resetIpAllowlistCache()
   }
 
   /**
