@@ -6,6 +6,29 @@ import { configure, processCLIArgs, run } from '@japa/runner'
 
 const FIXTURE_ROOT = new URL('../tests/fixtures/', import.meta.url)
 
+// Once the suite finishes and we call `app.terminate()`, Lucid drains the
+// pg pool. Any query that was queued at that exact moment rejects with
+// `Error: Connection terminated` (pg/lib/client.js:180, fired from the
+// socket `end` listener). The originating caller is already gone — most
+// often a fire-and-forget DB write from an event listener whose handler
+// returned before the write resolved — so the rejection has no `.catch()`
+// and Node flips the process exit code to 1 even though every test
+// passed. Swallow this *specific* error only after we've started the
+// shutdown handshake; anything else still surfaces as a real failure.
+let isShuttingDown = false
+process.on('unhandledRejection', (reason) => {
+  const message =
+    reason instanceof Error
+      ? reason.message
+      : typeof reason === 'string'
+        ? reason
+        : ''
+  if (isShuttingDown && /^Connection terminated/.test(message)) {
+    return
+  }
+  throw reason
+})
+
 const IMPORTER = (filePath: string) => {
   if (filePath.startsWith('./') || filePath.startsWith('../')) {
     return import(new URL(filePath, FIXTURE_ROOT).href)
@@ -44,7 +67,12 @@ new Ignitor(FIXTURE_ROOT, { importer: IMPORTER })
       suites,
       ...{
         setup: runnerHooks.setup,
-        teardown: runnerHooks.teardown.concat([() => app.terminate()]),
+        teardown: runnerHooks.teardown.concat([
+          async () => {
+            isShuttingDown = true
+            await app.terminate()
+          },
+        ]),
       },
     })
   })
