@@ -10,9 +10,9 @@ import {
   StripeSubscription,
 } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { PaymentFailed } from '@adonisjs-lasagna/saas-tenancy/events'
-import ProcessStripeEventJob from '../../../src/jobs/process_stripe_event_job.js'
+import { ProcessStripeEventJob } from '@adonisjs-lasagna/saas-tenancy/jobs'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { setupBillingConfig, buildEvent, clearBillingTables } from './helpers.js'
+import { setupBillingConfig, buildEvent, clearBillingTables, hydrateJob } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 import { DateTime } from 'luxon'
 import type Stripe from 'stripe'
@@ -79,7 +79,7 @@ test.group('Dunning state machine (integration)', (group) => {
     while (pendingJobs.length) {
       const eventId = pendingJobs.shift()!
       const job = new ProcessStripeEventJob()
-      ;(job as unknown as { payload: { eventId: string } }).payload = { eventId }
+      hydrateJob(job, { eventId })
       await job.execute()
     }
   }

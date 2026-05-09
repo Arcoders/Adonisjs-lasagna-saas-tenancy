@@ -2,6 +2,7 @@ import router from '@adonisjs/core/services/router'
 import db from '@adonisjs/lucid/services/db'
 import { middleware } from './kernel.js'
 import { multitenancyAdminRoutes } from '@adonisjs-lasagna/saas-tenancy/admin'
+import { multitenancyBillingRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
 
 router.get('/health', async ({ response }) => {
   return response.ok({ status: 'ok' })
@@ -10,6 +11,12 @@ router.get('/health', async ({ response }) => {
 // Mount admin REST + OpenAPI docs without auth — the fixture is for tests
 // only, and individual specs supply their own ad-hoc gating where needed.
 multitenancyAdminRoutes({ prefix: '/admin/multitenancy' })
+
+// Mount the Stripe webhook receiver. Required by the dunning_flow,
+// webhook_idempotency, ip_allowlist (HTTP variant), and pii_redaction
+// integration specs — they POST signed events to /webhooks/stripe and
+// assert the controller + job pipeline.
+multitenancyBillingRoutes()
 
 router
   .group(() => {

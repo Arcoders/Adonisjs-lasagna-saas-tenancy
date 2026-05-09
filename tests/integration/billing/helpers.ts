@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '../../helpers/config.js'
 import type Stripe from 'stripe'
+import type { Job } from '@boringnode/queue'
 
 export interface BillingTestSetup {
   defaultPlan: string
@@ -106,6 +107,33 @@ export function buildEvent(
     pending_webhooks: 1,
     request: { id: null, idempotency_key: null },
   } as unknown as Stripe.Event
+}
+
+/**
+ * Hydrate a `@boringnode/queue` Job instance with a payload + minimal
+ * context so we can drive its `execute()` / `failed()` lifecycle inline
+ * from a spec (without spinning up a real worker).
+ *
+ * `Job#payload` is a getter — direct assignment is rejected at runtime
+ * with `Cannot set property payload of #<Job> which has only a getter`.
+ * The supported entry-point is the `$hydrate(payload, context, signal?)`
+ * method, which is what the worker calls in production.
+ */
+export function hydrateJob<P>(job: Job<P>, payload: P, overrides: Partial<{ jobId: string; queue: string; attempt: number }> = {}): void {
+  ;(job as unknown as {
+    $hydrate: (p: P, ctx: object, signal?: AbortSignal) => void
+  }).$hydrate(
+    payload,
+    {
+      jobId: overrides.jobId ?? `job_${randomUUID().slice(0, 8)}`,
+      name: job.constructor.name,
+      attempt: overrides.attempt ?? 1,
+      queue: overrides.queue ?? 'billing-events',
+      priority: 0,
+      acquiredAt: new Date(),
+      stalledCount: 0,
+    }
+  )
 }
 
 /**

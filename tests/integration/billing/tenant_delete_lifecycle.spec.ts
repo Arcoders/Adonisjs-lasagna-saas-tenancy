@@ -50,12 +50,13 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
   })
 
   group.each.teardown(async () => {
-    // HookRegistry has no public unregister; rebuild it instead. The
-    // singleton is a per-process instance so we manipulate its state.
+    // HookRegistry exposes a public `clear()` — wipe every registration
+    // we added in setup. Re-load declarative hooks from config in case
+    // the host wired any (the fixture doesn't). Without this, each
+    // test would stack another `before:destroy` listener on top of the
+    // previous tests' listeners and the cancel mock would fire N times.
     const hooks = await app.container.make(HookRegistry)
-    ;(hooks as unknown as { ['_hooks']?: Map<unknown, unknown> })['_hooks']?.clear?.()
-    // Best-effort: re-set declarative hooks from config for any other
-    // declarative hook the host might have configured (we don't, in tests).
+    hooks.clear()
     hooks.loadDeclarative(getConfig().hooks)
 
     await clearBillingTables()

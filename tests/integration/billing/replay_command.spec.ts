@@ -3,7 +3,7 @@ import { DateTime } from 'luxon'
 import { randomUUID } from 'node:crypto'
 import ace from '@adonisjs/core/services/ace'
 import { StripeProcessedEvent } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import ProcessStripeEventJob from '../../../src/jobs/process_stripe_event_job.js'
+import { ProcessStripeEventJob } from '@adonisjs-lasagna/saas-tenancy/jobs'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
 

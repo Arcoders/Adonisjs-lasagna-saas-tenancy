@@ -90,9 +90,19 @@ export class MockStripe {
     return this.#meterEvents
   }
 
-  /** Test helper: count requests that hit a stable idempotency key. */
+  /**
+   * Test helper: did any request reach the idempotency cache under this
+   * key? Storage is namespaced by resource (`customers:<key>`,
+   * `subscriptions:<key>`, …) so the helper accepts the bare idempotency
+   * key — same string the caller passed via `Idempotency-Key` — and
+   * matches against either the bare or any namespaced form.
+   */
   idempotencyHits(key: string): boolean {
-    return this.#idempotency.has(key)
+    if (this.#idempotency.has(key)) return true
+    for (const stored of this.#idempotency.keys()) {
+      if (stored.endsWith(`:${key}`)) return true
+    }
+    return false
   }
 
   _buildCustomers() {

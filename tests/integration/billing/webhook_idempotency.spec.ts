@@ -8,7 +8,7 @@ import {
   StripeProcessedEvent,
   StripeCustomer,
 } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import ProcessStripeEventJob from '../../../src/jobs/process_stripe_event_job.js'
+import { ProcessStripeEventJob } from '@adonisjs-lasagna/saas-tenancy/jobs'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import {
   setupBillingConfig,

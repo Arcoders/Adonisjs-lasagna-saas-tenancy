@@ -12,7 +12,7 @@ export default {
   tenantHeaderKey: env.get('TENANT_HEADER_KEY'),
   baseDomain: 'localhost',
   schemaCacheTtl: 300,
-  ignorePaths: ['/health', '/admin', '/api/webhooks'],
+  ignorePaths: ['/health', '/admin', '/api/webhooks', '/webhooks/stripe'],
   maintenanceSchedule: { backupHour: 2, migrateAllHour: 3 },
   circuitBreaker: { threshold: 50, resetTimeout: 30000, rollingCountTimeout: 10000, volumeThreshold: 2 },
   queue: {
@@ -44,4 +44,11 @@ export default {
       db: env.get('CACHE_REDIS_DB', 2),
     },
   },
+  // Note: no `billing` / `plans` here on purpose. Billing-aware specs
+  // call `setupBillingConfig(...)` in their own `setup` hook so the
+  // tenant_delete and metered_usage specs (which wire their own listeners
+  // ad-hoc) don't end up with the auto-wired provider listener firing
+  // alongside their manual one — that would double the cancel/dispatch
+  // count and break the assertions. The Stripe webhook route is still
+  // mounted in `start/routes.ts` so HTTP-level specs can POST to it.
 }
