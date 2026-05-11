@@ -9,7 +9,7 @@ import {
   StripeProcessedEvent,
   StripeSubscription,
 } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { PaymentFailed } from '@adonisjs-lasagna/saas-tenancy/events'
+import { PaymentFailed, PaymentSucceeded } from '@adonisjs-lasagna/saas-tenancy/events'
 import { ProcessStripeEventJob } from '@adonisjs-lasagna/saas-tenancy/jobs'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, buildEvent, clearBillingTables, hydrateJob } from './helpers.js'
@@ -89,6 +89,7 @@ test.group('Dunning state machine (integration)', (group) => {
     customer: string
     subscription: string
     attemptCount: number
+    created?: number
   }): Stripe.Event {
     const invoice = {
       id: `in_${randomUUID().slice(0, 8)}`,
@@ -99,7 +100,30 @@ test.group('Dunning state machine (integration)', (group) => {
       attempt_count: opts.attemptCount,
       parent: { subscription_details: { subscription: opts.subscription } },
     } as unknown as Stripe.Invoice
-    return buildEvent('invoice.payment_failed', invoice, { id: opts.eventId })
+    return buildEvent('invoice.payment_failed', invoice, {
+      id: opts.eventId,
+      ...(opts.created ? { created: opts.created } : {}),
+    })
+  }
+
+  function buildPaymentSucceededEvent(opts: {
+    eventId: string
+    customer: string
+    subscription: string
+    created?: number
+  }): Stripe.Event {
+    const invoice = {
+      id: `in_ok_${randomUUID().slice(0, 8)}`,
+      object: 'invoice',
+      customer: opts.customer,
+      amount_paid: 1000,
+      currency: 'usd',
+      parent: { subscription_details: { subscription: opts.subscription } },
+    } as unknown as Stripe.Invoice
+    return buildEvent('invoice.payment_succeeded', invoice, {
+      id: opts.eventId,
+      ...(opts.created ? { created: opts.created } : {}),
+    })
   }
 
   async function postSignedEvent(
@@ -255,6 +279,116 @@ test.group('Dunning state machine (integration)', (group) => {
     } finally {
       off()
     }
+  })
+
+  test('payment_succeeded after past_due flips status back to active (recovery)', async ({
+    assert,
+    client,
+  }) => {
+    // Regression for C-3: customer fixes their card via the billing
+    // portal and the next retry succeeds. The local mirror was
+    // staying past_due indefinitely until a subscription.updated
+    // event happened to arrive — host listeners that gate on
+    // status !== 'active' kept blocking a paying tenant.
+    const seed = await seedActiveSubscription()
+    const succeeded: number[] = []
+    const off = emitter.on(PaymentSucceeded, async (e) => {
+      succeeded.push(e.payload.amount)
+    })
+
+    try {
+      // 1. Drive into past_due via final dunning event.
+      await postSignedEvent(
+        client,
+        buildInvoiceEvent({
+          eventId: 'evt_recover_fail',
+          customer: seed.stripeCustomerId,
+          subscription: seed.subId,
+          attemptCount: 3,
+        })
+      )
+      await flushJobs()
+      let mirror = await StripeSubscription.find(seed.subId)
+      assert.equal(mirror?.status, 'past_due')
+
+      // 2. Customer pays — payment_succeeded arrives.
+      await postSignedEvent(
+        client,
+        buildPaymentSucceededEvent({
+          eventId: 'evt_recover_ok',
+          customer: seed.stripeCustomerId,
+          subscription: seed.subId,
+        })
+      )
+      await flushJobs()
+
+      // 3. Mirror flips back to active automatically.
+      mirror = await StripeSubscription.find(seed.subId)
+      assert.equal(mirror?.status, 'active', 'recovery flips past_due → active')
+      assert.lengthOf(succeeded, 1)
+      assert.equal(succeeded[0], 1000)
+    } finally {
+      off()
+    }
+  })
+
+  test('payment_succeeded does NOT touch status when subscription is canceled', async ({
+    assert,
+    client,
+  }) => {
+    // Final invoice for a canceled subscription must not revive it.
+    const seed = await seedActiveSubscription()
+    const canceledMirror = await StripeSubscription.find(seed.subId)
+    canceledMirror!.status = 'canceled'
+    await canceledMirror!.save()
+
+    await postSignedEvent(
+      client,
+      buildPaymentSucceededEvent({
+        eventId: 'evt_late_pay',
+        customer: seed.stripeCustomerId,
+        subscription: seed.subId,
+      })
+    )
+    await flushJobs()
+
+    const refreshed = await StripeSubscription.find(seed.subId)
+    assert.equal(refreshed?.status, 'canceled', 'recovery only fires from past_due/unpaid')
+  })
+
+  test('stale payment_failed does not overwrite a more recent active status', async ({
+    assert,
+    client,
+  }) => {
+    // Regression for S-1 + P-4: out-of-order event delivery where a
+    // final payment_failed arrives AFTER a more recent
+    // subscription.updated(active). Without the ordering guard, the
+    // mirror would silently revert to past_due.
+    const seed = await seedActiveSubscription()
+    // Bump lastEventAt to "now" so an event with `created = now - 60s`
+    // counts as stale (well outside the 5s tolerance).
+    const sub = await StripeSubscription.find(seed.subId)
+    sub!.lastEventAt = DateTime.utc()
+    await sub!.save()
+
+    await postSignedEvent(
+      client,
+      buildInvoiceEvent({
+        eventId: 'evt_stale_fail',
+        customer: seed.stripeCustomerId,
+        subscription: seed.subId,
+        attemptCount: 3,
+        created: Math.floor(Date.now() / 1000) - 60,
+      })
+    )
+    await flushJobs()
+
+    const refreshed = await StripeSubscription.find(seed.subId)
+    assert.equal(
+      refreshed?.status,
+      'active',
+      'stale payment_failed must not flip a fresher active state to past_due'
+    )
   })
 
   test('honours custom maxAttempts from config.billing.dunning', async ({ assert, client }) => {

@@ -186,4 +186,102 @@ test.group('tenant:billing:sync (integration)', (group) => {
     const command = await ace.exec('tenant:billing:sync', ['--since=not-a-date'])
     assert.equal(command.exitCode, 1)
   })
+
+  test('reverse pass (G-5): orphaned tenant_plans get downgraded', async ({ assert }) => {
+    // Tenant claims 'pro' via tenant_plans (source=stripe) but has no
+    // matching active stripe_subscription. Possible cause: a missed
+    // customer.subscription.deleted webhook, manual data drift, or a
+    // pre-package migration. The reverse pass must catch this and
+    // downgrade to defaultPlan.
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const cus = new StripeCustomer()
+    cus.tenantId = tenant.id
+    cus.stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    await cus.save()
+
+    // Stale tenant_plans row, source=stripe, planName=pro.
+    await TenantPlan.query().delete()
+    const tp = new TenantPlan()
+    tp.tenantId = tenant.id
+    tp.planName = 'pro'
+    tp.source = 'stripe'
+    tp.assignedAt = DateTime.utc().minus({ days: 30 })
+    tp.expiresAt = null
+    await tp.save()
+
+    // Stripe lists nothing for this customer (the sub was deleted /
+    // never properly recorded).
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(mockListReturning([]))
+
+    const command = await ace.exec('tenant:billing:sync', ['--json'])
+    assert.equal(command.exitCode, 0)
+
+    const refreshed = await TenantPlan.find(tenant.id)
+    assert.equal(refreshed?.planName, 'starter', 'orphan downgraded to defaultPlan')
+    assert.equal(refreshed?.source, 'reconciliation')
+  })
+
+  test('reverse pass (G-5): tenants already on defaultPlan are not flagged as orphans', async ({
+    assert,
+  }) => {
+    // Legitimate state: subscription was canceled, syncSubscription
+    // wrote tenant_plans={planName:starter, source:stripe}. Reverse
+    // pass must not waste cycles re-touching this row.
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const cus = new StripeCustomer()
+    cus.tenantId = tenant.id
+    cus.stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    await cus.save()
+
+    await TenantPlan.query().delete()
+    const tp = new TenantPlan()
+    tp.tenantId = tenant.id
+    tp.planName = 'starter' // defaultPlan
+    tp.source = 'stripe'
+    tp.assignedAt = DateTime.utc()
+    tp.expiresAt = null
+    await tp.save()
+
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(mockListReturning([]))
+
+    const command = await ace.exec('tenant:billing:sync', ['--json'])
+    assert.equal(command.exitCode, 0)
+
+    const refreshed = await TenantPlan.find(tenant.id)
+    assert.equal(refreshed?.source, 'stripe', 'source preserved — not touched by reverse pass')
+  })
+
+  test('reverse pass (G-5): --dry-run reports orphans without repairing', async ({
+    assert,
+  }) => {
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const cus = new StripeCustomer()
+    cus.tenantId = tenant.id
+    cus.stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    await cus.save()
+
+    await TenantPlan.query().delete()
+    const tp = new TenantPlan()
+    tp.tenantId = tenant.id
+    tp.planName = 'pro'
+    tp.source = 'stripe'
+    tp.assignedAt = DateTime.utc()
+    tp.expiresAt = null
+    await tp.save()
+
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(mockListReturning([]))
+
+    const command = await ace.exec('tenant:billing:sync', ['--dry-run'])
+    assert.equal(command.exitCode, 0)
+
+    const refreshed = await TenantPlan.find(tenant.id)
+    assert.equal(refreshed?.planName, 'pro', 'dry-run must not write')
+    assert.equal(refreshed?.source, 'stripe')
+  })
 })

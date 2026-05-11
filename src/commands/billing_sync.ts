@@ -4,6 +4,9 @@ import app from '@adonisjs/core/services/app'
 import BillingService from '../services/billing_service.js'
 import StripeSubscription from '../models/satellites/stripe_subscription.js'
 import StripeCustomer from '../models/satellites/stripe_customer.js'
+import TenantPlan from '../models/satellites/tenant_plan.js'
+import QuotaService from '../services/quota_service.js'
+import { getConfig } from '../config.js'
 
 /**
  * Reconcile drift between Stripe and our local mirror. Run as a daily cron
@@ -111,13 +114,66 @@ export default class BillingSync extends BaseCommand {
       }
     }
 
-    const summary = { scanned, drifted, repaired, errors }
+    // Reverse pass — find tenants whose tenant_plans claims a Stripe-priced
+    // plan but whose local mirror has no active subscription. Possible
+    // causes: a `customer.subscription.deleted` webhook was missed BEFORE
+    // this command ran (the forward pass would have caught it via Stripe's
+    // listing), the stripe_subscriptions row was manually deleted, or the
+    // tenant_plans row was migrated from another system. Recovery is to
+    // downgrade them back to defaultPlan.
+    const cfg = getConfig().billing
+    const defaultPlan = cfg?.defaultPlan
+    let orphanedPlans = 0
+    let orphansRepaired = 0
+    if (defaultPlan) {
+      const ACTIVE_STATUSES = ['active', 'trialing', 'past_due', 'paused', 'unpaid']
+      const orphanQuery = TenantPlan.query()
+        .where('source', 'stripe')
+        .whereNot('planName', defaultPlan) // already on default ⇒ not an orphan
+      if (this.tenant) orphanQuery.where('tenantId', this.tenant)
+      const stripePlanRows = await orphanQuery
+      for (const row of stripePlanRows) {
+        const liveSub = await StripeSubscription.query()
+          .where('tenantId', row.tenantId)
+          .whereIn('status', ACTIVE_STATUSES)
+          .first()
+        if (liveSub) continue
+        orphanedPlans += 1
+        if (this.dryRun) {
+          this.logger.warning(
+            `orphan ${row.tenantId} plan=${row.planName} (source=stripe, no active subscription)`
+          )
+          continue
+        }
+        try {
+          const quotas = new QuotaService()
+          await quotas.assignPlan(row.tenantId, defaultPlan, { source: 'reconciliation' })
+          orphansRepaired += 1
+          this.logger.success(
+            `orphan-repaired ${row.tenantId}  ${row.planName} → ${defaultPlan}`
+          )
+        } catch (err) {
+          const message = (err as Error)?.message ?? 'unknown error'
+          errors.push({ subscription_id: `tenant:${row.tenantId}`, error: message })
+          this.logger.error(`orphan-failed ${row.tenantId}: ${message}`)
+        }
+      }
+    }
+
+    const summary = {
+      scanned,
+      drifted,
+      repaired,
+      orphanedPlans,
+      orphansRepaired,
+      errors,
+    }
     if (this.json) {
       this.logger.log(JSON.stringify(summary, null, 2))
     } else {
       this.logger.log('')
       this.logger.log(
-        `${this.colors.bold('summary')}  scanned=${scanned}  drifted=${drifted}  repaired=${repaired}  errors=${errors.length}`
+        `${this.colors.bold('summary')}  scanned=${scanned}  drifted=${drifted}  repaired=${repaired}  orphanedPlans=${orphanedPlans}  orphansRepaired=${orphansRepaired}  errors=${errors.length}`
       )
     }
     this.exitCode = errors.length > 0 ? 1 : 0

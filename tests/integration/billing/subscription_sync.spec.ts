@@ -145,6 +145,146 @@ test.group('BillingService.syncSubscription (integration)', (group) => {
     )
   })
 
+  test('assignPlan failure leaves the mirror untouched (transactional ordering)', async ({
+    assert,
+  }) => {
+    // Regression: previously syncSubscription wrote the mirror first and
+    // assigned the plan after. A throw from assignPlan (e.g., a plan
+    // name removed from config.plans.definitions while subscriptions
+    // referencing it still exist in Stripe) would leave the local
+    // mirror reflecting the new plan but the QuotaService still on
+    // the old one — tenant billed at upgrade rate but limited at
+    // downgrade rate. The fix flipped the order so a failing
+    // assignPlan() short-circuits before row.save().
+    const { stripeCustomerId } = await seedCustomer()
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+
+    // Simulate config drift: 'pro' is mapped from prod_pro but no
+    // longer exists in plans.definitions.
+    const baseCfg = getConfig()
+    setConfig({
+      ...baseCfg,
+      plans: {
+        ...baseCfg.plans!,
+        definitions: {
+          starter: baseCfg.plans!.definitions.starter,
+          // pro deliberately removed
+          team: baseCfg.plans!.definitions.team,
+        },
+      },
+    } as never)
+
+    const subId = `sub_drift_${randomUUID().slice(0, 8)}`
+    const sub = buildSubscription({
+      id: subId,
+      customer: stripeCustomerId,
+      productId: 'prod_pro', // maps to 'pro' which is now undefined
+      status: 'active',
+    })
+
+    await assert.rejects(
+      () => billing.syncSubscription(sub, Math.floor(Date.now() / 1000)),
+      /plan "pro" is not declared/
+    )
+
+    // The mirror MUST NOT exist — row.save() runs after assignPlan.
+    const mirror = await StripeSubscription.find(subId)
+    assert.isNull(mirror, 'mirror must not be written when assignPlan fails')
+  })
+
+  test('upgrade mid-cycle: subscription.updated swaps product → plan changes (T-3)', async ({
+    assert,
+  }) => {
+    // T-3 from the audit. Tenant is on 'pro'; Stripe sends a
+    // subscription.updated with a new product mapped to 'team'. The
+    // mirror, the TenantPlan, and QuotaService should all converge on
+    // 'team' after a single event.
+    const { tenantId, stripeCustomerId } = await seedCustomer()
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    const quotas = await app.container.make(QuotaService)
+    const fakeTenant = { id: tenantId } as never
+
+    // Create the initial 'pro' subscription.
+    const subId = `sub_upgrade_${randomUUID().slice(0, 8)}`
+    const proSub = buildSubscription({
+      id: subId,
+      customer: stripeCustomerId,
+      productId: 'prod_pro',
+      status: 'active',
+    })
+    await billing.syncSubscription(proSub, Math.floor(Date.now() / 1000))
+    assert.equal(await quotas.getLimit(fakeTenant, 'apiRequests'), 10_000)
+    let mirror = await StripeSubscription.find(subId)
+    assert.equal(mirror?.planName, 'pro')
+
+    // Stripe fires subscription.updated with the new product.
+    const teamSub = buildSubscription({
+      id: subId,
+      customer: stripeCustomerId,
+      productId: 'prod_team',
+      status: 'active',
+    })
+    const result = await billing.syncSubscription(teamSub, Math.floor(Date.now() / 1000) + 5)
+    assert.equal(result?.previousPlan, 'pro', 'previousPlan reflects the prior assignment')
+    assert.equal(result?.plan, 'team')
+
+    // Mirror, tenant_plans, and quota all converge on 'team'.
+    mirror = await StripeSubscription.find(subId)
+    assert.equal(mirror?.planName, 'team')
+    const tp = await TenantPlan.find(tenantId)
+    assert.equal(tp?.planName, 'team')
+    assert.equal(await quotas.getLimit(fakeTenant, 'apiRequests'), 50_000)
+  })
+
+  test('pause/resume lifecycle: status flips between paused and active (T-10)', async ({
+    assert,
+  }) => {
+    const { tenantId, stripeCustomerId } = await seedCustomer()
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+
+    const subId = `sub_pause_${randomUUID().slice(0, 8)}`
+    const active = buildSubscription({
+      id: subId,
+      customer: stripeCustomerId,
+      productId: 'prod_pro',
+      status: 'active',
+    })
+    await billing.syncSubscription(active, Math.floor(Date.now() / 1000))
+    let mirror = await StripeSubscription.find(subId)
+    assert.equal(mirror?.status, 'active')
+
+    // Pause.
+    const paused = buildSubscription({
+      id: subId,
+      customer: stripeCustomerId,
+      productId: 'prod_pro',
+      status: 'paused',
+    })
+    await billing.syncSubscription(paused, Math.floor(Date.now() / 1000) + 5)
+    mirror = await StripeSubscription.find(subId)
+    assert.equal(mirror?.status, 'paused')
+
+    // The plan stays — the host's middleware can refuse requests on
+    // status != 'active' if it wants to enforce a hard pause.
+    assert.equal(mirror?.planName, 'pro')
+    const tpDuringPause = await TenantPlan.find(tenantId)
+    assert.equal(tpDuringPause?.planName, 'pro')
+
+    // Resume.
+    const resumed = buildSubscription({
+      id: subId,
+      customer: stripeCustomerId,
+      productId: 'prod_pro',
+      status: 'active',
+    })
+    await billing.syncSubscription(resumed, Math.floor(Date.now() / 1000) + 10)
+    mirror = await StripeSubscription.find(subId)
+    assert.equal(mirror?.status, 'active', 'resumed flips back to active')
+  })
+
   test('plan change immediately reflects via QuotaService.getLimit', async ({ assert }) => {
     const { tenantId, stripeCustomerId } = await seedCustomer()
     const billing = await app.container.make(BillingService)

@@ -2,6 +2,7 @@ import { Job } from '@adonisjs/queue'
 import logger from '@adonisjs/core/services/logger'
 import { DateTime } from 'luxon'
 import StripeProcessedEvent from '../models/satellites/stripe_processed_event.js'
+import StripeMeterEvent from '../models/satellites/stripe_meter_event.js'
 import { getConfig } from '../config.js'
 
 /**
@@ -11,9 +12,20 @@ import { getConfig } from '../config.js'
  *
  * Idempotent: runs in batches and re-queries each loop, so concurrent
  * runs of the same retention sweep never delete the same row twice.
+ *
+ * Prunes:
+ *   - `stripe_processed_events` with `status='completed'` older than TTL
+ *     (Stripe's max retry window — older events can never legitimately
+ *     be re-delivered)
+ *   - `stripe_meter_events` with `status='sent'` older than TTL
+ *     (already accepted by Stripe; the audit row was useful while
+ *     reportedAt was null. `failed` and `pending` rows are NOT
+ *     auto-pruned — they're operator concerns surfaced by
+ *     `billing_doctor`)
  */
 export async function runBillingCleanup(opts: { batchSize?: number } = {}): Promise<{
   deleted: number
+  meterDeleted: number
   cutoff: string
 }> {
   const cfg = getConfig().billing
@@ -41,8 +53,39 @@ export async function runBillingCleanup(opts: { batchSize?: number } = {}): Prom
     if (ids.length < batchSize) break
   }
 
-  logger.info({ deleted: totalDeleted, cutoff: cutoff.toISO() }, 'billing.cleanup.completed')
-  return { deleted: totalDeleted, cutoff: cutoff.toISO()! }
+  let totalMeterDeleted = 0
+  while (true) {
+    const meterIds = await StripeMeterEvent.query()
+      .where('status', 'sent')
+      .where('reportedAt', '<', cutoff.toSQL()!)
+      .limit(batchSize)
+      .select('id')
+
+    if (meterIds.length === 0) break
+
+    await StripeMeterEvent.query()
+      .whereIn(
+        'id',
+        meterIds.map((r) => r.id)
+      )
+      .delete()
+    totalMeterDeleted += meterIds.length
+    if (meterIds.length < batchSize) break
+  }
+
+  logger.info(
+    {
+      deleted: totalDeleted,
+      meter_deleted: totalMeterDeleted,
+      cutoff: cutoff.toISO(),
+    },
+    'billing.cleanup.completed'
+  )
+  return {
+    deleted: totalDeleted,
+    meterDeleted: totalMeterDeleted,
+    cutoff: cutoff.toISO()!,
+  }
 }
 
 /**

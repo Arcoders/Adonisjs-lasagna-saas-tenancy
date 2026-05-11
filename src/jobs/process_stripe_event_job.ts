@@ -56,6 +56,7 @@ export default class ProcessStripeEventJob extends Job<ProcessStripeEventPayload
       const billing = await app.container.make(BillingService)
       event = await billing.retrieveEvent(eventId)
     } catch (err) {
+      if (await this.#shortCircuitIfFatal(row, err, eventId)) return
       await this.#markFailed(row, err)
       throw err
     }
@@ -79,6 +80,7 @@ export default class ProcessStripeEventJob extends Job<ProcessStripeEventPayload
         'stripe.event.processed'
       )
     } catch (err) {
+      if (await this.#shortCircuitIfFatal(row, err, eventId)) return
       await this.#markFailed(row, err)
       throw err
     }
@@ -125,6 +127,55 @@ export default class ProcessStripeEventJob extends Job<ProcessStripeEventPayload
     const { errorCode, details } = classifyError(err)
     row.lastError = (details ?? errorCode).slice(0, 500)
     await row.save()
+  }
+
+  /**
+   * If the error is a known-fatal `BillingException`, mark the row as
+   * permanently `failed`, fire the dead-letter event, and return true
+   * so the caller skips the throw. Returns false for retryable errors
+   * (caller should fall through to #markFailed + throw, letting BullMQ
+   * retry).
+   *
+   * Retryable: network, rate-limit, 5xx, queue, customer/tenant resolution
+   * race. Fatal: bad config, revoked auth, deleted Stripe resource,
+   * card declined, signature mismatch.
+   *
+   * Without this short-circuit a misconfigured product mapping or a
+   * revoked API key burns through the BullMQ retry budget (default 3
+   * attempts with exponential backoff = ~30s of latency) before
+   * surfacing in the dead-letter queue. Fail fast instead.
+   */
+  async #shortCircuitIfFatal(
+    row: StripeProcessedEvent,
+    err: unknown,
+    eventId: string
+  ): Promise<boolean> {
+    if (!(err instanceof BillingException) || err.isRetryable()) {
+      return false
+    }
+    row.status = 'failed'
+    row.lastError = err.message.slice(0, 500)
+    await row.save()
+    logger.error(
+      { event_id: eventId, error_code: err.billingCode },
+      'stripe.event.fatal: marking failed without retry — error is non-transient'
+    )
+    try {
+      const { default: BillingEventDeadLettered } = await import(
+        '../events/billing/billing_event_dead_lettered.js'
+      )
+      await BillingEventDeadLettered.dispatch({
+        eventId,
+        errorCode: err.billingCode,
+        details: err.message,
+      })
+    } catch (innerErr) {
+      logger.error(
+        { event_id: eventId, err: (innerErr as Error)?.message },
+        'stripe.event.dead_letter_emit_failed'
+      )
+    }
+    return true
   }
 }
 

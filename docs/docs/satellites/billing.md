@@ -54,6 +54,18 @@ bundle.
 | `STRIPE_API_VERSION` | Optional pin. Defaults to `2025-08-27.basil`. Pinning is recommended in production. |
 | `STRIPE_ALLOW_LIVE_IN_DEV` | Escape hatch — set to `'true'` to allow live keys outside production (rare; staging that legitimately uses live keys). |
 
+> ⚠ **Env-mode boot guard**. The package refuses to boot when
+> `STRIPE_API_KEY` and `NODE_ENV` disagree about test vs live mode,
+> because a stray `.env` from prod into dev silently moves real
+> money. If your CI or staging environment legitimately uses live
+> keys, opt in explicitly with `STRIPE_ALLOW_LIVE_IN_DEV=true`. The
+> boot also validates `STRIPE_WEBHOOK_SECRET` is non-empty and
+> starts with `whsec_` so a misconfigured deploy fails fast rather
+> than silently accepting any forged signature.
+>
+> See the [Stripe + quotas cookbook](../cookbook/stripe-quotas.md)
+> for an end-to-end setup walkthrough.
+
 The webhook path **must** appear in `config.ignorePaths` so
 `TenantGuardMiddleware` doesn't try to resolve a tenant from the
 Stripe request. The published `multitenancy.stub` already includes
@@ -79,7 +91,7 @@ Stripe request. The published `multitenancy.stub` already includes
 | `webhook.enforceIpAllowlist` | `boolean?` | `false` | Hard-fail webhook delivery from non-listed IPs. |
 | `webhook.allowedIps` | `string[]?` | `[]` | Literal IPs and/or CIDR ranges (`54.187.174.0/24`). Backed by `node:net.BlockList` — zero deps, IPv4 + IPv6 + 4-mapped-6 normalisation. |
 | `dunning.maxAttempts` | `number?` | `3` | After this many failed invoice attempts, mark `past_due` and emit `PaymentFailed{final:true}`. Matches Stripe Smart Retries. |
-| `dunning.action` | `'none' \| 'downgrade' \| 'block'` | `'none'` | Action to apply on the final failed attempt. |
+| `dunning.action` | `'none' \| 'downgrade'` | `'none'` | Auto-action on the final failed attempt. `'downgrade'` reassigns the tenant's quota to `defaultPlan` (mirror `planName` is preserved; a successful retry restores it). `'none'` leaves all behaviour to the host's `PaymentFailed{final:true}` listener. |
 | `dunning.gracePeriodDays` | `number?` | `0` | Days to wait after `past_due` before applying the action. |
 | `notifyOnQuotaExceeded` | `boolean?` | `false` | Dispatch `QuotaWarningMailer` on `TenantQuotaExceeded`. Requires `@adonisjs/mail`. |
 | `onTenantDelete` | `'cancel' \| 'detach' \| 'preserve'` | `'cancel'` | Tenant hard-delete policy (see below). |
@@ -171,8 +183,8 @@ Counter behaviour on plan change:
 ```ts
 billing: {
   dunning: {
-    maxAttempts: 3,                          // matches Stripe Smart Retries
-    action: 'none' | 'downgrade' | 'block',
+    maxAttempts: 3,                  // matches Stripe Smart Retries
+    action: 'none' | 'downgrade',    // 'block' was removed — host listeners do this
     gracePeriodDays: 0,
   },
 }
@@ -185,11 +197,22 @@ On `invoice.payment_failed`:
 - The `attempts === maxAttempts` attempt marks
   `stripe_subscriptions.status = 'past_due'` and emits
   `PaymentFailed{final:true}`.
-- `action` then runs (after `gracePeriodDays`):
-  - `'none'`: no-op (default — host owns the UX).
-  - `'downgrade'`: `assignPlan(tenant, defaultPlan)`.
-  - `'block'`: reserved for a future header-based UI banner; today is
-    a no-op but still emits the event for instrumentation.
+- `action` then runs:
+  - `'none'`: no-op (default — host owns the UX via the
+    `PaymentFailed{final:true}` listener).
+  - `'downgrade'`: `assignPlan(tenant, defaultPlan, { source: 'dunning' })`.
+    Note this is a quota-only side-effect — `stripe_subscriptions.planName`
+    keeps the original plan, so a successful retry's
+    `customer.subscription.updated(active)` restores the upgraded
+    plan automatically.
+
+> `gracePeriodDays` is currently a no-op (the value is read but the
+> action fires immediately). Listen for `PaymentFailed{final:true}`
+> and defer your own enforcement if you need a grace window today.
+
+For app-level blocking (refusing requests until billing is resolved),
+listen for `PaymentFailed{final:true}` and gate at your middleware.
+The package intentionally does not own that policy.
 
 ## Metered billing
 
@@ -238,16 +261,45 @@ Unmapped quotas are silently ignored — only quotas listed in
 `config.billing.onTenantDelete` controls cleanup when
 `HookRegistry.beforeDestroy` fires for a tenant:
 
-| Policy | Stripe API | Local mapping | Audit rows |
+| Policy | Stripe API call | Local mapping | Audit rows |
 |---|---|---|---|
-| `'cancel'` (default) | Cancels every active/past_due/trialing/paused sub for the tenant (no proration, no final invoice). | Drops `stripe_customers` row. | Sets `stripe_subscriptions.status='canceled'` (rows kept). |
-| `'detach'` | No call. | Drops `stripe_customers` row. | Untouched. |
+| `'cancel'` (default) | `stripe.subscriptions.cancel(id, { invoice_now: false, prorate: false })` for every `active`/`past_due`/`trialing`/`paused` sub. | Drops `stripe_customers` row. | Sets `stripe_subscriptions.status='canceled'` (rows kept). |
+| `'detach'` | No call. The Stripe subscription keeps billing the card on file. | Drops `stripe_customers` row. | Untouched. |
 | `'preserve'` | No call. | Untouched. | Untouched. Operator handles cleanup manually. |
 
-The listener (`TenantDestroyBillingListener`) is wired
-automatically when `config.billing` is set. Cancellation failures
+### What `'cancel'` actually does — and does NOT do
+
+- **Cancellation timing**: **immediate**. The subscription stops billing
+  the moment the API call returns. There is no `'at_period_end'` mode —
+  if you want a grace period, pre-update the subscription's
+  `cancel_at_period_end=true` from your own admin tooling before
+  destroying the tenant.
+- **Final invoice**: **none**. `invoice_now: false` means Stripe does
+  not generate an out-of-cycle invoice for unbilled usage. If the
+  tenant has unmetered usage between the last invoice and the destroy
+  call, that usage is **lost** — Stripe will not bill it later.
+  Hosts that need the final draw should call
+  `stripe.invoices.create` themselves before the destroy.
+- **Proration / refunds**: **none**. `prorate: false` means no
+  proration credit is issued for the unused portion of the current
+  period. Money already paid stays paid. To refund, the host must
+  call `stripe.refunds.create` separately on the relevant
+  `payment_intent`.
+- **Already-paid invoices**: untouched. They remain visible in the
+  Stripe dashboard. No automatic refund.
+- **Payment methods**: detached automatically when the Stripe customer
+  is later deleted by an operator. The package does NOT delete the
+  customer itself — only the local mapping row. This preserves the
+  audit trail in Stripe for compliance / forensics.
+
+### Failure behaviour
+
+The listener (`TenantDestroyBillingListener`) is wired automatically
+when `config.billing` is set. Per-subscription cancellation failures
 log a structured warning with `billing_code` but never block tenant
-destroy — the audit trail is preserved for reconciliation.
+destroy — the audit trail is preserved for reconciliation, and a
+manual `tenant:billing:sync` pass can finish the job once the
+underlying issue is resolved.
 
 ## Events
 
@@ -266,6 +318,65 @@ from `@adonisjs-lasagna/saas-tenancy/events`:
 | `PaymentFailed` | `tenantId, invoiceId, amount, currency, attempts, final, nextRetry` | `invoice.payment_failed` (every attempt + final) |
 | `BillingMisconfigured` | `stripeSubscriptionId, productId, priceId` | A Stripe product/price has no mapping in `config.billing.products`. |
 | `BillingEventDeadLettered` | `eventId, errorCode, details` | Webhook event exhausted all queue retries. `errorCode` is a stable `BillingErrorCode \| 'unhandled_error'` enum; `details` is null unless the source error was a `BillingException`. |
+
+### Listening for events
+
+Wire listeners in `start/events.ts`. The events are `BaseEvent`
+subclasses so AdonisJS resolves the listener via `emitter.on(EventClass, fn)`.
+
+```ts
+// start/events.ts
+import emitter from '@adonisjs/core/services/emitter'
+import {
+  TrialEnding,
+  PaymentSucceeded,
+  PaymentFailed,
+  BillingEventDeadLettered,
+} from '@adonisjs-lasagna/saas-tenancy/events'
+
+// Notify the tenant 7 days before their trial converts.
+emitter.on(TrialEnding, async (event) => {
+  const { tenantId, stripeSubscriptionId, daysLeft } = event.payload
+  await sendTrialEndingEmail(tenantId, { daysLeft, stripeSubscriptionId })
+})
+
+// Reset any in-app "your payment failed" banner when the customer recovers.
+emitter.on(PaymentSucceeded, async (event) => {
+  const { tenantId, invoiceId, amount, currency } = event.payload
+  await clearBillingBanner(tenantId)
+  await trackRevenue({ tenantId, invoiceId, amount, currency })
+})
+
+// React to dunning. `final:false` fires for each retry; `final:true`
+// fires once after maxAttempts. Most hosts only act on `final:true`.
+emitter.on(PaymentFailed, async (event) => {
+  const { tenantId, attempts, final, nextRetry } = event.payload
+  if (!final) {
+    await showRetryBanner(tenantId, { attempts, nextRetry })
+    return
+  }
+  // Final attempt: hard block, send an account-manager ping, etc.
+  await onBillingExhausted(tenantId)
+})
+
+// Page on-call when a webhook can't be processed after all retries.
+// The eventId can be replayed with `node ace tenant:billing:replay
+// --event-id=<id>` once the underlying issue is fixed.
+emitter.on(BillingEventDeadLettered, async (event) => {
+  const { eventId, errorCode, details } = event.payload
+  await alerts.page({
+    severity: errorCode === 'authentication_failed' ? 'critical' : 'high',
+    title: `Stripe webhook dead-lettered (${errorCode})`,
+    runbook: 'docs/satellites/billing#incident-runbook',
+    payload: { eventId, errorCode, details },
+  })
+})
+```
+
+Listeners run after the webhook has been ack'd to Stripe and the
+mirror has been updated, so a slow listener never delays Stripe's
+delivery loop. Listener exceptions are logged but never reverted
+back to the dispatcher — keep them idempotent.
 
 ## Service surface
 
@@ -467,6 +578,17 @@ Match on the code, not the message.
 | `network_error` | 503 | `StripeConnectionError`. |
 | `metering_failed` | 400 | Invalid meter inputs (negative quantity, etc.). |
 | `idempotency_conflict` | 409 | Same idempotency key reused with different params. |
+| `invalid_price` | 400 | `priceId` passed to `createCheckoutSession` is not in `config.billing.products`. Pass `allowUnknownPrices: true` if the host validates upstream. |
+| `queue_unavailable` | 503 | Webhook controller could not enqueue the processing job. Stripe gets 5xx and retries the delivery; the next attempt re-dispatches. |
+| `authentication_failed` | 401 | Stripe API key was rejected. Fatal — the job won't retry. |
+| `invalid_stripe_request` | 400 | Stripe rejected the request shape (deleted resource, missing field). Fatal — the job won't retry. |
+| `permission_denied` | 403 | API key lacks permission for the resource (Stripe Connect). Fatal — the job won't retry. |
+
+`BillingException.isRetryable()` reports whether the queue should
+keep retrying. Fatal codes short-circuit the BullMQ retry budget
+and immediately fire `BillingEventDeadLettered` so on-call doesn't
+wait ~30 s of exponential backoff before being paged on a problem
+that retrying can't solve.
 
 ## Testing
 
@@ -548,6 +670,169 @@ Replace customer/product IDs in the template (or pass
    `billing.webhook.processing_duration_seconds`,
    `billing.subscription.active_total`,
    `billing.stripe_api.errors_total`.
+
+## Incident runbook
+
+Designed to be the page on-call opens during a billing incident.
+Symptoms first, then triage, then recovery — copy the relevant
+commands as-is.
+
+### 1. `BillingEventDeadLettered` fires
+
+**Symptom**: pager alert; one or more webhook events exhausted all
+queue retries.
+
+**Triage**:
+
+```bash
+# Look at what failed and why
+node ace tenant:billing:doctor --json | jq '.checks[] | select(.status != "ok")'
+
+# Inspect the row directly
+psql -c "SELECT event_id, event_type, status, attempts, last_error
+         FROM backoffice.stripe_processed_events
+         WHERE status = 'failed' ORDER BY processed_at DESC LIMIT 20;"
+```
+
+The `errorCode` from the dead-letter payload tells you the class:
+
+- `authentication_failed` / `invalid_stripe_request` /
+  `permission_denied` → fatal Stripe-side. Fix the underlying
+  config or resource, then replay (below).
+- `network_error` / `rate_limited` / `queue_unavailable` /
+  `api_error` → transient. Already exhausted retries; replay to
+  retry against a now-healthy dependency.
+- `customer_not_found` / `tenant_not_resolvable` → resolution race
+  or stale data. Usually the `checkout.session.completed` event
+  never landed; check the ledger for that event_id.
+
+**Recovery**:
+
+```bash
+# Replay a single event after fixing the root cause
+node ace tenant:billing:replay --event-id=evt_XXX
+
+# Or all currently-failed events at once
+node ace tenant:billing:replay --all-failed
+```
+
+### 2. Stripe API outage
+
+**Symptom**: spikes in `network_error` / `api_error` / `rate_limited`;
+`tenant:billing:doctor` reports the Stripe ping as failing.
+
+**Triage**: check <https://status.stripe.com>.
+
+**Recovery**: the package does the right thing automatically. The
+webhook controller returns 5xx so Stripe retries on its end,
+`ProcessStripeEventJob` retries via BullMQ for transient errors,
+and `tenant:billing:sync` reconciles any state that drifted while
+Stripe was unreachable. Once Stripe is healthy:
+
+```bash
+# Reconcile in dry-run first to scope the damage
+node ace tenant:billing:sync --dry-run --json
+
+# Then apply (forward + reverse pass)
+node ace tenant:billing:sync --json
+```
+
+### 3. Queue / Redis outage
+
+**Symptom**: ledger rows pile up with `status='pending'` and
+`attempts=0`. `BillingEventDeadLettered` may NOT fire (the job
+never ran).
+
+**Triage**:
+
+```sql
+SELECT count(*) FROM backoffice.stripe_processed_events
+WHERE status='pending' AND attempts=0
+  AND processed_at < now() - interval '5 minutes';
+```
+
+If non-zero and growing, BullMQ/Redis is unhealthy.
+
+**Recovery**:
+
+1. Fix Redis / BullMQ (out of scope for this runbook).
+2. Stripe's own retry covers most of the gap — when it re-delivers,
+   the controller's `INSERT ... ON CONFLICT` branch detects the
+   pending-attempts-0 row and re-dispatches automatically (C-1
+   recovery path).
+3. For events Stripe has already given up on (>3 days), replay
+   manually:
+
+```bash
+node ace tenant:billing:replay --all-failed
+# pending rows that never advanced to 'failed' need a direct push:
+node ace tenant:billing:replay --event-id=evt_XXX
+```
+
+### 4. Webhook signature failures
+
+**Symptom**: spikes in 401 responses on `/webhooks/stripe`; no
+ledger rows appearing.
+
+**Triage**:
+
+- `STRIPE_WEBHOOK_SECRET` matches the secret of the Stripe webhook
+  endpoint that's sending events. A rotated secret without redeploy
+  is the #1 cause.
+- If `webhook.enforceIpAllowlist` is on, Stripe's IP ranges may have
+  rotated since the allowlist was populated. Refresh from
+  <https://stripe.com/files/ips/ips_webhooks.json>.
+- A reverse proxy or BodyParser change may have rewritten the raw
+  body. `request.raw()` must yield the unmodified bytes Stripe sent.
+
+**Recovery**: rotate / republish the secret, redeploy, then replay
+the lost window. Stripe retains deliveries for ~3 days so the
+events list in the Stripe dashboard still has them; pull each
+event_id and feed it to `tenant:billing:replay`.
+
+### 5. Drift between Stripe and local mirror
+
+**Symptom**: a tenant reports they cancelled but still have access,
+or the doctor flags drifted subscriptions.
+
+**Triage**:
+
+```bash
+# Dry-run shows what would change without writing.
+node ace tenant:billing:sync --tenant=<uuid> --dry-run --json
+```
+
+**Recovery**:
+
+```bash
+# Forward pass aligns local with Stripe.
+# Reverse pass downgrades orphan tenant_plans without an active sub.
+node ace tenant:billing:sync --tenant=<uuid> --json
+```
+
+For a system-wide drift sweep (e.g., after a long outage), drop
+`--tenant` and run for the entire account. Idempotent — safe to
+re-run.
+
+### 6. Configuration drift causing `plan_unmapped`
+
+**Symptom**: `BillingMisconfigured` events firing; tenants on a
+Stripe product fall back to `defaultPlan` silently.
+
+**Triage**: the event payload carries `productId` / `priceId`. Look
+those up in the Stripe dashboard.
+
+**Recovery**: add the mapping to `config.billing.products`,
+redeploy, then reconcile:
+
+```bash
+node ace tenant:billing:sync --json
+```
+
+The state machine warnings (`stripe.subscription.illegal_transition`,
+`stripe.subscription.unknown_source_state`) in the log stream point
+at API drift or unexpected admin actions — surface in your error
+aggregator and investigate the specific tenant.
 
 ## Read next
 

@@ -100,6 +100,17 @@ test.group('Webhook idempotency (integration)', (group) => {
       .json(event)
     res1.assertStatus(200)
 
+    // In production, BullMQ worker would have at least incremented the
+    // ledger row's `attempts` by now (line ~52 of
+    // process_stripe_event_job). The mocked dispatch in this suite
+    // just counts calls — without a real worker the row stays at
+    // attempts=0, which the C-1 redispatch branch explicitly retries.
+    // Simulate worker progress so the second POST exercises the
+    // "already in flight, do nothing" path.
+    const inflight = await StripeProcessedEvent.find('evt_idem_dup')
+    inflight!.attempts = 1
+    await inflight!.save()
+
     const res2 = await client
       .post(url)
       .header('content-type', 'application/json')
@@ -115,6 +126,153 @@ test.group('Webhook idempotency (integration)', (group) => {
     // that moves dispatch before the dedupe insert would still see one
     // ledger row but charge the customer twice.
     assert.equal(dispatchCount, 1, 'job dispatched exactly once across two POSTs')
+  })
+
+  test('dispatch failure returns 5xx so Stripe retries (does NOT silently ack)', async ({
+    assert,
+    client,
+  }) => {
+    // Regression for C-1: previously the controller swallowed dispatch
+    // exceptions, returned 200, and left the ledger row stuck in
+    // 'pending' until manual replay. Stripe never retried because it
+    // saw 200, so the event was lost. The fix re-throws so the response
+    // is 5xx — Stripe's automatic retry kicks in over the next 3 days.
+    ;(ProcessStripeEventJob as unknown as {
+      dispatch: (payload: { eventId: string }) => Promise<void>
+    }).dispatch = async () => {
+      throw new Error('queue is unreachable')
+    }
+
+    const mock = new MockStripe('whsec_test_billing_helper')
+    const event = buildEvent('customer.subscription.created', buildSubscription(), {
+      id: 'evt_queue_down',
+    })
+    mock.injectEvent(event)
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(mock)
+
+    const body = JSON.stringify(event)
+    const sig = signWebhookPayload(body, 'whsec_test_billing_helper')
+
+    const res = await client
+      .post('/webhooks/stripe')
+      .header('content-type', 'application/json')
+      .header('stripe-signature', sig)
+      .json(event)
+    assert.isAtLeast(res.status(), 500, 'dispatch failure must surface as 5xx')
+
+    // The ledger row was inserted (the INSERT happens before the
+    // dispatch attempt) and is left in 'pending' so the next Stripe
+    // retry can pick it up via the duplicate-recovery branch.
+    const rows = await StripeProcessedEvent.query().where('event_id', 'evt_queue_down')
+    assert.lengthOf(rows, 1)
+    assert.equal(rows[0].status, 'pending')
+    assert.equal(rows[0].attempts, 0)
+  })
+
+  test('Stripe retry of a dispatch-failed event re-dispatches the job', async ({
+    assert,
+    client,
+  }) => {
+    // Pre-seed the ledger row in the state the previous test leaves
+    // behind: pending + attempts=0 (a worker never picked it up). On
+    // Stripe's next delivery, the controller's INSERT hits ON CONFLICT
+    // (duplicate), inspects the existing row, and re-dispatches.
+    const event = buildEvent('customer.subscription.created', buildSubscription(), {
+      id: 'evt_retry_after_outage',
+    })
+    const ledger = new StripeProcessedEvent()
+    ledger.eventId = event.id
+    ledger.eventType = event.type
+    ledger.status = 'pending'
+    ledger.attempts = 0
+    ledger.payload = { id: event.id, type: event.type } as never
+    await ledger.save()
+
+    const mock = new MockStripe('whsec_test_billing_helper')
+    mock.injectEvent(event)
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(mock)
+
+    const sig = signWebhookPayload(JSON.stringify(event), 'whsec_test_billing_helper')
+    const res = await client
+      .post('/webhooks/stripe')
+      .header('content-type', 'application/json')
+      .header('stripe-signature', sig)
+      .json(event)
+    res.assertStatus(200)
+
+    assert.equal(dispatchCount, 1, 'dispatch was retried for the orphaned pending row')
+
+    // Still exactly one ledger row — the recovery path does not insert
+    // a second row.
+    const rows = await StripeProcessedEvent.query().where('event_id', event.id)
+    assert.lengthOf(rows, 1)
+  })
+
+  test('Stripe retry does NOT re-dispatch when a worker has already started (attempts>0)', async ({
+    assert,
+    client,
+  }) => {
+    // Worker incremented attempts to 1 (line ~52 of process_stripe_event_job)
+    // and is still running (or crashed mid-flight). We must not over-dispatch
+    // in that case — concurrent jobs racing on the same row can lose updates
+    // on StripeSubscription. The manual `tenant:billing:replay` command is
+    // the recovery path for stuck-in-progress rows.
+    const event = buildEvent('customer.subscription.created', buildSubscription(), {
+      id: 'evt_inflight',
+    })
+    const ledger = new StripeProcessedEvent()
+    ledger.eventId = event.id
+    ledger.eventType = event.type
+    ledger.status = 'pending'
+    ledger.attempts = 1 // worker has touched it
+    ledger.payload = { id: event.id, type: event.type } as never
+    await ledger.save()
+
+    const mock = new MockStripe('whsec_test_billing_helper')
+    mock.injectEvent(event)
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(mock)
+
+    const sig = signWebhookPayload(JSON.stringify(event), 'whsec_test_billing_helper')
+    const res = await client
+      .post('/webhooks/stripe')
+      .header('content-type', 'application/json')
+      .header('stripe-signature', sig)
+      .json(event)
+    res.assertStatus(200)
+
+    assert.equal(dispatchCount, 0, 'in-flight row must not be re-dispatched')
+  })
+
+  test('Stripe retry does NOT re-dispatch a completed event', async ({ assert, client }) => {
+    // Standard idempotency story for a successful prior delivery.
+    const event = buildEvent('customer.subscription.created', buildSubscription(), {
+      id: 'evt_already_done',
+    })
+    const ledger = new StripeProcessedEvent()
+    ledger.eventId = event.id
+    ledger.eventType = event.type
+    ledger.status = 'completed'
+    ledger.attempts = 1
+    ledger.payload = { id: event.id, type: event.type } as never
+    await ledger.save()
+
+    const mock = new MockStripe('whsec_test_billing_helper')
+    mock.injectEvent(event)
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(mock)
+
+    const sig = signWebhookPayload(JSON.stringify(event), 'whsec_test_billing_helper')
+    const res = await client
+      .post('/webhooks/stripe')
+      .header('content-type', 'application/json')
+      .header('stripe-signature', sig)
+      .json(event)
+    res.assertStatus(200)
+
+    assert.equal(dispatchCount, 0, 'completed event is not re-dispatched on retry')
   })
 
   test('a missing stripe-signature header returns 400', async ({ assert, client }) => {

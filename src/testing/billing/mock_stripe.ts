@@ -61,6 +61,7 @@ export class MockStripe {
   webhooks!: ReturnType<MockStripe['_buildWebhooks']>
   balance!: ReturnType<MockStripe['_buildBalance']>
   billing!: ReturnType<MockStripe['_buildBilling']>
+  prices!: ReturnType<MockStripe['_buildPrices']>
 
   #customers = new Map<string, CreatedCustomer>()
   #subs = new Map<string, CreatedSubscription>()
@@ -68,6 +69,7 @@ export class MockStripe {
   #idempotency = new Map<string, unknown>()
   #eventStore = new Map<string, Stripe.Event>()
   #meterEvents: Array<{ event_name: string; payload: Record<string, string>; key: string }> = []
+  #prices = new Map<string, { id: string; product: string }>()
 
   constructor(public webhookSecret: string = 'whsec_test_secret') {
     this.customers = this._buildCustomers()
@@ -78,11 +80,22 @@ export class MockStripe {
     this.webhooks = this._buildWebhooks()
     this.balance = this._buildBalance()
     this.billing = this._buildBilling()
+    this.prices = this._buildPrices()
   }
 
   /** Test helper: pre-seed an event so `events.retrieve(id)` returns it. */
   injectEvent(event: DeepPartial<Stripe.Event> & { id: string; type: string }): void {
     this.#eventStore.set(event.id, event as Stripe.Event)
+  }
+
+  /**
+   * Test helper: pre-seed a (priceId → productId) mapping so
+   * `prices.retrieve(id)` returns it. Without this, the mock derives the
+   * product from the price by string substitution (`price_pro_monthly`
+   * → `prod_pro_monthly`), which is convenient but coarse.
+   */
+  injectPrice(priceId: string, productId: string): void {
+    this.#prices.set(priceId, { id: priceId, product: productId })
   }
 
   /** Test helper: read what was reported to the meter API. */
@@ -263,6 +276,24 @@ export class MockStripe {
         available: [{ amount: 0, currency: 'usd' }],
         pending: [{ amount: 0, currency: 'usd' }],
       }),
+    }
+  }
+
+  _buildPrices() {
+    return {
+      retrieve: async (id: string): Promise<{ id: string; product: string }> => {
+        const seeded = this.#prices.get(id)
+        if (seeded) return seeded
+        // Auto-derive: `price_pro_monthly` → `prod_pro_monthly`. Tests
+        // that need a specific (priceId → productId) shape pre-seed via
+        // `injectPrice`.
+        if (!id.startsWith('price_')) {
+          throw Object.assign(new Error(`No such price: ${id}`), {
+            type: 'StripeInvalidRequestError',
+          })
+        }
+        return { id, product: id.replace(/^price_/, 'prod_') }
+      },
     }
   }
 

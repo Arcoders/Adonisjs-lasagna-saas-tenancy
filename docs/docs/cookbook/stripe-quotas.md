@@ -41,9 +41,12 @@ STRIPE_API_VERSION=2025-08-27.basil   # optional pin (recommended)
 ```
 
 The package refuses to boot if `NODE_ENV=production` is paired with
-a `sk_test_*` key (or vice versa). Set
-`STRIPE_ALLOW_LIVE_IN_DEV=true` to opt in to live keys outside
+a `sk_test_*` key (or vice versa), and also if
+`STRIPE_WEBHOOK_SECRET` is empty or doesn't start with `whsec_`.
+Set `STRIPE_ALLOW_LIVE_IN_DEV=true` to opt in to live keys outside
 production for staging environments that legitimately need them.
+See the [billing reference](../satellites/billing.md#environment-variables)
+for the full env-var table and boot-guard semantics.
 
 ### 3. Add the config
 

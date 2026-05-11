@@ -74,11 +74,16 @@ export default class VerifyStripeWebhookMiddleware {
     // 4) HMAC verify via the Stripe SDK. Wrapping in a try/catch lets us
     // map StripeSignatureVerificationError onto our stable `invalid_signature`
     // billing code; a generic 500 would leak Stripe's internal error type.
+    //
+    // Tolerance is passed explicitly (300s, matching Stripe's documented
+    // default at the time of writing). Pinning the value here means a
+    // future SDK upgrade that loosens the default doesn't silently
+    // widen our replay window.
     const billing = await app.container.make(BillingService)
     const stripe = await billing.getClient()
     let event: Stripe.Event
     try {
-      event = stripe.webhooks.constructEvent(rawBody, sig, cfg.stripe.webhookSecret)
+      event = stripe.webhooks.constructEvent(rawBody, sig, cfg.stripe.webhookSecret, 300)
     } catch (err) {
       throw BillingException.fromStripeError(err, 'webhook signature verification failed')
     }

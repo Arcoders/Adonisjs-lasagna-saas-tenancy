@@ -53,6 +53,10 @@ test.group('Checkout + portal helpers (integration)', (group) => {
       priceId: 'price_pro_monthly',
       successUrl: 'https://app.example.com/dashboard?ok=1',
       cancelUrl: 'https://app.example.com/pricing',
+      // Mock auto-derives `prod_pro_monthly` from this priceId, which is
+      // not in cfg.products (`prod_pro`). The flag bypasses the allowlist
+      // — this test exercises checkout plumbing, not C-5 validation.
+      allowUnknownPrices: true,
     })
 
     assert.isString(session.url)
@@ -81,6 +85,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
       priceId: 'price_pro_monthly',
       successUrl: 'https://app.example.com/ok',
       cancelUrl: 'https://app.example.com/cancel',
+      allowUnknownPrices: true,
     })
     const firstCustomer = await StripeCustomer.find(tenant.id)
 
@@ -88,6 +93,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
       priceId: 'price_team_yearly',
       successUrl: 'https://app.example.com/ok',
       cancelUrl: 'https://app.example.com/cancel',
+      allowUnknownPrices: true,
     })
     const rows = await StripeCustomer.query().where('tenant_id', tenant.id)
 
@@ -138,6 +144,86 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     assert.include(portal.url, encodeURIComponent('https://app.example.com/settings'))
   })
 
+  test('rejects priceId not in cfg.products (default strict allowlist)', async ({ assert }) => {
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const fakeTenant = {
+      id: tenant.id,
+      name: tenant.name,
+      email: tenant.email,
+    } as unknown as TenantModelContract
+
+    const billing = await app.container.make(BillingService)
+    const mock = new MockStripe('whsec_test_billing_helper')
+    // Wire the price to a product that's NOT in cfg.products
+    // (`prod_starter | prod_pro | prod_team`).
+    mock.injectPrice('price_attacker_supplied', 'prod_unknown')
+    billing.__setStripeForTests(mock)
+
+    await assert.rejects(
+      () =>
+        billing.createCheckoutSession(fakeTenant, {
+          priceId: 'price_attacker_supplied',
+          successUrl: 'https://app.example.com/ok',
+          cancelUrl: 'https://app.example.com/cancel',
+        }),
+      /not in config\.billing\.products allowlist/
+    )
+  })
+
+  test('accepts priceId whose product is in cfg.products (fetch-fallback path)', async ({
+    assert,
+  }) => {
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const fakeTenant = {
+      id: tenant.id,
+      name: tenant.name,
+      email: tenant.email,
+    } as unknown as TenantModelContract
+
+    const billing = await app.container.make(BillingService)
+    const mock = new MockStripe('whsec_test_billing_helper')
+    // Realistic pattern: one Stripe product, multiple prices (monthly,
+    // yearly). cfg.products keys the product, not each price.
+    mock.injectPrice('price_pro_monthly_v2', 'prod_pro')
+    billing.__setStripeForTests(mock)
+
+    const session = await billing.createCheckoutSession(fakeTenant, {
+      priceId: 'price_pro_monthly_v2',
+      successUrl: 'https://app.example.com/ok',
+      cancelUrl: 'https://app.example.com/cancel',
+    })
+
+    assert.isString(session.id)
+  })
+
+  test('allowUnknownPrices: true bypasses the allowlist (host validates upstream)', async ({
+    assert,
+  }) => {
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const fakeTenant = {
+      id: tenant.id,
+      name: tenant.name,
+      email: tenant.email,
+    } as unknown as TenantModelContract
+
+    const billing = await app.container.make(BillingService)
+    const mock = new MockStripe('whsec_test_billing_helper')
+    mock.injectPrice('price_anything', 'prod_unknown')
+    billing.__setStripeForTests(mock)
+
+    // No throw — the flag opts out of the strict check.
+    const session = await billing.createCheckoutSession(fakeTenant, {
+      priceId: 'price_anything',
+      successUrl: 'https://app.example.com/ok',
+      cancelUrl: 'https://app.example.com/cancel',
+      allowUnknownPrices: true,
+    })
+    assert.isString(session.id)
+  })
+
   test('client_reference_id defaults to tenant.id (used by checkout.session.completed)', async ({
     assert,
   }) => {
@@ -164,6 +250,9 @@ test.group('Checkout + portal helpers (integration)', (group) => {
       priceId: 'price_x',
       successUrl: 'https://x',
       cancelUrl: 'https://x',
+      // Mock auto-derives `prod_x` which isn't in cfg.products — the
+      // test is about client_reference_id, not allowlist semantics.
+      allowUnknownPrices: true,
     })
 
     assert.lengthOf(captured, 1)

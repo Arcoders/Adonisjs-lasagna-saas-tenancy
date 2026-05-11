@@ -114,6 +114,33 @@ test.group('BillingService.verify — mode + config validation', (group) => {
     assert.isTrue(true)
   })
 
+  test('aborts boot when webhookSecret is empty', async ({ assert }) => {
+    process.env.NODE_ENV = 'test'
+    setBillingConfig({ webhookSecret: '' })
+
+    const billing = await app.container.make(BillingService)
+    billing.__resetForTests()
+
+    await assert.rejects(
+      () => billing.verify(),
+      /webhookSecret is empty/
+    )
+  })
+
+  test('aborts boot when webhookSecret does not start with whsec_ prefix', async ({ assert }) => {
+    process.env.NODE_ENV = 'test'
+    // Common operator mistake: pasting STRIPE_API_KEY into the secret slot.
+    setBillingConfig({ webhookSecret: 'sk_test_pasted_into_wrong_env_var' })
+
+    const billing = await app.container.make(BillingService)
+    billing.__resetForTests()
+
+    await assert.rejects(
+      () => billing.verify(),
+      /does not start with "whsec_"/
+    )
+  })
+
   test('aborts boot when defaultPlan is not declared in plans.definitions', async ({ assert }) => {
     process.env.NODE_ENV = 'test'
     setBillingConfig({

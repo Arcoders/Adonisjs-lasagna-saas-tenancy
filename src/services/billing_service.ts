@@ -24,6 +24,34 @@ const DEFAULT_API_VERSION = '2025-08-27.basil'
 const DEFAULT_TIMEOUT_MS = 10_000
 const DEFAULT_NETWORK_RETRIES = 3
 
+/**
+ * Defense-in-depth state machine for subscription status transitions.
+ * The keys list every status we know Stripe can emit, mapping each to
+ * the set of statuses Stripe is allowed to transition INTO.
+ *
+ * We never refuse a Stripe-driven transition — Stripe is the source of
+ * truth and a refusal would just leave us out of sync. Instead, illegal
+ * transitions log a warning so operators can investigate (Stripe bug,
+ * support-tool override, our own out-of-order delivery, etc.).
+ *
+ * If Stripe adds a new status we haven't enumerated (`from`/`to` not in
+ * the map), the helper logs a separate warning indicating the package
+ * needs an update, but again does not block.
+ */
+const LEGAL_SUBSCRIPTION_TRANSITIONS: Record<
+  StripeSubscriptionStatus,
+  ReadonlySet<StripeSubscriptionStatus>
+> = {
+  incomplete: new Set(['active', 'trialing', 'incomplete_expired', 'canceled']),
+  incomplete_expired: new Set([]), // terminal
+  trialing: new Set(['active', 'past_due', 'unpaid', 'canceled', 'paused']),
+  active: new Set(['past_due', 'unpaid', 'canceled', 'paused', 'trialing']),
+  past_due: new Set(['active', 'canceled', 'unpaid', 'paused']),
+  canceled: new Set([]), // terminal
+  unpaid: new Set(['active', 'past_due', 'canceled']),
+  paused: new Set(['active', 'canceled']),
+}
+
 export interface CreateCheckoutOptions {
   priceId: string
   successUrl: string
@@ -33,6 +61,15 @@ export interface CreateCheckoutOptions {
   allowPromotionCodes?: boolean
   /** Defaults to `tenant.id`. Stripe surfaces this on the resulting subscription. */
   clientReferenceId?: string
+  /**
+   * Skip the priceId allowlist check against `config.billing.products`.
+   * Default `false` (strict). Use only when the host validates priceIds
+   * upstream (e.g., against a CMS-driven plan catalog). Setting this to
+   * `true` re-opens the trust boundary — a controller that forwards
+   * client-supplied price IDs without validation can be abused for
+   * price manipulation.
+   */
+  allowUnknownPrices?: boolean
 }
 
 export interface CreatePortalOptions {
@@ -95,6 +132,26 @@ export default class BillingService {
       throw new BillingException(
         'live_key_outside_production',
         '[billing] STRIPE_API_KEY is a LIVE key but NODE_ENV is not "production". Refusing to boot — set NODE_ENV=production or STRIPE_ALLOW_LIVE_IN_DEV=true to opt in.'
+      )
+    }
+
+    // Webhook secret presence + shape. An empty secret would let the SDK
+    // compute HMAC against an empty key — trivially forgeable. A value
+    // that doesn't start with `whsec_` is almost certainly the wrong env
+    // var (operators sometimes paste STRIPE_API_KEY into the secret slot).
+    // billing_doctor / billing_health_check report the same conditions at
+    // runtime, but boot is the right place to fail fast.
+    const webhookSecret = cfg.stripe.webhookSecret ?? ''
+    if (!webhookSecret) {
+      throw new BillingException(
+        'config_missing',
+        'config.billing.stripe.webhookSecret is empty — refusing to boot. Set STRIPE_WEBHOOK_SECRET.'
+      )
+    }
+    if (!webhookSecret.startsWith('whsec_')) {
+      throw new BillingException(
+        'config_missing',
+        'config.billing.stripe.webhookSecret does not start with "whsec_" — likely the wrong env var pasted into STRIPE_WEBHOOK_SECRET.'
       )
     }
 
@@ -189,6 +246,9 @@ export default class BillingService {
     tenant: TenantModelContract,
     opts: CreateCheckoutOptions
   ): Promise<{ url: string; id: string }> {
+    if (!opts.allowUnknownPrices) {
+      await this.#assertPriceAllowed(opts.priceId)
+    }
     const customer = await this.ensureCustomer(tenant)
     const stripe = await this.#getStripe()
 
@@ -328,6 +388,34 @@ export default class BillingService {
 
     // Upsert local mirror.
     const status = sub.status as StripeSubscriptionStatus
+
+    // State machine guard. Logs only — never blocks (Stripe is the
+    // source of truth, even when Stripe sends something surprising).
+    if (existing && existing.status !== status) {
+      const allowed = LEGAL_SUBSCRIPTION_TRANSITIONS[existing.status]
+      if (!allowed) {
+        const logger = await lazyLogger()
+        logger?.warn(
+          {
+            stripe_subscription_id: sub.id,
+            from: existing.status,
+            to: status,
+          },
+          'stripe.subscription.unknown_source_state: existing status is not enumerated — investigate / update package'
+        )
+      } else if (!allowed.has(status)) {
+        const logger = await lazyLogger()
+        logger?.warn(
+          {
+            stripe_subscription_id: sub.id,
+            from: existing.status,
+            to: status,
+          },
+          'stripe.subscription.illegal_transition: applying anyway, but the source/target combo is not in the legal table'
+        )
+      }
+    }
+
     const row = existing ?? new StripeSubscription()
     // Stripe moved `current_period_{start,end}` from the top of Subscription
     // onto each `items.data[i]` in the 2025 API. Read the new location first;
@@ -354,13 +442,24 @@ export default class BillingService {
     row.planName = planName
     row.lastEventAt = eventAt
     row.raw = sub as unknown as Record<string, unknown>
-    await row.save()
 
-    // Apply plan to QuotaService. Lazy import to avoid a circular dep
-    // (QuotaService → events → BillingService → QuotaService).
+    // Apply plan to QuotaService BEFORE persisting the mirror. If the
+    // quota write fails (Redis blip, plan removed from config, DB
+    // hiccup) we do NOT want a half-applied state where the local
+    // subscription mirror reflects the new plan but the tenant's
+    // enforced limits still match the old one. With this ordering,
+    // a failing assignPlan() leaves both the mirror and the quota in
+    // their pre-event state — the next webhook retry re-runs the
+    // whole flow idempotently. assignPlan() is itself idempotent
+    // (same plan = no-op).
+    //
+    // Lazy import avoids a circular dep (QuotaService → events →
+    // BillingService → QuotaService).
     const { default: QuotaService } = await import('./quota_service.js')
     const quotas = new QuotaService()
     await quotas.assignPlan(customer.tenantId, planName, { source: 'stripe' })
+
+    await row.save()
 
     return { tenant_id: customer.tenantId, plan: planName, previousPlan }
   }
@@ -405,18 +504,46 @@ export default class BillingService {
       opts?.idempotencyKey ?? `${tenant.id}:${meter.eventName}:${minuteBucket}`
     const timestamp = opts?.timestamp ?? DateTime.utc()
 
-    const audit = new StripeMeterEvent()
-    // Explicit uuid for the audit row (model is selfAssignPrimaryKey).
-    audit.id = randomUUID()
-    audit.tenantId = tenant.id
-    audit.meterEventName = meter.eventName
-    audit.quantity = quantity
-    audit.idempotencyKey = idempotencyKey
-    audit.status = 'pending'
-    audit.attempts = 0
-    audit.lastError = null
-    audit.reportedAt = null
-    await audit.save()
+    // Fetch any prior attempt for this idempotency key. Three cases:
+    //   1. None exists → fresh insert (the typical happy path).
+    //   2. Exists, status='sent' → already reported; short-circuit. This
+    //      is the idempotent return — caller can safely retry the same
+    //      key without producing a UNIQUE violation.
+    //   3. Exists, status='pending' or 'failed' → a prior attempt
+    //      either crashed mid-flight (DB blip after Stripe success
+    //      stuck the row in 'pending') or genuinely failed. Reuse
+    //      the row and retry the Stripe call. Stripe's own
+    //      idempotency cache will dedupe so the meter is not
+    //      double-counted.
+    let audit = await StripeMeterEvent.query()
+      .where('idempotencyKey', idempotencyKey)
+      .first()
+    if (audit?.status === 'sent') return
+
+    if (!audit) {
+      audit = new StripeMeterEvent()
+      audit.id = randomUUID()
+      audit.tenantId = tenant.id
+      audit.meterEventName = meter.eventName
+      audit.quantity = quantity
+      audit.idempotencyKey = idempotencyKey
+      audit.status = 'pending'
+      audit.attempts = 0
+      audit.lastError = null
+      audit.reportedAt = null
+      try {
+        await audit.save()
+      } catch (err) {
+        // Concurrent insert won the race on the UNIQUE(idempotency_key)
+        // constraint. Re-read and continue with the winner's row so
+        // both callers converge on the same audit record.
+        audit = await StripeMeterEvent.query()
+          .where('idempotencyKey', idempotencyKey)
+          .first()
+        if (!audit) throw err
+        if (audit.status === 'sent') return
+      }
+    }
 
     const stripe = await this.#getStripe()
     try {
@@ -434,12 +561,16 @@ export default class BillingService {
       audit.status = 'sent'
       audit.reportedAt = DateTime.utc()
       audit.attempts = audit.attempts + 1
+      audit.lastError = null
       await audit.save()
     } catch (err) {
       audit.status = 'failed'
       audit.lastError = (err as Error)?.message?.slice(0, 500) ?? 'unknown error'
       audit.attempts = audit.attempts + 1
-      await audit.save()
+      // Best-effort save — do not mask the original Stripe error if the
+      // audit write itself blips. The next retry recovers via the
+      // idempotency-key lookup above.
+      await audit.save().catch(() => {})
       throw BillingException.fromStripeError(err, 'failed to report meter event')
     }
   }
@@ -507,6 +638,57 @@ export default class BillingService {
       maxNetworkRetries: cfg.stripe.maxNetworkRetries ?? DEFAULT_NETWORK_RETRIES,
     })
     return this.#stripe
+  }
+
+  /**
+   * Verify the priceId resolves to a product/price declared in
+   * `config.billing.products`. Default trust boundary for checkout: if a
+   * controller forwards a client-supplied priceId, this prevents an
+   * attacker from picking a different tenant's plan, a $0 price, or any
+   * arbitrary line item.
+   *
+   * Two-pass check:
+   *   1. Fast path — priceId itself is a key in `cfg.products`
+   *      (operators using price-level allowlists).
+   *   2. Fallback — fetch the price from Stripe and check its productId
+   *      against `cfg.products` (operators using product-level mapping,
+   *      where one product has many prices: monthly, yearly, etc.).
+   *
+   * Hosts that validate priceIds elsewhere (CMS catalog, hardcoded list)
+   * can bypass via `opts.allowUnknownPrices = true` on the checkout call.
+   */
+  async #assertPriceAllowed(priceId: string): Promise<void> {
+    const cfg = getConfig().billing
+    if (!cfg) {
+      throw new BillingException('config_missing', 'config.billing is not configured')
+    }
+    if (priceId in cfg.products) return
+
+    let productId: string | null = null
+    try {
+      const stripe = await this.#getStripe()
+      const price = await stripe.prices.retrieve(priceId)
+      productId =
+        typeof price.product === 'string'
+          ? price.product
+          : (price.product?.id ?? null)
+    } catch (err) {
+      // Stripe rejected the lookup (invalid_request_error for an unknown
+      // price, or auth/network). Either way the priceId can't be trusted
+      // — propagate as a billing error rather than the raw Stripe error.
+      throw BillingException.fromStripeError(
+        err,
+        `priceId "${priceId}" could not be verified against Stripe`
+      )
+    }
+
+    if (productId && productId in cfg.products) return
+
+    throw new BillingException(
+      'invalid_price',
+      `priceId "${priceId}"${productId ? ` (product "${productId}")` : ''} is not in config.billing.products allowlist. ` +
+        `Add it to the mapping or pass allowUnknownPrices: true if the host validates upstream.`
+    )
   }
 
   async #emitMisconfigured(payload: {

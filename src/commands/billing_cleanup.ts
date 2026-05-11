@@ -23,7 +23,7 @@ export default class BillingCleanup extends BaseCommand {
   async run() {
     const result = await runBillingCleanup({ batchSize: this.batchSize })
     this.logger.success(
-      `purged ${result.deleted} stripe_processed_events older than ${result.cutoff}`
+      `purged ${result.deleted} stripe_processed_events + ${result.meterDeleted} stripe_meter_events older than ${result.cutoff}`
     )
   }
 }

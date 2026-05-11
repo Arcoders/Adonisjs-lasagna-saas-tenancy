@@ -119,8 +119,20 @@ export interface BillingConfig {
   dunning?: {
     /** After this many failed attempts, mark `status='past_due'` and emit `PaymentFailed{final:true}`. Default 3 (matches Stripe Smart Retries). */
     maxAttempts?: number
-    /** Action when dunning hits `maxAttempts`. Default `'none'`. */
-    action?: 'none' | 'downgrade' | 'block'
+    /**
+     * Action when dunning hits `maxAttempts`. Default `'none'`.
+     *
+     *   - `'none'`: only emit `PaymentFailed{final:true}`. The host's
+     *     listener decides what to do (downgrade, send email, block).
+     *   - `'downgrade'`: in addition to the event, immediately reassign
+     *     the tenant to `defaultPlan` via `QuotaService.assignPlan`.
+     *     The Stripe subscription (and the local mirror's `planName`)
+     *     stay on the upgraded plan; only the enforced quota drops.
+     *     A successful retry that lands `customer.subscription.updated
+     *     (active)` re-resolves the original product mapping and
+     *     restores the upgraded plan automatically.
+     */
+    action?: 'none' | 'downgrade'
     /** Days to wait after `past_due` before applying `action`. Default 0. */
     gracePeriodDays?: number
   }

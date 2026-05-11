@@ -91,9 +91,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     assert.equal(audit[0].idempotencyKey, 'manual-key-1')
   })
 
-  test('reportUsage with same idempotency key collapses to one Stripe call', async ({
-    assert,
-  }) => {
+  test('reportUsage with same idempotency key is idempotent (G-6)', async ({ assert }) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
     const fakeTenant = {
@@ -115,18 +113,65 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     await billing.reportUsage(fakeTenant, { eventName: 'api_request' }, 1, {
       idempotencyKey: 'replayed',
     })
-    // The local UNIQUE constraint refuses the second insert; the call
-    // throws before reaching Stripe. That's the intended behaviour —
-    // duplicate idempotency keys are an operator bug.
-    await assert.rejects(
-      () =>
-        billing.reportUsage(fakeTenant, { eventName: 'api_request' }, 1, {
-          idempotencyKey: 'replayed',
-        })
-    )
+    // After G-6 the duplicate call short-circuits silently rather than
+    // throwing. The first attempt's audit row is in 'sent' state; we
+    // detect it and return without re-hitting Stripe. This is what a
+    // caller retrying after a transient client-side failure expects.
+    await billing.reportUsage(fakeTenant, { eventName: 'api_request' }, 1, {
+      idempotencyKey: 'replayed',
+    })
 
     const events = mock.meterEvents()
     assert.lengthOf(events, 1, 'exactly one Stripe meter event despite the retry')
+  })
+
+  test('reportUsage recovers a pending audit row left by a prior DB blip (G-6)', async ({
+    assert,
+  }) => {
+    // Simulate the failure mode the audit's BUG #1 / G-6 calls out:
+    // first attempt successfully reported to Stripe but the second
+    // save() (status=pending → sent) was lost to a DB hiccup, leaving
+    // the audit row stuck in 'pending'. A retry must finalise it
+    // rather than throwing on the UNIQUE(idempotency_key) constraint.
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const fakeTenant = {
+      id: tenant.id,
+      name: tenant.name,
+      email: tenant.email,
+    } as unknown as TenantModelContract
+
+    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new StripeCustomer()
+    cus.tenantId = tenant.id
+    cus.stripeCustomerId = stripeCustomerId
+    await cus.save()
+
+    // Pre-seed the audit row in the post-blip state.
+    const orphan = new StripeMeterEvent()
+    orphan.id = randomUUID()
+    orphan.tenantId = tenant.id
+    orphan.meterEventName = 'api_request'
+    orphan.quantity = 5
+    orphan.idempotencyKey = 'recovered_after_blip'
+    orphan.status = 'pending'
+    orphan.attempts = 0
+    orphan.lastError = null
+    orphan.reportedAt = null
+    await orphan.save()
+
+    const billing = await app.container.make(BillingService)
+    const mock = new MockStripe('whsec_test_billing_helper')
+    billing.__setStripeForTests(mock)
+
+    await billing.reportUsage(fakeTenant, { eventName: 'api_request' }, 5, {
+      idempotencyKey: 'recovered_after_blip',
+    })
+
+    const finalised = await StripeMeterEvent.find(orphan.id)
+    assert.equal(finalised?.status, 'sent', 'orphaned pending row was finalised')
+    assert.isNotNull(finalised?.reportedAt)
+    assert.equal(mock.meterEvents().length, 1, 'one Stripe call from the recovery')
   })
 
   test('reportUsage rejects negative or non-finite quantities', async ({ assert }) => {

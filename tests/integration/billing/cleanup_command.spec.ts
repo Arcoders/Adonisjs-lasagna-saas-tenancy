@@ -2,7 +2,10 @@ import { test } from '@japa/runner'
 import { DateTime } from 'luxon'
 import { randomUUID } from 'node:crypto'
 import ace from '@adonisjs/core/services/ace'
-import { StripeProcessedEvent } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import {
+  StripeProcessedEvent,
+  StripeMeterEvent,
+} from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { runBillingCleanup } from '../../../src/jobs/billing_cleanup_job.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
@@ -128,5 +131,58 @@ test.group('tenant:billing:cleanup (integration)', (group) => {
 
     const remaining = await StripeProcessedEvent.query().where('status', 'completed')
     assert.lengthOf(remaining, 0)
+  })
+
+  /** Seed N meter events at a specific age + status. */
+  async function seedMeterEvents(
+    count: number,
+    opts: { ageDays: number; status: 'pending' | 'sent' | 'failed' }
+  ): Promise<string[]> {
+    const ids: string[] = []
+    const tenantId = randomUUID()
+    for (let i = 0; i < count; i++) {
+      const id = randomUUID()
+      const row = new StripeMeterEvent()
+      row.id = id
+      row.tenantId = tenantId
+      row.meterEventName = 'api_calls'
+      row.quantity = 1
+      row.idempotencyKey = `${tenantId}:api_calls:${randomUUID()}`
+      row.status = opts.status
+      row.attempts = opts.status === 'sent' ? 1 : 0
+      row.lastError = null
+      row.reportedAt =
+        opts.status === 'sent' ? DateTime.utc().minus({ days: opts.ageDays }) : null
+      await row.save()
+      ids.push(id)
+    }
+    return ids
+  }
+
+  test('purges sent meter events older than retention window; preserves failed/pending', async ({
+    assert,
+  }) => {
+    // Sent meter events: 3 old (purged), 2 fresh (kept).
+    const oldSent = await seedMeterEvents(3, { ageDays: 100, status: 'sent' })
+    const freshSent = await seedMeterEvents(2, { ageDays: 10, status: 'sent' })
+    // Failed + pending of any age: never auto-purged (operator concern).
+    const oldFailed = await seedMeterEvents(1, { ageDays: 100, status: 'failed' })
+    const oldPending = await seedMeterEvents(1, { ageDays: 100, status: 'pending' })
+
+    const result = await runBillingCleanup()
+    assert.equal(result.meterDeleted, 3)
+
+    for (const id of oldSent) {
+      const row = await StripeMeterEvent.find(id)
+      assert.isNull(row, `old sent meter ${id} must be purged`)
+    }
+    for (const id of freshSent) {
+      const row = await StripeMeterEvent.find(id)
+      assert.isNotNull(row, `fresh sent meter ${id} must survive`)
+    }
+    for (const id of [...oldFailed, ...oldPending]) {
+      const row = await StripeMeterEvent.find(id)
+      assert.isNotNull(row, `non-sent meter ${id} must NOT be auto-purged`)
+    }
   })
 })

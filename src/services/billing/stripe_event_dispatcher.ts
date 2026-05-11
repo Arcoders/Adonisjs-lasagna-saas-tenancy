@@ -182,6 +182,31 @@ async function handlePaymentSucceeded(
     .first()
   if (!customer) return { outcome: 'noop' }
 
+  // Recover status from dunning when an outstanding invoice is paid.
+  // Without this, a customer who updates their card via the billing
+  // portal and triggers a successful retry stays "past_due" in our
+  // local mirror until a `customer.subscription.updated` event
+  // eventually corrects it — and that event is not guaranteed in
+  // every Stripe flow. The host listener for past_due / blocked
+  // tenants would keep enforcing dunning behavior on a tenant who
+  // just paid.
+  const subId = extractInvoiceSubscriptionId(invoice)
+  if (subId) {
+    const sub = await StripeSubscription.find(subId)
+    if (sub && (sub.status === 'past_due' || sub.status === 'unpaid')) {
+      const eventAt = DateTime.fromSeconds(event.created)
+      // Match syncSubscription's 5s ordering tolerance — events older
+      // than (lastEventAt - 5s) are dropped as stale. Avoids reviving
+      // an out-of-order payment_succeeded over a later subscription
+      // state change.
+      if (eventAt >= sub.lastEventAt.minus({ seconds: 5 })) {
+        sub.status = 'active'
+        sub.lastEventAt = eventAt
+        await sub.save()
+      }
+    }
+  }
+
   const { default: PaymentSucceeded } = await import('../../events/billing/payment_succeeded.js')
   await PaymentSucceeded.dispatch({
     tenantId: customer.tenantId,
@@ -190,6 +215,22 @@ async function handlePaymentSucceeded(
     currency: invoice.currency ?? 'usd',
   })
   return { outcome: 'event_emitted', tenant_id: customer.tenantId }
+}
+
+/**
+ * Stripe v18 nests the subscription reference under
+ * `parent.subscription_details.subscription`. Older API pinnings expose
+ * it on `invoice.subscription` directly. Read both shapes defensively
+ * — a single helper keeps the two payment handlers in sync.
+ */
+function extractInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
+  const invoiceRaw = invoice as unknown as {
+    subscription?: string | { id?: string }
+    parent?: { subscription_details?: { subscription?: string | { id?: string } } }
+  }
+  const ref = invoiceRaw.subscription ?? invoiceRaw.parent?.subscription_details?.subscription
+  if (!ref) return null
+  return typeof ref === 'string' ? ref : (ref.id ?? null)
 }
 
 /**
@@ -218,22 +259,48 @@ async function handlePaymentFailed(
   const isFinal = attempts >= maxAttempts
 
   if (isFinal) {
-    // Stripe v18 nested the subscription ref under
-    // `parent.subscription_details.subscription`. Older API pinnings expose
-    // it on `invoice.subscription` directly. Read both shapes defensively.
-    const invoiceRaw = invoice as unknown as {
-      subscription?: string | { id?: string }
-      parent?: { subscription_details?: { subscription?: string | { id?: string } } }
-    }
-    const fromTop = invoiceRaw.subscription
-    const fromNested = invoiceRaw.parent?.subscription_details?.subscription
-    const ref = fromTop ?? fromNested
-    const subId = typeof ref === 'string' ? ref : (ref?.id ?? null)
+    const subId = extractInvoiceSubscriptionId(invoice)
     if (subId) {
       const sub = await StripeSubscription.find(subId)
       if (sub && sub.status !== 'past_due' && sub.status !== 'canceled') {
-        sub.status = 'past_due'
-        await sub.save()
+        // Ordering guard symmetric with syncSubscription / handlePaymentSucceeded.
+        // Without this, a stale payment_failed delivered after a more
+        // recent subscription.updated(active) would silently revert the
+        // mirror to past_due. The 5s tolerance matches the rest of the
+        // dispatcher.
+        const eventAt = DateTime.fromSeconds(event.created)
+        if (eventAt >= sub.lastEventAt.minus({ seconds: 5 })) {
+          sub.status = 'past_due'
+          // Update lastEventAt so the next subscription.updated
+          // applies its own ordering guard against THIS event, not a
+          // stale earlier one.
+          sub.lastEventAt = eventAt
+          await sub.save()
+        }
+      }
+    }
+
+    // Apply the configured dunning policy. Only `'downgrade'` is
+    // implemented in-package — `'none'` (default) leaves all action to
+    // the host's PaymentFailed{final:true} listener. The downgrade is
+    // a quota-only side-effect: the local mirror's planName stays on
+    // the original plan, so a successful retry's subscription.updated
+    // re-resolves it via cfg.products and restores limits. Without
+    // that property, recovering customers would silently stay on the
+    // defaultPlan.
+    if (cfg?.dunning?.action === 'downgrade' && cfg.defaultPlan) {
+      try {
+        const { default: QuotaService } = await import('../quota_service.js')
+        const quotas = new QuotaService()
+        await quotas.assignPlan(customer.tenantId, cfg.defaultPlan, { source: 'dunning' })
+      } catch (assignErr) {
+        // Best-effort: a failed quota write here doesn't roll back the
+        // past_due flip or the PaymentFailed event below. The dead-letter
+        // path picks up the underlying issue.
+        _ctx.logger.error(
+          { tenant_id: customer.tenantId, err: (assignErr as Error)?.message },
+          'stripe.dunning.downgrade_failed: could not assign defaultPlan'
+        )
       }
     }
   }
