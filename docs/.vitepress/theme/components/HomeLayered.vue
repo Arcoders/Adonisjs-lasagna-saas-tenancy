@@ -68,7 +68,7 @@ const pillars: Pillar[] = [
     <section class="hl-hero">
       <div class="hl-hero__copy">
         <p class="hl-eyebrow">
-          <PhStar :size="14" weight="fill" /> AdonisJS · v0.1.0
+          <PhStar :size="14" weight="fill" /> AdonisJS · v0.2.0
         </p>
         <h1 class="hl-title">
           The only multi-tenant layer
