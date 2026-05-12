@@ -14,7 +14,7 @@ isolated PostgreSQL schema, with a real package behind it: connection
 routing, circuit breaking, queues, contextual logging, plans and quotas,
 scheduled backups with retention, read-replica routing, soft delete, and
 a satellite suite covering audit logs, webhooks, branding, SSO, feature
-flags, and metrics.
+flags, metrics, and Stripe billing.
 
 [![npm](https://img.shields.io/npm/v/@adonisjs-lasagna/saas-tenancy?color=C26A4B&label=npm)](https://www.npmjs.com/package/@adonisjs-lasagna/saas-tenancy)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A524-green)](https://nodejs.org)
@@ -46,7 +46,7 @@ and runs 111 tests against it.
 |---|---|
 | **Schema isolation** | Each tenant gets its own `tenant_<uuid>` PostgreSQL schema, provisioned and routed automatically. |
 | **Circuit breaker** | Opossum wraps every tenant DB call. One bad schema can't take down the others. |
-| **Lifecycle hooks + 13 typed events** | Declarative `before` / `after` hooks wired into commands and jobs. |
+| **Lifecycle hooks + 23 typed events** | Declarative `before` / `after` hooks wired into commands and jobs. 13 tenant-lifecycle events + 10 billing events. |
 | **Contextual logging** | `tenantId` rides along through HTTP and queue jobs via `AsyncLocalStorage`. |
 | **`tenant:doctor`** | Ten built-in checks, `--fix` for auto-recovery, `--json` for CI, `--watch` for a live TUI. |
 | **Plans and quotas** | Declarative plans, rolling counters, snapshot usage, an `enforceQuota()` middleware that returns 429 and emits `TenantQuotaExceeded`. |
@@ -55,7 +55,7 @@ and runs 111 tests against it.
 | **Read replica routing** | Round-robin, random, or sticky-by-tenant-id with stable connection naming. |
 | **REST admin API** | 36 endpoints + OpenAPI 3.1 spec + Swagger UI. You bring the auth middleware. |
 | **Soft delete TTL** | Recycle bin pattern. `--keep-schema` on destroy, `tenant:purge-expired` on a cron. |
-| **Eight satellites** | Audit logs (append-only at the SQL level), webhooks (HMAC-signed + retries + verifier helper), quotas, feature flags, branding, SSO/OIDC, metrics, impersonation. All optional. |
+| **Nine satellites** | Audit logs (append-only at the SQL level), webhooks (HMAC-signed + retries + verifier helper), quotas, feature flags, branding, SSO/OIDC, metrics, impersonation, and Stripe billing (idempotent webhook + dunning + metered + checkout/portal + lifecycle). All optional. |
 
 Two questions to ask before adopting:
 

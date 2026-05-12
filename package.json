@@ -130,7 +130,8 @@
     "@adonisjs/session": "^7.0.0",
     "@aws-sdk/client-s3": "^3.0.0",
     "better-sqlite3": "^11.0.0",
-    "jose": "^5.0.0"
+    "jose": "^5.0.0",
+    "stripe": "^18.0.0"
   },
   "peerDependenciesMeta": {
     "@adonisjs/drive": {
@@ -149,6 +150,9 @@
       "optional": true
     },
     "jose": {
+      "optional": true
+    },
+    "stripe": {
       "optional": true
     }
   },
@@ -186,6 +190,7 @@
     "postcss": "^8.5.14",
     "prettier": "^3.4.2",
     "reflect-metadata": "^0.2.0",
+    "stripe": "^18.0.0",
     "tailwindcss": "^3.4.19",
     "tsx": "^4.19.0",
     "typescript": "~5.7",

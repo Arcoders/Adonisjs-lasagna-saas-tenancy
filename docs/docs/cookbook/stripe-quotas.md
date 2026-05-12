@@ -1,140 +1,197 @@
 ---
 title: Stripe + quotas
-description: Wire Stripe subscriptions to Lasagna's plan/quota system. Webhook → plan assignment → quota middleware. Atomic, idempotent.
+description: Wire the billing satellite end-to-end — Stripe checkout → webhook → plan assignment → quota middleware. Atomic and idempotent.
 ---
 
 # Stripe + quotas
 
-Subscriptions in Stripe map to plans in Lasagna's
-[quota satellite](/docs/satellites/quotas). The bridge is one
-controller and a few lines of webhook handling.
+A practical recipe for tying Stripe subscriptions to the
+[quotas satellite](/docs/satellites/quotas). When a tenant upgrades
+in Stripe, their plan limits move with them automatically.
 
-## The flow
+This is the *journey*. For the full reference (every config field,
+every event, every command, the storage shape, error codes, testing
+helpers), see the [Billing satellite](/docs/satellites/billing).
 
+## Quickstart
+
+### 1. Configure with billing enabled
+
+```bash
+node ace configure @adonisjs-lasagna/saas-tenancy --with=billing
+npm install stripe@^18
 ```
-Stripe ──► your /webhooks/stripe ──► QuotaService.assignPlan(tenant, plan)
-                                       └► writes tenant_plans, kicks the cache
-HTTP request ──► QuotaMiddleware ──► reads plan + usage ──► allows or 402
+
+The configure step publishes 5 backoffice migrations
+(`tenant_plans`, `stripe_customers`, `stripe_subscriptions`,
+`stripe_processed_events`, `stripe_meter_events`), an
+`app/mailers/quota_warning_mailer.ts` + view, and prints the snippets
+to paste into `config/multitenancy.ts` and `start/routes.ts`.
+
+```bash
+node ace migration:run --connection=backoffice
 ```
 
-## 1. Map Stripe products to Lasagna plans
+### 2. Set environment variables
+
+```bash
+STRIPE_API_KEY=sk_test_...            # live key in production
+STRIPE_WEBHOOK_SECRET=whsec_...       # from the Stripe dashboard
+STRIPE_API_VERSION=2025-08-27.basil   # optional pin (recommended)
+```
+
+The package refuses to boot if `NODE_ENV=production` is paired with
+a `sk_test_*` key (or vice versa), and also if
+`STRIPE_WEBHOOK_SECRET` is empty or doesn't start with `whsec_`.
+Set `STRIPE_ALLOW_LIVE_IN_DEV=true` to opt in to live keys outside
+production for staging environments that legitimately need them.
+See the [billing reference](../satellites/billing.md#environment-variables)
+for the full env-var table and boot-guard semantics.
+
+### 3. Add the config
 
 ```ts
-// app/billing/plan_map.ts
-export const PLAN_MAP: Record<string, string> = {
-  prod_starter: 'starter',
-  prod_pro:     'pro',
-  prod_team:    'team',
-}
-```
+// config/multitenancy.ts
+import { defineConfig } from '@adonisjs-lasagna/saas-tenancy'
+import env from '#start/env'
 
-## 2. Define the plans in Lasagna
+export default defineConfig({
+  // …existing fields…
 
-```ts
-import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
+  ignorePaths: ['/admin', '/api/webhooks', '/health', '/webhooks/stripe'],
 
-const quotas = await app.container.make(QuotaService)
+  plans: {
+    defaultPlan: 'starter',
+    definitions: {
+      starter: { limits: { apiRequests: 10_000, storageBytes: 5 * 1024 ** 3 } },
+      pro: { limits: { apiRequests: 100_000, storageBytes: 50 * 1024 ** 3 } },
+    },
+    // omit `getPlan` to use the storage-backed default — the package reads
+    // `tenant_plans` (populated by the webhook) and caches 60 s.
+    storage: 'auto',
+  },
 
-await quotas.upsertPlan('starter', {
-  apiRequests: { limit: 10_000, window: 'month' },
-  storageBytes: { limit: 5 * 1024 ** 3, window: 'snapshot' },
-  webhooks: { limit: 100, window: 'day-rolling' },
+  billing: {
+    driver: 'stripe',
+    stripe: {
+      apiKey: env.get('STRIPE_API_KEY'),
+      webhookSecret: env.get('STRIPE_WEBHOOK_SECRET'),
+    },
+    products: {
+      prod_starter: 'starter',
+      prod_pro: 'pro',
+    },
+    defaultPlan: 'starter',
+    notifyOnQuotaExceeded: true,
+  },
 })
-
-await quotas.upsertPlan('pro', {
-  apiRequests: { limit: 100_000, window: 'month' },
-  storageBytes: { limit: 50 * 1024 ** 3, window: 'snapshot' },
-  webhooks: { limit: 1000, window: 'day-rolling' },
-})
 ```
 
-Run this from a seeder or an ace command; it's idempotent.
-
-## 3. Stripe webhook handler
+### 4. Mount the webhook route
 
 ```ts
-// app/controllers/stripe_webhook_controller.ts
+// start/routes.ts
+import { multitenancyBillingRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
+
+multitenancyBillingRoutes()
+```
+
+That registers `POST /webhooks/stripe`, gated by signature
+verification.
+
+### 5. Wire checkout and the billing portal (optional)
+
+```ts
+// app/controllers/billing_controller.ts
+import { BillingService } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { HttpContext } from '@adonisjs/core/http'
-import Stripe from 'stripe'
-import { PLAN_MAP } from '#billing/plan_map'
+import app from '@adonisjs/core/services/app'
 
-export default class StripeWebhookController {
-  async handle({ request, response }: HttpContext) {
-    const stripe = new Stripe(env.get('STRIPE_SECRET_KEY'))
-    const sig = request.header('stripe-signature')!
-    const event = stripe.webhooks.constructEvent(
-      request.raw(),
-      sig,
-      env.get('STRIPE_WEBHOOK_SECRET')
-    )
-
-    switch (event.type) {
-      case 'customer.subscription.created':
-      case 'customer.subscription.updated':
-        await this.#syncPlan(event.data.object)
-        break
-      case 'customer.subscription.deleted':
-        await this.#syncPlan(event.data.object, 'starter') // downgrade
-        break
-    }
-
-    return response.ok({ received: true })
+export default class BillingController {
+  async checkout({ request, response }: HttpContext) {
+    const tenant = await request.tenant()
+    const billing = await app.container.make(BillingService)
+    const { url } = await billing.createCheckoutSession(tenant, {
+      priceId: request.input('priceId'),
+      successUrl: 'https://app.example.com/dashboard?checkout=ok',
+      cancelUrl: 'https://app.example.com/pricing',
+    })
+    return response.redirect(url)
   }
 
-  async #syncPlan(sub: Stripe.Subscription, fallback?: string) {
-    const tenant = await Tenant.findByOrFail('stripe_customer_id', sub.customer)
-    const stripeProduct = sub.items.data[0]?.price.product as string
-    const plan = PLAN_MAP[stripeProduct] ?? fallback ?? 'starter'
-
-    const quotas = await app.container.make(QuotaService)
-    await quotas.assignPlan(tenant.id, plan)
+  async portal({ request, response }: HttpContext) {
+    const tenant = await request.tenant()
+    const billing = await app.container.make(BillingService)
+    const { url } = await billing.createBillingPortalSession(tenant, {
+      returnUrl: 'https://app.example.com/settings',
+    })
+    return response.redirect(url)
   }
 }
 ```
 
-## 4. Wire the route + middleware
+Apply your own auth + role checks on these routes —
+`auth + activeTenant + role(owner|admin)` is the recommended stack.
 
-```ts
-// start/routes.ts
-router
-  .post('/webhooks/stripe', '#controllers/stripe_webhook')
-  .as('stripe.webhook')
-  .use([middleware.rawBody()]) // Stripe requires the unparsed body for signature verification
+## How plan assignment works
+
+`QuotaService.assignPlan(tenantId, planName)` upserts a row in
+`tenant_plans` and busts the `(tenant, plan)` cache key on every
+node via the BentoCache redis bus.
+
+`ProcessStripeEventJob` calls `assignPlan` automatically on every
+`customer.subscription.{created,updated,deleted}`. Plan
+**definitions** (the limit values) live in `config.plans.definitions`;
+only the **assignment** (tenant → plan name) lives in the database.
+A misconfigured Stripe product that doesn't map to a declared plan
+falls back to `defaultPlan` and emits a `BillingMisconfigured` event,
+so it surfaces in the event log without losing customer state.
+
+Counter behaviour on plan change:
+
+- Re-assigning to the same plan is a no-op (no cache bust, no quota
+  reset).
+- Upgrades surface a higher limit on the next `getLimit` call
+  (≤ 60 s).
+- Downgrades take effect immediately. Counters are NOT reset — a
+  user mid-period over their new limit gets 402s until the rolling
+  counter rolls. Configure `dunning.gracePeriodDays` to delay
+  enforcement.
+
+For the full state machine (dunning, ordering guards,
+`INSERT ... ON CONFLICT DO NOTHING` idempotency) see the
+[Billing satellite](/docs/satellites/billing#webhook-receiver).
+
+## Local development
+
+```bash
+# Forward Stripe webhooks to your local app
+stripe listen --forward-to localhost:3333/webhooks/stripe
+
+# Trigger an event without leaving the terminal
+stripe trigger customer.subscription.created
 ```
 
-## 5. Apply the quota middleware
+For CI without `stripe listen` running, the package ships a
+synthetic-event helper:
 
-```ts
-// start/routes.ts
-router
-  .post('/api/messages', '#controllers/messages.create')
-  .middleware([{ quota: { key: 'apiRequests' } }])
-
-router
-  .post('/api/uploads', '#controllers/uploads.create')
-  .middleware([{ quota: { key: 'storageBytes', units: 'request.input.fileSize' } }])
+```bash
+node ace tenant:billing:test-webhook customer.subscription.created
 ```
 
-Over-quota requests respond with HTTP 402 and `x-quota-*` headers.
+…which builds and signs a synthetic event and POSTs it to the local
+endpoint. Replace customer/product IDs in the template (or pass
+`--object=path/to/body.json`) for an end-to-end run.
 
-## Idempotency
-
-Stripe retries webhooks. The `assignPlan` call is idempotent; same
-plan + same tenant = no-op. If you need to record one-shot side
-effects (welcome email on first upgrade, audit log row), gate them
-on `event.id` and dedupe through Redis or a `processed_event_ids`
-table.
-
-## Counters survive plan changes
-
-Reassigning a plan recomputes the limits but does **not** reset the
-counters. A tenant upgrading from starter to pro mid-month sees
-their used counter unchanged but the limit grows. This is what most
-SaaS expect; if you want pro-rated resets, build them on top of
-`QuotaService.reset(tenantId, key)`.
+For unit tests, use the in-memory SDK double — see
+[Billing satellite#testing](/docs/satellites/billing#testing).
 
 ## Read next
 
-- [Quotas satellite](/docs/satellites/quotas)
-- [Webhooks satellite](/docs/satellites/webhooks); for *outbound*
-  events back to your tenants.
+- [Billing satellite](/docs/satellites/billing) — full reference:
+  config table, all 10 events, all 6 ace commands, dunning, metered
+  billing, lifecycle policies, error codes.
+- [Quotas satellite](/docs/satellites/quotas) — the limit-enforcement
+  side of the integration.
+- [Webhooks satellite](/docs/satellites/webhooks) — outbound webhooks
+  to your tenants (separate from this inbound Stripe receiver).

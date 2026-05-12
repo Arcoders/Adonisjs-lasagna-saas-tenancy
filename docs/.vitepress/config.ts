@@ -6,7 +6,7 @@ const REPO = 'https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy'
 export default defineConfig({
   title: 'Lasagna SaaS Tenancy',
   description:
-    'SaaS multi-tenancy for AdonisJS 7. Connection routing, circuit breaker, queues, contextual logging, plans/quotas, backups, replicas, audit logs, webhooks, SSO.',
+    'SaaS multi-tenancy for AdonisJS 7. Connection routing, circuit breaker, queues, contextual logging, plans/quotas, backups, replicas, audit logs, webhooks, SSO, Stripe billing.',
   // Project-pages base — required so CSS/JS resolve under
   // arcoders.github.io/Adonisjs-lasagna-saas-tenancy/. Drop the
   // base (or set to '/') if you later move the site behind a
@@ -156,6 +156,7 @@ export default defineConfig({
                 { text: 'SSO', link: '/docs/satellites/sso' },
                 { text: 'Metrics', link: '/docs/satellites/metrics' },
                 { text: 'Quotas', link: '/docs/satellites/quotas' },
+                { text: 'Billing', link: '/docs/satellites/billing' },
                 { text: 'Impersonation', link: '/docs/satellites/impersonation' },
               ],
             },

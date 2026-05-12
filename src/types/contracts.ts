@@ -1,7 +1,24 @@
 import type { QueryClientContract } from '@adonisjs/lucid/types/database'
 import type { DateTime } from 'luxon'
 
-export const TENANT_REPOSITORY = Symbol('TENANT_REPOSITORY')
+/**
+ * Container binding key for the host's `TenantRepositoryContract`
+ * implementation. Uses `Symbol.for(...)` (registry-keyed) so any
+ * second evaluation of this module resolves to the same symbol.
+ *
+ * Why this matters: when integration tests run under `tsx`, the
+ * loader can pull `src/types/contracts.ts` (TS source) for one
+ * import path while the package's own `build/` runtime has already
+ * loaded `build/src/types/contracts.js` for another. With a plain
+ * `Symbol(...)` the two evaluations produce distinct symbols and
+ * `container.make(TENANT_REPOSITORY)` throws "Cannot resolve
+ * binding "Symbol(TENANT_REPOSITORY)" from the container". The
+ * registry key is namespaced so it doesn't collide with anything
+ * else on `globalThis`.
+ */
+export const TENANT_REPOSITORY = Symbol.for(
+  '@adonisjs-lasagna/saas-tenancy/TENANT_REPOSITORY'
+)
 
 export type TenantStatus = 'provisioning' | 'active' | 'suspended' | 'failed' | 'deleted'
 

@@ -20,6 +20,14 @@ const SATELLITE_BUNDLES: Record<string, string[]> = {
   branding: ['create_tenant_brandings_table'],
   sso: ['create_tenant_sso_configs_table'],
   metrics: ['create_tenant_metrics_table'],
+  billing: [
+    // tenant_plans backs QuotaService.assignPlan; required for billing wiring
+    'create_tenant_plans_table',
+    'create_stripe_customers_table',
+    'create_stripe_subscriptions_table',
+    'create_stripe_processed_events_table',
+    'create_stripe_meter_events_table',
+  ],
 }
 
 const ALL_FEATURES = Object.keys(SATELLITE_BUNDLES)
@@ -104,4 +112,88 @@ export default async function configure(command: Configure) {
   }
 
   command.logger.info(`published satellite migrations: ${selected.join(', ')}`)
+
+  if (selected.includes('billing')) {
+    // Publish the mailer + view so the QuotaExceededBillingListener has
+    // something to dispatch out of the box. Both stubs are skipped if the
+    // host already wrote their own (we never overwrite).
+    const mailerPath = command.app.makePath('app/mailers/quota_warning_mailer.ts')
+    if (!(await fileExists(mailerPath))) {
+      await codemods.makeUsingStub(stubsRoot, 'mailers/quota_warning_mailer.stub', {})
+    } else {
+      command.logger.info(
+        'skipping app/mailers/quota_warning_mailer.ts — already exists'
+      )
+    }
+
+    const viewPath = command.app.makePath('resources/views/emails/quota_warning.edge')
+    if (!(await fileExists(viewPath))) {
+      await codemods.makeUsingStub(stubsRoot, 'views/emails/quota_warning.edge.stub', {})
+    } else {
+      command.logger.info(
+        'skipping resources/views/emails/quota_warning.edge — already exists'
+      )
+    }
+
+    await postPublishBilling(command)
+  }
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  return access(path)
+    .then(() => true)
+    .catch(() => false)
+}
+
+/**
+ * Post-publish hint for the billing satellite. We deliberately don't
+ * AST-patch `start/routes.ts` or `config/multitenancy.ts` — host code
+ * varies enough that an AST patch is brittle. Instead, surface the exact
+ * snippets the operator needs to paste, with stable file references.
+ *
+ * Also nudges peer-dep installation if `stripe` isn't already a dependency.
+ */
+async function postPublishBilling(command: Configure): Promise<void> {
+  const log = command.logger
+  log.log('')
+  log.log('— Billing satellite — additional setup —')
+
+  try {
+    const pkgPath = command.app.makePath('package.json')
+    const pkgJson = JSON.parse(await (await import('node:fs/promises')).readFile(pkgPath, 'utf8'))
+    const hasStripe =
+      pkgJson?.dependencies?.stripe ?? pkgJson?.devDependencies?.stripe ?? null
+    if (!hasStripe) {
+      log.warning('stripe SDK not detected in package.json. Run:')
+      log.log('    npm install stripe@^18')
+    }
+  } catch {
+    /* fall through with the generic notice */
+  }
+
+  log.log('')
+  log.log('Required environment variables:')
+  log.log('  STRIPE_API_KEY=sk_test_...        (test key in dev, live key in prod)')
+  log.log('  STRIPE_WEBHOOK_SECRET=whsec_...   (from the webhook endpoint in Stripe dashboard)')
+  log.log('  STRIPE_API_VERSION=2025-08-27.basil   (optional; pin recommended)')
+
+  log.log('')
+  log.log('Wire the webhook in start/routes.ts:')
+  log.log("  import { multitenancyBillingRoutes } from '@adonisjs-lasagna/saas-tenancy/health'")
+  log.log('  multitenancyBillingRoutes()')
+
+  log.log('')
+  log.log('Add to config/multitenancy.ts (inside defineConfig({...})):')
+  log.log("  ignorePaths: ['/admin', '/api/webhooks', '/health', '/webhooks/stripe'],")
+  log.log('  billing: {')
+  log.log("    driver: 'stripe',")
+  log.log('    stripe: {')
+  log.log("      apiKey: env.get('STRIPE_API_KEY'),")
+  log.log("      webhookSecret: env.get('STRIPE_WEBHOOK_SECRET'),")
+  log.log('    },')
+  log.log("    products: { prod_starter: 'starter', prod_pro: 'pro' },  // map your stripe product ids")
+  log.log("    defaultPlan: 'starter',")
+  log.log('  },')
+  log.log('')
+  log.log('See docs/cookbook/stripe-quotas.md for the full reference.')
 }

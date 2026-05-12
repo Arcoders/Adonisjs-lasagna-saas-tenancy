@@ -114,6 +114,60 @@ async function ensureBackofficeSchema(): Promise<void> {
        ip_address  varchar(255),
        created_at  timestamptz NOT NULL DEFAULT now()
      )`,
+    // Billing satellite — kept in sync with stubs/migrations/create_*.stub
+    `CREATE TABLE IF NOT EXISTS backoffice.tenant_plans (
+       tenant_id   uuid PRIMARY KEY,
+       plan_name   varchar(255) NOT NULL,
+       source      varchar(255) NOT NULL DEFAULT 'manual',
+       assigned_at timestamptz NOT NULL DEFAULT now(),
+       expires_at  timestamptz
+     )`,
+    `CREATE TABLE IF NOT EXISTS backoffice.stripe_customers (
+       tenant_id              uuid PRIMARY KEY,
+       stripe_customer_id     varchar(255) NOT NULL UNIQUE,
+       default_payment_method varchar(255),
+       currency               varchar(255),
+       created_at             timestamptz NOT NULL DEFAULT now(),
+       deleted_at             timestamptz
+     )`,
+    `CREATE TABLE IF NOT EXISTS backoffice.stripe_subscriptions (
+       stripe_subscription_id varchar(255) PRIMARY KEY,
+       tenant_id              uuid REFERENCES backoffice.stripe_customers(tenant_id) ON DELETE SET NULL,
+       status                 varchar(255) NOT NULL,
+       current_period_start   timestamptz NOT NULL,
+       current_period_end     timestamptz NOT NULL,
+       cancel_at_period_end   boolean NOT NULL DEFAULT false,
+       cancel_at              timestamptz,
+       canceled_at            timestamptz,
+       trial_end              timestamptz,
+       plan_name              varchar(255) NOT NULL,
+       last_event_at          timestamptz NOT NULL,
+       raw                    jsonb NOT NULL,
+       updated_at             timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE TABLE IF NOT EXISTS backoffice.stripe_processed_events (
+       event_id     varchar(255) PRIMARY KEY,
+       event_type   varchar(255) NOT NULL,
+       processed_at timestamptz NOT NULL DEFAULT now(),
+       completed_at timestamptz,
+       tenant_id    uuid,
+       attempts     integer NOT NULL DEFAULT 0,
+       last_error   text,
+       status       varchar(20) NOT NULL DEFAULT 'pending',
+       payload      jsonb
+     )`,
+    `CREATE TABLE IF NOT EXISTS backoffice.stripe_meter_events (
+       id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       tenant_id         uuid NOT NULL,
+       meter_event_name  varchar(255) NOT NULL,
+       quantity          bigint NOT NULL,
+       idempotency_key   varchar(255) NOT NULL UNIQUE,
+       reported_at       timestamptz,
+       status            varchar(20) NOT NULL DEFAULT 'pending',
+       last_error        text,
+       attempts          integer NOT NULL DEFAULT 0,
+       created_at        timestamptz NOT NULL DEFAULT now()
+     )`,
   ]
 
   for (const stmt of ddl) {

@@ -30,6 +30,14 @@ export { default as SsoService } from './sso_service.js'
 export { default as MetricsService } from './metrics_service.js'
 export { default as QuotaService } from './quota_service.js'
 export type { QuotaCheckResult, QuotaStateSnapshot, QuotaMode } from './quota_service.js'
+export { default as BillingService } from './billing_service.js'
+export type {
+  CreateCheckoutOptions,
+  CreatePortalOptions,
+  ReportUsageOptions,
+} from './billing_service.js'
+export { redactStripeEvent } from './billing/redact.js'
+export type { RedactedStripeEvent } from './billing/redact.js'
 export { default as ReadReplicaService } from './read_replica_service.js'
 export { default as HookRegistry } from './hook_registry.js'
 export { default as BootstrapperRegistry } from './bootstrapper_registry.js'

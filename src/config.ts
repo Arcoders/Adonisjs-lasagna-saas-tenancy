@@ -1,6 +1,35 @@
 import type { MultitenancyConfig } from './types/config.js'
 
-let _config: MultitenancyConfig | null = null
+/**
+ * Stash the config singleton on a `Symbol.for(...)` key on `globalThis` so
+ * src/ and build/ instances of this module share state. Without this, the
+ * package self-references its own build/ output via the `exports` map
+ * (`@adonisjs-lasagna/saas-tenancy/...` → `./build/src/...`), while
+ * integration specs and the package's own internal imports from `'./...'`
+ * resolve to a SECOND copy of this module under src/. Each copy would have
+ * its own `let _config = null`, so the provider booting from build/ would
+ * leave src/'s `_config` permanently null — and any code reading from src/
+ * (`request.tenant()` macro, billing middleware/job/listener, etc.) would
+ * throw "saas-tenancy not configured" on the first call.
+ *
+ * `Symbol.for` is registry-keyed, so the same key resolves to the same
+ * symbol across realms / module instances. The store is shared.
+ */
+const STORE_KEY = Symbol.for('@adonisjs-lasagna/saas-tenancy/config-singleton')
+
+interface ConfigStore {
+  current: MultitenancyConfig | null
+}
+
+function getStore(): ConfigStore {
+  const g = globalThis as unknown as Record<symbol, ConfigStore | undefined>
+  let store = g[STORE_KEY]
+  if (!store) {
+    store = { current: null }
+    g[STORE_KEY] = store
+  }
+  return store
+}
 
 /**
  * Identity helper that anchors the user's `config/multitenancy.ts` to the
@@ -13,14 +42,15 @@ export function defineConfig(config: MultitenancyConfig): MultitenancyConfig {
 }
 
 export function setConfig(config: MultitenancyConfig): void {
-  _config = config
+  getStore().current = config
 }
 
 export function getConfig(): MultitenancyConfig {
-  if (!_config) {
+  const store = getStore()
+  if (!store.current) {
     throw new Error(
       '@adonisjs-lasagna/saas-tenancy not configured. Add MultitenancyProvider to your providers list.'
     )
   }
-  return _config
+  return store.current
 }
