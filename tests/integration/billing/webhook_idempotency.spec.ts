@@ -7,6 +7,8 @@ import { signWebhookPayload } from '@adonisjs-lasagna/saas-tenancy/testing'
 import {
   StripeProcessedEvent,
   StripeCustomer,
+  StripeSubscription,
+  TenantPlan,
 } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { ProcessStripeEventJob } from '@adonisjs-lasagna/saas-tenancy/jobs'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
@@ -15,7 +17,9 @@ import {
   buildEvent,
   buildSubscription,
   clearBillingTables,
+  hydrateJob,
 } from './helpers.js'
+import type Stripe from 'stripe'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 
 /**
@@ -273,6 +277,146 @@ test.group('Webhook idempotency (integration)', (group) => {
     res.assertStatus(200)
 
     assert.equal(dispatchCount, 0, 'completed event is not re-dispatched on retry')
+  })
+
+  test('two workers executing the same event concurrently converge on one consistent state', async ({
+    assert,
+    client,
+  }) => {
+    // BullMQ normally locks a job, but a worker crash + redelivery can
+    // still produce overlap. The PK on stripe_subscriptions.id stops a
+    // double-mirror; the loser's INSERT fails and the job would retry.
+    // The invariant under test: whatever races, the FINAL state is one
+    // correct mirror row + one tenant_plans row.
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new StripeCustomer()
+    cus.tenantId = tenant.id
+    cus.stripeCustomerId = stripeCustomerId
+    await cus.save()
+
+    const subId = `sub_${randomUUID().slice(0, 8)}`
+    const event = buildEvent(
+      'customer.subscription.created',
+      buildSubscription({ id: subId, customer: stripeCustomerId, productId: 'prod_pro', status: 'active' }),
+      { id: 'evt_concurrent' }
+    )
+    const mock = new MockStripe('whsec_test_billing_helper')
+    mock.injectEvent(event)
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(mock)
+
+    // POST once → controller inserts the ledger row.
+    const sig = signWebhookPayload(JSON.stringify(event), 'whsec_test_billing_helper')
+    const res = await client
+      .post('/webhooks/stripe')
+      .header('content-type', 'application/json')
+      .header('stripe-signature', sig)
+      .json(event)
+    res.assertStatus(200)
+
+    // Two workers pick it up at the same time.
+    const jobA = new ProcessStripeEventJob()
+    hydrateJob(jobA, { eventId: 'evt_concurrent' })
+    const jobB = new ProcessStripeEventJob()
+    hydrateJob(jobB, { eventId: 'evt_concurrent' })
+    const settled = await Promise.allSettled([jobA.execute(), jobB.execute()])
+    assert.isAtLeast(
+      settled.filter((s) => s.status === 'fulfilled').length,
+      1,
+      'at least one worker succeeded'
+    )
+
+    // The race must not leave duplicates or inconsistency.
+    const mirrors = await StripeSubscription.query().where('stripeSubscriptionId', subId)
+    assert.lengthOf(mirrors, 1, 'exactly one subscription mirror row')
+    assert.equal(mirrors[0].status, 'active')
+    assert.equal(mirrors[0].planName, 'pro')
+
+    const plans = await TenantPlan.query().where('tenantId', tenant.id)
+    assert.lengthOf(plans, 1, 'exactly one tenant_plans row')
+    assert.equal(plans[0].planName, 'pro')
+
+    const ledger = await StripeProcessedEvent.find('evt_concurrent')
+    assert.equal(ledger?.status, 'completed', 'the winner marked the event completed')
+    assert.isAtLeast(ledger?.attempts ?? 0, 1)
+  })
+
+  test('a malformed subscription payload is handled cleanly (no crash, no raw stack)', async ({
+    assert,
+    client,
+  }) => {
+    // Case A: data.object with customer:null → syncSubscription throws a
+    // *retryable* tenant_not_resolvable. The job re-throws (so BullMQ
+    // retries), the worker doesn't crash, the ledger row stays pending,
+    // and last_error is the package message — not a stack trace.
+    const mock = new MockStripe('whsec_test_billing_helper')
+    const noCustomerEvent = buildEvent(
+      'customer.subscription.created',
+      { ...buildSubscription({ id: `sub_${randomUUID().slice(0, 8)}` }), customer: null } as unknown as Stripe.Subscription,
+      { id: 'evt_malformed_no_customer' }
+    )
+    mock.injectEvent(noCustomerEvent)
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(mock)
+
+    let sig = signWebhookPayload(JSON.stringify(noCustomerEvent), 'whsec_test_billing_helper')
+    await client
+      .post('/webhooks/stripe')
+      .header('content-type', 'application/json')
+      .header('stripe-signature', sig)
+      .json(noCustomerEvent)
+
+    const jobA = new ProcessStripeEventJob()
+    hydrateJob(jobA, { eventId: 'evt_malformed_no_customer' })
+    let threw = false
+    try {
+      await jobA.execute()
+    } catch {
+      threw = true
+    }
+    assert.isTrue(threw, 'a retryable error re-throws — worker did not silently swallow it')
+    const badLedger = await StripeProcessedEvent.find('evt_malformed_no_customer')
+    assert.equal(badLedger?.status, 'pending', 'still pending — eligible for BullMQ retry')
+    assert.match(badLedger?.lastError ?? '', /customer id|refusing to sync/, 'stable message, not a stack')
+
+    // Case B: data.object with no items → optional-chaining defense
+    // holds; lands the tenant on defaultPlan instead of crashing.
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new StripeCustomer()
+    cus.tenantId = tenant.id
+    cus.stripeCustomerId = stripeCustomerId
+    await cus.save()
+
+    const subId = `sub_${randomUUID().slice(0, 8)}`
+    const noItemsEvent = buildEvent(
+      'customer.subscription.created',
+      {
+        ...buildSubscription({ id: subId, customer: stripeCustomerId, status: 'active' }),
+        items: { object: 'list', data: [], has_more: false, url: '' },
+      } as unknown as Stripe.Subscription,
+      { id: 'evt_malformed_no_items' }
+    )
+    mock.injectEvent(noItemsEvent)
+    sig = signWebhookPayload(JSON.stringify(noItemsEvent), 'whsec_test_billing_helper')
+    await client
+      .post('/webhooks/stripe')
+      .header('content-type', 'application/json')
+      .header('stripe-signature', sig)
+      .json(noItemsEvent)
+
+    const jobB = new ProcessStripeEventJob()
+    hydrateJob(jobB, { eventId: 'evt_malformed_no_items' })
+    await jobB.execute() // must not throw
+
+    const mirror = await StripeSubscription.find(subId)
+    assert.isNotNull(mirror, 'mirror created despite missing items')
+    assert.equal(mirror?.planName, 'starter', 'fell back to defaultPlan')
+    assert.equal((await TenantPlan.find(tenant.id))?.planName, 'starter')
+    assert.equal((await StripeProcessedEvent.find('evt_malformed_no_items'))?.status, 'completed')
   })
 
   test('a missing stripe-signature header returns 400', async ({ assert, client }) => {

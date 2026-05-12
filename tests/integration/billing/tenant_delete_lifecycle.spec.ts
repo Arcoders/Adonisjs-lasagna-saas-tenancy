@@ -187,6 +187,46 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
     assert.isNotNull(sub)
   })
 
+  test("'cancel' policy cancels EVERY active subscription for the tenant", async ({ assert }) => {
+    // A tenant may hold more than one active subscription (e.g. a base
+    // plan plus an add-on product). The listener loops over all of them;
+    // this exercises that loop, not just the single-sub happy path.
+    const { tenant, stripeSubscriptionId: subA } = await seed()
+
+    // Seed a second active subscription for the same tenant.
+    const subB = `sub_${randomUUID().slice(0, 8)}`
+    const second = new StripeSubscription()
+    second.stripeSubscriptionId = subB
+    second.tenantId = tenant.id
+    second.status = 'active'
+    second.currentPeriodStart = DateTime.utc().minus({ days: 2 })
+    second.currentPeriodEnd = DateTime.utc().plus({ days: 28 })
+    second.cancelAtPeriodEnd = false
+    second.cancelAt = null
+    second.canceledAt = null
+    second.trialEnd = null
+    second.planName = 'team'
+    second.lastEventAt = DateTime.utc().minus({ minutes: 2 })
+    second.raw = {}
+    await second.save()
+
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(wireMock())
+
+    const hooks = await app.container.make(HookRegistry)
+    await hooks.run('before', 'destroy', { tenant })
+
+    assert.deepEqual(
+      [...cancelLog].sort(),
+      [subA, subB].sort(),
+      'cancel called for BOTH active subscriptions'
+    )
+
+    assert.equal((await StripeSubscription.find(subA))?.status, 'canceled')
+    assert.equal((await StripeSubscription.find(subB))?.status, 'canceled')
+    assert.isNull(await StripeCustomer.find(tenant.id), 'customer mapping dropped')
+  })
+
   test('without a customer mapping the hook is a no-op', async ({ assert }) => {
     const t = await createTestTenant()
     cleanupTenants.push(t.id)

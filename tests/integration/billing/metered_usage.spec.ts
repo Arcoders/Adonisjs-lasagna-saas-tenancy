@@ -6,7 +6,7 @@ import { MockStripe } from '@adonisjs-lasagna/saas-tenancy/testing'
 import { StripeCustomer, StripeMeterEvent } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import UsageAutoBridgeListener from '../../../src/listeners/usage_auto_bridge_listener.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { setupBillingConfig, clearBillingTables } from './helpers.js'
+import { setupBillingConfig, clearBillingTables, hydrateJob } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 import QuotaTracked from '../../../src/events/quota_tracked.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
@@ -250,6 +250,71 @@ test.group('Metered/usage-based billing (integration)', (group) => {
       }).dispatch = originalDispatch
       await listener.drainAll().catch(() => {})
     }
+  })
+
+  test('auto-bridge: ReportUsageBatchJob.execute reports the aggregated quantity to Stripe + audit row', async ({
+    assert,
+  }) => {
+    // The aggregation half (QuotaTracked → one dispatch with the summed
+    // quantity) is covered by the test above. This covers the half that
+    // test stubs out: actually executing the batch job — it must reach
+    // Stripe with the aggregated quantity and persist a `sent` audit row.
+    //
+    // Import the job from the PACKAGE path (build), not src/, so its
+    // `app.container.make(BillingService)` resolves the same singleton we
+    // inject the mock into (the dual-module hazard the CLAUDE.md warns
+    // about — a src/ copy would resolve a fresh, un-mocked instance).
+    const { ReportUsageBatchJob } = await import('@adonisjs-lasagna/saas-tenancy/jobs')
+
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new StripeCustomer()
+    cus.tenantId = tenant.id
+    cus.stripeCustomerId = stripeCustomerId
+    await cus.save()
+
+    const mock = new MockStripe('whsec_test_billing_helper')
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(mock)
+
+    const job = new ReportUsageBatchJob()
+    hydrateJob(job, { tenantId: tenant.id, meterEventName: 'api_request', quantity: 7 })
+    await job.execute()
+
+    const reported = mock.meterEvents()
+    assert.lengthOf(reported, 1, 'batch job forwarded one meter event to Stripe')
+    assert.equal(reported[0].event_name, 'api_request')
+    assert.equal(reported[0].payload.value, '7', 'aggregated quantity reached Stripe')
+    assert.equal(reported[0].payload.stripe_customer_id, stripeCustomerId)
+
+    const audit = await StripeMeterEvent.query().where('tenant_id', tenant.id)
+    assert.lengthOf(audit, 1, 'one audit row written by the batch job')
+    assert.equal(audit[0].status, 'sent')
+    assert.equal(audit[0].quantity, 7)
+    assert.equal(audit[0].meterEventName, 'api_request')
+  })
+
+  test('auto-bridge: a batch job whose tenant no longer exists drops cleanly', async ({
+    assert,
+  }) => {
+    // The repo lookup in ReportUsageBatchJob can race a tenant delete:
+    // the QuotaTracked was buffered while the tenant existed, then it was
+    // hard-deleted before the bucket flushed. The job must bail (log
+    // tenant_missing), not throw, and write no audit row.
+    const { ReportUsageBatchJob } = await import('@adonisjs-lasagna/saas-tenancy/jobs')
+
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+
+    const ghostTenantId = randomUUID()
+    const job = new ReportUsageBatchJob()
+    hydrateJob(job, { tenantId: ghostTenantId, meterEventName: 'api_request', quantity: 9 })
+
+    await job.execute() // must not throw
+
+    const audit = await StripeMeterEvent.query().where('tenant_id', ghostTenantId)
+    assert.lengthOf(audit, 0, 'no audit row for a vanished tenant')
   })
 
   test('emitted QuotaTracked for an unmapped quota produces no batch', async ({ assert }) => {

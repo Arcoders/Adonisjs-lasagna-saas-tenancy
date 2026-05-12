@@ -285,6 +285,91 @@ test.group('BillingService.syncSubscription (integration)', (group) => {
     assert.equal(mirror?.status, 'active', 'resumed flips back to active')
   })
 
+  test('cancel_at_period_end is mirrored without changing status; clearing it works', async ({
+    assert,
+  }) => {
+    const { tenantId, stripeCustomerId } = await seedCustomer()
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    const subId = `sub_cape_${randomUUID().slice(0, 8)}`
+
+    // Tenant schedules a cancellation. The subscription is STILL active
+    // until the period actually ends — only the flag flips.
+    await billing.syncSubscription(
+      buildSubscription({
+        id: subId,
+        customer: stripeCustomerId,
+        productId: 'prod_pro',
+        status: 'active',
+        cancelAtPeriodEnd: true,
+        canceledAt: Math.floor(Date.now() / 1000),
+      }),
+      Math.floor(Date.now() / 1000)
+    )
+    let mirror = await StripeSubscription.find(subId)
+    assert.equal(mirror?.cancelAtPeriodEnd, true, 'flag mirrored')
+    assert.equal(mirror?.status, 'active', 'still active — cancellation is scheduled, not immediate')
+    assert.equal(mirror?.planName, 'pro', 'plan unchanged while the scheduled cancel is pending')
+    assert.isNotNull(mirror?.canceledAt)
+    assert.equal((await TenantPlan.find(tenantId))?.planName, 'pro')
+
+    // Tenant changes their mind — the flag is cleared on the next update.
+    await billing.syncSubscription(
+      buildSubscription({
+        id: subId,
+        customer: stripeCustomerId,
+        productId: 'prod_pro',
+        status: 'active',
+        cancelAtPeriodEnd: false,
+      }),
+      Math.floor(Date.now() / 1000) + 5
+    )
+    mirror = await StripeSubscription.find(subId)
+    assert.equal(mirror?.cancelAtPeriodEnd, false, 'flag cleared')
+    assert.isNull(mirror?.canceledAt, 'canceled_at cleared along with it')
+  })
+
+  test('scheduled cancellation completes: subscription.deleted → canceled + downgrade', async ({
+    assert,
+  }) => {
+    const { tenantId, stripeCustomerId } = await seedCustomer()
+    const billing = await app.container.make(BillingService)
+    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    const subId = `sub_cape_done_${randomUUID().slice(0, 8)}`
+
+    // Active with a scheduled cancellation.
+    await billing.syncSubscription(
+      buildSubscription({
+        id: subId,
+        customer: stripeCustomerId,
+        productId: 'prod_pro',
+        status: 'active',
+        cancelAtPeriodEnd: true,
+      }),
+      Math.floor(Date.now() / 1000)
+    )
+    assert.equal((await TenantPlan.find(tenantId))?.planName, 'pro')
+
+    // Period ends → Stripe fires customer.subscription.deleted. Routed
+    // through syncSubscription with downgrade:true (the dispatcher's
+    // handling for deletions), so it lands on defaultPlan.
+    await billing.syncSubscription(
+      buildSubscription({
+        id: subId,
+        customer: stripeCustomerId,
+        productId: 'prod_pro',
+        status: 'canceled',
+        canceledAt: Math.floor(Date.now() / 1000),
+      }),
+      Math.floor(Date.now() / 1000) + 10,
+      { downgrade: true }
+    )
+
+    const mirror = await StripeSubscription.find(subId)
+    assert.equal(mirror?.status, 'canceled')
+    assert.equal((await TenantPlan.find(tenantId))?.planName, 'starter', 'downgraded to defaultPlan')
+  })
+
   test('plan change immediately reflects via QuotaService.getLimit', async ({ assert }) => {
     const { tenantId, stripeCustomerId } = await seedCustomer()
     const billing = await app.container.make(BillingService)

@@ -84,7 +84,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
     billing.__resetForTests()
   })
 
-  test('end-to-end: real customer + subscription → webhook replay → local sync', async ({
+  test('end-to-end: real customer + subscription → sync → cancel → sync → downgrade', async ({
     assert,
     client,
   }) => {
@@ -232,6 +232,37 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       const tp = await TenantPlan.find(tenant.id)
       assert.equal(tp?.planName, 'smoke_pro', 'tenant_plans assigned via QuotaService')
       assert.equal(tp?.source, 'stripe')
+
+      // --- 8. Cancel in Stripe → feed the REAL canceled subscription
+      // through syncSubscription → verify downgrade. We pass the object
+      // `subscriptions.cancel()` returns rather than polling `events.list`
+      // for the `customer.subscription.deleted` event — the latter's
+      // propagation timing is variable enough to flake a smoke test, and
+      // the thing we actually care about (Stripe's real cancellation
+      // payload shape: `canceled_at`, `cancellation_details`, the v18
+      // nesting, status='canceled') is fully present on the returned
+      // object. The webhook/controller/job path for deletions is covered
+      // exhaustively by the MockStripe-based specs.
+      const canceled = await stripe.subscriptions.cancel(stripeSubscriptionId)
+      // Canceling an `incomplete` sub (we created it `default_incomplete`
+      // to avoid needing a payment method) terminates it as
+      // `incomplete_expired`; an active one would be `canceled`. Accept
+      // either terminal status — the payload shape is what we're after.
+      const terminal = ['canceled', 'incomplete_expired']
+      assert.isTrue(
+        terminal.includes(canceled.status),
+        `Stripe reports the subscription terminated (got '${canceled.status}')`
+      )
+      await billing.syncSubscription(
+        canceled as unknown as Stripe.Subscription,
+        Math.floor(Date.now() / 1000),
+        { downgrade: true }
+      )
+
+      const canceledMirror = await StripeSubscription.find(stripeSubscriptionId)
+      assert.equal(canceledMirror?.status, canceled.status, 'mirror reflects the real terminal status')
+      const tpAfterCancel = await TenantPlan.find(tenant.id)
+      assert.equal(tpAfterCancel?.planName, 'starter', 'downgraded to defaultPlan after cancel')
     } finally {
       // --- 8. Cleanup (best-effort) ---
       if (stripeSubscriptionId) {
@@ -253,7 +284,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       await stripe.products.update(product.id, { active: false }).catch(() => {})
     }
   })
-    .timeout(30_000)
+    .timeout(45_000)
     .skip(
       !SHOULD_RUN,
       'STRIPE_TEST_API_KEY env var not set or not an sk_test_* key — smoke test skipped'

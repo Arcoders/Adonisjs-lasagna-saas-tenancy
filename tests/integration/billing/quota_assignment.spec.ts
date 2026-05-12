@@ -117,6 +117,42 @@ test.group('QuotaService.assignPlan (integration)', (group) => {
     assert.equal(name, 'starter', 'expired row treated as missing')
   })
 
+  test('downgrade resets EVERY quota dimension, not just the one read first', async ({
+    assert,
+  }) => {
+    // Reconfigure plans with two limit dimensions. The plan-name cache
+    // is keyed per tenant (not per dimension), so a downgrade must make
+    // the next read of ANY dimension reflect the new plan — this guards
+    // against a regression that caches resolved limits per dimension.
+    const cfg = getConfig()
+    setConfig({
+      ...cfg,
+      plans: {
+        ...cfg.plans!,
+        defaultPlan: 'starter',
+        storage: 'tenant_plans',
+        definitions: {
+          starter: { limits: { apiRequests: 100, storageMb: 5 } },
+          pro: { limits: { apiRequests: 10_000, storageMb: 500 } },
+        },
+      },
+    } as never)
+    __resetPlanStorageProbe()
+
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const quotas = await app.container.make(QuotaService)
+    const fakeTenant = { id: tenant.id } as never
+
+    await quotas.assignPlan(tenant.id, 'pro', { source: 'stripe' })
+    assert.equal(await quotas.getLimit(fakeTenant, 'apiRequests'), 10_000)
+    assert.equal(await quotas.getLimit(fakeTenant, 'storageMb'), 500)
+
+    await quotas.assignPlan(tenant.id, 'starter', { source: 'dunning' })
+    assert.equal(await quotas.getLimit(fakeTenant, 'apiRequests'), 100, 'apiRequests reset')
+    assert.equal(await quotas.getLimit(fakeTenant, 'storageMb'), 5, 'storageMb reset too')
+  })
+
   test('clearAssignedPlan removes the row + cache', async ({ assert }) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
