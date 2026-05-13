@@ -1,3 +1,5 @@
+import { appendFile, mkdir } from 'node:fs/promises'
+import { dirname, isAbsolute, resolve } from 'node:path'
 import app from '@adonisjs/core/services/app'
 import { ExceptionHandler, HttpContext } from '@adonisjs/core/http'
 import {
@@ -8,6 +10,28 @@ import {
   CircuitOpenException,
   QuotaExceededException,
 } from '@adonisjs-lasagna/saas-tenancy/exceptions'
+
+/**
+ * When `TENANT_503_DIAG=1`, append a one-line JSON record for every response
+ * the handler maps to a 5xx (or for unmapped errors that bubble to `super`).
+ * Used to localise the cause of intermittent 503s under full e2e suite load —
+ * `tail -f` this from another shell while the suite runs.
+ */
+const diagPath = (() => {
+  if (process.env.TENANT_503_DIAG !== '1') return null
+  const raw = process.env.TENANT_503_DIAG_LOG ?? 'storage/503-diag.log'
+  return isAbsolute(raw) ? raw : resolve(process.cwd(), raw)
+})()
+
+async function diag(line: Record<string, unknown>) {
+  if (!diagPath) return
+  try {
+    await mkdir(dirname(diagPath), { recursive: true })
+    await appendFile(diagPath, JSON.stringify({ at: new Date().toISOString(), ...line }) + '\n')
+  } catch {
+    /* diagnostic only — never break the response */
+  }
+}
 
 /**
  * Maps every typed exception the package can raise to a friendly JSON response.
@@ -34,11 +58,23 @@ export default class HttpExceptionHandler extends ExceptionHandler {
       })
     }
     if (error instanceof TenantNotReadyException) {
+      await diag({
+        kind: 'TENANT_NOT_READY',
+        url: ctx.request.url(true),
+        method: ctx.request.method(),
+        tenantHeader: ctx.request.header('x-tenant-id') ?? null,
+      })
       return ctx.response.status(503).send({
         error: { code: 'TENANT_NOT_READY', message: 'Tenant is still provisioning' },
       })
     }
     if (error instanceof CircuitOpenException) {
+      await diag({
+        kind: 'CIRCUIT_OPEN',
+        url: ctx.request.url(true),
+        method: ctx.request.method(),
+        tenantHeader: ctx.request.header('x-tenant-id') ?? null,
+      })
       return ctx.response.status(503).send({
         error: { code: 'CIRCUIT_OPEN', message: 'Tenant circuit breaker is open — try later' },
       })
@@ -58,6 +94,19 @@ export default class HttpExceptionHandler extends ExceptionHandler {
         },
       })
     }
+    // Anything unmapped (TenantMaintenanceException, RateLimitUnavailable,
+    // raw Lucid/Pg errors, etc.) falls through to AdonisJS's default handler
+    // which uses the `static readonly status` on the exception class. Log
+    // those too so the diagnostic doesn't miss the path.
+    await diag({
+      kind: 'UNHANDLED',
+      errorName: (error as Error)?.constructor?.name ?? typeof error,
+      errorMessage: (error as Error)?.message ?? String(error),
+      status: (error as { status?: number })?.status ?? null,
+      url: ctx.request.url(true),
+      method: ctx.request.method(),
+      tenantHeader: ctx.request.header('x-tenant-id') ?? null,
+    })
     return super.handle(error, ctx)
   }
 

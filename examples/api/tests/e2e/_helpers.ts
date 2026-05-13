@@ -43,26 +43,46 @@ export async function probePgTools(): Promise<boolean> {
  * runs the beforeProvision hook, calls tenant.install(), emits the lifecycle
  * events.
  *
- * The dispatched events: TenantCreated, TenantProvisioned, TenantActivated —
- * matching the production `InstallTenant` job's emissions.
+ * Retries up to 3× with backoff to absorb transient PG/Redis hiccups under
+ * full-suite load (production goes through `InstallTenant.dispatch`, which
+ * BullMQ retries; the inline path needs equivalent resilience or tests
+ * cascade into 503s on unrelated specs). Returns 'active' on success or
+ * 'failed' on permanent failure — the latter is preserved so failure-path
+ * tests (e.g. "beforeProvision rejects bad email") can assert on it. The
+ * happy-path helper `createInstalledTenant` upgrades 'failed' to an explicit
+ * throw so silent install failures don't cascade into mysterious 503s later.
  */
 export async function installInline(id: string): Promise<'active' | 'failed'> {
   const tenant = await Tenant.findOrFail(id)
-  try {
-    const cfgHooks: any = (await import('#config/multitenancy')).default.hooks
-    if (cfgHooks?.beforeProvision) {
-      await cfgHooks.beforeProvision({ tenant })
+  const cfgHooks: any = (await import('#config/multitenancy')).default.hooks
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      if (cfgHooks?.beforeProvision) {
+        await cfgHooks.beforeProvision({ tenant })
+      }
+      await tenant.install()
+      await TenantCreated.dispatch(tenant as any)
+      await TenantProvisioned.dispatch(tenant as any)
+      await TenantActivated.dispatch(tenant as any)
+      return 'active'
+    } catch {
+      // Schema may have been partially created — close any Lucid connection
+      // that points at it AND drop before retrying. Without the close, the
+      // next `CREATE SCHEMA IF NOT EXISTS` succeeds but the pool still has
+      // pre-existing sessions whose `search_path` points at the just-dropped
+      // schema, which surfaces as random 503s several specs later under
+      // full-suite load (zombie pool entries in `db.manager`).
+      await tenant.closeConnection().catch(() => {})
+      await tenant.dropSchemaIfExists().catch(() => {})
+      if (attempt < 3) {
+        await new Promise((r) => setTimeout(r, 100 * attempt))
+      }
     }
-    await tenant.install()
-    await TenantCreated.dispatch(tenant as any)
-    await TenantProvisioned.dispatch(tenant as any)
-    await TenantActivated.dispatch(tenant as any)
-    return 'active'
-  } catch {
-    tenant.status = 'failed'
-    await tenant.save()
-    return 'failed'
   }
+  tenant.status = 'failed'
+  await tenant.save().catch(() => {})
+  return 'failed'
 }
 
 export interface CreateInstalledTenantOptions {
@@ -82,7 +102,7 @@ export interface CreateInstalledTenantOptions {
 export async function createInstalledTenant(
   client: any,
   opts: CreateInstalledTenantOptions = {}
-): Promise<{ id: string; status: 'active' | 'failed' }> {
+): Promise<{ id: string; status: 'active' }> {
   const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
   const r = await client.post('/demo/tenants').json({
     name: opts.name ?? `E2E-${stamp}`,
@@ -94,21 +114,42 @@ export async function createInstalledTenant(
     throw new Error(`Failed to create tenant: ${r.status()} ${JSON.stringify(r.body())}`)
   }
   const id = r.body().tenantId as string
+  // Upgrade a silent 'failed' to a loud throw — the happy-path helper exists
+  // exactly so unrelated specs don't have to debug random 503s caused by a
+  // tenant that failed to install several tests ago.
   const status = await installInline(id)
-  if (status === 'active' && opts.migrate !== false) {
+  if (status !== 'active') {
+    throw new Error(
+      `createInstalledTenant: install did not reach 'active' for ${id} (status="${status}"). ` +
+        `Inspect logs for the underlying error; common causes: PG connection saturation, hook rejection.`
+    )
+  }
+  if (opts.migrate !== false) {
     const code = await runAce('tenant:migrate', ['--tenant', id])
     if (code !== 0) throw new Error(`tenant:migrate exited ${code} for ${id}`)
   }
-  return { id, status }
+  return { id, status: 'active' }
 }
 
 /**
  * Drop schemas + delete rows for every tenant currently in the backoffice
  * registry. Used by `group.setup`/`group.teardown` to keep suites rerunnable.
+ *
+ * Closes the Lucid connection registered for each tenant FIRST. Skipping that
+ * leaves a `tenant_<uuid>` entry in `db.manager` whose pool keeps sessions
+ * with `search_path` pointing at a schema that gets dropped a moment later;
+ * a subsequent `db.manager.release(oldest)` triggered by the package's LRU
+ * eviction (`SchemaPgDriver.#lru` cap of 50) under full-suite load fires
+ * fire-and-forget — racing with whatever query is currently in flight on
+ * that connection. Empirically that race surfaced as ~3 random 503s on
+ * tenant-scoped routes per full-suite run, with a varying mix of failing
+ * specs — never reproducible in isolation. Closing here keeps both LRUs
+ * (the package's and this model's) bounded by the live tenant set.
  */
 export async function dropAllTenants(): Promise<void> {
   const all = await Tenant.query()
   for (const t of all) {
+    await t.closeConnection().catch(() => {})
     try {
       await t.dropSchemaIfExists()
     } catch {

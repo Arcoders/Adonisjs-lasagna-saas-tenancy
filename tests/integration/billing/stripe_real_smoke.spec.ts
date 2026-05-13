@@ -5,6 +5,7 @@ import { BillingService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { signWebhookPayload } from '@adonisjs-lasagna/saas-tenancy/testing'
 import {
   StripeCustomer,
+  StripeMeterEvent,
   StripeProcessedEvent,
   StripeSubscription,
   TenantPlan,
@@ -83,6 +84,171 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
     const billing = await app.container.make(BillingService)
     billing.__resetForTests()
   })
+
+  test('SDK call-site contract: checkout + portal + metered usage + subscriptions.list + balance.retrieve', async ({
+    assert,
+  }) => {
+    // Exercises the *other* Stripe SDK surfaces the package calls into —
+    // the ones the subscription-lifecycle test above doesn't touch:
+    //   - stripe.checkout.sessions.create   (BillingService.createCheckoutSession)
+    //   - stripe.prices.retrieve            (BillingService.#assertPriceAllowed)
+    //   - stripe.billingPortal.sessions.create (BillingService.createBillingPortalSession)
+    //   - stripe.billing.meters.create / .deactivate (test fixture; required so meterEvents.create has a target)
+    //   - stripe.billing.meterEvents.create (BillingService.reportUsage, with idempotency key)
+    //   - stripe.subscriptions.list         (billing:sync command)
+    //   - stripe.balance.retrieve           (billing:doctor / billing_health_check)
+    // If Stripe renames or reshapes any of these, this test fails in CI
+    // instead of in a customer's production logs.
+    const runId = randomUUID().slice(0, 8)
+    const webhookSecret = 'whsec_smoke_test_real_stripe_callsites'
+
+    setConfig({
+      ...testConfig,
+      plans: {
+        defaultPlan: 'starter',
+        definitions: {
+          starter: { limits: { apiRequests: 100 } },
+          smoke_pro: { limits: { apiRequests: 10_000 } },
+        },
+        storage: 'tenant_plans',
+      },
+      billing: {
+        driver: 'stripe',
+        stripe: { apiKey: REAL_KEY!, webhookSecret },
+        products: {},
+        defaultPlan: 'starter',
+      },
+    } as never)
+
+    const billing = await app.container.make(BillingService)
+    billing.__resetForTests()
+    await billing.verify()
+    const stripe = await billing.getClient()
+
+    // --- Fixtures: product + price + a Billing Meter (so meterEvents has a target) ---
+    const product = await stripe.products.create({
+      name: `Lasagna smoke callsites ${runId}`,
+      metadata: { source: 'lasagna-saas-tenancy-smoke-test', run_id: runId },
+    })
+    const price = await stripe.prices.create({
+      product: product.id,
+      unit_amount: 1500,
+      currency: 'usd',
+      recurring: { interval: 'month' },
+      metadata: { source: 'lasagna-saas-tenancy-smoke-test', run_id: runId },
+    })
+    const meterEventName = `lasagna_smoke_usage_${runId}`
+    const meter = await stripe.billing.meters.create({
+      display_name: `Lasagna smoke meter ${runId}`,
+      event_name: meterEventName,
+      default_aggregation: { formula: 'sum' },
+      value_settings: { event_payload_key: 'value' },
+      customer_mapping: { type: 'by_id', event_payload_key: 'stripe_customer_id' },
+    })
+
+    // Ensure a Customer Portal configuration exists — in a fresh test
+    // account no default exists and `billingPortal.sessions.create` 500s.
+    // Creating one when none exists makes it the account default.
+    await stripe.billingPortal.configurations
+      .create({
+        business_profile: { headline: 'Lasagna SaaS Tenancy — smoke test' },
+        features: { invoice_history: { enabled: true } },
+      })
+      .catch(() => {
+        /* a default already exists — fine */
+      })
+
+    setConfig({
+      ...getConfig(),
+      billing: { ...getConfig().billing!, products: { [product.id]: 'smoke_pro' } },
+    } as never)
+
+    let stripeCustomerId: string | null = null
+    let subId: string | null = null
+    try {
+      const tenant = await createTestTenant()
+      cleanupTenants.push(tenant.id)
+      const fakeTenant = {
+        id: tenant.id,
+        name: tenant.name ?? `smoke ${runId}`,
+        email: tenant.email ?? `smoke+${runId}@example.test`,
+      } as unknown as TenantModelContract
+
+      // --- checkout.sessions.create (+ ensureCustomer/customers.create + prices.retrieve) ---
+      const checkout = await billing.createCheckoutSession(fakeTenant, {
+        priceId: price.id,
+        successUrl: 'https://example.test/billing/ok',
+        cancelUrl: 'https://example.test/billing/cancel',
+      })
+      assert.match(checkout.id, /^cs_/, 'real Stripe returned a checkout session id')
+      assert.match(checkout.url, /^https:\/\//, 'real Stripe returned a checkout URL')
+
+      const localCus = await StripeCustomer.find(tenant.id)
+      assert.isNotNull(localCus, 'ensureCustomer persisted a StripeCustomer mirror row')
+      stripeCustomerId = localCus!.stripeCustomerId
+      assert.match(stripeCustomerId, /^cus_/)
+
+      // --- billingPortal.sessions.create ---
+      const portal = await billing.createBillingPortalSession(fakeTenant, {
+        returnUrl: 'https://example.test/billing/back',
+      })
+      assert.match(portal.url, /^https:\/\//, 'real Stripe returned a billing portal URL')
+
+      // --- billing.meterEvents.create via reportUsage (with idempotency key) ---
+      const usageKey = `smoke:${tenant.id}:${meterEventName}:fixed`
+      await billing.reportUsage(fakeTenant, { eventName: meterEventName }, 7, {
+        idempotencyKey: usageKey,
+      })
+      let usageRows = await StripeMeterEvent.query().where('idempotencyKey', usageKey)
+      assert.lengthOf(usageRows, 1, 'one StripeMeterEvent audit row written')
+      assert.equal(usageRows[0].status, 'sent', 'meter event reported to Stripe')
+      assert.equal(Number(usageRows[0].quantity), 7)
+      assert.isNotNull(usageRows[0].reportedAt)
+
+      // Re-report with the SAME idempotency key — the DB-level dedupe
+      // short-circuits before re-hitting Stripe; still exactly one row,
+      // still 'sent'. (Stripe's own idempotency cache covered the first
+      // call's `{ idempotencyKey }` param.)
+      await billing.reportUsage(fakeTenant, { eventName: meterEventName }, 7, {
+        idempotencyKey: usageKey,
+      })
+      usageRows = await StripeMeterEvent.query().where('idempotencyKey', usageKey)
+      assert.lengthOf(usageRows, 1, 'duplicate reportUsage did not create a second audit row')
+
+      // --- subscriptions.list (the shape billing:sync relies on) ---
+      const sub = await stripe.subscriptions.create({
+        customer: stripeCustomerId,
+        items: [{ price: price.id }],
+        payment_behavior: 'default_incomplete',
+        metadata: { source: 'lasagna-saas-tenancy-smoke-test', run_id: runId },
+      })
+      subId = sub.id
+      const listed = await stripe.subscriptions.list({ status: 'all', limit: 100 })
+      assert.equal(listed.object, 'list')
+      assert.isArray(listed.data)
+      assert.isBoolean(listed.has_more)
+      assert.isTrue(
+        listed.data.some((s) => s.id === subId),
+        'the subscription we just created shows up in subscriptions.list'
+      )
+
+      // --- balance.retrieve (billing:doctor / billing_health_check) ---
+      const balance = await stripe.balance.retrieve()
+      assert.equal(balance.object, 'balance')
+      assert.isArray(balance.available)
+    } finally {
+      if (subId) await stripe.subscriptions.cancel(subId).catch(() => {})
+      if (stripeCustomerId) await stripe.customers.del(stripeCustomerId).catch(() => {})
+      await stripe.billing.meters.deactivate(meter.id).catch(() => {})
+      await stripe.prices.update(price.id, { active: false }).catch(() => {})
+      await stripe.products.update(product.id, { active: false }).catch(() => {})
+    }
+  })
+    .timeout(45_000)
+    .skip(
+      !SHOULD_RUN,
+      'STRIPE_TEST_API_KEY env var not set or not an sk_test_* key — smoke test skipped'
+    )
 
   test('end-to-end: real customer + subscription → sync → cancel → sync → downgrade', async ({
     assert,

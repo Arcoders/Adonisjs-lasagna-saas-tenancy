@@ -6,6 +6,8 @@
     "strict": true,
     "declaration": true,
     "declarationMap": true,
+    "sourceMap": true,
+    "inlineSources": true,
     "outDir": "./build",
     "rootDir": "./",
     "esModuleInterop": true,

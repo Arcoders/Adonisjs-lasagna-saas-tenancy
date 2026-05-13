@@ -1,4 +1,5 @@
 import { test } from '@japa/runner'
+import app from '@adonisjs/core/services/app'
 import {
   TenantUpdated,
   TenantBackedUp,
@@ -6,6 +7,7 @@ import {
   TenantCloned,
 } from '@adonisjs-lasagna/saas-tenancy/events'
 import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy'
+import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
 import Tenant from '#app/models/backoffice/tenant'
 import {
   ADMIN_HEADERS,
@@ -103,19 +105,37 @@ test.group('e2e — 11 lifecycle events surface in the audit log', (group) => {
   }) => {
     const { id } = await createInstalledTenant(client, { plan: 'free' })
 
-    // free plan is 50 calls/day. Hammer until we get a 429.
+    // The rolling counter lives in Redis with a 48h TTL — defensively reset it
+    // for this tenant so we start from zero regardless of any prior spec's
+    // residual state. (Per-tenant key, so a fresh tenant *should* start at
+    // zero, but flushing makes the test self-contained instead of relying on
+    // the previous suite's hygiene.)
+    const tenantModel = await Tenant.findOrFail(id)
+    const quotaSvc = await app.container.make(QuotaService)
+    await quotaSvc.reset(tenantModel, 'apiCallsPerDay')
+
+    // free plan is 50 calls/day. Hammer until we get a 429. Statuses are
+    // captured so a future failure shows *what* came back (e.g., 5xx from a
+    // saturated pool, 503 from a stale circuit-breaker) instead of just
+    // "false to be true". With the reset above, 60 attempts is comfortably
+    // over the cliff at request #51.
     let saw429 = false
+    const statuses: number[] = []
     for (let i = 0; i < 60; i++) {
       const r = await client
         .post('/demo/notes')
         .header('x-tenant-id', id)
         .json({ title: `n${i}` })
+      statuses.push(r.status())
       if (r.status() === 429) {
         saw429 = true
         break
       }
     }
-    assert.isTrue(saw429, 'expected at least one 429 in 60 attempts')
+    assert.isTrue(
+      saw429,
+      `expected at least one 429 in 60 attempts; statuses seen: ${JSON.stringify(statuses)}`
+    )
 
     let actions: string[] = []
     for (let i = 0; i < 10; i++) {

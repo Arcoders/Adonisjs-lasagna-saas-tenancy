@@ -140,6 +140,48 @@ export default class MultitenancyProvider {
       const billing = await this.app.container.make(BillingService)
       await billing.verify()
     }
+
+    await this.#registerQueueJobs()
+  }
+
+  /**
+   * Register the package's `@adonisjs/queue` jobs with the queue Locator so
+   * a `queue:work` worker can resolve them by name. Without this, dispatching
+   * `InstallTenant`/`UninstallTenant`/etc. enqueues a job the worker can't
+   * instantiate (`Locator.getOrThrow(name)` fails) — it gets dead-lettered
+   * instead of running. Host apps that auto-discover jobs from `app/jobs/**`
+   * never see this because their glob doesn't reach into `node_modules`.
+   *
+   * Dynamic import keeps the job module graph (which eagerly pulls in the
+   * logger service) out of static analysis — it's only evaluated here, inside
+   * a live Ignitor, after `QueueProvider.boot()` has initialised the manager.
+   * Best-effort: a failure here must never break app boot — a host that
+   * doesn't use the queue (or whose `@adonisjs/queue` shape differs) just
+   * doesn't get the auto-registration.
+   */
+  async #registerQueueJobs(): Promise<void> {
+    try {
+      const { Locator } = await import('@adonisjs/queue')
+      const jobs = await import('../jobs/index.js')
+      for (const exported of Object.values(jobs)) {
+        // Job classes are functions with a `.dispatch` static; the barrel
+        // also re-exports types (erased at runtime) — skip non-classes.
+        if (
+          typeof exported !== 'function' ||
+          typeof (exported as { dispatch?: unknown }).dispatch !== 'function'
+        ) {
+          continue
+        }
+        const JobClass = exported as { name: string; options?: { name?: string } }
+        Locator.register(JobClass.options?.name ?? JobClass.name, JobClass as never)
+      }
+    } catch (error) {
+      const logger = await this.app.container.make('logger')
+      logger.warn(
+        { err: (error as Error)?.message },
+        '[multitenancy] could not auto-register queue jobs with the @adonisjs/queue Locator — dispatch a job through a worker only if you register them yourself'
+      )
+    }
   }
 
   /**

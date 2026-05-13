@@ -33,8 +33,16 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Test (unit)
-        run: npm test
+      - name: Test (unit) + coverage
+        run: npm run test:coverage
+
+      - name: Upload unit coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: coverage/lcov.info
+          if-no-files-found: warn
 
       # Surfaces unused exports / orphaned files / unused deps. `--no-exit-code`
       # so the report is informational; flip to required once the baseline
@@ -97,6 +105,13 @@ jobs:
       CACHE_REDIS_HOST: 127.0.0.1
       CACHE_REDIS_PORT: 6379
       CACHE_REDIS_DB: 2
+      # Optional: a Stripe *test-mode* key (sk_test_…). When set, the
+      # real-API smoke test (tests/integration/billing/stripe_real_smoke.spec.ts)
+      # runs and verifies every Stripe SDK call-site against the live test
+      # endpoint instead of MockStripe. When unset/empty the test reports
+      # itself skipped (visibly, not silently). Add it under
+      # Settings → Secrets and variables → Actions as STRIPE_TEST_API_KEY.
+      STRIPE_TEST_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -111,8 +126,16 @@ jobs:
           npm_config_ignore_scripts: 'false'
         run: npm install --legacy-peer-deps --include=optional
 
-      - name: Test (integration)
-        run: npm run test:integration
+      - name: Test (integration) + coverage
+        run: npm run test:integration:coverage
+
+      - name: Upload integration coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-integration
+          path: coverage/lcov.info
+          if-no-files-found: warn
 
   test-e2e-demo:
     name: E2E (demo app)
