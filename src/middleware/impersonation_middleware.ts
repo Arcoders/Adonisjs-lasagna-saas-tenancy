@@ -23,7 +23,22 @@ const DEFAULT_COOKIE = '__impersonation'
  *   failure also tells legitimate operators their session has expired.
  */
 export default class ImpersonationMiddleware {
-  constructor(private service?: ImpersonationService) {}
+  /**
+   * Override hook for tests — lets a spec swap in a fake
+   * `ImpersonationService` without going through the container.
+   *
+   * Why this pattern and not a constructor param: AdonisJS's
+   * named-middleware factory resolves the class through the IoC
+   * container. A typed constructor parameter (even optional) makes
+   * the container try to inject `ImpersonationService`, which it
+   * can't because the service expects a config-validated boot.
+   * Lifting the lookup into a method keeps the public surface
+   * container-friendly while still leaving an override seam for
+   * unit tests.
+   */
+  protected getService(): Promise<ImpersonationService> {
+    return app.container.make(ImpersonationService)
+  }
 
   async handle(ctx: HttpContext, next: NextFn) {
     const cfg = getConfig().impersonation
@@ -36,7 +51,7 @@ export default class ImpersonationMiddleware {
 
     if (!token) return next()
 
-    const svc = this.service ?? (await app.container.make(ImpersonationService))
+    const svc = await this.getService()
     const verified = await svc.verify(token)
     if (!verified) throw new ImpersonationInvalidException()
 

@@ -84,6 +84,19 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
+      # mock-oauth2-server publishes a wire-compliant OIDC discovery
+      # doc + JWKS + token endpoint. Used by
+      # tests/integration/services/sso_oidc_real.spec.ts to prove the
+      # package's SSO codepath interops with a real third-party OIDC
+      # implementation (not just the in-spec fake IdP that mirrors our
+      # assumptions). Skips silently when `MOCK_OIDC_BASE_URL` is unset.
+      # (MinIO can't run as a service container because GitHub Actions
+      # doesn't allow CMD overrides — see the `Start MinIO` step below.)
+      mock-oidc:
+        image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+        ports:
+          - 8080:8080
+
     env:
       TZ: UTC
       NODE_ENV: test
@@ -112,6 +125,19 @@ jobs:
       # itself skipped (visibly, not silently). Add it under
       # Settings → Secrets and variables → Actions as STRIPE_TEST_API_KEY.
       STRIPE_TEST_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
+      # Real S3-compatible store (MinIO running on localhost) — drives
+      # the BackupService S3 roundtrip spec. Removing these env vars
+      # makes the spec skip rather than fail.
+      BACKUP_S3_ENDPOINT: http://127.0.0.1:9000
+      BACKUP_S3_BUCKET: lasagna-test
+      BACKUP_S3_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      # Real OIDC server (mock-oauth2-server running as service
+      # container) — drives the SsoService interop spec. `default` is
+      # the issuer path mock-oauth2-server uses for unspecified
+      # issuers.
+      MOCK_OIDC_BASE_URL: http://127.0.0.1:8080/default
 
     steps:
       - uses: actions/checkout@v4
@@ -125,6 +151,39 @@ jobs:
         env:
           npm_config_ignore_scripts: 'false'
         run: npm install --legacy-peer-deps --include=optional
+
+      # GitHub Actions `services:` doesn't allow CMD overrides, so we
+      # can't put minio there directly — `minio/minio` boots into a
+      # `--help` listing without `server /data`. Run it as a regular
+      # docker container instead, then probe its readiness endpoint
+      # before the tests start.
+      - name: Start MinIO (S3-compatible)
+        run: |
+          docker run -d --rm --name lasagna-minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:latest server /data
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS http://127.0.0.1:9000/minio/health/ready > /dev/null; then
+              echo "minio ready"; exit 0
+            fi
+            sleep 1
+          done
+          echo "minio failed to become ready"; docker logs lasagna-minio; exit 1
+
+      # mock-oauth2-server runs as a service container above. Probe its
+      # discovery doc to fail fast if the image changed its boot
+      # behaviour rather than letting individual specs hang.
+      - name: Probe mock-oauth2-server
+        run: |
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS "$MOCK_OIDC_BASE_URL/.well-known/openid-configuration" > /dev/null; then
+              echo "mock-oidc ready"; exit 0
+            fi
+            sleep 1
+          done
+          echo "mock-oidc failed to become ready"; exit 1
 
       - name: Test (integration) + coverage
         run: npm run test:integration:coverage

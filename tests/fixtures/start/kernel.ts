@@ -32,4 +32,12 @@ export const middleware = router.named({
     import('@adonisjs-lasagna/saas-tenancy/middleware').then((m) => ({
       default: m.CustomDomainMiddleware,
     })),
+  rateLimit: () =>
+    import('@adonisjs-lasagna/saas-tenancy/middleware').then((m) => ({
+      default: m.RateLimitMiddleware,
+    })),
+  impersonation: () =>
+    import('@adonisjs-lasagna/saas-tenancy/middleware').then((m) => ({
+      default: m.ImpersonationMiddleware,
+    })),
 })

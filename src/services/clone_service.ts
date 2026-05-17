@@ -183,22 +183,28 @@ export default class CloneService {
     // (table has no integer id column, sequence missing, etc.) would put the
     // whole parent transaction into an aborted state, silently rolling back
     // the row copy on COMMIT.
+    //
+    // Note: schema/table identifiers are validated by `assertSafeIdentifier`
+    // upstream (`#copyData`), so embedding them in the SQL is safe. A bound
+    // parameter would not help here anyway — the DO block needs `$1`/`$2`
+    // bindings, but Knex rejects those for `rawQuery` (it expects `?`),
+    // and PG doesn't allow parameterising identifiers regardless.
     for (const table of tables) {
+      assertSafeIdentifier(table, 'table name')
       await this.#runWithSavepoint(trx, `seq_${table}`, () =>
         trx.rawQuery(
           `DO $$
            DECLARE
              seq text;
            BEGIN
-             seq := pg_get_serial_sequence(format('%I.%I', $1::text, $2::text), 'id');
+             seq := pg_get_serial_sequence('"${schema}"."${table}"', 'id');
              IF seq IS NOT NULL THEN
                EXECUTE format(
-                 'SELECT setval(%L, COALESCE((SELECT MAX(id) FROM %I.%I), 1))',
-                 seq, $1::text, $2::text
+                 'SELECT setval(%L, COALESCE((SELECT MAX(id) FROM "${schema}"."${table}"), 1))',
+                 seq
                );
              END IF;
-           END $$`,
-          [schema, table]
+           END $$`
         )
       )
     }
