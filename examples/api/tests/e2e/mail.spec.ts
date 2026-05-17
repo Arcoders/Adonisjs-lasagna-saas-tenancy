@@ -1,6 +1,7 @@
 import { test } from '@japa/runner'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { BrandingService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { useRealInstallTenantDispatch } from '#tests/bootstrap'
 import {
   createInstalledTenant,
   dropAllTenants,
@@ -122,8 +123,14 @@ async function startQueueWorker(): Promise<QueueWorker> {
  */
 test.group('e2e — mail (MailCatcher)', (group) => {
   let mcUp = false
+  // The "queued delivery: mail.sendLater + queue:work" test arranges a
+  // real worker subprocess; it needs `InstallTenant.dispatch` to enqueue
+  // for real. See `tests/bootstrap.ts` for why the suite-wide default
+  // is a no-op stub.
+  let restoreNoOpDispatch: (() => Promise<void>) | undefined
 
   group.setup(async () => {
+    restoreNoOpDispatch = await useRealInstallTenantDispatch()
     mcUp = await mailcatcherUp()
     if (!mcUp) {
       // eslint-disable-next-line no-console
@@ -138,6 +145,7 @@ test.group('e2e — mail (MailCatcher)', (group) => {
   group.teardown(async () => {
     if (mcUp) await clearMessages()
     await dropAllTenants()
+    await restoreNoOpDispatch?.()
   })
 
   group.each.setup(async () => {

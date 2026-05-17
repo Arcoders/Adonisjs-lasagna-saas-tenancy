@@ -3,6 +3,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import db from '@adonisjs/lucid/services/db'
 import Tenant from '#app/models/backoffice/tenant'
 import { dropAllTenants, waitFor } from './_helpers.js'
+import { useRealInstallTenantDispatch } from '#tests/bootstrap'
 
 /**
  * End-to-end coverage for the package's `@adonisjs/queue` jobs running through
@@ -121,8 +122,21 @@ async function createTenantViaApi(client: any): Promise<string> {
 }
 
 test.group('e2e — BullMQ worker materialises and tears down tenants', (group) => {
-  group.setup(() => dropAllTenants())
-  group.teardown(() => dropAllTenants())
+  // The suite-wide bootstrap stubs `InstallTenant.dispatch` to a no-op
+  // so other specs (which provision inline via `installInline()`) don't
+  // leave orphan jobs in Redis. THIS spec is the exception: its tests
+  // require the real worker to process `InstallTenant`, so we restore
+  // the production dispatch for this group and re-apply the stub
+  // afterwards.
+  let restoreNoOpDispatch: (() => Promise<void>) | undefined
+  group.setup(async () => {
+    restoreNoOpDispatch = await useRealInstallTenantDispatch()
+    await dropAllTenants()
+  })
+  group.teardown(async () => {
+    await dropAllTenants()
+    await restoreNoOpDispatch?.()
+  })
 
   test('queue:work processes InstallTenant: schema provisioned, status flips to active', async ({
     client,

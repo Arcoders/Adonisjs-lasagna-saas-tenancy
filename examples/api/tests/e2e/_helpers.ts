@@ -98,6 +98,17 @@ export interface CreateInstalledTenantOptions {
  * One-shot helper: creates the tenant row, runs the inline install, and (by
  * default) runs `tenant:migrate` so the schema has the `notes` table ready
  * for write tests.
+ *
+ * Note: `InstallTenant.dispatch` is stubbed to a no-op in
+ * `tests/bootstrap.ts` at suite start, so the POST below does NOT
+ * enqueue a job. Specs that need the real worker path
+ * (`queue_jobs.spec.ts`, `mail.spec.ts`) restore the real dispatch
+ * via `useRealInstallTenantDispatch()` in their `group.setup`. Without
+ * that suite-wide stub, the job sat in Redis waiting for a worker;
+ * once any spec arranged `queue:work`, the worker drained the backlog
+ * — re-running `tenant.install()` against already-active tenants and
+ * flipping their status through `provisioning` for a few ms, which any
+ * concurrent request to those tenants saw as a 503.
  */
 export async function createInstalledTenant(
   client: any,
