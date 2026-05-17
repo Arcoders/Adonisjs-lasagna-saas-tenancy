@@ -16,17 +16,26 @@ const FIXTURE_ROOT = new URL('../tests/fixtures/', import.meta.url)
 // passed. Swallow this *specific* error only after we've started the
 // shutdown handshake; anything else still surfaces as a real failure.
 let isShuttingDown = false
-process.on('unhandledRejection', (reason) => {
+const isConnectionTerminated = (reason: unknown): boolean => {
   const message =
     reason instanceof Error
       ? reason.message
       : typeof reason === 'string'
         ? reason
         : ''
-  if (isShuttingDown && /^Connection terminated/.test(message)) {
-    return
-  }
+  return /^Connection terminated/.test(message)
+}
+process.on('unhandledRejection', (reason) => {
+  if (isShuttingDown && isConnectionTerminated(reason)) return
   throw reason
+})
+// Same root cause as the unhandledRejection above, but pg surfaces it
+// via the Client's `'error'` event when no query is queued — with no
+// listener, Node escalates to uncaughtException and the process exits 1
+// even though every test passed.
+process.on('uncaughtException', (err) => {
+  if (isShuttingDown && isConnectionTerminated(err)) return
+  throw err
 })
 
 const IMPORTER = (filePath: string) => {
