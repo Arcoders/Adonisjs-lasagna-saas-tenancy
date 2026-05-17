@@ -18,37 +18,13 @@ import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 import type Stripe from 'stripe'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
-/**
- * Smoke test against the real Stripe test API. SKIPPED unless
- * `STRIPE_TEST_API_KEY` is set to an `sk_test_*` key.
- *
- * To run:
- *   STRIPE_TEST_API_KEY="sk_test_..." npm run test:integration -- \
- *     --files tests/integration/billing/stripe_real_smoke.spec.ts
- *
- * What this test gives us that MockStripe-based tests don't:
- *   - Actual Stripe API surface compatibility (apiVersion, request shape)
- *   - Real `customer.subscription.created` payload (catches drift like
- *     the v18 move of `subscription` under
- *     `parent.subscription_details.subscription`)
- *   - Real signature verification path through the production SDK,
- *     end to end (sign body → SDK constructEvent → controller →
- *     dispatcher → real events.retrieve)
- *   - Confidence that idempotency keys, error mapping, and timeouts
- *     work against a live endpoint, not just the in-memory double
- *
- * What it DOES NOT give us:
- *   - Verification of Stripe's outbound webhook delivery + signature
- *     (Stripe → us). That requires a public endpoint (ngrok / staging)
- *     and is intentionally out of scope here. We replay the real event
- *     by re-fetching it via `events.list` and signing it with our own
- *     test webhook secret — the SDK is verifying our HMAC, not Stripe's.
- *
- * Cleanup is best-effort. Repeated runs leave inert artifacts in the
- * Stripe test account (products archived, customers deleted, but
- * historical subscriptions remain visible). Use Stripe Dashboard's
- * "Clear test data" button periodically.
- */
+// Smoke test against the real Stripe test API. Skipped unless
+// STRIPE_TEST_API_KEY is set (sk_test_*). Catches drift in Stripe's
+// payload/API surface that MockStripe can't surface (e.g. the v18 move
+// of `subscription` under `parent.subscription_details.subscription`).
+//
+// Cleanup is best-effort; periodic "Clear test data" in the Stripe
+// Dashboard handles leftover historical subscriptions.
 
 const REAL_KEY = process.env.STRIPE_TEST_API_KEY
 const SHOULD_RUN = typeof REAL_KEY === 'string' && REAL_KEY.startsWith('sk_test_')

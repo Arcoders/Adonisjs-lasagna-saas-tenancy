@@ -27,6 +27,8 @@ interface ReportUsageBatchPayload {
  * in the listener, not here. This job is the dumb pipe.
  */
 export default class ReportUsageBatchJob extends Job<ReportUsageBatchPayload> {
+  static options = { name: 'lasagna.ReportUsageBatchJob' }
+
   async execute(): Promise<void> {
     const { tenantId, meterEventName, quantity } = this.payload
     if (quantity <= 0) return

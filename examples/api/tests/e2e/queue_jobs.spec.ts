@@ -5,41 +5,18 @@ import Tenant from '#app/models/backoffice/tenant'
 import { dropAllTenants, waitFor } from './_helpers.js'
 import { useRealInstallTenantDispatch } from '#tests/bootstrap'
 
-/**
- * End-to-end coverage for the package's `@adonisjs/queue` jobs running through
- * a REAL `queue:work` worker subprocess — not `installInline()` (the helper the
- * rest of the suite uses to skip the queue) and not an inline `job.execute()`.
- *
- * This is the only place a real worker materialises a tenant: dispatch
- * `InstallTenant` (via `POST /demo/tenants`) → worker provisions the schema +
- * flips status to `active`; dispatch `UninstallTenant` (via `DELETE
- * /demo/tenants/:id`) → worker drops the schema. We assert the side effects in
- * Postgres, so a regression in the worker wiring (job-name resolution, payload
- * hydration, hook ordering, lock handling) fails here instead of silently in
- * production.
- *
- * Audit finding turned fix: `queue:work` couldn't resolve the package's jobs
- * because nothing registered them with `@adonisjs/queue`'s job Locator (host
- * apps auto-discover from `app/jobs/**`, which never reaches `node_modules`) —
- * dispatched jobs were dead-lettered. `MultitenancyProvider.boot()` now
- * registers them (`#registerQueueJobs`), which is exactly what makes this spec
- * pass.
- *
- * Needs Postgres + Redis (the CI `test-e2e-demo` job provides both).
- */
+// Exercises Install/UninstallTenant through a real `queue:work` subprocess
+// (not installInline, not job.execute) so worker-wiring regressions
+// — job-name resolution, payload hydration, hook ordering — surface here.
+// Needs Postgres + Redis.
 interface QueueWorker {
   child: ChildProcess
   output(): string
   stop(): Promise<void>
 }
 
-/**
- * Spawn `node ace queue:work` and resolve once it's plausibly ready: either
- * its output shows a "started" marker, or it's been alive for `settleMs`
- * without crashing. If it exits before that, reject with the captured output
- * so the failure is debuggable. (`LOG_LEVEL=error` in CI suppresses the
- * worker's info log, so we can't rely on the marker alone — hence the settle.)
- */
+// Resolves on a "ready" marker or after `settleMs` without crashing
+// (CI's LOG_LEVEL=error swallows the worker's info log).
 async function startQueueWorker(settleMs = 6000): Promise<QueueWorker> {
   const child = spawn('npx', ['tsx', 'ace.ts', 'queue:work'], {
     cwd: process.cwd(),
@@ -122,12 +99,8 @@ async function createTenantViaApi(client: any): Promise<string> {
 }
 
 test.group('e2e — BullMQ worker materialises and tears down tenants', (group) => {
-  // The suite-wide bootstrap stubs `InstallTenant.dispatch` to a no-op
-  // so other specs (which provision inline via `installInline()`) don't
-  // leave orphan jobs in Redis. THIS spec is the exception: its tests
-  // require the real worker to process `InstallTenant`, so we restore
-  // the production dispatch for this group and re-apply the stub
-  // afterwards.
+  // Suite-wide bootstrap stubs InstallTenant.dispatch; this group needs
+  // the real dispatch so the worker actually processes the job.
   let restoreNoOpDispatch: (() => Promise<void>) | undefined
   group.setup(async () => {
     restoreNoOpDispatch = await useRealInstallTenantDispatch()
@@ -156,7 +129,6 @@ test.group('e2e — BullMQ worker materialises and tears down tenants', (group) 
           description: 'InstallTenant (via real queue:work) to flip status to active',
         }
       ).catch((err) => {
-        // Surface the worker's stdout/stderr so a Locator/Redis failure is visible.
         throw new Error(`${(err as Error).message}\n--- queue:work output ---\n${worker.output()}`)
       })
       assert.equal(provisioned.status, 'active')
@@ -188,7 +160,6 @@ test.group('e2e — BullMQ worker materialises and tears down tenants', (group) 
       const schema = tenant.schemaName
       assert.isTrue(await schemaExists(schema), 'precondition: schema exists')
 
-      // Default DELETE (no ?keepSchema) queues UninstallTenant, which drops the schema.
       const del = await client.delete(`/demo/tenants/${id}`)
       assert.equal(del.status(), 202)
 

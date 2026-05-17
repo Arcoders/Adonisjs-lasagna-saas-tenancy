@@ -9,18 +9,8 @@ import {
 } from '@opentelemetry/sdk-trace-base'
 import { TelemetryService } from '@adonisjs-lasagna/saas-tenancy/services'
 
-/**
- * End-to-end coverage for `TelemetryService` against a real OTel SDK
- * (`@opentelemetry/sdk-trace-base` with `InMemorySpanExporter`). The
- * unit suite asserts the wrapper's *control flow* (return value,
- * exception propagation); this spec asserts what actually lands in
- * the exporter — the part that matters in production.
- *
- * Without an SDK provider registered, `@opentelemetry/api`'s
- * `trace.getTracer()` returns a no-op tracer and `withSpan` produces
- * no observable telemetry. So this is the spec that proves the wiring
- * is correct when the host wires up a real provider.
- */
+// Asserts what actually lands in the exporter when a host wires up a
+// real OTel provider. The unit suite covers the wrapper's control flow.
 test.group('TelemetryService — span export with real OTel SDK', (group) => {
   let provider: BasicTracerProvider
   let exporter: InMemorySpanExporter
@@ -30,18 +20,12 @@ test.group('TelemetryService — span export with real OTel SDK', (group) => {
     provider = new BasicTracerProvider({
       spanProcessors: [new SimpleSpanProcessor(exporter)],
     })
-    // `context.with()` only carries the active span across awaits when
-    // a context manager backed by AsyncLocalStorage is installed —
-    // OTel's no-op default doesn't preserve context. Without this,
-    // `trace.getActiveSpan()` inside the callback returns `undefined`
-    // (and `setTenant()` becomes a silent no-op, matching the unit
-    // suite's expectation but useless for the export assertion).
+    // AsyncLocalStorage context manager is required for context.with()
+    // to carry the active span across awaits.
     context.disable()
     context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable())
     trace.disable()
     trace.setGlobalTracerProvider(provider)
-    // Bust TelemetryService's cached tracer so it re-resolves against
-    // our freshly-installed provider.
     ;(TelemetryService as unknown as { _tracer: null })._tracer = null
   })
 
@@ -60,7 +44,6 @@ test.group('TelemetryService — span export with real OTel SDK', (group) => {
     assert.lengthOf(finished, 1, 'exactly one span must be exported')
     assert.equal(finished[0].name, 'db.query')
     assert.equal(finished[0].attributes['table'], 'users')
-    // OK status when the callback resolves cleanly.
     assert.equal(finished[0].status.code, 1, 'status.code must be OK (1)')
   })
 
@@ -91,7 +74,6 @@ test.group('TelemetryService — span export with real OTel SDK', (group) => {
     const span: ReadableSpan = finished[0]
     assert.equal(span.status.code, 2, 'status.code must be ERROR (2)')
     assert.match(String(span.status.message ?? ''), /boom/)
-    // recordException() lands the error as a span event.
     const exEvent = span.events.find((e) => e.name === 'exception')
     assert.isDefined(exEvent, 'exception event must be recorded')
     assert.match(
@@ -109,8 +91,6 @@ test.group('TelemetryService — span export with real OTel SDK', (group) => {
     assert.lengthOf(finished, 2)
     const parent = finished.find((s) => s.name === 'parent')!
     const child = finished.find((s) => s.name === 'child')!
-    // The child's parentSpanContext.spanId must equal the parent's
-    // spanContext().spanId — that's how SimpleSpanProcessor links them.
     assert.equal(
       child.parentSpanContext?.spanId ?? (child as any).parentSpanId,
       parent.spanContext().spanId,

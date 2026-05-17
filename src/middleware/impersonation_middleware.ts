@@ -9,33 +9,14 @@ const DEFAULT_HEADER = 'x-impersonation-token'
 const DEFAULT_COOKIE = '__impersonation'
 
 /**
- * Reads an impersonation token from a header (preferred) or cookie, verifies
- * it via `ImpersonationService.verify()`, and on success attaches the
- * derived context to `ctx.impersonation`. Hand the auth wiring to your
- * existing `auth.use()` middleware — this middleware deliberately does NOT
- * mutate `ctx.auth`.
- *
- * Behaviour modes:
- * - No token presented: pass through (`next()`).
- * - Token presented and valid: attach context, pass through.
- * - Token presented and INVALID: throw `ImpersonationInvalidException` (401).
- *   Soft failure would let attackers probe with random tokens; the loud
- *   failure also tells legitimate operators their session has expired.
+ * Verifies an impersonation token (header or cookie) and attaches the
+ * derived context to `ctx.impersonation`. Invalid tokens throw 401 —
+ * soft failure would let attackers probe with random tokens.
  */
 export default class ImpersonationMiddleware {
-  /**
-   * Override hook for tests — lets a spec swap in a fake
-   * `ImpersonationService` without going through the container.
-   *
-   * Why this pattern and not a constructor param: AdonisJS's
-   * named-middleware factory resolves the class through the IoC
-   * container. A typed constructor parameter (even optional) makes
-   * the container try to inject `ImpersonationService`, which it
-   * can't because the service expects a config-validated boot.
-   * Lifting the lookup into a method keeps the public surface
-   * container-friendly while still leaving an override seam for
-   * unit tests.
-   */
+  // Method seam (not constructor injection) because the named-middleware
+  // factory resolves this class via the IoC container, and the container
+  // can't inject ImpersonationService without a config-validated boot.
   protected getService(): Promise<ImpersonationService> {
     return app.container.make(ImpersonationService)
   }

@@ -14,6 +14,10 @@ interface InstallTenantPayload {
 }
 
 export default class InstallTenant extends Job<InstallTenantPayload> {
+  // Namespaced so a host app's own `InstallTenant` doesn't collide on
+  // the global @adonisjs/queue Locator singleton.
+  static options = { name: 'lasagna.InstallTenant' }
+
   async execute(): Promise<void> {
     const { tenantId } = this.payload
     const logCtx = await app.container.make(TenantLogContext)

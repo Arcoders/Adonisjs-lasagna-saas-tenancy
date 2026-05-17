@@ -84,14 +84,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
-      # mock-oauth2-server publishes a wire-compliant OIDC discovery
-      # doc + JWKS + token endpoint. Used by
-      # tests/integration/services/sso_oidc_real.spec.ts to prove the
-      # package's SSO codepath interops with a real third-party OIDC
-      # implementation (not just the in-spec fake IdP that mirrors our
-      # assumptions). Skips silently when `MOCK_OIDC_BASE_URL` is unset.
-      # (MinIO can't run as a service container because GitHub Actions
-      # doesn't allow CMD overrides — see the `Start MinIO` step below.)
+      # Wire-compliant OIDC server for sso_oidc_real.spec.ts.
+      # (MinIO can't run here — Actions services don't allow CMD overrides.)
       mock-oidc:
         image: ghcr.io/navikt/mock-oauth2-server:2.1.10
         ports:
@@ -118,25 +112,17 @@ jobs:
       CACHE_REDIS_HOST: 127.0.0.1
       CACHE_REDIS_PORT: 6379
       CACHE_REDIS_DB: 2
-      # Optional: a Stripe *test-mode* key (sk_test_…). When set, the
-      # real-API smoke test (tests/integration/billing/stripe_real_smoke.spec.ts)
-      # runs and verifies every Stripe SDK call-site against the live test
-      # endpoint instead of MockStripe. When unset/empty the test reports
-      # itself skipped (visibly, not silently). Add it under
-      # Settings → Secrets and variables → Actions as STRIPE_TEST_API_KEY.
+      # Optional Stripe test-mode key (sk_test_…) for stripe_real_smoke.spec.ts.
+      # Unset → spec skips visibly. Add via Settings → Secrets → Actions.
       STRIPE_TEST_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
-      # Real S3-compatible store (MinIO running on localhost) — drives
-      # the BackupService S3 roundtrip spec. Removing these env vars
-      # makes the spec skip rather than fail.
+      # MinIO (S3) for backup_s3.spec.ts. Unset → spec skips.
       BACKUP_S3_ENDPOINT: http://127.0.0.1:9000
       BACKUP_S3_BUCKET: lasagna-test
       BACKUP_S3_REGION: us-east-1
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
-      # Real OIDC server (mock-oauth2-server running as service
-      # container) — drives the SsoService interop spec. `default` is
-      # the issuer path mock-oauth2-server uses for unspecified
-      # issuers.
+      # mock-oauth2-server for sso_oidc_real.spec.ts. `default` = mock's
+      # placeholder issuer path for unspecified issuers.
       MOCK_OIDC_BASE_URL: http://127.0.0.1:8080/default
 
     steps:
@@ -152,11 +138,7 @@ jobs:
           npm_config_ignore_scripts: 'false'
         run: npm install --legacy-peer-deps --include=optional
 
-      # GitHub Actions `services:` doesn't allow CMD overrides, so we
-      # can't put minio there directly — `minio/minio` boots into a
-      # `--help` listing without `server /data`. Run it as a regular
-      # docker container instead, then probe its readiness endpoint
-      # before the tests start.
+      # Run MinIO directly (Actions services can't pass `server /data`).
       - name: Start MinIO (S3-compatible)
         run: |
           docker run -d --rm --name lasagna-minio \
@@ -172,9 +154,7 @@ jobs:
           done
           echo "minio failed to become ready"; docker logs lasagna-minio; exit 1
 
-      # mock-oauth2-server runs as a service container above. Probe its
-      # discovery doc to fail fast if the image changed its boot
-      # behaviour rather than letting individual specs hang.
+      # Fail fast if the mock-oidc service container didn't come up.
       - name: Probe mock-oauth2-server
         run: |
           for i in 1 2 3 4 5 6 7 8 9 10; do

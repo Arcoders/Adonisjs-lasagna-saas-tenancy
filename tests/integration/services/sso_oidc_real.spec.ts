@@ -3,37 +3,12 @@ import { SsoService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantSsoConfig } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 
-/**
- * SSO/OIDC interop against a real OIDC mock server. SKIPPED unless
- * `MOCK_OIDC_BASE_URL` is set (CI provides one via the
- * `ghcr.io/navikt/mock-oauth2-server` service container).
- *
- * What this spec gives us beyond `sso_oidc_flow.spec.ts`:
- *   - The in-spec fake IdP in `sso_oidc_flow.spec.ts` is by definition
- *     consistent with the package's assumptions. A REAL OIDC server
- *     proves the discovery / JWKS / token-endpoint contract holds
- *     against a wire-compliant third-party implementation. That's
- *     what catches "compiles in CI, breaks against Keycloak / Auth0"
- *     regressions when the SDK or HTTP shape drifts.
- *
- * Scope:
- *   - Discovery (`/.well-known/openid-configuration`) returns the
- *     required fields with self-consistent `issuer`.
- *   - JWKS endpoint returns a parseable key set.
- *   - `buildAuthUrl()` against the real discovery doc produces a URL
- *     with all OIDC-mandated params (response_type / client_id /
- *     redirect_uri / scope / state / nonce).
- *   - `handleCallback()` rejects a request whose `state` was never
- *     stored — the CSRF/replay guard fires against a real issuer.
- *
- * What we DON'T do here:
- *   - Full end-to-end token exchange. `mock-oauth2-server`'s `/token`
- *     emits an id_token with claims it controls; the package's
- *     `handleCallback()` validates `nonce` from our cache against
- *     `nonce` in the token, but we have no way to make the mock
- *     embed the nonce we picked. Full-flow coverage lives in
- *     `sso_oidc_flow.spec.ts` with a fake IdP we control end-to-end.
- */
+// SSO/OIDC interop against a real OIDC mock server (CI provides
+// ghcr.io/navikt/mock-oauth2-server). Skipped unless MOCK_OIDC_BASE_URL
+// is set. Catches drift in the discovery/JWKS/token-endpoint contract
+// that the in-spec fake IdP (sso_oidc_flow.spec.ts) can't surface.
+// Full token-exchange coverage stays in sso_oidc_flow.spec.ts — the
+// mock can't embed our cached nonce.
 const ISSUER = process.env.MOCK_OIDC_BASE_URL
 const SHOULD_RUN = typeof ISSUER === 'string' && ISSUER.length > 0
 

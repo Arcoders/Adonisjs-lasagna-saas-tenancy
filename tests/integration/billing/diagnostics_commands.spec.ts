@@ -8,20 +8,9 @@ import { StripeProcessedEvent } from '@adonisjs-lasagna/saas-tenancy/models/sate
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
 
-/**
- * Execution coverage for the two billing *diagnostics* commands. The other
- * billing commands (`sync`/`backfill`/`replay`/`cleanup`) already have
- * integration specs; these two didn't.
- *
- *   tenant:billing:doctor       — config + Stripe-reachability + stale-event checks
- *   tenant:billing:test-webhook — generates a signed synthetic event, POSTs it to
- *                                 the real webhook route, asserts the ledger row lands
- *
- * Stripe is the MockStripe double (it answers `balance.retrieve` for the
- * doctor and `webhooks.constructEvent` with real HMAC for the webhook route);
- * `ProcessStripeEventJob.dispatch` is stubbed so the controller's enqueue
- * doesn't need a live worker.
- */
+// Execution coverage for the two billing diagnostics commands (doctor +
+// test-webhook). Stripe is MockStripe; ProcessStripeEventJob.dispatch is
+// stubbed so the controller's enqueue doesn't need a live worker.
 test.group('tenant:billing:doctor + tenant:billing:test-webhook (integration)', (group) => {
   let originalConfig: ReturnType<typeof getConfig>
   let originalDispatch: typeof ProcessStripeEventJob.dispatch

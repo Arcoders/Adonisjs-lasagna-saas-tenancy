@@ -19,31 +19,10 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
-/**
- * Cross-tenant isolation guarantees of the four "context bootstrappers"
- * (cache / drive / session / transmit). Each spec creates two UUID-v4
- * tenants, exercises the bootstrapper's public API under `tenancy.run()`,
- * and asserts the underlying store/path/channel never leaks one tenant's
- * data into the other's read path.
- *
- * Drive and Transmit are optional peer deps and may not be installed in
- * the integration test process — instead of trying to load them, we
- * exercise the BOOTSTRAPPER's contribution directly:
- *
- *   - `tenantPrefix()` (drive) → use `fs` with that prefix to prove
- *     two tenants writing under the same logical key produce
- *     physically disjoint files on disk.
- *   - `tenantChannel()` (transmit) → verify two tenants subscribing
- *     to the same logical channel name produce distinct wire names.
- *
- * Cache uses real Redis (the package's `tenantCache()` resolves the
- * BentoCache singleton bootstrapped by the integration fixture).
- *
- * Session uses an in-memory `Map` store standing in for `@adonisjs/session`
- * (which is an optional peer). The package's `tenantSession(ctx)` wraps a
- * conforming `ctx.session` regardless of the underlying driver, so the
- * isolation contract is the same.
- */
+// Cross-tenant isolation for the four context bootstrappers. Cache hits
+// real Redis; drive/transmit/session are optional peers, so we assert on
+// the bootstrapper's contribution (tenantPrefix/tenantChannel/tenantSession)
+// rather than loading the upstream packages.
 function fakeTenant(id?: string): TenantModelContract {
   return { id: id ?? randomUUID(), name: `T-${id ?? 'auto'}` } as unknown as TenantModelContract
 }
@@ -65,10 +44,8 @@ function makeSessionCtx() {
 }
 
 async function withBootstrappers<T>(fn: () => Promise<T>): Promise<T> {
-  // The integration fixture's MultitenancyProvider registers the package's
-  // bootstrappers at boot. We re-register inside an isolated registry so
-  // the test is self-contained AND parallel-safe — touching the container
-  // singleton would race with other specs in the suite.
+  // Self-contained register/unregister around the test so it doesn't race
+  // sibling specs touching the same container singleton.
   const registry = await app.container.make(BootstrapperRegistry)
   const had = {
     cache: registry.has('cache'),
@@ -155,9 +132,8 @@ test.group('e2e — bootstrapper cross-tenant isolation', (group) => {
         writeUnderPrefix('B-content')
       )
 
-      // The bootstrapper's contract is on the LOGICAL prefix it returns —
-      // that prefix is a key prefix, not a filesystem path, so it always
-      // uses forward slashes (Drive/S3 semantics) regardless of platform.
+      // tenantPrefix returns a logical key prefix (Drive/S3 semantics) —
+      // always forward slashes, regardless of platform.
       assert.equal(prefixA, `tenants/${a.id}/`, 'prefix A shape')
       assert.equal(prefixB, `tenants/${b.id}/`, 'prefix B shape')
       assert.notEqual(prefixA, prefixB)
@@ -168,10 +144,8 @@ test.group('e2e — bootstrapper cross-tenant isolation', (group) => {
       assert.equal(onDiskA, 'A-content')
       assert.equal(onDiskB, 'B-content')
 
-      // B's prefix path must NOT contain A's content — i.e. B writing
-      // `doc.txt` under its prefix did not land at the same physical
-      // location as A's. The disjoint readFile() above already proves it,
-      // but make the negative assertion explicit.
+      // Explicit negative assertion: B's write under its prefix didn't
+      // overwrite A's slot.
       const pathB_underA_prefix = join(tmpRoot, prefixA, 'doc.txt')
       const reread = await readFile(pathB_underA_prefix, 'utf8')
       assert.notEqual(reread, 'B-content', "A's prefix slot must not hold B's content")
@@ -235,9 +209,8 @@ test.group('e2e — bootstrapper cross-tenant isolation', (group) => {
       assert.equal(wireB, `tenants/${b.id}/chat/lobby`)
       assert.notEqual(wireA, wireB, 'two tenants must never collide on the same logical channel')
 
-      // Path-traversal in the channel suffix must be rejected even with a
-      // valid tenant scope active — it could otherwise produce a wire name
-      // that lands inside another tenant's prefix.
+      // Path traversal must be rejected — otherwise the wire name could
+      // land inside another tenant's prefix.
       await tenancy.run(a, async () => {
         assert.throws(() => tenantChannel('../escape'), /Refusing unsafe broadcast channel|escape the per-tenant namespace/)
       })
@@ -269,17 +242,14 @@ test.group('e2e — bootstrapper cross-tenant isolation', (group) => {
         )
       )
 
-      // Every scope must have read back ITS OWN value — no cross-contamination
-      // via the shared cache namespace handle. AsyncLocalStorage is the
-      // contract that keeps `tenancy.currentId()` accurate per scope across
-      // the awaits above.
+      // Each scope must read back its own value — AsyncLocalStorage keeps
+      // tenancy.currentId() accurate across the awaits above.
       for (const r of results) {
         assert.equal(r.readBack, `T-${r.idx}`, `scope #${r.idx} (${r.id}) must read back its own write`)
         assert.equal(r.prefix, `tenants/${r.id}/`, `scope #${r.idx} prefix must reflect ITS tenant id`)
         assert.equal(r.channel, `tenants/${r.id}/updates`, `scope #${r.idx} channel must reflect ITS tenant id`)
       }
 
-      // Cleanup the test keys so we don't leave junk in Redis.
       for (const t of tenants) {
         await tenancy.run(t, async () => tenantCache().delete({ key: 'who' }))
       }

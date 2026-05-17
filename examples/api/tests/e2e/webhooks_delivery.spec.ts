@@ -63,8 +63,6 @@ test.group('e2e — webhook delivery + HMAC + retry', (group) => {
     const url = `http://127.0.0.1:${port}/captured`
     const secret = 'shared-secret'
 
-    // [diagnostic] surface the body when this comes back !201 so we can see
-    // *why* (TENANT_NOT_READY/CIRCUIT_OPEN/etc.) — remove once stabilised.
     const sub = await client
       .post('/demo/webhooks')
       .header('x-tenant-id', id)
@@ -130,8 +128,6 @@ test.group('e2e — webhook delivery + HMAC + retry', (group) => {
 
     // Port 1 is reserved (always closed). Anything we POST there will fail
     // with a connection error inside fetch.
-    // [diagnostic] surface the body when this comes back !201 so we can see
-    // *why* (TENANT_NOT_READY/CIRCUIT_OPEN/etc.) — remove once stabilised.
     const sub = await client
       .post('/demo/webhooks')
       .header('x-tenant-id', id)

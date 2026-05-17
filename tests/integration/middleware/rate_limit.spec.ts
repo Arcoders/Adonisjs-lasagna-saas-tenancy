@@ -1,36 +1,12 @@
 import { test } from '@japa/runner'
 import { randomUUID } from 'node:crypto'
 
-/**
- * Rate-limit middleware over a real Redis backend. The fixture routes
- * (`/rate-limited/strict` and `/rate-limited/open`) use distinct key
- * prefixes so the two specs don't share state.
- *
- * Each route runs with `bypassInTestEnv: true` so the middleware
- * actually executes during the integration suite (it normally
- * short-circuits under `app.inTest`).
- *
- *   limit:           3
- *   windowSeconds:   2
- *   keyspace:        `<prefix>:<tenantId|'global'>:<ip>`
- *
- * Coverage:
- *   1. happy path — first 3 requests pass with X-RateLimit-* headers.
- *   2. 4th request returns 429 + `Retry-After: 2` + correct headers.
- *   3. window recovery — after waiting for the window, count resets.
- *   4. per-tenant isolation — A's exhausted budget does not affect B.
- *   5. fail-closed (default) when Redis goes away → 503 +
- *      RATE_LIMIT_UNAVAILABLE. (Exercised at unit level — the integration
- *      route can't yank Redis without affecting sibling specs; we
- *      assert the exception class is wired correctly by running with
- *      a stub backend.)
- *   6. fail-open variant — same Redis outage path returns 200 when
- *      the route was configured with `failOpen: true`.
- */
+// Rate-limit middleware against real Redis. Fixture routes use distinct
+// key prefixes per spec and `bypassInTestEnv:true` so the middleware
+// actually runs (it normally short-circuits under app.inTest).
+//   limit:3 / window:2s / key: `<prefix>:<tenantId|'global'>:<ip>`
 test.group('RateLimitMiddleware (integration, real Redis pipeline)', (group) => {
-  // Each test uses a unique tenant id so the rolling-window key
-  // (`<prefix>:<tenantId>:<ip>`) starts empty. Distinct UUIDs are
-  // cheaper than flushing Redis between specs.
+  // Each test uses a unique tenant id so the rolling-window key starts empty.
   group.each.setup(() => {})
 
   test('first N requests pass; exposes X-RateLimit-* headers', async ({ client, assert }) => {

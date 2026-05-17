@@ -1,12 +1,7 @@
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
-/**
- * Adds maintenance-mode columns to the tenants registry, mirroring the
- * package's `add_maintenance_to_tenants_table` migration stub. With these,
- * `tenant:maintenance` (and `TenantGuardMiddleware`'s 503 gate) work against
- * the demo Tenant model — see `enterMaintenance`/`exitMaintenance`/`isMaintenance`
- * in app/models/backoffice/tenant.ts.
- */
+// Mirrors the package's add_maintenance_to_tenants_table stub so
+// tenant:maintenance + TenantGuardMiddleware's 503 gate work in the demo.
 export default class extends BaseSchema {
   protected tableName = 'tenants'
 

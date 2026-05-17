@@ -17,6 +17,8 @@ export interface CloneTenantPayload {
 }
 
 export default class CloneTenant extends Job<CloneTenantPayload> {
+  static options = { name: 'lasagna.CloneTenant' }
+
   async execute(): Promise<void> {
     const { sourceTenantId, destinationTenantId, schemaOnly, clearSessions } = this.payload
     const logCtx = await app.container.make(TenantLogContext)

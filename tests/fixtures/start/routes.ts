@@ -57,18 +57,9 @@ router
   .prefix('tenant')
   .use(middleware.tenantGuard())
 
-// Used by `rate_limit_middleware` integration spec. The middleware
-// short-circuits when `app.inTest` is true unless `bypassInTestEnv` is
-// set — we explicitly opt in here so the integration suite exercises
-// the real Redis pipeline. A short window (2s) keeps the recovery
-// assertion fast.
-//
-// `/rate-limited` is a normal tenant-scoped route so `resolveTenantId`
-// picks up the `x-tenant-id` header; the limit applies per (tenant, ip)
-// pair via the key the middleware computes (`<prefix>:<tenant>:<ip>`).
-// `/strict` is fail-closed (Redis outage → 503); `/open` is fail-open
-// (Redis outage → 200). Both use distinct prefixes so test runs do not
-// contaminate each other.
+// Rate-limit integration: bypassInTestEnv opts back in so the real Redis
+// pipeline runs. `/strict` fails closed (503), `/open` fails open (200).
+// Distinct prefixes keep parallel specs from sharing keys.
 router
   .get('/rate-limited/strict', async ({ response }) => response.ok({ ok: true }))
   .use(
@@ -92,10 +83,8 @@ router
     })
   )
 
-// Used by `impersonation_middleware` integration spec. The middleware
-// reads `x-impersonation-token` (or `__impersonation` cookie), verifies
-// via `ImpersonationService`, and attaches `ctx.impersonation`. We
-// surface that on the response body so the spec can assert it end-to-end.
+// Impersonation integration: echoes ctx.impersonation so the spec can
+// assert the attached context end-to-end.
 router
   .get('/impersonation-check', async (ctx: any) => {
     return ctx.response.ok({ impersonation: ctx.impersonation ?? null })

@@ -9,19 +9,10 @@ import Tenant from '#app/models/backoffice/tenant'
 import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { createInstalledTenant, dropAllTenants, runAce } from './_helpers.js'
 
-/**
- * Execution coverage for tenant-lifecycle ace commands that previously had
- * none (the package's `tests/unit/commands/*` specs are metadata-only — they
- * read `commands.json`, they don't `run()` anything). Each test runs the real
- * command through `ace.exec()` against the demo app and asserts the *effect*
- * (DB row, schema present/absent, imported data) — not just the exit code.
- *
- * Commands exercised here:
- *   tenant:list / tenant:list --all
- *   tenant:suspend / tenant:activate
- *   tenant:import (+ --dry-run)
- *   tenant:purge-expired (+ --dry-run)
- */
+// Execution coverage for tenant-lifecycle ace commands. The package's
+// `tests/unit/commands/*` are metadata-only; each test here exercises the
+// real command via ace.exec() and asserts the effect (DB rows, schema
+// presence, imported data), not just the exit code.
 test.group('e2e — tenant lifecycle CLI commands', (group) => {
   group.setup(() => dropAllTenants())
   group.teardown(() => dropAllTenants())
@@ -58,10 +49,7 @@ test.group('e2e — tenant lifecycle CLI commands', (group) => {
     const { id } = await createInstalledTenant(client) // migrated → `notes` table exists
     const tenant = await Tenant.findOrFail(id)
     const file = join(tmpdir(), `lasagna-import-${randomUUID()}.sql`)
-    // No `public.` prefix: the dump runs against the per-tenant connection
-    // whose search_path already points at `tenant_<uuid>`, so an unqualified
-    // `notes` resolves there. (pg_dump output uses `public.` prefixes — that's
-    // what `--schema-replace` rewrites — but a hand-written dump doesn't need it.)
+    // No schema prefix needed — search_path is already at tenant_<uuid>.
     await writeFile(
       file,
       [
@@ -162,10 +150,9 @@ test.group('e2e — tenant lifecycle CLI commands', (group) => {
     const blocked = await client.get('/demo/connection').headers(headers)
     assert.equal(blocked.status(), 503, 'tenant-scoped route returns 503 while in maintenance')
 
-    // Exit maintenance — the column flips back. (We don't assert the route is
-    // reachable again in the same process: the package caches the maintenance
-    // gate for `schemaCacheTtl`, and busting it on *exit* requires the host to
-    // wire a `TenantExitedMaintenance` listener — out of scope for this demo.)
+    // Exit maintenance — flips the column. Not asserting route-reachable here:
+    // the gate is cached for schemaCacheTtl and bust-on-exit needs a host-wired
+    // listener (out of scope for this demo).
     assert.equal(await runAce('tenant:maintenance', [id, '--off']), 0)
     tenant = await Tenant.findOrFail(id)
     assert.isFalse(tenant.maintenance, 'maintenance flag cleared')
@@ -178,8 +165,7 @@ test.group('e2e — tenant lifecycle CLI commands', (group) => {
   }) => {
     const { id } = await createInstalledTenant(client, { migrate: false })
     const userId = '11111111-2222-3333-4444-555555555555'
-    // The demo's tenant_audit_logs.actor_id is a uuid column, so the acting
-    // admin id must be a uuid (the package's `--admin` flag is otherwise free-form).
+    // Demo's tenant_audit_logs.actor_id is uuid; --admin is otherwise free-form.
     const adminId = '99999999-8888-7777-6666-555555555555'
 
     const code = await runAce('tenant:impersonate', [

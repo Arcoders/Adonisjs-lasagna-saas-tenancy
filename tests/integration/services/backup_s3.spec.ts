@@ -17,32 +17,11 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 
-/**
- * Backup S3 roundtrip against a real S3-compatible store. SKIPPED unless
- * `BACKUP_S3_ENDPOINT` is set (CI provides one via the `minio` service).
- *
- * Why not just unit-test the S3 codepath: the package's S3 branch uses
- * `@aws-sdk/client-s3` with `forcePathStyle=false` and a custom
- * `endpoint`, which is exactly the shape that breaks when consumers
- * wire it against non-AWS S3 implementations (minio, R2, B2…). The
- * mock-friendly happy path passes everywhere; the real roundtrip
- * catches sign-v4 mismatches, region-aware redirects, and bucket-policy
- * quirks.
- *
- * What this spec proves end-to-end:
- *   1. `BackupService.deleteBackup()` removes objects from S3
- *      (HEAD afterwards yields 404) — exercises `#deleteFromS3`
- *      with the same SDK params the package builds at runtime.
- *   2. `BackupRetentionService.applyRetention()` deletes the right
- *      objects from S3 when wired with `keepLast: 2` over 5 seeded
- *      objects — exercises the loop over the metadata sidecar.
- *
- * What this spec deliberately skips:
- *   - The `pg_dump` half of `backup()`. That's covered by
- *     `examples/api/tests/e2e/backups_real.spec.ts` against local
- *     storage; here we focus on the S3 wire path. We seed test
- *     artefacts via the SDK directly + a hand-written sidecar JSON.
- */
+// S3 roundtrip against a real S3-compatible store (CI provides minio).
+// Skipped unless BACKUP_S3_ENDPOINT is set. Catches sign-v4 / endpoint /
+// region quirks that mock-friendly unit tests pass through. Exercises
+// deleteBackup() and applyRetention() against real objects; the pg_dump
+// half is covered by examples/api/tests/e2e/backups_real.spec.ts.
 const ENDPOINT = process.env.BACKUP_S3_ENDPOINT
 const SHOULD_RUN = typeof ENDPOINT === 'string' && ENDPOINT.length > 0
 

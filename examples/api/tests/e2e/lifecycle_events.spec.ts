@@ -105,20 +105,13 @@ test.group('e2e — 11 lifecycle events surface in the audit log', (group) => {
   }) => {
     const { id } = await createInstalledTenant(client, { plan: 'free' })
 
-    // The rolling counter lives in Redis with a 48h TTL — defensively reset it
-    // for this tenant so we start from zero regardless of any prior spec's
-    // residual state. (Per-tenant key, so a fresh tenant *should* start at
-    // zero, but flushing makes the test self-contained instead of relying on
-    // the previous suite's hygiene.)
+    // Reset the rolling counter (48h TTL in Redis) so prior runs don't bleed in.
     const tenantModel = await Tenant.findOrFail(id)
     const quotaSvc = await app.container.make(QuotaService)
     await quotaSvc.reset(tenantModel, 'apiCallsPerDay')
 
-    // free plan is 50 calls/day. Hammer until we get a 429. Statuses are
-    // captured so a future failure shows *what* came back (e.g., 5xx from a
-    // saturated pool, 503 from a stale circuit-breaker) instead of just
-    // "false to be true". With the reset above, 60 attempts is comfortably
-    // over the cliff at request #51.
+    // Free plan = 50/day; 60 attempts clears the cliff at #51. Statuses
+    // captured so a failure shows what came back instead of "false to be true".
     let saw429 = false
     const statuses: number[] = []
     for (let i = 0; i < 60; i++) {

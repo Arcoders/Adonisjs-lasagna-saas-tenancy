@@ -18,36 +18,16 @@ import type {
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy'
 
-/**
- * End-to-end coverage for the five doctor checks that the unit suite
- * exercises only at the orchestration layer (with dummy checks):
- *
- *   - schema_drift     — provokes a missing schema AND an orphan schema
- *                        in real Postgres; asserts both codes fire.
- *   - migration_state  — active tenant whose schema exists but lacks the
- *                        `adonis_schema` table → `migrations_never_ran`.
- *   - backup_recency   — active tenant with no backup history on disk →
- *                        `backup_never_taken`.
- *   - circuit_breakers — forces a tenant's Opossum breaker into OPEN →
- *                        `circuit_open` reported with `fixable: true`;
- *                        a second run with `--fix` confirms closure.
- *   - register/run     — a host-app check registered via `register()`
- *                        appears in the resulting reports.
- *
- * The integration fixture's `MultitenancyProvider` already binds a real
- * `DoctorService` singleton and seeds it with the built-in checks. Each
- * test resolves that singleton, narrows the run to ONE check via
- * `options.checks`, and asserts the produced issues — so a regression
- * in a sibling check can't bleed into the assertions here.
- */
+// Real-state E2E for the five built-in doctor checks (the unit suite
+// only exercises the orchestration layer with dummy checks). Each test
+// narrows `options.checks` to one name so sibling-check regressions
+// don't bleed into the assertions.
 test.group('Doctor checks — real-state E2E', (group) => {
   let svc: DoctorService
 
   group.setup(async () => {
     svc = await app.container.make(DoctorService)
-    // The fixture provider may or may not have registered the built-ins
-    // (depends on bootstrap ordering); register defensively so this
-    // spec is self-contained.
+    // Register defensively — fixture provider may not have done it yet.
     if (!svc.has('schema_drift')) svc.register(schemaDriftCheck)
     if (!svc.has('migration_state')) svc.register(migrationStateCheck)
     if (!svc.has('backup_recency')) svc.register(backupRecencyCheck)
@@ -62,20 +42,16 @@ test.group('Doctor checks — real-state E2E', (group) => {
     const orphanId = randomUUID()
     const orphanSchema = `${cfg.tenantSchemaPrefix}${orphanId}`
 
-    // Create THREE tenants: a healthy one, a missing-schema one, and the
-    // baseline. Then drop one schema and create an orphan one.
     const healthy = await createTestTenant({ status: 'active', name: 'Healthy' })
     const missing = await createTestTenant({ status: 'active', name: 'MissingSchema' })
 
-    // Provision real schemas for both healthy and missing.
     const healthySchema = `${cfg.tenantSchemaPrefix}${healthy.id}`
     const missingSchema = `${cfg.tenantSchemaPrefix}${missing.id}`
     await central.rawQuery(`CREATE SCHEMA "${healthySchema}"`)
     await central.rawQuery(`CREATE SCHEMA "${missingSchema}"`)
 
-    // Now: drop "missing"'s schema by hand → registry says active but
-    // the schema is gone. And create the orphan schema that doesn't
-    // match any tenant in the registry.
+    // Drop one to provoke schema_missing; create one with no tenant row
+    // to provoke schema_orphan.
     await central.rawQuery(`DROP SCHEMA "${missingSchema}" CASCADE`)
     await central.rawQuery(`CREATE SCHEMA "${orphanSchema}"`)
 
@@ -96,7 +72,6 @@ test.group('Doctor checks — real-state E2E', (group) => {
       assert.isDefined(orphanIssue, 'schema_orphan must be reported for the dangling schema')
       assert.equal(orphanIssue!.severity, 'warn')
 
-      // The healthy tenant must NOT appear in either bucket.
       const healthyIssue = issues.find((i) => i.tenantId === healthy.id)
       assert.isUndefined(healthyIssue, 'healthy tenant must not be flagged')
     } finally {
@@ -115,7 +90,6 @@ test.group('Doctor checks — real-state E2E', (group) => {
     const tenant = await createTestTenant({ status: 'active', name: 'NoMigrations' })
     const schema = `${cfg.tenantSchemaPrefix}${tenant.id}`
 
-    // Schema exists but no adonis_schema table → migrations never ran.
     await central.rawQuery(`CREATE SCHEMA "${schema}"`)
 
     try {
@@ -143,8 +117,7 @@ test.group('Doctor checks — real-state E2E', (group) => {
     const schema = `${cfg.tenantSchemaPrefix}${tenant.id}`
 
     await central.rawQuery(`CREATE SCHEMA "${schema}"`)
-    // Create a minimal adonis_schema table — the check only inspects
-    // existence, not contents.
+    // Minimal adonis_schema — the check tests existence only.
     await central.rawQuery(
       `CREATE TABLE "${schema}".adonis_schema (id serial PRIMARY KEY, name varchar(255), batch int)`
     )
@@ -172,9 +145,8 @@ test.group('Doctor checks — real-state E2E', (group) => {
       })
       const issue = reports[0].issues.find((i) => i.tenantId === tenant.id)
       assert.isDefined(issue, 'must report something for a tenant with no backup history')
-      // Either `backup_never_taken` (clean state) or `backup_inspect_failed`
-      // (storage path not writable in this CI runner) are acceptable — both
-      // mean ops needs to look. The severity bands them appropriately.
+      // Either clean state (`backup_never_taken`) or a non-writable
+      // backup path on the CI runner (`backup_inspect_failed`) is acceptable.
       assert.oneOf(issue!.code, ['backup_never_taken', 'backup_inspect_failed'])
       assert.oneOf(issue!.severity, ['warn', 'info'])
     } finally {
@@ -187,10 +159,8 @@ test.group('Doctor checks — real-state E2E', (group) => {
     const cb = await app.container.make(CircuitBreakerService)
 
     try {
-      // Materialise the breaker and force it OPEN. Opossum exposes
-      // `circuit.open()` to flip the state without firing the probe;
-      // ops-style force is fine here because we're testing the OBSERVER
-      // (the doctor check), not the breaker itself.
+      // Force the breaker OPEN without firing a probe — we're testing
+      // the doctor check (the observer), not the breaker.
       const circuit = cb.getCircuit(tenant.id)
       ;(circuit as any).open()
       assert.isTrue(cb.isOpen(tenant.id), 'precondition: breaker reports OPEN')
@@ -202,7 +172,6 @@ test.group('Doctor checks — real-state E2E', (group) => {
       assert.equal(issue!.severity, 'error')
       assert.isTrue(issue!.fixable, 'circuit_open must declare itself fixable')
 
-      // Second pass with --fix should close the breaker.
       const { reports: afterFix } = await svc.run({
         checks: ['circuit_breakers'],
         fix: true,
@@ -262,8 +231,6 @@ test.group('Doctor checks — real-state E2E', (group) => {
     svc.unregister(ephemeralName)
     assert.isFalse(svc.has(ephemeralName))
 
-    // Running with --check filtered to the ephemeral name now produces
-    // zero reports — the filter never matched anything.
     const { reports } = await svc.run({ checks: [ephemeralName] })
     assert.lengthOf(reports, 0)
   })

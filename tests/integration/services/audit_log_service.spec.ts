@@ -86,10 +86,8 @@ test.group('AuditLogService — public API', (group) => {
     tenantIds.push(a.id, b.id)
 
     const service = new AuditLogService()
-    // Tiny delay between inserts so `created_at` values are strictly distinct.
-    // Without it, two back-to-back INSERTs can share a Postgres microsecond
-    // and `ORDER BY created_at DESC` becomes ambiguous — `id` is a random
-    // UUID, so it can't act as a stable tiebreaker.
+    // 5ms gap so created_at is strictly distinct — id is a random UUID
+    // and can't tie-break ORDER BY created_at DESC.
     await service.log({ tenantId: a.id, action: 'a.action.1' })
     await new Promise((r) => setTimeout(r, 5))
     await service.log({ tenantId: a.id, action: 'a.action.2' })
@@ -118,9 +116,7 @@ test.group('AuditLogService — public API', (group) => {
     const service = new AuditLogService()
     for (let i = 0; i < 5; i++) {
       await service.log({ tenantId: t.id, action: `evt.${i}` })
-      // Same rationale as the DESC-order test: distinct `created_at` per row
-      // so `paginate()` with OFFSET doesn't surface overlapping rows under a
-      // non-deterministic sort.
+      // Distinct created_at per row — see DESC-order test above.
       await new Promise((r) => setTimeout(r, 5))
     }
 

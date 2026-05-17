@@ -17,24 +17,10 @@ class FakeAuditLog {
   }
 }
 
-/**
- * Integration coverage for `ImpersonationMiddleware` over the real
- * AdonisJS HTTP server (the fixture exposes `/impersonation-check`,
- * gated by the middleware). The unit spec already exercises the
- * branching with a fake service — this spec proves the wiring under a
- * real request lifecycle:
- *
- *   1. No token → pass-through with `ctx.impersonation = null`.
- *   2. Valid token → 200 + the public context attached.
- *   3. Tampered signature → 401 `IMPERSONATION_INVALID`.
- *   4. Revoked session (via `stop()`) → 401.
- *   5. Force-expired session (clock skew past `expiresAt`) → 401.
- *
- * The service uses the cache singleton bound by the fixture provider,
- * so sessions land in real Redis via BentoCache. We swap a fresh
- * `ImpersonationService` into the container for each test so the audit
- * log is observable and not shared with sibling specs.
- */
+// Proves ImpersonationMiddleware wiring under the real HTTP lifecycle
+// (fixture exposes /impersonation-check). Sessions land in real Redis
+// via BentoCache; each test swaps a fresh service so the audit log is
+// observable and isolated.
 test.group('ImpersonationMiddleware (integration, HTTP + real Redis)', (group) => {
   let originalConfig: ReturnType<typeof getConfig>
   let originalService: ImpersonationService

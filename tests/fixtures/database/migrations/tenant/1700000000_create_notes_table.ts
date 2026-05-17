@@ -1,11 +1,6 @@
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
-/**
- * Minimal tenant-schema table used by the clone spec to prove the
- * copy phase moves real rows between schemas. Anything that wants to
- * exercise tenant-side data lands here so we don't have to ship a
- * second migration just to add a column.
- */
+// Minimal tenant-schema table for tests that need cross-schema data movement.
 export default class extends BaseSchema {
   protected tableName = 'notes'
 

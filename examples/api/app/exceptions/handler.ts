@@ -11,12 +11,8 @@ import {
   QuotaExceededException,
 } from '@adonisjs-lasagna/saas-tenancy/exceptions'
 
-/**
- * When `TENANT_503_DIAG=1`, append a one-line JSON record for every response
- * the handler maps to a 5xx (or for unmapped errors that bubble to `super`).
- * Used to localise the cause of intermittent 503s under full e2e suite load —
- * `tail -f` this from another shell while the suite runs.
- */
+// TENANT_503_DIAG=1 → append JSONL records for every 5xx (and unmapped
+// errors) to TENANT_503_DIAG_LOG (default storage/503-diag.log).
 const diagPath = (() => {
   if (process.env.TENANT_503_DIAG !== '1') return null
   const raw = process.env.TENANT_503_DIAG_LOG ?? 'storage/503-diag.log'
@@ -94,10 +90,8 @@ export default class HttpExceptionHandler extends ExceptionHandler {
         },
       })
     }
-    // Anything unmapped (TenantMaintenanceException, RateLimitUnavailable,
-    // raw Lucid/Pg errors, etc.) falls through to AdonisJS's default handler
-    // which uses the `static readonly status` on the exception class. Log
-    // those too so the diagnostic doesn't miss the path.
+    // Log unmapped errors too (TenantMaintenance, RateLimitUnavailable,
+    // raw Lucid/Pg) before falling through to super.
     await diag({
       kind: 'UNHANDLED',
       errorName: (error as Error)?.constructor?.name ?? typeof error,

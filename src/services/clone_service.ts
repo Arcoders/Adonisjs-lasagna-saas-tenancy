@@ -33,9 +33,7 @@ export default class CloneService {
     try {
       await driver.provision(destination)
 
-      // provision() creates the storage and the connection but doesn't run
-      // tenant migrations. Run them now so the destination has the same DDL
-      // as the source before we copy rows into it.
+      // provision() opens the connection but doesn't run migrations.
       await driver.migrate(destination, { direction: 'up' })
 
       let tablesCopied = 0
@@ -47,19 +45,11 @@ export default class CloneService {
         rowsCopied = result.rowsCopied
       }
 
-      // The destination's pooled connection was opened during provision() —
-      // BEFORE migrations created any tables and BEFORE the central
-      // connection committed the row copy. PostgreSQL caches relation OIDs
-      // and prepared statement plans per session, so leaving that pool
-      // around can cause subsequent reads to see an empty (or missing)
-      // table even though the data is committed. Disconnecting forces the
-      // next driver.connect() call to open a fresh session.
+      // Pooled connection was opened before migrations + row copy committed;
+      // PG caches relation OIDs per session, so reads on it can miss tables
+      // that exist on disk. Force the next caller to open a fresh session.
       await driver.disconnect(destination).catch(() => {})
 
-      // Flip the destination to `active` once provisioning, migrations, and
-      // (optionally) the row copy have all succeeded. Pre-v2 this was
-      // implicit in `tenant.install()`; post-driver-system the package no
-      // longer touches the tenant row, so the caller owns the status.
       destination.status = 'active'
       await destination.save()
 
@@ -73,8 +63,6 @@ export default class CloneService {
       destination.status = 'failed'
       await destination.save()
 
-      // Best-effort teardown of partial provisioning. `keepData: false` is
-      // the default — drops the schema/database created above.
       await driver.destroy(destination).catch((dropErr: Error) => {
         logger.error(
           { destId: destination.id, err: dropErr.message },
@@ -97,18 +85,13 @@ export default class CloneService {
   ): Promise<{ tablesCopied: number; rowsCopied: number }> {
     const srcSchema = source.schemaName
     const dstSchema = dest.schemaName
-    // Schema names are produced by the driver from the tenant id, but
-    // we re-validate here so a future driver change can't slip an
-    // unsafe identifier into the cross-schema INSERT below.
+    // Re-validate identifiers — driver-derived, but embedded directly in SQL below.
     assertSafeIdentifier(srcSchema, 'source schema')
     assertSafeIdentifier(dstSchema, 'destination schema')
 
-    // Run cross-schema operations on the central connection rather than the
-    // default. The default connection is the per-tenant template that gets
-    // cloned by the package at runtime; using it for one-off queries was
-    // flaky on Linux runners where the connection state resets between
-    // statements. The central connection is a stable, app-owned pool with
-    // full database access.
+    // Cross-schema ops go on the central pool, not the default — the default
+    // is the per-tenant template and resets connection state between
+    // statements on some Linux runners.
     const conn = db.connection(getConfig().centralConnectionName)
 
     const srcTables = await this.#getTableNames(srcSchema, conn)
@@ -135,10 +118,7 @@ export default class CloneService {
           )
           continue
         }
-        // pg_tables rows aren't user input, but Postgres allows
-        // double-quoted table names with arbitrary chars. Reject those
-        // — the package's storage model assumes well-behaved
-        // identifiers everywhere.
+        // pg_tables allows double-quoted names with arbitrary chars; reject those.
         assertSafeIdentifier(table, 'table name')
         const result = await trx.rawQuery(
           `INSERT INTO "${dstSchema}"."${table}" SELECT * FROM "${srcSchema}"."${table}"`
@@ -179,16 +159,10 @@ export default class CloneService {
     schema: string,
     tables: string[]
   ): Promise<void> {
-    // Each setval is wrapped in a SAVEPOINT — without one, a single failure
-    // (table has no integer id column, sequence missing, etc.) would put the
-    // whole parent transaction into an aborted state, silently rolling back
-    // the row copy on COMMIT.
-    //
-    // Note: schema/table identifiers are validated by `assertSafeIdentifier`
-    // upstream (`#copyData`), so embedding them in the SQL is safe. A bound
-    // parameter would not help here anyway — the DO block needs `$1`/`$2`
-    // bindings, but Knex rejects those for `rawQuery` (it expects `?`),
-    // and PG doesn't allow parameterising identifiers regardless.
+    // Identifiers are embedded directly: Knex rawQuery uses `?` placeholders
+    // (not `$1`/`$2`), and PG doesn't parameterise identifiers anyway.
+    // Each setval runs inside a SAVEPOINT so a missing id column on one
+    // table doesn't abort the whole row-copy transaction.
     for (const table of tables) {
       assertSafeIdentifier(table, 'table name')
       await this.#runWithSavepoint(trx, `seq_${table}`, () =>
