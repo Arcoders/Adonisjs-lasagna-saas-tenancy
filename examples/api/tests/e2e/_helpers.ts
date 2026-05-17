@@ -37,32 +37,38 @@ export async function probePgTools(): Promise<boolean> {
   return a && b && c
 }
 
-/**
- * Synchronously provision a tenant — bypasses the BullMQ queue so the suite
- * doesn't need a worker subprocess. Mirrors what InstallTenant.execute() does:
- * runs the beforeProvision hook, calls tenant.install(), emits the lifecycle
- * events.
- *
- * The dispatched events: TenantCreated, TenantProvisioned, TenantActivated —
- * matching the production `InstallTenant` job's emissions.
- */
+// Provision a tenant synchronously (skips BullMQ). Mirrors
+// InstallTenant.execute(); retries 3× to match the production
+// dispatch's resilience under full-suite load. Returns 'failed'
+// on permanent failure for negative-path tests to assert on.
 export async function installInline(id: string): Promise<'active' | 'failed'> {
   const tenant = await Tenant.findOrFail(id)
-  try {
-    const cfgHooks: any = (await import('#config/multitenancy')).default.hooks
-    if (cfgHooks?.beforeProvision) {
-      await cfgHooks.beforeProvision({ tenant })
+  const cfgHooks: any = (await import('#config/multitenancy')).default.hooks
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      if (cfgHooks?.beforeProvision) {
+        await cfgHooks.beforeProvision({ tenant })
+      }
+      await tenant.install()
+      await TenantCreated.dispatch(tenant as any)
+      await TenantProvisioned.dispatch(tenant as any)
+      await TenantActivated.dispatch(tenant as any)
+      return 'active'
+    } catch {
+      // Close before dropping — otherwise the pool keeps sessions whose
+      // search_path points at a just-dropped schema, surfacing as random
+      // 503s several specs later.
+      await tenant.closeConnection().catch(() => {})
+      await tenant.dropSchemaIfExists().catch(() => {})
+      if (attempt < 3) {
+        await new Promise((r) => setTimeout(r, 100 * attempt))
+      }
     }
-    await tenant.install()
-    await TenantCreated.dispatch(tenant as any)
-    await TenantProvisioned.dispatch(tenant as any)
-    await TenantActivated.dispatch(tenant as any)
-    return 'active'
-  } catch {
-    tenant.status = 'failed'
-    await tenant.save()
-    return 'failed'
   }
+  tenant.status = 'failed'
+  await tenant.save().catch(() => {})
+  return 'failed'
 }
 
 export interface CreateInstalledTenantOptions {
@@ -74,15 +80,13 @@ export interface CreateInstalledTenantOptions {
   migrate?: boolean
 }
 
-/**
- * One-shot helper: creates the tenant row, runs the inline install, and (by
- * default) runs `tenant:migrate` so the schema has the `notes` table ready
- * for write tests.
- */
+// Creates the tenant row, provisions inline, and (by default) runs
+// tenant:migrate so the schema has `notes` ready for write tests.
+// The POST enqueues nothing because bootstrap.ts stubs the dispatch.
 export async function createInstalledTenant(
   client: any,
   opts: CreateInstalledTenantOptions = {}
-): Promise<{ id: string; status: 'active' | 'failed' }> {
+): Promise<{ id: string; status: 'active' }> {
   const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
   const r = await client.post('/demo/tenants').json({
     name: opts.name ?? `E2E-${stamp}`,
@@ -95,33 +99,30 @@ export async function createInstalledTenant(
   }
   const id = r.body().tenantId as string
   const status = await installInline(id)
-  if (status === 'active' && opts.migrate !== false) {
+  if (status !== 'active') {
+    throw new Error(
+      `createInstalledTenant: install did not reach 'active' for ${id} (status="${status}")`
+    )
+  }
+  if (opts.migrate !== false) {
     const code = await runAce('tenant:migrate', ['--tenant', id])
     if (code !== 0) throw new Error(`tenant:migrate exited ${code} for ${id}`)
   }
-  return { id, status }
+  return { id, status: 'active' }
 }
 
-/**
- * Drop schemas + delete rows for every tenant currently in the backoffice
- * registry. Used by `group.setup`/`group.teardown` to keep suites rerunnable.
- */
+// Drop schemas + delete rows for every registered tenant. Closes the Lucid
+// connection FIRST: leaving it racing the package's LRU eviction against
+// a just-dropped schema surfaced as ~3 random 503s per full-suite run.
 export async function dropAllTenants(): Promise<void> {
   const all = await Tenant.query()
   for (const t of all) {
-    try {
-      await t.dropSchemaIfExists()
-    } catch {
-      // Schema may already be gone (e.g. soft-delete + purge ran in a prior test).
-    }
+    await t.closeConnection().catch(() => {})
+    await t.dropSchemaIfExists().catch(() => {})
     await t.delete()
   }
 }
 
-/**
- * Wait for a predicate to become truthy, polling at the given interval.
- * Throws after `timeoutMs` if the predicate never returned truthy.
- */
 export async function waitFor<T>(
   fn: () => Promise<T | null | undefined> | T | null | undefined,
   opts: { timeoutMs?: number; intervalMs?: number; description?: string } = {}
@@ -137,14 +138,6 @@ export async function waitFor<T>(
   throw new Error(`waitFor timed out after ${timeoutMs}ms${opts.description ? `: ${opts.description}` : ''}`)
 }
 
-/**
- * Detach all current listeners for a given event class. Restoration must be
- * arranged manually — call `emitter.on(EventClass, handler)` again after the
- * test, or rely on `group.teardown` + a fresh `setup`.
- *
- * Used by the lifecycle and contextual-logging tests when they need to swap
- * listeners temporarily.
- */
 export function getEmitter() {
   return emitter
 }

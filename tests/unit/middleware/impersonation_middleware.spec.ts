@@ -28,11 +28,28 @@ function fakeService(verifyImpl: (token: string) => Promise<ImpersonationContext
   return { verify: verifyImpl } as any
 }
 
+/**
+ * Build a middleware instance that resolves to a fake service via the
+ * `getService()` override seam. Mirrors how the production middleware
+ * picks up the real `ImpersonationService` from the container —
+ * without subclassing here, the container would fail to construct the
+ * middleware (it can't resolve the optional `ImpersonationService`
+ * dependency without a fully-booted config).
+ */
+function makeMiddleware(service: any): ImpersonationMiddleware {
+  class TestMiddleware extends ImpersonationMiddleware {
+    protected getService(): any {
+      return Promise.resolve(service)
+    }
+  }
+  return new TestMiddleware()
+}
+
 test.group('ImpersonationMiddleware', (group) => {
   group.each.setup(() => setupTestConfig())
 
   test('passes through cleanly when no token is presented', async ({ assert }) => {
-    const m = new ImpersonationMiddleware(fakeService(async () => null))
+    const m = makeMiddleware(fakeService(async () => null))
     let nextCalled = false
     await m.handle(makeCtx(), async () => {
       nextCalled = true
@@ -43,7 +60,7 @@ test.group('ImpersonationMiddleware', (group) => {
   test('throws ImpersonationInvalidException when an invalid token is presented', async ({
     assert,
   }) => {
-    const m = new ImpersonationMiddleware(fakeService(async () => null))
+    const m = makeMiddleware(fakeService(async () => null))
     const err = await catchError(() =>
       m.handle(makeCtx({ 'x-impersonation-token': 'bogus' }), async () => {})
     )
@@ -61,7 +78,7 @@ test.group('ImpersonationMiddleware', (group) => {
       adminType: 'admin',
       startedAt: new Date().toISOString(),
     }
-    const m = new ImpersonationMiddleware(fakeService(async () => verified))
+    const m = makeMiddleware(fakeService(async () => verified))
     const ctx = makeCtx({ 'x-impersonation-token': 'goodtoken' })
     let nextCalled = false
     await m.handle(ctx, async () => {
@@ -73,7 +90,7 @@ test.group('ImpersonationMiddleware', (group) => {
 
   test('reads token from cookie when header is absent', async ({ assert }) => {
     let receivedToken: string | undefined
-    const m = new ImpersonationMiddleware(
+    const m = makeMiddleware(
       fakeService(async (token) => {
         receivedToken = token
         return null

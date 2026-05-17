@@ -6,6 +6,94 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.1] — 2026-05-17
+
+Hardening release. Three production-affecting bug fixes uncovered by
+a test-coverage audit, plus a substantial integration + E2E expansion
+(now 505 unit + 355 integration + 123 e2e).
+
+### Fixed
+
+- **Package queue jobs are now resolvable by `queue:work`**.
+  `MultitenancyProvider.boot()` registers `InstallTenant`,
+  `UninstallTenant`, `CloneTenant`, `BackupTenant`, `RestoreTenant`,
+  `ProcessStripeEventJob`, `BillingCleanupJob`, and `ReportUsageBatchJob`
+  with `@adonisjs/queue`'s `Locator`. Pre-fix, host apps' job
+  auto-discovery (`app/jobs/**`) didn't reach into `node_modules`, so
+  any dispatched package job was dead-lettered at the worker. Jobs are
+  registered (and dispatched) under `lasagna.<JobName>` so a host
+  app's same-named job can't collide.
+- **`CloneService` integer-sequence reset now actually runs**.
+  `#resetIntegerSequences` was passing `$1`/`$2` bindings to
+  `trx.rawQuery()`; Knex rejects those (it expects `?`), but the
+  failure was swallowed by the surrounding savepoint rollback.
+  Result: every cloned tenant inherited its source's sequence, so the
+  next insert PK-collided with a copied row. Identifiers are now
+  interpolated directly into the SQL (guarded by
+  `assertSafeIdentifier` upstream).
+- **`ImpersonationMiddleware` constructor no longer breaks IoC
+  resolution**. The optional typed constructor parameter forced the
+  AdonisJS container to try injecting `ImpersonationService` at
+  middleware resolution time, which it can't (the service needs a
+  config-validated boot). Refactored to a `protected getService()`
+  seam that subclasses can override for tests.
+
+### Changed
+
+- **Build artefact no longer embeds TypeScript source**.
+  `inlineSources: true` removed from `tsconfig.json`. `.js.map` files
+  in `build/` still reference `.ts` paths for stack traces but no
+  longer carry the full source bytes — smaller install footprint for
+  consumers.
+- **Test coverage tooling**. Added `c8` with `test:coverage` /
+  `test:integration:coverage` scripts and `.c8rc.json` (thresholds
+  report-only at 0; ratchet after a baseline is captured). CI uploads
+  `lcov.info` as an artifact.
+- **CI provisions MinIO + mock-oauth2-server** so the new S3 / OIDC
+  integration specs run against real backends. Optional
+  `STRIPE_TEST_API_KEY` secret enables the Stripe live-API smoke
+  test; without it the spec reports itself skipped.
+
+### Test coverage
+
+Closing the gap between "lots of tests" and "production confidence".
+New end-to-end coverage for previously-thin paths:
+
+- `examples/api/tests/e2e/commands_lifecycle.spec.ts` (10 tests) —
+  real ace command execution for `tenant:list`/`suspend`/`activate`/
+  `import`/`purge-expired`/`maintenance`/`impersonate`/`backups:run`/
+  `webhooks:retry`.
+- `examples/api/tests/e2e/queue_jobs.spec.ts` (2 tests) — real
+  `queue:work` subprocess provisioning and tearing down tenants.
+- `tests/integration/services/backup_s3.spec.ts` (real MinIO),
+  `sso_oidc_real.spec.ts` (real `mock-oauth2-server`),
+  `stripe_real_smoke.spec.ts` (real Stripe test API).
+- `tests/integration/middleware/rate_limit.spec.ts` (6 tests, real
+  Redis pipeline) and `impersonation_middleware.spec.ts` (real HTTP +
+  Redis).
+- `tests/integration/services/bootstrapper_isolation.spec.ts` (9
+  tests, cross-tenant isolation + 16-way `AsyncLocalStorage`
+  concurrency), `clone_service.spec.ts`, `doctor_checks_real.spec.ts`,
+  `telemetry_export.spec.ts` (with real OTel SDK +
+  `AsyncLocalStorageContextManager`).
+- `tests/integration/billing/diagnostics_commands.spec.ts`
+  (`tenant:billing:doctor` + `tenant:billing:test-webhook`).
+- `tests/integration/billing/stripe_real_smoke.spec.ts` expanded to
+  cover every Stripe SDK call-site.
+
+### Upgrade notes
+
+- **Drain your queue before upgrading** if you have unprocessed
+  package jobs in Redis under the old names (`InstallTenant`,
+  `UninstallTenant`, etc.). After upgrade, the worker resolves them
+  under `lasagna.<JobName>`, so any pending pre-upgrade jobs will
+  dead-letter at the worker.
+- **Subclassers of `ImpersonationMiddleware`**: the constructor
+  parameter is gone. Override `getService()` instead of injecting via
+  `new ImpersonationMiddleware(service)`.
+
+---
+
 ## [0.2.0] — 2026-05-09
 
 Adds the **Stripe billing satellite** as the ninth opt-in feature.

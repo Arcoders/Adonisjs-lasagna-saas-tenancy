@@ -14,6 +14,8 @@ interface RestoreTenantPayload {
 }
 
 export default class RestoreTenant extends Job<RestoreTenantPayload> {
+  static options = { name: 'lasagna.RestoreTenant' }
+
   async execute(): Promise<void> {
     const { tenantId, fileName } = this.payload
     const logCtx = await app.container.make(TenantLogContext)

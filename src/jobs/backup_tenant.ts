@@ -13,6 +13,8 @@ interface BackupTenantPayload {
 }
 
 export default class BackupTenant extends Job<BackupTenantPayload> {
+  static options = { name: 'lasagna.BackupTenant' }
+
   async execute(): Promise<void> {
     const { tenantId } = this.payload
     const logCtx = await app.container.make(TenantLogContext)

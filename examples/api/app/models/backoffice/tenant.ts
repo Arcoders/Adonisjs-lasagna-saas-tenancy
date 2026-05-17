@@ -63,6 +63,12 @@ export default class Tenant extends BackofficeBaseModel {
   @column.dateTime()
   declare deletedAt: DateTime | null
 
+  @column()
+  declare maintenance: boolean
+
+  @column()
+  declare maintenanceMessage: string | null
+
   static active = scope((query) => {
     query.where('status', 'active').whereNull('deleted_at')
   })
@@ -85,6 +91,21 @@ export default class Tenant extends BackofficeBaseModel {
   }
   get isDeleted() {
     return this.deletedAt !== null
+  }
+  get isMaintenance() {
+    return this.maintenance === true
+  }
+
+  async enterMaintenance(message?: string | null) {
+    this.maintenance = true
+    this.maintenanceMessage = message ?? null
+    await this.save()
+  }
+
+  async exitMaintenance() {
+    this.maintenance = false
+    this.maintenanceMessage = null
+    await this.save()
   }
 
   private get connectionName() {

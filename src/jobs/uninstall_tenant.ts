@@ -16,6 +16,8 @@ interface UninstallTenantPayload {
 }
 
 export default class UninstallTenant extends Job<UninstallTenantPayload> {
+  static options = { name: 'lasagna.UninstallTenant' }
+
   async execute(): Promise<void> {
     const { tenantId } = this.payload
     const logCtx = await app.container.make(TenantLogContext)

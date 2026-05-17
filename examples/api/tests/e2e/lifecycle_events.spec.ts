@@ -1,4 +1,5 @@
 import { test } from '@japa/runner'
+import app from '@adonisjs/core/services/app'
 import {
   TenantUpdated,
   TenantBackedUp,
@@ -6,6 +7,7 @@ import {
   TenantCloned,
 } from '@adonisjs-lasagna/saas-tenancy/events'
 import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy'
+import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
 import Tenant from '#app/models/backoffice/tenant'
 import {
   ADMIN_HEADERS,
@@ -103,19 +105,30 @@ test.group('e2e — 11 lifecycle events surface in the audit log', (group) => {
   }) => {
     const { id } = await createInstalledTenant(client, { plan: 'free' })
 
-    // free plan is 50 calls/day. Hammer until we get a 429.
+    // Reset the rolling counter (48h TTL in Redis) so prior runs don't bleed in.
+    const tenantModel = await Tenant.findOrFail(id)
+    const quotaSvc = await app.container.make(QuotaService)
+    await quotaSvc.reset(tenantModel, 'apiCallsPerDay')
+
+    // Free plan = 50/day; 60 attempts clears the cliff at #51. Statuses
+    // captured so a failure shows what came back instead of "false to be true".
     let saw429 = false
+    const statuses: number[] = []
     for (let i = 0; i < 60; i++) {
       const r = await client
         .post('/demo/notes')
         .header('x-tenant-id', id)
         .json({ title: `n${i}` })
+      statuses.push(r.status())
       if (r.status() === 429) {
         saw429 = true
         break
       }
     }
-    assert.isTrue(saw429, 'expected at least one 429 in 60 attempts')
+    assert.isTrue(
+      saw429,
+      `expected at least one 429 in 60 attempts; statuses seen: ${JSON.stringify(statuses)}`
+    )
 
     let actions: string[] = []
     for (let i = 0; i < 10; i++) {

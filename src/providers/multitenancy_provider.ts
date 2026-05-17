@@ -1,5 +1,6 @@
 import type { ApplicationService } from '@adonisjs/core/types'
 import { Database } from '@adonisjs/lucid/database'
+import logger from '@adonisjs/core/services/logger'
 import { setConfig } from '../config.js'
 import type { MultitenancyConfig } from '../types/config.js'
 import { BackofficeAdapter, TenantAdapter } from '../models/adapters/index.js'
@@ -139,6 +140,35 @@ export default class MultitenancyProvider {
     if (config.billing) {
       const billing = await this.app.container.make(BillingService)
       await billing.verify()
+    }
+
+    await this.#registerQueueJobs()
+  }
+
+  // Register package jobs with @adonisjs/queue's Locator. Host apps
+  // auto-discover from `app/jobs/**`, which doesn't reach node_modules,
+  // so without this dispatched InstallTenant/etc. dead-letter at the worker.
+  // Best-effort — a host without @adonisjs/queue just skips it.
+  async #registerQueueJobs(): Promise<void> {
+    try {
+      const { Locator } = await import('@adonisjs/queue')
+      const jobs = await import('../jobs/index.js')
+      for (const exported of Object.values(jobs)) {
+        // Skip type-only re-exports — they erase to undefined at runtime.
+        if (
+          typeof exported !== 'function' ||
+          typeof (exported as { dispatch?: unknown }).dispatch !== 'function'
+        ) {
+          continue
+        }
+        const JobClass = exported as { name: string; options?: { name?: string } }
+        Locator.register(JobClass.options?.name ?? JobClass.name, JobClass as never)
+      }
+    } catch (error) {
+      logger.warn(
+        { err: (error as Error)?.message },
+        '[multitenancy] could not auto-register queue jobs with the @adonisjs/queue Locator — dispatch a job through a worker only if you register them yourself'
+      )
     }
   }
 

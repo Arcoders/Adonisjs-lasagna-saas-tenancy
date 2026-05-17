@@ -57,6 +57,40 @@ router
   .prefix('tenant')
   .use(middleware.tenantGuard())
 
+// Rate-limit integration: bypassInTestEnv opts back in so the real Redis
+// pipeline runs. `/strict` fails closed (503), `/open` fails open (200).
+// Distinct prefixes keep parallel specs from sharing keys.
+router
+  .get('/rate-limited/strict', async ({ response }) => response.ok({ ok: true }))
+  .use(
+    middleware.rateLimit({
+      limit: 3,
+      windowSeconds: 2,
+      prefix: 'rl-it-strict',
+      bypassInTestEnv: true,
+    })
+  )
+
+router
+  .get('/rate-limited/open', async ({ response }) => response.ok({ ok: true }))
+  .use(
+    middleware.rateLimit({
+      limit: 3,
+      windowSeconds: 2,
+      prefix: 'rl-it-open',
+      bypassInTestEnv: true,
+      failOpen: true,
+    })
+  )
+
+// Impersonation integration: echoes ctx.impersonation so the spec can
+// assert the attached context end-to-end.
+router
+  .get('/impersonation-check', async (ctx: any) => {
+    return ctx.response.ok({ impersonation: ctx.impersonation ?? null })
+  })
+  .use(middleware.impersonation())
+
 // Used by custom_domain_middleware integration tests
 router
   .get('/custom-domain-check', async ({ request, response }) => {

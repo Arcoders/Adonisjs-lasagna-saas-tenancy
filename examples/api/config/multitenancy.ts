@@ -29,6 +29,14 @@ export default {
   schemaCacheTtl: 300,
   maintenanceSchedule: { backupHour: 2, migrateAllHour: 3 },
 
+  // ─── Admin impersonation ─────────────────────────────────────────
+  // Powers `tenant:impersonate`, the admin `/admin/impersonate` route, and
+  // ImpersonationMiddleware. The secret must be ≥ 32 chars; in a real app
+  // load it from a secret manager — never commit it.
+  impersonation: {
+    secret: 'demo-impersonation-secret-not-for-production-0123456789abcdef0123',
+  },
+
   // ─── Circuit breaker ─────────────────────────────────────────────
   // `volumeThreshold: 10` is friendlier in dev than the default `2`,
   // which trips immediately on a single bad seed.

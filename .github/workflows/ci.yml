@@ -33,8 +33,16 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Test (unit)
-        run: npm test
+      - name: Test (unit) + coverage
+        run: npm run test:coverage
+
+      - name: Upload unit coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: coverage/lcov.info
+          if-no-files-found: warn
 
       # Surfaces unused exports / orphaned files / unused deps. `--no-exit-code`
       # so the report is informational; flip to required once the baseline
@@ -76,6 +84,13 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
+      # Wire-compliant OIDC server for sso_oidc_real.spec.ts.
+      # (MinIO can't run here — Actions services don't allow CMD overrides.)
+      mock-oidc:
+        image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+        ports:
+          - 8080:8080
+
     env:
       TZ: UTC
       NODE_ENV: test
@@ -97,6 +112,18 @@ jobs:
       CACHE_REDIS_HOST: 127.0.0.1
       CACHE_REDIS_PORT: 6379
       CACHE_REDIS_DB: 2
+      # Optional Stripe test-mode key (sk_test_…) for stripe_real_smoke.spec.ts.
+      # Unset → spec skips visibly. Add via Settings → Secrets → Actions.
+      STRIPE_TEST_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
+      # MinIO (S3) for backup_s3.spec.ts. Unset → spec skips.
+      BACKUP_S3_ENDPOINT: http://127.0.0.1:9000
+      BACKUP_S3_BUCKET: lasagna-test
+      BACKUP_S3_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      # mock-oauth2-server for sso_oidc_real.spec.ts. `default` = mock's
+      # placeholder issuer path for unspecified issuers.
+      MOCK_OIDC_BASE_URL: http://127.0.0.1:8080/default
 
     steps:
       - uses: actions/checkout@v4
@@ -111,8 +138,43 @@ jobs:
           npm_config_ignore_scripts: 'false'
         run: npm install --legacy-peer-deps --include=optional
 
-      - name: Test (integration)
-        run: npm run test:integration
+      # Run MinIO directly (Actions services can't pass `server /data`).
+      - name: Start MinIO (S3-compatible)
+        run: |
+          docker run -d --rm --name lasagna-minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:latest server /data
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS http://127.0.0.1:9000/minio/health/ready > /dev/null; then
+              echo "minio ready"; exit 0
+            fi
+            sleep 1
+          done
+          echo "minio failed to become ready"; docker logs lasagna-minio; exit 1
+
+      # Fail fast if the mock-oidc service container didn't come up.
+      - name: Probe mock-oauth2-server
+        run: |
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS "$MOCK_OIDC_BASE_URL/.well-known/openid-configuration" > /dev/null; then
+              echo "mock-oidc ready"; exit 0
+            fi
+            sleep 1
+          done
+          echo "mock-oidc failed to become ready"; exit 1
+
+      - name: Test (integration) + coverage
+        run: npm run test:integration:coverage
+
+      - name: Upload integration coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-integration
+          path: coverage/lcov.info
+          if-no-files-found: warn
 
   test-e2e-demo:
     name: E2E (demo app)

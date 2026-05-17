@@ -31,6 +31,8 @@ interface ProcessStripeEventPayload {
  *     deeper retry buffer per worker.
  */
 export default class ProcessStripeEventJob extends Job<ProcessStripeEventPayload> {
+  static options = { name: 'lasagna.ProcessStripeEventJob' }
+
   async execute(): Promise<void> {
     const { eventId } = this.payload
     const row = await StripeProcessedEvent.find(eventId)

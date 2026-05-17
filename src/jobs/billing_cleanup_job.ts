@@ -97,6 +97,8 @@ export async function runBillingCleanup(opts: { batchSize?: number } = {}): Prom
  * Idempotent. Safe to run on a daily cron via `tenant:billing:cleanup`.
  */
 export default class BillingCleanupJob extends Job<{ batchSize?: number }> {
+  static options = { name: 'lasagna.BillingCleanupJob' }
+
   async execute(): Promise<void> {
     await runBillingCleanup(this.payload ?? {})
   }

@@ -91,7 +91,7 @@ export default defineConfig({
       { text: 'Showcase', link: '/showcase' },
       { text: 'Sponsor', link: '/sponsor' },
       {
-        text: 'v0.2.0',
+        text: 'v0.2.1',
         items: [
           { text: 'Changelog', link: `${REPO}/blob/master/CHANGELOG.md` },
           { text: 'Release notes', link: '/docs/release-notes' },

@@ -9,21 +9,17 @@ const DEFAULT_HEADER = 'x-impersonation-token'
 const DEFAULT_COOKIE = '__impersonation'
 
 /**
- * Reads an impersonation token from a header (preferred) or cookie, verifies
- * it via `ImpersonationService.verify()`, and on success attaches the
- * derived context to `ctx.impersonation`. Hand the auth wiring to your
- * existing `auth.use()` middleware — this middleware deliberately does NOT
- * mutate `ctx.auth`.
- *
- * Behaviour modes:
- * - No token presented: pass through (`next()`).
- * - Token presented and valid: attach context, pass through.
- * - Token presented and INVALID: throw `ImpersonationInvalidException` (401).
- *   Soft failure would let attackers probe with random tokens; the loud
- *   failure also tells legitimate operators their session has expired.
+ * Verifies an impersonation token (header or cookie) and attaches the
+ * derived context to `ctx.impersonation`. Invalid tokens throw 401 —
+ * soft failure would let attackers probe with random tokens.
  */
 export default class ImpersonationMiddleware {
-  constructor(private service?: ImpersonationService) {}
+  // Method seam (not constructor injection) because the named-middleware
+  // factory resolves this class via the IoC container, and the container
+  // can't inject ImpersonationService without a config-validated boot.
+  protected getService(): Promise<ImpersonationService> {
+    return app.container.make(ImpersonationService)
+  }
 
   async handle(ctx: HttpContext, next: NextFn) {
     const cfg = getConfig().impersonation
@@ -36,7 +32,7 @@ export default class ImpersonationMiddleware {
 
     if (!token) return next()
 
-    const svc = this.service ?? (await app.container.make(ImpersonationService))
+    const svc = await this.getService()
     const verified = await svc.verify(token)
     if (!verified) throw new ImpersonationInvalidException()
 
