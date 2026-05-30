@@ -26,6 +26,7 @@ import DoctorService from '../services/doctor/doctor_service.js'
 import { builtInChecks } from '../services/doctor/checks/index.js'
 import QuotaService from '../services/quota_service.js'
 import ReadReplicaService from '../services/read_replica_service.js'
+import ResilienceService from '../services/resilience_service.js'
 import CrossDomainRedirectService from '../services/cross_domain_redirect_service.js'
 import ImpersonationService from '../services/impersonation_service.js'
 import AuditLogService from '../services/audit_log_service.js'
@@ -50,6 +51,7 @@ export default class MultitenancyProvider {
     })
     this.app.container.singleton(QuotaService, () => new QuotaService())
     this.app.container.singleton(ReadReplicaService, () => new ReadReplicaService())
+    this.app.container.singleton(ResilienceService, () => new ResilienceService())
     this.app.container.singleton(
       CrossDomainRedirectService,
       () => new CrossDomainRedirectService()

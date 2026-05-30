@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { mkdir, unlink, stat, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { getConfig } from '../config.js'
+import { assertSafeIdentifier } from './isolation/identifier.js'
 import type { TenantModelContract } from '../types/contracts.js'
 
 const lazyRedis = () =>
@@ -59,6 +60,11 @@ export default class BackupService {
 
   async backup(tenant: TenantModelContract): Promise<BackupMetadata> {
     const schema = tenant.schemaName
+    // Defense-in-depth: `schema` is driver-derived (already validated), but it
+    // is passed to pg_dump as `--schema=<schema>`. spawn() uses an argv array
+    // (no shell), so this can't inject a command, but a malformed schema would
+    // still target the wrong objects, so reject it loudly.
+    assertSafeIdentifier(schema, 'tenant schema')
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     const fileName = `tenant_${tenant.id}_${timestamp}.dump`
     const dir = this.getBackupDir(tenant.id)
@@ -105,6 +111,7 @@ export default class BackupService {
     }
 
     const schema = tenant.schemaName
+    assertSafeIdentifier(schema, 'tenant schema')
     const filePath = join(this.getBackupDir(tenant.id), fileName)
 
     if (getConfig().backup.s3?.enabled) {

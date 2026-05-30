@@ -6,10 +6,6 @@ export default class FeatureFlagService {
     return `ff_map:${tenantId}`
   }
 
-  private singleCacheKey(tenantId: string, flag: string) {
-    return `ff:${tenantId}:${flag}`
-  }
-
   async isEnabled(tenantId: string, flag: string): Promise<boolean> {
     const map = await this.#getMap(tenantId)
     return map[flag] ?? false
@@ -36,11 +32,7 @@ export default class FeatureFlagService {
       { tenantId, flag },
       { enabled, config: config ?? null }
     )
-    const c = getCache()
-    await Promise.all([
-      c.namespace('feature_flags').delete({ key: this.mapCacheKey(tenantId) }),
-      c.namespace('feature_flags').delete({ key: this.singleCacheKey(tenantId, flag) }),
-    ])
+    await getCache().namespace('feature_flags').delete({ key: this.mapCacheKey(tenantId) })
     return row
   }
 
@@ -50,10 +42,6 @@ export default class FeatureFlagService {
 
   async delete(tenantId: string, flag: string): Promise<void> {
     await TenantFeatureFlag.query().where('tenant_id', tenantId).where('flag', flag).delete()
-    const c = getCache()
-    await Promise.all([
-      c.namespace('feature_flags').delete({ key: this.mapCacheKey(tenantId) }),
-      c.namespace('feature_flags').delete({ key: this.singleCacheKey(tenantId, flag) }),
-    ])
+    await getCache().namespace('feature_flags').delete({ key: this.mapCacheKey(tenantId) })
   }
 }

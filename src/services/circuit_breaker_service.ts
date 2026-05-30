@@ -75,7 +75,37 @@ export default class CircuitBreakerService {
     })
 
     this.circuits.set(tenantId, breaker)
+    // Best-effort restore: if this tenant's breaker was OPEN when the previous
+    // process exited, re-open it now so we fail fast against a still-down tenant
+    // DB instead of hammering it with 5s-timeout probes until the threshold
+    // re-trips. This is fire-and-forget (a single Redis read). The breaker
+    // self-heals from OPEN through HALF_OPEN to CLOSED from there, and the worst
+    // case (the DB recovered during the restart) is a single bounded
+    // resetTimeout delay before the first probe. Until now `cb:state:` was
+    // written but never read back, so persisted state was dead weight across
+    // restarts.
+    void this.#restorePersistedState(tenantId, breaker)
     return breaker
+  }
+
+  /**
+   * Re-open a freshly-created breaker when Redis says it was OPEN at the
+   * last shutdown. No-op when Redis is unavailable or the state was not OPEN.
+   */
+  async #restorePersistedState(tenantId: string, breaker: CircuitBreaker): Promise<void> {
+    try {
+      const redis = await lazyRedis()
+      const state = await redis?.get(`${REDIS_KEY_PREFIX}${tenantId}`)
+      if (state === 'OPEN' && !breaker.opened) {
+        breaker.open()
+      }
+    } catch (err) {
+      const logger = await lazyLogger()
+      logger?.warn(
+        { tenantId, err: (err as Error)?.message ?? String(err) },
+        'CircuitBreakerService: failed to restore persisted circuit state from Redis'
+      )
+    }
   }
 
   isOpen(tenantId: string): boolean {

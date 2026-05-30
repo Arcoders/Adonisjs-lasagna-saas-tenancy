@@ -12,3 +12,5 @@ export { default as TenantHeaderDomainMismatchException } from './tenant_header_
 export { default as TooManyRequestsException } from './too_many_requests_exception.js'
 export { default as BillingException } from './billing_exception.js'
 export type { BillingErrorCode } from './billing_exception.js'
+export { default as DependencyUnavailableException } from './dependency_unavailable_exception.js'
+export type { DependencyUnavailableContext } from './dependency_unavailable_exception.js'

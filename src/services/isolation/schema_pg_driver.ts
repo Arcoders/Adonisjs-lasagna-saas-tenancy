@@ -11,6 +11,11 @@ import { assertSafeIdentifier } from './identifier.js'
 
 const MAX_TENANT_CONNECTIONS = 50
 
+const lazyLogger = () =>
+  import('@adonisjs/core/services/logger')
+    .then((m) => m.default)
+    .catch(() => null)
+
 /**
  * Lazily resolve `db` so unit tests that only exercise pure helpers
  * (connectionName/schemaName) don't drag the Lucid runtime — and the
@@ -143,6 +148,15 @@ export default class SchemaPgDriver implements IsolationDriver {
     const oldest = this.#lru.keys().next().value
     if (!oldest) return
     this.#lru.delete(oldest)
-    db.manager.release(oldest).catch(() => {})
+    // Don't swallow: a failed release leaves a pool entry registered in the
+    // manager (the LRU and the manager then disagree about open connections).
+    // Surfacing it lets ops correlate pool growth with eviction failures.
+    db.manager.release(oldest).catch(async (err: unknown) => {
+      const logger = await lazyLogger()
+      logger?.warn(
+        { connection: oldest, err: (err as Error)?.message ?? String(err) },
+        'SchemaPgDriver: failed to release evicted tenant connection; pool entry may linger'
+      )
+    })
   }
 }

@@ -2,7 +2,6 @@ import { readFile, access, writeFile, unlink, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
-import logger from '@adonisjs/core/services/logger'
 import type { TransactionClientContract } from '@adonisjs/lucid/types/database'
 import { getConfig } from '../config.js'
 import type { TenantModelContract } from '../types/contracts.js'
@@ -11,6 +10,14 @@ import { assertSafeIdentifier } from './isolation/identifier.js'
 import { splitSqlStatementsTagged } from '../utils/sql_splitter.js'
 
 const isWin = process.platform === 'win32'
+
+// Lazy logger so the module can be imported without a booted AdonisJS app.
+// The static `@adonisjs/core/services/logger` import top-level-awaits
+// `app.booted()`, which throws outside an Ignitor and blocks unit tests.
+const lazyLogger = () =>
+  import('@adonisjs/core/services/logger')
+    .then((m) => m.default)
+    .catch(() => null)
 
 export interface SqlImportOptions {
   sourceSchema: string
@@ -117,7 +124,7 @@ export default class SqlImportService {
     const driver = await getActiveDriver()
     const connection = await driver.connect(tenant)
 
-    logger.info(
+    ;(await lazyLogger())?.info(
       { tenantId: tenant.id, schema: tenant.schemaName, total: tokens.length },
       'Starting transactional SQL import'
     )
@@ -157,14 +164,14 @@ export default class SqlImportService {
             statement: stmt.slice(0, 200),
             message: err.message ?? String(err),
           })
-          logger.warn({ stmt: stmt.slice(0, 120), err: err.message }, 'Statement failed')
+          ;(await lazyLogger())?.warn({ stmt: stmt.slice(0, 120), err: err.message }, 'Statement failed')
         }
       }
 
       await trx.rawQuery(`SET LOCAL session_replication_role = DEFAULT`)
     })
 
-    logger.info(
+    ;(await lazyLogger())?.info(
       {
         tenantId: tenant.id,
         executed: result.statementsExecuted,
@@ -206,7 +213,7 @@ export default class SqlImportService {
       mode: 'psql',
     }
 
-    logger.info(
+    ;(await lazyLogger())?.info(
       {
         tenantId: tenant.id,
         schema: tenant.schemaName,
@@ -239,7 +246,7 @@ export default class SqlImportService {
       await unlink(tmpFile).catch(() => {})
     }
 
-    logger.info(
+    ;(await lazyLogger())?.info(
       {
         tenantId: tenant.id,
         executed: result.statementsExecuted,

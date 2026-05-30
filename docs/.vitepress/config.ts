@@ -81,6 +81,9 @@ export default defineConfig({
           { text: 'Routing', link: '/docs/routing' },
           { text: 'Testing', link: '/docs/testing' },
           { text: 'Admin REST API', link: '/docs/admin-rest-api' },
+          { text: 'Configuration', link: '/docs/configuration' },
+          { text: 'Exceptions', link: '/docs/exceptions' },
+          { text: 'Troubleshooting', link: '/docs/gotchas' },
           { text: 'Deployment', link: '/docs/deployment' },
           { text: 'Cookbook', link: '/docs/cookbook/' },
           { text: 'Comparison vs stancl', link: '/docs/comparison' },
@@ -186,6 +189,14 @@ export default defineConfig({
                 { text: 'Custom isolation driver', link: '/docs/cookbook/custom-isolation-driver' },
               ],
             },
+          ],
+        },
+        {
+          text: 'API Reference',
+          items: [
+            { text: 'Configuration', link: '/docs/configuration' },
+            { text: 'Exceptions', link: '/docs/exceptions' },
+            { text: 'Troubleshooting', link: '/docs/gotchas' },
           ],
         },
         {

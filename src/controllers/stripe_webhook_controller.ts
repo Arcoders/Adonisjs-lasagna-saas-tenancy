@@ -5,7 +5,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import type Stripe from 'stripe'
 import BillingException from '../exceptions/billing_exception.js'
 import { getConfig } from '../config.js'
-import { redactStripeEvent } from '../services/billing/redact.js'
+import { toReplayablePayload } from '../services/billing/redact.js'
 import ProcessStripeEventJob from '../jobs/process_stripe_event_job.js'
 import StripeProcessedEvent from '../models/satellites/stripe_processed_event.js'
 
@@ -54,7 +54,12 @@ export default class StripeWebhookController {
     // misclassifying them as duplicates if a row coincidentally exists.
     // The raw INSERT is unambiguous and one less round-trip.
     const schema = getConfig().backofficeSchemaName
-    const redactedPayload = redactStripeEvent(event) as unknown as Record<string, unknown>
+    // Persist a PII-stripped but structurally-faithful copy of the event so
+    // `BillingService.retrieveEvent()` can replay it after it ages out of
+    // Stripe's ~30-day retrieval window. It's allowlist-built (see redact.ts)
+    // from named fields rather than the raw event, so no PII reaches the
+    // backoffice DB.
+    const replayablePayload = toReplayablePayload(event) as unknown as Record<string, unknown>
     const inserted = await db
       .connection(getConfig().backofficeConnectionName)
       .rawQuery(
@@ -63,7 +68,7 @@ export default class StripeWebhookController {
          VALUES (?, ?, now(), 'pending', 0, ?)
          ON CONFLICT (event_id) DO NOTHING
          RETURNING event_id`,
-        [schema, event.id, event.type, JSON.stringify(redactedPayload)]
+        [schema, event.id, event.type, JSON.stringify(replayablePayload)]
       )
 
     // pg returns { rows: [...] }; the count of returned rows tells us

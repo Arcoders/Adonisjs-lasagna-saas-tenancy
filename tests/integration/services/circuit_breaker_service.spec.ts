@@ -55,4 +55,21 @@ test.group('CircuitBreakerService (integration)', (group) => {
     const stored = await redis.get('cb:state:int-test-tenant')
     assert.isNull(stored)
   })
+
+  test('restores OPEN state on a fresh service after a process restart', async ({ assert }) => {
+    // Simulate a prior process having persisted OPEN, then a restart: a
+    // brand-new service instance (empty in-memory circuits) must re-open the
+    // breaker from Redis instead of starting CLOSED and hammering a down DB.
+    await redis.set('cb:state:int-test-tenant', 'OPEN')
+    const fresh = new CircuitBreakerService()
+    const breaker = fresh.getCircuit('int-test-tenant')
+
+    // Restore is fire-and-forget (a Redis read), so give it a tick.
+    await new Promise((r) => setTimeout(r, 50))
+
+    assert.isTrue(breaker.opened, 'breaker re-opened from persisted OPEN state')
+    assert.isTrue(fresh.isOpen('int-test-tenant'))
+
+    await fresh.destroy('int-test-tenant')
+  })
 })
