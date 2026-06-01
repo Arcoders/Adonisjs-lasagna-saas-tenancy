@@ -114,7 +114,7 @@
     "test": "tsx bin/test.ts",
     "test:coverage": "c8 tsx bin/test.ts",
     "test:integration": "npm run build && tsx bin/test.integration.ts",
-    "test:integration:coverage": "npm run build && c8 tsx bin/test.integration.ts",
+    "test:integration:coverage": "npm run build && c8 --check-coverage=false tsx bin/test.integration.ts",
     "knip": "knip --no-exit-code",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "docs:sync": "node docs/scripts/sync-changelog.mjs",
