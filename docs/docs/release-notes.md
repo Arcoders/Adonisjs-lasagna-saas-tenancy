@@ -15,6 +15,58 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.2] — 2026-06-01
+
+Feature and hardening release. Adds a dependency-resilience degradation
+policy and a billing webhook replay fallback, closes several edge-case
+failure modes found in a second audit, and activates the coverage gate.
+No breaking changes: every new behavior is off by default or preserves the
+prior contract. Now 555 unit + 358 integration + 123 e2e.
+
+### Added
+
+- **Dependency resilience policy**. `ResilienceService.run()` is one typed,
+  observable contract for what happens when a backing dependency (Redis,
+  Postgres, Stripe) is unavailable: `fail-open` returns a fallback,
+  `fail-closed` throws `DependencyUnavailableException` (503 + `Retry-After`).
+  Configure it per dependency under `config.resilience`, and every
+  degradation can emit a `DependencyDegraded` event plus an OpenTelemetry
+  span event for alerting. Adopted in `QuotaService` and
+  `RateLimitMiddleware`.
+- **Billing replay past Stripe's retrieval window**. When Stripe reports an
+  event is gone (`resource_missing`), `BillingService.retrieveEvent()`
+  reconstructs it from a PII-free, structurally-faithful copy the webhook
+  controller persists in `stripe_processed_events.payload`
+  (`toReplayablePayload`), so `tenant:billing:replay` works on events older
+  than Stripe's ~30-day window.
+- **Reference docs**. New Configuration, Exceptions, Troubleshooting, and
+  Resilience pages on the docs site.
+
+### Fixed
+
+- **Circuit breaker state survives a restart**. Persisted OPEN state is now
+  restored from Redis on process start, so a known-down tenant DB fails fast
+  across a deploy instead of being probed back to life.
+- **Unified Redis-outage handling in quotas**. `QuotaService.consume/track`
+  route through the resilience policy, ending the silent `return 0` and the
+  raw ioredis throw on a Redis outage.
+- **Smaller correctness and hardening fixes**: `SchemaPgDriver` logs evicted
+  connection-release failures instead of swallowing them;
+  `assertSafeIdentifier` guards the backup/restore schema name; dead cache
+  key removed from the feature-flag service; `SqlImportService` lazy-loads
+  its logger so it is unit-testable; `reportUsage` idempotency-key JSDoc
+  corrected.
+
+### Changed
+
+- **Coverage gate is live**. `check-coverage` is enforced on the unit run
+  (`test:coverage`). The integration coverage run is report-only because it
+  executes the compiled `build/` and c8 does not attribute that execution
+  back to `src`.
+- Test suite grew to 555 unit + 358 integration + 123 e2e.
+
+---
+
 ## [0.2.1] — 2026-05-17
 
 Hardening release. Three production-affecting bug fixes uncovered by
