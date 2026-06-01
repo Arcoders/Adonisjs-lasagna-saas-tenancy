@@ -5,11 +5,15 @@ import type { PlanDefinition, PlansConfig } from '../types/config.js'
 import QuotaExceededException from '../exceptions/quota_exceeded_exception.js'
 import TenantQuotaExceeded from '../events/tenant_quota_exceeded.js'
 import { cacheFor } from '../utils/cache.js'
+import ResilienceService from './resilience_service.js'
 
 const lazyRedis = () =>
   import('@adonisjs/redis/services/main')
     .then((m) => m.default)
     .catch(() => null)
+
+/** Stateless, so a single shared instance is fine. */
+const resilience = new ResilienceService()
 
 const lazyTenantPlan = () =>
   import('../models/satellites/tenant_plan.js').then((m) => m.default)
@@ -122,6 +126,18 @@ const DEFAULT_FALLBACK: PlansConfig = {
 }
 
 export default class QuotaService {
+  /**
+   * Resolve the Redis client, throwing when `@adonisjs/redis` isn't
+   * installed/registered so the call routes through `ResilienceService` and
+   * degrades per the configured policy. `protected` so tests can override it
+   * to simulate a Redis outage (mirrors `RateLimitMiddleware.getRedis`).
+   */
+  protected async requireRedis(): Promise<NonNullable<Awaited<ReturnType<typeof lazyRedis>>>> {
+    const redis = await lazyRedis()
+    if (!redis) throw new Error('@adonisjs/redis is not installed or not registered')
+    return redis
+  }
+
   /**
    * Returns the plan name + definition currently applied to a tenant.
    *
@@ -263,12 +279,23 @@ export default class QuotaService {
    * like API calls per day. Counter expires after 48h.
    */
   async track(tenant: TenantModelContract, quota: string, amount: number = 1): Promise<number> {
-    const redis = await lazyRedis()
-    if (!redis) return 0
     const key = this.#rollingKey(tenant.id, quota)
-    const next = await redis.incrby(key, amount)
-    await redis.expire(key, ROLLING_TTL_SECONDS)
-    const total = Number(next) || 0
+    const policy = getConfig().resilience?.redis?.quota ?? 'fail-open'
+    const counted = await resilience.run<number | null>({
+      dependency: 'redis',
+      operation: 'quota.track',
+      policy,
+      tenantId: tenant.id,
+      fallback: () => null,
+      run: async () => {
+        const redis = await this.requireRedis()
+        const next = await redis.incrby(key, amount)
+        await redis.expire(key, ROLLING_TTL_SECONDS)
+        return Number(next) || 0
+      },
+    })
+    if (counted === null) return 0
+    const total = counted
     if (getConfig().plans?.emitTracked) {
       const { default: QuotaTracked } = await import('../events/quota_tracked.js')
       await QuotaTracked.dispatch(tenant, quota, amount, total)
@@ -351,22 +378,32 @@ export default class QuotaService {
       return await this.track(tenant, quota, amount)
     }
 
-    const redis = await lazyRedis()
-    if (!redis) return 0 // Redis unavailable — silently no-op (preserves prior contract)
-
     const key = this.#rollingKey(tenant.id, quota)
-    const result = (await redis.eval(
-      QUOTA_CONSUME_LUA,
-      1,
-      key,
-      String(limit),
-      String(amount),
-      String(ROLLING_TTL_SECONDS)
-    )) as [number, number]
+    const policy = getConfig().resilience?.redis?.quota ?? 'fail-open'
+    const result = await resilience.run<[number, number] | null>({
+      dependency: 'redis',
+      operation: 'quota.consume',
+      policy,
+      tenantId: tenant.id,
+      // fail-open: Redis down → skip enforcement, allow the consumption.
+      fallback: () => null,
+      run: async () =>
+        (await (await this.requireRedis()).eval(
+          QUOTA_CONSUME_LUA,
+          1,
+          key,
+          String(limit),
+          String(amount),
+          String(ROLLING_TTL_SECONDS)
+        )) as [number, number],
+    })
 
-    const [allowed, currentOrAfter] = Array.isArray(result)
-      ? result
-      : [0, 0]
+    // fail-open path: Redis was unavailable and the policy chose availability
+    // over enforcement (ResilienceService already logged + emitted
+    // DependencyDegraded). Previously this was a silent `return 0`.
+    if (result === null) return 0
+
+    const [allowed, currentOrAfter] = Array.isArray(result) ? result : [0, 0]
 
     if (allowed === 0) {
       // Lua reported "would exceed". `currentOrAfter` is the pre-increment

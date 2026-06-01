@@ -77,10 +77,14 @@ export default defineConfig({
           { text: 'Background jobs', link: '/docs/jobs' },
           { text: 'Health & metrics', link: '/docs/health' },
           { text: 'Read replicas', link: '/docs/read-replicas' },
+          { text: 'Resilience', link: '/docs/resilience' },
           { text: 'Contextual logging', link: '/docs/contextual-logging' },
           { text: 'Routing', link: '/docs/routing' },
           { text: 'Testing', link: '/docs/testing' },
           { text: 'Admin REST API', link: '/docs/admin-rest-api' },
+          { text: 'Configuration', link: '/docs/configuration' },
+          { text: 'Exceptions', link: '/docs/exceptions' },
+          { text: 'Troubleshooting', link: '/docs/gotchas' },
           { text: 'Deployment', link: '/docs/deployment' },
           { text: 'Cookbook', link: '/docs/cookbook/' },
           { text: 'Comparison vs stancl', link: '/docs/comparison' },
@@ -91,7 +95,7 @@ export default defineConfig({
       { text: 'Showcase', link: '/showcase' },
       { text: 'Sponsor', link: '/sponsor' },
       {
-        text: 'v0.2.1',
+        text: 'v0.2.2',
         items: [
           { text: 'Changelog', link: `${REPO}/blob/master/CHANGELOG.md` },
           { text: 'Release notes', link: '/docs/release-notes' },
@@ -165,6 +169,7 @@ export default defineConfig({
             { text: 'Background jobs', link: '/docs/jobs' },
             { text: 'Health & metrics', link: '/docs/health' },
             { text: 'Read replicas', link: '/docs/read-replicas' },
+            { text: 'Resilience', link: '/docs/resilience' },
             { text: 'Contextual logging', link: '/docs/contextual-logging' },
             { text: 'Testing', link: '/docs/testing' },
             { text: 'Admin REST API', link: '/docs/admin-rest-api' },
@@ -186,6 +191,14 @@ export default defineConfig({
                 { text: 'Custom isolation driver', link: '/docs/cookbook/custom-isolation-driver' },
               ],
             },
+          ],
+        },
+        {
+          text: 'API Reference',
+          items: [
+            { text: 'Configuration', link: '/docs/configuration' },
+            { text: 'Exceptions', link: '/docs/exceptions' },
+            { text: 'Troubleshooting', link: '/docs/gotchas' },
           ],
         },
         {

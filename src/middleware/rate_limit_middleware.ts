@@ -77,6 +77,11 @@ export default class RateLimitMiddleware {
       count = (results?.[2]?.[1] as number) ?? 0
     } catch (error) {
       await warn('redis_pipeline_failed', error, { tenantId, key })
+      // Unified observability: the same DependencyDegraded signal QuotaService
+      // emits via ResilienceService, so ops alarm on one event for any
+      // Redis-backed subsystem. The per-route `failOpen` stays the policy knob
+      // here (rate-limit policy is naturally per-route).
+      await emitRedisDegraded(tenantId, failOpen, error)
       if (failOpen) return next()
       throw new RateLimitUnavailableException()
     }
@@ -91,6 +96,25 @@ export default class RateLimitMiddleware {
     }
 
     return next()
+  }
+}
+
+async function emitRedisDegraded(
+  tenantId: string,
+  failOpen: boolean,
+  err: unknown
+): Promise<void> {
+  try {
+    const { default: DependencyDegraded } = await import('../events/dependency_degraded.js')
+    await DependencyDegraded.dispatch({
+      dependency: 'redis',
+      operation: 'rateLimit.check',
+      tenantId,
+      policy: failOpen ? 'fail-open' : 'fail-closed',
+      errorCode: (err as { code?: string })?.code ?? (err as Error)?.name ?? 'unknown',
+    })
+  } catch {
+    // Best-effort: observability must never break the middleware.
   }
 }
 

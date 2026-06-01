@@ -245,6 +245,37 @@ export interface RoutingConfig {
   universalRoutesFile?: string
 }
 
+/** How a subsystem behaves when a backing dependency (Redis/PG/…) errors. */
+export type FailurePolicy = 'fail-open' | 'fail-closed'
+
+/**
+ * Unified, typed degradation policy consumed by `ResilienceService`. Lets ops
+ * decide, per dependency, whether an outage should fail OPEN (stay available by
+ * skipping the check) or fail CLOSED (preserve correctness by returning 503).
+ * Replaces the per-subsystem ad-hoc handling. All fields optional; sensible
+ * defaults apply.
+ */
+export interface ResilienceConfig {
+  /** Default for any (dependency, operation) not overridden below. Default `'fail-closed'`. */
+  defaultPolicy?: FailurePolicy
+  /** Per-consumer overrides for the Redis dependency. */
+  redis?: {
+    /** `QuotaService.consume/track`. Default `'fail-open'` (availability over enforcement). */
+    quota?: FailurePolicy
+    /** `RateLimitMiddleware`. Default `'fail-closed'` (don't let floods through on an outage). */
+    rateLimit?: FailurePolicy
+    /** Cache bootstrapper. Default `'fail-open'`. */
+    cache?: FailurePolicy
+    /** `MetricsService` counters. Default `'fail-open'`. */
+    metrics?: FailurePolicy
+  }
+  /**
+   * Emit a `DependencyDegraded` event + log + OpenTelemetry span event on each
+   * degradation so ops can alarm. Default `true`.
+   */
+  observe?: boolean
+}
+
 export interface MultitenancyConfig {
   backofficeSchemaName: string
   backofficeConnectionName: string
@@ -329,6 +360,11 @@ export interface MultitenancyConfig {
     rollingCountTimeout: number
     volumeThreshold: number
   }
+  /**
+   * Optional unified degradation policy for backing dependencies. When
+   * omitted, each consumer uses its documented default (see {@link ResilienceConfig}).
+   */
+  resilience?: ResilienceConfig
   queue: {
     tenantQueuePrefix: string
     defaultConcurrency: number

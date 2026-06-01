@@ -86,6 +86,24 @@ The middleware:
 > the limit is enforced exactly. Snapshot quotas (`setUsage`) are
 > not part of this atomic check; enforce those at the write site.
 
+## Redis outages (degradation policy)
+
+`consume` and `track` reach Redis through the
+[resilience policy](/docs/resilience), so a Redis outage follows
+`config.resilience.redis.quota` rather than failing in an ad-hoc way:
+
+- **`fail-open`** (the default): `consume` returns `0` and skips enforcement,
+  and a `DependencyDegraded` event fires. Availability wins, but the limit is
+  not enforced during the outage, so subscribe to the event and alert on a
+  burst. This replaces the old silent no-op.
+- **`fail-closed`**: `consume` throws `DependencyUnavailableException` (503 +
+  `Retry-After`). Correctness wins, and the caller gets a clean degraded
+  response.
+
+Set the policy in `config.resilience.redis.quota`. See
+[Configuration → Resilience](/docs/configuration#resilience-degradation-policy)
+and [Troubleshooting](/docs/gotchas#fail-open-quotas-silently-stop-enforcing).
+
 ## Counter modes
 
 | Mode | Helper | Reset behaviour |

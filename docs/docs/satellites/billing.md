@@ -392,7 +392,7 @@ use):
 | `createBillingPortalSession(tenant, opts)` | `Promise<{ url }>` | Builds a Billing Portal session URL. Throws `customer_not_found` if the tenant has no Stripe customer yet. |
 | `syncSubscription(sub, eventCreated, opts?)` | `Promise<{ tenant_id, plan, previousPlan } \| null>` | Reconciles a `Stripe.Subscription` into the local mirror + assigns the plan. Stale events (older than `last_event_at - 5s`) are rejected. |
 | `reportUsage(tenant, meter, qty, opts?)` | `Promise<void>` | Reports a meter event to Stripe. Persists an audit row in `stripe_meter_events`. |
-| `retrieveEvent(eventId)` | `Promise<Stripe.Event>` | Re-fetches a webhook event from Stripe. Used by the job rather than trusting the queue payload. Falls back to the locally-persisted `payload` jsonb for events older than Stripe's 30-day retrieval window. |
+| `retrieveEvent(eventId)` | `Promise<Stripe.Event>` | Re-fetches a webhook event from Stripe. Used by the job rather than trusting the queue payload. When Stripe reports the event is gone (`resource_missing` / 404), falls back to the locally-persisted replayable `payload` and reconstructs it faithfully so plan mapping survives. Other Stripe errors surface unchanged. |
 
 The host wires checkout and the portal as your own routes — apply
 your auth + role middleware (`auth + activeTenant + role(owner|admin)`
@@ -486,7 +486,7 @@ Webhook idempotency ledger.
 | `attempts` | `integer` | |
 | `last_error` | `text \| null` | Redacted; never raw `error.message`. |
 | `status` | `enum` | `pending \| completed \| failed` |
-| `payload` | `jsonb \| null` | Redacted fallback for replay past Stripe's 30-day retrieval window. |
+| `payload` | `jsonb \| null` | PII-stripped, structurally-faithful replayable copy (`toReplayablePayload`). Reconstructs an aged-out event for replay past Stripe's 30-day retrieval window. |
 | **Indexes** | | `(status, processed_at)`, `(event_type)` |
 
 ### `stripe_meter_events`
@@ -537,14 +537,15 @@ branch without race conditions on a magic number.
 
 ## Observability
 
-- **PII redaction** is built in. The webhook payload persisted in
-  `stripe_processed_events.payload` and the structured logs go
-  through `redactStripeEvent()`, which is a *strip-list* (whitelist):
-  only fields explicitly added to `RedactedStripeEvent` survive.
-  Adding a field requires deliberate review against the PII matrix —
-  email, name, phone, address, `billing_details`, `last4`,
-  `receipt_number`, `metadata`, `description`, etc. are never
-  included.
+- **PII redaction** is built in, through two strip-lists (allowlists)
+  that never copy the raw Stripe object. Structured **logs** go through
+  `redactStripeEvent()`. The webhook **payload** persisted in
+  `stripe_processed_events.payload` goes through `toReplayablePayload()`,
+  which keeps the nested `data.object` shape so an aged-out event can be
+  reconstructed for replay. Adding a field to either requires deliberate
+  review against the PII matrix: email, name, phone, address,
+  `billing_details`, `last4`, `receipt_number`, `metadata`,
+  `description`, and the like are never included.
 - **Dead-letter events** carry `errorCode` (a stable enum) and
   `details: string | null`. `details` is `null` for unknown errors;
   populated only when the source error was a `BillingException`
@@ -840,5 +841,5 @@ aggregator and investigate the specific tenant.
   end-to-end recipe.
 - [Quotas satellite](/docs/satellites/quotas) — where the plan
   assignments land.
-- [Lifecycle events](/docs/events) — the 10 billing events plus the
-  13 tenant-lifecycle events.
+- [Lifecycle events](/docs/events): the 10 billing events plus the
+  14 tenant-lifecycle events.

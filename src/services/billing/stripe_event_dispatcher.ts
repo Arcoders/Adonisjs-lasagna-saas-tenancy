@@ -223,7 +223,7 @@ async function handlePaymentSucceeded(
  * it on `invoice.subscription` directly. Read both shapes defensively
  * — a single helper keeps the two payment handlers in sync.
  */
-function extractInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
+export function extractInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
   const invoiceRaw = invoice as unknown as {
     subscription?: string | { id?: string }
     parent?: { subscription_details?: { subscription?: string | { id?: string } } }

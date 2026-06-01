@@ -1,6 +1,6 @@
 ---
 title: Lifecycle events
-description: 23 typed events fire across the tenant lifecycle and Stripe billing pipeline. Subscribe with `emitter.on()` and react to provisioning, status changes, backups, clones, quota breaches, maintenance toggles, subscription transitions, payments, and dead-letter alerts.
+description: 25 typed events fire across the tenant lifecycle, the Stripe billing pipeline, and dependency resilience. Subscribe with `emitter.on()` and react to provisioning, status changes, backups, clones, quota breaches, maintenance toggles, subscription transitions, payments, dead-letter alerts, and dependency degradation.
 ---
 
 # Lifecycle events
@@ -24,6 +24,7 @@ API and get full payload typing for free.
 | `TenantRestored` | `tenant`, `fileName` | `RestoreTenant` job |
 | `TenantCloned` | `source`, `destination`, `result: CloneResult` | `CloneTenant` job |
 | `TenantQuotaExceeded` | `tenant`, `quota`, `limit`, `current`, `attempted` | `QuotaService.consume()` when an atomic check rejects the increment |
+| `QuotaTracked` | `tenant`, `quota`, `amount`, `total` | `QuotaService.track` / `consume` when `plans.emitTracked` is on (drives the Stripe metering bridge) |
 | `TenantEnteredMaintenance` | `tenant`, `message: string \| null` | `tenant:maintenance` command, `POST .../maintenance` |
 | `TenantExitedMaintenance` | `tenant` | `tenant:maintenance --off`, `DELETE .../maintenance` |
 | `TenantDeleted` | `tenant` | `tenant:destroy` command, `UninstallTenant` job, `DELETE .../tenants/:id` |
@@ -60,6 +61,22 @@ This is the canary for "we permanently failed to process a Stripe
 event". Wire PagerDuty / Slack / Sentry to it. The payload is
 PII-safe: only the event id, an opaque code, and an optional
 package-controlled detail string.
+:::
+
+## Resilience
+
+Dispatched by `ResilienceService` when a wrapped backing-dependency call fails
+and the configured degradation policy kicks in. Full detail on the
+[Resilience](/docs/resilience) page.
+
+| Event | Payload | Dispatched by |
+|---|---|---|
+| `DependencyDegraded` | `dependency`, `operation`, `tenantId`, `policy`, `errorCode` | A Redis/Postgres/Stripe call wrapped by `ResilienceService.run()` failed (for example `QuotaService` on a Redis outage). Gated by `config.resilience.observe`. |
+
+::: tip Subscribe paging to DependencyDegraded
+A burst of these means a backing service is down. The payload is alert-safe: a
+dependency name, an operation label, an optional tenant id, the applied policy,
+and a best-effort error code. No driver message, no PII.
 :::
 
 ## Subscribing

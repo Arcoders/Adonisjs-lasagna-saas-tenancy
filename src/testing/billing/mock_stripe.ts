@@ -234,7 +234,17 @@ export class MockStripe {
     return {
       retrieve: async (id: string): Promise<Stripe.Event> => {
         const found = this.#eventStore.get(id)
-        if (!found) throw new Error(`No event ${id} (use mock.injectEvent first)`)
+        if (!found) {
+          // Match real Stripe: an unknown or aged-out event is a 404
+          // resource_missing, not a generic error. BillingService.retrieveEvent
+          // keys its local-payload fallback off this code, so the mock has to
+          // emit it for the replay path to be exercised faithfully.
+          throw Object.assign(new Error(`No such event: ${id} (use mock.injectEvent first)`), {
+            type: 'StripeInvalidRequestError',
+            code: 'resource_missing',
+            statusCode: 404,
+          })
+        }
         return found
       },
     }

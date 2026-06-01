@@ -201,13 +201,20 @@ test.group('PII redaction (integration)', (group) => {
   })
 
   test('failed() event payload uses errorCode, not raw error.message', async ({ assert }) => {
-    // Force the job to fail on retrieveEvent — the mock without an
-    // injectEvent throws "No event evt_xxx (use mock.injectEvent first)".
-    // This message is from the mock itself, not Stripe SDK, so it's safe
-    // to assert on — we only want to confirm classifyError() routes it
-    // to `unhandled_error` and does NOT leak the raw message.
+    // Force the job to fail on retrieveEvent with a RETRYABLE error carrying a
+    // sensitive raw message. A retryable error propagates (so BullMQ retries);
+    // once retries are exhausted BullMQ calls failed(), which must persist the
+    // safe BillingException code/message and never the raw driver text. (A
+    // resource_missing here would instead short-circuit as fatal, so we inject
+    // a connection error explicitly to reach the failed() path.)
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    const mock = new MockStripe('whsec_test_billing_helper')
+    billing.__setStripeForTests(mock)
+    ;(mock.events as { retrieve: (id: string) => Promise<Stripe.Event> }).retrieve = async () => {
+      throw Object.assign(new Error('socket hang up while reading cus_secret_pii'), {
+        type: 'StripeConnectionError',
+      })
+    }
 
     // Seed a ledger row directly (skip the controller).
     const eventId = 'evt_failed_classify'
@@ -230,20 +237,20 @@ test.group('PII redaction (integration)', (group) => {
     } catch (err) {
       thrown = err
     }
-    assert.isDefined(thrown, 'execute should propagate the retrieve error')
+    assert.isDefined(thrown, 'a retryable retrieve error propagates so BullMQ can retry')
 
     // The actual `failed()` is called by BullMQ; we invoke it directly to
     // exercise the redaction path.
     await job.failed(thrown as Error)
 
-    // Reload the row — last_error should be `unhandled_error` (or the
-    // BillingException code if the failure was wrapped). Critical: it
-    // must NOT contain "use mock.injectEvent first" (raw error message).
+    // Reload the row. last_error must be the package-controlled BillingException
+    // message, never the raw driver text or the leaked customer id.
     const updated = await (
       await import('@adonisjs-lasagna/saas-tenancy/models/satellites')
     ).StripeProcessedEvent.find(eventId)
     assert.isNotNull(updated)
-    assert.notInclude(updated?.lastError ?? '', 'mock.injectEvent')
+    assert.notInclude(updated?.lastError ?? '', 'cus_secret_pii')
+    assert.notInclude(updated?.lastError ?? '', 'socket hang up')
     assert.equal(updated?.status, 'failed')
   })
 })

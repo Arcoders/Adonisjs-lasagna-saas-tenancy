@@ -22,4 +22,6 @@ export { default as BillingMisconfigured } from './billing/billing_misconfigured
 export { default as BillingEventDeadLettered } from './billing/billing_event_dead_lettered.js'
 export { default as TenantEnteredMaintenance } from './tenant_entered_maintenance.js'
 export { default as TenantExitedMaintenance } from './tenant_exited_maintenance.js'
+export { default as DependencyDegraded } from './dependency_degraded.js'
+export type { DependencyDegradedPayload } from './dependency_degraded.js'
 export type { TenantMigrationDirection } from './tenant_migrated.js'

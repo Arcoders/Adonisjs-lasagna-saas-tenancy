@@ -21,7 +21,7 @@ flags, metrics, and Stripe billing.
 [![AdonisJS](https://img.shields.io/badge/AdonisJS-7-5a45ff)](https://adonisjs.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-%E2%89%A514-336791)](https://www.postgresql.org)
 [![Redis](https://img.shields.io/badge/Redis-%E2%89%A56-DC382D)](https://redis.io)
-[![Tests](https://img.shields.io/badge/tests-505%20unit%20%2B%20355%20integration%20%2B%20123%20e2e-brightgreen)](./tests)
+[![Tests](https://img.shields.io/badge/tests-555%20unit%20%2B%20358%20integration%20%2B%20123%20e2e-brightgreen)](./tests)
 [![Docs](https://img.shields.io/badge/docs-published-C26A4B)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/)
 [![License](https://img.shields.io/badge/License-MIT-blue)](./LICENSE)
 
@@ -45,8 +45,9 @@ and runs 123 tests against it.
 | Feature | What it gives you |
 |---|---|
 | **Schema isolation** | Each tenant gets its own `tenant_<uuid>` PostgreSQL schema, provisioned and routed automatically. |
-| **Circuit breaker** | Opossum wraps every tenant DB call. One bad schema can't take down the others. |
-| **Lifecycle hooks + 23 typed events** | Declarative `before` / `after` hooks wired into commands and jobs. 13 tenant-lifecycle events + 10 billing events. |
+| **Circuit breaker** | Opossum wraps every tenant DB call; OPEN state is restored from Redis on restart so a known-down tenant DB fails fast across deploys. One bad schema can't take down the others. |
+| **Dependency resilience** | Per-dependency fail-open/fail-closed degradation policy via `ResilienceService`. Emits `DependencyDegraded` for alerting and returns a typed 503 (`DependencyUnavailableException`) when fail-closed. |
+| **Lifecycle hooks + 25 typed events** | Declarative `before` / `after` hooks wired into commands and jobs. 14 tenant/quota-lifecycle + 10 billing + 1 resilience event. |
 | **Contextual logging** | `tenantId` rides along through HTTP and queue jobs via `AsyncLocalStorage`. |
 | **`tenant:doctor`** | Ten built-in checks, `--fix` for auto-recovery, `--json` for CI, `--watch` for a live TUI. |
 | **Plans and quotas** | Declarative plans, rolling counters, snapshot usage, an `enforceQuota()` middleware that returns 429 and emits `TenantQuotaExceeded`. |

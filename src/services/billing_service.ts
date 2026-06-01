@@ -7,8 +7,9 @@ import StripeCustomer from '../models/satellites/stripe_customer.js'
 import StripeSubscription from '../models/satellites/stripe_subscription.js'
 import type { StripeSubscriptionStatus } from '../models/satellites/stripe_subscription.js'
 import StripeMeterEvent from '../models/satellites/stripe_meter_event.js'
+import StripeProcessedEvent from '../models/satellites/stripe_processed_event.js'
 import type { TenantModelContract } from '../types/contracts.js'
-import { redactStripeEvent } from './billing/redact.js'
+import { redactStripeEvent, rebuildStripeEvent } from './billing/redact.js'
 
 const lazyLogger = () =>
   import('@adonisjs/core/services/logger')
@@ -77,7 +78,11 @@ export interface CreatePortalOptions {
 }
 
 export interface ReportUsageOptions {
-  /** Custom idempotency key. Default: `<tenant>:<meter>:<uuid>`. */
+  /**
+   * Custom idempotency key. The default is `<tenant>:<meter>:<minute-bucket>`,
+   * which is deterministic per (tenant, meter, minute), so a retry within the
+   * same minute hits Stripe's idempotency cache and never double-counts usage.
+   */
   idempotencyKey?: string
   /** Event timestamp. Default: now. */
   timestamp?: DateTime
@@ -469,8 +474,8 @@ export default class BillingService {
    * in `stripe_meter_events` with a UNIQUE idempotency_key so retries can't
    * double-report.
    *
-   * Default idempotency key is non-deterministic (`<tenant>:<meter>:<uuid>`)
-   * — pass `opts.idempotencyKey` to dedupe against an external request id.
+   * The default idempotency key is deterministic, `<tenant>:<meter>:<minute-bucket>`.
+   * Pass `opts.idempotencyKey` to dedupe against an external request id instead.
    */
   async reportUsage(
     tenant: TenantModelContract,
@@ -576,18 +581,51 @@ export default class BillingService {
   }
 
   /**
-   * Re-fetch a webhook event from Stripe. The job uses this instead of
-   * trusting the queue payload — guards against tampering and reduces
-   * message size. Falls back to the locally-persisted `payload` jsonb for
-   * events older than Stripe's 30-day retrieval window.
+   * Re-fetch a webhook event from Stripe, the source of truth. The job uses
+   * this instead of trusting the queue payload, which guards against tampering
+   * and keeps the queue message down to `{ eventId }`.
+   *
+   * The local-payload fallback is scoped to the one case it exists for: Stripe
+   * reporting the event is gone (a `resource_missing` 404), which is what a late
+   * `tenant:billing:replay` hits once the event has aged out of the ~30-day
+   * retrieval window. There we rebuild the event from the replayable payload the
+   * webhook controller persisted in `stripe_processed_events.payload` at receive
+   * time. That payload is a PII-stripped, structurally-faithful copy (see
+   * `toReplayablePayload`), so the reconstructed event flows through the
+   * dispatcher unchanged, and it is trustworthy because the row was written only
+   * after the signature was verified (it isn't the untrusted queue payload).
+   *
+   * Every other Stripe failure (auth, rate limit, connection, permission)
+   * surfaces unchanged so the job classifies it correctly. Legacy rows that
+   * stored the old flat log-redaction summary also can't be rebuilt, so the
+   * original Stripe error is surfaced for those.
    */
   async retrieveEvent(eventId: string): Promise<Stripe.Event> {
     const stripe = await this.#getStripe()
     try {
       return await stripe.events.retrieve(eventId)
     } catch (err) {
+      // Fall back only when Stripe says the event is gone (resource_missing /
+      // 404), the aged-out case the fallback exists for. Auth, rate-limit,
+      // connection and other call-level failures must surface unchanged so the
+      // job classifies and retries or short-circuits them, instead of silently
+      // replaying a stale local copy.
+      const e = (err ?? {}) as { code?: string; statusCode?: number }
+      if (e.code === 'resource_missing' || e.statusCode === 404) {
+        const local = await this.#replayFromLocalPayload(eventId)
+        if (local) return local
+      }
       throw BillingException.fromStripeError(err, `failed to retrieve event ${eventId}`)
     }
+  }
+
+  /**
+   * Rebuild a `Stripe.Event` from the locally-persisted replayable payload,
+   * or `null` when there is no row / no reconstructable payload.
+   */
+  async #replayFromLocalPayload(eventId: string): Promise<Stripe.Event | null> {
+    const row = await StripeProcessedEvent.find(eventId)
+    return row?.payload ? rebuildStripeEvent(row.payload) : null
   }
 
   /** @internal — exposed for tests; do not use in app code. */
