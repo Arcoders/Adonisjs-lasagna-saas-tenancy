@@ -32,7 +32,8 @@ Lasagna handles the seams.
   None required, all consistent.
 - **Operational kit**: `tenant:doctor` (ten checks, `--fix`,
   `--watch`, `--json`), backups with retention tiers, read replicas,
-  Prometheus, OpenTelemetry, health probes.
+  Prometheus, OpenTelemetry, health probes, and a per-dependency
+  fail-open/fail-closed resilience policy.
 - **33 ace commands** spanning provisioning, migrations, backups,
   cloning, exec-under-tenant, maintenance mode, REPL, billing.
 - **REST admin API**: 36 endpoints, OpenAPI 3.1 spec, Swagger UI.
