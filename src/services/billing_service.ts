@@ -585,25 +585,36 @@ export default class BillingService {
    * this instead of trusting the queue payload, which guards against tampering
    * and keeps the queue message down to `{ eventId }`.
    *
-   * When Stripe can no longer return the event, typically because it aged out
-   * of Stripe's ~30-day retrieval window during a late `tenant:billing:replay`,
-   * we fall back to the replayable payload the webhook controller persisted in
-   * `stripe_processed_events.payload` at receive time. That payload is a
-   * PII-stripped, structurally-faithful copy (see `toReplayablePayload`), so the
-   * reconstructed event flows through the dispatcher unchanged. The fallback is
-   * still trustworthy: that row was written only after the signature was
-   * verified, so it isn't the untrusted queue payload.
+   * The local-payload fallback is scoped to the one case it exists for: Stripe
+   * reporting the event is gone (a `resource_missing` 404), which is what a late
+   * `tenant:billing:replay` hits once the event has aged out of the ~30-day
+   * retrieval window. There we rebuild the event from the replayable payload the
+   * webhook controller persisted in `stripe_processed_events.payload` at receive
+   * time. That payload is a PII-stripped, structurally-faithful copy (see
+   * `toReplayablePayload`), so the reconstructed event flows through the
+   * dispatcher unchanged, and it is trustworthy because the row was written only
+   * after the signature was verified (it isn't the untrusted queue payload).
    *
-   * Legacy rows that stored the old flat log-redaction summary can't be
-   * reconstructed; for those the original Stripe error is surfaced.
+   * Every other Stripe failure (auth, rate limit, connection, permission)
+   * surfaces unchanged so the job classifies it correctly. Legacy rows that
+   * stored the old flat log-redaction summary also can't be rebuilt, so the
+   * original Stripe error is surfaced for those.
    */
   async retrieveEvent(eventId: string): Promise<Stripe.Event> {
     const stripe = await this.#getStripe()
     try {
       return await stripe.events.retrieve(eventId)
     } catch (err) {
-      const local = await this.#replayFromLocalPayload(eventId)
-      if (local) return local
+      // Fall back only when Stripe says the event is gone (resource_missing /
+      // 404), the aged-out case the fallback exists for. Auth, rate-limit,
+      // connection and other call-level failures must surface unchanged so the
+      // job classifies and retries or short-circuits them, instead of silently
+      // replaying a stale local copy.
+      const e = (err ?? {}) as { code?: string; statusCode?: number }
+      if (e.code === 'resource_missing' || e.statusCode === 404) {
+        const local = await this.#replayFromLocalPayload(eventId)
+        if (local) return local
+      }
       throw BillingException.fromStripeError(err, `failed to retrieve event ${eventId}`)
     }
   }
