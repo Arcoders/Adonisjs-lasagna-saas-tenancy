@@ -7,19 +7,10 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "tenant",
-          "flagName": "tenant",
-          "required": false,
-          "type": "array",
-          "alias": "t",
-          "description": "Tenant ID(s) to back up"
-        }
+        { "name": "tenant", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant ID(s) to back up" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_backup.js"
     },
     {
@@ -29,19 +20,10 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "tenantId",
-          "flagName": "tenant",
-          "required": false,
-          "type": "string",
-          "alias": "t",
-          "description": "Filter by tenant ID"
-        }
+        { "name": "tenantId", "flagName": "tenant", "required": false, "type": "string", "alias": "t", "description": "Filter by tenant ID" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_backup_list.js"
     },
     {
@@ -51,26 +33,11 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "tenantId",
-          "flagName": "tenant",
-          "required": true,
-          "type": "string",
-          "alias": "t",
-          "description": "Tenant ID"
-        },
-        {
-          "name": "file",
-          "flagName": "file",
-          "required": true,
-          "type": "string",
-          "description": "Backup file name"
-        }
+        { "name": "tenantId", "flagName": "tenant", "required": true, "type": "string", "alias": "t", "description": "Tenant ID" },
+        { "name": "file", "flagName": "file", "required": true, "type": "string", "description": "Backup file name" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_restore.js"
     },
     {
@@ -80,55 +47,15 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "tenant",
-          "flagName": "tenant",
-          "required": true,
-          "type": "string",
-          "alias": "t",
-          "description": "Target tenant ID"
-        },
-        {
-          "name": "file",
-          "flagName": "file",
-          "required": true,
-          "type": "string",
-          "alias": "f",
-          "description": "Path to the .sql dump file"
-        },
-        {
-          "name": "schemaReplace",
-          "flagName": "schema-replace",
-          "required": false,
-          "type": "string",
-          "description": "Source schema name in the dump to rewrite"
-        },
-        {
-          "name": "dryRun",
-          "flagName": "dry-run",
-          "required": false,
-          "type": "boolean",
-          "description": "Parse file and report counts without executing"
-        },
-        {
-          "name": "verbose",
-          "flagName": "verbose",
-          "required": false,
-          "type": "boolean",
-          "description": "Print each failed statement"
-        },
-        {
-          "name": "force",
-          "flagName": "force",
-          "required": false,
-          "type": "boolean",
-          "description": "Allow import into non-active tenants"
-        }
+        { "name": "tenant", "flagName": "tenant", "required": true, "type": "string", "alias": "t", "description": "Target tenant ID" },
+        { "name": "file", "flagName": "file", "required": true, "type": "string", "alias": "f", "description": "Path to the .sql dump file" },
+        { "name": "schemaReplace", "flagName": "schema-replace", "required": false, "type": "string", "description": "Source schema name in the dump to rewrite" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Parse file and report counts without executing" },
+        { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Print each failed statement" },
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "description": "Allow import into non-active tenants" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "import_tenant_sql.js"
     },
     {
@@ -138,49 +65,14 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "source",
-          "flagName": "source",
-          "required": true,
-          "type": "string",
-          "alias": "s",
-          "description": "Source tenant ID to clone from"
-        },
-        {
-          "name": "name",
-          "flagName": "name",
-          "required": true,
-          "type": "string",
-          "alias": "n",
-          "description": "Name for the new tenant"
-        },
-        {
-          "name": "email",
-          "flagName": "email",
-          "required": true,
-          "type": "string",
-          "alias": "e",
-          "description": "Email for the new tenant"
-        },
-        {
-          "name": "schemaOnly",
-          "flagName": "schema-only",
-          "required": false,
-          "type": "boolean",
-          "description": "Clone schema structure only"
-        },
-        {
-          "name": "clearSessions",
-          "flagName": "clear-sessions",
-          "required": false,
-          "type": "boolean",
-          "description": "Wipe access_tokens in destination after copy"
-        }
+        { "name": "source", "flagName": "source", "required": true, "type": "string", "alias": "s", "description": "Source tenant ID to clone from" },
+        { "name": "name", "flagName": "name", "required": true, "type": "string", "alias": "n", "description": "Name for the new tenant" },
+        { "name": "email", "flagName": "email", "required": true, "type": "string", "alias": "e", "description": "Email for the new tenant" },
+        { "name": "schemaOnly", "flagName": "schema-only", "required": false, "type": "boolean", "description": "Clone schema structure only" },
+        { "name": "clearSessions", "flagName": "clear-sessions", "required": false, "type": "boolean", "description": "Wipe access_tokens in destination after copy" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_clone.js"
     },
     {
@@ -190,40 +82,13 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "tenant",
-          "flagName": "tenant",
-          "required": false,
-          "type": "array",
-          "alias": "t",
-          "description": "Limit the run to one or more tenant IDs"
-        },
-        {
-          "name": "force",
-          "flagName": "force",
-          "required": false,
-          "type": "boolean",
-          "description": "Ignore tier intervalHours; back up every selected tenant"
-        },
-        {
-          "name": "dryRun",
-          "flagName": "dry-run",
-          "required": false,
-          "type": "boolean",
-          "description": "Report what would happen without backing up or deleting anything"
-        },
-        {
-          "name": "noRetention",
-          "flagName": "no-retention",
-          "required": false,
-          "type": "boolean",
-          "description": "Skip the retention sweep (keep all archives untouched)"
-        }
+        { "name": "tenant", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Limit the run to one or more tenant IDs" },
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "description": "Ignore tier intervalHours; back up every selected tenant" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report what would happen without backing up or deleting anything" },
+        { "name": "noRetention", "flagName": "no-retention", "required": false, "type": "boolean", "description": "Skip the retention sweep (keep all archives untouched)" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_backups_run.js"
     }
   ],
