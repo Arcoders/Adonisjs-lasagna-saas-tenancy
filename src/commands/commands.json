@@ -8,9 +8,7 @@
       "aliases": [],
       "flags": [],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "setup_backoffice.js"
     },
     {
@@ -20,18 +18,10 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "all",
-          "flagName": "all",
-          "required": false,
-          "type": "boolean",
-          "description": "Include soft-deleted tenants"
-        }
+        { "name": "all", "flagName": "all", "required": false, "type": "boolean", "description": "Include soft-deleted tenants" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "list_tenants.js"
     },
     {
@@ -42,24 +32,10 @@
       "aliases": [],
       "flags": [],
       "args": [
-        {
-          "name": "name",
-          "argumentName": "name",
-          "required": true,
-          "description": "Tenant name",
-          "type": "string"
-        },
-        {
-          "name": "email",
-          "argumentName": "email",
-          "required": true,
-          "description": "Tenant contact email",
-          "type": "string"
-        }
+        { "name": "name", "argumentName": "name", "required": true, "description": "Tenant name", "type": "string" },
+        { "name": "email", "argumentName": "email", "required": true, "description": "Tenant contact email", "type": "string" }
       ],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "create_tenant.js"
     },
     {
@@ -70,17 +46,9 @@
       "aliases": [],
       "flags": [],
       "args": [
-        {
-          "name": "tenantId",
-          "argumentName": "tenantId",
-          "required": true,
-          "description": "Tenant ID to activate",
-          "type": "string"
-        }
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to activate", "type": "string" }
       ],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "activate_tenant.js"
     },
     {
@@ -91,17 +59,9 @@
       "aliases": [],
       "flags": [],
       "args": [
-        {
-          "name": "tenantId",
-          "argumentName": "tenantId",
-          "required": true,
-          "description": "Tenant ID to suspend",
-          "type": "string"
-        }
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to suspend", "type": "string" }
       ],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "suspend_tenant.js"
     },
     {
@@ -111,34 +71,13 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "force",
-          "flagName": "force",
-          "required": false,
-          "type": "boolean",
-          "alias": "y",
-          "description": "Skip confirmation prompt"
-        },
-        {
-          "name": "keepSchema",
-          "flagName": "keep-schema",
-          "required": false,
-          "type": "boolean",
-          "description": "Soft-delete only — preserve the tenant schema for the retention window"
-        }
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "alias": "y", "description": "Skip confirmation prompt" },
+        { "name": "keepSchema", "flagName": "keep-schema", "required": false, "type": "boolean", "description": "Soft-delete only — preserve the tenant schema for the retention window" }
       ],
       "args": [
-        {
-          "name": "tenantId",
-          "argumentName": "tenantId",
-          "required": true,
-          "description": "Tenant ID to destroy",
-          "type": "string"
-        }
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to destroy", "type": "string" }
       ],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "destroy_tenant.js"
     },
     {
@@ -148,40 +87,13 @@
       "namespace": "migration",
       "aliases": [],
       "flags": [
-        {
-          "name": "tenantsIds",
-          "flagName": "tenant",
-          "required": false,
-          "type": "array",
-          "alias": "t",
-          "description": "Tenant(s) id(s) to migrate"
-        },
-        {
-          "name": "dryRun",
-          "flagName": "dry-run",
-          "required": false,
-          "type": "boolean",
-          "description": "View SQL without running"
-        },
-        {
-          "name": "disableLocks",
-          "flagName": "disable-locks",
-          "required": false,
-          "type": "boolean",
-          "description": "Disable migration locks"
-        },
-        {
-          "name": "verbose",
-          "flagName": "verbose",
-          "required": false,
-          "type": "boolean",
-          "description": "Verbose output"
-        }
+        { "name": "tenantsIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant(s) id(s) to migrate" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "View SQL without running" },
+        { "name": "disableLocks", "flagName": "disable-locks", "required": false, "type": "boolean", "description": "Disable migration locks" },
+        { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Verbose output" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "run_tenant_migrations.js"
     },
     {
@@ -191,40 +103,13 @@
       "namespace": "migration",
       "aliases": [],
       "flags": [
-        {
-          "name": "tenantsIds",
-          "flagName": "tenant",
-          "required": false,
-          "type": "array",
-          "alias": "t",
-          "description": "Tenant(s) id(s) to rollback"
-        },
-        {
-          "name": "dryRun",
-          "flagName": "dry-run",
-          "required": false,
-          "type": "boolean",
-          "description": "View SQL without running"
-        },
-        {
-          "name": "disableLocks",
-          "flagName": "disable-locks",
-          "required": false,
-          "type": "boolean",
-          "description": "Disable migration locks"
-        },
-        {
-          "name": "verbose",
-          "flagName": "verbose",
-          "required": false,
-          "type": "boolean",
-          "description": "Verbose output"
-        }
+        { "name": "tenantsIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant(s) id(s) to rollback" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "View SQL without running" },
+        { "name": "disableLocks", "flagName": "disable-locks", "required": false, "type": "boolean", "description": "Disable migration locks" },
+        { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Verbose output" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "rollback_tenant_migrations.js"
     },
     {
@@ -234,40 +119,13 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "tenantsIds",
-          "flagName": "tenant",
-          "required": false,
-          "type": "array",
-          "alias": "t",
-          "description": "Tenant ID(s) to migrate"
-        },
-        {
-          "name": "dryRun",
-          "flagName": "dry-run",
-          "required": false,
-          "type": "boolean",
-          "description": "Print SQL without executing"
-        },
-        {
-          "name": "disableLocks",
-          "flagName": "disable-locks",
-          "required": false,
-          "type": "boolean",
-          "description": "Disable migration locks"
-        },
-        {
-          "name": "verbose",
-          "flagName": "verbose",
-          "required": false,
-          "type": "boolean",
-          "description": "Verbose output"
-        }
+        { "name": "tenantsIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant ID(s) to migrate" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Print SQL without executing" },
+        { "name": "disableLocks", "flagName": "disable-locks", "required": false, "type": "boolean", "description": "Disable migration locks" },
+        { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Verbose output" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_migrate.js"
     },
     {
@@ -277,40 +135,13 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "tenantsIds",
-          "flagName": "tenant",
-          "required": false,
-          "type": "array",
-          "alias": "t",
-          "description": "Tenant ID(s) to rollback"
-        },
-        {
-          "name": "dryRun",
-          "flagName": "dry-run",
-          "required": false,
-          "type": "boolean",
-          "description": "Print SQL without executing"
-        },
-        {
-          "name": "disableLocks",
-          "flagName": "disable-locks",
-          "required": false,
-          "type": "boolean",
-          "description": "Disable migration locks"
-        },
-        {
-          "name": "verbose",
-          "flagName": "verbose",
-          "required": false,
-          "type": "boolean",
-          "description": "Verbose output"
-        }
+        { "name": "tenantsIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant ID(s) to rollback" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Print SQL without executing" },
+        { "name": "disableLocks", "flagName": "disable-locks", "required": false, "type": "boolean", "description": "Disable migration locks" },
+        { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Verbose output" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_migrate_rollback.js"
     },
     {
@@ -320,48 +151,14 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "tenantsIds",
-          "flagName": "tenant",
-          "required": false,
-          "type": "array",
-          "alias": "t",
-          "description": "Tenant ID(s) to refresh. Omit to refresh every tenant"
-        },
-        {
-          "name": "force",
-          "flagName": "force",
-          "required": false,
-          "type": "boolean",
-          "alias": "y",
-          "description": "Skip the confirmation prompt"
-        },
-        {
-          "name": "seed",
-          "flagName": "seed",
-          "required": false,
-          "type": "boolean",
-          "description": "Run seeders after migrations finish for each tenant"
-        },
-        {
-          "name": "disableLocks",
-          "flagName": "disable-locks",
-          "required": false,
-          "type": "boolean",
-          "description": "Disable migration locks"
-        },
-        {
-          "name": "verbose",
-          "flagName": "verbose",
-          "required": false,
-          "type": "boolean",
-          "description": "Verbose output"
-        }
+        { "name": "tenantsIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant ID(s) to refresh. Omit to refresh every tenant" },
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "alias": "y", "description": "Skip the confirmation prompt" },
+        { "name": "seed", "flagName": "seed", "required": false, "type": "boolean", "description": "Run seeders after migrations finish for each tenant" },
+        { "name": "disableLocks", "flagName": "disable-locks", "required": false, "type": "boolean", "description": "Disable migration locks" },
+        { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Verbose output" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_migrate_fresh.js"
     },
     {
@@ -371,19 +168,10 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "tenant",
-          "flagName": "tenant",
-          "required": false,
-          "type": "array",
-          "alias": "t",
-          "description": "Filter by tenant ID(s)"
-        }
+        { "name": "tenant", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Filter by tenant ID(s)" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_queue_stats.js"
     },
     {
@@ -394,9 +182,7 @@
       "aliases": [],
       "flags": [],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_webhooks_retry.js"
     },
     {
@@ -407,17 +193,9 @@
       "aliases": [],
       "flags": [],
       "args": [
-        {
-          "name": "period",
-          "argumentName": "period",
-          "required": false,
-          "description": "Period to flush (YYYY-MM-DD). Defaults to today (UTC)",
-          "type": "string"
-        }
+        { "name": "period", "argumentName": "period", "required": false, "description": "Period to flush (YYYY-MM-DD). Defaults to today (UTC)", "type": "string" }
       ],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_metrics_flush.js"
     },
     {
@@ -427,55 +205,15 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "tenant",
-          "flagName": "tenant",
-          "required": false,
-          "type": "array",
-          "alias": "t",
-          "description": "Limit checks to one or more tenant IDs"
-        },
-        {
-          "name": "check",
-          "flagName": "check",
-          "required": false,
-          "type": "array",
-          "description": "Run only the named check(s); pass --check=list to print available checks"
-        },
-        {
-          "name": "fix",
-          "flagName": "fix",
-          "required": false,
-          "type": "boolean",
-          "description": "Apply auto-fix for fixable issues"
-        },
-        {
-          "name": "json",
-          "flagName": "json",
-          "required": false,
-          "type": "boolean",
-          "description": "Emit a JSON report on stdout instead of the table"
-        },
-        {
-          "name": "watch",
-          "flagName": "watch",
-          "required": false,
-          "type": "boolean",
-          "alias": "w",
-          "description": "Re-run continuously and redraw a compact dashboard every --interval ms"
-        },
-        {
-          "name": "interval",
-          "flagName": "interval",
-          "required": false,
-          "type": "number",
-          "description": "Refresh interval in ms when --watch is set (default 5000, min 1000)"
-        }
+        { "name": "tenant", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Limit checks to one or more tenant IDs" },
+        { "name": "check", "flagName": "check", "required": false, "type": "array", "description": "Run only the named check(s); pass --check=list to print available checks" },
+        { "name": "fix", "flagName": "fix", "required": false, "type": "boolean", "description": "Apply auto-fix for fixable issues" },
+        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit a JSON report on stdout instead of the table" },
+        { "name": "watch", "flagName": "watch", "required": false, "type": "boolean", "alias": "w", "description": "Re-run continuously and redraw a compact dashboard every --interval ms" },
+        { "name": "interval", "flagName": "interval", "required": false, "type": "number", "description": "Refresh interval in ms when --watch is set (default 5000, min 1000)" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_doctor.js"
     },
     {
@@ -485,34 +223,12 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "tenant",
-          "flagName": "tenant",
-          "required": false,
-          "type": "array",
-          "alias": "t",
-          "description": "Tenant ID(s) to seed; omit to seed every active tenant"
-        },
-        {
-          "name": "files",
-          "flagName": "files",
-          "required": false,
-          "type": "array",
-          "alias": "f",
-          "description": "Cherry-pick seeder file(s) by relative path; passed through to db:seed"
-        },
-        {
-          "name": "continueOnError",
-          "flagName": "continue-on-error",
-          "required": false,
-          "type": "boolean",
-          "description": "Keep seeding remaining tenants when one fails"
-        }
+        { "name": "tenant", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant ID(s) to seed; omit to seed every active tenant" },
+        { "name": "files", "flagName": "files", "required": false, "type": "array", "alias": "f", "description": "Cherry-pick seeder file(s) by relative path; passed through to db:seed" },
+        { "name": "continueOnError", "flagName": "continue-on-error", "required": false, "type": "boolean", "description": "Keep seeding remaining tenants when one fails" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_seed.js"
     },
     {
@@ -523,18 +239,9 @@
       "aliases": [],
       "flags": [],
       "args": [
-        {
-          "name": "tenantId",
-          "argumentName": "tenantId",
-          "required": true,
-          "description": "Tenant ID to load into the REPL context",
-          "type": "string"
-        }
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to load into the REPL context", "type": "string" }
       ],
-      "options": {
-        "startApp": true,
-        "staysAlive": true
-      },
+      "options": { "startApp": true, "staysAlive": true },
       "filePath": "tenant_repl.js"
     },
     {
@@ -544,76 +251,19 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "tenantsIds",
-          "flagName": "tenant",
-          "required": false,
-          "type": "array",
-          "alias": "t",
-          "description": "Tenant ID(s) to target. Omit to iterate every tenant"
-        },
-        {
-          "name": "statuses",
-          "flagName": "status",
-          "required": false,
-          "type": "array",
-          "description": "Filter by status (active|provisioning|suspended|failed|deleted)"
-        },
-        {
-          "name": "includeDeleted",
-          "flagName": "include-deleted",
-          "required": false,
-          "type": "boolean",
-          "description": "Include soft-deleted tenants in the iteration"
-        },
-        {
-          "name": "limit",
-          "flagName": "limit",
-          "required": false,
-          "type": "number",
-          "description": "Stop after N tenants"
-        },
-        {
-          "name": "batchSize",
-          "flagName": "batch-size",
-          "required": false,
-          "type": "number",
-          "description": "Cursor batch size for whole-population iteration (default 100)"
-        },
-        {
-          "name": "continueOnError",
-          "flagName": "continue-on-error",
-          "required": false,
-          "type": "boolean",
-          "description": "Keep going when a tenant fails"
-        },
-        {
-          "name": "dryRun",
-          "flagName": "dry-run",
-          "required": false,
-          "type": "boolean",
-          "description": "Print which tenants would run without executing"
-        }
+        { "name": "tenantsIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant ID(s) to target. Omit to iterate every tenant" },
+        { "name": "statuses", "flagName": "status", "required": false, "type": "array", "description": "Filter by status (active|provisioning|suspended|failed|deleted)" },
+        { "name": "includeDeleted", "flagName": "include-deleted", "required": false, "type": "boolean", "description": "Include soft-deleted tenants in the iteration" },
+        { "name": "limit", "flagName": "limit", "required": false, "type": "number", "description": "Stop after N tenants" },
+        { "name": "batchSize", "flagName": "batch-size", "required": false, "type": "number", "description": "Cursor batch size for whole-population iteration (default 100)" },
+        { "name": "continueOnError", "flagName": "continue-on-error", "required": false, "type": "boolean", "description": "Keep going when a tenant fails" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Print which tenants would run without executing" }
       ],
       "args": [
-        {
-          "name": "command",
-          "argumentName": "command",
-          "required": true,
-          "description": "Ace command to run for each tenant",
-          "type": "string"
-        },
-        {
-          "name": "commandArgs",
-          "argumentName": "commandArgs",
-          "required": false,
-          "description": "Arguments and flags forwarded to the inner command",
-          "type": "spread"
-        }
+        { "name": "command", "argumentName": "command", "required": true, "description": "Ace command to run for each tenant", "type": "string" },
+        { "name": "commandArgs", "argumentName": "commandArgs", "required": false, "description": "Arguments and flags forwarded to the inner command", "type": "spread" }
       ],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_exec.js"
     },
     {
@@ -623,33 +273,13 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "off",
-          "flagName": "off",
-          "required": false,
-          "type": "boolean",
-          "description": "Exit maintenance mode (default: enter)"
-        },
-        {
-          "name": "message",
-          "flagName": "message",
-          "required": false,
-          "type": "string",
-          "description": "Optional message shown in the 503 response"
-        }
+        { "name": "off", "flagName": "off", "required": false, "type": "boolean", "description": "Exit maintenance mode (default: enter)" },
+        { "name": "message", "flagName": "message", "required": false, "type": "string", "description": "Optional message shown in the 503 response" }
       ],
       "args": [
-        {
-          "name": "tenantId",
-          "argumentName": "tenantId",
-          "required": true,
-          "description": "Tenant ID to toggle",
-          "type": "string"
-        }
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to toggle", "type": "string" }
       ],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_maintenance.js"
     },
     {
@@ -659,54 +289,16 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "admin",
-          "flagName": "admin",
-          "required": false,
-          "type": "string",
-          "description": "Acting admin id (recorded in the audit log)"
-        },
-        {
-          "name": "duration",
-          "flagName": "duration",
-          "required": false,
-          "type": "number",
-          "description": "Session duration in seconds (default 3600)"
-        },
-        {
-          "name": "reason",
-          "flagName": "reason",
-          "required": false,
-          "type": "string",
-          "description": "Optional reason recorded in audit trail"
-        },
-        {
-          "name": "path",
-          "flagName": "path",
-          "required": false,
-          "type": "string",
-          "description": "Path embedded in the printed redirect URL (default /)"
-        }
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id (recorded in the audit log)" },
+        { "name": "duration", "flagName": "duration", "required": false, "type": "number", "description": "Session duration in seconds (default 3600)" },
+        { "name": "reason", "flagName": "reason", "required": false, "type": "string", "description": "Optional reason recorded in audit trail" },
+        { "name": "path", "flagName": "path", "required": false, "type": "string", "description": "Path embedded in the printed redirect URL (default /)" }
       ],
       "args": [
-        {
-          "name": "tenantId",
-          "argumentName": "tenantId",
-          "required": true,
-          "description": "Tenant ID",
-          "type": "string"
-        },
-        {
-          "name": "userId",
-          "argumentName": "userId",
-          "required": true,
-          "description": "Target user ID inside the tenant",
-          "type": "string"
-        }
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID", "type": "string" },
+        { "name": "userId", "argumentName": "userId", "required": true, "description": "Target user ID inside the tenant", "type": "string" }
       ],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_impersonate.js"
     },
     {
@@ -716,33 +308,12 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        {
-          "name": "retentionDays",
-          "flagName": "retention-days",
-          "required": false,
-          "type": "number",
-          "description": "Override config.softDelete.retentionDays for this run"
-        },
-        {
-          "name": "dryRun",
-          "flagName": "dry-run",
-          "required": false,
-          "type": "boolean",
-          "description": "Report what would be purged without dropping anything"
-        },
-        {
-          "name": "force",
-          "flagName": "force",
-          "required": false,
-          "type": "boolean",
-          "alias": "y",
-          "description": "Skip the confirmation prompt"
-        }
+        { "name": "retentionDays", "flagName": "retention-days", "required": false, "type": "number", "description": "Override config.softDelete.retentionDays for this run" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report what would be purged without dropping anything" },
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "alias": "y", "description": "Skip the confirmation prompt" }
       ],
       "args": [],
-      "options": {
-        "startApp": true
-      },
+      "options": { "startApp": true },
       "filePath": "tenant_purge_expired.js"
     }
   ],
