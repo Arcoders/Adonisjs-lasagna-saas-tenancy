@@ -6,7 +6,6 @@ import AuditLogService from '../services/audit_log_service.js'
 import FeatureFlagService from '../services/feature_flag_service.js'
 import WebhookService from '../services/webhook_service.js'
 import BrandingService from '../services/branding_service.js'
-import SsoService from '../services/sso_service.js'
 import MetricsService from '../services/metrics_service.js'
 import TenantQueueService from '../services/tenant_queue_service.js'
 import CircuitBreakerService from '../services/circuit_breaker_service.js'
@@ -47,7 +46,7 @@ export default class TenantRepl extends BaseCommand {
     )
     repl.notify(
       `Available: ${this.colors.dim(
-        'tenant, db, audit, featureFlags, webhooks, branding, sso, metrics, queue, circuit, logCtx'
+        'tenant, db, audit, featureFlags, webhooks, branding, metrics, queue, circuit, logCtx'
       )}`
     )
 
@@ -58,7 +57,8 @@ export default class TenantRepl extends BaseCommand {
       featureFlags: new FeatureFlagService(),
       webhooks: new WebhookService(),
       branding: new BrandingService(),
-      sso: new SsoService(),
+      // `sso` moved to @adonisjs-lasagna/sso; the core REPL no longer preloads
+      // it (core never imports a satellite package).
       metrics: new MetricsService(),
       queue: new TenantQueueService(),
       circuit: cb,

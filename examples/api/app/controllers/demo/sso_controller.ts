@@ -1,5 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import { SsoService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { SsoService } from '@adonisjs-lasagna/sso'
 import { updateSsoValidator } from '#app/validators/sso_validator'
 
 const sso = new SsoService()

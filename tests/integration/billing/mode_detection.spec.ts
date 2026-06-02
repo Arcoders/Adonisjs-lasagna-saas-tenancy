@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
-import { BillingService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { BillingService } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '../../helpers/config.js'
 // Imported via the package path (build/) so we don't pull a parallel

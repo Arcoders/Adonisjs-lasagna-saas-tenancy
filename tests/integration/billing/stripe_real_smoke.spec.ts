@@ -1,16 +1,11 @@
 import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import { randomUUID } from 'node:crypto'
-import { BillingService } from '@adonisjs-lasagna/saas-tenancy/services'
-import { signWebhookPayload } from '@adonisjs-lasagna/saas-tenancy/testing'
-import {
-  StripeCustomer,
-  StripeMeterEvent,
-  StripeProcessedEvent,
-  StripeSubscription,
-  TenantPlan,
-} from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { ProcessStripeEventJob } from '@adonisjs-lasagna/saas-tenancy/jobs'
+import { BillingService } from '@adonisjs-lasagna/billing'
+import { signWebhookPayload } from '@adonisjs-lasagna/billing'
+import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import { StripeCustomer, StripeMeterEvent, StripeProcessedEvent, StripeSubscription } from '@adonisjs-lasagna/billing'
+import { ProcessStripeEventJob } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '../../helpers/config.js'
 import { clearBillingTables, hydrateJob } from './helpers.js'

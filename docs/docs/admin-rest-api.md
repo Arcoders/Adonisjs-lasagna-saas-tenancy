@@ -27,12 +27,19 @@ curl -H "x-admin-token: $TOKEN" \
 
 ```ts
 // start/routes.ts
-import { registerAdminRoutes } from '@adonisjs-lasagna/saas-tenancy/admin'
+import { multitenancyAdminRoutes } from '@adonisjs-lasagna/admin'
+import { middleware } from '#start/kernel'
 
-registerAdminRoutes({
+multitenancyAdminRoutes({
   prefix: '/admin/multitenancy',
+  middleware: middleware.adminAuth(),
 })
 ```
+
+The admin API lives in its own package (`@adonisjs-lasagna/admin`), installed
+alongside the core. `middleware` is required: omit it and the call throws at
+startup, since the surface includes destructive routes. To mount it public on
+purpose (only behind a trusted network boundary), pass `middleware: false`.
 
 ## OpenAPI 3.1 spec
 

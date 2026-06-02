@@ -3,14 +3,11 @@ export type { CheckStatus, CheckResult, HealthCheckFn, HealthReport } from './he
 
 export { default as HealthController } from './health_controller.js'
 
-export { multitenancyRoutes, multitenancyBillingRoutes } from './routes.js'
-export type {
-  MultitenancyRoutesOptions,
-  MultitenancyBillingRoutesOptions,
-} from './routes.js'
+export { multitenancyRoutes } from './routes.js'
+export type { MultitenancyRoutesOptions } from './routes.js'
+// `multitenancyBillingRoutes` + `billingHealthCheck` moved to `@adonisjs-lasagna/billing`.
 
 export { backofficeDbCheck, redisCheck, makeCircuitBreakerCheck } from './default_checks.js'
-export { billingHealthCheck } from './billing_health_check.js'
 
 export { renderPrometheus } from './metrics_exporter.js'
 export type { MetricsSnapshot } from './metrics_exporter.js'

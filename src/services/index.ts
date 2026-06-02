@@ -29,18 +29,11 @@ export { default as WebhookService, verifyWebhookSignature } from './webhook_ser
 export { getCache, cacheFor } from '../utils/cache.js'
 export { default as BrandingService } from './branding_service.js'
 export type { BrandingData } from './branding_service.js'
-export { default as SsoService } from './sso_service.js'
+// `SsoService` moved to `@adonisjs-lasagna/sso`.
 export { default as MetricsService } from './metrics_service.js'
 export { default as QuotaService } from './quota_service.js'
 export type { QuotaCheckResult, QuotaStateSnapshot, QuotaMode } from './quota_service.js'
-export { default as BillingService } from './billing_service.js'
-export type {
-  CreateCheckoutOptions,
-  CreatePortalOptions,
-  ReportUsageOptions,
-} from './billing_service.js'
-export { redactStripeEvent } from './billing/redact.js'
-export type { RedactedStripeEvent } from './billing/redact.js'
+// `BillingService` + `redactStripeEvent` moved to `@adonisjs-lasagna/billing`.
 export { default as ReadReplicaService } from './read_replica_service.js'
 export { default as HookRegistry } from './hook_registry.js'
 export { default as BootstrapperRegistry } from './bootstrapper_registry.js'

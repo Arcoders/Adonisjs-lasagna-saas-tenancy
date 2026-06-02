@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import { randomUUID } from 'node:crypto'
-import { multitenancyAdminRoutes } from '@adonisjs-lasagna/saas-tenancy/admin'
+import { multitenancyAdminRoutes } from '@adonisjs-lasagna/admin'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 
 const PREFIX = '/admin/multitenancy'

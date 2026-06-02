@@ -1,8 +1,8 @@
 import router from '@adonisjs/core/services/router'
 import db from '@adonisjs/lucid/services/db'
 import { middleware } from './kernel.js'
-import { multitenancyAdminRoutes } from '@adonisjs-lasagna/saas-tenancy/admin'
-import { multitenancyBillingRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
+import { multitenancyAdminRoutes } from '@adonisjs-lasagna/admin'
+import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
 
 router.get('/health', async ({ response }) => {
   return response.ok({ status: 'ok' })

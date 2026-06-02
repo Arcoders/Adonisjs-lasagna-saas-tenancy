@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { TenantSsoConfig } from '@adonisjs-lasagna/saas-tenancy'
+import { TenantSsoConfig } from '@adonisjs-lasagna/sso'
 import { createInstalledTenant, dropAllTenants } from './_helpers.js'
 
 /**

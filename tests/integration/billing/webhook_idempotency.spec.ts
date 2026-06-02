@@ -1,16 +1,12 @@
 import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import { randomUUID } from 'node:crypto'
-import { BillingService } from '@adonisjs-lasagna/saas-tenancy/services'
-import { MockStripe } from '@adonisjs-lasagna/saas-tenancy/testing'
-import { signWebhookPayload } from '@adonisjs-lasagna/saas-tenancy/testing'
-import {
-  StripeProcessedEvent,
-  StripeCustomer,
-  StripeSubscription,
-  TenantPlan,
-} from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { ProcessStripeEventJob } from '@adonisjs-lasagna/saas-tenancy/jobs'
+import { BillingService } from '@adonisjs-lasagna/billing'
+import { MockStripe } from '@adonisjs-lasagna/billing'
+import { signWebhookPayload } from '@adonisjs-lasagna/billing'
+import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import { StripeProcessedEvent, StripeCustomer, StripeSubscription } from '@adonisjs-lasagna/billing'
+import { ProcessStripeEventJob } from '@adonisjs-lasagna/billing'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import {
   setupBillingConfig,

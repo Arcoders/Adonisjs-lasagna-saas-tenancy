@@ -1,12 +1,9 @@
 import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import { randomUUID } from 'node:crypto'
-import { BillingService } from '@adonisjs-lasagna/saas-tenancy/services'
-import { MockStripe } from '@adonisjs-lasagna/saas-tenancy/testing'
-import {
-  StripeCustomer,
-  StripeSubscription,
-} from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import { BillingService } from '@adonisjs-lasagna/billing'
+import { MockStripe } from '@adonisjs-lasagna/billing'
+import { StripeCustomer, StripeSubscription } from '@adonisjs-lasagna/billing'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, buildSubscription, clearBillingTables } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'

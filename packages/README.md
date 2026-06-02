@@ -1,9 +1,18 @@
 # Satellite extraction (B3) — migration runbook
 
-Status: **scaffolding / not started in code.** This directory will hold the
-extracted satellite packages. Nothing is moved yet; this runbook is the
-executable plan so each move is mechanical and verifiable. It is a breaking
-change, sequenced for the `1.0.0` cut.
+Status: **admin + sso + billing extracted (`@adonisjs-lasagna/admin`,
+`@adonisjs-lasagna/sso`, `@adonisjs-lasagna/billing`); backup pending.** This
+directory holds the extracted satellite packages. The runbook is the executable
+plan so each move is mechanical and verifiable. It is a breaking change,
+sequenced for the `1.0.0` cut.
+
+The three extractions are done and verified locally (build core->sso->billing->admin,
+typecheck, core unit 529 + billing unit 40, coverage gate, npm-pack, runtime
+resolution). The fixture wiring + integration/e2e specs resolve the new packages
+(proven via `require.resolve`) but only fully run in CI (Postgres/Redis/Stripe).
+Billing additionally moved the provider IoC + the webhook route + the ace
+commands; the **provider lifecycle (boot/start/shutdown) is CI-verified only**.
+See the "DONE" sections at the end.
 
 ## Why
 
@@ -36,17 +45,31 @@ jobs, exceptions, testing helpers.
 Each satellite imports core via relative paths today; after extraction those
 become imports from `@adonisjs-lasagna/saas-tenancy` (and its subpaths).
 
-- **Leaf satellites** (`branding`, `feature-flags`, `metrics`, `audit`,
-  `webhooks`, `sso`): depend only on core (config, types, base models, events,
-  a satellite model). Cleanest. **Extract first.**
-- **`billing`**: depends on core (config, types, `QuotaService`, events,
-  `MetricsService`, mailer) but not on `admin`. Extract after the leaves.
-- **`admin`**: the REST facade over *every* satellite. `admin/**` imports
-  `QuotaService`, `BrandingService`, `MetricsService`, `FeatureFlagService`,
-  `SsoService`, `WebhookService`, `AuditLogService`, `ImpersonationService`,
-  `DoctorService`, `TenantQueueService`, `InstallTenant`, six lifecycle events,
-  `getActiveDriver`, and the satellite models. **Extract last**, after the
-  satellites it consumes are packages (or it depends on them as packages).
+The targets to extract are `admin`, `sso`, `billing`, `backup`. The leaf
+satellites (`branding`, `feature-flags`, `metrics`, `webhooks`, `audit`,
+`quotas`) **stay in core** for now.
+
+The only forbidden edge is `core -> satellite-package`. The audit of who, in
+core, imports each target decides the order:
+
+- **`admin`** is a pure consumer: it imports `QuotaService`, `BrandingService`,
+  `MetricsService`, `FeatureFlagService`, `SsoService`, `WebhookService`,
+  `AuditLogService`, `ImpersonationService`, `DoctorService`,
+  `TenantQueueService`, `InstallTenant`, six lifecycle events,
+  `getActiveDriver`, and the satellite models — but **nothing in core imports
+  `admin`** (verified) once one misplaced edge is removed (see below). So
+  `admin` extracts **first**: `admin-package -> core` is allowed, and removing
+  `admin` from core deletes the biggest cluster of core's satellite imports,
+  which unblocks the rest.
+- **`sso`**: in core, only `admin` imports `SsoService`. After `admin` leaves,
+  nothing in core imports `sso`, so it extracts next.
+- **`billing`**: core imports it from the provider (`#wireBillingListeners`,
+  shutdown drain) and listeners. Needs inversion of control — the billing
+  package should self-register its listeners via its own provider against core
+  events/hooks, instead of core wiring billing. Extract after `sso`.
+- **`backup`**: core imports it from the backup ace commands and the doctor
+  `backup_recency_check`. Move the commands with the package and have the doctor
+  check resolve `BackupService` through the container (not a static import).
 
 Reachability check (done): everything `admin/**` consumes is already exported
 from a public subpath (`/services` re-exports `DoctorService`,
@@ -55,6 +78,15 @@ services; `/jobs`, `/events`, `/models/satellites`, and the root export the
 rest). So the extraction needs little-to-no widening of the core public API —
 verify per package and add any missing symbol to `src/index.ts` /
 `src/services/index.ts` + the `exports` map + `typesVersions`.
+
+### Severed edge (done): `sso_service -> admin/helpers`
+
+`SsoService` (core) imported `validateExternalHttpsUrl` from
+`admin/controllers/helpers.ts` — a `core -> admin` edge that would have made the
+`admin` extraction circular. Fixed: the SSRF guard moved to `src/utils/url.ts`
+(core), exported from the root, and re-exported from `admin/controllers/helpers`
+so the admin controllers are unchanged. Verified (typecheck + 569 unit + build).
+This was the only code edge from core into `admin`.
 
 ## The circular-dependency rule
 
@@ -103,8 +135,200 @@ then billing, then admin. Keep the throwing shims for one minor; drop them in
 
 ## Order of execution
 
-1. `branding`, `feature-flags`, `metrics`, `audit`, `webhooks` (leaves).
-2. `sso`.
-3. `billing`.
-4. `admin` (last).
-5. `backup` (independent; any time after the leaves).
+1. **`admin`** — **DONE** (`@adonisjs-lasagna/admin`). Nothing in core imports
+   it (the helper edge was severed first); removing it deleted most
+   core->satellite edges.
+2. **`sso`** — **DONE** (`@adonisjs-lasagna/sso`). Core edges severed (REPL +
+   the three barrels). `admin` now depends on `sso` (admin -> sso -> core).
+3. **`billing`** — **DONE** (`@adonisjs-lasagna/billing`). Provider IoC inverted
+   into the package's own provider; webhook route + ace commands moved; barrels
+   + health module split.
+4. `backup` (after the doctor check + commands are handled).
+
+Leaf satellites (`branding`, `feature-flags`, `metrics`, `webhooks`, `audit`,
+`quotas`) stay in core.
+
+## First extraction (`admin`) — DONE
+
+Moved to `@adonisjs-lasagna/admin` (`packages/admin`). What was done:
+
+1. `packages/admin/{package.json,tsconfig.json,README.md}`; `packages/*` added
+   to the root `workspaces`. The package's `tsconfig.json` extends the root and
+   overrides `outDir`/`rootDir`/`include`; `exports` `.` -> `./build/src/index.js`.
+2. `git mv` of `admin_controller.ts`, `routes.ts`, `openapi.ts`,
+   `swagger_html.ts` and `controllers/*.ts` into `packages/admin/src/`.
+   `index.ts` was recreated in the package (the old core `src/admin/index.ts`
+   became the shim, see 4).
+3. Core imports rewritten to package subpaths, with the **default->named flip**:
+   `import QuotaService from '../../services/quota_service.js'` ->
+   `import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'`.
+   Same for `/events`, `/jobs`, `/models/satellites`, `/types`, and
+   `getActiveDriver`/`DoctorService`/`ImpersonationService`/`HookRegistry`/
+   `TenantQueueService` (`/services`). `validateExternalHttpsUrl` is re-exported
+   in `helpers.ts` from the core root (`@adonisjs-lasagna/saas-tenancy`).
+   Internal admin imports (`./controllers/*`, `./openapi.js`, `./helpers.js`)
+   stayed relative. `routes.ts`, `openapi.ts`, `swagger_html.ts` had no
+   core-relative imports.
+4. Core `src/admin/index.ts` is now a deprecated **throwing** shim
+   (`moved to @adonisjs-lasagna/admin`). The `./admin` export + `typesVersions`
+   entry stay one minor, then drop at the next major. The core never imports the
+   package, so no cycle.
+5. Specs/wiring: `tests/unit/admin/helpers.spec.ts` -> `tests/unit/utils/url.spec.ts`
+   (it tests the core `src/utils/url.ts` util now). `tests/unit/admin/openapi.spec.ts`
+   repointed to `../../../packages/admin/src/openapi.js` (transitional: a core
+   unit spec testing the package's source so it keeps running with no new test
+   infra; move it into `packages/admin/tests/` when the package gets its own
+   runner). `tests/fixtures/start/routes.ts`, `tests/integration/admin/satellites.spec.ts`,
+   and `examples/api/start/routes.ts` import `multitenancyAdminRoutes` from
+   `@adonisjs-lasagna/admin`.
+6. **Build hygiene fix (needed by the extraction):** core `build` now uses
+   `tsconfig.build.json` (only `src` + `index.ts` + `configure.ts`). The old
+   `build` compiled `tests/**`, which after the move pulled the package import
+   into the core build (chicken-and-egg) and emitted `build/packages` +
+   `build/tests` into the published tarball. `typecheck` still uses the full
+   `tsconfig.json` (it validates tests). Bonus: the core tarball no longer ships
+   compiled tests.
+7. Scripts/CI: `build:admin` + `build:all`; `test:integration[:coverage]` run
+   `build:all`. CI builds the admin package in lint-and-typecheck (so it is
+   typechecked) and uses `build:all` for the e2e + coverage-report jobs. `npm
+   install` already has `packages/*` in `workspaces`, so it symlinks
+   `@adonisjs-lasagna/admin`.
+
+### Verified locally (Node 24)
+
+`npm run build` (core, clean — no `build/tests`/`build/packages`), `npm run
+build:admin` (clean — every subpath import resolves against the core `.d.ts`),
+`npm install` (symlinks `node_modules/@adonisjs-lasagna/admin` ->
+`packages/admin`), `npm run typecheck` (0 errors), `npm run test:coverage` (569
+pass; gate 34.9 lines / 75.96 branches / 62.61 functions, exit 0). Smokes:
+`require.resolve('@adonisjs-lasagna/admin')` -> the built package; the package's
+`openapi.js` lists 28 paths; the core admin shim throws the migration error.
+`npm pack --dry-run`: core ships only the 4 shim files under
+`build/src/admin/` (no `tests/`, no `packages/`); admin ships its `build` +
+README + package.json (52 files, 42 kB).
+
+### CI-only (not runnable locally — no Postgres/Redis)
+
+The admin **integration** spec (`tests/integration/admin/satellites.spec.ts`)
+and the fixture wiring exercise `@adonisjs-lasagna/admin` over HTTP against a
+real DB. Module resolution is proven (`require.resolve`), but the full
+round-trip runs only in the `test-integration` + `test-e2e-demo` CI jobs.
+
+## Second extraction (`sso`) — DONE
+
+Moved to `@adonisjs-lasagna/sso` (`packages/sso`): `SsoService` + the
+`TenantSsoConfig` model. Unlike admin, `sso` was never a dedicated subpath — it
+was exported from **shared barrels**, so there is no throwing shim; the symbols
+are simply **removed** from the barrels (a documented breaking change).
+
+1. `packages/sso/{package.json,tsconfig.json,README.md}`; `src/index.ts` exports
+   `SsoService`, `TenantSsoConfig`, and the `IdTokenClaims` type. `jose` is an
+   optional peer.
+2. `git mv src/services/sso_service.ts` and
+   `src/models/satellites/tenant_sso_config.ts` into `packages/sso/src/`.
+   Rewrites: the model -> `./tenant_sso_config.js` (internal); `getCache` ->
+   `@adonisjs-lasagna/saas-tenancy/services`; `validateExternalHttpsUrl` ->
+   `@adonisjs-lasagna/saas-tenancy` (root); `BackofficeBaseModel` ->
+   `@adonisjs-lasagna/saas-tenancy/base-models`.
+3. **Severed core -> sso edges:** (a) `src/commands/tenant_repl.ts` no longer
+   imports/preloads `SsoService` (the REPL keeps the leaf satellites, drops
+   `sso`); (b) `SsoService` removed from `src/index.ts` + `src/services/index.ts`;
+   (c) `TenantSsoConfig` removed from `src/index.ts` +
+   `src/models/satellites/index.ts`. Verified: no other core file imports them.
+4. **Consumers repointed to `@adonisjs-lasagna/sso`:** the admin package's
+   `sso_controller` (and `@adonisjs-lasagna/sso` added to admin's
+   `peerDependencies` — `admin -> sso -> core`); the three core SSO integration
+   specs (`sso_service`, `sso_oidc_flow`, `sso_oidc_real`); the demo
+   `sso_controller` + the demo `satellites` e2e spec; `examples/api/package.json`
+   gains `file:` deps on the new packages.
+5. **Migration stub stays in core.** `stubs/migrations/create_tenant_sso_configs_table.stub`
+   and the `configure.ts` `sso: [...]` mapping stay in core — the migration is
+   plain SQL, independent of the model, so `--with=sso` still provisions the
+   table. (Per-package configure hooks are future work.)
+6. **Build order:** `build:sso` added; `build:all` is now core -> sso -> admin
+   (admin imports the sso package). CI's lint-and-typecheck builds sso then admin.
+
+### Verified locally (Node 24)
+
+`npm install` (symlinks `@adonisjs-lasagna/sso`), `npm run build:all` (core ->
+sso -> admin, all clean — sso resolves the core subpaths, admin resolves the sso
+`.d.ts`), `npm run typecheck` (0 errors — the repointed integration specs
+resolve `@adonisjs-lasagna/sso`), `npm run test:coverage` (569 pass; gate **35.53
+lines / 76.08 branches / 62.80 functions**, exit 0 — lines ticked up since the
+unit-uncovered `sso_service` left core's `src`). Smokes:
+`require.resolve('@adonisjs-lasagna/sso')` -> the built package; core barrels
+(`build/src/index.d.ts`, `/services`, `/models/satellites`) no longer name
+`SsoService`/`TenantSsoConfig`; `npm pack` for sso ships its `build` (8.5 kB).
+
+### CI-only
+
+The three SSO integration specs + the demo e2e exercise `@adonisjs-lasagna/sso`
+against a real DB / OIDC server (`mock-oauth2-server`). Resolution is proven;
+the round-trip runs in the `test-integration` + `test-e2e-demo` jobs.
+
+## Third extraction (`billing`) — DONE
+
+Moved to `@adonisjs-lasagna/billing` (`packages/billing`). The largest and most
+coupled one: ~36 files (the 754-LOC `BillingService`, `services/billing/**`, the
+webhook controller + middleware, the Stripe jobs incl. `report_usage_batch_job`,
+the three billing listeners, the 10 `events/billing/**`, `BillingException`,
+`billing_health_check`, the four Stripe models, `testing/billing/**`, and the six
+`tenant:billing:*` commands). The package mirrors the core `src/` subtree, so
+billing<->billing relative imports stayed valid; only imports of core-resident
+modules were rewritten.
+
+1. **Provider IoC inverted.** The core provider used to register `BillingService`,
+   `verify()` on boot, `#wireBillingListeners` on start (quota / usage / tenant-delete),
+   and drain the metering aggregator on shutdown. All of that moved verbatim into
+   `packages/billing/providers/billing_provider.ts`, which also registers the
+   billing jobs with the @adonisjs/queue Locator (core's job auto-register no
+   longer sees them). The core provider now references nothing billing. Apps
+   register `@adonisjs-lasagna/billing/provider` alongside the core provider.
+2. **Webhook route + commands moved.** `multitenancyBillingRoutes` was carved out
+   of `src/health/routes.ts` into `packages/billing/src/routes.ts`. The six ace
+   commands moved with their own `commands.json` + a `main.ts` loader; the package
+   declares `adonisjs.commands` and an `./commands` export. Apps register
+   `@adonisjs-lasagna/billing/commands`.
+3. **Barrels + health split.** Removed billing symbols from the core `services`,
+   `events`, `exceptions`, `jobs`, `middleware`, `models/satellites`, `commands`,
+   `testing`, and `health` barrels + `commands.json` (breaking; no shim possible
+   for shared barrels). `health/index` keeps `multitenancyRoutes` only.
+4. **Types stay in core.** `src/types/billing.ts` + `MultitenancyConfig.billing`
+   stay in core, so `config.billing` is still typed; only the runtime moved.
+   Billing reads config via a new lightweight `@adonisjs-lasagna/saas-tenancy/config`
+   subpath (importing it from the root barrel crashes outside an app — the root
+   and `/services` barrels eagerly touch `app.booted`).
+5. **Migration stubs stay in core** (`create_stripe_*` + the `configure.ts` mapping),
+   same rationale as sso.
+6. **Package-local unit runner.** The six billing unit specs moved to
+   `packages/billing/tests/unit/` with a `bin/test.ts` + `test` script, run from
+   the package cwd (tsx then picks up the package tsconfig so the Lucid-model
+   decorators transform). They can't stay in the core suite: loading the package
+   source from the repo-root tsx run trips the decorator transform.
+7. **Build hygiene.** All `build` scripts now `rm -rf build` first — `tsc` doesn't
+   prune, so post-move stale `.js` (billing/admin/sso) were leaking into the core
+   tarball. Build order: core -> sso -> billing -> admin.
+
+### Verified locally (Node 24)
+
+`npm install` (symlinks `@adonisjs-lasagna/billing`), `npm run build:all` (core ->
+sso -> billing -> admin, all clean), `npm run typecheck` (0 errors — the ~25
+repointed billing integration specs + fixture `adonisrc`/routes resolve the
+package), `npm run test:coverage` (**529 pass**; gate raised to **40 lines / 74
+branches / 62 functions**, measured **43.08 / 77.57 / 65.61**, exit 0 — coverage
+jumped since the unit-uncovered billing left core `src`), and the package's own
+`npm run test --workspace @adonisjs-lasagna/billing` (**40 pass**). Smokes:
+`require.resolve` of `@adonisjs-lasagna/billing` + `/provider` + `/commands`;
+`commands.json` ships in the build; core `.d.ts` barrels name no billing symbol;
+the core tarball ships only the intentional `types/billing.*` + `create_stripe_*`
+stubs (no stale `.js`).
+
+### CI-only (the elevated-risk part)
+
+The ~25 billing **integration** specs (dunning, webhook idempotency, IP allowlist,
+PII redaction, metered usage, the command specs, etc.) exercise the webhook
+pipeline + the **provider lifecycle** against real Postgres/Redis/Stripe. The
+provider IoC was moved verbatim, but boot/start/shutdown wiring + the fixture
+registering `@adonisjs-lasagna/billing/provider` + `/commands` only actually run
+in the `test-integration` + `test-e2e-demo` jobs. A wiring mistake there would
+not be caught by the local build/typecheck/unit gates.

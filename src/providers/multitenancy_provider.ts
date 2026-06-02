@@ -31,8 +31,9 @@ import ResilienceService from '../services/resilience_service.js'
 import CrossDomainRedirectService from '../services/cross_domain_redirect_service.js'
 import ImpersonationService from '../services/impersonation_service.js'
 import AuditLogService from '../services/audit_log_service.js'
-import BillingService from '../services/billing_service.js'
-import UsageAutoBridgeListener from '../listeners/usage_auto_bridge_listener.js'
+// Billing (service, listeners, jobs, webhook route, drain) moved to
+// `@adonisjs-lasagna/billing`; its own provider wires those against core
+// events/hooks. The core provider no longer references billing.
 
 export default class MultitenancyProvider {
   constructor(protected app: ApplicationService) {}
@@ -62,8 +63,6 @@ export default class MultitenancyProvider {
       const auditLog = await resolver.make(AuditLogService)
       return new ImpersonationService({ auditLog })
     })
-    this.app.container.singleton(BillingService, () => new BillingService())
-    this.app.container.singleton(UsageAutoBridgeListener, () => new UsageAutoBridgeListener())
   }
 
   async boot() {
@@ -149,15 +148,6 @@ export default class MultitenancyProvider {
     await this.#registerOptionalBootstrappers(bootstrappers)
 
     this.#validateImpersonationConfig(config)
-
-    // Validate billing config + Stripe SDK availability eagerly, so a
-    // missing peer dep / wrong-mode key blows up at boot instead of at
-    // first webhook (where the failure manifests as a 500 in front of
-    // Stripe's retry tier).
-    if (config.billing) {
-      const billing = await this.app.container.make(BillingService)
-      await billing.verify()
-    }
 
     await this.#registerQueueJobs()
   }
@@ -303,58 +293,6 @@ export default class MultitenancyProvider {
       })
     }
 
-    if (config.billing) {
-      await this.#wireBillingListeners(config)
-    }
-  }
-
-  /**
-   * Subscribe billing-side listeners to package events + tenant-lifecycle
-   * hooks. We resolve the shared emitter lazily so the package never
-   * hard-depends on having `@adonisjs/core/services/emitter` available
-   * outside an Adonis app (some test setups boot a stripped-down container).
-   */
-  async #wireBillingListeners(config: MultitenancyConfig): Promise<void> {
-    const emitter = await import('@adonisjs/core/services/emitter')
-      .then((m) => m.default)
-      .catch(() => null)
-
-    if (emitter && config.billing?.notifyOnQuotaExceeded) {
-      const TenantQuotaExceeded = (await import('../events/tenant_quota_exceeded.js')).default
-      const QuotaExceededBillingListener = (
-        await import('../listeners/quota_exceeded_billing_listener.js')
-      ).default
-      emitter.on(TenantQuotaExceeded, async (event) => {
-        const listener = new QuotaExceededBillingListener()
-        await listener.handle(event)
-      })
-    }
-
-    if (
-      emitter &&
-      config.billing?.usageMapping &&
-      Object.keys(config.billing.usageMapping).length > 0
-    ) {
-      const QuotaTracked = (await import('../events/quota_tracked.js')).default
-      const listener = await this.app.container.make(UsageAutoBridgeListener)
-      emitter.on(QuotaTracked, async (event) => {
-        await listener.handle(event)
-      })
-    }
-
-    // Tenant hard-delete cleanup. Always wired when billing is configured —
-    // there's no reason to leave a Stripe subscription billing the platform
-    // for a tenant that no longer exists. The listener honours
-    // `config.billing.onTenantDelete` for the policy choice (cancel /
-    // detach / preserve).
-    const hooks = await this.app.container.make(HookRegistry)
-    const TenantDestroyBillingListener = (
-      await import('../listeners/tenant_destroy_billing_listener.js')
-    ).default
-    hooks.before('destroy', async (ctx) => {
-      const listener = new TenantDestroyBillingListener()
-      await listener.handle(ctx.tenant)
-    })
   }
 
   /**
@@ -366,19 +304,8 @@ export default class MultitenancyProvider {
    * production hot-reload paths.
    */
   async shutdown() {
-    // Drain the in-memory metering aggregator first — losing buckets here
-    // would silently under-report usage to Stripe. We only drain when the
-    // listener is actually wired (config.usageMapping present).
-    try {
-      const config = this.app.config.get<MultitenancyConfig>('multitenancy')
-      if (config?.billing?.usageMapping) {
-        const listener = await this.app.container.make(UsageAutoBridgeListener)
-        await listener.drainAll()
-      }
-    } catch {
-      // Best-effort drain — never block shutdown on a metering hiccup.
-    }
-
+    // The billing metering drain moved to the @adonisjs-lasagna/billing
+    // provider's shutdown.
     const [{ __configureTenancyForTests }, { __resetActiveDriverCache }] = await Promise.all([
       import('../tenancy.js'),
       import('../services/isolation/active_driver.js'),

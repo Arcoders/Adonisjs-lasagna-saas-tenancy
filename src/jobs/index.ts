@@ -4,6 +4,5 @@ export { default as CloneTenant } from './clone_tenant.js'
 export type { CloneTenantPayload } from './clone_tenant.js'
 export { default as BackupTenant } from './backup_tenant.js'
 export { default as RestoreTenant } from './restore_tenant.js'
-export { default as ProcessStripeEventJob } from './process_stripe_event_job.js'
-export { default as BillingCleanupJob } from './billing_cleanup_job.js'
-export { default as ReportUsageBatchJob } from './report_usage_batch_job.js'
+// `ProcessStripeEventJob`, `BillingCleanupJob`, `ReportUsageBatchJob` moved to
+// `@adonisjs-lasagna/billing`.

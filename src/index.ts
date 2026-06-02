@@ -21,9 +21,9 @@ export {
   TenantWebhook,
   TenantWebhookDelivery,
   TenantBranding,
-  TenantSsoConfig,
   TenantMetric,
 } from './models/satellites/index.js'
+// `TenantSsoConfig` moved to `@adonisjs-lasagna/sso`.
 export type { AuditActorType, DeliveryStatus } from './models/satellites/index.js'
 export {
   RateLimitMiddleware,
@@ -49,7 +49,6 @@ export {
   FeatureFlagService,
   WebhookService,
   BrandingService,
-  SsoService,
   MetricsService,
   QuotaService,
   ReadReplicaService,
@@ -176,3 +175,4 @@ export { defineConfig, setConfig, getConfig } from './config.js'
 export { tenancy } from './tenancy.js'
 export { withTenantScope, unscoped, isScopeBypassed } from './models/scoping.js'
 export { encrypt, decrypt, isEncrypted } from './utils/crypto.js'
+export { validateExternalHttpsUrl } from './utils/url.js'

@@ -33,6 +33,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Builds (and so typechecks) the extracted satellite packages against the
+      # core build's declaration files + the workspace symlinks. Order matters:
+      # core (above) -> sso -> billing -> admin (admin imports
+      # `@adonisjs-lasagna/sso`; all import the core).
+      - name: Build satellite packages (sso, billing, admin)
+        run: npm run build:sso && npm run build:billing && npm run build:admin
+
       - name: Test (unit) + coverage
         run: npm run test:coverage
 
@@ -266,11 +273,11 @@ jobs:
           npm_config_ignore_scripts: 'false'
         run: npm install --legacy-peer-deps --include=optional
 
-      # Demo's `@adonisjs-lasagna/saas-tenancy` is a workspace symlink that
-      # resolves through `build/`, so a fresh build is mandatory before the
-      # e2e suite imports from it.
-      - name: Build package
-        run: npm run build
+      # Demo's `@adonisjs-lasagna/saas-tenancy` and `@adonisjs-lasagna/admin`
+      # are workspace symlinks that resolve through each package's `build/`, so
+      # a fresh build of both is mandatory before the e2e suite imports them.
+      - name: Build packages
+        run: npm run build:all
 
       - name: Backoffice setup (creates backoffice schema + tenants table)
         working-directory: examples/api
@@ -302,9 +309,10 @@ jobs:
         run: npm install --legacy-peer-deps --include=optional
 
       # build/ + its .map files must exist at the same path the integration run
-      # executed from, so c8 can resolve each build/*.js back to src/*.ts.
+      # executed from, so c8 can resolve each build/*.js back to src/*.ts. Both
+      # core and admin are rebuilt so the admin package's source maps resolve too.
       - name: Build (for source-map remapping)
-        run: npm run build
+        run: npm run build:all
 
       # Both artifacts extract into the same temp dir; V8 dump filenames are
       # unique, so they merge rather than collide.
@@ -328,9 +336,9 @@ jobs:
       # up here once a run prints the real merged number.
       - name: Coverage gate (aggregate)
         env:
-          COV_MIN_LINES: '34'
-          COV_MIN_FUNCTIONS: '58'
-          COV_MIN_BRANCHES: '70'
+          COV_MIN_LINES: '40'
+          COV_MIN_FUNCTIONS: '62'
+          COV_MIN_BRANCHES: '74'
         run: node scripts/coverage-gate.mjs coverage/lcov.info
 
       - name: Upload combined coverage

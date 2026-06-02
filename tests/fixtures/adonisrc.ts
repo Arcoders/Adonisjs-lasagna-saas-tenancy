@@ -4,7 +4,10 @@ export default defineConfig({
   // Mirrors what `node ace configure @adonisjs-lasagna/saas-tenancy` writes into a host's adonisrc.
   // Without this, `ace.exec('tenant:billing:replay', …)` and other tenant commands resolve to
   // `CommandNotFound` because the manifest is never loaded.
-  commands: [() => import('@adonisjs-lasagna/saas-tenancy/commands')],
+  commands: [
+    () => import('@adonisjs-lasagna/saas-tenancy/commands'),
+    () => import('@adonisjs-lasagna/billing/commands'),
+  ],
 
   providers: [
     () => import('@adonisjs/core/providers/app_provider'),
@@ -14,6 +17,7 @@ export default defineConfig({
     () => import('@adonisjs/redis/redis_provider'),
     () => import('@adonisjs/queue/queue_provider'),
     () => import('@adonisjs-lasagna/saas-tenancy/providers/multitenancy_provider'),
+    () => import('@adonisjs-lasagna/billing/provider'),
     () => import('./app/providers/fixture_provider.js'),
   ],
 

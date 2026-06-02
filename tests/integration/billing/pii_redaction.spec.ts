@@ -2,13 +2,10 @@ import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import { randomUUID } from 'node:crypto'
 import { DateTime } from 'luxon'
-import { BillingService } from '@adonisjs-lasagna/saas-tenancy/services'
-import { MockStripe, signWebhookPayload } from '@adonisjs-lasagna/saas-tenancy/testing'
-import {
-  StripeCustomer,
-  StripeSubscription,
-} from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { ProcessStripeEventJob } from '@adonisjs-lasagna/saas-tenancy/jobs'
+import { BillingService } from '@adonisjs-lasagna/billing'
+import { MockStripe, signWebhookPayload } from '@adonisjs-lasagna/billing'
+import { StripeCustomer, StripeSubscription } from '@adonisjs-lasagna/billing'
+import { ProcessStripeEventJob } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, buildEvent, buildSubscription, clearBillingTables, hydrateJob } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
@@ -191,7 +188,7 @@ test.group('PII redaction (integration)', (group) => {
     // `@adonisjs/core/logger`), this still proves the redaction code
     // path actually ran on the hostile event.
     const ledger = await (
-      await import('@adonisjs-lasagna/saas-tenancy/models/satellites')
+      await import('@adonisjs-lasagna/billing')
     ).StripeProcessedEvent.find('evt_pii_check')
     assert.isNotNull(ledger, 'controller wrote the idempotency ledger row')
     const payload = JSON.stringify(ledger?.payload ?? {})
@@ -219,7 +216,7 @@ test.group('PII redaction (integration)', (group) => {
     // Seed a ledger row directly (skip the controller).
     const eventId = 'evt_failed_classify'
     const row = new (
-      await import('@adonisjs-lasagna/saas-tenancy/models/satellites')
+      await import('@adonisjs-lasagna/billing')
     ).StripeProcessedEvent()
     row.eventId = eventId
     row.eventType = 'customer.subscription.created'
@@ -246,7 +243,7 @@ test.group('PII redaction (integration)', (group) => {
     // Reload the row. last_error must be the package-controlled BillingException
     // message, never the raw driver text or the leaked customer id.
     const updated = await (
-      await import('@adonisjs-lasagna/saas-tenancy/models/satellites')
+      await import('@adonisjs-lasagna/billing')
     ).StripeProcessedEvent.find(eventId)
     assert.isNotNull(updated)
     assert.notInclude(updated?.lastError ?? '', 'cus_secret_pii')
