@@ -1,6 +1,6 @@
 {
   "name": "@adonisjs-lasagna/saas-tenancy",
-  "version": "0.2.2",
+  "version": "1.0.0",
   "description": "SaaS multi-tenancy for AdonisJS 7 with pluggable isolation drivers (schema/database/row-scoping), connection pooling, circuit breaking, queues, and satellite features",
   "type": "module",
   "license": "MIT",

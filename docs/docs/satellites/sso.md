@@ -49,7 +49,7 @@ The `discover()` method:
 ## Storing config
 
 ```ts
-import { SsoService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { SsoService } from '@adonisjs-lasagna/sso'
 
 const sso = await app.container.make(SsoService)
 
@@ -69,7 +69,7 @@ cannot make the server reach a private network.
 ## Login flow
 
 ```ts
-import { SsoService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { SsoService } from '@adonisjs-lasagna/sso'
 
 router
   .get('/auth/login', async ({ request, response }) => {

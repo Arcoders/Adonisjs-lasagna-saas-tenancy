@@ -103,7 +103,7 @@ Stripe request. The published `multitenancy.stub` already includes
 
 ```ts
 // start/routes.ts
-import { multitenancyBillingRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
+import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
 
 multitenancyBillingRoutes()
 ```
@@ -400,7 +400,7 @@ is the recommended stack):
 
 ```ts
 // app/controllers/billing_controller.ts
-import { BillingService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { BillingService } from '@adonisjs-lasagna/billing'
 import type { HttpContext } from '@adonisjs/core/http'
 import app from '@adonisjs/core/services/app'
 
@@ -514,7 +514,7 @@ The package exports `billingHealthCheck` from
 `HealthService`:
 
 ```ts
-import { billingHealthCheck } from '@adonisjs-lasagna/saas-tenancy/health'
+import { billingHealthCheck } from '@adonisjs-lasagna/billing'
 
 health.addCheck('billing', billingHealthCheck)
 ```

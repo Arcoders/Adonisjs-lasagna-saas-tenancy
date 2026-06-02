@@ -91,7 +91,7 @@ export default defineConfig({
 
 ```ts
 // start/routes.ts
-import { multitenancyBillingRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
+import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
 
 multitenancyBillingRoutes()
 ```
@@ -103,7 +103,7 @@ verification.
 
 ```ts
 // app/controllers/billing_controller.ts
-import { BillingService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { BillingService } from '@adonisjs-lasagna/billing'
 import type { HttpContext } from '@adonisjs/core/http'
 import app from '@adonisjs/core/services/app'
 
