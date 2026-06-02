@@ -2,6 +2,10 @@ import { createHash } from 'node:crypto'
 import { getConfig } from '../config.js'
 import type { TenantModelContract } from '../types/contracts.js'
 import type { ReadReplicaHost } from '../types/config.js'
+import ConnectionLru, {
+  DEFAULT_EVICTION_GRACE_MS,
+  DEFAULT_MAX_TENANT_CONNECTIONS,
+} from './isolation/connection_lru.js'
 
 const lazyDb = () =>
   import('@adonisjs/lucid/services/db')
@@ -15,9 +19,27 @@ const lazyDb = () =>
  *
  * Returns `null` when read replicas are not configured — callers should
  * fall back to the primary connection.
+ *
+ * Read-your-writes note: `round-robin` and `random` spread a single tenant's
+ * sequential reads across hosts, so a read immediately after a write may hit a
+ * lagging replica. Use `sticky` (hash of tenant id → one host) when a tenant
+ * needs consistent reads, and route read-after-write paths to the primary.
+ *
+ * Replica connections are created on demand and capped by an in-use-aware LRU
+ * (`tenantReadReplicas.maxReplicaConnections`, default 50) so that
+ * `tenants * hosts` connections can't grow without bound.
  */
 export default class ReadReplicaService {
   #cursor = 0
+  readonly #lru = new ConnectionLru({
+    label: 'ReadReplicaService',
+    cap: () => getConfig().tenantReadReplicas?.maxReplicaConnections ?? DEFAULT_MAX_TENANT_CONNECTIONS,
+    graceMs: () => getConfig().isolation?.evictionGracePeriodMs ?? DEFAULT_EVICTION_GRACE_MS,
+    release: async (name) => {
+      const db = await lazyDb()
+      if (db?.manager.has(name)) await db.manager.release(name)
+    },
+  })
 
   /**
    * Pick the index of the replica to use for this tenant. `null` when no
@@ -105,6 +127,10 @@ export default class ReadReplicaService {
           searchPath: baseConnection.searchPath ?? tenant.schemaName,
         },
       })
+      this.#lru.touch(connName)
+      this.#lru.evictIfNeeded()
+    } else {
+      this.#lru.touch(connName)
     }
 
     return db.connection(connName)

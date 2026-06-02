@@ -97,5 +97,5 @@ async show({ request }: HttpContext) {
 ::: info Reference app
 The full feature surface lives in
 [examples/api](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/tree/master/examples/api)
-by a real AdonisJS 7 app with a 111-test e2e suite.
+by a real AdonisJS 7 app with a 123-test e2e suite.
 :::

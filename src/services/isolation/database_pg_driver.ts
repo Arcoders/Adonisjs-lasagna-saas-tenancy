@@ -8,8 +8,10 @@ import type {
   MigrateResult,
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
-
-const MAX_TENANT_CONNECTIONS = 50
+import ConnectionLru, {
+  DEFAULT_EVICTION_GRACE_MS,
+  DEFAULT_MAX_TENANT_CONNECTIONS,
+} from './connection_lru.js'
 
 /**
  * Lazily resolve `db` so unit tests don't drag the Lucid runtime — and
@@ -41,9 +43,17 @@ async function lucid() {
  */
 export default class DatabasePgDriver implements IsolationDriver {
   readonly name: IsolationDriverName = 'database-pg'
-  readonly #lru = new Map<string, number>()
   readonly #templateConnectionName: string
   readonly #databasePrefix: string | undefined
+  readonly #lru = new ConnectionLru({
+    label: 'DatabasePgDriver',
+    cap: () => getConfig().isolation?.maxTenantConnections ?? DEFAULT_MAX_TENANT_CONNECTIONS,
+    graceMs: () => getConfig().isolation?.evictionGracePeriodMs ?? DEFAULT_EVICTION_GRACE_MS,
+    release: async (name) => {
+      const { db } = await lucid()
+      if (db.manager.has(name)) await db.manager.release(name)
+    },
+  })
 
   constructor(opts: { templateConnectionName?: string; databasePrefix?: string } = {}) {
     this.#templateConnectionName = opts.templateConnectionName ?? 'tenant'
@@ -101,7 +111,7 @@ export default class DatabasePgDriver implements IsolationDriver {
     const name = this.connectionName(tenant.id)
 
     if (db.manager.has(name)) {
-      this.#touch(name)
+      this.#lru.touch(name)
       return db.connection(name)
     }
 
@@ -114,8 +124,8 @@ export default class DatabasePgDriver implements IsolationDriver {
     }
 
     db.manager.add(name, this.#cloneConfigForTenant(template, tenant))
-    this.#touch(name)
-    this.#evictIfNeeded(db)
+    this.#lru.touch(name)
+    this.#lru.evictIfNeeded()
 
     return db.connection(name)
   }
@@ -162,18 +172,5 @@ export default class DatabasePgDriver implements IsolationDriver {
     cloned.connection.database = this.databaseName(tenant)
     delete cloned.searchPath
     return cloned
-  }
-
-  #touch(name: string): void {
-    this.#lru.delete(name)
-    this.#lru.set(name, Date.now())
-  }
-
-  #evictIfNeeded(db: { manager: { release(name: string): Promise<void> } }): void {
-    if (this.#lru.size <= MAX_TENANT_CONNECTIONS) return
-    const oldest = this.#lru.keys().next().value
-    if (!oldest) return
-    this.#lru.delete(oldest)
-    db.manager.release(oldest).catch(() => {})
   }
 }

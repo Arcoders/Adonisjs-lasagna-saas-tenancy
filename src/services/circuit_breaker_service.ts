@@ -37,11 +37,17 @@ export default class CircuitBreakerService {
     }
 
     const cfg = getConfig().circuitBreaker
-    const connectionName = `${getConfig().tenantConnectionNamePrefix}${tenantId}`
 
+    // Resolve the connection name from the active isolation driver rather than
+    // hardcoding `${prefix}${tenantId}`: `database-pg` matches that shape, but
+    // `rowscope-pg` shares one central connection, so the hardcoded name would
+    // not exist and every probe would fail.
     const probeFn = async () => {
       const db = await lazyDb()
-      await db?.connection(connectionName).rawQuery('SELECT 1')
+      if (!db) return
+      const { getActiveDriver } = await import('./isolation/active_driver.js')
+      const driver = await getActiveDriver()
+      await db.connection(driver.connectionName(tenantId)).rawQuery('SELECT 1')
     }
 
     const breaker = new CircuitBreaker(probeFn, {

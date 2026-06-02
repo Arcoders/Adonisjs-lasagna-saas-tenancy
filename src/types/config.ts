@@ -182,6 +182,14 @@ export interface ReadReplicasConfig {
    * `${tenantConnectionNamePrefix}${tenantId}${suffix}_${hostIndex}`.
    */
   connectionSuffix?: string
+  /**
+   * Max replica connections kept open in Lucid's manager before the oldest
+   * IDLE one is evicted. Replica connections multiply by host
+   * (`tenants * hosts`), so this is a separate budget from
+   * `isolation.maxTenantConnections`. Default 50. The same in-use grace window
+   * applies, so an in-flight read is never severed.
+   */
+  maxReplicaConnections?: number
 }
 
 export type IsolationDriverChoice =
@@ -192,8 +200,9 @@ export type IsolationDriverChoice =
 
 export interface IsolationConfig {
   /**
-   * Which isolation strategy to use. Defaults to `schema-pg` (the v1 default).
-   * `database-pg` and `rowscope-pg` will land in subsequent v2 milestones.
+   * Which isolation strategy to use. Defaults to `schema-pg`. All four drivers
+   * (`schema-pg`, `database-pg`, `rowscope-pg`, `sqlite-memory`) are
+   * implemented and selectable.
    */
   driver: IsolationDriverChoice
   /**
@@ -230,6 +239,22 @@ export interface IsolationConfig {
    *    with code that relied on the v1.x behavior.
    */
   rowScopeMode?: 'strict' | 'allowGlobal'
+  /**
+   * For `schema-pg` and `database-pg`: how many tenant connections may stay
+   * open in Lucid's manager before the LRU evicts the oldest IDLE one.
+   * Default 50. Each tenant connection holds its own pool, so keep this under
+   * your PostgreSQL `max_connections` budget (roughly
+   * `maxTenantConnections * poolMax` server connections). The LRU never evicts
+   * a connection used within `evictionGracePeriodMs`.
+   */
+  maxTenantConnections?: number
+  /**
+   * For `schema-pg`/`database-pg`: a tenant connection touched more recently
+   * than this (ms) is treated as in-use and is never evicted, even when over
+   * `maxTenantConnections`. Set comfortably above your p99 request duration so
+   * an in-flight request is never severed. Default 30000.
+   */
+  evictionGracePeriodMs?: number
 }
 
 export interface RoutingConfig {

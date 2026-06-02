@@ -8,13 +8,10 @@ import type {
   MigrateResult,
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
-
-const MAX_TENANT_CONNECTIONS = 50
-
-const lazyLogger = () =>
-  import('@adonisjs/core/services/logger')
-    .then((m) => m.default)
-    .catch(() => null)
+import ConnectionLru, {
+  DEFAULT_EVICTION_GRACE_MS,
+  DEFAULT_MAX_TENANT_CONNECTIONS,
+} from './connection_lru.js'
 
 /**
  * Lazily resolve `db` so unit tests that only exercise pure helpers
@@ -40,8 +37,16 @@ async function lucid() {
  */
 export default class SchemaPgDriver implements IsolationDriver {
   readonly name: IsolationDriverName = 'schema-pg'
-  readonly #lru = new Map<string, number>()
   readonly #templateConnectionName: string
+  readonly #lru = new ConnectionLru({
+    label: 'SchemaPgDriver',
+    cap: () => getConfig().isolation?.maxTenantConnections ?? DEFAULT_MAX_TENANT_CONNECTIONS,
+    graceMs: () => getConfig().isolation?.evictionGracePeriodMs ?? DEFAULT_EVICTION_GRACE_MS,
+    release: async (name) => {
+      const { db } = await lucid()
+      if (db.manager.has(name)) await db.manager.release(name)
+    },
+  })
 
   constructor(opts: { templateConnectionName?: string } = {}) {
     this.#templateConnectionName = opts.templateConnectionName ?? 'tenant'
@@ -87,7 +92,7 @@ export default class SchemaPgDriver implements IsolationDriver {
     const name = this.connectionName(tenant.id)
 
     if (db.manager.has(name)) {
-      this.#touch(name)
+      this.#lru.touch(name)
       return db.connection(name)
     }
 
@@ -104,8 +109,8 @@ export default class SchemaPgDriver implements IsolationDriver {
       searchPath: [this.schemaName(tenant)],
     } as any)
 
-    this.#touch(name)
-    this.#evictIfNeeded(db)
+    this.#lru.touch(name)
+    this.#lru.evictIfNeeded()
 
     return db.connection(name)
   }
@@ -122,6 +127,8 @@ export default class SchemaPgDriver implements IsolationDriver {
     }
   }
 
+
+
   async migrate(
     tenant: TenantModelContract,
     opts: MigrateOptions
@@ -136,27 +143,5 @@ export default class SchemaPgDriver implements IsolationDriver {
     return {
       executed: runner.migratedFiles ? Object.keys(runner.migratedFiles).length : 0,
     }
-  }
-
-  #touch(name: string): void {
-    this.#lru.delete(name)
-    this.#lru.set(name, Date.now())
-  }
-
-  #evictIfNeeded(db: { manager: { release(name: string): Promise<void> } }): void {
-    if (this.#lru.size <= MAX_TENANT_CONNECTIONS) return
-    const oldest = this.#lru.keys().next().value
-    if (!oldest) return
-    this.#lru.delete(oldest)
-    // Don't swallow: a failed release leaves a pool entry registered in the
-    // manager (the LRU and the manager then disagree about open connections).
-    // Surfacing it lets ops correlate pool growth with eviction failures.
-    db.manager.release(oldest).catch(async (err: unknown) => {
-      const logger = await lazyLogger()
-      logger?.warn(
-        { connection: oldest, err: (err as Error)?.message ?? String(err) },
-        'SchemaPgDriver: failed to release evicted tenant connection; pool entry may linger'
-      )
-    })
   }
 }

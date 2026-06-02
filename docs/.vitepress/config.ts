@@ -86,6 +86,7 @@ export default defineConfig({
           { text: 'Exceptions', link: '/docs/exceptions' },
           { text: 'Troubleshooting', link: '/docs/gotchas' },
           { text: 'Deployment', link: '/docs/deployment' },
+          { text: 'Scaling limits', link: '/docs/scaling-limits' },
           { text: 'Cookbook', link: '/docs/cookbook/' },
           { text: 'Comparison vs stancl', link: '/docs/comparison' },
           { text: 'Contributing', link: '/docs/contributing' },
@@ -179,6 +180,7 @@ export default defineConfig({
           text: 'Operate',
           items: [
             { text: 'Deployment', link: '/docs/deployment' },
+            { text: 'Scaling limits', link: '/docs/scaling-limits' },
             { text: 'Security', link: '/security' },
             {
               text: 'Cookbook',

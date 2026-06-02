@@ -1,0 +1,97 @@
+---
+title: Scaling limits
+description: The honest ceiling of schema-per-tenant on PostgreSQL, the connection budget, and when to shard or switch drivers.
+---
+
+# Scaling limits
+
+Schema-per-tenant is the right default for most SaaS, but it is not free at
+high tenant counts. This page is the honest version of where the ceiling is so
+you can plan before you hit it.
+
+## Where the sweet spot ends
+
+`schema-pg` keeps every tenant in its own PostgreSQL schema inside one
+database. That gives you at-rest separation and per-tenant migrations on shared
+infrastructure. The practical sweet spot is roughly **tens to a few thousand
+tenants per database instance**. Past that, three Postgres-level costs grow:
+
+- **Catalog size.** Every schema multiplies `pg_class`, `pg_attribute`, and
+  index rows by your per-tenant table count. Thousands of schemas times dozens
+  of tables is hundreds of thousands of catalog rows, which slows planning,
+  autovacuum, `pg_dump`, and `\dt`-style introspection.
+- **Migrate-all and backups are O(N schemas).** `tenant:migrate --all` and the
+  backup commands iterate schemas. The wall-clock cost scales linearly with the
+  tenant count regardless of how the package parallelizes.
+- **Connection fan-out.** You cannot hold an open pool to every tenant at once.
+  This is why the driver caps open connections (see below).
+
+If you need to go well beyond a few thousand tenants on one instance, plan to
+**shard tenants across multiple database instances** (run several app/DB pairs
+and route by tenant), or evaluate `database-pg` for stronger per-tenant
+isolation at a higher per-tenant cost.
+
+## The connection budget
+
+Each active tenant connection holds its own pool. `schema-pg` and `database-pg`
+bound how many stay open with an in-use-aware LRU:
+
+```ts
+// config/multitenancy.ts
+isolation: {
+  driver: 'schema-pg',
+  // Max tenant connections kept open before the oldest IDLE one is evicted.
+  // Default 50.
+  maxTenantConnections: 50,
+  // A connection touched more recently than this (ms) is treated as in-use
+  // and is never evicted, even over the cap. Set above your p99 request
+  // duration. Default 30000.
+  evictionGracePeriodMs: 30_000,
+}
+```
+
+Budget rule of thumb:
+
+```
+peak server connections ≈ maxTenantConnections × poolMax (+ central + backoffice + replicas)
+```
+
+Keep that under your PostgreSQL `max_connections` (or your PgBouncer limit). If
+your concurrency genuinely needs more than `maxTenantConnections` distinct
+tenants in flight at once, the LRU will **exceed the cap rather than sever an
+active request**, and log a throttled warning. That is your signal to raise
+`maxTenantConnections`, put PgBouncer in front, or scale out.
+
+::: tip Use a connection pooler
+At higher tenant counts, front Postgres with **PgBouncer** (transaction
+pooling) so the package's per-tenant connections map onto a much smaller set of
+real server connections.
+:::
+
+## Read replicas
+
+Replica connections multiply by host (`tenants × hosts`). They are capped by
+their own budget, separate from the primary cap:
+
+```ts
+tenantReadReplicas: {
+  hosts: [/* ... */],
+  strategy: 'sticky',          // see read-your-writes note below
+  maxReplicaConnections: 50,   // default 50
+}
+```
+
+`round-robin` and `random` spread one tenant's sequential reads across hosts, so
+a read right after a write may hit a lagging replica. Use `sticky` (hash of
+tenant id → one host) when a tenant needs consistent reads, and route
+read-after-write paths to the primary.
+
+## Choosing a driver by scale
+
+| Driver | Isolation | Best for | Main ceiling |
+|---|---|---|---|
+| `schema-pg` (default) | High (per-schema) | Tens to a few thousand tenants | Catalog bloat, O(N) migrate/backup, connection fan-out |
+| `database-pg` | Highest (per-database) | Fewer, higher-value tenants | Heavier per-tenant overhead, `CREATEDB` privilege |
+| `rowscope-pg` | Lower (query predicate) | Very many small tenants | Isolation depends on `tenancy.run()` / the scope mixin |
+
+See [Data isolation](/docs/data-isolation/) for the full driver comparison.
