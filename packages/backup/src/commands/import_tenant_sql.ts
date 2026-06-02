@@ -3,8 +3,8 @@ import type { CommandOptions } from '@adonisjs/core/types/ace'
 import app from '@adonisjs/core/services/app'
 import { resolve } from 'node:path'
 import { access } from 'node:fs/promises'
-import { TENANT_REPOSITORY } from '../types/contracts.js'
-import type { TenantRepositoryContract, TenantModelContract } from '../types/contracts.js'
+import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
+import type { TenantRepositoryContract, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import SqlImportService from '../services/sql_import_service.js'
 
 export default class ImportTenantSql extends BaseCommand {

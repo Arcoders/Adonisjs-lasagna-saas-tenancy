@@ -15,8 +15,8 @@
   "report-dir": "./coverage",
   "clean": true,
   "check-coverage": true,
-  "lines": 40,
-  "branches": 74,
-  "functions": 62,
-  "statements": 40
+  "lines": 44,
+  "branches": 76,
+  "functions": 65,
+  "statements": 44
 }

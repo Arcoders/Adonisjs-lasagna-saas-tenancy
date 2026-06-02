@@ -1,13 +1,15 @@
 import { Job } from '@adonisjs/queue'
 import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
-import { TENANT_REPOSITORY } from '../types/contracts.js'
-import type { TenantRepositoryContract } from '../types/contracts.js'
+import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
+import type { TenantRepositoryContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import CloneService from '../services/clone_service.js'
-import TenantQueueService from '../services/tenant_queue_service.js'
-import HookRegistry from '../services/hook_registry.js'
-import TenantLogContext from '../services/tenant_log_context.js'
-import TenantCloned from '../events/tenant_cloned.js'
+import {
+  TenantQueueService,
+  HookRegistry,
+  TenantLogContext,
+} from '@adonisjs-lasagna/saas-tenancy/services'
+import { TenantCloned } from '@adonisjs-lasagna/saas-tenancy/events'
 
 export interface CloneTenantPayload {
   sourceTenantId: string

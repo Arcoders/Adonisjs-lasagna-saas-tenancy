@@ -1,5 +1,5 @@
-import BackupService from '../../backup_service.js'
-import type { DoctorCheck, DiagnosisIssue } from '../types.js'
+import BackupService from '../services/backup_service.js'
+import type { DoctorCheck, DiagnosisIssue } from '@adonisjs-lasagna/saas-tenancy/services'
 
 const STALE_DAYS = 7
 

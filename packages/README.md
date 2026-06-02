@@ -1,18 +1,17 @@
 # Satellite extraction (B3) — migration runbook
 
-Status: **admin + sso + billing extracted (`@adonisjs-lasagna/admin`,
-`@adonisjs-lasagna/sso`, `@adonisjs-lasagna/billing`); backup pending.** This
-directory holds the extracted satellite packages. The runbook is the executable
-plan so each move is mechanical and verifiable. It is a breaking change,
-sequenced for the `1.0.0` cut.
+Status: **all four extracted (`@adonisjs-lasagna/admin`, `@adonisjs-lasagna/sso`,
+`@adonisjs-lasagna/billing`, `@adonisjs-lasagna/backup`).** This directory holds
+the extracted satellite packages. The runbook is the executable plan so each move
+is mechanical and verifiable. It is a breaking change, sequenced for the `1.0.0` cut.
 
-The three extractions are done and verified locally (build core->sso->billing->admin,
-typecheck, core unit 529 + billing unit 40, coverage gate, npm-pack, runtime
-resolution). The fixture wiring + integration/e2e specs resolve the new packages
-(proven via `require.resolve`) but only fully run in CI (Postgres/Redis/Stripe).
-Billing additionally moved the provider IoC + the webhook route + the ace
-commands; the **provider lifecycle (boot/start/shutdown) is CI-verified only**.
-See the "DONE" sections at the end.
+The four extractions are done and verified locally (build core->sso->billing->admin->backup,
+typecheck, core unit 488 + billing unit + backup unit 41, coverage gate, npm-pack,
+runtime resolution). The fixture wiring + integration/e2e specs resolve the new
+packages (proven via `require.resolve`) but only fully run in CI
+(Postgres/Redis/Stripe). Billing + backup additionally moved provider wiring + ace
+commands; that **provider lifecycle is CI-verified only**. See the "DONE" sections
+at the end.
 
 ## Why
 
@@ -143,7 +142,9 @@ then billing, then admin. Keep the throwing shims for one minor; drop them in
 3. **`billing`** — **DONE** (`@adonisjs-lasagna/billing`). Provider IoC inverted
    into the package's own provider; webhook route + ace commands moved; barrels
    + health module split.
-4. `backup` (after the doctor check + commands are handled).
+4. **`backup`** — **DONE** (`@adonisjs-lasagna/backup`). The `backup_recency`
+   doctor check is registered into the core `DoctorService` by the package's own
+   provider; the backup jobs are registered with the queue Locator the same way.
 
 Leaf satellites (`branding`, `feature-flags`, `metrics`, `webhooks`, `audit`,
 `quotas`) stay in core.
@@ -332,3 +333,79 @@ provider IoC was moved verbatim, but boot/start/shutdown wiring + the fixture
 registering `@adonisjs-lasagna/billing/provider` + `/commands` only actually run
 in the `test-integration` + `test-e2e-demo` jobs. A wiring mistake there would
 not be caught by the local build/typecheck/unit gates.
+
+## Fourth extraction (`backup`) — DONE
+
+Moved to `@adonisjs-lasagna/backup` (`packages/backup`): the four backup-domain
+services (`BackupService` 284 LOC, `BackupRetentionService`, `CloneService`,
+`SqlImportService`), the three queue jobs (`BackupTenant`, `RestoreTenant`,
+`CloneTenant`), the `backup_recency` doctor check, and the six ace commands
+(`tenant:backup`, `tenant:backup:list`, `tenant:restore`, `tenant:import`,
+`tenant:clone`, `tenant:backups:run`). Mirrored `src/` subtree, so intra-package
+relative imports (jobs/commands/doctor -> `../services/*`) stayed valid; only the
+core-resident imports were rewritten.
+
+1. **What stays in core (the lifecycle contract).** `backup`/`restore`/`clone`
+   are first-class tenant-lifecycle phases in the core `HookRegistry`, and the
+   `TenantBackedUp` / `TenantRestored` / `TenantCloned` events sit alongside the
+   other lifecycle events. So those stay in core, as does the `backup` config
+   block. The two result types the contract carries (`BackupMetadata`,
+   `CloneResult`) moved to a new `src/types/backup.ts` (same pattern as
+   `types/billing.ts`): the core defines them, the package imports + re-exports
+   them. `hook_registry` and the two events were repointed to `../types/backup.js`.
+2. **Doctor check inverted via the existing extension API.** `DoctorService` already
+   had `register()` / `unregister()`. So `backup_recency_check` moved into the
+   package (`src/doctor/`), was removed from the core `builtInChecks` +
+   `checks/index` + `doctor/index` + `services/index`, and the package's provider
+   registers it into the core `DoctorService` on `boot()`. The check keeps its
+   direct `new BackupService()` (both now in the package); the core doctor has zero
+   backup knowledge.
+3. **Provider + jobs.** `packages/backup/providers/backup_provider.ts` registers the
+   doctor check (boot) and the three jobs with the @adonisjs/queue Locator (start) —
+   the core `#registerQueueJobs` no longer sees them (its `jobs/index` dropped the
+   three). Apps register `@adonisjs-lasagna/backup/provider` + `/commands`.
+4. **New `@adonisjs-lasagna/saas-tenancy/internal` subpath.** The package's unit
+   specs load service modules outside a booted app, so they cannot import core
+   helpers through `/services` or the root barrel (those touch `app.booted`). A new
+   leaf subpath `internal` (backed by `src/internal.ts`) re-exports the
+   app.booted-safe building blocks the satellites need: `assertSafeIdentifier`,
+   `getActiveDriver`, `splitSqlStatementsTagged`, and `buildTestTenant`. Documented
+   as not part of the stable app-facing API. `getConfig` keeps coming from the
+   existing `/config` subpath.
+5. **Barrels + root.** Removed the four services + their package-only types from
+   `services/index`; removed the three jobs (+ `CloneTenantPayload`) from
+   `jobs/index`; removed all of those from the root `index.ts`, but kept
+   `BackupMetadata` / `CloneResult` exported there sourced from `/types`. The six
+   commands left `commands/index` + `commands.json` (a fresh `commands.json` + a
+   `main.ts` loader live in the package; `tenant:doctor` stays in core).
+6. **`@aws-sdk/client-s3`** is now an optional peer of the package (it stays an
+   optional peer + devDep of the core too, matching how billing/sso left their
+   optional peers). Migration: backup had no migration stub and was never a
+   `--with=` option, so nothing migration-side changed.
+7. **Package-local unit runner.** The five backup unit specs moved to
+   `packages/backup/tests/unit/` with a `bin/test.ts`; `backup_retention` pulls
+   `buildTestTenant` from `/internal` and a package-local `tests/helpers/config.ts`.
+
+### Verified locally (Node 24)
+
+`npm install` (symlinks `@adonisjs-lasagna/backup`), `npm run build:all` (core ->
+sso -> billing -> admin -> backup, all clean), `npm run typecheck` (0 errors — the
+repointed backup integration/e2e specs resolve the package), `npm run test:coverage`
+(**488 pass**; gate raised to **44 lines / 76 branches / 65 functions**, measured
+**46.39 / 78 / 67.57**, exit 0 — coverage rose since the unit-uncovered backup left
+core `src`), and the package's own `npm run test --workspace @adonisjs-lasagna/backup`
+(**41 pass**). Smokes: `require.resolve` of `@adonisjs-lasagna/backup` + `/provider`
++ `/commands` + `/internal`; importing `/internal` with no booted app loads cleanly;
+core `.d.ts` barrels name no backup service/job/check; the core tarball ships only
+`types/backup.*` (no stale `.js`); the backup tarball is build-only (75 files). CI
+now also runs the billing + backup package unit suites (a gap from the billing
+extraction).
+
+### CI-only
+
+The backup integration specs (`backup_s3`, `clone_service`, `doctor_checks_real`,
+`lifecycle_dispatch`) + the demo e2e (`backups_real`, `commands_lifecycle`, `full`)
+exercise the services, the jobs, the `backup_recency` check, and the
+`tenant:backup*` / `tenant:clone` / `tenant:import` commands against real
+Postgres/Redis/S3. The provider registering the check + jobs only runs in the
+`test-integration` + `test-e2e-demo` jobs.

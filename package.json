@@ -37,6 +37,7 @@
   "exports": {
     ".": "./build/src/index.js",
     "./config": "./build/src/config.js",
+    "./internal": "./build/src/internal.js",
     "./adapters": "./build/src/models/adapters/index.js",
     "./base-models": "./build/src/models/base/index.js",
     "./models/satellites": "./build/src/models/satellites/index.js",
@@ -57,6 +58,9 @@
     "*": {
       "config": [
         "./build/src/config.d.ts"
+      ],
+      "internal": [
+        "./build/src/internal.d.ts"
       ],
       "adapters": [
         "./build/src/models/adapters/index.d.ts"
@@ -118,7 +122,8 @@
     "build:sso": "npm run build --workspace @adonisjs-lasagna/sso",
     "build:billing": "npm run build --workspace @adonisjs-lasagna/billing",
     "build:admin": "npm run build --workspace @adonisjs-lasagna/admin",
-    "build:all": "npm run build && npm run build:sso && npm run build:billing && npm run build:admin",
+    "build:backup": "npm run build --workspace @adonisjs-lasagna/backup",
+    "build:all": "npm run build && npm run build:sso && npm run build:billing && npm run build:admin && npm run build:backup",
     "typecheck": "tsc --noEmit",
     "test": "tsx bin/test.ts",
     "test:coverage": "c8 --temp-directory=coverage/.v8/unit tsx bin/test.ts",

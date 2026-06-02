@@ -1,21 +1,17 @@
 import db from '@adonisjs/lucid/services/db'
 import logger from '@adonisjs/core/services/logger'
 import type { QueryClientContract, TransactionClientContract } from '@adonisjs/lucid/types/database'
-import { getConfig } from '../config.js'
-import { getActiveDriver } from './isolation/active_driver.js'
-import { assertSafeIdentifier } from './isolation/identifier.js'
-import type { TenantModelContract } from '../types/contracts.js'
+import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import { getActiveDriver, assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/internal'
+import type { CloneResult, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
+
+// `CloneResult` is defined in the core (the lifecycle hook context + the
+// `TenantCloned` event carry it); re-exported here for this package's consumers.
+export type { CloneResult }
 
 export interface CloneOptions {
   schemaOnly: boolean
   clearSessions: boolean
-}
-
-export interface CloneResult {
-  source: TenantModelContract
-  destination: TenantModelContract
-  tablesCopied: number
-  rowsCopied: number
 }
 
 const MIGRATION_TABLES = new Set(['adonis_schema', 'adonis_schema_versions'])

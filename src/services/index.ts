@@ -6,14 +6,9 @@ export { default as TelemetryService } from './telemetry_service.js'
 export { default as ResilienceService } from './resilience_service.js'
 export type { ResilienceRunOptions } from './resilience_service.js'
 export type { FailurePolicy, ResilienceConfig } from '../types/config.js'
-export { default as BackupService } from './backup_service.js'
-export type { BackupMetadata } from './backup_service.js'
-export { default as BackupRetentionService } from './backup_retention_service.js'
-export type { RetentionPlan } from './backup_retention_service.js'
-export { default as CloneService } from './clone_service.js'
-export type { CloneOptions, CloneResult } from './clone_service.js'
-export { default as SqlImportService } from './sql_import_service.js'
-export type { SqlImportOptions, SqlImportResult } from './sql_import_service.js'
+// `BackupService`, `BackupRetentionService`, `CloneService`, `SqlImportService`
+// moved to `@adonisjs-lasagna/backup`. Their shared result types
+// (`BackupMetadata`, `CloneResult`) live in `@adonisjs-lasagna/saas-tenancy/types`.
 export { default as AuditLogService } from './audit_log_service.js'
 export type { LogActionOptions } from './audit_log_service.js'
 export { default as CrossDomainRedirectService } from './cross_domain_redirect_service.js'
@@ -100,7 +95,6 @@ export {
   schemaDriftCheck,
   migrationStateCheck,
   circuitBreakerCheck,
-  backupRecencyCheck,
   provisioningStalledCheck,
   failedTenantsCheck,
   connectionPoolCheck,

@@ -1,6 +1,6 @@
 import { BaseEvent } from '@adonisjs/core/events'
 import type { TenantModelContract } from '../types/contracts.js'
-import type { BackupMetadata } from '../services/backup_service.js'
+import type { BackupMetadata } from '../types/backup.js'
 
 export default class TenantBackedUp extends BaseEvent {
   constructor(

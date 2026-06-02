@@ -1,9 +1,14 @@
 import { spawn } from 'node:child_process'
 import { mkdir, unlink, stat, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { getConfig } from '../config.js'
-import { assertSafeIdentifier } from './isolation/identifier.js'
-import type { TenantModelContract } from '../types/contracts.js'
+import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/internal'
+import type { BackupMetadata, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
+
+// `BackupMetadata` is defined in the core (the lifecycle hook context + the
+// `TenantBackedUp` event carry it). Re-exported here so this package's other
+// modules can keep importing it from `./backup_service.js`.
+export type { BackupMetadata }
 
 const lazyRedis = () =>
   import('@adonisjs/redis/services/main')
@@ -23,14 +28,6 @@ async function logInfo(payload: Record<string, unknown>, msg: string): Promise<v
 async function logWarn(payload: Record<string, unknown>, msg: string): Promise<void> {
   const log = await lazyLogger()
   log?.warn(payload, msg)
-}
-
-export interface BackupMetadata {
-  file: string
-  size: number
-  timestamp: string
-  tenantId: string
-  schema: string
 }
 
 // Accept the filenames our own producer writes:

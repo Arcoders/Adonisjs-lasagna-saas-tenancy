@@ -1,9 +1,9 @@
 import { test } from '@japa/runner'
-import BackupRetentionService from '../../../src/services/backup_retention_service.js'
-import type BackupService from '../../../src/services/backup_service.js'
-import type { BackupMetadata } from '../../../src/services/backup_service.js'
-import { buildTestTenant } from '../../../src/testing/builders.js'
-import { setupTestConfig, testConfig } from '../../helpers/config.js'
+import BackupRetentionService from '../../src/services/backup_retention_service.js'
+import type BackupService from '../../src/services/backup_service.js'
+import type { BackupMetadata } from '../../src/services/backup_service.js'
+import { buildTestTenant } from '@adonisjs-lasagna/saas-tenancy/internal'
+import { setupTestConfig, testConfig } from '../helpers/config.js'
 
 interface FakeBackupServiceCalls {
   listed: string[]

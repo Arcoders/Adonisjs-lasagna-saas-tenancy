@@ -1,8 +1,8 @@
 import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import app from '@adonisjs/core/services/app'
-import { TENANT_REPOSITORY } from '../types/contracts.js'
-import type { TenantRepositoryContract } from '../types/contracts.js'
+import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
+import type { TenantRepositoryContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import BackupService from '../services/backup_service.js'
 
 export default class TenantBackupList extends BaseCommand {

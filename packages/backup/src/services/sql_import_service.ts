@@ -3,11 +3,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import type { TransactionClientContract } from '@adonisjs/lucid/types/database'
-import { getConfig } from '../config.js'
-import type { TenantModelContract } from '../types/contracts.js'
-import { getActiveDriver } from './isolation/active_driver.js'
-import { assertSafeIdentifier } from './isolation/identifier.js'
-import { splitSqlStatementsTagged } from '../utils/sql_splitter.js'
+import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
+import {
+  getActiveDriver,
+  assertSafeIdentifier,
+  splitSqlStatementsTagged,
+} from '@adonisjs-lasagna/saas-tenancy/internal'
 
 const isWin = process.platform === 'win32'
 

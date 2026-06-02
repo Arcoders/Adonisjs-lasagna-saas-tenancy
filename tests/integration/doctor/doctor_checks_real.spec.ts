@@ -7,9 +7,9 @@ import {
   CircuitBreakerService,
   schemaDriftCheck,
   migrationStateCheck,
-  backupRecencyCheck,
   circuitBreakerCheck,
 } from '@adonisjs-lasagna/saas-tenancy/services'
+import { backupRecencyCheck } from '@adonisjs-lasagna/backup'
 import type {
   DoctorCheck,
   DoctorContext,

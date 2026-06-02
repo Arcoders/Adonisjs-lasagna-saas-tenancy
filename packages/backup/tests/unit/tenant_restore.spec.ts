@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises'
 test.group('tenant:restore — command metadata', () => {
   test('is registered in commands.json with the canonical contract', async ({ assert }) => {
     const json = JSON.parse(
-      await readFile(new URL('../../../src/commands/commands.json', import.meta.url), 'utf-8')
+      await readFile(new URL('../../src/commands/commands.json', import.meta.url), 'utf-8')
     )
     const entry = json.commands.find((c: any) => c.commandName === 'tenant:restore')
     assert.exists(entry, 'tenant:restore missing from commands.json')
@@ -26,7 +26,7 @@ test.group('tenant:restore — command metadata', () => {
 
   test('barrel re-exports the command', async ({ assert }) => {
     const source = await readFile(
-      new URL('../../../src/commands/index.ts', import.meta.url),
+      new URL('../../src/commands/index.ts', import.meta.url),
       'utf-8'
     )
     assert.match(source, /TenantRestore.*from.*tenant_restore/)

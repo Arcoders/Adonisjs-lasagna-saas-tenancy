@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import BackupService from '../../../src/services/backup_service.js'
+import BackupService from '../../src/services/backup_service.js'
 
 /**
  * Unit coverage for the filename security gate. `restore()` and

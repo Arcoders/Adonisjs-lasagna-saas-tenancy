@@ -1,9 +1,9 @@
-import { getConfig } from '../config.js'
-import type { TenantModelContract } from '../types/contracts.js'
+import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type {
   BackupRetentionConfig,
   BackupRetentionTier,
-} from '../types/config.js'
+} from '@adonisjs-lasagna/saas-tenancy/types'
 import type { BackupMetadata } from './backup_service.js'
 import BackupService from './backup_service.js'
 

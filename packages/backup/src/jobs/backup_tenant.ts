@@ -1,12 +1,11 @@
 import { Job } from '@adonisjs/queue'
 import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
-import { TENANT_REPOSITORY } from '../types/contracts.js'
-import type { TenantRepositoryContract } from '../types/contracts.js'
+import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
+import type { TenantRepositoryContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import BackupService from '../services/backup_service.js'
-import HookRegistry from '../services/hook_registry.js'
-import TenantLogContext from '../services/tenant_log_context.js'
-import TenantBackedUp from '../events/tenant_backed_up.js'
+import { HookRegistry, TenantLogContext } from '@adonisjs-lasagna/saas-tenancy/services'
+import { TenantBackedUp } from '@adonisjs-lasagna/saas-tenancy/events'
 
 interface BackupTenantPayload {
   tenantId: string

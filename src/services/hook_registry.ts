@@ -1,6 +1,5 @@
 import type { TenantModelContract } from '../types/contracts.js'
-import type { BackupMetadata } from './backup_service.js'
-import type { CloneResult } from './clone_service.js'
+import type { BackupMetadata, CloneResult } from '../types/backup.js'
 
 export type TenantLifecyclePhase = 'before' | 'after'
 

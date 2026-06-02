@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import { writeFile, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import SqlImportService from '../../../src/services/sql_import_service.js'
+import SqlImportService from '../../src/services/sql_import_service.js'
 
 /**
  * Dry-run unit coverage: the parse/rewrite/count path runs entirely in-process
