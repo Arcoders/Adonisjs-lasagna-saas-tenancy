@@ -10,20 +10,13 @@ jobs:
   lint-and-typecheck:
     name: Lint & Typecheck
     runs-on: ubuntu-latest
-    # Verify the declared engines floor (>=22) actually builds + passes the unit
-    # suite, not just the version we develop on. If 22 ever breaks, this job goes
-    # red before the lowered `engines` ships a false compatibility claim.
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: ['22', '24']
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: '24'
 
       # Repo .npmrc sets `ignore-scripts=true` for local-dev safety. CI is a
       # controlled environment and tsx/esbuild rely on the postinstall fallback
@@ -43,14 +36,14 @@ jobs:
       - name: Test (unit) + coverage
         run: npm run test:coverage
 
-      # Only the canonical (24) matrix leg uploads coverage so the artifact name
-      # stays unique and the coverage-merge job has a stable source.
-      - name: Upload unit coverage
-        if: always() && matrix.node-version == '24'
+      # Raw V8 so the coverage-report job can re-report it with source-map
+      # remapping back to src/*.ts.
+      - name: Upload raw unit coverage (V8)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-unit
-          path: coverage/lcov.info
+          name: c8-raw-unit
+          path: coverage/.v8/unit
           if-no-files-found: warn
 
       # Surfaces unused exports / orphaned files / unused deps. `--no-exit-code`
@@ -177,12 +170,15 @@ jobs:
       - name: Test (integration) + coverage
         run: npm run test:integration:coverage
 
-      - name: Upload integration coverage
+      # Raw V8, not lcov: the integration suite runs against build/*.js, so its
+      # per-run lcov undercounts src. The coverage-report job re-reports this
+      # raw data with the build source maps to attribute it back to src/*.ts.
+      - name: Upload raw integration coverage (V8)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-integration
-          path: coverage/lcov.info
+          name: c8-raw-integration
+          path: coverage/.v8/integration
           if-no-files-found: warn
 
   test-e2e-demo:
@@ -287,11 +283,10 @@ jobs:
   coverage-report:
     name: Aggregate coverage (unit + integration)
     runs-on: ubuntu-latest
-    # Runs once both coverage producers succeed. The unit gate is enforced
-    # in-run by .c8rc; this job exists to publish a single citable aggregate
-    # number (unit-only undercounts because integration runs against build/ and
-    # c8 can't attribute it back to src). Report-only for now — promoting the
-    # merged number to a hard gate is the next milestone.
+    # Runs once both coverage producers succeed. It re-reports the raw V8
+    # coverage from both suites through a single `c8 report`, which remaps each
+    # script back to src/*.ts via source maps — so the integration suite (run
+    # against build/) finally counts toward src instead of reading as ~0.
     needs: [lint-and-typecheck, test-integration]
     steps:
       - uses: actions/checkout@v4
@@ -301,33 +296,47 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Download unit coverage
+      - name: Install dependencies
+        env:
+          npm_config_ignore_scripts: 'false'
+        run: npm install --legacy-peer-deps --include=optional
+
+      # build/ + its .map files must exist at the same path the integration run
+      # executed from, so c8 can resolve each build/*.js back to src/*.ts.
+      - name: Build (for source-map remapping)
+        run: npm run build
+
+      # Both artifacts extract into the same temp dir; V8 dump filenames are
+      # unique, so they merge rather than collide.
+      - name: Download raw unit coverage (V8)
         uses: actions/download-artifact@v4
         with:
-          name: coverage-unit
-          path: coverage-unit
+          name: c8-raw-unit
+          path: coverage/.v8/all
 
-      - name: Download integration coverage
+      - name: Download raw integration coverage (V8)
         uses: actions/download-artifact@v4
         with:
-          name: coverage-integration
-          path: coverage-integration
+          name: c8-raw-integration
+          path: coverage/.v8/all
 
-      - name: Merge lcov (unit + integration)
-        run: npx --yes lcov-result-merger "coverage-*/lcov.info" coverage-combined.info
+      - name: Aggregate coverage report (unit + integration, remapped to src)
+        run: npm run coverage:report
 
-      - name: Install lcov for summary
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends lcov
-
-      - name: Summarize combined coverage
-        run: lcov --summary coverage-combined.info
+      # Blocking gate on the aggregate. Thresholds start at the unit floors (the
+      # aggregate can only cover MORE, so this never false-fails); ratchet them
+      # up here once a run prints the real merged number.
+      - name: Coverage gate (aggregate)
+        env:
+          COV_MIN_LINES: '34'
+          COV_MIN_FUNCTIONS: '58'
+          COV_MIN_BRANCHES: '70'
+        run: node scripts/coverage-gate.mjs coverage/lcov.info
 
       - name: Upload combined coverage
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-combined
-          path: coverage-combined.info
+          path: coverage/lcov.info
           if-no-files-found: warn

@@ -139,6 +139,42 @@ export default defineConfig({
 Useful when the same app serves both human web traffic and machine
 APIs.
 
+## Resolvers and model-query routing
+
+`request.tenant()` always runs the full resolver chain (it can await, so a
+custom or domain-based resolver works). But `TenantAdapter` — the layer that
+picks the schema connection for a raw model query — runs synchronously, so it
+needs a synchronous id. When a query happens inside an active tenant context
+(after the guard's `request.tenant()` ran, or inside `tenancy.run()`), the
+adapter uses that context's id and everything is consistent.
+
+When a model query runs with **no** active context, the adapter falls back to
+resolving the id from the request, and `config.resolver.legacyAdapterFallback`
+controls how:
+
+```ts
+export default defineConfig({
+  resolverChain: ['my-jwt-resolver', 'header'],
+  resolver: {
+    // false: the adapter consults the resolver chain synchronously, so a
+    //   custom resolver routes model queries too. (Default in 1.0.)
+    // true (current default): the adapter uses only `resolverStrategy` on this
+    //   fallback — custom chain resolvers are not consulted there.
+    legacyAdapterFallback: false,
+  },
+})
+```
+
+<Callout type="tip" title="When this matters">
+If you rely on a <em>custom</em> resolver (or a chain) and you query tenant
+models outside the request guard, set
+<code>legacyAdapterFallback: false</code> so routing uses the same chain as
+<code>request.tenant()</code>. With the default, those fallback queries use
+only <code>resolverStrategy</code>. A domain-based resolver still needs an
+async repository lookup, so route those flows through <code>request.tenant()</code>
+first.
+</Callout>
+
 ## Read next
 
 - [Routing](/docs/routing). The `tenant()`, `central()`, and

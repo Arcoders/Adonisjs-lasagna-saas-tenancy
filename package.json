@@ -24,7 +24,7 @@
     "schema-based"
   ],
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=24.0.0"
   },
   "workspaces": [
     "examples/api"
@@ -112,9 +112,11 @@
     "build": "tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
     "typecheck": "tsc --noEmit",
     "test": "tsx bin/test.ts",
-    "test:coverage": "c8 tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=coverage/.v8/unit tsx bin/test.ts",
     "test:integration": "npm run build && tsx bin/test.integration.ts",
-    "test:integration:coverage": "npm run build && c8 --check-coverage=false tsx bin/test.integration.ts",
+    "test:integration:coverage": "npm run build && c8 --check-coverage=false --temp-directory=coverage/.v8/integration tsx bin/test.integration.ts",
+    "coverage:report": "c8 report --temp-directory=coverage/.v8/all --reporter=lcov --reporter=text-summary",
+    "coverage:gate": "node scripts/coverage-gate.mjs",
     "knip": "knip --no-exit-code",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "docs:sync": "node docs/scripts/sync-changelog.mjs",

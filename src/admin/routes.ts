@@ -36,10 +36,15 @@ export interface MultitenancyAdminRoutesOptions {
   prefix?: string
   /**
    * Middleware applied to every admin route. Pass a name (registered in the
-   * app kernel), a callable, or an array of either. Without this, the routes
-   * are PUBLIC — securing them is the consumer's responsibility.
+   * app kernel), a callable, or an array of either.
+   *
+   * REQUIRED. The admin API exposes destructive routes (tenant destroy,
+   * impersonation, SSO config), so it refuses to mount without auth: omitting
+   * this throws at startup. To intentionally mount the routes public — only
+   * ever behind a trusted network boundary (a private VPC, an authenticating
+   * gateway, or local tests) — pass `false` explicitly.
    */
-  middleware?: AdminRouteMiddleware
+  middleware?: AdminRouteMiddleware | false
   /**
    * REQUIRED if you mount the impersonation endpoints. Must extract the
    * acting admin id from the authenticated context — typically
@@ -121,6 +126,20 @@ const DEFAULT_PREFIX = '/admin/multitenancy'
 export function multitenancyAdminRoutes(options: MultitenancyAdminRoutesOptions = {}): void {
   const { prefix = DEFAULT_PREFIX, middleware, resolveAdminActor, docsAuth = true } = options
 
+  // Fail closed: the admin surface includes destructive routes, so it must not
+  // mount silently public. Require explicit auth, or an explicit `false` opt-out.
+  if (middleware === undefined) {
+    throw new Error(
+      'multitenancyAdminRoutes: `middleware` is required. The admin API exposes destructive ' +
+        'routes (tenant destroy, impersonation, SSO config), so it refuses to mount without auth. ' +
+        'Pass your auth middleware, e.g. `multitenancyAdminRoutes({ middleware: middleware.adminAuth() })`. ' +
+        'To intentionally mount it public (only behind a trusted network boundary), pass `middleware: false`.'
+    )
+  }
+
+  // `false` is the explicit "mount public" opt-out; anything else is real middleware.
+  const guarded = middleware !== false
+
   if (resolveAdminActor) {
     __setAdminActorResolver(resolveAdminActor)
   }
@@ -184,7 +203,7 @@ export function multitenancyAdminRoutes(options: MultitenancyAdminRoutesOptions 
 
   const group = router.group(define)
   if (prefix) group.prefix(prefix)
-  if (middleware) (group as any).use(middleware)
+  if (guarded) (group as any).use(middleware)
 
   // Documentation routes mount as a sibling group so we can opt them out of
   // `middleware` by default. Lazy-import openapi/swagger to avoid loading
@@ -202,5 +221,5 @@ export function multitenancyAdminRoutes(options: MultitenancyAdminRoutesOptions 
   }
   const docsGroup = router.group(docsDefine)
   if (prefix) docsGroup.prefix(prefix)
-  if (docsAuth && middleware) (docsGroup as any).use(middleware)
+  if (docsAuth && guarded) (docsGroup as any).use(middleware)
 }

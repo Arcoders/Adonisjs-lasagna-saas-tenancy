@@ -77,4 +77,26 @@ export default class TenantResolverRegistry {
     }
     return undefined
   }
+
+  /**
+   * Synchronous chain walk for code paths that cannot await — notably
+   * `TenantAdapter`, which has to pick a connection in a sync call. Resolvers
+   * that return a Promise (async-only) are skipped here, since they can't
+   * participate in a synchronous routing decision; the first synchronous hit
+   * wins. All built-in resolvers are synchronous, so a default config behaves
+   * exactly like `resolve()` minus the await.
+   */
+  resolveSync(request: HttpRequest): TenantResolveResult {
+    for (const name of this.#chain) {
+      const resolver = this.#resolvers.get(name)
+      if (!resolver) continue
+      const result = resolver.resolve(request)
+      if (result !== null && typeof (result as { then?: unknown })?.then === 'function') {
+        // Async resolver: can't be used on the synchronous path. Skip it.
+        continue
+      }
+      if (result !== undefined) return result as TenantResolveResult
+    }
+    return undefined
+  }
 }

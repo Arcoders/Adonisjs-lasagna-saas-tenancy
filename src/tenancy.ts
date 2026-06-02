@@ -64,6 +64,18 @@ function currentId(): string | undefined {
 }
 
 /**
+ * Seed the cached `TenantLogContext` singleton so `currentId()` reflects the
+ * live AsyncLocalStorage the HTTP guard writes to, without waiting for the
+ * first `tenancy.run()`. The provider calls this at boot when
+ * `config.resolver.legacyAdapterFallback === false`, which fixes the case
+ * where the adapter's id source depended on whether a queue job had run
+ * earlier in the process.
+ */
+export function primeTenancy(logCtx: TenantLogContext): void {
+  cachedLogCtx = logCtx
+}
+
+/**
  * Test-only: inject specific singletons or clear the cache. Not exported
  * from the public package surface (used by unit tests to avoid booting the
  * full Adonis app).

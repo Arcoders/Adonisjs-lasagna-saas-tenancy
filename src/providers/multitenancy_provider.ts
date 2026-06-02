@@ -21,6 +21,7 @@ import SqliteMemoryDriver from '../services/isolation/sqlite_memory_driver.js'
 import TenantResolverRegistry from '../services/resolvers/registry.js'
 import { builtInResolvers } from '../services/resolvers/builtins.js'
 import TenantLogContext from '../services/tenant_log_context.js'
+import { primeTenancy } from '../tenancy.js'
 import HealthService from '../health/health_service.js'
 import DoctorService from '../services/doctor/doctor_service.js'
 import { builtInChecks } from '../services/doctor/checks/index.js'
@@ -110,13 +111,17 @@ export default class MultitenancyProvider {
       drivers.register(new SqliteMemoryDriver(), { activate: true })
     }
 
+    // Resolve the resolver registry before wiring the adapter so the adapter
+    // can consult it synchronously for model-query routing (the chain is
+    // seeded just below; the adapter holds the reference and reads it lazily).
+    const resolvers = await this.app.container.make(TenantResolverRegistry)
+
     BackofficeBaseModel.$adapter = new BackofficeAdapter(db)
-    TenantBaseModel.$adapter = new TenantAdapter(db, drivers)
+    TenantBaseModel.$adapter = new TenantAdapter(db, drivers, resolvers)
 
     // Seed the resolver registry with the built-ins and apply the
     // configured strategy (or chain). Apps can register additional
     // resolvers in their own provider's `boot()` after this one runs.
-    const resolvers = await this.app.container.make(TenantResolverRegistry)
     for (const r of builtInResolvers) {
       if (!resolvers.has(r.name)) resolvers.register(r)
     }
@@ -125,6 +130,16 @@ export default class MultitenancyProvider {
         ? config.resolverChain
         : [config.resolverStrategy]
     resolvers.setChain(chain)
+
+    // When the unified resolution path is enabled, seed the tenant log context
+    // into `tenancy` so `tenancy.currentId()` reflects the HTTP guard's context
+    // immediately (instead of depending on whether a queue job ran first). This
+    // is what lets the adapter route a model query with the same id that
+    // `request.tenant()` resolved, including domain-based resolvers.
+    if (config.resolver?.legacyAdapterFallback === false) {
+      const logCtx = await this.app.container.make(TenantLogContext)
+      primeTenancy(logCtx)
+    }
 
     const hooks = await this.app.container.make(HookRegistry)
     hooks.loadDeclarative(config.hooks)

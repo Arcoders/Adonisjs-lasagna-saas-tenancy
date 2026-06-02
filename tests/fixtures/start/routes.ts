@@ -10,7 +10,8 @@ router.get('/health', async ({ response }) => {
 
 // Mount admin REST + OpenAPI docs without auth — the fixture is for tests
 // only, and individual specs supply their own ad-hoc gating where needed.
-multitenancyAdminRoutes({ prefix: '/admin/multitenancy' })
+// `middleware: false` is the explicit opt-out the package now requires.
+multitenancyAdminRoutes({ prefix: '/admin/multitenancy', middleware: false })
 
 // Mount the Stripe webhook receiver. Required by the dunning_flow,
 // webhook_idempotency, ip_allowlist (HTTP variant), and pii_redaction

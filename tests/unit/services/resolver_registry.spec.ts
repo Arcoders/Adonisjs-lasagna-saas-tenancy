@@ -76,3 +76,43 @@ test.group('TenantResolverRegistry — chain', () => {
     assert.deepEqual(result, { type: 'id', tenantId: 'B' })
   })
 })
+
+test.group('TenantResolverRegistry — resolveSync', () => {
+  const asyncResolver = (name: string, returns: ReturnType<typeof ResolverHit.id>): TenantResolver => ({
+    name,
+    async resolve() {
+      return returns
+    },
+  })
+
+  test('returns the first synchronous hit', ({ assert }) => {
+    const reg = new TenantResolverRegistry()
+    reg.register(fakeResolver('a', undefined))
+    reg.register(fakeResolver('b', ResolverHit.id('match')))
+    reg.register(fakeResolver('c', ResolverHit.id('would-also-match')))
+    reg.setChain(['a', 'b', 'c'])
+    assert.deepEqual(reg.resolveSync({} as any), { type: 'id', tenantId: 'match' })
+  })
+
+  test('skips async resolvers and uses the next synchronous hit', ({ assert }) => {
+    const reg = new TenantResolverRegistry()
+    reg.register(asyncResolver('async', ResolverHit.id('async-hit')))
+    reg.register(fakeResolver('sync', ResolverHit.id('sync-hit')))
+    reg.setChain(['async', 'sync'])
+    assert.deepEqual(reg.resolveSync({} as any), { type: 'id', tenantId: 'sync-hit' })
+  })
+
+  test('returns undefined when the only chain entry is async (no sync hit)', ({ assert }) => {
+    const reg = new TenantResolverRegistry()
+    reg.register(asyncResolver('async', ResolverHit.id('x')))
+    reg.setChain(['async'])
+    assert.isUndefined(reg.resolveSync({} as any))
+  })
+
+  test('returns undefined when nothing in the chain matches synchronously', ({ assert }) => {
+    const reg = new TenantResolverRegistry()
+    reg.register(fakeResolver('a', undefined))
+    reg.setChain(['a'])
+    assert.isUndefined(reg.resolveSync({} as any))
+  })
+})

@@ -9,6 +9,30 @@ export type TenantResolverStrategy =
   | 'request-data'
 
 /**
+ * Controls how `TenantAdapter` routes a model query when there is no active
+ * tenancy context (no `request.tenant()`/guard has run and no
+ * `tenancy.run()` scope is open).
+ */
+export interface ResolverConfig {
+  /**
+   *  - `true` (default in 0.x): the adapter uses only the built-in
+   *    `resolverStrategy` switch on this fallback. Custom resolvers registered
+   *    in `resolverChain` are NOT consulted for model-query routing, and a
+   *    custom-domain resolver cannot route a raw model query. This is the
+   *    historical behavior.
+   *  - `false`: the adapter consults the resolver chain synchronously
+   *    (`resolveSync`) and, in the HTTP path, trusts the id already resolved by
+   *    `request.tenant()` (the package seeds the tenant log context at boot so
+   *    `tenancy.currentId()` reflects the guard). This makes custom and
+   *    domain-based resolvers route model queries consistently. Async-only
+   *    resolvers are skipped on the synchronous routing path.
+   *
+   * Will default to `false` in 1.0.
+   */
+  legacyAdapterFallback?: boolean
+}
+
+/**
  * Per-strategy configuration the resolvers consume. Optional — the built-in
  * resolvers fall back to sensible defaults when these blocks are absent.
  */
@@ -314,6 +338,12 @@ export interface MultitenancyConfig {
    * hit wins. When provided, this overrides `resolverStrategy`.
    */
   resolverChain?: string[]
+  /**
+   * Optional: tune how `TenantAdapter` routes model queries with no active
+   * tenancy context. See {@link ResolverConfig}. Defaults preserve the
+   * historical behavior.
+   */
+  resolver?: ResolverConfig
   tenantHeaderKey: string
   baseDomain: string
   /** Settings for the `request-data` resolver. */
