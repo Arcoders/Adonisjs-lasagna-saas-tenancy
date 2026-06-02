@@ -361,7 +361,7 @@ test.group('TenantAdapter — legacyAdapterFallback flag (B1)', (group) => {
     )
   })
 
-  test('legacyAdapterFallback:true (default) ignores the custom chain and uses resolverStrategy', ({
+  test('legacyAdapterFallback:true (opt-in) ignores the custom chain and uses resolverStrategy', ({
     assert,
   }) => {
     setConfig({ ...testConfig, resolverStrategy: 'header', resolver: { legacyAdapterFallback: true } })
@@ -382,8 +382,10 @@ test.group('TenantAdapter — legacyAdapterFallback flag (B1)', (group) => {
     )
   })
 
-  test('no resolver block keeps the historical behavior (flag defaults to true)', ({ assert }) => {
+  test('no resolver block uses the unified chain (flag defaults to false in 1.0)', ({ assert }) => {
     setConfig({ ...testConfig, resolverStrategy: 'header' })
+    // Both headers present: the 1.0 default consults the custom chain
+    // (x-custom-tenant), not the legacy resolverStrategy switch (x-tenant-id).
     ;(HttpContext as any).get = () => ({
       request: makeRequest({ headers: { 'x-tenant-id': UUID1, 'x-custom-tenant': UUID2 } }),
     })
@@ -392,7 +394,11 @@ test.group('TenantAdapter — legacyAdapterFallback flag (B1)', (group) => {
 
     adapter.modelConstructorClient({} as any)
 
-    assert.equal(db.lastCall, `tenant_${UUID1}`)
+    assert.equal(
+      db.lastCall,
+      `tenant_${UUID2}`,
+      'the 1.0 default routes via the resolver chain, so the custom resolver wins'
+    )
   })
 
   test('legacyAdapterFallback:false with no resolvers passed falls back to legacy resolution', ({

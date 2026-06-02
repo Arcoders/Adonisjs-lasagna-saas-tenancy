@@ -135,7 +135,7 @@ export default class MultitenancyProvider {
     // immediately (instead of depending on whether a queue job ran first). This
     // is what lets the adapter route a model query with the same id that
     // `request.tenant()` resolved, including domain-based resolvers.
-    if (config.resolver?.legacyAdapterFallback === false) {
+    if (config.resolver?.legacyAdapterFallback !== true) {
       const logCtx = await this.app.container.make(TenantLogContext)
       primeTenancy(logCtx)
     }

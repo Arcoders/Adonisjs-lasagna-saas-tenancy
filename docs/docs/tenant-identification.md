@@ -156,10 +156,10 @@ controls how:
 export default defineConfig({
   resolverChain: ['my-jwt-resolver', 'header'],
   resolver: {
-    // false: the adapter consults the resolver chain synchronously, so a
-    //   custom resolver routes model queries too. (Default in 1.0.)
-    // true (current default): the adapter uses only `resolverStrategy` on this
-    //   fallback — custom chain resolvers are not consulted there.
+    // false (default): the adapter consults the resolver chain synchronously,
+    //   so a custom resolver routes model queries too.
+    // true: restores the 0.x behavior — the adapter uses only `resolverStrategy`
+    //   on this fallback; custom chain resolvers are not consulted there.
     legacyAdapterFallback: false,
   },
 })
@@ -167,12 +167,12 @@ export default defineConfig({
 
 <Callout type="tip" title="When this matters">
 If you rely on a <em>custom</em> resolver (or a chain) and you query tenant
-models outside the request guard, set
-<code>legacyAdapterFallback: false</code> so routing uses the same chain as
-<code>request.tenant()</code>. With the default, those fallback queries use
-only <code>resolverStrategy</code>. A domain-based resolver still needs an
-async repository lookup, so route those flows through <code>request.tenant()</code>
-first.
+models outside the request guard, the default already routes those fallback
+queries through the same chain as <code>request.tenant()</code>. Set
+<code>legacyAdapterFallback: true</code> only to restore the 0.x behavior, where
+those fallback queries used only <code>resolverStrategy</code>. A domain-based
+resolver still needs an async repository lookup, so route those flows through
+<code>request.tenant()</code> first.
 </Callout>
 
 ## Read next

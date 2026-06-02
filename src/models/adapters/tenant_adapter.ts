@@ -68,14 +68,14 @@ export default class TenantAdapter extends DefaultLucidAdapter {
   /**
    * Resolve a tenant id directly from the request for the fallback path (no
    * active tenancy context). Honors `config.resolver.legacyAdapterFallback`:
-   * the default keeps the historical `resolverStrategy`-only switch, while
-   * `false` consults the resolver chain synchronously so custom resolvers
-   * route model queries too. A `domain` hit yields no synchronous id (it needs
-   * an async repository lookup), so those flows must establish context via
-   * `request.tenant()` first.
+   * the default (`false`) consults the resolver chain synchronously so custom
+   * resolvers route model queries too; set it to `true` to restore the
+   * historical `resolverStrategy`-only switch. A `domain` hit yields no
+   * synchronous id (it needs an async repository lookup), so those flows must
+   * establish context via `request.tenant()` first.
    */
   #resolveIdFromRequest(request: HttpRequest): string | undefined {
-    const legacy = getConfig().resolver?.legacyAdapterFallback ?? true
+    const legacy = getConfig().resolver?.legacyAdapterFallback ?? false
     if (!legacy && this.resolvers) {
       const result = this.resolvers.resolveSync(request)
       return result?.type === 'id' ? result.tenantId : undefined

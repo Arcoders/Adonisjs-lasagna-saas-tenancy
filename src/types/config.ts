@@ -15,19 +15,19 @@ export type TenantResolverStrategy =
  */
 export interface ResolverConfig {
   /**
-   *  - `true` (default in 0.x): the adapter uses only the built-in
-   *    `resolverStrategy` switch on this fallback. Custom resolvers registered
-   *    in `resolverChain` are NOT consulted for model-query routing, and a
-   *    custom-domain resolver cannot route a raw model query. This is the
-   *    historical behavior.
-   *  - `false`: the adapter consults the resolver chain synchronously
+   *  - `false` (default): the adapter consults the resolver chain synchronously
    *    (`resolveSync`) and, in the HTTP path, trusts the id already resolved by
    *    `request.tenant()` (the package seeds the tenant log context at boot so
    *    `tenancy.currentId()` reflects the guard). This makes custom and
    *    domain-based resolvers route model queries consistently. Async-only
    *    resolvers are skipped on the synchronous routing path.
+   *  - `true`: restores the historical 0.x behavior — the adapter uses only the
+   *    built-in `resolverStrategy` switch on this fallback. Custom resolvers
+   *    registered in `resolverChain` are NOT consulted for model-query routing,
+   *    and a custom-domain resolver cannot route a raw model query.
    *
-   * Will default to `false` in 1.0.
+   * Defaults to `false` as of 1.0 (was `true` in 0.x). Set it to `true` only if
+   * you depended on the old `resolverStrategy`-only fallback.
    */
   legacyAdapterFallback?: boolean
 }

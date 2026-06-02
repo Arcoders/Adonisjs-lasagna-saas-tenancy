@@ -66,10 +66,11 @@ function currentId(): string | undefined {
 /**
  * Seed the cached `TenantLogContext` singleton so `currentId()` reflects the
  * live AsyncLocalStorage the HTTP guard writes to, without waiting for the
- * first `tenancy.run()`. The provider calls this at boot when
- * `config.resolver.legacyAdapterFallback === false`, which fixes the case
- * where the adapter's id source depended on whether a queue job had run
- * earlier in the process.
+ * first `tenancy.run()`. The provider calls this at boot whenever the unified
+ * resolution path is active (i.e. `config.resolver.legacyAdapterFallback` is
+ * not explicitly `true`, the 1.0 default), which fixes the case where the
+ * adapter's id source depended on whether a queue job had run earlier in the
+ * process.
  */
 export function primeTenancy(logCtx: TenantLogContext): void {
   cachedLogCtx = logCtx
