@@ -2,7 +2,9 @@ import { test } from '@japa/runner'
 import { writeFile, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import SqlImportService from '../../src/services/sql_import_service.js'
+import SqlImportService, {
+  rewriteSchemaPreservingCopyData,
+} from '../../src/services/sql_import_service.js'
 
 /**
  * Dry-run unit coverage: the parse/rewrite/count path runs entirely in-process
@@ -72,5 +74,44 @@ test.group('SqlImportService.import — dry-run', (group) => {
     await assert.rejects(() =>
       svc.import(tenant, join(dir, 'does-not-exist.sql'), { sourceSchema: 'public', dryRun: true })
     )
+  })
+})
+
+test.group('rewriteSchemaPreservingCopyData', () => {
+  test('rewrites schema-qualified identifiers and the COPY header', ({ assert }) => {
+    const sql = [
+      'CREATE TABLE "public"."notes" (id int);',
+      'INSERT INTO public.notes (id) VALUES (1);',
+      'COPY public.notes (id, body) FROM stdin;',
+    ].join('\n')
+
+    const out = rewriteSchemaPreservingCopyData(sql, 'public', 'tenant_abc')
+
+    assert.include(out, '"tenant_abc"."notes"')
+    assert.include(out, 'INSERT INTO "tenant_abc".notes')
+    assert.include(out, 'COPY "tenant_abc".notes (id, body) FROM stdin;')
+    assert.notInclude(out, 'public.')
+  })
+
+  test('does NOT rewrite a `public.` value inside COPY data rows', ({ assert }) => {
+    const sql = [
+      'COPY public.notes (id, body) FROM stdin;',
+      '1\tpublic.foo is a literal value',
+      '2\tsee public.bar in the docs',
+      '\\.',
+      'INSERT INTO public.notes (id) VALUES (3);',
+    ].join('\n')
+
+    const out = rewriteSchemaPreservingCopyData(sql, 'public', 'tenant_abc')
+    const lines = out.split('\n')
+
+    // Header rewritten…
+    assert.include(lines[0], 'COPY "tenant_abc".notes')
+    // …but the data rows are preserved byte-for-byte (no corruption).
+    assert.equal(lines[1], '1\tpublic.foo is a literal value')
+    assert.equal(lines[2], '2\tsee public.bar in the docs')
+    assert.equal(lines[3], '\\.')
+    // …and statements after the block resume rewriting.
+    assert.include(lines[4], 'INSERT INTO "tenant_abc".notes')
   })
 })

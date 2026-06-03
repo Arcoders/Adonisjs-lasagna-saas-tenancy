@@ -56,6 +56,11 @@ const SKIP_PATTERNS = [
   /^\\[a-z]/i,
 ]
 
+// Start of a `COPY … FROM stdin` data block (mirrors the SQL splitter). The
+// lines between this and the `\.` terminator are raw tab-separated data and
+// must NOT be schema-rewritten.
+const COPY_FROM_STDIN_RE = /^\s*COPY\s+.+\sFROM\s+stdin\b/i
+
 class PsqlNotAvailableError extends Error {
   constructor() {
     super(
@@ -84,7 +89,11 @@ export default class SqlImportService {
     await access(filePath)
 
     const raw = await readFile(filePath, 'utf-8')
-    const transformed = this.#rewriteSchema(raw, options.sourceSchema, tenant.schemaName)
+    const transformed = rewriteSchemaPreservingCopyData(
+      raw,
+      options.sourceSchema,
+      tenant.schemaName
+    )
     const tokens = splitSqlStatementsTagged(transformed)
     const hasCopyBlocks = tokens.some((t) => t.kind === 'copy')
 
@@ -356,19 +365,58 @@ export default class SqlImportService {
     }
   }
 
-  #rewriteSchema(sql: string, source: string, target: string): string {
-    const escapedSource = source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const quotedTarget = `"${target}".`
-
-    sql = sql.replace(new RegExp(`"${escapedSource}"\\.`, 'g'), quotedTarget)
-    sql = sql.replace(new RegExp(`\\b${escapedSource}\\.`, 'g'), quotedTarget)
-
-    return sql
-  }
-
   #shouldSkip(stmt: string): boolean {
     return SKIP_PATTERNS.some((p) => p.test(stmt.trimStart()))
   }
+}
+
+/**
+ * Rewrite `<source>.` schema references to the tenant schema everywhere EXCEPT
+ * inside `COPY … FROM stdin` data blocks. Bulk COPY rows are raw, tab-separated
+ * values; a textual rewrite there would corrupt any cell that happens to
+ * contain `<source>.` (e.g. a column value like `public.foo`). The COPY header
+ * itself (which legitimately names `schema.table`) is still rewritten.
+ *
+ * Known remaining gap: a `<source>.` substring inside a SQL *string literal*
+ * (outside COPY) is still rewritten — distinguishing identifiers from literals
+ * needs a full SQL parser. Prefer `pg_dump --inserts` or a matching schema name
+ * when the data may contain such values.
+ *
+ * Exported for unit testing.
+ */
+export function rewriteSchemaPreservingCopyData(
+  sql: string,
+  source: string,
+  target: string
+): string {
+  const lines = sql.split('\n')
+  const out: string[] = []
+  let inCopyData = false
+
+  for (const line of lines) {
+    if (!inCopyData && COPY_FROM_STDIN_RE.test(line)) {
+      out.push(rewriteSchema(line, source, target))
+      inCopyData = true
+      continue
+    }
+    if (inCopyData) {
+      if (line === '\\.') inCopyData = false
+      out.push(line) // data row or terminator — never rewritten
+      continue
+    }
+    out.push(rewriteSchema(line, source, target))
+  }
+
+  return out.join('\n')
+}
+
+/** Rewrite `<source>.` / `"<source>".` identifier prefixes to the target schema. */
+export function rewriteSchema(sql: string, source: string, target: string): string {
+  const escapedSource = source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const quotedTarget = `"${target}".`
+  sql = sql.replace(new RegExp(`"${escapedSource}"\\.`, 'g'), quotedTarget)
+  sql = sql.replace(new RegExp(`\\b${escapedSource}\\.`, 'g'), quotedTarget)
+  return sql
 }
 
 export { PsqlNotAvailableError }
