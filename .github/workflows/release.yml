@@ -39,9 +39,10 @@ jobs:
           npm_config_ignore_scripts: 'false'
         run: npm install --legacy-peer-deps --include=optional
 
-      - name: Typecheck
-        run: npm run build:all && npm run typecheck
-
+      # No separate typecheck/lint gate here: ci.yml runs the full suite on this
+      # same master commit (and on the PR before merge). `npm run release` builds
+      # every package with tsc before `changeset publish`, so the shipped code is
+      # compile-checked at publish time without a redundant second build.
       - name: Create Release PR or publish
         uses: changesets/action@v1
         with:

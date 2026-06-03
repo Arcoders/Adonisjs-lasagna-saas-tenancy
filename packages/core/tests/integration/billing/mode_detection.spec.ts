@@ -236,16 +236,11 @@ test.group('BillingProvider.boot — billing.verify wiring', (group) => {
     setConfig(evilConfig)
 
     const provider = new BillingProvider(app as never)
-    // Do NOT call `provider.register()` here — the singletons are
-    // already bound on the global container from the suite-level boot.
-    // Re-registering would replace the live `HookRegistry` /
-    // `IsolationDriverRegistry` / `BillingService` instances (the
-    // singleton resolver gets a fresh `enqueue()` wrapper, so the
-    // *next* `container.make(...)` returns a freshly-constructed
-    // instance, not the one the suite booted). The
-    // `tenant_delete_lifecycle` spec's auto-wired before:destroy hook
-    // lives on the originally-bound `HookRegistry` — replacing it
-    // silently drops the hook.
+    // Do NOT call `provider.register()` here. BillingProvider.register() binds
+    // the `BillingService` singleton, which the suite-level boot already bound;
+    // re-registering swaps it for a freshly constructed instance, so the
+    // `__resetForTests()` below (and the bad config we just set) would apply to a
+    // different object than the one `provider.boot()` resolves and verifies.
 
     const billing = await app.container.make(BillingService)
     billing.__resetForTests()
