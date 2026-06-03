@@ -168,5 +168,12 @@ export { resolveTenantId } from './extensions/request.js'
 export { defineConfig, setConfig, getConfig } from './config.js'
 export { tenancy } from './tenancy.js'
 export { withTenantScope, unscoped, isScopeBypassed } from './models/scoping.js'
+export { setTenantRlsGuc, withTenantRls, DEFAULT_RLS_GUC } from './services/isolation/rls.js'
+export type {
+  RlsQueryRunner,
+  RlsTransactor,
+  SetTenantRlsGucOptions,
+  WithTenantRlsOptions,
+} from './services/isolation/rls.js'
 export { encrypt, decrypt, isEncrypted } from './utils/crypto.js'
 export { validateExternalHttpsUrl, validateResolvedHostIsPublic } from './utils/url.js'

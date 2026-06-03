@@ -109,9 +109,10 @@ export class MissingTenantScopeException extends Error {
  * limitation of injecting a scope through Lucid's query hooks (they run after
  * your clauses are composed, with no way to retroactively group them). For a
  * hard isolation boundary that does not depend on query-author discipline,
- * enable PostgreSQL Row-Level Security on the scoped tables (a
- * `tenant_id = current_setting('app.tenant_id')` policy) in addition to this
- * mixin. See docs/data-isolation/rowscope-pg.md.
+ * enable PostgreSQL Row-Level Security on the scoped tables in addition to this
+ * mixin: publish the policy migration with `configure --with=rls` and set the
+ * tenant per transaction with `withTenantRls()` / `setTenantRlsGuc()`. See
+ * docs/data-isolation/rowscope-pg.md.
  */
 export function withTenantScope<TBase extends LucidBaseModelClass>(Base: TBase): TBase {
   const Bootable = Base as TBase & Bootable

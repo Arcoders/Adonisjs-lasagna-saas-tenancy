@@ -30,7 +30,19 @@ const SATELLITE_BUNDLES: Record<string, string[]> = {
   ],
 }
 
+/**
+ * Opt-in hardening bundles. Unlike satellites these are NEVER published by
+ * default: the RLS migration must be edited to list your real `rowScopeTables`
+ * and only makes sense under the `rowscope-pg` driver, so publishing it
+ * unprompted would emit a migration that fails on `migration:run`. Request it
+ * explicitly with `--with=rls`.
+ */
+const OPT_IN_BUNDLES: Record<string, string[]> = {
+  rls: ['enable_rls_tenant_isolation'],
+}
+
 const ALL_FEATURES = Object.keys(SATELLITE_BUNDLES)
+const KNOWN_FEATURES = [...ALL_FEATURES, ...Object.keys(OPT_IN_BUNDLES)]
 
 function parseWithFlag(raw: unknown): string[] | null {
   if (raw === undefined || raw === null) return null
@@ -80,12 +92,12 @@ export default async function configure(command: Configure) {
   let selected: string[]
   if (fromFlag) {
     selected = fromFlag
-    const unknown = selected.filter((f) => !ALL_FEATURES.includes(f))
+    const unknown = selected.filter((f) => !KNOWN_FEATURES.includes(f))
     if (unknown.length > 0) {
       command.logger.warning(
-        `unknown satellite feature(s): ${unknown.join(', ')}. Known: ${ALL_FEATURES.join(', ')}`
+        `unknown feature(s): ${unknown.join(', ')}. Known: ${KNOWN_FEATURES.join(', ')}`
       )
-      selected = selected.filter((f) => ALL_FEATURES.includes(f))
+      selected = selected.filter((f) => KNOWN_FEATURES.includes(f))
     }
   } else if (process.stdout.isTTY && (command as any).prompt?.multiple) {
     selected = (await (command as any).prompt.multiple(
@@ -104,14 +116,18 @@ export default async function configure(command: Configure) {
 
   // Publish migration stubs for every selected feature.
   for (const feature of selected) {
-    const bundle = SATELLITE_BUNDLES[feature]
+    const bundle = SATELLITE_BUNDLES[feature] ?? OPT_IN_BUNDLES[feature]
     if (!bundle) continue
     for (const name of bundle) {
       await codemods.makeUsingStub(stubsRoot, `migrations/${name}.stub`, {})
     }
   }
 
-  command.logger.info(`published satellite migrations: ${selected.join(', ')}`)
+  command.logger.info(`published migrations: ${selected.join(', ')}`)
+
+  if (selected.includes('rls')) {
+    postPublishRls(command)
+  }
 
   if (selected.includes('billing')) {
     // Publish the mailer + view so the QuotaExceededBillingListener has
@@ -137,6 +153,23 @@ export default async function configure(command: Configure) {
 
     await postPublishBilling(command)
   }
+}
+
+/**
+ * Post-publish hint for the RLS hardening migration. The stub ships with
+ * placeholder table names on purpose — running it as-is would fail — so make
+ * the required edit loud rather than letting `migration:run` blow up later.
+ */
+function postPublishRls(command: Configure): void {
+  const log = command.logger
+  log.log('')
+  log.log('— Row-Level Security hardening — required edit —')
+  log.log('A migration `*_enable_rls_tenant_isolation.ts` was published. Before running it:')
+  log.log('  1. Edit TABLES to list your real rowScope tables (mirror isolation.rowScopeTables).')
+  log.log('  2. Edit TENANT_COLUMN if you customised isolation.rowScopeColumn.')
+  log.log('  3. Run your app under a DB role WITHOUT SUPERUSER/BYPASSRLS, then `migration:run`.')
+  log.log('  4. Wrap tenant work in withTenantRls(tenantId, (trx) => ...) so the policy sees the tenant.')
+  log.log('See docs/data-isolation/rowscope-pg.md for the full pattern.')
 }
 
 async function fileExists(path: string): Promise<boolean> {

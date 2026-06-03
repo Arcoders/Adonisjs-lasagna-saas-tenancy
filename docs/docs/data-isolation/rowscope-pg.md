@@ -107,16 +107,79 @@ are composed, so they cannot retroactively group them. The mixin protects the
 common AND-only queries, but it cannot police a top-level `orWhere` you write
 yourself.
 
-<Callout type="warning" title="For a hard boundary, add Row-Level Security">
-If you cannot guarantee every query author groups their <code>OR</code>
-branches, treat the mixin as a convenience and enforce isolation at the
-database with PostgreSQL Row-Level Security. Enable RLS on each scoped table
-and add a policy keyed on a per-connection setting, e.g.
-<code>USING (tenant_id = current_setting('app.tenant_id')::uuid)</code>, then
-<code>SET app.tenant_id</code> at the start of each tenant request/transaction.
-RLS holds regardless of how the query is composed, so a forgotten or escaped
-scope can no longer leak across tenants.
+## Hard boundary: PostgreSQL Row-Level Security
+
+The mixin is a convenience: it scopes the common AND-only queries but cannot
+police a top-level `orWhere` you write yourself. If you cannot guarantee every
+query author groups their `OR` branches, enforce isolation at the database with
+Row-Level Security. RLS holds regardless of how a query is composed, so a
+forgotten or escaped scope can no longer leak across tenants.
+
+This package ships the migration and the runtime helpers to wire it up.
+
+### 1. Publish and run the policy migration
+
+```bash
+node ace configure @adonisjs-lasagna/saas-tenancy --with=rls
+```
+
+That publishes `*_enable_rls_tenant_isolation.ts`. Edit the two constants at the
+top to match your app, then migrate:
+
+```ts
+const TABLES = ['posts', 'comments', 'invoices'] // mirror isolation.rowScopeTables
+const TENANT_COLUMN = 'tenant_id' // mirror isolation.rowScopeColumn
+```
+
+For each table the migration enables **and forces** RLS and creates a
+fail-closed policy:
+
+```sql
+ALTER TABLE "public"."posts" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."posts" FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON "public"."posts"
+  USING ("tenant_id"::text = current_setting('app.tenant_id', true))
+  WITH CHECK ("tenant_id"::text = current_setting('app.tenant_id', true));
+```
+
+When `app.tenant_id` is unset, `current_setting('app.tenant_id', true)` is
+`NULL`, the predicate matches nothing, and `WITH CHECK` blocks the insert. A
+forgotten scope returns zero rows instead of leaking, which is the point.
+
+<Callout type="warning" title="Run your app without SUPERUSER / BYPASSRLS">
+<code>FORCE ROW LEVEL SECURITY</code> makes the policy apply to the table owner
+too (apps usually connect as the owner). But a role with <code>SUPERUSER</code>
+or <code>BYPASSRLS</code> skips RLS entirely — give your app's runtime role
+neither attribute, or the policy is silently inert.
 </Callout>
+
+### 2. Set the tenant per transaction
+
+The policy reads a per-transaction setting. `withTenantRls()` opens a
+transaction, sets it (transaction-local, so it resets on commit/rollback — the
+only pooling-safe choice), and hands you the `trx`:
+
+```ts
+import { withTenantRls } from '@adonisjs-lasagna/saas-tenancy'
+
+await withTenantRls(tenant.id, async (trx) => {
+  // RLS scopes this to the active tenant even with a top-level orWhere.
+  return Post.query({ client: trx }).where('a', 1).orWhere('featured', true)
+})
+```
+
+**Pass `trx` to every scoped query inside the callback** (`Post.query({ client: trx })`
+or `model.useTransaction(trx)`). A query that ignores `trx` runs on a different
+pooled connection where the setting is not set, so RLS returns zero rows for it —
+no leak, but no data either. That fail-closed miss is the deliberate trade for
+shape-independent isolation.
+
+If you already manage your own request transaction, set the value directly with
+`setTenantRlsGuc(trx, tenant.id)` instead.
+
+RLS and the `withTenantScope` mixin compose: keep the mixin for ergonomics
+(auto-fill on create, the strict-scope guard) and let RLS be the boundary that
+does not depend on query-author discipline.
 
 ## Destroy flow
 

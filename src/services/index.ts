@@ -41,6 +41,9 @@ export {
   SqliteMemoryDriver,
   configuredScopeColumn,
   getActiveDriver,
+  setTenantRlsGuc,
+  withTenantRls,
+  DEFAULT_RLS_GUC,
 } from './isolation/index.js'
 export {
   TenantResolverRegistry,
@@ -59,6 +62,10 @@ export type {
   DestroyOptions,
   MigrateOptions,
   MigrateResult,
+  RlsQueryRunner,
+  RlsTransactor,
+  SetTenantRlsGucOptions,
+  WithTenantRlsOptions,
 } from './isolation/index.js'
 export {
   cacheBootstrapper,

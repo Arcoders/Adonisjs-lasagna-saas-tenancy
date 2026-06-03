@@ -1,0 +1,59 @@
+{{{
+  exports({ to: app.migrationsPath(`${Date.now()}_enable_rls_tenant_isolation.ts`) })
+}}}
+import { BaseSchema } from '@adonisjs/lucid/schema'
+
+/**
+ * Defense-in-depth for the `rowscope-pg` driver: PostgreSQL Row-Level Security.
+ *
+ * The `withTenantScope` mixin injects `WHERE tenant_id = ?`, but a hand-written
+ * top-level `orWhere` can compose a query the mixin cannot retroactively group,
+ * leaking another tenant's rows. RLS closes that gap at the database — the
+ * policy below is enforced for EVERY query, regardless of how it is written.
+ *
+ * The policy reads a per-transaction setting, `app.tenant_id`, which your app
+ * sets with `withTenantRls()` / `setTenantRlsGuc()` from
+ * `@adonisjs-lasagna/saas-tenancy`. When the setting is unset the policy matches
+ * no rows (fail-closed), so a forgotten scope returns nothing instead of leaking.
+ *
+ * EDIT the two constants below to match your app:
+ *   - TABLES         → every tenant-scoped table (mirror `isolation.rowScopeTables`).
+ *   - TENANT_COLUMN  → your tenant id column   (mirror `isolation.rowScopeColumn`).
+ *
+ * Notes:
+ *   - FORCE ROW LEVEL SECURITY is required because the table OWNER bypasses RLS
+ *     otherwise, and apps usually connect as the owner. A role with BYPASSRLS or
+ *     SUPERUSER still bypasses it — run your app's runtime role WITHOUT those.
+ *   - `tenant_id::text = current_setting(...)` compares as text, so it works for
+ *     both `uuid` and `text` id columns.
+ */
+const SCHEMA = 'public'
+const TABLES = ['posts', 'comments', 'invoices'] // TODO: your rowScopeTables
+const TENANT_COLUMN = 'tenant_id'
+const GUC = 'app.tenant_id'
+const POLICY = 'tenant_isolation'
+
+export default class extends BaseSchema {
+  async up() {
+    for (const table of TABLES) {
+      const ref = `"${SCHEMA}"."${table}"`
+      this.schema.raw(`ALTER TABLE ${ref} ENABLE ROW LEVEL SECURITY`)
+      this.schema.raw(`ALTER TABLE ${ref} FORCE ROW LEVEL SECURITY`)
+      this.schema.raw(`DROP POLICY IF EXISTS ${POLICY} ON ${ref}`)
+      this.schema.raw(
+        `CREATE POLICY ${POLICY} ON ${ref} ` +
+          `USING ("${TENANT_COLUMN}"::text = current_setting('${GUC}', true)) ` +
+          `WITH CHECK ("${TENANT_COLUMN}"::text = current_setting('${GUC}', true))`
+      )
+    }
+  }
+
+  async down() {
+    for (const table of TABLES) {
+      const ref = `"${SCHEMA}"."${table}"`
+      this.schema.raw(`DROP POLICY IF EXISTS ${POLICY} ON ${ref}`)
+      this.schema.raw(`ALTER TABLE ${ref} NO FORCE ROW LEVEL SECURITY`)
+      this.schema.raw(`ALTER TABLE ${ref} DISABLE ROW LEVEL SECURITY`)
+    }
+  }
+}
