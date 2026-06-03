@@ -73,6 +73,45 @@ you write code that works the same in dev (no replicas) and in prod
 a stable name (`${tenantConnectionNamePrefix}${tenantId}${suffix}_${idx}`)
 so subsequent calls reuse it — no per-query handshake.
 
+## Handling replica failure (no automatic failover)
+
+`resolve()` returns a connection for the chosen replica regardless of whether
+that replica is reachable. There is **no automatic failover to the primary**,
+on purpose: a silent fallback would mask a replica outage, hide replication
+lag, and can stampede the primary under load exactly when it's least able to
+take it. An unreachable replica therefore surfaces as an error at **query
+time**, not at `resolve()` time (Lucid connects lazily).
+
+If your read path must stay available when a replica is down, catch the error
+and retry against the primary yourself:
+
+```ts
+import app from '@adonisjs/core/services/app'
+import {
+  ReadReplicaService,
+  getActiveDriver,
+} from '@adonisjs-lasagna/saas-tenancy/services'
+
+async function readWithFallback(tenant, run) {
+  const replicas = await app.container.make(ReadReplicaService)
+  const replica = await replicas.resolve(tenant)
+  if (replica) {
+    try {
+      return await run(replica)
+    } catch (err) {
+      // Replica unreachable/lagging — fall back to the primary for this read.
+      // Consider tracking failures so you stop hammering a dead replica.
+      app.logger.warn({ err: (err as Error).message }, 'read replica failed; using primary')
+    }
+  }
+  const primary = await (await getActiveDriver()).connect(tenant)
+  return run(primary)
+}
+```
+
+Decide deliberately whether a given read can tolerate the fallback: a
+read-your-own-write path should go straight to the primary instead (see below).
+
 ## Where this kicks in automatically
 
 Lasagna does not silently route every read to a replica — that would
