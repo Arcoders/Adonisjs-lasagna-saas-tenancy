@@ -1,6 +1,6 @@
 import TenantSsoConfig from './tenant_sso_config.js'
 import { getCache } from '@adonisjs-lasagna/saas-tenancy/services'
-import { validateExternalHttpsUrl } from '@adonisjs-lasagna/saas-tenancy'
+import { validateExternalHttpsUrl, validateResolvedHostIsPublic } from '@adonisjs-lasagna/saas-tenancy'
 import redis from '@adonisjs/redis/services/main'
 import { randomBytes } from 'node:crypto'
 
@@ -197,7 +197,7 @@ export default class SsoService {
           // opt into an in-process IdP); the SsoController never accepts a
           // loopback issuerUrl from admin input.
           if (!isLoopbackIssuer(issuerUrl)) {
-            const issuerErr = validateExternalHttpsUrl(issuerUrl)
+            const issuerErr = await validateResolvedHostIsPublic(issuerUrl)
             if (issuerErr) {
               throw new Error(
                 `OIDC discovery refused: unsafe issuerUrl (${issuerErr}).`

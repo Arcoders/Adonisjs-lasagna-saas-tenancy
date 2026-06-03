@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { validateExternalHttpsUrl } from '../../../src/utils/url.js'
+import { validateExternalHttpsUrl, validateResolvedHostIsPublic } from '../../../src/utils/url.js'
 
 /**
  * SSRF guard. The function returns `null` when the URL is safe to fetch from
@@ -97,5 +97,28 @@ test.group('validateExternalHttpsUrl — SSRF guard', () => {
     assert.isNull(
       validateExternalHttpsUrl('https://idp.example.com:8443/oauth/authorize?foo=1#x')
     )
+  })
+})
+
+/**
+ * The DNS-aware wrapper used at the fetch boundary. These cases exercise the
+ * non-DNS branches deterministically (offline): it must delegate the syntactic
+ * verdict, short-circuit on literal IPs, and never call DNS for them.
+ */
+test.group('validateResolvedHostIsPublic — DNS-aware SSRF guard', () => {
+  test('delegates the syntactic rejection (non-https)', async ({ assert }) => {
+    assert.equal(await validateResolvedHostIsPublic('http://example.com'), 'url_must_be_https')
+  })
+
+  test('rejects an unsafe literal IP via the syntactic check', async ({ assert }) => {
+    assert.equal(await validateResolvedHostIsPublic('https://10.0.0.1/'), 'url_blocks_private')
+    assert.equal(
+      await validateResolvedHostIsPublic('https://169.254.169.254/'),
+      'url_blocks_link_local'
+    )
+  })
+
+  test('accepts a public literal IP without resolving DNS', async ({ assert }) => {
+    assert.isNull(await validateResolvedHostIsPublic('https://8.8.8.8/'))
   })
 })

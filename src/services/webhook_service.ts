@@ -1,7 +1,7 @@
 import TenantWebhook from '../models/satellites/tenant_webhook.js'
 import TenantWebhookDelivery from '../models/satellites/tenant_webhook_delivery.js'
 import { encrypt, decrypt } from '../utils/crypto.js'
-import { validateExternalHttpsUrl } from '../utils/url.js'
+import { validateExternalHttpsUrl, validateResolvedHostIsPublic } from '../utils/url.js'
 import { DateTime } from 'luxon'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
@@ -94,9 +94,10 @@ export default class WebhookService {
     // (`processRetries`) reach this method with a stored URL that may have been
     // written via the service API, a prior package version, or a host that
     // rebound its DNS to an internal address. Refuse here rather than trust the
-    // upstream check. A structurally-unsafe URL is permanent, so fail without
-    // scheduling a retry.
-    const urlError = validateExternalHttpsUrl(hook.url)
+    // upstream check. This also resolves the hostname and rejects any address
+    // in a private/metadata range. A structurally-unsafe URL is permanent, so
+    // fail without scheduling a retry.
+    const urlError = await validateResolvedHostIsPublic(hook.url)
     if (urlError) {
       delivery.statusCode = null
       delivery.responseBody = `blocked_unsafe_url:${urlError}`
