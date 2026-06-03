@@ -30,6 +30,13 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # Lint runs report-only for now (mirrors the Knip step below): there's a
+      # known baseline of pre-existing style findings. Flip `continue-on-error`
+      # off once that baseline is cleared so lint becomes a hard gate.
+      - name: Lint (report-only)
+        run: npm run lint
+        continue-on-error: true
+
       - name: Build
         run: npm run build
 

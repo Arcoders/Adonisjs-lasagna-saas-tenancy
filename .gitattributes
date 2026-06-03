@@ -1,0 +1,15 @@
+# Normalize line endings to LF in the repo and on checkout. Without this, a
+# Windows checkout produces CRLF files that conflict with the LF-only Prettier
+# config (@adonisjs/prettier-config), turning every file into a wall of
+# prettier/prettier errors. Keeping the tree LF makes lint consistent across
+# Windows/macOS/Linux.
+* text=auto eol=lf
+
+# Binary assets must never be normalized.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
