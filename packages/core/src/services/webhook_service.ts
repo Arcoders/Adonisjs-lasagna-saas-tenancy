@@ -1,7 +1,11 @@
 import TenantWebhook from '../models/satellites/tenant_webhook.js'
 import TenantWebhookDelivery from '../models/satellites/tenant_webhook_delivery.js'
 import { encrypt, decrypt } from '../utils/crypto.js'
-import { validateExternalHttpsUrl, validateResolvedHostIsPublic } from '../utils/url.js'
+import {
+  validateExternalHttpsUrl,
+  validateResolvedHostIsPublic,
+  isLoopbackUrl,
+} from '../utils/url.js'
 import { DateTime } from 'luxon'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
@@ -98,12 +102,14 @@ export default class WebhookService {
     // in a private/metadata range. A structurally-unsafe URL is permanent, so
     // fail without scheduling a retry.
     //
-    // Escape hatch: WEBHOOKS_ALLOW_PRIVATE_TARGETS=true disables the
-    // private/loopback rejection. Off by default — production stays locked down.
-    // Opt in only for self-hosted setups that deliver to a private network, or
-    // for tests/dev that deliver to an in-process listener on 127.0.0.1.
-    const allowPrivateTargets = process.env.WEBHOOKS_ALLOW_PRIVATE_TARGETS === 'true'
-    const urlError = allowPrivateTargets ? null : await validateResolvedHostIsPublic(hook.url)
+    // Escape hatch: WEBHOOKS_ALLOW_LOOPBACK_TARGETS=true exempts *loopback*
+    // targets (localhost / 127.0.0.0/8 / ::1) only. Off by default — production
+    // stays locked down. Even when enabled, private (RFC 1918) and cloud-metadata
+    // ranges stay blocked, so the flag can't be turned into a metadata SSRF. Opt
+    // in for tests/dev that deliver to an in-process listener on 127.0.0.1.
+    const allowLoopback =
+      process.env.WEBHOOKS_ALLOW_LOOPBACK_TARGETS === 'true' && isLoopbackUrl(hook.url)
+    const urlError = allowLoopback ? null : await validateResolvedHostIsPublic(hook.url)
     if (urlError) {
       delivery.statusCode = null
       delivery.responseBody = `blocked_unsafe_url:${urlError}`

@@ -82,6 +82,28 @@ export async function validateResolvedHostIsPublic(value: unknown): Promise<stri
   return null
 }
 
+/**
+ * True iff `value` is a syntactic loopback URL (localhost / 127.0.0.0/8 / ::1).
+ * Scopes the webhook delivery escape hatch: even when an operator opts into
+ * delivering to otherwise-blocked targets, only literal loopback is exempted —
+ * private (RFC 1918) and cloud-metadata ranges stay blocked. A hostname that
+ * merely *resolves* to loopback is NOT matched here (it still fails the
+ * resolving guard), so the exemption can't be abused via DNS rebinding.
+ */
+export function isLoopbackUrl(value: unknown): boolean {
+  if (typeof value !== 'string') return false
+  let u: URL
+  try {
+    u = new URL(value)
+  } catch {
+    return false
+  }
+  const host = stripBrackets(u.hostname.toLowerCase())
+  if (host === 'localhost' || host === '::1') return true
+  const v4 = host.match(/^(\d{1,3})\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)
+  return v4 ? Number(v4[1]) === 127 : false
+}
+
 function stripBrackets(host: string): string {
   // Node's URL parser keeps the brackets on IPv6 literal hostnames
   // (`new URL('https://[::1]/').hostname === '[::1]'`), so strip them before

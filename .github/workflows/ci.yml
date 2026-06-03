@@ -264,9 +264,9 @@ jobs:
       CACHE_REDIS_DB: 2
       BACKUP_STORAGE_PATH: ./storage/backups
       # The webhook-delivery e2e posts to an in-process listener on 127.0.0.1;
-      # opt past the SSRF guard's private/loopback rejection for the demo run.
-      # Off in production (the guard rejects private targets by default).
-      WEBHOOKS_ALLOW_PRIVATE_TARGETS: 'true'
+      # exempt loopback from the SSRF guard for the demo run. Off in production,
+      # and even when on it only allows loopback (private/metadata stay blocked).
+      WEBHOOKS_ALLOW_LOOPBACK_TARGETS: 'true'
       DEMO_ADMIN_TOKEN: demo-admin-token-change-me
       MAILCATCHER_HOST: 127.0.0.1
       MAILCATCHER_PORT: 1025
