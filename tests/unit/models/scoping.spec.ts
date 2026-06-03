@@ -140,16 +140,35 @@ test.group('withTenantScope — query hooks', (group) => {
     })
   })
 
-  test('create hook leaves an explicit tenant_id alone', async ({ assert }) => {
+  test('create hook leaves an explicit tenant_id that matches the active context', async ({
+    assert,
+  }) => {
     setupTenancy()
     const { FakeBaseModel, hooks } = makeFakeBase()
     const Scoped = withTenantScope(FakeBaseModel as any) as any
     Scoped.boot()
 
     await tenancy.run(fakeTenant('current'), async () => {
-      const model: any = { tenant_id: 'preset' }
-      hooks.create[0](model)
-      assert.equal(model.tenant_id, 'preset')
+      const model: any = { tenant_id: 'current' }
+      assert.doesNotThrow(() => hooks.create[0](model))
+      assert.equal(model.tenant_id, 'current')
+    })
+  })
+
+  test('create hook throws when an explicit tenant_id belongs to a different tenant', async ({
+    assert,
+  }) => {
+    setupTenancy()
+    const { FakeBaseModel, hooks } = makeFakeBase()
+    const Scoped = withTenantScope(FakeBaseModel as any) as any
+    Scoped.boot()
+
+    // Regression for the cross-tenant create footgun: setting tenant_id to
+    // another tenant from the current context must be refused, consistent with
+    // the update/delete hooks.
+    await tenancy.run(fakeTenant('current'), async () => {
+      const model: any = { tenant_id: 'other' }
+      assert.throws(() => hooks.create[0](model), /refusing to create/)
     })
   })
 

@@ -87,6 +87,27 @@ export class MissingTenantScopeException extends Error {
  *   }
  *
  * Use `unscoped(fn)` to escape the scope for cross-tenant operations.
+ *
+ * ## SECURITY: top-level `orWhere` escapes the auto-scope
+ *
+ * The tenant predicate is injected as a single top-level `AND tenant_id = ?`.
+ * Because SQL binds `AND` tighter than `OR`, a query that mixes a top-level
+ * `orWhere` lets rows from other tenants leak:
+ *
+ *   // UNSAFE — becomes `WHERE published = true OR (featured = true AND tenant_id = X)`
+ *   Post.query().where('published', true).orWhere('featured', true)
+ *
+ * Always GROUP your `OR` branches so the tenant predicate wraps them:
+ *
+ *   // SAFE — becomes `WHERE (published = true OR featured = true) AND tenant_id = X`
+ *   Post.query().where((q) => q.where('published', true).orWhere('featured', true))
+ *
+ * This is a fundamental limitation of injecting a scope through Lucid's
+ * query hooks (they run after your clauses are composed, with no way to
+ * retroactively group them). For a hard isolation boundary that does not
+ * depend on query-author discipline, enable PostgreSQL Row-Level Security on
+ * the scoped tables (a `tenant_id = current_setting('app.tenant_id')` policy)
+ * in addition to this mixin. See docs/data-isolation/rowscope-pg.md.
  */
 export function withTenantScope<TBase extends LucidBaseModelClass>(Base: TBase): TBase {
   const Bootable = Base as TBase & Bootable
@@ -152,6 +173,17 @@ export function withTenantScope<TBase extends LucidBaseModelClass>(Base: TBase):
         if (!id) return
         if (model[column] === undefined || model[column] === null) {
           model[column] = id
+          return
+        }
+        // An explicit tenant id that doesn't match the active context would
+        // create a row owned by another tenant. Refuse, consistent with the
+        // update/delete hooks below. Wrap the call in unscoped(...) for a
+        // deliberate cross-tenant create.
+        if (model[column] !== id) {
+          throw new Error(
+            `withTenantScope: refusing to create a row owned by tenant "${model[column]}" from tenant "${id}" context. ` +
+              `Wrap the operation in unscoped(...) if this is intentional.`
+          )
         }
       })
 

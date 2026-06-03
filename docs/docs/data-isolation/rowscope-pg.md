@@ -81,6 +81,41 @@ export default class Post extends withTenantScope(BaseModel) {
 }
 ```
 
+## SECURITY: group your `OR` branches
+
+The mixin injects the tenant filter as a single top-level
+`AND tenant_id = <current>`. Because SQL binds `AND` tighter than `OR`, a
+query that adds a top-level `orWhere` lets the tenant predicate apply to only
+one branch, leaking other tenants' rows:
+
+```ts
+// UNSAFE → WHERE published = true OR (featured = true AND tenant_id = X)
+await Post.query().where('published', true).orWhere('featured', true)
+```
+
+Always wrap `OR` branches in a group so the tenant predicate covers all of them:
+
+```ts
+// SAFE → WHERE (published = true OR featured = true) AND tenant_id = X
+await Post.query().where((q) => q.where('published', true).orWhere('featured', true))
+```
+
+This is a fundamental limitation of injecting a scope through query hooks: they
+run after your clauses are composed, so they cannot retroactively group them.
+The mixin protects the common AND-only queries, but it cannot police a
+top-level `orWhere` you write yourself.
+
+<Callout type="warning" title="For a hard boundary, add Row-Level Security">
+If you cannot guarantee every query author groups their <code>OR</code>
+branches, treat the mixin as a convenience and enforce isolation at the
+database with PostgreSQL Row-Level Security. Enable RLS on each scoped table
+and add a policy keyed on a per-connection setting, e.g.
+<code>USING (tenant_id = current_setting('app.tenant_id')::uuid)</code>, then
+<code>SET app.tenant_id</code> at the start of each tenant request/transaction.
+RLS holds regardless of how the query is composed, so a forgotten or escaped
+scope can no longer leak across tenants.
+</Callout>
+
 ## Destroy flow
 
 `destroy(tenant)` runs `DELETE FROM <table> WHERE tenant_id = ?` for
