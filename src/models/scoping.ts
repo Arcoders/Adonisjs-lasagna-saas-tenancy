@@ -88,26 +88,30 @@ export class MissingTenantScopeException extends Error {
  *
  * Use `unscoped(fn)` to escape the scope for cross-tenant operations.
  *
- * ## SECURITY: top-level `orWhere` escapes the auto-scope
+ * ## SECURITY: top-level `orWhere` can escape the auto-scope
  *
- * The tenant predicate is injected as a single top-level `AND tenant_id = ?`.
- * Because SQL binds `AND` tighter than `OR`, a query that mixes a top-level
- * `orWhere` lets rows from other tenants leak:
+ * The tenant predicate is injected as flat top-level predicates. Because SQL
+ * binds `AND` tighter than `OR`, a query that introduces top-level `OR`
+ * branches can leave a branch outside the tenant filter and leak rows across
+ * tenants:
  *
- *   // UNSAFE — becomes `WHERE published = true OR (featured = true AND tenant_id = X)`
- *   Post.query().where('published', true).orWhere('featured', true)
+ *   // UNSAFE — the `featured` branch is not tenant-scoped, so other tenants'
+ *   // featured rows leak. Becomes (roughly):
+ *   //   WHERE (tenant_id = X AND a = 1) OR featured = true OR (b = 2 AND tenant_id = X)
+ *   Post.query().where('a', 1).orWhere('featured', true).orWhere('b', 2)
  *
- * Always GROUP your `OR` branches so the tenant predicate wraps them:
+ * Always GROUP your `OR` branches so the tenant predicate wraps all of them:
  *
- *   // SAFE — becomes `WHERE (published = true OR featured = true) AND tenant_id = X`
- *   Post.query().where((q) => q.where('published', true).orWhere('featured', true))
+ *   // SAFE — WHERE (a = 1 OR featured = true OR b = 2) AND tenant_id = X
+ *   Post.query().where((q) => q.where('a', 1).orWhere('featured', true).orWhere('b', 2))
  *
- * This is a fundamental limitation of injecting a scope through Lucid's
- * query hooks (they run after your clauses are composed, with no way to
- * retroactively group them). For a hard isolation boundary that does not
- * depend on query-author discipline, enable PostgreSQL Row-Level Security on
- * the scoped tables (a `tenant_id = current_setting('app.tenant_id')` policy)
- * in addition to this mixin. See docs/data-isolation/rowscope-pg.md.
+ * Treat any non-grouped top-level `OR` as unsafe. This is a fundamental
+ * limitation of injecting a scope through Lucid's query hooks (they run after
+ * your clauses are composed, with no way to retroactively group them). For a
+ * hard isolation boundary that does not depend on query-author discipline,
+ * enable PostgreSQL Row-Level Security on the scoped tables (a
+ * `tenant_id = current_setting('app.tenant_id')` policy) in addition to this
+ * mixin. See docs/data-isolation/rowscope-pg.md.
  */
 export function withTenantScope<TBase extends LucidBaseModelClass>(Base: TBase): TBase {
   const Bootable = Base as TBase & Bootable

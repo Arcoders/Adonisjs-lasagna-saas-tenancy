@@ -83,27 +83,29 @@ export default class Post extends withTenantScope(BaseModel) {
 
 ## SECURITY: group your `OR` branches
 
-The mixin injects the tenant filter as a single top-level
-`AND tenant_id = <current>`. Because SQL binds `AND` tighter than `OR`, a
-query that adds a top-level `orWhere` lets the tenant predicate apply to only
-one branch, leaking other tenants' rows:
+The mixin injects the tenant filter as flat top-level predicates. Because SQL
+binds `AND` tighter than `OR`, a query that introduces top-level `OR` branches
+can leave a branch outside the tenant filter and leak other tenants' rows:
 
 ```ts
-// UNSAFE → WHERE published = true OR (featured = true AND tenant_id = X)
-await Post.query().where('published', true).orWhere('featured', true)
+// UNSAFE → the `featured` branch is not tenant-scoped, so other tenants'
+// featured rows come back. Roughly:
+//   WHERE (tenant_id = X AND a = 1) OR featured = true OR (b = 2 AND tenant_id = X)
+await Post.query().where('a', 1).orWhere('featured', true).orWhere('b', 2)
 ```
 
 Always wrap `OR` branches in a group so the tenant predicate covers all of them:
 
 ```ts
-// SAFE → WHERE (published = true OR featured = true) AND tenant_id = X
-await Post.query().where((q) => q.where('published', true).orWhere('featured', true))
+// SAFE → WHERE (a = 1 OR featured = true OR b = 2) AND tenant_id = X
+await Post.query().where((q) => q.where('a', 1).orWhere('featured', true).orWhere('b', 2))
 ```
 
-This is a fundamental limitation of injecting a scope through query hooks: they
-run after your clauses are composed, so they cannot retroactively group them.
-The mixin protects the common AND-only queries, but it cannot police a
-top-level `orWhere` you write yourself.
+Treat any non-grouped top-level `orWhere` as unsafe. This is a fundamental
+limitation of injecting a scope through query hooks: they run after your clauses
+are composed, so they cannot retroactively group them. The mixin protects the
+common AND-only queries, but it cannot police a top-level `orWhere` you write
+yourself.
 
 <Callout type="warning" title="For a hard boundary, add Row-Level Security">
 If you cannot guarantee every query author groups their <code>OR</code>
