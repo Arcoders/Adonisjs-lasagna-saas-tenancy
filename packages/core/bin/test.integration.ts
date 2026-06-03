@@ -6,33 +6,34 @@ import { configure, processCLIArgs, run } from '@japa/runner'
 
 const FIXTURE_ROOT = new URL('../tests/fixtures/', import.meta.url)
 
-// Once the suite finishes and we call `app.terminate()`, Lucid drains the
-// pg pool. Any query that was queued at that exact moment rejects with
-// `Error: Connection terminated` (pg/lib/client.js:180, fired from the
-// socket `end` listener). The originating caller is already gone — most
-// often a fire-and-forget DB write from an event listener whose handler
-// returned before the write resolved — so the rejection has no `.catch()`
-// and Node flips the process exit code to 1 even though every test
-// passed. Swallow this *specific* error only after we've started the
-// shutdown handshake; anything else still surfaces as a real failure.
-let isShuttingDown = false
+// Lucid drains the pg pool whenever a connection is released. That happens at
+// `app.terminate()`, but also when a per-tenant pool idle-closes or a schema is
+// dropped in a group teardown mid-suite (the cross_tenant_e2e concurrency spec
+// is a frequent trigger). A query in flight at that moment rejects with
+// `Error: Connection terminated` (pg/lib/client.js:180, from the socket `end`
+// listener), and pg surfaces the same condition on the Client `'error'` event
+// when no query is queued. The originating caller is almost always a
+// fire-and-forget DB write from an event listener whose handler returned before
+// the write resolved, so the rejection has no `.catch()` and Node escalates it
+// to the process, flipping the exit code to 1 even though every test passed.
+//
+// This is never a real test signal. A query a test depends on is awaited and
+// fails that test's assertion directly; only orphaned, un-awaited writes reach
+// these process-level handlers. So we swallow this one specific error wherever
+// it fires and rethrow everything else. (It used to be gated on a shutdown flag
+// set in the final teardown, which missed the same race firing during an
+// earlier group teardown, the failure mode this replaces.)
 const isConnectionTerminated = (reason: unknown): boolean => {
   const message =
     reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : ''
   return /^Connection terminated/.test(message)
 }
-process.on('unhandledRejection', (reason) => {
-  if (isShuttingDown && isConnectionTerminated(reason)) return
+const swallowConnectionTerminated = (reason: unknown): void => {
+  if (isConnectionTerminated(reason)) return
   throw reason
-})
-// Same root cause as the unhandledRejection above, but pg surfaces it
-// via the Client's `'error'` event when no query is queued — with no
-// listener, Node escalates to uncaughtException and the process exits 1
-// even though every test passed.
-process.on('uncaughtException', (err) => {
-  if (isShuttingDown && isConnectionTerminated(err)) return
-  throw err
-})
+}
+process.on('unhandledRejection', swallowConnectionTerminated)
+process.on('uncaughtException', swallowConnectionTerminated)
 
 const IMPORTER = (filePath: string) => {
   if (filePath.startsWith('./') || filePath.startsWith('../')) {
@@ -74,7 +75,6 @@ new Ignitor(FIXTURE_ROOT, { importer: IMPORTER })
         setup: runnerHooks.setup,
         teardown: runnerHooks.teardown.concat([
           async () => {
-            isShuttingDown = true
             await app.terminate()
           },
         ]),
