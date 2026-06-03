@@ -97,7 +97,13 @@ export default class WebhookService {
     // upstream check. This also resolves the hostname and rejects any address
     // in a private/metadata range. A structurally-unsafe URL is permanent, so
     // fail without scheduling a retry.
-    const urlError = await validateResolvedHostIsPublic(hook.url)
+    //
+    // Escape hatch: WEBHOOKS_ALLOW_PRIVATE_TARGETS=true disables the
+    // private/loopback rejection. Off by default — production stays locked down.
+    // Opt in only for self-hosted setups that deliver to a private network, or
+    // for tests/dev that deliver to an in-process listener on 127.0.0.1.
+    const allowPrivateTargets = process.env.WEBHOOKS_ALLOW_PRIVATE_TARGETS === 'true'
+    const urlError = allowPrivateTargets ? null : await validateResolvedHostIsPublic(hook.url)
     if (urlError) {
       delivery.statusCode = null
       delivery.responseBody = `blocked_unsafe_url:${urlError}`
