@@ -60,16 +60,14 @@ export default class StripeWebhookController {
     // from named fields rather than the raw event, so no PII reaches the
     // backoffice DB.
     const replayablePayload = toReplayablePayload(event) as unknown as Record<string, unknown>
-    const inserted = await db
-      .connection(getConfig().backofficeConnectionName)
-      .rawQuery(
-        `INSERT INTO ??.stripe_processed_events
+    const inserted = await db.connection(getConfig().backofficeConnectionName).rawQuery(
+      `INSERT INTO ??.stripe_processed_events
            (event_id, event_type, processed_at, status, attempts, payload)
          VALUES (?, ?, now(), 'pending', 0, ?)
          ON CONFLICT (event_id) DO NOTHING
          RETURNING event_id`,
-        [schema, event.id, event.type, JSON.stringify(replayablePayload)]
-      )
+      [schema, event.id, event.type, JSON.stringify(replayablePayload)]
+    )
 
     // pg returns { rows: [...] }; the count of returned rows tells us
     // whether the INSERT actually happened.

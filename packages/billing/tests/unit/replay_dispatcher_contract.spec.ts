@@ -21,8 +21,8 @@ import { extractInvoiceSubscriptionId } from '../../src/services/billing/stripe_
 
 const EVENT_CREATED = 1_700_000_000
 
-function roundTrip(event: Stripe.Event): Stripe.Event {
-  const rebuilt = rebuildStripeEvent(toReplayablePayload(event))
+function roundTrip(evt: Stripe.Event): Stripe.Event {
+  const rebuilt = rebuildStripeEvent(toReplayablePayload(evt))
   if (!rebuilt) throw new Error('round-trip produced a null event')
   return rebuilt
 }

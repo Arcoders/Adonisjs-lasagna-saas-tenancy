@@ -60,8 +60,8 @@ function compile(entries: ReadonlyArray<string>): CompiledAllowlist {
 function getAllowlist(entries: ReadonlyArray<string>): CompiledAllowlist {
   if (_cached && _cached.source.length === entries.length) {
     let same = true
-    for (let i = 0; i < entries.length; i++) {
-      if (_cached.source[i] !== entries[i]) {
+    for (const [i, entry] of entries.entries()) {
+      if (_cached.source[i] !== entry) {
         same = false
         break
       }

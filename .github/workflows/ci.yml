@@ -30,12 +30,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      # Lint runs report-only for now (mirrors the Knip step below): there's a
-      # known baseline of pre-existing style findings. Flip `continue-on-error`
-      # off once that baseline is cleared so lint becomes a hard gate.
-      - name: Lint (report-only)
+      # Lint is a hard gate. The baseline of pre-existing findings was cleared
+      # (eslint rules + prettier); CRLF-only prettier diffs don't surface here
+      # because the Linux checkout is LF (.gitattributes `eol=lf`).
+      - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Build
         run: npm run build

@@ -12,6 +12,6 @@
 
 throw new Error(
   "[@adonisjs-lasagna/saas-tenancy] The admin API moved to '@adonisjs-lasagna/admin'. " +
-    "Run `npm i @adonisjs-lasagna/admin` and change your import: " +
+    'Run `npm i @adonisjs-lasagna/admin` and change your import: ' +
     "`import { multitenancyAdminRoutes } from '@adonisjs-lasagna/admin'`."
 )

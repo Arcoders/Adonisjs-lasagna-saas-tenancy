@@ -135,7 +135,6 @@ export default class HookRegistry {
       logger.error({ phase, event, error: error?.message }, 'after-hook failed; continuing')
     } catch {
       // logger unavailable (e.g. unit tests without booted app); fall back to stderr
-      // eslint-disable-next-line no-console
       console.error(`[multitenancy] after-hook failed (${phase}:${event}):`, error?.message)
     }
   }

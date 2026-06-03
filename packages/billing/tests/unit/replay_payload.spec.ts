@@ -1,8 +1,5 @@
 import { test } from '@japa/runner'
-import {
-  toReplayablePayload,
-  rebuildStripeEvent,
-} from '../../src/services/billing/redact.js'
+import { toReplayablePayload, rebuildStripeEvent } from '../../src/services/billing/redact.js'
 import type Stripe from 'stripe'
 
 function event(type: string, obj: Record<string, unknown>): Stripe.Event {
@@ -59,7 +56,9 @@ const PII_NEEDLES = [
 
 test.group('toReplayablePayload — faithful, PII-free', () => {
   test('keeps the structural subscription fields the dispatcher reads', ({ assert }) => {
-    const payload = toReplayablePayload(event('customer.subscription.updated', subscriptionObject()))
+    const payload = toReplayablePayload(
+      event('customer.subscription.updated', subscriptionObject())
+    )
 
     assert.equal(payload.id, 'evt_replay_1')
     assert.equal(payload.type, 'customer.subscription.updated')
@@ -79,7 +78,9 @@ test.group('toReplayablePayload — faithful, PII-free', () => {
   })
 
   test('leaks no PII regardless of hostile input', ({ assert }) => {
-    const payload = toReplayablePayload(event('customer.subscription.updated', subscriptionObject()))
+    const payload = toReplayablePayload(
+      event('customer.subscription.updated', subscriptionObject())
+    )
     const json = JSON.stringify(payload)
     for (const needle of PII_NEEDLES) {
       assert.notInclude(json, needle, `replayable payload leaked "${needle}"`)
@@ -154,12 +155,14 @@ test.group('toReplayablePayload — faithful, PII-free', () => {
 
 test.group('rebuildStripeEvent — checked cast', () => {
   test('round-trips a replayable subscription so plan resolution stays faithful', ({ assert }) => {
-    const payload = toReplayablePayload(event('customer.subscription.updated', subscriptionObject()))
+    const payload = toReplayablePayload(
+      event('customer.subscription.updated', subscriptionObject())
+    )
     const rebuilt = rebuildStripeEvent(payload)
     assert.isNotNull(rebuilt)
     const sub = rebuilt!.data.object as unknown as Stripe.Subscription
     // The fields `syncSubscription` reads for plan mapping must survive.
-    assert.equal((sub.items.data[0].price.product as string), 'prod_pro')
+    assert.equal(sub.items.data[0].price.product as string, 'prod_pro')
     assert.equal(sub.items.data[0].price.id, 'price_pro_monthly')
     assert.equal(sub.status, 'active')
   })

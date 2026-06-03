@@ -28,19 +28,16 @@ export async function createTestTenant(
   const status: TenantStatus = overrides.status ?? 'active'
   const customDomain = overrides.customDomain ?? null
 
-  await db
-    .connection(getConfig().backofficeConnectionName)
-    .table('tenants')
-    .insert({
-      id,
-      name,
-      email,
-      status,
-      custom_domain: customDomain,
-      created_at: new Date(),
-      updated_at: new Date(),
-      deleted_at: null,
-    })
+  await db.connection(getConfig().backofficeConnectionName).table('tenants').insert({
+    id,
+    name,
+    email,
+    status,
+    custom_domain: customDomain,
+    created_at: new Date(),
+    updated_at: new Date(),
+    deleted_at: null,
+  })
 
   return { id, name, email, status, customDomain }
 }
@@ -60,10 +57,7 @@ export interface CleanupFilter {
 }
 
 export async function cleanupTenants(filter: CleanupFilter = {}): Promise<number> {
-  const query = db
-    .connection(getConfig().backofficeConnectionName)
-    .query()
-    .from('tenants')
+  const query = db.connection(getConfig().backofficeConnectionName).query().from('tenants')
 
   if (filter.emailLike) query.where('email', 'like', filter.emailLike)
   if (filter.namePrefix) query.where('name', 'like', `${filter.namePrefix}%`)

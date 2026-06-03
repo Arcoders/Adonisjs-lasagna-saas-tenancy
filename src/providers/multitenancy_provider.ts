@@ -262,14 +262,14 @@ export default class MultitenancyProvider {
       { name: 'transmit', binding: 'transmit', bootstrapper: transmitBootstrapper },
     ] as const
 
-    const logger = await this.app.container.make('logger').catch(() => undefined)
+    const containerLogger = await this.app.container.make('logger').catch(() => undefined)
 
     for (const c of candidates) {
       if (bootstrappers.has(c.name)) continue
       if (this.app.container.hasBinding(c.binding)) {
         bootstrappers.register(c.bootstrapper)
       } else {
-        logger?.debug(
+        containerLogger?.debug(
           { bootstrapper: c.name, binding: c.binding },
           'multitenancy: peer service not bound; skipping bootstrapper'
         )

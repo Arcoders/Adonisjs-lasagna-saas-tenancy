@@ -112,7 +112,6 @@ export default class BootstrapperRegistry {
       )
     } catch {
       // logger unavailable (e.g. unit tests); fall back to stderr
-      // eslint-disable-next-line no-console
       console.error(`[multitenancy] bootstrapper leave failed (${name}):`, error?.message)
     }
   }

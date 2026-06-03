@@ -35,13 +35,7 @@ export function __setAdminActorResolver(fn: AdminActorResolver | null): void {
   adminActorResolver = fn
 }
 
-const VALID_STATUSES: TenantStatus[] = [
-  'provisioning',
-  'active',
-  'suspended',
-  'failed',
-  'deleted',
-]
+const VALID_STATUSES: TenantStatus[] = ['provisioning', 'active', 'suspended', 'failed', 'deleted']
 
 function serialize(t: TenantModelContract) {
   return {
@@ -62,8 +56,8 @@ function serialize(t: TenantModelContract) {
 export default class AdminController {
   async list({ request, response }: HttpContext) {
     const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
-    const includeDeleted = request.input('includeDeleted', false) === true ||
-      request.input('includeDeleted') === 'true'
+    const includeDeleted =
+      request.input('includeDeleted', false) === true || request.input('includeDeleted') === 'true'
     const status = request.input('status') as TenantStatus | undefined
 
     const statuses = status && VALID_STATUSES.includes(status) ? [status] : undefined
@@ -205,7 +199,7 @@ export default class AdminController {
       // the audit trail. Refuse loudly so the operator wires the hook.
       return response.notImplemented({
         error: 'admin_actor_resolver_not_configured',
-        hint: "Pass `resolveAdminActor: ({ auth }) => auth.user?.id` to multitenancyAdminRoutes()",
+        hint: 'Pass `resolveAdminActor: ({ auth }) => auth.user?.id` to multitenancyAdminRoutes()',
       })
     }
     const adminId = await adminActorResolver(ctx)

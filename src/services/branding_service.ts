@@ -16,18 +16,22 @@ export default class BrandingService {
   }
 
   async getForTenant(tenantId: string): Promise<TenantBranding | null> {
-    const data = await getCache().namespace('branding').getOrSet({
-      key: this.cacheKey(tenantId),
-      ttl: '300s',
-      factory: () => TenantBranding.query().where('tenant_id', tenantId).first(),
-    })
+    const data = await getCache()
+      .namespace('branding')
+      .getOrSet({
+        key: this.cacheKey(tenantId),
+        ttl: '300s',
+        factory: () => TenantBranding.query().where('tenant_id', tenantId).first(),
+      })
     if (!data) return null
     return data instanceof TenantBranding ? data : new TenantBranding().merge(data as object)
   }
 
   async upsert(tenantId: string, data: BrandingData): Promise<TenantBranding> {
     const branding = await TenantBranding.updateOrCreate({ tenantId }, data)
-    await getCache().namespace('branding').delete({ key: this.cacheKey(tenantId) })
+    await getCache()
+      .namespace('branding')
+      .delete({ key: this.cacheKey(tenantId) })
     return branding
   }
 

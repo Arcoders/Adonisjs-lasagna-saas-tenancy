@@ -90,9 +90,10 @@ export default class BrandingController {
     } catch (err: any) {
       // Stable error codes only — error message is `invalid_<key>` from
       // pickIfDefined, never a raw exception string.
-      const code = typeof err?.message === 'string' && /^invalid_[a-zA-Z]+$/.test(err.message)
-        ? err.message
-        : 'invalid_branding_payload'
+      const code =
+        typeof err?.message === 'string' && /^invalid_[a-zA-Z]+$/.test(err.message)
+          ? err.message
+          : 'invalid_branding_payload'
       return ctx.response.badRequest({ error: code })
     }
 

@@ -63,18 +63,16 @@ export function redactStripeEvent(event: Stripe.Event): RedactedStripeEvent {
       : (customerField as { id?: string } | null)?.id
 
   const objId = typeof obj.id === 'string' ? obj.id : undefined
-  const subscriptionId =
-    objId?.startsWith('sub_')
-      ? objId
-      : typeof obj.subscription === 'string'
-        ? (obj.subscription as string)
-        : undefined
-  const invoiceId =
-    objId?.startsWith('in_')
-      ? objId
-      : typeof obj.invoice === 'string'
-        ? (obj.invoice as string)
-        : undefined
+  const subscriptionId = objId?.startsWith('sub_')
+    ? objId
+    : typeof obj.subscription === 'string'
+      ? (obj.subscription as string)
+      : undefined
+  const invoiceId = objId?.startsWith('in_')
+    ? objId
+    : typeof obj.invoice === 'string'
+      ? (obj.invoice as string)
+      : undefined
 
   const result: RedactedStripeEvent = {
     id: event.id,
@@ -150,7 +148,8 @@ function replayableObject(type: string, obj: Record<string, unknown>): Record<st
     if (typeof obj.cancel_at === 'number') out.cancel_at = obj.cancel_at
     if (typeof obj.canceled_at === 'number') out.canceled_at = obj.canceled_at
     if (typeof obj.trial_end === 'number') out.trial_end = obj.trial_end
-    if (typeof obj.current_period_start === 'number') out.current_period_start = obj.current_period_start
+    if (typeof obj.current_period_start === 'number')
+      out.current_period_start = obj.current_period_start
     if (typeof obj.current_period_end === 'number') out.current_period_end = obj.current_period_end
     const items = (obj.items as { data?: unknown[] } | undefined)?.data
     if (Array.isArray(items)) {
