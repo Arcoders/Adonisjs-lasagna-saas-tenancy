@@ -43,6 +43,12 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # The benchmarks workspace imports the built core (public subpaths + a few
+      # exact-file deep imports), so it must run AFTER the core build above. Its
+      # own tsconfig covers the fixture app + harness + all four bench tiers.
+      - name: Typecheck (benchmarks workspace)
+        run: npm run typecheck:benchmarks
+
       # Lint is a hard gate. The baseline of pre-existing findings was cleared
       # (eslint rules + prettier); CRLF-only prettier diffs don't surface here
       # because the Linux checkout is LF (.gitattributes `eol=lf`).

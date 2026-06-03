@@ -30,6 +30,7 @@
     "build:backup": "npm run build --workspace @adonisjs-lasagna/backup",
     "build:all": "npm run build && npm run build:sso && npm run build:billing && npm run build:admin && npm run build:backup",
     "typecheck": "npm run typecheck --workspace @adonisjs-lasagna/saas-tenancy",
+    "typecheck:benchmarks": "npm run typecheck --workspace @adonisjs-lasagna/saas-tenancy-benchmarks",
     "lint": "eslint packages",
     "lint:fix": "eslint packages --fix",
     "test": "npm run test --workspace @adonisjs-lasagna/saas-tenancy",
