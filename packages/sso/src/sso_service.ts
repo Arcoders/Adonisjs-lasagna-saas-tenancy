@@ -190,6 +190,20 @@ export default class SsoService {
         key: `oidc:discovery:${issuerUrl}`,
         ttl: '3600s',
         factory: async () => {
+          // SSRF guard at the fetch boundary. The admin controller validates
+          // issuerUrl on upsert, but discover() also runs from buildAuthUrl /
+          // handleCallback against a stored value, and from direct service
+          // callers. Re-check here. Loopback issuers are exempt (test fixtures
+          // opt into an in-process IdP); the SsoController never accepts a
+          // loopback issuerUrl from admin input.
+          if (!isLoopbackIssuer(issuerUrl)) {
+            const issuerErr = validateExternalHttpsUrl(issuerUrl)
+            if (issuerErr) {
+              throw new Error(
+                `OIDC discovery refused: unsafe issuerUrl (${issuerErr}).`
+              )
+            }
+          }
           const base = issuerUrl.replace(/\/$/, '')
           const res = await fetch(`${base}/.well-known/openid-configuration`)
           if (!res.ok) throw new Error(`OIDC discovery failed for ${issuerUrl}`)
