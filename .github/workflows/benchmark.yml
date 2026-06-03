@@ -1,0 +1,114 @@
+name: Benchmarks
+
+# Manual + weekly only — NOT per-PR. Benchmarks are noisy and slow; we run them
+# on demand and on a schedule, compare against the like-for-like ubuntu baseline
+# (informational-first), and upload the results + generated docs as artifacts.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+
+jobs:
+  benchmark:
+    name: Run benchmark suite
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lasagna_bench
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lasagna_bench"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TZ: UTC
+      # development (not test) so the rate-limit middleware runs its real Redis
+      # pipeline instead of the test-env bypass.
+      NODE_ENV: development
+      BENCH_CI: '1'
+      HOST: 127.0.0.1
+      APP_KEY: a-32-character-long-secret-key!!
+      LOG_LEVEL: error
+      TENANT_HEADER_KEY: x-tenant-id
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: lasagna_bench
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: '6379'
+      QUEUE_REDIS_HOST: 127.0.0.1
+      QUEUE_REDIS_PORT: '6379'
+      QUEUE_REDIS_DB: '1'
+      CACHE_REDIS_HOST: 127.0.0.1
+      CACHE_REDIS_PORT: '6379'
+      CACHE_REDIS_DB: '2'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        env:
+          npm_config_ignore_scripts: 'false'
+        run: npm install --legacy-peer-deps --include=optional
+
+      # The bench fixture imports the built core via the workspace symlink, so a
+      # fresh build of the core is mandatory. The satellites are not used.
+      - name: Build core
+        run: npm run build
+
+      - name: Tier 1 — micro
+        run: npm run bench:micro
+
+      - name: Tiers 2-3 — DB + HTTP, per driver
+        run: |
+          for driver in schema-pg database-pg rowscope-pg; do
+            echo "::group::$driver"
+            BENCH_DRIVER=$driver npm run bench:db
+            BENCH_DRIVER=$driver npm run bench:http
+            echo "::endgroup::"
+          done
+
+      - name: Tier 4 — memory + budget (schema-pg)
+        run: BENCH_DRIVER=schema-pg npm run bench:mem
+
+      - name: Regenerate report
+        run: npm run bench:report
+
+      # Informational by default. Once the ci-ubuntu baseline has stabilized,
+      # set BENCH_GATE_ENFORCE=1 here to make a regression fail the job.
+      - name: Regression check vs ci-ubuntu baseline
+        run: npm run bench:check -- --baseline=ci-ubuntu
+
+      - name: Upload results + generated report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: |
+            benchmarks/results/
+            docs/docs/performance.md
+          if-no-files-found: warn
