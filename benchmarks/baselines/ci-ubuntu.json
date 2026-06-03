@@ -1,0 +1,5 @@
+{
+  "note": "PLACEHOLDER. The regression-gate baseline, captured on the GitHub ubuntu-latest runner (like-for-like with the benchmark.yml job). Capture by dispatching benchmark.yml, downloading the artifact, then `npm run bench:report -- --write-baseline=ci-ubuntu` against those results, and commit. Until then `bench:check` compares nothing and the gate is a no-op.",
+  "capturedEnv": null,
+  "index": {}
+}

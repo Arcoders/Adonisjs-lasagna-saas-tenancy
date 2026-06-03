@@ -1,5 +1,6 @@
 node_modules/
 build/
+.adonisjs/
 coverage/
 .nyc_output/
 .env
@@ -10,3 +11,7 @@ cmultitenancy-packagetestsunitadmin
 # VitePress build output (the markdown under docs/ IS tracked)
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+
+# Benchmark run output (raw result JSON). Committed baselines live in
+# benchmarks/baselines/ and are tracked; per-run results are not.
+benchmarks/results/

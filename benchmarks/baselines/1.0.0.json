@@ -1,0 +1,5 @@
+{
+  "note": "PLACEHOLDER. The canonical 1.0.0 baseline. Capture on the dedicated Linux reference VM (see benchmarks/README.md) with: npm run bench:micro && (per driver) bench:db/bench:http && bench:mem, then `npm run bench:report -- --write-baseline=1.0.0`. Commit the result here. Until then this file holds no metrics and `bench:check --baseline=1.0.0` compares nothing.",
+  "capturedEnv": null,
+  "index": {}
+}
