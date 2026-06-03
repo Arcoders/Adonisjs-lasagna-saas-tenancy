@@ -26,6 +26,9 @@
   },
   "dependencies": {
     "@adonisjs-lasagna/saas-tenancy": "file:../..",
+    "@adonisjs-lasagna/admin": "file:../../packages/admin",
+    "@adonisjs-lasagna/sso": "file:../../packages/sso",
+    "@adonisjs-lasagna/backup": "file:../../packages/backup",
     "@adonisjs/core": "^7.0.0",
     "@adonisjs/lucid": "^22.0.0",
     "@adonisjs/mail": "^10.2.0",

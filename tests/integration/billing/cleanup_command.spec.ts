@@ -2,11 +2,9 @@ import { test } from '@japa/runner'
 import { DateTime } from 'luxon'
 import { randomUUID } from 'node:crypto'
 import ace from '@adonisjs/core/services/ace'
-import {
-  StripeProcessedEvent,
-  StripeMeterEvent,
-} from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { runBillingCleanup } from '../../../src/jobs/billing_cleanup_job.js'
+import { StripeProcessedEvent } from '@adonisjs-lasagna/billing'
+import { StripeMeterEvent } from '@adonisjs-lasagna/billing'
+import { runBillingCleanup } from '../../../packages/billing/src/jobs/billing_cleanup_job.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
 

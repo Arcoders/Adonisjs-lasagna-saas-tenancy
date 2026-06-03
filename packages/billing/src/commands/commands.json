@@ -1,0 +1,92 @@
+{
+  "commands": [
+    {
+      "commandName": "tenant:billing:sync",
+      "description": "Reconcile Stripe subscriptions with the local mirror — recovers from missed webhooks",
+      "help": "Suggested cron: 0 4 * * * node ace tenant:billing:sync --json",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report drift without writing" },
+        { "name": "tenant", "flagName": "tenant", "required": false, "type": "string", "description": "Reconcile a single tenant (uuid)" },
+        { "name": "since", "flagName": "since", "required": false, "type": "string", "description": "ISO8601 timestamp filter" },
+        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit JSON summary" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "billing_sync.js"
+    },
+    {
+      "commandName": "tenant:billing:backfill",
+      "description": "Seed tenant_plans rows with the default plan for every tenant that doesn't have one",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report without writing" },
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "description": "Overwrite existing rows instead of skipping" },
+        { "name": "plan", "flagName": "plan", "required": false, "type": "string", "description": "Plan name to assign (defaults to config.billing.defaultPlan)" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "billing_backfill.js"
+    },
+    {
+      "commandName": "tenant:billing:replay",
+      "description": "Re-dispatch a failed webhook event for processing",
+      "help": "Examples: node ace tenant:billing:replay --event-id=evt_xxx; node ace tenant:billing:replay --all-failed",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "eventId", "flagName": "event-id", "required": false, "type": "string", "description": "Specific Stripe event id (evt_xxx)" },
+        { "name": "allFailed", "flagName": "all-failed", "required": false, "type": "boolean", "description": "Replay every event currently in status=failed" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "billing_replay.js"
+    },
+    {
+      "commandName": "tenant:billing:cleanup",
+      "description": "Purge stripe_processed_events older than the configured retention window",
+      "help": "Suggested cron: 0 4 * * * node ace tenant:billing:cleanup",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "batchSize", "flagName": "batch-size", "required": false, "type": "number", "description": "Rows per delete batch" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "billing_cleanup.js"
+    },
+    {
+      "commandName": "tenant:billing:doctor",
+      "description": "Diagnose Stripe billing config + recent webhook health",
+      "help": "Exit code 1 when any check is in error state — pipeline-friendly",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit JSON" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "billing_doctor.js"
+    },
+    {
+      "commandName": "tenant:billing:test-webhook",
+      "description": "Generate and POST a signed synthetic Stripe event",
+      "help": "Example: node ace tenant:billing:test-webhook customer.subscription.created --url=http://127.0.0.1:3333/webhooks/stripe",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "url", "flagName": "url", "required": false, "type": "string", "description": "Webhook URL" },
+        { "name": "object", "flagName": "object", "required": false, "type": "string", "description": "JSON file with event.data.object body" }
+      ],
+      "args": [
+        { "name": "event", "argumentName": "event", "required": true, "description": "Event type (e.g. customer.subscription.created)", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "billing_test_webhook.js"
+    }
+  ],
+  "version": 1
+}

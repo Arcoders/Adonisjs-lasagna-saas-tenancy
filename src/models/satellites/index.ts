@@ -5,14 +5,9 @@ export { default as TenantWebhook } from './tenant_webhook.js'
 export { default as TenantWebhookDelivery } from './tenant_webhook_delivery.js'
 export type { DeliveryStatus } from './tenant_webhook_delivery.js'
 export { default as TenantBranding } from './tenant_branding.js'
-export { default as TenantSsoConfig } from './tenant_sso_config.js'
+// `TenantSsoConfig` moved to `@adonisjs-lasagna/sso`.
 export { default as TenantMetric } from './tenant_metric.js'
 export { default as TenantPlan } from './tenant_plan.js'
 export type { TenantPlanSource } from './tenant_plan.js'
-export { default as StripeCustomer } from './stripe_customer.js'
-export { default as StripeSubscription } from './stripe_subscription.js'
-export type { StripeSubscriptionStatus } from './stripe_subscription.js'
-export { default as StripeProcessedEvent } from './stripe_processed_event.js'
-export type { StripeProcessedEventStatus } from './stripe_processed_event.js'
-export { default as StripeMeterEvent } from './stripe_meter_event.js'
-export type { StripeMeterEventStatus } from './stripe_meter_event.js'
+// The Stripe satellite models (StripeCustomer / StripeSubscription /
+// StripeProcessedEvent / StripeMeterEvent) moved to `@adonisjs-lasagna/billing`.

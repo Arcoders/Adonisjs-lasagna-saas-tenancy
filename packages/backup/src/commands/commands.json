@@ -1,0 +1,96 @@
+{
+  "commands": [
+    {
+      "commandName": "tenant:backup",
+      "description": "Backup one or all active tenants synchronously",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenant", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant ID(s) to back up" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_backup.js"
+    },
+    {
+      "commandName": "tenant:backup:list",
+      "description": "List available backups for one or all tenants",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenantId", "flagName": "tenant", "required": false, "type": "string", "alias": "t", "description": "Filter by tenant ID" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_backup_list.js"
+    },
+    {
+      "commandName": "tenant:restore",
+      "description": "Restore a tenant schema from a backup file",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenantId", "flagName": "tenant", "required": true, "type": "string", "alias": "t", "description": "Tenant ID" },
+        { "name": "file", "flagName": "file", "required": true, "type": "string", "description": "Backup file name" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_restore.js"
+    },
+    {
+      "commandName": "tenant:import",
+      "description": "Import a PostgreSQL .sql dump file into a tenant schema",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenant", "flagName": "tenant", "required": true, "type": "string", "alias": "t", "description": "Target tenant ID" },
+        { "name": "file", "flagName": "file", "required": true, "type": "string", "alias": "f", "description": "Path to the .sql dump file" },
+        { "name": "schemaReplace", "flagName": "schema-replace", "required": false, "type": "string", "description": "Source schema name in the dump to rewrite" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Parse file and report counts without executing" },
+        { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Print each failed statement" },
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "description": "Allow import into non-active tenants" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "import_tenant_sql.js"
+    },
+    {
+      "commandName": "tenant:clone",
+      "description": "Clone a tenant: provision a new schema and optionally copy all row data from the source",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "source", "flagName": "source", "required": true, "type": "string", "alias": "s", "description": "Source tenant ID to clone from" },
+        { "name": "name", "flagName": "name", "required": true, "type": "string", "alias": "n", "description": "Name for the new tenant" },
+        { "name": "email", "flagName": "email", "required": true, "type": "string", "alias": "e", "description": "Email for the new tenant" },
+        { "name": "schemaOnly", "flagName": "schema-only", "required": false, "type": "boolean", "description": "Clone schema structure only" },
+        { "name": "clearSessions", "flagName": "clear-sessions", "required": false, "type": "boolean", "description": "Wipe access_tokens in destination after copy" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_clone.js"
+    },
+    {
+      "commandName": "tenant:backups:run",
+      "description": "Run scheduled backups for tenants whose tier interval has elapsed, then apply retention. Idempotent — safe to run from cron.",
+      "help": "Suggested cron: 0 * * * * node ace tenant:backups:run",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenant", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Limit the run to one or more tenant IDs" },
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "description": "Ignore tier intervalHours; back up every selected tenant" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report what would happen without backing up or deleting anything" },
+        { "name": "noRetention", "flagName": "no-retention", "required": false, "type": "boolean", "description": "Skip the retention sweep (keep all archives untouched)" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_backups_run.js"
+    }
+  ],
+  "version": 1
+}

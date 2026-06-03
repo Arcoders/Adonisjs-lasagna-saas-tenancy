@@ -1,11 +1,14 @@
 import { HttpContext } from '@adonisjs/core/http'
+import type { HttpRequest } from '@adonisjs/core/http'
 import type { Database } from '@adonisjs/lucid/database'
 import type { LucidModel, ModelAdapterOptions } from '@adonisjs/lucid/types/model'
 import assert from 'node:assert'
+import { getConfig } from '../../config.js'
 import MissingTenantHeaderException from '../../exceptions/missing_tenant_header_exception.js'
 import { resolveTenantId } from '../../extensions/request.js'
 import { isUuidV4 } from '../../services/isolation/identifier.js'
 import IsolationDriverRegistry from '../../services/isolation/registry.js'
+import TenantResolverRegistry from '../../services/resolvers/registry.js'
 import { tenancy } from '../../tenancy.js'
 import DefaultLucidAdapter from './default_lucid_adapter.js'
 
@@ -23,7 +26,8 @@ import DefaultLucidAdapter from './default_lucid_adapter.js'
 export default class TenantAdapter extends DefaultLucidAdapter {
   constructor(
     db: Database,
-    private readonly drivers: IsolationDriverRegistry
+    private readonly drivers: IsolationDriverRegistry,
+    private readonly resolvers?: TenantResolverRegistry
   ) {
     super(db)
   }
@@ -56,8 +60,26 @@ export default class TenantAdapter extends DefaultLucidAdapter {
       throw new MissingTenantHeaderException()
     }
 
-    const tenantId = resolveTenantId(context.request)
+    const tenantId = this.#resolveIdFromRequest(context.request)
     assert(tenantId && isUuidV4(tenantId), new MissingTenantHeaderException())
     return tenantId
+  }
+
+  /**
+   * Resolve a tenant id directly from the request for the fallback path (no
+   * active tenancy context). Honors `config.resolver.legacyAdapterFallback`:
+   * the default (`false`) consults the resolver chain synchronously so custom
+   * resolvers route model queries too; set it to `true` to restore the
+   * historical `resolverStrategy`-only switch. A `domain` hit yields no
+   * synchronous id (it needs an async repository lookup), so those flows must
+   * establish context via `request.tenant()` first.
+   */
+  #resolveIdFromRequest(request: HttpRequest): string | undefined {
+    const legacy = getConfig().resolver?.legacyAdapterFallback ?? false
+    if (!legacy && this.resolvers) {
+      const result = this.resolvers.resolveSync(request)
+      return result?.type === 'id' ? result.tenantId : undefined
+    }
+    return resolveTenantId(request)
   }
 }

@@ -6,6 +6,8 @@ import { setConfig } from '../../../../src/config.js'
 import { testConfig } from '../../../helpers/config.js'
 import IsolationDriverRegistry from '../../../../src/services/isolation/registry.js'
 import SchemaPgDriver from '../../../../src/services/isolation/schema_pg_driver.js'
+import TenantResolverRegistry from '../../../../src/services/resolvers/registry.js'
+import { ResolverHit } from '../../../../src/services/resolvers/resolver.js'
 
 function makeRegistry() {
   const reg = new IsolationDriverRegistry()
@@ -310,6 +312,110 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
       'backoffice',
       'explicit options.connection MUST override the active tenancy scope'
     )
+  })
+})
+
+test.group('TenantAdapter — legacyAdapterFallback flag (B1)', (group) => {
+  let originalGet: typeof HttpContext.get
+
+  group.each.setup(() => {
+    originalGet = HttpContext.get
+    ;(HttpContext as any).get = () => null
+  })
+
+  group.each.teardown(() => {
+    ;(HttpContext as any).get = originalGet
+  })
+
+  // A custom resolver that reads a non-standard header and is registered in the
+  // chain. The legacy strategy switch never knows about it.
+  function customChain() {
+    const reg = new TenantResolverRegistry()
+    reg.register({
+      name: 'custom-header',
+      resolve: (request: any) => {
+        const v = request.header('x-custom-tenant')
+        return v ? ResolverHit.id(v) : ResolverHit.miss()
+      },
+    })
+    reg.setChain(['custom-header'])
+    return reg
+  }
+
+  test('legacyAdapterFallback:false routes a model query via the custom resolver chain', ({
+    assert,
+  }) => {
+    setConfig({ ...testConfig, resolverStrategy: 'header', resolver: { legacyAdapterFallback: false } })
+    ;(HttpContext as any).get = () => ({
+      request: makeRequest({ headers: { 'x-custom-tenant': UUID1 } }),
+    })
+    const db = makeMockDb()
+    const adapter = new TenantAdapter(db as any, makeRegistry(), customChain())
+
+    adapter.modelConstructorClient({} as any)
+
+    assert.equal(
+      db.lastCall,
+      `tenant_${UUID1}`,
+      'with the flag off, the custom resolver in the chain must route the query'
+    )
+  })
+
+  test('legacyAdapterFallback:true (opt-in) ignores the custom chain and uses resolverStrategy', ({
+    assert,
+  }) => {
+    setConfig({ ...testConfig, resolverStrategy: 'header', resolver: { legacyAdapterFallback: true } })
+    // Both headers present: legacy reads x-tenant-id, the custom chain would
+    // read x-custom-tenant. The legacy id must win.
+    ;(HttpContext as any).get = () => ({
+      request: makeRequest({ headers: { 'x-tenant-id': UUID1, 'x-custom-tenant': UUID2 } }),
+    })
+    const db = makeMockDb()
+    const adapter = new TenantAdapter(db as any, makeRegistry(), customChain())
+
+    adapter.modelConstructorClient({} as any)
+
+    assert.equal(
+      db.lastCall,
+      `tenant_${UUID1}`,
+      'the historical path must keep using resolverStrategy, not the custom chain'
+    )
+  })
+
+  test('no resolver block uses the unified chain (flag defaults to false in 1.0)', ({ assert }) => {
+    setConfig({ ...testConfig, resolverStrategy: 'header' })
+    // Both headers present: the 1.0 default consults the custom chain
+    // (x-custom-tenant), not the legacy resolverStrategy switch (x-tenant-id).
+    ;(HttpContext as any).get = () => ({
+      request: makeRequest({ headers: { 'x-tenant-id': UUID1, 'x-custom-tenant': UUID2 } }),
+    })
+    const db = makeMockDb()
+    const adapter = new TenantAdapter(db as any, makeRegistry(), customChain())
+
+    adapter.modelConstructorClient({} as any)
+
+    assert.equal(
+      db.lastCall,
+      `tenant_${UUID2}`,
+      'the 1.0 default routes via the resolver chain, so the custom resolver wins'
+    )
+  })
+
+  test('legacyAdapterFallback:false with no resolvers passed falls back to legacy resolution', ({
+    assert,
+  }) => {
+    // Defensive: the adapter only consults the chain when a registry was wired
+    // in. Without one, it must still resolve via the legacy strategy.
+    setConfig({ ...testConfig, resolverStrategy: 'header', resolver: { legacyAdapterFallback: false } })
+    ;(HttpContext as any).get = () => ({
+      request: makeRequest({ headers: { 'x-tenant-id': UUID1 } }),
+    })
+    const db = makeMockDb()
+    const adapter = new TenantAdapter(db as any, makeRegistry())
+
+    adapter.modelConstructorClient({} as any)
+
+    assert.equal(db.lastCall, `tenant_${UUID1}`)
   })
 })
 

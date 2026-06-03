@@ -35,11 +35,13 @@ export default class RowScopePgDriver implements IsolationDriver {
   readonly #scopedTables: string[]
   readonly #scopeColumn: string
 
-  constructor(opts: {
-    centralConnectionName?: string
-    scopedTables?: string[]
-    scopeColumn?: string
-  } = {}) {
+  constructor(
+    opts: {
+      centralConnectionName?: string
+      scopedTables?: string[]
+      scopeColumn?: string
+    } = {}
+  ) {
     this.#centralConnectionName = opts.centralConnectionName ?? 'tenant'
     this.#scopedTables = [...(opts.scopedTables ?? [])]
     this.#scopeColumn = opts.scopeColumn ?? 'tenant_id'
@@ -93,10 +95,7 @@ export default class RowScopePgDriver implements IsolationDriver {
     // it on a per-tenant disconnect.
   }
 
-  async migrate(
-    _tenant: TenantModelContract,
-    _opts: MigrateOptions
-  ): Promise<MigrateResult> {
+  async migrate(_tenant: TenantModelContract, _opts: MigrateOptions): Promise<MigrateResult> {
     // Migrations are central under row-scoping. Apps run them once via
     // their normal `node ace migration:run`.
     return { executed: 0, noop: true }

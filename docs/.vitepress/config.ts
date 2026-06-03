@@ -68,6 +68,7 @@ export default defineConfig({
           { text: 'Introduction', link: '/docs/introduction' },
           { text: 'Concepts', link: '/docs/concepts' },
           { text: 'Installation', link: '/docs/installation' },
+          { text: 'Upgrade to 1.0', link: '/docs/upgrade-to-1.0' },
           { text: 'Tenant identification', link: '/docs/tenant-identification' },
           { text: 'Data isolation', link: '/docs/data-isolation/' },
           { text: 'Bootstrappers', link: '/docs/bootstrappers/' },
@@ -96,7 +97,7 @@ export default defineConfig({
       { text: 'Showcase', link: '/showcase' },
       { text: 'Sponsor', link: '/sponsor' },
       {
-        text: 'v0.2.2',
+        text: 'v1.0.0',
         items: [
           { text: 'Changelog', link: `${REPO}/blob/master/CHANGELOG.md` },
           { text: 'Release notes', link: '/docs/release-notes' },
@@ -113,6 +114,7 @@ export default defineConfig({
             { text: 'Introduction', link: '/docs/introduction' },
             { text: 'Concepts', link: '/docs/concepts' },
             { text: 'Installation', link: '/docs/installation' },
+            { text: 'Upgrade to 1.0', link: '/docs/upgrade-to-1.0' },
           ],
         },
         {

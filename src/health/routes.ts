@@ -1,8 +1,18 @@
 import router from '@adonisjs/core/services/router'
 import HealthController from './health_controller.js'
-import StripeWebhookController from '../controllers/stripe_webhook_controller.js'
-import VerifyStripeWebhookMiddleware from '../middleware/verify_stripe_webhook_middleware.js'
-import { getConfig } from '../config.js'
+// The Stripe webhook route (`multitenancyBillingRoutes`) moved to
+// `@adonisjs-lasagna/billing`.
+
+/**
+ * Middleware accepted by {@link MultitenancyRoutesOptions.metricsMiddleware}.
+ * A registered name, a callable, or an array of either — same shape Adonis'
+ * `group.use(...)` accepts.
+ */
+export type RouteMiddleware =
+  | string
+  | string[]
+  | ((...args: any[]) => any)
+  | Array<string | ((...args: any[]) => any)>
 
 export interface MultitenancyRoutesOptions {
   /** URL prefix for all mounted endpoints. Defaults to no prefix (root paths). */
@@ -11,6 +21,17 @@ export interface MultitenancyRoutesOptions {
   health?: boolean
   /** Mount /metrics (Prometheus text-exposition) endpoint. Default true. */
   metrics?: boolean
+  /**
+   * Middleware applied to `/metrics` only. The Prometheus output carries
+   * per-tenant labels (circuit-breaker state, queue depths) plus total /
+   * by-status tenant counts, so a public `/metrics` leaks tenant enumeration
+   * and business metrics. Pass your auth (or a network guard) here, or restrict
+   * the endpoint at the network layer.
+   *
+   * `/livez` and `/readyz` are intentionally left public — Kubernetes probes
+   * must reach them without auth.
+   */
+  metricsMiddleware?: RouteMiddleware
 }
 
 /**
@@ -24,66 +45,27 @@ export interface MultitenancyRoutesOptions {
  * All routes are opt-in — nothing is registered unless this helper is called.
  */
 export function multitenancyRoutes(options: MultitenancyRoutesOptions = {}): void {
-  const { prefix = '', health = true, metrics = true } = options
+  const { prefix = '', health = true, metrics = true, metricsMiddleware } = options
+  const controller = new HealthController()
 
-  const define = () => {
-    const controller = new HealthController()
-    if (health) {
+  // Probes stay public (k8s needs them unauthenticated).
+  if (health) {
+    const defineHealth = () => {
       router.get('/livez', (ctx) => controller.livez(ctx))
       router.get('/readyz', (ctx) => controller.readyz(ctx))
       router.get('/healthz', (ctx) => controller.healthz(ctx))
     }
-    if (metrics) {
+    if (prefix) router.group(defineHealth).prefix(prefix)
+    else defineHealth()
+  }
+
+  // `/metrics` mounts in its own group so it can carry `metricsMiddleware`
+  // without gating the liveness/readiness probes.
+  if (metrics) {
+    const group = router.group(() => {
       router.get('/metrics', (ctx) => controller.metrics(ctx))
-    }
+    })
+    if (prefix) group.prefix(prefix)
+    if (metricsMiddleware) (group as any).use(metricsMiddleware)
   }
-
-  if (prefix) {
-    router.group(define).prefix(prefix)
-  } else {
-    define()
-  }
-}
-
-export interface MultitenancyBillingRoutesOptions {
-  /**
-   * Webhook path. Defaults to `config.billing.webhook.path` or
-   * `'/webhooks/stripe'`. MUST be in `config.ignorePaths` so TenantGuard
-   * doesn't try to resolve a tenant for it (the job resolves tenants from
-   * the Stripe customer id once the event is decoded).
-   */
-  path?: string
-}
-
-/**
- * Mount the Stripe webhook receiver. Call from `start/routes.ts`:
- *
- * ```ts
- * import { multitenancyBillingRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
- * multitenancyBillingRoutes()
- * ```
- *
- * Wires verification middleware → controller. The controller stamps an
- * idempotency row and dispatches the heavy work to `ProcessStripeEventJob`.
- *
- * Idempotent on the host side too — calling more than once would double
- * the route. Guarded behind a check so a misconfigured app doesn't crash
- * boot, but logs a warning so the host notices.
- */
-export function multitenancyBillingRoutes(options: MultitenancyBillingRoutesOptions = {}): void {
-  const cfg = getConfig().billing
-  const path = options.path ?? cfg?.webhook?.path ?? '/webhooks/stripe'
-
-  // Wrap the class middleware as a function so the router invokes it
-  // with the standard `(ctx, next)` signature. Passing the instance
-  // directly via `.use([instance])` doesn't unpack into a class call —
-  // the router treats it as a function middleware and `ctx` lands on
-  // the wrong argument, which surfaces as
-  // `Cannot read properties of undefined (reading 'ip')` at the first
-  // request.ip() access.
-  const verify = new VerifyStripeWebhookMiddleware()
-  router
-    .post(path, (ctx) => new StripeWebhookController().handle(ctx))
-    .use(async (ctx, next) => verify.handle(ctx, next))
-    .as('billing.webhook')
 }

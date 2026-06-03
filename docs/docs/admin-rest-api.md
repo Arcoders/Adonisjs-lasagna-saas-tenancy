@@ -12,14 +12,19 @@ is a convenience over the same service surface.
 
 ## Auth
 
-The route group is gated by an `x-admin-token` header checked
-against `config.adminToken`. The package does **not** add IP
-allow-listing, mTLS, or auth integration; see
-[security hardening](/docs/deployment#security-hardening) for the
-recommended host-side wiring.
+The admin API is **fail-closed**. `multitenancyAdminRoutes(...)` requires a
+`middleware` option and throws at startup if you omit it, so the destructive
+routes can never mount silently public. Authentication is your app's
+responsibility: pass your auth middleware (session, bearer token, mTLS, etc.)
+via that option. The package ships **no** built-in token check. To mount the
+routes public on purpose (only behind a trusted network boundary), pass
+`middleware: false` explicitly. See
+[security hardening](/docs/deployment#security-hardening) for recommended
+host-side wiring.
 
 ```bash
-curl -H "x-admin-token: $TOKEN" \
+# Example assuming your auth middleware accepts a bearer token:
+curl -H "Authorization: Bearer $TOKEN" \
   https://app.example.com/admin/multitenancy/tenants
 ```
 
@@ -27,12 +32,19 @@ curl -H "x-admin-token: $TOKEN" \
 
 ```ts
 // start/routes.ts
-import { registerAdminRoutes } from '@adonisjs-lasagna/saas-tenancy/admin'
+import { multitenancyAdminRoutes } from '@adonisjs-lasagna/admin'
+import { middleware } from '#start/kernel'
 
-registerAdminRoutes({
+multitenancyAdminRoutes({
   prefix: '/admin/multitenancy',
+  middleware: middleware.adminAuth(),
 })
 ```
+
+The admin API lives in its own package (`@adonisjs-lasagna/admin`), installed
+alongside the core. `middleware` is required: omit it and the call throws at
+startup, since the surface includes destructive routes. To mount it public on
+purpose (only behind a trusted network boundary), pass `middleware: false`.
 
 ## OpenAPI 3.1 spec
 
@@ -40,7 +52,7 @@ The spec is generated from the service contract; there is no
 separate hand-written schema. Two surfaces:
 
 - **JSON spec**: `GET /admin/multitenancy/openapi.json`
-- **Swagger UI**: `GET /admin/multitenancy/openapi`
+- **Swagger UI**: `GET /admin/multitenancy/docs`
 
 Pin the JSON spec into your CI to detect breaking changes between
 package versions.

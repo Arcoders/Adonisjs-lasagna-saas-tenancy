@@ -1,13 +1,19 @@
-name: Publish Package
+name: Publish Packages
 
+# Release is tag-driven: push a `v*` tag (e.g. `v1.0.0`) to publish. This
+# replaces the previous "publish on every push to master", which tried to
+# publish on every merge and failed noisily once the version already existed.
+# Each package is published only if its exact version isn't already on npm, so
+# re-running a tag (or a partial failure) is safe and idempotent.
 on:
   push:
-    branches:
-      - master
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   publish:
-    name: Build & Publish
+    name: Build & Publish (core + satellites)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -27,29 +33,48 @@ jobs:
       - name: Install dependencies
         env:
           npm_config_ignore_scripts: 'false'
-        run: npm install --include=optional
+        run: npm install --legacy-peer-deps --include=optional
 
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build
-        run: npm run build
+      # Build core first, then the satellites (admin imports sso; all import the
+      # core via the workspace symlink to its build).
+      - name: Build all packages
+        run: npm run build:all
 
-      # Prerelease versions (anything after a `-`, e.g. `0.2.0-beta.1`) are
-      # published under the `next` dist-tag so they NEVER override `latest`.
-      # Stable versions get the default `latest` tag.
-      - name: Resolve npm dist-tag
-        id: tag
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          if [[ "$VERSION" == *-* ]]; then
-            echo "name=next" >> "$GITHUB_OUTPUT"
-          else
-            echo "name=latest" >> "$GITHUB_OUTPUT"
-          fi
-          echo "Publishing $VERSION under dist-tag $(grep '^name=' $GITHUB_OUTPUT | tail -1 | cut -d= -f2)"
-
-      - name: Publish to npm
-        run: npm publish --access public --tag ${{ steps.tag.outputs.name }}
+      - name: Publish (idempotent, dependency order)
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          publish_pkg() {
+            # $1 = workspace dir (use "." for the root/core package)
+            local dir="$1"
+            local name version tag
+            name=$(node -p "require('./$dir/package.json').name")
+            version=$(node -p "require('./$dir/package.json').version")
+            # Prerelease versions (anything after a `-`) go under the `next`
+            # dist-tag so they never override `latest`.
+            if [[ "$version" == *-* ]]; then tag="next"; else tag="latest"; fi
+
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "✓ $name@$version already published — skipping"
+              return 0
+            fi
+
+            echo "→ publishing $name@$version (dist-tag: $tag)"
+            if [[ "$dir" == "." ]]; then
+              npm publish --access public --tag "$tag"
+            else
+              npm publish --workspace "$name" --access public --tag "$tag"
+            fi
+          }
+
+          # Core first so satellites resolve a published peer.
+          publish_pkg "."
+          publish_pkg "packages/sso"
+          publish_pkg "packages/billing"
+          publish_pkg "packages/admin"
+          publish_pkg "packages/backup"

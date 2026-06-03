@@ -1,0 +1,64 @@
+{
+  "name": "@adonisjs-lasagna/billing",
+  "version": "1.0.0",
+  "description": "Stripe billing for @adonisjs-lasagna/saas-tenancy: webhook pipeline, subscriptions, metered usage, dunning, and the billing ace commands",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy.git",
+    "directory": "packages/billing"
+  },
+  "bugs": {
+    "url": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "saas-tenancy",
+    "multitenancy",
+    "billing",
+    "stripe"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build"
+  ],
+  "exports": {
+    ".": "./build/src/index.js",
+    "./provider": "./build/providers/billing_provider.js",
+    "./commands": "./build/src/commands/main.js"
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "adonisjs": {
+    "commands": [
+      "./build/src/commands/main.js"
+    ]
+  },
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs-lasagna/saas-tenancy": "^1.0.0",
+    "@adonisjs/core": "^7.0.0",
+    "@adonisjs/lucid": "^22.0.0",
+    "@adonisjs/queue": "^0.6.0",
+    "@adonisjs/redis": "^10.0.0",
+    "luxon": "^3.0.0",
+    "stripe": "^18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "stripe": {
+      "optional": true
+    }
+  }
+}

@@ -2,7 +2,7 @@ import router from '@adonisjs/core/services/router'
 import { middleware } from '#start/kernel'
 import { enforceQuota } from '@adonisjs-lasagna/saas-tenancy/middleware'
 import { multitenancyRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
-import { multitenancyAdminRoutes } from '@adonisjs-lasagna/saas-tenancy/admin'
+import { multitenancyAdminRoutes } from '@adonisjs-lasagna/admin'
 
 /**
  * Lazy controller imports — keeps the route file small and lets the

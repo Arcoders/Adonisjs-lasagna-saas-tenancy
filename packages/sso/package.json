@@ -1,0 +1,55 @@
+{
+  "name": "@adonisjs-lasagna/sso",
+  "version": "1.0.0",
+  "description": "Per-tenant OIDC/SSO for @adonisjs-lasagna/saas-tenancy (discovery, auth URL, callback verification, config model)",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy.git",
+    "directory": "packages/sso"
+  },
+  "bugs": {
+    "url": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "saas-tenancy",
+    "multitenancy",
+    "sso",
+    "oidc"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build"
+  ],
+  "exports": {
+    ".": "./build/src/index.js"
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@adonisjs-lasagna/saas-tenancy": "^1.0.0",
+    "@adonisjs/core": "^7.0.0",
+    "@adonisjs/lucid": "^22.0.0",
+    "@adonisjs/redis": "^10.0.0",
+    "jose": "^5.0.0",
+    "luxon": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "jose": {
+      "optional": true
+    }
+  }
+}

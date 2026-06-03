@@ -153,6 +153,31 @@ test.group('withTenantScope mixin (integration)', (group) => {
     })
   })
 
+  test('grouped OR branches keep the tenant scope (the safe pattern)', async ({ assert }) => {
+    const tenantA = randomUUID()
+    const tenantB = randomUUID()
+
+    await tenancy.run(fakeTenant(tenantA), async () => {
+      await TestPost.create({ title: 'a1' })
+    })
+    await tenancy.run(fakeTenant(tenantB), async () => {
+      // Same title that tenant A's query will OR on — a leak would surface it.
+      await TestPost.create({ title: 'mid' })
+    })
+
+    await tenancy.run(fakeTenant(tenantA), async () => {
+      const rows = await TestPost.query().where((q) =>
+        q.where('title', 'a1').orWhere('title', 'mid').orWhere('title', 'zzz')
+      )
+      // (a1 OR mid OR zzz) AND tenant_id = A → only tenant A's a1.
+      assert.lengthOf(rows, 1)
+      assert.isTrue(
+        rows.every((r) => r.tenant_id === tenantA),
+        'grouped OR must not leak another tenant rows'
+      )
+    })
+  })
+
   test('unscoped() returns rows from every tenant', async ({ assert }) => {
     const tenantA = randomUUID()
     const tenantB = randomUUID()

@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { getOpenAPISpec, listSpecPaths } from '../../../src/admin/openapi.js'
+import { getOpenAPISpec, listSpecPaths } from '../../../packages/admin/src/openapi.js'
 
 test.group('OpenAPI spec', () => {
   test('declares OpenAPI 3.1 with title and version', ({ assert }) => {

@@ -1,6 +1,5 @@
 import type { TenantModelContract } from '../types/contracts.js'
-import type { BackupMetadata } from './backup_service.js'
-import type { CloneResult } from './clone_service.js'
+import type { BackupMetadata, CloneResult } from '../types/backup.js'
 
 export type TenantLifecyclePhase = 'before' | 'after'
 
@@ -136,7 +135,6 @@ export default class HookRegistry {
       logger.error({ phase, event, error: error?.message }, 'after-hook failed; continuing')
     } catch {
       // logger unavailable (e.g. unit tests without booted app); fall back to stderr
-      // eslint-disable-next-line no-console
       console.error(`[multitenancy] after-hook failed (${phase}:${event}):`, error?.message)
     }
   }

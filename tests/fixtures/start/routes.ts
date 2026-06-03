@@ -1,8 +1,8 @@
 import router from '@adonisjs/core/services/router'
 import db from '@adonisjs/lucid/services/db'
 import { middleware } from './kernel.js'
-import { multitenancyAdminRoutes } from '@adonisjs-lasagna/saas-tenancy/admin'
-import { multitenancyBillingRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
+import { multitenancyAdminRoutes } from '@adonisjs-lasagna/admin'
+import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
 
 router.get('/health', async ({ response }) => {
   return response.ok({ status: 'ok' })
@@ -10,7 +10,8 @@ router.get('/health', async ({ response }) => {
 
 // Mount admin REST + OpenAPI docs without auth — the fixture is for tests
 // only, and individual specs supply their own ad-hoc gating where needed.
-multitenancyAdminRoutes({ prefix: '/admin/multitenancy' })
+// `middleware: false` is the explicit opt-out the package now requires.
+multitenancyAdminRoutes({ prefix: '/admin/multitenancy', middleware: false })
 
 // Mount the Stripe webhook receiver. Required by the dunning_flow,
 // webhook_idempotency, ip_allowlist (HTTP variant), and pii_redaction

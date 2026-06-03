@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import { existsSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import app from '@adonisjs/core/services/app'
-import { BackupService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { BackupService } from '@adonisjs-lasagna/backup'
 import Tenant from '#app/models/backoffice/tenant'
 import {
   createInstalledTenant,

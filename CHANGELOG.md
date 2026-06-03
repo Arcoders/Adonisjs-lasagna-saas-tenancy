@@ -6,6 +6,103 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.0] — Unreleased
+
+The 1.0 cut. The optional satellites move out of the core into their own
+independently-versioned packages, and the unified tenant-resolution path becomes
+the default. The core now ships only the tenancy primitives plus the leaf
+satellites (audit, feature flags, metrics, webhooks, branding, quotas,
+impersonation). See the [Upgrade to 1.0 guide](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/upgrade-to-1.0.md)
+for a copy-paste migration.
+
+### Breaking changes
+
+- **Satellites are separate packages now.** Billing, SSO, the admin REST API,
+  and backup/clone/restore moved out of the core. Install the ones you use and
+  update imports:
+  - `@adonisjs-lasagna/saas-tenancy/admin` → **`@adonisjs-lasagna/admin`**. The
+    old `/admin` subpath is a deprecated throwing shim for one minor, then drops.
+  - `SsoService` + `TenantSsoConfig` → **`@adonisjs-lasagna/sso`** (they were
+    exported from shared barrels, so there is no shim — the symbols are removed).
+  - `BillingService`, the Stripe models, the billing events/jobs,
+    `BillingException`, `VerifyStripeWebhookMiddleware`, `multitenancyBillingRoutes`,
+    `billingHealthCheck`, `MockStripe` / `signWebhookPayload` →
+    **`@adonisjs-lasagna/billing`**. Register `@adonisjs-lasagna/billing/provider`
+    and `@adonisjs-lasagna/billing/commands` in `adonisrc.ts`.
+  - `BackupService`, `BackupRetentionService`, `CloneService`, `SqlImportService`,
+    the `BackupTenant`/`RestoreTenant`/`CloneTenant` jobs, and the
+    `tenant:backup*` / `tenant:clone` / `tenant:import` commands →
+    **`@adonisjs-lasagna/backup`**. Register `@adonisjs-lasagna/backup/provider`
+    and `@adonisjs-lasagna/backup/commands` (this is what registers the
+    `backup_recency` doctor check and the backup queue jobs).
+  - The result types `BackupMetadata` / `CloneResult` and the Stripe config types
+    stay in the core (`@adonisjs-lasagna/saas-tenancy/types`); only the runtime
+    moved. The tenant-lifecycle hook phases (`backup`/`restore`/`clone`) and the
+    `TenantBackedUp` / `TenantRestored` / `TenantCloned` events also stay in core.
+- **`resolver.legacyAdapterFallback` now defaults to `false`.** When a model
+  query runs outside an active tenant context, `TenantAdapter` resolves the id
+  through the resolver chain synchronously (`resolveSync`) instead of the
+  `resolverStrategy`-only switch. Apps using a single built-in strategy are
+  unaffected; apps that relied on the old fallback (a custom `resolverChain`
+  whose result differs from `resolverStrategy`) set
+  `resolver: { legacyAdapterFallback: true }` to restore it.
+- **The admin API is fail-closed.** `multitenancyAdminRoutes` now throws at boot
+  unless you pass `middleware`, or `middleware: false` to mount it public on
+  purpose. (Shipped behind the extraction; see `@adonisjs-lasagna/admin`.)
+
+### Added
+
+- **Four satellite packages**: `@adonisjs-lasagna/admin`, `@adonisjs-lasagna/sso`,
+  `@adonisjs-lasagna/billing`, `@adonisjs-lasagna/backup`. Each versions
+  independently, ships only its own build, and depends on the core as a peer.
+- **Unified tenant resolution** (`resolveSync` over the resolver chain) so custom
+  and domain-based resolvers route raw model queries consistently with
+  `request.tenant()`. The provider seeds the tenant log context at boot so
+  `tenancy.currentId()` reflects the HTTP guard regardless of process history.
+- **Connection-eviction safety**: an in-use-aware LRU with a configurable grace
+  window (`isolation.maxTenantConnections`, `isolation.evictionGracePeriodMs`,
+  `tenantReadReplicas.maxReplicaConnections`) so a burst of distinct tenants can
+  no longer release a connection with queries in flight.
+- New lightweight subpaths: `@adonisjs-lasagna/saas-tenancy/config` (read config
+  outside a booted app) and `/internal` (app.booted-safe building blocks the
+  official satellites consume).
+- Docs: a [Scaling limits](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/scaling-limits.md)
+  page and the Upgrade to 1.0 guide.
+- **Row-Level Security for `rowscope-pg`.** A new opt-in
+  (`configure --with=rls`) publishes a policy migration, plus `withTenantRls()`
+  and `setTenantRlsGuc()` helpers that set a transaction-local `app.tenant_id`.
+  The policy is fail-closed (an unset tenant matches no rows) and enforced by
+  the database regardless of query shape, so a hand-written top-level `orWhere`
+  can no longer escape the tenant scope. See
+  [rowscope-pg](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/data-isolation/rowscope-pg.md#hard-boundary-postgresql-row-level-security).
+
+### Security
+
+- **`rowscope-pg`: closed the `orWhere` scope escape.** The `withTenantScope`
+  mixin injects the tenant predicate as a flat clause, so a hand-written
+  top-level `orWhere` could compose a query that leaks another tenant's rows.
+  The docs now flag any non-grouped top-level `orWhere` as unsafe, and the new
+  RLS layer (above) provides a database-enforced boundary that holds regardless
+  of query shape.
+- **`rowscope-pg`: `before('create')` rejects a cross-tenant `tenant_id`.** A
+  create with an explicit `tenant_id` that differs from the active scope now
+  throws (consistent with the update/delete hooks) instead of inserting a row
+  owned by another tenant.
+
+### Changed
+
+- **The core is smaller.** It no longer bundles a Stripe engine, an OIDC client,
+  a REST admin API, or the backup/clone tooling, so a CVE in any of those no
+  longer forces a core bump.
+- `CircuitBreakerService` asks the active driver for the connection name instead
+  of rebuilding it from the prefix.
+- Coverage gate raised to 44 lines / 76 branches / 65 functions on the unit run;
+  CI also runs the billing and backup package unit suites and aggregates
+  unit + integration coverage.
+- `engines.node` stays `>=24` (required by AdonisJS 7 / Lucid 22).
+
+---
+
 ## [0.2.2] — 2026-06-01
 
 Feature and hardening release. Adds a dependency-resilience degradation

@@ -14,7 +14,7 @@ import {
 import {
   BackupService,
   BackupRetentionService,
-} from '@adonisjs-lasagna/saas-tenancy/services'
+} from '@adonisjs-lasagna/backup'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 
 // S3 roundtrip against a real S3-compatible store (CI provides minio).

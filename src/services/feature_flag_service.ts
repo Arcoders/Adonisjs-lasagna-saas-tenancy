@@ -12,14 +12,16 @@ export default class FeatureFlagService {
   }
 
   async #getMap(tenantId: string): Promise<Record<string, boolean>> {
-    return getCache().namespace('feature_flags').getOrSet({
-      key: this.mapCacheKey(tenantId),
-      ttl: '60s',
-      factory: async () => {
-        const rows = await TenantFeatureFlag.query().where('tenant_id', tenantId)
-        return Object.fromEntries(rows.map((r) => [r.flag, r.enabled]))
-      },
-    }) as Promise<Record<string, boolean>>
+    return getCache()
+      .namespace('feature_flags')
+      .getOrSet({
+        key: this.mapCacheKey(tenantId),
+        ttl: '60s',
+        factory: async () => {
+          const rows = await TenantFeatureFlag.query().where('tenant_id', tenantId)
+          return Object.fromEntries(rows.map((r) => [r.flag, r.enabled]))
+        },
+      }) as Promise<Record<string, boolean>>
   }
 
   async set(
@@ -32,7 +34,9 @@ export default class FeatureFlagService {
       { tenantId, flag },
       { enabled, config: config ?? null }
     )
-    await getCache().namespace('feature_flags').delete({ key: this.mapCacheKey(tenantId) })
+    await getCache()
+      .namespace('feature_flags')
+      .delete({ key: this.mapCacheKey(tenantId) })
     return row
   }
 
@@ -42,6 +46,8 @@ export default class FeatureFlagService {
 
   async delete(tenantId: string, flag: string): Promise<void> {
     await TenantFeatureFlag.query().where('tenant_id', tenantId).where('flag', flag).delete()
-    await getCache().namespace('feature_flags').delete({ key: this.mapCacheKey(tenantId) })
+    await getCache()
+      .namespace('feature_flags')
+      .delete({ key: this.mapCacheKey(tenantId) })
   }
 }

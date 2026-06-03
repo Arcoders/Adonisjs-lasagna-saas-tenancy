@@ -1,4 +1,11 @@
-export type { MultitenancyConfig, TenantResolverStrategy, BillingConfig } from './config.js'
+export type {
+  MultitenancyConfig,
+  TenantResolverStrategy,
+  BillingConfig,
+  BackupRetentionConfig,
+  BackupRetentionTier,
+} from './config.js'
+export type { BackupMetadata, CloneResult } from './backup.js'
 export type {
   StripeEvent,
   StripeSubscription,

@@ -3,15 +3,12 @@ import app from '@adonisjs/core/services/app'
 import { randomUUID } from 'node:crypto'
 import { DateTime } from 'luxon'
 import emitter from '@adonisjs/core/services/emitter'
-import { BillingService } from '@adonisjs-lasagna/saas-tenancy/services'
-import { MockStripe, signWebhookPayload } from '@adonisjs-lasagna/saas-tenancy/testing'
-import {
-  StripeCustomer,
-  StripeSubscription,
-  TenantPlan,
-} from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { TrialEnding } from '@adonisjs-lasagna/saas-tenancy/events'
-import { ProcessStripeEventJob } from '@adonisjs-lasagna/saas-tenancy/jobs'
+import { BillingService } from '@adonisjs-lasagna/billing'
+import { MockStripe, signWebhookPayload } from '@adonisjs-lasagna/billing'
+import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import { StripeCustomer, StripeSubscription } from '@adonisjs-lasagna/billing'
+import { TrialEnding } from '@adonisjs-lasagna/billing'
+import { ProcessStripeEventJob } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import {
   setupBillingConfig,

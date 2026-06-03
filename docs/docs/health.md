@@ -76,7 +76,7 @@ others. The check skips quietly when `config.billing` is unset, so
 it's safe to register unconditionally:
 
 ```ts
-import { billingHealthCheck } from '@adonisjs-lasagna/saas-tenancy/health'
+import { billingHealthCheck } from '@adonisjs-lasagna/billing'
 
 health.addCheck('billing', billingHealthCheck)
 ```
@@ -91,7 +91,7 @@ The Stripe webhook receiver itself is mounted via a separate helper
 (it's a route, not a check):
 
 ```ts
-import { multitenancyBillingRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
+import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
 
 multitenancyBillingRoutes()
 ```

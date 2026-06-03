@@ -1,8 +1,21 @@
 import { test } from '@japa/runner'
 import { randomUUID } from 'node:crypto'
+import { multitenancyAdminRoutes } from '@adonisjs-lasagna/admin'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 
 const PREFIX = '/admin/multitenancy'
+
+test.group('Admin REST — mount guard (B2)', () => {
+  test('refuses to mount without middleware (fail-closed)', ({ assert }) => {
+    // The check throws before any route is registered, so there is no side
+    // effect on the router. The `middleware: false` opt-out is exercised by
+    // every other admin spec (the fixture mounts with it).
+    assert.throws(
+      () => multitenancyAdminRoutes({ prefix: '/admin/guard-test' }),
+      /`middleware` is required/
+    )
+  })
+})
 
 test.group('Admin REST — satellite endpoints', (group) => {
   let tenantId: string

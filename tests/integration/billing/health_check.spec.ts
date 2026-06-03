@@ -2,15 +2,11 @@ import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import { DateTime } from 'luxon'
 import { randomUUID } from 'node:crypto'
-import { BillingService } from '@adonisjs-lasagna/saas-tenancy/services'
-import { MockStripe } from '@adonisjs-lasagna/saas-tenancy/testing'
-import {
-  StripeCustomer,
-  StripeProcessedEvent,
-  StripeSubscription,
-} from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { billingHealthCheck } from '@adonisjs-lasagna/saas-tenancy/health'
-import { SLOW_API_THRESHOLD_MS } from '../../../src/health/billing_health_check.js'
+import { BillingService } from '@adonisjs-lasagna/billing'
+import { MockStripe } from '@adonisjs-lasagna/billing'
+import { StripeCustomer, StripeProcessedEvent, StripeSubscription } from '@adonisjs-lasagna/billing'
+import { billingHealthCheck } from '@adonisjs-lasagna/billing'
+import { SLOW_API_THRESHOLD_MS } from '../../../packages/billing/src/health/billing_health_check.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '../../helpers/config.js'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'

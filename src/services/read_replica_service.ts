@@ -7,10 +7,7 @@ import ConnectionLru, {
   DEFAULT_MAX_TENANT_CONNECTIONS,
 } from './isolation/connection_lru.js'
 
-const lazyDb = () =>
-  import('@adonisjs/lucid/services/db')
-    .then((m) => m.default)
-    .catch(() => null)
+const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default).catch(() => null)
 
 /**
  * Picks a read replica for a tenant according to the configured strategy.
@@ -33,7 +30,8 @@ export default class ReadReplicaService {
   #cursor = 0
   readonly #lru = new ConnectionLru({
     label: 'ReadReplicaService',
-    cap: () => getConfig().tenantReadReplicas?.maxReplicaConnections ?? DEFAULT_MAX_TENANT_CONNECTIONS,
+    cap: () =>
+      getConfig().tenantReadReplicas?.maxReplicaConnections ?? DEFAULT_MAX_TENANT_CONNECTIONS,
     graceMs: () => getConfig().isolation?.evictionGracePeriodMs ?? DEFAULT_EVICTION_GRACE_MS,
     release: async (name) => {
       const db = await lazyDb()
@@ -112,8 +110,9 @@ export default class ReadReplicaService {
       const driver = await getActiveDriver()
       await driver.connect(tenant)
       const primaryName = `${getConfig().tenantConnectionNamePrefix}${tenant.id}`
-      const primary = (db.manager as any).get?.(primaryName)?.config
-        ?? (db as any).getRawConnection?.(primaryName)?.config
+      const primary =
+        (db.manager as any).get?.(primaryName)?.config ??
+        (db as any).getRawConnection?.(primaryName)?.config
 
       const baseConnection: any = primary?.connection ?? {}
       db.manager.add(connName, {

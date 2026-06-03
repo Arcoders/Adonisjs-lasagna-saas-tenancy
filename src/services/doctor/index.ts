@@ -14,7 +14,6 @@ export {
   migrationStateCheck,
   circuitBreakerCheck,
   queueStuckCheck,
-  backupRecencyCheck,
   provisioningStalledCheck,
   failedTenantsCheck,
   replicaLagCheck,

@@ -1,6 +1,7 @@
 import TenantWebhook from '../models/satellites/tenant_webhook.js'
 import TenantWebhookDelivery from '../models/satellites/tenant_webhook_delivery.js'
 import { encrypt, decrypt } from '../utils/crypto.js'
+import { validateExternalHttpsUrl, validateResolvedHostIsPublic } from '../utils/url.js'
 import { DateTime } from 'luxon'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
@@ -88,6 +89,24 @@ export default class WebhookService {
   }
 
   async send(hook: TenantWebhook, delivery: TenantWebhookDelivery): Promise<void> {
+    // SSRF guard at the fetch boundary. The admin controller validates URLs on
+    // create/update, but auto-dispatch (`dispatch`) and the retry sweep
+    // (`processRetries`) reach this method with a stored URL that may have been
+    // written via the service API, a prior package version, or a host that
+    // rebound its DNS to an internal address. Refuse here rather than trust the
+    // upstream check. This also resolves the hostname and rejects any address
+    // in a private/metadata range. A structurally-unsafe URL is permanent, so
+    // fail without scheduling a retry.
+    const urlError = await validateResolvedHostIsPublic(hook.url)
+    if (urlError) {
+      delivery.statusCode = null
+      delivery.responseBody = `blocked_unsafe_url:${urlError}`
+      delivery.status = 'failed'
+      delivery.nextRetryAt = null
+      await delivery.save()
+      return
+    }
+
     const body = JSON.stringify(delivery.payload)
     const headers: Record<string, string> = {
       'content-type': 'application/json',
@@ -146,6 +165,12 @@ export default class WebhookService {
     events: string[],
     secret?: string
   ): Promise<TenantWebhook> {
+    // Validate at the service boundary too, so callers that bypass the admin
+    // controller can't persist an SSRF-capable URL.
+    const urlError = validateExternalHttpsUrl(url)
+    if (urlError) {
+      throw new Error(`WebhookService: refusing to register an unsafe webhook url (${urlError}).`)
+    }
     const encryptedSecret = secret ? encrypt(secret) : null
     return TenantWebhook.create({ tenantId, url, events, secret: encryptedSecret, enabled: true })
   }

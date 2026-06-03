@@ -17,8 +17,7 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/events'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
-import type { BackupMetadata } from '@adonisjs-lasagna/saas-tenancy/services'
-import type { CloneResult } from '@adonisjs-lasagna/saas-tenancy/services'
+import type { BackupMetadata, CloneResult } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
  * Lifecycle event dispatch coverage.

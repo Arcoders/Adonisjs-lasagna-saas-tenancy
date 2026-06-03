@@ -1,10 +1,11 @@
 import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import { randomUUID } from 'node:crypto'
-import { BillingService, QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
-import { MockStripe } from '@adonisjs-lasagna/saas-tenancy/testing'
-import { StripeCustomer, StripeMeterEvent } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import UsageAutoBridgeListener from '../../../src/listeners/usage_auto_bridge_listener.js'
+import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { BillingService } from '@adonisjs-lasagna/billing'
+import { MockStripe } from '@adonisjs-lasagna/billing'
+import { StripeCustomer, StripeMeterEvent } from '@adonisjs-lasagna/billing'
+import UsageAutoBridgeListener from '../../../packages/billing/src/listeners/usage_auto_bridge_listener.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables, hydrateJob } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
@@ -212,7 +213,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     const listener = await app.container.make(UsageAutoBridgeListener)
 
     const ReportUsageBatchJob = (
-      await import('../../../src/jobs/report_usage_batch_job.js')
+      await import('../../../packages/billing/src/jobs/report_usage_batch_job.js')
     ).default
     const dispatched: Array<{ tenantId: string; meterEventName: string; quantity: number }> = []
     const originalDispatch = (
@@ -264,7 +265,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     // `app.container.make(BillingService)` resolves the same singleton we
     // inject the mock into (the dual-module hazard the CLAUDE.md warns
     // about — a src/ copy would resolve a fresh, un-mocked instance).
-    const { ReportUsageBatchJob } = await import('@adonisjs-lasagna/saas-tenancy/jobs')
+    const { ReportUsageBatchJob } = await import('@adonisjs-lasagna/billing')
 
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
@@ -302,7 +303,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     // the QuotaTracked was buffered while the tenant existed, then it was
     // hard-deleted before the bucket flushed. The job must bail (log
     // tenant_missing), not throw, and write no audit row.
-    const { ReportUsageBatchJob } = await import('@adonisjs-lasagna/saas-tenancy/jobs')
+    const { ReportUsageBatchJob } = await import('@adonisjs-lasagna/billing')
 
     const billing = await app.container.make(BillingService)
     billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
@@ -329,7 +330,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     const emitter = (await import('@adonisjs/core/services/emitter')).default
     const listener = await app.container.make(UsageAutoBridgeListener)
     const ReportUsageBatchJob = (
-      await import('../../../src/jobs/report_usage_batch_job.js')
+      await import('../../../packages/billing/src/jobs/report_usage_batch_job.js')
     ).default
     let dispatchedCount = 0
     const originalDispatch = (

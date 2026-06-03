@@ -1,6 +1,5 @@
 import { test } from '@japa/runner'
-import { SsoService } from '@adonisjs-lasagna/saas-tenancy/services'
-import { TenantSsoConfig } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import { SsoService, TenantSsoConfig } from '@adonisjs-lasagna/sso'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 
 test.group('SsoService (integration)', (group) => {

@@ -11,6 +11,7 @@ const SEVERITY_COLOR: Record<DiagnosisSeverity, 'cyan' | 'yellow' | 'red'> = {
 }
 
 const ANSI_CLEAR = '\x1b[2J\x1b[H'
+// eslint-disable-next-line no-control-regex -- ANSI escape (\x1b) is required to strip terminal color codes
 const ANSI_REGEX = /\x1b\[[0-9;]*m/g
 const MIN_WATCH_INTERVAL_MS = 1000
 const DEFAULT_WATCH_INTERVAL_MS = 5000

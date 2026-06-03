@@ -6,14 +6,9 @@ export { default as TelemetryService } from './telemetry_service.js'
 export { default as ResilienceService } from './resilience_service.js'
 export type { ResilienceRunOptions } from './resilience_service.js'
 export type { FailurePolicy, ResilienceConfig } from '../types/config.js'
-export { default as BackupService } from './backup_service.js'
-export type { BackupMetadata } from './backup_service.js'
-export { default as BackupRetentionService } from './backup_retention_service.js'
-export type { RetentionPlan } from './backup_retention_service.js'
-export { default as CloneService } from './clone_service.js'
-export type { CloneOptions, CloneResult } from './clone_service.js'
-export { default as SqlImportService } from './sql_import_service.js'
-export type { SqlImportOptions, SqlImportResult } from './sql_import_service.js'
+// `BackupService`, `BackupRetentionService`, `CloneService`, `SqlImportService`
+// moved to `@adonisjs-lasagna/backup`. Their shared result types
+// (`BackupMetadata`, `CloneResult`) live in `@adonisjs-lasagna/saas-tenancy/types`.
 export { default as AuditLogService } from './audit_log_service.js'
 export type { LogActionOptions } from './audit_log_service.js'
 export { default as CrossDomainRedirectService } from './cross_domain_redirect_service.js'
@@ -29,18 +24,11 @@ export { default as WebhookService, verifyWebhookSignature } from './webhook_ser
 export { getCache, cacheFor } from '../utils/cache.js'
 export { default as BrandingService } from './branding_service.js'
 export type { BrandingData } from './branding_service.js'
-export { default as SsoService } from './sso_service.js'
+// `SsoService` moved to `@adonisjs-lasagna/sso`.
 export { default as MetricsService } from './metrics_service.js'
 export { default as QuotaService } from './quota_service.js'
 export type { QuotaCheckResult, QuotaStateSnapshot, QuotaMode } from './quota_service.js'
-export { default as BillingService } from './billing_service.js'
-export type {
-  CreateCheckoutOptions,
-  CreatePortalOptions,
-  ReportUsageOptions,
-} from './billing_service.js'
-export { redactStripeEvent } from './billing/redact.js'
-export type { RedactedStripeEvent } from './billing/redact.js'
+// `BillingService` + `redactStripeEvent` moved to `@adonisjs-lasagna/billing`.
 export { default as ReadReplicaService } from './read_replica_service.js'
 export { default as HookRegistry } from './hook_registry.js'
 export { default as BootstrapperRegistry } from './bootstrapper_registry.js'
@@ -53,6 +41,9 @@ export {
   SqliteMemoryDriver,
   configuredScopeColumn,
   getActiveDriver,
+  setTenantRlsGuc,
+  withTenantRls,
+  DEFAULT_RLS_GUC,
 } from './isolation/index.js'
 export {
   TenantResolverRegistry,
@@ -71,6 +62,10 @@ export type {
   DestroyOptions,
   MigrateOptions,
   MigrateResult,
+  RlsQueryRunner,
+  RlsTransactor,
+  SetTenantRlsGucOptions,
+  WithTenantRlsOptions,
 } from './isolation/index.js'
 export {
   cacheBootstrapper,
@@ -107,7 +102,6 @@ export {
   schemaDriftCheck,
   migrationStateCheck,
   circuitBreakerCheck,
-  backupRecencyCheck,
   provisioningStalledCheck,
   failedTenantsCheck,
   connectionPoolCheck,

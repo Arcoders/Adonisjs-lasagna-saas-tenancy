@@ -49,6 +49,8 @@ export default defineConfig({
     },
   },
 
+  // Optional — only needed if you install `@adonisjs-lasagna/backup`. Safe to
+  // delete this whole block if you don't use per-tenant backup/restore/clone.
   backup: {
     storagePath: env.get('BACKUP_STORAGE_PATH', './storage/backups'),
     metadataTtl: 60 * 60 * 24 * 30,

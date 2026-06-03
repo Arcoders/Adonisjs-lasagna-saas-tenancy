@@ -51,6 +51,27 @@ test.group('WebhookService.send() — delivery state machine', (group) => {
     globalThis.fetch = originalFetch
   })
 
+  test('refuses to deliver to an SSRF-unsafe url and never calls fetch', async ({ assert }) => {
+    let fetchCalled = false
+    globalThis.fetch = (async () => {
+      fetchCalled = true
+      return { ok: true, status: 200, text: async () => '{}' }
+    }) as unknown as typeof fetch
+
+    // Cloud metadata IP — the kind of target the SSRF guard must block at the
+    // fetch boundary even when the URL was persisted bypassing the admin
+    // controller (direct service call, prior version, DNS rebind).
+    const hook = makeHook({ url: 'http://169.254.169.254/latest/meta-data/' })
+    const delivery = makeDelivery()
+
+    await svc.send(hook as any, delivery as any)
+
+    assert.isFalse(fetchCalled, 'fetch must not be invoked for an unsafe url')
+    assert.equal(delivery.status, 'failed')
+    assert.match(String(delivery.responseBody), /blocked_unsafe_url/)
+    assert.isNull(delivery.nextRetryAt)
+  })
+
   test('sets status to success on 2xx response', async ({ assert }) => {
     globalThis.fetch = makeFetch(200) as unknown as typeof fetch
     const hook = makeHook()

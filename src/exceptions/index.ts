@@ -10,7 +10,6 @@ export { default as ImpersonationInvalidException } from './impersonation_invali
 export { default as RateLimitUnavailableException } from './rate_limit_unavailable_exception.js'
 export { default as TenantHeaderDomainMismatchException } from './tenant_header_domain_mismatch_exception.js'
 export { default as TooManyRequestsException } from './too_many_requests_exception.js'
-export { default as BillingException } from './billing_exception.js'
-export type { BillingErrorCode } from './billing_exception.js'
+// `BillingException` moved to `@adonisjs-lasagna/billing`.
 export { default as DependencyUnavailableException } from './dependency_unavailable_exception.js'
 export type { DependencyUnavailableContext } from './dependency_unavailable_exception.js'

@@ -8,15 +8,12 @@ import { cacheFor } from '../utils/cache.js'
 import ResilienceService from './resilience_service.js'
 
 const lazyRedis = () =>
-  import('@adonisjs/redis/services/main')
-    .then((m) => m.default)
-    .catch(() => null)
+  import('@adonisjs/redis/services/main').then((m) => m.default).catch(() => null)
 
 /** Stateless, so a single shared instance is fine. */
 const resilience = new ResilienceService()
 
-const lazyTenantPlan = () =>
-  import('../models/satellites/tenant_plan.js').then((m) => m.default)
+const lazyTenantPlan = () => import('../models/satellites/tenant_plan.js').then((m) => m.default)
 
 const ROLLING_TTL_SECONDS = 60 * 60 * 48
 const PLAN_CACHE_TTL_MS = 60_000
@@ -63,10 +60,9 @@ async function resolveStorageMode(): Promise<PlanStorageMode> {
     const { default: db } = await import('@adonisjs/lucid/services/db')
     const result = await db
       .connection(getConfig().backofficeConnectionName)
-      .rawQuery(
-        `SELECT to_regclass(?) AS reg`,
-        [`${getConfig().backofficeSchemaName}.tenant_plans`]
-      )
+      .rawQuery(`SELECT to_regclass(?) AS reg`, [
+        `${getConfig().backofficeSchemaName}.tenant_plans`,
+      ])
     const rows = (result?.rows ?? result) as Array<{ reg: string | null }>
     _storageProbe = rows[0]?.reg ? 'tenant_plans' : 'config-only'
   } catch {
@@ -152,9 +148,7 @@ export default class QuotaService {
    *
    * Throws if the resolved name is not declared in `definitions`.
    */
-  async getPlanFor(
-    tenant: TenantModelContract
-  ): Promise<{ name: string; plan: PlanDefinition }> {
+  async getPlanFor(tenant: TenantModelContract): Promise<{ name: string; plan: PlanDefinition }> {
     const cfg = getConfig().plans ?? DEFAULT_FALLBACK
 
     let resolved = await cfg.getPlan?.(tenant)
@@ -367,11 +361,7 @@ export default class QuotaService {
    *     plan) the script is skipped and we fall back to a plain
    *     non-atomic `track`, matching the "unlimited" semantics.
    */
-  async consume(
-    tenant: TenantModelContract,
-    quota: string,
-    amount: number = 1
-  ): Promise<number> {
+  async consume(tenant: TenantModelContract, quota: string, amount: number = 1): Promise<number> {
     const limit = await this.getLimit(tenant, quota)
     if (!Number.isFinite(limit)) {
       // Unlimited plan — just track and return.
@@ -388,7 +378,9 @@ export default class QuotaService {
       // fail-open: Redis down → skip enforcement, allow the consumption.
       fallback: () => null,
       run: async () =>
-        (await (await this.requireRedis()).eval(
+        (await (
+          await this.requireRedis()
+        ).eval(
           QUOTA_CONSUME_LUA,
           1,
           key,
@@ -408,13 +400,7 @@ export default class QuotaService {
     if (allowed === 0) {
       // Lua reported "would exceed". `currentOrAfter` is the pre-increment
       // value, which is what we surface in the event/exception payload.
-      await TenantQuotaExceeded.dispatch(
-        tenant,
-        quota,
-        limit,
-        Number(currentOrAfter) || 0,
-        amount
-      )
+      await TenantQuotaExceeded.dispatch(tenant, quota, limit, Number(currentOrAfter) || 0, amount)
       throw new QuotaExceededException({
         tenantId: tenant.id,
         quota,

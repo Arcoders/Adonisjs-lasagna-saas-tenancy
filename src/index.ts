@@ -13,6 +13,10 @@ export type {
   TenantStatus,
   TenantMetadata,
 } from './types/contracts.js'
+// `BackupMetadata` / `CloneResult` are referenced by the tenant-lifecycle hook
+// contexts + the `TenantBackedUp` / `TenantCloned` events, which stay in core.
+// The implementing services moved to `@adonisjs-lasagna/backup`.
+export type { BackupMetadata, CloneResult } from './types/backup.js'
 export { BackofficeBaseModel, TenantBaseModel, CentralBaseModel } from './models/base/index.js'
 export { DefaultLucidAdapter, BackofficeAdapter, TenantAdapter } from './models/adapters/index.js'
 export {
@@ -21,9 +25,9 @@ export {
   TenantWebhook,
   TenantWebhookDelivery,
   TenantBranding,
-  TenantSsoConfig,
   TenantMetric,
 } from './models/satellites/index.js'
+// `TenantSsoConfig` moved to `@adonisjs-lasagna/sso`.
 export type { AuditActorType, DeliveryStatus } from './models/satellites/index.js'
 export {
   RateLimitMiddleware,
@@ -39,17 +43,12 @@ export {
   CircuitBreakerService,
   TenantQueueService,
   TelemetryService,
-  BackupService,
-  BackupRetentionService,
-  CloneService,
-  SqlImportService,
   AuditLogService,
   CrossDomainRedirectService,
   ImpersonationService,
   FeatureFlagService,
   WebhookService,
   BrandingService,
-  SsoService,
   MetricsService,
   QuotaService,
   ReadReplicaService,
@@ -100,12 +99,6 @@ export type {
   CircuitState,
   CircuitMetrics,
   TenantQueueStats,
-  BackupMetadata,
-  RetentionPlan,
-  CloneOptions,
-  CloneResult,
-  SqlImportOptions,
-  SqlImportResult,
   LogActionOptions,
   BrandingData,
   TenantLifecyclePhase,
@@ -148,8 +141,8 @@ export {
   TenantExitedMaintenance,
 } from './events/index.js'
 export type { TenantMigrationDirection } from './events/index.js'
-export { InstallTenant, UninstallTenant, CloneTenant, BackupTenant, RestoreTenant } from './jobs/index.js'
-export type { CloneTenantPayload } from './jobs/index.js'
+export { InstallTenant, UninstallTenant } from './jobs/index.js'
+// `CloneTenant` / `BackupTenant` / `RestoreTenant` moved to `@adonisjs-lasagna/backup`.
 export {
   MissingTenantHeaderException,
   TenantNotFoundException,
@@ -175,4 +168,12 @@ export { resolveTenantId } from './extensions/request.js'
 export { defineConfig, setConfig, getConfig } from './config.js'
 export { tenancy } from './tenancy.js'
 export { withTenantScope, unscoped, isScopeBypassed } from './models/scoping.js'
+export { setTenantRlsGuc, withTenantRls, DEFAULT_RLS_GUC } from './services/isolation/rls.js'
+export type {
+  RlsQueryRunner,
+  RlsTransactor,
+  SetTenantRlsGucOptions,
+  WithTenantRlsOptions,
+} from './services/isolation/rls.js'
 export { encrypt, decrypt, isEncrypted } from './utils/crypto.js'
+export { validateExternalHttpsUrl, validateResolvedHostIsPublic } from './utils/url.js'

@@ -175,81 +175,6 @@
       "filePath": "tenant_queue_stats.js"
     },
     {
-      "commandName": "tenant:backup",
-      "description": "Backup one or all active tenants synchronously",
-      "help": "",
-      "namespace": "tenant",
-      "aliases": [],
-      "flags": [
-        { "name": "tenant", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant ID(s) to back up" }
-      ],
-      "args": [],
-      "options": { "startApp": true },
-      "filePath": "tenant_backup.js"
-    },
-    {
-      "commandName": "tenant:backup:list",
-      "description": "List available backups for one or all tenants",
-      "help": "",
-      "namespace": "tenant",
-      "aliases": [],
-      "flags": [
-        { "name": "tenantId", "flagName": "tenant", "required": false, "type": "string", "alias": "t", "description": "Filter by tenant ID" }
-      ],
-      "args": [],
-      "options": { "startApp": true },
-      "filePath": "tenant_backup_list.js"
-    },
-    {
-      "commandName": "tenant:restore",
-      "description": "Restore a tenant schema from a backup file",
-      "help": "",
-      "namespace": "tenant",
-      "aliases": [],
-      "flags": [
-        { "name": "tenantId", "flagName": "tenant", "required": true, "type": "string", "alias": "t", "description": "Tenant ID" },
-        { "name": "file", "flagName": "file", "required": true, "type": "string", "description": "Backup file name" }
-      ],
-      "args": [],
-      "options": { "startApp": true },
-      "filePath": "tenant_restore.js"
-    },
-    {
-      "commandName": "tenant:import",
-      "description": "Import a PostgreSQL .sql dump file into a tenant schema",
-      "help": "",
-      "namespace": "tenant",
-      "aliases": [],
-      "flags": [
-        { "name": "tenant", "flagName": "tenant", "required": true, "type": "string", "alias": "t", "description": "Target tenant ID" },
-        { "name": "file", "flagName": "file", "required": true, "type": "string", "alias": "f", "description": "Path to the .sql dump file" },
-        { "name": "schemaReplace", "flagName": "schema-replace", "required": false, "type": "string", "description": "Source schema name in the dump to rewrite" },
-        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Parse file and report counts without executing" },
-        { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Print each failed statement" },
-        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "description": "Allow import into non-active tenants" }
-      ],
-      "args": [],
-      "options": { "startApp": true },
-      "filePath": "import_tenant_sql.js"
-    },
-    {
-      "commandName": "tenant:clone",
-      "description": "Clone a tenant: provision a new schema and optionally copy all row data from the source",
-      "help": "",
-      "namespace": "tenant",
-      "aliases": [],
-      "flags": [
-        { "name": "source", "flagName": "source", "required": true, "type": "string", "alias": "s", "description": "Source tenant ID to clone from" },
-        { "name": "name", "flagName": "name", "required": true, "type": "string", "alias": "n", "description": "Name for the new tenant" },
-        { "name": "email", "flagName": "email", "required": true, "type": "string", "alias": "e", "description": "Email for the new tenant" },
-        { "name": "schemaOnly", "flagName": "schema-only", "required": false, "type": "boolean", "description": "Clone schema structure only" },
-        { "name": "clearSessions", "flagName": "clear-sessions", "required": false, "type": "boolean", "description": "Wipe access_tokens in destination after copy" }
-      ],
-      "args": [],
-      "options": { "startApp": true },
-      "filePath": "tenant_clone.js"
-    },
-    {
       "commandName": "tenant:webhooks:retry",
       "description": "Process pending webhook retries for all tenants",
       "help": "Run this every minute via cron: * * * * * node ace tenant:webhooks:retry",
@@ -290,22 +215,6 @@
       "args": [],
       "options": { "startApp": true },
       "filePath": "tenant_doctor.js"
-    },
-    {
-      "commandName": "tenant:backups:run",
-      "description": "Run scheduled backups for tenants whose tier interval has elapsed, then apply retention. Idempotent — safe to run from cron.",
-      "help": "Suggested cron: 0 * * * * node ace tenant:backups:run",
-      "namespace": "tenant",
-      "aliases": [],
-      "flags": [
-        { "name": "tenant", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Limit the run to one or more tenant IDs" },
-        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "description": "Ignore tier intervalHours; back up every selected tenant" },
-        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report what would happen without backing up or deleting anything" },
-        { "name": "noRetention", "flagName": "no-retention", "required": false, "type": "boolean", "description": "Skip the retention sweep (keep all archives untouched)" }
-      ],
-      "args": [],
-      "options": { "startApp": true },
-      "filePath": "tenant_backups_run.js"
     },
     {
       "commandName": "tenant:seed",
@@ -406,93 +315,6 @@
       "args": [],
       "options": { "startApp": true },
       "filePath": "tenant_purge_expired.js"
-    },
-    {
-      "commandName": "tenant:billing:sync",
-      "description": "Reconcile Stripe subscriptions with the local mirror — recovers from missed webhooks",
-      "help": "Suggested cron: 0 4 * * * node ace tenant:billing:sync --json",
-      "namespace": "tenant",
-      "aliases": [],
-      "flags": [
-        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report drift without writing" },
-        { "name": "tenant", "flagName": "tenant", "required": false, "type": "string", "description": "Reconcile a single tenant (uuid)" },
-        { "name": "since", "flagName": "since", "required": false, "type": "string", "description": "ISO8601 timestamp filter" },
-        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit JSON summary" }
-      ],
-      "args": [],
-      "options": { "startApp": true },
-      "filePath": "billing_sync.js"
-    },
-    {
-      "commandName": "tenant:billing:backfill",
-      "description": "Seed tenant_plans rows with the default plan for every tenant that doesn't have one",
-      "help": "",
-      "namespace": "tenant",
-      "aliases": [],
-      "flags": [
-        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report without writing" },
-        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "description": "Overwrite existing rows instead of skipping" },
-        { "name": "plan", "flagName": "plan", "required": false, "type": "string", "description": "Plan name to assign (defaults to config.billing.defaultPlan)" }
-      ],
-      "args": [],
-      "options": { "startApp": true },
-      "filePath": "billing_backfill.js"
-    },
-    {
-      "commandName": "tenant:billing:replay",
-      "description": "Re-dispatch a failed webhook event for processing",
-      "help": "Examples: node ace tenant:billing:replay --event-id=evt_xxx; node ace tenant:billing:replay --all-failed",
-      "namespace": "tenant",
-      "aliases": [],
-      "flags": [
-        { "name": "eventId", "flagName": "event-id", "required": false, "type": "string", "description": "Specific Stripe event id (evt_xxx)" },
-        { "name": "allFailed", "flagName": "all-failed", "required": false, "type": "boolean", "description": "Replay every event currently in status=failed" }
-      ],
-      "args": [],
-      "options": { "startApp": true },
-      "filePath": "billing_replay.js"
-    },
-    {
-      "commandName": "tenant:billing:cleanup",
-      "description": "Purge stripe_processed_events older than the configured retention window",
-      "help": "Suggested cron: 0 4 * * * node ace tenant:billing:cleanup",
-      "namespace": "tenant",
-      "aliases": [],
-      "flags": [
-        { "name": "batchSize", "flagName": "batch-size", "required": false, "type": "number", "description": "Rows per delete batch" }
-      ],
-      "args": [],
-      "options": { "startApp": true },
-      "filePath": "billing_cleanup.js"
-    },
-    {
-      "commandName": "tenant:billing:doctor",
-      "description": "Diagnose Stripe billing config + recent webhook health",
-      "help": "Exit code 1 when any check is in error state — pipeline-friendly",
-      "namespace": "tenant",
-      "aliases": [],
-      "flags": [
-        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit JSON" }
-      ],
-      "args": [],
-      "options": { "startApp": true },
-      "filePath": "billing_doctor.js"
-    },
-    {
-      "commandName": "tenant:billing:test-webhook",
-      "description": "Generate and POST a signed synthetic Stripe event",
-      "help": "Example: node ace tenant:billing:test-webhook customer.subscription.created --url=http://127.0.0.1:3333/webhooks/stripe",
-      "namespace": "tenant",
-      "aliases": [],
-      "flags": [
-        { "name": "url", "flagName": "url", "required": false, "type": "string", "description": "Webhook URL" },
-        { "name": "object", "flagName": "object", "required": false, "type": "string", "description": "JSON file with event.data.object body" }
-      ],
-      "args": [
-        { "name": "event", "argumentName": "event", "required": true, "description": "Event type (e.g. customer.subscription.created)", "type": "string" }
-      ],
-      "options": { "startApp": true },
-      "filePath": "billing_test_webhook.js"
     }
   ],
   "version": 1
