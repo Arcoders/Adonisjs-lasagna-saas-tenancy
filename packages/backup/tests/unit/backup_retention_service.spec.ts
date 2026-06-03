@@ -39,7 +39,10 @@ function meta(tenantId: string, file: string, hoursAgo: number): BackupMetadata 
   }
 }
 
-function setupRetention(tiers: Record<string, { intervalHours: number; keepLast: number }>, defaultTier = 'standard') {
+function setupRetention(
+  tiers: Record<string, { intervalHours: number; keepLast: number }>,
+  defaultTier = 'standard'
+) {
   setupTestConfig({
     backup: {
       ...testConfig.backup,
@@ -129,10 +132,7 @@ test.group('BackupRetentionService — shouldBackup', () => {
     setupRetention({ standard: { intervalHours: 24, keepLast: 7 } })
     const tenant = buildTestTenant()
     const { service } = makeBackups({
-      [tenant.id]: [
-        meta(tenant.id, 'old.dump', 100),
-        meta(tenant.id, 'fresh.dump', 1),
-      ],
+      [tenant.id]: [meta(tenant.id, 'old.dump', 100), meta(tenant.id, 'fresh.dump', 1)],
     })
     const svc = new BackupRetentionService(service)
     assert.isFalse(await svc.shouldBackup(tenant))
@@ -182,14 +182,8 @@ test.group('BackupRetentionService — applyRetention', () => {
       plan.kept.map((m) => m.file),
       ['b.dump', 'a.dump', 'c.dump']
     )
-    assert.deepEqual(
-      plan.purged.map((m) => m.file).sort(),
-      ['d.dump', 'e.dump'].sort()
-    )
-    assert.deepEqual(
-      calls.deleted.map((c) => c.file).sort(),
-      ['d.dump', 'e.dump'].sort()
-    )
+    assert.deepEqual(plan.purged.map((m) => m.file).sort(), ['d.dump', 'e.dump'].sort())
+    assert.deepEqual(calls.deleted.map((c) => c.file).sort(), ['d.dump', 'e.dump'].sort())
   })
 
   test('is a no-op when count <= keepLast', async ({ assert }) => {
@@ -222,7 +216,11 @@ test.group('BackupRetentionService — applyRetention', () => {
     let firstAttempt = true
     const flakyService = {
       async listBackups() {
-        return [meta(tenant.id, 'a.dump', 1), meta(tenant.id, 'b.dump', 5), meta(tenant.id, 'c.dump', 10)]
+        return [
+          meta(tenant.id, 'a.dump', 1),
+          meta(tenant.id, 'b.dump', 5),
+          meta(tenant.id, 'c.dump', 10),
+        ]
       },
       async deleteBackup() {
         if (firstAttempt) {

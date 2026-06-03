@@ -4,7 +4,10 @@ import app from '@adonisjs/core/services/app'
 import { resolve } from 'node:path'
 import { access } from 'node:fs/promises'
 import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
-import type { TenantRepositoryContract, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
+import type {
+  TenantRepositoryContract,
+  TenantModelContract,
+} from '@adonisjs-lasagna/saas-tenancy/types'
 import SqlImportService from '../services/sql_import_service.js'
 
 export default class ImportTenantSql extends BaseCommand {
@@ -15,7 +18,12 @@ export default class ImportTenantSql extends BaseCommand {
   @flags.string({ alias: 't', flagName: 'tenant', description: 'Target tenant ID', required: true })
   declare tenant: string
 
-  @flags.string({ alias: 'f', flagName: 'file', description: 'Path to the .sql dump file', required: true })
+  @flags.string({
+    alias: 'f',
+    flagName: 'file',
+    description: 'Path to the .sql dump file',
+    required: true,
+  })
   declare file: string
 
   @flags.string({
@@ -25,13 +33,25 @@ export default class ImportTenantSql extends BaseCommand {
   })
   declare schemaReplace: string
 
-  @flags.boolean({ flagName: 'dry-run', description: 'Parse file and report counts without executing', default: false })
+  @flags.boolean({
+    flagName: 'dry-run',
+    description: 'Parse file and report counts without executing',
+    default: false,
+  })
   declare dryRun: boolean
 
-  @flags.boolean({ flagName: 'verbose', description: 'Print each failed statement', default: false })
+  @flags.boolean({
+    flagName: 'verbose',
+    description: 'Print each failed statement',
+    default: false,
+  })
   declare verbose: boolean
 
-  @flags.boolean({ flagName: 'force', description: 'Allow import into non-active tenants', default: false })
+  @flags.boolean({
+    flagName: 'force',
+    description: 'Allow import into non-active tenants',
+    default: false,
+  })
   declare force: boolean
 
   @flags.boolean({

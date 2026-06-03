@@ -64,10 +64,7 @@ export default class SsoController {
     const issuerErr = validateExternalHttpsUrl(issuerUrl)
     if (issuerErr) return ctx.response.badRequest({ error: `issuerUrl_${issuerErr}` })
     if (!isHttpsUrl(redirectUri)) return ctx.response.badRequest({ error: 'redirectUri_invalid' })
-    if (
-      scopes !== undefined &&
-      (!Array.isArray(scopes) || !scopes.every(isNonEmptyString))
-    ) {
+    if (scopes !== undefined && (!Array.isArray(scopes) || !scopes.every(isNonEmptyString))) {
       return ctx.response.badRequest({ error: 'scopes_must_be_string_array' })
     }
 

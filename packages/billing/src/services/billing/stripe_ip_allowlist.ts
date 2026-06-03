@@ -72,9 +72,7 @@ function getAllowlist(entries: ReadonlyArray<string>): CompiledAllowlist {
   return _cached
 }
 
-export function isStripeWebhookOriginAllowed(
-  remoteIp: string | undefined
-): boolean {
+export function isStripeWebhookOriginAllowed(remoteIp: string | undefined): boolean {
   const cfg = getConfig().billing
   if (!cfg?.webhook?.enforceIpAllowlist) return true
   if (!remoteIp) return false
@@ -96,4 +94,3 @@ export function isStripeWebhookOriginAllowed(
   }
   return compiled.blocks.check(remoteIp, family)
 }
-

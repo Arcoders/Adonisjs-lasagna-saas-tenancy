@@ -35,7 +35,12 @@ const STALE_PROCESSING_FAIL_MIN = 15
 export const billingHealthCheck: HealthCheckFn = async (): Promise<CheckResult> => {
   const cfg = getConfig().billing
   if (!cfg) {
-    return { status: 'pass', durationMs: 0, message: 'billing not configured', meta: { skipped: true } }
+    return {
+      status: 'pass',
+      durationMs: 0,
+      message: 'billing not configured',
+      meta: { skipped: true },
+    }
   }
 
   if (!cfg.stripe.webhookSecret) {
@@ -102,9 +107,7 @@ export const billingHealthCheck: HealthCheckFn = async (): Promise<CheckResult> 
   return {
     status: 'pass',
     durationMs: apiDurationMs,
-    message: degraded
-      ? `degraded${stalenessNote ? ' — ' + stalenessNote : ''}`
-      : 'ok',
+    message: degraded ? `degraded${stalenessNote ? ' — ' + stalenessNote : ''}` : 'ok',
     meta: { degraded, api_duration_ms: apiDurationMs, active_subs: total },
   }
 }

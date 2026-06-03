@@ -22,7 +22,11 @@ export default class BillingSync extends BaseCommand {
     'Reconcile Stripe subscriptions with the local mirror — recovers from missed webhooks'
   static readonly options: CommandOptions = { startApp: true }
 
-  @flags.boolean({ flagName: 'dry-run', default: false, description: 'Report drift without writing' })
+  @flags.boolean({
+    flagName: 'dry-run',
+    default: false,
+    description: 'Report drift without writing',
+  })
   declare dryRun: boolean
 
   @flags.string({
@@ -90,9 +94,7 @@ export default class BillingSync extends BaseCommand {
       drifted += 1
 
       if (this.dryRun) {
-        this.logger.warning(
-          `drift  ${sub.id}  ${localStatus ?? '(missing)'} → ${remoteStatus}`
-        )
+        this.logger.warning(`drift  ${sub.id}  ${localStatus ?? '(missing)'} → ${remoteStatus}`)
         continue
       }
 
@@ -104,9 +106,7 @@ export default class BillingSync extends BaseCommand {
           downgrade: remoteStatus === 'canceled',
         })
         repaired += 1
-        this.logger.success(
-          `repaired  ${sub.id}  ${localStatus ?? '(missing)'} → ${remoteStatus}`
-        )
+        this.logger.success(`repaired  ${sub.id}  ${localStatus ?? '(missing)'} → ${remoteStatus}`)
       } catch (err) {
         const message = (err as Error)?.message ?? 'unknown error'
         errors.push({ subscription_id: sub.id, error: message })
@@ -149,9 +149,7 @@ export default class BillingSync extends BaseCommand {
           const quotas = new QuotaService()
           await quotas.assignPlan(row.tenantId, defaultPlan, { source: 'reconciliation' })
           orphansRepaired += 1
-          this.logger.success(
-            `orphan-repaired ${row.tenantId}  ${row.planName} → ${defaultPlan}`
-          )
+          this.logger.success(`orphan-repaired ${row.tenantId}  ${row.planName} → ${defaultPlan}`)
         } catch (err) {
           const message = (err as Error)?.message ?? 'unknown error'
           errors.push({ subscription_id: `tenant:${row.tenantId}`, error: message })

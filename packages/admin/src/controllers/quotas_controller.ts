@@ -18,13 +18,12 @@ export default class QuotasController {
       // 503 — we don't want stack traces or DB column names leaking
       // into the admin response.
       const isPlanConfigError =
-        typeof err?.message === 'string' && err.message.includes('not declared in config.plans.definitions')
+        typeof err?.message === 'string' &&
+        err.message.includes('not declared in config.plans.definitions')
       ctx.logger?.warn?.({ err, tenantId: tenant.id }, 'quotas snapshot failed')
       return ctx.response.serviceUnavailable({
         error: 'quotas_unavailable',
-        ...(isPlanConfigError
-          ? { hint: 'configure `plans` in config/multitenancy.ts' }
-          : {}),
+        ...(isPlanConfigError ? { hint: 'configure `plans` in config/multitenancy.ts' } : {}),
       })
     }
   }

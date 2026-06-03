@@ -35,10 +35,7 @@ export default class VerifyStripeWebhookMiddleware {
   async handle({ request, response }: HttpContext, next: NextFn) {
     const cfg = getConfig().billing
     if (!cfg) {
-      throw new BillingException(
-        'config_missing',
-        'config.billing not set — cannot verify webhook'
-      )
+      throw new BillingException('config_missing', 'config.billing not set — cannot verify webhook')
     }
 
     // 1) Optional IP allowlist (returns true when the feature is off).

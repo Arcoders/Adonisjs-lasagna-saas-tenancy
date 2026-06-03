@@ -50,10 +50,7 @@ export default class BackupRetentionService {
    * Decide whether the tenant is due for a fresh backup based on its tier
    * `intervalHours` and the latest backup timestamp.
    */
-  async shouldBackup(
-    tenant: TenantModelContract,
-    now: number = Date.now()
-  ): Promise<boolean> {
+  async shouldBackup(tenant: TenantModelContract, now: number = Date.now()): Promise<boolean> {
     const tier = await this.getTierFor(tenant)
     const list = await this.#backups.listBackups(tenant.id)
     if (list.length === 0) return true

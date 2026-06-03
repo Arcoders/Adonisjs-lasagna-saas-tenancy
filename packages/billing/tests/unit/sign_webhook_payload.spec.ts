@@ -19,9 +19,7 @@ test.group('signWebhookPayload — HMAC format & tamper detection', () => {
     assert.match(sig, /^t=1700000000,v1=[a-f0-9]{64}$/)
   })
 
-  test('hex matches HMAC-SHA256 of `<timestamp>.<body>` with the given secret', ({
-    assert,
-  }) => {
+  test('hex matches HMAC-SHA256 of `<timestamp>.<body>` with the given secret', ({ assert }) => {
     const body = '{"hello":"world"}'
     const ts = 1_700_000_000
     const sig = signWebhookPayload(body, 'whsec_secret', ts)

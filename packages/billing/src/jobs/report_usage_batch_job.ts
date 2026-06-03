@@ -42,9 +42,7 @@ export default class ReportUsageBatchJob extends Job<ReportUsageBatchPayload> {
       return
     }
 
-    const repo = (await app.container.make(
-      TENANT_REPOSITORY as any
-    )) as TenantRepositoryContract
+    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
     const tenant = await repo.findById(tenantId)
     if (!tenant) {
       logger.warn(

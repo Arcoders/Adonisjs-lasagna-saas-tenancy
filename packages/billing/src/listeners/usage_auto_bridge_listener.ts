@@ -40,7 +40,10 @@ export default class UsageAutoBridgeListener {
     const mapping = cfg.usageMapping[event.quota]
     if (!mapping) return
 
-    const key = this.#bucketKey({ tenantId: event.tenant.id, meterEventName: mapping.meterEventName })
+    const key = this.#bucketKey({
+      tenantId: event.tenant.id,
+      meterEventName: mapping.meterEventName,
+    })
     const existing = this.#pending.get(key)
     if (existing) {
       existing.quantity += event.amount

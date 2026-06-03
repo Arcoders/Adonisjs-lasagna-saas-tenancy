@@ -1,6 +1,9 @@
 import TenantSsoConfig from './tenant_sso_config.js'
 import { getCache } from '@adonisjs-lasagna/saas-tenancy/services'
-import { validateExternalHttpsUrl, validateResolvedHostIsPublic } from '@adonisjs-lasagna/saas-tenancy'
+import {
+  validateExternalHttpsUrl,
+  validateResolvedHostIsPublic,
+} from '@adonisjs-lasagna/saas-tenancy'
 import redis from '@adonisjs/redis/services/main'
 import { randomBytes } from 'node:crypto'
 
@@ -199,9 +202,7 @@ export default class SsoService {
           if (!isLoopbackIssuer(issuerUrl)) {
             const issuerErr = await validateResolvedHostIsPublic(issuerUrl)
             if (issuerErr) {
-              throw new Error(
-                `OIDC discovery refused: unsafe issuerUrl (${issuerErr}).`
-              )
+              throw new Error(`OIDC discovery refused: unsafe issuerUrl (${issuerErr}).`)
             }
           }
           const base = issuerUrl.replace(/\/$/, '')

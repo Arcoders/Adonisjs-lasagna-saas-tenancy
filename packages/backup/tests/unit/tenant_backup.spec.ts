@@ -23,10 +23,7 @@ test.group('tenant:backup — command metadata', () => {
   })
 
   test('barrel re-exports the command', async ({ assert }) => {
-    const source = await readFile(
-      new URL('../../src/commands/index.ts', import.meta.url),
-      'utf-8'
-    )
+    const source = await readFile(new URL('../../src/commands/index.ts', import.meta.url), 'utf-8')
     assert.match(source, /TenantBackup.*from.*tenant_backup/)
   })
 })

@@ -41,9 +41,7 @@ function jsonResponse(description: string, schemaRef?: any, status = 200) {
   return {
     [String(status)]: {
       description,
-      ...(schemaRef
-        ? { content: { 'application/json': { schema: schemaRef } } }
-        : {}),
+      ...(schemaRef ? { content: { 'application/json': { schema: schemaRef } } } : {}),
     },
   }
 }
@@ -59,7 +57,10 @@ const schemas = {
       id: { type: 'string', format: 'uuid' },
       name: { type: 'string' },
       email: { type: 'string', format: 'email' },
-      status: { type: 'string', enum: ['provisioning', 'active', 'suspended', 'failed', 'deleted'] },
+      status: {
+        type: 'string',
+        enum: ['provisioning', 'active', 'suspended', 'failed', 'deleted'],
+      },
       customDomain: { type: ['string', 'null'] },
       schemaName: { type: 'string' },
       createdAt: { type: ['string', 'null'], format: 'date-time' },
@@ -467,7 +468,11 @@ export function getOpenAPISpec(prefix = '/admin/multitenancy'): OpenApiDocument 
         parameters: [paramRef('TenantId')],
         requestBody: jsonBody(ref('ImpersonationStart'), true),
         responses: {
-          ...jsonResponse('Created', { type: 'object', properties: { data: ref('Impersonation') } }, 201),
+          ...jsonResponse(
+            'Created',
+            { type: 'object', properties: { data: ref('Impersonation') } },
+            201
+          ),
           ...jsonResponse('Admin actor resolver not configured', ref('Error'), 501),
           ...jsonResponse('Admin actor unresolved', ref('Error'), 401),
         },
@@ -477,16 +482,20 @@ export function getOpenAPISpec(prefix = '/admin/multitenancy'): OpenApiDocument 
       delete: {
         tags: [TAG_IMPERSONATION],
         parameters: [{ name: 'token', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: jsonResponse('OK', { type: 'object', properties: { revoked: { type: 'boolean' } } }),
+        responses: jsonResponse('OK', {
+          type: 'object',
+          properties: { revoked: { type: 'boolean' } },
+        }),
       },
     },
     [`${base}/impersonations/by-id/{sessionId}`]: {
       delete: {
         tags: [TAG_IMPERSONATION],
-        parameters: [
-          { name: 'sessionId', in: 'path', required: true, schema: { type: 'string' } },
-        ],
-        responses: jsonResponse('OK', { type: 'object', properties: { revoked: { type: 'boolean' } } }),
+        parameters: [{ name: 'sessionId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: jsonResponse('OK', {
+          type: 'object',
+          properties: { revoked: { type: 'boolean' } },
+        }),
       },
     },
     [`${base}/tenants/{id}/audit-logs`]: {
@@ -524,7 +533,10 @@ export function getOpenAPISpec(prefix = '/admin/multitenancy'): OpenApiDocument 
       get: {
         tags: [TAG_SATELLITES],
         parameters: [paramRef('TenantId')],
-        responses: jsonResponse('OK', { type: 'object', properties: { data: { type: 'array', items: ref('Webhook') } } }),
+        responses: jsonResponse('OK', {
+          type: 'object',
+          properties: { data: { type: 'array', items: ref('Webhook') } },
+        }),
       },
       post: {
         tags: [TAG_SATELLITES],
@@ -566,20 +578,30 @@ export function getOpenAPISpec(prefix = '/admin/multitenancy'): OpenApiDocument 
       post: {
         tags: [TAG_SATELLITES],
         parameters: [paramRef('TenantId'), paramRef('DeliveryId')],
-        responses: jsonResponse('OK', { type: 'object', properties: { data: ref('WebhookDelivery') } }),
+        responses: jsonResponse('OK', {
+          type: 'object',
+          properties: { data: ref('WebhookDelivery') },
+        }),
       },
     },
     [`${base}/tenants/{id}/feature-flags`]: {
       get: {
         tags: [TAG_SATELLITES],
         parameters: [paramRef('TenantId')],
-        responses: jsonResponse('OK', { type: 'object', properties: { data: { type: 'array', items: ref('FeatureFlag') } } }),
+        responses: jsonResponse('OK', {
+          type: 'object',
+          properties: { data: { type: 'array', items: ref('FeatureFlag') } },
+        }),
       },
       post: {
         tags: [TAG_SATELLITES],
         parameters: [paramRef('TenantId')],
         requestBody: jsonBody(ref('FeatureFlagInput'), true),
-        responses: jsonResponse('Created', { type: 'object', properties: { data: ref('FeatureFlag') } }, 201),
+        responses: jsonResponse(
+          'Created',
+          { type: 'object', properties: { data: ref('FeatureFlag') } },
+          201
+        ),
       },
     },
     [`${base}/tenants/{id}/feature-flags/{flagKey}`]: {
@@ -629,7 +651,10 @@ export function getOpenAPISpec(prefix = '/admin/multitenancy'): OpenApiDocument 
       post: {
         tags: [TAG_SATELLITES],
         parameters: [paramRef('TenantId')],
-        responses: { ...jsonResponse('OK', { type: 'object', properties: { data: ref('SsoConfig') } }), ...notFound('SSO config') },
+        responses: {
+          ...jsonResponse('OK', { type: 'object', properties: { data: ref('SsoConfig') } }),
+          ...notFound('SSO config'),
+        },
       },
     },
     [`${base}/tenants/{id}/metrics`]: {

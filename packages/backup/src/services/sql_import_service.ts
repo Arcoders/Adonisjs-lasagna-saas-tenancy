@@ -17,9 +17,7 @@ const isWin = process.platform === 'win32'
 // The static `@adonisjs/core/services/logger` import top-level-awaits
 // `app.booted()`, which throws outside an Ignitor and blocks unit tests.
 const lazyLogger = () =>
-  import('@adonisjs/core/services/logger')
-    .then((m) => m.default)
-    .catch(() => null)
+  import('@adonisjs/core/services/logger').then((m) => m.default).catch(() => null)
 
 export interface SqlImportOptions {
   sourceSchema: string
@@ -194,13 +192,15 @@ export default class SqlImportService {
             statement: stmt.slice(0, 200),
             message: err.message ?? String(err),
           })
-          ;(await lazyLogger())?.warn({ stmt: stmt.slice(0, 120), err: err.message }, 'Statement failed')
+          ;(await lazyLogger())?.warn(
+            { stmt: stmt.slice(0, 120), err: err.message },
+            'Statement failed'
+          )
         }
       }
 
       await trx.rawQuery(`SET LOCAL session_replication_role = DEFAULT`)
     })
-
     ;(await lazyLogger())?.info(
       {
         tenantId: tenant.id,
@@ -236,10 +236,7 @@ export default class SqlImportService {
       statementsExecuted: 0,
       statementsSkipped: 0,
       copyBlocksExecuted: tokens.filter((t) => t.kind === 'copy').length,
-      copyRowsImported: tokens.reduce(
-        (n, t) => (t.kind === 'copy' ? n + t.rows.length : n),
-        0
-      ),
+      copyRowsImported: tokens.reduce((n, t) => (t.kind === 'copy' ? n + t.rows.length : n), 0),
       errors: [],
       mode: 'psql',
     }
@@ -312,15 +309,21 @@ export default class SqlImportService {
   async #spawnPsql(cfg: PgConnectionConfig, file: string, strict: boolean): Promise<string> {
     return await new Promise((resolve, reject) => {
       const args = [
-        '-h', cfg.host,
-        '-p', String(cfg.port),
-        '-U', cfg.user,
-        '-d', cfg.database,
+        '-h',
+        cfg.host,
+        '-p',
+        String(cfg.port),
+        '-U',
+        cfg.user,
+        '-d',
+        cfg.database,
         // Strict aborts the whole script at the first error (and psql exits
         // non-zero). Non-strict keeps going and reports per-statement errors
         // via stderr.
-        '-v', `ON_ERROR_STOP=${strict ? 'on' : 'off'}`,
-        '-f', file,
+        '-v',
+        `ON_ERROR_STOP=${strict ? 'on' : 'off'}`,
+        '-f',
+        file,
       ]
       const env = { ...process.env }
       if (cfg.password) env.PGPASSWORD = cfg.password

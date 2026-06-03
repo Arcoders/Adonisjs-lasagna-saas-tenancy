@@ -4,14 +4,10 @@ import type { TenantQuotaExceeded } from '@adonisjs-lasagna/saas-tenancy/events'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 
 const lazyRedis = () =>
-  import('@adonisjs/redis/services/main')
-    .then((m) => m.default)
-    .catch(() => null)
+  import('@adonisjs/redis/services/main').then((m) => m.default).catch(() => null)
 
 const lazyMail = () =>
-  import('@adonisjs/mail/services/main')
-    .then((m) => m.default)
-    .catch(() => null)
+  import('@adonisjs/mail/services/main').then((m) => m.default).catch(() => null)
 
 const DEDUPE_TTL_SECONDS = 24 * 60 * 60
 

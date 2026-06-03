@@ -35,6 +35,9 @@ export default class BackupTenant extends Job<BackupTenantPayload> {
   }
 
   async failed(error: Error): Promise<void> {
-    logger.error({ tenantId: this.payload.tenantId, error: error.message }, 'Failed to backup tenant')
+    logger.error(
+      { tenantId: this.payload.tenantId, error: error.message },
+      'Failed to backup tenant'
+    )
   }
 }

@@ -11,14 +11,10 @@ import type { BackupMetadata, TenantModelContract } from '@adonisjs-lasagna/saas
 export type { BackupMetadata }
 
 const lazyRedis = () =>
-  import('@adonisjs/redis/services/main')
-    .then((m) => m.default)
-    .catch(() => null)
+  import('@adonisjs/redis/services/main').then((m) => m.default).catch(() => null)
 
 const lazyLogger = () =>
-  import('@adonisjs/core/services/logger')
-    .then((m) => m.default)
-    .catch(() => null)
+  import('@adonisjs/core/services/logger').then((m) => m.default).catch(() => null)
 
 async function logInfo(payload: Record<string, unknown>, msg: string): Promise<void> {
   const log = await lazyLogger()
@@ -167,9 +163,7 @@ export default class BackupService {
     const json = JSON.stringify(list)
     const redis = await lazyRedis()
     await Promise.all([
-      redis
-        ?.setex(this.metaKey(tenantId), backupConfig().metadataTtl, json)
-        .catch(() => {}),
+      redis?.setex(this.metaKey(tenantId), backupConfig().metadataTtl, json).catch(() => {}),
       writeFile(this.sidecarPath(tenantId), json, 'utf-8').catch(() => {}),
     ])
   }

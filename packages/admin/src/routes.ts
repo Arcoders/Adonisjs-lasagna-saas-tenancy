@@ -24,9 +24,7 @@ export type AdminRouteMiddleware =
  * @example
  *   resolveAdminActor: ({ auth }) => auth.user?.id ?? null
  */
-export type AdminActorResolver = (
-  ctx: HttpContext
-) => string | null | Promise<string | null>
+export type AdminActorResolver = (ctx: HttpContext) => string | null | Promise<string | null>
 
 export interface MultitenancyAdminRoutesOptions {
   /**

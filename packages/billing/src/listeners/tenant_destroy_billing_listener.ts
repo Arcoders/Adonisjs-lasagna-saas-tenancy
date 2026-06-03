@@ -74,7 +74,10 @@ export default class TenantDestroyBillingListener {
         const wrapped =
           err instanceof BillingException
             ? err
-            : BillingException.fromStripeError(err, 'failed to cancel subscription on tenant delete')
+            : BillingException.fromStripeError(
+                err,
+                'failed to cancel subscription on tenant delete'
+              )
         logger.error(
           {
             tenant_id: tenantId,

@@ -1,8 +1,5 @@
 import { test } from '@japa/runner'
-import {
-  redactStripeEvent,
-  REDACTED_EVENT_KEYS,
-} from '../../src/services/billing/redact.js'
+import { redactStripeEvent, REDACTED_EVENT_KEYS } from '../../src/services/billing/redact.js'
 import type Stripe from 'stripe'
 
 const SAFE_KEYS = new Set<string>(REDACTED_EVENT_KEYS)
@@ -96,7 +93,12 @@ test.group('redactStripeEvent — strip-list semantics', () => {
   })
 
   test('handles minimal events without throwing', ({ assert }) => {
-    const e = { id: 'evt_min', type: 'unknown.event', created: 1, data: {} } as unknown as Stripe.Event
+    const e = {
+      id: 'evt_min',
+      type: 'unknown.event',
+      created: 1,
+      data: {},
+    } as unknown as Stripe.Event
     const safe = redactStripeEvent(e)
     assert.equal(safe.id, 'evt_min')
     assert.equal(safe.type, 'unknown.event')

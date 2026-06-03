@@ -1,13 +1,11 @@
 {
-  "name": "@adonisjs-lasagna/saas-tenancy",
-  "version": "1.0.0",
-  "description": "SaaS multi-tenancy for AdonisJS 7 with pluggable isolation drivers (schema/database/row-scoping), connection pooling, circuit breaking, queues, and satellite features",
+  "name": "@adonisjs-lasagna/saas-tenancy-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Monorepo for @adonisjs-lasagna/saas-tenancy (core) and its satellite packages (sso, billing, admin, backup)",
   "type": "module",
   "license": "MIT",
   "author": "Ismael Haytam Tanane",
-  "publishConfig": {
-    "access": "public"
-  },
   "homepage": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy#readme",
   "repository": {
     "type": "git",
@@ -16,16 +14,6 @@
   "bugs": {
     "url": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues"
   },
-  "keywords": [
-    "adonisjs",
-    "adonis",
-    "saas",
-    "saas-tenancy",
-    "multitenancy",
-    "multi-tenant",
-    "postgresql",
-    "schema-based"
-  ],
   "engines": {
     "node": ">=24.0.0"
   },
@@ -33,107 +21,20 @@
     "packages/*",
     "examples/api"
   ],
-  "files": [
-    "build",
-    "stubs"
-  ],
-  "exports": {
-    ".": "./build/src/index.js",
-    "./config": "./build/src/config.js",
-    "./internal": "./build/src/internal.js",
-    "./adapters": "./build/src/models/adapters/index.js",
-    "./base-models": "./build/src/models/base/index.js",
-    "./models/satellites": "./build/src/models/satellites/index.js",
-    "./middleware": "./build/src/middleware/index.js",
-    "./services": "./build/src/services/index.js",
-    "./events": "./build/src/events/index.js",
-    "./jobs": "./build/src/jobs/index.js",
-    "./types": "./build/src/types/index.js",
-    "./exceptions": "./build/src/exceptions/index.js",
-    "./extensions/request": "./build/src/extensions/request.js",
-    "./providers/multitenancy_provider": "./build/src/providers/multitenancy_provider.js",
-    "./commands": "./build/src/commands/main.js",
-    "./testing": "./build/src/testing/index.js",
-    "./health": "./build/src/health/index.js",
-    "./admin": "./build/src/admin/index.js"
-  },
-  "typesVersions": {
-    "*": {
-      "config": [
-        "./build/src/config.d.ts"
-      ],
-      "internal": [
-        "./build/src/internal.d.ts"
-      ],
-      "adapters": [
-        "./build/src/models/adapters/index.d.ts"
-      ],
-      "base-models": [
-        "./build/src/models/base/index.d.ts"
-      ],
-      "models/satellites": [
-        "./build/src/models/satellites/index.d.ts"
-      ],
-      "middleware": [
-        "./build/src/middleware/index.d.ts"
-      ],
-      "services": [
-        "./build/src/services/index.d.ts"
-      ],
-      "events": [
-        "./build/src/events/index.d.ts"
-      ],
-      "jobs": [
-        "./build/src/jobs/index.d.ts"
-      ],
-      "types": [
-        "./build/src/types/index.d.ts"
-      ],
-      "exceptions": [
-        "./build/src/exceptions/index.d.ts"
-      ],
-      "extensions/request": [
-        "./build/src/extensions/request.d.ts"
-      ],
-      "providers/multitenancy_provider": [
-        "./build/src/providers/multitenancy_provider.d.ts"
-      ],
-      "commands": [
-        "./build/src/commands/main.d.ts"
-      ],
-      "testing": [
-        "./build/src/testing/index.d.ts"
-      ],
-      "health": [
-        "./build/src/health/index.d.ts"
-      ],
-      "admin": [
-        "./build/src/admin/index.d.ts"
-      ]
-    }
-  },
-  "adonisjs": {
-    "configure": "./build/configure.js",
-    "commands": [
-      "./build/src/commands/main.js"
-    ]
-  },
-  "main": "./build/src/index.js",
-  "types": "./build/src/index.d.ts",
   "scripts": {
-    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
+    "build": "npm run build --workspace @adonisjs-lasagna/saas-tenancy",
     "build:sso": "npm run build --workspace @adonisjs-lasagna/sso",
     "build:billing": "npm run build --workspace @adonisjs-lasagna/billing",
     "build:admin": "npm run build --workspace @adonisjs-lasagna/admin",
     "build:backup": "npm run build --workspace @adonisjs-lasagna/backup",
     "build:all": "npm run build && npm run build:sso && npm run build:billing && npm run build:admin && npm run build:backup",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint src packages configure.ts bin",
-    "lint:fix": "eslint src packages configure.ts bin --fix",
-    "test": "tsx bin/test.ts",
-    "test:coverage": "c8 --temp-directory=coverage/.v8/unit tsx bin/test.ts",
-    "test:integration": "npm run build:all && tsx bin/test.integration.ts",
-    "test:integration:coverage": "npm run build:all && c8 --check-coverage=false --temp-directory=coverage/.v8/integration tsx bin/test.integration.ts",
+    "typecheck": "npm run typecheck --workspace @adonisjs-lasagna/saas-tenancy",
+    "lint": "eslint packages",
+    "lint:fix": "eslint packages --fix",
+    "test": "npm run test --workspace @adonisjs-lasagna/saas-tenancy",
+    "test:coverage": "npm run test:coverage --workspace @adonisjs-lasagna/saas-tenancy",
+    "test:integration": "npm run build:all && npm run test:integration:run --workspace @adonisjs-lasagna/saas-tenancy",
+    "test:integration:coverage": "npm run build:all && npm run test:integration:coverage --workspace @adonisjs-lasagna/saas-tenancy",
     "coverage:report": "c8 report --temp-directory=coverage/.v8/all --reporter=lcov --reporter=text-summary",
     "coverage:gate": "node scripts/coverage-gate.mjs",
     "knip": "knip --no-exit-code",
@@ -141,47 +42,16 @@
     "docs:sync": "node docs/scripts/sync-changelog.mjs",
     "docs:dev": "npm run docs:sync && vitepress dev docs",
     "docs:build": "npm run docs:sync && vitepress build docs",
-    "docs:preview": "vitepress preview docs"
-  },
-  "peerDependencies": {
-    "@adonisjs/core": "^7.0.0",
-    "@adonisjs/drive": "^3.0.0",
-    "@adonisjs/lucid": "^22.0.0",
-    "@adonisjs/mail": "^10.0.0",
-    "@adonisjs/queue": "^0.6.0",
-    "@adonisjs/redis": "^10.0.0",
-    "@adonisjs/session": "^7.0.0",
-    "better-sqlite3": "^11.0.0",
-    "stripe": "^18.0.0"
-  },
-  "peerDependenciesMeta": {
-    "@adonisjs/drive": {
-      "optional": true
-    },
-    "@adonisjs/mail": {
-      "optional": true
-    },
-    "@adonisjs/session": {
-      "optional": true
-    },
-    "better-sqlite3": {
-      "optional": true
-    },
-    "stripe": {
-      "optional": true
-    }
-  },
-  "dependencies": {
-    "@opentelemetry/api": "^1.9.1",
-    "bentocache": "^1.0.0",
-    "bullmq": "^5.0.0",
-    "luxon": "^3.0.0",
-    "opossum": "^9.0.0"
+    "docs:preview": "vitepress preview docs",
+    "changeset": "changeset",
+    "version-packages": "changeset version && npm install --package-lock-only --legacy-peer-deps",
+    "release": "npm run build:all && changeset publish"
   },
   "prettier": "@adonisjs/prettier-config",
   "devDependencies": {
     "@adonisjs/assembler": "^8.4.0",
     "@aws-sdk/client-s3": "^3.700.0",
+    "@changesets/cli": "^2.27.0",
     "@opentelemetry/context-async-hooks": "^2.0.0",
     "@opentelemetry/sdk-trace-base": "^2.0.0",
     "@adonisjs/core": "^7.0.0",

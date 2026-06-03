@@ -14,13 +14,24 @@ export default class TenantClone extends BaseCommand {
   @flags.string({ description: 'Source tenant ID to clone from', alias: 's', required: true })
   declare source: string
 
-  @flags.string({ description: 'Name for the new (destination) tenant', alias: 'n', required: true })
+  @flags.string({
+    description: 'Name for the new (destination) tenant',
+    alias: 'n',
+    required: true,
+  })
   declare name: string
 
-  @flags.string({ description: 'Email for the new (destination) tenant', alias: 'e', required: true })
+  @flags.string({
+    description: 'Email for the new (destination) tenant',
+    alias: 'e',
+    required: true,
+  })
   declare email: string
 
-  @flags.boolean({ description: 'Clone schema structure only — skip copying row data', default: false })
+  @flags.boolean({
+    description: 'Clone schema structure only — skip copying row data',
+    default: false,
+  })
   declare schemaOnly: boolean
 
   @flags.boolean({

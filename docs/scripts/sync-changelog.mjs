@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const CHANGELOG_PATH = resolve(__dirname, '../../CHANGELOG.md')
+const CHANGELOG_PATH = resolve(__dirname, '../../packages/core/CHANGELOG.md')
 const TARGET_PATH = resolve(__dirname, '../docs/release-notes.md')
 
 const raw = readFileSync(CHANGELOG_PATH, 'utf8')

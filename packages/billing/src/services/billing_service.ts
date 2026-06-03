@@ -12,14 +12,10 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { redactStripeEvent, rebuildStripeEvent } from './billing/redact.js'
 
 const lazyLogger = () =>
-  import('@adonisjs/core/services/logger')
-    .then((m) => m.default)
-    .catch(() => null)
+  import('@adonisjs/core/services/logger').then((m) => m.default).catch(() => null)
 
 const lazyEmitter = () =>
-  import('@adonisjs/core/services/emitter')
-    .then((m) => m.default)
-    .catch(() => null)
+  import('@adonisjs/core/services/emitter').then((m) => m.default).catch(() => null)
 
 const DEFAULT_API_VERSION = '2025-08-27.basil'
 const DEFAULT_TIMEOUT_MS = 10_000
@@ -337,9 +333,7 @@ export default class BillingService {
       )
     }
 
-    const customer = await StripeCustomer.query()
-      .where('stripeCustomerId', customerId)
-      .first()
+    const customer = await StripeCustomer.query().where('stripeCustomerId', customerId).first()
     if (!customer) {
       throw new BillingException(
         'tenant_not_resolvable',
@@ -369,12 +363,9 @@ export default class BillingService {
     if (!opts?.downgrade) {
       const item = sub.items?.data?.[0]
       const productId =
-        typeof item?.price?.product === 'string'
-          ? item.price.product
-          : item?.price?.product?.id
+        typeof item?.price?.product === 'string' ? item.price.product : item?.price?.product?.id
       const priceId = item?.price?.id
-      const mapped =
-        (productId && cfg.products[productId]) ?? (priceId && cfg.products[priceId])
+      const mapped = (productId && cfg.products[productId]) ?? (priceId && cfg.products[priceId])
       if (mapped) {
         planName = mapped
       } else if (productId || priceId) {
@@ -432,8 +423,7 @@ export default class BillingService {
       current_period_start?: number
       current_period_end?: number
     }
-    const periodStart =
-      subItem?.current_period_start ?? subRaw.current_period_start ?? eventCreated
+    const periodStart = subItem?.current_period_start ?? subRaw.current_period_start ?? eventCreated
     const periodEnd = subItem?.current_period_end ?? subRaw.current_period_end ?? eventCreated
     row.stripeSubscriptionId = sub.id
     row.tenantId = customer.tenantId
@@ -505,8 +495,7 @@ export default class BillingService {
     // dedupe contract. Callers needing tighter scope (e.g. per-request
     // dedupe) pass `opts.idempotencyKey`.
     const minuteBucket = Math.floor((opts?.timestamp ?? DateTime.utc()).toSeconds() / 60)
-    const idempotencyKey =
-      opts?.idempotencyKey ?? `${tenant.id}:${meter.eventName}:${minuteBucket}`
+    const idempotencyKey = opts?.idempotencyKey ?? `${tenant.id}:${meter.eventName}:${minuteBucket}`
     const timestamp = opts?.timestamp ?? DateTime.utc()
 
     // Fetch any prior attempt for this idempotency key. Three cases:
@@ -520,9 +509,7 @@ export default class BillingService {
     //      the row and retry the Stripe call. Stripe's own
     //      idempotency cache will dedupe so the meter is not
     //      double-counted.
-    let audit = await StripeMeterEvent.query()
-      .where('idempotencyKey', idempotencyKey)
-      .first()
+    let audit = await StripeMeterEvent.query().where('idempotencyKey', idempotencyKey).first()
     if (audit?.status === 'sent') return
 
     if (!audit) {
@@ -542,9 +529,7 @@ export default class BillingService {
         // Concurrent insert won the race on the UNIQUE(idempotency_key)
         // constraint. Re-read and continue with the winner's row so
         // both callers converge on the same audit record.
-        audit = await StripeMeterEvent.query()
-          .where('idempotencyKey', idempotencyKey)
-          .first()
+        audit = await StripeMeterEvent.query().where('idempotencyKey', idempotencyKey).first()
         if (!audit) throw err
         if (audit.status === 'sent') return
       }
@@ -706,10 +691,7 @@ export default class BillingService {
     try {
       const stripe = await this.#getStripe()
       const price = await stripe.prices.retrieve(priceId)
-      productId =
-        typeof price.product === 'string'
-          ? price.product
-          : (price.product?.id ?? null)
+      productId = typeof price.product === 'string' ? price.product : (price.product?.id ?? null)
     } catch (err) {
       // Stripe rejected the lookup (invalid_request_error for an unknown
       // price, or auth/network). Either way the priceId can't be trusted
@@ -736,9 +718,8 @@ export default class BillingService {
   }): Promise<void> {
     try {
       const emitter = await lazyEmitter()
-      const { default: BillingMisconfigured } = await import(
-        '../events/billing/billing_misconfigured.js'
-      )
+      const { default: BillingMisconfigured } =
+        await import('../events/billing/billing_misconfigured.js')
       // BaseEvent.dispatch reaches the global emitter via the singleton, so
       // we don't strictly need to use the bound `emitter` here — keep the
       // resolution to surface broken wiring early.

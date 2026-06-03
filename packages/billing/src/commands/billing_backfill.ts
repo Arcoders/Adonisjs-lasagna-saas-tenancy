@@ -43,9 +43,7 @@ export default class BillingBackfill extends BaseCommand {
     const cfg = getConfig().billing
     const planName = this.plan ?? cfg?.defaultPlan
     if (!planName) {
-      this.logger.error(
-        'No default plan: set --plan or configure config.billing.defaultPlan'
-      )
+      this.logger.error('No default plan: set --plan or configure config.billing.defaultPlan')
       this.exitCode = 1
       return
     }
@@ -56,9 +54,7 @@ export default class BillingBackfill extends BaseCommand {
       return
     }
 
-    const repo = (await app.container.make(
-      TENANT_REPOSITORY as any
-    )) as TenantRepositoryContract
+    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
 
     const quotas = await app.container.make(QuotaService)
     let scanned = 0

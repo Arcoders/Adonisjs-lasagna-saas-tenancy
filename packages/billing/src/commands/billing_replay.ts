@@ -54,9 +54,7 @@ export default class BillingReplay extends BaseCommand {
         dispatched += 1
         this.logger.success(`dispatched  ${row.eventId} (${row.eventType})`)
       } catch (err) {
-        this.logger.error(
-          `failed     ${row.eventId}: ${(err as Error)?.message ?? 'unknown'}`
-        )
+        this.logger.error(`failed     ${row.eventId}: ${(err as Error)?.message ?? 'unknown'}`)
       }
     }
     this.logger.log(`replayed ${dispatched}/${targets.length}`)

@@ -8,13 +8,10 @@
     "declarationMap": true,
     "sourceMap": true,
     "inlineSources": true,
-    "outDir": "./build",
-    "rootDir": "./",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "useUnknownInCatchVariables": false
-  },
-  "include": ["src/**/*.ts", "index.ts", "configure.ts", "tests/**/*.ts", "bin/**/*.ts"]
+  }
 }

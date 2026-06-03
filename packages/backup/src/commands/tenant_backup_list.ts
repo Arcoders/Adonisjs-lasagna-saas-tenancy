@@ -17,9 +17,7 @@ export default class TenantBackupList extends BaseCommand {
     const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
     const service = new BackupService()
 
-    const tenants = this.tenantId
-      ? [await repo.findByIdOrFail(this.tenantId)]
-      : await repo.all()
+    const tenants = this.tenantId ? [await repo.findByIdOrFail(this.tenantId)] : await repo.all()
 
     if (tenants.length === 0) {
       this.logger.info('No tenants found.')

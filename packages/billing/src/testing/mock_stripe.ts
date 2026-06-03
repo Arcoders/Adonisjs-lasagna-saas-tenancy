@@ -99,7 +99,11 @@ export class MockStripe {
   }
 
   /** Test helper: read what was reported to the meter API. */
-  meterEvents(): ReadonlyArray<{ event_name: string; payload: Record<string, string>; key: string }> {
+  meterEvents(): ReadonlyArray<{
+    event_name: string
+    payload: Record<string, string>
+    key: string
+  }> {
     return this.#meterEvents
   }
 
@@ -120,7 +124,12 @@ export class MockStripe {
 
   _buildCustomers() {
     const ensure = (
-      params: { metadata?: Record<string, string>; email?: string; name?: string; currency?: string },
+      params: {
+        metadata?: Record<string, string>
+        email?: string
+        name?: string
+        currency?: string
+      },
       opts?: { idempotencyKey?: string }
     ): CreatedCustomer => {
       if (opts?.idempotencyKey) {
@@ -252,11 +261,7 @@ export class MockStripe {
 
   _buildWebhooks() {
     return {
-      constructEvent: (
-        body: string | Buffer,
-        sig: string,
-        secret: string
-      ): Stripe.Event => {
+      constructEvent: (body: string | Buffer, sig: string, secret: string): Stripe.Event => {
         // Real HMAC verify, just like prod — using the package's own test
         // helper to stay byte-compatible with `signWebhookPayload`.
         if (secret !== this.webhookSecret) {

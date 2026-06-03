@@ -79,8 +79,7 @@ async function handleCheckoutCompleted(
     return { outcome: 'noop' }
   }
   const tenantId = session.client_reference_id
-  const customerId =
-    typeof session.customer === 'string' ? session.customer : session.customer?.id
+  const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id
   if (!tenantId || !customerId) return { outcome: 'noop' }
 
   const existing = await StripeCustomer.find(tenantId)
@@ -151,15 +150,11 @@ async function handleTrialWillEnd(
   const sub = event.data.object as Stripe.Subscription
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id
   if (!customerId) return { outcome: 'noop' }
-  const customer = await StripeCustomer.query()
-    .where('stripeCustomerId', customerId)
-    .first()
+  const customer = await StripeCustomer.query().where('stripeCustomerId', customerId).first()
   if (!customer) return { outcome: 'noop' }
 
   const trialEnd = sub.trial_end ? DateTime.fromSeconds(sub.trial_end) : null
-  const daysLeft = trialEnd
-    ? Math.max(0, Math.ceil(trialEnd.diff(DateTime.utc(), 'days').days))
-    : 0
+  const daysLeft = trialEnd ? Math.max(0, Math.ceil(trialEnd.diff(DateTime.utc(), 'days').days)) : 0
   const { default: TrialEnding } = await import('../../events/billing/trial_ending.js')
   await TrialEnding.dispatch({
     tenantId: customer.tenantId,
@@ -174,12 +169,9 @@ async function handlePaymentSucceeded(
   _ctx: DispatchContext
 ): Promise<DispatchResult> {
   const invoice = event.data.object as Stripe.Invoice
-  const customerId =
-    typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id
+  const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id
   if (!customerId) return { outcome: 'noop' }
-  const customer = await StripeCustomer.query()
-    .where('stripeCustomerId', customerId)
-    .first()
+  const customer = await StripeCustomer.query().where('stripeCustomerId', customerId).first()
   if (!customer) return { outcome: 'noop' }
 
   // Recover status from dunning when an outstanding invoice is paid.
@@ -245,12 +237,9 @@ async function handlePaymentFailed(
   _ctx: DispatchContext
 ): Promise<DispatchResult> {
   const invoice = event.data.object as Stripe.Invoice
-  const customerId =
-    typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id
+  const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id
   if (!customerId) return { outcome: 'noop' }
-  const customer = await StripeCustomer.query()
-    .where('stripeCustomerId', customerId)
-    .first()
+  const customer = await StripeCustomer.query().where('stripeCustomerId', customerId).first()
   if (!customer) return { outcome: 'noop' }
 
   const cfg = getConfig().billing
@@ -325,9 +314,7 @@ async function handleCustomerDeleted(
   _ctx: DispatchContext
 ): Promise<DispatchResult> {
   const stripeCustomer = event.data.object as Stripe.Customer
-  const row = await StripeCustomer.query()
-    .where('stripeCustomerId', stripeCustomer.id)
-    .first()
+  const row = await StripeCustomer.query().where('stripeCustomerId', stripeCustomer.id).first()
   if (!row) return { outcome: 'noop' }
   row.deletedAt = DateTime.utc()
   await row.save()

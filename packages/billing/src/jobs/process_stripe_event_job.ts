@@ -110,9 +110,8 @@ export default class ProcessStripeEventJob extends Job<ProcessStripeEventPayload
         row.lastError = (details ?? errorCode).slice(0, 500)
         await row.save()
       }
-      const { default: BillingEventDeadLettered } = await import(
-        '../events/billing/billing_event_dead_lettered.js'
-      )
+      const { default: BillingEventDeadLettered } =
+        await import('../events/billing/billing_event_dead_lettered.js')
       await BillingEventDeadLettered.dispatch({ eventId, errorCode, details })
     } catch (innerErr) {
       logger.error(
@@ -163,9 +162,8 @@ export default class ProcessStripeEventJob extends Job<ProcessStripeEventPayload
       'stripe.event.fatal: marking failed without retry — error is non-transient'
     )
     try {
-      const { default: BillingEventDeadLettered } = await import(
-        '../events/billing/billing_event_dead_lettered.js'
-      )
+      const { default: BillingEventDeadLettered } =
+        await import('../events/billing/billing_event_dead_lettered.js')
       await BillingEventDeadLettered.dispatch({
         eventId,
         errorCode: err.billingCode,

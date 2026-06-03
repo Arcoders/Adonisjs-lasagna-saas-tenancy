@@ -37,9 +37,6 @@ export default class RestoreTenant extends Job<RestoreTenantPayload> {
 
   async failed(error: Error): Promise<void> {
     const { tenantId, fileName } = this.payload
-    logger.error(
-      { tenantId, file: fileName, error: error.message },
-      'Failed to restore tenant'
-    )
+    logger.error({ tenantId, file: fileName, error: error.message }, 'Failed to restore tenant')
   }
 }

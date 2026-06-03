@@ -163,7 +163,9 @@ test.group('replay/dispatcher contract', () => {
     assertNoPii(assert, e)
   })
 
-  test('invoice (legacy top-level subscription string): subscription ref survives', ({ assert }) => {
+  test('invoice (legacy top-level subscription string): subscription ref survives', ({
+    assert,
+  }) => {
     const obj = {
       id: 'in_legacy',
       customer: { id: 'cus_inv2', email: 'jane@example.com' },
@@ -177,7 +179,9 @@ test.group('replay/dispatcher contract', () => {
     assert.deepEqual(proj, invoiceProjection(obj))
   })
 
-  test('checkout.session.completed: mode + client_reference_id + customer survive', ({ assert }) => {
+  test('checkout.session.completed: mode + client_reference_id + customer survive', ({
+    assert,
+  }) => {
     const obj = {
       id: 'cs_c',
       mode: 'subscription',
