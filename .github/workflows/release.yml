@@ -1,0 +1,56 @@
+name: Release
+
+# Changesets-driven release. On every push to master:
+#   - if changeset files are pending, open/update a "version packages" PR
+#     (bumps versions + rewrites each package's CHANGELOG);
+#   - if none are pending, run `changeset publish` to ship any package whose
+#     package.json version isn't on npm yet (idempotent, core before satellites).
+# The break-glass manual publisher lives in publish.yml (workflow_dispatch).
+on:
+  push:
+    branches: [master]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # push the Version PR branch + git tags
+  pull-requests: write # open/update the Version PR
+  id-token: write # npm provenance (OIDC)
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Repo .npmrc sets ignore-scripts=true for local-dev safety; CI needs
+      # esbuild's postinstall so the platform binary lands on disk.
+      - name: Install dependencies
+        env:
+          npm_config_ignore_scripts: 'false'
+        run: npm install --legacy-peer-deps --include=optional
+
+      - name: Typecheck
+        run: npm run build:all && npm run typecheck
+
+      - name: Create Release PR or publish
+        uses: changesets/action@v1
+        with:
+          version: npm run version-packages
+          publish: npm run release
+          title: 'chore(release): version packages'
+          commit: 'chore(release): version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'

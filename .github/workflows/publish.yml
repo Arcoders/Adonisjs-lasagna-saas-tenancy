@@ -1,14 +1,12 @@
-name: Publish Packages
+name: Publish Packages (manual fallback)
 
-# Release is tag-driven: push a `v*` tag (e.g. `v1.0.0`) to publish. This
-# replaces the previous "publish on every push to master", which tried to
-# publish on every merge and failed noisily once the version already existed.
-# Each package is published only if its exact version isn't already on npm, so
-# re-running a tag (or a partial failure) is safe and idempotent.
+# Break-glass / manual publisher. Normal releases go through `release.yml`
+# (Changesets): merging to master opens a Version PR, and merging that PR
+# publishes. Use this workflow only to recover a partial publish or if
+# `changeset publish` ever orders the packages wrong. It is idempotent and
+# core-first: each package publishes only if its exact version isn't already on
+# npm, so re-running it is safe.
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -73,7 +71,7 @@ jobs:
           }
 
           # Core first so satellites resolve a published peer.
-          publish_pkg "."
+          publish_pkg "packages/core"
           publish_pkg "packages/sso"
           publish_pkg "packages/billing"
           publish_pkg "packages/admin"

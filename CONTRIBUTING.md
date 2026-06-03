@@ -83,7 +83,7 @@ CI will run all three, so saving yourself the round-trip helps.
 
 We try to keep things simple:
 
-- **TypeScript everywhere.** All source code lives in `src/`. Tests in `tests/`.
+- **TypeScript everywhere.** This is an npm-workspaces monorepo: the core package lives in `packages/core/` (source in `packages/core/src/`, tests in `packages/core/tests/`) and each satellite in `packages/<name>/`. The reference app is `examples/api/`.
 - **Follow the existing style.** ESLint and Prettier are set up. Run `npm run lint` if you want to check, or just let your editor's Prettier plugin handle it on save.
 - **Naming.** Files are `snake_case.ts`. Classes are `PascalCase`. Functions and variables are `camelCase`.
 - **Add tests for what you change.** Bug fixes deserve a regression test. New features need their own tests covering the happy path and obvious edge cases.
@@ -114,6 +114,25 @@ We try to keep things simple:
 5. **Be patient and friendly.** Reviews might take a few days. We'll do our best to be responsive, and we ask the same of you. If feedback comes back, treat it as a conversation, not a verdict.
 
 That's the whole process. Don't overthink it.
+
+---
+
+## Releasing (Changesets)
+
+Releases are automated with [Changesets](https://github.com/changesets/changesets). You never
+hand-bump a version or edit a `CHANGELOG.md`.
+
+- **When you change published behaviour** of any package (the core or a satellite), run
+  `npx changeset`, pick the affected package(s) and bump level, and commit the generated file
+  with your PR. Docs/CI-only changes don't need one.
+- **On merge to `master`**, [`release.yml`](.github/workflows/release.yml) either opens a
+  "version packages" PR (when changesets are pending) or, when none are pending, runs
+  `changeset publish` to ship any package whose version isn't on npm yet. Publishing is
+  idempotent and happens in dependency order (core before its satellites).
+- **Prereleases:** `npx changeset pre enter next`, land changesets, then
+  `npx changeset pre exit` — these publish under the `next` dist-tag.
+- [`publish.yml`](.github/workflows/publish.yml) is a manual break-glass fallback
+  (`workflow_dispatch`) for recovering a partial publish; don't use it for normal releases.
 
 ---
 
