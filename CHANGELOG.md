@@ -83,8 +83,11 @@ for a copy-paste migration.
   top-level `orWhere` could compose a query that leaks another tenant's rows.
   The docs now flag any non-grouped top-level `orWhere` as unsafe, and the new
   RLS layer (above) provides a database-enforced boundary that holds regardless
-  of query shape. `before('create')` also now rejects an explicit cross-tenant
-  `tenant_id` instead of inserting it.
+  of query shape.
+- **`rowscope-pg`: `before('create')` rejects a cross-tenant `tenant_id`.** A
+  create with an explicit `tenant_id` that differs from the active scope now
+  throws (consistent with the update/delete hooks) instead of inserting a row
+  owned by another tenant.
 
 ### Changed
 

@@ -11,15 +11,17 @@ import { assertSafeIdentifier } from './identifier.js'
  *
  * The contract is:
  *   1. Run the `enable_rls_tenant_isolation` migration so each scoped table has
- *      a fail-closed policy: `USING (tenant_id::text = current_setting('app.tenant_id', true))`.
+ *      a fail-closed policy:
+ *      `USING (tenant_id::text = nullif(current_setting('app.tenant_id', true), ''))`.
  *   2. At the start of each tenant request/job, set that setting on the
  *      connection that will run the queries — `setTenantRlsGuc()` does this.
  *   3. Because the setting is transaction-local, the queries must run on the
  *      SAME transaction. `withTenantRls()` opens one and hands you the `trx`.
  *
- * When the setting is unset, `current_setting('app.tenant_id', true)` is NULL
- * and the predicate matches no rows — a forgotten scope returns nothing instead
- * of leaking. That is the safe failure mode and the whole point of RLS here.
+ * When the setting is unset (NULL) or reset to '' after a prior transaction on
+ * a reused pooled connection, the `nullif(...)` makes the predicate NULL and it
+ * matches no rows — a forgotten scope returns nothing instead of leaking. That
+ * is the safe failure mode and the whole point of RLS here.
  */
 
 /** Default per-transaction setting the RLS policy reads. */
@@ -44,14 +46,13 @@ export interface RlsTransactor {
 }
 
 export interface SetTenantRlsGucOptions {
-  /** Override the setting name. Defaults to `app.tenant_id`. */
-  gucName?: string
   /**
-   * When `true` (default) the value is scoped to the current transaction and
-   * resets automatically on COMMIT/ROLLBACK — the only pooling-safe choice.
-   * Set `false` only for a dedicated, non-pooled connection you manage yourself.
+   * Override the setting name. Defaults to `app.tenant_id`. MUST match the
+   * `current_setting(...)` name in your RLS policy migration — a mismatch makes
+   * the policy read an unset setting and fail closed (every query returns zero
+   * rows) with no error.
    */
-  transactionLocal?: boolean
+  gucName?: string
 }
 
 /**
@@ -77,11 +78,12 @@ export async function setTenantRlsGuc(
         `Expected a "class.name" setting such as "app.tenant_id".`
     )
   }
-  const isLocal = options.transactionLocal ?? true
-  // set_config(setting, value, is_local) — is_local=true keeps it transaction-
-  // scoped so it never leaks to the next request that reuses this pooled
-  // connection. All three args are bound.
-  await runner.rawQuery('select set_config(?, ?, ?)', [guc, tenantId, isLocal])
+  // set_config(setting, value, is_local) — is_local is always true so the value
+  // is scoped to the current transaction and resets on COMMIT/ROLLBACK. We never
+  // expose a session-level mode: a session GUC on a pooled connection would
+  // persist past the request and leak to whichever tenant reuses the connection
+  // next. All three args are bound parameters.
+  await runner.rawQuery('select set_config(?, ?, ?)', [guc, tenantId, true])
 }
 
 export interface WithTenantRlsOptions {
@@ -108,16 +110,22 @@ async function defaultTransactor(connectionName?: string): Promise<RlsTransactor
  * runs on the provided `trx` — regardless of query shape.
  *
  * IMPORTANT: pass `trx` to every tenant-scoped query inside `fn` (e.g.
- * `Post.query({ client: trx })` or `model.useTransaction(trx)`). A query that
+ * `model.useTransaction(trx)`, or a raw `trx.from(...)` builder). A query that
  * ignores `trx` runs on a different pooled connection where the setting is not
  * set, so RLS (fail-closed) returns zero rows for it — no leak, but no data
  * either. This is the deliberate trade for shape-independent isolation.
  *
+ * `withTenantRls` only sets the database setting; it does NOT open a
+ * `tenancy.run()` scope. A `withTenantScope` model used inside the callback
+ * therefore still needs an active tenant scope (the HTTP guard / `tenancy.run`)
+ * or an `unscoped()` wrapper, or its strict-scope guard throws before RLS runs.
+ *
  * @example
- *   await withTenantRls(tenant.id, async (trx) => {
- *     return Post.query({ client: trx }).where('a', 1).orWhere('featured', true)
- *     // RLS still scopes the orWhere branch to the active tenant.
- *   })
+ *   // RLS scopes this to the active tenant even though the orWhere is
+ *   // ungrouped — the database policy enforces it, not the query.
+ *   await withTenantRls(tenant.id, (trx) =>
+ *     trx.from('posts').where('a', 1).orWhere('featured', true)
+ *   )
  */
 export async function withTenantRls<T>(
   tenantId: string,
@@ -126,7 +134,7 @@ export async function withTenantRls<T>(
 ): Promise<T> {
   const transactor = options.transactor ?? (await defaultTransactor(options.connectionName))
   return transactor.transaction(async (trx) => {
-    await setTenantRlsGuc(trx, tenantId, { gucName: options.gucName, transactionLocal: true })
+    await setTenantRlsGuc(trx, tenantId, { gucName: options.gucName })
     return fn(trx)
   })
 }

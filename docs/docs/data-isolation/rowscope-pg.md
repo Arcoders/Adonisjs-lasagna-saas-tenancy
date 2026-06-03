@@ -138,13 +138,14 @@ fail-closed policy:
 ALTER TABLE "public"."posts" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."posts" FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON "public"."posts"
-  USING ("tenant_id"::text = current_setting('app.tenant_id', true))
-  WITH CHECK ("tenant_id"::text = current_setting('app.tenant_id', true));
+  USING ("tenant_id"::text = nullif(current_setting('app.tenant_id', true), ''))
+  WITH CHECK ("tenant_id"::text = nullif(current_setting('app.tenant_id', true), ''));
 ```
 
-When `app.tenant_id` is unset, `current_setting('app.tenant_id', true)` is
-`NULL`, the predicate matches nothing, and `WITH CHECK` blocks the insert. A
-forgotten scope returns zero rows instead of leaking, which is the point.
+When `app.tenant_id` is unset — or reset to `''` after a prior transaction on a
+reused pooled connection — `nullif(...)` makes the predicate `NULL`, so it
+matches nothing and `WITH CHECK` blocks the insert. A forgotten scope returns
+zero rows instead of leaking, which is the point.
 
 <Callout type="warning" title="Run your app without SUPERUSER / BYPASSRLS">
 <code>FORCE ROW LEVEL SECURITY</code> makes the policy apply to the table owner
@@ -163,23 +164,38 @@ only pooling-safe choice), and hands you the `trx`:
 import { withTenantRls } from '@adonisjs-lasagna/saas-tenancy'
 
 await withTenantRls(tenant.id, async (trx) => {
-  // RLS scopes this to the active tenant even with a top-level orWhere.
-  return Post.query({ client: trx }).where('a', 1).orWhere('featured', true)
+  // RLS scopes this to the active tenant even with a top-level orWhere —
+  // the database policy enforces it, not the query.
+  return trx.from('posts').where('a', 1).orWhere('featured', true)
 })
 ```
 
-**Pass `trx` to every scoped query inside the callback** (`Post.query({ client: trx })`
-or `model.useTransaction(trx)`). A query that ignores `trx` runs on a different
-pooled connection where the setting is not set, so RLS returns zero rows for it —
-no leak, but no data either. That fail-closed miss is the deliberate trade for
-shape-independent isolation.
+**Pass `trx` to every scoped query inside the callback** (a raw `trx.from(...)`
+builder, or `model.useTransaction(trx)`). A query that ignores `trx` runs on a
+different pooled connection where the setting is not set, so RLS returns zero
+rows for it — no leak, but no data either. That fail-closed miss is the
+deliberate trade for shape-independent isolation.
 
 If you already manage your own request transaction, set the value directly with
-`setTenantRlsGuc(trx, tenant.id)` instead.
+`setTenantRlsGuc(trx, tenant.id)` instead. If your app sets a custom `gucName`,
+it must match the `current_setting(...)` name in the migration, or the policy
+reads an unset setting and every query silently returns nothing.
 
-RLS and the `withTenantScope` mixin compose: keep the mixin for ergonomics
-(auto-fill on create, the strict-scope guard) and let RLS be the boundary that
-does not depend on query-author discipline.
+<Callout type="warning" title="withTenantRls does not open a tenancy.run() scope">
+<code>withTenantRls</code> only sets the database setting. It does <em>not</em>
+activate the application tenant scope, so a <code>withTenantScope</code> model
+used inside the callback still needs an active <code>tenancy.run()</code> (the
+HTTP guard provides one) or an <code>unscoped()</code> wrapper — otherwise the
+mixin's strict-scope guard throws before any SQL runs, and create auto-fill
+won't populate <code>tenant_id</code>. Combine them, e.g.
+<code>tenancy.run(tenant, () =&gt; withTenantRls(tenant.id, (trx) =&gt; …))</code>:
+the mixin scopes reads/writes and auto-fills, while RLS is the database backstop
+for any <code>orWhere</code> the mixin can't group.
+</Callout>
+
+RLS and the `withTenantScope` mixin then compose: the mixin gives ergonomics
+(auto-fill on create, the strict-scope guard) and RLS is the boundary that does
+not depend on query-author discipline.
 
 ## Destroy flow
 

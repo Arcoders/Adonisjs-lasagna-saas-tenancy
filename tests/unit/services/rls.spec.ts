@@ -31,11 +31,12 @@ test.group('setTenantRlsGuc', () => {
     assert.deepEqual(runner.calls[0].bindings, [DEFAULT_RLS_GUC, TENANT, true])
   })
 
-  test('honours a custom setting name and non-local scope', async ({ assert }) => {
+  test('honours a custom setting name and is always transaction-local', async ({ assert }) => {
     const runner = recordingRunner()
-    await setTenantRlsGuc(runner, TENANT, { gucName: 'tenancy.id', transactionLocal: false })
+    await setTenantRlsGuc(runner, TENANT, { gucName: 'tenancy.id' })
 
-    assert.deepEqual(runner.calls[0].bindings, ['tenancy.id', TENANT, false])
+    // Third arg (is_local) is always true — there is no session-level mode.
+    assert.deepEqual(runner.calls[0].bindings, ['tenancy.id', TENANT, true])
   })
 
   test('rejects an unsafe tenant id before touching the DB', async ({ assert }) => {

@@ -62,8 +62,8 @@ test.group('rowscope RLS (integration)', (group) => {
     await conn.rawQuery(`DROP POLICY IF EXISTS ${POLICY} ON ${TABLE}`)
     await conn.rawQuery(
       `CREATE POLICY ${POLICY} ON ${TABLE} ` +
-        `USING ("tenant_id"::text = current_setting('app.tenant_id', true)) ` +
-        `WITH CHECK ("tenant_id"::text = current_setting('app.tenant_id', true))`
+        `USING ("tenant_id"::text = nullif(current_setting('app.tenant_id', true), '')) ` +
+        `WITH CHECK ("tenant_id"::text = nullif(current_setting('app.tenant_id', true), ''))`
     )
   })
 
@@ -97,12 +97,16 @@ test.group('rowscope RLS (integration)', (group) => {
   }).skip(() => !rlsEnforced, 'DB role is SUPERUSER/BYPASSRLS — RLS not enforced, proof skipped')
 
   test('WITH CHECK blocks an insert owned by another tenant', async ({ assert }) => {
-    await assert.rejects(() =>
-      withTenantRls(
-        tenantA,
-        (trx) => (trx as any).table(TABLE).insert({ title: 'sneaky', tenant_id: tenantB }),
-        { connectionName: 'public' }
-      )
+    // Assert it fails for the RIGHT reason (the policy), not because trx setup
+    // or set_config threw — otherwise the test gives false confidence.
+    await assert.rejects(
+      () =>
+        withTenantRls(
+          tenantA,
+          (trx) => (trx as any).table(TABLE).insert({ title: 'sneaky', tenant_id: tenantB }),
+          { connectionName: 'public' }
+        ),
+      /row-level security|violates row-level/i
     )
   }).skip(() => !rlsEnforced, 'DB role is SUPERUSER/BYPASSRLS — RLS not enforced, proof skipped')
 })
