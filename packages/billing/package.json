@@ -5,6 +5,9 @@
   "type": "module",
   "license": "MIT",
   "author": "Ismael Haytam Tanane",
+  "publishConfig": {
+    "access": "public"
+  },
   "homepage": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy#readme",
   "repository": {
     "type": "git",

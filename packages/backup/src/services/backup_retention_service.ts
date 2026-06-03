@@ -1,4 +1,3 @@
-import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type {
   BackupRetentionConfig,
@@ -6,6 +5,7 @@ import type {
 } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { BackupMetadata } from './backup_service.js'
 import BackupService from './backup_service.js'
+import { backupConfig } from '../config.js'
 
 const DEFAULT_RETENTION: BackupRetentionConfig = {
   defaultTier: 'standard',
@@ -35,7 +35,7 @@ export default class BackupRetentionService {
    * Throws if the resolved tier name is not declared in `tiers`.
    */
   async getTierFor(tenant: TenantModelContract): Promise<BackupRetentionTier> {
-    const cfg = getConfig().backup.retention ?? DEFAULT_RETENTION
+    const cfg = backupConfig().retention ?? DEFAULT_RETENTION
     const resolved = (await cfg.getTier?.(tenant)) ?? cfg.defaultTier
     const tier = cfg.tiers[resolved]
     if (!tier) {

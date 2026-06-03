@@ -432,7 +432,13 @@ export interface MultitenancyConfig {
       db?: number
     }
   }
-  backup: {
+  /**
+   * Optional backup config block. Consumed only by the extracted
+   * `@adonisjs-lasagna/backup` satellite (the core never reads it). Apps that
+   * don't install that package can omit this entirely; the satellite throws a
+   * clear error at call time if a backup operation runs without it configured.
+   */
+  backup?: {
     storagePath: string
     metadataTtl: number
     pgConnection: {

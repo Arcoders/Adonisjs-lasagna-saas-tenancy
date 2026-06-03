@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process'
 import { mkdir, unlink, stat, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/internal'
+import { backupConfig } from '../config.js'
 import type { BackupMetadata, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 // `BackupMetadata` is defined in the core (the lifecycle hook context + the
@@ -39,7 +39,7 @@ const FILE_PATTERN = /^[A-Za-z0-9._-]+\.dump$/
 
 export default class BackupService {
   private getBackupDir(tenantId: string): string {
-    return join(getConfig().backup.storagePath, tenantId)
+    return join(backupConfig().storagePath, tenantId)
   }
 
   private metaKey(tenantId: string): string {
@@ -51,7 +51,7 @@ export default class BackupService {
   }
 
   private buildConnectionArgs(): string[] {
-    const { host, port, user, database } = getConfig().backup.pgConnection
+    const { host, port, user, database } = backupConfig().pgConnection
     return ['-h', host, '-p', String(port), '-U', user, '-d', database]
   }
 
@@ -79,7 +79,7 @@ export default class BackupService {
     ]
 
     await this.#runProcess('pg_dump', args, {
-      PGPASSWORD: getConfig().backup.pgConnection.password,
+      PGPASSWORD: backupConfig().pgConnection.password,
     })
 
     const { size } = await stat(filePath)
@@ -94,7 +94,7 @@ export default class BackupService {
 
     await this.#saveMetadata(tenant.id, meta)
 
-    if (getConfig().backup.s3?.enabled) {
+    if (backupConfig().s3?.enabled) {
       await this.#uploadToS3(tenant.id, fileName, filePath)
     }
 
@@ -111,7 +111,7 @@ export default class BackupService {
     assertSafeIdentifier(schema, 'tenant schema')
     const filePath = join(this.getBackupDir(tenant.id), fileName)
 
-    if (getConfig().backup.s3?.enabled) {
+    if (backupConfig().s3?.enabled) {
       await this.#downloadFromS3(tenant.id, fileName, filePath)
     }
 
@@ -125,7 +125,7 @@ export default class BackupService {
     ]
 
     await this.#runProcess('pg_restore', args, {
-      PGPASSWORD: getConfig().backup.pgConnection.password,
+      PGPASSWORD: backupConfig().pgConnection.password,
     })
     await logInfo({ tenantId: tenant.id, file: fileName }, 'Restore completed')
   }
@@ -142,7 +142,7 @@ export default class BackupService {
     const filePath = join(this.getBackupDir(tenantId), fileName)
     await unlink(filePath).catch(() => {})
 
-    if (getConfig().backup.s3?.enabled) {
+    if (backupConfig().s3?.enabled) {
       await this.#deleteFromS3(tenantId, fileName).catch((error) =>
         logWarn(
           { tenantId, file: fileName, error: error?.message },
@@ -168,7 +168,7 @@ export default class BackupService {
     const redis = await lazyRedis()
     await Promise.all([
       redis
-        ?.setex(this.metaKey(tenantId), getConfig().backup.metadataTtl, json)
+        ?.setex(this.metaKey(tenantId), backupConfig().metadataTtl, json)
         .catch(() => {}),
       writeFile(this.sidecarPath(tenantId), json, 'utf-8').catch(() => {}),
     ])
@@ -190,7 +190,7 @@ export default class BackupService {
   }
 
   async #uploadToS3(tenantId: string, fileName: string, filePath: string): Promise<void> {
-    const s3cfg = getConfig().backup.s3!
+    const s3cfg = backupConfig().s3!
     // @ts-ignore — @aws-sdk/client-s3 is an optional peer dependency
     const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3')
     const { createReadStream } = await import('node:fs')
@@ -213,7 +213,7 @@ export default class BackupService {
   }
 
   async #deleteFromS3(tenantId: string, fileName: string): Promise<void> {
-    const s3cfg = getConfig().backup.s3!
+    const s3cfg = backupConfig().s3!
     // @ts-ignore — @aws-sdk/client-s3 is an optional peer dependency
     const { S3Client, DeleteObjectCommand } = await import('@aws-sdk/client-s3')
     const client = new S3Client({
@@ -234,7 +234,7 @@ export default class BackupService {
       .catch(() => false)
     if (exists) return
 
-    const s3cfg = getConfig().backup.s3!
+    const s3cfg = backupConfig().s3!
     // @ts-ignore — @aws-sdk/client-s3 is an optional peer dependency
     const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3')
     const { createWriteStream } = await import('node:fs')

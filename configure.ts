@@ -178,8 +178,17 @@ async function postPublishBilling(command: Configure): Promise<void> {
   log.log('  STRIPE_API_VERSION=2025-08-27.basil   (optional; pin recommended)')
 
   log.log('')
+  log.log('Install the billing satellite package (it ships its own provider + commands):')
+  log.log('  npm install @adonisjs-lasagna/billing')
+
+  log.log('')
+  log.log('Register it in adonisrc.ts:')
+  log.log("  providers: [() => import('@adonisjs-lasagna/billing/provider')]")
+  log.log("  commands: [() => import('@adonisjs-lasagna/billing/commands')]")
+
+  log.log('')
   log.log('Wire the webhook in start/routes.ts:')
-  log.log("  import { multitenancyBillingRoutes } from '@adonisjs-lasagna/saas-tenancy/health'")
+  log.log("  import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'")
   log.log('  multitenancyBillingRoutes()')
 
   log.log('')

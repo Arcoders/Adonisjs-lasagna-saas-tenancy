@@ -5,6 +5,9 @@
   "type": "module",
   "license": "MIT",
   "author": "Ismael Haytam Tanane",
+  "publishConfig": {
+    "access": "public"
+  },
   "homepage": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy#readme",
   "repository": {
     "type": "git",
@@ -125,6 +128,8 @@
     "build:backup": "npm run build --workspace @adonisjs-lasagna/backup",
     "build:all": "npm run build && npm run build:sso && npm run build:billing && npm run build:admin && npm run build:backup",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint src packages configure.ts bin",
+    "lint:fix": "eslint src packages configure.ts bin --fix",
     "test": "tsx bin/test.ts",
     "test:coverage": "c8 --temp-directory=coverage/.v8/unit tsx bin/test.ts",
     "test:integration": "npm run build:all && tsx bin/test.integration.ts",
