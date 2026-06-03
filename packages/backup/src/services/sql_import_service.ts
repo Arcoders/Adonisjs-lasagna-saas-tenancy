@@ -24,6 +24,15 @@ const lazyLogger = () =>
 export interface SqlImportOptions {
   sourceSchema: string
   dryRun: boolean
+  /**
+   * All-or-nothing import. When `true`, the first failing statement aborts the
+   * whole import and rolls back every change (transactional path), or stops
+   * psql at the first error (COPY path). When `false` (default) the importer
+   * applies each statement in its own savepoint and continues past failures,
+   * collecting them in `errors` — which can leave the tenant partially
+   * imported. Prefer `strict` for restores that must be consistent.
+   */
+  strict?: boolean
 }
 
 export interface SqlImportResult {
@@ -103,15 +112,16 @@ export default class SqlImportService {
     }
 
     if (hasCopyBlocks) {
-      return await this.#runViaPsql(tenant, transformed, tokens)
+      return await this.#runViaPsql(tenant, transformed, tokens, options.strict ?? false)
     }
 
-    return await this.#runTransactional(tenant, tokens)
+    return await this.#runTransactional(tenant, tokens, options.strict ?? false)
   }
 
   async #runTransactional(
     tenant: TenantModelContract,
-    tokens: ReturnType<typeof splitSqlStatementsTagged>
+    tokens: ReturnType<typeof splitSqlStatementsTagged>,
+    strict: boolean
   ): Promise<SqlImportResult> {
     const result: SqlImportResult = {
       statementsTotal: tokens.length,
@@ -145,6 +155,15 @@ export default class SqlImportService {
         const stmt = token.text
         if (this.#shouldSkip(stmt)) {
           result.statementsSkipped++
+          continue
+        }
+
+        // Strict mode: no per-statement savepoint. The first failure throws out
+        // of the transaction callback, so Lucid rolls the whole import back —
+        // all-or-nothing.
+        if (strict) {
+          await trx.rawQuery(stmt)
+          result.statementsExecuted++
           continue
         }
 
@@ -189,7 +208,8 @@ export default class SqlImportService {
   async #runViaPsql(
     tenant: TenantModelContract,
     transformedSql: string,
-    tokens: ReturnType<typeof splitSqlStatementsTagged>
+    tokens: ReturnType<typeof splitSqlStatementsTagged>,
+    strict: boolean
   ): Promise<SqlImportResult> {
     const psqlAvailable = await this.#hasPsql()
     if (!psqlAvailable) {
@@ -226,7 +246,7 @@ export default class SqlImportService {
     )
 
     try {
-      const stderr = await this.#spawnPsql(cfg, tmpFile)
+      const stderr = await this.#spawnPsql(cfg, tmpFile, strict)
       const errorLines = stderr
         .split('\n')
         .map((l) => l.trim())
@@ -280,14 +300,17 @@ export default class SqlImportService {
     })
   }
 
-  async #spawnPsql(cfg: PgConnectionConfig, file: string): Promise<string> {
+  async #spawnPsql(cfg: PgConnectionConfig, file: string, strict: boolean): Promise<string> {
     return await new Promise((resolve, reject) => {
       const args = [
         '-h', cfg.host,
         '-p', String(cfg.port),
         '-U', cfg.user,
         '-d', cfg.database,
-        '-v', 'ON_ERROR_STOP=off',
+        // Strict aborts the whole script at the first error (and psql exits
+        // non-zero). Non-strict keeps going and reports per-statement errors
+        // via stderr.
+        '-v', `ON_ERROR_STOP=${strict ? 'on' : 'off'}`,
         '-f', file,
       ]
       const env = { ...process.env }
@@ -300,9 +323,13 @@ export default class SqlImportService {
       })
       proc.on('error', reject)
       proc.on('exit', (code) => {
-        // psql returns 3 when ON_ERROR_STOP=off and some statements errored,
-        // 0 when fully successful. Both are acceptable; we report errors via stderr.
-        if (code === 0 || code === 3) {
+        // Strict: only a clean exit (0) is acceptable; any error must fail the
+        // import so the operator knows it didn't fully apply.
+        // Non-strict: psql returns 3 when some statements errored under
+        // ON_ERROR_STOP=off and 0 when fully successful; both are acceptable
+        // and errors are surfaced via stderr.
+        const ok = strict ? code === 0 : code === 0 || code === 3
+        if (ok) {
           resolve(stderr)
         } else {
           reject(new Error(`psql exited with code ${code}: ${stderr.slice(0, 500)}`))

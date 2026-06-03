@@ -116,8 +116,25 @@ export default class CloneService {
         }
         // pg_tables allows double-quoted names with arbitrary chars; reject those.
         assertSafeIdentifier(table, 'table name')
+        // Map columns by NAME, not position. `SELECT *` copies by ordinal, so a
+        // source and destination whose columns are in a different order (e.g.
+        // they were migrated at different times) would silently write data into
+        // the wrong column. Restrict to the shared columns so an added/removed
+        // column on either side doesn't break the copy either.
+        const srcCols = await this.#getColumnNames(srcSchema, table, trx)
+        const dstCols = new Set(await this.#getColumnNames(dstSchema, table, trx))
+        const cols = srcCols.filter((c) => dstCols.has(c))
+        if (cols.length === 0) {
+          logger.warn(
+            { srcSchema, dstSchema, table },
+            'Clone: no shared columns between source and destination, skipping copy'
+          )
+          continue
+        }
+        for (const c of cols) assertSafeIdentifier(c, 'column name')
+        const colList = cols.map((c) => `"${c}"`).join(', ')
         const result = await trx.rawQuery(
-          `INSERT INTO "${dstSchema}"."${table}" SELECT * FROM "${srcSchema}"."${table}"`
+          `INSERT INTO "${dstSchema}"."${table}" (${colList}) SELECT ${colList} FROM "${srcSchema}"."${table}"`
         )
         const n = (result as any).rowCount ?? 0
         rowsCopied += n
@@ -148,6 +165,20 @@ export default class CloneService {
       [schema]
     )
     return result.rows.map((r: { tablename: string }) => r.tablename)
+  }
+
+  async #getColumnNames(
+    schema: string,
+    table: string,
+    runner: QueryClientContract | TransactionClientContract
+  ): Promise<string[]> {
+    const result = await runner.rawQuery(
+      `SELECT column_name FROM information_schema.columns
+        WHERE table_schema = ? AND table_name = ?
+        ORDER BY ordinal_position`,
+      [schema, table]
+    )
+    return result.rows.map((r: { column_name: string }) => r.column_name)
   }
 
   async #resetIntegerSequences(

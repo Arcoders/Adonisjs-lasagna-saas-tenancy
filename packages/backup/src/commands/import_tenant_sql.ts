@@ -34,6 +34,13 @@ export default class ImportTenantSql extends BaseCommand {
   @flags.boolean({ flagName: 'force', description: 'Allow import into non-active tenants', default: false })
   declare force: boolean
 
+  @flags.boolean({
+    flagName: 'strict',
+    description: 'All-or-nothing: abort and roll back the whole import on the first error',
+    default: false,
+  })
+  declare strict: boolean
+
   async run() {
     const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
 
@@ -82,9 +89,13 @@ export default class ImportTenantSql extends BaseCommand {
             result = await service.import(tenant, filePath, {
               sourceSchema: this.schemaReplace,
               dryRun: this.dryRun,
+              strict: this.strict,
             })
             return result.errors.length > 0 ? task.error('completed with errors') : 'completed'
           } catch (err: any) {
+            // A thrown import (strict abort, missing psql, etc.) must still
+            // surface as a failed command, not a silent success.
+            this.exitCode = 1
             return task.error(err.message)
           }
         }
