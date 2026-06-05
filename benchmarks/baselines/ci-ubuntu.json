@@ -1,5 +1,244 @@
 {
-  "note": "PLACEHOLDER. The regression-gate baseline, captured on the GitHub ubuntu-latest runner (like-for-like with the benchmark.yml job). Capture by dispatching benchmark.yml, downloading the artifact, then `npm run bench:report -- --write-baseline=ci-ubuntu` against those results, and commit. Until then `bench:check` compares nothing and the gate is a no-op.",
-  "capturedEnv": null,
-  "index": {}
+  "capturedEnv": {
+    "driver": "schema-pg",
+    "node": "v24.16.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpuModel": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+    "cpuCount": 4,
+    "totalMemGB": 16.8,
+    "commit": "a668a65",
+    "pgVersion": "PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "timestamp": "2026-06-05T11:32:46.104Z"
+  },
+  "index": {
+    "mem:schema-pg": {
+      "connection_budget › N=100 tenants": {
+        "opsPerSec": 0,
+        "nsMedian": 0
+      },
+      "connection_budget › N=500 tenants": {
+        "opsPerSec": 0,
+        "nsMedian": 0
+      },
+      "catalog_bloat › K=100 schemas × 4 tables": {
+        "opsPerSec": 0,
+        "nsMedian": 0
+      },
+      "catalog_bloat › K=1000 schemas × 4 tables": {
+        "opsPerSec": 0,
+        "nsMedian": 0
+      }
+    },
+    "http:rowscope-pg": {
+      "http › ceiling (no tenancy)": {
+        "opsPerSec": 29384,
+        "nsMedian": 0
+      },
+      "http › tenant read (guarded)": {
+        "opsPerSec": 935,
+        "nsMedian": 10000000
+      },
+      "http › tenant read (no guard)": {
+        "opsPerSec": 1029,
+        "nsMedian": 9000000
+      },
+      "http › tenant read (guard + rate-limit)": {
+        "opsPerSec": 776,
+        "nsMedian": 12000000
+      }
+    },
+    "db:rowscope-pg": {
+      "driver_query › SELECT by id": {
+        "opsPerSec": 2080,
+        "nsMedian": 480877
+      },
+      "driver_query › INSERT": {
+        "opsPerSec": 2577,
+        "nsMedian": 388118
+      },
+      "driver_query › 2-table self JOIN (limit 20)": {
+        "opsPerSec": 1445,
+        "nsMedian": 691875
+      },
+      "driver_query › cold-tenant first query (n/a for rowscope)": {
+        "opsPerSec": 0,
+        "nsMedian": 0
+      },
+      "connection_churn › cap=25 single-tenant SELECT (baseline)": {
+        "opsPerSec": 2934,
+        "nsMedian": 340877
+      },
+      "connection_churn › cap=25 churn SELECT (M=50, C=8)": {
+        "opsPerSec": 624,
+        "nsMedian": 1602640
+      },
+      "connection_churn › cap=50 single-tenant SELECT (baseline)": {
+        "opsPerSec": 2804,
+        "nsMedian": 356659
+      },
+      "connection_churn › cap=50 churn SELECT (M=100, C=8)": {
+        "opsPerSec": 657,
+        "nsMedian": 1523177
+      }
+    },
+    "http:database-pg": {
+      "http › ceiling (no tenancy)": {
+        "opsPerSec": 28715,
+        "nsMedian": 0
+      },
+      "http › tenant read (guarded)": {
+        "opsPerSec": 640,
+        "nsMedian": 15000000
+      },
+      "http › tenant read (no guard)": {
+        "opsPerSec": 703,
+        "nsMedian": 13000000
+      },
+      "http › tenant read (guard + rate-limit)": {
+        "opsPerSec": 595,
+        "nsMedian": 16000000
+      }
+    },
+    "db:database-pg": {
+      "driver_query › SELECT by id": {
+        "opsPerSec": 2692,
+        "nsMedian": 371495
+      },
+      "driver_query › INSERT": {
+        "opsPerSec": 3127,
+        "nsMedian": 319841
+      },
+      "driver_query › 2-table self JOIN (limit 20)": {
+        "opsPerSec": 1862,
+        "nsMedian": 536987
+      },
+      "driver_query › cold-tenant first query": {
+        "opsPerSec": 153,
+        "nsMedian": 6515317
+      },
+      "connection_churn › cap=25 single-tenant SELECT (baseline)": {
+        "opsPerSec": 1074,
+        "nsMedian": 931266
+      },
+      "connection_churn › cap=25 churn SELECT (M=50, C=8)": {
+        "opsPerSec": 145,
+        "nsMedian": 6896811
+      },
+      "connection_churn › cap=50 single-tenant SELECT (baseline)": {
+        "opsPerSec": 1111,
+        "nsMedian": 900491
+      },
+      "connection_churn › cap=50 churn SELECT (M=100, C=8)": {
+        "opsPerSec": 147,
+        "nsMedian": 6787951
+      }
+    },
+    "http:schema-pg": {
+      "http › ceiling (no tenancy)": {
+        "opsPerSec": 28747,
+        "nsMedian": 0
+      },
+      "http › tenant read (guarded)": {
+        "opsPerSec": 664,
+        "nsMedian": 14000000
+      },
+      "http › tenant read (no guard)": {
+        "opsPerSec": 719,
+        "nsMedian": 13000000
+      },
+      "http › tenant read (guard + rate-limit)": {
+        "opsPerSec": 600,
+        "nsMedian": 16000000
+      }
+    },
+    "db:schema-pg": {
+      "driver_query › SELECT by id": {
+        "opsPerSec": 2562,
+        "nsMedian": 390292
+      },
+      "driver_query › INSERT": {
+        "opsPerSec": 3019,
+        "nsMedian": 331198
+      },
+      "driver_query › 2-table self JOIN (limit 20)": {
+        "opsPerSec": 2063,
+        "nsMedian": 484807
+      },
+      "driver_query › cold-tenant first query": {
+        "opsPerSec": 156,
+        "nsMedian": 6400837
+      },
+      "connection_churn › cap=25 single-tenant SELECT (baseline)": {
+        "opsPerSec": 1059,
+        "nsMedian": 943885
+      },
+      "connection_churn › cap=25 churn SELECT (M=50, C=8)": {
+        "opsPerSec": 154,
+        "nsMedian": 6507492
+      },
+      "connection_churn › cap=50 single-tenant SELECT (baseline)": {
+        "opsPerSec": 988,
+        "nsMedian": 1012221
+      },
+      "connection_churn › cap=50 churn SELECT (M=100, C=8)": {
+        "opsPerSec": 159,
+        "nsMedian": 6293112
+      }
+    },
+    "micro:schema-pg": {
+      "tenant_resolution › header hit (chain=1)": {
+        "opsPerSec": 30944035,
+        "nsMedian": 32
+      },
+      "tenant_resolution › header hit (chain=3)": {
+        "opsPerSec": 26683083,
+        "nsMedian": 37
+      },
+      "tenant_resolution › subdomain hit (chain=3, header miss)": {
+        "opsPerSec": 3271440,
+        "nsMedian": 306
+      },
+      "tenant_resolution › path hit (fall-through to 3rd)": {
+        "opsPerSec": 1795379,
+        "nsMedian": 557
+      },
+      "tenant_resolution › full miss (chain=5)": {
+        "opsPerSec": 1537554,
+        "nsMedian": 650
+      },
+      "adapter_routing › currentId → connectionName → db.connection": {
+        "opsPerSec": 4147949,
+        "nsMedian": 241
+      },
+      "adapter_routing › explicit connection (fast path)": {
+        "opsPerSec": 104537631,
+        "nsMedian": 10
+      },
+      "connection_lru › touch (hit)": {
+        "opsPerSec": 5565792,
+        "nsMedian": 180
+      },
+      "connection_lru › touch (MRU round-robin)": {
+        "opsPerSec": 5597494,
+        "nsMedian": 179
+      },
+      "connection_lru › touch + evictIfNeeded (over cap, evicts)": {
+        "opsPerSec": 2041862,
+        "nsMedian": 490
+      },
+      "connection_lru › evictIfNeeded (under cap, no-op)": {
+        "opsPerSec": 32365758,
+        "nsMedian": 31
+      },
+      "rowscope_predicate › scoped query() build": {
+        "opsPerSec": 50984511,
+        "nsMedian": 20
+      },
+      "rowscope_predicate › unscoped query() build (baseline)": {
+        "opsPerSec": 69583461,
+        "nsMedian": 14
+      }
+    }
+  }
 }
