@@ -101,8 +101,9 @@ The claims above are validated empirically by the benchmark suite in
 
 **Connection budget** (open tenant connections stay bounded by the cap as N grows):
 
-- N=20 tenants: 20 open tenant connections (cap 50, PASS)
-- N=60 tenants: 50 open tenant connections (cap 50, PASS)
+- N=100 tenants: 50 open tenant connections (cap 50, PASS)
+- N=500 tenants: 50 open tenant connections (cap 50, PASS)
+- N=2000 tenants: 50 open tenant connections (cap 50, PASS)
 
 _Generated from the latest results; see [Performance](/docs/performance)._
 <!-- BENCH:summary:end -->

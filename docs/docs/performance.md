@@ -9,7 +9,7 @@ description: Measured throughput and latency for the tenancy hot paths, plus the
 > from the benchmark suite in `benchmarks/`. The canonical 1.0.0 numbers are
 > captured on a dedicated Linux VM; see `benchmarks/README.md` for the spec.
 
-_Last run: 2026-06-05T10:32:31.521Z · node v24.15.0 · Intel(R) Core(TM) i7-7700HQ CPU @ 2.80GHz · commit 8775188._
+_Last run: 2026-06-05T10:53:36.043Z · node v24.15.0 · Intel(R) Core(TM) i7-7700HQ CPU @ 2.80GHz · commit db0f6b7._
 
 > **Read the shape, not the absolutes.** The durable signal here is the
 > *relative* cost across drivers and code paths — header resolution is far
@@ -20,23 +20,26 @@ _Last run: 2026-06-05T10:32:31.521Z · node v24.15.0 · Intel(R) Core(TM) i7-770
 
 > ⚠️ **Provisional dev-box snapshot — not a 1.0.0 sign-off.** Captured on
 > Intel(R) Core(TM) i7-7700HQ CPU @ 2.80GHz under `win32` (Docker Desktop), whose VM +
-> network layer inflates DB latency and caps HTTP throughput; the small
+> network layer inflates DB latency and caps HTTP throughput, and the small
 > fixture pools (backoffice 4, tenant template 2) leave the HTTP tier
-> queue-bound, and the DB/memory tiers ran at smoke sizes (the catalog
-> planning-degradation curve still needs K ∈ {100, 1k, 5k}). Authoritative
-> numbers require the heavy tiers re-run at size on the Linux reference VM —
+> queue-bound under load.
+> Authoritative absolute numbers require this run on the Linux reference VM —
 > see `benchmarks/README.md`.
 
 ## db — driver `schema-pg`
 
 | metric | ops/sec | median (ns) | p99 (ns) |
 |---|--:|--:|--:|
-| driver_query › SELECT by id | 691 | 1 447 900 | 3 176 100 |
-| driver_query › INSERT | 883 | 1 133 000 | 1 867 400 |
-| driver_query › 2-table self JOIN (limit 20) | 550 | 1 819 700 | 2 773 400 |
-| driver_query › cold-tenant first query | 49 | 20 592 100 | 34 174 800 |
-| connection_churn › cap=5 single-tenant SELECT (baseline) | 242 | 4 135 100 | 8 773 300 |
-| connection_churn › cap=5 churn SELECT (M=10, C=4) | 85 | 11 772 700 | 35 604 900 |
+| driver_query › SELECT by id | 589 | 1 699 000 | 2 976 100 |
+| driver_query › INSERT | 664 | 1 507 100 | 5 363 900 |
+| driver_query › 2-table self JOIN (limit 20) | 271 | 3 683 400 | 15 101 000 |
+| driver_query › cold-tenant first query | 39 | 25 442 400 | 35 298 100 |
+| connection_churn › cap=25 single-tenant SELECT (baseline) | 155 | 6 443 500 | 23 576 000 |
+| connection_churn › cap=25 churn SELECT (M=50, C=16) | 17 | 59 559 900 | 258 740 800 |
+| connection_churn › cap=50 single-tenant SELECT (baseline) | 249 | 4 020 400 | 33 124 900 |
+| connection_churn › cap=50 churn SELECT (M=100, C=16) | 19 | 51 537 800 | 313 411 200 |
+| connection_churn › cap=100 single-tenant SELECT (baseline) | 247 | 4 045 500 | 11 617 800 |
+| connection_churn › cap=100 churn SELECT (M=200, C=16) | 21 | 47 618 600 | 226 374 200 |
 
 ## http — driver `database-pg`
 
@@ -69,10 +72,11 @@ _Last run: 2026-06-05T10:32:31.521Z · node v24.15.0 · Intel(R) Core(TM) i7-770
 
 | metric | tenants | cap | tenantConnectionsOpen | totalConnectionsOpen | pgBackends | rssMB | heapUsedMB | withinBudget | schemas | tablesPerSchema | pgClassRows | explainMedianNs | explainP99Ns | queryMedianNs | queryP99Ns |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| connection_budget › N=20 tenants | 20 | 50 | 20 | 21 | 21 | 203.3 | 44.8 | PASS |  |  |  |  |  |  |  |
-| connection_budget › N=60 tenants | 60 | 50 | 50 | 51 | 51 | 217.1 | 62.8 | PASS |  |  |  |  |  |  |  |
-| catalog_bloat › K=20 schemas × 2 tables |  |  |  |  |  |  |  |  | 20 | 2 | 1888 | 1340700 | 3501700 | 1067400 | 1772600 |
-| catalog_bloat › K=40 schemas × 2 tables |  |  |  |  |  |  |  |  | 40 | 2 | 2088 | 1070400 | 1783900 | 1025000 | 2522000 |
+| connection_budget › N=100 tenants | 100 | 50 | 50 | 51 | 51 | 222.9 | 46.3 | PASS |  |  |  |  |  |  |  |
+| connection_budget › N=500 tenants | 500 | 50 | 50 | 51 | 51 | 322.4 | 55.2 | PASS |  |  |  |  |  |  |  |
+| connection_budget › N=2000 tenants | 2000 | 50 | 50 | 51 | 51 | 299.5 | 63.5 | PASS |  |  |  |  |  |  |  |
+| catalog_bloat › K=100 schemas × 4 tables |  |  |  |  |  |  |  |  | 100 | 4 | 4417 | 899100 | 1169700 | 821100 | 997400 |
+| catalog_bloat › K=1000 schemas × 4 tables |  |  |  |  |  |  |  |  | 1000 | 4 | 22417 | 853700 | 1132000 | 828000 | 1330800 |
 
 ## micro — driver `schema-pg`
 

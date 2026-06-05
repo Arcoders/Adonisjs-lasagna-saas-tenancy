@@ -69,14 +69,33 @@ function sectionTable(file: ResultFile): string {
   return metricOnly ? mdMetaTable(file) : mdTable(file)
 }
 
+/** Largest value seen for a meta key across a suite's rows (0 if absent). */
+function maxMeta(latest: Map<string, ResultFile>, suite: string, group: string, key: string): number {
+  let max = 0
+  for (const file of latest.values()) {
+    if (file.suite !== suite) continue
+    for (const r of file.results) {
+      if (r.group !== group) continue
+      const n = Number((r.meta ?? {})[key])
+      if (Number.isFinite(n)) max = Math.max(max, n)
+    }
+  }
+  return max
+}
+
 /**
  * Honest reading guidance, baked into the generated page so the numbers are
  * never quoted out of context. The durable note always prints; the provisional
  * warning prints only when the run did NOT come from the Linux reference box
  * (i.e. a dev-box Windows/macOS + Docker Desktop snapshot), where absolute
  * throughput is materially understated. The canonical Linux capture drops it.
+ *
+ * The "smoke sizes" clause is data-driven: it appears only while the heavy
+ * tiers are actually small, and disappears once a full sweep is present — so a
+ * full-size dev-box run still flags Docker inflation but stops claiming the
+ * curves are smoke-sized.
  */
-function caveat(env: ResultFile['env'] | undefined): string[] {
+function caveat(env: ResultFile['env'] | undefined, latest: Map<string, ResultFile>): string[] {
   const lines = [
     '> **Read the shape, not the absolutes.** The durable signal here is the',
     '> *relative* cost across drivers and code paths — header resolution is far',
@@ -87,14 +106,24 @@ function caveat(env: ResultFile['env'] | undefined): string[] {
     '',
   ]
   if (env && env.platform !== 'linux') {
+    const maxBudgetN = maxMeta(latest, 'mem', 'connection_budget', 'tenants')
+    const maxCatalogK = maxMeta(latest, 'mem', 'catalog_bloat', 'schemas')
+    const heavySmoke = maxBudgetN < 100 || maxCatalogK < 100
     lines.push(
       '> ⚠️ **Provisional dev-box snapshot — not a 1.0.0 sign-off.** Captured on',
       `> ${env.cpuModel} under \`${env.platform}\` (Docker Desktop), whose VM +`,
-      '> network layer inflates DB latency and caps HTTP throughput; the small',
+      '> network layer inflates DB latency and caps HTTP throughput, and the small',
       '> fixture pools (backoffice 4, tenant template 2) leave the HTTP tier',
-      '> queue-bound, and the DB/memory tiers ran at smoke sizes (the catalog',
-      '> planning-degradation curve still needs K ∈ {100, 1k, 5k}). Authoritative',
-      '> numbers require the heavy tiers re-run at size on the Linux reference VM —',
+      '> queue-bound under load.'
+    )
+    if (heavySmoke) {
+      lines.push(
+        '> The DB/memory tiers here also ran at smoke sizes (the catalog',
+        '> planning-degradation curve still needs K ∈ {100, 1k, 5k}).'
+      )
+    }
+    lines.push(
+      '> Authoritative absolute numbers require this run on the Linux reference VM —',
       '> see `benchmarks/README.md`.',
       ''
     )
@@ -132,7 +161,7 @@ function buildMarkdown(latest: Map<string, ResultFile>): string {
       ''
     )
   }
-  header.push(...caveat(anyEnv))
+  header.push(...caveat(anyEnv, latest))
   const sections = files.map((f) => `## ${f.suite} — driver \`${f.env.driver}\`\n\n${sectionTable(f)}\n`)
   return header.join('\n') + '\n' + sections.join('\n')
 }
