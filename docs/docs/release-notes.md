@@ -77,6 +77,26 @@ for a copy-paste migration.
   official satellites consume).
 - Docs: a [Scaling limits](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/scaling-limits.md)
   page and the Upgrade to 1.0 guide.
+- **Row-Level Security for `rowscope-pg`.** A new opt-in
+  (`configure --with=rls`) publishes a policy migration, plus `withTenantRls()`
+  and `setTenantRlsGuc()` helpers that set a transaction-local `app.tenant_id`.
+  The policy is fail-closed (an unset tenant matches no rows) and enforced by
+  the database regardless of query shape, so a hand-written top-level `orWhere`
+  can no longer escape the tenant scope. See
+  [rowscope-pg](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/data-isolation/rowscope-pg.md#hard-boundary-postgresql-row-level-security).
+
+### Security
+
+- **`rowscope-pg`: closed the `orWhere` scope escape.** The `withTenantScope`
+  mixin injects the tenant predicate as a flat clause, so a hand-written
+  top-level `orWhere` could compose a query that leaks another tenant's rows.
+  The docs now flag any non-grouped top-level `orWhere` as unsafe, and the new
+  RLS layer (above) provides a database-enforced boundary that holds regardless
+  of query shape.
+- **`rowscope-pg`: `before('create')` rejects a cross-tenant `tenant_id`.** A
+  create with an explicit `tenant_id` that differs from the active scope now
+  throws (consistent with the update/delete hooks) instead of inserting a row
+  owned by another tenant.
 
 ### Changed
 
