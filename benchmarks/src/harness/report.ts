@@ -69,6 +69,39 @@ function sectionTable(file: ResultFile): string {
   return metricOnly ? mdMetaTable(file) : mdTable(file)
 }
 
+/**
+ * Honest reading guidance, baked into the generated page so the numbers are
+ * never quoted out of context. The durable note always prints; the provisional
+ * warning prints only when the run did NOT come from the Linux reference box
+ * (i.e. a dev-box Windows/macOS + Docker Desktop snapshot), where absolute
+ * throughput is materially understated. The canonical Linux capture drops it.
+ */
+function caveat(env: ResultFile['env'] | undefined): string[] {
+  const lines = [
+    '> **Read the shape, not the absolutes.** The durable signal here is the',
+    '> *relative* cost across drivers and code paths — header resolution is far',
+    '> cheaper than subdomain/path; rowscope-pg reads faster than schema-pg ≈',
+    '> database-pg; the connection cap holds as the tenant count grows. Absolute',
+    '> req/s and latency depend on the host, the pool sizes, and the data volume',
+    '> of the run; read them as indicative shape, not a number to quote.',
+    '',
+  ]
+  if (env && env.platform !== 'linux') {
+    lines.push(
+      '> ⚠️ **Provisional dev-box snapshot — not a 1.0.0 sign-off.** Captured on',
+      `> ${env.cpuModel} under \`${env.platform}\` (Docker Desktop), whose VM +`,
+      '> network layer inflates DB latency and caps HTTP throughput; the small',
+      '> fixture pools (backoffice 4, tenant template 2) leave the HTTP tier',
+      '> queue-bound, and the DB/memory tiers ran at smoke sizes (the catalog',
+      '> planning-degradation curve still needs K ∈ {100, 1k, 5k}). Authoritative',
+      '> numbers require the heavy tiers re-run at size on the Linux reference VM —',
+      '> see `benchmarks/README.md`.',
+      ''
+    )
+  }
+  return lines
+}
+
 function buildMarkdown(latest: Map<string, ResultFile>): string {
   const files = [...latest.values()].sort((a, b) => a.suite.localeCompare(b.suite))
   const anyEnv = files[0]?.env
@@ -99,6 +132,7 @@ function buildMarkdown(latest: Map<string, ResultFile>): string {
       ''
     )
   }
+  header.push(...caveat(anyEnv))
   const sections = files.map((f) => `## ${f.suite} — driver \`${f.env.driver}\`\n\n${sectionTable(f)}\n`)
   return header.join('\n') + '\n' + sections.join('\n')
 }

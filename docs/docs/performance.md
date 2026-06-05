@@ -11,6 +11,22 @@ description: Measured throughput and latency for the tenancy hot paths, plus the
 
 _Last run: 2026-06-05T10:32:31.521Z · node v24.15.0 · Intel(R) Core(TM) i7-7700HQ CPU @ 2.80GHz · commit 8775188._
 
+> **Read the shape, not the absolutes.** The durable signal here is the
+> *relative* cost across drivers and code paths — header resolution is far
+> cheaper than subdomain/path; rowscope-pg reads faster than schema-pg ≈
+> database-pg; the connection cap holds as the tenant count grows. Absolute
+> req/s and latency depend on the host, the pool sizes, and the data volume
+> of the run; read them as indicative shape, not a number to quote.
+
+> ⚠️ **Provisional dev-box snapshot — not a 1.0.0 sign-off.** Captured on
+> Intel(R) Core(TM) i7-7700HQ CPU @ 2.80GHz under `win32` (Docker Desktop), whose VM +
+> network layer inflates DB latency and caps HTTP throughput; the small
+> fixture pools (backoffice 4, tenant template 2) leave the HTTP tier
+> queue-bound, and the DB/memory tiers ran at smoke sizes (the catalog
+> planning-degradation curve still needs K ∈ {100, 1k, 5k}). Authoritative
+> numbers require the heavy tiers re-run at size on the Linux reference VM —
+> see `benchmarks/README.md`.
+
 ## db — driver `schema-pg`
 
 | metric | ops/sec | median (ns) | p99 (ns) |
