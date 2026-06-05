@@ -93,8 +93,18 @@ The claims above are validated empirically by the benchmark suite in
 1.0.0 baseline; see [Performance](/docs/performance) for the full tables.
 
 <!-- BENCH:summary:start -->
-_Empirical numbers land here once the 1.0.0 baseline is captured on the
-reference machine. Until then this section is intentionally a placeholder._
+**Per-driver HTTP throughput** (steady state, warmed connections):
+
+- `database-pg` tenant read: **207 req/s** (p99 250.0 ms)
+- `rowscope-pg` tenant read: **350 req/s** (p99 169.0 ms)
+- `schema-pg` tenant read: **216 req/s** (p99 207.0 ms)
+
+**Connection budget** (open tenant connections stay bounded by the cap as N grows):
+
+- N=20 tenants: 20 open tenant connections (cap 50, PASS)
+- N=60 tenants: 50 open tenant connections (cap 50, PASS)
+
+_Generated from the latest results; see [Performance](/docs/performance)._
 <!-- BENCH:summary:end -->
 
 ## Choosing a driver by scale

@@ -9,18 +9,69 @@ description: Measured throughput and latency for the tenancy hot paths, plus the
 > from the benchmark suite in `benchmarks/`. The canonical 1.0.0 numbers are
 > captured on a dedicated Linux VM; see `benchmarks/README.md` for the spec.
 
-_No result files committed yet. Run the benchmark suite
-(`npm run bench:micro`, then the DB/HTTP/mem tiers per driver) and
-`npm run bench:report` to populate this page. Until then, see
-[Scaling limits](/docs/scaling-limits) for the qualitative ceiling._
+_Last run: 2026-06-05T10:32:31.521Z · node v24.15.0 · Intel(R) Core(TM) i7-7700HQ CPU @ 2.80GHz · commit 8775188._
 
-## What gets measured
+## db — driver `schema-pg`
 
-- **Micro** — the per-request resolver chain, per-query adapter routing, the
-  connection LRU, and the row-scope predicate. Nanosecond CPU paths.
-- **DB** — per-driver SELECT / INSERT / JOIN latency, cold-connection cost, and
-  connection churn with a cross-tenant leakage assertion.
-- **HTTP** — end-to-end req/s per driver, plus the tenant-guard and rate-limit
-  middleware overhead.
-- **Memory** — the connection budget as tenant count grows, and the
-  catalog-bloat planning curve.
+| metric | ops/sec | median (ns) | p99 (ns) |
+|---|--:|--:|--:|
+| driver_query › SELECT by id | 691 | 1 447 900 | 3 176 100 |
+| driver_query › INSERT | 883 | 1 133 000 | 1 867 400 |
+| driver_query › 2-table self JOIN (limit 20) | 550 | 1 819 700 | 2 773 400 |
+| driver_query › cold-tenant first query | 49 | 20 592 100 | 34 174 800 |
+| connection_churn › cap=5 single-tenant SELECT (baseline) | 242 | 4 135 100 | 8 773 300 |
+| connection_churn › cap=5 churn SELECT (M=10, C=4) | 85 | 11 772 700 | 35 604 900 |
+
+## http — driver `database-pg`
+
+| metric | ops/sec | median (ns) | p99 (ns) |
+|---|--:|--:|--:|
+| http › ceiling (no tenancy) | 11 724 | 1 000 000 | 8 000 000 |
+| http › tenant read (guarded) | 207 | 111 000 000 | 250 000 000 |
+| http › tenant read (no guard) | 226 | 103 000 000 | 171 000 000 |
+| http › tenant read (guard + rate-limit) | 185 | 125 000 000 | 270 000 000 |
+
+## http — driver `rowscope-pg`
+
+| metric | ops/sec | median (ns) | p99 (ns) |
+|---|--:|--:|--:|
+| http › ceiling (no tenancy) | 12 506 | 1 000 000 | 7 000 000 |
+| http › tenant read (guarded) | 350 | 66 000 000 | 169 000 000 |
+| http › tenant read (no guard) | 362 | 63 000 000 | 110 000 000 |
+| http › tenant read (guard + rate-limit) | 263 | 90 000 000 | 147 000 000 |
+
+## http — driver `schema-pg`
+
+| metric | ops/sec | median (ns) | p99 (ns) |
+|---|--:|--:|--:|
+| http › ceiling (no tenancy) | 13 299 | 1 000 000 | 7 000 000 |
+| http › tenant read (guarded) | 216 | 107 000 000 | 207 000 000 |
+| http › tenant read (no guard) | 230 | 104 000 000 | 161 000 000 |
+| http › tenant read (guard + rate-limit) | 179 | 132 000 000 | 206 000 000 |
+
+## mem — driver `schema-pg`
+
+| metric | tenants | cap | tenantConnectionsOpen | totalConnectionsOpen | pgBackends | rssMB | heapUsedMB | withinBudget | schemas | tablesPerSchema | pgClassRows | explainMedianNs | explainP99Ns | queryMedianNs | queryP99Ns |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| connection_budget › N=20 tenants | 20 | 50 | 20 | 21 | 21 | 203.3 | 44.8 | PASS |  |  |  |  |  |  |  |
+| connection_budget › N=60 tenants | 60 | 50 | 50 | 51 | 51 | 217.1 | 62.8 | PASS |  |  |  |  |  |  |  |
+| catalog_bloat › K=20 schemas × 2 tables |  |  |  |  |  |  |  |  | 20 | 2 | 1888 | 1340700 | 3501700 | 1067400 | 1772600 |
+| catalog_bloat › K=40 schemas × 2 tables |  |  |  |  |  |  |  |  | 40 | 2 | 2088 | 1070400 | 1783900 | 1025000 | 2522000 |
+
+## micro — driver `schema-pg`
+
+| metric | ops/sec | median (ns) | p99 (ns) |
+|---|--:|--:|--:|
+| tenant_resolution › header hit (chain=1) | 35 008 547 | 29 | 54 |
+| tenant_resolution › header hit (chain=3) | 41 902 813 | 24 | 62 |
+| tenant_resolution › subdomain hit (chain=3, header miss) | 3 628 632 | 276 | 656 |
+| tenant_resolution › path hit (fall-through to 3rd) | 2 606 261 | 384 | 1 209 |
+| tenant_resolution › full miss (chain=5) | 2 150 357 | 465 | 845 |
+| adapter_routing › currentId → connectionName → db.connection | 6 858 674 | 146 | 322 |
+| adapter_routing › explicit connection (fast path) | 204 416 719 | 5 | 10 |
+| connection_lru › touch (hit) | 7 614 798 | 131 | 433 |
+| connection_lru › touch (MRU round-robin) | 8 328 589 | 120 | 224 |
+| connection_lru › touch + evictIfNeeded (over cap, evicts) | 3 079 699 | 325 | 624 |
+| connection_lru › evictIfNeeded (under cap, no-op) | 43 784 073 | 23 | 37 |
+| rowscope_predicate › scoped query() build | 88 898 535 | 11 | 23 |
+| rowscope_predicate › unscoped query() build (baseline) | 125 596 014 | 8 | 101 |
