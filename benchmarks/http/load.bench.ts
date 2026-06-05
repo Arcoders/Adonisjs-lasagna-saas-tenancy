@@ -45,10 +45,17 @@ export async function runHttpLoad(baseUrl: string, tenantIds: string[]): Promise
   const connections = sizes.http.connections
   const duration = sizes.http.durationSec
 
+  // autocannon only re-renders a header per request if that header key already
+  // exists in the top-level `headers` — it pre-renders the request bytes once
+  // otherwise. So we seed a placeholder `x-tenant-id` in `headers` and have
+  // setupRequest *mutate that existing key's value* per request. Spreading a
+  // fresh `req.headers` (or relying on setupRequest alone, with no placeholder)
+  // silently drops the header and every tenant request 400s with
+  // E_MISSING_TENANT_HEADER.
   const rotate = () => {
     let i = 0
     return (req: any) => {
-      req.headers = { ...(req.headers ?? {}), 'x-tenant-id': tenantIds[i++ % tenantIds.length] }
+      req.headers['x-tenant-id'] = tenantIds[i++ % tenantIds.length]
       return req
     }
   }
@@ -58,15 +65,32 @@ export async function runHttpLoad(baseUrl: string, tenantIds: string[]): Promise
       url: `${baseUrl}${path}`,
       connections,
       duration,
-      ...(withTenant ? { setupRequest: rotate() } : {}),
+      ...(withTenant
+        ? { headers: { 'x-tenant-id': tenantIds[0] }, setupRequest: rotate() }
+        : {}),
     } as autocannon.Options)
     return fromAutocannon(name, result as autocannon.Result)
   }
 
-  return [
+  const results = [
     await scenario('ceiling (no tenancy)', '/ceiling', false),
     await scenario('tenant read (guarded)', '/tenant/notes', true),
     await scenario('tenant read (no guard)', '/noguard/notes', true),
     await scenario('tenant read (guard + rate-limit)', '/ratelimited/notes', true),
   ]
+
+  // Fail loudly if a scenario was essentially all error responses. A mostly-non-2xx
+  // run measures the rate of 500s, not tenant reads (e.g. tenant connections not
+  // registered in the serving process) — never write that out as a throughput number.
+  for (const r of results) {
+    const non2xx = Number(r.meta?.non2xx ?? 0)
+    if (r.samples > 0 && non2xx / r.samples > 0.05) {
+      throw new Error(
+        `HTTP scenario "${r.name}": ${non2xx}/${r.samples} non-2xx — tenant routing is ` +
+          `broken in the serve process; numbers are invalid. Did the warm-up run?`
+      )
+    }
+  }
+
+  return results
 }

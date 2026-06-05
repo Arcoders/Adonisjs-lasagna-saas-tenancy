@@ -167,3 +167,24 @@ export async function seedAll(
   await seedNotes(app, db, result.refs, opts.rows)
   return result
 }
+
+/**
+ * Register tenant connections into THIS process's Lucid manager and open each
+ * pool. The HTTP server is spawned separately from the seed process, so it must
+ * re-register the seeded tenants before requests can route to them — otherwise
+ * `TenantAdapter` calls `db.connection('tenant_<id>')` against a manager that
+ * never had it added and every tenant route 500s. `select 1` forces the pool
+ * open (with the right search_path) so the first measured request isn't a
+ * cold-pool hit. Driver-agnostic: schema-pg/database-pg register a per-tenant
+ * connection, rowscope-pg returns the shared central connection (no-op).
+ */
+export async function warmTenantConnections(
+  app: ApplicationService,
+  ids: string[]
+): Promise<void> {
+  const driver = await activeDriver(app)
+  for (const id of ids) {
+    const client = await driver.connect({ id } as any)
+    await client.rawQuery('select 1')
+  }
+}

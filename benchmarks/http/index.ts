@@ -49,9 +49,19 @@ try {
   await terminateBenchApp(seedApp)
 }
 
-// 2) Spawn the HTTP server child with the same driver + DB env.
+// 2) Spawn the HTTP server child with the same driver + DB env. The seed app
+// registered the tenant connections in ITS manager, then exited — so hand the
+// child the seeded ids via BENCH_WARM_TENANT_IDS and let its provider's ready()
+// hook re-register them in the serving process (otherwise every tenant route 500s).
 const server = spawn(process.execPath, ['--import', 'tsx', SERVER_ENTRY], {
-  env: { ...process.env, BENCH_DRIVER: DRIVER, HOST, PORT: String(PORT), NODE_ENV: 'development' },
+  env: {
+    ...process.env,
+    BENCH_DRIVER: DRIVER,
+    HOST,
+    PORT: String(PORT),
+    NODE_ENV: 'development',
+    BENCH_WARM_TENANT_IDS: tenantIds.join(','),
+  },
   stdio: ['ignore', 'inherit', 'inherit'],
 })
 
