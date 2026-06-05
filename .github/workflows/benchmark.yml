@@ -5,6 +5,11 @@ name: Benchmarks
 # (informational-first), and upload the results + generated docs as artifacts.
 on:
   workflow_dispatch:
+    inputs:
+      full_size:
+        description: 'Run full-size sweeps (slower; the representative capture, NOT the like-for-like gate baseline)'
+        type: boolean
+        default: false
   schedule:
     - cron: '0 6 * * 1' # Mondays 06:00 UTC
 
@@ -75,6 +80,32 @@ jobs:
             sleep 2
           done
           echo "Postgres did not become ready in time"; docker logs bench-postgres; exit 1
+
+      # Default run is CI-sized (fast, stable, like-for-like with the committed
+      # ci-ubuntu baseline). A `full_size=true` dispatch overrides each BENCH_*
+      # knob with the production-ish sweep (budget to 2000 tenants, catalog to
+      # 5000 schemas, full churn). Explicit BENCH_* vars win over the CI defaults
+      # in src/harness/config.ts, so BENCH_CI stays 1 either way.
+      - name: Configure bench sizes
+        run: |
+          if [ "${{ github.event.inputs.full_size }}" = "true" ]; then
+            echo "Running FULL-SIZE sweeps (representative capture)"
+            {
+              echo "BENCH_DB_TENANTS=50"
+              echo "BENCH_DB_ROWS=1000"
+              echo "BENCH_CHURN_CAPS=25,50,100"
+              echo "BENCH_CHURN_CONCURRENCY=16"
+              echo "BENCH_CHURN_OPS=2000"
+              echo "BENCH_BUDGET_COUNTS=100,500,2000"
+              echo "BENCH_CATALOG_COUNTS=100,1000,5000"
+              echo "BENCH_HTTP_TENANTS=50"
+              echo "BENCH_HTTP_ROWS=200"
+              echo "BENCH_HTTP_CONNECTIONS=25"
+              echo "BENCH_HTTP_DURATION=10"
+            } >> "$GITHUB_ENV"
+          else
+            echo "Running CI-size sweeps (gate default)"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
