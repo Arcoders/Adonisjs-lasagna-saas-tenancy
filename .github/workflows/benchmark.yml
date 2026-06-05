@@ -13,21 +13,12 @@ jobs:
     name: Run benchmark suite
     runs-on: ubuntu-latest
 
+    # Postgres is started as a step (below), not a service: the connection-budget
+    # and churn tiers deliberately push past 50 tenant connections, so the stock
+    # service cap of 100 throws "too many clients". Service containers can't set
+    # the postgres command or mount a post-checkout config, so we run it manually
+    # with benchmarks/postgres.bench.conf (max_connections=300), mirroring local.
     services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: lasagna_bench
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d lasagna_bench"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
       redis:
         image: redis:7-alpine
         ports:
@@ -64,6 +55,26 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # Raised max_connections (300) so the cap=100 churn sweep × tenant poolMax
+      # plus central/backoffice connections stays under the limit. Mounts the same
+      # benchmarks/postgres.bench.conf the local docker-compose uses.
+      - name: Start Postgres (bench tuning, max_connections=300)
+        run: |
+          docker run -d --name bench-postgres \
+            -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=lasagna_bench \
+            -p 5432:5432 \
+            -v "$GITHUB_WORKSPACE/benchmarks/postgres.bench.conf:/etc/postgresql/postgresql.conf:ro" \
+            postgres:16-alpine -c config_file=/etc/postgresql/postgresql.conf
+          echo "Waiting for Postgres to accept connections…"
+          for i in $(seq 1 30); do
+            if docker exec bench-postgres pg_isready -U postgres -d lasagna_bench >/dev/null 2>&1; then
+              echo "Postgres ready (max_connections=$(docker exec bench-postgres psql -U postgres -tAc 'show max_connections'))"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Postgres did not become ready in time"; docker logs bench-postgres; exit 1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
