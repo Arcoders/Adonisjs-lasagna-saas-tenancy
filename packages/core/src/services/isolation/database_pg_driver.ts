@@ -84,7 +84,7 @@ export default class DatabasePgDriver implements IsolationDriver {
       // dbName has already been validated by databaseName().
       await db.rawQuery(`CREATE DATABASE "${dbName}"`)
     }
-    await this.connect(tenant)
+    await this.connect(tenant, { bypassHardCap: true })
   }
 
   async destroy(tenant: TenantModelContract, opts: DestroyOptions = {}): Promise<void> {
@@ -108,7 +108,7 @@ export default class DatabasePgDriver implements IsolationDriver {
     await this.provision(tenant)
   }
 
-  async connect(tenant: TenantModelContract) {
+  async connect(tenant: TenantModelContract, opts: { bypassHardCap?: boolean } = {}) {
     const { db } = await lucid()
     const name = this.connectionName(tenant.id)
 
@@ -117,9 +117,12 @@ export default class DatabasePgDriver implements IsolationDriver {
       return db.connection(name)
     }
 
-    // Hard-cap admission control (opt-in): refuse a new connection rather than
-    // exceed the cap when nothing is evictable. No-op unless enforceConnectionCap.
-    if (this.#lru.atHardLimit()) {
+    // Hard-cap admission control (opt-in) guards the request-serving path. The
+    // provisioning/migration paths call connect() too and pass bypassHardCap, so
+    // a momentarily full request-path budget can't refuse tenant onboarding
+    // (which would also leave the freshly created database orphaned). No-op
+    // unless enforceConnectionCap.
+    if (!opts.bypassHardCap && this.#lru.atHardLimit()) {
       throw new TenantConnectionLimitException()
     }
 
@@ -152,7 +155,7 @@ export default class DatabasePgDriver implements IsolationDriver {
   async migrate(tenant: TenantModelContract, opts: MigrateOptions): Promise<MigrateResult> {
     const { db, app, MigrationRunner } = await lucid()
     // Make sure the connection is registered before the migrator looks it up.
-    await this.connect(tenant)
+    await this.connect(tenant, { bypassHardCap: true })
     const runner = new MigrationRunner(db, app, {
       ...opts,
       connectionName: this.connectionName(tenant.id),

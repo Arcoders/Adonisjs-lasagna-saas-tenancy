@@ -69,7 +69,7 @@ export default class SchemaPgDriver implements IsolationDriver {
     const schema = this.schemaName(tenant)
     const { db } = await lucid()
     await db.rawQuery(`CREATE SCHEMA IF NOT EXISTS "${schema}"`)
-    await this.connect(tenant)
+    await this.connect(tenant, { bypassHardCap: true })
   }
 
   async destroy(tenant: TenantModelContract, opts: DestroyOptions = {}): Promise<void> {
@@ -86,10 +86,10 @@ export default class SchemaPgDriver implements IsolationDriver {
     const { db } = await lucid()
     await db.rawQuery(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
     await db.rawQuery(`CREATE SCHEMA "${schema}"`)
-    await this.connect(tenant)
+    await this.connect(tenant, { bypassHardCap: true })
   }
 
-  async connect(tenant: TenantModelContract) {
+  async connect(tenant: TenantModelContract, opts: { bypassHardCap?: boolean } = {}) {
     const { db } = await lucid()
     const name = this.connectionName(tenant.id)
 
@@ -98,9 +98,12 @@ export default class SchemaPgDriver implements IsolationDriver {
       return db.connection(name)
     }
 
-    // Hard-cap admission control (opt-in): refuse a new connection rather than
-    // exceed the cap when nothing is evictable. No-op unless enforceConnectionCap.
-    if (this.#lru.atHardLimit()) {
+    // Hard-cap admission control (opt-in) guards the request-serving path. The
+    // provisioning/reset paths call connect() too and pass bypassHardCap, so a
+    // momentarily full request-path budget can't refuse tenant onboarding (which
+    // would also leave the freshly created schema orphaned). No-op unless
+    // enforceConnectionCap.
+    if (!opts.bypassHardCap && this.#lru.atHardLimit()) {
       throw new TenantConnectionLimitException()
     }
 
