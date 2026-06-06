@@ -24,6 +24,12 @@ export interface CheckVerdict {
   ok: boolean
   /** Short human reason when `ok` is false; sampled into the result. */
   reason?: string
+  /**
+   * Set true when a non-ok verdict is an availability/transport problem (e.g. a
+   * non-200 status), NOT a content mismatch. Counted as an `error`, never as a
+   * `mismatch`, so an outage or a 5xx hiccup can't masquerade as a leak signal.
+   */
+  error?: boolean
 }
 
 export interface ConcurrentResult {
@@ -35,8 +41,10 @@ export interface ConcurrentResult {
   errors: number
   statusHistogram: Record<number, number>
   latencyNs: number[]
-  /** Up to 10 sampled mismatch reasons, for the log. */
+  /** Up to 10 sampled mismatch reasons (correctness leaks), for the log. */
   sampleMismatches: string[]
+  /** Up to 10 sampled transport/availability error reasons, for the log. */
+  sampleErrors: string[]
 }
 
 export interface ConcurrentOptions {
@@ -59,12 +67,20 @@ export async function runConcurrent(opts: ConcurrentOptions): Promise<Concurrent
     statusHistogram: {},
     latencyNs: [],
     sampleMismatches: [],
+    sampleErrors: [],
   }
 
   let next = 0
+  // A mismatch is a correctness/leak signal; an error is a transport or
+  // availability failure. They are counted separately so a flaky request can
+  // never be read as a cross-tenant leak.
   const recordMismatch = (reason: string) => {
     result.mismatches++
     if (result.sampleMismatches.length < 10) result.sampleMismatches.push(reason)
+  }
+  const recordError = (reason: string) => {
+    result.errors++
+    if (result.sampleErrors.length < 10) result.sampleErrors.push(reason)
   }
 
   const worker = async (): Promise<void> => {
@@ -95,11 +111,12 @@ export async function runConcurrent(opts: ConcurrentOptions): Promise<Concurrent
 
         const verdict = check(req, res.status, body)
         if (verdict.ok) result.ok++
+        else if (verdict.error)
+          recordError(verdict.reason ?? `request ${i}: availability error (status ${res.status})`)
         else recordMismatch(verdict.reason ?? `request ${i}: failed check (status ${res.status})`)
       } catch (err) {
         result.total++
-        result.errors++
-        recordMismatch(`request ${i}: transport error ${(err as Error)?.message ?? String(err)}`)
+        recordError(`request ${i}: transport error ${(err as Error)?.message ?? String(err)}`)
       } finally {
         clearTimeout(timer)
       }

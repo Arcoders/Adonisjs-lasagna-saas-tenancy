@@ -70,10 +70,20 @@ try {
   console.log(`Server ready at ${BASE_URL}; running isolation assertion…`)
   const results = await runIsolationLoad(BASE_URL, tenantIds)
   printMetricResults(`Isolation (driver: ${DRIVER}, NODE_ENV=${HTTP_NODE_ENV})`, results)
-  writeResult('iso', results, {
-    pgVersion: pg,
-    meta: { tenants: sizes.iso.tenants, requests: sizes.iso.requests, concurrency: sizes.iso.concurrency },
-  })
+  // The self-test deliberately forces isolationCheck=FAIL to prove the detector
+  // is not a no-op. Do NOT persist that result: a later `bench:check` scans the
+  // newest file per suite via latestBySuiteDriver and would fail the gate on this
+  // negative control. We still exit 1 below (CI inverts it), so detection is
+  // asserted by the exit code, not by a written FAIL.
+  if (sizes.iso.selftest) {
+    // eslint-disable-next-line no-console
+    console.log('Self-test mode: result not written (the expected FAIL must not reach the gate).')
+  } else {
+    writeResult('iso', results, {
+      pgVersion: pg,
+      meta: { tenants: sizes.iso.tenants, requests: sizes.iso.requests, concurrency: sizes.iso.concurrency },
+    })
+  }
 
   // Hard-fail the process on any cross-tenant leak, so the gate and CI catch it.
   const leaked = results.some((r) => r.meta?.isolationCheck === 'FAIL')

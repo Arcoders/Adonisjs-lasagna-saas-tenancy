@@ -42,7 +42,11 @@ export async function runIsolationLoad(baseUrl: string, tenantIds: string[]): Pr
       },
       check: (req, status, body) => {
         const expected = String(req.meta?.expected)
-        if (status !== 200) return { ok: false, reason: `status ${status} (expected tenant ${expected})` }
+        // A non-200 is an availability failure (pool pressure, transient 5xx),
+        // not a cross-tenant leak. Flag it as `error` so it is counted as a
+        // transport error, never as a mismatch that would fail the isolation gate.
+        if (status !== 200)
+          return { ok: false, error: true, reason: `status ${status} (expected tenant ${expected})` }
         const b = body as NotesBody
         if (b?.tenantId !== expected) {
           return { ok: false, reason: `echoed tenantId ${b?.tenantId} != ${expected}` }
@@ -69,6 +73,7 @@ export async function runIsolationLoad(baseUrl: string, tenantIds: string[]): Pr
         p99Ms: Math.round(percentileNs(r.latencyNs, 99) / 1e5) / 10,
         isolationCheck: leaks === 0 ? 'PASS' : 'FAIL',
         sample: r.sampleMismatches.slice(0, 3).join(' | '),
+        errorSample: r.sampleErrors.slice(0, 3).join(' | '),
       },
       GROUP
     )
