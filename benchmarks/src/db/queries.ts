@@ -50,6 +50,25 @@ export function selectMarker(conn: QueryClient, driver: IsolationDriver, ref: Re
   return q
 }
 
+/** Insert a note whose title encodes the owning tenant, for write-isolation checks. */
+export function insertIdentifiableNote(
+  conn: QueryClient,
+  driver: IsolationDriver,
+  ref: Ref,
+  nonce: number
+) {
+  const row: Record<string, unknown> = { title: `cw:${ref.id}:${nonce}`, body: 'b' }
+  if (isRowScope(driver)) row.tenant_id = ref.id
+  return conn.table('notes').insert(row)
+}
+
+/** Read back the churn-written rows (title prefix `cw:`) for a tenant. */
+export function selectWrites(conn: QueryClient, driver: IsolationDriver, ref: Ref) {
+  const q = conn.from('notes').whereLike('title', 'cw:%').select('title')
+  if (isRowScope(driver)) q.where('tenant_id', ref.id)
+  return q
+}
+
 export function firstId(conn: QueryClient, driver: IsolationDriver, ref: Ref) {
   const q = conn.from('notes').select('id').orderBy('id', 'asc')
   if (isRowScope(driver)) q.where('tenant_id', ref.id)

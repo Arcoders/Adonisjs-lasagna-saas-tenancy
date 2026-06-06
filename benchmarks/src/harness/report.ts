@@ -7,7 +7,7 @@
  *   npm run bench:report -- --write-baseline=1.0.0
  */
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs'
-import { latestBySuiteDriver, type ResultFile } from './results.js'
+import { latestBySuiteDriver, latestNBySuiteDriver, median, iqr, type ResultFile } from './results.js'
 import type { BenchResult } from './runner.js'
 
 const PERF_DOC = new URL('../../../docs/docs/performance.md', import.meta.url)
@@ -100,9 +100,12 @@ function caveat(env: ResultFile['env'] | undefined, latest: Map<string, ResultFi
     '> **Read the shape, not the absolutes.** The durable signal here is the',
     '> *relative* cost across drivers and code paths — header resolution is far',
     '> cheaper than subdomain/path; rowscope-pg reads faster than schema-pg ≈',
-    '> database-pg; the connection cap holds as the tenant count grows. Absolute',
-    '> req/s and latency depend on the host, the pool sizes, and the data volume',
-    '> of the run; read them as indicative shape, not a number to quote.',
+    '> database-pg. Note: open tenant connections are bounded by the eviction',
+    '> grace window, **not** by `maxTenantConnections` — under the default 30s',
+    '> grace a burst of N active tenants opens ~N connections (see the',
+    '> connection-budget burst tier); size `max_connections` / PgBouncer for that.',
+    '> Absolute req/s and latency depend on the host, the pool sizes, and the data',
+    '> volume of the run; read them as indicative shape, not a number to quote.',
     '',
   ]
   if (env && env.platform !== 'linux') {
@@ -183,6 +186,47 @@ function writeBaseline(name: string, latest: Map<string, ResultFile>): void {
 }
 
 /**
+ * Multi-run baseline: aggregate the `runs` newest files per suite/driver into a
+ * median (with IQR, for the spread) so a quotable number averages out the
+ * shared-runner CPU variance instead of resting on one run.
+ */
+function writeAggregatedBaseline(name: string, runs: number): void {
+  mkdirSync(BASELINES_DIR, { recursive: true })
+  const byKey = latestNBySuiteDriver(runs)
+  const index: Record<string, Record<string, { opsPerSec: number; nsMedian: number; iqr: number; runs: number }>> = {}
+  for (const [key, files] of byKey) {
+    index[key] ??= {}
+    // Collect each label's opsPerSec / nsMedian across the N files.
+    const ops = new Map<string, number[]>()
+    const nsm = new Map<string, number[]>()
+    const append = (m: Map<string, number[]>, k: string, v: number) => {
+      const arr = m.get(k) ?? []
+      arr.push(v)
+      m.set(k, arr)
+    }
+    for (const file of files) {
+      for (const e of flatten(file)) {
+        append(ops, e.label, e.opsPerSec)
+        append(nsm, e.label, e.nsMedian)
+      }
+    }
+    for (const [label, vals] of ops) {
+      index[key][label] = {
+        opsPerSec: Math.round(median(vals)),
+        nsMedian: Math.round(median(nsm.get(label) ?? [])),
+        iqr: Math.round(iqr(vals)),
+        runs: vals.length,
+      }
+    }
+  }
+  const env = [...byKey.values()][0]?.[0]?.env ?? null
+  const path = new URL(`${name}.json`, BASELINES_DIR)
+  writeFileSync(path, JSON.stringify({ capturedEnv: env, aggregatedOverRuns: runs, index }, null, 2))
+  // eslint-disable-next-line no-console
+  console.log(`→ wrote baseline ${name}.json (median of up to ${runs} runs per suite/driver)`)
+}
+
+/**
  * Replace the marked block in scaling-limits.md with a compact, generated
  * summary (per-driver HTTP req/s + the connection-budget verdict). Safe: if the
  * markers are absent or there is no data, it leaves the doc untouched.
@@ -204,9 +248,14 @@ function injectScalingLimits(latest: Map<string, ResultFile>): void {
     if (read) httpLines.push(`- \`${driver}\` tenant read: **${read.opsPerSec.toLocaleString()} req/s** (p99 ${(read.ns.p99 / 1e6).toFixed(1)} ms)`)
   }
   const budget = [...latest.values()].find((f) => f.suite === 'mem')
+  // Prefer the HONEST burst tier (production grace) over the steady tier, which
+  // shrinks the grace so the cap appears to bind.
   const budgetLine = budget?.results
-    .filter((r) => r.group === 'connection_budget')
-    .map((r) => `- ${r.name}: ${r.meta?.tenantConnectionsOpen} open tenant connections (cap ${r.meta?.cap}, ${r.meta?.withinBudget})`)
+    .filter((r) => r.group === 'connection_budget_burst' && r.meta?.openDuringBurst !== undefined)
+    .map(
+      (r) =>
+        `- ${r.name}: ${r.meta?.openDuringBurst} open tenant connections (cap ${r.meta?.cap}, ${r.meta?.capBounds})`
+    )
 
   if (!httpLines.length && !budgetLine?.length) return
 
@@ -216,7 +265,7 @@ function injectScalingLimits(latest: Map<string, ResultFile>): void {
     '',
     ...(httpLines.length ? httpLines : ['- _no HTTP results yet_']),
     '',
-    '**Connection budget** (open tenant connections stay bounded by the cap as N grows):',
+    '**Connection budget** (under the default 30s grace, open connections track N, not the cap — front with PgBouncer):',
     '',
     ...(budgetLine?.length ? budgetLine : ['- _no memory results yet_']),
     '',
@@ -238,4 +287,13 @@ console.log(`→ wrote docs/docs/performance.md (${latest.size} suite/driver sec
 injectScalingLimits(latest)
 
 const writeArg = process.argv.find((a) => a.startsWith('--write-baseline='))
-if (writeArg) writeBaseline(writeArg.split('=')[1] || 'baseline', latest)
+const runsArg = process.argv.find((a) => a.startsWith('--runs='))
+const runs = runsArg ? Math.max(1, Number(runsArg.split('=')[1]) || 1) : 1
+if (writeArg) {
+  const name = writeArg.split('=')[1] || 'baseline'
+  if (runs > 1) writeAggregatedBaseline(name, runs)
+  else writeBaseline(name, latest)
+} else if (runs > 1) {
+  // eslint-disable-next-line no-console
+  console.log('--runs given without --write-baseline; nothing to aggregate into. Add --write-baseline=<name>.')
+}

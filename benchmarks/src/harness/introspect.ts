@@ -62,6 +62,20 @@ export async function pgBackendCount(db: DbService): Promise<number> {
 }
 
 /**
+ * Live backend count across ALL non-template databases on the server. For
+ * `database-pg` each tenant connection lives in its OWN database, so the
+ * `current_database()` count above misses them entirely; this counts them.
+ * Safe on the dedicated bench server (only bench databases exist there).
+ */
+export async function pgBackendCountAllDatabases(db: DbService): Promise<number> {
+  const res = await db.rawQuery(
+    'SELECT count(*)::int AS c FROM pg_stat_activity WHERE datname IS NOT NULL'
+  )
+  const rows = Array.isArray(res.rows) ? res.rows : res
+  return Number(rows?.[0]?.c ?? 0)
+}
+
+/**
  * Release every open per-tenant connection from Lucid's manager, so a tier that
  * measures connection counts starts from a clean slate (e.g. churn after the
  * cold-connection phase left dozens registered). The shared rowscope `tenant`

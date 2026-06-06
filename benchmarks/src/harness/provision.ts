@@ -157,6 +157,49 @@ export async function seedNotes(
   }
 }
 
+/**
+ * Seed `rowsPerTenant` notes whose titles ENCODE the owning tenant id
+ * (`t:<ref.id>:<i>`), driver-aware. The isolation tier needs every row in the
+ * read window to reveal its owner: `/tenant/notes` returns `id desc limit 20`,
+ * so the single `marker:` row (id=1, oldest) never appears and cannot be used
+ * to detect a cross-tenant leak. With identifiable titles, any returned row is
+ * sufficient to assert ownership.
+ */
+export async function seedIdentifiableNotes(
+  app: ApplicationService,
+  db: DbService,
+  refs: TenantRef[],
+  rowsPerTenant: number
+): Promise<void> {
+  const driver = await activeDriver(app)
+  const isRowScope = driver.name === 'rowscope-pg'
+
+  for (const ref of refs) {
+    const conn = isRowScope ? db.connection('tenant') : await driver.connect(ref as any)
+
+    if (isRowScope) {
+      await conn.from('notes').where('tenant_id', ref.id).delete()
+    } else {
+      await conn.from('notes').delete()
+    }
+
+    const rows: Array<Record<string, unknown>> = []
+    for (let i = 0; i < rowsPerTenant; i++) {
+      const row: Record<string, unknown> = { title: `t:${ref.id}:${i}`, body: `bench body ${i}` }
+      if (isRowScope) row.tenant_id = ref.id
+      rows.push(row)
+    }
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      await conn.table('notes').multiInsert(rows.slice(i, i + CHUNK))
+    }
+  }
+}
+
+/** Prefix a note title carries when seeded by `seedIdentifiableNotes`. */
+export function identifiableTitlePrefix(tenantId: string): string {
+  return `t:${tenantId}:`
+}
+
 /** High-level: provision N tenants and seed M rows each. */
 export async function seedAll(
   app: ApplicationService,

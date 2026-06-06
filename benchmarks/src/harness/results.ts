@@ -54,3 +54,33 @@ export function latestBySuiteDriver(): Map<string, ResultFile> {
   }
   return map
 }
+
+/** The `n` newest result files per `<suite>-<driver>` pair (for multi-run aggregation). */
+export function latestNBySuiteDriver(n: number): Map<string, ResultFile[]> {
+  const map = new Map<string, ResultFile[]>()
+  for (const r of loadResults()) {
+    const key = `${r.suite}:${r.env.driver}`
+    const arr = map.get(key) ?? []
+    if (arr.length < n) {
+      arr.push(r)
+      map.set(key, arr)
+    }
+  }
+  return map
+}
+
+/** Median of a numeric sample (0 if empty). */
+export function median(values: number[]): number {
+  if (values.length === 0) return 0
+  const s = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(s.length / 2)
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2
+}
+
+/** Inter-quartile range (p75 - p25) of a numeric sample. */
+export function iqr(values: number[]): number {
+  if (values.length < 2) return 0
+  const s = [...values].sort((a, b) => a - b)
+  const at = (p: number) => s[Math.min(s.length - 1, Math.max(0, Math.ceil((p / 100) * s.length) - 1))]
+  return at(75) - at(25)
+}

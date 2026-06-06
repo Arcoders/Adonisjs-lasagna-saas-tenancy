@@ -5,9 +5,18 @@ import { measureLatency, summarize, type BenchResult } from '../harness/runner.j
 import { activeDriver, seedAll } from '../harness/provision.js'
 import { snapshotConnections, pgBackendCount, disconnectAllTenants } from '../harness/introspect.js'
 import { sizes } from '../harness/config.js'
-import { clientFor, selectMarker, type Ref } from './queries.js'
+import {
+  clientFor,
+  selectMarker,
+  insertIdentifiableNote,
+  selectWrites,
+  type Ref,
+} from './queries.js'
 
 const GROUP = 'connection_churn'
+
+/** One in WRITE_EVERY churn ops is an insert, so the write path is churned too. */
+const WRITE_EVERY = 5
 
 /** Live-mutate the open-connection cap; the LRU reads it lazily each evict. */
 function setCap(cap: number): void {
@@ -22,9 +31,10 @@ async function churnLoad(
   refs: Ref[],
   concurrency: number,
   totalOps: number
-): Promise<number[]> {
+): Promise<{ samples: number[]; writeOps: number }> {
   const samples: number[] = []
   let next = 0
+  let writeOps = 0
   const worker = async () => {
     for (;;) {
       const i = next++
@@ -32,12 +42,19 @@ async function churnLoad(
       const ref = refs[i % refs.length]
       const t0 = process.hrtime.bigint()
       const conn = await clientFor(driver, db, ref)
-      await selectMarker(conn, driver, ref)
+      // Mix writes into the churn so the insert path (connect + search_path +
+      // INSERT) is exercised under churn too, not just reads.
+      if (i % WRITE_EVERY === 0) {
+        await insertIdentifiableNote(conn, driver, ref, i)
+        writeOps++
+      } else {
+        await selectMarker(conn, driver, ref)
+      }
       samples.push(Number(process.hrtime.bigint() - t0))
     }
   }
   await Promise.all(Array.from({ length: concurrency }, () => worker()))
-  return samples
+  return { samples, writeOps }
 }
 
 /** Every tenant must see only its own marker row. Returns the leak count (0 = pass). */
@@ -48,6 +65,24 @@ async function countLeaks(driver: IsolationDriver, db: any, refs: Ref[]): Promis
     const rows: Array<{ title: string }> = await selectMarker(conn, driver, ref)
     for (const row of rows) {
       if (row.title !== `marker:${ref.id}`) leaks++
+    }
+  }
+  return leaks
+}
+
+/**
+ * Every churn-written row a tenant reads back must be its own (`cw:<id>:…`).
+ * Catches a misrouted INSERT under churn (schema-pg/database-pg). For rowscope
+ * the read-back is predicate-scoped, so this is a complement to the HTTP
+ * isolation tier, which exercises the real request path. Returns leak count.
+ */
+async function countWriteLeaks(driver: IsolationDriver, db: any, refs: Ref[]): Promise<number> {
+  let leaks = 0
+  for (const ref of refs) {
+    const conn = await clientFor(driver, db, ref)
+    const rows: Array<{ title: string }> = await selectWrites(conn, driver, ref)
+    for (const row of rows) {
+      if (!row.title.startsWith(`cw:${ref.id}:`)) leaks++
     }
   }
   return leaks
@@ -86,12 +121,13 @@ export async function runConnectionChurn(app: ApplicationService, db: any): Prom
       { group: GROUP, meta: { cap } }
     )
 
-    const churnSamples = await churnLoad(driver, db, refs, C, sizes.churn.opsPerStep)
+    const { samples: churnSamples, writeOps } = await churnLoad(driver, db, refs, C, sizes.churn.opsPerStep)
     const open = snapshotConnections(db).tenantOpen
     const backends = await pgBackendCount(db)
     const leaks = await countLeaks(driver, db, refs)
+    const writeLeaks = await countWriteLeaks(driver, db, refs)
 
-    const churn = summarize(`cap=${cap} churn SELECT (M=${M}, C=${C})`, churnSamples, { group: GROUP })
+    const churn = summarize(`cap=${cap} churn read+write (M=${M}, C=${C})`, churnSamples, { group: GROUP })
     const degradationPct =
       baseline.ns.p99 > 0 ? ((churn.ns.p99 - baseline.ns.p99) / baseline.ns.p99) * 100 : 0
     churn.meta = {
@@ -103,8 +139,11 @@ export async function runConnectionChurn(app: ApplicationService, db: any): Prom
       p99DegradationPct: Math.round(degradationPct * 10) / 10,
       tenantConnectionsOpen: open,
       pgBackends: backends,
+      writeOps,
       crossTenantLeaks: leaks,
       leakageCheck: leaks === 0 ? 'PASS' : 'FAIL',
+      crossTenantWriteLeaks: writeLeaks,
+      writeIsolationCheck: writeLeaks === 0 ? 'PASS' : 'FAIL',
     }
 
     results.push(baseline, churn)

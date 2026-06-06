@@ -43,6 +43,29 @@ try {
 }
 
 const latest = latestBySuiteDriver()
+
+// Correctness gate (always hard, independent of the throughput tolerance and of
+// BENCH_GATE_ENFORCE): any result whose meta carries a `*Check` field set to
+// 'FAIL' is a correctness regression — a cross-tenant leak, a broken fail
+// policy, an unstable soak. These must never be merged, noisy runner or not.
+const correctnessFailures: string[] = []
+for (const [key, file] of latest) {
+  for (const r of file.results) {
+    for (const [metaKey, metaVal] of Object.entries(r.meta ?? {})) {
+      if (metaKey.endsWith('Check') && metaVal === 'FAIL') {
+        const label = r.group ? `${r.group} › ${r.name}` : r.name
+        correctnessFailures.push(`✗ ${key} › ${label}: ${metaKey}=FAIL`)
+      }
+    }
+  }
+}
+if (correctnessFailures.length) {
+  // eslint-disable-next-line no-console
+  console.error('\nCORRECTNESS GATE FAILED (hard, ignores tolerance):')
+  // eslint-disable-next-line no-console
+  for (const line of correctnessFailures) console.error(line)
+}
+
 const regressions: string[] = []
 let compared = 0
 
@@ -70,6 +93,12 @@ console.log(
   `\nCompared ${compared} metric(s) against baseline "${baselineName}". ` +
     `${regressions.length} regression(s).`
 )
+
+if (correctnessFailures.length) {
+  // eslint-disable-next-line no-console
+  console.error(`\n${correctnessFailures.length} correctness failure(s) — failing the build.`)
+  process.exit(1)
+}
 
 if (regressions.length && ENFORCE) {
   // eslint-disable-next-line no-console

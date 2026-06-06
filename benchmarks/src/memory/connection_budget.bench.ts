@@ -5,6 +5,7 @@ import { activeDriver, tenantRefs, ensureBackofficeSchema } from '../harness/pro
 import {
   snapshotConnections,
   pgBackendCount,
+  pgBackendCountAllDatabases,
   memorySnapshot,
   disconnectAllTenants,
 } from '../harness/introspect.js'
@@ -38,8 +39,14 @@ export async function runConnectionBudget(app: ApplicationService, db: any): Pro
   cfg.isolation.evictionGracePeriodMs = BUDGET_GRACE_MS
   const cap = cfg.isolation.maxTenantConnections ?? 50
 
+  // database-pg provisions a real database per tenant (CREATE DATABASE), so cap
+  // the swept counts to keep the run sane — the per-database backend budget is
+  // already visible at a modest N. schema-pg/rowscope provision cheaply.
+  const counts =
+    driver.name === 'database-pg' ? sizes.budget.counts.filter((n) => n <= 200) : sizes.budget.counts
+
   const results: BenchResult[] = []
-  for (const count of sizes.budget.counts) {
+  for (const count of counts) {
     await disconnectAllTenants(db)
     const refs = tenantRefs(count)
     for (const ref of refs) {
@@ -49,7 +56,12 @@ export async function runConnectionBudget(app: ApplicationService, db: any): Pro
     }
 
     const snap = snapshotConnections(db)
-    const backends = await pgBackendCount(db)
+    // database-pg keeps each tenant in its own database, so the per-tenant
+    // backends do not show under current_database(); count across all databases.
+    const isDatabasePg = driver.name === 'database-pg'
+    const backends = isDatabasePg
+      ? await pgBackendCountAllDatabases(db)
+      : await pgBackendCount(db)
     const mem = memorySnapshot()
 
     results.push(
@@ -61,6 +73,7 @@ export async function runConnectionBudget(app: ApplicationService, db: any): Pro
           tenantConnectionsOpen: snap.tenantOpen,
           totalConnectionsOpen: snap.totalOpen,
           pgBackends: backends,
+          pgBackendsScope: isDatabasePg ? 'all-databases' : 'current-database',
           rssMB: mem.rssMB,
           heapUsedMB: mem.heapUsedMB,
           withinBudget: snap.tenantOpen <= cap * 1.5 ? 'PASS' : 'FAIL',

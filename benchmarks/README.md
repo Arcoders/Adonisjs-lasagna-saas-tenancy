@@ -6,18 +6,28 @@ performance baseline** that backs the numbers in
 [performance.md](../docs/docs/performance.md), and (2) provide a repeatable,
 CI-runnable **regression gate** over the hot paths.
 
-## What it measures (4 tiers)
+## What it measures (tiers)
 
 | Tier | Where | What | Needs |
 |---|---|---|---|
 | 1 Micro | pure imports from built core, no app | resolver chain, adapter routing, the connection LRU, the row-scope predicate | nothing (CPU only) |
-| 2 DB | a booted headless app (the fixture) | per-driver query latency, cold-connection cost, connection churn + leakage check | Postgres |
+| 2 DB | a booted headless app (the fixture) | per-driver query latency, cold-connection cost, connection churn (mixed read+write) + read/write leakage checks | Postgres |
 | 3 HTTP | the served fixture | end-to-end req/s per driver, middleware overhead, resolver-strategy cost | Postgres + Redis |
-| 4 Memory | a booted headless app (the fixture) | connection budget vs N tenants, catalog bloat curve | Postgres |
+| 4 Memory | a booted headless app (the fixture) | connection budget (steady **and** honest burst under the 30s grace) + saturation/recovery, catalog-bloat curve via `search_path` | Postgres |
+| Isolation | the served fixture | **content-correlated** cross-tenant assertion under concurrency, on the real request path (ALS) — `isolationCheck` is a hard gate | Postgres + Redis |
+| Soak | a booted headless app | long-running churn; RSS/heap/backend/fd time series + `soakStableCheck` | Postgres |
+| Resilience | the served fixture + Docker | Redis/Postgres `docker stop/start`; asserts the real fail policy (rate-limit 503 fail-closed) + recovery | Postgres + Redis + Docker |
 
 All three production isolation drivers are exercised: `schema-pg`, `database-pg`,
 `rowscope-pg`. The driver is selected per run by the `BENCH_DRIVER` env var, which the
 fixture maps straight onto `config.isolation.driver`.
+
+> **Correctness vs throughput.** Tiers that assert isolation/recovery emit a
+> `*Check: PASS|FAIL` field and exit non-zero on `FAIL`; `bench:check` also fails the
+> build on any `*Check=FAIL` regardless of the throughput tolerance. The
+> connection-budget *burst* tier reports the honest open-connection count under the
+> production 30s grace (open ≈ N, not the cap) — the steady tier shrinks the grace to
+> 50ms only to show the cap binding in isolation.
 
 ## The fixture (`fixture/`)
 
@@ -52,6 +62,13 @@ BENCH_DRIVER=schema-pg npm run bench:db
 BENCH_DRIVER=schema-pg npm run bench:http
 BENCH_DRIVER=schema-pg npm run bench:mem
 
+# Correctness + resilience + soak (self-seeding):
+BENCH_DRIVER=schema-pg npm run bench:isolation          # cross-tenant assertion under load
+BENCH_ISO_SELFTEST=1 npm run bench:isolation            # negative control: must FAIL
+BENCH_DRIVER=schema-pg BENCH_SOAK_HOURS=0.1 npm run bench:soak
+BENCH_RESILIENCE=1 BENCH_REDIS_CONTAINER=benchmarks-redis-1 \
+  BENCH_PG_CONTAINER=benchmarks-postgres-1 npm run bench:resilience
+
 # Repeat with BENCH_DRIVER=database-pg and BENCH_DRIVER=rowscope-pg.
 
 # Aggregate results/*.json into docs + injected scaling-limits numbers:
@@ -71,13 +88,19 @@ commit sha, timestamp) so a number is never separated from the machine that prod
 Micro numbers are ns/op + ops/sec with median / p99 / stddev. DB and HTTP numbers are
 latency percentiles + throughput.
 
-## The two committed baselines (`baselines/`, tracked)
+## The committed baselines (`baselines/`, tracked)
 
-- **`1.0.0.json`** — the absolute numbers used in the docs. Captured **once** on a
-  dedicated Linux cloud VM with a documented spec (see below), because Windows + Docker
-  Desktop and shared CI runners both understate real DB/HTTP throughput.
+- **`1.0.0.json`** — the intended home for the absolute numbers quoted in the docs.
+  **It is currently a scaffold (no metrics).** Capture it on the dedicated Linux
+  reference VM (spec below) and aggregate several runs for a stable figure:
+  `npm run bench:report -- --runs=5 --write-baseline=1.0.0`. Until then the generated
+  docs page prints its provisional caveat and `bench:check --baseline=1.0.0` compares
+  nothing. Do not quote a docs headline that has no committed source here.
 - **`ci-ubuntu.json`** — captured on the GitHub `ubuntu-latest` runner and used by the
-  regression gate, so the gate compares like-for-like and tolerates runner noise.
+  regression gate, so the gate compares like-for-like and tolerates runner noise. It is
+  a CI-sized run and **not** the same as a `full_size` representative capture.
+- **`raw/`** — committed raw JSONs behind a representative capture, so the report's
+  numbers are reproducible from the repo (see `baselines/raw/README.md`).
 
 ### Canonical reference machine for `1.0.0.json`
 

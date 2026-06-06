@@ -12,6 +12,13 @@ const int = (name: string, fallback: number): number => {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback
 }
 
+/** Like `int` but keeps fractions (e.g. BENCH_SOAK_HOURS=0.1 for a smoke soak). */
+const float = (name: string, fallback: number): number => {
+  const raw = process.env[name]
+  const n = raw === undefined ? NaN : Number(raw)
+  return Number.isFinite(n) && n > 0 ? n : fallback
+}
+
 export const sizes = {
   /** Tenants + rows for the DB query tier. */
   db: {
@@ -49,6 +56,44 @@ export const sizes = {
     connections: int('BENCH_HTTP_CONNECTIONS', CI_MODE ? 10 : 25),
     durationSec: int('BENCH_HTTP_DURATION', CI_MODE ? 5 : 10),
   },
+  /**
+   * Isolation tier: concurrent requests rotating x-tenant-id across the seeded
+   * tenants, each response asserted to contain only its tenant's rows.
+   */
+  iso: {
+    tenants: int('BENCH_ISO_TENANTS', CI_MODE ? 20 : 50),
+    rows: int('BENCH_ISO_ROWS', CI_MODE ? 30 : 50),
+    requests: int('BENCH_ISO_REQUESTS', CI_MODE ? 2000 : 5000),
+    concurrency: int('BENCH_ISO_CONCURRENCY', CI_MODE ? 16 : 32),
+    /** Inject a deliberately-wrong correlation to prove the check catches leaks. */
+    selftest: process.env.BENCH_ISO_SELFTEST === '1',
+  },
+  /** Connection-budget burst tier: concurrent workers over distinct tenants. */
+  burst: {
+    workers: int('BENCH_BURST_WORKERS', CI_MODE ? 16 : 32),
+    /** Max tenants to drive when probing the max_connections failure mode. */
+    saturateTo: int('BENCH_BURST_SATURATE_TO', CI_MODE ? 150 : 320),
+  },
+  /** Soak tier: long-running stability sampling. */
+  soak: {
+    hours: float('BENCH_SOAK_HOURS', CI_MODE ? 0.05 : 0.1),
+    intervalSec: int('BENCH_SOAK_INTERVAL_S', 15),
+    concurrency: int('BENCH_SOAK_CONCURRENCY', CI_MODE ? 8 : 16),
+  },
+  /** Resilience tier: container-level fault injection. */
+  resilience: {
+    enabled: process.env.BENCH_RESILIENCE === '1',
+    redisContainer: process.env.BENCH_REDIS_CONTAINER ?? 'benchmarks-redis-1',
+    pgContainer: process.env.BENCH_PG_CONTAINER ?? 'benchmarks-postgres-1',
+    recoveryTimeoutMs: int('BENCH_RESILIENCE_RECOVERY_MS', 30_000),
+  },
 }
 
 export const DRIVER = process.env.BENCH_DRIVER ?? 'schema-pg'
+
+/**
+ * NODE_ENV handed to the spawned HTTP fixture. Default `development` so the
+ * rate-limit middleware runs its real Redis pipeline (it short-circuits only in
+ * the test env); set `production` to also capture the production framework path.
+ */
+export const HTTP_NODE_ENV = process.env.BENCH_HTTP_NODE_ENV ?? 'development'

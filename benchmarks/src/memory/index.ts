@@ -11,6 +11,7 @@ import { writeResult } from '../harness/results.js'
 import { pgVersion } from '../harness/provision.js'
 import { DRIVER } from '../harness/config.js'
 import { runConnectionBudget } from './connection_budget.bench.js'
+import { runConnectionBudgetBurst } from './connection_budget_burst.bench.js'
 import { runCatalogBloat } from './catalog_bloat.bench.js'
 
 const app = await bootBenchApp()
@@ -19,13 +20,18 @@ try {
   const db = await getDb()
   const pg = await pgVersion(db)
 
-  const results: BenchResult[] = [...(await runConnectionBudget(app, db))]
+  // Steady (grace shrunk to 50ms; cap binds) for continuity with the old number,
+  // then the HONEST burst under the production 30s grace (open → N, not the cap)
+  // plus the saturation/recovery probe. Run the burst LAST so its grace reset
+  // doesn't affect the steady measurement.
+  const results: BenchResult[] = [
+    ...(await runConnectionBudget(app, db)),
+    ...(await runConnectionBudgetBurst(app, db)),
+  ]
 
-  // Catalog bloat is a property of the Postgres catalog, independent of the
-  // isolation driver. Run it once, under schema-pg, to avoid 3× redundant work.
-  if (DRIVER === 'schema-pg') {
-    results.push(...(await runCatalogBloat(app, db)))
-  }
+  // Catalog is now driver-specific (schema-pg: search_path bloat curve;
+  // database-pg: per-database catalog). The bench self-skips rowscope-pg.
+  results.push(...(await runCatalogBloat(app, db)))
 
   printMetricResults(`Tier 4 — memory + budget (driver: ${DRIVER})`, results)
   writeResult('mem', results, { pgVersion: pg })
