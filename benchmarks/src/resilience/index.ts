@@ -65,11 +65,17 @@ async function status(path: string, tenantId: string, timeoutMs = 8000): Promise
   }
 }
 
-async function pollUntil200(path: string, tenantId: string, timeoutMs: number): Promise<number> {
+/** Poll until `accept(status)` is true; returns elapsed ms, or -1 on timeout. */
+async function pollUntil(
+  path: string,
+  tenantId: string,
+  timeoutMs: number,
+  accept: (status: number) => boolean
+): Promise<number> {
   const t0 = Date.now()
   const deadline = t0 + timeoutMs
   for (;;) {
-    if ((await status(path, tenantId)) === 200) return Date.now() - t0
+    if (accept(await status(path, tenantId))) return Date.now() - t0
     if (Date.now() >= deadline) return -1
     await sleep(500)
   }
@@ -137,12 +143,21 @@ try {
 
   // --- Scenario A: Redis down (rate-limit fail-closed) ---
   const baselineRl = await status('/ratelimited/notes', tenant)
-  docker('stop', redisContainer)
+  const redisStopped = docker('stop', redisContainer)
   await sleep(1500)
   const rlDown = await status('/ratelimited/notes', tenant)
   const tenantDuringRedisDown = await status('/tenant/notes', tenant) // Redis-independent
   docker('start', redisContainer)
-  const rlRecoveredMs = await pollUntil200('/ratelimited/notes', tenant, recoveryTimeoutMs)
+  // Recovered once the limiter responds with anything other than its fail-closed
+  // 503 (a 200, or a 429 because the pre-outage burst still fills the window —
+  // both prove Redis is reachable again). Requiring strictly 200 would misread a
+  // lingering 429 as "never recovered".
+  const rlRecoveredMs = await pollUntil(
+    '/ratelimited/notes',
+    tenant,
+    recoveryTimeoutMs,
+    (s) => s !== 503 && s !== 0
+  )
 
   // The documented default is fail-closed (503). Classify what actually happened.
   const policyObserved =
@@ -160,6 +175,7 @@ try {
       'redis down → rate-limit fail-closed',
       {
         dependency: 'redis',
+        containerStopped: redisStopped,
         baselineStatus: baselineRl,
         observedStatus: rlDown,
         expectedStatus: 503,
@@ -178,22 +194,30 @@ try {
   )
 
   // --- Scenario B: Postgres down (documented behavior + recovery) ---
-  docker('stop', pgContainer)
+  const pgStopped = docker('stop', pgContainer)
   await sleep(1500)
   const pgDown = await status('/tenant/notes', tenant)
   docker('start', pgContainer)
-  const pgRecoveredMs = await pollUntil200('/tenant/notes', tenant, recoveryTimeoutMs)
+  const pgRecoveredMs = await pollUntil('/tenant/notes', tenant, recoveryTimeoutMs, (s) => s === 200)
 
+  // The scenario only proves something if PG actually went down: the container
+  // stopped AND the route returned a non-200 while it was down. A 200 throughout
+  // means the stop never took effect (wrong container, denied, or restarted too
+  // fast), so crediting "recovery" would be a vacuous PASS — fail loudly instead.
+  const pgObservedFailure = pgDown !== 200
+  const pgPass = pgStopped && pgObservedFailure && pgRecoveredMs >= 0
   results.push(
     zeroMetric(
       'postgres down → tenant route + recovery',
       {
         dependency: 'postgres',
+        containerStopped: pgStopped,
         observedStatus: pgDown, // documented: currently 500/0 (no clean 503 yet)
+        observedFailureWhileDown: pgObservedFailure,
         note: 'PG outage is a raw Lucid error (500), not a 503 policy; see issue 04',
         recoveredWithinMs: pgRecoveredMs,
-        // The hard assertion is recovery, not the (known) non-503 status.
-        failPolicyCheck: pgRecoveredMs >= 0 ? 'PASS' : 'FAIL',
+        // Hard assertion: PG was really down (stopped + non-200) and then recovered.
+        failPolicyCheck: pgPass ? 'PASS' : 'FAIL',
       },
       'resilience'
     )

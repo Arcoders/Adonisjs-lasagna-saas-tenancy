@@ -269,7 +269,7 @@ function injectScalingLimits(latest: Map<string, ResultFile>): void {
     '',
     ...(budgetLine?.length ? budgetLine : ['- _no memory results yet_']),
     '',
-    `_Generated from the ${[...latest.values()][0]?.env.driver ? '' : ''}latest results; see [Performance](/docs/performance)._`,
+    `_Generated from the latest results; see [Performance](/docs/performance)._`,
     INJECT_END,
   ].join('\n')
 

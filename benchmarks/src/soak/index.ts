@@ -120,11 +120,18 @@ try {
   const rssSlopeMBPerHour = Math.round(rssSlopePerSec * 3600 * 10) / 10
   const backendsStart = stable[0]?.pgBackends ?? 0
   const backendsEnd = series[series.length - 1]?.pgBackends ?? 0
-  // Thresholds: >25 MB/h sustained RSS growth (post-warmup), or backends more
-  // than doubling, is a leak signal worth a hard fail. Tunable off the baseline.
+  // Backends legitimately ramp to ~tenants during warmup and then plateau, so a
+  // post-warmup baseline is already near peak; comparing end-vs-start would miss a
+  // slow leak. Measure the SLOPE of backends over the stable region instead (same
+  // approach as RSS): after warmup it should be flat, and sustained growth is a
+  // connection leak.
+  const backendsSlopePerHour = Math.round(slope(xs, stable.map((s) => s.pgBackends)) * 3600 * 10) / 10
+  // Thresholds: >25 MB/h sustained RSS growth, or >10 backends/h sustained growth
+  // after warmup, is a leak signal worth a hard fail. Tunable off the baseline.
   const RSS_SLOPE_LIMIT = 25
+  const BACKENDS_SLOPE_LIMIT = 10
   const leakySlope = stable.length >= 3 && rssSlopeMBPerHour > RSS_SLOPE_LIMIT
-  const runawayBackends = backendsEnd > Math.max(10, backendsStart * 2)
+  const runawayBackends = stable.length >= 3 && backendsSlopePerHour > BACKENDS_SLOPE_LIMIT
   const soakStableCheck = leakySlope || runawayBackends ? 'FAIL' : 'PASS'
 
   const result: BenchResult = zeroMetric(
@@ -142,6 +149,7 @@ try {
       rssSlopeMBPerHour,
       backendsStart,
       backendsEnd,
+      backendsSlopePerHour,
       fdsEnd: series[series.length - 1]?.fds ?? -1,
       soakStableCheck,
       series,
@@ -152,7 +160,7 @@ try {
   // eslint-disable-next-line no-console
   console.log(
     `Soak done: ${ops} ops, RSS ${result.meta?.rssStartMB}→${result.meta?.rssEndMB}MB ` +
-      `(${rssSlopeMBPerHour} MB/h), backends ${backendsStart}→${backendsEnd}, ${soakStableCheck}`
+      `(${rssSlopeMBPerHour} MB/h), backends ${backendsStart}→${backendsEnd} (${backendsSlopePerHour}/h), ${soakStableCheck}`
   )
   writeResult('soak', [result], { pgVersion: pg })
   if (soakStableCheck === 'FAIL') exitCode = 1
