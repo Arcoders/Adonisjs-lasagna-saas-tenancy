@@ -84,6 +84,16 @@ router
     })
   )
 
+// Universal route: serves both tenant and central contexts. Used by the
+// universal_connection_cap integration spec to prove that when the hard
+// connection cap (isolation.enforceConnectionCap) refuses a resolved tenant's
+// connection, the universal middleware surfaces a 503 rather than silently
+// degrading to central mode. The handler is trivial: the middleware does the
+// work, so a refused connection never reaches it.
+router
+  .get('/universal/ping', async ({ response }) => response.ok({ ok: true }))
+  .use(middleware.universal())
+
 // Impersonation integration: echoes ctx.impersonation so the spec can
 // assert the attached context end-to-end.
 router

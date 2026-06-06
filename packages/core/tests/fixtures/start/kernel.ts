@@ -40,4 +40,8 @@ export const middleware = router.named({
     import('@adonisjs-lasagna/saas-tenancy/middleware').then((m) => ({
       default: m.ImpersonationMiddleware,
     })),
+  universal: () =>
+    import('@adonisjs-lasagna/saas-tenancy/middleware').then((m) => ({
+      default: m.UniversalMiddleware,
+    })),
 })
