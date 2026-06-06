@@ -5,13 +5,16 @@ import ConnectionLru from '../../../src/services/isolation/connection_lru.js'
  * Deterministic clock + release recorder so we can assert the eviction policy
  * (the H1 fix) without a real database or wall-clock timing.
  */
-function makeLru(opts: { cap?: number; graceMs?: number; failRelease?: boolean } = {}) {
+function makeLru(
+  opts: { cap?: number; graceMs?: number; failRelease?: boolean; hardCap?: boolean } = {}
+) {
   const released: string[] = []
   let clock = 1_000_000
   const lru = new ConnectionLru({
     label: 'Test',
     cap: () => opts.cap ?? 2,
     graceMs: () => opts.graceMs ?? 1000,
+    hardCap: () => opts.hardCap ?? false,
     release: async (name) => {
       if (opts.failRelease) throw new Error('release failed')
       released.push(name)
@@ -97,5 +100,36 @@ test.group('ConnectionLru — in-use-aware eviction', () => {
     // The victim is removed from the LRU even though the underlying release
     // rejected (the rejection is logged, not propagated).
     assert.isFalse(lru.has('a'))
+  })
+})
+
+test.group('ConnectionLru — hard cap admission (enforceConnectionCap)', () => {
+  test('never at the hard limit when hardCap is off, even over cap', ({ assert }) => {
+    const { lru } = makeLru({ cap: 2, hardCap: false })
+    lru.touch('a')
+    lru.touch('b')
+    lru.touch('c') // over cap, but hardCap off → legacy exceed-the-cap behavior
+    assert.isFalse(lru.atHardLimit())
+  })
+
+  test('not at the hard limit while under the cap', ({ assert }) => {
+    const { lru } = makeLru({ cap: 2, hardCap: true })
+    lru.touch('a')
+    assert.isFalse(lru.atHardLimit())
+  })
+
+  test('at the hard limit when at cap and every connection is within grace', ({ assert }) => {
+    const { lru } = makeLru({ cap: 2, graceMs: 1000, hardCap: true })
+    lru.touch('a')
+    lru.touch('b') // at cap, both just touched → nothing evictable
+    assert.isTrue(lru.atHardLimit())
+  })
+
+  test('not at the hard limit when an evictable (idle) victim exists', ({ assert }) => {
+    const { lru, advance } = makeLru({ cap: 2, graceMs: 1000, hardCap: true })
+    lru.touch('a')
+    advance(5000) // 'a' aged past the grace window → evictable
+    lru.touch('b')
+    assert.isFalse(lru.atHardLimit(), 'a stale victim can be evicted to make room')
   })
 })

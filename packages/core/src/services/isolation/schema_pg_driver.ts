@@ -8,6 +8,7 @@ import type {
   MigrateResult,
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
+import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
 import ConnectionLru, {
   DEFAULT_EVICTION_GRACE_MS,
   DEFAULT_MAX_TENANT_CONNECTIONS,
@@ -42,6 +43,7 @@ export default class SchemaPgDriver implements IsolationDriver {
     label: 'SchemaPgDriver',
     cap: () => getConfig().isolation?.maxTenantConnections ?? DEFAULT_MAX_TENANT_CONNECTIONS,
     graceMs: () => getConfig().isolation?.evictionGracePeriodMs ?? DEFAULT_EVICTION_GRACE_MS,
+    hardCap: () => getConfig().isolation?.enforceConnectionCap ?? false,
     release: async (name) => {
       const { db } = await lucid()
       if (db.manager.has(name)) await db.manager.release(name)
@@ -94,6 +96,12 @@ export default class SchemaPgDriver implements IsolationDriver {
     if (db.manager.has(name)) {
       this.#lru.touch(name)
       return db.connection(name)
+    }
+
+    // Hard-cap admission control (opt-in): refuse a new connection rather than
+    // exceed the cap when nothing is evictable. No-op unless enforceConnectionCap.
+    if (this.#lru.atHardLimit()) {
+      throw new TenantConnectionLimitException()
     }
 
     const template = db.manager.get(this.#templateConnectionName)?.config

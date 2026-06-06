@@ -274,6 +274,23 @@ export interface IsolationConfig {
    * an in-flight request is never severed. Default 30000.
    */
   evictionGracePeriodMs?: number
+  /**
+   * For `schema-pg`/`database-pg`: turn `maxTenantConnections` into a HARD cap.
+   *
+   * By default (`false`) the in-use-aware LRU favours availability: when the cap
+   * is reached and every open connection is still inside `evictionGracePeriodMs`
+   * (so none can be evicted without severing an in-flight request), it lets the
+   * pool exceed the cap and warns. Under a burst of more than `maxTenantConnections`
+   * concurrently-active tenants, open connections therefore trend toward the
+   * number of active tenants, not the cap.
+   *
+   * Set this to `true` to favour a bounded server-connection budget instead:
+   * `connect()` then refuses a NEW tenant connection in that situation and
+   * throws `TenantConnectionLimitException` (HTTP 503), rather than exceeding the
+   * cap. Recommended when you front PostgreSQL with PgBouncer or must keep server
+   * connections strictly under `max_connections`. Default false.
+   */
+  enforceConnectionCap?: boolean
 }
 
 export interface RoutingConfig {

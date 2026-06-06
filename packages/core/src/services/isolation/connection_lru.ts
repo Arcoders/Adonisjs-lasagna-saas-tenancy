@@ -18,6 +18,12 @@ export interface ConnectionLruOptions {
   cap: () => number
   /** In-use grace window in ms. Read lazily. */
   graceMs: () => number
+  /**
+   * When this returns true, the cap is a HARD cap: callers should refuse a new
+   * connection (see `atHardLimit`) instead of exceeding it. Read lazily.
+   * Defaults to false (the legacy "exceed the cap rather than sever" behavior).
+   */
+  hardCap?: () => boolean
   /** Close + unregister a connection by name. */
   release: (name: string) => Promise<void>
   /** Clock source. Defaults to `Date.now`; injectable for deterministic tests. */
@@ -62,6 +68,25 @@ export default class ConnectionLru {
   touch(name: string): void {
     this.#map.delete(name)
     this.#map.set(name, this.#now())
+  }
+
+  /**
+   * True only when admitting a NEW connection should be refused: the hard cap is
+   * enabled, the registry is at/over `cap`, and every open connection is still
+   * inside the grace window (so `evictIfNeeded` could not free a slot without
+   * severing an in-flight request). When a stale, evictable victim exists, or we
+   * are still under cap, this returns false and the caller admits as usual.
+   * Callers (the per-tenant drivers) translate `true` into a 503.
+   */
+  atHardLimit(): boolean {
+    if (!this.opts.hardCap?.()) return false
+    if (this.#map.size < this.opts.cap()) return false
+    const graceMs = this.opts.graceMs()
+    const now = this.#now()
+    for (const [, touchedAt] of this.#map) {
+      if (now - touchedAt > graceMs) return false // an evictable victim exists
+    }
+    return true
   }
 
   /**
