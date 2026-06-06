@@ -52,7 +52,10 @@
     "bench:micro": "npm run bench:micro --workspace @adonisjs-lasagna/saas-tenancy-benchmarks",
     "bench:db": "npm run bench:db --workspace @adonisjs-lasagna/saas-tenancy-benchmarks",
     "bench:http": "npm run bench:http --workspace @adonisjs-lasagna/saas-tenancy-benchmarks",
+    "bench:isolation": "npm run bench:isolation --workspace @adonisjs-lasagna/saas-tenancy-benchmarks",
     "bench:mem": "npm run bench:mem --workspace @adonisjs-lasagna/saas-tenancy-benchmarks",
+    "bench:soak": "npm run bench:soak --workspace @adonisjs-lasagna/saas-tenancy-benchmarks",
+    "bench:resilience": "npm run bench:resilience --workspace @adonisjs-lasagna/saas-tenancy-benchmarks",
     "bench:seed": "npm run bench:seed --workspace @adonisjs-lasagna/saas-tenancy-benchmarks --",
     "bench:report": "npm run bench:report --workspace @adonisjs-lasagna/saas-tenancy-benchmarks --",
     "bench:check": "npm run bench:check --workspace @adonisjs-lasagna/saas-tenancy-benchmarks --"
