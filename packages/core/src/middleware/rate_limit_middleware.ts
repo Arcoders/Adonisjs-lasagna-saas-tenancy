@@ -79,7 +79,21 @@ export default class RateLimitMiddleware {
       pipeline.expire(key, windowSeconds)
 
       const results = await pipeline.exec()
-      count = (results?.[2]?.[1] as number) ?? 0
+      // ioredis resolves `exec()` with per-command `[error, value]` tuples and
+      // does NOT reject when the backend is unreachable. So a Redis outage lands
+      // here, not in `catch`, with each tuple carrying an error and a null value.
+      // Detect a missing result set or any per-command error (or a non-numeric
+      // zcard) and treat it as a backend failure, so the configured fail policy
+      // actually engages. Without this, `count` silently defaulted to 0 and the
+      // limiter failed OPEN on a Redis outage — the opposite of the default.
+      if (!results) throw new Error('rate-limit pipeline returned no results')
+      const commandError = results.find((entry: [Error | null, unknown]) => entry?.[0])?.[0]
+      if (commandError) throw commandError
+      const zcard = results[2]?.[1]
+      if (typeof zcard !== 'number') {
+        throw new Error('rate-limit pipeline returned a non-numeric zcard result')
+      }
+      count = zcard
     } catch (error) {
       await warn('redis_pipeline_failed', error, { tenantId, key })
       // Unified observability: the same DependencyDegraded signal QuotaService

@@ -69,9 +69,42 @@ class CountingPipeline {
   }
 }
 
+// ioredis does NOT reject exec() when the backend is down — it RESOLVES with
+// per-command [error, value] tuples. This is the real Redis-outage shape that
+// the older middleware mistook for success (reading count=0 → fail-open).
+class ResolvedWithErrorsPipeline {
+  zremrangebyscore() {
+    return this
+  }
+  zadd() {
+    return this
+  }
+  zcard() {
+    return this
+  }
+  expire() {
+    return this
+  }
+  async exec() {
+    const err = new Error('ECONNREFUSED — Redis is down')
+    return [
+      [err, null],
+      [err, null],
+      [err, null],
+      [err, null],
+    ]
+  }
+}
+
 class FailingRedisRateLimit extends RateLimitMiddleware {
   protected async getRedis(): Promise<any> {
     return { pipeline: () => new FailingPipeline() }
+  }
+}
+
+class ResolvedErrorsRedisRateLimit extends RateLimitMiddleware {
+  protected async getRedis(): Promise<any> {
+    return { pipeline: () => new ResolvedWithErrorsPipeline() }
   }
 }
 
@@ -129,6 +162,42 @@ test.group('RateLimitMiddleware', (group) => {
       { limit: 10, windowSeconds: 60, failOpen: true, bypassInTestEnv: true }
     )
     assert.isTrue(nextCalled, 'failOpen=true must let traffic through on backend errors')
+  })
+
+  test('fails CLOSED when exec() RESOLVES with per-command errors (Redis outage)', async ({
+    assert,
+  }) => {
+    // The real ioredis outage shape: exec() resolves with [error, null] tuples
+    // instead of rejecting. Must NOT be mistaken for success (count=0 → open).
+    const m = new ResolvedErrorsRedisRateLimit()
+    let nextCalled = false
+
+    await assert.rejects(
+      () =>
+        m.handle(
+          { request: makeRequest(), response: makeResponse() } as any,
+          async () => {
+            nextCalled = true
+          },
+          { limit: 10, windowSeconds: 60, bypassInTestEnv: true }
+        ),
+      RateLimitUnavailableException
+    )
+    assert.isFalse(nextCalled, 'a resolved-with-errors pipeline must still fail closed')
+  })
+
+  test('fails OPEN on resolved-with-errors exec() only when failOpen: true', async ({ assert }) => {
+    const m = new ResolvedErrorsRedisRateLimit()
+    let nextCalled = false
+
+    await m.handle(
+      { request: makeRequest(), response: makeResponse() } as any,
+      async () => {
+        nextCalled = true
+      },
+      { limit: 10, windowSeconds: 60, failOpen: true, bypassInTestEnv: true }
+    )
+    assert.isTrue(nextCalled, 'failOpen=true must let traffic through on resolved-with-errors too')
   })
 
   test('throws TooManyRequestsException when count exceeds the limit', async ({ assert }) => {
