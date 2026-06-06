@@ -2,6 +2,7 @@ import { TENANT_REPOSITORY } from '../types/contracts.js'
 import type { TenantModelContract, TenantRepositoryContract } from '../types/contracts.js'
 import { resolveTenant, __setMemoizedTenant } from '../extensions/request.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
+import TenantConnectionLimitException from '../exceptions/tenant_connection_limit_exception.js'
 import { isUuidV4 } from '../services/isolation/identifier.js'
 import TenantLogContext from '../services/tenant_log_context.js'
 import app from '@adonisjs/core/services/app'
@@ -72,6 +73,11 @@ export default class UniversalMiddleware {
       const driver = await getActiveDriver()
       await driver.connect(tenant)
     } catch (err) {
+      // A hard-cap rejection (isolation.enforceConnectionCap) is a deliberate
+      // 503 fail-closed signal for a tenant we DID resolve, not a reason to
+      // silently serve the request in central mode. Surface it so the caller
+      // gets the 503 and can retry, consistent with `request.tenant()`.
+      if (err instanceof TenantConnectionLimitException) throw err
       await warn('driver_connect_failed', err)
       return null
     }
