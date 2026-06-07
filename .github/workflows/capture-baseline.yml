@@ -1,6 +1,14 @@
 name: Capture 1.0.0 baseline
 
-# Manual only. Captures the canonical, quotable 1.0.0 performance baseline on a
+# Two ways to run. workflow_dispatch (the Actions UI button) only appears once
+# this file is on the default branch. To capture from a feature branch WITHOUT
+# merging to master, push a tag matching capture-baseline* instead:
+#   git tag capture-baseline-3      # trailing number = runs to aggregate; omit for 5
+#   git push origin capture-baseline-3
+# A tag push runs the workflow as it exists at that commit (on the feature
+# branch), and the PR base is auto-detected as the branch holding the tag.
+#
+# Either way it captures the canonical, quotable 1.0.0 performance baseline on a
 # Linux runner (so the generated docs drop their "provisional dev-box" caveat),
 # then opens a PR with the committed baseline + raw snapshot + regenerated docs.
 #
@@ -16,6 +24,10 @@ on:
         description: 'Full-size throughput sweeps to aggregate (median of N). 5 is slow; lower it for a quick capture.'
         type: number
         default: 5
+  # No-merge path: push a tag like `capture-baseline` or `capture-baseline-3`.
+  push:
+    tags:
+      - 'capture-baseline*'
 
 # Needed so the job can push a branch and open the PR.
 permissions:
@@ -79,7 +91,42 @@ jobs:
       BENCH_HTTP_DURATION: '10'
 
     steps:
+      # fetch-depth: 0 so `git branch --contains` can resolve the PR base for a
+      # tag push (needs the remote-tracking branches).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve run count and PR base branch
+        run: |
+          # runs: dispatch input, else the trailing number of the tag
+          # (capture-baseline-3 -> 3), else 5.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RUNS="${{ github.event.inputs.runs }}"
+          else
+            RUNS="$(printf '%s' "${{ github.ref_name }}" | sed -n 's/^capture-baseline-\?\([0-9]\+\)$/\1/p')"
+          fi
+          RUNS="${RUNS:-5}"
+          echo "RUNS=$RUNS" >> "$GITHUB_ENV"
+
+          # PR base: the branch we ran on (dispatch), else the branch that holds
+          # the tagged commit (tag push). Exclude the bot's own capture/* branches
+          # (they also contain the commit); fall back to the repo default branch.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BASE_BRANCH="${{ github.ref_name }}"
+          else
+            BASE_BRANCH="$(git branch -r --contains "${GITHUB_SHA}" 2>/dev/null \
+              | sed 's#^[[:space:]]*origin/##' \
+              | grep -v '^HEAD' \
+              | grep -v '^capture/baseline' \
+              | head -n1)"
+            if [ -z "$BASE_BRANCH" ]; then
+              BASE_BRANCH="${{ github.event.repository.default_branch }}"
+              echo "::warning::Could not detect the branch for ${GITHUB_SHA}; PR will target '$BASE_BRANCH'."
+            fi
+          fi
+          echo "BASE_BRANCH=$BASE_BRANCH" >> "$GITHUB_ENV"
+          echo "runs=$RUNS  base=$BASE_BRANCH"
 
       - name: Start Postgres (bench tuning, max_connections=300)
         run: |
@@ -115,8 +162,6 @@ jobs:
 
       - name: Run full-size sweep (throughput x N, memory x1)
         run: |
-          RUNS="${{ github.event.inputs.runs }}"
-          RUNS="${RUNS:-5}"
           echo "Aggregating over $RUNS throughput run(s)"
           for run in $(seq 1 "$RUNS"); do
             echo "::group::run $run/$RUNS — micro"
@@ -138,8 +183,6 @@ jobs:
 
       - name: Aggregate and write 1.0.0 baseline + regenerate docs
         run: |
-          RUNS="${{ github.event.inputs.runs }}"
-          RUNS="${RUNS:-5}"
           npm run bench:report -- --runs="$RUNS" --write-baseline=1.0.0
 
       - name: Snapshot raw result JSONs
@@ -181,7 +224,7 @@ jobs:
           git checkout -b "$branch"
           git add benchmarks/baselines/1.0.0.json "$RAW_DIR" docs/docs/performance.md docs/docs/scaling-limits.md
           git commit -m "perf(benchmarks): capture canonical 1.0.0 baseline on ubuntu" \
-            -m "Full-size sweep aggregated over ${{ github.event.inputs.runs }} throughput runs on ubuntu-latest (memory tier once). Replaces the placeholder baselines/1.0.0.json, commits the raw snapshot, and regenerates docs/docs/performance.md (the provisional dev-box caveat drops on Linux)."
+            -m "Full-size sweep aggregated over $RUNS throughput runs on ubuntu-latest (memory tier once). Replaces the placeholder baselines/1.0.0.json, commits the raw snapshot, and regenerates docs/docs/performance.md (the provisional dev-box caveat drops on Linux)."
           git push -u origin "$branch"
 
           {
@@ -193,14 +236,14 @@ jobs:
             echo '```'
             echo
             echo "Contents:"
-            echo "- \`benchmarks/baselines/1.0.0.json\` — median of ${{ github.event.inputs.runs }} throughput runs (mem once), with IQR + run count per metric"
+            echo "- \`benchmarks/baselines/1.0.0.json\` — median of $RUNS throughput runs (mem once), with IQR + run count per metric"
             echo "- raw snapshot under \`$RAW_DIR\`"
             echo "- regenerated \`docs/docs/performance.md\` and \`scaling-limits.md\` (provisional caveat dropped)"
             echo
-            echo "Before merging: paste the captured env into the **Canonical reference machine** block in \`benchmarks/README.md\`, and link \`$RAW_DIR\` from \`benchmarks/results/PERFORMANCE_ASSESSMENT.md\`."
+            echo "Targets \`$BASE_BRANCH\` (auto-detected). Before merging: paste the captured env into the **Canonical reference machine** block in \`benchmarks/README.md\`, and link \`$RAW_DIR\` from \`benchmarks/results/PERFORMANCE_ASSESSMENT.md\`."
           } > pr-body.md
 
-          gh pr create --base "${{ github.ref_name }}" --head "$branch" \
+          gh pr create --base "$BASE_BRANCH" --head "$branch" \
             --title "perf(benchmarks): canonical 1.0.0 baseline (ubuntu)" \
             --body-file pr-body.md \
             || echo "::warning::PR creation failed (enable 'Allow GitHub Actions to create and approve pull requests' in repo settings, or open a PR from branch '$branch'). The baseline is also in the 'baseline-1.0.0' artifact."

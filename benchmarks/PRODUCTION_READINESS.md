@@ -93,11 +93,13 @@ outages, negligible tenancy CPU overhead, and a regression gate that blocks corr
 **The one condition remaining before a full production sign-off:**
 
 2. **No quotable 1.0.0 absolute yet.** Capture it via the **Capture 1.0.0 baseline** workflow
-   ([.github/workflows/capture-baseline.yml](../.github/workflows/capture-baseline.yml), manual
-   dispatch): it runs the full sweep on a Linux runner, aggregates several runs
+   ([.github/workflows/capture-baseline.yml](../.github/workflows/capture-baseline.yml)): it runs
+   the full sweep on a Linux runner, aggregates several runs
    (`npm run bench:report -- --runs=5 --write-baseline=1.0.0`), commits the raw snapshot under
-   [baselines/raw/](baselines/raw/README.md), and opens a PR. A dedicated reference VM works too;
-   run the same command there. This is the one remaining condition before a 1.0 sign-off.
+   [baselines/raw/](baselines/raw/README.md), and opens a PR. Start it from the default branch
+   (*Run workflow*), or from a feature branch without merging by pushing a tag matching
+   `capture-baseline*` (e.g. `capture-baseline-3`). A dedicated reference VM works too; run the
+   same command there. This is the one remaining condition before a 1.0 sign-off.
 
 ## Guidance by scale
 

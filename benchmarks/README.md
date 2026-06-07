@@ -92,12 +92,20 @@ latency percentiles + throughput.
 
 - **`1.0.0.json`** — the intended home for the absolute numbers quoted in the docs.
   **It is currently a scaffold (no metrics).** The turnkey way to capture it is the
-  **Capture 1.0.0 baseline** workflow (`.github/workflows/capture-baseline.yml`, manual
-  dispatch): it runs the full-size sweep on a Linux runner, aggregates the throughput
-  tiers (`bench:report -- --runs=5 --write-baseline=1.0.0`), and opens a PR with the
-  baseline, the raw snapshot, and the regenerated docs (the provisional caveat drops on
-  Linux). To capture on a dedicated VM by hand instead, run the sweep there and use the
-  same `bench:report` command. Until a capture lands, the generated docs page prints its
+  **Capture 1.0.0 baseline** workflow (`.github/workflows/capture-baseline.yml`): it runs
+  the full-size sweep on a Linux runner, aggregates the throughput tiers
+  (`bench:report -- --runs=5 --write-baseline=1.0.0`), and opens a PR with the baseline,
+  the raw snapshot, and the regenerated docs (the provisional caveat drops on Linux). Two
+  ways to start it:
+  - **From the default branch:** Actions → *Capture 1.0.0 baseline* → *Run workflow* (the
+    `workflow_dispatch` button only appears once the file is on the default branch).
+  - **From a feature branch, without merging:** push a tag matching `capture-baseline*` —
+    `git tag capture-baseline-3 && git push origin capture-baseline-3` (the trailing
+    number is the run count to aggregate; omit it for 5). The tag push runs the workflow
+    at that commit and opens the PR back into the branch holding the tag.
+
+  To capture on a dedicated VM by hand instead, run the sweep there and use the same
+  `bench:report` command. Until a capture lands, the generated docs page prints its
   provisional caveat and `bench:check --baseline=1.0.0` compares nothing. Do not quote a
   docs headline that has no committed source here.
 - **`ci-ubuntu.json`** — captured on the GitHub `ubuntu-latest` runner and used by the

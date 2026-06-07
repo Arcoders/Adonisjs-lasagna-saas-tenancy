@@ -22,10 +22,12 @@ so a number is never separated from the machine that produced it.
 ## How a capture is made
 
 The turnkey path is the **Capture 1.0.0 baseline** workflow
-(`.github/workflows/capture-baseline.yml`, manual dispatch): it runs the
-full-size sweep `runs` times on a Linux runner, aggregates the throughput tiers,
-writes `1.0.0.json`, snapshots the raw JSONs into a new subfolder here, and opens
-a PR. To do it by hand on a dedicated VM instead:
+(`.github/workflows/capture-baseline.yml`): it runs the full-size sweep `runs`
+times on a Linux runner, aggregates the throughput tiers, writes `1.0.0.json`,
+snapshots the raw JSONs into a new subfolder here, and opens a PR. Start it from
+the default branch via *Run workflow*, or from a feature branch without merging by
+pushing a tag matching `capture-baseline*` (e.g. `capture-baseline-3`, where the
+trailing number is the run count). To do it by hand on a dedicated VM instead:
 
 1. Run the full sweep on the Linux reference VM (`runs` times for a quotable
    headline).
