@@ -88,6 +88,7 @@ export default defineConfig({
           { text: 'Exceptions', link: '/docs/exceptions' },
           { text: 'Troubleshooting', link: '/docs/gotchas' },
           { text: 'Deployment', link: '/docs/deployment' },
+          { text: 'Production checklist', link: '/docs/production-checklist' },
           { text: 'Scaling limits', link: '/docs/scaling-limits' },
           { text: 'Performance', link: '/docs/performance' },
           { text: 'Cookbook', link: '/docs/cookbook/' },
@@ -185,6 +186,7 @@ export default defineConfig({
           text: 'Operate',
           items: [
             { text: 'Deployment', link: '/docs/deployment' },
+            { text: 'Production checklist', link: '/docs/production-checklist' },
             { text: 'Scaling limits', link: '/docs/scaling-limits' },
             { text: 'Performance', link: '/docs/performance' },
             { text: 'Security', link: '/security' },

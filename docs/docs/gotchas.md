@@ -82,6 +82,58 @@ structurally-faithful copy in `stripe_processed_events.payload`, and
 the correct plan. Rows written before this behaviour (legacy flat payloads)
 can't be reconstructed, so those surface the original Stripe error.
 
+## A resolved tenant whose database is down returns 503, never central
+
+Once a tenant is resolved, an unreachable tenant registry or tenant connection
+maps to a typed `DependencyUnavailableException` (HTTP 503) in `request.tenant()`,
+the tenant guard, and the universal middleware. The request is never silently
+served against the central connection with the wrong context. A permanent
+misconfiguration (for example a missing schema template) surfaces as a 500
+instead, so a retryable 503 always means "dependency down, try again", not "wrong
+config". Only a request that resolves to *no* tenant (a legitimate central route)
+still serves central.
+
+## The SSRF guard validates the URL, not the resolved connection IP
+
+`validateExternalHttpsUrl` (used for SSO issuer / discovery URLs and webhook
+targets) rejects non-HTTPS URLs and hostnames that resolve into loopback,
+private, link-local, or cloud-metadata ranges, including IPv4-mapped IPv6. It
+resolves DNS at validation time but does not pin that IP for the actual request,
+so a hostname that re-resolves to a private address between the check and the
+fetch (DNS rebinding, a TOCTOU window) is a residual risk. Close it at the
+network: route app egress through a proxy or security group that denies private
+ranges and the metadata endpoint. The [production checklist](./production-checklist)
+calls this out.
+
+## A top-level `orWhere` can widen a row-scoped query
+
+Under `rowscope-pg`, the tenant predicate is ANDed onto each query, but a
+**top-level** `.orWhere(...)` is ORed against the whole `WHERE` clause, including
+that predicate, so it can return rows outside the tenant. Keep alternative
+conditions inside a nested group: `query.where((q) => q.where(a).orWhere(b))`.
+The SQL-level Row-Level Security backstop (`node ace configure --with=rls`, run
+under a non-superuser role) enforces isolation in the database even when app code
+slips, which is why it is the recommended hardening for `rowscope-pg`.
+
+## The connection cap trades availability for a firm ceiling
+
+With `enforceConnectionCap: false` (the default), a burst of more than
+`maxTenantConnections` concurrently-active tenants makes the pool **exceed** the
+cap rather than sever an in-flight request, so open connections trend toward the
+number of active tenants. With it `true`, the cap is firm and connection N+1 is
+refused with a 503 (`TenantConnectionLimitException`). Size `max_connections`
+accordingly and front Postgres with PgBouncer at scale. See
+[Scaling limits](./scaling-limits#hard-cap-vs-availability-enforceconnectioncap).
+
+## A full disk or saturated Postgres fails provisioning and writes
+
+The connection cap bounds open connections, not disk, CPU, or IOPS. Provisioning
+a tenant runs DDL (`CREATE SCHEMA` plus migrations); on a full disk or an
+out-of-resources Postgres it fails and the tenant never reaches `active`, and
+tenant writes fail the same way. Monitor disk and Postgres resource saturation
+separately from the connection budget, and re-run provisioning
+(`tenant:doctor --fix` or re-dispatch the install job) after remediation.
+
 ## Integration tests run against `build/`, not `src/`
 
 The fixture app imports `@adonisjs-lasagna/saas-tenancy/...`, which the `exports`
