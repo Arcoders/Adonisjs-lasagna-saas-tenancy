@@ -117,16 +117,23 @@ latency percentiles + throughput.
 ### Canonical reference machine for `1.0.0.json`
 
 Record the exact spec here whenever the baseline is (re)captured, so the numbers are
-reproducible:
+reproducible. The committed `1.0.0.json` was captured on:
 
 ```
-provider/instance : <e.g. AWS c7i.xlarge>
-vCPU / RAM        : <e.g. 4 vCPU / 8 GiB>
-OS / kernel       : <e.g. Ubuntu 24.04, 6.8.x>
-Postgres          : 16.x (local, fsync=off bench config)
-Node              : 24.x
-captured-at       : <date>  commit: <sha>
+provider/instance : GitHub Actions ubuntu-latest (hosted runner)
+CPU               : AMD EPYC 7763 64-Core (4 vCPU exposed)
+vCPU / RAM        : 4 vCPU / 16.8 GiB
+OS / arch         : Ubuntu (ubuntu-latest), linux x64
+Postgres          : PostgreSQL 16.14 (Alpine, fsync=off bench config)
+Node              : v24.16.0
+aggregated        : median of 2 full-size sweeps (mem tier once)
+captured-at       : 2026-06-07  commit: dc4e35f
 ```
+
+Recapture with the **Capture 1.0.0 baseline** workflow (push a `capture-baseline*`
+tag, or *Run workflow* from the default branch); it runs on the same hosted-runner
+class, so the numbers stay comparable. A dedicated reference VM works too; record its
+spec here when you switch.
 
 Do **not** capture `1.0.0.json` on Windows + Docker Desktop; the VM layer there understates
 throughput and the number would mislead.
