@@ -102,6 +102,18 @@ router
   })
   .use(middleware.impersonation())
 
+// Impersonation tenant-binding integration: the tenant guard runs FIRST (it
+// seeds tenancy.currentId() via TenantLogContext), then impersonation. Used by
+// impersonation_tenant_binding.spec to prove a token issued for tenant A is
+// rejected when presented on a request resolved to tenant B.
+router
+  .get('/guarded-impersonation-check', async (ctx: any) => {
+    const tenant = await ctx.request.tenant()
+    return ctx.response.ok({ tenantId: tenant.id, impersonation: ctx.impersonation ?? null })
+  })
+  .use(middleware.tenantGuard())
+  .use(middleware.impersonation())
+
 // Used by custom_domain_middleware integration tests
 router
   .get('/custom-domain-check', async ({ request, response }) => {
