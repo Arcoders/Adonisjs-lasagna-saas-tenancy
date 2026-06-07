@@ -363,9 +363,9 @@ jobs:
       # up here once a run prints the real merged number.
       - name: Coverage gate (aggregate)
         env:
-          COV_MIN_LINES: '44'
-          COV_MIN_FUNCTIONS: '65'
-          COV_MIN_BRANCHES: '76'
+          COV_MIN_LINES: '46'
+          COV_MIN_FUNCTIONS: '67'
+          COV_MIN_BRANCHES: '77'
         run: node scripts/coverage-gate.mjs coverage/lcov.info
 
       - name: Upload combined coverage

@@ -1,6 +1,7 @@
 # Production readiness — `@adonisjs-lasagna/saas-tenancy`
 
-**Date:** 2026-06-06 · **Branch:** `LASAGNA-020626/carril-a-isolation-hardening`
+**Date:** 2026-06-07 · **Branch:** `LASAGNA-020626/isolation-hardening-and-benchmarks`
+(updates the 2026-06-06 carril-a report)
 
 This report summarizes what is measured, tested, and green, and gives an honest verdict on
 production readiness. It is the committed companion to the deeper, run-specific notes in
@@ -39,7 +40,7 @@ There are two kinds of evidence here, and they earn trust differently:
 | Per-database catalog (database-pg) | the database-pg catalog model | per-database (bounded); cross-database backend count reported honestly | ✅ |
 | Soak | stability over time (RSS/heap/backends/fds time series) | flat after warmup, `soakStableCheck: PASS` | ✅ harness |
 | Resilience — Redis down | rate-limit fails closed on a backend outage | **503** + recovery ~212 ms, `failPolicyCheck: PASS` | ✅ (after fix) |
-| Resilience — Postgres down | behavior + recovery | 500 (raw Lucid error) + recovery ~660 ms, documented | ✅ documented |
+| Resilience — Postgres down | tenant route fails closed + recovery | **503** (`DependencyUnavailableException`) + recovery, `failPolicyCheck: PASS` | ✅ (after fix) |
 | Core unit tests | regression coverage | **504 / 504 pass** | ✅ |
 | Correctness gate | blocks leaks and broken fail policies | any `*Check = FAIL` fails the build; green now | ✅ |
 
@@ -73,21 +74,27 @@ schema ≈ database, guard within noise, rate-limit a fixed Redis hop).
 path, a rate limiter that fails closed when Redis is down, recovery after Redis and Postgres
 outages, negligible tenancy CPU overhead, and a regression gate that blocks correctness failures.
 
-**Conditions to clear before a full production sign-off:**
+**Cleared since the 2026-06-06 report:**
 
-1. **Connection budget is not bounded by the cap under the default grace.** Under a burst of more
-   than `maxTenantConnections` concurrently-active tenants, open connections trend toward the
-   number of active tenants, not the cap (the safe default favours not severing in-flight
-   requests). Mitigations, in order: enable `isolation.enforceConnectionCap` for a hard 503 bound;
-   size Postgres `max_connections` to `maxTenantConnections × poolMax` plus headroom; front
-   Postgres with **PgBouncer** (transaction pooling) at higher tenant counts.
+1. **Connection budget under the default grace — decided.** The safe default stands:
+   `enforceConnectionCap` stays `false` (the LRU exceeds the cap rather than sever an in-flight
+   request). The hard-cap path is the documented opt-in for a firm 503 bound; mitigations (opt-in
+   cap, size `max_connections` to `maxTenantConnections × poolMax` + headroom, front Postgres with
+   **PgBouncer**) are written up in [docs Scaling limits](../docs/docs/scaling-limits.md).
+3. **Resilience + soak on Linux CI — wired.** `resilience` now runs on the weekly schedule (was
+   dispatch-only) alongside `soak`; see [.github/workflows/benchmark.yml](../.github/workflows/benchmark.yml).
+   Remaining: confirm the first scheduled run stays green.
+4. **Postgres-outage policy — fixed; cap default — decided.** A Postgres outage on the tenant path
+   now returns a clean **503** (`DependencyUnavailableException`) instead of a raw 500:
+   `request.tenant()` maps both an unreachable tenant registry and an unreachable tenant connection
+   to a 503, locked by `tests/integration/middleware/connection_failure_503.spec.ts` and asserted by
+   the resilience tier (`expectedStatus: 503`). `enforceConnectionCap` stays `false` by default.
+
+**The one condition remaining before a full production sign-off:**
+
 2. **No quotable 1.0.0 absolute yet.** Capture the full sweep on the dedicated Linux reference VM,
    aggregate several runs (`npm run bench:report -- --runs=5 --write-baseline=1.0.0`), and commit
    the raw snapshot under [baselines/raw/](baselines/raw/README.md).
-3. **Run the resilience and soak tiers on Linux CI** (dispatch / schedule) and keep the gate green
-   there, not just on the dev box.
-4. **Optional, product decisions:** map a Postgres outage on the tenant path to a clean 503 (today
-   it is a raw 500); decide whether `enforceConnectionCap` should default on for your deployment.
 
 ## Guidance by scale
 

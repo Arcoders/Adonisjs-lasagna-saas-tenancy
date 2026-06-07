@@ -47,6 +47,8 @@ isolation: {
   // and is never evicted, even over the cap. Set above your p99 request
   // duration. Default 30000.
   evictionGracePeriodMs: 30_000,
+  // Make maxTenantConnections a HARD bound. Off by default. See below.
+  enforceConnectionCap: false,
 }
 ```
 
@@ -61,6 +63,22 @@ your concurrency genuinely needs more than `maxTenantConnections` distinct
 tenants in flight at once, the LRU will **exceed the cap rather than sever an
 active request**, and log a throttled warning. That is your signal to raise
 `maxTenantConnections`, put PgBouncer in front, or scale out.
+
+### Hard cap vs. availability (`enforceConnectionCap`)
+
+The default (`false`) favours availability: when the cap is reached and every
+open connection is still inside the grace window, the pool exceeds the cap
+rather than sever an in-flight request. Under a burst of more than
+`maxTenantConnections` concurrently-active tenants, open connections therefore
+trend toward the number of active tenants, not the cap. This is the right
+default for most deployments, and it is the behaviour the 1.0 ships with.
+
+Set `enforceConnectionCap: true` to make the cap a firm ceiling instead: a new
+tenant's `connect()` is refused with a `503` (`TenantConnectionLimitException`)
+when the cap is full and nothing is evictable, rather than opening connection
+N+1. Turn it on when you front PostgreSQL with **PgBouncer**, or whenever a
+bounded server-connection budget matters more than serving every burst. Size
+`max_connections` for the cap, not for your tenant count.
 
 ::: tip Use a connection pooler
 At higher tenant counts, front Postgres with **PgBouncer** (transaction

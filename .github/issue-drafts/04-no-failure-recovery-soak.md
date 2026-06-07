@@ -2,6 +2,15 @@
 
 **Labels:** `area/benchmarks`, `area/resilience`, `kind/gap`, `priority/blocker-1.0`
 
+> **✅ RESUELTO (2026-06-07).** Existen `bench:soak` (serie temporal + `soakStableCheck` por
+> pendiente de RSS/backends) y `bench:resilience` (Redis/PG `docker stop/start` + política de
+> fallo + `recoveredWithinMs`). El fail-open de rate-limit se corrigió (ver abajo). **Cambio de
+> esta sesión:** la caída de Postgres en la ruta del tenant ahora devuelve **503**
+> (`DependencyUnavailableException`), no un 500 crudo — `request.tenant()` mapea el outage a un
+> 503 fail-closed y el bench de resiliencia lo asevera (`expectedStatus: 503`). `resilience` corre
+> ahora en el schedule semanal (antes dispatch-only). Pendiente sólo: confirmar el primer run
+> verde en CI Linux.
+
 ## Resumen
 
 El benchmark sólo mide estado estable y feliz, en corridas cortísimas (HTTP = 10 s por escenario).
@@ -34,7 +43,8 @@ no se mide.
       y asevera la política de fallo real por dependencia + `recoveredWithinMs`.
 - [ ] Redis caído en la ruta rate-limited produce **503** (no 200 silencioso fail-open, no cuelgue),
       y se recupera al volver Redis.
-- [ ] El comportamiento de PG caído en la ruta de tenant queda documentado (hoy: 500 Lucid, no 503).
+- [x] PG caído en la ruta de tenant devuelve un **503** limpio (`DependencyUnavailableException`) y
+      se recupera al volver PG (antes: 500 Lucid crudo).
 
 ## ✅ Hallazgo del bench de resiliencia — fail-open en rate-limit (CORREGIDO)
 

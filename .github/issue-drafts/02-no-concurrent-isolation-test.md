@@ -2,6 +2,14 @@
 
 **Labels:** `area/isolation`, `area/benchmarks`, `kind/correctness`, `priority/blocker-1.0`, `security`
 
+> **✅ RESUELTO (2026-06-07).** El tier de aislamiento HTTP concurrente con correlación por
+> contenido (`benchmarks/http/isolation.bench.ts`) corre como **gate por PR** en los 3 drivers
+> (`.github/workflows/benchmark-correctness.yml`), con self-test negativo (`BENCH_ISO_SELFTEST=1`)
+> y aserción del camino de escritura (`bench:db` write-isolation). El límite de `rowscope-pg`
+> (query raw/unscoped) está documentado y respaldado por el backstop RLS
+> (`packages/core/tests/integration/services/rowscope_rls.spec.ts`). Cumple todos los criterios.
+> El análisis de abajo es el original que motivó el trabajo.
+
 ## Resumen
 
 El informe llama a "cero fugas cross-tenant" la propiedad de correctitud más importante. Pero el

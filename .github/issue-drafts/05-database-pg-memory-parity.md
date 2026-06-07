@@ -2,6 +2,14 @@
 
 **Labels:** `area/benchmarks`, `area/isolation`, `kind/gap`, `priority/blocker-1.0`
 
+> **✅ RESUELTO (2026-06-07).** El Tier 4 corre para los 3 drivers en CI
+> (`.github/workflows/benchmark.yml` y `benchmark-correctness.yml`). El catalog es driver-aware
+> (`runSchemaCatalog` con la curva de bloat vía search_path vs `runDatabaseCatalog` por-base;
+> rowscope se auto-salta) en `benchmarks/src/memory/catalog_bloat.bench.ts`. El conteo de backends
+> de `database-pg` usa `pgBackendCountAllDatabases` (cross-DB) en `connection_budget.bench.ts`. El
+> informe distingue las conclusiones por driver. Las referencias archivo:línea de abajo describen
+> el estado original, ya superado.
+
 ## Resumen
 
 El Tier 4 (memory + budget + catalog) corre **sólo** para `schema-pg`. Las conclusiones del informe
