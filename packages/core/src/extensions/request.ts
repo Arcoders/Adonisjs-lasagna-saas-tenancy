@@ -6,6 +6,7 @@ import type {
 } from '../types/contracts.js'
 import MissingTenantHeaderException from '../exceptions/missing_tenant_header_exception.js'
 import TenantNotFoundException from '../exceptions/tenant_not_found_exception.js'
+import DependencyUnavailableException from '../exceptions/dependency_unavailable_exception.js'
 import { getConfig } from '../config.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import { isUuidV4 } from '../services/isolation/identifier.js'
@@ -116,6 +117,23 @@ export function __setMemoizedTenant(request: HttpRequest, tenant: TenantModelCon
   ;(request as any)[TENANT_MEMO_KEY] = tenant
 }
 
+/**
+ * Build a 503 for a tenant-backend outage, preserving the original error as
+ * `cause` for logs. Used when the tenant registry (central DB) or the tenant's
+ * own connection is unreachable: a raw 500 from Lucid is opaque and reads as
+ * non-retryable, so we map it to a clean, retry-able 503 instead. Exported for
+ * the universal middleware, which applies the same policy.
+ */
+export function dependencyUnavailable(
+  operation: string,
+  cause: unknown,
+  tenantId?: string
+): DependencyUnavailableException {
+  const exc = new DependencyUnavailableException({ dependency: 'postgres', operation, tenantId })
+  ;(exc as any).cause = cause
+  return exc
+}
+
 ;(HttpRequest as any).macro('tenant', async function (this: HttpRequest) {
   if ((this as any)[TENANT_MEMO_KEY]) {
     return (this as any)[TENANT_MEMO_KEY] as TenantModelContract
@@ -126,19 +144,44 @@ export function __setMemoizedTenant(request: HttpRequest, tenant: TenantModelCon
   const result = await resolveTenant(this)
   let tenant: TenantModelContract | null = null
 
-  if (result?.type === 'id') {
-    assert(isUuidV4(result.tenantId), new MissingTenantHeaderException())
-    tenant = await repo.findById(result.tenantId, true)
-  } else if (result?.type === 'domain') {
-    tenant = await repo.findByDomain(result.domain)
-  } else {
-    throw new MissingTenantHeaderException()
+  try {
+    if (result?.type === 'id') {
+      assert(isUuidV4(result.tenantId), new MissingTenantHeaderException())
+      tenant = await repo.findById(result.tenantId, true)
+    } else if (result?.type === 'domain') {
+      tenant = await repo.findByDomain(result.domain)
+    } else {
+      throw new MissingTenantHeaderException()
+    }
+  } catch (err) {
+    // Respect an error that already declares an HTTP status — a 400 missing
+    // header, a 404 not-found, a 500 config fault: the layer that threw it
+    // already decided the right response. Anything else is the tenant registry
+    // (central DB) being unreachable, so fail closed with a 503 rather than
+    // leaking a raw Lucid 500. A host repository that wants a specific status
+    // for its own errors should throw an Exception carrying one.
+    if (typeof (err as any)?.status === 'number') throw err
+    throw dependencyUnavailable(
+      'tenant.lookup',
+      err,
+      result?.type === 'id' ? result.tenantId : undefined
+    )
   }
 
   if (!tenant) throw new TenantNotFoundException()
 
   const driver = await getActiveDriver()
-  await driver.connect(tenant)
+  try {
+    await driver.connect(tenant)
+  } catch (err) {
+    // Respect a decided HTTP status: the hard-cap 503 (TenantConnectionLimit)
+    // and the 500 misconfig (IsolationConfig) both carry one and pass straight
+    // through. Any other connect failure (Postgres down, ECONNREFUSED, timeout)
+    // is a raw backend outage — map it to a clean, retry-able 503 instead of
+    // letting a raw Lucid error bubble up as an opaque 500.
+    if (typeof (err as any)?.status === 'number') throw err
+    throw dependencyUnavailable('tenant.connect', err, tenant.id)
+  }
   ;(this as any)[TENANT_MEMO_KEY] = tenant
   return tenant
 })

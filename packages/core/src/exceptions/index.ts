@@ -13,3 +13,4 @@ export { default as TooManyRequestsException } from './too_many_requests_excepti
 // `BillingException` moved to `@adonisjs-lasagna/billing`.
 export { default as DependencyUnavailableException } from './dependency_unavailable_exception.js'
 export type { DependencyUnavailableContext } from './dependency_unavailable_exception.js'
+export { default as IsolationConfigException } from './isolation_config_exception.js'

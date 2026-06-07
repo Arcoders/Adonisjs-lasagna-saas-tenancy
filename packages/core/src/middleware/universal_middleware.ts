@@ -1,8 +1,7 @@
 import { TENANT_REPOSITORY } from '../types/contracts.js'
 import type { TenantModelContract, TenantRepositoryContract } from '../types/contracts.js'
-import { resolveTenant, __setMemoizedTenant } from '../extensions/request.js'
+import { resolveTenant, __setMemoizedTenant, dependencyUnavailable } from '../extensions/request.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
-import TenantConnectionLimitException from '../exceptions/tenant_connection_limit_exception.js'
 import { isUuidV4 } from '../services/isolation/identifier.js'
 import TenantLogContext from '../services/tenant_log_context.js'
 import app from '@adonisjs/core/services/app'
@@ -15,11 +14,19 @@ import type { NextFn } from '@adonisjs/core/types/http'
  * (memoize, attach log context, connect the driver). When it isn't, just
  * call `next()` so the same handler can serve both contexts.
  *
- * Unlike `TenantGuardMiddleware`, this middleware NEVER throws on a missing
- * or invalid tenant — it silently degrades to "central" mode. Suspended /
- * deleted / not-ready tenants are also passed through as if they didn't
- * exist; the route handler is responsible for deciding what to render in
- * the absence of a tenant context.
+ * Unlike `TenantGuardMiddleware`, this middleware does not throw on a missing,
+ * invalid, or genuinely absent tenant — it silently degrades to "central" mode.
+ * Suspended / deleted / not-ready tenants are also passed through as if they
+ * didn't exist; the route handler decides what to render without a tenant.
+ *
+ * What it does NOT swallow: when a tenant IS named (a valid id/domain) but
+ * loading or connecting it fails for an infrastructure reason — the registry
+ * lookup throws (central DB down), the driver connect fails (tenant DB down),
+ * the hard cap is hit, or a 500-class misconfiguration surfaces — it fails
+ * closed (the underlying 503/500) rather than degrading. Serving a
+ * tenant-targeted request in central mode would hand it a request without its
+ * own data context, the isolation footgun this package exists to prevent. A
+ * lookup that simply returns null (tenant doesn't exist) still degrades.
  */
 export default class UniversalMiddleware {
   async handle({ request }: HttpContext, next: NextFn) {
@@ -59,10 +66,18 @@ export default class UniversalMiddleware {
         tenant = await repo.findByDomain(result.domain)
       }
     } catch (err) {
-      // Repo lookup failed (DB down, etc.). Falling through to "central
-      // mode" hides this from the user, so make sure ops sees it.
-      await warn('repository_lookup_failed', err)
-      return null
+      // The request named a tenant but the registry lookup threw (central DB
+      // down, etc.). Degrading to central here would serve a tenant-targeted
+      // request without its data context, so fail closed instead. Respect a
+      // decided HTTP status; map a raw outage to a 503 — consistent with
+      // `request.tenant()`. (A genuinely absent tenant returns null below and
+      // still degrades to central, per the "as if it didn't exist" contract.)
+      if (typeof (err as any)?.status === 'number') throw err
+      throw dependencyUnavailable(
+        'tenant.lookup',
+        err,
+        result.type === 'id' ? result.tenantId : undefined
+      )
     }
 
     if (!tenant) return null
@@ -73,13 +88,13 @@ export default class UniversalMiddleware {
       const driver = await getActiveDriver()
       await driver.connect(tenant)
     } catch (err) {
-      // A hard-cap rejection (isolation.enforceConnectionCap) is a deliberate
-      // 503 fail-closed signal for a tenant we DID resolve, not a reason to
-      // silently serve the request in central mode. Surface it so the caller
-      // gets the 503 and can retry, consistent with `request.tenant()`.
-      if (err instanceof TenantConnectionLimitException) throw err
-      await warn('driver_connect_failed', err)
-      return null
+      // The tenant resolved fine; only its backend connection failed. Fail
+      // closed rather than degrade to central. Respect a decided HTTP status
+      // (the hard-cap 503, or a 500-class config fault); map any other connect
+      // failure (Postgres down, etc.) to a clean 503 — consistent with
+      // `request.tenant()`.
+      if (typeof (err as any)?.status === 'number') throw err
+      throw dependencyUnavailable('tenant.connect', err, tenant.id)
     }
     __setMemoizedTenant(request, tenant)
     return tenant

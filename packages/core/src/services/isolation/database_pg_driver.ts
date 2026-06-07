@@ -9,6 +9,7 @@ import type {
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
 import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
+import IsolationConfigException from '../../exceptions/isolation_config_exception.js'
 import ConnectionLru, {
   DEFAULT_EVICTION_GRACE_MS,
   DEFAULT_MAX_TENANT_CONNECTIONS,
@@ -128,7 +129,7 @@ export default class DatabasePgDriver implements IsolationDriver {
 
     const template = db.manager.get(this.#templateConnectionName)?.config
     if (!template) {
-      throw new Error(
+      throw new IsolationConfigException(
         `DatabasePgDriver: template connection "${this.#templateConnectionName}" not found in db.manager. ` +
           `Configure it in config/database.ts.`
       )
