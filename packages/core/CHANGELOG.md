@@ -75,6 +75,26 @@ for a copy-paste migration.
   the database regardless of query shape, so a hand-written top-level `orWhere`
   can no longer escape the tenant scope. See
   [rowscope-pg](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/data-isolation/rowscope-pg.md#hard-boundary-postgresql-row-level-security).
+- **Optional hard connection cap.** `isolation.enforceConnectionCap` (default
+  `false`) makes `maxTenantConnections` a firm ceiling: when it is full and
+  nothing is evictable, a new tenant's `connect()` is refused with a 503
+  (`TenantConnectionLimitException`) instead of exceeding the cap. The default
+  still favours availability (never sever an in-flight request); the hard cap is
+  the documented opt-in for deployments fronted by PgBouncer.
+- **Stability taxonomy.** A [stability matrix](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/stability.md)
+  labels every feature. The isolation core is `release-candidate` (feature
+  complete and green in CI, with `stable` withheld until an independent security
+  review and production mileage close); the satellites are `experimental`. The
+  labels are mirrored into the package READMEs, and `configure` prints a one-time
+  notice when it publishes an experimental satellite.
+- **Security policy and operator docs.** A `.github/SECURITY.md` so GitHub
+  surfaces the disclosure policy, and a consolidated
+  [Production checklist & runbook](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/production-checklist.md)
+  (compatibility matrix, pre-flight checklist, failure-mode table, runbook).
+- **Canonical performance baseline.** `benchmarks/baselines/1.0.0.json`, captured
+  on a Linux runner and aggregated over multiple full-size sweeps, so the
+  published numbers are reproducible and the docs drop their provisional caveat. A
+  `Capture 1.0.0 baseline` workflow regenerates it on demand.
 
 ### Security
 
@@ -88,6 +108,17 @@ for a copy-paste migration.
   create with an explicit `tenant_id` that differs from the active scope now
   throws (consistent with the update/delete hooks) instead of inserting a row
   owned by another tenant.
+- **A resolved tenant whose database is down fails closed (503), never central.**
+  `request.tenant()`, the tenant guard, and the universal middleware now map an
+  unreachable tenant registry or tenant connection to a typed
+  `DependencyUnavailableException` (503) instead of degrading to the central
+  connection with the wrong tenant context. A permanent misconfiguration (such as
+  a missing schema template) surfaces as `IsolationConfigException` (500), so a
+  retryable 503 always means "dependency down", never "wrong config". Locked by
+  the `connection_failure_503` integration tests.
+- **Impersonation tokens are bound to the active tenant.** A token minted for
+  tenant A and presented on a request resolved to tenant B is rejected with 401.
+  An integration test now locks the binding so it cannot silently regress.
 
 ### Changed
 
@@ -96,7 +127,7 @@ for a copy-paste migration.
   longer forces a core bump.
 - `CircuitBreakerService` asks the active driver for the connection name instead
   of rebuilding it from the prefix.
-- Coverage gate raised to 44 lines / 76 branches / 65 functions on the unit run;
+- Coverage gate raised to 46 lines / 77 branches / 67 functions on the unit run;
   CI also runs the billing and backup package unit suites and aggregates
   unit + integration coverage.
 - `engines.node` stays `>=24` (required by AdonisJS 7 / Lucid 22).
