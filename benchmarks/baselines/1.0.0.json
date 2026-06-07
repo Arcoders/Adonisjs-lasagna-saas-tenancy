@@ -1,5 +1,451 @@
 {
-  "note": "PLACEHOLDER. The canonical 1.0.0 baseline. Capture on the dedicated Linux reference VM (see benchmarks/README.md) with: npm run bench:micro && (per driver) bench:db/bench:http && bench:mem, then `npm run bench:report -- --write-baseline=1.0.0`. Commit the result here. Until then this file holds no metrics and `bench:check --baseline=1.0.0` compares nothing.",
-  "capturedEnv": null,
-  "index": {}
+  "capturedEnv": {
+    "driver": "rowscope-pg",
+    "node": "v24.16.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
+    "cpuCount": 4,
+    "totalMemGB": 16.8,
+    "commit": "dc4e35f",
+    "pgVersion": "PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "timestamp": "2026-06-07T15:13:28.378Z"
+  },
+  "aggregatedOverRuns": 2,
+  "index": {
+    "mem:rowscope-pg": {
+      "connection_budget › N=100 tenants": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 1
+      },
+      "connection_budget › N=500 tenants": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 1
+      },
+      "connection_budget › N=2000 tenants": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 1
+      }
+    },
+    "mem:database-pg": {
+      "connection_budget › N=100 tenants": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 1
+      },
+      "catalog_bloat › per-database catalog (database-pg)": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 1
+      }
+    },
+    "mem:schema-pg": {
+      "connection_budget › N=100 tenants": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 1
+      },
+      "connection_budget › N=500 tenants": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 1
+      },
+      "connection_budget › N=2000 tenants": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 1
+      },
+      "connection_budget_burst › N=100 burst (grace=30000ms, default)": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 1
+      },
+      "connection_budget_burst › saturation probe (to N=150, max_connections=300)": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 1
+      },
+      "connection_budget_burst › hard cap (enforceConnectionCap=true, N=150, cap=50)": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 1
+      },
+      "catalog_bloat › K=100 schemas × 4 tables (probe via search_path)": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 1
+      },
+      "catalog_bloat › K=1000 schemas × 4 tables (probe via search_path)": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 1
+      },
+      "catalog_bloat › K=5000 schemas × 4 tables (probe via search_path)": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 1
+      }
+    },
+    "http:rowscope-pg": {
+      "http › ceiling (no tenancy)": {
+        "opsPerSec": 18203,
+        "nsMedian": 1000000,
+        "iqr": 122,
+        "runs": 2
+      },
+      "http › tenant read (guarded)": {
+        "opsPerSec": 797,
+        "nsMedian": 30000000,
+        "iqr": 129,
+        "runs": 2
+      },
+      "http › tenant read (no guard)": {
+        "opsPerSec": 773,
+        "nsMedian": 31000000,
+        "iqr": 1,
+        "runs": 2
+      },
+      "http › tenant read (guard + rate-limit)": {
+        "opsPerSec": 626,
+        "nsMedian": 39000000,
+        "iqr": 1,
+        "runs": 2
+      }
+    },
+    "db:rowscope-pg": {
+      "driver_query › SELECT by id": {
+        "opsPerSec": 2134,
+        "nsMedian": 468672,
+        "iqr": 7,
+        "runs": 2
+      },
+      "driver_query › INSERT": {
+        "opsPerSec": 2425,
+        "nsMedian": 412407,
+        "iqr": 13,
+        "runs": 2
+      },
+      "driver_query › 2-table self JOIN (limit 20)": {
+        "opsPerSec": 938,
+        "nsMedian": 1072603,
+        "iqr": 141,
+        "runs": 2
+      },
+      "driver_query › cold-tenant first query (n/a for rowscope)": {
+        "opsPerSec": 0,
+        "nsMedian": 0,
+        "iqr": 0,
+        "runs": 2
+      },
+      "connection_churn › cap=25 single-tenant SELECT (baseline)": {
+        "opsPerSec": 2229,
+        "nsMedian": 449131,
+        "iqr": 125,
+        "runs": 2
+      },
+      "connection_churn › cap=25 churn read+write (M=50, C=16)": {
+        "opsPerSec": 255,
+        "nsMedian": 3930703,
+        "iqr": 13,
+        "runs": 2
+      },
+      "connection_churn › cap=50 single-tenant SELECT (baseline)": {
+        "opsPerSec": 2384,
+        "nsMedian": 419686,
+        "iqr": 93,
+        "runs": 2
+      },
+      "connection_churn › cap=50 churn read+write (M=100, C=16)": {
+        "opsPerSec": 260,
+        "nsMedian": 3872505,
+        "iqr": 35,
+        "runs": 2
+      },
+      "connection_churn › cap=100 single-tenant SELECT (baseline)": {
+        "opsPerSec": 2349,
+        "nsMedian": 425932,
+        "iqr": 95,
+        "runs": 2
+      },
+      "connection_churn › cap=100 churn read+write (M=200, C=16)": {
+        "opsPerSec": 283,
+        "nsMedian": 3537979,
+        "iqr": 5,
+        "runs": 2
+      }
+    },
+    "http:database-pg": {
+      "http › ceiling (no tenancy)": {
+        "opsPerSec": 17413,
+        "nsMedian": 1000000,
+        "iqr": 442,
+        "runs": 2
+      },
+      "http › tenant read (guarded)": {
+        "opsPerSec": 619,
+        "nsMedian": 39000000,
+        "iqr": 5,
+        "runs": 2
+      },
+      "http › tenant read (no guard)": {
+        "opsPerSec": 645,
+        "nsMedian": 37500000,
+        "iqr": 6,
+        "runs": 2
+      },
+      "http › tenant read (guard + rate-limit)": {
+        "opsPerSec": 536,
+        "nsMedian": 46000000,
+        "iqr": 2,
+        "runs": 2
+      }
+    },
+    "db:database-pg": {
+      "driver_query › SELECT by id": {
+        "opsPerSec": 2506,
+        "nsMedian": 399257,
+        "iqr": 77,
+        "runs": 2
+      },
+      "driver_query › INSERT": {
+        "opsPerSec": 2889,
+        "nsMedian": 346243,
+        "iqr": 75,
+        "runs": 2
+      },
+      "driver_query › 2-table self JOIN (limit 20)": {
+        "opsPerSec": 1405,
+        "nsMedian": 723514,
+        "iqr": 360,
+        "runs": 2
+      },
+      "driver_query › cold-tenant first query": {
+        "opsPerSec": 138,
+        "nsMedian": 7262136,
+        "iqr": 1,
+        "runs": 2
+      },
+      "connection_churn › cap=25 single-tenant SELECT (baseline)": {
+        "opsPerSec": 972,
+        "nsMedian": 1029392,
+        "iqr": 5,
+        "runs": 2
+      },
+      "connection_churn › cap=25 churn read+write (M=50, C=16)": {
+        "opsPerSec": 67,
+        "nsMedian": 14977236,
+        "iqr": 0,
+        "runs": 2
+      },
+      "connection_churn › cap=50 single-tenant SELECT (baseline)": {
+        "opsPerSec": 931,
+        "nsMedian": 1074687,
+        "iqr": 5,
+        "runs": 2
+      },
+      "connection_churn › cap=50 churn read+write (M=100, C=16)": {
+        "opsPerSec": 69,
+        "nsMedian": 14557313,
+        "iqr": 1,
+        "runs": 2
+      },
+      "connection_churn › cap=100 single-tenant SELECT (baseline)": {
+        "opsPerSec": 965,
+        "nsMedian": 1037547,
+        "iqr": 68,
+        "runs": 2
+      },
+      "connection_churn › cap=100 churn read+write (M=200, C=16)": {
+        "opsPerSec": 70,
+        "nsMedian": 14417278,
+        "iqr": 1,
+        "runs": 2
+      }
+    },
+    "http:schema-pg": {
+      "http › ceiling (no tenancy)": {
+        "opsPerSec": 17461,
+        "nsMedian": 1000000,
+        "iqr": 346,
+        "runs": 2
+      },
+      "http › tenant read (guarded)": {
+        "opsPerSec": 612,
+        "nsMedian": 39500000,
+        "iqr": 5,
+        "runs": 2
+      },
+      "http › tenant read (no guard)": {
+        "opsPerSec": 643,
+        "nsMedian": 38000000,
+        "iqr": 19,
+        "runs": 2
+      },
+      "http › tenant read (guard + rate-limit)": {
+        "opsPerSec": 538,
+        "nsMedian": 46000000,
+        "iqr": 6,
+        "runs": 2
+      }
+    },
+    "db:schema-pg": {
+      "driver_query › SELECT by id": {
+        "opsPerSec": 2467,
+        "nsMedian": 406336,
+        "iqr": 229,
+        "runs": 2
+      },
+      "driver_query › INSERT": {
+        "opsPerSec": 3007,
+        "nsMedian": 332908,
+        "iqr": 196,
+        "runs": 2
+      },
+      "driver_query › 2-table self JOIN (limit 20)": {
+        "opsPerSec": 1375,
+        "nsMedian": 737516,
+        "iqr": 322,
+        "runs": 2
+      },
+      "driver_query › cold-tenant first query": {
+        "opsPerSec": 139,
+        "nsMedian": 7221473,
+        "iqr": 9,
+        "runs": 2
+      },
+      "connection_churn › cap=25 single-tenant SELECT (baseline)": {
+        "opsPerSec": 911,
+        "nsMedian": 1098837,
+        "iqr": 37,
+        "runs": 2
+      },
+      "connection_churn › cap=25 churn read+write (M=50, C=16)": {
+        "opsPerSec": 67,
+        "nsMedian": 15062180,
+        "iqr": 1,
+        "runs": 2
+      },
+      "connection_churn › cap=50 single-tenant SELECT (baseline)": {
+        "opsPerSec": 988,
+        "nsMedian": 1011829,
+        "iqr": 12,
+        "runs": 2
+      },
+      "connection_churn › cap=50 churn read+write (M=100, C=16)": {
+        "opsPerSec": 70,
+        "nsMedian": 14385529,
+        "iqr": 1,
+        "runs": 2
+      },
+      "connection_churn › cap=100 single-tenant SELECT (baseline)": {
+        "opsPerSec": 1017,
+        "nsMedian": 983906,
+        "iqr": 5,
+        "runs": 2
+      },
+      "connection_churn › cap=100 churn read+write (M=200, C=16)": {
+        "opsPerSec": 70,
+        "nsMedian": 14339563,
+        "iqr": 0,
+        "runs": 2
+      }
+    },
+    "micro:schema-pg": {
+      "tenant_resolution › header hit (chain=1)": {
+        "opsPerSec": 26733457,
+        "nsMedian": 38,
+        "iqr": 2391409,
+        "runs": 2
+      },
+      "tenant_resolution › header hit (chain=3)": {
+        "opsPerSec": 27313587,
+        "nsMedian": 37,
+        "iqr": 1698557,
+        "runs": 2
+      },
+      "tenant_resolution › subdomain hit (chain=3, header miss)": {
+        "opsPerSec": 3565011,
+        "nsMedian": 281,
+        "iqr": 123810,
+        "runs": 2
+      },
+      "tenant_resolution › path hit (fall-through to 3rd)": {
+        "opsPerSec": 2989265,
+        "nsMedian": 335,
+        "iqr": 14952,
+        "runs": 2
+      },
+      "tenant_resolution › full miss (chain=5)": {
+        "opsPerSec": 1672118,
+        "nsMedian": 598,
+        "iqr": 13240,
+        "runs": 2
+      },
+      "adapter_routing › currentId → connectionName → db.connection": {
+        "opsPerSec": 3773521,
+        "nsMedian": 266,
+        "iqr": 301703,
+        "runs": 2
+      },
+      "adapter_routing › explicit connection (fast path)": {
+        "opsPerSec": 114885806,
+        "nsMedian": 9,
+        "iqr": 1882532,
+        "runs": 2
+      },
+      "connection_lru › touch (hit)": {
+        "opsPerSec": 7516996,
+        "nsMedian": 135,
+        "iqr": 1770732,
+        "runs": 2
+      },
+      "connection_lru › touch (MRU round-robin)": {
+        "opsPerSec": 6538954,
+        "nsMedian": 153,
+        "iqr": 163229,
+        "runs": 2
+      },
+      "connection_lru › touch + evictIfNeeded (over cap, evicts)": {
+        "opsPerSec": 2487656,
+        "nsMedian": 402,
+        "iqr": 13374,
+        "runs": 2
+      },
+      "connection_lru › evictIfNeeded (under cap, no-op)": {
+        "opsPerSec": 38173789,
+        "nsMedian": 26,
+        "iqr": 621936,
+        "runs": 2
+      },
+      "rowscope_predicate › scoped query() build": {
+        "opsPerSec": 55192796,
+        "nsMedian": 18,
+        "iqr": 130428,
+        "runs": 2
+      },
+      "rowscope_predicate › unscoped query() build (baseline)": {
+        "opsPerSec": 85186897,
+        "nsMedian": 12,
+        "iqr": 1060532,
+        "runs": 2
+      }
+    }
+  }
 }

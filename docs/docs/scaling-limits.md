@@ -113,15 +113,13 @@ The claims above are validated empirically by the benchmark suite in
 <!-- BENCH:summary:start -->
 **Per-driver HTTP throughput** (steady state, warmed connections):
 
-- `rowscope-pg` tenant read: **859 req/s** (p99 42.0 ms)
-- `database-pg` tenant read: **623 req/s** (p99 57.0 ms)
-- `schema-pg` tenant read: **632 req/s** (p99 54.0 ms)
+- `rowscope-pg` tenant read: **732 req/s** (p99 46.0 ms)
+- `database-pg` tenant read: **616 req/s** (p99 52.0 ms)
+- `schema-pg` tenant read: **609 req/s** (p99 56.0 ms)
 
-**Connection budget** (open tenant connections stay bounded by the cap as N grows):
+**Connection budget** (under the default 30s grace, open connections track N, not the cap — front with PgBouncer):
 
-- N=100 tenants: 50 open tenant connections (cap 50, PASS)
-- N=500 tenants: 50 open tenant connections (cap 50, PASS)
-- N=2000 tenants: 50 open tenant connections (cap 50, PASS)
+- _no memory results yet_
 
 _Generated from the latest results; see [Performance](/docs/performance)._
 <!-- BENCH:summary:end -->
