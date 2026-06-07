@@ -125,9 +125,21 @@ for a copy-paste migration.
   a missing schema template) surfaces as `IsolationConfigException` (500), so a
   retryable 503 always means "dependency down", never "wrong config". Locked by
   the `connection_failure_503` integration tests.
-- **Impersonation tokens are bound to the active tenant.** A token minted for
+- **Impersonation tokens are bound to the request's tenant.** A token minted for
   tenant A and presented on a request resolved to tenant B is rejected with 401.
-  An integration test now locks the binding so it cannot silently regress.
+  The check no longer depends on the tenant guard running first: when no context
+  is active the middleware resolves the request's tenant itself, so the binding
+  holds regardless of middleware order. Locked by an integration test.
+- **SSRF guard hardened (internal audit).** Outbound-fetch validation now
+  canonicalises IP literals via `node:net`, so an IPv4-mapped IPv6 address in hex
+  form (`[::ffff:7f00:1]`, which `new URL` produces for any mapped address) can no
+  longer reach loopback/private/metadata ranges. Also closes the partial
+  `fe80::/10` link-local range, adds multicast/reserved IPv4 (`224/4`, `240/4`,
+  broadcast), and rejects ambiguous numeric IP encodings. SSO `token_endpoint` and
+  `jwks_uri` (server-side fetch targets from the tenant-controlled discovery doc)
+  now use the DNS-resolving guard, not just the syntactic one. The admin mount
+  treats `middleware: null` as fail-closed (like omitting it), not as the explicit
+  public opt-out.
 
 ### Changed
 
