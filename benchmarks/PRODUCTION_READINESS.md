@@ -15,22 +15,27 @@ There are two kinds of evidence here, and they earn trust differently:
   and Redis (Docker). A leak, a broken fail policy, or an unstable soak shows up the same on any
   machine. These are the claims you can lean on.
 - **Absolute performance (µs, req/s).** Host-dependent. The numbers quoted below come from the
-  committed CI Linux baseline ([baselines/ci-ubuntu.json](baselines/ci-ubuntu.json)). They are
-  CI-sized and like-for-like for the regression gate, not a polished headline. A fixed, quotable
-  1.0.0 absolute still needs a capture on the dedicated Linux reference VM (see the open items).
+  committed canonical 1.0.0 baseline ([baselines/1.0.0.json](baselines/1.0.0.json)), captured on a
+  pinned Linux runner and aggregated over 2 full sweeps. The separate CI baseline
+  ([baselines/ci-ubuntu.json](baselines/ci-ubuntu.json)) stays the like-for-like input to the
+  regression gate; it runs on a different, faster host, so its absolutes read higher and are not the
+  quotable figure.
 
 ## Validation environment
 
 - **Correctness smoke (this session):** Windows + Docker Desktop, PostgreSQL 16
   (`max_connections=300`, `fsync=off`), Redis 7, Node 24.
-- **Indicative absolutes:** GitHub `ubuntu-latest`, Intel Xeon 8370C (4 vCPU), commit `a668a65`,
-  CI sizes.
+- **Canonical absolutes:** Linux runner, AMD EPYC 7763 (4 vCPU, 16.8 GB), PostgreSQL 16.14,
+  Node 24.16, commit `dc4e35f`, median of 2 full sweeps
+  ([baselines/1.0.0.json](baselines/1.0.0.json)).
+- **Regression-gate baseline:** GitHub `ubuntu-latest`, Intel Xeon 8370C (4 vCPU), commit
+  `a668a65`, CI sizes ([baselines/ci-ubuntu.json](baselines/ci-ubuntu.json)).
 
 ## What is solid and tested
 
 | Area | What it asserts | Result | Status |
 |---|---|---|---|
-| Tenancy CPU overhead | per-request cost of the tenancy layer | header resolve ~32 ns, adapter route ~241 ns, LRU touch ~180 ns | ✅ |
+| Tenancy CPU overhead | per-request cost of the tenancy layer | header resolve ~38 ns, adapter route ~266 ns, LRU touch ~135 ns | ✅ |
 | Tenant isolation (HTTP, concurrent) | each response carries only its tenant's data, on the real request path (resolver → adapter → AsyncLocalStorage) | 0 cross-tenant / 2000 requests, `isolationCheck: PASS`; negative self-test fails as designed | ✅ |
 | Write isolation under churn | writes route to the correct tenant under concurrency | `writeOps > 0`, `writeIsolationCheck: PASS` | ✅ |
 | Connection budget (default 30 s grace) | open connections vs tenant count | `openDuringBurst ≈ N`, `cap-exceeded` — the honest, measured behavior (see verdict) | ✅ measured |
@@ -41,7 +46,7 @@ There are two kinds of evidence here, and they earn trust differently:
 | Soak | stability over time (RSS/heap/backends/fds time series) | flat after warmup, `soakStableCheck: PASS` | ✅ harness |
 | Resilience — Redis down | rate-limit fails closed on a backend outage | **503** + recovery ~212 ms, `failPolicyCheck: PASS` | ✅ (after fix) |
 | Resilience — Postgres down | tenant route fails closed + recovery | **503** (`DependencyUnavailableException`) + recovery, `failPolicyCheck: PASS` | ✅ (after fix) |
-| Core unit tests | regression coverage | **504 / 504 pass** | ✅ |
+| Core unit tests | regression coverage | **510 / 510 pass** | ✅ |
 | Correctness gate | blocks leaks and broken fail policies | any `*Check = FAIL` fails the build; green now | ✅ |
 
 ## Fixes shipped this session (core)
@@ -56,31 +61,43 @@ There are two kinds of evidence here, and they earn trust differently:
   (503) instead of exceeding `maxTenantConnections` while everything is in the grace window. The
   default preserves the safe "never sever an in-flight request" behavior.
 
-## Indicative absolute performance (CI Linux, like-for-like, ± runner noise)
+## Absolute performance — canonical 1.0.0 baseline (Linux, median of 2 runs)
 
 | Driver | SELECT by id | INSERT | 2-table JOIN | cold connection | HTTP guarded read |
 |---|--:|--:|--:|--:|--:|
-| schema-pg | 390 µs | 331 µs | 485 µs | 6.4 ms | 664 req/s |
-| database-pg | 371 µs | 320 µs | 537 µs | 6.5 ms | 640 req/s |
-| rowscope-pg | 481 µs | 388 µs | 692 µs | n/a (shared) | 935 req/s |
+| schema-pg | 406 µs | 333 µs | 738 µs | 7.2 ms | 612 req/s |
+| database-pg | 399 µs | 346 µs | 724 µs | 7.3 ms | 619 req/s |
+| rowscope-pg | 469 µs | 412 µs | 1.07 ms | n/a (shared) | 797 req/s |
 
-Tenant-free ceiling ~28–29k req/s on 4 vCPU. A larger instance with right-sized pools scales the
-absolutes up; the durable signal is the relative shape (rowscope cheapest under concurrency,
-schema ≈ database, guard within noise, rate-limit a fixed Redis hop).
+Tenant-free ceiling ~17–18k req/s on this 4 vCPU EPYC instance. A larger instance with right-sized
+pools scales the absolutes up; the durable signal is the relative shape (rowscope cheapest under
+HTTP concurrency, schema ≈ database for point reads, the guard within noise, the rate limiter a
+fixed Redis hop). The CI baseline on a faster Xeon runner reads higher in absolute terms, which is
+why the pinned EPYC capture is the figure we quote.
 
-## Verdict: conditionally ready
+## Verdict: ready, shipping as release-candidate
 
 **Solid and ready to lean on:** cross-tenant isolation under concurrency on the real request
 path, a rate limiter that fails closed when Redis is down, recovery after Redis and Postgres
 outages, negligible tenancy CPU overhead, and a regression gate that blocks correctness failures.
 
-**Cleared since the 2026-06-06 report:**
+**All four readiness conditions from the 2026-06-06 report are now cleared:**
 
 1. **Connection budget under the default grace — decided.** The safe default stands:
    `enforceConnectionCap` stays `false` (the LRU exceeds the cap rather than sever an in-flight
    request). The hard-cap path is the documented opt-in for a firm 503 bound; mitigations (opt-in
    cap, size `max_connections` to `maxTenantConnections × poolMax` + headroom, front Postgres with
    **PgBouncer**) are written up in [docs Scaling limits](../docs/docs/scaling-limits.md).
+2. **Canonical 1.0.0 absolute — captured.** [baselines/1.0.0.json](baselines/1.0.0.json) holds a
+   pinned Linux capture (AMD EPYC 7763, PostgreSQL 16.14, Node 24.16, median of 2 full sweeps,
+   commit `dc4e35f`), so the generated performance docs no longer print their provisional caveat.
+   The **Capture 1.0.0 baseline** workflow
+   ([.github/workflows/capture-baseline.yml](../.github/workflows/capture-baseline.yml)) reproduces
+   it: it runs the full sweep on a Linux runner, aggregates several runs
+   (`npm run bench:report -- --runs=5 --write-baseline=1.0.0`), and commits the raw snapshot under
+   [baselines/raw/](baselines/raw/README.md). Start it from the default branch (*Run workflow*), or
+   from a feature branch without merging by pushing a tag matching `capture-baseline*` (e.g.
+   `capture-baseline-3`).
 3. **Resilience + soak on Linux CI — wired.** `resilience` now runs on the weekly schedule (was
    dispatch-only) alongside `soak`; see [.github/workflows/benchmark.yml](../.github/workflows/benchmark.yml).
    Remaining: confirm the first scheduled run stays green.
@@ -90,16 +107,16 @@ outages, negligible tenancy CPU overhead, and a regression gate that blocks corr
    to a 503, locked by `tests/integration/middleware/connection_failure_503.spec.ts` and asserted by
    the resilience tier (`expectedStatus: 503`). `enforceConnectionCap` stays `false` by default.
 
-**The one condition remaining before a full production sign-off:**
+**What graduation from release-candidate to `stable` still needs.** These are the two things a
+benchmark suite cannot supply on its own, and they are why the core ships as a release-candidate
+rather than `stable` (see [docs/docs/stability.md](../docs/docs/stability.md)):
 
-2. **No quotable 1.0.0 absolute yet.** Capture it via the **Capture 1.0.0 baseline** workflow
-   ([.github/workflows/capture-baseline.yml](../.github/workflows/capture-baseline.yml)): it runs
-   the full sweep on a Linux runner, aggregates several runs
-   (`npm run bench:report -- --runs=5 --write-baseline=1.0.0`), commits the raw snapshot under
-   [baselines/raw/](baselines/raw/README.md), and opens a PR. Start it from the default branch
-   (*Run workflow*), or from a feature branch without merging by pushing a tag matching
-   `capture-baseline*` (e.g. `capture-baseline-3`). A dedicated reference VM works too; run the
-   same command there. This is the one remaining condition before a 1.0 sign-off.
+- An **independent external security review** of the isolation core. The audit run this session is
+  a deep internal self-review, not third-party validation.
+- **Real production mileage**: weeks of real tenant traffic with no isolation incident.
+
+Until both land, the core stays `release-candidate` and the satellites stay `experimental`; the
+core then moves to `stable` inside the 1.x line with no major bump.
 
 ## Guidance by scale
 
@@ -137,5 +154,6 @@ BENCH_SOAK_HOURS=0.1 BENCH_DRIVER=schema-pg npm run bench:soak
 npm run bench:check                                    # correctness gate (fails on any *Check=FAIL)
 ```
 
-Open issues behind the conditions above: see [.github/issue-drafts/](../.github/issue-drafts/)
-(01 connection cap, 03 reproducible evidence, 04 failure/soak, 05 database-pg parity).
+The benchmark-side drafts behind these conditions are resolved (01 connection cap, 03 reproducible
+evidence, 04 failure/soak, 05 database-pg parity); see [.github/issue-drafts/](../.github/issue-drafts/)
+for the history.
