@@ -91,11 +91,15 @@ latency percentiles + throughput.
 ## The committed baselines (`baselines/`, tracked)
 
 - **`1.0.0.json`** — the intended home for the absolute numbers quoted in the docs.
-  **It is currently a scaffold (no metrics).** Capture it on the dedicated Linux
-  reference VM (spec below) and aggregate several runs for a stable figure:
-  `npm run bench:report -- --runs=5 --write-baseline=1.0.0`. Until then the generated
-  docs page prints its provisional caveat and `bench:check --baseline=1.0.0` compares
-  nothing. Do not quote a docs headline that has no committed source here.
+  **It is currently a scaffold (no metrics).** The turnkey way to capture it is the
+  **Capture 1.0.0 baseline** workflow (`.github/workflows/capture-baseline.yml`, manual
+  dispatch): it runs the full-size sweep on a Linux runner, aggregates the throughput
+  tiers (`bench:report -- --runs=5 --write-baseline=1.0.0`), and opens a PR with the
+  baseline, the raw snapshot, and the regenerated docs (the provisional caveat drops on
+  Linux). To capture on a dedicated VM by hand instead, run the sweep there and use the
+  same `bench:report` command. Until a capture lands, the generated docs page prints its
+  provisional caveat and `bench:check --baseline=1.0.0` compares nothing. Do not quote a
+  docs headline that has no committed source here.
 - **`ci-ubuntu.json`** — captured on the GitHub `ubuntu-latest` runner and used by the
   regression gate, so the gate compares like-for-like and tolerates runner noise. It is
   a CI-sized run and **not** the same as a `full_size` representative capture.

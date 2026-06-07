@@ -21,11 +21,18 @@ so a number is never separated from the machine that produced it.
 
 ## How a capture is made
 
-1. Run the full sweep (locally on the Linux reference VM, or via the
-   `benchmark.yml` `full_size=true` dispatch and download the artifact).
-2. Copy the chosen run's JSONs here under a new subfolder.
-3. For a quotable headline, aggregate several runs:
-   `npm run bench:report -- --runs=5 --write-baseline=1.0.0` (median + IQR).
+The turnkey path is the **Capture 1.0.0 baseline** workflow
+(`.github/workflows/capture-baseline.yml`, manual dispatch): it runs the
+full-size sweep `runs` times on a Linux runner, aggregates the throughput tiers,
+writes `1.0.0.json`, snapshots the raw JSONs into a new subfolder here, and opens
+a PR. To do it by hand on a dedicated VM instead:
+
+1. Run the full sweep on the Linux reference VM (`runs` times for a quotable
+   headline).
+2. Copy the run's JSONs here under a new subfolder.
+3. Aggregate: `npm run bench:report -- --runs=5 --write-baseline=1.0.0`
+   (median + IQR). `bench:report` reads each file's own `env` block, so this is
+   correct even when run on a non-Linux box against Linux-captured files.
 4. Link the subfolder from `PERFORMANCE_ASSESSMENT.md`.
 
 Until a capture is committed, `baselines/1.0.0.json` stays a scaffold and the
