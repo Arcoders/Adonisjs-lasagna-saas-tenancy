@@ -91,9 +91,47 @@ test.group('validateExternalHttpsUrl — SSRF guard', () => {
     assert.equal(validateExternalHttpsUrl('https://[::]/'), 'url_blocks_reserved')
   })
 
+  test('rejects IPv4-mapped IPv6 in any notation (hex or dotted)', ({ assert }) => {
+    // `new URL` canonicalises the dotted tail to hex (`::ffff:7f00:1`), which the
+    // old dotted-only regex never matched — this was a real loopback SSRF bypass.
+    assert.equal(validateExternalHttpsUrl('https://[::ffff:7f00:1]/'), 'url_blocks_loopback')
+    assert.equal(validateExternalHttpsUrl('https://[::ffff:127.0.0.1]/'), 'url_blocks_loopback')
+    assert.equal(validateExternalHttpsUrl('https://[::ffff:10.0.0.1]/'), 'url_blocks_private')
+    assert.equal(
+      validateExternalHttpsUrl('https://[::ffff:169.254.169.254]/'),
+      'url_blocks_link_local'
+    )
+  })
+
+  test('rejects the full fe80::/10 link-local range', ({ assert }) => {
+    assert.equal(validateExternalHttpsUrl('https://[fe80::1]/'), 'url_blocks_link_local')
+    assert.equal(validateExternalHttpsUrl('https://[fe90::1]/'), 'url_blocks_link_local')
+    assert.equal(validateExternalHttpsUrl('https://[febf::1]/'), 'url_blocks_link_local')
+  })
+
+  test('rejects multicast / reserved high IPv4 ranges', ({ assert }) => {
+    assert.equal(validateExternalHttpsUrl('https://224.0.0.1/'), 'url_blocks_reserved')
+    assert.equal(validateExternalHttpsUrl('https://240.0.0.1/'), 'url_blocks_reserved')
+    assert.equal(validateExternalHttpsUrl('https://255.255.255.255/'), 'url_blocks_reserved')
+  })
+
+  test('rejects numeric IP encodings (URL parser canonicalises them to a blocked IP)', ({
+    assert,
+  }) => {
+    // new URL() rewrites these to 127.0.0.1 before classification.
+    assert.equal(validateExternalHttpsUrl('https://2130706433/'), 'url_blocks_loopback')
+    assert.equal(validateExternalHttpsUrl('https://0x7f000001/'), 'url_blocks_loopback')
+    assert.equal(validateExternalHttpsUrl('https://0177.0.0.1/'), 'url_blocks_loopback')
+    assert.equal(validateExternalHttpsUrl('https://127.1/'), 'url_blocks_loopback')
+  })
+
   test('accepts public IPv4', ({ assert }) => {
     assert.isNull(validateExternalHttpsUrl('https://8.8.8.8/'))
     assert.isNull(validateExternalHttpsUrl('https://1.1.1.1/'))
+  })
+
+  test('accepts a public IPv6 literal', ({ assert }) => {
+    assert.isNull(validateExternalHttpsUrl('https://[2606:4700::1111]/'))
   })
 
   test('accepts URLs with paths, queries, and ports', ({ assert }) => {
@@ -121,5 +159,14 @@ test.group('validateResolvedHostIsPublic — DNS-aware SSRF guard', () => {
 
   test('accepts a public literal IP without resolving DNS', async ({ assert }) => {
     assert.isNull(await validateResolvedHostIsPublic('https://8.8.8.8/'))
+  })
+
+  test('rejects an IPv4-mapped IPv6 loopback literal (no DNS, classifier closes the gap)', async ({
+    assert,
+  }) => {
+    assert.equal(
+      await validateResolvedHostIsPublic('https://[::ffff:7f00:1]/'),
+      'url_blocks_loopback'
+    )
   })
 })

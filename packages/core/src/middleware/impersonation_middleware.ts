@@ -3,6 +3,7 @@ import ImpersonationService from '../services/impersonation_service.js'
 import ImpersonationInvalidException from '../exceptions/impersonation_invalid_exception.js'
 import { getConfig } from '../config.js'
 import { tenancy } from '../tenancy.js'
+import { resolveTenant } from '../extensions/request.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
 
@@ -37,16 +38,27 @@ export default class ImpersonationMiddleware {
     const verified = await svc.verify(token)
     if (!verified) throw new ImpersonationInvalidException()
 
-    // Bind the token to the active tenant. When the tenant guard has already
-    // run upstream (the recommended order), `tenancy.currentId()` holds the
-    // resolved tenant's canonical id. A token issued for tenant A presented on
-    // tenant B's host must not attach an A-scoped context to a B request.
-    // `currentId()` is the resolved UUID, so this comparison is correct for
-    // every resolver strategy (header/subdomain/path/domain). If no tenant
-    // context is active yet (impersonation middleware ran before the guard, or
-    // a central route), there is nothing to mismatch and we let it through.
-    const activeTenantId = tenancy.currentId()
-    if (activeTenantId && activeTenantId !== verified.tenantId) {
+    // Bind the token to the request's tenant. A token issued for tenant A
+    // presented on tenant B's request must not attach an A-scoped context to B.
+    //
+    // Prefer the canonical id the guard already resolved (`tenancy.currentId()`),
+    // but do not DEPEND on the guard having run first: if no context is active
+    // (this middleware ran before the guard, or in isolation), resolve the
+    // request's tenant ourselves. For an `id`-typed resolution the value is the
+    // canonical UUID (the `request.tenant()` macro asserts it), so we can compare
+    // without a repository lookup or a connection. A `domain`-typed resolution
+    // would need a lookup to reach the canonical id; we skip that niche path and
+    // fall through (a genuine central route has no tenant to bind to either).
+    let boundTenantId = tenancy.currentId()
+    if (!boundTenantId) {
+      try {
+        const resolved = await resolveTenant(ctx.request)
+        if (resolved?.type === 'id') boundTenantId = resolved.tenantId
+      } catch {
+        boundTenantId = undefined
+      }
+    }
+    if (boundTenantId && boundTenantId !== verified.tenantId) {
       throw new ImpersonationInvalidException()
     }
 

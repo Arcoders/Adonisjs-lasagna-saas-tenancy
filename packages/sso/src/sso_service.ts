@@ -1,9 +1,6 @@
 import TenantSsoConfig from './tenant_sso_config.js'
 import { getCache } from '@adonisjs-lasagna/saas-tenancy/services'
-import {
-  validateExternalHttpsUrl,
-  validateResolvedHostIsPublic,
-} from '@adonisjs-lasagna/saas-tenancy'
+import { validateResolvedHostIsPublic } from '@adonisjs-lasagna/saas-tenancy'
 import redis from '@adonisjs/redis/services/main'
 import { randomBytes } from 'node:crypto'
 
@@ -244,13 +241,18 @@ export default class SsoService {
           // loopback issuerUrl from admin input, so this only fires for
           // direct service callers (tests, ad-hoc scripts).
           if (!isLoopbackIssuer(issuerUrl)) {
-            const tokenErr = validateExternalHttpsUrl(doc.token_endpoint)
+            // Resolving guard (not just syntactic): these are fetched
+            // server-side, and a malicious tenant can configure an issuer whose
+            // discovery doc points them at a name that resolves into the private
+            // network. classifyIpLiteral now also rejects IPv4-mapped IPv6 and
+            // ambiguous numeric IP encodings, so a literal cannot slip through.
+            const tokenErr = await validateResolvedHostIsPublic(doc.token_endpoint)
             if (tokenErr) {
               throw new Error(
                 `OIDC discovery for ${issuerUrl} returned an unsafe token_endpoint (${tokenErr}).`
               )
             }
-            const jwksErr = validateExternalHttpsUrl(doc.jwks_uri)
+            const jwksErr = await validateResolvedHostIsPublic(doc.jwks_uri)
             if (jwksErr) {
               throw new Error(
                 `OIDC discovery for ${issuerUrl} returned an unsafe jwks_uri (${jwksErr}).`

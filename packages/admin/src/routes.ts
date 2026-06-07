@@ -126,7 +126,8 @@ export function multitenancyAdminRoutes(options: MultitenancyAdminRoutesOptions 
 
   // Fail closed: the admin surface includes destructive routes, so it must not
   // mount silently public. Require explicit auth, or an explicit `false` opt-out.
-  if (middleware === undefined) {
+  // `null` is treated like `undefined` (omitted), not like the `false` opt-out.
+  if (middleware === undefined || middleware === null) {
     throw new Error(
       'multitenancyAdminRoutes: `middleware` is required. The admin API exposes destructive ' +
         'routes (tenant destroy, impersonation, SSO config), so it refuses to mount without auth. ' +
