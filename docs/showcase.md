@@ -39,7 +39,7 @@ routing strategies, and the webhook delivery state machine.
 
 ## Coming soon
 
-We're collecting "Built with Lasagna" submissions for v2.0.0 stable.
+We're collecting "Built with Lasagna" submissions for the 1.0 launch.
 The first three early adopters get direct support, a logo on this
 page, and a post-mortem write-up on the blog.
 
@@ -74,7 +74,7 @@ testimonial: |
   — Author Name, Role
 isolationDriver: 'schema-pg'
 satellites: ['audit', 'webhooks', 'sso']
-sinceVersion: '2.0.0'
+sinceVersion: '1.0.0'
 ```
 
 Drop the YAML block into `docs/data/showcase.yml` (file will exist

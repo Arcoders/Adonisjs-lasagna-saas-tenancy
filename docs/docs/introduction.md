@@ -43,7 +43,7 @@ Lasagna handles the seams.
 - MySQL or MariaDB. Schemas are a Postgres-native concept and the
   package leans into them.
 - An admin dashboard UI. Only the REST API. The Inertia + Vue
-  dashboard is on the v2 roadmap.
+  dashboard is on the post-1.0 roadmap.
 - A starter kit. `create-lasagna-saas` is roadmap, not shipping.
 
 ## Read next

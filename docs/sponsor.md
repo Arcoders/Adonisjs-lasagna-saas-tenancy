@@ -56,7 +56,7 @@ relationship with:
   team wants to fund specific issues directly.
 
 Links land here once the GitHub Sponsors profile and Polar.sh page
-are set up (both are part of the v2.0.0 stable launch).
+are set up (both are part of the 1.0 launch).
 
 <Callout type="tip" title="Corporate sponsor?">
 
@@ -91,8 +91,8 @@ You'll get:
 - Early access to release candidates.
 - An invite to the quarterly roadmap call.
 
-The first ten sponsors also get permanent shoutouts in the v2.0.0
-stable release notes.
+The first ten sponsors also get permanent shoutouts in the 1.0
+release notes.
 
 ## Other ways to help (if money isn't an option)
 

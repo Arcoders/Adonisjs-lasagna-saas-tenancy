@@ -151,7 +151,7 @@ in-house, and that we already debugged:
 ## Hardened against the failures that bite you in production
 
 Multi-tenancy is the kind of code where a mistake surfaces *months*
-later, in production, on a Friday. So before tagging v2 we verified
+later, in production, on a Friday. So before tagging 1.0 we verified
 every guarantee in the list below against real Postgres, real Redis,
 real BullMQ; no mocks, no in-memory shortcuts.
 
@@ -193,7 +193,7 @@ If you spot a tenancy guarantee that should be on it and isn't,
 Phase 4 of the roadmap: a public Discord, the
 `@adonisjs-lasagna/dashboard` package (Inertia + Vue admin UI
 consuming the OpenAPI spec), `create-lasagna-saas` (a starter kit
-that wires Lasagna + Auth + Stripe), and the v2.0.0 stable cut.
+that wires Lasagna + Auth + Stripe), and the 1.0 release.
 
 If you want to follow along or contribute, [the GitHub
 repo](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy) is

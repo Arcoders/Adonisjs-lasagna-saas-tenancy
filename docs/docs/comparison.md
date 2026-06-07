@@ -45,7 +45,7 @@ Phase 4 of our roadmap is explicitly aimed at the gaps stancl has
 filled: a public Discord, the
 `@adonisjs-lasagna/dashboard` package (Inertia + Vue admin UI
 consuming the OpenAPI spec), `create-lasagna-saas` (a starter kit
-that wires Lasagna + Auth + Stripe), and the v2.0.0 stable cut.
+that wires Lasagna + Auth + Stripe), and the 1.0 release.
 
 Track the work in the
 [GitHub repo](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy).

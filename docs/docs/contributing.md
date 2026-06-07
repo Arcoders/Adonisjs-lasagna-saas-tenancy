@@ -84,7 +84,7 @@ The current focus areas live on the
 [GitHub project board](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/projects).
 Top-level themes:
 
-- **v2.0.0 stable**; finalise APIs, ship the public site,
+- **1.0 release**; finalise APIs, ship the public site,
   community channels.
 - **Dashboard package**; `@adonisjs-lasagna/dashboard` consuming
   the OpenAPI spec, Inertia + Vue.
