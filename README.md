@@ -17,6 +17,7 @@ a satellite suite covering audit logs, webhooks, branding, SSO, feature
 flags, metrics, and Stripe billing.
 
 [![npm](https://img.shields.io/npm/v/@adonisjs-lasagna/saas-tenancy?color=C26A4B&label=npm)](https://www.npmjs.com/package/@adonisjs-lasagna/saas-tenancy)
+[![Stability: release candidate](https://img.shields.io/badge/stability-release_candidate-C26A4B)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/stability)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A524-green)](https://nodejs.org)
 [![AdonisJS](https://img.shields.io/badge/AdonisJS-7-5a45ff)](https://adonisjs.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-%E2%89%A514-336791)](https://www.postgresql.org)
@@ -26,6 +27,8 @@ flags, metrics, and Stripe billing.
 [![License](https://img.shields.io/badge/License-MIT-blue)](./LICENSE)
 
 📖 **[Full documentation →](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/)** · [Quickstart](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/quickstart) · [Why Lasagna](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/why) · [Comparison vs stancl](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/comparison) · [Release notes](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/release-notes)
+
+> **Stability: release candidate.** The isolation core is feature complete and green in CI against real Postgres and Redis, but the `stable` label is withheld until an independent security review and production mileage close. The satellites (billing, SSO, admin, backup, and the opt-in in-core features like quotas, webhooks, and metrics) are **experimental**. Full breakdown and the 1.x semver promise in the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/stability).
 
 I built this because the AdonisJS ecosystem deserved a proper multi
 tenancy foundation, and because every SaaS I touched eventually outgrew

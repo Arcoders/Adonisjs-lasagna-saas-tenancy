@@ -128,6 +128,19 @@ export default async function configure(command: Configure) {
 
   command.logger.info(`published migrations: ${selected.join(', ')}`)
 
+  // Stability notice. Every satellite is `experimental` in 1.x and is not
+  // covered by the semver promise. Surface it once, at install, so reaching for
+  // one is an informed choice rather than a surprise on the next minor. (`rls`
+  // is core hardening, not a satellite, so it is excluded.)
+  const experimentalSelected = selected.filter((f) => f in SATELLITE_BUNDLES)
+  if (experimentalSelected.length > 0) {
+    command.logger.warning(`experimental satellites: ${experimentalSelected.join(', ')}`)
+    command.logger.log('  Experimental features are not part of the 1.x stability promise and may')
+    command.logger.log('  change in a minor release. Pin your version and check the changelog before')
+    command.logger.log('  upgrading. Stability matrix:')
+    command.logger.log('  https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/stability')
+  }
+
   if (selected.includes('rls')) {
     postPublishRls(command)
   }
