@@ -182,11 +182,12 @@ jobs:
   # Fault injection needs to stop/start the backing services, which GitHub
   # service containers don't allow — so Postgres and Redis are run as named,
   # controllable containers and the bench drives `docker stop/start` on them.
-  # Dispatch-only (it deliberately breaks dependencies).
+  # Runs on the weekly schedule and on manual dispatch; it deliberately breaks
+  # dependencies, so it is never wired into the per-PR path.
   resilience:
     name: Resilience (fault injection)
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     env:
       TZ: UTC
       NODE_ENV: development

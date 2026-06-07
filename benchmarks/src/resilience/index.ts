@@ -6,9 +6,10 @@
  *   - Redis down + rate-limited route → 503 (RateLimitUnavailableException;
  *     fail-closed is the default). A 200 would be a silent fail-open leak.
  *     The non-rate-limited tenant route must stay 200 (Redis-independent).
- *   - Postgres down + tenant route → currently a 500 (raw Lucid error, NOT a
- *     clean 503): documented here as a finding. Recovery after restart is the
- *     hard assertion.
+ *   - Postgres down + tenant route → 503 (DependencyUnavailableException). The
+ *     tenant path fails closed: `request.tenant()` maps an unreachable tenant
+ *     registry / connection to a clean 503 instead of a raw Lucid 500. A 500
+ *     here is now a regression. Recovery after restart is also asserted.
  *
  * Opt-in (needs Docker + controllable containers):
  *   BENCH_RESILIENCE=1 BENCH_REDIS_CONTAINER=… BENCH_PG_CONTAINER=… \
@@ -193,30 +194,50 @@ try {
     )
   )
 
-  // --- Scenario B: Postgres down (documented behavior + recovery) ---
+  // --- Scenario B: Postgres down (tenant route fails closed + recovery) ---
   const pgStopped = docker('stop', pgContainer)
   await sleep(1500)
-  const pgDown = await status('/tenant/notes', tenant)
+  // Sample a few times: right after `docker stop`, the first probe can time out
+  // (status 0) before the socket cleanly refuses. The policy is proven if ANY
+  // sample is a clean 503 and NONE is a 200 (a served read = leak / fail-open).
+  // A 500 with no 503 is a regression (the macro maps DB outages to a 503); a
+  // run of only 0s means the request hung throughout.
+  const pgDownSamples: number[] = []
+  for (let i = 0; i < 3; i++) {
+    pgDownSamples.push(await status('/tenant/notes', tenant))
+    if (i < 2) await sleep(500)
+  }
   docker('start', pgContainer)
-  const pgRecoveredMs = await pollUntil('/tenant/notes', tenant, recoveryTimeoutMs, (s) => s === 200)
+  const pgRecoveredMs = await pollUntil(
+    '/tenant/notes',
+    tenant,
+    recoveryTimeoutMs,
+    (s) => s === 200
+  )
 
-  // The scenario only proves something if PG actually went down: the container
-  // stopped AND the route returned a non-200 while it was down. A 200 throughout
-  // means the stop never took effect (wrong container, denied, or restarted too
-  // fast), so crediting "recovery" would be a vacuous PASS — fail loudly instead.
-  const pgObservedFailure = pgDown !== 200
-  const pgPass = pgStopped && pgObservedFailure && pgRecoveredMs >= 0
+  const pgSaw503 = pgDownSamples.includes(503)
+  const pgSaw200 = pgDownSamples.includes(200)
+  const pgSaw500 = pgDownSamples.includes(500)
+  const pgPolicyObserved = pgSaw200
+    ? 'FAIL-OPEN (200: tenant route served a read while PG was down)'
+    : pgSaw503
+      ? 'fail-closed (503, correct)'
+      : pgSaw500
+        ? 'REGRESSION (raw 500 Lucid error, not mapped to a 503 policy)'
+        : 'hung/timeout (no definitive status observed)'
+  // Hard assertion: PG was really stopped, the tenant route returned a clean 503
+  // at least once, never served a 200, and recovered after restart.
+  const pgPass = pgStopped && pgSaw503 && !pgSaw200 && pgRecoveredMs >= 0
   results.push(
     zeroMetric(
-      'postgres down → tenant route + recovery',
+      'postgres down → tenant route fail-closed + recovery',
       {
         dependency: 'postgres',
         containerStopped: pgStopped,
-        observedStatus: pgDown, // documented: currently 500/0 (no clean 503 yet)
-        observedFailureWhileDown: pgObservedFailure,
-        note: 'PG outage is a raw Lucid error (500), not a 503 policy; see issue 04',
+        observedStatuses: pgDownSamples,
+        expectedStatus: 503,
+        policyObserved: pgPolicyObserved,
         recoveredWithinMs: pgRecoveredMs,
-        // Hard assertion: PG was really down (stopped + non-200) and then recovered.
         failPolicyCheck: pgPass ? 'PASS' : 'FAIL',
       },
       'resilience'
