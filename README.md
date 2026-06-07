@@ -41,7 +41,7 @@ If you'd rather see it run than read about it, jump to
 exercises every feature, and one `npm run test:e2e` brings up the stack
 and runs 123 tests against it.
 
-🔒 **Audited against real production failure modes** — cross-tenant isolation under concurrency, quota atomicity, SSO replay, audit immutability, header-vs-domain hijack, and more. [See what we verified →](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/why#hardened-against-the-failures-that-bite-you-in-production)
+🔒 **Hardened and tested against real production failure modes** — cross-tenant isolation under concurrency, quota atomicity, SSO replay, audit immutability, header-vs-domain hijack, and more. [See what we verified →](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/why#hardened-against-the-failures-that-bite-you-in-production)
 
 ## Highlights
 

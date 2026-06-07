@@ -151,7 +151,7 @@ in-house, and that we already debugged:
 ## Hardened against the failures that bite you in production
 
 Multi-tenancy is the kind of code where a mistake surfaces *months*
-later, in production, on a Friday. So before tagging v2 we audited
+later, in production, on a Friday. So before tagging v2 we verified
 every guarantee in the list below against real Postgres, real Redis,
 real BullMQ; no mocks, no in-memory shortcuts.
 
@@ -182,11 +182,11 @@ real BullMQ; no mocks, no in-memory shortcuts.
   `replica_lag`, `queue_stuck` run in CI against a live Postgres /
   BullMQ — not mocked clocks.
 
-The list above is the *current* audit surface; every item has a spec
+The list above is the *current* verification surface; every item has a spec
 under [`tests/integration/`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/tree/master/tests/integration).
 If you spot a tenancy guarantee that should be on it and isn't,
 [open an issue](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues)
-— the audit is iterative.
+— the verification is iterative.
 
 ## What's coming next
 
