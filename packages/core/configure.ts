@@ -136,7 +136,9 @@ export default async function configure(command: Configure) {
   if (experimentalSelected.length > 0) {
     command.logger.warning(`experimental satellites: ${experimentalSelected.join(', ')}`)
     command.logger.log('  Experimental features are not part of the 1.x stability promise and may')
-    command.logger.log('  change in a minor release. Pin your version and check the changelog before')
+    command.logger.log(
+      '  change in a minor release. Pin your version and check the changelog before'
+    )
     command.logger.log('  upgrading. Stability matrix:')
     command.logger.log('  https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/stability')
   }
