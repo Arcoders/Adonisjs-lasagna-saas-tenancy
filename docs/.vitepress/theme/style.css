@@ -268,13 +268,25 @@ code, pre, kbd, samp {
 }
 
 /* ─── Table polish ──────────────────────────────────────────────── */
-.vp-doc table {
-  border-radius: 12px;
-  overflow: hidden;
+/* Markdown tables are wrapped in `.vp-table-scroll` (see `markdown.config` in
+ * .vitepress/config.ts). The wrapper carries the border + rounded corners and
+ * owns the horizontal scroll, so a wide table (e.g. the benchmark tables on the
+ * Performance page) scrolls inside its own box instead of overflowing the page
+ * and colliding with the table of contents. Narrow tables still stretch to full
+ * width via `width: 100%` on the table itself. */
+.vp-doc .vp-table-scroll {
+  margin: 1rem 0;
+  overflow-x: auto;
   border: 1px solid var(--lg-line);
+  border-radius: 12px;
   background: var(--lg-surface);
+}
+
+.vp-doc table {
   display: table;
   width: 100%;
+  margin: 0;
+  border-collapse: collapse;
 }
 
 .vp-doc th {

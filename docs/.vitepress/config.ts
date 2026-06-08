@@ -24,6 +24,15 @@ export default defineConfig({
       light: 'github-dark',
       dark: 'github-dark',
     },
+    // Wrap every markdown table in a horizontally-scrollable container so wide
+    // tables (e.g. the benchmark tables on the Performance page) scroll inside
+    // their own box instead of overflowing the layout and colliding with the
+    // right-hand table of contents. The wrapper carries the border/radius (see
+    // `.vp-table-scroll` in theme/style.css).
+    config(md) {
+      md.renderer.rules.table_open = () => '<div class="vp-table-scroll">\n<table>\n'
+      md.renderer.rules.table_close = () => '</table>\n</div>\n'
+    },
   },
 
   head: [
