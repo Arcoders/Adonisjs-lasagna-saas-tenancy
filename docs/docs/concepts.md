@@ -99,6 +99,8 @@ Three things happen at the seams:
 
 ## Read next
 
+- [Models](/docs/models); the hands-on reference for the three base classes and
+  the row-scope mixin, and which schema each one hits.
 - [Tenant identification](/docs/tenant-identification); how
   `resolveTenantId()` picks a UUID from the request.
 - [Data isolation](/docs/data-isolation/); the three drivers in

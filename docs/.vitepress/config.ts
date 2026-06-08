@@ -67,6 +67,7 @@ export default defineConfig({
         items: [
           { text: 'Introduction', link: '/docs/introduction' },
           { text: 'Concepts', link: '/docs/concepts' },
+          { text: 'Models', link: '/docs/models' },
           { text: 'Installation', link: '/docs/installation' },
           { text: 'Stability', link: '/docs/stability' },
           { text: 'Upgrade to 1.0', link: '/docs/upgrade-to-1.0' },
@@ -85,8 +86,11 @@ export default defineConfig({
           { text: 'Testing', link: '/docs/testing' },
           { text: 'Admin REST API', link: '/docs/admin-rest-api' },
           { text: 'Configuration', link: '/docs/configuration' },
+          { text: 'Service API reference', link: '/docs/services' },
           { text: 'Exceptions', link: '/docs/exceptions' },
           { text: 'Troubleshooting', link: '/docs/gotchas' },
+          { text: 'FAQ', link: '/docs/faq' },
+          { text: 'Known limitations', link: '/docs/known-limitations' },
           { text: 'Deployment', link: '/docs/deployment' },
           { text: 'Production checklist', link: '/docs/production-checklist' },
           { text: 'Scaling limits', link: '/docs/scaling-limits' },
@@ -116,6 +120,7 @@ export default defineConfig({
           items: [
             { text: 'Introduction', link: '/docs/introduction' },
             { text: 'Concepts', link: '/docs/concepts' },
+            { text: 'Models', link: '/docs/models' },
             { text: 'Installation', link: '/docs/installation' },
             { text: 'Stability', link: '/docs/stability' },
             { text: 'Upgrade to 1.0', link: '/docs/upgrade-to-1.0' },
@@ -207,6 +212,7 @@ export default defineConfig({
           text: 'API Reference',
           items: [
             { text: 'Configuration', link: '/docs/configuration' },
+            { text: 'Service API reference', link: '/docs/services' },
             { text: 'Exceptions', link: '/docs/exceptions' },
             { text: 'Troubleshooting', link: '/docs/gotchas' },
           ],
@@ -214,6 +220,8 @@ export default defineConfig({
         {
           text: 'Reference',
           items: [
+            { text: 'FAQ', link: '/docs/faq' },
+            { text: 'Known limitations', link: '/docs/known-limitations' },
             { text: 'Comparison vs stancl', link: '/docs/comparison' },
             { text: 'Contributing', link: '/docs/contributing' },
             { text: 'Release notes', link: '/docs/release-notes' },

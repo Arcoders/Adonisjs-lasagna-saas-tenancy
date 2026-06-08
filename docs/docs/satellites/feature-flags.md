@@ -1,12 +1,13 @@
 ---
 title: Feature flags
-description: Per-tenant feature flags with percentage rollout. Backed by the backoffice schema, cached per tenant.
+description: Per-tenant boolean feature flags backed by the backoffice schema, cached per tenant.
 ---
 
 # Feature flags
 
-Boolean and percentage-rollout flags scoped to a tenant. Use them
-for gradual rollouts, kill switches, and beta cohorts.
+Boolean feature flags scoped to a tenant. Use them for kill switches and beta
+cohorts. Each flag is on or off for a tenant; an optional free-form `config`
+object rides alongside for whatever metadata your app wants to attach.
 
 ## Configuration
 
@@ -21,20 +22,28 @@ import { FeatureFlagService } from '@adonisjs-lasagna/saas-tenancy/services'
 
 const flags = await app.container.make(FeatureFlagService)
 
-// Boolean
-if (await flags.isEnabled('new-checkout', { tenantId: tenant.id })) {
+// Evaluate (cached per tenant for 60s). Returns false for unknown flags.
+if (await flags.isEnabled(tenant.id, 'new-checkout')) {
   // …
 }
 
-// Percentage rollout — stable hash on userId so a single user
-// stays in the same bucket across requests.
-if (await flags.isEnabled('beta-dashboard', {
-  tenantId: tenant.id,
-  bucketKey: user.id,
-})) {
-  // …
-}
+// Set / unset a flag. The optional config object is stored verbatim.
+await flags.set(tenant.id, 'new-checkout', true)
+await flags.set(tenant.id, 'beta-dashboard', true, { note: 'cohort A' })
+
+// List every flag for a tenant, or remove one.
+const all = await flags.listForTenant(tenant.id)
+await flags.delete(tenant.id, 'beta-dashboard')
 ```
+
+Method signatures:
+
+| Method | Returns |
+|---|---|
+| `isEnabled(tenantId, flag)` | `Promise<boolean>` (false when the flag is absent) |
+| `set(tenantId, flag, enabled, config?)` | `Promise<TenantFeatureFlag>` (upsert) |
+| `listForTenant(tenantId)` | `Promise<TenantFeatureFlag[]>` |
+| `delete(tenantId, flag)` | `Promise<void>` |
 
 ## Storage
 
@@ -43,14 +52,15 @@ if (await flags.isEnabled('beta-dashboard', {
 | Column | Notes |
 |---|---|
 | `id` | UUID v4 |
-| `tenant_id` | FK |
-| `key` | Flag name |
-| `enabled` | Boolean kill switch |
-| `rollout_percent` | 0..100; null means use `enabled` only |
-| `bucket_key` | Optional override of which field to hash |
+| `tenant_id` | the owning tenant |
+| `flag` | flag name |
+| `enabled` | boolean on/off |
+| `config` | optional free-form JSON; opaque to the service, not used to evaluate the flag |
+| `created_at` / `updated_at` | timestamps |
 
-The cache key is `tenants/<id>/feature-flags/<key>`; the cache
-bootstrapper takes care of the namespacing automatically.
+`isEnabled` reads through a per-tenant cache: a tenant's whole flag map is cached
+under `ff_map:<tenantId>` in the `feature_flags` cache namespace for 60s, and
+`set`/`delete` bust it.
 
 ## Admin REST
 
@@ -60,9 +70,10 @@ PUT    /admin/multitenancy/tenants/{id}/feature-flags/{key}
 DELETE /admin/multitenancy/tenants/{id}/feature-flags/{key}
 ```
 
-## Limits
+## Notes
 
-- Flag evaluation is cached for 60 s by default. Tune
-  `featureFlags.cacheTtl` to taste.
-- Percentage rollout uses xxhash64; lookups are O(1). Don't reach for
-  this satellite for personalisation; there are better tools.
+- Evaluation is a boolean kill switch. There is no built-in percentage rollout: if
+  you need gradual rollouts, store the percentage in `config` and bucket on it in
+  your own code, or reach for a dedicated experimentation tool.
+- Flags are cached for 60s, so a `set` takes up to a minute to propagate on cache
+  hits.
