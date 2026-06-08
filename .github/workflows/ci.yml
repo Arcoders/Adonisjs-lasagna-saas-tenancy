@@ -358,14 +358,17 @@ jobs:
       - name: Aggregate coverage report (unit + integration, remapped to src)
         run: npm run coverage:report
 
-      # Blocking gate on the aggregate. Thresholds track the unit floors (the
-      # aggregate can only cover MORE, so this never false-fails); ratchet them
-      # up here once a run prints the real merged number.
+      # Blocking gate on the merged unit+integration coverage. These floors come
+      # from a real CI run, not the unit floors: the merged report covers a
+      # different file set than the unit run (executed files vs the unit run's
+      # `all: true` set), so its percentages differ — branches in particular read
+      # LOWER here than in the unit gate. Keep a small margin under the measured
+      # numbers and re-check after a run before ratcheting further.
       - name: Coverage gate (aggregate)
         env:
-          COV_MIN_LINES: '48'
-          COV_MIN_FUNCTIONS: '68'
-          COV_MIN_BRANCHES: '78'
+          COV_MIN_LINES: '80' # measured ~81.5%
+          COV_MIN_FUNCTIONS: '78' # measured ~79.7%
+          COV_MIN_BRANCHES: '77' # measured ~77.5%
         run: node scripts/coverage-gate.mjs coverage/lcov.info
 
       - name: Upload combined coverage
