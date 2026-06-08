@@ -2,19 +2,22 @@ import { test } from '@japa/runner'
 import CustomDomainMiddleware from '../../../src/middleware/custom_domain_middleware.js'
 import TenantHeaderDomainMismatchException from '../../../src/exceptions/tenant_header_domain_mismatch_exception.js'
 import type { TenantRepositoryContract } from '../../../src/types/contracts.js'
+import { setupTestConfig } from '../../helpers/config.js'
 
 const UUID_A = '11111111-1111-4111-8111-111111111111'
 const UUID_B = '22222222-2222-4222-8222-222222222222'
 
 /**
  * The middleware destructures `ctx.request`, calls `request.header(...)`, and
- * auto-fills the resolved id onto `request.request.headers`. Model that shape
- * and return both the ctx and the raw headers bag for assertions.
+ * auto-fills the resolved id onto `request.request.headers` under the configured
+ * `tenantHeaderKey`. Model that shape, letting the test pick the incoming header
+ * name, and return both the ctx and the raw headers bag for assertions.
  */
-function makeCtx(opts: { host?: string; tenantHeader?: string } = {}) {
+function makeCtx(opts: { host?: string; tenantHeader?: string; headerKey?: string } = {}) {
+  const headerKey = opts.headerKey ?? 'x-tenant-id'
   const headers: Record<string, string> = {}
   if (opts.host) headers['host'] = opts.host
-  if (opts.tenantHeader) headers['x-tenant-id'] = opts.tenantHeader
+  if (opts.tenantHeader) headers[headerKey] = opts.tenantHeader
   const request = {
     header: (key: string) => headers[key.toLowerCase()] ?? null,
     request: { headers },
@@ -55,7 +58,10 @@ async function catchError(fn: () => Promise<void>): Promise<unknown> {
   return undefined
 }
 
-test.group('CustomDomainMiddleware', () => {
+test.group('CustomDomainMiddleware', (group) => {
+  // The middleware reads getConfig().tenantHeaderKey, so seed config per test.
+  group.each.setup(() => setupTestConfig())
+
   test('passes through when there is no Host header', async ({ assert }) => {
     const m = makeMiddleware({})
     const { ctx } = makeCtx()
@@ -134,5 +140,22 @@ test.group('CustomDomainMiddleware', () => {
     )
     assert.isTrue(nextCalled)
     assert.equal(headers['x-tenant-id'], UUID_A)
+  })
+
+  test('honors a custom tenantHeaderKey when auto-filling from the domain', async ({ assert }) => {
+    setupTestConfig({ tenantHeaderKey: 'x-workspace' })
+    const m = makeMiddleware({ 'acme.com': { id: UUID_A } })
+    const { ctx, headers } = makeCtx({ host: 'acme.com', headerKey: 'x-workspace' })
+    await m.handle(ctx, async () => {})
+    assert.equal(headers['x-workspace'], UUID_A)
+    assert.isUndefined(headers['x-tenant-id'])
+  })
+
+  test('strict: detects mismatch read from the custom tenantHeaderKey', async ({ assert }) => {
+    setupTestConfig({ tenantHeaderKey: 'x-workspace' })
+    const m = makeMiddleware({ 'acme.com': { id: UUID_A } })
+    const { ctx } = makeCtx({ host: 'acme.com', tenantHeader: UUID_B, headerKey: 'x-workspace' })
+    const err = await catchError(() => m.handle(ctx, async () => {}, { strict: true }))
+    assert.instanceOf(err, TenantHeaderDomainMismatchException)
   })
 })

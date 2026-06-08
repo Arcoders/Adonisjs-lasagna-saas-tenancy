@@ -1,6 +1,7 @@
 import { TENANT_REPOSITORY } from '../types/contracts.js'
 import type { TenantRepositoryContract } from '../types/contracts.js'
 import TenantHeaderDomainMismatchException from '../exceptions/tenant_header_domain_mismatch_exception.js'
+import { getConfig } from '../config.js'
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
@@ -28,8 +29,13 @@ export default class CustomDomainMiddleware {
   }
 
   async handle({ request }: HttpContext, next: NextFn, options: CustomDomainOptions = {}) {
+    // Use the configured tenant header so the Host->tenant hand-off matches what
+    // the resolver reads downstream (getConfig().tenantHeaderKey), rather than a
+    // fixed 'x-tenant-id'. Raw Node headers are lower-cased, so the auto-fill
+    // writes the lower-cased key (the default is already lower-case).
+    const headerKey = getConfig().tenantHeaderKey
     const host = request.header('host')?.split(':')[0]
-    const headerTenantId = request.header('x-tenant-id')
+    const headerTenantId = request.header(headerKey)
 
     if (!host) return next()
 
@@ -60,7 +66,7 @@ export default class CustomDomainMiddleware {
 
     // Either the header agrees with the domain (strict pass-through), or
     // there was no header at all (legacy auto-fill).
-    request.request.headers['x-tenant-id'] = tenant.id
+    request.request.headers[headerKey.toLowerCase()] = tenant.id
     return next()
   }
 }
