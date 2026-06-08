@@ -358,14 +358,14 @@ jobs:
       - name: Aggregate coverage report (unit + integration, remapped to src)
         run: npm run coverage:report
 
-      # Blocking gate on the aggregate. Thresholds start at the unit floors (the
+      # Blocking gate on the aggregate. Thresholds track the unit floors (the
       # aggregate can only cover MORE, so this never false-fails); ratchet them
       # up here once a run prints the real merged number.
       - name: Coverage gate (aggregate)
         env:
-          COV_MIN_LINES: '46'
-          COV_MIN_FUNCTIONS: '67'
-          COV_MIN_BRANCHES: '77'
+          COV_MIN_LINES: '48'
+          COV_MIN_FUNCTIONS: '68'
+          COV_MIN_BRANCHES: '78'
         run: node scripts/coverage-gate.mjs coverage/lcov.info
 
       - name: Upload combined coverage

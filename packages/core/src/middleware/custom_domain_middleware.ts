@@ -20,6 +20,13 @@ export interface CustomDomainOptions {
 }
 
 export default class CustomDomainMiddleware {
+  // Method seam (not constructor injection) because the named-middleware
+  // factory resolves this class via the IoC container. The default resolves
+  // the host-bound repository from the container; tests override it.
+  protected getRepository(): Promise<TenantRepositoryContract> {
+    return app.container.make(TENANT_REPOSITORY as any) as Promise<TenantRepositoryContract>
+  }
+
   async handle({ request }: HttpContext, next: NextFn, options: CustomDomainOptions = {}) {
     const host = request.header('host')?.split(':')[0]
     const headerTenantId = request.header('x-tenant-id')
@@ -32,7 +39,7 @@ export default class CustomDomainMiddleware {
       return next()
     }
 
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await this.getRepository()
     const tenant = await repo.findByDomain(host)
 
     if (!tenant) {

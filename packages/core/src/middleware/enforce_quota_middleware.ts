@@ -7,9 +7,25 @@ export interface EnforceQuotaOptions {
   amount?: number
   /**
    * When true (default), throws QuotaExceededException on overrun. When false,
-   * just lets the request proceed regardless — useful for soft-warn flows.
+   * just lets the request proceed regardless, useful for soft-warn flows.
    */
   enforce?: boolean
+}
+
+type QuotaConsumer = Pick<QuotaService, 'consume' | 'track'>
+type QuotaServiceResolver = () => Promise<QuotaConsumer>
+
+let resolveQuotaService: QuotaServiceResolver = () => app.container.make(QuotaService)
+
+/**
+ * Test-only: swap how the middleware resolves `QuotaService` so unit tests can
+ * exercise the factory's branches without a booted container. Pass `undefined`
+ * to restore the default. Not re-exported from the public barrel.
+ */
+export function __setQuotaServiceResolverForTests(
+  resolver: QuotaServiceResolver | undefined
+): void {
+  resolveQuotaService = resolver ?? (() => app.container.make(QuotaService))
 }
 
 /**
@@ -32,7 +48,7 @@ export function enforceQuota(quota: string, options: EnforceQuotaOptions = {}) {
 
   return async function enforceQuotaMiddleware({ request }: HttpContext, next: NextFn) {
     const tenant = await request.tenant()
-    const quotaSvc = await app.container.make(QuotaService)
+    const quotaSvc = await resolveQuotaService()
     if (enforce) {
       await quotaSvc.consume(tenant, quota, amount)
     } else {
