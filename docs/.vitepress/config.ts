@@ -1,7 +1,11 @@
 import { defineConfig } from 'vitepress'
+import { createRequire } from 'node:module'
 
+const require = createRequire(import.meta.url)
 const PKG = '@adonisjs-lasagna/saas-tenancy'
 const REPO = 'https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy'
+// Track the published core version so the nav label never goes stale.
+const { version } = require('../../packages/core/package.json')
 
 export default defineConfig({
   title: 'Lasagna SaaS Tenancy',
@@ -113,7 +117,7 @@ export default defineConfig({
       { text: 'Showcase', link: '/showcase' },
       { text: 'Sponsor', link: '/sponsor' },
       {
-        text: 'v1.0.0',
+        text: `v${version}`,
         items: [
           { text: 'Changelog', link: `${REPO}/blob/master/CHANGELOG.md` },
           { text: 'Release notes', link: '/docs/release-notes' },
