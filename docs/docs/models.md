@@ -40,7 +40,7 @@ Because the whole connection is tenant-scoped, **your model needs no `tenant_id`
 and no manual filtering.
 
 ```ts
-import { column, dateTime } from '@adonisjs/lucid/orm'
+import { column } from '@adonisjs/lucid/orm'
 import { TenantBaseModel } from '@adonisjs-lasagna/saas-tenancy'
 import { DateTime } from 'luxon'
 
@@ -48,7 +48,7 @@ export default class Invoice extends TenantBaseModel {
   @column({ isPrimary: true }) declare id: number
   @column() declare number: string
   @column() declare amountCents: number
-  @dateTime({ autoCreate: true }) declare createdAt: DateTime
+  @column.dateTime({ autoCreate: true }) declare createdAt: DateTime
 }
 ```
 
@@ -168,8 +168,7 @@ Outside a request, or to step outside the active tenant deliberately, there are 
   mixin; prefer scoped queries everywhere in user-facing code paths.
 
 ```ts
-import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
-import { unscoped } from '@adonisjs-lasagna/saas-tenancy'
+import { tenancy, unscoped } from '@adonisjs-lasagna/saas-tenancy'
 
 // Tenant-scoped work from a job:
 await tenancy.run(tenant, () => Invoice.create({ number: 'INV-2', amountCents: 900 }))
