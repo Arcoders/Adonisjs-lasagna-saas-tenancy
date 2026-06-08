@@ -42,7 +42,12 @@ export default class RowScopePgDriver implements IsolationDriver {
       scopeColumn?: string
     } = {}
   ) {
-    this.#centralConnectionName = opts.centralConnectionName ?? 'tenant'
+    // rowscope-pg has no per-tenant connection: every tenant shares the
+    // central connection. Fall back to the configured centralConnectionName
+    // rather than a literal — the provider wires it from config at boot, and
+    // getConfig() is always available by the time this driver is constructed
+    // (boot runs setConfig() first; tests seed it via setupTestConfig()).
+    this.#centralConnectionName = opts.centralConnectionName ?? getConfig().centralConnectionName
     this.#scopedTables = [...(opts.scopedTables ?? [])]
     this.#scopeColumn = opts.scopeColumn ?? 'tenant_id'
     // Validate config-time inputs once at construction so a typo blows up

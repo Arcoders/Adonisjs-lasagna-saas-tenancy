@@ -91,6 +91,44 @@ test.group('RowScopePgDriver + withTenantScope (integration)', (group) => {
     assert.equal(Number(rows[0].one), 1)
   })
 
+  test('connect() with no explicit name falls back to the central connection', async ({
+    assert,
+  }) => {
+    // No centralConnectionName passed — the driver must resolve it from
+    // getConfig().centralConnectionName ('public' in the fixture), not the
+    // old 'tenant' literal which the fixture never defines.
+    const driver = new RowScopePgDriver()
+    const conn = await driver.connect(fakeTenant(randomUUID()))
+    assert.equal((conn as any).connectionName, 'public')
+
+    const result = await conn.rawQuery('SELECT 1 as one')
+    const rows = Array.isArray(result.rows) ? result.rows : (result as any).rows
+    assert.equal(Number(rows[0].one), 1)
+  })
+
+  test('destroy() with no explicit name deletes from the central DB', async ({ assert }) => {
+    // Same config-default path as above, but exercising the DELETE that the
+    // old 'tenant' default broke with "connection tenant not found".
+    const driver = new RowScopePgDriver({ scopedTables: [SHARED_TABLE] })
+
+    const tenantA = randomUUID()
+    const tenantB = randomUUID()
+
+    await db
+      .connection('public')
+      .table(SHARED_TABLE)
+      .multiInsert([
+        { title: 'a1', tenant_id: tenantA },
+        { title: 'b1', tenant_id: tenantB },
+      ])
+
+    await driver.destroy(fakeTenant(tenantA))
+
+    const remaining = await db.connection('public').from(SHARED_TABLE).select('*')
+    assert.lengthOf(remaining, 1, 'tenantB rows must survive')
+    assert.equal(remaining[0].tenant_id, tenantB)
+  })
+
   test('migrate is a no-op (returns { executed: 0, noop: true })', async ({ assert }) => {
     const driver = new RowScopePgDriver()
     const result = await driver.migrate(fakeTenant(randomUUID()), {} as any)

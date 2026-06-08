@@ -96,7 +96,10 @@ export default class MultitenancyProvider {
     if (choice === 'rowscope-pg' && !drivers.has('rowscope-pg')) {
       drivers.register(
         new RowScopePgDriver({
-          centralConnectionName: config.isolation?.templateConnectionName,
+          // rowscope-pg shares one connection across all tenants — the central
+          // one. templateConnectionName is a clone-template concept that only
+          // schema-pg/database-pg use, so rowscope reads centralConnectionName.
+          centralConnectionName: config.centralConnectionName,
           scopedTables: config.isolation?.rowScopeTables,
           scopeColumn: config.isolation?.rowScopeColumn,
         }),

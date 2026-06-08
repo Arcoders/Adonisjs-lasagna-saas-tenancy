@@ -13,9 +13,31 @@ test.group('RowScopePgDriver — naming and configuration', (group) => {
     assert.equal(driver.name, 'rowscope-pg')
   })
 
-  test('connectionName returns the central/template connection name', ({ assert }) => {
+  test('defaults the shared connection to the configured centralConnectionName', ({ assert }) => {
+    // setupTestConfig() sets centralConnectionName: 'public'.
+    const driver = new RowScopePgDriver()
+    assert.equal(driver.connectionName('any'), 'public')
+  })
+
+  test('the default tracks centralConnectionName, never a hardcoded literal', ({ assert }) => {
+    setupTestConfig({ centralConnectionName: 'main_db' })
+    const driver = new RowScopePgDriver()
+    assert.equal(driver.connectionName('any'), 'main_db')
+    // The pre-fix bug defaulted to the literal 'tenant', a connection most
+    // rowscope apps never define. Lock that out.
+    assert.notEqual(driver.connectionName('any'), 'tenant')
+  })
+
+  test('an explicit centralConnectionName wins and short-circuits config', ({ assert }) => {
+    // config says 'public', but the explicit arg must take precedence and the
+    // getConfig() fallback must never be consulted.
     const driver = new RowScopePgDriver({ centralConnectionName: 'central' })
     assert.equal(driver.connectionName('any'), 'central')
+  })
+
+  test('every tenant id resolves to the same connection (single shared pool)', ({ assert }) => {
+    const driver = new RowScopePgDriver()
+    assert.equal(driver.connectionName('tenant-a'), driver.connectionName('tenant-b'))
   })
 
   test('default scope column is tenant_id', ({ assert }) => {

@@ -35,9 +35,10 @@ export default {
 
   isolation: {
     driver,
-    // The template connection every driver clones. For rowscope-pg this is the
-    // shared central connection (provider maps templateConnectionName →
-    // centralConnectionName). `tenant` points at `public`, so it works as both.
+    // The template connection that schema-pg/database-pg clone per tenant.
+    // rowscope-pg ignores this — it shares `centralConnectionName` ('public')
+    // since there is no per-tenant connection. `tenant` points at `public`, so
+    // the same physical DB backs every driver under BENCH_DRIVER.
     templateConnectionName: 'tenant',
     // Sweepable so the churn + connection-budget tiers can vary the cap/grace.
     maxTenantConnections: num('BENCH_MAX_TENANT_CONNECTIONS', 50),

@@ -36,6 +36,11 @@ isolation: {
 }
 ```
 
+`rowscope-pg` has no per-tenant connection: every tenant shares your
+`centralConnectionName`. You do **not** set `templateConnectionName` here —
+that knob is a clone template for `schema-pg`/`database-pg` and is ignored by
+`rowscope-pg`.
+
 ## Strict scope (default)
 
 A query that runs outside both `tenancy.run()` and `unscoped()`

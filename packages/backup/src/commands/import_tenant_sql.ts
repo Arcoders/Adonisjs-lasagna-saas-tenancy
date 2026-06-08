@@ -28,7 +28,8 @@ export default class ImportTenantSql extends BaseCommand {
 
   @flags.string({
     flagName: 'schema-replace',
-    description: 'Source schema name in the dump to rewrite (default: public)',
+    description:
+      "Source schema in the dump to rewrite to the tenant schema (pg_dump emits 'public' by default)",
     default: 'public',
   })
   declare schemaReplace: string

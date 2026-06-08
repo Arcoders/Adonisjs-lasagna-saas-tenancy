@@ -53,6 +53,8 @@ Every driver implements `IsolationDriver`:
 export default defineConfig({
   isolation: {
     driver: 'schema-pg', // or 'database-pg' | 'rowscope-pg' | 'sqlite-memory'
+    // schema-pg/database-pg clone this connection per tenant. rowscope-pg
+    // ignores it and shares centralConnectionName (no per-tenant connection).
     templateConnectionName: 'tenant',
   },
 })

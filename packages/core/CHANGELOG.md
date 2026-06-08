@@ -139,6 +139,12 @@ for a copy-paste migration.
   longer forces a core bump.
 - `CircuitBreakerService` asks the active driver for the connection name instead
   of rebuilding it from the prefix.
+- **`rowscope-pg` shares `centralConnectionName`.** The driver now routes its
+  single shared connection through the configured `centralConnectionName` rather
+  than an unreachable `'tenant'` literal, so `connect`, `destroy`, and the circuit
+  breaker's health probe target the database where rowscope data actually lives.
+  `templateConnectionName` is a schema-pg/database-pg clone-template knob and is no
+  longer consulted by rowscope-pg.
 - Coverage gate raised to 46 lines / 77 branches / 67 functions on the unit run;
   CI also runs the billing and backup package unit suites and aggregates
   unit + integration coverage.

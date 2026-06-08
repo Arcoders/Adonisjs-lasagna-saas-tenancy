@@ -227,6 +227,8 @@ export interface IsolationConfig {
   /**
    * For `schema-pg` and `database-pg`: the Lucid connection name whose
    * config is cloned to register tenant connections. Defaults to `'tenant'`.
+   * `rowscope-pg` ignores this and shares `centralConnectionName` (it has no
+   * per-tenant connection to clone).
    */
   templateConnectionName?: string
   /**

@@ -29,7 +29,7 @@ intended guard. Read config at request or job time, not at module top-level.
 | `backofficeSchemaName` | `string` |  | PG schema holding shared/satellite data. |
 | `backofficeConnectionName` | `string` |  | Lucid connection used for the backoffice schema. |
 | `centralSchemaName` | `string` |  | Schema for central/global (non-tenant) tables. |
-| `centralConnectionName` | `string` |  | Lucid connection for the central schema. |
+| `centralConnectionName` | `string` |  | Lucid connection for the central schema; also the shared connection for `rowscope-pg`. |
 | `tenantConnectionNamePrefix` | `string` |  | Prefix for per-tenant Lucid connection names (`<prefix><tenantId>`). |
 | `tenantSchemaPrefix` | `string` |  | Prefix for per-tenant schema names (`<prefix><tenantId>`). |
 | `schemaCacheTtl` | `number` |  | TTL (seconds) for cached schema-existence probes. |
