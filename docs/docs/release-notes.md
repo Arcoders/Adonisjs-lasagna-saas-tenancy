@@ -15,7 +15,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.0] — Unreleased
+## [1.0.0] — 2026-06-08
 
 The 1.0 cut. The optional satellites move out of the core into their own
 independently-versioned packages, and the unified tenant-resolution path becomes
@@ -399,3 +399,18 @@ diagnostic command, and an admin REST API.
 Pre-rename history (v1.x and v2.0.0-beta.x of
 `@adonisjs-lasagna/multitenancy`) lives at the prior repository:
 [github.com/Arcoders/Adonisjs-Lasagna-Multitenancy](https://github.com/Arcoders/Adonisjs-Lasagna-Multitenancy).
+
+
+---
+
+## Satellite packages
+
+The satellites version independently of the core. Each keeps its own canonical changelog in
+the repo:
+
+| Package | Current version |
+|---|---|
+| [`@adonisjs-lasagna/sso`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/sso/CHANGELOG.md) | 1.0.0 |
+| [`@adonisjs-lasagna/billing`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/billing/CHANGELOG.md) | 1.0.0 |
+| [`@adonisjs-lasagna/admin`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/admin/CHANGELOG.md) | 1.0.0 |
+| [`@adonisjs-lasagna/backup`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/backup/CHANGELOG.md) | 1.0.0 |

@@ -6,7 +6,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.0] — Unreleased
+## [1.0.0] — 2026-06-08
 
 The 1.0 cut. The optional satellites move out of the core into their own
 independently-versioned packages, and the unified tenant-resolution path becomes
