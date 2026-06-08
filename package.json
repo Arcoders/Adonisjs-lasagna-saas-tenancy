@@ -42,6 +42,7 @@
     "knip": "knip --no-exit-code",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "docs:sync": "node docs/scripts/sync-changelog.mjs",
+    "docs:clean": "node -e \"const{rmSync}=require('fs');rmSync('docs/.vitepress/cache',{recursive:true,force:true});rmSync('docs/.vitepress/dist',{recursive:true,force:true})\"",
     "docs:dev": "npm run docs:sync && vitepress dev docs",
     "docs:build": "npm run docs:sync && vitepress build docs",
     "docs:preview": "vitepress preview docs",
