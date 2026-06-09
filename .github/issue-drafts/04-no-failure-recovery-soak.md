@@ -1,94 +1,92 @@
-# Cero pruebas de soak / fallo / recuperación
+# Zero soak / failure / recovery tests
 
 **Labels:** `area/benchmarks`, `area/resilience`, `kind/gap`, `priority/blocker-1.0`
 
-> **✅ RESUELTO (2026-06-07).** Existen `bench:soak` (serie temporal + `soakStableCheck` por
-> pendiente de RSS/backends) y `bench:resilience` (Redis/PG `docker stop/start` + política de
-> fallo + `recoveredWithinMs`). El fail-open de rate-limit se corrigió (ver abajo). **Cambio de
-> esta sesión:** la caída de Postgres en la ruta del tenant ahora devuelve **503**
-> (`DependencyUnavailableException`), no un 500 crudo — `request.tenant()` mapea el outage a un
-> 503 fail-closed y el bench de resiliencia lo asevera (`expectedStatus: 503`). `resilience` corre
-> ahora en el schedule semanal (antes dispatch-only). Pendiente sólo: confirmar el primer run
-> verde en CI Linux.
+> **✅ RESOLVED (2026-06-07).** `bench:soak` (time series + `soakStableCheck` by RSS/backends slope)
+> and `bench:resilience` (Redis/PG `docker stop/start` + failure policy + `recoveredWithinMs`)
+> both exist. The rate-limit fail-open was fixed (see below). **Change from this session:** a
+> Postgres outage on the tenant path now returns **503** (`DependencyUnavailableException`), not a
+> raw 500: `request.tenant()` maps the outage to a fail-closed 503 and the resilience bench asserts
+> it (`expectedStatus: 503`). `resilience` now runs on the weekly schedule (previously
+> dispatch-only). Only pending: confirming the first green run on Linux CI.
 
-## Resumen
+## Summary
 
-El benchmark sólo mide estado estable y feliz, en corridas cortísimas (HTTP = 10 s por escenario).
-No hay pruebas de larga duración (soak), ni de inyección de fallos (Redis caído, Postgres al límite
-de conexiones), ni de recuperación. El informe reconoce ruido y `fsync=off`, pero no la ausencia de
-soak/fallo, y aun así concluye "production-ready".
+The benchmark only measures steady, happy state, in very short runs (HTTP = 10 s per scenario).
+There are no long-duration (soak) tests, no fault injection (Redis down, Postgres at its connection
+limit), and no recovery. The report acknowledges noise and `fsync=off`, but not the absence of
+soak/failure, and still concludes "production-ready".
 
-## Evidencia (archivo:línea)
+## Evidence (file:line)
 
-- Duración HTTP por escenario = 10 s (5 s en CI): `benchmarks/src/harness/config.ts:50`.
-- No existe ningún tier de soak ni de resiliencia en `benchmarks/` (sólo micro/db/http/mem).
-- Política de fallo del core que conviene asertar (hoy sin test de benchmark):
-  - rate-limit fail-closed por defecto → 503 si Redis cae: `packages/core/src/middleware/rate_limit_middleware.ts:83-92`.
+- HTTP duration per scenario = 10 s (5 s in CI): `benchmarks/src/harness/config.ts:50`.
+- No soak or resilience tier exists in `benchmarks/` (only micro/db/http/mem).
+- Core failure policy worth asserting (today without a benchmark test):
+  - rate-limit fail-closed by default → 503 if Redis goes down: `packages/core/src/middleware/rate_limit_middleware.ts:83-92`.
   - `ResilienceService` fail-closed → 503: `packages/core/src/services/resilience_service.ts:42-56`.
 
-## Por qué bloquea 1.0
+## Why it blocks 1.0
 
-"Production-ready" sin evidencia de comportamiento a las horas/días ni bajo fallo de dependencias es
-una afirmación sin respaldo. Los problemas reales de un sistema multi-tenant (leaks de memoria/fd,
-crecimiento de backends, degradación, comportamiento ante Redis/PG caídos) aparecen justo en lo que
-no se mide.
+"Production-ready" with no evidence of behavior over hours/days or under dependency failure is an
+unsupported claim. The real problems of a multi-tenant system (memory/fd leaks, backend growth,
+degradation, behavior when Redis/PG go down) show up precisely in what is not measured.
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] Existe un modo soak (`bench:soak`) que corre el workload churn+HTTP durante `BENCH_SOAK_HOURS`
-      y registra una serie temporal de RSS/heap/external/pgBackends/fds.
-- [ ] El soak emite `soakStableCheck`: FAIL si la pendiente de RSS supera un umbral sostenido o si
-      `pgBackends` crece sin techo.
-- [ ] Existe un modo resiliencia (`bench:resilience`) que tira Redis y Postgres (vía `docker stop/start`)
-      y asevera la política de fallo real por dependencia + `recoveredWithinMs`.
-- [ ] Redis caído en la ruta rate-limited produce **503** (no 200 silencioso fail-open, no cuelgue),
-      y se recupera al volver Redis.
-- [x] PG caído en la ruta de tenant devuelve un **503** limpio (`DependencyUnavailableException`) y
-      se recupera al volver PG (antes: 500 Lucid crudo).
+- [ ] A soak mode (`bench:soak`) exists that runs the churn+HTTP workload for `BENCH_SOAK_HOURS`
+      and records a time series of RSS/heap/external/pgBackends/fds.
+- [ ] The soak emits `soakStableCheck`: FAIL if the RSS slope exceeds a sustained threshold or if
+      `pgBackends` grows without a ceiling.
+- [ ] A resilience mode (`bench:resilience`) exists that takes Redis and Postgres down (via `docker stop/start`)
+      and asserts the real per-dependency failure policy + `recoveredWithinMs`.
+- [ ] Redis down on the rate-limited path produces **503** (not a silent fail-open 200, not a hang),
+      and recovers when Redis returns.
+- [x] PG down on the tenant path returns a clean **503** (`DependencyUnavailableException`) and
+      recovers when PG returns (previously: raw Lucid 500).
 
-## ✅ Hallazgo del bench de resiliencia — fail-open en rate-limit (CORREGIDO)
+## ✅ Resilience-bench finding — rate-limit fail-open (FIXED)
 
-> **Estado: corregido.** Fix en `packages/core/src/middleware/rate_limit_middleware.ts`
-> (detecta resultados nulos / errores por-comando / zcard no numérico tras `exec()` y
-> aplica la política de fallo). Tests añadidos en
+> **Status: fixed.** Fix in `packages/core/src/middleware/rate_limit_middleware.ts`
+> (detects null results / per-command errors / non-numeric zcard after `exec()` and
+> applies the failure policy). Tests added in
 > `packages/core/tests/unit/middleware/rate_limit_middleware.spec.ts`
-> (resolved-with-errors → fail-closed por defecto; fail-open solo con `failOpen:true`).
-> El bench de resiliencia ahora reporta `503 / PASS` en el escenario Redis-down.
+> (resolved-with-errors → fail-closed by default; fail-open only with `failOpen:true`).
+> The resilience bench now reports `503 / PASS` in the Redis-down scenario.
 
-Al implementar B-5 y correrlo con Redis caído, el rate-limit **falló ABIERTO**: con Redis
-inalcanzable (ECONNREFUSED confirmado), `GET /ratelimited/notes` devolvió **200**, no el
-**503** documentado (`failOpen=false` por defecto).
+While implementing B-5 and running it with Redis down, the rate-limit **failed OPEN**: with Redis
+unreachable (ECONNREFUSED confirmed), `GET /ratelimited/notes` returned **200**, not the documented
+**503** (`failOpen=false` by default).
 
-Causa raíz (`packages/core/src/middleware/rate_limit_middleware.ts:81-82`):
+Root cause (`packages/core/src/middleware/rate_limit_middleware.ts:81-82`):
 
 ```js
 const results = await pipeline.exec()
 count = (results?.[2]?.[1] as number) ?? 0
 ```
 
-`ioredis.pipeline().exec()` **resuelve** con tuplas `[error, result]` por comando en vez de
-**rechazar** cuando el backend falla. Así que el `try/catch` (línea 83) no se dispara, `count`
-cae a `0`, queda por debajo del límite y la request **se permite**. El `failOpen=false` nunca
-entra en juego en una caída de Redis: la política documentada de fail-closed no se cumple.
+`ioredis.pipeline().exec()` **resolves** with per-command `[error, result]` tuples instead of
+**rejecting** when the backend fails. So the `try/catch` (line 83) never fires, `count` falls to
+`0`, stays below the limit, and the request **is allowed**. `failOpen=false` never comes into play
+on a Redis outage: the documented fail-closed policy is not honored.
 
-Reproducción (antes del fix): `BENCH_RESILIENCE=1 npm run bench:resilience` → `observedStatus: 200`,
+Reproduction (before the fix): `BENCH_RESILIENCE=1 npm run bench:resilience` → `observedStatus: 200`,
 `policyObserved: FAIL-OPEN`, `failPolicyCheck: FAIL`.
 
-**Fix aplicado (core):** tras `pipeline.exec()`, si el resultado es nulo, trae algún error
-por-comando (`results.find(([err]) => err)`), o el `zcard` no es numérico, se lanza el error
-→ el `catch` aplica la política (`failOpen` → `next()`; por defecto → `503`). Así el
-fail-closed documentado se cumple de verdad ante una caída de Redis.
+**Fix applied (core):** after `pipeline.exec()`, if the result is null, carries any per-command
+error (`results.find(([err]) => err)`), or the `zcard` is not numeric, the error is thrown
+→ the `catch` applies the policy (`failOpen` → `next()`; by default → `503`). This way the
+documented fail-closed really holds on a Redis outage.
 
-## Benchmark(s) que lo cierran
+## Closing benchmark(s)
 
-B-4 (soak con serie temporal + `soakStableCheck`) y B-5 (inyección de fallos + recuperación,
-que descubrió el fail-open de arriba).
+B-4 (soak with time series + `soakStableCheck`) and B-5 (fault injection + recovery,
+which uncovered the fail-open above).
 
-## Opciones de solución (con trade-offs)
+## Fix options (with trade-offs)
 
-1. **Soak corto en CI por schedule + soak largo on-demand** (recomendado): cobertura continua barata
-   + capacidad de correr 24 h/7 d cuando haga falta.
-2. **Resiliencia con contenedores manuales en CI**: necesario porque los *service containers* de
-   GitHub no se controlan (`stop/start`) fácilmente; añade complejidad al workflow.
-3. **Inyección de fallos a nivel app (stubs)** en vez de matar contenedores: más determinista pero
-   menos realista; útil como complemento unitario, no sustituye al e2e con contenedores.
+1. **Short scheduled soak in CI + long on-demand soak** (recommended): cheap continuous coverage
+   plus the ability to run 24 h/7 d when needed.
+2. **Resilience with manual containers in CI**: necessary because GitHub *service containers* cannot
+   be controlled (`stop/start`) easily; adds complexity to the workflow.
+3. **App-level fault injection (stubs)** instead of killing containers: more deterministic but less
+   realistic; useful as a unit-level complement, not a substitute for the container e2e.

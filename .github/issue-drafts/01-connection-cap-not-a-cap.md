@@ -1,78 +1,76 @@
-# El "cap" de conexiones de tenant no acota bajo la grace de producción
+# The tenant connection "cap" does not bound under the production grace window
 
 **Labels:** `area/isolation`, `area/benchmarks`, `kind/correctness`, `priority/blocker-1.0`
 
-> **Estado: remedio implementado (opt-in).** Se añadió `isolation.enforceConnectionCap`
-> (default `false`). Con `true`, el LRU deja de exceder el cap y `connect()` rechaza una
-> conexión nueva con `TenantConnectionLimitException` (503) cuando todo está en la grace window
-> (cap duro / admission control). El default preserva el comportamiento seguro de no severar ni
-> rechazar. Implementación: `connection_lru.ts` (`atHardLimit()`), `schema_pg_driver.ts` /
-> `database_pg_driver.ts` (chequeo en `connect()`), `types/config.ts`,
-> `exceptions/tenant_connection_limit_exception.ts`; tests en `connection_lru.spec.ts`; el bench
-> `connection_budget_burst` añade el escenario `hardCapCheck`. Queda abierto: dimensionar
-> `max_connections`/PgBouncer a escala y la corrección del relato en docs/report (hecho en
-> `report.ts` y el reporte de readiness).
+> **Status: remedy implemented (opt-in).** Added `isolation.enforceConnectionCap`
+> (default `false`). With `true`, the LRU stops exceeding the cap and `connect()` rejects a new
+> connection with `TenantConnectionLimitException` (503) when everything is inside the grace window
+> (hard cap / admission control). The default preserves the safe behavior of neither severing nor
+> rejecting. Implementation: `connection_lru.ts` (`atHardLimit()`), `schema_pg_driver.ts` /
+> `database_pg_driver.ts` (check in `connect()`), `types/config.ts`,
+> `exceptions/tenant_connection_limit_exception.ts`; tests in `connection_lru.spec.ts`; the
+> `connection_budget_burst` bench adds the `hardCapCheck` scenario. Still open: sizing
+> `max_connections`/PgBouncer at scale and correcting the narrative in docs/report (done in
+> `report.ts` and the readiness report).
 
-## Resumen
+## Summary
 
-El informe de rendimiento afirma que "el cap de conexiones aguanta hasta 2000 tenants" y que
-"la memoria está acotada por el cap, no por N". Esa conclusión se obtiene midiendo el budget
-con la *grace window* de evicción bajada artificialmente a **50 ms**. Con la grace por defecto
-de producción (**30 s**), y en los datos de churn de la misma corrida, las conexiones abiertas
-son **2×cap** (50/100/200), no el cap. El LRU está **diseñado** para exceder el cap cuando todas
-las conexiones están dentro de la grace window, por lo que bajo una ráfaga de N tenants activos
-las conexiones tienden a N, sin más techo que `max_connections` de Postgres.
+The performance report claims that "the connection cap holds up to 2000 tenants" and that "memory is
+bounded by the cap, not by N". That conclusion is obtained by measuring the budget with the eviction
+*grace window* artificially lowered to **50 ms**. With the production default grace of **30 s**, and
+in the churn data from the same run, the open connections are **2×cap** (50/100/200), not the cap.
+The LRU is **designed** to exceed the cap when all connections are inside the grace window, so under
+a burst of N active tenants the connections trend toward N, with no ceiling other than Postgres's
+`max_connections`.
 
-La afirmación que se vende ("acotado por el cap") es la contraria a lo que hace el sistema bajo
-carga real.
+The claim being sold ("bounded by the cap") is the opposite of what the system does under real load.
 
-## Evidencia (archivo:línea)
+## Evidence (file:line)
 
-- El budget bench fuerza la grace a 50 ms para que el cap "ate":
-  `benchmarks/src/memory/connection_budget.bench.ts:24` (`BUDGET_GRACE_MS = 50`), con el comentario
-  en `:15-23` admitiendo que con la grace por defecto "the pool grows to N".
-- El default real es 30 s: `packages/core/src/services/isolation/connection_lru.ts:12`
+- The budget bench forces grace to 50 ms so the cap "binds":
+  `benchmarks/src/memory/connection_budget.bench.ts:24` (`BUDGET_GRACE_MS = 50`), with the comment
+  at `:15-23` admitting that with the default grace "the pool grows to N".
+- The real default is 30 s: `packages/core/src/services/isolation/connection_lru.ts:12`
   (`DEFAULT_EVICTION_GRACE_MS = 30_000`).
-- El LRU excede el cap por diseño cuando todo está en la grace window:
-  `packages/core/src/services/isolation/connection_lru.ts:89-93` (no evicta; sólo avisa).
-- Contraprueba en la **misma corrida** (grace por defecto): los datos de churn registran
-  `tenantConnectionsOpen: 50 / 100 / 200` = 2×cap (caps 25/50/100). Ver el meta de
-  `connection_churn` en los resultados de la corrida `2c3a6c7`.
-- El informe presenta "open = 50 a N=2000" sin revelar la grace de 50 ms:
-  `benchmarks/results/PERFORMANCE_ASSESSMENT.md` (TL;DR y §4).
-- El report generado hornea el claim: `benchmarks/src/harness/report.ts:104` ("the connection cap
-  holds as the tenant count grows") y `:219` ("open tenant connections stay bounded by the cap").
+- The LRU exceeds the cap by design when everything is inside the grace window:
+  `packages/core/src/services/isolation/connection_lru.ts:89-93` (does not evict; only warns).
+- Counter-proof in the **same run** (default grace): the churn data records
+  `tenantConnectionsOpen: 50 / 100 / 200` = 2×cap (caps 25/50/100). See the `connection_churn` meta
+  in the results of run `2c3a6c7`.
+- The report presents "open = 50 at N=2000" without disclosing the 50 ms grace:
+  `benchmarks/results/PERFORMANCE_ASSESSMENT.md` (TL;DR and §4).
+- The generated report bakes in the claim: `benchmarks/src/harness/report.ts:104` ("the connection cap
+  holds as the tenant count grows") and `:219` ("open tenant connections stay bounded by the cap").
 
-## Por qué bloquea 1.0
+## Why it blocks 1.0
 
-Induce a una configuración peligrosa: un operador que crea el "cap" creerá que sus conexiones
-están acotadas a 50 y dimensionará `max_connections` en consecuencia. Bajo una ráfaga real de
-tenants activos, las conexiones crecen hacia N, agotan `max_connections` y **tumban a todos los
-tenants** (no sólo al que provocó la ráfaga). Es un fallo de disponibilidad a escala disfrazado
-de garantía.
+It leads to a dangerous configuration: an operator who sets the "cap" will believe their connections
+are bounded to 50 and will size `max_connections` accordingly. Under a real burst of active tenants,
+connections grow toward N, exhaust `max_connections`, and **take down every tenant** (not just the
+one that triggered the burst). It is an availability failure at scale disguised as a guarantee.
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] Existe un benchmark que mide el número de conexiones abiertas **con la grace por defecto
-      (30 s)** bajo ráfaga concurrente y publica `openDuringBurst` (se espera ≈ N, no el cap).
-- [ ] Existe un escenario de saturación (`N×poolMax > max_connections`) que documenta el modo de
-      fallo y la recuperación tras drenar (`failClosedCheck`, `recoveredWithinMs`).
-- [ ] El report generado y `PERFORMANCE_ASSESSMENT.md` dejan de afirmar "acotado por el cap" y
-      explican el modelo real: "acotado por `max_connections`; usar PgBouncer / admission control".
-- [ ] La doc de scaling-limits recomienda explícitamente PgBouncer (transaction pooling) por encima
-      de cierto número de tenants concurrentes.
+- [ ] A benchmark exists that measures the number of open connections **with the default grace
+      (30 s)** under a concurrent burst and publishes `openDuringBurst` (expected ≈ N, not the cap).
+- [ ] A saturation scenario exists (`N×poolMax > max_connections`) that documents the failure mode
+      and the recovery after draining (`failClosedCheck`, `recoveredWithinMs`).
+- [ ] The generated report and `PERFORMANCE_ASSESSMENT.md` stop claiming "bounded by the cap" and
+      explain the real model: "bounded by `max_connections`; use PgBouncer / admission control".
+- [ ] The scaling-limits doc explicitly recommends PgBouncer (transaction pooling) above a certain
+      number of concurrent tenants.
 
-## Benchmark(s) que lo cierran
+## Closing benchmark(s)
 
-B-2 (budget con grace de producción + ráfaga concurrente + modo fallo `max_connections`).
+B-2 (budget with production grace + concurrent burst + `max_connections` failure mode).
 
-## Opciones de solución (con trade-offs)
+## Fix options (with trade-offs)
 
-1. **Solo documentar + medir honesto** (este issue mínimo): no se toca el core; se corrige el
-   relato y se recomienda PgBouncer. Barato; deja la responsabilidad de acotar al operador.
-2. **Hard-cap opcional / admission control en el LRU**: cuando se alcanza el cap y todo está en la
-   grace window, *rechazar* (fail-closed con 503/Retry-After) o *encolar* nuevas conexiones de tenant
-   en vez de exceder el cap. Acota de verdad la memoria/backends a costa de rechazar tráfico de
-   tenants nuevos bajo ráfaga. Requiere cambio en el core (fuera de este issue; abrir follow-up).
-3. **Modo "evict-LRU agresivo"**: reducir la grace o evictar el menos-reciente aunque esté en la
-   ventana. Riesgo: vuelve el bug de "severar request en vuelo" que el LRU in-use-aware arregló.
+1. **Document + measure honestly only** (this minimal issue): the core is untouched; the narrative is
+   corrected and PgBouncer is recommended. Cheap; leaves the bounding responsibility to the operator.
+2. **Optional hard cap / admission control in the LRU**: when the cap is reached and everything is in
+   the grace window, *reject* (fail-closed with 503/Retry-After) or *queue* new tenant connections
+   instead of exceeding the cap. Genuinely bounds memory/backends at the cost of rejecting new tenant
+   traffic under a burst. Requires a core change (out of scope for this issue; open a follow-up).
+3. **"Aggressive evict-LRU" mode**: reduce the grace or evict the least-recent even if it is inside
+   the window. Risk: brings back the "sever an in-flight request" bug that the in-use-aware LRU fixed.

@@ -1,69 +1,69 @@
-# No existe prueba de aislamiento cross-tenant en el camino real bajo concurrencia
+# No cross-tenant isolation test on the real path under concurrency
 
 **Labels:** `area/isolation`, `area/benchmarks`, `kind/correctness`, `priority/blocker-1.0`, `security`
 
-> **✅ RESUELTO (2026-06-07).** El tier de aislamiento HTTP concurrente con correlación por
-> contenido (`benchmarks/http/isolation.bench.ts`) corre como **gate por PR** en los 3 drivers
-> (`.github/workflows/benchmark-correctness.yml`), con self-test negativo (`BENCH_ISO_SELFTEST=1`)
-> y aserción del camino de escritura (`bench:db` write-isolation). El límite de `rowscope-pg`
-> (query raw/unscoped) está documentado y respaldado por el backstop RLS
-> (`packages/core/tests/integration/services/rowscope_rls.spec.ts`). Cumple todos los criterios.
-> El análisis de abajo es el original que motivó el trabajo.
+> **✅ RESOLVED (2026-06-07).** The concurrent HTTP isolation tier with content-based correlation
+> (`benchmarks/http/isolation.bench.ts`) runs as a **per-PR gate** across all 3 drivers
+> (`.github/workflows/benchmark-correctness.yml`), with a negative self-test (`BENCH_ISO_SELFTEST=1`)
+> and a write-path assertion (`bench:db` write-isolation). The `rowscope-pg` limit (raw/unscoped
+> query) is documented and backed by the RLS backstop
+> (`packages/core/tests/integration/services/rowscope_rls.spec.ts`). It meets every criterion.
+> The analysis below is the original one that motivated the work.
 
-## Resumen
+## Summary
 
-El informe llama a "cero fugas cross-tenant" la propiedad de correctitud más importante. Pero el
-único test que la respalda es **secuencial**, corre **después** del churn, obtiene la conexión con
-un `ref` **explícito** y **nunca pasa por el camino real** de resolución (HttpContext +
-AsyncLocalStorage) que usa producción. Para `rowscope-pg` el test **se inyecta a sí mismo** el
-predicado `where tenant_id`, así que sólo demuestra que `WHERE` filtra, no que el driver/mixin aísle.
-El tier HTTP, que sí ejerce el camino real bajo concurrencia, **no tiene ninguna aserción de
-aislamiento**: sólo mide non-2xx y throughput.
+The report calls "zero cross-tenant leaks" the most important correctness property. But the only
+test backing it is **sequential**, runs **after** the churn, obtains the connection with an
+**explicit** `ref`, and **never goes through the real resolution path** (HttpContext +
+AsyncLocalStorage) that production uses. For `rowscope-pg` the test **injects the `where tenant_id`
+predicate into itself**, so it only shows that `WHERE` filters, not that the driver/mixin isolates.
+The HTTP tier, which does exercise the real path under concurrency, **has no isolation assertion at
+all**: it only measures non-2xx and throughput.
 
-Es decir: el vector de fuga peligroso (cruce de contexto ALS bajo concurrencia, reuso de conexión
-durante un evict en vuelo, bypass del mixin con raw/relación/agregado) está **sin testear**.
+In other words: the dangerous leak vector (ALS context crossing under concurrency, connection reuse
+during an in-flight evict, mixin bypass via raw/relation/aggregate) is **untested**.
 
-## Evidencia (archivo:línea)
+## Evidence (file:line)
 
-- `countLeaks` es secuencial, post-churn, con ref explícito: `benchmarks/src/db/connection_churn.bench.ts:44-54`.
-- La conexión se obtiene con ref explícito vía `clientFor` → `driver.connect(ref)`:
+- `countLeaks` is sequential, post-churn, with an explicit ref: `benchmarks/src/db/connection_churn.bench.ts:44-54`.
+- The connection is obtained with an explicit ref via `clientFor` → `driver.connect(ref)`:
   `benchmarks/src/db/queries.ts:13-20`.
-- El predicado de rowscope lo añade la propia query de verificación: `benchmarks/src/db/queries.ts:47-51`.
-- El camino real de resolución (ALS + `HttpContext.get()`) que el test no toca:
+- The rowscope predicate is added by the verification query itself: `benchmarks/src/db/queries.ts:47-51`.
+- The real resolution path (ALS + `HttpContext.get()`) the test never touches:
   `packages/core/src/models/adapters/tenant_adapter.ts:54-66`.
-- El tier HTTP sólo comprueba non-2xx, no contenido por tenant: `benchmarks/http/load.bench.ts:85-93`.
+- The HTTP tier only checks non-2xx, not per-tenant content: `benchmarks/http/load.bench.ts:85-93`.
 
-## Por qué bloquea 1.0
+## Why it blocks 1.0
 
-Es un paquete *multi-tenant*: la garantía nº1 que un adoptante necesita es "el tenant A nunca ve
-datos del tenant B". Hoy no hay evidencia de esa propiedad en el camino y bajo la concurrencia de
-producción. "Cero fugas" como está medido es casi una tautología.
+It is a *multi-tenant* package: the #1 guarantee an adopter needs is "tenant A never sees tenant B's
+data". Today there is no evidence of that property on the path and under production concurrency.
+"Zero leaks" as measured is almost a tautology.
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] Un benchmark dispara requests concurrentes alternando `x-tenant-id` sobre N tenants y
-      **correlaciona request↔respuesta por contenido** (no sólo el `tenantId` ecoado): cada nota
-      devuelta debe pertenecer al tenant pedido.
-- [ ] La aserción corre para los tres drivers y `isolationCheck` es un **gate duro** (proceso sale
-      ≠0 y el job de CI falla en `FAIL`).
-- [ ] Hay un "self-test" negativo: forzar una correlación incorrecta debe producir `FAIL` (prueba de
-      que el bench realmente detecta fugas).
-- [ ] Se mide y documenta el **límite de rowscope-pg**: una query raw/unscoped dentro del contexto de
-      un tenant devuelve filas de otros (frontera de diseño conocida), registrada explícitamente.
-- [ ] Existe aserción de aislamiento también en el **camino de escritura** bajo churn/concurrencia.
+- [ ] A benchmark fires concurrent requests alternating `x-tenant-id` across N tenants and
+      **correlates request↔response by content** (not just the echoed `tenantId`): every note
+      returned must belong to the requested tenant.
+- [ ] The assertion runs for all three drivers and `isolationCheck` is a **hard gate** (the process
+      exits ≠0 and the CI job fails on `FAIL`).
+- [ ] There is a negative "self-test": forcing an incorrect correlation must produce `FAIL` (proof
+      that the bench actually detects leaks).
+- [ ] The **rowscope-pg limit** is measured and documented: a raw/unscoped query inside a tenant's
+      context returns rows from others (a known design boundary), recorded explicitly.
+- [ ] An isolation assertion exists on the **write path** too, under churn/concurrency.
 
-## Benchmark(s) que lo cierran
+## Closing benchmark(s)
 
-B-1 (aislamiento HTTP concurrente con correlación por contenido + self-test) y B-7 (write path
-bajo churn con `writeIsolationCheck`). Requiere sembrar títulos identificables por tenant
-(`seedIdentifiableNotes`, porque `/tenant/notes` ordena `id desc limit 20` y el `marker:` antiguo
-no entra en la ventana: `benchmarks/fixture/start/routes.ts:17-24`).
+B-1 (concurrent HTTP isolation with content-based correlation + self-test) and B-7 (write path
+under churn with `writeIsolationCheck`). It requires seeding tenant-identifiable titles
+(`seedIdentifiableNotes`, because `/tenant/notes` orders `id desc limit 20` and the old `marker:`
+falls outside the window: `benchmarks/fixture/start/routes.ts:17-24`).
 
-## Opciones de solución (con trada-offs)
+## Fix options (with trade-offs)
 
-1. **Aserción por contenido en HTTP** (recomendada): ejerce ALS + adapter + pool reales bajo
-   concurrencia. Es la prueba más cercana a producción.
-2. **Stress de contexto ALS**: inyectar `await`/emitters/`setImmediate` en el handler para intentar
-   romper la propagación del contexto. Complementa (1); más difícil de hacer determinista.
-3. **Aserción a nivel DB con `tenancy.run()` concurrente**: más barato pero no ejerce HttpContext.
-   Útil como capa extra, no como sustituto.
+1. **Content-based assertion over HTTP** (recommended): exercises the real ALS + adapter + pool under
+   concurrency. It is the test closest to production.
+2. **ALS context stress**: inject `await`/emitters/`setImmediate` into the handler to try to break
+   context propagation. Complements (1); harder to make deterministic.
+3. **DB-level assertion with concurrent `tenancy.run()`**: cheaper but does not exercise HttpContext.
+   Useful as an extra layer, not as a substitute.

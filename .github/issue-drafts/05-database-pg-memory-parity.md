@@ -1,57 +1,58 @@
-# `database-pg` no tiene cobertura de memoria / budget / catalog
+# `database-pg` has no memory / budget / catalog coverage
 
 **Labels:** `area/benchmarks`, `area/isolation`, `kind/gap`, `priority/blocker-1.0`
 
-> **✅ RESUELTO (2026-06-07).** El Tier 4 corre para los 3 drivers en CI
-> (`.github/workflows/benchmark.yml` y `benchmark-correctness.yml`). El catalog es driver-aware
-> (`runSchemaCatalog` con la curva de bloat vía search_path vs `runDatabaseCatalog` por-base;
-> rowscope se auto-salta) en `benchmarks/src/memory/catalog_bloat.bench.ts`. El conteo de backends
-> de `database-pg` usa `pgBackendCountAllDatabases` (cross-DB) en `connection_budget.bench.ts`. El
-> informe distingue las conclusiones por driver. Las referencias archivo:línea de abajo describen
-> el estado original, ya superado.
+> **✅ RESOLVED (2026-06-07).** Tier 4 runs for all 3 drivers in CI
+> (`.github/workflows/benchmark.yml` and `benchmark-correctness.yml`). The catalog is driver-aware
+> (`runSchemaCatalog` with the bloat curve via search_path vs `runDatabaseCatalog` per-database;
+> rowscope auto-skips) in `benchmarks/src/memory/catalog_bloat.bench.ts`. The `database-pg` backend
+> count uses `pgBackendCountAllDatabases` (cross-DB) in `connection_budget.bench.ts`. The report
+> distinguishes the conclusions per driver. The file:line references below describe the original
+> state, now superseded.
 
-## Resumen
+## Summary
 
-El Tier 4 (memory + budget + catalog) corre **sólo** para `schema-pg`. Las conclusiones del informe
-sobre memoria acotada y catalog plano se generalizan a "el paquete", pero `database-pg` —que crea
-**una base de datos por tenant** y es el driver con mayor riesgo de explosión de backends y de
-overhead de catálogo por-base— no tiene ni un dato de budget ni de catalog.
+Tier 4 (memory + budget + catalog) runs **only** for `schema-pg`. The report's conclusions about
+bounded memory and flat catalog are generalized to "the package", but `database-pg` (which creates
+**one database per tenant** and is the driver with the highest risk of backend explosion and
+per-database catalog overhead) has not a single budget or catalog data point.
 
-Además el cross-check de backends del servidor es engañoso para database-pg: en el churn aparece
-`pgBackends: 1` con `tenantConnectionsOpen: 200`, porque las conexiones de database-pg van a *otras*
-bases y `pgBackendCount` sólo cuenta `current_database()`.
+On top of that, the server backend cross-check is misleading for database-pg: in the churn it shows
+`pgBackends: 1` with `tenantConnectionsOpen: 200`, because database-pg's connections go to *other*
+databases and `pgBackendCount` only counts `current_database()`.
 
-## Evidencia (archivo:línea)
+## Evidence (file:line)
 
-- Tier 4 sólo schema-pg en CI: `.github/workflows/benchmark.yml:137-138`.
-- Catalog limitado a schema-pg en el ensamblado del tier: `benchmarks/src/memory/index.ts:26-28`.
-- `pgBackendCount` mira sólo `current_database()`: `benchmarks/src/harness/introspect.ts:56-62`.
+- Tier 4 schema-pg only in CI: `.github/workflows/benchmark.yml:137-138`.
+- Catalog limited to schema-pg in the tier assembly: `benchmarks/src/memory/index.ts:26-28`.
+- `pgBackendCount` looks only at `current_database()`: `benchmarks/src/harness/introspect.ts:56-62`.
 
-## Por qué bloquea 1.0
+## Why it blocks 1.0
 
-El informe recomienda `database-pg` para "tenants de mayor valor con aislamiento más fuerte" sin
-ningún dato de su consumo de conexiones/memoria a escala. Es justo el driver donde el modelo de
-recursos es más caro y menos entendido. Recomendarlo sin medirlo es una afirmación sin respaldo.
+The report recommends `database-pg` for "higher-value tenants with stronger isolation" without any
+data on its connection/memory consumption at scale. It is exactly the driver where the resource
+model is most expensive and least understood. Recommending it without measuring it is an unsupported
+claim.
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] El Tier 4 (budget + catalog) corre para los **tres** drivers en CI.
-- [ ] El budget de `database-pg` reporta conexiones/backends de forma correcta (contando backends en
-      las bases de tenant, no sólo `current_database()`), o documenta explícitamente la limitación.
-- [ ] El catalog de `database-pg` se mide según su modelo real (catálogo por-base: coste de crear/
-      enumerar bases y `pg_class` por-base a medida que crecen las bases), no con la métrica de
-      pg_class global de schema-pg.
-- [ ] El informe distingue las conclusiones de memoria/catalog por driver en vez de generalizarlas.
+- [ ] Tier 4 (budget + catalog) runs for **all three** drivers in CI.
+- [ ] The `database-pg` budget reports connections/backends correctly (counting backends in the
+      tenant databases, not just `current_database()`), or explicitly documents the limitation.
+- [ ] The `database-pg` catalog is measured according to its real model (per-database catalog: cost
+      of creating/enumerating databases and per-database `pg_class` as the databases grow), not with
+      schema-pg's global pg_class metric.
+- [ ] The report distinguishes the memory/catalog conclusions per driver instead of generalizing them.
 
-## Benchmark(s) que lo cierran
+## Closing benchmark(s)
 
-B-3 (catalog realista + multi-driver) y el cambio de Tier 4 a los tres drivers (Parte C del plan).
+B-3 (realistic catalog + multi-driver) and moving Tier 4 to all three drivers (Part C of the plan).
 
-## Opciones de solución (con trade-offs)
+## Fix options (with trade-offs)
 
-1. **Correr Tier 4 para los 3 drivers** (recomendado): cierra el gap directamente; alarga la corrida
-   de CI (database-pg provisiona muchas bases, es lento) → cap de N para database-pg.
-2. **Backend count cross-DB para database-pg**: consultar `pg_stat_activity` sin filtrar por
-   `current_database()` (o sumar por base de tenant). Más fiel; algo más caro por snapshot.
-3. **Sólo documentar la diferencia de modelo**: barato pero deja la recomendación de database-pg sin
-   respaldo empírico; insuficiente por sí solo.
+1. **Run Tier 4 for all 3 drivers** (recommended): closes the gap directly; lengthens the CI run
+   (database-pg provisions many databases, it is slow) → cap N for database-pg.
+2. **Cross-DB backend count for database-pg**: query `pg_stat_activity` without filtering by
+   `current_database()` (or sum per tenant database). More faithful; somewhat more expensive per snapshot.
+3. **Only document the model difference**: cheap but leaves the database-pg recommendation without
+   empirical support; insufficient on its own.
