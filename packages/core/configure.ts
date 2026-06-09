@@ -10,7 +10,7 @@ const stubsRoot = join(dirname(fileURLToPath(import.meta.url)), '..', 'stubs')
  * implement it. The key is what the user passes via `--with=<feature>` (CSV)
  * or selects from the interactive prompt.
  */
-const SATELLITE_BUNDLES: Record<string, string[]> = {
+export const SATELLITE_BUNDLES: Record<string, string[]> = {
   audit: ['create_tenant_audit_logs_table'],
   feature_flags: ['create_tenant_feature_flags_table'],
   webhooks: ['create_tenant_webhooks_table', 'create_tenant_webhook_deliveries_table'],
@@ -34,14 +34,14 @@ const SATELLITE_BUNDLES: Record<string, string[]> = {
  * unprompted would emit a migration that fails on `migration:run`. Request it
  * explicitly with `--with=rls`.
  */
-const OPT_IN_BUNDLES: Record<string, string[]> = {
+export const OPT_IN_BUNDLES: Record<string, string[]> = {
   rls: ['enable_rls_tenant_isolation'],
 }
 
-const ALL_FEATURES = Object.keys(SATELLITE_BUNDLES)
-const KNOWN_FEATURES = [...ALL_FEATURES, ...Object.keys(OPT_IN_BUNDLES)]
+export const ALL_FEATURES = Object.keys(SATELLITE_BUNDLES)
+export const KNOWN_FEATURES = [...ALL_FEATURES, ...Object.keys(OPT_IN_BUNDLES)]
 
-function parseWithFlag(raw: unknown): string[] | null {
+export function parseWithFlag(raw: unknown): string[] | null {
   if (raw === undefined || raw === null) return null
   if (Array.isArray(raw)) {
     return raw
@@ -56,6 +56,37 @@ function parseWithFlag(raw: unknown): string[] | null {
       .filter(Boolean)
   }
   return null
+}
+
+/**
+ * Split a requested feature list into the ones we know how to publish and the
+ * ones we don't. The caller decides what to do with `unknown` (warn) and uses
+ * `known` as the published set.
+ */
+export function filterUnknown(features: string[]): { known: string[]; unknown: string[] } {
+  const known: string[] = []
+  const unknown: string[] = []
+  for (const f of features) {
+    if (KNOWN_FEATURES.includes(f)) known.push(f)
+    else unknown.push(f)
+  }
+  return { known, unknown }
+}
+
+/**
+ * Flatten the selected features into the ordered list of migration stub names
+ * to publish. Order follows the selection, then each feature's bundle order.
+ * Unknown features (no bundle) are skipped. No dedup: the satellite/opt-in
+ * bundles are disjoint, so this is identical to iterating the bundles inline.
+ */
+export function resolveMigrationStubs(selected: string[]): string[] {
+  const stubs: string[] = []
+  for (const feature of selected) {
+    const bundle = SATELLITE_BUNDLES[feature] ?? OPT_IN_BUNDLES[feature]
+    if (!bundle) continue
+    stubs.push(...bundle)
+  }
+  return stubs
 }
 
 export default async function configure(command: Configure) {
@@ -92,14 +123,13 @@ export default async function configure(command: Configure) {
 
   let selected: string[]
   if (fromFlag) {
-    selected = fromFlag
-    const unknown = selected.filter((f) => !KNOWN_FEATURES.includes(f))
+    const { known, unknown } = filterUnknown(fromFlag)
     if (unknown.length > 0) {
       command.logger.warning(
         `unknown feature(s): ${unknown.join(', ')}. Known: ${KNOWN_FEATURES.join(', ')}`
       )
-      selected = selected.filter((f) => KNOWN_FEATURES.includes(f))
     }
+    selected = known
   } else if (process.stdout.isTTY && (command as any).prompt?.multiple) {
     selected = (await (command as any).prompt.multiple(
       'Select satellite features to publish (space to toggle, enter to confirm)',
@@ -118,12 +148,8 @@ export default async function configure(command: Configure) {
   }
 
   // Publish migration stubs for every selected feature.
-  for (const feature of selected) {
-    const bundle = SATELLITE_BUNDLES[feature] ?? OPT_IN_BUNDLES[feature]
-    if (!bundle) continue
-    for (const name of bundle) {
-      await codemods.makeUsingStub(stubsRoot, `migrations/${name}.stub`, {})
-    }
+  for (const name of resolveMigrationStubs(selected)) {
+    await codemods.makeUsingStub(stubsRoot, `migrations/${name}.stub`, {})
   }
 
   command.logger.info(`published migrations: ${selected.join(', ')}`)
