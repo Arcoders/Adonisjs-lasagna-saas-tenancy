@@ -1,9 +1,13 @@
 ---
-title: Installation
-description: From npm install to a live tenant in five minutes; package install, configure command, database connections, repository binding.
+title: Installation & configuration
+description: The complete reference — requirements matrix, the configure command and its flags, database connections, middleware, and the tenant repository binding.
 ---
 
-# Installation
+# Installation & configuration
+
+This is the complete reference. For the fastest path to a running tenant, the
+[Quickstart](/quickstart) gets you there in under ten minutes; come back here
+for every `configure` flag, the middleware wiring, and the requirements matrix.
 
 <Callout type="tip" title="Five steps">
 <code>npm install</code> → <code>configure</code> → wire connections
@@ -14,13 +18,15 @@ connection details and the <code>TENANT_REPOSITORY</code> binding.
 
 ## Requirements
 
-- Node.js 24 or newer
-- AdonisJS 7
-- `@adonisjs/lucid` configured against PostgreSQL 14+
-- `@adonisjs/redis` (cache + counters)
-- `@adonisjs/queue` (background jobs that provision schemas)
-- `@aws-sdk/client-s3` *(optional, only for S3 backup uploads)*
-- `jose` *(optional, only when SSO is enabled)*
+| Requirement | Version | Notes |
+| --- | --- | --- |
+| Node.js | ≥ 24 | ES modules, `module: NodeNext` |
+| AdonisJS | 7 | |
+| PostgreSQL | ≥ 14 | via `@adonisjs/lucid` |
+| Redis | ≥ 6 | via `@adonisjs/redis` — cache + counters |
+| `@adonisjs/queue` | required | background jobs provision schemas |
+| `@aws-sdk/client-s3` | optional | only for S3 backup uploads |
+| `jose` | optional | only when SSO is enabled |
 
 ## 1. Install and configure
 

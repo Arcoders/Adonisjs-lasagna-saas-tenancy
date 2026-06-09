@@ -81,7 +81,7 @@
     { "category": "observability", "feature": "OpenTelemetry spans", "lasagna": "yes", "stancl": "no", "advantage": "lasagna" },
     { "category": "observability", "feature": "Prometheus /metrics (no peer dep)", "lasagna": "yes", "stancl": "no", "advantage": "lasagna" },
     { "category": "observability", "feature": "Health probes /livez /readyz /healthz", "lasagna": "yes", "stancl": "no", "advantage": "lasagna" },
-    { "category": "observability", "feature": "REST admin API + OpenAPI 3.1 + Swagger UI", "lasagna": "yes", "stancl": "no", "advantage": "lasagna", "lasagnaNote": "31 endpoints" },
+    { "category": "observability", "feature": "REST admin API + OpenAPI 3.1 + Swagger UI", "lasagna": "yes", "stancl": "no", "advantage": "lasagna", "lasagnaNote": "OpenAPI 3.1 + Swagger UI" },
 
     { "category": "routing", "feature": "Universal routes (Route.tenant / central / universal)", "lasagna": "yes", "stancl": "yes" },
     { "category": "routing", "feature": "Auto-loaded tenant.routes.ts", "lasagna": "yes", "stancl": "yes" },

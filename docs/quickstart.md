@@ -5,15 +5,17 @@ description: From npm install to a live tenant in five minutes.
 
 # Quickstart
 
-From `npm install` to a live tenant in five minutes. The configure
-command does most of the wiring; you only fill in connections and
-the repository binding.
+The fastest path from `npm install` to a live, schema-isolated tenant.
+The configure command does most of the wiring; you fill in your database
+connections and one repository binding. Target: under ten minutes.
 
 <Terminal src="/casts/quickstart.cast.json" />
 
-::: tip Already installed?
-Skip to the [installation guide](/docs/installation) for the
-canonical step-by-step. This page is the marketing-friendly tour.
+::: tip Prerequisites
+A running **PostgreSQL 14+** and **Redis 6+**, plus an AdonisJS 7 app on
+**Node 24+**. Want the exhaustive reference (every `configure` flag,
+middleware registration, requirements)? See
+[Installation & configuration](/docs/installation).
 :::
 
 ## 1. Install
@@ -85,6 +87,16 @@ async show({ request }: HttpContext) {
 }
 ```
 
+## 7. Verify it worked
+
+```bash
+node ace tenant:doctor
+```
+
+`doctor` checks your connections, schema health, and configuration. A green
+report means the tenant is provisioned and routable. Wire it into CI so a
+broken tenant fails the build instead of production.
+
 ## What's next?
 
 - [Installation](/docs/installation); the full step-by-step.
@@ -96,6 +108,6 @@ async show({ request }: HttpContext) {
 
 ::: info Reference app
 The full feature surface lives in
-[examples/api](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/tree/master/examples/api)
-by a real AdonisJS 7 app with a 123-test e2e suite.
+[examples/api](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/tree/master/examples/api),
+a real AdonisJS 7 app with an end-to-end suite covering every feature.
 :::

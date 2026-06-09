@@ -1,6 +1,6 @@
 ---
 title: Admin REST API
-description: 36 endpoints exposing tenant lifecycle, satellite configuration, and operational tasks. OpenAPI 3.1 spec ships in the box.
+description: A REST admin API exposing tenant lifecycle, satellite configuration, and operational tasks. OpenAPI 3.1 spec ships in the box.
 ---
 
 # Admin REST API

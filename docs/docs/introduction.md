@@ -34,9 +34,9 @@ Lasagna handles the seams.
   `--watch`, `--json`), backups with retention tiers, read replicas,
   Prometheus, OpenTelemetry, health probes, and a per-dependency
   fail-open/fail-closed resilience policy.
-- **33 ace commands** spanning provisioning, migrations, backups,
-  cloning, exec-under-tenant, maintenance mode, REPL, billing.
-- **REST admin API**: 36 endpoints, OpenAPI 3.1 spec, Swagger UI.
+- **A full suite of ace commands** spanning provisioning, migrations,
+  backups, cloning, exec-under-tenant, maintenance mode, REPL, billing.
+- **REST admin API** with an OpenAPI 3.1 spec and Swagger UI.
 
 ## What you *don't* get (yet)
 

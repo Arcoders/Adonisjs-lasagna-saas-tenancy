@@ -1,6 +1,6 @@
 ---
 title: Lifecycle events
-description: 25 typed events fire across the tenant lifecycle, the Stripe billing pipeline, and dependency resilience. Subscribe with `emitter.on()` and react to provisioning, status changes, backups, clones, quota breaches, maintenance toggles, subscription transitions, payments, dead-letter alerts, and dependency degradation.
+description: Typed events fire across the tenant lifecycle, the Stripe billing pipeline, and dependency resilience. Subscribe with `emitter.on()` and react to provisioning, status changes, backups, clones, quota breaches, maintenance toggles, subscription transitions, payments, dead-letter alerts, and dependency degradation.
 ---
 
 # Lifecycle events

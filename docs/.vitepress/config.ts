@@ -7,6 +7,129 @@ const REPO = 'https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy'
 // Track the published core version so the nav label never goes stale.
 const { version } = require('../../packages/core/package.json')
 
+// One task-ordered sidebar applied across the whole site (Getting Started →
+// Core Concepts → Guides → Satellites → Production → Reference → Resources).
+// Root pages (/why, /quickstart, /security) are linked by absolute path so the
+// same tree shows everywhere; the home page renders no sidebar.
+const sidebar = [
+  {
+    text: 'Getting Started',
+    items: [
+      { text: 'Introduction', link: '/docs/introduction' },
+      { text: 'Why multi-tenancy', link: '/why' },
+      { text: 'Concepts', link: '/docs/concepts' },
+      { text: 'Quickstart', link: '/quickstart' },
+      { text: 'Installation & configuration', link: '/docs/installation' },
+    ],
+  },
+  {
+    text: 'Core Concepts',
+    items: [
+      { text: 'Tenant identification', link: '/docs/tenant-identification' },
+      {
+        text: 'Data isolation',
+        link: '/docs/data-isolation/',
+        collapsed: false,
+        items: [
+          { text: 'schema-pg', link: '/docs/data-isolation/schema-pg' },
+          { text: 'database-pg', link: '/docs/data-isolation/database-pg' },
+          { text: 'rowscope-pg', link: '/docs/data-isolation/rowscope-pg' },
+          { text: 'sqlite-memory', link: '/docs/data-isolation/sqlite-memory' },
+        ],
+      },
+      { text: 'Request context & routing', link: '/docs/routing' },
+      { text: 'Models & adapters', link: '/docs/models' },
+      {
+        text: 'Bootstrappers',
+        link: '/docs/bootstrappers/',
+        collapsed: true,
+        items: [
+          { text: 'Database', link: '/docs/bootstrappers/database' },
+          { text: 'Cache', link: '/docs/bootstrappers/cache' },
+          { text: 'Filesystem', link: '/docs/bootstrappers/filesystem' },
+          { text: 'Mail', link: '/docs/bootstrappers/mail' },
+          { text: 'Session', link: '/docs/bootstrappers/session' },
+          { text: 'Broadcasting', link: '/docs/bootstrappers/broadcasting' },
+        ],
+      },
+    ],
+  },
+  {
+    text: 'Guides',
+    items: [
+      { text: 'Authentication', link: '/docs/authentication' },
+      { text: 'Background jobs & queues', link: '/docs/jobs' },
+      { text: 'Read replicas', link: '/docs/read-replicas' },
+      { text: 'Contextual logging', link: '/docs/contextual-logging' },
+      { text: 'Testing', link: '/docs/testing' },
+      {
+        text: 'Recipes',
+        link: '/docs/cookbook/',
+        collapsed: true,
+        items: [
+          { text: 'Custom-domain HTTPS', link: '/docs/cookbook/custom-domain-https' },
+          { text: 'Stripe + quotas', link: '/docs/cookbook/stripe-quotas' },
+          { text: 'Multi-region replicas', link: '/docs/cookbook/multi-region-replicas' },
+          { text: 'Custom isolation driver', link: '/docs/cookbook/custom-isolation-driver' },
+        ],
+      },
+    ],
+  },
+  {
+    text: 'Satellites',
+    items: [
+      { text: 'Overview', link: '/docs/satellites/' },
+      { text: 'Audit', link: '/docs/satellites/audit' },
+      { text: 'Feature flags', link: '/docs/satellites/feature-flags' },
+      { text: 'Webhooks', link: '/docs/satellites/webhooks' },
+      { text: 'Branding', link: '/docs/satellites/branding' },
+      { text: 'SSO', link: '/docs/satellites/sso' },
+      { text: 'Metrics', link: '/docs/satellites/metrics' },
+      { text: 'Quotas', link: '/docs/satellites/quotas' },
+      { text: 'Billing', link: '/docs/satellites/billing' },
+      { text: 'Impersonation', link: '/docs/satellites/impersonation' },
+      { text: 'Admin REST API', link: '/docs/admin-rest-api' },
+    ],
+  },
+  {
+    text: 'Production',
+    items: [
+      { text: 'Security', link: '/security' },
+      { text: 'Resilience', link: '/docs/resilience' },
+      { text: 'Health & monitoring', link: '/docs/health' },
+      { text: 'Performance & benchmarks', link: '/docs/performance' },
+      { text: 'Scaling limits', link: '/docs/scaling-limits' },
+      { text: 'Deployment', link: '/docs/deployment' },
+      { text: 'Production checklist & runbook', link: '/docs/production-checklist' },
+    ],
+  },
+  {
+    text: 'Reference',
+    items: [
+      { text: 'Configuration', link: '/docs/configuration' },
+      { text: 'CLI commands', link: '/docs/commands' },
+      { text: 'Lifecycle events', link: '/docs/events' },
+      { text: 'Hooks', link: '/docs/hooks' },
+      { text: 'Services API', link: '/docs/services' },
+      { text: 'Exceptions', link: '/docs/exceptions' },
+    ],
+  },
+  {
+    text: 'Resources',
+    items: [
+      { text: 'Stability', link: '/docs/stability' },
+      { text: 'Roadmap', link: '/docs/roadmap' },
+      { text: 'Upgrade to 1.0', link: '/docs/upgrade-to-1.0' },
+      { text: 'Comparison vs stancl', link: '/docs/comparison' },
+      { text: 'Troubleshooting', link: '/docs/gotchas' },
+      { text: 'FAQ', link: '/docs/faq' },
+      { text: 'Known limitations', link: '/docs/known-limitations' },
+      { text: 'Contributing', link: '/docs/contributing' },
+      { text: 'Release notes', link: '/docs/release-notes' },
+    ],
+  },
+]
+
 export default defineConfig({
   title: 'Lasagna SaaS Tenancy',
   description:
@@ -23,6 +146,7 @@ export default defineConfig({
   // (see `--lg-code-bg` in theme/style.css), so force a dark Shiki theme
   // in both light and dark modes — otherwise the light theme's dark
   // tokens render on our dark background and become unreadable.
+  // (Switches to adaptive light/dark with the minimalist restyle.)
   markdown: {
     theme: {
       light: 'github-dark',
@@ -73,46 +197,13 @@ export default defineConfig({
     logo: { light: '/logo.svg', dark: '/logo-dark.svg' },
 
     nav: [
+      { text: 'Docs', link: '/docs/introduction', activeMatch: '/docs/' },
       { text: 'Why', link: '/why' },
       { text: 'Quickstart', link: '/quickstart' },
       {
-        text: 'Docs',
-        items: [
-          { text: 'Introduction', link: '/docs/introduction' },
-          { text: 'Concepts', link: '/docs/concepts' },
-          { text: 'Models', link: '/docs/models' },
-          { text: 'Installation', link: '/docs/installation' },
-          { text: 'Stability', link: '/docs/stability' },
-          { text: 'Upgrade to 1.0', link: '/docs/upgrade-to-1.0' },
-          { text: 'Tenant identification', link: '/docs/tenant-identification' },
-          { text: 'Data isolation', link: '/docs/data-isolation/' },
-          { text: 'Bootstrappers', link: '/docs/bootstrappers/' },
-          { text: 'Commands', link: '/docs/commands' },
-          { text: 'Satellites', link: '/docs/satellites/' },
-          { text: 'Lifecycle events', link: '/docs/events' },
-          { text: 'Background jobs', link: '/docs/jobs' },
-          { text: 'Health & metrics', link: '/docs/health' },
-          { text: 'Read replicas', link: '/docs/read-replicas' },
-          { text: 'Resilience', link: '/docs/resilience' },
-          { text: 'Contextual logging', link: '/docs/contextual-logging' },
-          { text: 'Routing', link: '/docs/routing' },
-          { text: 'Testing', link: '/docs/testing' },
-          { text: 'Admin REST API', link: '/docs/admin-rest-api' },
-          { text: 'Configuration', link: '/docs/configuration' },
-          { text: 'Service API reference', link: '/docs/services' },
-          { text: 'Exceptions', link: '/docs/exceptions' },
-          { text: 'Troubleshooting', link: '/docs/gotchas' },
-          { text: 'FAQ', link: '/docs/faq' },
-          { text: 'Known limitations', link: '/docs/known-limitations' },
-          { text: 'Deployment', link: '/docs/deployment' },
-          { text: 'Production checklist', link: '/docs/production-checklist' },
-          { text: 'Scaling limits', link: '/docs/scaling-limits' },
-          { text: 'Performance', link: '/docs/performance' },
-          { text: 'Cookbook', link: '/docs/cookbook/' },
-          { text: 'Comparison vs stancl', link: '/docs/comparison' },
-          { text: 'Contributing', link: '/docs/contributing' },
-          { text: 'Release notes', link: '/docs/release-notes' },
-        ],
+        text: 'Reference',
+        link: '/docs/configuration',
+        activeMatch: '/docs/(configuration|commands|events|hooks|services|exceptions)',
       },
       { text: 'Showcase', link: '/showcase' },
       { text: 'Sponsor', link: '/sponsor' },
@@ -126,148 +217,7 @@ export default defineConfig({
       },
     ],
 
-    sidebar: {
-      '/docs/': [
-        {
-          text: 'Getting started',
-          items: [
-            { text: 'Introduction', link: '/docs/introduction' },
-            { text: 'Concepts', link: '/docs/concepts' },
-            { text: 'Models', link: '/docs/models' },
-            { text: 'Installation', link: '/docs/installation' },
-            { text: 'Stability', link: '/docs/stability' },
-            { text: 'Upgrade to 1.0', link: '/docs/upgrade-to-1.0' },
-          ],
-        },
-        {
-          text: 'Tenant lifecycle',
-          items: [
-            { text: 'Tenant identification', link: '/docs/tenant-identification' },
-            {
-              text: 'Data isolation',
-              link: '/docs/data-isolation/',
-              collapsed: true,
-              items: [
-                { text: 'schema-pg', link: '/docs/data-isolation/schema-pg' },
-                { text: 'database-pg', link: '/docs/data-isolation/database-pg' },
-                { text: 'rowscope-pg', link: '/docs/data-isolation/rowscope-pg' },
-                { text: 'sqlite-memory', link: '/docs/data-isolation/sqlite-memory' },
-              ],
-            },
-            {
-              text: 'Bootstrappers',
-              link: '/docs/bootstrappers/',
-              collapsed: true,
-              items: [
-                { text: 'Database', link: '/docs/bootstrappers/database' },
-                { text: 'Cache', link: '/docs/bootstrappers/cache' },
-                { text: 'Filesystem', link: '/docs/bootstrappers/filesystem' },
-                { text: 'Mail', link: '/docs/bootstrappers/mail' },
-                { text: 'Session', link: '/docs/bootstrappers/session' },
-                { text: 'Broadcasting', link: '/docs/bootstrappers/broadcasting' },
-              ],
-            },
-            { text: 'Commands', link: '/docs/commands' },
-          ],
-        },
-        {
-          text: 'Service surface',
-          items: [
-            {
-              text: 'Satellites',
-              link: '/docs/satellites/',
-              collapsed: true,
-              items: [
-                { text: 'Audit', link: '/docs/satellites/audit' },
-                { text: 'Feature flags', link: '/docs/satellites/feature-flags' },
-                { text: 'Webhooks', link: '/docs/satellites/webhooks' },
-                { text: 'Branding', link: '/docs/satellites/branding' },
-                { text: 'SSO', link: '/docs/satellites/sso' },
-                { text: 'Metrics', link: '/docs/satellites/metrics' },
-                { text: 'Quotas', link: '/docs/satellites/quotas' },
-                { text: 'Billing', link: '/docs/satellites/billing' },
-                { text: 'Impersonation', link: '/docs/satellites/impersonation' },
-              ],
-            },
-            { text: 'Routing', link: '/docs/routing' },
-            { text: 'Lifecycle events', link: '/docs/events' },
-            { text: 'Background jobs', link: '/docs/jobs' },
-            { text: 'Health & metrics', link: '/docs/health' },
-            { text: 'Read replicas', link: '/docs/read-replicas' },
-            { text: 'Resilience', link: '/docs/resilience' },
-            { text: 'Contextual logging', link: '/docs/contextual-logging' },
-            { text: 'Testing', link: '/docs/testing' },
-            { text: 'Admin REST API', link: '/docs/admin-rest-api' },
-          ],
-        },
-        {
-          text: 'Operate',
-          items: [
-            { text: 'Deployment', link: '/docs/deployment' },
-            { text: 'Production checklist', link: '/docs/production-checklist' },
-            { text: 'Scaling limits', link: '/docs/scaling-limits' },
-            { text: 'Performance', link: '/docs/performance' },
-            { text: 'Security', link: '/security' },
-            {
-              text: 'Cookbook',
-              link: '/docs/cookbook/',
-              collapsed: true,
-              items: [
-                { text: 'Custom-domain HTTPS', link: '/docs/cookbook/custom-domain-https' },
-                { text: 'Stripe + quotas', link: '/docs/cookbook/stripe-quotas' },
-                { text: 'Multi-region replicas', link: '/docs/cookbook/multi-region-replicas' },
-                { text: 'Custom isolation driver', link: '/docs/cookbook/custom-isolation-driver' },
-              ],
-            },
-          ],
-        },
-        {
-          text: 'API Reference',
-          items: [
-            { text: 'Configuration', link: '/docs/configuration' },
-            { text: 'Service API reference', link: '/docs/services' },
-            { text: 'Exceptions', link: '/docs/exceptions' },
-            { text: 'Troubleshooting', link: '/docs/gotchas' },
-          ],
-        },
-        {
-          text: 'Reference',
-          items: [
-            { text: 'FAQ', link: '/docs/faq' },
-            { text: 'Known limitations', link: '/docs/known-limitations' },
-            { text: 'Comparison vs stancl', link: '/docs/comparison' },
-            { text: 'Contributing', link: '/docs/contributing' },
-            { text: 'Release notes', link: '/docs/release-notes' },
-          ],
-        },
-      ],
-      '/': [
-        {
-          text: 'Getting started',
-          items: [
-            { text: 'Quickstart', link: '/quickstart' },
-            { text: 'Why Lasagna', link: '/why' },
-            { text: 'Security', link: '/security' },
-          ],
-        },
-        {
-          text: 'Documentation',
-          items: [
-            { text: 'Introduction', link: '/docs/introduction' },
-            { text: 'Concepts', link: '/docs/concepts' },
-            { text: 'Installation', link: '/docs/installation' },
-            { text: 'All sections →', link: '/docs/introduction' },
-          ],
-        },
-        {
-          text: 'Community',
-          items: [
-            { text: 'Showcase', link: '/showcase' },
-            { text: 'Sponsor', link: '/sponsor' },
-          ],
-        },
-      ],
-    },
+    sidebar,
 
     socialLinks: [
       { icon: 'github', link: REPO },

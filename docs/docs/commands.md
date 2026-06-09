@@ -1,6 +1,6 @@
 ---
 title: Commands
-description: 33 ace commands for provisioning, migrations, backups, doctor, exec-under-tenant, maintenance, REPL, billing, and more.
+description: The full set of ace commands for provisioning, migrations, backups, doctor, exec-under-tenant, maintenance, REPL, billing, and more.
 ---
 
 # Commands

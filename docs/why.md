@@ -105,8 +105,8 @@ Lasagna covers the same ground (4 isolation drivers, 6 bootstrappers,
 operational surface stancl leaves to the user: a doctor command,
 integrated read replicas, OpenTelemetry, Prometheus, scheduled
 backups with retention tiers, the impersonation flow,
-quotas-as-middleware, the REST admin API + OpenAPI 3.1 spec, and 33
-ace commands vs stancl's 7.
+quotas-as-middleware, the REST admin API + OpenAPI 3.1 spec, and a
+deep ace command surface where stancl ships a handful.
 
 It also has gaps that stancl has filled: an admin dashboard UI, a
 starter kit, an active Discord. Those are still on the roadmap.
@@ -142,7 +142,7 @@ in-house, and that we already debugged:
 - **Backups with retention tiers.** `pg_dump`, S3 mirror, JSON sidecar
   with checksums, tier-based intervals (`standard`, `premium`, …),
   per-tenant resolution.
-- **REST admin API.** 36 endpoints, OpenAPI 3.1 spec, Swagger UI. You
+- **REST admin API.** An OpenAPI 3.1 spec and Swagger UI. You
   bring the auth middleware; we bring the wiring.
 - **Audit, webhooks, quotas, feature flags, branding, SSO, metrics,
   impersonation, Stripe billing.** Nine satellites, opt-in via the
