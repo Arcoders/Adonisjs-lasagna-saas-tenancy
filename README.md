@@ -22,7 +22,7 @@ flags, metrics, and Stripe billing.
 [![AdonisJS](https://img.shields.io/badge/AdonisJS-7-5a45ff)](https://adonisjs.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-%E2%89%A514-336791)](https://www.postgresql.org)
 [![Redis](https://img.shields.io/badge/Redis-%E2%89%A56-DC382D)](https://redis.io)
-[![Tests](https://img.shields.io/badge/tests-610%20unit%20%2B%20358%20integration%20%2B%20123%20e2e-brightgreen)](./.github/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](./.github/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-published-C26A4B)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/)
 [![License](https://img.shields.io/badge/License-MIT-blue)](./LICENSE)
 
@@ -39,7 +39,7 @@ nothing leaked, you already know the problem this solves.
 If you'd rather see it run than read about it, jump to
 [examples/api/](examples/api/). It's a real AdonisJS 7 app that
 exercises every feature, and one `npm run test:e2e` brings up the stack
-and runs 123 tests against it.
+and runs the full e2e suite against it.
 
 🔒 **Hardened and tested against real production failure modes** — cross-tenant isolation under concurrency, quota atomicity, SSO replay, audit immutability, header-vs-domain hijack, and more. [See what we verified →](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/why#hardened-against-the-failures-that-bite-you-in-production)
 
@@ -116,7 +116,7 @@ docker compose -f compose.test.yml up -d
 npm run test:e2e
 ```
 
-The 123-test e2e suite covers provisioning, schema isolation,
+The e2e suite covers provisioning, schema isolation,
 contextual logging across HTTP + queue, the doctor command, backups +
 restore + clone, quotas → 429, lifecycle events, the admin REST API,
 mail context propagation, replica routing, and the webhook delivery
