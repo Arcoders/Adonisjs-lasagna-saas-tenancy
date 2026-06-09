@@ -172,6 +172,15 @@ jobs:
           npm_config_ignore_scripts: 'false'
         run: npm install --legacy-peer-deps --include=optional
 
+      # better-sqlite3 is an optional peer dependency, so npm does not install
+      # it with the tree above. The sqlite-memory storage spec needs it; build
+      # it here so that spec runs for real. Best-effort: the spec self-skips if
+      # this ever fails (e.g. no prebuilt binary for the runner's Node ABI).
+      - name: Install better-sqlite3 (optional peer for the sqlite-memory spec)
+        env:
+          npm_config_ignore_scripts: 'false'
+        run: npm install better-sqlite3@^11 --no-save --include=optional --legacy-peer-deps || true
+
       # Run MinIO directly (Actions services can't pass `server /data`).
       - name: Start MinIO (S3-compatible)
         run: |

@@ -18,7 +18,20 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
  * instantiate the driver directly rather than through the registry, since the
  * fixture app is configured for `schema-pg`; the sqlite driver registers its
  * own connection and is independent of the active driver.
+ *
+ * `better-sqlite3` is an optional peer dependency (npm does not auto-install
+ * optional peers), so the suite skips gracefully when it is absent instead of
+ * hard-failing, the same way the `*_real` specs skip without their backing
+ * service. CI installs it explicitly so this actually runs there.
  */
+// Probe via a non-literal specifier so tsc doesn't resolve the optional dep's
+// types at build time (it isn't installed in the typecheck job).
+const sqlitePkg = 'better-sqlite3'
+const sqliteAvailable = await import(sqlitePkg).then(
+  () => true,
+  () => false
+)
+
 function fakeTenant(id: string): TenantModelContract {
   return { id, name: `sqlite-mem-${id}` } as unknown as TenantModelContract
 }
@@ -66,7 +79,7 @@ test.group('SqliteMemoryDriver storage lifecycle (integration)', (group) => {
     // The load-bearing assertion: neither tenant sees the other's rows.
     assert.notInclude(bodiesA, 'from-b-1')
     assert.notInclude(bodiesB, 'from-a')
-  })
+  }).skip(!sqliteAvailable, 'requires the optional better-sqlite3 peer dependency')
 
   test('destroy + re-provision starts from an empty store', async ({ assert }) => {
     const t = fakeTenant(randomUUID())
@@ -86,5 +99,5 @@ test.group('SqliteMemoryDriver storage lifecycle (integration)', (group) => {
     // must not retain the previous table.
     const tables = await second.from('sqlite_master').where('type', 'table').where('name', 'notes')
     assert.lengthOf(tables, 0, 'a fresh in-memory db must not retain the previous table')
-  })
+  }).skip(!sqliteAvailable, 'requires the optional better-sqlite3 peer dependency')
 })
