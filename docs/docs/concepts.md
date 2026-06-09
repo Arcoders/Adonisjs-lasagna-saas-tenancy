@@ -56,25 +56,21 @@ Each satellite ships its own backoffice migration; you opt in via
 
 ## How a request flows
 
-```
-Request arrives  ─────────────────────────────────────────────────
-                                                                  │
-  CustomDomainMiddleware    (optional)                            │
-  Maps Host → x-tenant-id                                         │
-                                                                  │
-  TenantGuardMiddleware                                           │
-  Calls resolveTenantId()                                         │
-  Hits TenantRepositoryContract                                   │
-  Memoizes tenant on the request                                  │
-                                                                  │
-  RateLimitMiddleware       (optional)                            │
-  Per-tenant token bucket                                         │
-                                                                  │
-  Controller                                                      │
-  Calls TenantBaseModel.query()                                   │
-   └─→ TenantAdapter.modelConstructorClient()                     │
-        └─→ tenancy.currentId() or HttpContext                    │
-             └─→ active driver picks the connection              ─┘
+A request is resolved to a tenant once, on the way in. From there the
+active isolation driver decides which connection serves each query, so
+your controllers only ever call `TenantBaseModel.query()`.
+
+```mermaid
+flowchart LR
+  R[Request] --> CD[CustomDomainMiddleware<br/>Host → x-tenant-id]
+  CD --> TG[TenantGuardMiddleware<br/>resolveTenantId → repo → memoize]
+  TG --> RL[RateLimitMiddleware<br/>per-tenant bucket]
+  RL --> C[Controller<br/>TenantBaseModel.query]
+  C --> A[TenantAdapter]
+  A --> D{Active driver}
+  D -->|schema-pg| S[(tenant_uuid schema)]
+  D -->|database-pg| DB[(tenant database)]
+  D -->|rowscope-pg| RS[(shared schema + tenant_id)]
 ```
 
 Three things happen at the seams:

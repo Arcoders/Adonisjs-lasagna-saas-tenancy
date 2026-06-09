@@ -7,47 +7,42 @@ import LasagnaCard from './components/LasagnaCard.vue'
 import Callout from './components/Callout.vue'
 import CodeLayer from './components/CodeLayer.vue'
 import ZelligeStar from './components/ZelligeStar.vue'
-import HomeLayered from './components/HomeLayered.vue'
-import LayeredHero from './components/LayeredHero.vue'
 import ComparisonTable from './components/ComparisonTable.vue'
 import LayerStack from './components/LayerStack.vue'
 import Terminal from './components/Terminal.vue'
 import WebhookStateMachine from './components/WebhookStateMachine.vue'
 import PageFeedback from './components/PageFeedback.vue'
 
+// Landing-page sections, injected into VitePress's native home slots (below).
+// They are not referenced from markdown, so they need no global registration.
+import CopyCommand from './components/CopyCommand.vue'
+import TrustBand from './components/TrustBand.vue'
+import HomeArchitecture from './components/HomeArchitecture.vue'
+import HomeAdoption from './components/HomeAdoption.vue'
+
 import './style.css'
 
 /**
  * Custom Lasagna theme. We extend the default VitePress layout (so search,
- * sidebar, and dark-mode toggle keep working) and drop the Zellige surface
- * treatments through `style.css` and the components below.
+ * sidebar, and dark-mode toggle keep working) and layer Lasagna treatments
+ * through `style.css` and the components below.
  *
- * Pages can opt into the marketing landing layout by setting frontmatter:
- *
- *   ---
- *   layout: home
- *   lasagnaHome: true
- *   ---
- *
- * That keeps VitePress's nav + footer chrome but replaces the body with
- * the bespoke `<HomeLayered>` component via the `home-hero-before` slot
- * (and emptying every other default-home slot).
+ * The landing page uses VitePress's native `layout: home` (hero + features
+ * from frontmatter). We enrich it by injecting four section components into
+ * the home slots: a copy-paste install line and a compatibility band under
+ * the hero, then an architecture diagram and an adoption guide under the
+ * feature cards.
  */
 const LasagnaLayout = () => {
   const { frontmatter } = useData()
-  if (frontmatter.value.lasagnaHome) {
+
+  if (frontmatter.value.layout === 'home') {
     return h(DefaultTheme.Layout, null, {
-      'home-hero-before': () => h(HomeLayered),
-      'home-hero-info-before': () => null,
-      'home-hero-info': () => null,
-      'home-hero-info-after': () => null,
-      'home-hero-actions-after': () => null,
-      'home-hero-image': () => null,
-      'home-hero-after': () => null,
-      'home-features-before': () => null,
-      'home-features-after': () => null,
+      'home-hero-after': () => [h(CopyCommand), h(TrustBand)],
+      'home-features-after': () => [h(HomeArchitecture), h(HomeAdoption)],
     })
   }
+
   // Mount the feedback widget on every non-home page via the doc-after slot.
   return h(DefaultTheme.Layout, null, {
     'doc-after': () => h(PageFeedback),
@@ -62,8 +57,6 @@ export default {
     app.component('Callout', Callout)
     app.component('CodeLayer', CodeLayer)
     app.component('ZelligeStar', ZelligeStar)
-    app.component('LayeredHero', LayeredHero)
-    app.component('HomeLayered', HomeLayered)
     app.component('ComparisonTable', ComparisonTable)
     app.component('LayerStack', LayerStack)
     app.component('Terminal', Terminal)

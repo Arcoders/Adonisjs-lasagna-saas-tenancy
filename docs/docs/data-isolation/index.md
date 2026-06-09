@@ -34,6 +34,31 @@ Every driver implements `IsolationDriver`:
 | [`rowscope-pg`](/docs/data-isolation/rowscope-pg) | Lightweight workloads, large tenant counts, central reporting. | Shared schema + `tenant_id` column. Strict scope by default. |
 | [`sqlite-memory`](/docs/data-isolation/sqlite-memory) | Tests only. | In-process SQLite per tenant. Vanishes on process exit. |
 
+## How each driver stores data
+
+Same contract, three storage shapes. `schema-pg` gives every tenant its own
+schema inside one database; `database-pg` gives every tenant a whole database;
+`rowscope-pg` keeps everyone in one shared schema and scopes by a `tenant_id`
+column. (`sqlite-memory` mirrors `schema-pg` but in-process, for tests.)
+
+```mermaid
+flowchart TB
+  subgraph SP["schema-pg (default)"]
+    direction TB
+    SDB[(one database)] --> SA[tenant_a schema]
+    SDB --> SB[tenant_b schema]
+  end
+  subgraph DP["database-pg"]
+    direction TB
+    DA[(tenant_a database)]
+    DB2[(tenant_b database)]
+  end
+  subgraph RP["rowscope-pg"]
+    direction TB
+    RDB[(shared schema)] --> RR["rows scoped by tenant_id"]
+  end
+```
+
 ## Choosing a driver
 
 - **Strict isolation, easy backups, easy per-tenant restore** →

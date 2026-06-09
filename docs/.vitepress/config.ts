@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
@@ -130,7 +131,12 @@ const sidebar = [
   },
 ]
 
-export default defineConfig({
+// `withMermaid` wraps the VitePress config to render ```mermaid fenced code
+// blocks as diagrams (used on the Concepts and Data isolation pages). It merges
+// in its own markdown-it plugin and Vite SSR settings; the existing
+// `markdown.config` table rule, `transformHead`, and `head` below are preserved.
+export default withMermaid(
+  defineConfig({
   title: 'Lasagna SaaS Tenancy',
   description:
     'SaaS multi-tenancy for AdonisJS 7. Connection routing, circuit breaker, queues, contextual logging, plans/quotas, backups, replicas, audit logs, webhooks, SSO, Stripe billing.',
@@ -238,4 +244,5 @@ export default defineConfig({
 
     outline: { level: [2, 3] },
   },
-})
+  }),
+)

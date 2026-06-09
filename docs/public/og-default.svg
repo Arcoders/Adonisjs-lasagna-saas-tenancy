@@ -45,10 +45,10 @@
   <line x1="80" y1="540" x2="1120" y2="540" stroke="#C26A4B" stroke-width="1.5" opacity="0.4"/>
 
   <text x="80" y="580" font-family="Inter, system-ui, sans-serif" font-size="22" fill="#6E6358">
-    Schema isolation · Bootstrappers · Doctor · Backups · Replicas · OpenAPI · 32 commands
+    Schema isolation · Bootstrappers · Doctor · Backups · Replicas · SSO · Stripe billing
   </text>
 
   <text x="1120" y="580" text-anchor="end" font-family="JetBrains Mono, ui-monospace, monospace" font-size="20" fill="#C26A4B">
-    v0.2.2
+    AdonisJS 7
   </text>
 </svg>
