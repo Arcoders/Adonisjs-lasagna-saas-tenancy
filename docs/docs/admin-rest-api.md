@@ -135,3 +135,9 @@ The spec is versioned with the package; `info.version` mirrors
 `package.json` `version`. Breaking changes go through major bumps.
 Use the spec as a contract: generate clients, validate requests
 in CI.
+
+## Read next
+
+- [Security](/security); auth, fail-closed mounting, and the actor resolver.
+- [Authentication](/docs/authentication); wiring your guard in front of the API.
+- [CLI commands](/docs/commands); the same operations from the terminal.

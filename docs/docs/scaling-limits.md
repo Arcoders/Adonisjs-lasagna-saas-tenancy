@@ -133,3 +133,9 @@ _Generated from the latest results; see [Performance](/docs/performance)._
 | `rowscope-pg` | Lower (query predicate) | Very many small tenants | Isolation depends on `tenancy.run()` / the scope mixin |
 
 See [Data isolation](/docs/data-isolation/) for the full driver comparison.
+
+## Read next
+
+- [Performance](/docs/performance); the benchmark numbers behind these ceilings.
+- [Read replicas](/docs/read-replicas); scaling reads horizontally.
+- [Production checklist](/docs/production-checklist); the operational pre-flight.

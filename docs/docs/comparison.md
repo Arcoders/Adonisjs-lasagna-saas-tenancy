@@ -50,3 +50,9 @@ that wires Lasagna + Auth + Stripe), and the 1.0 release.
 Track the work in the
 [GitHub repo](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy).
 Issues are open for feature requests.
+
+## Read next
+
+- [Why Lasagna](/why); the narrative behind the table.
+- [Stability](/docs/stability); what is release candidate versus experimental.
+- [Roadmap](/docs/roadmap); the gaps being filled next.

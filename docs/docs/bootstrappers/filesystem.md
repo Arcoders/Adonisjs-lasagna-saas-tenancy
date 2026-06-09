@@ -57,3 +57,9 @@ hookRegistry.on('tenant.soft_deleted', async ({ tenant }) => {
   await drive.use().deleteAll(`tenants/${tenant.id}/`)
 })
 ```
+
+
+## Read next
+
+- [Bootstrappers](/docs/bootstrappers/); the rest of the per-tenant services.
+- [Configuration](/docs/configuration); the drive options.

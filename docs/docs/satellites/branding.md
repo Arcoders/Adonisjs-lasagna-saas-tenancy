@@ -71,3 +71,9 @@ SMTP passwords (and any column you add via the encryption helpers
 in `utils/crypto.ts`) are encrypted with `AES-256-GCM` using
 `APP_KEY`. Rotation requires re-encryption; the package does not
 ship a migration helper for that yet.
+
+
+## Read next
+
+- [Admin REST API](/docs/admin-rest-api); managing branding over HTTP.
+- [Satellites](/docs/satellites/); the rest of the opt-in features.

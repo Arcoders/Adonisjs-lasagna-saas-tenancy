@@ -123,3 +123,10 @@ almost always want to compose. Wrap `SchemaPgDriver` in your driver
 and delegate, overriding only what you need. Forking the whole
 thing means keeping up with bug fixes that we ship; composition
 keeps you on the upgrade path.
+
+
+## Read next
+
+- [Data isolation](/docs/data-isolation/); the driver contract you implement.
+- [Models](/docs/models); how adapters route through the driver.
+- [Cookbook](/docs/cookbook/); more recipes.

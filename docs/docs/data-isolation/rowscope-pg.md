@@ -224,3 +224,10 @@ no-op.
 per-tenant restore semantics, build your own export pipeline that
 filters by `tenant_id`; Lasagna's bundled `tenant:backup` is
 schema-aware and won't be useful here.
+
+
+## Read next
+
+- [schema-pg driver](/docs/data-isolation/schema-pg); one schema per tenant, the default.
+- [Models](/docs/models); the row-scope mixin and strict scoping.
+- [Data isolation](/docs/data-isolation/); how to choose between drivers.

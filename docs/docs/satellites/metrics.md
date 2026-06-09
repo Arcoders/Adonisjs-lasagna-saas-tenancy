@@ -74,3 +74,10 @@ per-period rows.
   coarse per-tenant usage, not arbitrary named metrics or gauges.
 - For application-level telemetry (latency, traces) use the OpenTelemetry
   integration instead. See [Health & metrics](/docs/health).
+
+
+## Read next
+
+- [Health & monitoring](/docs/health); the Prometheus and probe surface.
+- [Services API](/docs/services); the `MetricsService` methods.
+- [Satellites](/docs/satellites/); the rest of the opt-in features.

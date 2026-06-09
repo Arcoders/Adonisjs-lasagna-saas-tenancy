@@ -101,7 +101,7 @@ The context is fully typed per event, so `direction` is available on `migrate`,
 
 ## Read next
 
-- [Lifecycle events](/docs/events) — fire-and-forget notifications you
+- [Lifecycle events](/docs/events); fire-and-forget notifications you
   subscribe to, complementary to hooks (which run inline and can abort).
-- [Background jobs](/docs/jobs) — where provision/destroy hooks actually run.
-- [Configuration](/docs/configuration) — the full `defineConfig` reference.
+- [Background jobs](/docs/jobs); where provision/destroy hooks actually run.
+- [Configuration](/docs/configuration); the full `defineConfig` reference.

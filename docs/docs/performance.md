@@ -139,3 +139,9 @@ _Last run: 2026-06-07T15:10:14.310Z · node v24.16.0 · AMD EPYC 7763 64-Core Pr
 | connection_lru › evictIfNeeded (under cap, no-op) | 37,862,821 | 26 | 28 |
 | rowscope_predicate › scoped query() build | 55,258,010 | 18 | 109 |
 | rowscope_predicate › unscoped query() build (baseline) | 84,656,631 | 12 | 13 |
+
+## Read next
+
+- [Scaling limits](/docs/scaling-limits); where these numbers stop holding.
+- [Read replicas](/docs/read-replicas); offloading reads off the primary.
+- [Production checklist](/docs/production-checklist); the operational pre-flight.

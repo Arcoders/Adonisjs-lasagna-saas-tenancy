@@ -94,3 +94,10 @@ router
   })
   .as('auth.callback')
 ```
+
+
+## Read next
+
+- [Authentication](/docs/authentication); how SSO composes with tenant auth.
+- [Security](/security); the replay and state guarantees.
+- [Satellites](/docs/satellites/); the rest of the opt-in features.

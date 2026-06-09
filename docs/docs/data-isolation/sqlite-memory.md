@@ -49,3 +49,10 @@ Lasagna's [`testing/`](/docs/testing) helpers (`buildTestTenant`,
 database at all; they let you assert tenant-routing behaviour
 without touching SQL. Reach for this driver only when your assertion
 needs the database round-trip.
+
+
+## Read next
+
+- [Testing](/docs/testing); where this driver earns its keep.
+- [schema-pg driver](/docs/data-isolation/schema-pg); the production default.
+- [Data isolation](/docs/data-isolation/); how to choose between drivers.

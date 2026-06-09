@@ -186,3 +186,9 @@ After updating imports and `adonisrc.ts`, a typecheck surfaces anything left
 pointing at a moved symbol (the shimmed `/admin` path throws at runtime with a
 migration message; the others fail at compile time). Run your suite to confirm the
 provider wiring for billing and backup is in place.
+
+## Read next
+
+- [Release notes](/docs/release-notes); the per-version changelog.
+- [Stability](/docs/stability); the labels that govern future changes.
+- [Roadmap](/docs/roadmap); where the project is headed.

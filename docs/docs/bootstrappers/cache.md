@@ -82,3 +82,10 @@ cacheFor('../etc')         // throws Error: Refusing to use unsafe tenant id
 cacheFor('id:with:colons') // throws
 cacheFor('')               // throws
 ```
+
+
+## Read next
+
+- [Bootstrappers](/docs/bootstrappers/); the rest of the per-tenant services.
+- [Configuration](/docs/configuration); the cache options.
+- [Background jobs](/docs/jobs); cache access inside tenant jobs.

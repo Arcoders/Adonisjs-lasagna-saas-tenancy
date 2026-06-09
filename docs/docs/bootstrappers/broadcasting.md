@@ -48,3 +48,9 @@ The bootstrapper handles channel **naming**. Authorization
 `channel.authorize()` callbacks; the channel name is already
 tenant-prefixed so the only check left is per-channel; does this
 user belong to this tenant? Does this user own order 123?
+
+
+## Read next
+
+- [Bootstrappers](/docs/bootstrappers/); the rest of the per-tenant services.
+- [Background jobs](/docs/jobs); dispatching tenant-aware work.

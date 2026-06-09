@@ -77,3 +77,10 @@ DELETE /admin/multitenancy/tenants/{id}/feature-flags/{key}
   your own code, or reach for a dedicated experimentation tool.
 - Flags are cached for 60s, so a `set` takes up to a minute to propagate on cache
   hits.
+
+
+## Read next
+
+- [Admin REST API](/docs/admin-rest-api); toggling flags over HTTP.
+- [Configuration](/docs/configuration); the flag defaults.
+- [Satellites](/docs/satellites/); the rest of the opt-in features.

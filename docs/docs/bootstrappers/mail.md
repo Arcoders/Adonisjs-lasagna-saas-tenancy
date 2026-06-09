@@ -64,3 +64,9 @@ Setting `from` per tenant changes the **DKIM signing domain** that
 your provider uses. If your tenants bring their own domains, ensure
 each domain has the right DKIM record published; otherwise your
 emails land in spam.
+
+
+## Read next
+
+- [Bootstrappers](/docs/bootstrappers/); the rest of the per-tenant services.
+- [Configuration](/docs/configuration); the mail options.

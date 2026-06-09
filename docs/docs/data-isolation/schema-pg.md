@@ -80,3 +80,10 @@ tenant: {
   Tune it accordingly.
 - Migrations are tracked per schema using a per-tenant Lucid migrations
   table.
+
+
+## Read next
+
+- [database-pg driver](/docs/data-isolation/database-pg); one database per tenant.
+- [rowscope-pg driver](/docs/data-isolation/rowscope-pg); shared schema with a `tenant_id`.
+- [Data isolation](/docs/data-isolation/); how to choose between drivers.

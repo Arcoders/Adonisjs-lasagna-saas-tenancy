@@ -43,7 +43,7 @@ These are directions, not commitments, and not ordered by priority:
 - Richer feature-flag targeting beyond boolean + free-form config.
 - First-class starter-kit / scaffolding for a new multi-tenant app.
 
-If one of these blocks your adoption, open an issue describing the use case —
+If one of these blocks your adoption, open an issue describing the use case;
 real demand reorders this list.
 
 ## How we version
@@ -55,6 +55,6 @@ with a changelog note. Pin your version and read the
 
 ## Read next
 
-- [Stability](/docs/stability) — label definitions and the feature matrix.
-- [Known limitations](/docs/known-limitations) — what is intentionally not here.
-- [Upgrade to 1.0](/docs/upgrade-to-1.0) — the mechanical changes from 0.x.
+- [Stability](/docs/stability); label definitions and the feature matrix.
+- [Known limitations](/docs/known-limitations); what is intentionally not here.
+- [Upgrade to 1.0](/docs/upgrade-to-1.0); the mechanical changes from 0.x.

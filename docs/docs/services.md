@@ -99,3 +99,9 @@ Fixed per-tenant counters. See [Metrics](/docs/satellites/metrics).
 | `trackBandwidth(tenantId, bytes)` | `Promise<void>` |
 | `flush(period?)` | `Promise<void>` (rolls Redis counters into `tenant_metrics`) |
 | `getForTenant(tenantId, days = 30)` | `Promise<TenantMetric[]>` |
+
+## Read next
+
+- [Exceptions](/docs/exceptions); the typed errors these services throw.
+- [Lifecycle events](/docs/events); what the services emit as they run.
+- [Configuration](/docs/configuration); the options that tune them.

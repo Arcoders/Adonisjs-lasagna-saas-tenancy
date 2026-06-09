@@ -172,3 +172,9 @@ Replica selection does **not** check lag or health. Reads can be stale, and a
 down replica isn't auto-skipped. Route latency-sensitive reads to the primary,
 or add your own health gate. See [Troubleshooting](./gotchas).
 :::
+
+## Read next
+
+- [CLI commands](/docs/commands); the ace surface that reads this config.
+- [Hooks](/docs/hooks); the lifecycle callbacks you register here.
+- [Resilience](/docs/resilience); the degradation-policy block, explained.

@@ -168,3 +168,9 @@ See [Scaling limits](/docs/scaling-limits).
 - **Replica down or lagging:** there is no failover, so route reads to the primary
   (the retry-on-primary pattern) until the replica catches up. See
   [Read replicas](/docs/read-replicas).
+
+## Read next
+
+- [Deployment](/docs/deployment); the Docker and Kubernetes artifacts.
+- [Security](/security); the hardening guarantees behind this checklist.
+- [Resilience](/docs/resilience); how the package degrades under dependency outages.

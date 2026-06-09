@@ -83,3 +83,10 @@ anything. This is the recommended pattern for high-volume tenants.
 Most teams ship audit rows to a long-term store (Loki, BigQuery,
 S3) and prune the operational table to 90 days. The package gives
 you a queryable database; the long-term archive is your job.
+
+
+## Read next
+
+- [Security](/security); the append-only guarantees at the SQL level.
+- [Admin REST API](/docs/admin-rest-api); reading audit logs over HTTP.
+- [Satellites](/docs/satellites/); the rest of the opt-in features.

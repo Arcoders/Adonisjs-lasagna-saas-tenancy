@@ -155,3 +155,10 @@ POST   /admin/multitenancy/tenants/{id}/quotas/reset   # reset rolling + snapsho
 There is no endpoint to assign a plan — the plan is resolved by your
 `plans.getPlan(tenant)` callback, so the source of truth is wherever
 you store the tenant's plan column / metadata.
+
+
+## Read next
+
+- [Lifecycle events](/docs/events); the `TenantQuotaExceeded` event.
+- [Configuration](/docs/configuration); the plan and quota options.
+- [Satellites](/docs/satellites/); the rest of the opt-in features.

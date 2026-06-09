@@ -77,3 +77,9 @@ for choosing fail-open vs fail-closed per dependency.
 `TenantMaintenanceException`, `TooManyRequestsException`, and
 `DependencyUnavailableException` all carry retry hints. Surface them so clients
 back off instead of busy-looping.
+
+## Read next
+
+- [Services API](/docs/services); where these exceptions originate.
+- [Resilience](/docs/resilience); the policy behind `DependencyUnavailableException`.
+- [Troubleshooting](/docs/gotchas); symptoms and fixes when these fire.

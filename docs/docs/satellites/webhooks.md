@@ -120,3 +120,10 @@ POST   /admin/multitenancy/tenants/{id}/webhooks
 DELETE /admin/multitenancy/tenants/{id}/webhooks/{webhookId}
 GET    /admin/multitenancy/tenants/{id}/webhooks/{webhookId}/deliveries
 ```
+
+
+## Read next
+
+- [Lifecycle events](/docs/events); the events that drive deliveries.
+- [Admin REST API](/docs/admin-rest-api); managing subscriptions over HTTP.
+- [Satellites](/docs/satellites/); the rest of the opt-in features.

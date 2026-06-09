@@ -110,7 +110,7 @@ deep ace command surface where stancl ships a handful.
 
 It also has gaps that stancl has filled: an admin dashboard UI, a
 starter kit, an active Discord. Those are still on the roadmap.
-(Billing was on this list too — it shipped in v0.2 as a Stripe
+(Billing was on this list too; it shipped in v0.2 as a Stripe
 satellite.)
 
 The table below is the same data we use internally to track our
@@ -188,6 +188,26 @@ If you spot a tenancy guarantee that should be on it and isn't,
 [open an issue](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues)
 — the verification is iterative.
 
+## When not to use Lasagna
+
+Honesty is part of the pitch. Reach for something else when:
+
+- **Your app is single-tenant, or will stay that way.** The whole
+  machinery here exists to keep tenants apart. With one tenant it is
+  pure overhead.
+- **A single `tenant_id` column already covers you.** If your isolation
+  need is a `where('tenant_id', …)` and nothing more, a thin scope in
+  your own app is simpler than a package.
+- **You are committed to MySQL, MariaDB, or a non-PostgreSQL store.**
+  Lasagna leans on PostgreSQL schemas; that is the whole strategy.
+  `stancl/tenancy` supports MySQL today.
+- **You want a hosted control plane.** Lasagna is a library inside your
+  AdonisJS app, not a managed service or an admin dashboard out of the
+  box.
+
+If you're on AdonisJS 7 and PostgreSQL and you expect more than one
+paying tenant, it's built for you.
+
 ## What's coming next
 
 Phase 4 of the roadmap: a public Discord, the
@@ -198,3 +218,11 @@ that wires Lasagna + Auth + Stripe), and the 1.0 release.
 If you want to follow along or contribute, [the GitHub
 repo](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy) is
 the place. Issues are open for feature requests.
+
+## Read next
+
+- [Quickstart](/quickstart); from `npm install` to a live, schema-isolated tenant.
+- [Concepts](/docs/concepts); the four-layer model and how a request flows.
+- [Data isolation](/docs/data-isolation/); the driver that decides where tenant data lives.
+- [Comparison vs stancl](/docs/comparison); the full feature-by-feature table.
+- [Roadmap](/docs/roadmap); what's stable, what's experimental, and what's next.

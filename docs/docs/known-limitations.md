@@ -52,3 +52,9 @@ design choices.
 - **Metrics track a fixed counter set** (requests, errors, bandwidth), not arbitrary named
   metrics or gauges. For application telemetry use the OpenTelemetry integration. See
   [Metrics](/docs/satellites/metrics) and [Health & metrics](/docs/health).
+
+## Read next
+
+- [Roadmap](/docs/roadmap); which of these are under consideration.
+- [Stability](/docs/stability); the labels and what they promise.
+- [FAQ](/docs/faq); quick answers to adjacent questions.

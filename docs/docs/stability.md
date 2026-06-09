@@ -105,3 +105,9 @@ The isolation substrate. Everything here is **release candidate** unless noted.
   pin the version and read the changelog before each upgrade.
 - Watch this page. As the security review and production mileage close, the core
   moves to `stable` and the matrix is updated in the same change.
+
+## Read next
+
+- [Roadmap](/docs/roadmap); what unblocks `stable` and what is next.
+- [Known limitations](/docs/known-limitations); the intentional non-goals.
+- [Upgrade to 1.0](/docs/upgrade-to-1.0); the mechanical migration from 0.x.

@@ -47,3 +47,9 @@ session: {
   prefix: 't:{id}:', // default is 'tenants/{id}/'
 }
 ```
+
+
+## Read next
+
+- [Authentication](/docs/authentication); sessions scoped to the active tenant.
+- [Bootstrappers](/docs/bootstrappers/); the rest of the per-tenant services.

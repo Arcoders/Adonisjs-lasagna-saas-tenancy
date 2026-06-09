@@ -133,3 +133,10 @@ configured on the template connection.
       list is updated.
 - [ ] Document each replica's region and capacity in the same file
       as the config.
+
+
+## Read next
+
+- [Read replicas](/docs/read-replicas); the replica routing this builds on.
+- [Scaling limits](/docs/scaling-limits); when to reach for multi-region.
+- [Cookbook](/docs/cookbook/); more recipes.

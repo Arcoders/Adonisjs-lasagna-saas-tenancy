@@ -89,3 +89,10 @@ Every issue and use is recorded via the audit satellite if enabled:
 - Tokens are single-use; Redis `GETDEL` consumes the grant.
 - Tokens cannot be re-issued from a captured one; they sign a
   random nonce, not a deterministic identifier.
+
+
+## Read next
+
+- [Authentication](/docs/authentication); operators acting as tenant users.
+- [Security](/security); the token and audit guarantees.
+- [Satellites](/docs/satellites/); the rest of the opt-in features.

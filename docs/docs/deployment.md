@@ -465,3 +465,9 @@ Acknowledged reports get a CVE assignment and a coordinated release.
 
 The exact mapping into your `config/multitenancy.ts` is up to your
 app; these are conventions used by the deploy artifacts here.
+
+## Read next
+
+- [Production checklist](/docs/production-checklist); the pre-flight list and runbook.
+- [Security](/security); what the package guarantees and what you own.
+- [Health & monitoring](/docs/health); the probes and metrics to wire up.

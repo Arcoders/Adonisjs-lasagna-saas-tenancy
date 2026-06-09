@@ -80,3 +80,10 @@ isolation: {
 - Health checks (`tenant:doctor`) include a connectivity probe per
   tenant. With many tenants this becomes a non-trivial pass; use
   `--tenant=<id>` to limit during incidents.
+
+
+## Read next
+
+- [schema-pg driver](/docs/data-isolation/schema-pg); one schema per tenant, the default.
+- [rowscope-pg driver](/docs/data-isolation/rowscope-pg); shared schema with a `tenant_id`.
+- [Data isolation](/docs/data-isolation/); how to choose between drivers.

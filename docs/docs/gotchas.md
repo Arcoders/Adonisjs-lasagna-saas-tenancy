@@ -152,3 +152,9 @@ See [Testing](./testing).
 outside an Ignitor. Services that need to be unit-testable lazy-load it
 (`const lazyLogger = () => import('@adonisjs/core/services/logger').then(m => m.default).catch(() => null)`)
 rather than importing it statically. Follow that pattern in custom services.
+
+## Read next
+
+- [FAQ](/docs/faq); shorter answers to common questions.
+- [Known limitations](/docs/known-limitations); what is intentionally out of scope.
+- [Exceptions](/docs/exceptions); the typed errors and their retry hints.

@@ -70,3 +70,9 @@ pin your version.
 The package ships testing helpers (`buildTestTenant`, `MockTenantRepository`,
 `setRequestTenant`, `withTenant`) plus an in-memory `sqlite-memory` driver for fast unit
 tests. See [Testing](/docs/testing).
+
+## Read next
+
+- [Troubleshooting](/docs/gotchas); fixes for the sharp edges.
+- [Known limitations](/docs/known-limitations); the deliberate non-goals.
+- [Comparison vs stancl](/docs/comparison); how it stacks up.

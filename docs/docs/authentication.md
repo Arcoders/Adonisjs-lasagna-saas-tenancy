@@ -35,7 +35,7 @@ export default class User extends TenantBaseModel {
 
 Because the active tenant is resolved first, `auth.use('web').authenticate()`
 and `User.verifyCredentials()` read from `tenant_<uuid>.users` without you ever
-writing `where('tenant_id', …)`. Sessions are scoped per tenant too — see the
+writing `where('tenant_id', …)`. Sessions are scoped per tenant too; see the
 [session bootstrapper](/docs/bootstrappers/session).
 
 ## Central and operator users
@@ -64,7 +64,7 @@ single-use, HMAC-signed, bound to the target tenant, and fully audited.
 
 ## Read next
 
-- [Models](/docs/models) — which base class each kind of user belongs to.
-- [Routing](/docs/routing) — `tenant()` vs `central()` routes for your auth endpoints.
-- [Impersonation](/docs/satellites/impersonation) — operators entering a tenant safely.
-- [Tenant identification](/docs/tenant-identification) — how the tenant is resolved per request.
+- [Models](/docs/models); which base class each kind of user belongs to.
+- [Routing](/docs/routing); `tenant()` vs `central()` routes for your auth endpoints.
+- [Impersonation](/docs/satellites/impersonation); operators entering a tenant safely.
+- [Tenant identification](/docs/tenant-identification); how the tenant is resolved per request.

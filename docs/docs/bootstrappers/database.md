@@ -50,3 +50,10 @@ If no driver matches the configured `isolation.driver`, the adapter
 throws on the first query with the active driver name in the
 message. The request fails with a 5xx. This is louder than silently
 falling back to a default and worth the noise.
+
+
+## Read next
+
+- [Models](/docs/models); the base classes that ride this connection.
+- [Read replicas](/docs/read-replicas); routing reads to replicas.
+- [Bootstrappers](/docs/bootstrappers/); the rest of the per-tenant services.
