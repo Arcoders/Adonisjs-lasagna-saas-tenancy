@@ -37,7 +37,8 @@
   "types": "./build/src/index.d.ts",
   "scripts": {
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts"
   },
   "peerDependencies": {
     "@adonisjs-lasagna/saas-tenancy": "^1.0.0",

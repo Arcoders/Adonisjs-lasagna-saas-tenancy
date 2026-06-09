@@ -1,4 +1,5 @@
 import TenantSsoConfig from './tenant_sso_config.js'
+import { buildAuthorizationUrl, isLoopbackIssuer } from './authorize.js'
 import { getCache } from '@adonisjs-lasagna/saas-tenancy/services'
 import { validateResolvedHostIsPublic } from '@adonisjs-lasagna/saas-tenancy'
 import redis from '@adonisjs/redis/services/main'
@@ -27,16 +28,6 @@ export interface IdTokenClaims {
 
 const STATE_TTL_SECONDS = 600
 const CLOCK_SKEW_SECONDS = 60
-
-function isLoopbackIssuer(issuerUrl: string): boolean {
-  try {
-    const u = new URL(issuerUrl)
-    const h = u.hostname.toLowerCase()
-    return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '[::1]'
-  } catch {
-    return false
-  }
-}
 
 export default class SsoService {
   async getConfig(tenantId: string): Promise<TenantSsoConfig | null> {
@@ -78,16 +69,13 @@ export default class SsoService {
       JSON.stringify({ tenantId: config.tenantId, nonce })
     )
 
-    const params = new URLSearchParams({
-      response_type: 'code',
-      client_id: config.clientId,
-      redirect_uri: config.redirectUri,
-      scope: config.scopes.join(' '),
+    return buildAuthorizationUrl(discovery.authorization_endpoint, {
+      clientId: config.clientId,
+      redirectUri: config.redirectUri,
+      scopes: config.scopes,
       state,
       nonce,
     })
-
-    return `${discovery.authorization_endpoint}?${params}`
   }
 
   async handleCallback(

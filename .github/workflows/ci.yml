@@ -65,6 +65,8 @@ jobs:
         run: |
           npm run test --workspace @adonisjs-lasagna/billing
           npm run test --workspace @adonisjs-lasagna/backup
+          npm run test --workspace @adonisjs-lasagna/sso
+          npm run test --workspace @adonisjs-lasagna/admin
 
       # Raw V8 so the coverage-report job can re-report it with source-map
       # remapping back to src/*.ts.
