@@ -76,7 +76,18 @@ duplicates within a small TTL window.
 
 ## Delivery state machine
 
-<WebhookStateMachine />
+```mermaid
+stateDiagram-v2
+  [*] --> pending
+  pending --> delivering
+  delivering --> delivered: 2xx
+  delivering --> failed: non-2xx
+  failed --> retry_scheduled: retries left
+  failed --> permanently_failed: no retries
+  retry_scheduled --> delivering: backoff elapsed
+  delivered --> [*]
+  permanently_failed --> [*]
+```
 
 Retries follow a 5-attempt schedule with `±20%` jitter:
 

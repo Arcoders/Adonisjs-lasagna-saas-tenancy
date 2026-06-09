@@ -177,7 +177,7 @@ function categoryLabel(id: string): string {
 </template>
 
 <style scoped>
-.ct-root { margin: 2rem 0; color: var(--lg-text); }
+.ct-root { margin: 2rem 0; color: var(--vp-c-text-1); }
 
 .ct-header {
   display: grid;
@@ -192,30 +192,29 @@ function categoryLabel(id: string): string {
 }
 @media (min-width: 700px) { .ct-stats { grid-template-columns: repeat(4, 1fr); } }
 .ct-stat {
-  background-color: var(--lg-surface);
-  border: 1px solid var(--lg-line);
+  background-color: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
   border-radius: 12px;
   padding: 0.85rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
 }
-.ct-stat--lg { border-color: var(--lg-accent); }
-.ct-stat--st { border-color: var(--lg-accent-2); }
+.ct-stat--lg { border-color: var(--vp-c-brand-1); }
+.ct-stat--st { border-color: var(--vp-c-border); }
 .ct-stat__num {
-  font-family: var(--lg-font-serif);
   font-size: 1.7rem;
   font-weight: 600;
-  color: var(--lg-text);
+  color: var(--vp-c-text-1);
   line-height: 1;
 }
-.ct-stat--lg .ct-stat__num { color: var(--lg-accent); }
-.ct-stat--st .ct-stat__num { color: var(--lg-accent-2); }
+.ct-stat--lg .ct-stat__num { color: var(--vp-c-brand-1); }
+.ct-stat--st .ct-stat__num { color: var(--vp-c-text-1); }
 .ct-stat__label {
   font-size: 0.78rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lg-text-muted);
+  color: var(--vp-c-text-2);
 }
 
 .ct-filters {
@@ -229,11 +228,11 @@ function categoryLabel(id: string): string {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  border: 1px solid var(--lg-line);
+  border: 1px solid var(--vp-c-divider);
   border-radius: 999px;
   padding: 0.4rem 0.85rem;
-  background-color: var(--lg-surface);
-  color: var(--lg-text-muted);
+  background-color: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-2);
 }
 .ct-search input {
   border: 0;
@@ -241,14 +240,14 @@ function categoryLabel(id: string): string {
   background: transparent;
   flex: 1 1 auto;
   font: inherit;
-  color: var(--lg-text);
+  color: var(--vp-c-text-1);
 }
-.ct-search input::placeholder { color: var(--lg-text-muted); }
+.ct-search input::placeholder { color: var(--vp-c-text-2); }
 
 .ct-segment {
   display: inline-flex;
-  background-color: var(--lg-surface);
-  border: 1px solid var(--lg-line);
+  background-color: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
   border-radius: 999px;
   padding: 3px;
   gap: 2px;
@@ -256,7 +255,7 @@ function categoryLabel(id: string): string {
 .ct-seg-btn {
   background: transparent;
   border: 0;
-  color: var(--lg-text-muted);
+  color: var(--vp-c-text-2);
   font: inherit;
   font-size: 0.85rem;
   padding: 0.32rem 0.85rem;
@@ -265,8 +264,8 @@ function categoryLabel(id: string): string {
   transition: background-color 200ms ease, color 200ms ease;
 }
 .ct-seg-btn.is-active {
-  background-color: var(--lg-accent);
-  color: var(--lg-bg);
+  background-color: var(--vp-c-brand-1);
+  color: #fff;
 }
 
 .ct-cats {
@@ -276,28 +275,26 @@ function categoryLabel(id: string): string {
 }
 .ct-cat {
   background-color: transparent;
-  color: var(--lg-text-muted);
-  border: 1px solid var(--lg-line);
+  color: var(--vp-c-text-2);
+  border: 1px solid var(--vp-c-divider);
   border-radius: 999px;
   padding: 0.3rem 0.75rem;
   font-size: 0.82rem;
   cursor: pointer;
   transition: all 180ms ease;
-  font-family: var(--lg-font-sans);
 }
-.ct-cat:hover { color: var(--lg-text); border-color: var(--lg-line-strong); }
+.ct-cat:hover { color: var(--vp-c-text-1); border-color: var(--vp-c-border); }
 .ct-cat.is-active {
-  background-color: var(--lg-accent-2);
-  color: var(--lg-bg);
-  border-color: var(--lg-accent-2);
+  background-color: var(--vp-c-text-1);
+  color: var(--vp-c-bg);
+  border-color: var(--vp-c-text-1);
 }
 
 .ct-table {
-  border: 1px solid var(--lg-line);
+  border: 1px solid var(--vp-c-divider);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: var(--lg-shadow-card);
-  background-color: var(--lg-surface);
+  background-color: var(--vp-c-bg-soft);
 }
 .ct-row {
   display: grid;
@@ -305,21 +302,21 @@ function categoryLabel(id: string): string {
   gap: 0.5rem;
   padding: 0.85rem 1rem;
   align-items: start;
-  border-top: 1px solid var(--lg-line);
+  border-top: 1px solid var(--vp-c-divider);
 }
 .ct-row:first-child { border-top: 0; }
 .ct-row--head {
-  background-color: rgba(194, 106, 75, 0.06);
-  font-family: var(--lg-font-mono);
+  background-color: var(--vp-c-bg-alt);
+  font-family: var(--vp-font-family-mono);
   font-size: 0.74rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--lg-text-muted);
+  color: var(--vp-c-text-2);
   padding-top: 0.6rem;
   padding-bottom: 0.6rem;
 }
-.ct-row--win-lasagna { background-color: rgba(194, 106, 75, 0.04); }
-.ct-row--win-stancl  { background-color: rgba(42, 107, 124, 0.04); }
+.ct-row--win-lasagna { background-color: var(--vp-c-brand-soft); }
+.ct-row--win-stancl  { background-color: var(--vp-c-bg-alt); }
 
 .ct-col-feature { display: flex; flex-direction: column; gap: 0.2rem; }
 .ct-feat-name {
@@ -327,9 +324,9 @@ function categoryLabel(id: string): string {
   align-items: center;
   gap: 0.4rem;
   font-weight: 500;
-  color: var(--lg-text);
+  color: var(--vp-c-text-1);
 }
-.ct-trophy--lg { color: var(--lg-accent); }
+.ct-trophy--lg { color: var(--vp-c-brand-1); }
 .ct-col-package {
   display: flex;
   flex-direction: column;
@@ -344,19 +341,19 @@ function categoryLabel(id: string): string {
   border-radius: 999px;
   flex: none;
 }
-.ct-mark--yes      { background-color: var(--lg-accent); color: var(--lg-bg); }
-.ct-mark--partial  { background-color: var(--lg-accent-2-soft); color: var(--lg-bg); }
-.ct-mark--no       { background-color: rgba(46, 42, 38, 0.12); color: var(--lg-text-muted); }
+.ct-mark--yes      { background-color: var(--vp-c-brand-1); color: #fff; }
+.ct-mark--partial  { background-color: var(--vp-c-brand-soft); color: var(--vp-c-brand-1); }
+.ct-mark--no       { background-color: var(--vp-c-bg-alt); color: var(--vp-c-text-2); }
 .ct-note {
   font-size: 0.82rem;
-  color: var(--lg-text-muted);
+  color: var(--vp-c-text-2);
   line-height: 1.35;
 }
 
 .ct-col-cat {
   font-size: 0.82rem;
-  color: var(--lg-text-muted);
-  font-family: var(--lg-font-mono);
+  color: var(--vp-c-text-2);
+  font-family: var(--vp-font-family-mono);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -364,7 +361,7 @@ function categoryLabel(id: string): string {
 .ct-empty {
   padding: 2rem;
   text-align: center;
-  color: var(--lg-text-muted);
+  color: var(--vp-c-text-2);
 }
 
 @media (max-width: 800px) {

@@ -5,12 +5,8 @@ import { h } from 'vue'
 
 import LasagnaCard from './components/LasagnaCard.vue'
 import Callout from './components/Callout.vue'
-import CodeLayer from './components/CodeLayer.vue'
-import ZelligeStar from './components/ZelligeStar.vue'
 import ComparisonTable from './components/ComparisonTable.vue'
-import LayerStack from './components/LayerStack.vue'
 import Terminal from './components/Terminal.vue'
-import WebhookStateMachine from './components/WebhookStateMachine.vue'
 import PageFeedback from './components/PageFeedback.vue'
 
 // Landing-page sections, injected into VitePress's native home slots (below).
@@ -24,8 +20,8 @@ import './style.css'
 
 /**
  * Custom Lasagna theme. We extend the default VitePress layout (so search,
- * sidebar, and dark-mode toggle keep working) and layer Lasagna treatments
- * through `style.css` and the components below.
+ * sidebar, and dark-mode toggle keep working) and layer a single accent and
+ * two typefaces on top through `style.css`.
  *
  * The landing page uses VitePress's native `layout: home` (hero + features
  * from frontmatter). We enrich it by injecting four section components into
@@ -55,11 +51,7 @@ export default {
   enhanceApp({ app }) {
     app.component('LasagnaCard', LasagnaCard)
     app.component('Callout', Callout)
-    app.component('CodeLayer', CodeLayer)
-    app.component('ZelligeStar', ZelligeStar)
     app.component('ComparisonTable', ComparisonTable)
-    app.component('LayerStack', LayerStack)
     app.component('Terminal', Terminal)
-    app.component('WebhookStateMachine', WebhookStateMachine)
   },
 } satisfies Theme

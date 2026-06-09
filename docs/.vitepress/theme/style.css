@@ -1,333 +1,69 @@
 /*
- * Lasagna theme styles. Loaded after VitePress's default theme so anything
- * here wins. Four jobs:
+ * Lasagna theme — minimalist restyle.
  *
- *   1. Pull in Fraunces (variable serif) / Inter / JetBrains Mono.
- *   2. Declare design tokens as CSS custom properties (light + dark).
- *   3. Override VitePress's `--vp-c-*` so brand surfaces inherit our palette.
- *   4. Apply heading + code-block treatment.
+ * Two jobs only:
+ *   1. Load Inter (UI + headings) and JetBrains Mono (code).
+ *   2. Point VitePress's brand tokens at a single terracotta accent.
+ *
+ * Everything else inherits VitePress's default light/dark tokens, so the
+ * site reads clean and neutral with one accent. The earlier "Zellige"
+ * treatments (warm cream surfaces, Fraunces headings, tile/star/wave
+ * patterns, forced-dark code blocks) were retired in the 1.0 docs pass.
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,800;0,9..144,900;1,9..144,500;1,9..144,600;1,9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-@tailwind components;
-@tailwind utilities;
-
-/* ─── Lasagna tokens (light) ────────────────────────────────────── */
+/* ─── Single brand accent ───────────────────────────────────────── */
 :root {
-  --lg-bg: #FAF1E8;
-  --lg-surface: #FFFFFF;
-  --lg-surface-alt: #F4E6D5;
-  --lg-text: #1A0F08;
-  --lg-text-muted: #7A5C44;
-  --lg-accent: #D8552A;
-  --lg-accent-soft: #F0916E;
-  --lg-accent-2: #0F6F86;
-  --lg-accent-2-soft: #3FA0B5;
-  --lg-accent-3: #F2A53A;
-  --lg-accent-4: #3B3F8E;
-  --lg-line: #E8D4BE;
-  --lg-line-strong: #B07344;
-  --lg-code-bg: #1A0F08;
-  --lg-code-fg: #F4E6D5;
-  --lg-shadow: rgba(216, 85, 42, 0.14);
-  --lg-shadow-card: 0 1px 2px rgba(26, 15, 8, 0.05), 0 16px 40px -12px rgba(216, 85, 42, 0.18);
-  --lg-shadow-glow: 0 0 0 1px rgba(216, 85, 42, 0.30), 0 12px 32px -8px rgba(216, 85, 42, 0.45);
+  --vp-c-brand-1: #c2410c;
+  --vp-c-brand-2: #9a3412;
+  --vp-c-brand-3: #c2410c;
+  --vp-c-brand-soft: rgba(194, 65, 12, 0.14);
 
-  --lg-font-serif: 'Fraunces', 'Newsreader', Georgia, 'Iowan Old Style', serif;
-  --lg-font-sans: 'Inter', 'Inter Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --lg-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --vp-font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, sans-serif;
+  --vp-font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
+
+  --vp-home-hero-name-color: var(--vp-c-brand-1);
 }
 
 .dark {
-  --lg-bg: #120A05;
-  --lg-surface: #1E140C;
-  --lg-surface-alt: #2A1B10;
-  --lg-text: #FBF1E4;
-  --lg-text-muted: #C7A98A;
-  --lg-accent: #FF7A4A;
-  --lg-accent-soft: #D8552A;
-  --lg-accent-2: #4FB8CC;
-  --lg-accent-2-soft: #0F6F86;
-  --lg-accent-3: #FFC773;
-  --lg-accent-4: #7B82E0;
-  --lg-line: #3A241A;
-  --lg-line-strong: #8A5A3A;
-  --lg-code-bg: #0A0503;
-  --lg-code-fg: #FBF1E4;
-  --lg-shadow: rgba(0, 0, 0, 0.55);
-  --lg-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 18px 44px -12px rgba(0, 0, 0, 0.65);
+  --vp-c-brand-1: #fb923c;
+  --vp-c-brand-2: #fdba74;
+  --vp-c-brand-3: #ea580c;
+  --vp-c-brand-soft: rgba(251, 146, 60, 0.16);
 }
 
-/* ─── VitePress brand override ──────────────────────────────────── */
-:root {
-  --vp-c-brand-1: var(--lg-accent);
-  --vp-c-brand-2: var(--lg-accent-soft);
-  --vp-c-brand-3: var(--lg-accent);
-  --vp-c-brand-soft: rgba(216, 85, 42, 0.16);
-  --vp-c-bg: var(--lg-bg);
-  --vp-c-bg-alt: var(--lg-surface-alt);
-  --vp-c-bg-elv: var(--lg-surface);
-  --vp-c-bg-soft: var(--lg-surface-alt);
-  --vp-c-text-1: var(--lg-text);
-  --vp-c-text-2: var(--lg-text-muted);
-  --vp-c-text-3: var(--lg-text-muted);
-  --vp-c-divider: var(--lg-line);
-  --vp-c-gutter: var(--lg-line);
-  --vp-c-border: var(--lg-line-strong);
-  --vp-font-family-base: var(--lg-font-sans);
-  --vp-font-family-mono: var(--lg-font-mono);
-  --vp-button-brand-bg: var(--lg-accent);
-  --vp-button-brand-hover-bg: var(--lg-accent-soft);
-  --vp-button-brand-active-bg: var(--lg-accent);
-  --vp-button-brand-text: #FFF;
-  --vp-button-alt-bg: var(--lg-surface-alt);
-  --vp-button-alt-text: var(--lg-text);
-  --vp-button-alt-border: var(--lg-line-strong);
-}
-
-.dark {
-  --vp-c-bg: var(--lg-bg);
-  --vp-c-bg-alt: var(--lg-surface-alt);
-  --vp-c-bg-elv: var(--lg-surface);
-  --vp-c-bg-soft: var(--lg-surface-alt);
-  --vp-c-brand-soft: rgba(255, 122, 74, 0.16);
-}
-
-/* ─── Body type ─────────────────────────────────────────────────── */
-body {
-  font-family: var(--lg-font-sans);
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
-  background-color: var(--lg-bg);
-  color: var(--lg-text);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* ─── Headings: Fraunces with optical sizing ───────────────────── */
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--lg-font-serif);
-  font-feature-settings: 'liga', 'kern', 'ss01';
-  letter-spacing: -0.02em;
-  font-optical-sizing: auto;
-}
-
-h1 {
-  font-weight: 700;
-  font-variation-settings: 'opsz' 96, 'SOFT' 30;
-  letter-spacing: -0.035em;
-  line-height: 1.05;
-}
-
-h2 {
-  font-weight: 600;
-  font-variation-settings: 'opsz' 48, 'SOFT' 50;
-  letter-spacing: -0.025em;
-  line-height: 1.15;
-}
-
-h3, h4 {
-  font-weight: 600;
-  font-variation-settings: 'opsz' 24, 'SOFT' 60;
-  letter-spacing: -0.015em;
-}
-
-.vp-doc h1 {
-  margin-bottom: 1rem;
-}
-
+/* ─── Section rhythm: a quiet divider above each H2 ─────────────── */
 .vp-doc h2 {
   margin-top: 3rem;
   padding-top: 1.5rem;
-  border-top: 1px solid var(--lg-line);
+  border-top: 1px solid var(--vp-c-divider);
 }
 
-code, pre, kbd, samp {
-  font-family: var(--lg-font-mono);
-  font-feature-settings: 'calt', 'liga', 'ss01', 'ss02';
-}
-
-/* Inline code: warm tile-mosaic chip rather than the default grey block */
-.vp-doc :not(pre) > code {
-  background: color-mix(in oklab, var(--lg-accent-3) 22%, var(--lg-surface));
-  color: color-mix(in oklab, var(--lg-accent) 80%, var(--lg-text));
-  border: 1px solid color-mix(in oklab, var(--lg-line-strong) 35%, transparent);
-  border-radius: 5px;
-  padding: 0.12rem 0.42rem;
-  font-size: 0.86em;
-  font-weight: 500;
-}
-
-/* ─── Zellige-star prefix on documentation h2 ───────────────────── */
-.vp-doc h2::before {
-  content: '';
-  display: inline-block;
-  width: 0.7em;
-  height: 0.7em;
-  margin-right: 0.55em;
-  vertical-align: -0.04em;
-  background: linear-gradient(135deg, var(--lg-accent) 0%, var(--lg-accent-3) 100%);
-  -webkit-mask: url('./assets/patterns/star-8.svg') center / contain no-repeat;
-          mask: url('./assets/patterns/star-8.svg') center / contain no-repeat;
-}
-
-/* ─── Links ─────────────────────────────────────────────────────── */
-.vp-doc a {
-  color: var(--lg-accent);
-  text-decoration: none;
-  background-image: linear-gradient(transparent 65%, color-mix(in oklab, var(--lg-accent-3) 50%, transparent) 65%);
-  background-size: 100% 100%;
-  background-position: 0 0;
-  transition: color 200ms ease, background-position 200ms ease;
-}
-
-.vp-doc a:hover {
-  color: var(--lg-accent-2);
-  background-image: linear-gradient(transparent 60%, color-mix(in oklab, var(--lg-accent-3) 70%, transparent) 60%);
-}
-
-/* ─── Subtle Zellige texture on top of the page ─────────────────── */
-.VPNavBar {
-  background-image: url('./assets/patterns/tile-border.svg');
-  background-size: 240px;
-  background-repeat: repeat;
-  background-position: center;
-}
-.VPNavBar::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--lg-bg);
-  opacity: 0.94;
-  z-index: 0;
-  pointer-events: none;
-}
-.VPNavBar > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* ─── Code blocks ───────────────────────────────────────────────── */
-.vp-doc div[class*='language-'] {
-  background-color: var(--lg-code-bg);
-  border-radius: 14px;
-  border: 1px solid color-mix(in oklab, var(--lg-line-strong) 25%, transparent);
-  box-shadow: var(--lg-shadow-card);
-  margin: 1.4rem 0;
-  position: relative;
-  overflow: hidden;
-}
-
-.vp-doc div[class*='language-']::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 2px;
-  background: linear-gradient(90deg,
-    var(--lg-accent) 0%,
-    var(--lg-accent-3) 33%,
-    var(--lg-accent-2) 66%,
-    var(--lg-accent-4) 100%);
-  opacity: 0.85;
-  z-index: 1;
-}
-
-.vp-doc div[class*='language-'] pre {
-  background-color: transparent !important;
-  padding-top: 1.25rem;
-}
-
-.vp-doc div[class*='language-'] .lang {
-  color: var(--lg-accent-3);
-  font-family: var(--lg-font-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  opacity: 0.9;
-}
-
-/* ─── Blockquote / custom container restyle ─────────────────────── */
-.vp-doc .custom-block {
-  border-radius: 14px;
-  border-left-width: 4px;
-  background: var(--lg-surface-alt);
-  border-color: var(--lg-accent-3);
-}
-
-.vp-doc .custom-block.tip {
-  border-color: var(--lg-accent-2);
-  background: color-mix(in oklab, var(--lg-accent-2) 8%, var(--lg-surface));
-}
-.vp-doc .custom-block.warning {
-  border-color: var(--lg-accent-3);
-  background: color-mix(in oklab, var(--lg-accent-3) 12%, var(--lg-surface));
-}
-.vp-doc .custom-block.danger {
-  border-color: var(--lg-accent);
-  background: color-mix(in oklab, var(--lg-accent) 10%, var(--lg-surface));
-}
-
-/* ─── Table polish ──────────────────────────────────────────────── */
-/* Markdown tables are wrapped in `.vp-table-scroll` (see `markdown.config` in
- * .vitepress/config.ts). The wrapper carries the border + rounded corners and
- * owns the horizontal scroll, so a wide table (e.g. the benchmark tables on the
- * Performance page) scrolls inside its own box instead of overflowing the page
- * and colliding with the table of contents. Narrow tables still stretch to full
- * width via `width: 100%` on the table itself. */
+/* ─── Wide tables scroll inside a bordered box ──────────────────────
+ * Markdown tables are wrapped in `.vp-table-scroll` (see `markdown.config`
+ * in .vitepress/config.ts) so a wide table scrolls inside its own box
+ * instead of overflowing into the right-hand table of contents. */
 .vp-doc .vp-table-scroll {
   margin: 1rem 0;
   overflow-x: auto;
-  border: 1px solid var(--lg-line);
-  border-radius: 12px;
-  background: var(--lg-surface);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
 }
-
-.vp-doc table {
+.vp-doc .vp-table-scroll > table {
   display: table;
   width: 100%;
   margin: 0;
   border-collapse: collapse;
 }
 
-.vp-doc th {
-  background: var(--lg-surface-alt);
-  font-family: var(--lg-font-serif);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  text-align: left;
-}
-
-.vp-doc tr:nth-child(2n) {
-  background: color-mix(in oklab, var(--lg-accent-3) 3%, var(--lg-surface));
-}
-
-/* ─── Cards we ship as components inherit this ──────────────────── */
-.lg-card {
-  background-color: var(--lg-surface);
-  border-radius: 14px;
-  border: 1px solid var(--lg-line);
-  box-shadow: var(--lg-shadow-card);
-  position: relative;
-  overflow: hidden;
-}
-
-.lg-card::before {
-  content: '';
-  display: block;
-  height: 6px;
-  background: linear-gradient(
-    90deg,
-    var(--lg-accent) 0%,
-    var(--lg-accent-3) 50%,
-    var(--lg-accent-2) 100%
-  );
-  -webkit-mask: url('./assets/patterns/wave.svg') repeat-x center / 24px 6px;
-          mask: url('./assets/patterns/wave.svg') repeat-x center / 24px 6px;
-}
-
-/* Reduce motion: respect the user. */
+/* Respect a reduced-motion preference. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

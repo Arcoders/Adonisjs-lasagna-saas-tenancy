@@ -148,14 +148,12 @@ export default withMermaid(
   cleanUrls: true,
   lastUpdated: true,
 
-  // Code blocks are always rendered on the dark Lasagna code surface
-  // (see `--lg-code-bg` in theme/style.css), so force a dark Shiki theme
-  // in both light and dark modes — otherwise the light theme's dark
-  // tokens render on our dark background and become unreadable.
-  // (Switches to adaptive light/dark with the minimalist restyle.)
+  // Adaptive Shiki theme: light code on light pages, dark code on dark.
+  // The minimalist restyle dropped the forced-dark code surface, so code
+  // blocks now follow VitePress's default theme-aware styling.
   markdown: {
     theme: {
-      light: 'github-dark',
+      light: 'github-light',
       dark: 'github-dark',
     },
     // Wrap every markdown table in a horizontally-scrollable container so wide

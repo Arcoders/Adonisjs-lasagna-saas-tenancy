@@ -16,7 +16,16 @@ pattern.
 
 ## The four layers
 
-<LayerStack />
+```mermaid
+flowchart TB
+  subgraph cluster["One PostgreSQL cluster"]
+    direction TB
+    C["Central · public schema<br/>your product-wide data"]
+    B["Backoffice · backoffice schema<br/>tenant registry + satellites"]
+    T1["Tenant · tenant_uuid schema"]
+    T2["Tenant · tenant_uuid schema"]
+  end
+```
 
 ### 1. Central
 

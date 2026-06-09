@@ -195,9 +195,9 @@ onUnmounted(() => {
   margin: 1.5rem 0;
   border-radius: 12px;
   overflow: hidden;
-  background: var(--lg-code-bg);
-  border: 1px solid var(--lg-line-strong);
-  box-shadow: 0 4px 18px var(--lg-shadow);
+  background: #0d1117;
+  border: 1px solid #30363d;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
 }
 
 .lg-terminal__chrome {
@@ -205,34 +205,31 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.6rem 0.85rem;
-  background: color-mix(in oklab, var(--lg-code-bg) 80%, white);
-  border-bottom: 1px solid color-mix(in oklab, var(--lg-line-strong) 50%, transparent);
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
 }
 
 .lg-terminal__dot {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--lg-line-strong);
-  opacity: 0.55;
 }
 
 .lg-terminal__dot:nth-child(1) {
-  background: var(--lg-accent);
+  background: #ff5f56;
 }
 .lg-terminal__dot:nth-child(2) {
-  background: var(--lg-accent-3);
+  background: #ffbd2e;
 }
 .lg-terminal__dot:nth-child(3) {
-  background: var(--lg-accent-2);
+  background: #27c93f;
 }
 
 .lg-terminal__title {
   margin-left: 0.5rem;
-  color: var(--lg-code-fg);
+  color: #8b949e;
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.78rem;
-  opacity: 0.85;
 }
 
 .lg-terminal__buffer {
@@ -242,14 +239,14 @@ onUnmounted(() => {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.82rem;
   line-height: 1.65;
-  color: var(--lg-code-fg);
+  color: #e6edf3;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .lg-terminal__caret {
   display: inline-block;
-  color: var(--lg-accent);
+  color: #fb923c;
   animation: lg-terminal-blink 1s steps(2) infinite;
 }
 
@@ -262,8 +259,8 @@ onUnmounted(() => {
 .lg-terminal__btn {
   appearance: none;
   background: transparent;
-  border: 1px solid color-mix(in oklab, var(--lg-line-strong) 65%, transparent);
-  color: var(--lg-code-fg);
+  border: 1px solid #30363d;
+  color: #e6edf3;
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.78rem;
   padding: 0.35rem 0.85rem;
@@ -273,8 +270,8 @@ onUnmounted(() => {
 }
 
 .lg-terminal__btn:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--lg-accent) 18%, transparent);
-  border-color: var(--lg-accent);
+  background: rgba(251, 146, 60, 0.16);
+  border-color: #fb923c;
 }
 
 .lg-terminal__btn:disabled {
@@ -285,7 +282,7 @@ onUnmounted(() => {
 .lg-terminal__error {
   margin: 0;
   padding: 0 1.25rem 1rem;
-  color: var(--lg-accent-soft);
+  color: #fb923c;
   font-size: 0.82rem;
 }
 
