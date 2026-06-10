@@ -3,6 +3,7 @@ import { middleware } from '#start/kernel'
 import { enforceQuota } from '@adonisjs-lasagna/saas-tenancy/middleware'
 import { multitenancyRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
 import { multitenancyAdminRoutes } from '@adonisjs-lasagna/admin'
+import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
 
 /**
  * Lazy controller imports — keeps the route file small and lets the
@@ -20,6 +21,7 @@ const WebhooksController = () => import('#app/controllers/demo/webhooks_controll
 const FeatureFlagsController = () => import('#app/controllers/demo/feature_flags_controller')
 const BrandingController = () => import('#app/controllers/demo/branding_controller')
 const SsoController = () => import('#app/controllers/demo/sso_controller')
+const BillingController = () => import('#app/controllers/demo/billing_controller')
 
 /* ─── Operational endpoints (livez / readyz / healthz / metrics) ─────────── */
 multitenancyRoutes()
@@ -29,6 +31,9 @@ multitenancyAdminRoutes({
   prefix: '/admin',
   middleware: [middleware.demoAdminAuth()],
 })
+
+/* ─── Stripe webhook receiver (ungated — in ignorePaths) ─────────────────── */
+multitenancyBillingRoutes()
 
 /* ─── /demo: tenant CRUD (no tenant guard — no tenant context yet) ───────── */
 router
@@ -74,6 +79,10 @@ router
     router.put('/branding', [BrandingController, 'update'])
     router.get('/sso', [SsoController, 'show'])
     router.put('/sso', [SsoController, 'update'])
+
+    // Billing (Stripe) — added incrementally alongside the satellites above
+    router.get('/billing', [BillingController, 'show'])
+    router.post('/billing/checkout', [BillingController, 'checkout'])
   })
   .prefix('/demo')
   .use(middleware.tenantGuard())

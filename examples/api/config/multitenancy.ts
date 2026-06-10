@@ -23,8 +23,9 @@ export default {
   tenantHeaderKey: env.get('TENANT_HEADER_KEY'),
   baseDomain: env.get('APP_DOMAIN'),
 
-  // Health and admin endpoints don't carry a tenant — let them through.
-  ignorePaths: ['/livez', '/readyz', '/healthz', '/metrics', '/admin'],
+  // Health, admin and the Stripe webhook don't carry a tenant — let them
+  // through. The webhook resolves its tenant later from the event's customer id.
+  ignorePaths: ['/livez', '/readyz', '/healthz', '/metrics', '/admin', '/webhooks/stripe'],
 
   schemaCacheTtl: 300,
   maintenanceSchedule: { backupHour: 2, migrateAllHour: 3 },
@@ -132,6 +133,26 @@ export default {
       pro: { limits: { apiCallsPerDay: 10_000, notesPerTenant: 1_000 } },
     },
     getPlan: (tenant: any) => tenant.metadata?.plan ?? 'free',
+  },
+
+  // ─── Billing (Stripe) ────────────────────────────────────────────
+  // Added incrementally on top of the satellites above — the exact flow this
+  // demonstrates lives in docs/cookbook/adding-features-incrementally.md.
+  // The keys are safe placeholders: BillingService.verify() runs at boot but
+  // only validates the key shape (no network), and the e2e suite injects
+  // MockStripe, so no real Stripe account is needed. `products` maps Stripe
+  // product ids to plans declared in `plans.definitions` above.
+  billing: {
+    driver: 'stripe',
+    stripe: {
+      apiKey: env.get('STRIPE_API_KEY', 'sk_test_demo_placeholder_key'),
+      webhookSecret: env.get('STRIPE_WEBHOOK_SECRET', 'whsec_demo_placeholder_secret'),
+    },
+    // Maps Stripe product OR price ids to plans declared in `plans.definitions`.
+    // The demo checkout uses `price_pro_monthly`, so it is allowlisted directly
+    // here; that is what lets the controller skip `allowUnknownPrices`.
+    products: { prod_pro: 'pro', price_pro_monthly: 'pro' },
+    defaultPlan: 'free',
   },
 
   // ─── Read replica routing ────────────────────────────────────────

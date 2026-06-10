@@ -17,6 +17,10 @@ HTTP **429 Too Many Requests** (`E_TENANT_QUOTA_EXCEEDED`).
 node ace configure @adonisjs-lasagna/saas-tenancy --with=quotas
 ```
 
+This publishes the `tenant_plans` backoffice migration. Adding quotas to an
+app that is already running? See
+[Adding features later](/docs/cookbook/adding-features-incrementally).
+
 ## Plans
 
 Plans are declared **statically in `config/multitenancy.ts`** under the

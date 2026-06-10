@@ -27,6 +27,7 @@
   "dependencies": {
     "@adonisjs-lasagna/saas-tenancy": "*",
     "@adonisjs-lasagna/admin": "*",
+    "@adonisjs-lasagna/billing": "*",
     "@adonisjs-lasagna/sso": "*",
     "@adonisjs-lasagna/backup": "*",
     "@adonisjs/core": "^7.0.0",
@@ -39,7 +40,8 @@
     "luxon": "^3.0.0",
     "nodemailer": "^7.0.0",
     "pg": "^8.13.0",
-    "reflect-metadata": "^0.2.0"
+    "reflect-metadata": "^0.2.0",
+    "stripe": "^18.0.0"
   },
   "devDependencies": {
     "@japa/api-client": "^3.2.1",

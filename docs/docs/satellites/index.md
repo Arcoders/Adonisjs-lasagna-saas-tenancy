@@ -23,7 +23,10 @@ node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,webhooks,sso
 ```
 
 The configure command is idempotent; re-running it does not
-duplicate migrations or tenant model scaffolding.
+duplicate migrations or tenant model scaffolding. For the full
+step-by-step of adding a satellite to a running app (packages, config
+blocks, recovery), see
+[Adding features later](/docs/cookbook/adding-features-incrementally).
 
 ## The nine satellites
 

@@ -17,6 +17,11 @@ export const SATELLITE_BUNDLES: Record<string, string[]> = {
   branding: ['create_tenant_brandings_table'],
   sso: ['create_tenant_sso_configs_table'],
   metrics: ['create_tenant_metrics_table'],
+  // tenant_plans backs QuotaService.assignPlan/track. It is shared with the
+  // billing bundle below; `resolveMigrationStubs` dedups when both are
+  // requested, so adopting quotas standalone (`--with=quotas`) and later
+  // billing never emits the table twice.
+  quotas: ['create_tenant_plans_table'],
   billing: [
     // tenant_plans backs QuotaService.assignPlan; required for billing wiring
     'create_tenant_plans_table',
@@ -36,6 +41,11 @@ export const SATELLITE_BUNDLES: Record<string, string[]> = {
  */
 export const OPT_IN_BUNDLES: Record<string, string[]> = {
   rls: ['enable_rls_tenant_isolation'],
+  // Per-tenant maintenance mode adds an `is_maintenance` column to the host's
+  // central `tenants` table. It alters host-owned schema rather than creating a
+  // backoffice satellite table, so it is opt-in (never auto-published) and
+  // requested explicitly with `--with=maintenance`.
+  maintenance: ['add_maintenance_to_tenants_table'],
 }
 
 export const ALL_FEATURES = Object.keys(SATELLITE_BUNDLES)
@@ -76,17 +86,50 @@ export function filterUnknown(features: string[]): { known: string[]; unknown: s
 /**
  * Flatten the selected features into the ordered list of migration stub names
  * to publish. Order follows the selection, then each feature's bundle order.
- * Unknown features (no bundle) are skipped. No dedup: the satellite/opt-in
- * bundles are disjoint, so this is identical to iterating the bundles inline.
+ * Unknown features (no bundle) are skipped. Deduped by first appearance:
+ * `quotas` and `billing` share `create_tenant_plans_table`, so a request like
+ * `--with=quotas,billing` must not emit that migration twice.
  */
 export function resolveMigrationStubs(selected: string[]): string[] {
   const stubs: string[] = []
+  const seen = new Set<string>()
   for (const feature of selected) {
     const bundle = SATELLITE_BUNDLES[feature] ?? OPT_IN_BUNDLES[feature]
     if (!bundle) continue
-    stubs.push(...bundle)
+    for (const stub of bundle) {
+      if (seen.has(stub)) continue
+      seen.add(stub)
+      stubs.push(stub)
+    }
   }
   return stubs
+}
+
+/**
+ * Split resolved stub names into the ones not yet published and the ones
+ * already present in the host's migrations directory. A stub counts as already
+ * published when an existing file matches `<digits>_<stub>.ts` — migration
+ * stubs are emitted as `${Date.now()}_<stub>.ts`, so the timestamp prefix is
+ * always new and the codemod's own "file exists" skip never fires.
+ *
+ * This is what makes `configure` safe to re-run: a second pass with the same
+ * (or overlapping) `--with`, or a bare re-run, skips the migrations it already
+ * wrote instead of emitting timestamped duplicates that would later collide on
+ * `migration:run`.
+ */
+export function filterAlreadyPublished(
+  stubs: string[],
+  existing: string[]
+): { toPublish: string[]; skipped: string[] } {
+  const toPublish: string[] = []
+  const skipped: string[] = []
+  for (const stub of stubs) {
+    const escaped = stub.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const re = new RegExp(`^\\d+_${escaped}\\.ts$`)
+    if (existing.some((file) => re.test(file))) skipped.push(stub)
+    else toPublish.push(stub)
+  }
+  return { toPublish, skipped }
 }
 
 export default async function configure(command: Configure) {
@@ -147,11 +190,24 @@ export default async function configure(command: Configure) {
     return
   }
 
-  // Publish migration stubs for every selected feature.
-  for (const name of resolveMigrationStubs(selected)) {
+  // Publish migration stubs for every selected feature, skipping any already
+  // present in the host's migrations directory. Migration stubs are emitted as
+  // `${Date.now()}_<stub>.ts`, so without this guard a re-run would write
+  // timestamped duplicates that collide on `migration:run`. The guard makes
+  // `configure` idempotent: re-running it (even bare) is safe and additive.
+  const resolved = resolveMigrationStubs(selected)
+  const existing = await listExistingMigrations(command)
+  const { toPublish, skipped } = filterAlreadyPublished(resolved, existing)
+
+  for (const name of toPublish) {
     await codemods.makeUsingStub(stubsRoot, `migrations/${name}.stub`, {})
   }
 
+  if (skipped.length > 0) {
+    command.logger.info(
+      `skipped already-published migrations (re-run safe): ${skipped.join(', ')}`
+    )
+  }
   command.logger.info(`published migrations: ${selected.join(', ')}`)
 
   // Stability notice. Every satellite is `experimental` in 1.x and is not
@@ -168,6 +224,11 @@ export default async function configure(command: Configure) {
     command.logger.log('  upgrading. Stability matrix:')
     command.logger.log('  https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/stability')
   }
+
+  // Per-feature follow-ups. The config file is never overwritten on a re-run
+  // (the codemod skips it), so any feature that needs a config block, a peer
+  // package, or an env var must be surfaced here — pasting it is the host's job.
+  postPublishConfigReminders(command, selected)
 
   if (selected.includes('rls')) {
     postPublishRls(command)
@@ -192,6 +253,83 @@ export default async function configure(command: Configure) {
     }
 
     await postPublishBilling(command)
+  }
+}
+
+/**
+ * Read the basenames of every file under the host's migrations directory
+ * (recursively, so hosts that organise migrations into subfolders are still
+ * covered). Best-effort: a host that hasn't created the directory yet is
+ * treated as having no migrations. Feeds `filterAlreadyPublished`.
+ */
+async function listExistingMigrations(command: Configure): Promise<string[]> {
+  const app = command.app as unknown as {
+    migrationsPath?: (...p: string[]) => string
+    makePath: (...p: string[]) => string
+  }
+  const dir =
+    typeof app.migrationsPath === 'function'
+      ? app.migrationsPath()
+      : app.makePath('database', 'migrations')
+  try {
+    const { readdir } = await import('node:fs/promises')
+    const entries = await readdir(dir, { recursive: true })
+    return entries.map((entry) => entry.split(/[\\/]/).pop() ?? entry)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Surface the config block / peer package / env each selected feature needs.
+ * Most satellites (audit, feature_flags, webhooks, branding) are zero-config
+ * and intentionally print nothing. Billing has its own richer hint
+ * (`postPublishBilling`); this covers the rest. We never AST-patch the host's
+ * config — the file is not overwritten on a re-run, so the operator pastes.
+ */
+function postPublishConfigReminders(command: Configure, selected: string[]): void {
+  const log = command.logger
+  const has = (f: string) => selected.includes(f)
+
+  if (has('sso')) {
+    log.log('')
+    log.log('— SSO satellite — additional setup —')
+    log.log('Install the SSO package (ships the SsoService + TenantSsoConfig model):')
+    log.log('  npm install @adonisjs-lasagna/sso')
+    log.log('  npm install jose                      # optional, only for JWKS id-token verification')
+    log.log("  import { SsoService, TenantSsoConfig } from '@adonisjs-lasagna/sso'")
+  }
+
+  if (has('quotas')) {
+    log.log('')
+    log.log('— Quotas — additional setup —')
+    log.log('Add to config/multitenancy.ts (inside defineConfig({...})):')
+    log.log('  plans: {')
+    log.log("    defaultPlan: 'free',")
+    log.log('    definitions: {')
+    log.log('      free: { limits: { apiCallsPerDay: 1000 } },')
+    log.log('      pro:  { limits: { apiCallsPerDay: 100000 } },')
+    log.log('    },')
+    log.log("    storage: 'tenant_plans',")
+    log.log('  },')
+    log.log('Gate routes with the enforceQuota middleware from')
+    log.log("  '@adonisjs-lasagna/saas-tenancy/middleware'.")
+  }
+
+  if (has('metrics')) {
+    log.log('')
+    log.log('— Metrics — additional setup —')
+    log.log('Expose the Prometheus endpoint by calling multitenancyRoutes() from')
+    log.log("  '@adonisjs-lasagna/saas-tenancy/health' in start/routes.ts (adds /metrics).")
+    log.log('Tune via billing.observability.metrics and resilience.redis.metrics (both optional).')
+  }
+
+  if (has('maintenance')) {
+    log.log('')
+    log.log('— Maintenance mode — additional setup —')
+    log.log('The published migration ALTERS your central `tenants` table (adds is_maintenance).')
+    log.log('Add an optional config/multitenancy.ts block to customise the response:')
+    log.log('  maintenance: { retryAfterSeconds: 600, defaultMessage: "Back soon" },')
   }
 }
 

@@ -7,6 +7,7 @@ export default defineConfig({
     () => import('@adonisjs/queue/commands'),
     () => import('@adonisjs-lasagna/saas-tenancy/commands'),
     () => import('@adonisjs-lasagna/backup/commands'),
+    () => import('@adonisjs-lasagna/billing/commands'),
   ],
 
   providers: [
@@ -23,6 +24,7 @@ export default defineConfig({
     () => import('@adonisjs/core/providers/vinejs_provider'),
     () => import('@adonisjs-lasagna/saas-tenancy/providers/multitenancy_provider'),
     () => import('@adonisjs-lasagna/backup/provider'),
+    () => import('@adonisjs-lasagna/billing/provider'),
     () => import('#app/providers/app_provider'),
   ],
 
