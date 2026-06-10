@@ -264,9 +264,7 @@ test.group('withTenantScope — fetch-hook defense-in-depth (C2 fix)', (group) =
   group.each.setup(() => setupTestConfig())
   group.each.teardown(() => __configureTenancyForTests({}))
 
-  test('fetch hook appends the tenant predicate when invoked on a builder', async ({
-    assert,
-  }) => {
+  test('fetch hook appends the tenant predicate when invoked on a builder', async ({ assert }) => {
     setupTenancy()
     const { FakeBaseModel, hooks } = makeFakeBase()
     const Scoped = withTenantScope(FakeBaseModel as any) as any

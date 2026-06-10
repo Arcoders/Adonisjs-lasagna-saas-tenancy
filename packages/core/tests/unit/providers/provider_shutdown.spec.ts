@@ -61,9 +61,7 @@ test.group('provider shutdown — singleton cache invalidation', (group) => {
     assert.equal((await getActiveDriver()).name, 'schema-pg')
   })
 
-  test('drops the cached tenancy singletons (log context + bootstrappers)', async ({
-    assert,
-  }) => {
+  test('drops the cached tenancy singletons (log context + bootstrappers)', async ({ assert }) => {
     __configureTenancyForTests({
       logCtx: new TenantLogContext(),
       registry: new BootstrapperRegistry(),

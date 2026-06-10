@@ -68,11 +68,9 @@ test.group('e2e — restore from a corrupted backup fails loudly, schema intact'
 
     const tenant = await Tenant.findOrFail(id)
     const svc = new BackupService()
-    await assert.rejects(
-      () => svc.restore(tenant as any, file!),
-      /pg_restore/i,
-      'a corrupted archive must surface a pg_restore failure, not succeed silently'
-    )
+    // No third argument: @japa/assert's rejects() reads it as the expected
+    // error substring, not as an assertion label.
+    await assert.rejects(() => svc.restore(tenant as any, file!), /pg_restore/i)
 
     const after = await client.get('/demo/notes').header('x-tenant-id', id)
     after.assertStatus(200)

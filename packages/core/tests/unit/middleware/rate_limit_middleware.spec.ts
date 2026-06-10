@@ -273,9 +273,7 @@ test.group('RateLimitMiddleware — global resilience.redis.rateLimit fallback',
     setupTestConfig()
   })
 
-  test('global fail-open applies when the route passes no failOpen option', async ({
-    assert,
-  }) => {
+  test('global fail-open applies when the route passes no failOpen option', async ({ assert }) => {
     setupTestConfig({ resilience: { redis: { rateLimit: 'fail-open' } } })
     const m = new FailingRedisRateLimit()
     let nextCalled = false
