@@ -121,7 +121,7 @@ const sidebar = [
       { text: 'Stability', link: '/docs/stability' },
       { text: 'Roadmap', link: '/docs/roadmap' },
       { text: 'Upgrade to 1.0', link: '/docs/upgrade-to-1.0' },
-      { text: 'Comparison vs stancl', link: '/docs/comparison' },
+      { text: 'Comparison', link: '/docs/comparison' },
       { text: 'Troubleshooting', link: '/docs/gotchas' },
       { text: 'FAQ', link: '/docs/faq' },
       { text: 'Known limitations', link: '/docs/known-limitations' },
@@ -135,8 +135,8 @@ const sidebar = [
 // blocks as diagrams (used on the Concepts and Data isolation pages). It merges
 // in its own markdown-it plugin and Vite SSR settings; the existing
 // `markdown.config` table rule, `transformHead`, and `head` below are preserved.
-export default withMermaid(
-  defineConfig({
+export default withMermaid({
+  ...defineConfig({
   title: 'Lasagna SaaS Tenancy',
   description:
     'SaaS multi-tenancy for AdonisJS 7. Connection routing, circuit breaker, queues, contextual logging, plans/quotas, backups, replicas, audit logs, webhooks, SSO, Stripe billing.',
@@ -243,4 +243,14 @@ export default withMermaid(
     outline: { level: [2, 3] },
   },
   }),
-)
+
+  // Mermaid rendering options, read by vitepress-plugin-mermaid via
+  // `virtual:mermaid-config`. A larger base font and looser node/rank spacing
+  // make the flowcharts render at a legible size instead of a compact thumbnail;
+  // theme colors are left to mermaid's built-in light/dark themes (the plugin
+  // swaps to its `dark` theme automatically when the page is in dark mode).
+  mermaid: {
+    flowchart: { useMaxWidth: true, htmlLabels: true, nodeSpacing: 54, rankSpacing: 64 },
+    themeVariables: { fontSize: '18px' },
+  },
+})

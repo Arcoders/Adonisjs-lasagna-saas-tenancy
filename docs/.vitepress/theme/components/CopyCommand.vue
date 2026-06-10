@@ -6,9 +6,13 @@ import { ref } from 'vue'
  * VitePress's own `--vp-c-*` tokens so it follows the active theme (and the
  * minimalist restyle) without carrying any bespoke design tokens.
  */
-const props = withDefaults(defineProps<{ cmd?: string }>(), {
-  cmd: 'npm install @adonisjs-lasagna/saas-tenancy',
-})
+const props = withDefaults(
+  defineProps<{ cmd?: string; align?: 'center' | 'start' }>(),
+  {
+    cmd: 'npm install @adonisjs-lasagna/saas-tenancy',
+    align: 'center',
+  }
+)
 
 const copied = ref(false)
 
@@ -24,7 +28,7 @@ async function copy() {
 </script>
 
 <template>
-  <div class="cc">
+  <div :class="['cc', { 'cc--start': align === 'start' }]">
     <div class="cc__box" role="group" aria-label="Install command">
       <span class="cc__prompt" aria-hidden="true">$</span>
       <code class="cc__cmd">{{ cmd }}</code>
@@ -56,6 +60,12 @@ async function copy() {
   padding: 0 24px;
   display: flex;
   justify-content: center;
+}
+.cc--start {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  justify-content: flex-start;
 }
 .cc__box {
   display: inline-flex;

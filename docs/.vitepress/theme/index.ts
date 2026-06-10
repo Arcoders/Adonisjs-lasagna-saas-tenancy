@@ -11,10 +11,11 @@ import PageFeedback from './components/PageFeedback.vue'
 
 // Landing-page sections, injected into VitePress's native home slots (below).
 // They are not referenced from markdown, so they need no global registration.
-import CopyCommand from './components/CopyCommand.vue'
+import HomeHero from './components/HomeHero.vue'
 import TrustBand from './components/TrustBand.vue'
 import HomeArchitecture from './components/HomeArchitecture.vue'
 import HomeAdoption from './components/HomeAdoption.vue'
+import HomeCta from './components/HomeCta.vue'
 
 import './style.css'
 
@@ -23,19 +24,27 @@ import './style.css'
  * sidebar, and dark-mode toggle keep working) and layer a single accent and
  * two typefaces on top through `style.css`.
  *
- * The landing page uses VitePress's native `layout: home` (hero + features
- * from frontmatter). We enrich it by injecting four section components into
- * the home slots: a copy-paste install line and a compatibility band under
- * the hero, then an architecture diagram and an adoption guide under the
- * feature cards.
+ * The landing page keeps VitePress's `layout: home` (so the feature cards come
+ * from frontmatter), but replaces the plain native hero with a richer custom
+ * `HomeHero` (eyebrow, headline, install line, CTAs, and the layered-stack
+ * visual) via the `home-hero-before` slot, nulling the native hero slots. The
+ * compatibility band, architecture diagram, and adoption guide are injected
+ * around the feature cards.
  */
 const LasagnaLayout = () => {
   const { frontmatter } = useData()
 
   if (frontmatter.value.layout === 'home') {
     return h(DefaultTheme.Layout, null, {
-      'home-hero-after': () => [h(CopyCommand), h(TrustBand)],
-      'home-features-after': () => [h(HomeArchitecture), h(HomeAdoption)],
+      'home-hero-before': () => h(HomeHero),
+      'home-hero-info': () => null,
+      'home-hero-image': () => null,
+      'home-features-before': () => h(TrustBand),
+      'home-features-after': () => [
+        h(HomeArchitecture),
+        h(HomeAdoption),
+        h(HomeCta),
+      ],
     })
   }
 

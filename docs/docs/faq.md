@@ -75,4 +75,4 @@ tests. See [Testing](/docs/testing).
 
 - [Troubleshooting](/docs/gotchas); fixes for the sharp edges.
 - [Known limitations](/docs/known-limitations); the deliberate non-goals.
-- [Comparison vs stancl](/docs/comparison); how it stacks up.
+- [Comparison](/docs/comparison); how it stacks up against stancl and NestJS.

@@ -2,10 +2,9 @@
 import { withBase } from 'vitepress'
 
 /**
- * Presentational request-flow diagram for the landing page. Kept as plain
- * HTML/CSS (rather than an embedded Mermaid render) so it stays crisp at any
- * width, needs no client runtime, and styles from VitePress tokens. The
- * live Mermaid version of this flow lives on the Concepts page.
+ * Presentational request-flow diagram, rendered as a full-bleed soft band so
+ * it reads as a distinct section in the page rhythm. Plain HTML/CSS (no client
+ * runtime); the live Mermaid version of this flow lives on the Concepts page.
  */
 interface Stage {
   title: string
@@ -32,6 +31,7 @@ const drivers = [
   <section class="ha" aria-label="Request flow architecture">
     <div class="ha__inner">
       <header class="ha__head">
+        <p class="ha__eyebrow">How it works</p>
         <h2 class="ha__title">From request to the right schema</h2>
         <p class="ha__lede">
           Every request is resolved to a tenant once, then the active isolation
@@ -71,26 +71,38 @@ const drivers = [
 
 <style scoped>
 .ha {
-  max-width: 1152px;
-  margin: 5rem auto 0;
-  padding: 0 24px;
+  width: 100%;
+  margin: 6rem 0 0;
+  padding: 5.5rem 0;
+  background: var(--vp-c-bg-soft);
+  border-top: 1px solid var(--vp-c-divider);
+  border-bottom: 1px solid var(--vp-c-divider);
 }
 .ha__inner {
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 16px;
-  background: var(--vp-c-bg-soft);
-  padding: clamp(1.5rem, 4vw, 2.5rem);
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: 0 24px;
 }
 .ha__head {
   text-align: center;
   max-width: 46rem;
-  margin: 0 auto 2rem;
+  margin: 0 auto 2.5rem;
+}
+.ha__eyebrow {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--vp-c-brand-1);
+  margin: 0 0 0.6rem;
 }
 .ha__title {
-  font-size: clamp(1.4rem, 3vw, 1.9rem);
-  font-weight: 600;
-  margin: 0 0 0.6rem;
-  line-height: 1.2;
+  font-size: clamp(1.5rem, 3.2vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.7rem;
+  line-height: 1.15;
 }
 .ha__lede {
   margin: 0;
@@ -122,13 +134,14 @@ const drivers = [
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  padding: 0.7rem 0.9rem;
+  padding: 0.75rem 0.95rem;
   border: 1px solid var(--vp-c-divider);
   border-radius: 10px;
   background: var(--vp-c-bg);
   min-width: 9.5rem;
   flex: 1 1 9.5rem;
   max-width: 12rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 .ha__stage-title {
   font-weight: 600;

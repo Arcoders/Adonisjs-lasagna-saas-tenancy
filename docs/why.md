@@ -224,5 +224,5 @@ the place. Issues are open for feature requests.
 - [Quickstart](/quickstart); from `npm install` to a live, schema-isolated tenant.
 - [Concepts](/docs/concepts); the four-layer model and how a request flows.
 - [Data isolation](/docs/data-isolation/); the driver that decides where tenant data lives.
-- [Comparison vs stancl](/docs/comparison); the full feature-by-feature table.
+- [Comparison](/docs/comparison); the full feature-by-feature table against stancl, with a NestJS column.
 - [Roadmap](/docs/roadmap); what's stable, what's experimental, and what's next.

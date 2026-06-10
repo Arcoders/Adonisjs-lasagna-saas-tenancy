@@ -43,19 +43,24 @@ column. (`sqlite-memory` mirrors `schema-pg` but in-process, for tests.)
 
 ```mermaid
 flowchart TB
-  subgraph SP["schema-pg (default)"]
+  %% Subgraphs are declared in reverse on purpose: with no edges between them,
+  %% mermaid lays disconnected subgraphs out in reverse declaration order, so
+  %% this renders left-to-right as schema-pg -> database-pg -> rowscope-pg,
+  %% matching the prose and the table above (default first). Connecting them to
+  %% force the order would flatten each subgraph's internal top-to-bottom layout.
+  subgraph RP["rowscope-pg"]
     direction TB
-    SDB[(one database)] --> SA[tenant_a schema]
-    SDB --> SB[tenant_b schema]
+    RDB[(shared schema)] --> RR["rows scoped by tenant_id"]
   end
   subgraph DP["database-pg"]
     direction TB
     DA[(tenant_a database)]
     DB2[(tenant_b database)]
   end
-  subgraph RP["rowscope-pg"]
+  subgraph SP["schema-pg (default)"]
     direction TB
-    RDB[(shared schema)] --> RR["rows scoped by tenant_id"]
+    SDB[(one database)] --> SA[tenant_a schema]
+    SDB --> SB[tenant_b schema]
   end
 ```
 

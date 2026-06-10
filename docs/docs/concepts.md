@@ -21,9 +21,9 @@ flowchart TB
   subgraph cluster["One PostgreSQL cluster"]
     direction TB
     C["Central · public schema<br/>your product-wide data"]
-    B["Backoffice · backoffice schema<br/>tenant registry + satellites"]
-    T1["Tenant · tenant_uuid schema"]
-    T2["Tenant · tenant_uuid schema"]
+    B["Backoffice · backoffice schema<br/>tenant registry + operator tools"]
+    T["Tenant · tenant_uuid schema<br/>one schema per customer"]
+    S["Satellites · opt-in features<br/>stored in the backoffice schema"]
   end
 ```
 
@@ -70,7 +70,7 @@ active isolation driver decides which connection serves each query, so
 your controllers only ever call `TenantBaseModel.query()`.
 
 ```mermaid
-flowchart LR
+flowchart TB
   R[Request] --> CD[CustomDomainMiddleware<br/>Host → x-tenant-id]
   CD --> TG[TenantGuardMiddleware<br/>resolveTenantId → repo → memoize]
   TG --> RL[RateLimitMiddleware<br/>per-tenant bucket]

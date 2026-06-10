@@ -1,9 +1,9 @@
 ---
-title: Comparison vs stancl/tenancy
-description: Feature-by-feature comparison between @adonisjs-lasagna/saas-tenancy and stancl/tenancy. Filterable, searchable, honest about the gaps.
+title: Comparison
+description: Feature-by-feature comparison of @adonisjs-lasagna/saas-tenancy against stancl/tenancy, with a NestJS column for Node-ecosystem context. Filterable, searchable, honest about the gaps.
 ---
 
-# Comparison vs `stancl/tenancy`
+# How Lasagna compares
 
 <Callout type="tip" title="The honest version">
 <a href="https://tenancyforlaravel.com/"><code>stancl/tenancy</code></a>
@@ -12,11 +12,17 @@ dedicated site, a book, a course, and a Discord. We owe a real debt
 to that project: it set the bar for what a serious multi-tenancy
 package should look like. Lasagna covers the same ground and adds the
 operational surface stancl leaves to the user. It also has gaps
-stancl has filled. This page tells you both.
+stancl has filled. <code>stancl/tenancy</code> is the headline peer,
+and the <strong>NestJS</strong> column sits beside it for
+Node-ecosystem context: NestJS ships no first-party tenancy, so that
+column reflects the most-used community package and the common
+do-it-yourself patterns. This page tells you all of it.
 </Callout>
 
 The same data we use internally to track our position. Filter by
-category, by who-wins, or search a feature.
+category, by who wins against stancl, or search a feature. The win
+and parity counts compare Lasagna with stancl; the NestJS column is
+context, not scored.
 
 <ComparisonTable />
 
@@ -27,6 +33,7 @@ category, by who-wins, or search a feature.
 | MySQL or MariaDB | `stancl/tenancy` |
 | A Nova-equivalent admin UI today | `stancl/tenancy` |
 | A boilerplate SaaS template you can clone | `stancl/tenancy` (Laravel) |
+| A NestJS app wanting Mongo-style per-tenant databases | `nestjs-tenancy` |
 | AdonisJS 7 + PostgreSQL with maximum operational surface | Lasagna |
 | Schema-per-tenant + read replicas + circuit breaker out of the box | Lasagna |
 | The doctor command and CI-friendly health gates | Lasagna |

@@ -24,13 +24,18 @@ const REPO = 'https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy'
 const links = [
   { text: 'Reference app', sub: 'A real AdonisJS 7 app', href: `${REPO}/tree/master/examples/api`, external: true },
   { text: 'Benchmarks', sub: 'Numbers on real hardware', href: withBase('/docs/performance'), external: false },
-  { text: 'Comparison', sub: 'vs stancl/tenancy', href: withBase('/docs/comparison'), external: false },
+  { text: 'Comparison', sub: 'vs stancl & NestJS', href: withBase('/docs/comparison'), external: false },
 ]
 </script>
 
 <template>
   <section class="ad" aria-label="Who it is for">
     <div class="ad__inner">
+      <header class="ad__head">
+        <p class="ad__eyebrow">Is it for you?</p>
+        <h2 class="ad__title">Built for AdonisJS SaaS, honest about the rest</h2>
+      </header>
+
       <div class="ad__cols">
         <div class="ad__col ad__col--yes">
           <h3 class="ad__h">Reach for Lasagna when</h3>
@@ -66,8 +71,29 @@ const links = [
 <style scoped>
 .ad {
   max-width: 1152px;
-  margin: 5rem auto 0;
+  margin: 6rem auto 0;
   padding: 0 24px;
+}
+.ad__head {
+  text-align: center;
+  max-width: 46rem;
+  margin: 0 auto 2.5rem;
+}
+.ad__eyebrow {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--vp-c-brand-1);
+  margin: 0 0 0.6rem;
+}
+.ad__title {
+  font-size: clamp(1.5rem, 3.2vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1.15;
 }
 .ad__cols {
   display: grid;
@@ -80,13 +106,16 @@ const links = [
   }
 }
 .ad__col {
-  padding: 1.5rem 1.6rem;
+  padding: 1.6rem 1.7rem;
   border: 1px solid var(--vp-c-divider);
   border-radius: 14px;
   background: var(--vp-c-bg-soft);
 }
 .ad__col--yes {
   border-top: 3px solid var(--vp-c-brand-1);
+}
+.ad__col--no {
+  border-top: 3px solid var(--vp-c-divider);
 }
 .ad__h {
   margin: 0 0 1rem;

@@ -59,6 +59,144 @@
   border-collapse: collapse;
 }
 
+/* ─── Mermaid diagrams ──────────────────────────────────────────────
+ * Mermaid caps each SVG at its intrinsic pixel width, so a compact
+ * flowchart renders tiny in the middle of the content column. Scale the
+ * SVG up to fill the column — the viewBox preserves the aspect ratio, so
+ * this is a clean uniform zoom (text included), not a stretch — and frame
+ * it on a soft figure surface so diagrams read as first-class illustrations.
+ *
+ * The `!important` on every sizing rule is deliberate: mermaid injects a
+ * per-diagram `<style>` with `#mermaid-<id>{…}` ID-specificity rules and
+ * sets `width`/`style="max-width:…px"` on the SVG itself, both of which
+ * out-rank a plain class selector. Without `!important` flowcharts kept
+ * their tiny intrinsic width while only state diagrams grew. */
+.vp-doc .mermaid {
+  margin: 1.75rem 0;
+  padding: 1.25rem;
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  text-align: center;
+  overflow-x: auto;
+}
+.vp-doc .mermaid svg {
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  margin: 0 auto;
+}
+
+/* ─── Home page ─────────────────────────────────────────────────────
+ * The native hero is replaced by <HomeHero> via the `home-hero-before`
+ * slot (see theme/index.ts), so collapse the empty native hero element. */
+.VPHome .VPHero {
+  display: none;
+}
+
+/* Breathing room between the compatibility band and the feature cards. */
+.VPHome .VPFeatures {
+  margin-top: 2.75rem;
+}
+
+/* Feature cards: a warm icon tile, a per-card accent edge, and a hover lift. */
+.VPHome .VPFeature {
+  border-top-width: 3px;
+  transition: transform 0.22s ease, border-color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+.VPHome .VPFeature:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 34px -18px rgba(0, 0, 0, 0.3);
+}
+.VPHome .VPFeature .icon {
+  background-color: var(--vp-c-brand-soft);
+}
+.VPHome .VPFeatures .item:nth-child(1) .VPFeature { border-top-color: #c2410c; }
+.VPHome .VPFeatures .item:nth-child(2) .VPFeature { border-top-color: #0f6f86; }
+.VPHome .VPFeatures .item:nth-child(3) .VPFeature { border-top-color: #d97706; }
+.VPHome .VPFeatures .item:nth-child(4) .VPFeature { border-top-color: #3f7d8c; }
+.VPHome .VPFeatures .item:nth-child(5) .VPFeature { border-top-color: #8a5a3a; }
+.VPHome .VPFeatures .item:nth-child(6) .VPFeature { border-top-color: #586b8c; }
+
+/* ─── Doc content polish ────────────────────────────────────────────
+ * Bring the home page's card language into the doc pages, subtly. Docs
+ * are read top to bottom, so every rule here stays readability-first. */
+
+/* "Read next" / "Related" lists render as a grid of linked cards, tying
+ * every page's footer to the home page's card aesthetic. Targets the
+ * auto-generated heading id + the immediately following list. */
+.vp-doc h2[id='read-next'] + ul,
+.vp-doc h2[id='related'] + ul {
+  list-style: none;
+  padding: 0;
+  margin: 1.25rem 0;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .vp-doc h2[id='read-next'] + ul,
+  .vp-doc h2[id='related'] + ul {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.vp-doc h2[id='read-next'] + ul > li,
+.vp-doc h2[id='related'] + ul > li {
+  margin: 0;
+  padding: 0.85rem 1.05rem;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  background: var(--vp-c-bg-soft);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--vp-c-text-2);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.vp-doc h2[id='read-next'] + ul > li:hover,
+.vp-doc h2[id='related'] + ul > li:hover {
+  border-color: var(--vp-c-brand-1);
+  transform: translateY(-2px);
+}
+.vp-doc h2[id='read-next'] + ul > li > a:first-child,
+.vp-doc h2[id='related'] + ul > li > a:first-child {
+  font-weight: 600;
+}
+
+/* Tables: a faint brand-tinted header on top of the bordered scroll box. */
+.vp-doc .vp-table-scroll th {
+  background: color-mix(in oklab, var(--vp-c-brand-1) 7%, var(--vp-c-bg-soft));
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+}
+
+/* Blockquotes: a brand left edge and a soft fill. */
+.vp-doc blockquote {
+  border-left: 3px solid var(--vp-c-brand-1);
+  background: var(--vp-c-bg-soft);
+  border-radius: 0 8px 8px 0;
+  padding: 0.6rem 1rem;
+  color: var(--vp-c-text-2);
+}
+.vp-doc blockquote > p {
+  margin: 0.4rem 0;
+}
+
+/* Inline code: a clean hairline chip. */
+.vp-doc :not(pre) > code {
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 5px;
+  padding: 0.12em 0.4em;
+  font-size: 0.85em;
+}
+
+/* Custom containers (tip / warning / …): match the card rounding. */
+.vp-doc .custom-block {
+  border-radius: 10px;
+}
+
 /* Respect a reduced-motion preference. */
 @media (prefers-reduced-motion: reduce) {
   *,
