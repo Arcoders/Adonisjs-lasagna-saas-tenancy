@@ -665,64 +665,64 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [sat#1] | "Nine opt-in features attached to tenants" | B | | | | | |
-| [sat#2] | "None of these are required to run Lasagna" | A | | | | | |
-| [sat#3] | "Each ships its own backoffice migration, its own service, and its own admin endpoint" | B | | | | | |
-| [sat#4] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,webhooks` | B | | | | | |
-| [sat#5] | "The configure command is idempotent" | B | | | | | |
-| [sat#6] | Satellite: Audit — Structured audit trail with actor + payload — Storage: tenant_audit_logs | B | | | | | |
-| [sat#7] | Satellite: Feature flags — Per-tenant boolean flags (kill switches, beta cohorts), cached — Storage: tenant_feature_flags | B | | | | | |
-| [sat#8] | Satellite: Webhooks — HMAC-signed outbound events with delivery state machine and retries — Storage: tenant_webhooks, tenant_webhook_deliveries | B | | | | | |
-| [sat#9] | Satellite: Branding — Per-tenant logo, colors, custom domain, encrypted SMTP — Storage: tenant_brandings | B | | | | | |
-| [sat#10] | Satellite: SSO — Per-tenant OIDC config with JWKS-backed verification — Storage: tenant_sso_configs | B | | | | | |
-| [sat#11] | Satellite: Metrics — Time-series counters per tenant with cursor-based aggregation — Storage: tenant_metrics | B | | | | | |
-| [sat#12] | Satellite: Quotas — Plan-bound limits; rolling and snapshot — Storage: tenant_quotas, tenant_plans | B | | | | | |
-| [sat#13] | Satellite: Billing — Stripe integration — Storage: stripe_customers, stripe_subscriptions, stripe_processed_events, stripe_meter_events | B | | | | | |
-| [sat#14] | Satellite: Impersonation — Admin enters a tenant as a target user, time-boxed and audited — Storage: Redis (no DB row) | B | | | | | |
-| [sat#15] | "Every satellite that writes to a database table goes through the backoffice schema; never the per-tenant schema" | B | | | | | |
-| [sat#16] | "Every satellite that mutates state writes an audit row when the audit satellite is enabled" | B | | | | | |
-| [sat#17] | "Satellites never call each other directly; they go through their respective service contracts" | B | | | | | |
+| [sat#1] | "Nine opt-in features attached to tenants" | B | VERIFIED | 9 satellites (7 core + sso + billing) | — | none |  |
+| [sat#2] | "None of these are required to run Lasagna" | A | VERIFIED | all opt-in via --with; core boots without them | unit suite runs none enabled | none |  |
+| [sat#3] | "Each ships its own backoffice migration, its own service, and its own admin endpoint" | B | PARTIAL | migrations+services yes; admin endpoints exist for flags/webhooks/quotas/metrics/audit-read/branding via admin pkg — impersonation has command+middleware not REST CRUD | e2e admin_full | none | minor over-generalization |
+| [sat#4] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,webhooks` | B | VERIFIED | configure --with parsing | configure.spec.ts | none |  |
+| [sat#5] | "The configure command is idempotent" | B | VERIFIED | idempotency guard (filterAlreadyPublished) | configure.spec.ts; configure_publish.spec.ts | none |  |
+| [sat#6] | Satellite: Audit — Structured audit trail with actor + payload — Storage: tenant_audit_logs | B | VERIFIED | tenant_audit_logs stub + AuditLogService | audit specs | none |  |
+| [sat#7] | Satellite: Feature flags — Per-tenant boolean flags (kill switches, beta cohorts), cached — Storage: tenant_feature_flags | B | VERIFIED | tenant_feature_flags + service + 60s cache | flag specs | none |  |
+| [sat#8] | Satellite: Webhooks — HMAC-signed outbound events with delivery state machine and retries — Storage: tenant_webhooks, tenant_webhook_deliveries | B | VERIFIED | webhooks tables + service | webhook specs | none |  |
+| [sat#9] | Satellite: Branding — Per-tenant logo, colors, custom domain, encrypted SMTP — Storage: tenant_brandings | B | VERIFIED | tenant_brandings + encrypted SMTP | branding specs | none |  |
+| [sat#10] | Satellite: SSO — Per-tenant OIDC config with JWKS-backed verification — Storage: tenant_sso_configs | B | VERIFIED | tenant_sso_configs stub + sso pkg | sso specs | none |  |
+| [sat#11] | Satellite: Metrics — Time-series counters per tenant with cursor-based aggregation — Storage: tenant_metrics | B | VERIFIED | tenant_metrics + SCAN flush | metrics specs | none |  |
+| [sat#12] | Satellite: Quotas — Plan-bound limits; rolling and snapshot — Storage: tenant_quotas, tenant_plans | B | PARTIAL | storage is Redis counters + tenant_plans — no tenant_quotas table exists (no stub) | quota specs | doc-fix:F-25 |  |
+| [sat#13] | Satellite: Billing — Stripe integration — Storage: stripe_customers, stripe_subscriptions, stripe_processed_events, stripe_meter_events | B | VERIFIED | 4 stripe_* stubs | billing suite | none |  |
+| [sat#14] | Satellite: Impersonation — Admin enters a tenant as a target user, time-boxed and audited — Storage: Redis (no DB row) | B | VERIFIED | impersonation sessions in cache/Redis only | impersonation_lifecycle.spec.ts | none |  |
+| [sat#15] | "Every satellite that writes to a database table goes through the backoffice schema; never the per-tenant schema" | B | VERIFIED | all satellite stubs target backoffice schema | satellite_coexistence.spec.ts | none |  |
+| [sat#16] | "Every satellite that mutates state writes an audit row when the audit satellite is enabled" | B | DOC-ONLY | only impersonation writes audit rows (grep: AuditLogService used by impersonation_service only) | — | doc-fix:F-28 |  |
+| [sat#17] | "Satellites never call each other directly; they go through their respective service contracts" | B | VERIFIED | services injected via container; no cross-satellite imports | — | none |  |
 
 ## satellites/audit.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [audit#1] | "Tenant lifecycle (created, activated, suspended, soft_deleted, restored, purged)" | B | | | | | |
-| [audit#2] | "Webhook subscription / delivery state changes" | B | | | | | |
-| [audit#3] | "Branding updates (with encrypted fields redacted)" | B | | | | | |
-| [audit#4] | "SSO config updates" | B | | | | | |
-| [audit#5] | "Impersonation grants and revocations" | B | | | | | |
-| [audit#6] | "Quota threshold breaches" | B | | | | | |
-| [audit#7] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=audit` | B | | | | | |
-| [audit#8] | "The migration creates tenant_audit_logs in the backoffice schema" | B | | | | | |
-| [audit#9] | "Migration installs three PostgreSQL triggers — BEFORE UPDATE, BEFORE DELETE, BEFORE TRUNCATE — that all RAISE EXCEPTION" | B | | | | | |
-| [audit#10] | "Audit rows are append-only at the database level" | A | | | | | |
-| [audit#11] | Method: `audit.log({ tenantId, actorType, actorId, action, metadata, ipAddress })` | B | | | | | |
-| [audit#12] | Column: id, tenant_id, actor_type, actor_id, action, metadata, ip_address, created_at | B | | | | | |
-| [audit#13] | Index: (tenant_id, created_at) | B | | | | | |
-| [audit#14] | REST: `GET /admin/multitenancy/tenants/<id>/audit-logs?from=2026-04-01&to=2026-04-30` | B | | | | | |
-| [audit#15] | "from and to parameters expect ISO 8601 dates" | B | | | | | |
-| [audit#16] | "No OFFSET cost regardless of how many rows the tenant has" | B | | | | | |
-| [audit#17] | "You can't DELETE FROM tenant_audit_logs directly — the trigger will reject it" | A | | | | | |
-| [audit#18] | Pattern 1: "Ship to a long-term store, then purge under controlled access — a privileged retention job temporarily disables the delete trigger" | B | | | | | |
-| [audit#19] | Pattern 2: "Partition by month and DETACH + DROP old partitions — DROP TABLE doesn't fire the row-level triggers" | B | | | | | |
+| [audit#1] | "Tenant lifecycle (created, activated, suspended, soft_deleted, restored, purged)" | B | DOC-ONLY | no lifecycle audit writes in commands/jobs/admin | — | doc-fix:F-28 |  |
+| [audit#2] | "Webhook subscription / delivery state changes" | B | DOC-ONLY | webhook_service writes no audit rows | — | doc-fix:F-28 |  |
+| [audit#3] | "Branding updates (with encrypted fields redacted)" | B | DOC-ONLY | branding_service writes no audit rows | — | doc-fix:F-28 |  |
+| [audit#4] | "SSO config updates" | B | DOC-ONLY | sso pkg writes no audit rows | — | doc-fix:F-28 |  |
+| [audit#5] | "Impersonation grants and revocations" | B | VERIFIED | impersonation_service.ts:93-105 admin:impersonate:start (+stop/use) | impersonation_middleware.spec.ts audit assertions | none |  |
+| [audit#6] | "Quota threshold breaches" | B | DOC-ONLY | quota_service emits TenantQuotaExceeded event; writes no audit row | — | doc-fix:F-28 |  |
+| [audit#7] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=audit` | B | VERIFIED | configure bundle | configure.spec.ts | none |  |
+| [audit#8] | "The migration creates tenant_audit_logs in the backoffice schema" | B | VERIFIED | stub targets backoffice.tenant_audit_logs | audit_immutability.spec.ts | none |  |
+| [audit#9] | "Migration installs three PostgreSQL triggers — BEFORE UPDATE, BEFORE DELETE, BEFORE TRUNCATE — that all RAISE EXCEPTION" | B | VERIFIED | stub:30-53 three triggers | audit_immutability.spec.ts | none |  |
+| [audit#10] | "Audit rows are append-only at the database level" | A | VERIFIED | DB-level triggers | audit_immutability.spec.ts:57,:93,:121 | none |  |
+| [audit#11] | Method: `audit.log({ tenantId, actorType, actorId, action, metadata, ipAddress })` | B | VERIFIED | audit_log_service.ts:13 log(options) | audit_log_service.spec.ts | none |  |
+| [audit#12] | Column: id, tenant_id, actor_type, actor_id, action, metadata, ip_address, created_at | B | VERIFIED | stub columns | audit_log_service.spec.ts | none |  |
+| [audit#13] | Index: (tenant_id, created_at) | B | VERIFIED | stub index (tenant_id, created_at) | — | none |  |
+| [audit#14] | REST: `GET /admin/multitenancy/tenants/<id>/audit-logs?from=2026-04-01&to=2026-04-30` | B | VERIFIED | admin audit_logs_controller + from/to filters | audit_log_service.spec.ts filters; e2e admin_full | none |  |
+| [audit#15] | "from and to parameters expect ISO 8601 dates" | B | VERIFIED | ISO dates parsed | audit_log_service.spec.ts | none |  |
+| [audit#16] | "No OFFSET cost regardless of how many rows the tenant has" | B | PARTIAL | listForTenant uses page/limit (Lucid paginate = OFFSET) — 'no OFFSET cost' overstates unless keyset | audit_log_service.spec.ts | doc-fix (soften in W7) | verify paginate impl during fix |
+| [audit#17] | "You can't DELETE FROM tenant_audit_logs directly — the trigger will reject it" | A | VERIFIED | trigger rejects DELETE | audit_immutability.spec.ts:93 | none |  |
+| [audit#18] | Pattern 1: "Ship to a long-term store, then purge under controlled access — a privileged retention job temporarily disables the delete trigger" | B | N/A | operator pattern (matches security.md host-owns) | — | none |  |
+| [audit#19] | Pattern 2: "Partition by month and DETACH + DROP old partitions — DROP TABLE doesn't fire the row-level triggers" | B | N/A | operator pattern (PG partitioning fact) | — | none |  |
 
 ## satellites/feature-flags.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [flags#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=feature_flags` | B | | | | | |
-| [flags#2] | Method: `isEnabled(tenantId, flag) → Promise<boolean>` (false when absent) | B | | | | | |
-| [flags#3] | Method: `set(tenantId, flag, enabled, config?) → Promise<TenantFeatureFlag>` (upsert) | B | | | | | |
-| [flags#4] | Method: `listForTenant(tenantId)` / `delete(tenantId, flag)` | B | | | | | |
-| [flags#5] | Column: id (UUID v4), tenant_id, flag, enabled (boolean), config (optional JSON), created_at, updated_at | B | | | | | |
-| [flags#6] | "isEnabled reads through a per-tenant cache: whole flag map cached under ff_map:<tenantId> for 60s" | B | | | | | |
-| [flags#7] | "set/delete bust the cache" | B | | | | | |
-| [flags#8] | REST: GET /admin/multitenancy/tenants/{id}/feature-flags | B | | | | | |
-| [flags#9] | REST: PUT /admin/multitenancy/tenants/{id}/feature-flags/{key} | B | | | | | |
-| [flags#10] | REST: DELETE /admin/multitenancy/tenants/{id}/feature-flags/{key} | B | | | | | |
-| [flags#11] | "Evaluation is a boolean kill switch — no built-in percentage rollout" | B | | | | | |
-| [flags#12] | "Flags are cached for 60s, so a set takes up to a minute to propagate" | B | | | | | |
+| [flags#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=feature_flags` | B | VERIFIED | configure bundle | configure.spec.ts | none |  |
+| [flags#2] | Method: `isEnabled(tenantId, flag) → Promise<boolean>` (false when absent) | B | VERIFIED | feature_flag_service.ts isEnabled (false when absent) | feature_flag_service.spec.ts | none |  |
+| [flags#3] | Method: `set(tenantId, flag, enabled, config?) → Promise<TenantFeatureFlag>` (upsert) | B | VERIFIED | set() upsert | feature_flag_service.spec.ts | none |  |
+| [flags#4] | Method: `listForTenant(tenantId)` / `delete(tenantId, flag)` | B | VERIFIED | listForTenant/delete | feature_flag_service.spec.ts | none |  |
+| [flags#5] | Column: id (UUID v4), tenant_id, flag, enabled (boolean), config (optional JSON), created_at, updated_at | B | VERIFIED | create_tenant_feature_flags_table.stub columns | satellite_coexistence.spec.ts | none |  |
+| [flags#6] | "isEnabled reads through a per-tenant cache: whole flag map cached under ff_map:<tenantId> for 60s" | B | VERIFIED | feature_flag_service.ts:6 ff_map:<id>, :19 ttl 60s | feature_flag_service.spec.ts | none |  |
+| [flags#7] | "set/delete bust the cache" | B | VERIFIED | set/delete cache bust (namespace delete) | feature_flag_service.spec.ts | none |  |
+| [flags#8] | REST: GET /admin/multitenancy/tenants/{id}/feature-flags | B | VERIFIED | admin routes feature-flags GET | e2e admin_full | none |  |
+| [flags#9] | REST: PUT /admin/multitenancy/tenants/{id}/feature-flags/{key} | B | VERIFIED | admin routes PUT | e2e admin_full | none |  |
+| [flags#10] | REST: DELETE /admin/multitenancy/tenants/{id}/feature-flags/{key} | B | VERIFIED | admin routes DELETE | e2e admin_full | none |  |
+| [flags#11] | "Evaluation is a boolean kill switch — no built-in percentage rollout" | B | VERIFIED | boolean enabled + config JSON; no rollout logic | — | none |  |
+| [flags#12] | "Flags are cached for 60s, so a set takes up to a minute to propagate" | B | VERIFIED | 60s ttl ⇒ ≤1min propagation | — | none |  |
 
 ## satellites/webhooks.md
 
@@ -760,89 +760,89 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [branding#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=branding` | B | | | | | |
-| [branding#2] | Column: tenant_id (FK + unique), logo_url, primary_color (hex), accent_color (hex), custom_domain | B | | | | | |
-| [branding#3] | Column: smtp_host, smtp_port, smtp_user, smtp_password (AES-256-GCM encrypted), smtp_secure, smtp_from | B | | | | | |
-| [branding#4] | Method: `update(tenantId, { logoUrl, primaryColor, customDomain, ... })` | B | | | | | |
-| [branding#5] | Method: `get(tenantId)` — SMTP password is decrypted on read | B | | | | | |
-| [branding#6] | "Setting custom_domain only stores the value" | B | | | | | |
-| [branding#7] | "Wiring the request requires CustomDomainMiddleware" | B | | | | | |
-| [branding#8] | "Wildcard TLS, LetsEncrypt, and Cloudflare-style cert flow are your job" | B | | | | | |
-| [branding#9] | "SMTP passwords are encrypted with AES-256-GCM using APP_KEY" | B | | | | | |
-| [branding#10] | "Rotation requires re-encryption" | B | | | | | |
+| [branding#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=branding` | B | VERIFIED | configure bundle | configure.spec.ts | none |  |
+| [branding#2] | Column: tenant_id (FK + unique), logo_url, primary_color (hex), accent_color (hex), custom_domain | B | VERIFIED | create_tenant_brandings_table.stub | branding_service.spec.ts | none |  |
+| [branding#3] | Column: smtp_host, smtp_port, smtp_user, smtp_password (AES-256-GCM encrypted), smtp_secure, smtp_from | B | VERIFIED | stub smtp columns; crypto.ts AES-256-GCM | crypto.spec.ts; branding_service.spec.ts | none |  |
+| [branding#4] | Method: `update(tenantId, { logoUrl, primaryColor, customDomain, ... })` | B | BROKEN | method is upsert(tenantId,data) not update() | branding_service.spec.ts | doc-fix:F-26 |  |
+| [branding#5] | Method: `get(tenantId)` — SMTP password is decrypted on read | B | BROKEN | method is getForTenant() not get(); decrypt-on-read real | branding_service.spec.ts | doc-fix:F-26 |  |
+| [branding#6] | "Setting custom_domain only stores the value" | B | VERIFIED | custom_domain only stored; middleware does routing | custom_domain specs | none |  |
+| [branding#7] | "Wiring the request requires CustomDomainMiddleware" | B | VERIFIED | custom_domain_middleware.ts | custom_domain specs | none |  |
+| [branding#8] | "Wildcard TLS, LetsEncrypt, and Cloudflare-style cert flow are your job" | B | N/A | host responsibility (matches cookbook) | — | none |  |
+| [branding#9] | "SMTP passwords are encrypted with AES-256-GCM using APP_KEY" | B | VERIFIED | crypto.ts AES-256-GCM w/ APP_KEY | crypto.spec.ts | none |  |
+| [branding#10] | "Rotation requires re-encryption" | B | N/A | operational fact | — | none |  |
 
 ## satellites/sso.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [sso#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=sso` | B | | | | | |
-| [sso#2] | Requirement: `npm install jose` (optional peer dependency) | B | | | | | |
-| [sso#3] | Step: "Generates state with randomBytes(16), single-use, 600 s TTL" | B | | | | | |
-| [sso#4] | Step: "Generates nonce with randomBytes(16), bound to state" | B | | | | | |
-| [sso#5] | Step: "Verifies the token endpoint returns an id_token" | B | | | | | |
-| [sso#6] | Step: "Verifies the id_token against the IdP's JWKS (cached 1 h via discovery)" | B | | | | | |
-| [sso#7] | Step: "Checks iss, aud, exp via jose.jwtVerify (60 s clock tolerance)" | B | | | | | |
-| [sso#8] | Step: "Confirms the nonce in the id_token payload matches the value bound to state" | B | | | | | |
-| [sso#9] | "Any mismatch throws and aborts the callback before claims surface" | A | | | | | |
-| [sso#10] | "Verifies the discovery doc's issuer matches the requested issuer (OIDC Discovery 1.0 §4.3)" | B | | | | | |
-| [sso#11] | "Applies validateExternalHttpsUrl to discovered token_endpoint and jwks_uri" | B | | | | | |
-| [sso#12] | "Defends against SSRF (loopback, RFC 1918, link-local, cloud metadata, IPv6 brackets)" | A | | | | | |
-| [sso#13] | Method: `upsert(tenantId, { issuerUrl, clientId, clientSecret, redirectUri, scopes })` | B | | | | | |
-| [sso#14] | Method: `startLogin(tenantId) → { authUrl, state }` | B | | | | | |
-| [sso#15] | Method: `handleCallback(tenantId, { code, state, cookieState }) → claims` | B | | | | | |
+| [sso#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=sso` | B | VERIFIED | configure --with=sso (stub ships in core) | configure.spec.ts | none |  |
+| [sso#2] | Requirement: `npm install jose` (optional peer dependency) | B | VERIFIED | jose dynamic import (sso_service.ts:152) | sso_oidc_flow.spec.ts | none |  |
+| [sso#3] | Step: "Generates state with randomBytes(16), single-use, 600 s TTL" | B | VERIFIED | STATE_TTL_SECONDS=600 (:29); GETDEL single-use (:89) | sso_oidc_flow.spec.ts:291 | none |  |
+| [sso#4] | Step: "Generates nonce with randomBytes(16), bound to state" | B | VERIFIED | nonce bound in state payload (:92-94) | sso_oidc_flow.spec.ts:257 nonce mismatch | none |  |
+| [sso#5] | Step: "Verifies the token endpoint returns an id_token" | B | VERIFIED | handleCallback rejects missing id_token | sso_oidc_flow.spec.ts:398 /id_token/ | none |  |
+| [sso#6] | Step: "Verifies the id_token against the IdP's JWKS (cached 1 h via discovery)" | B | VERIFIED | createRemoteJWKSet + discovery cache ttl 3600s (:179) | sso_oidc_flow.spec.ts jwks | none |  |
+| [sso#7] | Step: "Checks iss, aud, exp via jose.jwtVerify (60 s clock tolerance)" | B | VERIFIED | jwtVerify w/ issuer/audience + clockTolerance (:160-164) | sso_oidc_flow.spec.ts expired/issuer cases | none |  |
+| [sso#8] | Step: "Confirms the nonce in the id_token payload matches the value bound to state" | B | VERIFIED | nonce check after jwtVerify (:137-138) | sso_oidc_flow.spec.ts:268 /nonce/ | none |  |
+| [sso#9] | "Any mismatch throws and aborts the callback before claims surface" | A | VERIFIED | all verification failures throw before claims return | sso_oidc_flow.spec.ts rejects ×5 | none |  |
+| [sso#10] | "Verifies the discovery doc's issuer matches the requested issuer (OIDC Discovery 1.0 §4.3)" | B | VERIFIED | discovery issuer match (:197-208) | sso_oidc_flow.spec.ts issuer mismatch | none |  |
+| [sso#11] | "Applies validateExternalHttpsUrl to discovered token_endpoint and jwks_uri" | B | VERIFIED | validateResolvedHostIsPublic on token_endpoint + jwks_uri (:243-246) | sso_service.spec.ts | none |  |
+| [sso#12] | "Defends against SSRF (loopback, RFC 1918, link-local, cloud metadata, IPv6 brackets)" | A | VERIFIED | url.ts guard (full range set incl. brackets) | url.spec.ts 24 tests | none |  |
+| [sso#13] | Method: `upsert(tenantId, { issuerUrl, clientId, clientSecret, redirectUri, scopes })` | B | BROKEN | no upsert() on SsoService (config rows via TenantSsoConfig model) | sso_service.spec.ts | doc-fix:F-27 |  |
+| [sso#14] | Method: `startLogin(tenantId) → { authUrl, state }` | B | BROKEN | buildAuthUrl(config) — no startLogin(tenantId) | sso_oidc_flow.spec.ts uses buildAuthUrl | doc-fix:F-27 |  |
+| [sso#15] | Method: `handleCallback(tenantId, { code, state, cookieState }) → claims` | B | BROKEN | handleCallback(state, code) positional (:81-84) | sso_oidc_flow.spec.ts | doc-fix:F-27 |  |
 
 ## satellites/metrics.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [metrics#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=metrics` | B | | | | | |
-| [metrics#2] | Method: `increment(tenantId, 'requests' \| 'errors', amount = 1)` | B | | | | | |
-| [metrics#3] | Method: `trackBandwidth(tenantId, bytes)` | B | | | | | |
-| [metrics#4] | "Both are per-UTC-day Redis counters with a 48h TTL" | B | | | | | |
-| [metrics#5] | Method: `flush(period?)` — Rolls Redis counters into tenant_metrics | B | | | | | |
-| [metrics#6] | Cron: `0 1 * * * node ace tenant:metrics:flush` | B | | | | | |
-| [metrics#7] | "Uses a SCAN cursor, safe against arbitrarily large key sets" | B | | | | | |
-| [metrics#8] | Method: `getForTenant(tenantId, days = 30)` — Most recent N days of persisted rows | B | | | | | |
-| [metrics#9] | "Current day's counters live in Redis until next flush" | B | | | | | |
-| [metrics#10] | REST: GET /admin/multitenancy/tenants/{id}/metrics?days=30 | B | | | | | |
-| [metrics#11] | "days is clamped to 1..365 (default 30)" | B | | | | | |
-| [metrics#12] | "Counter increments hit Redis, not database. If Redis unavailable, increments for that window are lost." | A | | | | | |
-| [metrics#13] | "The metric set is fixed (requests, errors, bandwidth)" | B | | | | | |
-| [metrics#14] | "For arbitrary named metrics or gauges, use the OpenTelemetry integration" | B | | | | | |
+| [metrics#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=metrics` | B | VERIFIED | configure bundle | configure.spec.ts | none |  |
+| [metrics#2] | Method: `increment(tenantId, 'requests' \| 'errors', amount = 1)` | B | VERIFIED | metrics_service.ts increment | metrics_service.spec.ts | none |  |
+| [metrics#3] | Method: `trackBandwidth(tenantId, bytes)` | B | VERIFIED | trackBandwidth | metrics_service.spec.ts | none |  |
+| [metrics#4] | "Both are per-UTC-day Redis counters with a 48h TTL" | B | VERIFIED | metrics_service.ts:17,23 expire 172800 (48h), per-UTC-day key | metrics_service.spec.ts | none |  |
+| [metrics#5] | Method: `flush(period?)` — Rolls Redis counters into tenant_metrics | B | VERIFIED | flush(period?) | metrics_service.spec.ts | none |  |
+| [metrics#6] | Cron: `0 1 * * * node ace tenant:metrics:flush` | B | VERIFIED | tenant_metrics_flush.ts help cron | — | none |  |
+| [metrics#7] | "Uses a SCAN cursor, safe against arbitrarily large key sets" | B | VERIFIED | metrics_service.ts:26-30 redis.scan cursor COUNT 200 | — | none |  |
+| [metrics#8] | Method: `getForTenant(tenantId, days = 30)` — Most recent N days of persisted rows | B | VERIFIED | getForTenant(tenantId, days=30) | metrics_service.spec.ts | none |  |
+| [metrics#9] | "Current day's counters live in Redis until next flush" | B | VERIFIED | flush moves counters; current day stays in Redis | metrics_service.spec.ts | none |  |
+| [metrics#10] | REST: GET /admin/multitenancy/tenants/{id}/metrics?days=30 | B | VERIFIED | admin routes metrics?days= | e2e admin_full | none |  |
+| [metrics#11] | "days is clamped to 1..365 (default 30)" | B | VERIFIED | admin controller clamps days 1..365 | e2e admin_full | none |  |
+| [metrics#12] | "Counter increments hit Redis, not database. If Redis unavailable, increments for that window are lost." | A | VERIFIED | redis-only increments; resilience.redis.metrics fail-open default | — (loss window not asserted) | none |  |
+| [metrics#13] | "The metric set is fixed (requests, errors, bandwidth)" | B | VERIFIED | fixed metric set requests/errors/bandwidth | metrics_service.spec.ts | none |  |
+| [metrics#14] | "For arbitrary named metrics or gauges, use the OpenTelemetry integration" | B | VERIFIED | telemetry_service.ts OTel integration | telemetry specs | none |  |
 
 ## satellites/quotas.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [quota#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=quotas` | B | | | | | |
-| [quota#2] | "Plans are declared statically in config/multitenancy.ts under the plans key" | A | | | | | |
-| [quota#3] | "There is no upsertPlan / assignPlan API" | B | | | | | |
-| [quota#4] | Config: `plans: { defaultPlan, definitions, getPlan, storage }` | B | | | | | |
-| [quota#5] | "PlanDefinition.limits is Record<string, number>" | B | | | | | |
-| [quota#6] | Middleware: `enforceQuota(quotaName, options?)` | B | | | | | |
-| [quota#7] | "Apply per-route, not globally — TenantGuardMiddleware must run first" | A | | | | | |
-| [quota#8] | Option: `{ enforce: false }` — track usage but never reject | B | | | | | |
-| [quota#9] | Option: `{ amount: 1 }` — increment by more than 1 | B | | | | | |
-| [quota#10] | Middleware step: Resolves active tenant | B | | | | | |
-| [quota#11] | Middleware step: Looks up getLimit(tenant, quotaName) | B | | | | | |
-| [quota#12] | Middleware step: Calls consume(tenant, quotaName, amount) | B | | | | | |
-| [quota#13] | Middleware step: Throws QuotaExceededException (HTTP 429) on overrun | B | | | | | |
-| [quota#14] | "consume runs a single Redis EVAL (Lua) script" | A | | | | | |
-| [quota#15] | "GET the counter, compare against limit, INCRBY only when it fits" | A | | | | | |
-| [quota#16] | "Concurrent callers cannot over-grant the quota" | A | | | | | |
-| [quota#17] | Mode: rolling-day (default) — track / consume — 48-hour TTL counter | B | | | | | |
-| [quota#18] | Mode: snapshot — setUsage — No TTL; app reports the new value | B | | | | | |
-| [quota#19] | Policy: fail-open (default) — consume returns 0 and skips enforcement | B | | | | | |
-| [quota#20] | Policy: fail-closed — consume throws DependencyUnavailableException (503) | B | | | | | |
-| [quota#21] | Config: `resilience.redis.quota` — 'fail-open' \| 'fail-closed' | B | | | | | |
-| [quota#22] | Method: `getUsage(tenant, quota) → Promise<number>` | B | | | | | |
-| [quota#23] | Method: `snapshot(tenant) → Promise<QuotaStateSnapshot>` | B | | | | | |
-| [quota#24] | "Plan resolution happens on every request via getPlan(tenant)" | B | | | | | |
-| [quota#25] | "Counters are NOT reset when a plan changes" | A | | | | | |
-| [quota#26] | "Call quotas.reset(tenant, quotaName) to zero explicitly" | B | | | | | |
-| [quota#27] | REST: GET /admin/multitenancy/tenants/{id}/quotas | B | | | | | |
-| [quota#28] | REST: PUT /admin/multitenancy/tenants/{id}/quotas/usage | B | | | | | |
-| [quota#29] | REST: POST /admin/multitenancy/tenants/{id}/quotas/reset | B | | | | | |
+| [quota#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=quotas` | B | VERIFIED | configure bundle (prints plans block) | configure.spec.ts | none |  |
+| [quota#2] | "Plans are declared statically in config/multitenancy.ts under the plans key" | A | BROKEN | plans also storage-backed (tenant_plans, storage:'auto') — not static-only | quota_assignment.spec.ts | doc-fix:F-25 |  |
+| [quota#3] | "There is no upsertPlan / assignPlan API" | B | BROKEN | assignPlan/getAssignedPlan/clearAssignedPlan EXIST (quota_service.ts) | quota_assignment.spec.ts | doc-fix:F-25 |  |
+| [quota#4] | Config: `plans: { defaultPlan, definitions, getPlan, storage }` | B | VERIFIED | types/config.ts:74-102 | quota_service.spec.ts | none |  |
+| [quota#5] | "PlanDefinition.limits is Record<string, number>" | B | VERIFIED | PlanDefinition.limits Record<string,number> (config.ts:70-72) | — | none |  |
+| [quota#6] | Middleware: `enforceQuota(quotaName, options?)` | B | VERIFIED | enforce_quota_middleware.ts factory | enforce_quota_middleware.spec.ts | none |  |
+| [quota#7] | "Apply per-route, not globally — TenantGuardMiddleware must run first" | A | VERIFIED | middleware resolves request.tenant() — needs guard-resolvable request | enforce_quota_middleware.spec.ts | none |  |
+| [quota#8] | Option: `{ enforce: false }` — track usage but never reject | B | VERIFIED | enforce:false → track() | enforce_quota_middleware.spec.ts | none |  |
+| [quota#9] | Option: `{ amount: 1 }` — increment by more than 1 | B | VERIFIED | amount option | enforce_quota_middleware.spec.ts | none |  |
+| [quota#10] | Middleware step: Resolves active tenant | B | VERIFIED | middleware step 1 | same | none |  |
+| [quota#11] | Middleware step: Looks up getLimit(tenant, quotaName) | B | VERIFIED | getLimit | same | none |  |
+| [quota#12] | Middleware step: Calls consume(tenant, quotaName, amount) | B | VERIFIED | consume | same | none |  |
+| [quota#13] | Middleware step: Throws QuotaExceededException (HTTP 429) on overrun | B | VERIFIED | QuotaExceededException 429 | same + quota_concurrency | none |  |
+| [quota#14] | "consume runs a single Redis EVAL (Lua) script" | A | VERIFIED | quota_service.ts:364-391 single EVAL | quota_concurrency.spec.ts | test-fix:T0 |  |
+| [quota#15] | "GET the counter, compare against limit, INCRBY only when it fits" | A | VERIFIED | QUOTA_CONSUME_LUA get/compare/incrby+expire | quota_concurrency.spec.ts | none |  |
+| [quota#16] | "Concurrent callers cannot over-grant the quota" | A | VERIFIED | Redis single-threaded EVAL | quota_concurrency.spec.ts (exactness after T0) | test-fix:T0 |  |
+| [quota#17] | Mode: rolling-day (default) — track / consume — 48-hour TTL counter | B | VERIFIED | rolling key + ROLLING_TTL 48h | quota_service.spec.ts | none |  |
+| [quota#18] | Mode: snapshot — setUsage — No TTL; app reports the new value | B | VERIFIED | setUsage snapshot (no TTL) | quota_service.spec.ts | none |  |
+| [quota#19] | Policy: fail-open (default) — consume returns 0 and skips enforcement | B | VERIFIED | quota_service.ts:372,396 fail-open default returns 0 | quota_resilience.spec.ts | none |  |
+| [quota#20] | Policy: fail-closed — consume throws DependencyUnavailableException (503) | B | VERIFIED | fail-closed → DependencyUnavailableException 503 | quota_resilience.spec.ts | none |  |
+| [quota#21] | Config: `resilience.redis.quota` — 'fail-open' \| 'fail-closed' | B | VERIFIED | config.ts:327 | — | none |  |
+| [quota#22] | Method: `getUsage(tenant, quota) → Promise<number>` | B | VERIFIED | getUsage | quota_service.spec.ts | none |  |
+| [quota#23] | Method: `snapshot(tenant) → Promise<QuotaStateSnapshot>` | B | VERIFIED | snapshot() | quota_service.spec.ts | none |  |
+| [quota#24] | "Plan resolution happens on every request via getPlan(tenant)" | B | VERIFIED | getPlanFor per call (60s cache when storage-backed) | quota_assignment.spec.ts | none |  |
+| [quota#25] | "Counters are NOT reset when a plan changes" | A | VERIFIED | no reset on plan change (counters independent) | — (not asserted) | none |  |
+| [quota#26] | "Call quotas.reset(tenant, quotaName) to zero explicitly" | B | VERIFIED | reset(tenant, quota?) | quota teardown uses it | none |  |
+| [quota#27] | REST: GET /admin/multitenancy/tenants/{id}/quotas | B | VERIFIED | admin routes quotas GET | e2e admin_full | none |  |
+| [quota#28] | REST: PUT /admin/multitenancy/tenants/{id}/quotas/usage | B | VERIFIED | admin routes PUT usage | e2e admin_full | none |  |
+| [quota#29] | REST: POST /admin/multitenancy/tenants/{id}/quotas/reset | B | VERIFIED | admin routes POST reset | e2e admin_full | none |  |
 
 ## satellites/billing.md
 

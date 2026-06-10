@@ -409,6 +409,65 @@ regression test), `doc-fix` (claim rewritten to match deliberate behavior), `tes
   contradicts it, so the code's session design is the intent; the prose is wrong.
 - **Status:** open
 
+## F-25: quotas.md denies the assignPlan API that exists (and that billing depends on)
+
+- **Claims:** [quota#2], [quota#3]
+- **Severity:** MED (stale: predates storage-backed plans; contradicts services.md,
+  billing docs, and `tenant:billing:backfill`)
+- **Doc text:** "Plans are declared statically… There is no `upsertPlan` / `assignPlan`
+  API — pick the plan… from `plans.getPlan(tenant)`." (quotas.md:26-28)
+- **Reality:** `QuotaService.assignPlan/getAssignedPlan/clearAssignedPlan` exist
+  (quota_service.ts), `plans.storage: 'config-only'|'tenant_plans'|'auto'` governs them
+  (config.ts:95), `quota_assignment.spec.ts` tests them, and billing's subscription sync
+  assigns plans through them.
+- **Resolution:** doc-fix — rewrite the Plans section around the three storage modes.
+- **Status:** open
+
+## F-26: branding.md method names don't match the service
+
+- **Claims:** [branding#4], [branding#5]
+- **Severity:** LOW/MED (snippets fail to compile)
+- **Reality:** doc `update(tenantId, {…})` / `get(tenantId)` — code
+  `upsert(tenantId, data)` / `getForTenant(tenantId)` (branding_service.ts). Encrypted
+  SMTP columns + decrypt-on-read are real (crypto.ts; branding_service.spec.ts).
+- **Resolution:** doc-fix — correct the names.
+- **Status:** open
+
+## F-27: sso.md API signatures don't match SsoService
+
+- **Claims:** [sso#13], [sso#14], [sso#15]
+- **Severity:** MED (snippets don't compile; the flow mechanics ARE right)
+- **Reality:** doc `upsert(tenantId, {…})`, `startLogin(tenantId) → { authUrl, state }`,
+  `handleCallback(tenantId, { code, state, cookieState })` — code surface is
+  `getConfig(tenantId)`, `buildAuthUrl(config)`, `handleCallback(state, code)`
+  (sso_service.ts:33,61,81). State TTL 600s, JWKS/discovery cache 3600s, clockTolerance,
+  GETDEL state, nonce binding, discovery-issuer check, SSRF checks: all verified true.
+- **Resolution:** doc-fix — correct the three signatures.
+- **Status:** open
+
+## F-28: audit.md's coverage list is mostly fictional — only impersonation writes audit rows
+
+- **Claims:** [audit#1..6], [sat#16]
+- **Severity:** HIGH (a compliance-relevant promise: the page lists six audited
+  categories; five don't happen)
+- **Doc text:** "What gets audited: tenant lifecycle (created, activated, suspended,
+  soft_deleted, restored, purged); webhook subscription/delivery state changes; branding
+  updates; SSO config updates; impersonation grants and revocations; quota threshold
+  breaches." satellites/index.md adds "every satellite that mutates state writes an audit
+  row when the audit satellite is enabled."
+- **Reality:** grep of core+admin: `AuditLogService` is invoked ONLY by
+  `impersonation_service.ts` (+ tenant:impersonate / tenant:repl commands). The admin
+  controllers, lifecycle commands/jobs, webhook/branding/sso/quota services write no
+  audit rows. The infrastructure (service + immutable table) is real and tested; the
+  *automatic coverage* is not. (The example app writes its own rows via hooks — host
+  code, not the package.)
+- **Resolution:** doc-fix — audit.md documents `audit.log()` as the host API, lists
+  impersonation as the only built-in writer, and shows the hook/event-listener pattern
+  for lifecycle auditing. Auto-audit across satellites is feature-sized (action-name
+  design, PII policy, ~10 call sites) — flagged for the roadmap rather than rushed into
+  the audit branch. ALSO satellites/index.md sat#16 sentence gets removed/softened.
+- **Status:** open
+
 ## Addendum to F-17 (jobs.md)
 
 jobs.md also claims InstallTenant "runs migrations" — `install_tenant.ts:36` only calls
