@@ -235,7 +235,9 @@ test.group('withTenantScope mixin (integration)', (group) => {
     await assert.rejects(() => TestPost.all(), /MissingTenantScopeException|outside both/)
   })
 
-  test('bulk delete via query builder is scoped (Lucid fires before:fetch)', async ({ assert }) => {
+  test('bulk delete via query builder is scoped (predicate injected at query() construction)', async ({
+    assert,
+  }) => {
     const tenantA = randomUUID()
     const tenantB = randomUUID()
 
@@ -254,5 +256,34 @@ test.group('withTenantScope mixin (integration)', (group) => {
     const survivors = await unscoped(() => TestPost.all())
     assert.lengthOf(survivors, 1)
     assert.equal(survivors[0].tenant_id, tenantB)
+  })
+
+  test('bulk update via query builder is scoped — other tenants rows untouched', async ({
+    assert,
+  }) => {
+    // Lucid does NOT fire before('fetch') for builder UPDATE/DELETE
+    // (knex method isn't 'select'); the guard is the wrapped static
+    // query() factory injecting the tenant predicate at construction
+    // (scoping.ts). This proves the UPDATE half against real Lucid + PG —
+    // security.md's "no silent cross-tenant write".
+    const tenantA = randomUUID()
+    const tenantB = randomUUID()
+
+    await tenancy.run(fakeTenant(tenantA), async () => {
+      await TestPost.create({ title: 'a1' })
+    })
+    await tenancy.run(fakeTenant(tenantB), async () => {
+      await TestPost.create({ title: 'b1' })
+    })
+
+    await tenancy.run(fakeTenant(tenantA), async () => {
+      await TestPost.query().update({ title: 'rewritten' })
+    })
+
+    const all = await unscoped(() => TestPost.all())
+    const a = all.find((p) => p.tenant_id === tenantA)
+    const b = all.find((p) => p.tenant_id === tenantB)
+    assert.equal(a?.title, 'rewritten')
+    assert.equal(b?.title, 'b1', "tenant B's row must not be touched by tenant A's bulk update")
   })
 })

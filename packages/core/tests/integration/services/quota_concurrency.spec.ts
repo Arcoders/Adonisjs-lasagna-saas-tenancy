@@ -12,17 +12,11 @@ function fakeTenant(id: string): TenantModelContract {
 }
 
 /**
- * S0-5: this test exercises the documented "near-atomic" caveat in
- * QuotaService.consume(). It runs N parallel callers against a small
- * limit and reports the actual fulfilled count.
- *
- * Outcome interpretation:
- *   - fulfilled <= limit  →  consume() is effectively atomic; docs may
- *                            keep the "near-atomic" wording.
- *   - fulfilled  >  limit →  drift is observable. Either rewrite
- *                            consume() in Lua (atomic INCR-and-check)
- *                            or strengthen the docs to call out the
- *                            exact over-shoot bound.
+ * Proves the documented atomicity guarantee for QuotaService.consume():
+ * the check-and-increment is a single Redis EVAL (Lua), so N parallel
+ * callers against limit L produce EXACTLY L successes and N-L
+ * QuotaExceededException — no race window, no under- or over-grant
+ * (why.md "Quota atomicity", security.md "Atomic quota enforcement").
  */
 test.group('QuotaService.consume — concurrency (integration)', (group) => {
   const planName = 's0_5_test_plan'
@@ -86,25 +80,21 @@ test.group('QuotaService.consume — concurrency (integration)', (group) => {
       })`
     )
 
-    // The hard bound: under no scenario should we OVER-grant the quota.
-    // If this assertion fails, the documented "near-atomic" caveat has
-    // graduated into a real correctness problem and consume() needs a
-    // Lua-backed atomic INCRBY-and-check.
-    assert.isAtMost(
+    // Exactness, not a bound: the Lua script serializes concurrent callers
+    // on the Redis server, so the only acceptable outcome is exactly
+    // `limit` grants. Any other number (over OR under) means the atomic
+    // guarantee the docs promise has regressed.
+    assert.equal(
       fulfilled,
       limit,
-      `Quota over-shoot: ${fulfilled}/${limit} requests succeeded under ${parallelism}-way concurrency. ` +
-        `This means QuotaService.consume() is NOT atomic — rewrite with Redis Lua, or update the docs to call out the exact over-shoot bound.`
+      `Expected exactly ${limit} grants under ${parallelism}-way concurrency, got ${fulfilled}. ` +
+        `QuotaService.consume()'s single-EVAL atomicity has regressed.`
     )
 
-    // And we must have actually saturated — otherwise the test isn't
-    // proving anything. With parallelism (50) > limit (10) we expect
-    // significant rejections.
-    assert.isAtLeast(
+    assert.equal(
       quotaExceeded,
       parallelism - limit,
-      `Expected at least ${parallelism - limit} rejections, got ${quotaExceeded}. ` +
-        `Either parallelism is too low or the limit isn't being enforced.`
+      `Expected exactly ${parallelism - limit} QuotaExceededException rejections, got ${quotaExceeded}.`
     )
   })
 
