@@ -7,6 +7,7 @@ import type { TenantRepositoryContract, TenantModelContract } from '../types/con
 import HookRegistry from '../services/hook_registry.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import TenantMigrated from '../events/tenant_migrated.js'
+import { migrationTaskError } from './migration_task_error.js'
 
 /**
  * Drop and recreate the per-tenant storage, then re-run all migrations from
@@ -128,7 +129,7 @@ export default class TenantMigrateFresh extends BaseCommand {
           return 'completed'
         } catch (error: any) {
           ok = false
-          return this.verbose ? task.error(error.message) : task.error('failed')
+          return migrationTaskError(task, error)
         }
       })
       .run()
