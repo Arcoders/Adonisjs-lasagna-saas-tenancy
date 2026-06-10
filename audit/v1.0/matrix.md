@@ -848,37 +848,37 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [billing#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=billing` | B | | | | | |
-| [billing#2] | Requirement: `npm install stripe@^18` | B | | | | | |
-| [billing#3] | "5 backoffice migrations: tenant_plans, stripe_customers, stripe_subscriptions, stripe_processed_events, stripe_meter_events" | B | | | | | |
-| [billing#4] | "Publishes app/mailers/quota_warning_mailer.ts plus resources/views/emails/quota_warning.edge" | B | | | | | |
-| [billing#5] | Env var: `STRIPE_API_KEY` — Secret key. Boot **rejects** sk_live_* when NODE_ENV !== 'production' | B | | | | | |
-| [billing#6] | Env var: `STRIPE_WEBHOOK_SECRET` — Webhook signing secret from Stripe dashboard | B | | | | | |
-| [billing#7] | Env var: `STRIPE_API_VERSION` (optional, default '2025-08-27.basil') — pin version | B | | | | | |
-| [billing#8] | Env var: `STRIPE_ALLOW_LIVE_IN_DEV` — Set to 'true' to allow live keys outside production | B | | | | | |
-| [billing#9] | "Boot **rejects** when STRIPE_API_KEY and NODE_ENV disagree about test vs live mode" | A | | | | | |
-| [billing#10] | "Boot validates STRIPE_WEBHOOK_SECRET is non-empty and starts with whsec_" | A | | | | | |
-| [billing#11] | Config: `billing.driver` — 'stripe' (required) | B | | | | | |
-| [billing#12] | Config: `billing.stripe.apiKey` — from STRIPE_API_KEY | B | | | | | |
-| [billing#13] | Config: `billing.stripe.webhookSecret` — from STRIPE_WEBHOOK_SECRET | B | | | | | |
-| [billing#14] | Config: `billing.stripe.apiVersion` — optional pin | B | | | | | |
-| [billing#15] | Config: `billing.stripe.timeout` (default 10_000 ms) | B | | | | | |
-| [billing#16] | Config: `billing.stripe.maxNetworkRetries` (default 3) | B | | | | | |
-| [billing#17] | Config: `billing.products` — Record<string, string> — Stripe product/price ID → plan name | B | | | | | |
-| [billing#18] | Config: `billing.defaultPlan` — Plan assigned on cancel or unmapped product | B | | | | | |
-| [billing#19] | Config: `billing.webhook.path` (default '/webhooks/stripe') — Must be in ignorePaths | B | | | | | |
-| [billing#20] | Config: `billing.webhook.queueName` (default 'billing-events') | B | | | | | |
-| [billing#21] | Config: `billing.webhook.idempotencyTtlDays` (default 90) — Retention for stripe_processed_events | B | | | | | |
-| [billing#22] | Config: `billing.webhook.enforceIpAllowlist` (default false) | B | | | | | |
-| [billing#23] | Config: `billing.webhook.allowedIps` — Literal IPs and/or CIDR ranges | B | | | | | |
-| [billing#24] | Config: `billing.dunning.maxAttempts` (default 3) | B | | | | | |
-| [billing#25] | Config: `billing.dunning.action` — 'none' \| 'downgrade' | B | | | | | |
-| [billing#26] | Config: `billing.dunning.gracePeriodDays` (default 0) | B | | | | | |
-| [billing#27] | Config: `billing.notifyOnQuotaExceeded` (default false) | B | | | | | |
-| [billing#28] | Config: `billing.onTenantDelete` — 'cancel' \| 'detach' \| 'preserve' | B | | | | | |
-| [billing#29] | Config: `billing.usageMapping` — Auto-bridge QuotaService.track to Stripe Meters | B | | | | | |
-| [billing#30] | Config: `billing.observability.metrics` (default true if MetricsService active) | B | | | | | |
-| [billing#31] | Config: `billing.observability.redactPii` (default true) | B | | | | | |
+| [billing#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=billing` | B | VERIFIED | configure --with=billing | configure.spec.ts | none |  |
+| [billing#2] | Requirement: `npm install stripe@^18` | B | VERIFIED | stripe ^18 optional peer | — | none |  |
+| [billing#3] | "5 backoffice migrations: tenant_plans, stripe_customers, stripe_subscriptions, stripe_processed_events, stripe_meter_events" | B | VERIFIED | 5 stubs: tenant_plans + 4 stripe_* (glob verified) | configure.spec.ts billing bundle | none |  |
+| [billing#4] | "Publishes app/mailers/quota_warning_mailer.ts plus resources/views/emails/quota_warning.edge" | B | VERIFIED | stubs/mailers/quota_warning_mailer.stub + views/emails/quota_warning.edge.stub | configure publish spec | none |  |
+| [billing#5] | Env var: `STRIPE_API_KEY` — Secret key. Boot **rejects** sk_live_* when NODE_ENV !== 'production' | B | VERIFIED | billing_service.ts:120-135 live-key rejection | mode_detection.spec.ts | none |  |
+| [billing#6] | Env var: `STRIPE_WEBHOOK_SECRET` — Webhook signing secret from Stripe dashboard | B | VERIFIED | webhookSecret from env | webhook_idempotency.spec.ts | none |  |
+| [billing#7] | Env var: `STRIPE_API_VERSION` (optional, default '2025-08-27.basil') — pin version | B | VERIFIED | config.ts:120 default 2025-08-27.basil | — | none |  |
+| [billing#8] | Env var: `STRIPE_ALLOW_LIVE_IN_DEV` — Set to 'true' to allow live keys outside production | B | VERIFIED | billing_service.ts:132 escape hatch | mode_detection.spec.ts | none |  |
+| [billing#9] | "Boot **rejects** when STRIPE_API_KEY and NODE_ENV disagree about test vs live mode" | A | VERIFIED | billing_service.ts:106,120-135 | mode_detection.spec.ts | none |  |
+| [billing#10] | "Boot validates STRIPE_WEBHOOK_SECRET is non-empty and starts with whsec_" | A | VERIFIED | billing_service.ts:141-155 whsec_ validation | diagnostics_commands.spec.ts (:53-57) | none |  |
+| [billing#11] | Config: `billing.driver` — 'stripe' (required) | B | VERIFIED | config.ts:113 | — | none |  |
+| [billing#12] | Config: `billing.stripe.apiKey` — from STRIPE_API_KEY | B | VERIFIED | config.ts:116 | — | none |  |
+| [billing#13] | Config: `billing.stripe.webhookSecret` — from STRIPE_WEBHOOK_SECRET | B | VERIFIED | config.ts:118 | — | none |  |
+| [billing#14] | Config: `billing.stripe.apiVersion` — optional pin | B | VERIFIED | config.ts:120 | — | none |  |
+| [billing#15] | Config: `billing.stripe.timeout` (default 10_000 ms) | B | VERIFIED | config.ts:122 default 10_000 | — | none |  |
+| [billing#16] | Config: `billing.stripe.maxNetworkRetries` (default 3) | B | VERIFIED | config.ts:124 default 3 | — | none |  |
+| [billing#17] | Config: `billing.products` — Record<string, string> — Stripe product/price ID → plan name | B | VERIFIED | config.ts:127 | subscription_sync.spec.ts | none |  |
+| [billing#18] | Config: `billing.defaultPlan` — Plan assigned on cancel or unmapped product | B | VERIFIED | config.ts:129 | subscription_sync.spec.ts cancel→default | none |  |
+| [billing#19] | Config: `billing.webhook.path` (default '/webhooks/stripe') — Must be in ignorePaths | B | VERIFIED | config.ts:132 default /webhooks/stripe | ignore_paths.spec.ts | none |  |
+| [billing#20] | Config: `billing.webhook.queueName` (default 'billing-events') | B | VERIFIED | config.ts:134 default billing-events | — | none |  |
+| [billing#21] | Config: `billing.webhook.idempotencyTtlDays` (default 90) — Retention for stripe_processed_events | B | VERIFIED | config.ts:136 default 90 | cleanup_command.spec.ts | none |  |
+| [billing#22] | Config: `billing.webhook.enforceIpAllowlist` (default false) | B | VERIFIED | config.ts:138 default false | ip_allowlist.spec.ts | none |  |
+| [billing#23] | Config: `billing.webhook.allowedIps` — Literal IPs and/or CIDR ranges | B | VERIFIED | config.ts:140 | ip_allowlist.spec.ts + stripe_ip_allowlist unit (8) | none |  |
+| [billing#24] | Config: `billing.dunning.maxAttempts` (default 3) | B | VERIFIED | config.ts:144 default 3 | dunning_flow.spec.ts | none |  |
+| [billing#25] | Config: `billing.dunning.action` — 'none' \| 'downgrade' | B | VERIFIED | config.ts:159 | dunning_flow.spec.ts downgrade | none |  |
+| [billing#26] | Config: `billing.dunning.gracePeriodDays` (default 0) | B | VERIFIED | config.ts:161 default 0 | dunning_flow.spec.ts | none |  |
+| [billing#27] | Config: `billing.notifyOnQuotaExceeded` (default false) | B | VERIFIED | config.ts:164 default false | — | none |  |
+| [billing#28] | Config: `billing.onTenantDelete` — 'cancel' \| 'detach' \| 'preserve' | B | VERIFIED | config.ts:166 default cancel | tenant_delete_lifecycle.spec.ts | none |  |
+| [billing#29] | Config: `billing.usageMapping` — Auto-bridge QuotaService.track to Stripe Meters | B | VERIFIED | config.ts:173 usageMapping + batchFlushMs | metered_usage.spec.ts | none |  |
+| [billing#30] | Config: `billing.observability.metrics` (default true if MetricsService active) | B | VERIFIED | config.ts:176 | — | none |  |
+| [billing#31] | Config: `billing.observability.redactPii` (default true) | B | VERIFIED | config.ts:178 default true | pii_redaction.spec.ts | none |  |
 
 ## satellites/impersonation.md
 
@@ -909,52 +909,52 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [api#1] | "The admin API is fail-closed — multitenancyAdminRoutes(...) requires a middleware option" | A | | | | | |
-| [api#2] | "Throws at startup if you omit middleware" | A | | | | | |
-| [api#3] | "The package ships NO built-in token check" | B | | | | | |
-| [api#4] | Option: `middleware: false` — deliberately mount public (only behind trusted network) | B | | | | | |
-| [api#5] | API: `multitenancyAdminRoutes({ prefix, middleware, resolveAdminActor? })` | B | | | | | |
-| [api#6] | "middleware is required; omit it and the call throws" | B | | | | | |
-| [api#7] | "resolveAdminActor callback is required for privileged actions (audit attribution)" | B | | | | | |
-| [api#8] | "The spec is generated from the service contract" | B | | | | | |
-| [api#9] | Endpoint: JSON spec: GET /admin/multitenancy/openapi.json | B | | | | | |
-| [api#10] | Endpoint: Swagger UI: GET /admin/multitenancy/docs | B | | | | | |
-| [api#11] | REST: GET /tenants | B | | | | | |
-| [api#12] | REST: GET /tenants/{id} | B | | | | | |
-| [api#13] | REST: POST /tenants | B | | | | | |
-| [api#14] | REST: PUT /tenants/{id}/activate | B | | | | | |
-| [api#15] | REST: PUT /tenants/{id}/suspend | B | | | | | |
-| [api#16] | REST: DELETE /tenants/{id} | B | | | | | |
-| [api#17] | REST: PUT /tenants/{id}/restore | B | | | | | |
-| [api#18] | REST: PUT /tenants/{id}/maintenance | B | | | | | |
-| [api#19] | REST: DELETE /tenants/{id}/maintenance | B | | | | | |
-| [api#20] | REST: GET /tenants/{id}/audit-logs?from=…&to=… | B | | | | | |
-| [api#21] | REST: GET /tenants/{id}/feature-flags | B | | | | | |
-| [api#22] | REST: PUT /tenants/{id}/feature-flags/{key} | B | | | | | |
-| [api#23] | REST: DELETE /tenants/{id}/feature-flags/{key} | B | | | | | |
-| [api#24] | REST: GET /tenants/{id}/webhooks | B | | | | | |
-| [api#25] | REST: POST /tenants/{id}/webhooks | B | | | | | |
-| [api#26] | REST: DELETE /tenants/{id}/webhooks/{webhookId} | B | | | | | |
-| [api#27] | REST: GET /tenants/{id}/webhooks/{webhookId}/deliveries | B | | | | | |
+| [api#1] | "The admin API is fail-closed — multitenancyAdminRoutes(...) requires a middleware option" | A | VERIFIED | admin routes.ts:130-140 | — (no spec) | new-test:T9 |  |
+| [api#2] | "Throws at startup if you omit middleware" | A | VERIFIED | routes.ts:131 throw | — | new-test:T9 |  |
+| [api#3] | "The package ships NO built-in token check" | B | VERIFIED | no token logic shipped | — | none |  |
+| [api#4] | Option: `middleware: false` — deliberately mount public (only behind trusted network) | B | VERIFIED | routes.ts:139-140 middleware===false opt-out | — | new-test:T9 |  |
+| [api#5] | API: `multitenancyAdminRoutes({ prefix, middleware, resolveAdminActor? })` | B | VERIFIED | routes.ts:125 options incl. resolveAdminActor, docsAuth | e2e admin_full | none |  |
+| [api#6] | "middleware is required; omit it and the call throws" | B | VERIFIED | routes.ts:130 | — | new-test:T9 |  |
+| [api#7] | "resolveAdminActor callback is required for privileged actions (audit attribution)" | B | VERIFIED | impersonation endpoints require resolveAdminActor | e2e admin_full | none |  |
+| [api#8] | "The spec is generated from the service contract" | B | VERIFIED | openapi.ts generates from contract | openapi.spec.ts | none |  |
+| [api#9] | Endpoint: JSON spec: GET /admin/multitenancy/openapi.json | B | VERIFIED | routes.ts:208+ openapi.json | openapi.spec.ts; e2e admin_full | none |  |
+| [api#10] | Endpoint: Swagger UI: GET /admin/multitenancy/docs | B | VERIFIED | routes.ts /docs Swagger UI (docsAuth) | e2e admin_full | none |  |
+| [api#11] | REST: GET /tenants | B | VERIFIED | routes.ts:148 GET /tenants | e2e admin_full | none |  |
+| [api#12] | REST: GET /tenants/{id} | B | VERIFIED | :150 GET /tenants/:id | e2e admin_full | none |  |
+| [api#13] | REST: POST /tenants | B | VERIFIED | :149 POST /tenants | e2e admin_full | none |  |
+| [api#14] | REST: PUT /tenants/{id}/activate | B | BROKEN | :151 POST (not PUT) /tenants/:id/activate | e2e admin_full uses POST | doc-fix:F-29 |  |
+| [api#15] | REST: PUT /tenants/{id}/suspend | B | BROKEN | :152 POST /tenants/:id/suspend | e2e | doc-fix:F-29 |  |
+| [api#16] | REST: DELETE /tenants/{id} | B | BROKEN | :153 POST /tenants/:id/destroy — DELETE /tenants/{id} does not exist | e2e | doc-fix:F-29 |  |
+| [api#17] | REST: PUT /tenants/{id}/restore | B | BROKEN | :154 POST /tenants/:id/restore | e2e | doc-fix:F-29 |  |
+| [api#18] | REST: PUT /tenants/{id}/maintenance | B | BROKEN | :156 POST /tenants/:id/maintenance | e2e | doc-fix:F-29 |  |
+| [api#19] | REST: DELETE /tenants/{id}/maintenance | B | VERIFIED | :157 DELETE /tenants/:id/maintenance | e2e | none |  |
+| [api#20] | REST: GET /tenants/{id}/audit-logs?from=…&to=… | B | VERIFIED | :167 audit-logs + from/to | e2e admin_full | none |  |
+| [api#21] | REST: GET /tenants/{id}/feature-flags | B | VERIFIED | :180 | e2e | none |  |
+| [api#22] | REST: PUT /tenants/{id}/feature-flags/{key} | B | VERIFIED | :182 PUT flagKey | e2e | none |  |
+| [api#23] | REST: DELETE /tenants/{id}/feature-flags/{key} | B | VERIFIED | :183 DELETE flagKey | e2e | none |  |
+| [api#24] | REST: GET /tenants/{id}/webhooks | B | VERIFIED | :170 | e2e | none |  |
+| [api#25] | REST: POST /tenants/{id}/webhooks | B | VERIFIED | :171 | e2e | none |  |
+| [api#26] | REST: DELETE /tenants/{id}/webhooks/{webhookId} | B | VERIFIED | :173 | e2e | none |  |
+| [api#27] | REST: GET /tenants/{id}/webhooks/{webhookId}/deliveries | B | VERIFIED | :174 | e2e | none |  |
 
 ## authentication.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [auth#1] | "Lasagna does not ship an authentication system" | B | | | | | |
-| [auth#2] | "You bring your own (AdonisJS @adonisjs/auth, custom guard, external IdP)" | B | | | | | |
-| [auth#3] | "The package gives you the active tenant context, resolved before your auth runs" | B | | | | | |
-| [auth#4] | "Tenant resolution must run before your auth middleware" | A | | | | | |
-| [auth#5] | "If you authenticate first, a query against a tenant-scoped User model has no active tenant and will fail" | A | | | | | |
-| [auth#6] | "Make your User model extend TenantBaseModel" | B | | | | | |
-| [auth#7] | "Every auth query routes to the active tenant's schema automatically" | B | | | | | |
-| [auth#8] | "Sessions are scoped per tenant; see the session bootstrapper" | B | | | | | |
-| [auth#9] | "Operators and support staff use CentralBaseModel / BackofficeBaseModel" | B | | | | | |
-| [auth#10] | "Authenticate them on non-tenant routes declared with router.central()" | B | | | | | |
-| [auth#11] | "The Admin REST API is fail-closed: it refuses to mount without an auth middleware you provide" | B | | | | | |
-| [auth#12] | "It asks for a resolveAdminActor callback so every privileged action is attributed to a real operator" | B | | | | | |
-| [auth#13] | "When an operator needs to act as a tenant user, use the impersonation satellite" | B | | | | | |
-| [auth#14] | "Impersonation tokens are time-boxed, single-use, HMAC-signed, bound to the target tenant, and fully audited" | B | | | | | |
+| [auth#1] | "Lasagna does not ship an authentication system" | B | VERIFIED | no auth system in package | — | none |  |
+| [auth#2] | "You bring your own (AdonisJS @adonisjs/auth, custom guard, external IdP)" | B | N/A | guidance | — | none |  |
+| [auth#3] | "The package gives you the active tenant context, resolved before your auth runs" | B | VERIFIED | guard resolves before downstream middleware | guard specs | none |  |
+| [auth#4] | "Tenant resolution must run before your auth middleware" | A | VERIFIED | middleware ordering requirement (adapter needs context) | impersonation_tenant_binding ordering | none |  |
+| [auth#5] | "If you authenticate first, a query against a tenant-scoped User model has no active tenant and will fail" | A | VERIFIED | TenantBaseModel without context throws (adapter) | tenant_adapter.spec.ts:170 | none |  |
+| [auth#6] | "Make your User model extend TenantBaseModel" | B | N/A | app design guidance | — | none |  |
+| [auth#7] | "Every auth query routes to the active tenant's schema automatically" | B | VERIFIED | adapter routes user queries per tenant | cross_tenant_e2e | none |  |
+| [auth#8] | "Sessions are scoped per tenant; see the session bootstrapper" | B | PARTIAL | session scoping via tenantSession() helper (F-22) — not transparent | session_bootstrapper.spec.ts | doc-fix:F-22 |  |
+| [auth#9] | "Operators and support staff use CentralBaseModel / BackofficeBaseModel" | B | VERIFIED | central/backoffice base models | — | none |  |
+| [auth#10] | "Authenticate them on non-tenant routes declared with router.central()" | B | VERIFIED | router.central() macro | central_only_middleware.spec.ts | none |  |
+| [auth#11] | "The Admin REST API is fail-closed: it refuses to mount without an auth middleware you provide" | B | VERIFIED | admin routes.ts:130-140 | — | new-test:T9 |  |
+| [auth#12] | "It asks for a resolveAdminActor callback so every privileged action is attributed to a real operator" | B | VERIFIED | resolveAdminActor option | e2e admin_full | none |  |
+| [auth#13] | "When an operator needs to act as a tenant user, use the impersonation satellite" | B | VERIFIED | impersonation satellite | impersonation specs | none |  |
+| [auth#14] | "Impersonation tokens are time-boxed, single-use, HMAC-signed, bound to the target tenant, and fully audited" | B | PARTIAL | time-boxed/HMAC/tenant-bound/audited TRUE; 'single-use' FALSE (F-24) | impersonation specs | doc-fix:F-24 |  |
 
 ## jobs.md
 
@@ -1032,139 +1032,139 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [log#1] | "TenantLogContext owns the AsyncLocalStorage" | B | | | | | |
-| [log#2] | "tenancy.run() is the public entry point that activates a context outside HTTP" | B | | | | | |
-| [log#3] | API: `tenancy.run(tenant, async () => { ... })` | B | | | | | |
-| [log#4] | "Inside the callback: tenancy.currentId() === tenant.id" | B | | | | | |
-| [log#5] | "Inside the callback: tenantLogger() emits { tenantId } on every line" | B | | | | | |
-| [log#6] | "Lucid models extending TenantBaseModel route to this tenant's schema" | B | | | | | |
-| [log#7] | "Any async continuation (setTimeout, await fetch, Promise.all) sees the same context" | B | | | | | |
-| [log#8] | Function: `tenantLogger() → Logger` — AdonisJS root logger with active tenant context bound | B | | | | | |
-| [log#9] | "Outside any tenancy.run() scope, returns the plain root logger" | B | | | | | |
-| [log#10] | "No penalty for calling it everywhere" | B | | | | | |
-| [log#11] | "Uses Pino's native child(bindings) API" | B | | | | | |
-| [log#12] | API: `TenantLogContext.run({ tenantId, requestId, traceId, ... }, async () => { ... })` | B | | | | | |
-| [log#13] | "Every log line within this scope carries all fields" | B | | | | | |
-| [log#14] | "Each built-in job already wraps its execute() in tenancy.run()" | B | | | | | |
-| [log#15] | API: `tenancy.currentId() → string \| undefined` — synchronous, cheap | B | | | | | |
-| [log#16] | API: `await tenancy.current() → TenantModelContract \| null` — hits the repository | B | | | | | |
-| [log#17] | "For one-off log enrichment, use currentId()" | B | | | | | |
-| [log#18] | "tenancy.run() and TenantLogContext.run() honor a stack" | B | | | | | |
-| [log#19] | "An inner scope shadows the outer scope while it's active, then the outer is restored on return" | B | | | | | |
+| [log#1] | "TenantLogContext owns the AsyncLocalStorage" | B | VERIFIED | tenant_log_context.ts ALS owner | tenant_log_context.spec.ts | none |  |
+| [log#2] | "tenancy.run() is the public entry point that activates a context outside HTTP" | B | VERIFIED | tenancy.run activates | tenant_context.spec.ts | none |  |
+| [log#3] | API: `tenancy.run(tenant, async () => { ... })` | B | VERIFIED | tenancy.run(tenant, fn) | tenant_context.spec.ts | none |  |
+| [log#4] | "Inside the callback: tenancy.currentId() === tenant.id" | B | VERIFIED | currentId inside run | tenant_context.spec.ts:72 | none |  |
+| [log#5] | "Inside the callback: tenantLogger() emits { tenantId } on every line" | B | VERIFIED | tenant_logger child bindings {tenantId} | tenant_logger.spec.ts; e2e contextual_logging | none |  |
+| [log#6] | "Lucid models extending TenantBaseModel route to this tenant's schema" | B | VERIFIED | adapter prefers currentId | tenant_adapter.spec.ts:228 | none |  |
+| [log#7] | "Any async continuation (setTimeout, await fetch, Promise.all) sees the same context" | B | VERIFIED | ALS continuation semantics | tenant_context.spec.ts | none |  |
+| [log#8] | Function: `tenantLogger() → Logger` — AdonisJS root logger with active tenant context bound | B | VERIFIED | tenantLogger() → Logger | tenant_logger.spec.ts | none |  |
+| [log#9] | "Outside any tenancy.run() scope, returns the plain root logger" | B | VERIFIED | root logger fallback outside scope | tenant_logger.spec.ts | none |  |
+| [log#10] | "No penalty for calling it everywhere" | B | VERIFIED | cheap child() call | — | none |  |
+| [log#11] | "Uses Pino's native child(bindings) API" | B | VERIFIED | pino child(bindings) | tenant_logger.spec.ts | none |  |
+| [log#12] | API: `TenantLogContext.run({ tenantId, requestId, traceId, ... }, async () => { ... })` | B | VERIFIED | TenantLogContext.run({tenantId,requestId,...}) | tenant_log_context.spec.ts | none |  |
+| [log#13] | "Every log line within this scope carries all fields" | B | VERIFIED | all fields carried | tenant_log_context.spec.ts | none |  |
+| [log#14] | "Each built-in job already wraps its execute() in tenancy.run()" | B | VERIFIED | install_tenant.ts:23-24 et al | tenant_context.spec.ts | none |  |
+| [log#15] | API: `tenancy.currentId() → string \| undefined` — synchronous, cheap | B | VERIFIED | currentId() sync | tenant_context.spec.ts:146 | none |  |
+| [log#16] | API: `await tenancy.current() → TenantModelContract \| null` — hits the repository | B | VERIFIED | tenancy.current() repo fetch | tenant_log_context.spec.ts | none |  |
+| [log#17] | "For one-off log enrichment, use currentId()" | B | N/A | guidance | — | none |  |
+| [log#18] | "tenancy.run() and TenantLogContext.run() honor a stack" | B | VERIFIED | nested run stack | tenant_context.spec.ts:153 'nested tenancy.run() restores the outer tenant on exit' | none |  |
+| [log#19] | "An inner scope shadows the outer scope while it's active, then the outer is restored on return" | B | VERIFIED | inner shadows, outer restored | tenant_context.spec.ts:153 | none |  |
 
 ## health.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [health#1] | Endpoint: `GET /livez` — Liveness. Never touches DB or Redis. Always 200 while event loop is alive. | B | | | | | |
-| [health#2] | Endpoint: `GET /readyz` — Readiness. Every registered check passes. 200 when ok/degraded; 503 when fail. | B | | | | | |
-| [health#3] | Endpoint: `GET /healthz` — Same data as /readyz, full JSON report. 200 / 503. | B | | | | | |
-| [health#4] | Endpoint: `GET /metrics` — Prometheus text exposition. 200. | B | | | | | |
-| [health#5] | API: `multitenancyRoutes()` — root paths | B | | | | | |
-| [health#6] | API: `multitenancyRoutes({ prefix: '/internal' })` — /internal/livez, etc. | B | | | | | |
-| [health#7] | API: `multitenancyRoutes({ metrics: false })` — skip /metrics | B | | | | | |
-| [health#8] | API: `multitenancyRoutes({ health: false, metrics: false })` — opt-in via options | B | | | | | |
-| [health#9] | Check: `backofficeDbCheck` — SELECT 1 against backoffice connection | B | | | | | |
-| [health#10] | Check: `redisCheck` — PING against default Redis | B | | | | | |
-| [health#11] | Check: `makeCircuitBreakerCheck(fn)` — Reports fail if any tenant circuit is OPEN | B | | | | | |
-| [health#12] | Check: `billingHealthCheck` — Pings Stripe API + asserts webhooks flowing (when active subs exist) | B | | | | | |
-| [health#13] | Type: `HealthCheckFn = async () → Promise<CheckResult> \| CheckResult` | B | | | | | |
-| [health#14] | API: `health.addCheck('custom_dependency', checkFn)` | B | | | | | |
-| [health#15] | "HealthService enforces a 2-second timeout per check" | A | | | | | |
-| [health#16] | Status: ok — every check passed (or no checks registered) | B | | | | | |
-| [health#17] | Status: degraded — at least one passed, at least one failed (200 so Kubernetes keeps routing) | B | | | | | |
-| [health#18] | Status: fail — every check failed (503) | B | | | | | |
-| [health#19] | Metric: `multitenancy_tenants_total` — gauge | B | | | | | |
-| [health#20] | Metric: `multitenancy_tenants_by_status{status="..."}` — gauge | B | | | | | |
-| [health#21] | Metric: `multitenancy_circuit_state{tenant_id="..."}` — gauge (0=CLOSED, 1=HALF_OPEN, 2=OPEN) | B | | | | | |
-| [health#22] | Metric: `multitenancy_circuit_failures_total{...}` — counter | B | | | | | |
-| [health#23] | Metric: `multitenancy_circuit_successes_total{...}` — counter | B | | | | | |
-| [health#24] | Metric: `multitenancy_queue_jobs{tenant_id,queue,state}` — gauge (state ∈ waiting, active, completed, failed, delayed) | B | | | | | |
-| [health#25] | Metric: `multitenancy_uptime_seconds` — gauge | B | | | | | |
-| [health#26] | API: `collectSnapshot()` — gather metrics from current state | B | | | | | |
-| [health#27] | API: `renderPrometheus(snapshot)` — format as Prometheus text exposition | B | | | | | |
+| [health#1] | Endpoint: `GET /livez` — Liveness. Never touches DB or Redis. Always 200 while event loop is alive. | B | VERIFIED | health/routes.ts:54; controller livez never touches deps | health_service.spec.ts; e2e smoke | none |  |
+| [health#2] | Endpoint: `GET /readyz` — Readiness. Every registered check passes. 200 when ok/degraded; 503 when fail. | B | VERIFIED | routes.ts:55 + health_service readiness 200/503 | health_service.spec.ts | none |  |
+| [health#3] | Endpoint: `GET /healthz` — Same data as /readyz, full JSON report. 200 / 503. | B | VERIFIED | routes.ts:56 healthz same report | health_service.spec.ts | none |  |
+| [health#4] | Endpoint: `GET /metrics` — Prometheus text exposition. 200. | B | VERIFIED | routes.ts metrics group + renderPrometheus | metrics_exporter.spec.ts | none |  |
+| [health#5] | API: `multitenancyRoutes()` — root paths | B | VERIFIED | multitenancyRoutes() root paths | e2e smoke | none |  |
+| [health#6] | API: `multitenancyRoutes({ prefix: '/internal' })` — /internal/livez, etc. | B | VERIFIED | routes.ts:58 prefix group | — | none |  |
+| [health#7] | API: `multitenancyRoutes({ metrics: false })` — skip /metrics | B | VERIFIED | routes.ts options metrics:false | — | none |  |
+| [health#8] | API: `multitenancyRoutes({ health: false, metrics: false })` — opt-in via options | B | VERIFIED | options health/metrics booleans (:20-23,48) | — | none |  |
+| [health#9] | Check: `backofficeDbCheck` — SELECT 1 against backoffice connection | B | VERIFIED | default_checks.ts backofficeDbCheck | health_service.spec.ts | none |  |
+| [health#10] | Check: `redisCheck` — PING against default Redis | B | VERIFIED | default_checks.ts redisCheck | health_service.spec.ts | none |  |
+| [health#11] | Check: `makeCircuitBreakerCheck(fn)` — Reports fail if any tenant circuit is OPEN | B | VERIFIED | default_checks.ts makeCircuitBreakerCheck | health_service.spec.ts | none |  |
+| [health#12] | Check: `billingHealthCheck` — Pings Stripe API + asserts webhooks flowing (when active subs exist) | B | VERIFIED | billing pkg billingHealthCheck | health_check.spec.ts (billing) | none |  |
+| [health#13] | Type: `HealthCheckFn = async () → Promise<CheckResult> \| CheckResult` | B | VERIFIED | HealthCheckFn type | — | none |  |
+| [health#14] | API: `health.addCheck('custom_dependency', checkFn)` | B | VERIFIED | health_service addCheck | health_service.spec.ts | none |  |
+| [health#15] | "HealthService enforces a 2-second timeout per check" | A | VERIFIED | health_service.ts:18 DEFAULT_TIMEOUT_MS=2000 + #runWithTimeout | health_service.spec.ts timeout case | none |  |
+| [health#16] | Status: ok — every check passed (or no checks registered) | B | VERIFIED | status aggregation ok | health_service.spec.ts | none |  |
+| [health#17] | Status: degraded — at least one passed, at least one failed (200 so Kubernetes keeps routing) | B | VERIFIED | degraded → 200 | health_service.spec.ts | none |  |
+| [health#18] | Status: fail — every check failed (503) | B | VERIFIED | fail → 503 | health_service.spec.ts | none |  |
+| [health#19] | Metric: `multitenancy_tenants_total` — gauge | B | VERIFIED | metrics_exporter multitenancy_tenants_total | metrics_exporter.spec.ts | none |  |
+| [health#20] | Metric: `multitenancy_tenants_by_status{status="..."}` — gauge | B | VERIFIED | multitenancy_tenants_by_status | metrics_exporter.spec.ts | none |  |
+| [health#21] | Metric: `multitenancy_circuit_state{tenant_id="..."}` — gauge (0=CLOSED, 1=HALF_OPEN, 2=OPEN) | B | VERIFIED | multitenancy_circuit_state | metrics_exporter.spec.ts | none |  |
+| [health#22] | Metric: `multitenancy_circuit_failures_total{...}` — counter | B | VERIFIED | multitenancy_circuit_failures_total | metrics_exporter.spec.ts | none |  |
+| [health#23] | Metric: `multitenancy_circuit_successes_total{...}` — counter | B | VERIFIED | multitenancy_circuit_successes_total | metrics_exporter.spec.ts | none |  |
+| [health#24] | Metric: `multitenancy_queue_jobs{tenant_id,queue,state}` — gauge (state ∈ waiting, active, completed, failed, delayed) | B | VERIFIED | multitenancy_queue_jobs{...state} | metrics_exporter.spec.ts | none |  |
+| [health#25] | Metric: `multitenancy_uptime_seconds` — gauge | B | VERIFIED | multitenancy_uptime_seconds | metrics_exporter.spec.ts | none |  |
+| [health#26] | API: `collectSnapshot()` — gather metrics from current state | B | VERIFIED | metrics_collector collectSnapshot | metrics_exporter.spec.ts | none |  |
+| [health#27] | API: `renderPrometheus(snapshot)` — format as Prometheus text exposition | B | VERIFIED | renderPrometheus | metrics_exporter.spec.ts | none |  |
 
 ## resilience.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [resilience#1] | API: `ResilienceService.run({ dependency, operation, policy, tenantId, fallback, run })` | B | | | | | |
-| [resilience#2] | "Keep only the dependency call inside run" | B | | | | | |
-| [resilience#3] | Policy: fail-open — Returns fallback() and continues. Availability over correctness. | B | | | | | |
-| [resilience#4] | Policy: fail-closed — Throws DependencyUnavailableException (503 + Retry-After). Correctness over availability. | B | | | | | |
-| [resilience#5] | Config: `resilience: { redis: { quota: 'fail-open', rateLimit: 'fail-closed' }, observe: true }` | B | | | | | |
-| [resilience#6] | Key: `defaultPolicy` (default 'fail-closed') | B | | | | | |
-| [resilience#7] | Key: `redis.quota` (default 'fail-open') | B | | | | | |
-| [resilience#8] | Key: `redis.rateLimit` (default 'fail-closed') | B | | | | | |
-| [resilience#9] | Key: `redis.cache` (default 'fail-open') | B | | | | | |
-| [resilience#10] | Key: `redis.metrics` (default 'fail-open') | B | | | | | |
-| [resilience#11] | Key: `observe` (default true) — emit DependencyDegraded + log + OTel span event | B | | | | | |
-| [resilience#12] | Exception: `DependencyUnavailableException` — clean 503 with Retry-After, carries dependency, operation, tenantId | B | | | | | |
-| [resilience#13] | Event: `DependencyDegraded` — fires whenever a wrapped call fails and policy kicks in | B | | | | | |
-| [resilience#14] | Payload: { dependency, operation, tenantId, policy, errorCode } | B | | | | | |
-| [resilience#15] | "QuotaService.consume and track route Redis through the policy" | B | | | | | |
-| [resilience#16] | "RateLimitMiddleware emits the same DependencyDegraded event" | B | | | | | |
+| [resilience#1] | API: `ResilienceService.run({ dependency, operation, policy, tenantId, fallback, run })` | B | VERIFIED | resilience_service.ts run({dependency,operation,policy,tenantId,fallback,run}) | resilience_service.spec.ts | none |  |
+| [resilience#2] | "Keep only the dependency call inside run" | B | N/A | usage guidance | — | none |  |
+| [resilience#3] | Policy: fail-open — Returns fallback() and continues. Availability over correctness. | B | VERIFIED | fail-open → fallback() | resilience_service.spec.ts; quota_resilience | none |  |
+| [resilience#4] | Policy: fail-closed — Throws DependencyUnavailableException (503 + Retry-After). Correctness over availability. | B | VERIFIED | fail-closed → DependencyUnavailableException 503 | quota_resilience.spec.ts | none |  |
+| [resilience#5] | Config: `resilience: { redis: { quota: 'fail-open', rateLimit: 'fail-closed' }, observe: true }` | B | VERIFIED | config shape (config.ts:321-340) | — | none |  |
+| [resilience#6] | Key: `defaultPolicy` (default 'fail-closed') | B | VERIFIED | defaultPolicy fail-closed (config.ts:323) | — | new-test:T4 |  |
+| [resilience#7] | Key: `redis.quota` (default 'fail-open') | B | VERIFIED | quota fail-open (quota_service.ts:372) | quota_resilience.spec.ts | new-test:T4 |  |
+| [resilience#8] | Key: `redis.rateLimit` (default 'fail-closed') | B | VERIFIED | rateLimit fail-closed | rate_limit.spec.ts:93 | new-test:T4 |  |
+| [resilience#9] | Key: `redis.cache` (default 'fail-open') | B | VERIFIED | cache fail-open (config.ts:331) | — | new-test:T4 |  |
+| [resilience#10] | Key: `redis.metrics` (default 'fail-open') | B | VERIFIED | metrics fail-open (config.ts:333) | — | new-test:T4 |  |
+| [resilience#11] | Key: `observe` (default true) — emit DependencyDegraded + log + OTel span event | B | VERIFIED | observe default true (config.ts:339) | resilience_service.spec.ts | none |  |
+| [resilience#12] | Exception: `DependencyUnavailableException` — clean 503 with Retry-After, carries dependency, operation, tenantId | B | VERIFIED | dependency_unavailable_exception.ts 503 + Retry-After + context | quota_resilience.spec.ts | none |  |
+| [resilience#13] | Event: `DependencyDegraded` — fires whenever a wrapped call fails and policy kicks in | B | VERIFIED | DependencyDegraded dispatch in resilience.run | resilience_service.spec.ts | none |  |
+| [resilience#14] | Payload: { dependency, operation, tenantId, policy, errorCode } | B | VERIFIED | payload fields (dependency_degraded.ts) | resilience_service.spec.ts | none |  |
+| [resilience#15] | "QuotaService.consume and track route Redis through the policy" | B | VERIFIED | quota_service.ts:373 resilience.run | quota_resilience.spec.ts | none |  |
+| [resilience#16] | "RateLimitMiddleware emits the same DependencyDegraded event" | B | VERIFIED | rate_limit emits DependencyDegraded (unit log seen in baseline output) | rate_limit specs | none |  |
 
 ## read-replicas.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [replica#1] | Config: `tenantReadReplicas: { hosts, strategy, connectionSuffix }` | B | | | | | |
-| [replica#2] | Config: `hosts: [ { host, name, port?, user?, password? } ]` | B | | | | | |
-| [replica#3] | Config: `strategy: 'round-robin' \| 'random' \| 'sticky' (default 'round-robin')` | B | | | | | |
-| [replica#4] | Config: `connectionSuffix: '_read' (default)` | B | | | | | |
-| [replica#5] | Strategy: round-robin (default) — Global in-memory cursor cycles through hosts | B | | | | | |
-| [replica#6] | Strategy: random — Math.random() selects a host per call | B | | | | | |
-| [replica#7] | Strategy: sticky — SHA-1 of tenant.id modulo pool size — same tenant lands on same replica | B | | | | | |
-| [replica#8] | API: `replicas.resolve(tenant) → Promise<Lucid Connection \| null>` | B | | | | | |
-| [replica#9] | "Returns null when no replicas configured" | B | | | | | |
-| [replica#10] | "Lucid connection is registered on first use under stable name" | B | | | | | |
-| [replica#11] | "resolve() returns a connection for the chosen replica regardless of whether it's reachable" | A | | | | | |
-| [replica#12] | "There is NO automatic failover to the primary" | A | | | | | |
-| [replica#13] | "An unreachable replica surfaces as an error at query time, not at resolve() time" | A | | | | | |
-| [replica#14] | Doctor check: `tenant:doctor --check=replicaLag` — SELECT EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp())) against every replica | B | | | | | |
-| [replica#15] | Thresholds: warn at 30s (default), error at 120s (default) | B | | | | | |
-| [replica#16] | API: `replicas.resetCursor()` — reset round-robin counter | B | | | | | |
-| [replica#17] | API: `replicas.pickHost(tenantId)` — convenience accessor for chosen replica host | B | | | | | |
+| [replica#1] | Config: `tenantReadReplicas: { hosts, strategy, connectionSuffix }` | B | VERIFIED | config.ts:193-216 | read_replica_service.spec.ts | none |  |
+| [replica#2] | Config: `hosts: [ { host, name, port?, user?, password? } ]` | B | VERIFIED | ReadReplicaHost shape (config.ts:184-191) | — | none |  |
+| [replica#3] | Config: `strategy: 'round-robin' \| 'random' \| 'sticky' (default 'round-robin')` | B | VERIFIED | strategy default round-robin (config.ts:197) | e2e replicas_strategies | none |  |
+| [replica#4] | Config: `connectionSuffix: '_read' (default)` | B | VERIFIED | connectionSuffix _read (config.ts:207) | read_replica_resolve.spec.ts | none |  |
+| [replica#5] | Strategy: round-robin (default) — Global in-memory cursor cycles through hosts | B | VERIFIED | global cursor (read_replica_service) | read_replica_service.spec.ts | none |  |
+| [replica#6] | Strategy: random — Math.random() selects a host per call | B | VERIFIED | random strategy | read_replica_service.spec.ts | none |  |
+| [replica#7] | Strategy: sticky — SHA-1 of tenant.id modulo pool size — same tenant lands on same replica | B | VERIFIED | sticky hash of tenant id | read_replica_service.spec.ts | none |  |
+| [replica#8] | API: `replicas.resolve(tenant) → Promise<Lucid Connection \| null>` | B | VERIFIED | read_replica_service.ts:96 resolve(tenant) | read_replica_resolve.spec.ts | none |  |
+| [replica#9] | "Returns null when no replicas configured" | B | VERIFIED | resolve returns null when unset | read_replica_service.spec.ts | none |  |
+| [replica#10] | "Lucid connection is registered on first use under stable name" | B | VERIFIED | lazy Lucid registration w/ stable name | read_replica_resolve.spec.ts | none |  |
+| [replica#11] | "resolve() returns a connection for the chosen replica regardless of whether it's reachable" | A | VERIFIED | no reachability probe in resolve | read_replica_resolve.spec.ts unreachable case | none |  |
+| [replica#12] | "There is NO automatic failover to the primary" | A | VERIFIED | no failover code path | read_replica_resolve.spec.ts 'no auto-failover' | none |  |
+| [replica#13] | "An unreachable replica surfaces as an error at query time, not at resolve() time" | A | VERIFIED | error surfaces at query time | read_replica_resolve.spec.ts | none |  |
+| [replica#14] | Doctor check: `tenant:doctor --check=replicaLag` — SELECT EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp())) against every replica | B | VERIFIED | replica_lag_check.ts query | doctor/replica_lag.spec.ts | none |  |
+| [replica#15] | Thresholds: warn at 30s (default), error at 120s (default) | B | VERIFIED | defaults 30/120 (replica_lag_check.ts:4-5) | doctor/replica_lag.spec.ts | none |  |
+| [replica#16] | API: `replicas.resetCursor()` — reset round-robin counter | B | VERIFIED | read_replica_service.ts:141 resetCursor | read_replica_service.spec.ts | none |  |
+| [replica#17] | API: `replicas.pickHost(tenantId)` — convenience accessor for chosen replica host | B | VERIFIED | read_replica_service.ts:70 pickHost | read_replica_service.spec.ts | none |  |
 
 ## performance.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [perf#1] | Claim: "Benchmark results generated by npm run bench:report" | B | | | | | |
-| [perf#2] | Claim: "Read the shape, not the absolutes — relative cost across drivers and code paths" | B | | | | | |
-| [perf#3] | Claim: "header resolution is far cheaper than subdomain/path" | B | | | | | |
-| [perf#4] | Claim: "rowscope-pg reads faster than schema-pg ≈ database-pg" | B | | | | | |
-| [perf#5] | "Open tenant connections are bounded by the eviction grace window, NOT by maxTenantConnections" | A | | | | | |
-| [perf#6] | "Under the default 30s grace a burst of N active tenants opens ~N connections" | B | | | | | |
+| [perf#1] | Claim: "Benchmark results generated by npm run bench:report" | B | VERIFIED | benchmarks/ suite + bench:report script | — (existence only; not re-run) | none |  |
+| [perf#2] | Claim: "Read the shape, not the absolutes — relative cost across drivers and code paths" | B | N/A | interpretation guidance | — | none |  |
+| [perf#3] | Claim: "header resolution is far cheaper than subdomain/path" | B | VERIFIED | benchmarks/results baseline (relative claim) | — (existence) | none |  |
+| [perf#4] | Claim: "rowscope-pg reads faster than schema-pg ≈ database-pg" | B | VERIFIED | benchmarks/results baseline | — (existence) | none |  |
+| [perf#5] | "Open tenant connections are bounded by the eviction grace window, NOT by maxTenantConnections" | A | VERIFIED | connection_lru grace-window design (in-use never evicted) | connection_lru.spec.ts grace cases | none |  |
+| [perf#6] | "Under the default 30s grace a burst of N active tenants opens ~N connections" | B | VERIFIED | burst behavior documented = lru soft-cap | connection_lru.spec.ts cap-exceed case | none |  |
 
 ## deployment.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [deploy#1] | Target: Single-VPS Docker Compose for staging or low-volume production | B | | | | | |
-| [deploy#2] | Target: Kubernetes via Helm for HA / multi-region | B | | | | | |
-| [deploy#3] | Target: Security hardening checklist for both | B | | | | | |
-| [deploy#4] | Service: postgres-primary — postgres:16-alpine, wal_level=replica, replication user | B | | | | | |
-| [deploy#5] | Service: postgres-replica — postgres:16-alpine, streaming replica, hot standby | B | | | | | |
-| [deploy#6] | Service: redis — redis:7-alpine, password-protected, AOF persistence | B | | | | | |
-| [deploy#7] | Service: app (×3) — Built from deploy/Dockerfile, health checks against /readyz | B | | | | | |
-| [deploy#8] | Service: nginx — nginx:1.27-alpine, reverse proxy, JSON access logs | B | | | | | |
+| [deploy#1] | Target: Single-VPS Docker Compose for staging or low-volume production | B | VERIFIED | deploy/docker-compose.prod.yml exists | — (artifact) | none |  |
+| [deploy#2] | Target: Kubernetes via Helm for HA / multi-region | B | VERIFIED | deploy/charts/lasagna-app (Chart.yaml, values) | — (artifact) | none |  |
+| [deploy#3] | Target: Security hardening checklist for both | B | VERIFIED | deployment.md checklist + nginx.conf | — | none |  |
+| [deploy#4] | Service: postgres-primary — postgres:16-alpine, wal_level=replica, replication user | B | VERIFIED | compose.prod postgres-primary wal_level=replica + init-replica.sh | — (not behavior-tested) | none |  |
+| [deploy#5] | Service: postgres-replica — postgres:16-alpine, streaming replica, hot standby | B | VERIFIED | compose.prod postgres-replica hot standby | — | none |  |
+| [deploy#6] | Service: redis — redis:7-alpine, password-protected, AOF persistence | B | VERIFIED | compose.prod redis AOF + password | — | none |  |
+| [deploy#7] | Service: app (×3) — Built from deploy/Dockerfile, health checks against /readyz | B | VERIFIED | compose.prod app x3 + healthcheck /readyz; deploy/Dockerfile | — | none |  |
+| [deploy#8] | Service: nginx — nginx:1.27-alpine, reverse proxy, JSON access logs | B | VERIFIED | compose.prod nginx:1.27-alpine + nginx.conf | — | none |  |
 
 ## production-checklist.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [checklist#1] | "Auth middleware wired in front of multitenancyAdminRoutes(...) and resolveAdminActor set" | B | | | | | |
-| [checklist#2] | "Database role used by the app does NOT have SUPERUSER or BYPASSRLS" | B | | | | | |
-| [checklist#3] | "A separate database role handles audit-log retention with trigger disabled in controlled window" | B | | | | | |
-| [checklist#4] | "multitenancy.config.isolation.rowScopeMode left at default unless every cross-tenant query audited" | B | | | | | |
-| [checklist#5] | "CustomDomainMiddleware registered with strict: true if accepting tenant header AND using custom domains" | B | | | | | |
-| [checklist#6] | "Backup storage volume / S3 bucket encrypted at rest and lifecycle-managed" | B | | | | | |
-| [checklist#7] | "Rate-limit policy on RateLimitUnavailableException decided and tested (fail-open vs fail-closed)" | B | | | | | |
-| [checklist#8] | "OIDC client_secret, encryption keys, S3 credentials live in secrets manager, not .env" | B | | | | | |
-| [checklist#9] | "tenant:doctor runs on cron in production and pages on error-level findings" | B | | | | | |
-| [checklist#10] | "Health probes wired (/livez, /readyz, /healthz, /metrics)" | B | | | | | |
+| [checklist#1] | "Auth middleware wired in front of multitenancyAdminRoutes(...) and resolveAdminActor set" | B | VERIFIED | admin fail-closed + resolveAdminActor real | — | none |  |
+| [checklist#2] | "Database role used by the app does NOT have SUPERUSER or BYPASSRLS" | B | N/A | operator duty (RLS docs align) | — | none |  |
+| [checklist#3] | "A separate database role handles audit-log retention with trigger disabled in controlled window" | B | N/A | operator duty (audit retention) | — | none |  |
+| [checklist#4] | "multitenancy.config.isolation.rowScopeMode left at default unless every cross-tenant query audited" | B | VERIFIED | rowScopeMode default strict | scoping.spec.ts | none |  |
+| [checklist#5] | "CustomDomainMiddleware registered with strict: true if accepting tenant header AND using custom domains" | B | VERIFIED | strict:true option real | header_vs_domain specs | none |  |
+| [checklist#6] | "Backup storage volume / S3 bucket encrypted at rest and lifecycle-managed" | B | N/A | operator duty | — | none |  |
+| [checklist#7] | "Rate-limit policy on RateLimitUnavailableException decided and tested (fail-open vs fail-closed)" | B | VERIFIED | RateLimitUnavailableException real + failOpen option | rate_limit.spec.ts | none |  |
+| [checklist#8] | "OIDC client_secret, encryption keys, S3 credentials live in secrets manager, not .env" | B | N/A | operator duty | — | none |  |
+| [checklist#9] | "tenant:doctor runs on cron in production and pages on error-level findings" | B | VERIFIED | tenant:doctor --json exit codes for cron/pager | tenant_doctor.ts:92 | none |  |
+| [checklist#10] | "Health probes wired (/livez, /readyz, /healthz, /metrics)" | B | VERIFIED | multitenancyRoutes endpoints real | e2e smoke | none |  |
 
 ## stability.md
 
@@ -1210,32 +1210,32 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [limit#1] | "PostgreSQL only. No MySQL/MariaDB." | A | | | | | |
-| [limit#2] | "Node.js ≥ 24 required by AdonisJS 7 and Lucid 22" | B | | | | | |
-| [limit#3] | "No independent external security review yet. Isolation core is release-candidate." | B | | | | | |
-| [limit#4] | "Single maintainer (mitigated by test and documentation depth)" | B | | | | | |
-| [limit#5] | "No built-in driver-to-driver migration. Switching after launch is a planned data migration." | B | | | | | |
-| [limit#6] | "rowscope-pg: non-grouped top-level orWhere can escape the auto-scope" | A | | | | | |
-| [limit#7] | "Cross-layer Lucid relationships unsupported (tenant/backoffice/central on different schemas)" | B | | | | | |
-| [limit#8] | "Connection-cap default favors availability (isolation.enforceConnectionCap defaults false)" | A | | | | | |
-| [limit#9] | "Quotas and rate limiting can fail open on Redis outage (depending on resilience policy)" | B | | | | | |
-| [limit#10] | "Read replicas have no automatic failover and can serve stale reads" | A | | | | | |
-| [limit#11] | "Feature flags are boolean only — no built-in percentage rollout" | A | | | | | |
-| [limit#12] | "Metrics track a fixed counter set (requests, errors, bandwidth), not arbitrary named metrics" | B | | | | | |
+| [limit#1] | "PostgreSQL only. No MySQL/MariaDB." | A | VERIFIED | PG-only | — | none |  |
+| [limit#2] | "Node.js ≥ 24 required by AdonisJS 7 and Lucid 22" | B | VERIFIED | engines >=24 | CI Node 24 | none |  |
+| [limit#3] | "No independent external security review yet. Isolation core is release-candidate." | B | N/A | honest status (matches roadmap) | — | none |  |
+| [limit#4] | "Single maintainer (mitigated by test and documentation depth)" | B | N/A | honest project fact | — | none |  |
+| [limit#5] | "No built-in driver-to-driver migration. Switching after launch is a planned data migration." | B | VERIFIED | no driver-migration tool exists | — | none |  |
+| [limit#6] | "rowscope-pg: non-grouped top-level orWhere can escape the auto-scope" | A | VERIFIED | scoping.ts:91-115 orWhere escape (honest) | rowscope_rls.spec.ts:74 | none |  |
+| [limit#7] | "Cross-layer Lucid relationships unsupported (tenant/backoffice/central on different schemas)" | B | VERIFIED | cross-layer relationships unsupported | — | none |  |
+| [limit#8] | "Connection-cap default favors availability (isolation.enforceConnectionCap defaults false)" | A | VERIFIED | enforceConnectionCap default false (config.ts:295) | universal_connection_cap.spec.ts | none |  |
+| [limit#9] | "Quotas and rate limiting can fail open on Redis outage (depending on resilience policy)" | B | VERIFIED | resilience defaults (quota fail-open) | quota_resilience.spec.ts | none |  |
+| [limit#10] | "Read replicas have no automatic failover and can serve stale reads" | A | VERIFIED | no failover; stale reads possible | read_replica_resolve.spec.ts | none |  |
+| [limit#11] | "Feature flags are boolean only — no built-in percentage rollout" | A | VERIFIED | boolean flags only | feature_flag_service.spec.ts | none |  |
+| [limit#12] | "Metrics track a fixed counter set (requests, errors, bandwidth), not arbitrary named metrics" | B | VERIFIED | fixed metric set | metrics_service.spec.ts | none |  |
 
 ## gotchas.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [gotcha#1] | "Always resolve the tenant via the helper — reading the header directly bypasses resolverStrategy/resolverChain" | A | | | | | |
-| [gotcha#2] | "The provisioning → active race (transient 503s) — correct behavior, wait for TenantActivated" | B | | | | | |
-| [gotcha#3] | "fail-open quotas silently stop enforcing on Redis outage — subscribe to DependencyDegraded to alert" | A | | | | | |
-| [gotcha#4] | "Read replicas can serve stale data — no lag check, no auto-failover" | A | | | | | |
-| [gotcha#5] | "Custom domains + header strategy — mismatched header rejected with TenantHeaderDomainMismatchException (400)" | A | | | | | |
-| [gotcha#6] | "Circuit breaker reopens after restart — breaker state persisted to Redis and restored on process start" | A | | | | | |
-| [gotcha#7] | "Replaying old Stripe events works even past 30 days — webhook controller persists PII-stripped copy in stripe_processed_events.payload" | B | | | | | |
-| [gotcha#8] | "A resolved tenant whose database is down returns 503, never central" | A | | | | | |
-| [gotcha#9] | "The SSRF guard validates the URL, not the resolved connection IP — rejects non-HTTPS and private ranges" | B | | | | | |
+| [gotcha#1] | "Always resolve the tenant via the helper — reading the header directly bypasses resolverStrategy/resolverChain" | A | VERIFIED | resolveTenantId helper (request.ts) | tenant_resolver.spec.ts | none |  |
+| [gotcha#2] | "The provisioning → active race (transient 503s) — correct behavior, wait for TenantActivated" | B | VERIFIED | provisioning status → TenantNotReady 503 | tenant_guard_middleware.spec.ts | none |  |
+| [gotcha#3] | "fail-open quotas silently stop enforcing on Redis outage — subscribe to DependencyDegraded to alert" | A | VERIFIED | quota fail-open + DependencyDegraded | quota_resilience.spec.ts | none |  |
+| [gotcha#4] | "Read replicas can serve stale data — no lag check, no auto-failover" | A | VERIFIED | replica staleness honest | read_replica_resolve.spec.ts | none |  |
+| [gotcha#5] | "Custom domains + header strategy — mismatched header rejected with TenantHeaderDomainMismatchException (400)" | A | VERIFIED | strict mismatch 400 | header_vs_domain_precedence.spec.ts:27 | none |  |
+| [gotcha#6] | "Circuit breaker reopens after restart — breaker state persisted to Redis and restored on process start" | A | VERIFIED | circuit state persisted+restored | integration circuit_breaker_service.spec.ts | none |  |
+| [gotcha#7] | "Replaying old Stripe events works even past 30 days — webhook controller persists PII-stripped copy in stripe_processed_events.payload" | B | VERIFIED | local payload replay fallback | replay_fallback.spec.ts (B1) | none |  |
+| [gotcha#8] | "A resolved tenant whose database is down returns 503, never central" | A | VERIFIED | 503 never central fallthrough | connection_failure_503.spec.ts | none |  |
+| [gotcha#9] | "The SSRF guard validates the URL, not the resolved connection IP — rejects non-HTTPS and private ranges" | B | PARTIAL | resolving guard validateResolvedHostIsPublic DOES resolve DNS for fetch paths — page understates | url.spec.ts:148+ | doc-fix (W7 wording) | docs say guard validates URL not resolved IP; resolving variant exists |
 
 ## cookbook/stripe-quotas.md
 

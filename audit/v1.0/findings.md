@@ -468,6 +468,36 @@ regression test), `doc-fix` (claim rewritten to match deliberate behavior), `tes
   the audit branch. ALSO satellites/index.md sat#16 sentence gets removed/softened.
 - **Status:** open
 
+## F-29: admin-rest-api.md uses wrong HTTP verbs for the five lifecycle mutations
+
+- **Claims:** [api#14..18] (+ [api#16] path)
+- **Severity:** MED (copy-pasted curl examples 404/405)
+- **Reality:** code routes are `POST /tenants/:id/activate|suspend|restore|maintenance`,
+  `POST /tenants/:id/destroy`, `DELETE /tenants/:id/maintenance`
+  (packages/admin/src/routes.ts:148-160). Doc says PUT for activate/suspend/restore/
+  maintenance and `DELETE /tenants/{id}` (which doesn't exist). The GET/webhook/flag/
+  audit-log routes match. The page also omits several real routes (queue/stats,
+  impersonations, health/report, webhook update/retry, branding, sso, quotas, metrics) —
+  acceptable if not claiming completeness, but worth a sweep while fixing.
+- **Resolution:** doc-fix — correct the verbs/paths; ideally regenerate the table from
+  openapi.json so it can't drift again.
+- **Status:** open
+
+## F-30: multi-region cookbook alerts on a Prometheus metric that doesn't exist
+
+- **Claims:** [mregion#9]
+- **Severity:** LOW/MED (an operator wiring the suggested alert gets a silent no-data
+  alert)
+- **Reality:** the exporter emits exactly: multitenancy_tenants_total,
+  multitenancy_tenants_by_status, multitenancy_circuit_state,
+  multitenancy_circuit_failures_total, multitenancy_circuit_successes_total,
+  multitenancy_queue_jobs, multitenancy_uptime_seconds (metrics_exporter.ts). There is no
+  `multitenancy_replica_lag_seconds`; lag is surfaced by `tenant:doctor
+  --check=replica_lag`, not Prometheus.
+- **Resolution:** doc-fix — replace the alert suggestion with the doctor-based check (or
+  a textfile-exporter pattern). Adding the metric is a small feature — roadmap note.
+- **Status:** open
+
 ## Addendum to F-17 (jobs.md)
 
 jobs.md also claims InstallTenant "runs migrations" — `install_tenant.ts:36` only calls
