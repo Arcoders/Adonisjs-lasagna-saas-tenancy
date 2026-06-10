@@ -1,5 +1,14 @@
 import { test } from '@japa/runner'
-import { mkdtemp, rm, mkdir, writeFile, readFile, readdir, access, appendFile } from 'node:fs/promises'
+import {
+  mkdtemp,
+  rm,
+  mkdir,
+  writeFile,
+  readFile,
+  readdir,
+  access,
+  appendFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import configure from '../../configure.js'
@@ -16,7 +25,9 @@ import configure from '../../configure.js'
  */
 
 async function exists(p: string): Promise<boolean> {
-  return access(p).then(() => true).catch(() => false)
+  return access(p)
+    .then(() => true)
+    .catch(() => false)
 }
 
 // Maps a stub path to the destination the real stub writes to. Returns null

@@ -204,9 +204,7 @@ export default async function configure(command: Configure) {
   }
 
   if (skipped.length > 0) {
-    command.logger.info(
-      `skipped already-published migrations (re-run safe): ${skipped.join(', ')}`
-    )
+    command.logger.info(`skipped already-published migrations (re-run safe): ${skipped.join(', ')}`)
   }
   command.logger.info(`published migrations: ${selected.join(', ')}`)
 
@@ -296,7 +294,9 @@ function postPublishConfigReminders(command: Configure, selected: string[]): voi
     log.log('— SSO satellite — additional setup —')
     log.log('Install the SSO package (ships the SsoService + TenantSsoConfig model):')
     log.log('  npm install @adonisjs-lasagna/sso')
-    log.log('  npm install jose                      # optional, only for JWKS id-token verification')
+    log.log(
+      '  npm install jose                      # optional, only for JWKS id-token verification'
+    )
     log.log("  import { SsoService, TenantSsoConfig } from '@adonisjs-lasagna/sso'")
   }
 

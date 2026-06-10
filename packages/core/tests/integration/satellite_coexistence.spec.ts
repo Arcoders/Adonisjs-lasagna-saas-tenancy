@@ -48,7 +48,12 @@ async function cleanupTenant(id: string): Promise<void> {
     'ALTER TABLE backoffice.tenant_audit_logs DISABLE TRIGGER tenant_audit_logs_no_delete'
   )
   try {
-    await db.connection('backoffice').query().from('tenant_audit_logs').where('tenant_id', id).delete()
+    await db
+      .connection('backoffice')
+      .query()
+      .from('tenant_audit_logs')
+      .where('tenant_id', id)
+      .delete()
   } finally {
     await db.rawQuery(
       'ALTER TABLE backoffice.tenant_audit_logs ENABLE TRIGGER tenant_audit_logs_no_delete'
@@ -90,7 +95,11 @@ test.group('Satellite coexistence (integration)', (group) => {
     tenants.push(t.id)
 
     // audit
-    await new AuditLogService().log({ tenantId: t.id, action: 'tenant.created', actorType: 'system' })
+    await new AuditLogService().log({
+      tenantId: t.id,
+      action: 'tenant.created',
+      actorType: 'system',
+    })
     // feature flags
     await new FeatureFlagService().set(t.id, 'beta_dashboard', true, { rollout: 10 })
     // branding
@@ -156,10 +165,16 @@ test.group('Satellite coexistence (integration)', (group) => {
     await quota.assignPlan(b.id, 'team')
 
     const auditA = await audit.listForTenant(a.id, 1, 50)
-    assert.deepEqual(auditA.data.map((r: any) => r.action), ['a.event'])
+    assert.deepEqual(
+      auditA.data.map((r: any) => r.action),
+      ['a.event']
+    )
 
     const flagsA = await flags.listForTenant(a.id)
-    assert.deepEqual(flagsA.map((f) => f.flag), ['flag_a'])
+    assert.deepEqual(
+      flagsA.map((f) => f.flag),
+      ['flag_a']
+    )
 
     assert.equal((await TenantPlan.find(a.id))!.planName, 'pro')
     assert.equal((await TenantPlan.find(b.id))!.planName, 'team')

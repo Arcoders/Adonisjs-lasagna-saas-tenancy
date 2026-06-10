@@ -131,7 +131,10 @@ test.group('configure — dedup across overlapping bundles', () => {
   })
 
   test('billing + quotas is identical to billing alone (plans already leads)', ({ assert }) => {
-    assert.deepEqual(resolveMigrationStubs(['billing', 'quotas']), resolveMigrationStubs(['billing']))
+    assert.deepEqual(
+      resolveMigrationStubs(['billing', 'quotas']),
+      resolveMigrationStubs(['billing'])
+    )
   })
 
   test('a stub never appears twice for any selection', ({ assert }) => {
@@ -190,7 +193,10 @@ test.group('configure — filterAlreadyPublished (idempotency guard)', () => {
 
   test('ignores files that do not match the <digits>_<stub>.ts shape', ({ assert }) => {
     const existing = ['create_tenant_audit_logs_table.ts', 'README.md', '.gitkeep']
-    const { toPublish, skipped } = filterAlreadyPublished(['create_tenant_audit_logs_table'], existing)
+    const { toPublish, skipped } = filterAlreadyPublished(
+      ['create_tenant_audit_logs_table'],
+      existing
+    )
     assert.deepEqual(skipped, [])
     assert.deepEqual(toPublish, ['create_tenant_audit_logs_table'])
   })
