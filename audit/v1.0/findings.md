@@ -89,3 +89,83 @@ regression test), `doc-fix` (claim rewritten to match deliberate behavior), `tes
 - **Resolution:** doc-fix — update or de-precision the number in showcase.md and
   testing.md.
 - **Status:** open
+
+## F-7: bulk-write scoping mechanism is mis-described (doc + stale test titles), and bulk UPDATE lacks a real-Lucid test
+
+- **Claims:** [security#4]
+- **Severity:** MED for the coverage gap, LOW for the wording
+- **Doc text:** "Bulk `Model.query().delete()` / `.update()` … are intercepted by the
+  `before('fetch')` hook (Lucid fires it for query-builder paths)." (security.md)
+- **Reality:** the source says the opposite and guards differently:
+  `packages/core/src/models/scoping.ts:149-166` — "Lucid's `before:fetch` only fires when
+  knex's `_method === 'select'`, so query-builder DELETE/UPDATE wouldn't get scoped through
+  it" — and wraps the static `query()` factory to inject the predicate at construction
+  time. The *outcome* (bulk delete is tenant-scoped) IS proven against real Lucid + PG:
+  `packages/core/tests/integration/services/rowscope_pg_driver.spec.ts:238` ("bulk delete
+  via query builder is scoped"). But (a) that test's title and the unit group in
+  `tests/unit/models/scoping.spec.ts:263` repeat the wrong mechanism ("Lucid fires
+  before:fetch") — the unit test manually invokes the hook on a fake model, proving
+  nothing about Lucid; (b) bulk `.update()` has no real-Lucid test at all.
+- **Resolution:** code-fix scope: add a real-Lucid bulk-UPDATE isolation test next to the
+  bulk-delete one; fix the stale test titles/comments. doc-fix: security.md describes the
+  construction-time `query()` predicate as the mechanism.
+- **Status:** open
+
+## F-8: security.md's "bounded connection pool" row predates the in-core LRU
+
+- **Claims:** [security#10]
+- **Severity:** MED (tells hosts to hand-roll a safeguard the package now owns; understates
+  the actual guarantee)
+- **Doc text:** "The fixture `Tenant` model demonstrates an LRU cap on tenant connections
+  (50 by default)… Hosts should keep this LRU pattern in their `Tenant` implementation."
+- **Reality:** since the Carril-A hardening, the LRU is implemented in the package:
+  `packages/core/src/services/isolation/connection_lru.ts` (DEFAULT_MAX_TENANT_CONNECTIONS
+  = 50) and is wired into `schema_pg_driver.ts:45` / `database_pg_driver.ts:52` with a
+  grace window and optional hard cap (`isolation.enforceConnectionCap`). Hosts configure
+  it; they do not implement it. Tested: `tests/unit/services/connection_lru.spec.ts` (17
+  tests), `tests/integration/middleware/universal_connection_cap.spec.ts`.
+- **Resolution:** doc-fix — rewrite the row to describe the in-core LRU + config knobs.
+- **Status:** open
+
+## F-9: admin fail-closed startup throw has no test
+
+- **Claims:** [security#12], [upgrade#7], [auth#…]
+- **Severity:** MED (a documented security default with zero enforcement)
+- **Reality:** `packages/admin/src/routes.ts:130-140` implements the throw; no spec in
+  `packages/admin/tests` or e2e covers the omitted-middleware or `middleware: false`
+  branches.
+- **Resolution:** code-fix scope — new unit spec (T9) in packages/admin asserting: omitted
+  middleware throws with the documented message; `middleware: false` mounts public;
+  middleware provided guards the group.
+- **Status:** open
+
+## F-10: bootstrapper count is inconsistent across pages (and "queue" is not a bootstrapper)
+
+- **Claims:** [why#1] ("6 bootstrappers"), why.md:47 card ("Cache, drive, mail, session,
+  queue, transmit"), [intro#2] ("Five bootstrappers: cache, drive, mail, session,
+  broadcasting"), [showcase#1] ("all six bootstrappers")
+- **Severity:** MED (three pages, three different stories)
+- **Reality:** the BootstrapperRegistry registers exactly 5: cache (always) + drive, mail,
+  session, transmit when their bindings exist (`multitenancy_provider.ts:147-264`). Queue
+  tenant-scoping exists but flows through `tenancy.run()` in job execution, not a
+  bootstrapper. intro.md matches the code; why.md and showcase.md overcount.
+- **Resolution:** doc-fix — align on "five bootstrappers (cache, drive/filesystem, mail,
+  session, broadcasting/transmit)" and describe queue scoping separately, which is also
+  more accurate about the mechanism. Check docs/bootstrappers/index.md taxonomy (it has a
+  database.md page) in W3 before wording the fix.
+- **Status:** open
+
+## F-11: "ten built-in checks" counts a check that ships in another package
+
+- **Claims:** [why#…] (doctor card: "ten built-in checks"), [intro#4] ("tenant:doctor (ten
+  checks, --fix, --watch, --json)")
+- **Severity:** LOW/MED (core-only installs get 9; the 10th, `backup_recency`, registers
+  only when `@adonisjs-lasagna/backup`'s provider is installed — upgrade-to-1.0.md states
+  this correctly)
+- **Reality:** `packages/core/src/services/doctor/checks/` holds 9 checks
+  (circuit_breaker, connection_pool, failed_tenants, long_running_queries,
+  migration_state, provisioning_stalled, queue_stuck, replica_lag, schema_drift);
+  `packages/backup/src/doctor/backup_recency_check.ts` is the 10th.
+- **Resolution:** doc-fix — "nine built-in checks (plus `backup_recency` when the backup
+  satellite is installed)".
+- **Status:** open

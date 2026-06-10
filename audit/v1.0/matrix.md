@@ -11,70 +11,74 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [home#1] | "Each tenant lives in its own PostgreSQL schema. No tenant_id leaks into your queries, and a cross-tenant read throws instead of returning the wrong rows." | A | | | | | |
-| [home#2] | "Four isolation drivers: schema-pg, database-pg, rowscope-pg, and an in-memory SQLite driver for tests." | B | | | | | |
-| [home#3] | "Cache, drive, mail, sessions, broadcasts, and queued jobs all resolve the active tenant through AsyncLocalStorage." | B | | | | | |
-| [home#4] | "A doctor command that fixes things, scheduled backups with retention tiers, restore, clone, and a REST admin API described by an OpenAPI spec." | B | | | | | |
-| [home#5] | "Audit logs, feature flags, signed webhooks, branding, SSO, metrics, quotas, and Stripe billing." | B | | | | | |
-| [home#6] | "Circuit breakers, read replicas, health probes, Prometheus metrics, and OpenTelemetry spans." | B | | | | | |
-| [home#7] | "A Dockerfile, docker-compose, and Helm chart ship with it." | B | | | | | |
+| [home#1] | "Each tenant lives in its own PostgreSQL schema. No tenant_id leaks into your queries, and a cross-tenant read throws instead of returning the wrong rows." | A | VERIFIED | schema_pg_driver.ts (per-schema routing); scoping.ts:135 (strict throw) | cross_tenant_e2e.spec.ts:71 (zero cross-reads under concurrency); rowscope_pg_driver.spec.ts:232 (throw on missing scope) | none | "throws" = strict-scope path; schema-pg prevents by routing |
+| [home#2] | "Four isolation drivers: schema-pg, database-pg, rowscope-pg, and an in-memory SQLite driver for tests." | B | VERIFIED | src/services/isolation/{schema,database,rowscope}_pg_driver.ts + sqlite_memory_driver.ts | per-driver unit + integration specs | none | |
+| [home#3] | "Cache, drive, mail, sessions, broadcasts, and queued jobs all resolve the active tenant through AsyncLocalStorage." | B | VERIFIED | bootstrappers ×5 + tenancy.run in jobs (install_tenant.ts, tenant_context) | bootstrapper_isolation.spec.ts; jobs/tenant_context.spec.ts:72; e2e mail/queue_jobs | none | |
+| [home#4] | "A doctor command that fixes things, scheduled backups with retention tiers, restore, clone, and a REST admin API described by an OpenAPI spec." | B | VERIFIED | tenant_doctor.ts (--fix); packages/backup (retention/restore/clone); packages/admin (OpenAPI 3.1) | doctor_checks_real.spec.ts; backup pkg specs + e2e backups_real; admin openapi.spec.ts + e2e admin_full | none | backups need @adonisjs-lasagna/backup installed |
+| [home#5] | "Audit logs, feature flags, signed webhooks, branding, SSO, metrics, quotas, and Stripe billing." | B | VERIFIED | core satellites + packages/sso + packages/billing | per-satellite integration specs (W4 deepens) | none | |
+| [home#6] | "Circuit breakers, read replicas, health probes, Prometheus metrics, and OpenTelemetry spans." | B | VERIFIED | circuit_breaker_service.ts:1,25 (opossum per tenant); read_replica_service.ts; health/; metrics_exporter.ts; telemetry_service.ts | unit+integration circuit specs; read_replica_resolve; health_service.spec; telemetry_export.spec | none | |
+| [home#7] | "A Dockerfile, docker-compose, and Helm chart ship with it." | B | VERIFIED | deploy/Dockerfile, deploy/docker-compose.prod.yml, deploy/charts/lasagna-app/Chart.yaml | — (artifacts, not behavior) | none | |
 
 ## quickstart.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [quickstart#1] | Command: `npm install @adonisjs-lasagna/saas-tenancy` | B | | | | | |
-| [quickstart#2] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,webhooks` | B | | | | | |
-| [quickstart#3] | Command: `node ace backoffice:setup` - "Creates the backoffice schema and runs all satellite-table migrations in one shot. Idempotent; re-run any time." | B | | | | | |
-| [quickstart#4] | Command: `node ace tenant:create "Acme Corp" "admin@acme.example.com"` - "Insert a tenant row and queue InstallTenant" | B | | | | | |
-| [quickstart#5] | Command: `node ace queue:work` - "in another terminal — provisions the schema" | B | | | | | |
-| [quickstart#6] | Command: `node ace tenant:migrate` - "apply your tenant migrations into the new schema" | B | | | | | |
-| [quickstart#7] | Command: `node ace tenant:doctor` - "checks your connections, schema health, and configuration. A green report means the tenant is provisioned and routable." | B | | | | | |
-| [quickstart#8] | Import: `@adonisjs-lasagna/saas-tenancy` - Main package | B | | | | | |
-| [quickstart#9] | Import: `TENANT_REPOSITORY` from `@adonisjs-lasagna/saas-tenancy` | B | | | | | |
-| [quickstart#10] | Macro: `request.tenant()` - "Memoised per request, same reference no matter how many times you call it." | B | | | | | |
-| [quickstart#11] | Config requirement: Database connections with `public`, `backoffice`, and `tenant_<uuid>` schemas | B | | | | | |
-| [quickstart#12] | Config: `TenantRepository` binding with methods `findById`, `findByDomain`, `all(filters)` | B | | | | | |
-| [quickstart#13] | "Once the InstallTenant job finishes, the row flips to status: 'active' and tenant-scoped routes light up." | A | | | | | |
+| [quickstart#1] | Command: `npm install @adonisjs-lasagna/saas-tenancy` | B | VERIFIED | packages/core/package.json name=@adonisjs-lasagna/saas-tenancy v1.0.0 | — | none | |
+| [quickstart#2] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,webhooks` | B | VERIFIED | configure.ts (--with parsing) | configure.spec.ts (24 tests: flag parsing, bundles, idempotency) | none | |
+| [quickstart#3] | Command: `node ace backoffice:setup` - "Creates the backoffice schema and runs all satellite-table migrations in one shot. Idempotent; re-run any time." | B | PARTIAL | setup_backoffice.ts (CREATE SCHEMA IF NOT EXISTS + MigrationRunner; in-version idempotent via Lucid bookkeeping) | e2e runs it once; no re-run test | new-test:T10 (e2e re-run) code-fix:F-4 (error swallowed) | |
+| [quickstart#4] | Command: `node ace tenant:create "Acme Corp" "admin@acme.example.com"` - "Insert a tenant row and queue InstallTenant" | B | VERIFIED | create_tenant.ts (args name,email; dispatches TenantCreated, queues InstallTenant) | e2e commands_lifecycle.spec.ts | none | |
+| [quickstart#5] | Command: `node ace queue:work` - "in another terminal — provisions the schema" | B | VERIFIED | @adonisjs/queue peer; install_tenant.ts:34-38 provision→active | e2e queue_jobs + lifecycle | none | |
+| [quickstart#6] | Command: `node ace tenant:migrate` - "apply your tenant migrations into the new schema" | B | VERIFIED | tenant_migrate.ts (alias of migration:tenant:run) | e2e commands_lifecycle.spec.ts | none | |
+| [quickstart#7] | Command: `node ace tenant:doctor` - "checks your connections, schema health, and configuration. A green report means the tenant is provisioned and routable." | B | VERIFIED | tenant_doctor.ts + 9 built-in checks | doctor_checks_real.spec.ts; e2e commands_misc | doc-fix:F-11 (check count, if quickstart names ten) | |
+| [quickstart#8] | Import: `@adonisjs-lasagna/saas-tenancy` - Main package | B | VERIFIED | package.json exports "." | — | none | |
+| [quickstart#9] | Import: `TENANT_REPOSITORY` from `@adonisjs-lasagna/saas-tenancy` | B | VERIFIED | src/index.ts:9 re-exports from types/contracts.js | fixture app binds it | none | |
+| [quickstart#10] | Macro: `request.tenant()` - "Memoised per request, same reference no matter how many times you call it." | A | VERIFIED | extensions/request.ts (Symbol memo) | request_tenant_memo.spec.ts:5 "returns the same object reference on repeated calls within one request" + :43 cross-request independence | none | |
+| [quickstart#11] | Config requirement: Database connections with `public`, `backoffice`, and `tenant_<uuid>` schemas | B | VERIFIED | fixture config/database.ts (3 connections w/ searchPath) | integration suite boots on it | none | |
+| [quickstart#12] | Config: `TenantRepository` binding with methods `findById`, `findByDomain`, `all(filters)` | B | VERIFIED | types/contracts.ts TenantRepositoryContract; fixture tenant_repository.ts | exercised by every integration spec | none | |
+| [quickstart#13] | "Once the InstallTenant job finishes, the row flips to status: 'active' and tenant-scoped routes light up." | A | VERIFIED | install_tenant.ts:37 status='active' after driver.provision (failed on error :40) | isolation/tenant_lifecycle.spec.ts; e2e full.spec.ts provisioning flow | none | |
 
 ## security.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [security#1] | "No DDL injection via `tenant.id` — `assertSafeIdentifier()` rejects anything that could escape a quoted PG identifier" | A | | | | | |
-| [security#2] | "No `shell: true` in `spawn(...)` — `pg_dump`, `pg_restore`, and `psql` are spawned without a shell on every platform" | A | | | | | |
-| [security#3] | "No silent cross-tenant fetch — A `withTenantScope`-backed model queried outside both `tenancy.run()` and `unscoped()` throws `MissingTenantScopeException` instead of returning every tenant's rows" | A | | | | | |
-| [security#4] | "No silent cross-tenant write — Bulk `Model.query().delete()` / `.update()` on a scoped model are intercepted by the `before('fetch')` hook" | A | | | | | |
-| [security#5] | "Tenant routing only on valid UUID v4 — `TenantAdapter.modelConstructorClient()` validates the resolved tenant id before picking the Lucid connection" | A | | | | | |
-| [security#6] | "Atomic quota enforcement — `QuotaService.consume()` issues a single `EVAL` (Lua) round-trip" | A | | | | | |
-| [security#7] | "Atomic SSO state — `SsoService` reads the OAuth/OIDC `state` parameter via Redis `GETDEL` so a replayed callback can never re-validate" | A | | | | | |
-| [security#8] | "Append-only audit at SQL level — The `tenant_audit_logs` migration installs three triggers — `BEFORE UPDATE`, `BEFORE DELETE`, `BEFORE TRUNCATE` — that all `RAISE EXCEPTION`" | A | | | | | |
-| [security#9] | "Strict domain mode rejects header/domain hijack — `CustomDomainMiddleware({ strict: true })` rejects requests where the resolved tenant id from the header doesn't match the domain. Throws `TenantHeaderDomainMismatchExce | A | | | | | |
-| [security#10] | "Bounded connection pool — The fixture `Tenant` model demonstrates an LRU cap on tenant connections (50 by default). One tenant flooding requests cannot starve every other tenant's pool." | A | | | | | |
-| [security#11] | "No singleton retention across boots — `provider.shutdown()` invalidates the module-level caches" | A | | | | | |
-| [security#12] | "Auth on the admin REST API — multitenancyAdminRoutes() is **fail-closed**: it throws at startup unless you pass `middleware`, or pass `middleware: false` to deliberately mount it public" | A | | | | | |
-| [security#13] | "Rate-limit availability — If Redis is unreachable when RateLimitMiddleware runs, the package raises RateLimitUnavailableException. The host decides whether that maps to fail-open (502) or fail-closed (429)" | A | | | | | |
-| [security#14] | Test: Cross-tenant data leak under concurrent writes (`tests/integration/isolation/cross_tenant_e2e.spec.ts`) — 5 tenants × 20 concurrent POST/GET | A | | | | | |
-| [security#15] | Test: Job-context leak under interleaved tenants (`tests/integration/jobs/tenant_context.spec.ts`) — 3 tenants × 30 randomly-shuffled jobs | A | | | | | |
-| [security#16] | Test: Audit row tampering (`tests/integration/satellites/audit_immutability.spec.ts`) | A | | | | | |
-| [security#17] | Test: Quota over-grant under burst (`tests/integration/services/quota_concurrency.spec.ts`) — atomic Lua check | A | | | | | |
-| [security#18] | Test: SSO state CSRF / replay (`tests/integration/services/sso_oidc_flow.spec.ts`) | A | | | | | |
-| [security#19] | Test: Header-vs-domain hijack (`tests/integration/middleware/header_vs_domain_precedence.spec.ts`) | A | | | | | |
-| [security#20] | Test: Cache namespace collision (`tests/integration/services/cache_for.spec.ts`) | A | | | | | |
+| [security#1] | "No DDL injection via `tenant.id` — `assertSafeIdentifier()` rejects anything that could escape a quoted PG identifier" | A | VERIFIED | src/services/isolation/identifier.ts:9,23 (SAFE_IDENT whitelist, ≤63); called in all 4 drivers + bootstrappers + rls + cache + setup_backoffice | tests/unit/services/identifier.spec.ts — "rejects double quotes (the canonical PG identifier escape vector)", "rejects semicolons and statement terminators", "rejects shell metacharacters", "rejects ids over 63 characters" | none | |
+| [security#2] | "No `shell: true` in `spawn(...)` — `pg_dump`, `pg_restore`, and `psql` are spawned without a shell on every platform" | A | IMPL-ONLY | backup_service.ts:256, sql_import_service.ts:303,331 — argv arrays, no shell:true; #psqlBinary() comment documents the vector | — (no architectural test enforces it) | new-test:T3 no_shell_spawn.spec.ts | |
+| [security#4] | "No silent cross-tenant write — Bulk `Model.query().delete()` / `.update()` on a scoped model are intercepted by the `before('fetch')` hook" | A | PARTIAL | scoping.ts:149-166 — real mechanism is the wrapped static query() factory (source says before:fetch does NOT fire for builder DELETE/UPDATE) | rowscope_pg_driver.spec.ts:238 — "bulk delete via query builder is scoped" (real Lucid+PG); bulk UPDATE untested | code-fix:F-7 (+bulk-update test) doc-fix:F-7 | outcome true; mechanism mis-described |
+| [security#3] | "No silent cross-tenant fetch — A `withTenantScope`-backed model queried outside both `tenancy.run()` and `unscoped()` throws `MissingTenantScopeException` instead of returning every tenant's rows" | A | VERIFIED | scoping.ts:135 (strict default via rowScopeMode ?? 'strict' at :50) | unit scoping.spec.ts:202 "find/fetch/paginate hooks throw when no scope is active"; integration rowscope_pg_driver.spec.ts:232 "strict mode throws when a query runs without tenancy.run() and without unscoped()" | none | |
+| [security#5] | "Tenant routing only on valid UUID v4 — `TenantAdapter.modelConstructorClient()` validates the resolved tenant id before picking the Lucid connection" | A | VERIFIED | tenant_adapter.ts:64 assert(isUuidV4(tenantId)) | tenant_adapter.spec.ts:183 "throws MissingTenantHeaderException when tenant ID is not a valid v4 UUID", :198 v3 UUID, :476 non-UUID subdomain | none | |
+| [security#6] | "Atomic quota enforcement — `QuotaService.consume()` issues a single `EVAL` (Lua) round-trip" | A | PARTIAL | quota_service.ts:364-418 single EVAL; fail-open on Redis outage by default (:372,:396) | quota_concurrency.spec.ts asserts only isAtMost/isAtLeast + stale "near-atomic" comment | test-fix:T0 doc-fix:F-2 (Redis qualifier) | |
+| [security#7] | "Atomic SSO state — `SsoService` reads the OAuth/OIDC `state` parameter via Redis `GETDEL` so a replayed callback can never re-validate" | A | VERIFIED | packages/sso/src/sso_service.ts:89 redis.getdel | sso_oidc_flow.spec.ts:291 "state can only be used once (replay rejected)", :313 "concurrent callbacks with the same state — exactly one wins (atomic state consumption)" | none | T6 dropped — already covered |
+| [security#8] | "Append-only audit at SQL level — `tenant_audit_logs` migration installs BEFORE UPDATE/DELETE/TRUNCATE triggers that all RAISE EXCEPTION" | A | VERIFIED | stubs/migrations/create_tenant_audit_logs_table.stub:30-53 (3 triggers incl. statement-level TRUNCATE) | audit_immutability.spec.ts:57 "UPDATE raises an exception" (ORM + raw + row-unchanged), :93 DELETE, :121 "TRUNCATE is blocked — statement-level trigger closes the per-row bypass" | none | |
+| [security#9] | "Strict domain mode rejects header/domain hijack — CustomDomainMiddleware({strict:true}) throws TenantHeaderDomainMismatchException (HTTP 400)" | A | VERIFIED | src/middleware/custom_domain_middleware.ts (strict branch) | header_vs_domain_precedence.spec.ts:27 "strict: rejects with 400 when header disagrees with the host-resolved tenant" + 4 more cases incl. port suffix | none | |
+| [security#10] | "Bounded connection pool — fixture Tenant model demonstrates an LRU cap (50 by default); hosts should keep this LRU pattern in their Tenant implementation" | A | PARTIAL | connection_lru.ts:5 DEFAULT_MAX_TENANT_CONNECTIONS=50 — LRU is IN THE PACKAGE (drivers), not host-implemented | connection_lru.spec.ts (17 unit tests); universal_connection_cap.spec.ts (hard cap 503) | doc-fix:F-8 | doc understates: tells hosts to hand-roll what core now owns |
+| [security#11] | "No singleton retention across boots — provider.shutdown() invalidates the module-level caches" | A | IMPL-ONLY | multitenancy_provider.ts:298-307 (__configureTenancyForTests({}) + __resetActiveDriverCache()) | — (no spec exercises shutdown) | new-test:T8 provider_shutdown.spec.ts | |
+| [security#12] | "Admin REST API fail-closed: multitenancyAdminRoutes() throws at startup unless middleware passed, or middleware:false for deliberate public" | A | IMPL-ONLY | packages/admin/src/routes.ts:130-140 | — (admin tests only cover openapi; e2e only exercises the happy path) | new-test:T9 admin routes fail-closed unit | |
+| [security#13] | "Rate-limit availability — RateLimitUnavailableException; host decides fail-open (502) or fail-closed (429)" | A | BROKEN | rate_limit_middleware.ts: default failOpen:false, throws RateLimitUnavailableException (5xx); failOpen:true lets request proceed | rate_limit.spec.ts (verify status in W6) | doc-fix:F-3 | status-code framing wrong; contradicts why.md |
+| [security#14] | Test: cross-tenant leak under concurrent writes — 5 tenants × 20 concurrent POST/GET | A | VERIFIED | — | cross_tenant_e2e.spec.ts:71 "5 tenants × 20 concurrent writes — no cross-tenant leak on read" (constants :8-9 match doc) + :134 durability test | doc-fix:F-5 (stale GitHub URL only) | |
+| [security#15] | Test: job-context leak under interleaved tenants — 3 tenants × 30 shuffled jobs | A | VERIFIED | — | tenant_context.spec.ts:72 "tenancy.currentId() and per-schema writes are correctly scoped under high concurrency" (constants :9-10 = 3×30) | doc-fix:F-5 (URL) | |
+| [security#16] | Test: audit row tampering (UPDATE/DELETE/TRUNCATE) — verifies all three triggers reject ORM and raw attempts | A | VERIFIED | — | audit_immutability.spec.ts:57,:93,:121 — ORM .save()/.delete() AND raw query paths both asserted, row content re-checked | doc-fix:F-5 (URL) | |
+| [security#17] | Test: quota over-grant under burst — atomic Lua check survives N concurrent consume() | A | PARTIAL | — | quota_concurrency.spec.ts — assertions weaker than claim (isAtMost; tolerates under-grant; stale pre-Lua comment) | test-fix:T0 | |
+| [security#18] | Test: SSO state CSRF/replay — replay of state returns 401, never 200 | A | VERIFIED | — | sso_oidc_flow.spec.ts:291 sequential replay + :313 concurrent "exactly one wins" | doc-fix:F-5 (URL) | |
+| [security#19] | Test: header-vs-domain hijack — strict rejects mismatch; header-only and domain-only behave as documented | A | VERIFIED | — | header_vs_domain_precedence.spec.ts:27,:52,:73,:90,:110 (5 cases) | doc-fix:F-5 (URL) | |
+| [security#20] | Test: cache namespace collision — per-tenant BentoCache namespaces never share keys | A | VERIFIED | — | cache_for.spec.ts:24 "two tenants writing the same key see independent values", :51 "rejects unsafe tenant ids before reaching Redis (key injection guard)" | doc-fix:F-5 (URL) | |
 
 ## why.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [why#1] | "Lasagna covers the same ground as stancl/tenancy (4 isolation drivers, 6 bootstrappers, 5 resolvers, full lifecycle hooks, imperative API) and adds: doctor command, integrated read replicas, OpenTelemetry, Prometheus, s | C | | | | | |
-| [why#2] | "The full feature surface lives in examples/api, a real AdonisJS 7 app with an end-to-end suite covering every feature." | C | | | | | |
-| [why#3] | "Circuit breaker per tenant — Opossum-backed, scoped to each tenant's database access. One bad schema can't take the others down." | A | | | | | |
-| [why#4] | "Quota atomicity — consume() runs inside a single Redis Lua script. 50 parallel callers against limit=10 produce exactly ten successes and forty QuotaExceededException. No race window." | A | | | | | |
-| [why#5] | "SSO replay protection — OIDC state is consumed via atomic GETDEL; two concurrent callbacks with the same state can never both succeed." | A | | | | | |
-| [why#6] | "Audit log immutability — tenant_audit_logs carries Postgres triggers that block UPDATE, DELETE, and TRUNCATE from inside the tenant's own schema." | A | | | | | |
-| [why#7] | "Header-vs-domain hijack — customDomain({ strict: true }) rejects a request whose x-tenant-id disagrees with the custom-domain match — 400 E_TENANT_HEADER_DOMAIN_MISMATCH" | A | | | | | |
-| [why#8] | "Rate-limit fails closed — Redis down means 503, never silent fail-open. Opt into failOpen: true only if your threat model accepts it." | A | | | | | |
-| [why#9] | "Doctor checks against real state — long_running_queries, replica_lag, queue_stuck run in CI against live Postgres / BullMQ" | A | | | | | |
+| [why#1] | "covers the same ground (4 isolation drivers, 6 bootstrappers, 5 resolvers, full lifecycle hooks…) and adds doctor, replicas, OTel, Prometheus, backups, impersonation, quotas, admin API" | C | PARTIAL | drivers=4 ✓; resolvers=5 ✓ (builtins.ts:19-106); bootstrappers=5 NOT 6 (provider:147-264) | — | doc-fix:F-10 | stancl-side cells not auditable |
+| [why#2] | "The full feature surface lives in examples/api … an end-to-end suite covering every feature." | C | PARTIAL | examples/api wires all satellites | e2e = 125 tests, broad but "every feature" is absolute (e.g. database-pg driver not exercised in e2e) | doc-fix (soften in W7) | |
+| [why#3] | "Circuit breaker per tenant — Opossum-backed, scoped to each tenant's database access. One bad schema can't take the others down." | A | VERIFIED | circuit_breaker_service.ts:1 (opossum), :25 Map per tenant | unit circuit_breaker_service.spec.ts (18: transitions, instance isolation); integration (Redis persistence) | none | |
+| [why#4] | "Quota atomicity — consume() in a single Redis Lua script. 50 parallel vs limit=10 → exactly ten successes, forty QuotaExceededException. No race window." | A | PARTIAL | quota_service.ts:364-418 single EVAL ✓; fail-open Redis caveat (:372) | quota_concurrency.spec.ts asserts only bounds, not exactness | test-fix:T0 doc-fix:F-2 | |
+| [why#5] | "SSO replay protection — state consumed via atomic GETDEL; two concurrent callbacks with the same state can never both succeed." | A | VERIFIED | packages/sso/src/sso_service.ts:89 | sso_oidc_flow.spec.ts:313 "concurrent callbacks with the same state — exactly one wins (atomic state consumption)" | none | |
+| [why#6] | "Audit log immutability — Postgres triggers block UPDATE, DELETE, TRUNCATE" | A | VERIFIED | create_tenant_audit_logs_table.stub:30-53 | audit_immutability.spec.ts:57,:93,:121 | none | |
+| [why#7] | "Header-vs-domain hijack — customDomain({strict:true}) rejects, 400 E_TENANT_HEADER_DOMAIN_MISMATCH" | A | VERIFIED | custom_domain_middleware.ts strict branch | header_vs_domain_precedence.spec.ts:27 | none | |
+| [why#8] | "Rate-limit fails closed — Redis down means 503, never silent fail-open. Opt into failOpen: true." | A | VERIFIED | rate_limit_middleware.ts default failOpen:false; rate_limit_unavailable_exception.ts:4 status=503 | rate_limit.spec.ts:93 "fail-closed (default): Redis outage → 503 RATE_LIMIT_UNAVAILABLE", :133 fail-open passthrough | none | security.md contradicts → F-3 fixes that page |
+| [why#9] | "Doctor checks against real state — long_running_queries, replica_lag, queue_stuck run in CI against live Postgres / BullMQ" | A | VERIFIED | doctor checks ×9 | tests/integration/doctor/{long_running_queries,replica_lag,queue_stuck}.spec.ts run in CI integration job | none | |
+| [why#10] | "tenant:doctor with ten built-in checks, --fix, --json, --watch, plugin API" | B | PARTIAL | core ships 9 checks; 10th (backup_recency) registers from @adonisjs-lasagna/backup; flags exist in tenant_doctor.ts | doctor_checks_real.spec.ts; e2e commands_misc | doc-fix:F-11 | |
+| [why#11] | "Backups with retention tiers: pg_dump, S3 mirror, JSON sidecar with checksums, tier intervals, per-tenant resolution" | B | VERIFIED | packages/backup services (pg_dump spawn :256, S3, retention tiers) | backup pkg unit specs ×5; integration backup_s3.spec.ts; e2e backups_real.spec.ts | new-test:T7 (corruption failure case) | sidecar checksum *verification* depth checked in T7 |
+| [why#12] | "An architectural test fails CI if any future rawQuery interpolates a template variable without assertSafeIdentifier" | A | VERIFIED | — | tests/architectural/no_unsafe_raw_sql.spec.ts:76 "every file that interpolates into rawQuery imports assertSafeIdentifier or opts out per line" + :117 positive controls | none | |
+| [why#13] | why.md:186 links `tests/integration/` at repo root on GitHub | B | BROKEN | actual path packages/core/tests/integration | — | doc-fix:F-5 | |
 
 ## introduction.md
 
@@ -1166,41 +1170,41 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [stable#1] | Label: Stable — Production ready, full semver promise. **Nothing carries this label yet.** | A | | | | | |
-| [stable#2] | Label: Release candidate — Feature complete, green in CI vs real Postgres/Redis. API considered final. Not yet stable; security review and production mileage still open. A corrective breaking change in 1.x minor remains  | A | | | | | |
-| [stable#3] | Label: Experimental — Works and tested, but surface may change or break in any minor. Not covered by semver promise. | A | | | | | |
-| [stable#4] | Criterion: Real integration green in CI against Postgres and Redis (true today for core) | A | | | | | |
-| [stable#5] | Criterion: Covered by independent security review focused on isolation (not done yet) | A | | | | | |
-| [stable#6] | Criterion: Production mileage — weeks of real traffic with no open isolation incident (not done yet) | A | | | | | |
-| [stable#7] | "Stable surfaces follow semver strictly: breaking change to stable API only ships in new major" | A | | | | | |
-| [stable#8] | "Release candidate surfaces intended to follow semver, API frozen, with caveat: pending security review or production mileage may force correction in 1.x minor with loud changelog entry" | A | | | | | |
-| [stable#9] | "Experimental surfaces excluded from the promise; may change in any minor" | A | | | | | |
-| [stable#10] | Core: Schema isolation (schema-pg) — Release candidate | A | | | | | |
-| [stable#11] | Core: Database isolation (database-pg) — Release candidate | A | | | | | |
-| [stable#12] | Core: Row-scope isolation (rowscope-pg) — Release candidate | A | | | | | |
-| [stable#13] | Core: sqlite-memory driver — Testing only | A | | | | | |
-| [stable#14] | Core: Tenant resolution — Release candidate | A | | | | | |
-| [stable#15] | Core: TenantAdapter + base-model routing — Release candidate | A | | | | | |
-| [stable#16] | Core: Connection LRU, budget, optional hard cap — Release candidate | A | | | | | |
-| [stable#17] | Core: Circuit breaker — Release candidate | A | | | | | |
-| [stable#18] | Core: Dependency resilience (ResilienceService) — Release candidate | A | | | | | |
-| [stable#19] | Core: Contextual logging (AsyncLocalStorage) — Release candidate | A | | | | | |
-| [stable#20] | Core: Tenant lifecycle, hooks, lifecycle events — Release candidate | A | | | | | |
-| [stable#21] | Core: Soft delete + recycle bin — Release candidate | A | | | | | |
-| [stable#22] | Core: Health probes — Release candidate | A | | | | | |
-| [stable#23] | Core: Doctor (base checks) — Release candidate | A | | | | | |
-| [stable#24] | Core: Plans and quotas — Experimental | A | | | | | |
-| [stable#25] | Core: Read-replica routing — Experimental | A | | | | | |
-| [stable#26] | Core: Audit logs — Experimental | A | | | | | |
-| [stable#27] | Core: Webhooks — Experimental | A | | | | | |
-| [stable#28] | Core: Branding — Experimental | A | | | | | |
-| [stable#29] | Core: Feature flags — Experimental | A | | | | | |
-| [stable#30] | Core: Metrics — Experimental | A | | | | | |
-| [stable#31] | Core: Impersonation — Experimental | A | | | | | |
-| [stable#32] | Satellite: @adonisjs-lasagna/admin — Experimental | A | | | | | |
-| [stable#33] | Satellite: @adonisjs-lasagna/sso — Experimental | A | | | | | |
-| [stable#34] | Satellite: @adonisjs-lasagna/billing — Experimental | A | | | | | |
-| [stable#35] | Satellite: @adonisjs-lasagna/backup — Experimental | A | | | | | |
+| [stable#1] | Label: Stable — Production ready, full semver promise. **Nothing carries this label yet.** | C | N/A | — (policy declaration; honest: nothing labeled stable) | — | none | consistent w/ roadmap/faq |
+| [stable#2] | Label: Release candidate — feature complete, green in CI vs real PG/Redis, API final, stable withheld | C | N/A | — (policy) | CI-green part factual: see stable#4 | none | |
+| [stable#3] | Label: Experimental — surface may change in any minor, outside semver promise | C | N/A | — (policy) | — | none | |
+| [stable#4] | Criterion: Real integration green in CI against Postgres and Redis (true today for core) | A | VERIFIED | .github/workflows/ci.yml integration job (PG16/Redis/mock-oidc/MinIO) | baseline 2026-06-10: integration 370 passed vs real PG+Redis | none | |
+| [stable#5] | Criterion: independent security review (not done yet) | C | N/A | honest "not done" statement; consistent with roadmap.md | — | none | |
+| [stable#6] | Criterion: production mileage (not done yet) | C | N/A | honest "not done" statement | — | none | |
+| [stable#7] | "Stable surfaces follow semver strictly" | C | N/A | policy (vacuous today: nothing stable) | — | none | |
+| [stable#8] | "RC surfaces semver-frozen with loud-changelog correction caveat" | C | N/A | policy | — | none | |
+| [stable#9] | "Experimental surfaces excluded from the promise" | C | N/A | policy | — | none | |
+| [stable#10] | Core: Schema isolation (schema-pg) — Release candidate | B | VERIFIED | schema_pg_driver.ts exists; label = declaration | unit + integration schema_pg specs; cross_tenant_e2e | none | label consistent across pages |
+| [stable#11] | Core: Database isolation (database-pg) — Release candidate | B | VERIFIED | database_pg_driver.ts | unit + integration database_pg specs | none | |
+| [stable#12] | Core: Row-scope isolation (rowscope-pg) — Release candidate | B | VERIFIED | rowscope_pg_driver.ts | rowscope unit/integration + rls specs | none | |
+| [stable#13] | Core: sqlite-memory driver — Testing only | B | VERIFIED | sqlite_memory_driver.ts | sqlite unit + sqlite_memory_lifecycle integration | none | "testing only" framing consistent |
+| [stable#14] | Core: Tenant resolution — Release candidate | B | VERIFIED | resolvers/builtins.ts ×5 | tenant_resolver + builtin_resolvers + resolver_registry specs; e2e resolution_strategies | none | |
+| [stable#15] | Core: TenantAdapter + base-model routing — Release candidate | B | VERIFIED | models/adapters + base | unit + integration adapter specs | none | |
+| [stable#16] | Core: Connection LRU, budget, optional hard cap — Release candidate | B | VERIFIED | connection_lru.ts | connection_lru.spec (17) + universal_connection_cap + connection_eviction_safety | none | |
+| [stable#17] | Core: Circuit breaker — Release candidate | B | VERIFIED | circuit_breaker_service.ts | unit (18) + integration (Redis persistence) | none | |
+| [stable#18] | Core: Dependency resilience (ResilienceService) — Release candidate | B | VERIFIED | resilience_service.ts | resilience_service.spec + quota_resilience | new-test:T4 (defaults pinning, verify-first) | |
+| [stable#19] | Core: Contextual logging (AsyncLocalStorage) — Release candidate | B | VERIFIED | tenant_log_context.ts, tenant_logger.ts | tenant_log_context + tenant_logger specs; e2e contextual_logging | none | |
+| [stable#20] | Core: Tenant lifecycle, hooks, lifecycle events — Release candidate | B | VERIFIED | jobs + hook_registry + events | tenant_lifecycle + lifecycle_dispatch + hook_registry; e2e lifecycle_events | none | |
+| [stable#21] | Core: Soft delete + recycle bin — Release candidate | B | VERIFIED | utils soft_delete + tenant_purge_expired.ts | soft_delete.spec; e2e commands | none | |
+| [stable#22] | Core: Health probes — Release candidate | B | VERIFIED | health/ | health_service.spec + metrics_exporter.spec | none | |
+| [stable#23] | Core: Doctor (base checks) — Release candidate | B | VERIFIED | doctor/ ×9 checks | doctor unit ×6 + doctor_checks_real | none | |
+| [stable#24] | Core: Plans and quotas — Experimental | B | VERIFIED | quota_service.ts | quota specs ×3 | none | |
+| [stable#25] | Core: Read-replica routing — Experimental | B | VERIFIED | read_replica_service.ts | unit + integration + e2e replicas | none | |
+| [stable#26] | Core: Audit logs — Experimental | B | VERIFIED | audit_log_service.ts | audit_log_service + audit_immutability | none | |
+| [stable#27] | Core: Webhooks — Experimental | B | VERIFIED | webhook_service.ts | webhook_service (15+) + e2e webhooks_delivery | none | |
+| [stable#28] | Core: Branding — Experimental | B | VERIFIED | branding_service.ts | branding_service.spec | none | |
+| [stable#29] | Core: Feature flags — Experimental | B | VERIFIED | feature_flag_service.ts | feature_flag_service.spec (8+) | none | |
+| [stable#30] | Core: Metrics — Experimental | B | VERIFIED | metrics_service.ts | metrics_service.spec | none | |
+| [stable#31] | Core: Impersonation — Experimental | B | VERIFIED | impersonation_service.ts | impersonation specs ×4 | none | |
+| [stable#32] | Satellite: @adonisjs-lasagna/admin — Experimental | B | VERIFIED | packages/admin | openapi.spec + e2e admin_full | new-test:T9 (fail-closed) | |
+| [stable#33] | Satellite: @adonisjs-lasagna/sso — Experimental | B | VERIFIED | packages/sso | sso specs ×3 + authorize.spec | none | |
+| [stable#34] | Satellite: @adonisjs-lasagna/billing — Experimental | B | VERIFIED | packages/billing | 27 integration + 6 unit + real smoke | none | |
+| [stable#35] | Satellite: @adonisjs-lasagna/backup — Experimental | B | VERIFIED | packages/backup | 5 unit + backup_s3 + e2e backups_real | new-test:T7 | |
 
 ## known-limitations.md
 
