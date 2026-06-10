@@ -39,13 +39,13 @@ ${satelliteRows}
 
 const frontmatter = `---
 title: Release notes
-description: Auto-generated from CHANGELOG.md. The canonical changelog lives in the repo root.
+description: Auto-generated from the core package's CHANGELOG.md, which is canonical.
 ---
 
 # Release notes
 
 > Auto-generated from
-> [\`CHANGELOG.md\`](${REPO}/blob/master/CHANGELOG.md)
+> [\`packages/core/CHANGELOG.md\`](${REPO}/blob/master/packages/core/CHANGELOG.md)
 > at build time. The repo file is canonical.
 
 `

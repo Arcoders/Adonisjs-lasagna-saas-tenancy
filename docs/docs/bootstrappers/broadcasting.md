@@ -1,54 +1,48 @@
 ---
 title: Broadcasting bootstrapper
-description: Per-tenant transmit channels. Subscriptions on tenant A cannot intercept events from tenant B.
+description: Per-tenant transmit channels via tenantBroadcast() / tenantChannel(). Subscriptions on tenant A cannot intercept events from tenant B.
 ---
 
 # Broadcasting bootstrapper
 
-Auto-detected when `@adonisjs/transmit` is installed. Scopes
-broadcast channels by tenant; every `transmit.broadcast(...)` and
-`transmit.subscribe(...)` is silently rewritten to a tenant-local
-channel.
+Auto-detected when `@adonisjs/transmit` is installed. It validates the
+tenant id at scope entry and gives you channel helpers that scope
+broadcasts by tenant.
 
 ## What it does
 
 ```ts
-transmit.broadcast('orders/123', { state: 'paid' })
+import { tenantBroadcast, tenantChannel } from '@adonisjs-lasagna/saas-tenancy/services'
+
+await tenantBroadcast('orders/123', { state: 'paid' })
 // Actual channel: tenants/<active-tenant-id>/orders/123
+
+tenantChannel('orders/123')
+// → 'tenants/<active-tenant-id>/orders/123' — hand this to client
+//   subscriptions and authorize() callbacks
 ```
 
-```ts
-// Client-side
-client.subscription('orders/123').create()
-// Server-side: subscribes to tenants/<active-tenant-id>/orders/123
-```
+The scoping is explicit: a direct `transmit.broadcast('orders/123', …)`
+publishes on the global channel. Route tenant-facing events through
+the helpers.
+
+The channel prefix defaults to `tenants/` and can be changed
+programmatically when registering the bootstrapper:
+`createTransmitBootstrapper({ prefix: 'org/' })`.
 
 ## Why it matters
 
 Without scoping, two tenants sharing the same Transmit/SSE backend
-would receive each other's broadcasts. The bootstrapper makes the
-mistake structurally impossible.
-
-## Configuration
-
-```ts
-// config/multitenancy.ts
-export default defineConfig({
-  transmit: {
-    enabled: true,
-    prefix: 'tenants/{id}/',
-  },
-})
-```
+would receive each other's broadcasts. Prefixed channels make the
+collision impossible for every event that goes through the helpers.
 
 ## Authorization
 
-The bootstrapper handles channel **naming**. Authorization
+The helpers handle channel **naming**. Authorization
 (who-can-subscribe-to-what) is still your job. Use Transmit's
 `channel.authorize()` callbacks; the channel name is already
-tenant-prefixed so the only check left is per-channel; does this
+tenant-prefixed so the only check left is per-channel: does this
 user belong to this tenant? Does this user own order 123?
-
 
 ## Read next
 

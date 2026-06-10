@@ -44,10 +44,10 @@ and the schema switch happens before the SQL leaves your process.
 
 <LasagnaCard variant="default" title="Bootstrappers">
 
-Cache, drive, mail, session, queue, transmit. Each bootstrapper
-scopes its service to the active tenant; automatically, via
-`AsyncLocalStorage`. No threading `tenantId` through helpers, no
-manual prefix.
+Cache, drive, mail, session, transmit. Each bootstrapper scopes its
+service to the active tenant via `AsyncLocalStorage`-aware helpers,
+and queued jobs carry the same context. No threading `tenantId`
+through your own plumbing.
 
 </LasagnaCard>
 
@@ -100,7 +100,7 @@ site, a book, a course, and a Discord. We owe a real debt to that
 project: it set the bar for what a serious multi-tenancy package
 should look like.
 
-Lasagna covers the same ground (4 isolation drivers, 6 bootstrappers,
+Lasagna covers the same ground (4 isolation drivers, 5 bootstrappers,
 5 resolvers, full lifecycle hooks, imperative API) and adds the
 operational surface stancl leaves to the user: a doctor command,
 integrated read replicas, OpenTelemetry, Prometheus, scheduled
@@ -136,9 +136,11 @@ in-house, and that we already debugged:
   down with it.
 - **Read replica routing.** Round-robin, random, or sticky-by-tenant.
   Connection naming is deterministic, lazy provisioning is built in.
-- **Doctor command.** `tenant:doctor` with ten built-in checks, a
-  `--fix` flag for auto-recovery, `--json` for CI gates, and `--watch`
-  for a live TUI. The plugin API lets your app contribute checks.
+- **Doctor command.** `tenant:doctor` with nine built-in checks (a
+  tenth, `backup_recency`, registers when the backup satellite is
+  installed), a `--fix` flag for auto-recovery, `--json` for CI gates,
+  and `--watch` for a live TUI. The plugin API lets your app
+  contribute checks.
 - **Backups with retention tiers.** `pg_dump`, S3 mirror, JSON sidecar
   with checksums, tier-based intervals (`standard`, `premium`, …),
   per-tenant resolution.
@@ -160,7 +162,9 @@ real BullMQ; no mocks, no in-memory shortcuts.
   zero cross-reads, verified end-to-end.
 - **Quota atomicity.** `consume()` runs inside a single Redis Lua
   script. 50 parallel callers against `limit=10` produce exactly
-  ten successes and forty `QuotaExceededException`. No race window.
+  ten successes and forty `QuotaExceededException`. No race window —
+  while Redis is up; on an outage the configurable resilience policy
+  decides between availability and enforcement.
 - **SSO replay protection.** OIDC `state` is consumed via atomic
   `GETDEL`; two concurrent callbacks with the same state can never
   both succeed.
@@ -179,11 +183,11 @@ real BullMQ; no mocks, no in-memory shortcuts.
   fails CI if any future `rawQuery` interpolates a template variable
   without going through that helper.
 - **Doctor checks against real state.** `long_running_queries`,
-  `replica_lag`, `queue_stuck` run in CI against a live Postgres /
+  `replica_lag`, `queue_health` run in CI against a live Postgres /
   BullMQ — not mocked clocks.
 
 The list above is the *current* verification surface; every item has a spec
-under [`tests/integration/`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/tree/master/tests/integration).
+under [`packages/core/tests/integration/`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/tree/master/packages/core/tests/integration).
 If you spot a tenancy guarantee that should be on it and isn't,
 [open an issue](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues)
 — the verification is iterative.

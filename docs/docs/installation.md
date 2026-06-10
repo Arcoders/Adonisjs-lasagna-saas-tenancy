@@ -23,7 +23,7 @@ connection details and the <code>TENANT_REPOSITORY</code> binding.
 | Node.js | ≥ 24 | ES modules, `module: NodeNext` |
 | AdonisJS | 7 | |
 | PostgreSQL | ≥ 14 | via `@adonisjs/lucid` |
-| Redis | ≥ 6 | via `@adonisjs/redis` — cache + counters |
+| Redis | ≥ 6 (≥ 6.2 with the SSO satellite — its state consumption uses `GETDEL`) | via `@adonisjs/redis` — cache + counters |
 | `@adonisjs/queue` | required | background jobs provision schemas |
 | `@aws-sdk/client-s3` | optional | only for S3 backup uploads |
 | `jose` | optional | only when SSO is enabled |

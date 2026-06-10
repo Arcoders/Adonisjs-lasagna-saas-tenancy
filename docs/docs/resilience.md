@@ -64,12 +64,10 @@ resilience: {
 
 | Key | Default | Effect |
 |---|---|---|
-| `defaultPolicy` | `'fail-closed'` | Fallback for anything not overridden. |
 | `redis.quota` | `'fail-open'` | `QuotaService.consume/track`. Fail-open returns `0` (no enforcement). |
-| `redis.rateLimit` | `'fail-closed'` | `RateLimitMiddleware` (a per-route `failOpen` option still wins where set). |
-| `redis.cache` | `'fail-open'` | Cache bootstrapper. |
-| `redis.metrics` | `'fail-open'` | `MetricsService` counters. |
+| `redis.rateLimit` | `'fail-closed'` | `RateLimitMiddleware` for routes that pass no `failOpen` option (an explicit per-route value still wins). |
 | `observe` | `true` | Emit `DependencyDegraded` + log + OTel span event on each degradation. |
+| `defaultPolicy`, `redis.cache`, `redis.metrics` | reserved | Typed but **not consulted yet** — the cache bootstrapper and `MetricsService` currently always fail open, and no generic default-policy fan-out exists. Setting them today has no effect. |
 
 Full reference: [Configuration → Resilience](./configuration#resilience-degradation-policy).
 

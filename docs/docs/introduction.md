@@ -30,7 +30,8 @@ Lasagna handles the seams.
 - **Nine satellites**: audit logs, feature flags, webhooks,
   branding, SSO, metrics, quotas, impersonation, Stripe billing.
   None required, all consistent.
-- **Operational kit**: `tenant:doctor` (ten checks, `--fix`,
+- **Operational kit**: `tenant:doctor` (nine built-in checks, plus
+  `backup_recency` with the backup satellite, `--fix`,
   `--watch`, `--json`), backups with retention tiers, read replicas,
   Prometheus, OpenTelemetry, health probes, and a per-dependency
   fail-open/fail-closed resilience policy.

@@ -6,7 +6,7 @@ description: Auto-generated from CHANGELOG.md. The canonical changelog lives in 
 # Release notes
 
 > Auto-generated from
-> [`CHANGELOG.md`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/CHANGELOG.md)
+> [`CHANGELOG.md`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/CHANGELOG.md)
 > at build time. The repo file is canonical.
 
 All notable changes to `@adonisjs-lasagna/saas-tenancy` are documented here.

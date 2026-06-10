@@ -35,7 +35,10 @@ when you want a custom response.
 | `DependencyUnavailableException` | `503` | `E_DEPENDENCY_UNAVAILABLE` | A `fail-closed` dependency (Redis/PG/…) errored inside `ResilienceService.run()`. Sets `Retry-After`. Carries `dependency`, `operation`, `tenantId`. |
 | `TooManyRequestsException` | `429` | `E_TOO_MANY_REQUESTS` | A request exceeded a `RateLimitMiddleware` window. Sets `Retry-After`. |
 | `QuotaExceededException` | `429` | `E_TENANT_QUOTA_EXCEEDED` | `QuotaService.consume()` would exceed the plan limit. Carries `quota`, `limit`, `current`, `attempted`. |
-| `BillingException` | `400` | `E_BILLING` | A Stripe/billing error. Carries a `billingCode` (see [Billing](./satellites/billing)) and `isRetryable()`. |
+| `TenantConnectionLimitException` | `503` | `E_TENANT_CONNECTION_LIMIT` | `isolation.enforceConnectionCap` is on, the connection budget is exhausted, and every open connection is inside the eviction grace window. |
+| `ImpersonationInvalidException` | `401` | `E_IMPERSONATION_TOKEN_INVALID` | An impersonation token failed verification, expired, was revoked, or was presented on a different tenant than it was issued for. |
+| `IsolationConfigException` | `500` | `E_ISOLATION_CONFIG` | The isolation configuration is unusable (for example `isolation.driver` names a driver that was never registered). |
+| `BillingException` | `400` | `E_BILLING` | A Stripe/billing error. Imported from `@adonisjs-lasagna/billing`. Carries a `billingCode` (see [Billing](./satellites/billing)) and `isRetryable()`. |
 
 ## Handling patterns
 
