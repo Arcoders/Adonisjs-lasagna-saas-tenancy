@@ -2,6 +2,7 @@ import { test } from '@japa/runner'
 import { randomUUID } from 'node:crypto'
 import { WebhookService, verifyWebhookSignature } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantWebhook } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import { makeDelivery } from '../../helpers/webhook_doubles.js'
 
 process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
 
@@ -9,7 +10,7 @@ process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
  * webhooks.md: "Generated when omitted; encrypted at rest". A webhook
  * registered without a secret must NOT silently produce unsigned
  * deliveries — the service generates one, stores it encrypted, and
- * surfaces the plaintext exactly once via `$extras.generatedSecret`.
+ * returns the plaintext exactly once as `generatedSecret`.
  */
 test.group('WebhookService.registerWebhook() — secret generation', (group) => {
   const svc = new WebhookService()
@@ -29,23 +30,43 @@ test.group('WebhookService.registerWebhook() — secret generation', (group) => 
   })
 
   test('generates a signing secret when none is provided', async ({ assert }) => {
-    const hook = await svc.registerWebhook(randomUUID(), 'https://example.com/hooks', [
-      'user.created',
-    ])
+    const { hook, generatedSecret } = await svc.registerWebhook(
+      randomUUID(),
+      'https://example.com/hooks',
+      ['user.created']
+    )
     created.push(hook.id)
 
-    const generated = (hook.$extras as { generatedSecret?: string }).generatedSecret
-    assert.match(String(generated), /^[0-9a-f]{64}$/, 'plaintext surfaced once, 32 random bytes')
+    assert.match(
+      String(generatedSecret),
+      /^[0-9a-f]{64}$/,
+      'plaintext surfaced once, 32 random bytes'
+    )
     assert.isString(hook.secret)
-    assert.notInclude(String(hook.secret), generated!, 'stored value must be the encrypted form')
+    assert.notInclude(String(hook.secret), generatedSecret!, 'stored value must be encrypted')
+  })
+
+  test('an empty-string secret counts as omitted — generated, never an empty HMAC key', async ({
+    assert,
+  }) => {
+    const { hook, generatedSecret } = await svc.registerWebhook(
+      randomUUID(),
+      'https://example.com/hooks',
+      ['user.created'],
+      ''
+    )
+    created.push(hook.id)
+
+    assert.match(String(generatedSecret), /^[0-9a-f]{64}$/)
   })
 
   test('deliveries from a generated-secret hook are signed and verifiable', async ({ assert }) => {
-    const hook = await svc.registerWebhook(randomUUID(), 'https://example.com/hooks', [
-      'user.created',
-    ])
+    const { hook, generatedSecret } = await svc.registerWebhook(
+      randomUUID(),
+      'https://example.com/hooks',
+      ['user.created']
+    )
     created.push(hook.id)
-    const generated = (hook.$extras as { generatedSecret?: string }).generatedSecret!
 
     let sentBody = ''
     let signature: string | null = null
@@ -55,31 +76,19 @@ test.group('WebhookService.registerWebhook() — secret generation', (group) => 
       return { ok: true, status: 200, text: async () => '{}' }
     }) as unknown as typeof fetch
 
-    const delivery = {
-      id: randomUUID(),
-      event: 'user.created',
-      payload: { hello: 'world' },
-      status: 'pending',
-      attempt: 1,
-      statusCode: null,
-      responseBody: null,
-      nextRetryAt: null,
-      save: async () => {},
-    }
+    const delivery = makeDelivery({ payload: { hello: 'world' } })
     await svc.send(hook as any, delivery as any)
 
     assert.equal(delivery.status, 'success')
     assert.isString(signature, 'delivery must carry x-webhook-signature')
     assert.isTrue(
-      verifyWebhookSignature(sentBody, signature!, generated),
+      verifyWebhookSignature(sentBody, signature!, generatedSecret!),
       'the signature must verify against the once-disclosed generated secret'
     )
   })
 
-  test('an explicitly provided secret is honored (no generation, no $extras)', async ({
-    assert,
-  }) => {
-    const hook = await svc.registerWebhook(
+  test('an explicitly provided secret is honored (no generation)', async ({ assert }) => {
+    const { hook, generatedSecret } = await svc.registerWebhook(
       randomUUID(),
       'https://example.com/hooks',
       ['user.created'],
@@ -87,7 +96,7 @@ test.group('WebhookService.registerWebhook() — secret generation', (group) => 
     )
     created.push(hook.id)
 
-    assert.isUndefined((hook.$extras as { generatedSecret?: string }).generatedSecret)
+    assert.isUndefined(generatedSecret)
     assert.isString(hook.secret)
   })
 })
