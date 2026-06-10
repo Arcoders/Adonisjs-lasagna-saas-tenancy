@@ -32,6 +32,10 @@ ships with: <code>node ace list:commands | grep -E 'tenant|backoffice|migration:
 
 ## Operations
 
+The backup, restore, import, and clone commands register when
+[`@adonisjs-lasagna/backup`](/docs/upgrade-to-1.0#backup-clone-restore-sql-import--adonisjs-lasagnabackup)
+is installed and its provider + commands are wired in `adonisrc.ts`.
+
 | Command | What it does |
 |---|---|
 | `tenant:backup` | One-shot backup for one or all active tenants (synchronous). |
@@ -44,9 +48,10 @@ ships with: <code>node ace list:commands | grep -E 'tenant|backoffice|migration:
 
 ## Doctor
 
-`tenant:doctor` is the operational health command. Ten built-in
-checks, `--fix` to auto-recover, `--json` for CI gates, `--watch`
-for a live TUI.
+`tenant:doctor` is the operational health command. Nine built-in
+checks (plus `backup_recency` when the backup satellite is
+installed), `--fix` to auto-recover, `--json` for CI gates,
+`--watch` for a live TUI.
 
 <Terminal src="/casts/doctor.cast.json" />
 
@@ -57,8 +62,8 @@ node ace tenant:doctor
 # Limit to one tenant
 node ace tenant:doctor --tenant=<id>
 
-# Run a specific check; --check=list prints available checks
-node ace tenant:doctor --check=schema_drift,backups
+# Run specific checks; --check=list prints available checks
+node ace tenant:doctor --check=schema_drift,backup_recency
 
 # Auto-fix what's fixable
 node ace tenant:doctor --fix

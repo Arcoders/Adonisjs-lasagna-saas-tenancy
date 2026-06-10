@@ -109,5 +109,6 @@ broken tenant fails the build instead of production.
 ::: info Reference app
 The full feature surface lives in
 [examples/api](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/tree/master/examples/api),
-a real AdonisJS 7 app with an end-to-end suite covering every feature.
+a real AdonisJS 7 app with an end-to-end suite of 120+ tests across the
+feature surface.
 :::

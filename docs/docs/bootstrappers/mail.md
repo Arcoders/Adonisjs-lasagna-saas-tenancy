@@ -1,47 +1,44 @@
 ---
 title: Mail bootstrapper
-description: Per-tenant SMTP credentials and From address. Useful when each tenant signs outbound mail with their own domain.
+description: Tenant-stamped outbound mail via tenantMailer(). Per-tenant transport selection stays a host-app decision.
 ---
 
 # Mail bootstrapper
 
-Auto-detected when `@adonisjs/mail` is installed. Lets each tenant
-ship outbound mail under their own brand without forking your
-mailers.
+Auto-detected when `@adonisjs/mail` is installed. It validates the
+tenant id at scope entry (the id lands in outbound message headers)
+and gives you `tenantMailer()`, a mailer handle that stamps
+`X-Tenant-Id` on every message it sends — so bounces, provider logs,
+and webhook events can always be traced back to the tenant.
 
 ## What it does
 
-For the duration of the tenant context, `mail.send(...)` resolves
-the SMTP credentials and the `from` address from the tenant's
-branding record (or any row source you configure). Outside the
-tenant context, mail uses your default config.
+```ts
+import { tenantMailer } from '@adonisjs-lasagna/saas-tenancy/services'
 
-## Configuration
+const mailer = await tenantMailer()
+await mailer.send((message) => {
+  message.to(user.email).subject('Welcome!')
+  // X-Tenant-Id: <active tenant id> is injected automatically
+})
+```
+
+It throws outside a `tenancy.run()` scope. `sendLater` is wrapped the
+same way.
+
+## Per-tenant transports and From addresses
+
+Selecting a different SMTP transport or `from` address per tenant is
+deliberately a host-app decision — the package can't know where your
+credentials live or what your deliverability setup looks like. Pass
+the transport name yourself, resolved however you like:
 
 ```ts
-// config/multitenancy.ts
-export default defineConfig({
-  mail: {
-    enabled: true,
-    resolver: async (tenant) => {
-      // Anything you want — this is just a function.
-      return {
-        from: tenant.brandingFrom ?? `noreply@${tenant.customDomain}`,
-        // Per-tenant SMTP override, or null to use the default mailer.
-        smtp: tenant.smtpHost
-          ? {
-              host: tenant.smtpHost,
-              port: tenant.smtpPort,
-              secure: tenant.smtpSecure,
-              auth: {
-                user: tenant.smtpUser,
-                pass: tenant.smtpPasswordPlaintext, // see Branding service for at-rest encryption
-              },
-            }
-          : null,
-      }
-    },
-  },
+const tenant = await tenancy.current()
+const transport = tenant?.metadata?.mailTransport // your own convention
+const mailer = await tenantMailer(transport)
+await mailer.send((message) => {
+  message.from(brandingFor(tenant).fromAddress).to(user.email)
 })
 ```
 
@@ -52,12 +49,6 @@ When tenants store SMTP passwords, they belong in the
 `utils/crypto.ts`. The `BrandingService` handles encrypt-on-write /
 decrypt-on-read. Avoid plain text columns.
 
-## Reply-to and tracking
-
-Same idea; read whatever you need from the tenant row and return it
-from the resolver. The bootstrapper trusts your resolver completely;
-it does no tenant-specific transformation beyond what you tell it.
-
 ## Common pitfall
 
 Setting `from` per tenant changes the **DKIM signing domain** that
@@ -65,8 +56,7 @@ your provider uses. If your tenants bring their own domains, ensure
 each domain has the right DKIM record published; otherwise your
 emails land in spam.
 
-
 ## Read next
 
 - [Bootstrappers](/docs/bootstrappers/); the rest of the per-tenant services.
-- [Configuration](/docs/configuration); the mail options.
+- [Branding](/docs/satellites/branding); where per-tenant SMTP settings live encrypted.

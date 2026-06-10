@@ -101,6 +101,32 @@ test.group('Admin REST — satellite endpoints', (group) => {
     res.assertStatus(400)
   })
 
+  test('POST webhook without a secret discloses the generated one exactly once', async ({
+    client,
+    assert,
+  }) => {
+    const create = await client.post(`${PREFIX}/tenants/${tenantId}/webhooks`).json({
+      url: 'https://example.com/hook-generated',
+      events: ['user.created'],
+    })
+    create.assertStatus(201)
+    const created: any = create.body()
+    // Top-level, beside `data` — the shape the OpenAPI document declares.
+    assert.match(created.secret, /^[0-9a-f]{64}$/)
+    assert.isTrue(created.data.hasSecret)
+    assert.notProperty(created.data, 'secret')
+
+    // Never disclosed again: the list shape only reports hasSecret.
+    const list = await client.get(`${PREFIX}/tenants/${tenantId}/webhooks`)
+    list.assertStatus(200)
+    const listed = (list.body() as any).data.find((w: any) => w.id === created.data.id)
+    assert.isTrue(listed.hasSecret)
+    assert.notProperty(listed, 'secret')
+
+    const del = await client.delete(`${PREFIX}/tenants/${tenantId}/webhooks/${created.data.id}`)
+    del.assertStatus(204)
+  })
+
   // Feature flags --------------------------------------------------------
 
   test('Feature flag CRUD', async ({ client, assert }) => {

@@ -122,7 +122,11 @@ const schemas = {
     properties: {
       url: { type: 'string', format: 'uri' },
       events: { type: 'array', items: { type: 'string' }, minItems: 1 },
-      secret: { type: 'string', description: 'Plain-text shared secret. Stored encrypted.' },
+      secret: {
+        type: 'string',
+        description:
+          'Plain-text shared secret. Stored encrypted. Generated when omitted — the plaintext is then returned once as `secret` in the 201 response.',
+      },
     },
   },
   WebhookUpdate: {
@@ -543,7 +547,21 @@ export function getOpenAPISpec(prefix = '/admin/multitenancy'): OpenApiDocument 
         parameters: [paramRef('TenantId')],
         requestBody: jsonBody(ref('WebhookCreate'), true),
         responses: {
-          ...jsonResponse('Created', { type: 'object', properties: { data: ref('Webhook') } }, 201),
+          ...jsonResponse(
+            'Created',
+            {
+              type: 'object',
+              properties: {
+                data: ref('Webhook'),
+                secret: {
+                  type: 'string',
+                  description:
+                    'Present only when the request omitted `secret` and the service generated one. Disclosed exactly once — stored encrypted, never readable again.',
+                },
+              },
+            },
+            201
+          ),
           ...jsonResponse('Bad request', ref('Error'), 400),
         },
       },

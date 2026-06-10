@@ -23,9 +23,18 @@ app that is already running? See
 
 ## Plans
 
-Plans are declared **statically in `config/multitenancy.ts`** under the
-`plans` key. There is no `upsertPlan` / `assignPlan` API — pick the
-plan for a tenant by returning its name from `plans.getPlan(tenant)`.
+Plan *definitions* (names + limits) are declared in
+`config/multitenancy.ts` under the `plans` key. Which plan a tenant is
+*on* resolves through `plans.storage`:
+
+- `'config-only'` — your `plans.getPlan(tenant)` callback decides;
+  `assignPlan()` is a no-op.
+- `'tenant_plans'` — assignments live in the backoffice `tenant_plans`
+  table; `QuotaService.assignPlan(tenant, plan)` writes it (this is
+  what the billing satellite calls when a subscription changes), and
+  resolution falls back to that row when `getPlan` is undefined.
+- `'auto'` (default) — probe at boot: use the table if it exists, else
+  config-only.
 
 ```ts
 // config/multitenancy.ts

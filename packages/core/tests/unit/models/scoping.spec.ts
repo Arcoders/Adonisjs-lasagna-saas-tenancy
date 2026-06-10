@@ -260,11 +260,11 @@ test.group('withTenantScope — allowGlobal mode', (group) => {
   })
 })
 
-test.group('withTenantScope — bulk delete via fetch hook (C2 fix)', (group) => {
+test.group('withTenantScope — fetch-hook defense-in-depth (C2 fix)', (group) => {
   group.each.setup(() => setupTestConfig())
   group.each.teardown(() => __configureTenancyForTests({}))
 
-  test('fetch hook adds predicate to query-builder-initiated delete (Lucid fires before:fetch)', async ({
+  test('fetch hook appends the tenant predicate when invoked on a builder', async ({
     assert,
   }) => {
     setupTenancy()
@@ -273,9 +273,11 @@ test.group('withTenantScope — bulk delete via fetch hook (C2 fix)', (group) =>
     Scoped.boot()
 
     await tenancy.run(fakeTenant('t-1'), async () => {
-      // Simulate `Model.query().where(...).delete()` — Lucid fires
-      // before('fetch') on the underlying query builder before issuing
-      // the DELETE, so the scope predicate gets appended.
+      // NOTE: real Lucid only fires before('fetch') on SELECT execution;
+      // builder DELETE/UPDATE are guarded by the wrapped static query()
+      // factory (scoping.ts) and proven against real Lucid+PG in
+      // tests/integration/services/rowscope_pg_driver.spec.ts. This unit
+      // case pins the hook itself as defense-in-depth.
       const q = new FakeQuery()
       q.where('status', 'active')
       hooks.fetch[0](q)

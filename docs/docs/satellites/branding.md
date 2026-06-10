@@ -35,13 +35,13 @@ import { BrandingService } from '@adonisjs-lasagna/saas-tenancy/services'
 
 const branding = await app.container.make(BrandingService)
 
-await branding.update(tenant.id, {
+await branding.upsert(tenant.id, {
   logoUrl: 'https://cdn.example.com/acme.svg',
   primaryColor: '#C26A4B',
   customDomain: 'acme.com',
 })
 
-const current = await branding.get(tenant.id)
+const current = await branding.getForTenant(tenant.id) // cached 300 s; upsert busts it
 // SMTP password is decrypted on read; encrypt-on-write happens inside the service.
 ```
 

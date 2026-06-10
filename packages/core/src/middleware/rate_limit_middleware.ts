@@ -1,4 +1,5 @@
 import { resolveTenantId } from '../extensions/request.js'
+import { getConfig } from '../config.js'
 import RateLimitUnavailableException from '../exceptions/rate_limit_unavailable_exception.js'
 import TooManyRequestsException from '../exceptions/too_many_requests_exception.js'
 import app from '@adonisjs/core/services/app'
@@ -14,10 +15,12 @@ export interface RateLimitOptions {
   /**
    * What to do when the rate-limit backend (Redis) raises an error.
    *
-   * Default is `false` — fail CLOSED. A Redis outage must not silently
+   * When unset, the global `config.resilience.redis.rateLimit` policy
+   * applies (default `'fail-closed'`): a Redis outage must not silently
    * disable rate limiting; we'd rather return 503 than let a flood
-   * through. Set to `true` only if your threat model prefers
-   * availability over abuse protection on the affected route.
+   * through. Set to `true` (per route) only if your threat model prefers
+   * availability over abuse protection on the affected route — an explicit
+   * per-route value always wins over the global policy.
    */
   failOpen?: boolean
   /**
@@ -49,14 +52,22 @@ export default class RateLimitMiddleware {
     return (app as any)?.inTest === true
   }
 
+  /**
+   * Global fallback for routes that don't pass an explicit `failOpen`:
+   * `config.resilience.redis.rateLimit`. Defaults to fail-closed, both when
+   * the key is unset and when config isn't booted yet (unit environments).
+   */
+  protected configuredFailOpen(): boolean {
+    try {
+      return getConfig().resilience?.redis?.rateLimit === 'fail-open'
+    } catch {
+      return false
+    }
+  }
+
   async handle({ request, response }: HttpContext, next: NextFn, options: RateLimitOptions) {
-    const {
-      limit,
-      windowSeconds,
-      prefix = 'rl',
-      failOpen = false,
-      bypassInTestEnv = false,
-    } = options
+    const { limit, windowSeconds, prefix = 'rl', bypassInTestEnv = false } = options
+    const failOpen = options.failOpen ?? this.configuredFailOpen()
 
     if (this.isTestEnv() && !bypassInTestEnv) {
       return next()

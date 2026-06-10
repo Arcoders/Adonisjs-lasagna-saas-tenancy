@@ -6,6 +6,7 @@ import type { TenantRepositoryContract } from '../types/contracts.js'
 import HookRegistry from '../services/hook_registry.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import TenantMigrated from '../events/tenant_migrated.js'
+import { migrationTaskError } from './migration_task_error.js'
 
 export default class TenantMigrateRollback extends BaseCommand {
   static readonly commandName = 'tenant:migrate:rollback'
@@ -79,7 +80,7 @@ export default class TenantMigrateRollback extends BaseCommand {
             return 'completed'
           } catch (error: any) {
             failed++
-            return this.verbose ? task.error(error.message) : task.error('failed')
+            return migrationTaskError(task, error)
           }
         })
         .run()

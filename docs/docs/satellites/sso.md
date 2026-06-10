@@ -48,23 +48,30 @@ The `discover()` method:
 
 ## Storing config
 
+Per-tenant OIDC settings live in the `tenant_sso_configs` row (the
+migration stub ships with the core):
+
 ```ts
-import { SsoService } from '@adonisjs-lasagna/sso'
+import { TenantSsoConfig } from '@adonisjs-lasagna/sso'
 
-const sso = await app.container.make(SsoService)
-
-await sso.upsert(tenant.id, {
-  issuerUrl: 'https://login.acme.com/.well-known/openid-configuration',
-  clientId: env.get('ACME_OIDC_CLIENT_ID'),
-  clientSecret: env.get('ACME_OIDC_CLIENT_SECRET'),
-  redirectUri: 'https://app.example.com/auth/callback',
-  scopes: ['openid', 'profile', 'email'],
-})
+await TenantSsoConfig.updateOrCreate(
+  { tenantId: tenant.id },
+  {
+    issuerUrl: 'https://login.acme.com',
+    clientId: env.get('ACME_OIDC_CLIENT_ID'),
+    clientSecret: env.get('ACME_OIDC_CLIENT_SECRET'),
+    redirectUri: 'https://app.example.com/auth/callback',
+    scopes: ['openid', 'profile', 'email'],
+    enabled: true,
+  }
+)
 ```
 
 The admin REST endpoint that wires this also runs `issuerUrl`
-through `validateExternalHttpsUrl()` so a mis-configured tenant
-cannot make the server reach a private network.
+through the SSRF guard, and discovery re-checks the document's
+`token_endpoint` / `jwks_uri` with the resolving variant, so a
+mis-configured tenant cannot make the server reach a private
+network.
 
 ## Login flow
 
@@ -75,8 +82,12 @@ router
   .get('/auth/login', async ({ request, response }) => {
     const sso = await app.container.make(SsoService)
     const tenant = await request.tenant()
-    const { authUrl, state } = await sso.startLogin(tenant.id)
-    response.cookie('oidc_state', state, { httpOnly: true, secure: true })
+    const config = await sso.getConfig(tenant.id)
+    if (!config) return response.notFound({ error: 'sso_not_configured' })
+
+    // Generates + stores the single-use state (600 s TTL) and the
+    // nonce bound to it, then returns the IdP authorization URL.
+    const authUrl = await sso.buildAuthUrl(config)
     return response.redirect(authUrl)
   })
   .as('auth.login')
@@ -84,13 +95,13 @@ router
 router
   .get('/auth/callback', async ({ request }) => {
     const sso = await app.container.make(SsoService)
-    const tenant = await request.tenant()
-    const claims = await sso.handleCallback(tenant.id, {
-      code: request.input('code'),
-      state: request.input('state'),
-      cookieState: request.cookie('oidc_state'),
-    })
-    // claims.sub, claims.email, claims.name, …
+    const { tenantId, claims } = await sso.handleCallback(
+      request.input('state'),
+      request.input('code')
+    )
+    // claims.sub, claims.email, claims.name, … — tenantId comes back
+    // from the state payload, so the callback route needs no tenant
+    // header of its own.
   })
   .as('auth.callback')
 ```

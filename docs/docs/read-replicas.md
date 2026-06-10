@@ -140,7 +140,7 @@ node ace tenant:doctor --check=replicaLag
 ```
 
 Configure thresholds in
-[`src/services/doctor/checks/replica_lag_check.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/src/services/doctor/checks/replica_lag_check.ts);
+[`src/services/doctor/checks/replica_lag_check.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/src/services/doctor/checks/replica_lag_check.ts);
 warn at 30s, error at 120s by default.
 
 ## Determinism in tests

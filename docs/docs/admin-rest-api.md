@@ -67,12 +67,13 @@ Full list lives in the OpenAPI spec; here are the categories:
 GET    /tenants
 GET    /tenants/{id}
 POST   /tenants
-PUT    /tenants/{id}/activate
-PUT    /tenants/{id}/suspend
-DELETE /tenants/{id}
-PUT    /tenants/{id}/restore
-PUT    /tenants/{id}/maintenance
+POST   /tenants/{id}/activate
+POST   /tenants/{id}/suspend
+POST   /tenants/{id}/destroy
+POST   /tenants/{id}/restore
+POST   /tenants/{id}/maintenance
 DELETE /tenants/{id}/maintenance
+GET    /tenants/{id}/queue/stats
 ```
 
 ### Audit logs
@@ -97,6 +98,11 @@ POST   /tenants/{id}/webhooks
 DELETE /tenants/{id}/webhooks/{webhookId}
 GET    /tenants/{id}/webhooks/{webhookId}/deliveries
 ```
+
+When the `POST` body omits `secret`, the service generates one and the
+201 response carries it as a top-level `secret` field — that is the
+only time the plaintext is disclosed. It is stored encrypted; later
+responses only report `hasSecret: true`.
 
 ### Branding
 

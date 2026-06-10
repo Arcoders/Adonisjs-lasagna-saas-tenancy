@@ -95,23 +95,26 @@ Activates the bootstrapper registry around the callback, exactly
 like production. The shape that survives in tests matches the shape
 that runs in production.
 
-## Hermetic bootstrapper factories
+## Swapping a bootstrapper for tests
 
-The cache, drive, mail, and session bootstrappers each take a
-factory you can override in `config/multitenancy.ts` for the test
-environment:
+There is no factory config for bootstrappers. The supported seam is
+the registry itself: the provider only registers a built-in
+bootstrapper when no bootstrapper with that name exists yet, so a
+test (or a test-only provider) that registers its own first wins:
 
 ```ts
-// config/multitenancy.ts (NODE_ENV === 'test')
-export default defineConfig({
-  cache: { factory: () => new InMemoryCache() },
-  drive: { factory: () => new InMemoryDrive() },
+import { BootstrapperRegistry } from '@adonisjs-lasagna/saas-tenancy/services'
+
+const registry = await app.container.make(BootstrapperRegistry)
+registry.unregister('drive')
+registry.register({
+  name: 'drive',
+  enter: () => {/* point tenantDisk paths at a temp dir, stub a client, … */},
 })
 ```
 
-This is the cleanest way to keep tests fast without sacrificing
-behavioural fidelity; the bootstrappers run, the wrappers wrap, but
-the underlying storage is in-process.
+For database-shaped tests, prefer the `sqlite-memory` isolation
+driver — real SQL round-trips with zero infrastructure.
 
 ## Integration tests against real PostgreSQL
 
@@ -122,12 +125,12 @@ Postgres. Patterns to copy:
   fixture app, hands the runner to `app.testRunner()`.
 - `tests/fixtures/`; a minimal AdonisJS app that imports the
   package via the `exports` map.
-- `examples/api/`; a complete reference app with 111 e2e tests
-  exercising every feature.
+- `examples/api/`; a complete reference app with an e2e suite of
+  120+ tests across the feature surface.
 
-The reference suite uses the `compose.test.yml` to bring up
-Postgres, Redis, and MailCatcher; everything Lasagna integrates
-with; and runs the e2e suite in 4 to 6 minutes on a laptop.
+The reference suite uses `examples/api/docker-compose.yml` to bring
+up Postgres, Redis, and MailCatcher; everything Lasagna integrates
+with; `npm run test:e2e` wraps the whole cycle.
 
 ## Coverage matrix
 

@@ -1,8 +1,8 @@
 import { test } from '@japa/runner'
-import { randomUUID } from 'node:crypto'
 import { createHmac } from 'node:crypto'
 import { WebhookService, verifyWebhookSignature } from '@adonisjs-lasagna/saas-tenancy/services'
 import { encrypt } from '@adonisjs-lasagna/saas-tenancy'
+import { makeDelivery, makeHook } from '../../helpers/webhook_doubles.js'
 
 process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
 
@@ -17,33 +17,6 @@ function makeFetch(status: number, body = '{}'): FakeFetch {
     status,
     text: async () => body,
   })
-}
-
-function makeDelivery(overrides: Record<string, unknown> = {}) {
-  return {
-    id: randomUUID(),
-    event: 'user.created',
-    payload: { userId: '123' },
-    status: 'pending' as const,
-    attempt: 1,
-    statusCode: null as number | null,
-    responseBody: null as string | null,
-    nextRetryAt: null as unknown,
-    save: async () => {},
-    ...overrides,
-  }
-}
-
-function makeHook(overrides: Record<string, unknown> = {}) {
-  return {
-    id: randomUUID(),
-    tenantId: randomUUID(),
-    url: 'https://example.com/webhook',
-    events: ['user.created'],
-    secret: null as string | null,
-    enabled: true,
-    ...overrides,
-  }
 }
 
 test.group('WebhookService.send() — delivery state machine', (group) => {

@@ -7,37 +7,34 @@ description: Eight tenant-aware queue jobs (install, uninstall, backup, restore,
 
 Long-running tenant operations run on the AdonisJS queue so they can
 be retried, observed, and parallelized without blocking the HTTP
-request that triggered them. Lasagna ships eight jobs you can
-dispatch directly or rely on through ace commands. Three are
-exclusive to the [Billing satellite](/docs/satellites/billing) and
-only enqueue work when `--with=billing` is configured.
+request that triggered them. Eight jobs exist across the ecosystem:
+two ship in the core, three with the
+[backup satellite](/docs/satellites/index), and three with the
+[Billing satellite](/docs/satellites/billing).
 
 ## What ships
 
-| Job class | Purpose | Triggered by |
-|---|---|---|
-| `InstallTenant` | Provision the tenant's schema/database, run migrations, init queue | `tenant:create`, `POST /admin/.../tenants` |
-| `UninstallTenant` | Tear down storage, destroy the tenant queue, soft-delete the row | `tenant:destroy` (when not `--keep-schema`) |
-| `BackupTenant` | Run `pg_dump` for a single tenant, mirror to S3 if configured | `tenant:backups:run` cron, ad-hoc dispatch |
-| `RestoreTenant` | Run `pg_restore` against a stored dump | `tenant:restore` |
-| `CloneTenant` | Provision a destination tenant + copy rows from source | `tenant:clone` |
-| `ProcessStripeEventJob` | Process a verified Stripe webhook event (retrieve from Stripe, ordering guard, syncSubscription/dispatch table, mark completed) | `StripeWebhookController` after the idempotent `INSERT ... ON CONFLICT DO NOTHING` |
-| `ReportUsageBatchJob` | Send aggregated meter events to Stripe in a single batch | `UsageAutoBridgeListener` flush (every `batchFlushMs`, default 10 s) |
-| `BillingCleanupJob` | Purge `stripe_processed_events` older than `webhook.idempotencyTtlDays` | `tenant:billing:cleanup` command (also exposes `runBillingCleanup()` for direct invocation) |
+| Job class | Package | Purpose | Triggered by |
+|---|---|---|---|
+| `InstallTenant` | core | Provision the tenant's schema/database and init its queue (migrations are the separate `tenant:migrate` step) | `tenant:create`, `POST /admin/.../tenants` |
+| `UninstallTenant` | core | Tear down storage, destroy the tenant queue, soft-delete the row | `tenant:destroy` (when not `--keep-schema`) |
+| `BackupTenant` | `@adonisjs-lasagna/backup` | Run `pg_dump` for a single tenant, mirror to S3 if configured | `tenant:backups:run` cron, ad-hoc dispatch |
+| `RestoreTenant` | `@adonisjs-lasagna/backup` | Run `pg_restore` against a stored dump | `tenant:restore` |
+| `CloneTenant` | `@adonisjs-lasagna/backup` | Provision a destination tenant + copy rows from source | `tenant:clone` |
+| `ProcessStripeEventJob` | `@adonisjs-lasagna/billing` | Process a verified Stripe webhook event (retrieve from Stripe, ordering guard, syncSubscription/dispatch table, mark completed) | `StripeWebhookController` after the idempotent `INSERT ... ON CONFLICT DO NOTHING` |
+| `ReportUsageBatchJob` | `@adonisjs-lasagna/billing` | Send aggregated meter events to Stripe in a single batch | `UsageAutoBridgeListener` flush (every `batchFlushMs`, default 10 s) |
+| `BillingCleanupJob` | `@adonisjs-lasagna/billing` | Purge `stripe_processed_events` older than `webhook.idempotencyTtlDays` | `tenant:billing:cleanup` command (also exposes `runBillingCleanup()` for direct invocation) |
 
-All eight are exported from `@adonisjs-lasagna/saas-tenancy/jobs`:
+Import each job from the package that owns it:
 
 ```ts
+import { InstallTenant, UninstallTenant } from '@adonisjs-lasagna/saas-tenancy/jobs'
+import { BackupTenant, RestoreTenant, CloneTenant } from '@adonisjs-lasagna/backup'
 import {
-  InstallTenant,
-  UninstallTenant,
-  BackupTenant,
-  RestoreTenant,
-  CloneTenant,
   ProcessStripeEventJob,
   ReportUsageBatchJob,
   BillingCleanupJob,
-} from '@adonisjs-lasagna/saas-tenancy/jobs'
+} from '@adonisjs-lasagna/billing'
 ```
 
 ## Dispatching
@@ -67,7 +64,7 @@ await CloneTenant.dispatch({
 typed wrappers in your host app:
 
 ```ts
-import type { CloneTenantPayload } from '@adonisjs-lasagna/saas-tenancy'
+import type { CloneTenantPayload } from '@adonisjs-lasagna/backup'
 ```
 
 ## Tenant context propagation
@@ -94,7 +91,7 @@ works.
 
 `InstallTenant`, `UninstallTenant`, `BackupTenant`, `RestoreTenant`,
 and `CloneTenant` all run `before:` and `after:` hooks from the
-[`HookRegistry`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/src/services/hook_registry.ts):
+[`HookRegistry`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/src/services/hook_registry.ts):
 
 ```ts
 // config/multitenancy.ts
@@ -173,7 +170,7 @@ export default class GenerateInvoice extends Job<{ tenantId: string; invoiceId: 
 
 The integration suite proves this propagates correctly under
 contention with 30 jobs × 3 tenants concurrently:
-[`tests/integration/jobs/tenant_context.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/tests/integration/jobs/tenant_context.spec.ts).
+[`tests/integration/jobs/tenant_context.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/tests/integration/jobs/tenant_context.spec.ts).
 
 ## Related
 

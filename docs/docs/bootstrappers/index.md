@@ -20,14 +20,22 @@ runs and `leave(ctx)` after, even on `fn` throw. Cleanup is
 guaranteed.
 
 ```ts
-import { tenancy } from '@adonisjs-lasagna/saas-tenancy/services'
+import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
+import { cacheFor, tenantDisk, tenantMailer } from '@adonisjs-lasagna/saas-tenancy/services'
 
 await tenancy.run(tenant, async () => {
-  await emails.send(welcomeEmail)        // mail bootstrapper picked the right SMTP
-  await drive.use().put('logo.png', buf) // drive bootstrapper prefixed the key
-  await cache.set('plan', tenant.plan)   // cache bootstrapper namespaced the key
+  await (await tenantMailer()).send(welcomeEmail)       // stamps X-Tenant-Id on the message
+  await (await tenantDisk()).put('logo.png', buf)       // key becomes tenants/<id>/logo.png
+  await cacheFor(tenant).set('plan', tenant.plan)       // key namespaced under tenant:<id>
 })
 ```
+
+The scoping is explicit: each bootstrapper validates the tenant id at
+scope entry and exposes a tenant-aware helper (`cacheFor`,
+`tenantDisk`, `tenantMailer`, `tenantSession`, `tenantBroadcast`) that
+reads the active tenant from `AsyncLocalStorage`. The underlying
+Adonis services (`drive.use()`, `mail`, …) are untouched — code that
+calls them directly is not rewritten behind your back.
 
 The HTTP request path activates the registry inside
 `TenantGuardMiddleware`. Queue jobs that wrap their handler in
@@ -39,13 +47,13 @@ The HTTP request path activates the registry inside
 The package ships **five** bootstrappers under
 `src/services/bootstrappers/`. Each one wraps a peer Adonis service:
 
-| Bootstrapper | Service | What it does |
+| Bootstrapper | Service | Tenant-aware helper |
 |---|---|---|
-| [`cacheBootstrapper`](/docs/bootstrappers/cache) | BentoCache | Namespaces every key by `tenants/<id>/…` |
-| [`driveBootstrapper`](/docs/bootstrappers/filesystem) | `@adonisjs/drive` | Prefixes every storage operation with `tenants/<id>/` |
-| [`mailBootstrapper`](/docs/bootstrappers/mail) | `@adonisjs/mail` | Switches SMTP credentials and from address per tenant |
-| [`sessionBootstrapper`](/docs/bootstrappers/session) | `@adonisjs/session` | Prefixes session keys with the tenant id |
-| [`transmitBootstrapper`](/docs/bootstrappers/broadcasting) | `@adonisjs/transmit` | Scopes broadcast channels per tenant |
+| [`cacheBootstrapper`](/docs/bootstrappers/cache) | BentoCache | `cacheFor(tenant)` — keys namespaced under `tenant:<id>` |
+| [`driveBootstrapper`](/docs/bootstrappers/filesystem) | `@adonisjs/drive` | `tenantDisk(disk?)` — keys prefixed with `tenants/<id>/` |
+| [`mailBootstrapper`](/docs/bootstrappers/mail) | `@adonisjs/mail` | `tenantMailer(transport?)` — stamps `X-Tenant-Id` on every message |
+| [`sessionBootstrapper`](/docs/bootstrappers/session) | `@adonisjs/session` | `tenantSession(ctx)` / `tenantSessionKey(key)` — keys prefixed with `tenants/<id>/` |
+| [`transmitBootstrapper`](/docs/bootstrappers/broadcasting) | `@adonisjs/transmit` | `tenantBroadcast(channel, payload)` / `tenantChannel(name)` — channels prefixed with `tenants/<id>/` |
 
 ::: tip Database is not a bootstrapper
 Database query routing is handled inside `TenantAdapter` via the
@@ -71,7 +79,7 @@ boot. There is no config flag to suppress one ahead of time:
 ```ts
 // providers/app_provider.ts (or anywhere after the multitenancy
 // provider has booted)
-import BootstrapperRegistry from '@adonisjs-lasagna/saas-tenancy/services'
+import { BootstrapperRegistry } from '@adonisjs-lasagna/saas-tenancy/services'
 
 async ready() {
   const registry = await this.app.container.make(BootstrapperRegistry)
@@ -81,9 +89,9 @@ async ready() {
 
 ## Order matters
 
-Each bootstrapper has a `priority`. The registry enters in ascending
-order and leaves in descending order, exactly like a stack. The
-default ordering is:
+The registry enters in **registration order** and leaves in reverse,
+exactly like a stack. The provider registers the built-ins in this
+order:
 
 1. `cache`
 2. `drive`
@@ -91,28 +99,35 @@ default ordering is:
 4. `session`
 5. `transmit`
 
-You can override priorities when registering a custom bootstrapper.
+A custom bootstrapper you register afterwards enters last and leaves
+first. To run before the built-ins, register yours before the
+multitenancy provider boots (or unregister and re-register in your
+preferred order).
 
 ## Writing a custom bootstrapper
 
 ```ts
-import { Bootstrapper, TenantContext } from '@adonisjs-lasagna/saas-tenancy/services'
+import {
+  BootstrapperRegistry,
+  type TenantBootstrapper,
+  type BootstrapperContext,
+} from '@adonisjs-lasagna/saas-tenancy/services'
 
-export class FeatureFlagsBootstrapper implements Bootstrapper {
-  priority = 50
+export class FeatureFlagsBootstrapper implements TenantBootstrapper {
+  readonly name = 'feature-flags'
 
-  async enter(ctx: TenantContext) {
-    // Setup work for this tenant
+  async enter(ctx: BootstrapperContext) {
+    // Setup work for ctx.tenant
   }
 
-  async leave(ctx: TenantContext) {
+  async leave(ctx: BootstrapperContext) {
     // Tear down whatever enter() set up
   }
 }
 
 // Register in your provider
 const registry = await this.app.container.make(BootstrapperRegistry)
-registry.register('feature-flags', new FeatureFlagsBootstrapper())
+registry.register(new FeatureFlagsBootstrapper())
 ```
 
 Lifecycle invariants:

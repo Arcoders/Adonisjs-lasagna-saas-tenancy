@@ -41,6 +41,7 @@ intended guard. Read config at request or job time, not at module top-level.
 |---|---|---|---|
 | `resolverStrategy` | `'subdomain' \| 'header' \| 'path' \| 'domain-or-subdomain' \| 'request-data'` |  | How the tenant id is read from the request. |
 | `resolverChain` | `string[]` |  | Ordered resolver names; first hit wins. **Overrides** `resolverStrategy`. |
+| `resolver.legacyAdapterFallback` | `boolean` | `false` | Restore the 0.x `resolverStrategy`-only fallback for model queries outside an active tenant context. See [Upgrade to 1.0](/docs/upgrade-to-1.0#_3-check-the-resolver-default). |
 | `tenantHeaderKey` | `string` |  | Header name read by the `header` resolver. |
 | `baseDomain` | `string` |  | Apex domain used to parse subdomains. |
 | `requestData.queryKey` | `string` | `'tenant_id'` | Query-string key for the `request-data` resolver. |
@@ -66,6 +67,9 @@ isolation: { driver: 'schema-pg' }
 | `isolation.rowScopeTables` | `string[]` |  | Tenant-scoped tables (`rowscope-pg`) for `destroy`/`reset`. |
 | `isolation.rowScopeColumn` | `string` | `'tenant_id'` | Tenant id column (`rowscope-pg`). |
 | `isolation.rowScopeMode` | `'strict' \| 'allowGlobal'` | `'strict'` | `strict` throws on an unscoped query outside `tenancy.run()`. This is the safe default. |
+| `isolation.maxTenantConnections` | `number` | `50` | LRU budget for open tenant connections (`schema-pg`/`database-pg`). Keep `cap × pool max` under PG's `max_connections`. |
+| `isolation.evictionGracePeriodMs` | `number` | `30000` | A connection touched more recently than this is in-use and never evicted — set above your p99 request duration. |
+| `isolation.enforceConnectionCap` | `boolean` | `false` | Turn the LRU budget into a hard cap: refuse new tenant connections with a 503 (`TenantConnectionLimitException`) instead of exceeding it. |
 
 ## Resilience (degradation policy)
 
@@ -82,12 +86,10 @@ resilience: {
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `resilience.defaultPolicy` | `'fail-open' \| 'fail-closed'` | `'fail-closed'` | Fallback policy for anything not overridden. |
 | `resilience.redis.quota` | `'fail-open' \| 'fail-closed'` | `'fail-open'` | `QuotaService.consume/track` on a Redis outage. Fail-open returns `0` (no enforcement); fail-closed throws `DependencyUnavailableException`. |
-| `resilience.redis.rateLimit` | `'fail-open' \| 'fail-closed'` | `'fail-closed'` | `RateLimitMiddleware` (the per-route `failOpen` option still wins where set). |
-| `resilience.redis.cache` | `'fail-open' \| 'fail-closed'` | `'fail-open'` | Cache bootstrapper. |
-| `resilience.redis.metrics` | `'fail-open' \| 'fail-closed'` | `'fail-open'` | `MetricsService` counters. |
+| `resilience.redis.rateLimit` | `'fail-open' \| 'fail-closed'` | `'fail-closed'` | `RateLimitMiddleware` (an explicit per-route `failOpen` option still wins). |
 | `resilience.observe` | `boolean` | `true` | Emit `DependencyDegraded` + log + OTel span event on degradation. |
+| `resilience.defaultPolicy`, `resilience.redis.cache`, `resilience.redis.metrics` | — | reserved | Typed but **not consulted yet**: the cache bootstrapper and `MetricsService` currently always fail open, and there is no generic default-policy fan-out. Reserved for a future release. |
 
 ::: warning Fail-open is silent enforcement loss
 `fail-open` for quotas means a Redis outage stops enforcing limits. That's the
@@ -155,6 +157,18 @@ known-down tenant DB isn't hammered with timeouts after a deploy.
 (120), `longQueryWarnSeconds` (30), `longQueryErrorSeconds` (120),
 `poolSaturationWarnRatio` (0.9).
 
+## Routing, scheduling, onboarding, hooks
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `routing.autoLoad` | `boolean` | `true` | Auto-import `start/tenant.ts` and `start/universal.ts` after the router macros install. |
+| `routing.tenantRoutesFile` | `string` | `'tenant.ts'` | Filename inside `start/` for tenant routes. |
+| `routing.universalRoutesFile` | `string` | `'universal.ts'` | Filename inside `start/` for universal routes. |
+| `maintenanceSchedule.backupHour` | `number` |  | Hour of day (UTC) the host's scheduler should run backups at. |
+| `maintenanceSchedule.migrateAllHour` | `number` |  | Hour of day (UTC) for whole-fleet migrations. |
+| `onboarding.wizardTtl` / `onboarding.wizardKeyPrefix` | `number` / `string` |  | Cache TTL and key prefix for an onboarding-wizard flow, if your app uses one. |
+| `hooks` | `DeclarativeHooks` |  | Lifecycle callbacks (`beforeProvision`, `afterMigrate`, …). See [Hooks](/docs/hooks). |
+
 ## Read replicas
 
 ```ts
@@ -166,6 +180,7 @@ tenantReadReplicas: { hosts: [{ host: 'replica-1' }], strategy: 'sticky' }
 | `tenantReadReplicas.hosts` | `{ host, port?, user?, password?, name? }[]` |  | Pool of read replicas. |
 | `tenantReadReplicas.strategy` | `'round-robin' \| 'random' \| 'sticky'` | `'round-robin'` | How a replica is chosen per request. |
 | `tenantReadReplicas.connectionSuffix` | `string` | `'_read'` | Suffix for the registered replica connection name. |
+| `tenantReadReplicas.maxReplicaConnections` | `number` | `50` | Separate LRU budget for replica connections (they multiply by host). |
 
 ::: warning No automatic lag failover
 Replica selection does **not** check lag or health. Reads can be stale, and a

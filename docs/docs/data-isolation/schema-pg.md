@@ -31,9 +31,15 @@ adapter activates the right one before each query leaves the process.
 1. Mark the tenant as `deleted_at` (soft delete).
 2. After the retention window elapses, `tenant:purge-expired` calls
    `driver.destroy()`:
-   - `pg_terminate_backend` against any sessions on the schema.
    - `DROP SCHEMA "tenant_<uuid>" CASCADE`.
    - Close and unregister the Lucid connection.
+
+   PostgreSQL sessions attach to a database, not a schema, so there is
+   no session termination here (the [`database-pg`
+   driver](/docs/data-isolation/database-pg) does terminate sessions,
+   where it is meaningful). An in-flight query holding locks on the
+   tenant's tables makes the `DROP` wait until it finishes rather than
+   fail.
 
 ## Configuration
 

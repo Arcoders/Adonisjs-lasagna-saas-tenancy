@@ -5,19 +5,32 @@ description: Structured per-tenant audit trail. Queryable by date range, indexed
 
 # Audit logs
 
-Records every state change Lasagna makes; and every change you ask
-it to record; with actor, payload, and IP address. Queryable by
-date range via the admin REST API.
+A tamper-proof, per-tenant audit trail with actor, payload, and IP
+address — queryable by date range via the admin REST API. The
+package provides the storage, the immutability guarantees, and the
+`AuditLogService.log()` API; *what* gets recorded is mostly your
+call.
 
 ## What gets recorded automatically
 
-- Tenant lifecycle (`created`, `activated`, `suspended`,
-  `soft_deleted`, `restored`, `purged`).
-- Webhook subscription / delivery state changes.
-- Branding updates (with the encrypted fields redacted).
-- SSO config updates.
-- Impersonation grants and revocations.
-- Quota threshold breaches.
+- Impersonation sessions: `admin:impersonate:start`,
+  `admin:impersonate:first-use`, and `admin:impersonate:stop`.
+
+That is the only built-in writer today. Everything else — tenant
+lifecycle transitions, webhook changes, branding/SSO updates, quota
+breaches — is recorded by *your* code via `audit.log()`; the
+[lifecycle hooks](/docs/hooks) and [events](/docs/events) give you
+clean attachment points:
+
+```ts
+// config/multitenancy.ts — audit every provision/destroy
+hooks: {
+  afterProvision: async ({ tenant }) => {
+    const audit = await app.container.make(AuditLogService)
+    await audit.log({ tenantId: tenant.id, actorType: 'system', action: 'tenant.provisioned' })
+  },
+}
+```
 
 You opt-in via `node ace configure @adonisjs-lasagna/saas-tenancy
 --with=audit`. The migration creates `tenant_audit_logs` in the
@@ -53,8 +66,9 @@ curl -H "x-admin-token: $TOKEN" \
 ```
 
 The `from` and `to` parameters expect ISO 8601 dates and rely on the
-`(tenant_id, created_at)` index; no `OFFSET` cost regardless of how
-many rows the tenant has.
+`(tenant_id, created_at)` index. Results are page/limit paginated
+(limit capped at 200) — narrow the date range for tenants with very
+deep histories rather than walking far pages.
 
 ## Retention
 

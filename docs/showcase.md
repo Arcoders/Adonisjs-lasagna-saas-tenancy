@@ -15,16 +15,15 @@ adding your card to this page.
 
 <LasagnaCard variant="feature" title="examples/api">
 
-A complete AdonisJS 7 app that exercises every feature in the
-package. Wired up with all six bootstrappers, the doctor command,
-backups, replicas, and the full satellite suite. Comes with a
-**111-test e2e suite** you can run with one command:
+A complete AdonisJS 7 app that exercises the package's feature
+surface end to end. Wired up with all five bootstrappers, the doctor
+command, backups, replicas, and the full satellite suite. Comes with
+an **e2e suite of 120+ tests** you can run with one command:
 
 ```bash
 cd examples/api
 npm install
-docker compose -f compose.test.yml up -d
-npm run test:e2e
+npm run test:e2e   # brings up docker-compose.yml infra, runs the suite, tears down
 ```
 
 The suite covers tenant provisioning end to end, schema isolation,

@@ -14,7 +14,8 @@ and register it.
 ## The contract
 
 ```ts
-import { IsolationDriver, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/services'
+import type { IsolationDriver, DestroyOptions, MigrateOptions, MigrateResult } from '@adonisjs-lasagna/saas-tenancy/services'
+import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 export class MyDriver implements IsolationDriver {
   readonly name = 'my-driver'
@@ -23,8 +24,9 @@ export class MyDriver implements IsolationDriver {
     // Create the tenant's storage. Idempotent — the package may retry.
   }
 
-  async destroy(tenant: TenantModelContract): Promise<void> {
-    // Tear it down cleanly. Terminate active sessions if any.
+  async destroy(tenant: TenantModelContract, opts?: DestroyOptions): Promise<void> {
+    // Tear it down cleanly. `opts.keepData` is the recycle-bin pattern
+    // (`tenant:destroy --keep-schema`): mark, don't delete.
   }
 
   async reset(tenant: TenantModelContract): Promise<void> {
@@ -46,16 +48,18 @@ export class MyDriver implements IsolationDriver {
     return `my-driver:${tenantId}`
   }
 
-  async migrate(tenant: TenantModelContract, opts: { dryRun?: boolean }): Promise<void> {
-    // Run migrations against this tenant's storage.
-    // Return without throwing on `dryRun`.
+  async migrate(tenant: TenantModelContract, opts?: MigrateOptions): Promise<MigrateResult> {
+    // Run migrations against this tenant's storage. Drivers that
+    // don't own per-tenant migrations return { executed: 0, noop: true }.
+    return { executed: 0, noop: true }
   }
 }
 ```
 
 ## Registering it
 
-Plug the driver into the registry from your provider:
+Plug the driver into the registry from your provider — the registry
+keys it by `driver.name`:
 
 ```ts
 // providers/app_provider.ts
@@ -65,7 +69,7 @@ import { MyDriver } from '#drivers/my_driver'
 export default class AppProvider {
   async boot() {
     const registry = await this.app.container.make(IsolationDriverRegistry)
-    registry.register('my-driver', new MyDriver())
+    registry.register(new MyDriver())
   }
 }
 ```

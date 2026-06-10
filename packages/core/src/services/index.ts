@@ -16,6 +16,7 @@ export type { BuildUrlOptions } from './cross_domain_redirect_service.js'
 export { default as ImpersonationService } from './impersonation_service.js'
 export { default as FeatureFlagService } from './feature_flag_service.js'
 export { default as WebhookService, verifyWebhookSignature } from './webhook_service.js'
+export type { RegisterWebhookResult } from './webhook_service.js'
 // Expose the shared BentoCache instance so apps that namespace their
 // own cache keys (and integration tests that need to seed sessions
 // directly) don't have to dig into internal paths. `cacheFor(tenant)`
@@ -45,6 +46,11 @@ export {
   withTenantRls,
   DEFAULT_RLS_GUC,
 } from './isolation/index.js'
+// Custom isolation drivers interpolate tenant ids into DDL/paths and must
+// validate them the same way the shipped drivers do (see the
+// custom-isolation-driver cookbook), so the validator is part of this
+// surface. Also available via the `/internal` subpath.
+export { assertSafeIdentifier } from './isolation/identifier.js'
 export {
   TenantResolverRegistry,
   HeaderResolver,

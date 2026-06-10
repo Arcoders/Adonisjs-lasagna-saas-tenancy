@@ -2,7 +2,19 @@ import type { QueryClientContract } from '@adonisjs/lucid/types/database'
 import type { MigratorOptions } from '@adonisjs/lucid/types/migrator'
 import type { TenantModelContract } from '../../types/contracts.js'
 
-export type IsolationDriverName = 'schema-pg' | 'database-pg' | 'rowscope-pg' | 'sqlite-memory'
+/**
+ * The four shipped driver names, plus any custom name a host registers via
+ * `IsolationDriverRegistry.register()` (the registry keys drivers by
+ * `driver.name` at runtime, so the type must not close the set — see the
+ * custom-isolation-driver cookbook). `(string & {})` keeps editor
+ * autocomplete for the built-ins while admitting custom names.
+ */
+export type IsolationDriverName =
+  | 'schema-pg'
+  | 'database-pg'
+  | 'rowscope-pg'
+  | 'sqlite-memory'
+  | (string & {})
 
 export interface DestroyOptions {
   /**

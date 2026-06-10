@@ -23,10 +23,12 @@ npm run test:integration  # builds + runs integration tests against ./build/
 ```
 
 The integration suite runs against real PostgreSQL and Redis. The
-fastest way to bring those up:
+fastest way to bring those up is the example app's compose file
+(Postgres on 55432, Redis on 56379 — the test fixtures point at those
+ports already):
 
 ```bash
-docker compose -f compose.test.yml up -d
+cd examples/api && docker compose up -d && cd ../..
 ```
 
 ## Running a single test

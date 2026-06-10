@@ -61,7 +61,7 @@ Outbound webhooks with HMAC signing and retries. See [Webhooks](/docs/satellites
 | Method | Returns | Notes |
 |---|---|---|
 | `dispatch(tenantId, event, payload)` | `Promise<void>` | Fan out an event to every enabled hook subscribed to it. |
-| `registerWebhook(tenantId, url, events, secret?)` | `Promise<TenantWebhook>` | Validates the URL against the SSRF guard before persisting. |
+| `registerWebhook(tenantId, url, events, secret?)` | `Promise<{ hook, generatedSecret? }>` | Validates the URL against the SSRF guard before persisting. `generatedSecret` is the one-time plaintext, present only when `secret` was omitted. |
 | `listWebhooks(tenantId)` / `deleteWebhook(id, tenantId)` | `Promise<TenantWebhook[]>` / `Promise<void>` | |
 | `processRetries()` | `Promise<void>` | Send all deliveries whose `next_retry_at` is due (used by the retry sweep). |
 

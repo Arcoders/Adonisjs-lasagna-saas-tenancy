@@ -259,3 +259,68 @@ test.group('RateLimitMiddleware', (group) => {
     assert.isTrue(nextCalled, 'in app.inTest mode the middleware must short-circuit')
   })
 })
+
+test.group('RateLimitMiddleware — global resilience.redis.rateLimit fallback', (group) => {
+  group.each.setup(() => {
+    setupTestConfig()
+  })
+
+  // The tests below seed non-default resilience policies into the
+  // module-level config singleton; unit spec files share one process, so
+  // reset to the base config rather than leaking 'fail-open'/'fail-closed'
+  // into whichever file runs next.
+  group.each.teardown(() => {
+    setupTestConfig()
+  })
+
+  test('global fail-open applies when the route passes no failOpen option', async ({
+    assert,
+  }) => {
+    setupTestConfig({ resilience: { redis: { rateLimit: 'fail-open' } } })
+    const m = new FailingRedisRateLimit()
+    let nextCalled = false
+
+    await m.handle(
+      { request: makeRequest(), response: makeResponse() } as any,
+      async () => {
+        nextCalled = true
+      },
+      { limit: 10, windowSeconds: 60 }
+    )
+
+    assert.isTrue(nextCalled, 'Redis outage must pass through under the global fail-open policy')
+  })
+
+  test('an explicit per-route failOpen: false wins over the global fail-open policy', async ({
+    assert,
+  }) => {
+    setupTestConfig({ resilience: { redis: { rateLimit: 'fail-open' } } })
+    const m = new FailingRedisRateLimit()
+
+    await assert.rejects(
+      () =>
+        m.handle({ request: makeRequest(), response: makeResponse() } as any, async () => {}, {
+          limit: 10,
+          windowSeconds: 60,
+          failOpen: false,
+        }),
+      RateLimitUnavailableException as any
+    )
+  })
+
+  test('global fail-closed (the documented default) still 503s without a per-route option', async ({
+    assert,
+  }) => {
+    setupTestConfig({ resilience: { redis: { rateLimit: 'fail-closed' } } })
+    const m = new FailingRedisRateLimit()
+
+    await assert.rejects(
+      () =>
+        m.handle({ request: makeRequest(), response: makeResponse() } as any, async () => {}, {
+          limit: 10,
+          windowSeconds: 60,
+        }),
+      RateLimitUnavailableException as any
+    )
+  })
+})

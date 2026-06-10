@@ -7,9 +7,20 @@ import {
   isLoopbackUrl,
 } from '../utils/url.js'
 import { DateTime } from 'luxon'
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 
 export const MAX_ATTEMPTS = 5
+
+export interface RegisterWebhookResult {
+  hook: TenantWebhook
+  /**
+   * Present only when the service generated the signing secret (the caller
+   * omitted it). This is the ONE time the plaintext is disclosed — it is
+   * stored encrypted and cannot be read back later. Hand it to the
+   * subscriber now.
+   */
+  generatedSecret?: string
+}
 
 export const BACKOFF_BASE_SECONDS = [10, 60, 300, 1800, 7200] as const
 
@@ -176,15 +187,28 @@ export default class WebhookService {
     url: string,
     events: string[],
     secret?: string
-  ): Promise<TenantWebhook> {
+  ): Promise<RegisterWebhookResult> {
     // Validate at the service boundary too, so callers that bypass the admin
     // controller can't persist an SSRF-capable URL.
     const urlError = validateExternalHttpsUrl(url)
     if (urlError) {
       throw new Error(`WebhookService: refusing to register an unsafe webhook url (${urlError}).`)
     }
-    const encryptedSecret = secret ? encrypt(secret) : null
-    return TenantWebhook.create({ tenantId, url, events, secret: encryptedSecret, enabled: true })
+    // Every webhook gets a signing secret: when the caller doesn't provide
+    // one, generate it. Deliveries from a secretless hook would be unsigned
+    // and the receiver couldn't authenticate them — a silent downgrade no
+    // caller actually wants. An empty string counts as "not provided" —
+    // otherwise it would be encrypted and used as an HMAC key of length 0.
+    const provided = secret || undefined
+    const plainSecret = provided ?? randomBytes(32).toString('hex')
+    const hook = await TenantWebhook.create({
+      tenantId,
+      url,
+      events,
+      secret: encrypt(plainSecret),
+      enabled: true,
+    })
+    return provided ? { hook } : { hook, generatedSecret: plainSecret }
   }
 
   async listWebhooks(tenantId: string): Promise<TenantWebhook[]> {

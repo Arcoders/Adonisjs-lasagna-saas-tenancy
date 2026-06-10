@@ -1,4 +1,5 @@
 import type { DeclarativeHooks } from '../services/hook_registry.js'
+import type { IsolationDriverName } from '../services/isolation/driver.js'
 import type { TenantModelContract } from './contracts.js'
 
 export type TenantResolverStrategy =
@@ -215,7 +216,12 @@ export interface ReadReplicasConfig {
   maxReplicaConnections?: number
 }
 
-export type IsolationDriverChoice = 'schema-pg' | 'database-pg' | 'rowscope-pg' | 'sqlite-memory'
+/**
+ * The shipped drivers plus any custom driver name registered through
+ * `IsolationDriverRegistry`. Aliases the driver contract's own name type so
+ * the two unions cannot drift apart.
+ */
+export type IsolationDriverChoice = IsolationDriverName
 
 export interface IsolationConfig {
   /**

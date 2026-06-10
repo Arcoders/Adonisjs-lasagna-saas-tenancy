@@ -30,7 +30,18 @@ export default class SetupBackoffice extends BaseCommand {
     await migrator.run()
 
     if (migrator.status === 'error') {
-      this.logger.error('Backoffice migration failed')
+      // Surface the underlying cause and the file that failed — a bare
+      // "migration failed" forces the operator to re-run the migration by
+      // hand just to see the error.
+      const failed = Object.entries(migrator.migratedFiles).find(
+        ([, file]) => file.status === 'error'
+      )
+      if (failed) this.logger.error(`Migration failed: ${failed[0]}`)
+      if (migrator.error) this.logger.error(migrator.error.message)
+      this.logger.error(
+        'Backoffice migration failed. Inspect with: node ace migration:status ' +
+          `--connection=${backofficeConnectionName}`
+      )
       this.exitCode = 1
       return
     }
