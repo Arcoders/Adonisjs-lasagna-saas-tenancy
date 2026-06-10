@@ -99,6 +99,11 @@ DELETE /tenants/{id}/webhooks/{webhookId}
 GET    /tenants/{id}/webhooks/{webhookId}/deliveries
 ```
 
+When the `POST` body omits `secret`, the service generates one and the
+201 response carries it as a top-level `secret` field — that is the
+only time the plaintext is disclosed. It is stored encrypted; later
+responses only report `hasSecret: true`.
+
 ### Branding
 
 ```

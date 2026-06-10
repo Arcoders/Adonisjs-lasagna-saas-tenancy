@@ -21,7 +21,7 @@ import { WebhookService } from '@adonisjs-lasagna/saas-tenancy/services'
 
 const webhooks = await app.container.make(WebhookService)
 
-const hook = await webhooks.registerWebhook(
+const { hook, generatedSecret } = await webhooks.registerWebhook(
   tenant.id,
   'https://acme.com/hooks/lasagna',
   ['tenant.activated', 'subscription.upgraded']
@@ -29,10 +29,9 @@ const hook = await webhooks.registerWebhook(
   // encrypted at rest with APP_KEY (AES-256-GCM).
 )
 
-// When the secret was generated, this is the ONLY time the plaintext
-// is available — hand it to the subscriber now; it cannot be read
-// back later.
-const secret = hook.$extras.generatedSecret
+// `generatedSecret` is set only when the service generated it, and this
+// is the ONLY time the plaintext is available — hand it to the
+// subscriber now; it cannot be read back later.
 ```
 
 The URL is validated against the SSRF guard at registration AND again
