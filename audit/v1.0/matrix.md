@@ -180,71 +180,71 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [config#1] | Key: `backofficeSchemaName` — PG schema holding shared/satellite data | B | | | | | |
-| [config#2] | Key: `backofficeConnectionName` — Lucid connection for backoffice schema | B | | | | | |
-| [config#3] | Key: `centralSchemaName` — schema for central/global (non-tenant) tables | B | | | | | |
-| [config#4] | Key: `centralConnectionName` — Lucid connection for central schema | B | | | | | |
-| [config#5] | Key: `tenantConnectionNamePrefix` — prefix for per-tenant connection names | B | | | | | |
-| [config#6] | Key: `tenantSchemaPrefix` — prefix for per-tenant schema names | B | | | | | |
-| [config#7] | Key: `schemaCacheTtl` — TTL (seconds) for cached schema-existence probes | B | | | | | |
-| [config#8] | Key: `ignorePaths` — request paths that skip tenant resolution | B | | | | | |
-| [config#9] | Key: `resolverStrategy` — 'subdomain' \| 'header' \| 'path' \| 'domain-or-subdomain' \| 'request-data' | B | | | | | |
-| [config#10] | Key: `resolverChain` — ordered resolver names; first hit wins | B | | | | | |
-| [config#11] | Key: `tenantHeaderKey` — header name for header resolver | B | | | | | |
-| [config#12] | Key: `baseDomain` — apex domain for subdomain parsing | B | | | | | |
-| [config#13] | Key: `requestData.queryKey` (default 'tenant_id') | B | | | | | |
-| [config#14] | Key: `requestData.bodyKey` (default 'tenant_id') | B | | | | | |
-| [config#15] | Key: `isolation.driver` — 'schema-pg' \| 'database-pg' \| 'rowscope-pg' \| 'sqlite-memory' (default 'schema-pg') | B | | | | | |
-| [config#16] | Key: `isolation.templateConnectionName` (default 'tenant') — connection cloned per tenant | B | | | | | |
-| [config#17] | Key: `isolation.tenantDatabasePrefix` (default 'tenant_') — prefix for database-pg | B | | | | | |
-| [config#18] | Key: `isolation.rowScopeTables` — tables wiped on destroy (rowscope-pg) | B | | | | | |
-| [config#19] | Key: `isolation.rowScopeColumn` (default 'tenant_id') — column name | B | | | | | |
-| [config#20] | Key: `isolation.rowScopeMode` — 'strict' (default) \| 'allowGlobal' | B | | | | | |
-| [config#21] | Key: `resilience.defaultPolicy` (default 'fail-closed') — fallback for unspecified dependencies | B | | | | | |
-| [config#22] | Key: `resilience.redis.quota` (default 'fail-open') — on Redis outage for QuotaService | B | | | | | |
-| [config#23] | Key: `resilience.redis.rateLimit` (default 'fail-closed') — for RateLimitMiddleware | B | | | | | |
-| [config#24] | Key: `resilience.redis.cache` (default 'fail-open') — cache bootstrapper | B | | | | | |
-| [config#25] | Key: `resilience.redis.metrics` (default 'fail-open') — MetricsService | B | | | | | |
-| [config#26] | Key: `resilience.observe` (default true) — emit DependencyDegraded events | B | | | | | |
-| [config#27] | Key: `circuitBreaker.threshold` — error-percentage threshold to open | B | | | | | |
-| [config#28] | Key: `circuitBreaker.resetTimeout` — ms in OPEN before probing (HALF_OPEN) | B | | | | | |
-| [config#29] | Key: `circuitBreaker.rollingCountTimeout` — ms window for rolling error stats | B | | | | | |
-| [config#30] | Key: `circuitBreaker.volumeThreshold` — minimum requests before breaker can trip | B | | | | | |
-| [config#31] | "Open/closed state is persisted to Redis and restored on restart" | A | | | | | |
-| [config#32] | Key: `queue.tenantQueuePrefix` — per-tenant queue-name prefix | B | | | | | |
-| [config#33] | Key: `queue.defaultConcurrency` — default worker concurrency | B | | | | | |
-| [config#34] | Key: `queue.attempts` — default job retry attempts | B | | | | | |
-| [config#35] | Key: `queue.redis` — dedicated Redis for queues | B | | | | | |
-| [config#36] | Key: `cache.ttl` — default cache TTL (seconds) | B | | | | | |
-| [config#37] | Key: `cache.redis` — dedicated Redis for cache | B | | | | | |
-| [config#38] | Key: `backup.storagePath` — local dir for `.dump` archives + sidecar | B | | | | | |
-| [config#39] | Key: `backup.metadataTtl` — TTL (seconds) for backup metadata in Redis | B | | | | | |
-| [config#40] | Key: `backup.pgConnection` — connection used by pg_dump/pg_restore/psql | B | | | | | |
-| [config#41] | Key: `backup.s3` — optional S3 offload config | B | | | | | |
-| [config#42] | Key: `plans.defaultPlan` — plan applied when nothing else resolves | B | | | | | |
-| [config#43] | Key: `plans.definitions` — Record<string, { limits: Record<string, number> }> | B | | | | | |
-| [config#44] | Key: `plans.getPlan` — (tenant) => string \| undefined callback | B | | | | | |
-| [config#45] | Key: `plans.storage` — 'config-only' \| 'tenant_plans' \| 'auto' (default 'auto') | B | | | | | |
-| [config#46] | Key: `plans.emitTracked` (default false) — emit QuotaTracked on every track/consume | B | | | | | |
-| [config#47] | Key: `billing` — BillingConfig for Stripe satellite | B | | | | | |
-| [config#48] | Key: `impersonation.secret` — HMAC secret (≥ 32 chars), validated at boot | B | | | | | |
-| [config#49] | Key: `impersonation.defaultDuration` (default 3600 seconds) | B | | | | | |
-| [config#50] | Key: `impersonation.maxDuration` (default 86400 seconds) | B | | | | | |
-| [config#51] | Key: `impersonation.headerName` (default 'x-impersonation-token') | B | | | | | |
-| [config#52] | Key: `impersonation.cookieName` (default '__impersonation') | B | | | | | |
-| [config#53] | Key: `maintenance.defaultMessage` — default body for TenantMaintenanceException | B | | | | | |
-| [config#54] | Key: `maintenance.retryAfterSeconds` (default 600) | B | | | | | |
-| [config#55] | Key: `maintenance.bypassToken` / `bypassHeader` (default 'x-tenant-bypass-maintenance') | B | | | | | |
-| [config#56] | Key: `softDelete.retentionDays` (default 30) | B | | | | | |
-| [config#57] | Key: `doctor.queueStalledMinutes` (default 10) | B | | | | | |
-| [config#58] | Key: `doctor.replicaLagWarnSeconds` (default 30) | B | | | | | |
-| [config#59] | Key: `doctor.replicaLagErrorSeconds` (default 120) | B | | | | | |
-| [config#60] | Key: `doctor.longQueryWarnSeconds` (default 30) | B | | | | | |
-| [config#61] | Key: `doctor.longQueryErrorSeconds` (default 120) | B | | | | | |
-| [config#62] | Key: `doctor.poolSaturationWarnRatio` (default 0.9) | B | | | | | |
-| [config#63] | Key: `tenantReadReplicas.hosts` — pool of read replicas | B | | | | | |
-| [config#64] | Key: `tenantReadReplicas.strategy` — 'round-robin' \| 'random' \| 'sticky' (default 'round-robin') | B | | | | | |
-| [config#65] | Key: `tenantReadReplicas.connectionSuffix` (default '_read') | B | | | | | |
+| [config#1] | Key: `backofficeSchemaName` — PG schema holding shared/satellite data | B | VERIFIED | types/config.ts:343 | — | none |  |
+| [config#2] | Key: `backofficeConnectionName` — Lucid connection for backoffice schema | B | VERIFIED | types/config.ts:344 | — | none |  |
+| [config#3] | Key: `centralSchemaName` — schema for central/global (non-tenant) tables | B | VERIFIED | types/config.ts:345 | — | none |  |
+| [config#4] | Key: `centralConnectionName` — Lucid connection for central schema | B | VERIFIED | types/config.ts:346 | — | none |  |
+| [config#5] | Key: `tenantConnectionNamePrefix` — prefix for per-tenant connection names | B | VERIFIED | types/config.ts:347 | — | none |  |
+| [config#6] | Key: `tenantSchemaPrefix` — prefix for per-tenant schema names | B | VERIFIED | types/config.ts:348 | — | none |  |
+| [config#7] | Key: `schemaCacheTtl` — TTL (seconds) for cached schema-existence probes | B | VERIFIED | types/config.ts:420 | — | none |  |
+| [config#8] | Key: `ignorePaths` — request paths that skip tenant resolution | B | VERIFIED | types/config.ts:421 | — | none |  |
+| [config#9] | Key: `resolverStrategy` — 'subdomain' \| 'header' \| 'path' \| 'domain-or-subdomain' \| 'request-data' | B | VERIFIED | types/config.ts:4-9 (5 strategies) | builtin_resolvers + tenant_resolver specs | none |  |
+| [config#10] | Key: `resolverChain` — ordered resolver names; first hit wins | B | VERIFIED | types/config.ts:354 (overrides resolverStrategy) | resolver_registry.spec.ts | none |  |
+| [config#11] | Key: `tenantHeaderKey` — header name for header resolver | B | VERIFIED | types/config.ts:361 | tenant_adapter.spec.ts:104 custom header key | none |  |
+| [config#12] | Key: `baseDomain` — apex domain for subdomain parsing | B | VERIFIED | types/config.ts:362 | — | none |  |
+| [config#13] | Key: `requestData.queryKey` (default 'tenant_id') | B | VERIFIED | builtins.ts:109 queryKey ?? 'tenant_id' | builtin_resolvers.spec.ts | none |  |
+| [config#14] | Key: `requestData.bodyKey` (default 'tenant_id') | B | VERIFIED | builtins.ts:110 bodyKey ?? 'tenant_id' | builtin_resolvers.spec.ts | none |  |
+| [config#15] | Key: `isolation.driver` — 'schema-pg' \| 'database-pg' \| 'rowscope-pg' \| 'sqlite-memory' (default 'schema-pg') | B | VERIFIED | types/config.ts:218-226; provider falls back {driver:'schema-pg'} | isolation_driver_registry.spec.ts | none |  |
+| [config#16] | Key: `isolation.templateConnectionName` (default 'tenant') — connection cloned per tenant | B | VERIFIED | types/config.ts:233 default 'tenant' | schema_pg_driver specs | none |  |
+| [config#17] | Key: `isolation.tenantDatabasePrefix` (default 'tenant_') — prefix for database-pg | B | VERIFIED | types/config.ts:238 default 'tenant_' | database_pg_driver specs | none |  |
+| [config#18] | Key: `isolation.rowScopeTables` — tables wiped on destroy (rowscope-pg) | B | VERIFIED | types/config.ts:245 | rowscope_pg_driver.spec.ts destroy/reset | none |  |
+| [config#19] | Key: `isolation.rowScopeColumn` (default 'tenant_id') — column name | B | VERIFIED | types/config.ts:250 default 'tenant_id' | rowscope specs | none |  |
+| [config#20] | Key: `isolation.rowScopeMode` — 'strict' (default) \| 'allowGlobal' | B | VERIFIED | types/config.ts:262; scoping.ts:50 ?? 'strict' | scoping.spec.ts strict group | none |  |
+| [config#21] | Key: `resilience.defaultPolicy` (default 'fail-closed') — fallback for unspecified dependencies | B | VERIFIED | types/config.ts:323 default 'fail-closed' | resilience_service.spec.ts | new-test:T4 (pin all defaults) |  |
+| [config#22] | Key: `resilience.redis.quota` (default 'fail-open') — on Redis outage for QuotaService | B | VERIFIED | quota_service.ts:372 ?? 'fail-open' | quota_resilience.spec.ts | new-test:T4 |  |
+| [config#23] | Key: `resilience.redis.rateLimit` (default 'fail-closed') — for RateLimitMiddleware | B | VERIFIED | types/config.ts:328; rate_limit default fail-closed | rate_limit.spec.ts:93 | new-test:T4 |  |
+| [config#24] | Key: `resilience.redis.cache` (default 'fail-open') — cache bootstrapper | B | VERIFIED | types/config.ts:331 | — | new-test:T4 |  |
+| [config#25] | Key: `resilience.redis.metrics` (default 'fail-open') — MetricsService | B | VERIFIED | types/config.ts:333 | — | new-test:T4 |  |
+| [config#26] | Key: `resilience.observe` (default true) — emit DependencyDegraded events | B | VERIFIED | types/config.ts:339 default true | resilience_service.spec.ts (DependencyDegraded) | none |  |
+| [config#27] | Key: `circuitBreaker.threshold` — error-percentage threshold to open | B | VERIFIED | types/config.ts:427 | circuit_breaker_service.spec.ts | none |  |
+| [config#28] | Key: `circuitBreaker.resetTimeout` — ms in OPEN before probing (HALF_OPEN) | B | VERIFIED | types/config.ts:428 | circuit_breaker_service.spec.ts | none |  |
+| [config#29] | Key: `circuitBreaker.rollingCountTimeout` — ms window for rolling error stats | B | VERIFIED | types/config.ts:429 | — | none |  |
+| [config#30] | Key: `circuitBreaker.volumeThreshold` — minimum requests before breaker can trip | B | VERIFIED | types/config.ts:430 | — | none |  |
+| [config#31] | "Open/closed state is persisted to Redis and restored on restart" | A | VERIFIED | circuit_breaker_service.ts Redis persistence | integration circuit_breaker_service.spec.ts — fresh service restores OPEN from persisted Redis state | none |  |
+| [config#32] | Key: `queue.tenantQueuePrefix` — per-tenant queue-name prefix | B | VERIFIED | types/config.ts:438 | tenant_queue_service usage | none |  |
+| [config#33] | Key: `queue.defaultConcurrency` — default worker concurrency | B | VERIFIED | types/config.ts:439 | — | none |  |
+| [config#34] | Key: `queue.attempts` — default job retry attempts | B | VERIFIED | types/config.ts:440 | — (behavior untested) | new-test:T2 |  |
+| [config#35] | Key: `queue.redis` — dedicated Redis for queues | B | VERIFIED | types/config.ts:441-447 | integration suite uses db 1 | none |  |
+| [config#36] | Key: `cache.ttl` — default cache TTL (seconds) | B | VERIFIED | types/config.ts:476 | cache_for.spec.ts | none |  |
+| [config#37] | Key: `cache.redis` — dedicated Redis for cache | B | VERIFIED | types/config.ts:477-483 | cache_for.spec.ts (db 2) | none |  |
+| [config#38] | Key: `backup.storagePath` — local dir for `.dump` archives + sidecar | B | VERIFIED | types/config.ts:456 | backup pkg specs | none |  |
+| [config#39] | Key: `backup.metadataTtl` — TTL (seconds) for backup metadata in Redis | B | VERIFIED | types/config.ts:457 | — | none |  |
+| [config#40] | Key: `backup.pgConnection` — connection used by pg_dump/pg_restore/psql | B | VERIFIED | types/config.ts:458-464 | e2e backups_real.spec.ts | none |  |
+| [config#41] | Key: `backup.s3` — optional S3 offload config | B | VERIFIED | types/config.ts:465-472 | backup_s3.spec.ts (MinIO, CI) | none |  |
+| [config#42] | Key: `plans.defaultPlan` — plan applied when nothing else resolves | B | VERIFIED | types/config.ts:75 | quota_service.spec.ts | none |  |
+| [config#43] | Key: `plans.definitions` — Record<string, { limits: Record<string, number> }> | B | VERIFIED | types/config.ts:76 | quota_service.spec.ts | none |  |
+| [config#44] | Key: `plans.getPlan` — (tenant) => string \| undefined callback | B | VERIFIED | types/config.ts:83 | quota_service.spec.ts | none |  |
+| [config#45] | Key: `plans.storage` — 'config-only' \| 'tenant_plans' \| 'auto' (default 'auto') | B | VERIFIED | types/config.ts:95 default 'auto' | quota_assignment.spec.ts | none |  |
+| [config#46] | Key: `plans.emitTracked` (default false) — emit QuotaTracked on every track/consume | B | VERIFIED | types/config.ts:101 default false | metered_usage.spec.ts | none |  |
+| [config#47] | Key: `billing` — BillingConfig for Stripe satellite | B | VERIFIED | types/config.ts:111-180 BillingConfig | billing integration suite (27 specs) | none |  |
+| [config#48] | Key: `impersonation.secret` — HMAC secret (≥ 32 chars), validated at boot | B | VERIFIED | types/config.ts:388 (≥32 chars; start() throws unset) | impersonation_service.spec.ts | none |  |
+| [config#49] | Key: `impersonation.defaultDuration` (default 3600 seconds) | B | VERIFIED | types/config.ts:390 default 3600 | impersonation_service.spec.ts | none |  |
+| [config#50] | Key: `impersonation.maxDuration` (default 86400 seconds) | B | VERIFIED | types/config.ts:392 default 86400 | — | none |  |
+| [config#51] | Key: `impersonation.headerName` (default 'x-impersonation-token') | B | VERIFIED | types/config.ts:394 default x-impersonation-token | impersonation_middleware.spec.ts | none |  |
+| [config#52] | Key: `impersonation.cookieName` (default '__impersonation') | B | VERIFIED | types/config.ts:396 default __impersonation | — | none |  |
+| [config#53] | Key: `maintenance.defaultMessage` — default body for TenantMaintenanceException | B | VERIFIED | types/config.ts:403 | tenant_guard_maintenance.spec.ts | none |  |
+| [config#54] | Key: `maintenance.retryAfterSeconds` (default 600) | B | VERIFIED | types/config.ts:408 default 600 | tenant_guard_maintenance.spec.ts | none |  |
+| [config#55] | Key: `maintenance.bypassToken` / `bypassHeader` (default 'x-tenant-bypass-maintenance') | B | VERIFIED | types/config.ts:414-418 | tenant_guard_maintenance.spec.ts bypass | none |  |
+| [config#56] | Key: `softDelete.retentionDays` (default 30) | B | VERIFIED | types/config.ts:495 default 30 | soft_delete.spec.ts | none |  |
+| [config#57] | Key: `doctor.queueStalledMinutes` (default 10) | B | VERIFIED | queue_stuck_check.ts:7 DEFAULT=10 | doctor/queue_stuck.spec.ts | none |  |
+| [config#58] | Key: `doctor.replicaLagWarnSeconds` (default 30) | B | VERIFIED | replica_lag_check.ts:4 DEFAULT=30 | doctor/replica_lag.spec.ts | none |  |
+| [config#59] | Key: `doctor.replicaLagErrorSeconds` (default 120) | B | VERIFIED | replica_lag_check.ts:5 DEFAULT=120 | doctor/replica_lag.spec.ts | none |  |
+| [config#60] | Key: `doctor.longQueryWarnSeconds` (default 30) | B | VERIFIED | long_running_queries_check.ts:4 DEFAULT=30 | doctor/long_running_queries.spec.ts | none |  |
+| [config#61] | Key: `doctor.longQueryErrorSeconds` (default 120) | B | VERIFIED | long_running_queries_check.ts:5 DEFAULT=120 | doctor/long_running_queries.spec.ts | none |  |
+| [config#62] | Key: `doctor.poolSaturationWarnRatio` (default 0.9) | B | VERIFIED | connection_pool_check.ts:4 DEFAULT=0.9 | connection_pool_check.spec.ts | none |  |
+| [config#63] | Key: `tenantReadReplicas.hosts` — pool of read replicas | B | VERIFIED | types/config.ts:195 | read_replica specs | none |  |
+| [config#64] | Key: `tenantReadReplicas.strategy` — 'round-robin' \| 'random' \| 'sticky' (default 'round-robin') | B | VERIFIED | types/config.ts:201 default round-robin | e2e replicas_strategies.spec.ts | none |  |
+| [config#65] | Key: `tenantReadReplicas.connectionSuffix` (default '_read') | B | VERIFIED | types/config.ts:207 default _read | read_replica_resolve.spec.ts | none |  |
 
 ## models.md
 
@@ -274,94 +274,94 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [cmd#1] | Command: `backoffice:setup` — Create backoffice schema and run satellite migrations. Idempotent. | B | | | | | |
-| [cmd#2] | Command: `tenant:create <name> <email>` — Insert tenant row and queue InstallTenant | B | | | | | |
-| [cmd#3] | Command: `tenant:list` — List tenants with current status. --all includes soft-deleted. | B | | | | | |
-| [cmd#4] | Command: `tenant:activate <id>` — Activate a suspended or failed tenant | B | | | | | |
-| [cmd#5] | Command: `tenant:suspend <id>` — Block all API access without dropping the schema | B | | | | | |
-| [cmd#6] | Command: `tenant:destroy <id>` — Soft-delete and tear down. --force skips prompt; --keep-schema preserves storage during retention | B | | | | | |
-| [cmd#7] | Command: `migration:tenant:run` / `tenant:migrate` — Run pending migrations against one or all tenants | B | | | | | |
-| [cmd#8] | Flags on tenant:migrate: `--dry-run`, `--disable-locks`, `--verbose` | B | | | | | |
-| [cmd#9] | Command: `migration:tenant:rollback` / `tenant:migrate:rollback` — Roll back last migration batch | B | | | | | |
-| [cmd#10] | Command: `tenant:migrate:fresh` — DROP and recreate per-tenant storage, then re-run migrations | B | | | | | |
-| [cmd#11] | Flags on tenant:migrate:fresh: `--force`, `--seed` | B | | | | | |
-| [cmd#12] | Command: `tenant:seed` — db:seed per tenant. --files cherry-picks specific seeders | B | | | | | |
-| [cmd#13] | Command: `tenant:backup` — One-shot backup for one or all active tenants (synchronous) | B | | | | | |
-| [cmd#14] | Command: `tenant:backups:run` — Cron-friendly: backs up tenants whose tier interval elapsed, then applies retention | B | | | | | |
-| [cmd#15] | Flags on tenant:backups:run: `--dry-run`, `--no-retention` | B | | | | | |
-| [cmd#16] | Command: `tenant:backup:list` — List available backups | B | | | | | |
-| [cmd#17] | Command: `tenant:restore --tenant=<id> --file=<name>` — Restore a tenant schema from .dump file | B | | | | | |
-| [cmd#18] | Command: `tenant:import --tenant=<id> --file=<path>` — Import a pg_dump .sql file into a tenant schema | B | | | | | |
-| [cmd#19] | Command: `tenant:clone --source=<id> --name=<name> --email=<email>` — Provision new tenant by cloning existing | B | | | | | |
-| [cmd#20] | Flags on tenant:clone: `--schema-only`, `--clear-sessions` | B | | | | | |
-| [cmd#21] | Command: `tenant:queue:stats` — BullMQ queue statistics | B | | | | | |
-| [cmd#22] | Command: `tenant:doctor` — Ten built-in checks, --fix to auto-recover, --json for CI gates, --watch for live TUI | B | | | | | |
-| [cmd#23] | Flag: `--tenant=<id>` — Limit to one tenant | B | | | | | |
-| [cmd#24] | Flag: `--check=schema_drift,backups` — Run specific checks; --check=list prints available | B | | | | | |
-| [cmd#25] | Flag: `--fix` — Auto-fix what's fixable | B | | | | | |
-| [cmd#26] | Flag: `--json` — CI gate: exits non-zero if anything is unhealthy | B | | | | | |
-| [cmd#27] | Flag: `--watch --interval=5000` — Live dashboard refreshing every 5 s | B | | | | | |
-| [cmd#28] | Command: `tenant:exec list:routes` / `tenant:exec --tenant=<id> make:migration users` | B | | | | | |
-| [cmd#29] | Flag: `--tenant=<id...>` — Target one or more tenants | B | | | | | |
-| [cmd#30] | Flag: `--status=<status...>` — Filter (active, provisioning, suspended, failed, deleted) | B | | | | | |
-| [cmd#31] | Flag: `--include-deleted` — Include soft-deleted in iteration | B | | | | | |
-| [cmd#32] | Flag: `--limit=<n>` — Stop after N tenants | B | | | | | |
-| [cmd#33] | Flag: `--batch-size=<n>` (default 100) — Cursor batch size | B | | | | | |
-| [cmd#34] | Flag: `--continue-on-error` — Don't bail on tenant failure | B | | | | | |
-| [cmd#35] | Flag: `--dry-run` — Report which tenants would run | B | | | | | |
-| [cmd#36] | Command: `tenant:maintenance <id>` — Toggle maintenance mode. --off exits, --message="…" shows custom 503 message | B | | | | | |
-| [cmd#37] | Command: `tenant:impersonate <tenantId> <userId>` — Issue admin impersonation token | B | | | | | |
-| [cmd#38] | Flags on tenant:impersonate: `--admin=<id>`, `--duration=<seconds>`, `--reason="…"`, `--path=<path>` | B | | | | | |
-| [cmd#39] | Command: `tenant:webhooks:retry` — Process pending webhook retries. Cron: `* * * * *` | B | | | | | |
-| [cmd#40] | Command: `tenant:metrics:flush` — Flush Redis metric counters to database. Cron: `0 1 * * *` | B | | | | | |
-| [cmd#41] | Command: `tenant:purge-expired` — Drop schemas of soft-deleted tenants past retention window. Cron: `0 3 * * *` | B | | | | | |
-| [cmd#42] | Command: `tenant:billing:sync` — Reconcile Stripe subscriptions with local mirror | B | | | | | |
-| [cmd#43] | Flags on tenant:billing:sync: `--dry-run`, `--tenant=<id>`, `--since=<iso>`, `--json`. Cron: `0 4 * * *` | B | | | | | |
-| [cmd#44] | Command: `tenant:billing:backfill` — Seed tenant_plans rows with default plan | B | | | | | |
-| [cmd#45] | Flags: `--dry-run`, `--force`, `--plan=<name>` | B | | | | | |
-| [cmd#46] | Command: `tenant:billing:replay` — Re-dispatch failed webhook event | B | | | | | |
-| [cmd#47] | Flags: `--event-id=<evt>`, `--all-failed` | B | | | | | |
-| [cmd#48] | Command: `tenant:billing:cleanup` — Purge stripe_processed_events older than webhook.idempotencyTtlDays | B | | | | | |
-| [cmd#49] | Flag: `--batch-size=<n>` | B | | | | | |
-| [cmd#50] | Command: `tenant:billing:doctor` — Diagnose Stripe config + recent webhook health | B | | | | | |
-| [cmd#51] | Flag: `--json`. Exit 1 on any error. | B | | | | | |
-| [cmd#52] | Command: `tenant:billing:test-webhook <event>` — Generate and POST synthetic Stripe event | B | | | | | |
-| [cmd#53] | Flags: `--url=<url>`, `--object=<file>` | B | | | | | |
-| [cmd#54] | Command: `tenant:repl <tenantId>` — REPL with tenant, db, audit, metrics, and satellite services preloaded | B | | | | | |
+| [cmd#1] | Command: `backoffice:setup` — Create backoffice schema and run satellite migrations. Idempotent. | B | PARTIAL | commands.json backoffice:setup; setup_backoffice.ts | e2e runs once; no re-run test | new-test:T10 code-fix:F-4 |  |
+| [cmd#2] | Command: `tenant:create <name> <email>` — Insert tenant row and queue InstallTenant | B | VERIFIED | commands.json tenant:create (args name,email) | e2e commands_lifecycle.spec.ts | none |  |
+| [cmd#3] | Command: `tenant:list` — List tenants with current status. --all includes soft-deleted. | B | VERIFIED | commands.json tenant:list --all | e2e commands_misc.spec.ts | none |  |
+| [cmd#4] | Command: `tenant:activate <id>` — Activate a suspended or failed tenant | B | VERIFIED | commands.json tenant:activate | e2e lifecycle | none |  |
+| [cmd#5] | Command: `tenant:suspend <id>` — Block all API access without dropping the schema | B | VERIFIED | commands.json tenant:suspend | e2e lifecycle | none |  |
+| [cmd#6] | Command: `tenant:destroy <id>` — Soft-delete and tear down. --force skips prompt; --keep-schema preserves storage during retention | B | VERIFIED | commands.json tenant:destroy --force/-y --keep-schema | e2e commands_lifecycle.spec.ts | none |  |
+| [cmd#7] | Command: `migration:tenant:run` / `tenant:migrate` — Run pending migrations against one or all tenants | B | VERIFIED | commands.json migration:tenant:run + tenant:migrate alias | e2e commands_lifecycle.spec.ts | none |  |
+| [cmd#8] | Flags on tenant:migrate: `--dry-run`, `--disable-locks`, `--verbose` | B | VERIFIED | commands.json flags dry-run/disable-locks/verbose | — | none |  |
+| [cmd#9] | Command: `migration:tenant:rollback` / `tenant:migrate:rollback` — Roll back last migration batch | B | VERIFIED | commands.json migration:tenant:rollback + alias | e2e | none |  |
+| [cmd#10] | Command: `tenant:migrate:fresh` — DROP and recreate per-tenant storage, then re-run migrations | B | VERIFIED | commands.json tenant:migrate:fresh (DESTRUCTIVE) | unit metadata spec | none |  |
+| [cmd#11] | Flags on tenant:migrate:fresh: `--force`, `--seed` | B | VERIFIED | flags force/-y, seed (+disable-locks, verbose) | — | none |  |
+| [cmd#12] | Command: `tenant:seed` — db:seed per tenant. --files cherry-picks specific seeders | B | VERIFIED | commands.json tenant:seed --files/-f --continue-on-error | — | none |  |
+| [cmd#13] | Command: `tenant:backup` — One-shot backup for one or all active tenants (synchronous) | B | VERIFIED | packages/backup commands.json tenant:backup | e2e backups_real.spec.ts | doc-fix:F-13 | needs backup pkg |
+| [cmd#14] | Command: `tenant:backups:run` — Cron-friendly: backs up tenants whose tier interval elapsed, then applies retention | B | VERIFIED | backup commands.json tenant:backups:run | backup_retention_service.spec.ts | doc-fix:F-13 |  |
+| [cmd#15] | Flags on tenant:backups:run: `--dry-run`, `--no-retention` | B | VERIFIED | flags tenant,force,dry-run,no-retention | — | none |  |
+| [cmd#16] | Command: `tenant:backup:list` — List available backups | B | VERIFIED | backup commands.json tenant:backup:list | e2e backups_real | doc-fix:F-13 |  |
+| [cmd#17] | Command: `tenant:restore --tenant=<id> --file=<name>` — Restore a tenant schema from .dump file | B | VERIFIED | backup commands.json tenant:restore (tenant,file) | e2e backups_real round-trip | doc-fix:F-13 |  |
+| [cmd#18] | Command: `tenant:import --tenant=<id> --file=<path>` — Import a pg_dump .sql file into a tenant schema | B | VERIFIED | backup commands.json tenant:import (tenant,file,schema-replace,dry-run,verbose,force) | sql_import_service.spec.ts | doc-fix:F-13 |  |
+| [cmd#19] | Command: `tenant:clone --source=<id> --name=<name> --email=<email>` — Provision new tenant by cloning existing | B | VERIFIED | backup commands.json tenant:clone (source,name,email) | clone_service.spec.ts | doc-fix:F-13 |  |
+| [cmd#20] | Flags on tenant:clone: `--schema-only`, `--clear-sessions` | B | VERIFIED | flags schema-only, clear-sessions | — | none |  |
+| [cmd#21] | Command: `tenant:queue:stats` — BullMQ queue statistics | B | VERIFIED | commands.json tenant:queue:stats --tenant/-t | e2e commands_misc | none |  |
+| [cmd#22] | Command: `tenant:doctor` — Ten built-in checks, --fix to auto-recover, --json for CI gates, --watch for live TUI | B | PARTIAL | commands.json tenant:doctor (flags ok); core ships 9 checks not ten | doctor_checks_real.spec.ts | doc-fix:F-11 |  |
+| [cmd#23] | Flag: `--tenant=<id>` — Limit to one tenant | B | VERIFIED | flag tenant/-t array | — | none |  |
+| [cmd#24] | Flag: `--check=schema_drift,backups` — Run specific checks; --check=list prints available | B | BROKEN | check names: schema_drift,migration_state,circuit_breakers,connection_pool,queue_health,failed_tenants,provisioning_stalled,long_running_queries,replica_lag — no check named 'backups' | — | doc-fix:F-14 |  |
+| [cmd#25] | Flag: `--fix` — Auto-fix what's fixable | B | VERIFIED | flag fix | doctor_checks_real (fix paths) | none |  |
+| [cmd#26] | Flag: `--json` — CI gate: exits non-zero if anything is unhealthy | B | VERIFIED | tenant_doctor.ts:92,97 exitCode = totals.error>0 ? 1 : 0 | — | none |  |
+| [cmd#27] | Flag: `--watch --interval=5000` — Live dashboard refreshing every 5 s | B | VERIFIED | flags watch/-w, interval (default 5000, min 1000) | — | none |  |
+| [cmd#28] | Command: `tenant:exec list:routes` / `tenant:exec --tenant=<id> make:migration users` | B | VERIFIED | commands.json tenant:exec (command + spread args) | e2e commands_lifecycle (tenant:exec) | none |  |
+| [cmd#29] | Flag: `--tenant=<id...>` — Target one or more tenants | B | VERIFIED | flag tenant/-t | — | none |  |
+| [cmd#30] | Flag: `--status=<status...>` — Filter (active, provisioning, suspended, failed, deleted) | B | VERIFIED | flag status array (5 values in description) | — | none |  |
+| [cmd#31] | Flag: `--include-deleted` — Include soft-deleted in iteration | B | VERIFIED | flag include-deleted | — | none |  |
+| [cmd#32] | Flag: `--limit=<n>` — Stop after N tenants | B | VERIFIED | flag limit | — | none |  |
+| [cmd#33] | Flag: `--batch-size=<n>` (default 100) — Cursor batch size | B | VERIFIED | flag batch-size (default 100 in description) | — | none |  |
+| [cmd#34] | Flag: `--continue-on-error` — Don't bail on tenant failure | B | VERIFIED | flag continue-on-error | — | none |  |
+| [cmd#35] | Flag: `--dry-run` — Report which tenants would run | B | VERIFIED | flag dry-run | — | none |  |
+| [cmd#36] | Command: `tenant:maintenance <id>` — Toggle maintenance mode. --off exits, --message="…" shows custom 503 message | B | VERIFIED | commands.json tenant:maintenance --off --message | tenant_guard_maintenance.spec.ts; e2e | none |  |
+| [cmd#37] | Command: `tenant:impersonate <tenantId> <userId>` — Issue admin impersonation token | B | VERIFIED | commands.json tenant:impersonate (tenantId,userId) | e2e full.spec.ts impersonation | none |  |
+| [cmd#38] | Flags on tenant:impersonate: `--admin=<id>`, `--duration=<seconds>`, `--reason="…"`, `--path=<path>` | B | VERIFIED | flags admin,duration,reason,path | — | none |  |
+| [cmd#39] | Command: `tenant:webhooks:retry` — Process pending webhook retries. Cron: `* * * * *` | B | VERIFIED | commands.json tenant:webhooks:retry (cron hint in help) | e2e webhooks_delivery retries | none |  |
+| [cmd#40] | Command: `tenant:metrics:flush` — Flush Redis metric counters to database. Cron: `0 1 * * *` | B | VERIFIED | commands.json tenant:metrics:flush (period arg) | metrics_service.spec.ts flush | none |  |
+| [cmd#41] | Command: `tenant:purge-expired` — Drop schemas of soft-deleted tenants past retention window. Cron: `0 3 * * *` | B | VERIFIED | commands.json tenant:purge-expired (retention-days,dry-run,force) | soft_delete.spec.ts | none |  |
+| [cmd#42] | Command: `tenant:billing:sync` — Reconcile Stripe subscriptions with local mirror | B | VERIFIED | billing commands.json tenant:billing:sync | sync_command.spec.ts | none |  |
+| [cmd#43] | Flags on tenant:billing:sync: `--dry-run`, `--tenant=<id>`, `--since=<iso>`, `--json`. Cron: `0 4 * * *` | B | VERIFIED | flags dry-run,tenant,since,json | sync_command.spec.ts | none |  |
+| [cmd#44] | Command: `tenant:billing:backfill` — Seed tenant_plans rows with default plan | B | VERIFIED | billing commands.json tenant:billing:backfill | backfill_command.spec.ts | none |  |
+| [cmd#45] | Flags: `--dry-run`, `--force`, `--plan=<name>` | B | VERIFIED | flags dry-run,force,plan | backfill_command.spec.ts | none |  |
+| [cmd#46] | Command: `tenant:billing:replay` — Re-dispatch failed webhook event | B | VERIFIED | billing commands.json tenant:billing:replay | replay_command.spec.ts + replay_fallback.spec.ts | none |  |
+| [cmd#47] | Flags: `--event-id=<evt>`, `--all-failed` | B | VERIFIED | flags event-id,all-failed | replay_command.spec.ts | none |  |
+| [cmd#48] | Command: `tenant:billing:cleanup` — Purge stripe_processed_events older than webhook.idempotencyTtlDays | B | VERIFIED | billing commands.json tenant:billing:cleanup | cleanup_command.spec.ts | none |  |
+| [cmd#49] | Flag: `--batch-size=<n>` | B | VERIFIED | flag batch-size | cleanup_command.spec.ts | none |  |
+| [cmd#50] | Command: `tenant:billing:doctor` — Diagnose Stripe config + recent webhook health | B | VERIFIED | billing commands.json tenant:billing:doctor | diagnostics_commands.spec.ts | none |  |
+| [cmd#51] | Flag: `--json`. Exit 1 on any error. | B | VERIFIED | flag json; exit-1-on-error | diagnostics_commands.spec.ts | none |  |
+| [cmd#52] | Command: `tenant:billing:test-webhook <event>` — Generate and POST synthetic Stripe event | B | VERIFIED | billing commands.json tenant:billing:test-webhook | diagnostics_commands.spec.ts | none |  |
+| [cmd#53] | Flags: `--url=<url>`, `--object=<file>` | B | VERIFIED | flags url,object | — | none |  |
+| [cmd#54] | Command: `tenant:repl <tenantId>` — REPL with tenant, db, audit, metrics, and satellite services preloaded | B | VERIFIED | commands.json tenant:repl (staysAlive) | unit metadata only (REPL interactive) | none |  |
 
 ## events.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [evt#1] | Event: `TenantCreated` — Payload: `tenant`. Dispatched by tenant:create command, POST /admin/.../tenants | B | | | | | |
-| [evt#2] | Event: `TenantProvisioned` — Payload: `tenant`. Dispatched by InstallTenant job | B | | | | | |
-| [evt#3] | Event: `TenantActivated` — Payload: `tenant`. Dispatched by tenant:activate command, POST .../activate | B | | | | | |
-| [evt#4] | Event: `TenantSuspended` — Payload: `tenant`. Dispatched by tenant:suspend command, POST .../suspend | B | | | | | |
-| [evt#5] | Event: `TenantUpdated` — Payload: `tenant`, `changes`. Available for host code; not auto-dispatched | B | | | | | |
-| [evt#6] | Event: `TenantMigrated` — Payload: `tenant`, `direction: 'up' \| 'down'`. Dispatched by tenant:migrate and tenant:migrate:rollback | B | | | | | |
-| [evt#7] | Event: `TenantBackedUp` — Payload: `tenant`, `metadata: BackupMetadata`. Dispatched by BackupTenant job | B | | | | | |
-| [evt#8] | Event: `TenantRestored` — Payload: `tenant`, `fileName`. Dispatched by RestoreTenant job | B | | | | | |
-| [evt#9] | Event: `TenantCloned` — Payload: `source`, `destination`, `result: CloneResult`. Dispatched by CloneTenant job | B | | | | | |
-| [evt#10] | Event: `TenantQuotaExceeded` — Payload: `tenant`, `quota`, `limit`, `current`, `attempted`. Dispatched by QuotaService.consume() when check rejects | B | | | | | |
-| [evt#11] | Event: `QuotaTracked` — Payload: `tenant`, `quota`, `amount`, `total`. Dispatched by QuotaService.track / consume when plans.emitTracked is on | B | | | | | |
-| [evt#12] | Event: `TenantEnteredMaintenance` — Payload: `tenant`, `message: string \| null`. Dispatched by tenant:maintenance command, POST .../maintenance | B | | | | | |
-| [evt#13] | Event: `TenantExitedMaintenance` — Payload: `tenant`. Dispatched by tenant:maintenance --off, DELETE .../maintenance | B | | | | | |
-| [evt#14] | Event: `TenantDeleted` — Payload: `tenant`. Dispatched by tenant:destroy command, UninstallTenant job, DELETE .../tenants/:id | B | | | | | |
-| [evt#15] | Event: `SubscriptionActivated` — Payload: `tenantId`, `stripeSubscriptionId`, `planName`. Dispatched by customer.subscription.created (or .updated flipping to active) | B | | | | | |
-| [evt#16] | Event: `SubscriptionUpdated` — Payload: `tenantId`, `stripeSubscriptionId`, `previousPlan`, `newPlan`. Dispatched when plan changes | B | | | | | |
-| [evt#17] | Event: `SubscriptionCanceled` — Payload: `tenantId`, `stripeSubscriptionId`, `previousPlan`, `reason: 'user_canceled' \| 'dunning_failed' \| 'unknown'`. Dispatched by customer.subscription.deleted | B | | | | | |
-| [evt#18] | Event: `SubscriptionPaused` — Payload: `tenantId`, `stripeSubscriptionId`. Dispatched by pause-collection or customer.subscription.paused | B | | | | | |
-| [evt#19] | Event: `SubscriptionResumed` — Payload: `tenantId`, `stripeSubscriptionId`. Dispatched by customer.subscription.resumed | B | | | | | |
-| [evt#20] | Event: `TrialEnding` — Payload: `tenantId`, `stripeSubscriptionId`, `daysLeft`. Dispatched by customer.subscription.trial_will_end | B | | | | | |
-| [evt#21] | Event: `PaymentSucceeded` — Payload: `tenantId`, `invoiceId`, `amount`, `currency`. Dispatched by invoice.payment_succeeded | B | | | | | |
-| [evt#22] | Event: `PaymentFailed` — Payload: `tenantId`, `invoiceId`, `amount`, `currency`, `attempts`, `final`, `nextRetry`. Dispatched by invoice.payment_failed (every attempt) | B | | | | | |
-| [evt#23] | Event: `BillingMisconfigured` — Payload: `stripeSubscriptionId`, `productId`, `priceId`. Dispatched when Stripe product/price has no mapping in config.billing.products | B | | | | | |
-| [evt#24] | Event: `BillingEventDeadLettered` — Payload: `eventId`, `errorCode`, `details`. Dispatched when webhook event exhausted all queue retries | B | | | | | |
-| [evt#25] | Event: `DependencyDegraded` — Payload: `dependency`, `operation`, `tenantId`, `policy`, `errorCode`. Dispatched by ResilienceService when call fails | B | | | | | |
-| [evt#26] | API: `emitter.on(EventClass, listener)` — standard AdonisJS emitter API | B | | | | | |
-| [evt#27] | API: `EventClass.dispatch(...args)` — static helper for dispatching | B | | | | | |
-| [evt#28] | "emitter.emit() runs every listener in parallel" | A | | | | | |
-| [evt#29] | "If a listener throws, the rejection propagates but sibling listeners still run" | B | | | | | |
+| [evt#1] | Event: `TenantCreated` — Payload: `tenant`. Dispatched by tenant:create command, POST /admin/.../tenants | B | VERIFIED | events/index.ts:1; create_tenant.ts dispatch | lifecycle_dispatch.spec.ts; e2e lifecycle_events | none |  |
+| [evt#2] | Event: `TenantProvisioned` — Payload: `tenant`. Dispatched by InstallTenant job | B | VERIFIED | events/index.ts:4; install_tenant.ts | lifecycle_dispatch.spec.ts | none |  |
+| [evt#3] | Event: `TenantActivated` — Payload: `tenant`. Dispatched by tenant:activate command, POST .../activate | B | VERIFIED | events/index.ts:2; activate_tenant.ts | lifecycle_dispatch.spec.ts | none |  |
+| [evt#4] | Event: `TenantSuspended` — Payload: `tenant`. Dispatched by tenant:suspend command, POST .../suspend | B | VERIFIED | events/index.ts:3; suspend_tenant.ts | lifecycle_dispatch.spec.ts | none |  |
+| [evt#5] | Event: `TenantUpdated` — Payload: `tenant`, `changes`. Available for host code; not auto-dispatched | B | VERIFIED | events/index.ts:6; zero dispatch sites in core (grep) — matches 'not auto-dispatched' | — | none |  |
+| [evt#6] | Event: `TenantMigrated` — Payload: `tenant`, `direction: 'up' \| 'down'`. Dispatched by tenant:migrate and tenant:migrate:rollback | B | VERIFIED | events/index.ts:7 + TenantMigrationDirection type | e2e commands_lifecycle migrations | none |  |
+| [evt#7] | Event: `TenantBackedUp` — Payload: `tenant`, `metadata: BackupMetadata`. Dispatched by BackupTenant job | B | VERIFIED | events/index.ts:8; dispatched from backup pkg | tenant_backup.spec.ts | none |  |
+| [evt#8] | Event: `TenantRestored` — Payload: `tenant`, `fileName`. Dispatched by RestoreTenant job | B | VERIFIED | events/index.ts:9; RestoreTenant job | tenant_restore.spec.ts | none |  |
+| [evt#9] | Event: `TenantCloned` — Payload: `source`, `destination`, `result: CloneResult`. Dispatched by CloneTenant job | B | VERIFIED | events/index.ts:10; CloneTenant job | clone_service.spec.ts | none |  |
+| [evt#10] | Event: `TenantQuotaExceeded` — Payload: `tenant`, `quota`, `limit`, `current`, `attempted`. Dispatched by QuotaService.consume() when check rejects | B | VERIFIED | quota_service.ts:403 dispatch(tenant,quota,limit,current,attempted) | quota_service.spec.ts | none |  |
+| [evt#11] | Event: `QuotaTracked` — Payload: `tenant`, `quota`, `amount`, `total`. Dispatched by QuotaService.track / consume when plans.emitTracked is on | B | VERIFIED | quota_service.ts:413-415 (gated on plans.emitTracked) | metered_usage.spec.ts | none |  |
+| [evt#12] | Event: `TenantEnteredMaintenance` — Payload: `tenant`, `message: string \| null`. Dispatched by tenant:maintenance command, POST .../maintenance | B | VERIFIED | events/index.ts:14; tenant_maintenance.ts | e2e lifecycle_events | none |  |
+| [evt#13] | Event: `TenantExitedMaintenance` — Payload: `tenant`. Dispatched by tenant:maintenance --off, DELETE .../maintenance | B | VERIFIED | events/index.ts:15; tenant_maintenance.ts --off | e2e lifecycle_events | none |  |
+| [evt#14] | Event: `TenantDeleted` — Payload: `tenant`. Dispatched by tenant:destroy command, UninstallTenant job, DELETE .../tenants/:id | B | VERIFIED | events/index.ts:5; destroy_tenant.ts + UninstallTenant | lifecycle_dispatch.spec.ts | none |  |
+| [evt#15] | Event: `SubscriptionActivated` — Payload: `tenantId`, `stripeSubscriptionId`, `planName`. Dispatched by customer.subscription.created (or .updated flipping to active) | B | VERIFIED | billing/src/events/billing/subscription_activated.ts | subscription_sync.spec.ts | none |  |
+| [evt#16] | Event: `SubscriptionUpdated` — Payload: `tenantId`, `stripeSubscriptionId`, `previousPlan`, `newPlan`. Dispatched when plan changes | B | VERIFIED | billing/.../subscription_updated.ts | subscription_sync.spec.ts | none |  |
+| [evt#17] | Event: `SubscriptionCanceled` — Payload: `tenantId`, `stripeSubscriptionId`, `previousPlan`, `reason: 'user_canceled' \| 'dunning_failed' \| 'unknown'`. Dispatched by customer.subscription.deleted | B | VERIFIED | billing/.../subscription_canceled.ts | subscription_sync.spec.ts | none |  |
+| [evt#18] | Event: `SubscriptionPaused` — Payload: `tenantId`, `stripeSubscriptionId`. Dispatched by pause-collection or customer.subscription.paused | B | VERIFIED | billing/.../subscription_paused.ts | trial_lifecycle.spec.ts | none |  |
+| [evt#19] | Event: `SubscriptionResumed` — Payload: `tenantId`, `stripeSubscriptionId`. Dispatched by customer.subscription.resumed | B | VERIFIED | billing/.../subscription_resumed.ts | trial_lifecycle.spec.ts | none |  |
+| [evt#20] | Event: `TrialEnding` — Payload: `tenantId`, `stripeSubscriptionId`, `daysLeft`. Dispatched by customer.subscription.trial_will_end | B | VERIFIED | billing/.../trial_ending.ts | trial_lifecycle.spec.ts | none |  |
+| [evt#21] | Event: `PaymentSucceeded` — Payload: `tenantId`, `invoiceId`, `amount`, `currency`. Dispatched by invoice.payment_succeeded | B | VERIFIED | billing/.../payment_succeeded.ts | dunning_flow.spec.ts | none |  |
+| [evt#22] | Event: `PaymentFailed` — Payload: `tenantId`, `invoiceId`, `amount`, `currency`, `attempts`, `final`, `nextRetry`. Dispatched by invoice.payment_failed (every attempt) | B | VERIFIED | billing/.../payment_failed.ts | dunning_flow.spec.ts (attempts/final) | none |  |
+| [evt#23] | Event: `BillingMisconfigured` — Payload: `stripeSubscriptionId`, `productId`, `priceId`. Dispatched when Stripe product/price has no mapping in config.billing.products | B | VERIFIED | billing/.../billing_misconfigured.ts | subscription_sync.spec.ts unmapped product | none |  |
+| [evt#24] | Event: `BillingEventDeadLettered` — Payload: `eventId`, `errorCode`, `details`. Dispatched when webhook event exhausted all queue retries | B | VERIFIED | billing/.../billing_event_dead_lettered.ts | fatal_error_short_circuit.spec.ts | none |  |
+| [evt#25] | Event: `DependencyDegraded` — Payload: `dependency`, `operation`, `tenantId`, `policy`, `errorCode`. Dispatched by ResilienceService when call fails | B | VERIFIED | events/index.ts:16 + payload type :17 | resilience_service.spec.ts; quota_resilience | none |  |
+| [evt#26] | API: `emitter.on(EventClass, listener)` — standard AdonisJS emitter API | B | VERIFIED | @adonisjs/core emitter (class-based listeners) | lifecycle_dispatch.spec.ts uses it | none |  |
+| [evt#27] | API: `EventClass.dispatch(...args)` — static helper for dispatching | B | VERIFIED | event classes expose static dispatch (e.g. quota_service.ts:403) | used across suite | none |  |
+| [evt#28] | "emitter.emit() runs every listener in parallel" | A | N/A | @adonisjs/core emitter (emittery) semantics — upstream framework behavior | — | none | matches emittery's Promise.all dispatch; not ours to test |
+| [evt#29] | "If a listener throws, the rejection propagates but sibling listeners still run" | B | N/A | upstream emitter behavior | — | none |  |
 
 ## hooks.md
 
@@ -394,163 +394,163 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [svc#1] | Method: `consume(tenant, quota, amount = 1) → Promise<number>` — Atomically increments; throws QuotaExceededException on overrun. Returns new usage. | B | | | | | |
-| [svc#2] | Method: `track(tenant, quota, amount = 1) → Promise<number>` — Increments without enforcing limit | B | | | | | |
-| [svc#3] | Method: `check(tenant, quota, amount?) → Promise<QuotaCheckResult>` — Non-mutating check | B | | | | | |
-| [svc#4] | Method: `getUsage(tenant, quota) → Promise<number>` — Current usage | B | | | | | |
-| [svc#5] | Method: `setUsage(tenant, quota, value) → Promise<void>` — Overwrite counter | B | | | | | |
-| [svc#6] | Method: `reset(tenant, quota?) → Promise<void>` — Reset one quota or all | B | | | | | |
-| [svc#7] | Method: `getLimit(tenant, quota) → Promise<number>` — Resolved plan's limit | B | | | | | |
-| [svc#8] | Method: `getPlanFor(tenant) → Promise<{ name, plan }>` — Tenant's resolved plan | B | | | | | |
-| [svc#9] | Method: `assignPlan(tenant, plan, ...) → Promise<…>` — Persist plan assignment | B | | | | | |
-| [svc#10] | Method: `getAssignedPlan(tenantId)` / `clearAssignedPlan(tenantId)` — Read/clear stored assignment | B | | | | | |
-| [svc#11] | Method: `snapshot(tenant) → Promise<QuotaStateSnapshot>` — All quotas + usage at once | B | | | | | |
-| [svc#12] | "Redis-dependent calls route through ResilienceService" | A | | | | | |
-| [svc#13] | Method: `log({ action, tenantId?, actorType?, actorId?, metadata?, ipAddress? }) → Promise<TenantAuditLog>` | B | | | | | |
-| [svc#14] | Method: `listForTenant(tenantId, page = 1, limit = 50, { from?, to? } = {}) → Promise<…>` (limit capped at 200) | B | | | | | |
-| [svc#15] | Method: `dispatch(tenantId, event, payload) → Promise<void>` — Fan out to subscribed hooks | B | | | | | |
-| [svc#16] | Method: `registerWebhook(tenantId, url, events, secret?) → Promise<TenantWebhook>` — Validates URL against SSRF guard | B | | | | | |
-| [svc#17] | Method: `listWebhooks(tenantId)` / `deleteWebhook(id, tenantId)` → Promise<TenantWebhook[]> / Promise<void> | B | | | | | |
-| [svc#18] | Method: `processRetries() → Promise<void>` — Send deliveries whose next_retry_at is due | B | | | | | |
-| [svc#19] | Export: `verifyWebhookSignature(rawBody, signatureHeader, secret): boolean` — constant-time check | B | | | | | |
-| [svc#20] | Method: `getForTenant(tenantId) → Promise<TenantBranding \| null>` (cached 300s) | B | | | | | |
-| [svc#21] | Method: `upsert(tenantId, data: BrandingData) → Promise<TenantBranding>` (busts cache) | B | | | | | |
-| [svc#22] | Method: `renderEmailContext(branding)` — plain object with email fields + sane fallbacks | B | | | | | |
-| [svc#23] | Method: `isEnabled(tenantId, flag) → Promise<boolean>` (false when absent; cached 60s) | B | | | | | |
-| [svc#24] | Method: `set(tenantId, flag, enabled, config?) → Promise<TenantFeatureFlag>` (upsert) | B | | | | | |
-| [svc#25] | Method: `listForTenant(tenantId)` / `delete(tenantId, flag)` → Promise<TenantFeatureFlag[]> / Promise<void> | B | | | | | |
-| [svc#26] | Method: `increment(tenantId, 'requests' \| 'errors', amount = 1) → Promise<void>` | B | | | | | |
-| [svc#27] | Method: `trackBandwidth(tenantId, bytes) → Promise<void>` | B | | | | | |
-| [svc#28] | Method: `flush(period?) → Promise<void>` — Rolls Redis counters into tenant_metrics | B | | | | | |
-| [svc#29] | Method: `getForTenant(tenantId, days = 30) → Promise<TenantMetric[]>` | B | | | | | |
+| [svc#1] | Method: `consume(tenant, quota, amount = 1) → Promise<number>` — Atomically increments; throws QuotaExceededException on overrun. Returns new usage. | B | VERIFIED | quota_service.ts:364 consume(tenant,quota,amount=1) | quota_concurrency.spec.ts | test-fix:T0 |  |
+| [svc#2] | Method: `track(tenant, quota, amount = 1) → Promise<number>` — Increments without enforcing limit | B | VERIFIED | quota_service.ts track() | quota_service.spec.ts | none |  |
+| [svc#3] | Method: `check(tenant, quota, amount?) → Promise<QuotaCheckResult>` — Non-mutating check | B | VERIFIED | quota_service.ts:330 check() non-mutating | quota_service.spec.ts | none |  |
+| [svc#4] | Method: `getUsage(tenant, quota) → Promise<number>` — Current usage | B | VERIFIED | quota_service.ts getUsage() | quota_service.spec.ts | none |  |
+| [svc#5] | Method: `setUsage(tenant, quota, value) → Promise<void>` — Overwrite counter | B | VERIFIED | quota_service.ts setUsage() | quota_service.spec.ts | none |  |
+| [svc#6] | Method: `reset(tenant, quota?) → Promise<void>` — Reset one quota or all | B | VERIFIED | quota_service.ts reset() | quota_concurrency teardown uses it | none |  |
+| [svc#7] | Method: `getLimit(tenant, quota) → Promise<number>` — Resolved plan's limit | B | VERIFIED | quota_service.ts getLimit() | quota_service.spec.ts | none |  |
+| [svc#8] | Method: `getPlanFor(tenant) → Promise<{ name, plan }>` — Tenant's resolved plan | B | VERIFIED | quota_service.ts getPlanFor() | quota_assignment.spec.ts | none |  |
+| [svc#9] | Method: `assignPlan(tenant, plan, ...) → Promise<…>` — Persist plan assignment | B | VERIFIED | quota_service.ts assignPlan() | quota_assignment.spec.ts | none |  |
+| [svc#10] | Method: `getAssignedPlan(tenantId)` / `clearAssignedPlan(tenantId)` — Read/clear stored assignment | B | VERIFIED | quota_service.ts getAssignedPlan()/clearAssignedPlan() | quota_assignment.spec.ts | none |  |
+| [svc#11] | Method: `snapshot(tenant) → Promise<QuotaStateSnapshot>` — All quotas + usage at once | B | VERIFIED | quota_service.ts snapshot() | quota_service.spec.ts | none |  |
+| [svc#12] | "Redis-dependent calls route through ResilienceService" | A | VERIFIED | quota_service.ts:373 resilience.run wrapper | quota_resilience.spec.ts | none |  |
+| [svc#13] | Method: `log({ action, tenantId?, actorType?, actorId?, metadata?, ipAddress? }) → Promise<TenantAuditLog>` | B | VERIFIED | audit_log_service.ts:13 log(options: LogActionOptions) | audit_log_service.spec.ts | none |  |
+| [svc#14] | Method: `listForTenant(tenantId, page = 1, limit = 50, { from?, to? } = {}) → Promise<…>` (limit capped at 200) | B | VERIFIED | audit_log_service.ts:24 listForTenant(tenantId, page=1, …) | audit_log_service.spec.ts | none |  |
+| [svc#15] | Method: `dispatch(tenantId, event, payload) → Promise<void>` — Fan out to subscribed hooks | B | VERIFIED | webhook_service.ts dispatch() | webhook_service.spec.ts | none |  |
+| [svc#16] | Method: `registerWebhook(tenantId, url, events, secret?) → Promise<TenantWebhook>` — Validates URL against SSRF guard | B | VERIFIED | webhook_service.ts registerWebhook() (SSRF guard via url.ts) | webhook_service.spec.ts | new-test:T1 (encoding matrix) |  |
+| [svc#17] | Method: `listWebhooks(tenantId)` / `deleteWebhook(id, tenantId)` → Promise<TenantWebhook[]> / Promise<void> | B | VERIFIED | webhook_service.ts listWebhooks()/deleteWebhook() | webhook_service.spec.ts | none |  |
+| [svc#18] | Method: `processRetries() → Promise<void>` — Send deliveries whose next_retry_at is due | B | VERIFIED | webhook_service.ts processRetries() | webhook_service.spec.ts retries; e2e webhooks_delivery | none |  |
+| [svc#19] | Export: `verifyWebhookSignature(rawBody, signatureHeader, secret): boolean` — constant-time check | B | VERIFIED | webhook_service.ts export verifyWebhookSignature (timingSafeEqual) | webhook signature tests | none |  |
+| [svc#20] | Method: `getForTenant(tenantId) → Promise<TenantBranding \| null>` (cached 300s) | B | VERIFIED | branding_service.ts getForTenant() ttl '300s' | branding_service.spec.ts | none |  |
+| [svc#21] | Method: `upsert(tenantId, data: BrandingData) → Promise<TenantBranding>` (busts cache) | B | VERIFIED | branding_service.ts upsert() (cache bust) | branding_service.spec.ts | none |  |
+| [svc#22] | Method: `renderEmailContext(branding)` — plain object with email fields + sane fallbacks | B | VERIFIED | branding_service.ts:38 renderEmailContext() | branding_service.spec.ts | none |  |
+| [svc#23] | Method: `isEnabled(tenantId, flag) → Promise<boolean>` (false when absent; cached 60s) | B | VERIFIED | feature_flag_service.ts isEnabled() ttl '60s' | feature_flag_service.spec.ts | none |  |
+| [svc#24] | Method: `set(tenantId, flag, enabled, config?) → Promise<TenantFeatureFlag>` (upsert) | B | VERIFIED | feature_flag_service.ts set() upsert | feature_flag_service.spec.ts | none |  |
+| [svc#25] | Method: `listForTenant(tenantId)` / `delete(tenantId, flag)` → Promise<TenantFeatureFlag[]> / Promise<void> | B | VERIFIED | feature_flag_service.ts listForTenant()/delete() | feature_flag_service.spec.ts | none |  |
+| [svc#26] | Method: `increment(tenantId, 'requests' \| 'errors', amount = 1) → Promise<void>` | B | VERIFIED | metrics_service.ts increment() | metrics_service.spec.ts | none |  |
+| [svc#27] | Method: `trackBandwidth(tenantId, bytes) → Promise<void>` | B | VERIFIED | metrics_service.ts trackBandwidth() | metrics_service.spec.ts | none |  |
+| [svc#28] | Method: `flush(period?) → Promise<void>` — Rolls Redis counters into tenant_metrics | B | VERIFIED | metrics_service.ts flush() | metrics_service.spec.ts | none |  |
+| [svc#29] | Method: `getForTenant(tenantId, days = 30) → Promise<TenantMetric[]>` | B | VERIFIED | metrics_service.ts getForTenant() | metrics_service.spec.ts | none |  |
 
 ## exceptions.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [exc#1] | Exception: `MissingTenantHeaderException` — Status: 400, Code: `E_MISSING_TENANT_HEADER`, Thrown when no tenant id can be resolved | B | | | | | |
-| [exc#2] | Exception: `TenantHeaderDomainMismatchException` — Status: 400, Code: `E_TENANT_HEADER_DOMAIN_MISMATCH`, Possible hijack attempt | B | | | | | |
-| [exc#3] | Exception: `TenantNotFoundException` — Status: 404, Code: `E_TENANT_NOT_FOUND`, Resolved tenant id doesn't exist | B | | | | | |
-| [exc#4] | Exception: `CentralRouteViolationException` — Status: 404, Code: `E_CENTRAL_ROUTE_VIOLATION`, Central-only route reached in tenant context (or vice-versa) | B | | | | | |
-| [exc#5] | Exception: `TenantSuspendedException` — Status: 403, Code: `E_TENANT_SUSPENDED`, Tenant is suspended | B | | | | | |
-| [exc#6] | Exception: `TenantNotReadyException` — Status: 503, Code: `E_TENANT_NOT_READY`, Tenant still provisioning | B | | | | | |
-| [exc#7] | Exception: `TenantMaintenanceException` — Status: 503, Code: `E_TENANT_MAINTENANCE`, Tenant in maintenance mode. Carries retryAfterSeconds. | B | | | | | |
-| [exc#8] | Exception: `CircuitOpenException` — Status: 503, Code: `E_CIRCUIT_OPEN`, Tenant DB circuit breaker is OPEN | B | | | | | |
-| [exc#9] | Exception: `RateLimitUnavailableException` — Status: 503, Code: `E_RATE_LIMIT_UNAVAILABLE`, Rate-limit backend (Redis) errored and route is fail-closed | B | | | | | |
-| [exc#10] | Exception: `DependencyUnavailableException` — Status: 503, Code: `E_DEPENDENCY_UNAVAILABLE`, fail-closed dependency errored. Carries dependency, operation, tenantId. | B | | | | | |
-| [exc#11] | Exception: `TooManyRequestsException` — Status: 429, Code: `E_TOO_MANY_REQUESTS`, Exceeded RateLimitMiddleware window. Sets Retry-After. | B | | | | | |
-| [exc#12] | Exception: `QuotaExceededException` — Status: 429, Code: `E_TENANT_QUOTA_EXCEEDED`, QuotaService.consume() would exceed limit. Carries quota, limit, current, attempted. | B | | | | | |
-| [exc#13] | Exception: `BillingException` — Status: 400, Code: `E_BILLING`, Stripe/billing error. Carries billingCode and isRetryable() | B | | | | | |
+| [exc#1] | Exception: `MissingTenantHeaderException` — Status: 400, Code: `E_MISSING_TENANT_HEADER`, Thrown when no tenant id can be resolved | B | VERIFIED | missing_tenant_header_exception.ts status=400 code=E_MISSING_TENANT_HEADER | tenant_guard_middleware.spec.ts | none |  |
+| [exc#2] | Exception: `TenantHeaderDomainMismatchException` — Status: 400, Code: `E_TENANT_HEADER_DOMAIN_MISMATCH`, Possible hijack attempt | B | VERIFIED | tenant_header_domain_mismatch_exception.ts 400/E_TENANT_HEADER_DOMAIN_MISMATCH | header_vs_domain_precedence.spec.ts:27 | none |  |
+| [exc#3] | Exception: `TenantNotFoundException` — Status: 404, Code: `E_TENANT_NOT_FOUND`, Resolved tenant id doesn't exist | B | VERIFIED | tenant_not_found_exception.ts 404/E_TENANT_NOT_FOUND | tenant_guard_middleware.spec.ts | none |  |
+| [exc#4] | Exception: `CentralRouteViolationException` — Status: 404, Code: `E_CENTRAL_ROUTE_VIOLATION`, Central-only route reached in tenant context (or vice-versa) | B | VERIFIED | central_route_violation_exception.ts 404/E_CENTRAL_ROUTE_VIOLATION | central_only_middleware.spec.ts | none |  |
+| [exc#5] | Exception: `TenantSuspendedException` — Status: 403, Code: `E_TENANT_SUSPENDED`, Tenant is suspended | B | VERIFIED | tenant_suspended_exception.ts 403/E_TENANT_SUSPENDED | tenant_guard_middleware.spec.ts | none |  |
+| [exc#6] | Exception: `TenantNotReadyException` — Status: 503, Code: `E_TENANT_NOT_READY`, Tenant still provisioning | B | VERIFIED | tenant_not_ready_exception.ts 503/E_TENANT_NOT_READY | tenant_guard_middleware.spec.ts | none |  |
+| [exc#7] | Exception: `TenantMaintenanceException` — Status: 503, Code: `E_TENANT_MAINTENANCE`, Tenant in maintenance mode. Carries retryAfterSeconds. | B | VERIFIED | tenant_maintenance_exception.ts 503/E_TENANT_MAINTENANCE | tenant_guard_maintenance.spec.ts | none |  |
+| [exc#8] | Exception: `CircuitOpenException` — Status: 503, Code: `E_CIRCUIT_OPEN`, Tenant DB circuit breaker is OPEN | B | VERIFIED | circuit_open_exception.ts 503/E_CIRCUIT_OPEN | connection_failure_503.spec.ts | none |  |
+| [exc#9] | Exception: `RateLimitUnavailableException` — Status: 503, Code: `E_RATE_LIMIT_UNAVAILABLE`, Rate-limit backend (Redis) errored and route is fail-closed | B | VERIFIED | rate_limit_unavailable_exception.ts 503/E_RATE_LIMIT_UNAVAILABLE | rate_limit.spec.ts:93 | none |  |
+| [exc#10] | Exception: `DependencyUnavailableException` — Status: 503, Code: `E_DEPENDENCY_UNAVAILABLE`, fail-closed dependency errored. Carries dependency, operation, tenantId. | B | VERIFIED | dependency_unavailable_exception.ts 503/E_DEPENDENCY_UNAVAILABLE + context type | quota_resilience.spec.ts | none |  |
+| [exc#11] | Exception: `TooManyRequestsException` — Status: 429, Code: `E_TOO_MANY_REQUESTS`, Exceeded RateLimitMiddleware window. Sets Retry-After. | B | VERIFIED | too_many_requests_exception.ts 429/E_TOO_MANY_REQUESTS | rate_limit.spec.ts:27 (429 + Retry-After) | none |  |
+| [exc#12] | Exception: `QuotaExceededException` — Status: 429, Code: `E_TENANT_QUOTA_EXCEEDED`, QuotaService.consume() would exceed limit. Carries quota, limit, current, attempted. | B | VERIFIED | quota_exceeded_exception.ts 429/E_TENANT_QUOTA_EXCEEDED (carries quota/limit/current/attempted) | quota_concurrency + enforce_quota_middleware specs | none |  |
+| [exc#13] | Exception: `BillingException` — Status: 400, Code: `E_BILLING`, Stripe/billing error. Carries billingCode and isRetryable() | B | VERIFIED | moved to @adonisjs-lasagna/billing (BillingException) | billing suite | none | page should say it imports from billing pkg — check wording in W7 |
 
 ## data-isolation/index.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [iso#1] | Driver: `schema-pg` — One PG schema per tenant. Default. Strongest balance of isolation and operational cost. | B | | | | | |
-| [iso#2] | Driver: `database-pg` — One PG database per tenant. Requires CREATEDB. Best for OS-level isolation. | B | | | | | |
-| [iso#3] | Driver: `rowscope-pg` — Shared schema + tenant_id column. Best for lightweight workloads, large tenant counts. | B | | | | | |
-| [iso#4] | Driver: `sqlite-memory` — In-process SQLite per tenant. Tests only. | B | | | | | |
-| [iso#5] | Method: `provision` — Create the tenant's storage (schema/database/rows) | B | | | | | |
-| [iso#6] | Method: `destroy` — Drop it cleanly (terminates active sessions first) | B | | | | | |
-| [iso#7] | Method: `reset` — Drop and recreate (used by tenant:migrate:fresh) | B | | | | | |
-| [iso#8] | Method: `connect` — Open the runtime Lucid connection | B | | | | | |
-| [iso#9] | Method: `disconnect` — Close it | B | | | | | |
-| [iso#10] | Method: `connectionName` — Synchronous resolver for the active query's connection | B | | | | | |
-| [iso#11] | Method: `migrate` — Run migrations against this tenant's storage | B | | | | | |
+| [iso#1] | Driver: `schema-pg` — One PG schema per tenant. Default. Strongest balance of isolation and operational cost. | B | VERIFIED | schema_pg_driver.ts (default via provider fallback {driver:'schema-pg'}) | schema_pg_driver specs; cross_tenant_e2e | none |  |
+| [iso#2] | Driver: `database-pg` — One PG database per tenant. Requires CREATEDB. Best for OS-level isolation. | B | VERIFIED | database_pg_driver.ts (CREATE DATABASE per tenant) | database_pg_driver specs; database_pg_crud_isolation | none |  |
+| [iso#3] | Driver: `rowscope-pg` — Shared schema + tenant_id column. Best for lightweight workloads, large tenant counts. | B | VERIFIED | rowscope_pg_driver.ts | rowscope specs ×3 | none |  |
+| [iso#4] | Driver: `sqlite-memory` — In-process SQLite per tenant. Tests only. | B | VERIFIED | sqlite_memory_driver.ts | sqlite unit + sqlite_memory_lifecycle | none |  |
+| [iso#5] | Method: `provision` — Create the tenant's storage (schema/database/rows) | B | VERIFIED | isolation/driver.ts contract; 4 impls | per-driver provision tests | none |  |
+| [iso#6] | Method: `destroy` — Drop it cleanly (terminates active sessions first) | B | VERIFIED | driver.ts destroy; database_pg_driver.ts:99 pg_terminate_backend before drop | tenant_lifecycle.spec.ts | none | session-termination is database-pg; schema-pg uses DROP SCHEMA CASCADE |
+| [iso#7] | Method: `reset` — Drop and recreate (used by tenant:migrate:fresh) | B | VERIFIED | driver.ts reset; tenant_migrate_fresh uses it | unit driver specs | none |  |
+| [iso#8] | Method: `connect` — Open the runtime Lucid connection | B | VERIFIED | driver.ts connect (registers Lucid connection via connection_lru) | connection_lru.spec.ts | none |  |
+| [iso#9] | Method: `disconnect` — Close it | B | VERIFIED | driver.ts disconnect | connection_eviction_safety.spec.ts | none |  |
+| [iso#10] | Method: `connectionName` — Synchronous resolver for the active query's connection | B | VERIFIED | driver.ts connectionName(tenantId) sync | unit driver specs | none |  |
+| [iso#11] | Method: `migrate` — Run migrations against this tenant's storage | B | VERIFIED | driver.ts migrate(tenant,{dryRun}) | e2e commands_lifecycle migrations | none |  |
 
 ## data-isolation/schema-pg.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [schema#1] | "Each tenant lives in its own schema named `tenant_<uuid>` on a shared database" | B | | | | | |
-| [schema#2] | "Lucid connections are named `tenant_<uuid>` as well" | B | | | | | |
-| [schema#3] | Step: "Validate the tenant id with `assertSafeIdentifier` — [a-zA-Z0-9_-]{1,63}" | B | | | | | |
-| [schema#4] | Step: "CREATE SCHEMA \"tenant_<uuid>\" on the shared template connection" | B | | | | | |
-| [schema#5] | Step: "Register a Lucid connection tenant_<uuid> with searchPath: tenant_<uuid>" | B | | | | | |
-| [schema#6] | Step: "Run per-tenant migrations" | B | | | | | |
-| [schema#7] | Step: "Mark tenant as deleted_at (soft delete)" | B | | | | | |
-| [schema#8] | Step: "After retention window: pg_terminate_backend against any sessions on the schema" | B | | | | | |
-| [schema#9] | Step: "DROP SCHEMA \"tenant_<uuid>\" CASCADE" | B | | | | | |
-| [schema#10] | Step: "Close and unregister the Lucid connection" | B | | | | | |
-| [schema#11] | Config: `isolation: { driver: 'schema-pg', templateConnectionName: 'tenant' }` | B | | | | | |
-| [schema#12] | "pg_dump --schema=tenant_<uuid> produces a portable per-tenant archive" | B | | | | | |
-| [schema#13] | "Schemas don't share connection pools by default; they share the template connection's pool" | B | | | | | |
-| [schema#14] | "Migrations are tracked per schema using a per-tenant Lucid migrations table" | B | | | | | |
+| [schema#1] | "Each tenant lives in its own schema named `tenant_<uuid>` on a shared database" | B | VERIFIED | schema_pg_driver.ts schemaName = tenantSchemaPrefix + id | schema_pg_driver.spec.ts | none |  |
+| [schema#2] | "Lucid connections are named `tenant_<uuid>` as well" | B | VERIFIED | connectionName = tenantConnectionNamePrefix + id | tenant_adapter.spec.ts:143 | none |  |
+| [schema#3] | Step: "Validate the tenant id with `assertSafeIdentifier` — [a-zA-Z0-9_-]{1,63}" | B | VERIFIED | schema_pg_driver entry asserts (identifier.ts) | identifier.spec.ts | none |  |
+| [schema#4] | Step: "CREATE SCHEMA \"tenant_<uuid>\" on the shared template connection" | B | VERIFIED | schema_pg_driver.ts:72 CREATE SCHEMA IF NOT EXISTS | tenant_lifecycle.spec.ts | none |  |
+| [schema#5] | Step: "Register a Lucid connection tenant_<uuid> with searchPath: tenant_<uuid>" | B | VERIFIED | schema_pg_driver.ts:121 searchPath:[schema] | cross_tenant_e2e (schema routing) | none |  |
+| [schema#6] | Step: "Run per-tenant migrations" | B | VERIFIED | driver.migrate; run_tenant_migrations.ts | e2e commands_lifecycle | none |  |
+| [schema#7] | Step: "Mark tenant as deleted_at (soft delete)" | B | VERIFIED | destroy_tenant.ts soft delete (deletedAt) | soft_delete.spec.ts | none |  |
+| [schema#8] | Step: "After retention window: pg_terminate_backend against any sessions on the schema" | B | BROKEN | schema_pg_driver.ts:81 destroy = DROP SCHEMA CASCADE only — NO pg_terminate_backend anywhere in the schema-pg path (that step exists only in database_pg_driver.ts:99) | — | doc-fix:F-16 | sessions attach to databases not schemas; doc copy-paste from database-pg |
+| [schema#9] | Step: "DROP SCHEMA \"tenant_<uuid>\" CASCADE" | B | VERIFIED | schema_pg_driver.ts:81 DROP SCHEMA IF EXISTS CASCADE | tenant_lifecycle.spec.ts teardown | none |  |
+| [schema#10] | Step: "Close and unregister the Lucid connection" | B | VERIFIED | connection_lru close/unregister | connection_eviction_safety.spec.ts | none |  |
+| [schema#11] | Config: `isolation: { driver: 'schema-pg', templateConnectionName: 'tenant' }` | B | VERIFIED | types/config.ts:226-233 | — | none |  |
+| [schema#12] | "pg_dump --schema=tenant_<uuid> produces a portable per-tenant archive" | B | VERIFIED | backup_service.ts:57 passes --schema=<schema> to pg_dump | e2e backups_real.spec.ts | none |  |
+| [schema#13] | "Schemas don't share connection pools by default; they share the template connection's pool" | B | VERIFIED | per-tenant Lucid connection w/ own pool cloned from template | connection_lru.spec.ts | none |  |
+| [schema#14] | "Migrations are tracked per schema using a per-tenant Lucid migrations table" | B | VERIFIED | migrations.paths on tenant template; adonis_schema per searchPath | doctor migration_state check + e2e | none |  |
 
 ## data-isolation/database-pg.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [database#1] | "Each tenant gets its own PostgreSQL database named `tenant_<uuid>` (configurable via tenantDatabasePrefix)" | B | | | | | |
-| [database#2] | "Connections are independent; nothing is shared at the database level" | B | | | | | |
-| [database#3] | "Lucid template connection role must have the CREATEDB privilege" | A | | | | | |
-| [database#4] | "CREATE DATABASE cannot run inside a transaction. The driver runs it outside one" | A | | | | | |
-| [database#5] | "destroy calls pg_terminate_backend on every active session before issuing DROP DATABASE" | A | | | | | |
-| [database#6] | Config: `isolation: { driver: 'database-pg', tenantDatabasePrefix: 'tenant_', templateConnectionName: 'tenant' }` | B | | | | | |
-| [database#7] | Step: "Validate the tenant id (assertSafeIdentifier)" | B | | | | | |
-| [database#8] | Step: "CREATE DATABASE \"tenant_<uuid>\" on the template connection (no transaction)" | B | | | | | |
-| [database#9] | Step: "Register a per-tenant Lucid connection pointed at the new database" | B | | | | | |
-| [database#10] | Step: "Run migrations against it" | B | | | | | |
-| [database#11] | Step: "pg_terminate_backend on every backend with datname = 'tenant_<uuid>'" | B | | | | | |
-| [database#12] | Step: "DROP DATABASE IF EXISTS \"tenant_<uuid>\"" | B | | | | | |
-| [database#13] | Step: "Close and unregister the Lucid connection" | B | | | | | |
-| [database#14] | Pro: "Per-tenant credentials and roles" | B | | | | | |
-| [database#15] | Pro: "Tenant data lives in different files / WAL" | B | | | | | |
-| [database#16] | Pro: "Easy to replicate or relocate one tenant" | B | | | | | |
-| [database#17] | Pro: "pg_dump per tenant is a single-database dump" | B | | | | | |
-| [database#18] | Con: "Separate connection pool per tenant; costlier" | B | | | | | |
-| [database#19] | Con: "Can't JOIN across tenants for reporting" | B | | | | | |
-| [database#20] | Con: "Migrations run N times instead of once" | B | | | | | |
-| [database#21] | Con: "Tenant counts in the thousands strain the connection budget" | B | | | | | |
+| [database#1] | "Each tenant gets its own PostgreSQL database named `tenant_<uuid>` (configurable via tenantDatabasePrefix)" | B | VERIFIED | database_pg_driver.ts:86 CREATE DATABASE "<prefix><id>" | database_pg_crud_isolation.spec.ts | none |  |
+| [database#2] | "Connections are independent; nothing is shared at the database level" | B | VERIFIED | separate PG database per tenant; cloned connection :173-179 | database_pg_crud_isolation.spec.ts | none |  |
+| [database#3] | "Lucid template connection role must have the CREATEDB privilege" | A | VERIFIED | database_pg_driver.ts:44 CREATEDB requirement documented at impl | — (privilege req not testable in suite) | none |  |
+| [database#4] | "CREATE DATABASE cannot run inside a transaction. The driver runs it outside one" | A | VERIFIED | database_pg_driver.ts:84 'CREATE DATABASE cannot run in a transaction; rawQuery' | database_pg_driver.spec.ts provision | none |  |
+| [database#5] | "destroy calls pg_terminate_backend on every active session before issuing DROP DATABASE" | A | VERIFIED | database_pg_driver.ts:96-104 pg_terminate_backend then DROP DATABASE IF EXISTS | database_pg_driver.spec.ts destroy | none |  |
+| [database#6] | Config: `isolation: { driver: 'database-pg', tenantDatabasePrefix: 'tenant_', templateConnectionName: 'tenant' }` | B | VERIFIED | types/config.ts:226-238 | — | none |  |
+| [database#7] | Step: "Validate the tenant id (assertSafeIdentifier)" | B | VERIFIED | assertSafeIdentifier at driver entry | identifier.spec.ts | none |  |
+| [database#8] | Step: "CREATE DATABASE \"tenant_<uuid>\" on the template connection (no transaction)" | B | VERIFIED | database_pg_driver.ts:84-86 | database specs | none |  |
+| [database#9] | Step: "Register a per-tenant Lucid connection pointed at the new database" | B | VERIFIED | database_pg_driver.ts:173-179 clone + override database | database_pg_crud_isolation | none |  |
+| [database#10] | Step: "Run migrations against it" | B | VERIFIED | driver.migrate | database specs | none |  |
+| [database#11] | Step: "pg_terminate_backend on every backend with datname = 'tenant_<uuid>'" | B | VERIFIED | database_pg_driver.ts:99 | database_pg_driver.spec.ts | none |  |
+| [database#12] | Step: "DROP DATABASE IF EXISTS \"tenant_<uuid>\"" | B | VERIFIED | database_pg_driver.ts:104 | database_pg_driver.spec.ts | none |  |
+| [database#13] | Step: "Close and unregister the Lucid connection" | B | VERIFIED | connection_lru | connection_lru.spec.ts | none |  |
+| [database#14] | Pro: "Per-tenant credentials and roles" | B | N/A | capability statement (PG-level) | — | none |  |
+| [database#15] | Pro: "Tenant data lives in different files / WAL" | B | N/A | PG storage fact | — | none |  |
+| [database#16] | Pro: "Easy to replicate or relocate one tenant" | B | N/A | operational guidance | — | none |  |
+| [database#17] | Pro: "pg_dump per tenant is a single-database dump" | B | VERIFIED | single-database pg_dump (backup pkg passes db name) | — | none |  |
+| [database#18] | Con: "Separate connection pool per tenant; costlier" | B | N/A | honest con | — | none |  |
+| [database#19] | Con: "Can't JOIN across tenants for reporting" | B | N/A | honest con | — | none |  |
+| [database#20] | Con: "Migrations run N times instead of once" | B | N/A | honest con | — | none |  |
+| [database#21] | Con: "Tenant counts in the thousands strain the connection budget" | B | N/A | honest con; matches scaling-limits guidance | — | none |  |
 
 ## data-isolation/rowscope-pg.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [rowscope#1] | "Every tenant-scoped table includes a `tenant_id` column (configurable via rowScopeColumn)" | B | | | | | |
-| [rowscope#2] | "Models opt in via the `withTenantScope` mixin" | B | | | | | |
-| [rowscope#3] | "Injects WHERE tenant_id = <current> on find / fetch / paginate" | B | | | | | |
-| [rowscope#4] | "Auto-fills tenant_id on create" | B | | | | | |
-| [rowscope#5] | "Throws on update / delete if the row's tenant_id differs from the active scope" | B | | | | | |
-| [rowscope#6] | "A query outside both tenancy.run() and unscoped() throws MissingTenantScopeException instead of returning rows from every tenant" | A | | | | | |
-| [rowscope#7] | "This catches forgotten context in jobs, scripts, and tests" | B | | | | | |
-| [rowscope#8] | Config: `isolation: { driver: 'rowscope-pg', rowScopeColumn: 'tenant_id', rowScopeTables: [...], rowScopeMode: 'strict' }` | B | | | | | |
-| [rowscope#9] | "rowscope-pg has no per-tenant connection: every tenant shares your centralConnectionName" | B | | | | | |
-| [rowscope#10] | "You do NOT set templateConnectionName for rowscope-pg" | B | | | | | |
-| [rowscope#11] | "A top-level orWhere can escape the auto-scope — SQL binds AND tighter than OR" | A | | | | | |
-| [rowscope#12] | "Always wrap OR branches in a group so the tenant predicate covers all of them" | A | | | | | |
-| [rowscope#13] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=rls` | A | | | | | |
-| [rowscope#14] | "Publishes migration *_enable_rls_tenant_isolation.ts" | A | | | | | |
-| [rowscope#15] | "For each table: ALTER TABLE ENABLE ROW LEVEL SECURITY; ALTER TABLE FORCE ROW LEVEL SECURITY" | A | | | | | |
-| [rowscope#16] | "Creates a fail-closed policy: USING (tenant_id::text = nullif(current_setting('app.tenant_id', true), ''))" | A | | | | | |
-| [rowscope#17] | "When app.tenant_id is unset, nullif(...) makes the predicate NULL, so it matches nothing and WITH CHECK blocks the insert" | A | | | | | |
-| [rowscope#18] | API: `withTenantRls(tenant.id, async (trx) => { ... })` — opens a transaction, sets the GUC, hands you the trx | A | | | | | |
-| [rowscope#19] | "withTenantRls does NOT open a tenancy.run() scope" | A | | | | | |
-| [rowscope#20] | "Run your app without SUPERUSER / BYPASSRLS" | A | | | | | |
-| [rowscope#21] | "destroy(tenant) runs DELETE FROM <table> WHERE tenant_id = ? for every table in rowScopeTables" | B | | | | | |
-| [rowscope#22] | "There is no DROP SCHEMA / DROP DATABASE" | B | | | | | |
-| [rowscope#23] | Pro: "Single connection pool; scales to 100k+ tenants" | B | | | | | |
-| [rowscope#24] | Pro: "Reporting is trivial" | B | | | | | |
-| [rowscope#25] | Pro: "Migrations run once for the whole app" | B | | | | | |
-| [rowscope#26] | Pro: "unscoped() makes admin work explicit" | B | | | | | |
-| [rowscope#27] | Con: "One missing scope leaks across tenants" | B | | | | | |
-| [rowscope#28] | Con: "Bigger indexes; tenant_id is in every key" | B | | | | | |
-| [rowscope#29] | Con: "You own the discipline of always wrapping with tenancy.run()" | B | | | | | |
-| [rowscope#30] | Con: "Backups are not per-tenant by default" | B | | | | | |
+| [rowscope#1] | "Every tenant-scoped table includes a `tenant_id` column (configurable via rowScopeColumn)" | B | VERIFIED | configuredScopeColumn() ?? 'tenant_id' (rowscope_pg_driver.ts) | rowscope_pg_driver.spec.ts | none |  |
+| [rowscope#2] | "Models opt in via the `withTenantScope` mixin" | B | VERIFIED | scoping.ts:117 withTenantScope mixin | scoping.spec.ts | none |  |
+| [rowscope#3] | "Injects WHERE tenant_id = <current> on find / fetch / paginate" | B | VERIFIED | scoping.ts:139-174 find/fetch/paginate hooks | scoping.spec.ts:95 | none |  |
+| [rowscope#4] | "Auto-fills tenant_id on create" | B | VERIFIED | scoping.ts:176-193 create hook | scoping.spec.ts:126 | none |  |
+| [rowscope#5] | "Throws on update / delete if the row's tenant_id differs from the active scope" | B | VERIFIED | scoping.ts:195-216 update/delete mismatch throws | scoping.spec.ts:171 | none |  |
+| [rowscope#6] | "A query outside both tenancy.run() and unscoped() throws MissingTenantScopeException instead of returning rows from every tenant" | A | VERIFIED | scoping.ts:135 strict throw | rowscope_pg_driver.spec.ts:232 (real PG); scoping.spec.ts:202 | none |  |
+| [rowscope#7] | "This catches forgotten context in jobs, scripts, and tests" | B | VERIFIED | strict mode applies to any non-HTTP context | jobs/tenant_context.spec.ts:146 currentId undefined outside run() | none |  |
+| [rowscope#8] | Config: `isolation: { driver: 'rowscope-pg', rowScopeColumn: 'tenant_id', rowScopeTables: [...], rowScopeMode: 'strict' }` | B | VERIFIED | types/config.ts:220-262 | — | none |  |
+| [rowscope#9] | "rowscope-pg has no per-tenant connection: every tenant shares your centralConnectionName" | B | VERIFIED | rowscope_pg_driver connectionName → centralConnectionName | rowscope_pg_driver.spec.ts | none |  |
+| [rowscope#10] | "You do NOT set templateConnectionName for rowscope-pg" | B | VERIFIED | types/config.ts:231 'rowscope-pg ignores this' | — | none |  |
+| [rowscope#11] | "A top-level orWhere can escape the auto-scope — SQL binds AND tighter than OR" | A | VERIFIED | scoping.ts:91-115 documented escape + grouping guidance | rowscope_rls.spec.ts:74 proves RLS closes it | none |  |
+| [rowscope#12] | "Always wrap OR branches in a group so the tenant predicate covers all of them" | A | VERIFIED | scoping.ts:103-106 | — | none |  |
+| [rowscope#13] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=rls` | A | VERIFIED | configure.ts rls opt-in bundle | configure.spec.ts (rls opt-in) | none |  |
+| [rowscope#14] | "Publishes migration *_enable_rls_tenant_isolation.ts" | A | VERIFIED | stubs/migrations/enable_rls_tenant_isolation.stub:2 (Date.now()_enable_rls_tenant_isolation.ts) | configure.spec.ts stub resolution | none |  |
+| [rowscope#15] | "For each table: ALTER TABLE ENABLE ROW LEVEL SECURITY; ALTER TABLE FORCE ROW LEVEL SECURITY" | A | VERIFIED | stub:53-54 ENABLE + FORCE ROW LEVEL SECURITY | rowscope_rls.spec.ts | none |  |
+| [rowscope#16] | "Creates a fail-closed policy: USING (tenant_id::text = nullif(current_setting('app.tenant_id', true), ''))" | A | VERIFIED | stub:56-59 USING + WITH CHECK nullif(current_setting('app.tenant_id',true),'') | rowscope_rls.spec.ts:94 | none |  |
+| [rowscope#17] | "When app.tenant_id is unset, nullif(...) makes the predicate NULL, so it matches nothing and WITH CHECK blocks the insert" | A | VERIFIED | stub:58-59 + stub:17-18 comment | rowscope_rls.spec.ts:94 'plain query with the setting unset returns nothing (fail-closed)' + :99 WITH CHECK blocks insert | none |  |
+| [rowscope#18] | API: `withTenantRls(tenant.id, async (trx) => { ... })` — opens a transaction, sets the GUC, hands you the trx | A | VERIFIED | rls.ts:130 withTenantRls(tenantId, fn, options?) opens trx + sets GUC | rowscope_rls.spec.ts | none |  |
+| [rowscope#19] | "withTenantRls does NOT open a tenancy.run() scope" | A | VERIFIED | rls.ts:118 'only sets the database setting; does NOT open' tenancy scope | — | none |  |
+| [rowscope#20] | "Run your app without SUPERUSER / BYPASSRLS" | A | VERIFIED | stub:28-30 FORCE RLS + BYPASSRLS warning | — | none |  |
+| [rowscope#21] | "destroy(tenant) runs DELETE FROM <table> WHERE tenant_id = ? for every table in rowScopeTables" | B | VERIFIED | rowscope_pg_driver.ts:28-29 DELETE FROM per rowScopeTables (assertSafeIdentifier :58) | rowscope_pg_driver.spec.ts destroy | none |  |
+| [rowscope#22] | "There is no DROP SCHEMA / DROP DATABASE" | B | VERIFIED | no DROP statements in rowscope driver | — | none |  |
+| [rowscope#23] | Pro: "Single connection pool; scales to 100k+ tenants" | B | N/A | sizing guidance (single pool true by design) | — | none |  |
+| [rowscope#24] | Pro: "Reporting is trivial" | B | N/A | opinion | — | none |  |
+| [rowscope#25] | Pro: "Migrations run once for the whole app" | B | VERIFIED | shared schema → single migration pass (no per-tenant loop) | — | none |  |
+| [rowscope#26] | Pro: "unscoped() makes admin work explicit" | B | VERIFIED | scoping.ts:27 unscoped() explicit | scoping.spec.ts:225 | none |  |
+| [rowscope#27] | Con: "One missing scope leaks across tenants" | B | N/A | honest con (mitigated by strict mode + RLS) | — | none |  |
+| [rowscope#28] | Con: "Bigger indexes; tenant_id is in every key" | B | N/A | honest con | — | none |  |
+| [rowscope#29] | Con: "You own the discipline of always wrapping with tenancy.run()" | B | N/A | honest con | — | none |  |
+| [rowscope#30] | Con: "Backups are not per-tenant by default" | B | N/A | honest con | — | none |  |
 
 ## data-isolation/sqlite-memory.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [sqlite#1] | "This driver writes to :memory:. Data does not survive a process exit. Never enable it in production." | A | | | | | |
-| [sqlite#2] | "Each tenant gets an in-process SQLite database for the life of the process" | B | | | | | |
-| [sqlite#3] | Config: `isolation: { driver: 'sqlite-memory' }` (test environment only) | B | | | | | |
-| [sqlite#4] | "No JSONB, no array columns, no PG-specific extensions" | B | | | | | |
-| [sqlite#5] | "Migrations need to be SQLite-compatible" | B | | | | | |
-| [sqlite#6] | "Concurrency story is single-writer" | B | | | | | |
-| [sqlite#7] | "Unit tests that exercise tenant-scoped model logic without needing a real Postgres" | B | | | | | |
-| [sqlite#8] | "Documentation snippets you want to run as test fixtures" | B | | | | | |
-| [sqlite#9] | "Quick CI smoke runs" | B | | | | | |
+| [sqlite#1] | "This driver writes to :memory:. Data does not survive a process exit. Never enable it in production." | A | VERIFIED | sqlite_memory_driver.ts :memory: databases | sqlite_memory_lifecycle.spec.ts | none |  |
+| [sqlite#2] | "Each tenant gets an in-process SQLite database for the life of the process" | B | VERIFIED | per-tenant in-process db map | sqlite_memory_driver.spec.ts | none |  |
+| [sqlite#3] | Config: `isolation: { driver: 'sqlite-memory' }` (test environment only) | B | VERIFIED | types/config.ts:218 choice present | isolation_driver_registry.spec.ts | none |  |
+| [sqlite#4] | "No JSONB, no array columns, no PG-specific extensions" | B | N/A | SQLite capability fact | — | none |  |
+| [sqlite#5] | "Migrations need to be SQLite-compatible" | B | N/A | guidance | — | none |  |
+| [sqlite#6] | "Concurrency story is single-writer" | B | N/A | SQLite fact | — | none |  |
+| [sqlite#7] | "Unit tests that exercise tenant-scoped model logic without needing a real Postgres" | B | VERIFIED | driver usable without PG | sqlite unit specs run with no PG | none |  |
+| [sqlite#8] | "Documentation snippets you want to run as test fixtures" | B | N/A | use-case suggestion | — | none |  |
+| [sqlite#9] | "Quick CI smoke runs" | B | N/A | use-case suggestion | — | none |  |
 
 ## bootstrappers/index.md
 

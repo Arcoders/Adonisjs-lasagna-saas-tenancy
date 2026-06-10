@@ -169,3 +169,79 @@ regression test), `doc-fix` (claim rewritten to match deliberate behavior), `tes
 - **Resolution:** doc-fix — "nine built-in checks (plus `backup_recency` when the backup
   satellite is installed)".
 - **Status:** open
+
+## F-12: configuration.md claims to be exhaustive but misses 12 config keys
+
+- **Claims:** [config#…] (page title/intro: "Every config/multitenancy.ts option … this
+  page is the exhaustive reference")
+- **Severity:** MED (operators tuning the connection budget won't find the knobs)
+- **Missing keys (present in `src/types/config.ts`):** `resolver.legacyAdapterFallback`;
+  `isolation.maxTenantConnections` (50), `isolation.evictionGracePeriodMs` (30000),
+  `isolation.enforceConnectionCap` (false); `routing.autoLoad` (true),
+  `routing.tenantRoutesFile`, `routing.universalRoutesFile`;
+  `maintenanceSchedule.backupHour`, `maintenanceSchedule.migrateAllHour`;
+  `onboarding.wizardTtl`, `onboarding.wizardKeyPrefix`; `hooks`;
+  `tenantReadReplicas.maxReplicaConnections` (50).
+- **Everything the page DOES document matches the code** (every type and default
+  cross-checked against config.ts on 2026-06-10).
+- **Resolution:** doc-fix — add the missing rows (grouped sensibly) or link where they are
+  documented; keep the "exhaustive" promise true.
+- **Status:** open
+
+## F-13: commands.md lists backup-package commands without the install caveat
+
+- **Claims:** [cmd#…] (Operations table: tenant:backup, tenant:backups:run,
+  tenant:backup:list, tenant:restore, tenant:import, tenant:clone)
+- **Severity:** MED (a core-only install doesn't have these; the Billing section right
+  below does carry the equivalent caveat)
+- **Reality:** all six commands exist with exactly the documented flags — in
+  `packages/backup/src/commands/commands.json`. They register only when
+  `@adonisjs-lasagna/backup`'s provider+commands are wired (per upgrade-to-1.0.md).
+- **Resolution:** doc-fix — add an "available when @adonisjs-lasagna/backup is installed"
+  note mirroring the Billing section's.
+- **Status:** open
+
+## F-14: doctor check names drift in two docs
+
+- **Claims:** commands.md doctor example, why.md doctor bullet
+- **Severity:** LOW/MED (copy-pasted commands target a nonexistent check)
+- **Reality:** registered check names are `schema_drift`, `migration_state`,
+  `circuit_breakers`, `connection_pool`, `queue_health`, `failed_tenants`,
+  `provisioning_stalled`, `long_running_queries`, `replica_lag` (+ `backup_recency` from
+  the backup pkg). commands.md's example uses `--check=schema_drift,backups` ("backups" is
+  not a check); why.md says "`queue_stuck` runs in CI" (the *spec file* is
+  queue_stuck.spec.ts but the check is `queue_health`).
+- **Resolution:** doc-fix — correct both names.
+- **Status:** open
+
+## F-15: exceptions.md says "Every exception" but omits three; one isn't even exported
+
+- **Claims:** [exc#…] (page description: "Every exception the package can throw")
+- **Severity:** MED
+- **Reality:** the 13 documented exceptions match code exactly (status + code
+  cross-checked). Missing from the page: `ImpersonationInvalidException` (401,
+  E_IMPERSONATION_TOKEN_INVALID), `IsolationConfigException` (500, E_ISOLATION_CONFIG),
+  `TenantConnectionLimitException` (503, E_TENANT_CONNECTION_LIMIT). The last one is
+  thrown by both PG drivers when `isolation.enforceConnectionCap` is on but is **not
+  exported from `src/exceptions/index.ts`**, so hosts cannot catch it by type.
+- **Resolution:** code-fix — export `TenantConnectionLimitException` from the barrel.
+  doc-fix — add the three missing rows to exceptions.md.
+- **Status:** open
+
+## F-16: schema-pg.md claims session termination the schema driver doesn't do
+
+- **Claims:** [schema#8]
+- **Severity:** MED (an operator counting on the purge not hanging behind an active
+  session will be surprised)
+- **Doc text:** "`tenant:purge-expired` calls `driver.destroy()`: `pg_terminate_backend`
+  against any sessions on the schema. `DROP SCHEMA … CASCADE`." (schema-pg.md:32-35)
+- **Reality:** `schema_pg_driver.ts:81` destroy is `DROP SCHEMA IF EXISTS … CASCADE`
+  only. `pg_terminate_backend` exists solely in `database_pg_driver.ts:99` (where it is
+  meaningful — PG sessions attach to a *database*, not a schema; "sessions on the schema"
+  is not a PG concept). An in-flight query holding locks on the tenant's tables will make
+  the DROP wait, not fail.
+- **Resolution:** doc-fix — remove the pg_terminate_backend step from the schema-pg
+  teardown list and add one sentence about lock-waiting semantics. (Not a code-fix:
+  per-schema session targeting is not cleanly implementable; the database-pg page is
+  already correct.)
+- **Status:** open
