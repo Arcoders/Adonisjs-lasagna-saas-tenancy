@@ -245,3 +245,67 @@ regression test), `doc-fix` (claim rewritten to match deliberate behavior), `tes
   per-schema session targeting is not cleanly implementable; the database-pg page is
   already correct.)
 - **Status:** open
+
+## F-17: jobs.md import snippet doesn't compile — six of "all eight" jobs moved out of core in 1.0
+
+- **Claims:** [job#3..8], [job#14], [job#16..19]
+- **Severity:** HIGH (primary how-to page; the documented import fails at typecheck for
+  anyone following it; jobs.md never caught up with the 1.0 satellite extraction)
+- **Doc text:** "All eight are exported from `@adonisjs-lasagna/saas-tenancy/jobs`" +
+  snippet importing InstallTenant, UninstallTenant, BackupTenant, RestoreTenant,
+  CloneTenant, ProcessStripeEventJob, ReportUsageBatchJob, BillingCleanupJob from the
+  core subpath (jobs.md:28-40), plus dispatch examples for the moved jobs.
+- **Reality:** `packages/core/src/jobs/index.ts` exports only InstallTenant +
+  UninstallTenant and explicitly notes the rest moved to `@adonisjs-lasagna/backup` /
+  `@adonisjs-lasagna/billing`. upgrade-to-1.0.md documents the move correctly.
+- **Resolution:** doc-fix — restructure jobs.md: core jobs from core, backup jobs from
+  @adonisjs-lasagna/backup, billing jobs from @adonisjs-lasagna/billing (re-exporting in
+  core would recreate the coupling 1.0 removed, so not a code-fix).
+- **Status:** open
+
+## F-18: `withTenant` testing helper is documented but does not exist
+
+- **Claims:** [test#4], [test#15], [test#16], [faq#10]
+- **Severity:** HIGH (documented import fails; two pages advertise it)
+- **Doc text:** testing.md documents `withTenant(tenant, async () => { … })` as a
+  "test-time convenience over tenancy.run()" that "activates the bootstrapper registry
+  around the callback"; faq.md lists it among shipped helpers.
+- **Reality:** no `withTenant` symbol exists anywhere in `packages/core/src`. The file
+  `src/testing/with_tenant.ts` only exports `setRequestTenant`. The documented behavior is
+  exactly `tenancy.run(tenant, fn)`.
+- **Resolution:** code-fix (T11) — implement `withTenant` in `src/testing/with_tenant.ts`
+  as the documented thin wrapper over `tenancy.run`, export it from the /testing barrel,
+  and add a unit spec. The doc described clear intent; the alias is one line and keeps
+  both pages true.
+- **Status:** open
+
+## F-19: "Hermetic bootstrapper factories" section documents a nonexistent feature
+
+- **Claims:** [test#18], [test#19]
+- **Severity:** HIGH (the snippet `cache: { factory: () => new InMemoryCache() }` neither
+  typechecks — `MultitenancyConfig.cache` has only `ttl` + `redis` — nor do
+  `InMemoryCache`/`InMemoryDrive` classes exist anywhere in the package)
+- **Reality:** the supported way to swap a bootstrapper in tests is the registry: the
+  provider only registers built-ins when absent (`multitenancy_provider.ts:147`
+  `if (!bootstrappers.has('cache'))`), so a test can `register()` its own named
+  bootstrapper first. There is no factory config surface.
+- **Resolution:** doc-fix — delete the factory snippet and rewrite the section around
+  `BootstrapperRegistry.register()` (pre-registration wins) + the sqlite-memory driver.
+  (Adding a factory config would be a new feature, out of audit scope — flagged for the
+  maintainer's roadmap if wanted.)
+- **Status:** open
+
+## F-20: Redis version floor understated for SSO
+
+- **Claims:** [install#4]
+- **Severity:** LOW
+- **Reality:** installation.md says "Redis ≥ 6"; `SsoService.handleCallback` uses `GETDEL`
+  which requires Redis ≥ 6.2 (`packages/sso/src/sso_service.ts:88` documents this).
+- **Resolution:** doc-fix — "Redis ≥ 6 (≥ 6.2 when using the SSO satellite)".
+- **Status:** open
+
+## Addendum to F-17 (jobs.md)
+
+jobs.md also claims InstallTenant "runs migrations" — `install_tenant.ts:36` only calls
+`driver.provision()`; migrations are the separate `tenant:migrate` step (installation.md
+got this right in commit 453518d). Fix in the same jobs.md rewrite.

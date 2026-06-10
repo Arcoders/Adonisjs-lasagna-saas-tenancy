@@ -84,97 +84,97 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [intro#1] | "Four isolation drivers: schema-pg (default), database-pg, rowscope-pg, sqlite-memory. Pluggable through a single contract." | B | | | | | |
-| [intro#2] | "Five bootstrappers: cache, drive (filesystem), mail, session, broadcasting. Each scoped to the active tenant via AsyncLocalStorage." | B | | | | | |
-| [intro#3] | "Nine satellites: audit logs, feature flags, webhooks, branding, SSO, metrics, quotas, impersonation, Stripe billing." | B | | | | | |
-| [intro#4] | "Operational kit: tenant:doctor (ten checks, --fix, --watch, --json), backups with retention tiers, read replicas, Prometheus, OpenTelemetry, health probes" | B | | | | | |
-| [intro#5] | "A full suite of ace commands spanning provisioning, migrations, backups, cloning, exec-under-tenant, maintenance mode, REPL, billing." | B | | | | | |
-| [intro#6] | "REST admin API with an OpenAPI 3.1 spec and Swagger UI." | B | | | | | |
-| [intro#7] | "MySQL or MariaDB — Schemas are a Postgres-native concept" | B | | | | | |
-| [intro#8] | "An admin dashboard UI — Only the REST API" | B | | | | | |
-| [intro#9] | "A starter kit — create-lasagna-saas is roadmap" | B | | | | | |
+| [intro#1] | "Four isolation drivers: schema-pg (default), database-pg, rowscope-pg, sqlite-memory. Pluggable through a single contract." | B | VERIFIED | 4 drivers + IsolationDriver contract (driver.ts) | driver specs | none |  |
+| [intro#2] | "Five bootstrappers: cache, drive (filesystem), mail, session, broadcasting. Each scoped to the active tenant via AsyncLocalStorage." | B | VERIFIED | provider:147-264 registers exactly these 5 | bootstrapper_registry.spec.ts | none | the page that gets the count right (F-10 fixes why/showcase) |
+| [intro#3] | "Nine satellites: audit logs, feature flags, webhooks, branding, SSO, metrics, quotas, impersonation, Stripe billing." | B | VERIFIED | 9 satellites: 7 in-core + sso + billing pkgs | satellite specs | none |  |
+| [intro#4] | "Operational kit: tenant:doctor (ten checks, --fix, --watch, --json), backups with retention tiers, read replicas, Prometheus, OpenTelemetry, health probes" | B | PARTIAL | core ships 9 doctor checks; 10th from backup pkg | doctor specs | doc-fix:F-11 |  |
+| [intro#5] | "A full suite of ace commands spanning provisioning, migrations, backups, cloning, exec-under-tenant, maintenance mode, REPL, billing." | B | VERIFIED | 21 core + 6 backup + 6 billing commands | e2e commands suites | none |  |
+| [intro#6] | "REST admin API with an OpenAPI 3.1 spec and Swagger UI." | B | VERIFIED | packages/admin routes.ts:208-223 OpenAPI + Swagger UI (/docs) | openapi.spec.ts; e2e admin_full | none |  |
+| [intro#7] | "MySQL or MariaDB — Schemas are a Postgres-native concept" | B | VERIFIED | PG-only by design (no mysql codepath) | — | none |  |
+| [intro#8] | "An admin dashboard UI — Only the REST API" | B | VERIFIED | no UI shipped; admin pkg is REST-only | — | none |  |
+| [intro#9] | "A starter kit — create-lasagna-saas is roadmap" | B | N/A | roadmap statement, consistent with roadmap.md | — | none |  |
 
 ## concepts.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [concepts#1] | "Layer 1: Central (public schema) — your product-wide data" | B | | | | | |
-| [concepts#2] | "Layer 2: Backoffice (backoffice schema) — tenant registry + operator tools" | B | | | | | |
-| [concepts#3] | "Layer 3: Tenant (tenant_<uuid> schema) — one schema per customer" | B | | | | | |
-| [concepts#4] | "Layer 4: Satellites (opt-in features stored in backoffice schema) — audit, feature_flags, webhooks, branding, sso, metrics, quotas, impersonation" | B | | | | | |
-| [concepts#5] | "The active isolation driver decides which Lucid connection serves a query" | B | | | | | |
-| [concepts#6] | "The bootstrapper registry enters and leaves per-tenant contexts" | B | | | | | |
-| [concepts#7] | "AsyncLocalStorage carries the active tenant id, so logs, queries, and queued jobs all see the same context" | B | | | | | |
+| [concepts#1] | "Layer 1: Central (public schema) — your product-wide data" | B | VERIFIED | central connection + centralSchemaName | fixture config | none |  |
+| [concepts#2] | "Layer 2: Backoffice (backoffice schema) — tenant registry + operator tools" | B | VERIFIED | backoffice schema + tenants registry | backoffice setup + satellite specs | none |  |
+| [concepts#3] | "Layer 3: Tenant (tenant_<uuid> schema) — one schema per customer" | B | VERIFIED | schema_pg_driver tenant_<uuid> | cross_tenant_e2e | none |  |
+| [concepts#4] | "Layer 4: Satellites (opt-in features stored in backoffice schema) — audit, feature_flags, webhooks, branding, sso, metrics, quotas, impersonation" | B | VERIFIED | satellite tables in backoffice schema (stubs/migrations) | satellite_coexistence.spec.ts | none |  |
+| [concepts#5] | "The active isolation driver decides which Lucid connection serves a query" | B | VERIFIED | active_driver.ts + adapters | adapter specs | none |  |
+| [concepts#6] | "The bootstrapper registry enters and leaves per-tenant contexts" | B | VERIFIED | bootstrapper_registry.ts runScoped | bootstrapper_isolation.spec.ts | none |  |
+| [concepts#7] | "AsyncLocalStorage carries the active tenant id, so logs, queries, and queued jobs all see the same context" | B | VERIFIED | TenantLogContext AsyncLocalStorage | tenant_context.spec.ts; e2e contextual_logging | none |  |
 
 ## installation.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [install#1] | "Node.js ≥ 24 — ES modules, module: NodeNext" | B | | | | | |
-| [install#2] | "AdonisJS 7" | B | | | | | |
-| [install#3] | "PostgreSQL ≥ 14 via @adonisjs/lucid" | B | | | | | |
-| [install#4] | "Redis ≥ 6 via @adonisjs/redis — cache + counters" | B | | | | | |
-| [install#5] | "@adonisjs/queue required — background jobs provision schemas" | B | | | | | |
-| [install#6] | "@aws-sdk/client-s3 optional — only for S3 backup uploads" | B | | | | | |
-| [install#7] | "jose optional — only when SSO is enabled" | B | | | | | |
-| [install#8] | Command: `npm install @adonisjs-lasagna/saas-tenancy` | B | | | | | |
-| [install#9] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy` (without --with: all satellites) | B | | | | | |
-| [install#10] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,webhooks` | B | | | | | |
-| [install#11] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --no-interaction --with=audit,branding,feature_flags` | B | | | | | |
-| [install#12] | "Three connection contexts live side by side: public (global data), backoffice (tenant registry + satellite features), tenant_<uuid> (per-tenant data)" | B | | | | | |
-| [install#13] | "Tenant connections are created at runtime, no entry needed in config/database.ts" | B | | | | | |
-| [install#14] | "searchPath: 'public'" for public connection | B | | | | | |
-| [install#15] | "searchPath: 'backoffice'" for backoffice connection | B | | | | | |
-| [install#16] | Command: `node ace backoffice:setup` — Creates backoffice schema and runs all satellite migrations | B | | | | | |
-| [install#17] | Command: `node ace tenant:create "name" "email"` | B | | | | | |
-| [install#18] | Command: `node ace queue:work` | B | | | | | |
-| [install#19] | Command: `node ace tenant:migrate` | B | | | | | |
-| [install#20] | Middleware: `TenantGuardMiddleware` — resolves tenant and memoizes | B | | | | | |
-| [install#21] | Middleware: `CustomDomainMiddleware` — maps custom domains to tenants | B | | | | | |
-| [install#22] | Middleware: `RateLimitMiddleware` — **fail-closed by default**: if Redis unreachable, throws RateLimitUnavailableException (HTTP 503) | B | | | | | |
-| [install#23] | Option on RateLimitMiddleware: `failOpen: true` — per-route option to fail-open | B | | | | | |
-| [install#24] | "RateLimitMiddleware is fail-closed by default" | A | | | | | |
-| [install#25] | "The middleware short-circuits when `app.inTest === true`" | A | | | | | |
-| [install#26] | Command: `node ace tenant:migrate` and `node ace queue:work` are separate steps; InstallTenant creates the schema empty, tenant:migrate applies migrations | A | | | | | |
+| [install#1] | "Node.js ≥ 24 — ES modules, module: NodeNext" | B | VERIFIED | package.json engines >=24.0.0; NodeNext | CI Node 24 | none |  |
+| [install#2] | "AdonisJS 7" | B | VERIFIED | peer @adonisjs/core ^7 | — | none |  |
+| [install#3] | "PostgreSQL ≥ 14 via @adonisjs/lucid" | B | VERIFIED | peer @adonisjs/lucid ^22 (pg client) | suite runs PG16 | none | ≥14 floor not encoded; guidance |
+| [install#4] | "Redis ≥ 6 via @adonisjs/redis — cache + counters" | B | PARTIAL | peer @adonisjs/redis ^10; BUT sso GETDEL needs Redis ≥6.2 (sso_service.ts:88) while page says ≥6 | — | doc-fix:F-20 |  |
+| [install#5] | "@adonisjs/queue required — background jobs provision schemas" | B | VERIFIED | peer @adonisjs/queue (required) | e2e queue_jobs | none |  |
+| [install#6] | "@aws-sdk/client-s3 optional — only for S3 backup uploads" | B | VERIFIED | @aws-sdk/client-s3 optional peer of backup pkg | backup_s3.spec.ts | none |  |
+| [install#7] | "jose optional — only when SSO is enabled" | B | VERIFIED | jose optional (dynamic import in sso_service.ts:152) | sso specs | none |  |
+| [install#8] | Command: `npm install @adonisjs-lasagna/saas-tenancy` | B | VERIFIED | package name/version | — | none |  |
+| [install#9] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy` (without --with: all satellites) | B | VERIFIED | configure.ts bare run selects all satellites | configure.spec.ts | none |  |
+| [install#10] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,webhooks` | B | VERIFIED | --with parsing | configure.spec.ts | none |  |
+| [install#11] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --no-interaction --with=audit,branding,feature_flags` | B | VERIFIED | --no-interaction supported (ace configure) | configure.spec.ts | none |  |
+| [install#12] | "Three connection contexts live side by side: public (global data), backoffice (tenant registry + satellite features), tenant_<uuid> (per-tenant data)" | B | VERIFIED | 3 connection contexts (fixture database.ts) | integration suite | none |  |
+| [install#13] | "Tenant connections are created at runtime, no entry needed in config/database.ts" | B | VERIFIED | drivers register tenant connections at runtime (connection_lru) | connection_lru.spec.ts | none |  |
+| [install#14] | "searchPath: 'public'" for public connection | B | VERIFIED | fixture database.ts searchPath central | — | none |  |
+| [install#15] | "searchPath: 'backoffice'" for backoffice connection | B | VERIFIED | fixture database.ts searchPath backoffice | — | none |  |
+| [install#16] | Command: `node ace backoffice:setup` — Creates backoffice schema and runs all satellite migrations | B | VERIFIED | setup_backoffice.ts | e2e setup | code-fix:F-4 |  |
+| [install#17] | Command: `node ace tenant:create "name" "email"` | B | VERIFIED | create_tenant.ts | e2e commands_lifecycle | none |  |
+| [install#18] | Command: `node ace queue:work` | B | VERIFIED | @adonisjs/queue queue:work | e2e queue_jobs | none |  |
+| [install#19] | Command: `node ace tenant:migrate` | B | VERIFIED | tenant_migrate.ts | e2e commands_lifecycle | none |  |
+| [install#20] | Middleware: `TenantGuardMiddleware` — resolves tenant and memoizes | B | VERIFIED | tenant_guard_middleware.ts | guard specs (unit+integration) | none |  |
+| [install#21] | Middleware: `CustomDomainMiddleware` — maps custom domains to tenants | B | VERIFIED | custom_domain_middleware.ts | custom_domain specs | none |  |
+| [install#22] | Middleware: `RateLimitMiddleware` — **fail-closed by default**: if Redis unreachable, throws RateLimitUnavailableException (HTTP 503) | B | VERIFIED | rate_limit default failOpen:false → 503 | rate_limit.spec.ts:93 | none |  |
+| [install#23] | Option on RateLimitMiddleware: `failOpen: true` — per-route option to fail-open | B | VERIFIED | RateLimitOptions.failOpen per-route | rate_limit.spec.ts:133 | none |  |
+| [install#24] | "RateLimitMiddleware is fail-closed by default" | A | VERIFIED | rate_limit_middleware.ts default | rate_limit.spec.ts:93 | none |  |
+| [install#25] | "The middleware short-circuits when `app.inTest === true`" | A | VERIFIED | rate_limit_middleware.ts:24,48-49 app.inTest short-circuit (opt back in via options) | rate_limit unit spec exercises isTestEnv override | none |  |
+| [install#26] | Command: `node ace tenant:migrate` and `node ace queue:work` are separate steps; InstallTenant creates the schema empty, tenant:migrate applies migrations | A | VERIFIED | install_tenant.ts:36 provision only (no migrate); tenant_migrate separate | e2e commands_lifecycle (create→migrate) | none | jobs.md still claims InstallTenant runs migrations → folded into F-17 |
 
 ## tenant-identification.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [resolve#1] | Strategy: `header` (default) — Reads `x-tenant-id` from request headers | B | | | | | |
-| [resolve#2] | Strategy: `subdomain` — Extracts UUID from `<uuid>.yourdomain.com` | B | | | | | |
-| [resolve#3] | Strategy: `path` — Reads the first path segment `/<uuid>/...` | B | | | | | |
-| [resolve#4] | Strategy: `request-data` — Reads from query string or body | B | | | | | |
-| [resolve#5] | Strategy: `domain-or-subdomain` — Custom domain wins, falls back to subdomain | B | | | | | |
-| [resolve#6] | Config key: `resolverStrategy` — set to 'header', 'subdomain', 'path', 'domain-or-subdomain', or 'request-data' | B | | | | | |
-| [resolve#7] | Config key: `tenantHeaderKey` (defaults to 'x-tenant-id') | B | | | | | |
-| [resolve#8] | Config key: `baseDomain` — for subdomain strategy | B | | | | | |
-| [resolve#9] | Config: `requestData.queryKey` (default 'tenant_id') — ?tenant_id=<uuid> | B | | | | | |
-| [resolve#10] | Config: `requestData.bodyKey` (default 'tenant_id') — { "tenant_id": "<uuid>" } | B | | | | | |
-| [resolve#11] | Macro: `request.tenant()` — memoized per request, returns the resolved tenant | B | | | | | |
-| [resolve#12] | "Always call this helper rather than reading the header directly" | A | | | | | |
-| [resolve#13] | Interface: `TenantResolver` contract for custom resolvers | B | | | | | |
-| [resolve#14] | API: `ResolverRegistry.register('name', resolver)` in provider | B | | | | | |
-| [resolve#15] | Config: `resolverChain: ['header', 'subdomain', 'request-data']` — first hit wins | B | | | | | |
-| [resolve#16] | Overrides `resolverStrategy` when set | A | | | | | |
-| [resolve#17] | Config: `resolver.legacyAdapterFallback` (defaults to false) — controls synchronous fallback for model queries outside request guard | B | | | | | |
-| [resolve#18] | Default (false): adapter consults the resolver chain synchronously | B | | | | | |
-| [resolve#19] | True: restores 0.x behavior — adapter uses only `resolverStrategy` on fallback | B | | | | | |
+| [resolve#1] | Strategy: `header` (default) — Reads `x-tenant-id` from request headers | B | VERIFIED | builtins.ts:19 HeaderResolver; default via config stub:17 env.get('TENANT_RESOLVER','header') | tenant_resolver.spec.ts; e2e resolution_strategies | none | default = installer stub, not code |
+| [resolve#2] | Strategy: `subdomain` — Extracts UUID from `<uuid>.yourdomain.com` | B | VERIFIED | builtins.ts:34 SubdomainResolver (baseDomain parse) | tenant_adapter.spec.ts:117; e2e resolution_strategies | none |  |
+| [resolve#3] | Strategy: `path` — Reads the first path segment `/<uuid>/...` | B | VERIFIED | builtins.ts:59 PathResolver | tenant_adapter.spec.ts:130; e2e | none |  |
+| [resolve#4] | Strategy: `request-data` — Reads from query string or body | B | VERIFIED | builtins.ts:105 RequestDataResolver (qs + input) | builtin_resolvers.spec.ts | none |  |
+| [resolve#5] | Strategy: `domain-or-subdomain` — Custom domain wins, falls back to subdomain | B | VERIFIED | builtins.ts:80 DomainOrSubdomainResolver | tenant_adapter.spec.ts:445 subdomain fallback | none |  |
+| [resolve#6] | Config key: `resolverStrategy` — set to 'header', 'subdomain', 'path', 'domain-or-subdomain', or 'request-data' | B | VERIFIED | types/config.ts:4-9 | — | none |  |
+| [resolve#7] | Config key: `tenantHeaderKey` (defaults to 'x-tenant-id') | B | VERIFIED | builtins.ts:21 reads config; stub:18 default 'x-tenant-id' | tenant_adapter.spec.ts:104 | none | default = installer stub |
+| [resolve#8] | Config key: `baseDomain` — for subdomain strategy | B | VERIFIED | types/config.ts:362 | — | none |  |
+| [resolve#9] | Config: `requestData.queryKey` (default 'tenant_id') — ?tenant_id=<uuid> | B | VERIFIED | builtins.ts:109 | builtin_resolvers.spec.ts | none |  |
+| [resolve#10] | Config: `requestData.bodyKey` (default 'tenant_id') — { "tenant_id": "<uuid>" } | B | VERIFIED | builtins.ts:110 | builtin_resolvers.spec.ts | none |  |
+| [resolve#11] | Macro: `request.tenant()` — memoized per request, returns the resolved tenant | B | VERIFIED | extensions/request.ts macro + Symbol memo | request_tenant_memo.spec.ts:5 | none |  |
+| [resolve#12] | "Always call this helper rather than reading the header directly" | A | VERIFIED | resolveTenantId() honours strategy+chain (extensions/request.ts) | tenant_resolver.spec.ts | none | guidance backed by mechanism |
+| [resolve#13] | Interface: `TenantResolver` contract for custom resolvers | B | VERIFIED | resolvers/resolver.ts TenantResolver interface | resolver_registry.spec.ts | none |  |
+| [resolve#14] | API: `ResolverRegistry.register('name', resolver)` in provider | B | VERIFIED | resolvers/registry.ts register() | resolver_registry.spec.ts | none |  |
+| [resolve#15] | Config: `resolverChain: ['header', 'subdomain', 'request-data']` — first hit wins | B | VERIFIED | types/config.ts:354 resolverChain | resolver_registry.spec.ts chain order | none |  |
+| [resolve#16] | Overrides `resolverStrategy` when set | A | VERIFIED | types/config.ts:351-354 'overrides resolverStrategy' | tenant_adapter.spec.ts:339 custom chain routing | none |  |
+| [resolve#17] | Config: `resolver.legacyAdapterFallback` (defaults to false) — controls synchronous fallback for model queries outside request guard | B | VERIFIED | types/config.ts:29 default false as of 1.0 | tenant_adapter.spec.ts:387 'flag defaults to false in 1.0' | none |  |
+| [resolve#18] | Default (false): adapter consults the resolver chain synchronously | B | VERIFIED | types/config.ts:18-23 resolveSync path | tenant_adapter.spec.ts:339 | none |  |
+| [resolve#19] | True: restores 0.x behavior — adapter uses only `resolverStrategy` on fallback | B | VERIFIED | types/config.ts:24-27 | tenant_adapter.spec.ts:362 legacy opt-in | none |  |
 
 ## routing.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [routing#1] | Macro: `router.tenant()` — Wraps with `TenantGuardMiddleware`, requires resolved tenant | B | | | | | |
-| [routing#2] | Macro: `router.central()` — Wraps with `CentralOnlyMiddleware`, requires NO tenant in scope | B | | | | | |
-| [routing#3] | Macro: `router.universal()` — Wraps with `UniversalMiddleware`, resolves tenant when present, never fails when absent | B | | | | | |
-| [routing#4] | Middleware: `CustomDomainMiddleware` — queries `findByDomain(host)` from tenant repository | B | | | | | |
-| [routing#5] | Option: `strict: true` — rejects conflicting header/domain with HTTP 400 (`E_TENANT_HEADER_DOMAIN_MISMATCH`) | B | | | | | |
-| [routing#6] | Default: explicit `x-tenant-id` header wins over Host-resolved tenant | B | | | | | |
-| [routing#7] | `strict: true` mode: rejects when header disagrees with domain | B | | | | | |
-| [routing#8] | API: `tenancy.run(tenant, fn)` — opens a tenant context for non-HTTP code | B | | | | | |
-| [routing#9] | Returns: underlying `RouteGroup` so you can chain `.prefix()`, `.use()`, `.where()`, etc. | B | | | | | |
-| [routing#10] | Example: `router.makeUrl('orders.show', { id }, { prefixUrl: tenant.customDomain \|\| `https://${tenant.id}.app.example.com` })` | B | | | | | |
+| [routing#1] | Macro: `router.tenant()` — Wraps with `TenantGuardMiddleware`, requires resolved tenant | B | VERIFIED | extensions/router.ts:23,70 tenant() wraps TenantGuardMiddleware | router_macros.spec.ts; fixture app routes | none |  |
+| [routing#2] | Macro: `router.central()` — Wraps with `CentralOnlyMiddleware`, requires NO tenant in scope | B | VERIFIED | router.ts:29,76 central() wraps CentralOnlyMiddleware | central_only_middleware.spec.ts | none |  |
+| [routing#3] | Macro: `router.universal()` — Wraps with `UniversalMiddleware`, resolves tenant when present, never fails when absent | B | VERIFIED | router.ts:36,81 universal() wraps UniversalMiddleware | universal_middleware.spec.ts | none |  |
+| [routing#4] | Middleware: `CustomDomainMiddleware` — queries `findByDomain(host)` from tenant repository | B | VERIFIED | custom_domain_middleware.ts findByDomain(host) | custom_domain_middleware specs (unit+integration) | new-test:T5 (verify-first e2e mapping) |  |
+| [routing#5] | Option: `strict: true` — rejects conflicting header/domain with HTTP 400 (`E_TENANT_HEADER_DOMAIN_MISMATCH`) | B | VERIFIED | custom_domain strict → TenantHeaderDomainMismatchException 400 | header_vs_domain_precedence.spec.ts:27 | none |  |
+| [routing#6] | Default: explicit `x-tenant-id` header wins over Host-resolved tenant | B | VERIFIED | non-strict default: header wins | header_vs_domain_precedence.spec.ts (header-only mode) | none |  |
+| [routing#7] | `strict: true` mode: rejects when header disagrees with domain | B | VERIFIED | strict branch | header_vs_domain_precedence.spec.ts:27,:110 | none |  |
+| [routing#8] | API: `tenancy.run(tenant, fn)` — opens a tenant context for non-HTTP code | B | VERIFIED | tenancy.ts run() | tenant_context.spec.ts; tenant_log_context.spec.ts | none |  |
+| [routing#9] | Returns: underlying `RouteGroup` so you can chain `.prefix()`, `.use()`, `.where()`, etc. | B | VERIFIED | router.ts:54 'return the underlying RouteGroup' | router_macros.spec.ts | none |  |
+| [routing#10] | Example: `router.makeUrl('orders.show', { id }, { prefixUrl: tenant.customDomain \|\| `https://${tenant.id}.app.example.com` })` | B | VERIFIED | standard AdonisJS makeUrl + prefixUrl (snippet validity) | — | none |  |
 
 ## configuration.md
 
@@ -250,25 +250,25 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [models#1] | Class: `TenantBaseModel` — extends Lucid, lands in active tenant's schema/database | B | | | | | |
-| [models#2] | Class: `withTenantScope(BaseModel)` — mixin for rowscope-pg, shared schema + tenant_id filter | B | | | | | |
-| [models#3] | Class: `BackofficeBaseModel` — pins `static connection = 'backoffice'` | B | | | | | |
-| [models#4] | Class: `CentralBaseModel` — pins `static connection = 'public'` | B | | | | | |
-| [models#5] | "TenantBaseModel query with no active tenant context cannot resolve a connection and fails fast" | A | | | | | |
-| [models#6] | "Inside an HTTP request the active tenant comes from the guard" | B | | | | | |
-| [models#7] | "Outside a request, open a context with tenancy.run(tenant, fn)" | B | | | | | |
-| [models#8] | "Injects WHERE tenant_id = <current> on find / fetch / paginate" | B | | | | | |
-| [models#9] | "Auto-fills tenant_id on create" | B | | | | | |
-| [models#10] | "Throws on update / delete if the row's tenant_id differs from the active scope" | B | | | | | |
-| [models#11] | "A top-level orWhere can escape the auto-scope (SQL binds AND tighter than OR)" | A | | | | | |
-| [models#12] | "In strict mode (default), a scoped query with no active context throws rather than running unscoped" | B | | | | | |
-| [models#13] | "Always reads and writes the shared backoffice schema regardless of active tenant" | B | | | | | |
-| [models#14] | "Pins `static connection = 'public'` and prefixes table name with centralSchemaName" | B | | | | | |
-| [models#15] | "Lucid relationships cross layers will not resolve (different schemas/databases)" | A | | | | | |
-| [models#16] | "Foreign key cannot span per-tenant schema and central schema" | A | | | | | |
-| [models#17] | "To associate across layers, store the other layer's id as plain column and load explicitly" | B | | | | | |
-| [models#18] | API: `tenancy.run(tenant, fn)` — opens tenant context for jobs, commands, scripts | B | | | | | |
-| [models#19] | API: `unscoped(fn)` — disables row-scoping for cross-tenant work | B | | | | | |
+| [models#1] | Class: `TenantBaseModel` — extends Lucid, lands in active tenant's schema/database | B | VERIFIED | models/base/tenant_base_model.ts + TenantAdapter | adapter unit+integration | none |  |
+| [models#2] | Class: `withTenantScope(BaseModel)` — mixin for rowscope-pg, shared schema + tenant_id filter | B | VERIFIED | scoping.ts:117 | scoping.spec.ts | none |  |
+| [models#3] | Class: `BackofficeBaseModel` — pins `static connection = 'backoffice'` | B | VERIFIED | backoffice_base_model.ts:4 static connection='backoffice' (provider rewires to configured name) | satellite specs use it | none |  |
+| [models#4] | Class: `CentralBaseModel` — pins `static connection = 'public'` | B | VERIFIED | central_base_model.ts:12 static connection='public' | fixture Tenant model | none |  |
+| [models#5] | "TenantBaseModel query with no active tenant context cannot resolve a connection and fails fast" | A | VERIFIED | tenant_adapter.ts:60-64 throws MissingTenantHeaderException | tenant_adapter.spec.ts:170 'throws … when tenant ID header is absent' | none |  |
+| [models#6] | "Inside an HTTP request the active tenant comes from the guard" | B | VERIFIED | guard seeds context; adapter prefers tenancy.currentId() | tenant_adapter.spec.ts:228 | none |  |
+| [models#7] | "Outside a request, open a context with tenancy.run(tenant, fn)" | B | VERIFIED | tenancy.run() | tenant_adapter.spec.ts:257 queue/script path | none |  |
+| [models#8] | "Injects WHERE tenant_id = <current> on find / fetch / paginate" | B | VERIFIED | scoping.ts:139-174 | scoping.spec.ts:95 | none |  |
+| [models#9] | "Auto-fills tenant_id on create" | B | VERIFIED | scoping.ts:176-181 | scoping.spec.ts:126 | none |  |
+| [models#10] | "Throws on update / delete if the row's tenant_id differs from the active scope" | B | VERIFIED | scoping.ts:195-216 | scoping.spec.ts:171 | none |  |
+| [models#11] | "A top-level orWhere can escape the auto-scope (SQL binds AND tighter than OR)" | A | VERIFIED | scoping.ts:91-115 doc comment | rowscope_rls.spec.ts:74 | none |  |
+| [models#12] | "In strict mode (default), a scoped query with no active context throws rather than running unscoped" | B | VERIFIED | scoping.ts:135 | scoping.spec.ts:202; rowscope_pg_driver.spec.ts:232 | none |  |
+| [models#13] | "Always reads and writes the shared backoffice schema regardless of active tenant" | B | VERIFIED | BackofficeAdapter pins backoffice connection | satellite coexistence spec | none |  |
+| [models#14] | "Pins `static connection = 'public'` and prefixes table name with centralSchemaName" | B | VERIFIED | central_base_model.ts:12 + table prefix logic | fixture Tenant (central) usage across suite | none |  |
+| [models#15] | "Lucid relationships cross layers will not resolve (different schemas/databases)" | A | VERIFIED | different connections/schemas — Lucid relationships resolve on one connection | — (negative framework constraint) | none |  |
+| [models#16] | "Foreign key cannot span per-tenant schema and central schema" | A | VERIFIED | PG cannot FK across databases; cross-schema FK unsupported by design here | — | none |  |
+| [models#17] | "To associate across layers, store the other layer's id as plain column and load explicitly" | B | VERIFIED | guidance consistent with faq#8 | — | none |  |
+| [models#18] | API: `tenancy.run(tenant, fn)` — opens tenant context for jobs, commands, scripts | B | VERIFIED | tenancy.ts run() | tenant_context.spec.ts:72 | none |  |
+| [models#19] | API: `unscoped(fn)` — disables row-scoping for cross-tenant work | B | VERIFIED | scoping.ts:27 unscoped() | scoping.spec.ts:58 | none |  |
 
 ## commands.md
 
@@ -367,28 +367,28 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [hooks#1] | Event: `provision` — Fires around tenant schema/database creation. Context: `{ tenant }` | B | | | | | |
-| [hooks#2] | Event: `destroy` — Fires around tenant teardown. Context: `{ tenant }` | B | | | | | |
-| [hooks#3] | Event: `migrate` — Fires around per-tenant migrations. Context: `{ tenant, direction: 'up' \| 'down' }` | B | | | | | |
-| [hooks#4] | Event: `backup` — Fires around tenant backup. Context: `{ tenant, metadata? }` | B | | | | | |
-| [hooks#5] | Event: `restore` — Fires around tenant restore. Context: `{ tenant, fileName }` | B | | | | | |
-| [hooks#6] | Event: `clone` — Fires around tenant clone. Context: `{ source, destination, result? }` | B | | | | | |
-| [hooks#7] | Phase: `before` — thrown error aborts the operation | B | | | | | |
-| [hooks#8] | Phase: `after` — thrown error is logged and swallowed | B | | | | | |
-| [hooks#9] | Config key: `hooks.beforeProvision` — async ({ tenant }) => { } | B | | | | | |
-| [hooks#10] | Config key: `hooks.afterProvision` — async ({ tenant }) => { } | B | | | | | |
-| [hooks#11] | Config key: `hooks.beforeDestroy` — async ({ tenant }) => { } | B | | | | | |
-| [hooks#12] | Config key: `hooks.afterDestroy` — async ({ tenant }) => { } | B | | | | | |
-| [hooks#13] | Config key: `hooks.beforeMigrate` — async ({ tenant, direction }) => { } | B | | | | | |
-| [hooks#14] | Config key: `hooks.afterMigrate` — async ({ tenant, direction }) => { } | B | | | | | |
-| [hooks#15] | Config key: `hooks.beforeBackup` — async ({ tenant, metadata? }) => { } | B | | | | | |
-| [hooks#16] | Config key: `hooks.afterBackup` — async ({ tenant, metadata? }) => { } | B | | | | | |
-| [hooks#17] | Config key: `hooks.beforeRestore` — async ({ tenant, fileName }) => { } | B | | | | | |
-| [hooks#18] | Config key: `hooks.afterRestore` — async ({ tenant, fileName }) => { } | B | | | | | |
-| [hooks#19] | Config key: `hooks.beforeClone` — async ({ source, destination, result? }) => { } | B | | | | | |
-| [hooks#20] | Config key: `hooks.afterClone` — async ({ source, destination, result? }) => { } | B | | | | | |
-| [hooks#21] | API: `HookRegistry.before(event, fn)` / `.after(event, fn)` — chainable API | B | | | | | |
-| [hooks#22] | API: Resolve from container: `app.container.make(HookRegistry)` | B | | | | | |
+| [hooks#1] | Event: `provision` — Fires around tenant schema/database creation. Context: `{ tenant }` | B | VERIFIED | hook_registry.ts:7,65-66 | hook_registry.spec.ts; e2e lifecycle_events (beforeProvision reject → failed) | none |  |
+| [hooks#2] | Event: `destroy` — Fires around tenant teardown. Context: `{ tenant }` | B | VERIFIED | hook_registry.ts:8,67-68 | hook_registry.spec.ts | none |  |
+| [hooks#3] | Event: `migrate` — Fires around per-tenant migrations. Context: `{ tenant, direction: 'up' \| 'down' }` | B | VERIFIED | hook_registry.ts:12,75-76 + TenantMigrationDirection | hook_registry.spec.ts | none |  |
+| [hooks#4] | Event: `backup` — Fires around tenant backup. Context: `{ tenant, metadata? }` | B | VERIFIED | hook_registry.ts:9,69-70 | backup pkg specs run hooks | none |  |
+| [hooks#5] | Event: `restore` — Fires around tenant restore. Context: `{ tenant, fileName }` | B | VERIFIED | hook_registry.ts:10,71-72 | tenant_restore.spec.ts | none |  |
+| [hooks#6] | Event: `clone` — Fires around tenant clone. Context: `{ source, destination, result? }` | B | VERIFIED | hook_registry.ts:11,73-74 | clone_service.spec.ts | none |  |
+| [hooks#7] | Phase: `before` — thrown error aborts the operation | B | VERIFIED | hook_registry run(): before rethrows | e2e lifecycle_events: beforeProvision throw → status failed | none |  |
+| [hooks#8] | Phase: `after` — thrown error is logged and swallowed | B | VERIFIED | hook_registry run(): after caught + logged | unit output shows '[multitenancy] after-hook failed (after:backup)' exercised in hook_registry.spec.ts | none |  |
+| [hooks#9] | Config key: `hooks.beforeProvision` — async ({ tenant }) => { } | B | VERIFIED | DeclarativeHooks beforeProvision (hook_registry.ts) | fixture config/multitenancy.ts declares it; e2e lifecycle_events | none |  |
+| [hooks#10] | Config key: `hooks.afterProvision` — async ({ tenant }) => { } | B | VERIFIED | DeclarativeHooks afterProvision | e2e lifecycle_events | none |  |
+| [hooks#11] | Config key: `hooks.beforeDestroy` — async ({ tenant }) => { } | B | VERIFIED | DeclarativeHooks beforeDestroy | hook_registry.spec.ts | none |  |
+| [hooks#12] | Config key: `hooks.afterDestroy` — async ({ tenant }) => { } | B | VERIFIED | DeclarativeHooks afterDestroy | hook_registry.spec.ts | none |  |
+| [hooks#13] | Config key: `hooks.beforeMigrate` — async ({ tenant, direction }) => { } | B | VERIFIED | DeclarativeHooks beforeMigrate (direction) | hook_registry.spec.ts | none |  |
+| [hooks#14] | Config key: `hooks.afterMigrate` — async ({ tenant, direction }) => { } | B | VERIFIED | DeclarativeHooks afterMigrate | hook_registry.spec.ts | none |  |
+| [hooks#15] | Config key: `hooks.beforeBackup` — async ({ tenant, metadata? }) => { } | B | VERIFIED | DeclarativeHooks beforeBackup (metadata?) | backup pkg | none |  |
+| [hooks#16] | Config key: `hooks.afterBackup` — async ({ tenant, metadata? }) => { } | B | VERIFIED | DeclarativeHooks afterBackup | backup pkg | none |  |
+| [hooks#17] | Config key: `hooks.beforeRestore` — async ({ tenant, fileName }) => { } | B | VERIFIED | DeclarativeHooks beforeRestore (fileName) | backup pkg | none |  |
+| [hooks#18] | Config key: `hooks.afterRestore` — async ({ tenant, fileName }) => { } | B | VERIFIED | DeclarativeHooks afterRestore | backup pkg | none |  |
+| [hooks#19] | Config key: `hooks.beforeClone` — async ({ source, destination, result? }) => { } | B | VERIFIED | DeclarativeHooks beforeClone (source,destination) | clone_service.spec.ts | none |  |
+| [hooks#20] | Config key: `hooks.afterClone` — async ({ source, destination, result? }) => { } | B | VERIFIED | DeclarativeHooks afterClone (result?) | clone_service.spec.ts | none |  |
+| [hooks#21] | API: `HookRegistry.before(event, fn)` / `.after(event, fn)` — chainable API | B | VERIFIED | hook_registry.ts before()/after() return this | hook_registry.spec.ts | none |  |
+| [hooks#22] | API: Resolve from container: `app.container.make(HookRegistry)` | B | VERIFIED | provider register() singleton HookRegistry | hook_registry.spec.ts container make | none |  |
 
 ## services.md
 
@@ -960,73 +960,73 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [job#1] | Job: `InstallTenant` — Provision the tenant's schema/database, run migrations, init queue | B | | | | | |
-| [job#2] | Job: `UninstallTenant` — Tear down storage, destroy tenant queue, soft-delete row | B | | | | | |
-| [job#3] | Job: `BackupTenant` — Run pg_dump, mirror to S3 if configured | B | | | | | |
-| [job#4] | Job: `RestoreTenant` — Run pg_restore against stored dump | B | | | | | |
-| [job#5] | Job: `CloneTenant` — Provision destination + copy rows from source | B | | | | | |
-| [job#6] | Job: `ProcessStripeEventJob` — Process verified Stripe webhook (retrieve, ordering guard, sync, mark completed) | B | | | | | |
-| [job#7] | Job: `ReportUsageBatchJob` — Send aggregated meter events to Stripe in single batch | B | | | | | |
-| [job#8] | Job: `BillingCleanupJob` — Purge stripe_processed_events older than webhook.idempotencyTtlDays | B | | | | | |
-| [job#9] | "InstallTenant queued by tenant:create, POST /admin/.../tenants" | B | | | | | |
-| [job#10] | "UninstallTenant queued by tenant:destroy (when not --keep-schema)" | B | | | | | |
-| [job#11] | "BackupTenant queued by tenant:backups:run cron, ad-hoc dispatch" | B | | | | | |
-| [job#12] | "RestoreTenant queued by tenant:restore" | B | | | | | |
-| [job#13] | "CloneTenant queued by tenant:clone" | B | | | | | |
-| [job#14] | Import: `{ InstallTenant, UninstallTenant, ... } from '@adonisjs-lasagna/saas-tenancy/jobs'` | B | | | | | |
-| [job#15] | API: `InstallTenant.dispatch({ tenantId })` | B | | | | | |
-| [job#16] | API: `BackupTenant.dispatch({ tenantId })` | B | | | | | |
-| [job#17] | API: `RestoreTenant.dispatch({ tenantId, fileName })` | B | | | | | |
-| [job#18] | API: `CloneTenant.dispatch({ sourceTenantId, destinationTenantId, schemaOnly, clearSessions })` | B | | | | | |
-| [job#19] | Export: `CloneTenantPayload` as a public type | B | | | | | |
-| [job#20] | "Every job binds an AsyncLocalStorage scope to the active tenant before doing any work" | B | | | | | |
-| [job#21] | "Inside execute(): const logCtx = await app.container.make(TenantLogContext); return logCtx.run({ tenantId }, async () => { ... })" | B | | | | | |
-| [job#22] | "tenancy.currentId() === tenantId" | B | | | | | |
-| [job#23] | "tenantLogger() emits { tenantId } on every line" | B | | | | | |
-| [job#24] | "Any service/repository/third-party client sees tenant context without threading it manually" | B | | | | | |
-| [job#25] | "InstallTenant, UninstallTenant, BackupTenant, RestoreTenant, CloneTenant run before: and after: hooks" | B | | | | | |
-| [job#26] | Hook phase: before: — throws aborts the job; queue retries per configured attempts | B | | | | | |
-| [job#27] | Hook phase: after: — throws is logged and swallowed; operation continues | B | | | | | |
-| [job#28] | "After the after: hook, the job dispatches the matching event (TenantProvisioned, TenantBackedUp, etc.)" | B | | | | | |
-| [job#29] | "Each job overrides failed(error) to log a structured line keyed by tenantId" | B | | | | | |
-| [job#30] | "The job stays on the queue's failed set per BullMQ defaults" | B | | | | | |
-| [job#31] | Pattern: Wrap body in `tenancy.run(tenant, async () => { ... })` | B | | | | | |
-| [job#32] | Example: Inside a job's execute(), resolve tenant repo, fetch tenant, call tenancy.run() | B | | | | | |
-| [job#33] | Test: Job-context leak under interleaved tenants (`tests/integration/jobs/tenant_context.spec.ts`) — 3 tenants × 30 randomly-shuffled jobs | B | | | | | |
+| [job#1] | Job: `InstallTenant` — Provision the tenant's schema/database, run migrations, init queue | B | VERIFIED | jobs/install_tenant.ts (provision→migrate→active) | tenant_lifecycle.spec.ts; e2e queue_jobs | none |  |
+| [job#2] | Job: `UninstallTenant` — Tear down storage, destroy tenant queue, soft-delete row | B | VERIFIED | jobs/uninstall_tenant.ts | tenant_lifecycle.spec.ts | none |  |
+| [job#3] | Job: `BackupTenant` — Run pg_dump, mirror to S3 if configured | B | PARTIAL | BackupTenant exists in @adonisjs-lasagna/backup, NOT core /jobs | tenant_backup.spec.ts | doc-fix:F-17 |  |
+| [job#4] | Job: `RestoreTenant` — Run pg_restore against stored dump | B | PARTIAL | RestoreTenant in backup pkg | tenant_restore.spec.ts | doc-fix:F-17 |  |
+| [job#5] | Job: `CloneTenant` — Provision destination + copy rows from source | B | PARTIAL | CloneTenant in backup pkg | clone_service.spec.ts | doc-fix:F-17 |  |
+| [job#6] | Job: `ProcessStripeEventJob` — Process verified Stripe webhook (retrieve, ordering guard, sync, mark completed) | B | PARTIAL | ProcessStripeEventJob in billing pkg | webhook_idempotency + event_ordering specs | doc-fix:F-17 |  |
+| [job#7] | Job: `ReportUsageBatchJob` — Send aggregated meter events to Stripe in single batch | B | PARTIAL | ReportUsageBatchJob in billing pkg | metered_usage.spec.ts | doc-fix:F-17 |  |
+| [job#8] | Job: `BillingCleanupJob` — Purge stripe_processed_events older than webhook.idempotencyTtlDays | B | PARTIAL | BillingCleanupJob in billing pkg | cleanup_command.spec.ts | doc-fix:F-17 |  |
+| [job#9] | "InstallTenant queued by tenant:create, POST /admin/.../tenants" | B | VERIFIED | create_tenant.ts queues InstallTenant; admin pkg POST does too | e2e commands_lifecycle + admin_full | none |  |
+| [job#10] | "UninstallTenant queued by tenant:destroy (when not --keep-schema)" | B | VERIFIED | destroy_tenant.ts queues UninstallTenant unless --keep-schema | e2e commands_lifecycle | none |  |
+| [job#11] | "BackupTenant queued by tenant:backups:run cron, ad-hoc dispatch" | B | VERIFIED | backup pkg tenant:backups:run dispatches | backup_retention_service.spec.ts | none |  |
+| [job#12] | "RestoreTenant queued by tenant:restore" | B | VERIFIED | backup pkg tenant:restore | e2e backups_real | none |  |
+| [job#13] | "CloneTenant queued by tenant:clone" | B | VERIFIED | backup pkg tenant:clone | clone_service.spec.ts | none |  |
+| [job#14] | Import: `{ InstallTenant, UninstallTenant, ... } from '@adonisjs-lasagna/saas-tenancy/jobs'` | B | BROKEN | src/jobs/index.ts exports ONLY InstallTenant+UninstallTenant — 'all eight from core /jobs' snippet does not compile | — | doc-fix:F-17 |  |
+| [job#15] | API: `InstallTenant.dispatch({ tenantId })` | B | VERIFIED | InstallTenant.dispatch({tenantId}) (@adonisjs/queue static) | e2e queue_jobs | none |  |
+| [job#16] | API: `BackupTenant.dispatch({ tenantId })` | B | PARTIAL | BackupTenant.dispatch exists — import path in doc wrong | tenant_backup.spec.ts | doc-fix:F-17 |  |
+| [job#17] | API: `RestoreTenant.dispatch({ tenantId, fileName })` | B | PARTIAL | RestoreTenant.dispatch — import path wrong | tenant_restore.spec.ts | doc-fix:F-17 |  |
+| [job#18] | API: `CloneTenant.dispatch({ sourceTenantId, destinationTenantId, schemaOnly, clearSessions })` | B | PARTIAL | CloneTenant.dispatch — import path wrong | clone_service.spec.ts | doc-fix:F-17 |  |
+| [job#19] | Export: `CloneTenantPayload` as a public type | B | PARTIAL | CloneTenantPayload exported from backup pkg, not core | — | doc-fix:F-17 |  |
+| [job#20] | "Every job binds an AsyncLocalStorage scope to the active tenant before doing any work" | B | VERIFIED | install_tenant.ts:23-24 logCtx.run wrapper (same pattern in uninstall/backup/billing jobs) | jobs/tenant_context.spec.ts:72 | none |  |
+| [job#21] | "Inside execute(): const logCtx = await app.container.make(TenantLogContext); return logCtx.run({ tenantId }, async () => { ... })" | B | VERIFIED | install_tenant.ts:23-24 exact pattern | tenant_context.spec.ts | none |  |
+| [job#22] | "tenancy.currentId() === tenantId" | B | VERIFIED | TenantLogContext seeds tenancy.currentId | tenant_context.spec.ts:72 | none |  |
+| [job#23] | "tenantLogger() emits { tenantId } on every line" | B | VERIFIED | tenant_logger.ts child bindings | tenant_logger.spec.ts; e2e contextual_logging | none |  |
+| [job#24] | "Any service/repository/third-party client sees tenant context without threading it manually" | B | VERIFIED | AsyncLocalStorage propagation | tenant_context.spec.ts (await/async continuations) | none |  |
+| [job#25] | "InstallTenant, UninstallTenant, BackupTenant, RestoreTenant, CloneTenant run before: and after: hooks" | B | VERIFIED | jobs run hooks.run('before'/'after', …) | e2e lifecycle_events | none |  |
+| [job#26] | Hook phase: before: — throws aborts the job; queue retries per configured attempts | B | PARTIAL | before-throw aborts (install_tenant catch → failed); 'queue retries per configured attempts' unproven | — (no test that attempts is honored) | new-test:T2 |  |
+| [job#27] | Hook phase: after: — throws is logged and swallowed; operation continues | B | VERIFIED | hook_registry after swallow | hook_registry.spec.ts | none |  |
+| [job#28] | "After the after: hook, the job dispatches the matching event (TenantProvisioned, TenantBackedUp, etc.)" | B | VERIFIED | install_tenant dispatches TenantProvisioned after hooks | lifecycle_dispatch.spec.ts | none |  |
+| [job#29] | "Each job overrides failed(error) to log a structured line keyed by tenantId" | B | VERIFIED | jobs override failed(error) with structured log | — (log shape not asserted) | none |  |
+| [job#30] | "The job stays on the queue's failed set per BullMQ defaults" | B | N/A | BullMQ default behavior (failed set) | — | none |  |
+| [job#31] | Pattern: Wrap body in `tenancy.run(tenant, async () => { ... })` | B | VERIFIED | tenancy.run pattern | tenant_context.spec.ts | none |  |
+| [job#32] | Example: Inside a job's execute(), resolve tenant repo, fetch tenant, call tenancy.run() | B | VERIFIED | snippet matches install_tenant.ts pattern | — | none |  |
+| [job#33] | Test: Job-context leak under interleaved tenants (`tests/integration/jobs/tenant_context.spec.ts`) — 3 tenants × 30 randomly-shuffled jobs | B | VERIFIED | — | tenant_context.spec.ts:72 (constants 3×30 verified) | none |  |
 
 ## testing.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [test#1] | "Most assertions don't need a real database" | B | | | | | |
-| [test#2] | "Lasagna ships hermetic helpers for tenant-routing behaviour" | B | | | | | |
-| [test#3] | "Reach for the SQLite memory driver only when your test needs real SQL round-trips" | B | | | | | |
-| [test#4] | Import: `{ buildTestTenant, MockTenantRepository, setRequestTenant, withTenant } from '@adonisjs-lasagna/saas-tenancy/testing'` | B | | | | | |
-| [test#5] | "Imports are tree-shaken; helpers don't pull in production services" | B | | | | | |
-| [test#6] | Function: `buildTestTenant({ id, name, status, ... })` — Builds TenantModelContract-shaped object | B | | | | | |
-| [test#7] | "Sensible defaults; override what you care about" | B | | | | | |
-| [test#8] | Class: `MockTenantRepository([...tenants])` | B | | | | | |
-| [test#9] | "Lives entirely in memory" | B | | | | | |
-| [test#10] | "Useful for unit tests of services without database" | B | | | | | |
-| [test#11] | "Implements each() (cursor pagination) the same way the real one does" | B | | | | | |
-| [test#12] | Function: `setRequestTenant(ctx, tenant)` — For controller/middleware tests | B | | | | | |
-| [test#13] | "Memoises onto the request" | B | | | | | |
-| [test#14] | "ctx.request.tenant() now resolves without hitting the repo" | B | | | | | |
-| [test#15] | Function: `withTenant(tenant, async () => { ... })` — Test-time convenience over tenancy.run() | B | | | | | |
-| [test#16] | "Activates the bootstrapper registry around the callback" | B | | | | | |
-| [test#17] | "The shape that survives in tests matches the shape in production" | B | | | | | |
-| [test#18] | Config (test env): `cache: { factory: () => new InMemoryCache() }` | B | | | | | |
-| [test#19] | Config (test env): `drive: { factory: () => new InMemoryDrive() }` | B | | | | | |
-| [test#20] | "Clean way to keep tests fast without sacrificing behavioural fidelity" | B | | | | | |
-| [test#21] | File: `bin/test.integration.ts` — boots real Ignitor rooted at fixture app | B | | | | | |
-| [test#22] | Dir: `tests/fixtures/` — minimal AdonisJS app | B | | | | | |
-| [test#23] | Dir: `examples/api/` — complete reference app with 111 e2e tests | B | | | | | |
-| [test#24] | "Reference suite uses compose.test.yml to bring up Postgres, Redis, MailCatcher" | B | | | | | |
-| [test#25] | Container: `postgres:16-alpine` — Real PG for integration suite | B | | | | | |
-| [test#26] | Container: `redis:7-alpine` — Real Redis for cache + queue + rate-limit specs | B | | | | | |
-| [test#27] | Container: `ghcr.io/navikt/mock-oauth2-server` — Wire-compliant OIDC for SSO real-server spec | B | | | | | |
-| [test#28] | Container: `minio/minio` — S3-compatible store for BackupService S3 spec | B | | | | | |
-| [test#29] | "test-e2e-demo job additionally brings up pg_dump/pg_restore and MailCatcher" | B | | | | | |
+| [test#1] | "Most assertions don't need a real database" | B | N/A | guidance | — | none |  |
+| [test#2] | "Lasagna ships hermetic helpers for tenant-routing behaviour" | B | PARTIAL | helpers exist except withTenant (F-18) | testing/builders.spec.ts | code-fix:F-18 |  |
+| [test#3] | "Reach for the SQLite memory driver only when your test needs real SQL round-trips" | B | VERIFIED | sqlite_memory_driver.ts | sqlite specs | none |  |
+| [test#4] | Import: `{ buildTestTenant, MockTenantRepository, setRequestTenant, withTenant } from '@adonisjs-lasagna/saas-tenancy/testing'` | B | BROKEN | src/testing/index.ts exports buildTestTenant, MockTenantRepository, setRequestTenant — NO withTenant | — | code-fix:F-18 (T11) |  |
+| [test#5] | "Imports are tree-shaken; helpers don't pull in production services" | B | VERIFIED | testing barrel imports only builders/factory/mock/with_tenant | — | none |  |
+| [test#6] | Function: `buildTestTenant({ id, name, status, ... })` — Builds TenantModelContract-shaped object | B | VERIFIED | builders.ts buildTestTenant(overrides) | builders.spec.ts (8 tests) | none |  |
+| [test#7] | "Sensible defaults; override what you care about" | B | VERIFIED | builders defaults + override precedence | builders.spec.ts | none |  |
+| [test#8] | Class: `MockTenantRepository([...tenants])` | B | VERIFIED | mock_repository.ts MockTenantRepository([...]) | mock_repository.spec.ts | none |  |
+| [test#9] | "Lives entirely in memory" | B | VERIFIED | in-memory Map-backed | mock_repository.spec.ts | none |  |
+| [test#10] | "Useful for unit tests of services without database" | B | VERIFIED | no DB dependency | mock_repository.spec.ts | none |  |
+| [test#11] | "Implements each() (cursor pagination) the same way the real one does" | B | VERIFIED | mock_repository implements each() cursor | mock_repository.spec.ts | none |  |
+| [test#12] | Function: `setRequestTenant(ctx, tenant)` — For controller/middleware tests | B | VERIFIED | with_tenant.ts:10 setRequestTenant(request, tenant) | used across integration suite | none |  |
+| [test#13] | "Memoises onto the request" | B | VERIFIED | sets the Symbol memo | request_tenant_memo.spec.ts | none |  |
+| [test#14] | "ctx.request.tenant() now resolves without hitting the repo" | B | VERIFIED | request.tenant() returns memoized | request_tenant_memo.spec.ts:5 | none |  |
+| [test#15] | Function: `withTenant(tenant, async () => { ... })` — Test-time convenience over tenancy.run() | B | BROKEN | withTenant does not exist (= tenancy.run alias documented) | — | code-fix:F-18 (T11) |  |
+| [test#16] | "Activates the bootstrapper registry around the callback" | B | BROKEN | same — bootstrapper-activation claim describes tenancy.run | — | code-fix:F-18 |  |
+| [test#17] | "The shape that survives in tests matches the shape in production" | B | N/A | philosophy statement | — | none |  |
+| [test#18] | Config (test env): `cache: { factory: () => new InMemoryCache() }` | B | DOC-ONLY | no cache.factory config key; no InMemoryCache class anywhere | — | doc-fix:F-19 |  |
+| [test#19] | Config (test env): `drive: { factory: () => new InMemoryDrive() }` | B | DOC-ONLY | no drive.factory; no InMemoryDrive | — | doc-fix:F-19 |  |
+| [test#20] | "Clean way to keep tests fast without sacrificing behavioural fidelity" | B | N/A | narrative tied to F-19 section | — | doc-fix:F-19 |  |
+| [test#21] | File: `bin/test.integration.ts` — boots real Ignitor rooted at fixture app | B | VERIFIED | bin/test.integration.ts boots Ignitor at tests/fixtures | whole integration suite | none |  |
+| [test#22] | Dir: `tests/fixtures/` — minimal AdonisJS app | B | VERIFIED | tests/fixtures app (models, repo, config, migrations) | — | none |  |
+| [test#23] | Dir: `examples/api/` — complete reference app with 111 e2e tests | B | PARTIAL | examples/api exists; e2e count is 125 not 111 (run 2026-06-10) | e2e run | doc-fix:F-6 |  |
+| [test#24] | "Reference suite uses compose.test.yml to bring up Postgres, Redis, MailCatcher" | B | BROKEN | compose.test.yml does not exist; real file examples/api/docker-compose.yml | — | doc-fix:F-1 |  |
+| [test#25] | Container: `postgres:16-alpine` — Real PG for integration suite | B | VERIFIED | .github/workflows/ci.yml postgres:16 service | CI integration job | none |  |
+| [test#26] | Container: `redis:7-alpine` — Real Redis for cache + queue + rate-limit specs | B | VERIFIED | ci.yml redis:7 service | CI | none |  |
+| [test#27] | Container: `ghcr.io/navikt/mock-oauth2-server` — Wire-compliant OIDC for SSO real-server spec | B | VERIFIED | ci.yml mock-oauth2-server service | sso_oidc_real.spec.ts (CI) | none |  |
+| [test#28] | Container: `minio/minio` — S3-compatible store for BackupService S3 spec | B | VERIFIED | ci.yml minio service | backup_s3.spec.ts (CI) | none |  |
+| [test#29] | "test-e2e-demo job additionally brings up pg_dump/pg_restore and MailCatcher" | B | VERIFIED | ci.yml e2e job: postgresql-client + MailCatcher | e2e mail.spec.ts | none |  |
 
 ## contextual-logging.md
 
