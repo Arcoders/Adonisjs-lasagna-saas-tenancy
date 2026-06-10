@@ -556,110 +556,110 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [bootstrap#1] | "A bootstrapper is a per-service hook that enters when tenant context activates, leaves when it ends" | B | | | | | |
-| [bootstrap#2] | "tenancy.run(tenant, fn) activates the bootstrapper registry around fn" | B | | | | | |
-| [bootstrap#3] | "Each registered bootstrapper sees enter(ctx) before fn runs and leave(ctx) after, even on fn throw" | B | | | | | |
-| [bootstrap#4] | Bootstrapper: `cacheBootstrapper` — BentoCache — Namespaces every key by `tenants/<id>/…` | B | | | | | |
-| [bootstrap#5] | Bootstrapper: `driveBootstrapper` — @adonisjs/drive — Prefixes every operation with `tenants/<id>/` | B | | | | | |
-| [bootstrap#6] | Bootstrapper: `mailBootstrapper` — @adonisjs/mail — Switches SMTP credentials and from address per tenant | B | | | | | |
-| [bootstrap#7] | Bootstrapper: `sessionBootstrapper` — @adonisjs/session — Prefixes session keys with tenant id | B | | | | | |
-| [bootstrap#8] | Bootstrapper: `transmitBootstrapper` — @adonisjs/transmit — Scopes broadcast channels per tenant | B | | | | | |
-| [bootstrap#9] | "Database is not a bootstrapper — query routing is handled inside TenantAdapter via the active IsolationDriver" | A | | | | | |
-| [bootstrap#10] | "Bootstrappers are auto-registered when the corresponding service binding is present" | B | | | | | |
-| [bootstrap#11] | "The package probes container.hasBinding(...) for each candidate" | B | | | | | |
-| [bootstrap#12] | "The cache bootstrapper is always registered — the package treats it as a hard requirement" | B | | | | | |
-| [bootstrap#13] | API: `registry.unregister('drive')` — skip even though @adonisjs/drive is installed | B | | | | | |
-| [bootstrap#14] | Default order: cache (1), drive (2), mail (3), session (4), transmit (5) | B | | | | | |
-| [bootstrap#15] | "Registry enters in ascending order and leaves in descending order, exactly like a stack" | B | | | | | |
-| [bootstrap#16] | Interface: `Bootstrapper` with `priority` property and `async enter(ctx)` / `async leave(ctx)` | B | | | | | |
-| [bootstrap#17] | Invariant: "leave runs even if enter or fn throw" | B | | | | | |
-| [bootstrap#18] | Invariant: "A failure in one enter aborts the rest and unwinds prior successful enters in reverse order" | B | | | | | |
+| [bootstrap#1] | "A bootstrapper is a per-service hook that enters when tenant context activates, leaves when it ends" | B | VERIFIED | bootstrapper_registry.ts:14-22 enter/leave contract | bootstrapper_registry.spec.ts:150 runScoped order | none |  |
+| [bootstrap#2] | "tenancy.run(tenant, fn) activates the bootstrapper registry around fn" | B | VERIFIED | tenancy.run → registry.runScoped | bootstrapper_isolation.spec.ts | none |  |
+| [bootstrap#3] | "Each registered bootstrapper sees enter(ctx) before fn runs and leave(ctx) after, even on fn throw" | B | VERIFIED | runScoped guarantees leave for every successful enter | bootstrapper_registry.spec.ts:165 'runScoped runs leave even when fn throws' | none |  |
+| [bootstrap#4] | Bootstrapper: `cacheBootstrapper` — BentoCache — Namespaces every key by `tenants/<id>/…` | B | PARTIAL | cacheFor namespace is tenant:<id> (cache.ts:65), not tenants/<id>/ | cache_for.spec.ts:24 | doc-fix:F-22 |  |
+| [bootstrap#5] | Bootstrapper: `driveBootstrapper` — @adonisjs/drive — Prefixes every operation with `tenants/<id>/` | B | PARTIAL | prefix applied via tenantDisk() helper only, not transparently | drive_bootstrapper.spec.ts | doc-fix:F-22 |  |
+| [bootstrap#6] | Bootstrapper: `mailBootstrapper` — @adonisjs/mail — Switches SMTP credentials and from address per tenant | B | BROKEN | no SMTP/from switching — tenantMailer stamps X-Tenant-Id only (mail_bootstrapper.ts:19-29) | mail_bootstrapper.spec.ts; e2e mail.spec.ts | doc-fix:F-22 |  |
+| [bootstrap#7] | Bootstrapper: `sessionBootstrapper` — @adonisjs/session — Prefixes session keys with tenant id | B | PARTIAL | tenantSessionKey prefix tenants/<id>/ via helper | session_bootstrapper.spec.ts | doc-fix:F-22 |  |
+| [bootstrap#8] | Bootstrapper: `transmitBootstrapper` — @adonisjs/transmit — Scopes broadcast channels per tenant | B | PARTIAL | tenantBroadcast/tenantChannel helpers (transmit_bootstrapper.ts:69-75) | transmit_bootstrapper.spec.ts | doc-fix:F-22 |  |
+| [bootstrap#9] | "Database is not a bootstrapper — query routing is handled inside TenantAdapter via the active IsolationDriver" | A | VERIFIED | no database bootstrapper; TenantAdapter routes per query | adapter specs | none |  |
+| [bootstrap#10] | "Bootstrappers are auto-registered when the corresponding service binding is present" | B | VERIFIED | provider:251-264 binding probes (drive/mail/session/transmit) | — | none |  |
+| [bootstrap#11] | "The package probes container.hasBinding(...) for each candidate" | B | VERIFIED | provider #registerOptionalBootstrappers hasBinding checks | — | none |  |
+| [bootstrap#12] | "The cache bootstrapper is always registered — the package treats it as a hard requirement" | B | VERIFIED | provider:147 cache always registered | — | none |  |
+| [bootstrap#13] | API: `registry.unregister('drive')` — skip even though @adonisjs/drive is installed | B | VERIFIED | bootstrapper_registry.ts:40 unregister(name) | bootstrapper_registry.spec.ts:50 | none |  |
+| [bootstrap#14] | Default order: cache (1), drive (2), mail (3), session (4), transmit (5) | B | PARTIAL | order = registration order (cache,drive,mail,session,transmit) — no numeric priority | bootstrapper_registry.spec.ts:76 | doc-fix:F-21 |  |
+| [bootstrap#15] | "Registry enters in ascending order and leaves in descending order, exactly like a stack" | B | VERIFIED | enter ascending registration order, leave LIFO | bootstrapper_registry.spec.ts:76 'runEnter executes in registration order, runLeave in reverse' | doc-fix:F-21 (wording: priority→registration order) |  |
+| [bootstrap#16] | Interface: `Bootstrapper` with `priority` property and `async enter(ctx)` / `async leave(ctx)` | B | BROKEN | interface is TenantBootstrapper{name,enter,leave?} — no priority; barrel exports TenantBootstrapper+BootstrapperContext not Bootstrapper+TenantContext | — | doc-fix:F-21 |  |
+| [bootstrap#17] | Invariant: "leave runs even if enter or fn throw" | B | VERIFIED | runScoped finally-leave | bootstrapper_registry.spec.ts:165 | none |  |
+| [bootstrap#18] | Invariant: "A failure in one enter aborts the rest and unwinds prior successful enters in reverse order" | B | VERIFIED | partial-enter unwind in reverse | bootstrapper_registry.spec.ts:183 'runScoped unwinds partial enter on enter failure' | none |  |
 
 ## bootstrappers/database.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [db-bootstrap#1] | "Database routing is handled inside TenantAdapter via the active IsolationDriver" | B | | | | | |
-| [db-bootstrap#2] | "It runs synchronously per query, before any bootstrapper code fires" | B | | | | | |
-| [db-bootstrap#3] | "TenantAdapter.modelConstructorClient() is called by Lucid every time a TenantBaseModel query starts" | B | | | | | |
-| [db-bootstrap#4] | "The adapter reads the active tenant via tenancy.currentId() (or HttpContext.tenant)" | B | | | | | |
-| [db-bootstrap#5] | "The adapter asks the active IsolationDriver for the connection name" | B | | | | | |
-| [db-bootstrap#6] | "Returns the connection so the query routes there" | B | | | | | |
-| [db-bootstrap#7] | "Bootstrappers run on the enter / leave cycle of a tenant context" | B | | | | | |
-| [db-bootstrap#8] | "Database routing happens per query, not per context" | B | | | | | |
-| [db-bootstrap#9] | "Adapter calls are synchronous, frequent, and work even for code paths that never call tenancy.run()" | B | | | | | |
-| [db-bootstrap#10] | "If no driver matches the configured isolation.driver, the adapter throws on the first query with the driver name in the message" | B | | | | | |
+| [db-bootstrap#1] | "Database routing is handled inside TenantAdapter via the active IsolationDriver" | B | VERIFIED | tenant_adapter.ts + active_driver.ts | adapter specs | none |  |
+| [db-bootstrap#2] | "It runs synchronously per query, before any bootstrapper code fires" | B | VERIFIED | modelConstructorClient is sync, per query | tenant_adapter.spec.ts | none |  |
+| [db-bootstrap#3] | "TenantAdapter.modelConstructorClient() is called by Lucid every time a TenantBaseModel query starts" | B | VERIFIED | Lucid adapter hook | integration adapters/tenant_adapter.spec.ts | none |  |
+| [db-bootstrap#4] | "The adapter reads the active tenant via tenancy.currentId() (or HttpContext.tenant)" | B | VERIFIED | tenant_adapter prefers tenancy.currentId() then HTTP ctx | tenant_adapter.spec.ts:228 | none |  |
+| [db-bootstrap#5] | "The adapter asks the active IsolationDriver for the connection name" | B | VERIFIED | driver.connectionName(tenantId) | driver specs | none |  |
+| [db-bootstrap#6] | "Returns the connection so the query routes there" | B | VERIFIED | returns Lucid connection client | adapter integration | none |  |
+| [db-bootstrap#7] | "Bootstrappers run on the enter / leave cycle of a tenant context" | B | VERIFIED | registry runScoped | bootstrapper specs | none |  |
+| [db-bootstrap#8] | "Database routing happens per query, not per context" | B | VERIFIED | per-query adapter vs per-context bootstrappers | — | none |  |
+| [db-bootstrap#9] | "Adapter calls are synchronous, frequent, and work even for code paths that never call tenancy.run()" | B | VERIFIED | sync resolveSync path incl. non-run() codepaths | tenant_adapter.spec.ts:74 | none |  |
+| [db-bootstrap#10] | "If no driver matches the configured isolation.driver, the adapter throws on the first query with the driver name in the message" | B | VERIFIED | isolation registry get() throws w/ driver name | isolation_driver_registry.spec.ts | none |  |
 
 ## bootstrappers/cache.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [cache-bootstrap#1] | "The package ships a single shared BentoCache instance — memory L1, Redis L2, and a Redis bus for cross-process invalidation" | B | | | | | |
-| [cache-bootstrap#2] | "A helper that returns a namespace prefixed by the tenant id" | B | | | | | |
-| [cache-bootstrap#3] | Function: `cacheFor(tenant)` — namespace: tenant:<id> | B | | | | | |
-| [cache-bootstrap#4] | "Accepts either a tenant model (any object with .id) or a raw id string" | B | | | | | |
-| [cache-bootstrap#5] | "The id is run through assertSafeIdentifier before namespace is built" | B | | | | | |
-| [cache-bootstrap#6] | Function: `getCache()` — the unprefixed shared instance for cross-tenant data | B | | | | | |
-| [cache-bootstrap#7] | "For cross-tenant data — feature-flag definitions, plan catalogs, anything global" | B | | | | | |
-| [cache-bootstrap#8] | Layer: L1 — in-process memory (5 MB cap) — sub-microsecond reads | B | | | | | |
-| [cache-bootstrap#9] | Layer: L2 — Redis (`config.cache.redis`) — shared across processes | B | | | | | |
-| [cache-bootstrap#10] | Layer: Bus — Redis pub/sub — a delete on one process invalidates L1 on others | B | | | | | |
-| [cache-bootstrap#11] | Config: `cache: { ttl: 300, redis: { host, port, db: 2 } }` | B | | | | | |
-| [cache-bootstrap#12] | "cacheFor() always validates the id against /^[a-zA-Z0-9_-]{1,63}$/" | A | | | | | |
-| [cache-bootstrap#13] | "Crafted ids — path traversal, embedded colons, newlines, anything that could collide with another tenant's prefix — are rejected synchronously" | B | | | | | |
+| [cache-bootstrap#1] | "The package ships a single shared BentoCache instance — memory L1, Redis L2, and a Redis bus for cross-process invalidation" | B | VERIFIED | cache.ts:20-22 L1 memory + L2 redis + redis bus | cache_for.spec.ts:63 same physical store | none |  |
+| [cache-bootstrap#2] | "A helper that returns a namespace prefixed by the tenant id" | B | VERIFIED | cache.ts:44-65 cacheFor returns namespace | cache_for.spec.ts | none |  |
+| [cache-bootstrap#3] | Function: `cacheFor(tenant)` — namespace: tenant:<id> | B | VERIFIED | cache.ts:65 namespace tenant:<id> | cache_for.spec.ts:24 | none |  |
+| [cache-bootstrap#4] | "Accepts either a tenant model (any object with .id) or a raw id string" | B | VERIFIED | cache.ts:62 accepts {id}\|string | cache_for.spec.ts:39 | none |  |
+| [cache-bootstrap#5] | "The id is run through assertSafeIdentifier before namespace is built" | B | VERIFIED | assertSafeIdentifier before namespace | cache_for.spec.ts:51 key injection guard | none |  |
+| [cache-bootstrap#6] | Function: `getCache()` — the unprefixed shared instance for cross-tenant data | B | VERIFIED | cache.ts getCache() | cache_for.spec.ts:63 | none |  |
+| [cache-bootstrap#7] | "For cross-tenant data — feature-flag definitions, plan catalogs, anything global" | B | N/A | usage guidance | — | none |  |
+| [cache-bootstrap#8] | Layer: L1 — in-process memory (5 MB cap) — sub-microsecond reads | B | VERIFIED | cache.ts:20 memoryDriver maxSize 5MB | — | none |  |
+| [cache-bootstrap#9] | Layer: L2 — Redis (`config.cache.redis`) — shared across processes | B | VERIFIED | cache.ts:21 redisDriver(config.cache.redis) | cache_for.spec.ts (db 2) | none |  |
+| [cache-bootstrap#10] | Layer: Bus — Redis pub/sub — a delete on one process invalidates L1 on others | B | VERIFIED | cache.ts:22 redisBusDriver | — (cross-process invalidation not asserted) | none |  |
+| [cache-bootstrap#11] | Config: `cache: { ttl: 300, redis: { host, port, db: 2 } }` | B | VERIFIED | types/config.ts:475-483 | — | none |  |
+| [cache-bootstrap#12] | "cacheFor() always validates the id against /^[a-zA-Z0-9_-]{1,63}$/" | A | VERIFIED | identifier.ts SAFE_IDENT via assertSafeIdentifier | cache_for.spec.ts:51 | none |  |
+| [cache-bootstrap#13] | "Crafted ids — path traversal, embedded colons, newlines, anything that could collide with another tenant's prefix — are rejected synchronously" | B | VERIFIED | whitelist regex rejects all listed classes | cache_for.spec.ts:51; identifier.spec.ts | none |  |
 
 ## bootstrappers/filesystem.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [fs-bootstrap#1] | "Auto-detected when @adonisjs/drive is installed" | B | | | | | |
-| [fs-bootstrap#2] | "Prefixes every filesystem operation with `tenants/<tenant.id>/`" | B | | | | | |
-| [fs-bootstrap#3] | "Applies to every disk you've configured (local, s3, gcs, …)" | B | | | | | |
-| [fs-bootstrap#4] | "drive.list() returns paths relative to the tenant prefix by default" | B | | | | | |
-| [fs-bootstrap#5] | "Pass { raw: true } to read the global path" | B | | | | | |
-| [fs-bootstrap#6] | "URL signing respects the prefix automatically" | B | | | | | |
-| [fs-bootstrap#7] | Config: `drive: { enabled: true, prefix: 'tenants/{id}/' }` | B | | | | | |
-| [fs-bootstrap#8] | "The drive bootstrapper does NOT automatically delete a tenant's files when the tenant is destroyed" | B | | | | | |
-| [fs-bootstrap#9] | "Wire that up via a hook or event listener" | B | | | | | |
+| [fs-bootstrap#1] | "Auto-detected when @adonisjs/drive is installed" | B | VERIFIED | provider hasBinding('drive.manager') probe | — | none |  |
+| [fs-bootstrap#2] | "Prefixes every filesystem operation with `tenants/<tenant.id>/`" | B | PARTIAL | prefix only via tenantDisk() proxy (KEYED_METHODS); raw drive.use() untouched | drive_bootstrapper.spec.ts | doc-fix:F-22 |  |
+| [fs-bootstrap#3] | "Applies to every disk you've configured (local, s3, gcs, …)" | B | VERIFIED | tenantDisk(diskName?) works for any configured disk | drive_bootstrapper.spec.ts | none |  |
+| [fs-bootstrap#4] | "drive.list() returns paths relative to the tenant prefix by default" | B | DOC-ONLY | proxy does NOT post-process list() results — no relativization exists | — | doc-fix:F-22 |  |
+| [fs-bootstrap#5] | "Pass { raw: true } to read the global path" | B | DOC-ONLY | no { raw: true } option anywhere | — | doc-fix:F-22 |  |
+| [fs-bootstrap#6] | "URL signing respects the prefix automatically" | B | VERIFIED | getSignedUrl/getUrl in KEYED_METHODS → prefixed | drive_bootstrapper.spec.ts | none |  |
+| [fs-bootstrap#7] | Config: `drive: { enabled: true, prefix: 'tenants/{id}/' }` | B | DOC-ONLY | no drive config block; prefix is constant TENANT_DRIVE_PREFIX | — | doc-fix:F-22 |  |
+| [fs-bootstrap#8] | "The drive bootstrapper does NOT automatically delete a tenant's files when the tenant is destroyed" | B | VERIFIED | no file deletion on destroy anywhere | — | none |  |
+| [fs-bootstrap#9] | "Wire that up via a hook or event listener" | B | VERIFIED | hooks/events available for wiring | hook_registry.spec.ts | none |  |
 
 ## bootstrappers/mail.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [mail-bootstrap#1] | "Auto-detected when @adonisjs/mail is installed" | B | | | | | |
-| [mail-bootstrap#2] | "For the duration of the tenant context, mail.send(...) resolves SMTP credentials and the from address from the tenant's branding record (or any row source you configure)" | B | | | | | |
-| [mail-bootstrap#3] | Config: `mail: { enabled: true, resolver: async (tenant) => { ... } }` | B | | | | | |
-| [mail-bootstrap#4] | "The resolver returns { from, smtp: {...} \| null }" | B | | | | | |
-| [mail-bootstrap#5] | "smtp: null means use the default mailer" | B | | | | | |
-| [mail-bootstrap#6] | "When tenants store SMTP passwords, they belong in tenant_brandings with the encrypted column treatment" | B | | | | | |
-| [mail-bootstrap#7] | "The BrandingService handles encrypt-on-write / decrypt-on-read" | B | | | | | |
-| [mail-bootstrap#8] | "Setting from per tenant changes the DKIM signing domain that your provider uses" | A | | | | | |
-| [mail-bootstrap#9] | "Ensure each domain has the right DKIM record published; otherwise emails land in spam" | B | | | | | |
+| [mail-bootstrap#1] | "Auto-detected when @adonisjs/mail is installed" | B | VERIFIED | provider hasBinding('mail.manager') | — | none |  |
+| [mail-bootstrap#2] | "For the duration of the tenant context, mail.send(...) resolves SMTP credentials and the from address from the tenant's branding record (or any row source you configure)" | B | DOC-ONLY | no branding-based SMTP/from resolution — tenantMailer stamps X-Tenant-Id only (mail_bootstrapper.ts:19-29,54) | mail_bootstrapper.spec.ts | doc-fix:F-22 |  |
+| [mail-bootstrap#3] | Config: `mail: { enabled: true, resolver: async (tenant) => { ... } }` | B | DOC-ONLY | no mail config block exists | — | doc-fix:F-22 |  |
+| [mail-bootstrap#4] | "The resolver returns { from, smtp: {...} \| null }" | B | DOC-ONLY | no resolver contract | — | doc-fix:F-22 |  |
+| [mail-bootstrap#5] | "smtp: null means use the default mailer" | B | DOC-ONLY | no smtp:null semantics | — | doc-fix:F-22 |  |
+| [mail-bootstrap#6] | "When tenants store SMTP passwords, they belong in tenant_brandings with the encrypted column treatment" | B | PARTIAL | tenant_brandings has encrypted columns (crypto.ts) — guidance OK but resolver hookup doesn't exist | crypto.spec.ts | doc-fix:F-22 |  |
+| [mail-bootstrap#7] | "The BrandingService handles encrypt-on-write / decrypt-on-read" | B | VERIFIED | branding_service encrypt-on-write/decrypt-on-read | branding_service.spec.ts | none |  |
+| [mail-bootstrap#8] | "Setting from per tenant changes the DKIM signing domain that your provider uses" | A | N/A | external email-infrastructure fact | — | none |  |
+| [mail-bootstrap#9] | "Ensure each domain has the right DKIM record published; otherwise emails land in spam" | B | N/A | operator guidance | — | none |  |
 
 ## bootstrappers/session.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [session-bootstrap#1] | "Auto-detected when @adonisjs/session is installed" | B | | | | | |
-| [session-bootstrap#2] | "Prefixes every session read and write so two tenants on the same host cannot collide on a session key" | B | | | | | |
-| [session-bootstrap#3] | Example: session.put('cart', cart) → actual key is `tenants/<active-tenant-id>/cart` | B | | | | | |
-| [session-bootstrap#4] | "If you're using subdomain-based routing (acme.app.example.com, globex.app.example.com), browsers already partition cookies by host" | B | | | | | |
-| [session-bootstrap#5] | Config to disable: `bootstrappers: { session: false }` | B | | | | | |
-| [session-bootstrap#6] | "Path-based routing (/<uuid>/...) on a single origin shares cookies across all tenants" | B | | | | | |
-| [session-bootstrap#7] | Config: `session: { enabled: true, prefix: 't:{id}:' }` | B | | | | | |
+| [session-bootstrap#1] | "Auto-detected when @adonisjs/session is installed" | B | VERIFIED | provider hasBinding('session') | — | none |  |
+| [session-bootstrap#2] | "Prefixes every session read and write so two tenants on the same host cannot collide on a session key" | B | PARTIAL | prefixing via tenantSession()/tenantSessionKey() helpers only (session_bootstrapper.ts:45-68) | session_bootstrapper.spec.ts | doc-fix:F-22 |  |
+| [session-bootstrap#3] | Example: session.put('cart', cart) → actual key is `tenants/<active-tenant-id>/cart` | B | PARTIAL | helper key = tenants/<id>/cart (constant prefix) | session_bootstrapper.spec.ts | doc-fix:F-22 |  |
+| [session-bootstrap#4] | "If you're using subdomain-based routing (acme.app.example.com, globex.app.example.com), browsers already partition cookies by host" | B | N/A | browser behavior fact | — | none |  |
+| [session-bootstrap#5] | Config to disable: `bootstrappers: { session: false }` | B | DOC-ONLY | no bootstrappers:{session:false} config — opt-out is registry.unregister('session') | bootstrapper_registry.spec.ts:50 | doc-fix:F-22 |  |
+| [session-bootstrap#6] | "Path-based routing (/<uuid>/...) on a single origin shares cookies across all tenants" | B | N/A | cookie-scoping fact | — | none |  |
+| [session-bootstrap#7] | Config: `session: { enabled: true, prefix: 't:{id}:' }` | B | DOC-ONLY | no session config block; prefix constant | — | doc-fix:F-22 |  |
 
 ## bootstrappers/broadcasting.md
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [broadcast-bootstrap#1] | "Auto-detected when @adonisjs/transmit is installed" | B | | | | | |
-| [broadcast-bootstrap#2] | "Every transmit.broadcast(...) and transmit.subscribe(...) is silently rewritten to a tenant-local channel" | B | | | | | |
-| [broadcast-bootstrap#3] | Example: transmit.broadcast('orders/123', {...}) → actual channel is `tenants/<active-tenant-id>/orders/123` | B | | | | | |
-| [broadcast-bootstrap#4] | "Without scoping, two tenants sharing the same Transmit/SSE backend would receive each other's broadcasts" | A | | | | | |
-| [broadcast-bootstrap#5] | "The bootstrapper makes the mistake structurally impossible" | B | | | | | |
-| [broadcast-bootstrap#6] | Config: `transmit: { enabled: true, prefix: 'tenants/{id}/' }` | B | | | | | |
-| [broadcast-bootstrap#7] | "The bootstrapper handles channel naming. Authorization is still your job." | B | | | | | |
-| [broadcast-bootstrap#8] | "Use Transmit's channel.authorize() callbacks; the channel name is already tenant-prefixed" | B | | | | | |
+| [broadcast-bootstrap#1] | "Auto-detected when @adonisjs/transmit is installed" | B | VERIFIED | provider hasBinding('transmit') | — | none |  |
+| [broadcast-bootstrap#2] | "Every transmit.broadcast(...) and transmit.subscribe(...) is silently rewritten to a tenant-local channel" | B | PARTIAL | rewrite via tenantBroadcast()/tenantChannel() helpers, not transparent interception | transmit_bootstrapper.spec.ts | doc-fix:F-22 |  |
+| [broadcast-bootstrap#3] | Example: transmit.broadcast('orders/123', {...}) → actual channel is `tenants/<active-tenant-id>/orders/123` | B | VERIFIED | transmit_bootstrapper.ts:69-75 channel tenants/<id>/orders/123 | transmit_bootstrapper.spec.ts | none |  |
+| [broadcast-bootstrap#4] | "Without scoping, two tenants sharing the same Transmit/SSE backend would receive each other's broadcasts" | A | N/A | motivating risk statement (true of any shared SSE) | — | none |  |
+| [broadcast-bootstrap#5] | "The bootstrapper makes the mistake structurally impossible" | B | PARTIAL | 'structurally impossible' only when using the helpers | — | doc-fix:F-22 |  |
+| [broadcast-bootstrap#6] | Config: `transmit: { enabled: true, prefix: 'tenants/{id}/' }` | B | PARTIAL | prefix configurable programmatically via createTransmitBootstrapper({prefix}) — no transmit config block | transmit_bootstrapper.spec.ts | doc-fix:F-22 |  |
+| [broadcast-bootstrap#7] | "The bootstrapper handles channel naming. Authorization is still your job." | B | VERIFIED | no authorization shipped | — | none |  |
+| [broadcast-bootstrap#8] | "Use Transmit's channel.authorize() callbacks; the channel name is already tenant-prefixed" | B | VERIFIED | tenantChannel(name) returns prefixed name for authorize callbacks | transmit_bootstrapper.spec.ts | none |  |
 
 ## satellites/index.md
 

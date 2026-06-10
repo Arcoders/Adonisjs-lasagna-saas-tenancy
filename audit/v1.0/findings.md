@@ -304,6 +304,55 @@ regression test), `doc-fix` (claim rewritten to match deliberate behavior), `tes
 - **Resolution:** doc-fix — "Redis ≥ 6 (≥ 6.2 when using the SSO satellite)".
 - **Status:** open
 
+## F-21: bootstrappers/index.md documents a phantom `priority` and wrong type names
+
+- **Claims:** [bootstrap#14], [bootstrap#16] (+ the custom-bootstrapper example)
+- **Severity:** MED/HIGH (the example doesn't typecheck: imports `Bootstrapper` and
+  `TenantContext` from /services — the barrel exports `TenantBootstrapper` and
+  `BootstrapperContext` (`services/index.ts:35`); and the interface has no `priority`
+  field)
+- **Reality:** ordering is **registration order** (enter ascending, leave LIFO) —
+  `bootstrapper_registry.ts`; spec: "runEnter executes in registration order, runLeave in
+  reverse". The provider registers cache, drive, mail, session, transmit in that order,
+  which produces the documented default ordering — but there is no numeric priority.
+- **Resolution:** doc-fix — rewrite "Order matters" around registration order and fix the
+  example to `implements TenantBootstrapper` with `BootstrapperContext`. (Adding a
+  priority field would be a new feature.)
+- **Status:** open
+
+## F-22: the four service-bootstrapper pages describe transparent interception + config blocks that don't exist
+
+- **Claims:** [fs-bootstrap#2..#7], [mail-bootstrap#2..#5], [session-bootstrap#2,#3,#5,#7],
+  [broadcast-bootstrap#2,#6] (+ index's [bootstrap#4] prefix shape)
+- **Severity:** HIGH (systemic: every per-service page documents a design that was not
+  built; several snippets neither typecheck nor have any runtime effect)
+- **Doc claims vs reality:**
+  - filesystem.md: "prefixes every filesystem operation"; `drive.list()` returns
+    tenant-relative paths; `{ raw: true }` escape; config `drive: { enabled, prefix }`.
+    Reality: explicit `tenantDisk()` proxy prefixes keys on listed methods with the
+    constant `tenants/<id>/` (drive_bootstrapper.ts:26,111); plain `drive.use()` is
+    untouched; list results are NOT relativized; no `raw` option; no config block.
+  - mail.md: "mail.send() resolves SMTP credentials and from address from the tenant's
+    branding record"; config `mail: { enabled, resolver }`. Reality: per-tenant transport
+    selection is explicitly a host-app concern (mail_bootstrapper.ts:26-29);
+    `tenantMailer(transportName?)` stamps an `X-Tenant-Id` header — that's all.
+  - session.md: "prefixes every session read and write"; config
+    `session: { enabled, prefix: 't:{id}:' }`; disable via `bootstrappers: { session:
+    false }`. Reality: explicit `tenantSession(ctx)` / `tenantSessionKey(key)` helpers
+    with constant `tenants/<id>/`; none of those config keys exist; opt-out is
+    `registry.unregister('session')`.
+  - broadcasting.md: "every transmit.broadcast()/subscribe() silently rewritten"; config
+    `transmit: { enabled, prefix }`. Reality: explicit `tenantBroadcast()` /
+    `tenantChannel()` helpers; prefix configurable only programmatically via
+    `createTransmitBootstrapper({ prefix })` (transmit_bootstrapper.ts:26-45).
+  - index.md says cache namespace is `tenants/<id>/…`; real shape is `tenant:<id>`
+    (cache.ts:65). cache.md itself is accurate (helper-based, `cacheFor`).
+- **Resolution:** doc-fix — rewrite the four pages around the real helper APIs
+  (tenantDisk/tenantMailer/tenantSession+tenantSessionKey/tenantBroadcast+tenantChannel),
+  drop the phantom config blocks, fix the index prefix shape. Implementing transparent
+  interception would be a major feature, out of audit scope — listed for the roadmap.
+- **Status:** open
+
 ## Addendum to F-17 (jobs.md)
 
 jobs.md also claims InstallTenant "runs migrations" — `install_tenant.ts:36` only calls
