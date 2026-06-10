@@ -175,11 +175,19 @@ target the rate-limit codepath itself must opt in with
 
 ```bash
 node ace tenant:create "Acme Corp" "admin@acme.example.com"
-node ace queue:work    # in another terminal — provisions the schema
+node ace queue:work       # in another terminal, runs the InstallTenant job
+node ace tenant:migrate   # apply your tenant migrations into the new schema
 ```
 
-Once the `InstallTenant` job finishes, the row flips to `status:
-'active'` and tenant-scoped routes light up.
+Provisioning and migrating are separate steps. The `InstallTenant` job
+creates the tenant's schema (or database) and flips the row to `status:
+'active'`, but the schema starts **empty**. Run `tenant:migrate` to apply
+your `database/migrations/tenant` files into it; only then do tenant-scoped
+routes have tables to query.
+
+Prefer to migrate automatically on provision? Wire the `afterProvision`
+hook to `driver.migrate(tenant, { direction: 'up' })` in
+`config/multitenancy.ts`. See [Hooks](/docs/hooks).
 
 ## Read next
 
