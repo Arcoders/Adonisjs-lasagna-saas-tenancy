@@ -14,6 +14,7 @@ import transmitBootstrapper from '../services/bootstrappers/transmit_bootstrappe
 import CircuitBreakerService from '../services/circuit_breaker_service.js'
 import HookRegistry from '../services/hook_registry.js'
 import IsolationDriverRegistry from '../services/isolation/registry.js'
+import { assertConfiguredDriverRegistered } from '../services/isolation/validate_driver_choice.js'
 import SchemaPgDriver from '../services/isolation/schema_pg_driver.js'
 import DatabasePgDriver from '../services/isolation/database_pg_driver.js'
 import RowScopePgDriver from '../services/isolation/rowscope_pg_driver.js'
@@ -279,6 +280,13 @@ export default class MultitenancyProvider {
     await installRouterMacros()
 
     const config = this.app.config.get<MultitenancyConfig>('multitenancy')
+
+    // Every provider's boot() has run by now, so a custom driver registered
+    // by the host is visible. A typo'd built-in name compiles (the choice
+    // type is open for custom drivers) — catch it here, at boot, instead of
+    // letting the first tenant query fail with a generic "no active driver".
+    const drivers = await this.app.container.make(IsolationDriverRegistry)
+    assertConfiguredDriverRegistered(drivers, config.isolation?.driver ?? 'schema-pg')
     if (config.routing?.autoLoad !== false) {
       await autoLoadScopedRouteFiles(this.app, {
         tenantRoutesFile: config.routing?.tenantRoutesFile,
