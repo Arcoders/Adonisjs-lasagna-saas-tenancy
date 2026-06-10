@@ -144,7 +144,7 @@ schemas (and, with `database-pg`, different databases). So a Lucid `belongsTo` /
 `hasMany` that crosses layers will not resolve, and a foreign key cannot span a per-tenant
 schema and the central schema.
 
-Model relationships **within** a layer normally (a `TenantBaseModel` relating to another
+Model relationships **within** a layer work normally (a `TenantBaseModel` relating to another
 `TenantBaseModel`, both in the tenant schema). To associate **across** layers, store the
 other layer's id as a plain column and load it explicitly:
 

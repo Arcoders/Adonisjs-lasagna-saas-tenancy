@@ -22,8 +22,8 @@ import HomeStack from './HomeStack.vue'
         </p>
 
         <h1 class="hh__title">
-          The only multi-tenant layer
-          <span class="hh__accent">your AdonisJS app will ever need.</span>
+          Production multi-tenancy for AdonisJS.
+          <span class="hh__accent">Every tenant in its own PostgreSQL schema.</span>
         </h1>
 
         <p class="hh__lede">

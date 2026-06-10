@@ -1,4 +1,3 @@
-// Services
 export { default as BackupService } from './services/backup_service.js'
 export type { BackupMetadata } from './services/backup_service.js'
 export { default as BackupRetentionService } from './services/backup_retention_service.js'
@@ -11,7 +10,6 @@ export {
 } from './services/sql_import_service.js'
 export type { SqlImportOptions, SqlImportResult } from './services/sql_import_service.js'
 
-// Jobs
 export { default as BackupTenant } from './jobs/backup_tenant.js'
 export { default as RestoreTenant } from './jobs/restore_tenant.js'
 export { default as CloneTenant } from './jobs/clone_tenant.js'

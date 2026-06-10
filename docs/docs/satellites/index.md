@@ -33,7 +33,7 @@ blocks, recovery), see
 | Satellite | What it gives you | Storage |
 |---|---|---|
 | [Audit](/docs/satellites/audit) | Structured audit trail with actor + payload, queryable by date range. | `tenant_audit_logs` |
-| [Feature flags](/docs/satellites/feature-flags) | Per-tenant flags with percentage rollout. | `tenant_feature_flags` |
+| [Feature flags](/docs/satellites/feature-flags) | Per-tenant boolean flags (kill switches, beta cohorts), cached. | `tenant_feature_flags` |
 | [Webhooks](/docs/satellites/webhooks) | HMAC-signed outbound events with delivery state machine and retries. | `tenant_webhooks`, `tenant_webhook_deliveries` |
 | [Branding](/docs/satellites/branding) | Per-tenant logo, colors, custom domain, encrypted SMTP. | `tenant_brandings` |
 | [SSO](/docs/satellites/sso) | Per-tenant OIDC config with JWKS-backed verification. | `tenant_sso_configs` |

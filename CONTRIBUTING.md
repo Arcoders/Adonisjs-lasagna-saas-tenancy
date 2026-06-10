@@ -1,8 +1,8 @@
 # Contributing
 
-Hey, thanks for thinking about contributing! This package is a community effort and we genuinely appreciate every issue, suggestion, and pull request that comes in. Whether you're fixing a typo or adding a whole new feature, you're helping make multi-tenancy on AdonisJS a little bit better for everyone.
+Hey, thanks for thinking about contributing. Issues, suggestions, and pull requests are all welcome, whether it's a one-line typo fix or a whole new feature.
 
-This guide walks you through getting set up, making your changes, and getting them merged. If anything here is unclear or out of date, please open an issue and let us know.
+This guide covers getting set up, making changes, and getting them merged. If anything here is unclear or out of date, open an issue.
 
 ---
 

@@ -101,8 +101,8 @@ async show({ request }: HttpContext) {
 }
 ```
 
-Always call this helper rather than reading the header directly.
-strategy can be any of the five and bypassing the helper introduces
+Always call this helper rather than reading the header directly. The
+strategy can be any of the five, and bypassing the helper introduces
 subtle bugs.
 
 ## Custom resolvers

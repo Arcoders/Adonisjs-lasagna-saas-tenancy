@@ -10,7 +10,7 @@
 ```
 
 SaaS multi-tenancy for AdonisJS 7. Every tenant lives in its own
-isolated PostgreSQL schema, with a real package behind it: connection
+isolated PostgreSQL schema. Around it: connection
 routing, circuit breaking, queues, contextual logging, plans and quotas,
 scheduled backups with retention, read-replica routing, soft delete, and
 a satellite suite covering audit logs, webhooks, branding, SSO, feature
@@ -41,7 +41,7 @@ If you'd rather see it run than read about it, jump to
 exercises every feature, and one `npm run test:e2e` brings up the stack
 and runs the full e2e suite against it.
 
-🔒 **Hardened and tested against real production failure modes** — cross-tenant isolation under concurrency, quota atomicity, SSO replay, audit immutability, header-vs-domain hijack, and more. [See what we verified →](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/why#hardened-against-the-failures-that-bite-you-in-production)
+🔒 Tested against the isolation failures that bite in production: cross-tenant access under concurrency, quota atomicity, SSO replay, audit immutability, header-vs-domain hijack. [See what we verified →](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/why#hardened-against-the-failures-that-bite-you-in-production)
 
 ## Highlights
 

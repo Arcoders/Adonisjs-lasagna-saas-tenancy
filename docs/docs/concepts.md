@@ -36,8 +36,8 @@ extend `CentralBaseModel`.
 ### 2. Backoffice
 
 Where operators live. Holds the tenant registry, audit logs, webhook
-subscriptions, feature flags, branding records, SSO configs, metrics
-by everything Lasagna's satellites store. Lives on a dedicated
+subscriptions, feature flags, branding records, SSO configs, metrics;
+everything Lasagna's satellites store. Lives on a dedicated
 `backoffice` schema. Models extend `BackofficeBaseModel`.
 
 ### 3. Tenant
@@ -52,7 +52,7 @@ manual `where('tenant_id', …)`, no global state.
 Opt-in features that ride alongside tenants:
 
 - `audit`; every state change recorded with actor + payload.
-- `feature_flags`; per-tenant flags with percentage rollout.
+- `feature_flags`; per-tenant boolean flags, cached.
 - `webhooks`; outbound events with HMAC, retries, state machine.
 - `branding`; logo, colors, custom domain.
 - `sso`; per-tenant OIDC config, JWKS-backed verification.

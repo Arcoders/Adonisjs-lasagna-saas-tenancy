@@ -278,9 +278,10 @@ request.
 
 #### Webhook delivery
 
-Outbound webhooks include `x-webhook-signature: sha256=<hex>`
-computed over the raw body using the per-subscription secret. The
-secret is encrypted at rest with `AES-256-GCM` keyed by `APP_KEY`.
+Outbound webhooks include `x-webhook-signature: <hex>` — a plain hex
+HMAC-SHA256 digest (no `sha256=` prefix) computed over the raw body
+using the per-subscription secret. The secret is encrypted at rest
+with `AES-256-GCM` keyed by `APP_KEY`.
 
 #### SSO / OIDC
 
@@ -370,14 +371,15 @@ The package signs outbound webhooks; receivers must:
 
 #### Admin REST API
 
-`/admin/multitenancy/*` routes are gated only by an `x-admin-token`
-header checked against `config.adminToken`. The package does **not**
-add IP allow-listing, mTLS, or auth integration. In production:
+`multitenancyAdminRoutes(...)` is fail-closed: it throws at startup
+unless you pass a `middleware` option, so the destructive routes can
+never mount unauthenticated. The package ships **no** built-in token
+check, IP allow-listing, or mTLS — you bring the guard. In production:
 
-- Restrict the route group to a private network.
-- Or, if exposed publicly, layer the host app's auth (Bouncer /
-  Auth) in front of the admin route group via
-  `Route.group(...).use([...])`.
+- Pass your auth middleware (session, bearer, mTLS) via `middleware`.
+- Restrict the route group to a private network where you can.
+- To mount it public on purpose (behind a trusted network boundary),
+  pass `middleware: false` explicitly.
 
 #### Database credentials
 
