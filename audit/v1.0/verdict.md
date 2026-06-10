@@ -1,7 +1,6 @@
 # v1.0 Audit — Verdict
 
-> **Status: IN PROGRESS.** This file is finalized in the last wave of the audit. Until then
-> it records methodology and the evidence baseline.
+> **Status: COMPLETE (2026-06-10).** Verdict at the bottom of this file.
 
 ## Methodology
 
@@ -45,10 +44,57 @@ fresh volume.
 The 14 skipped integration tests are the `*_real.spec.ts` live-API smokes (Stripe,
 mock-OIDC, MinIO S3) that self-skip without their gating env/services; they run in CI.
 
+## Final suite evidence (after all fixes, 2026-06-10)
+
+| Suite | Result | Delta vs baseline |
+|---|---|---|
+| Core unit (`npm run test:coverage`) | 577 passed; coverage 50.45% lines / 78.89% branches / 69.55% functions — gate (48/78/68) passed | +11 tests |
+| Satellite units (billing/backup/sso/admin) | 40 / 43 / 6 / 5 passed | unchanged |
+| Typecheck (core + admin) | clean | — |
+| Core integration (`npm run test:integration`) | 388 passed, 14 skipped (`*_real` gated specs; they run in CI) | +18 tests |
+| Example e2e | 128 passed | +3 tests |
+| Docs site (`npm run docs:build`) | builds clean | — |
+
 ## Verdict
 
-_To be written in the final wave._
+**The documentation is now trustworthy — after 32 findings were fixed. It was not before.**
 
-## Residual risks
+What the audit found, in one paragraph: the *isolation core's hard guarantees were solid
+and well-tested* — every security.md guarantee except three test gaps verified down to
+assertion level, with the cited specs matching their claims exactly (cross-tenant
+concurrency, audit immutability triggers, SSO replay incl. the concurrent case, header/
+domain hijack, SSRF encoding classification, quota Lua atomicity). The drift lived almost
+entirely in the *narrative and satellite documentation*, which described several designs
+that were never built (transparent bootstrapper interception with per-service config
+blocks, a single-use GETDEL impersonation grant, auto-generated webhook secrets, a
+six-category automatic audit trail, hermetic bootstrapper factories, a `withTenant`
+helper) and carried compile-breaking API signatures on five pages (jobs, sso, branding,
+webhooks, custom-isolation-driver). Four documented resilience knobs were dead config.
+Where the documented behavior was clearly the better intent and cheap to honor, the code
+was brought up to the doc (webhook secret generation, `withTenant`, the
+`resilience.redis.rateLimit` knob, custom-driver typing, exception exports, error
+surfacing in `backoffice:setup`); everywhere else the docs now say exactly what the code
+does. Every doc page's claims sit in [matrix.md](matrix.md) with code and test evidence;
+all 1,077 rows are dispositioned; no Tier-A row was marked VERIFIED without the auditor
+reading the spec's assertions.
 
-_To be enumerated in the final wave._
+## Residual risks (deliberately not papered over)
+
+1. **Roadmapped, not built — now labeled as such in the docs:** per-service bootstrapper
+   config/interception (F-22), automatic audit coverage beyond impersonation (F-28),
+   `resilience.defaultPolicy` / `redis.cache` / `redis.metrics` (F-32), a replica-lag
+   Prometheus metric (F-30). If product wants these, they are feature work.
+2. **Verified at existence level only:** deploy artifacts (Dockerfile/compose/Helm render
+   was not exercised), benchmark numbers (the suite and baselines exist; results were not
+   re-run), CHANGELOG content (historical record).
+3. **Locally skipped suites:** the 14 `*_real` integration specs (Stripe live API,
+   mock-OIDC, MinIO S3) self-skip without their services; they gate in CI. The final green
+   must include a CI run on this branch before merge.
+4. **External-system claims (N/A rows):** stancl/NestJS comparison columns, Cloudflare/
+   cert-manager recipes, emitter semantics inherited from AdonisJS — out of audit scope.
+5. **Stability labels are policy, not proof:** "release candidate" still rests on the two
+   stated gates (independent security review, production mileage); this audit is an
+   internal review and does not discharge them.
+6. **Counts rot:** test counts and check counts in prose were de-precisioned where
+   possible, but the comparison table still carries exact numbers (25 events, 33
+   commands) that will need upkeep.

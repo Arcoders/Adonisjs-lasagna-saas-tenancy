@@ -64,7 +64,7 @@ test.group('TenantQueueService — retry attempts wiring (integration)', (group)
           15_000
         )
         worker.on('failed', (j) => {
-          if (j?.id !== job.id) return
+          if (!j || j.id !== job.id) return
           // Intermediate failures keep the job retryable; only resolve when
           // BullMQ has burned the last attempt.
           if ((j.attemptsMade ?? 0) >= attempts) {

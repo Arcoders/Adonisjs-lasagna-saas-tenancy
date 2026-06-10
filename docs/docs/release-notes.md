@@ -1,12 +1,12 @@
 ---
 title: Release notes
-description: Auto-generated from CHANGELOG.md. The canonical changelog lives in the repo root.
+description: Auto-generated from the core package's CHANGELOG.md, which is canonical.
 ---
 
 # Release notes
 
 > Auto-generated from
-> [`CHANGELOG.md`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/CHANGELOG.md)
+> [`packages/core/CHANGELOG.md`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/CHANGELOG.md)
 > at build time. The repo file is canonical.
 
 All notable changes to `@adonisjs-lasagna/saas-tenancy` are documented here.

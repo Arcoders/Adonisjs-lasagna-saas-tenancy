@@ -1,5 +1,10 @@
 # v1.0 Audit — Findings
 
+> **All findings below are RESOLVED as of 2026-06-10.** The per-finding "Status: open"
+> lines reflect the state at discovery time; see the [Resolution log](#resolution-log)
+> at the end of this file for how each one was discharged, and verdict.md for the final
+> suite evidence.
+
 Numbered findings from the documentation-truthfulness audit. Each links the matrix claim
 IDs it affects. Severity: **HIGH** = a user relying on the claim could be harmed;
 **MED** = misleading; **LOW** = imprecise.
@@ -127,17 +132,16 @@ regression test), `doc-fix` (claim rewritten to match deliberate behavior), `tes
 - **Resolution:** doc-fix — rewrite the row to describe the in-core LRU + config knobs.
 - **Status:** open
 
-## F-9: admin fail-closed startup throw has no test
+## F-9: ~~admin fail-closed startup throw has no test~~ — RETRACTED (already covered)
 
-- **Claims:** [security#12], [upgrade#7], [auth#…]
-- **Severity:** MED (a documented security default with zero enforcement)
-- **Reality:** `packages/admin/src/routes.ts:130-140` implements the throw; no spec in
-  `packages/admin/tests` or e2e covers the omitted-middleware or `middleware: false`
-  branches.
-- **Resolution:** code-fix scope — new unit spec (T9) in packages/admin asserting: omitted
-  middleware throws with the documented message; `middleware: false` mounts public;
-  middleware provided guards the group.
-- **Status:** open
+- **Claims:** [security#12], [upgrade#7], [auth#11], [api#1/2/6]
+- **Resolution:** none needed. `packages/core/tests/integration/admin/satellites.spec.ts:8-18`
+  ("Admin REST — mount guard (B2)": "refuses to mount without middleware (fail-closed)")
+  asserts the throw with the documented message; the `middleware: false` opt-out is
+  exercised by the fixture mount used by every other admin spec. The initial gap report
+  searched only `packages/admin/tests` — the spec lives in core's integration tree.
+  Planned test T9 dropped.
+- **Status:** closed (retracted 2026-06-10)
 
 ## F-10: bootstrapper count is inconsistent across pages (and "queue" is not a bootstrapper)
 
@@ -522,8 +526,78 @@ regression test), `doc-fix` (claim rewritten to match deliberate behavior), `tes
   doc-fix — correct imports, register arity, and the contract listing.
 - **Status:** open
 
+## F-32: four of six resilience config knobs are dead — documented, typed, consumed by nothing
+
+- **Claims:** [config#21], [config#23..25], [resilience#6], [resilience#8..10]
+- **Severity:** HIGH (an operator who sets `resilience.redis.rateLimit: 'fail-open'` —
+  exactly what resilience.md tells them they can do — changes nothing; same for
+  `redis.cache`, `redis.metrics`, and `defaultPolicy`)
+- **Reality:** repo-wide grep — the `resilience` block is read only by
+  `quota_service.ts:277,372` (`redis.quota ?? 'fail-open'`) and
+  `resilience_service.ts:61` (`observe ?? true`). The rate limiter's policy is the
+  separate per-route `failOpen` middleware option; cache and metrics have hard-coded
+  fail-open behavior; `defaultPolicy` is never consulted. The *documented default
+  values* coincide with the hard-coded behavior, which is why no test caught it — the
+  knobs are inert, not wrong.
+- **Resolution:** code-fix (T14) for the rate-limit knob — middleware falls back to
+  `resilience.redis.rateLimit` when the per-route `failOpen` option is unset (matches the
+  documented precedence "the per-route failOpen option still wins where set"), plus spec.
+  doc-fix for `redis.cache`, `redis.metrics`, `defaultPolicy`: mark "reserved — not yet
+  consulted; current behavior is always fail-open (cache, metrics)" and remove the
+  defaultPolicy row's promise (wiring those is feature work — roadmap). T4 pins the live
+  defaults.
+- **Status:** open
+
 ## Addendum to F-17 (jobs.md)
 
 jobs.md also claims InstallTenant "runs migrations" — `install_tenant.ts:36` only calls
 `driver.provision()`; migrations are the separate `tenant:migrate` step (installation.md
 got this right in commit 453518d). Fix in the same jobs.md rewrite.
+
+---
+
+## Resolution log
+
+Applied on branch `LASAGNA-100626/v1-doc-truthfulness-audit`, 2026-06-10. "code" = behavior
+fix + regression test; "test" = new/strengthened spec; "doc" = documentation corrected.
+
+| Finding | Resolution |
+|---|---|
+| F-1 compose.test.yml ghost | doc — contributing/showcase/testing point at `examples/api/docker-compose.yml` / `npm run test:e2e` |
+| F-2 quota spec weaker than claim | test (T0 exact-equality) + doc (Redis-outage qualifier on why.md/security.md) |
+| F-3 rate-limit semantics wrong in security.md | doc — aligned with the 503 fail-closed reality |
+| F-4 backoffice:setup swallowed errors | code — failing file + migrator.error surfaced, migration:status hint |
+| F-5 stale GitHub paths post-monorepo | doc — repo-wide sweep (security, why, events, jobs, logging, replicas, release-notes template) |
+| F-6 "111-test" count drift | doc — de-precisioned to "120+" (suite is 128 today) |
+| F-7 bulk-write mechanism + UPDATE coverage | test (real-Lucid bulk-update spec; stale titles fixed) + doc (security.md mechanism) |
+| F-8 fixture-LRU paragraph stale | doc — describes the in-core LRU + knobs |
+| F-9 admin fail-closed untested | RETRACTED — already covered by satellites.spec.ts mount guard |
+| F-10 bootstrapper count 5/6/queue confusion | doc — five everywhere; queue context described separately |
+| F-11 doctor "ten checks" | doc — nine + backup_recency, in why/intro/commands/comparison |
+| F-12 config reference missing 12 keys | doc — all added |
+| F-13 backup commands lacked install caveat | doc — caveat added |
+| F-14 check-name drift (backups/queue_stuck) | doc — backup_recency / queue_health |
+| F-15 TenantConnectionLimitException unexported | code — exported; exceptions.md gained 3 missing rows |
+| F-16 schema-pg phantom pg_terminate_backend | doc — removed; lock-wait semantics documented |
+| F-17 jobs.md uncompilable imports + migrate claim | doc — per-package import table; InstallTenant provision-only |
+| F-18 withTenant didn't exist | code (T11) — implemented as documented + spec |
+| F-19 fictional bootstrapper factories | doc — replaced with the real registry seam |
+| F-20 Redis floor vs SSO GETDEL | doc — ≥ 6.2 noted |
+| F-21 phantom priority + wrong type names | doc — registration order + TenantBootstrapper/BootstrapperContext |
+| F-22 transparent-interception fiction (4 pages) | doc — rewritten around tenantDisk/tenantMailer/tenantSession/tenantBroadcast |
+| F-23 webhook subscribe/secret/states | code (T12 secret generation + once-disclosure) + doc (signatures, real states) |
+| F-24 impersonation single-use fiction et al. | doc — session model, real API/defaults/audit actions |
+| F-25 assignPlan denial | doc — Plans section rewritten around plans.storage |
+| F-26 branding method names | doc — upsert/getForTenant |
+| F-27 sso API signatures | doc — getConfig/buildAuthUrl/handleCallback(state, code) |
+| F-28 audit coverage fiction | doc — impersonation-only built-in writer; hook pattern shown |
+| F-29 admin verbs | doc — POST lifecycle mutations, POST .../destroy |
+| F-30 phantom replica-lag metric | doc — doctor-based alerting |
+| F-31 custom-driver recipe impossible | code (T13 type widening + assertSafeIdentifier export) + doc (contract, arity, imports) |
+| F-32 dead resilience knobs | code (T14 rateLimit knob wired + specs) + doc (cache/metrics/defaultPolicy marked reserved) |
+
+New/strengthened specs: +11 unit (withTenant ×3, provider-shutdown ×2, no-shell-spawn ×3,
+rate-limit global policy ×3), +18 integration (SSRF matrix ×12, secret generation ×3,
+queue retry ×2, bulk update ×1, quota spec tightened in place), +3 e2e (backoffice re-run
+×2, corrupted-restore ×1). T5/T6/T9 from the plan were dropped after verify-first showed
+existing coverage.

@@ -52,7 +52,7 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 | [security#9] | "Strict domain mode rejects header/domain hijack — CustomDomainMiddleware({strict:true}) throws TenantHeaderDomainMismatchException (HTTP 400)" | A | VERIFIED | src/middleware/custom_domain_middleware.ts (strict branch) | header_vs_domain_precedence.spec.ts:27 "strict: rejects with 400 when header disagrees with the host-resolved tenant" + 4 more cases incl. port suffix | none | |
 | [security#10] | "Bounded connection pool — fixture Tenant model demonstrates an LRU cap (50 by default); hosts should keep this LRU pattern in their Tenant implementation" | A | PARTIAL | connection_lru.ts:5 DEFAULT_MAX_TENANT_CONNECTIONS=50 — LRU is IN THE PACKAGE (drivers), not host-implemented | connection_lru.spec.ts (17 unit tests); universal_connection_cap.spec.ts (hard cap 503) | doc-fix:F-8 | doc understates: tells hosts to hand-roll what core now owns |
 | [security#11] | "No singleton retention across boots — provider.shutdown() invalidates the module-level caches" | A | IMPL-ONLY | multitenancy_provider.ts:298-307 (__configureTenancyForTests({}) + __resetActiveDriverCache()) | — (no spec exercises shutdown) | new-test:T8 provider_shutdown.spec.ts | |
-| [security#12] | "Admin REST API fail-closed: multitenancyAdminRoutes() throws at startup unless middleware passed, or middleware:false for deliberate public" | A | IMPL-ONLY | packages/admin/src/routes.ts:130-140 | — (admin tests only cover openapi; e2e only exercises the happy path) | new-test:T9 admin routes fail-closed unit | |
+| [security#12] | "Admin REST API fail-closed: multitenancyAdminRoutes() throws at startup unless middleware passed, or middleware:false for deliberate public" | A | VERIFIED | packages/admin/src/routes.ts:130-140 | tests/integration/admin/satellites.spec.ts:9 'refuses to mount without middleware (fail-closed)'; middleware:false exercised by fixture mount | none | F-9 retracted |
 | [security#13] | "Rate-limit availability — RateLimitUnavailableException; host decides fail-open (502) or fail-closed (429)" | A | BROKEN | rate_limit_middleware.ts: default failOpen:false, throws RateLimitUnavailableException (5xx); failOpen:true lets request proceed | rate_limit.spec.ts (verify status in W6) | doc-fix:F-3 | status-code framing wrong; contradicts why.md |
 | [security#14] | Test: cross-tenant leak under concurrent writes — 5 tenants × 20 concurrent POST/GET | A | VERIFIED | — | cross_tenant_e2e.spec.ts:71 "5 tenants × 20 concurrent writes — no cross-tenant leak on read" (constants :8-9 match doc) + :134 durability test | doc-fix:F-5 (stale GitHub URL only) | |
 | [security#15] | Test: job-context leak under interleaved tenants — 3 tenants × 30 shuffled jobs | A | VERIFIED | — | tenant_context.spec.ts:72 "tenancy.currentId() and per-schema writes are correctly scoped under high concurrency" (constants :9-10 = 3×30) | doc-fix:F-5 (URL) | |
@@ -909,12 +909,12 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [api#1] | "The admin API is fail-closed — multitenancyAdminRoutes(...) requires a middleware option" | A | VERIFIED | admin routes.ts:130-140 | — (no spec) | new-test:T9 |  |
-| [api#2] | "Throws at startup if you omit middleware" | A | VERIFIED | routes.ts:131 throw | — | new-test:T9 |  |
+| [api#1] | "The admin API is fail-closed — multitenancyAdminRoutes(...) requires a middleware option" | A | VERIFIED | admin routes.ts:130-140 | satellites.spec.ts:9 mount guard | none |  |
+| [api#2] | "Throws at startup if you omit middleware" | A | VERIFIED | routes.ts:131 throw | satellites.spec.ts:9 | none |  |
 | [api#3] | "The package ships NO built-in token check" | B | VERIFIED | no token logic shipped | — | none |  |
-| [api#4] | Option: `middleware: false` — deliberately mount public (only behind trusted network) | B | VERIFIED | routes.ts:139-140 middleware===false opt-out | — | new-test:T9 |  |
+| [api#4] | Option: `middleware: false` — deliberately mount public (only behind trusted network) | B | VERIFIED | routes.ts:139-140 middleware===false opt-out | fixture app mounts with middleware:false across admin specs | none |  |
 | [api#5] | API: `multitenancyAdminRoutes({ prefix, middleware, resolveAdminActor? })` | B | VERIFIED | routes.ts:125 options incl. resolveAdminActor, docsAuth | e2e admin_full | none |  |
-| [api#6] | "middleware is required; omit it and the call throws" | B | VERIFIED | routes.ts:130 | — | new-test:T9 |  |
+| [api#6] | "middleware is required; omit it and the call throws" | B | VERIFIED | routes.ts:130 | satellites.spec.ts:9 | none |  |
 | [api#7] | "resolveAdminActor callback is required for privileged actions (audit attribution)" | B | VERIFIED | impersonation endpoints require resolveAdminActor | e2e admin_full | none |  |
 | [api#8] | "The spec is generated from the service contract" | B | VERIFIED | openapi.ts generates from contract | openapi.spec.ts | none |  |
 | [api#9] | Endpoint: JSON spec: GET /admin/multitenancy/openapi.json | B | VERIFIED | routes.ts:208+ openapi.json | openapi.spec.ts; e2e admin_full | none |  |
@@ -951,7 +951,7 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 | [auth#8] | "Sessions are scoped per tenant; see the session bootstrapper" | B | PARTIAL | session scoping via tenantSession() helper (F-22) — not transparent | session_bootstrapper.spec.ts | doc-fix:F-22 |  |
 | [auth#9] | "Operators and support staff use CentralBaseModel / BackofficeBaseModel" | B | VERIFIED | central/backoffice base models | — | none |  |
 | [auth#10] | "Authenticate them on non-tenant routes declared with router.central()" | B | VERIFIED | router.central() macro | central_only_middleware.spec.ts | none |  |
-| [auth#11] | "The Admin REST API is fail-closed: it refuses to mount without an auth middleware you provide" | B | VERIFIED | admin routes.ts:130-140 | — | new-test:T9 |  |
+| [auth#11] | "The Admin REST API is fail-closed: it refuses to mount without an auth middleware you provide" | B | VERIFIED | admin routes.ts:130-140 | satellites.spec.ts:9 | none |  |
 | [auth#12] | "It asks for a resolveAdminActor callback so every privileged action is attributed to a real operator" | B | VERIFIED | resolveAdminActor option | e2e admin_full | none |  |
 | [auth#13] | "When an operator needs to act as a tenant user, use the impersonation satellite" | B | VERIFIED | impersonation satellite | impersonation specs | none |  |
 | [auth#14] | "Impersonation tokens are time-boxed, single-use, HMAC-signed, bound to the target tenant, and fully audited" | B | PARTIAL | time-boxed/HMAC/tenant-bound/audited TRUE; 'single-use' FALSE (F-24) | impersonation specs | doc-fix:F-24 |  |
@@ -1201,7 +1201,7 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 | [stable#29] | Core: Feature flags — Experimental | B | VERIFIED | feature_flag_service.ts | feature_flag_service.spec (8+) | none | |
 | [stable#30] | Core: Metrics — Experimental | B | VERIFIED | metrics_service.ts | metrics_service.spec | none | |
 | [stable#31] | Core: Impersonation — Experimental | B | VERIFIED | impersonation_service.ts | impersonation specs ×4 | none | |
-| [stable#32] | Satellite: @adonisjs-lasagna/admin — Experimental | B | VERIFIED | packages/admin | openapi.spec + e2e admin_full | new-test:T9 (fail-closed) | |
+| [stable#32] | Satellite: @adonisjs-lasagna/admin — Experimental | B | VERIFIED | packages/admin | openapi.spec + satellites.spec + e2e admin_full | none |  |
 | [stable#33] | Satellite: @adonisjs-lasagna/sso — Experimental | B | VERIFIED | packages/sso | sso specs ×3 + authorize.spec | none | |
 | [stable#34] | Satellite: @adonisjs-lasagna/billing — Experimental | B | VERIFIED | packages/billing | 27 integration + 6 unit + real smoke | none | |
 | [stable#35] | Satellite: @adonisjs-lasagna/backup — Experimental | B | VERIFIED | packages/backup | 5 unit + backup_s3 + e2e backups_real | new-test:T7 | |
@@ -1304,7 +1304,7 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 | [upgrade#4] | `npm i @adonisjs-lasagna/{admin,sso,billing,backup}`; each declares core as peer | B | VERIFIED | all 4 declare core as peer | — | none |  |
 | [upgrade#5] | `multitenancyAdminRoutes` imports from @adonisjs-lasagna/admin | B | VERIFIED | admin pkg exports multitenancyAdminRoutes | e2e admin_full imports it | none |  |
 | [upgrade#6] | Old /admin subpath = throwing shim with clear "moved to @adonisjs-lasagna/admin" message; drops after one minor | A | VERIFIED | core src/admin/index.ts throws with exact documented message | — (throwing shim untested) | none |  |
-| [upgrade#7] | Admin routes fail-closed: pass middleware, or middleware:false for public; omitting both throws at boot | A | VERIFIED | admin routes.ts:130-140 | — | new-test:T9 |  |
+| [upgrade#7] | Admin routes fail-closed: pass middleware, or middleware:false for public; omitting both throws at boot | A | VERIFIED | admin routes.ts:130-140 | satellites.spec.ts:9 | none |  |
 | [upgrade#8] | SSO: SsoService + TenantSsoConfig import from @adonisjs-lasagna/sso; no shim (came from shared barrels) | B | VERIFIED | sso/src/index.ts:1-3 exports SsoService + TenantSsoConfig; no shim in core barrels | sso specs | none |  |
 | [upgrade#9] | create_tenant_sso_configs_table stub still ships with core; `configure --with=sso` keeps provisioning it | B | VERIFIED | create_tenant_sso_configs_table.stub in core stubs | configure.spec.ts | none |  |
 | [upgrade#10] | Billing: BillingService + multitenancyBillingRoutes import from @adonisjs-lasagna/billing | B | VERIFIED | billing exports . + routes | billing suite | none |  |
