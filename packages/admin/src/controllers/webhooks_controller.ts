@@ -65,7 +65,14 @@ export default class WebhooksController {
       events,
       isNonEmptyString(secret) ? secret : undefined
     )
-    return ctx.response.created({ data: serialize(hook) })
+    // When the service generated the secret, this response is the ONE place
+    // the plaintext is ever disclosed — it is stored encrypted and cannot be
+    // read back later. Callers must persist it to verify signatures.
+    const generatedSecret = (hook.$extras as { generatedSecret?: string })?.generatedSecret
+    return ctx.response.created({
+      data: serialize(hook),
+      ...(generatedSecret ? { secret: generatedSecret } : {}),
+    })
   }
 
   async update(ctx: HttpContext) {

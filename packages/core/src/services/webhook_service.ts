@@ -7,7 +7,7 @@ import {
   isLoopbackUrl,
 } from '../utils/url.js'
 import { DateTime } from 'luxon'
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 
 export const MAX_ATTEMPTS = 5
 
@@ -183,8 +183,22 @@ export default class WebhookService {
     if (urlError) {
       throw new Error(`WebhookService: refusing to register an unsafe webhook url (${urlError}).`)
     }
-    const encryptedSecret = secret ? encrypt(secret) : null
-    return TenantWebhook.create({ tenantId, url, events, secret: encryptedSecret, enabled: true })
+    // Every webhook gets a signing secret: when the caller doesn't provide
+    // one, generate it. Deliveries from a secretless hook would be unsigned
+    // and the receiver couldn't authenticate them — a silent downgrade no
+    // caller actually wants. The generated value is surfaced exactly once
+    // via `$extras.generatedSecret` (it is stored encrypted and is not
+    // recoverable through the admin API afterwards).
+    const plainSecret = secret ?? randomBytes(32).toString('hex')
+    const hook = await TenantWebhook.create({
+      tenantId,
+      url,
+      events,
+      secret: encrypt(plainSecret),
+      enabled: true,
+    })
+    if (!secret) hook.$extras.generatedSecret = plainSecret
+    return hook
   }
 
   async listWebhooks(tenantId: string): Promise<TenantWebhook[]> {

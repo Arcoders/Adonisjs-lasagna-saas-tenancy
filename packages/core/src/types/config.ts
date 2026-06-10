@@ -215,7 +215,17 @@ export interface ReadReplicasConfig {
   maxReplicaConnections?: number
 }
 
-export type IsolationDriverChoice = 'schema-pg' | 'database-pg' | 'rowscope-pg' | 'sqlite-memory'
+/**
+ * The shipped drivers plus any custom driver name registered through
+ * `IsolationDriverRegistry` — `(string & {})` keeps autocomplete for the
+ * built-ins while letting `isolation.driver` point at a custom driver.
+ */
+export type IsolationDriverChoice =
+  | 'schema-pg'
+  | 'database-pg'
+  | 'rowscope-pg'
+  | 'sqlite-memory'
+  | (string & {})
 
 export interface IsolationConfig {
   /**

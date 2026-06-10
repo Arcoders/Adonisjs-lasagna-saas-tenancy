@@ -11,6 +11,6 @@ export type { TestTenantRow, CreateTestTenantOverrides, CleanupFilter } from './
 
 export { MockTenantRepository, mockTenantRepository } from './mock_repository.js'
 
-export { setRequestTenant } from './with_tenant.js'
+export { setRequestTenant, withTenant } from './with_tenant.js'
 
 // `signWebhookPayload` + `MockStripe` moved to `@adonisjs-lasagna/billing`.

@@ -11,6 +11,7 @@ export { default as RateLimitUnavailableException } from './rate_limit_unavailab
 export { default as TenantHeaderDomainMismatchException } from './tenant_header_domain_mismatch_exception.js'
 export { default as TooManyRequestsException } from './too_many_requests_exception.js'
 // `BillingException` moved to `@adonisjs-lasagna/billing`.
+export { default as TenantConnectionLimitException } from './tenant_connection_limit_exception.js'
 export { default as DependencyUnavailableException } from './dependency_unavailable_exception.js'
 export type { DependencyUnavailableContext } from './dependency_unavailable_exception.js'
 export { default as IsolationConfigException } from './isolation_config_exception.js'
