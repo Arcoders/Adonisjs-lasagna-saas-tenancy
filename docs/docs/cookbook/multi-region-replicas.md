@@ -126,8 +126,9 @@ configured on the template connection.
 
 ## Operational checklist
 
-- [ ] `tenant:doctor --check=replica_lag` in CI / monitoring.
-- [ ] Prometheus alert on `multitenancy_replica_lag_seconds > 30`.
+- [ ] `tenant:doctor --check=replica_lag` in CI / monitoring (the
+      `/metrics` endpoint does not expose replica lag — run the doctor
+      check on a cron and alert on its non-zero exit).
 - [ ] Test a failover quarterly; promote a replica, verify the app
       keeps serving (with reduced throughput) until the replica
       list is updated.

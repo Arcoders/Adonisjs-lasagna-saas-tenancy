@@ -21,22 +21,30 @@ import { WebhookService } from '@adonisjs-lasagna/saas-tenancy/services'
 
 const webhooks = await app.container.make(WebhookService)
 
-await webhooks.subscribe({
-  tenantId: tenant.id,
-  events: ['tenant.activated', 'subscription.upgraded'],
-  url: 'https://acme.com/hooks/lasagna',
-  // Generated when omitted; encrypted at rest with APP_KEY (AES-256-GCM).
-  secret: undefined,
-})
+const hook = await webhooks.registerWebhook(
+  tenant.id,
+  'https://acme.com/hooks/lasagna',
+  ['tenant.activated', 'subscription.upgraded']
+  // 4th argument: the signing secret. Generated when omitted and
+  // encrypted at rest with APP_KEY (AES-256-GCM).
+)
+
+// When the secret was generated, this is the ONLY time the plaintext
+// is available — hand it to the subscriber now; it cannot be read
+// back later.
+const secret = hook.$extras.generatedSecret
 ```
+
+The URL is validated against the SSRF guard at registration AND again
+at delivery time — loopback, private ranges, cloud-metadata IPs, and
+every numeric encoding of them are refused.
 
 ## Sending
 
 ```ts
-await webhooks.dispatch({
-  tenantId: tenant.id,
-  event: 'subscription.upgraded',
-  payload: { fromPlan: 'starter', toPlan: 'pro' },
+await webhooks.dispatch(tenant.id, 'subscription.upgraded', {
+  fromPlan: 'starter',
+  toPlan: 'pro',
 })
 ```
 
@@ -79,17 +87,18 @@ duplicates within a small TTL window.
 ```mermaid
 stateDiagram-v2
   [*] --> pending
-  pending --> delivering
-  delivering --> delivered: 2xx
-  delivering --> failed: non-2xx
-  failed --> retry_scheduled: retries left
-  failed --> permanently_failed: no retries
-  retry_scheduled --> delivering: backoff elapsed
-  delivered --> [*]
-  permanently_failed --> [*]
+  pending --> success: 2xx
+  pending --> retrying: non-2xx / network error, attempts left
+  retrying --> success: 2xx on a later attempt
+  retrying --> failed: attempts exhausted
+  pending --> failed: unsafe URL (never retried)
+  success --> [*]
+  failed --> [*]
 ```
 
-Retries follow a 5-attempt schedule with `±20%` jitter:
+A delivery is `pending` until its first send, `retrying` while
+attempts remain (with `next_retry_at` set), and ends as `success` or
+`failed`. Retries follow a 5-attempt schedule with `±20%` jitter:
 
 | Attempt | Base delay |
 |---|---|
@@ -109,8 +118,8 @@ surfaced via the admin REST API for inspection or manual replay.
 * * * * * node ace tenant:webhooks:retry
 ```
 
-Picks up `retry_scheduled` deliveries whose `next_retry_at` has
-elapsed. Idempotent.
+Picks up `retrying` deliveries whose `next_retry_at` has elapsed.
+Idempotent.
 
 ## Admin REST
 

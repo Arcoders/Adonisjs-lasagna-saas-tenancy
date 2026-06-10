@@ -38,7 +38,7 @@ blocks, recovery), see
 | [Branding](/docs/satellites/branding) | Per-tenant logo, colors, custom domain, encrypted SMTP. | `tenant_brandings` |
 | [SSO](/docs/satellites/sso) | Per-tenant OIDC config with JWKS-backed verification. | `tenant_sso_configs` |
 | [Metrics](/docs/satellites/metrics) | Time-series counters per tenant with cursor-based aggregation. | `tenant_metrics` |
-| [Quotas](/docs/satellites/quotas) | Plan-bound limits; rolling and snapshot, served as middleware. | `tenant_quotas`, `tenant_plans` |
+| [Quotas](/docs/satellites/quotas) | Plan-bound limits; rolling and snapshot, served as middleware. | Redis counters + `tenant_plans` |
 | [Billing](/docs/satellites/billing) | Stripe integration — idempotent webhook, dunning, metered, checkout/portal, lifecycle hook. | `stripe_customers`, `stripe_subscriptions`, `stripe_processed_events`, `stripe_meter_events` |
 | [Impersonation](/docs/satellites/impersonation) | Admin enters a tenant as a target user, time-boxed and audited. | Redis (no DB row) |
 
@@ -47,9 +47,11 @@ blocks, recovery), see
 - Every satellite that writes to a database table goes through the
   `backoffice` schema; never the per-tenant schema. This makes
   cross-tenant reporting and aggregate queries straightforward.
-- Every satellite that mutates state writes an audit row when the
-  audit satellite is enabled. The audit service is the single point
-  of truth for "who did what".
+- The audit satellite is the single point of truth for "who did
+  what": impersonation writes its rows automatically, and every other
+  satellite's mutations can be recorded through the same
+  `AuditLogService.log()` API from your hooks and listeners (see
+  [Audit logs](/docs/satellites/audit)).
 - Satellites never call each other directly; they go through their
   respective service contracts. Replace one and the rest keep
   working.

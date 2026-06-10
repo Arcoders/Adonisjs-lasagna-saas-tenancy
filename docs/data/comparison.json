@@ -50,7 +50,7 @@
     { "category": "context", "feature": "Cache prefix per tenant", "lasagna": "yes", "stancl": "yes", "nestjs": "no", "lasagnaNote": "BentoCache namespace" },
     { "category": "context", "feature": "Filesystem (Drive) prefix", "lasagna": "yes", "stancl": "yes", "nestjs": "no" },
     { "category": "context", "feature": "Queue context propagation (jobs see the tenant)", "lasagna": "yes", "stancl": "yes", "nestjs": "no", "lasagnaNote": "BullMQ + AsyncLocalStorage" },
-    { "category": "context", "feature": "Mail driver context (per-tenant from / SMTP)", "lasagna": "yes", "stancl": "yes", "nestjs": "no" },
+    { "category": "context", "feature": "Mail driver context (per-tenant from / SMTP)", "lasagna": "partial", "stancl": "yes", "nestjs": "no", "advantage": "stancl", "lasagnaNote": "tenantMailer() stamps X-Tenant-Id and takes a per-tenant transport name; from/SMTP resolution stays host-app code" },
     { "category": "context", "feature": "Session scoping per tenant", "lasagna": "yes", "stancl": "yes", "nestjs": "no" },
     { "category": "context", "feature": "Broadcasting / Transmit per tenant", "lasagna": "yes", "stancl": "yes", "nestjs": "no" },
     { "category": "context", "feature": "Contextual logger (tenantId on every log line)", "lasagna": "yes", "stancl": "yes", "nestjs": "no", "lasagnaNote": "AsyncLocalStorage; no helper threading" },
@@ -64,7 +64,7 @@
 
     { "category": "cli", "feature": "Provisioning commands", "lasagna": "yes", "stancl": "yes", "nestjs": "no" },
     { "category": "cli", "feature": "tenants:migrate / tenants:run", "lasagna": "yes", "stancl": "yes", "nestjs": "no" },
-    { "category": "cli", "feature": "tenant:doctor with --fix / --json / --watch", "lasagna": "yes", "stancl": "no", "nestjs": "no", "advantage": "lasagna", "lasagnaNote": "8 built-in checks + plugin API" },
+    { "category": "cli", "feature": "tenant:doctor with --fix / --json / --watch", "lasagna": "yes", "stancl": "no", "nestjs": "no", "advantage": "lasagna", "lasagnaNote": "9 built-in checks (+backup_recency with the backup satellite) + plugin API" },
     { "category": "cli", "feature": "tenant:backup + retention tiers", "lasagna": "yes", "stancl": "no", "nestjs": "no", "advantage": "lasagna" },
     { "category": "cli", "feature": "tenant:restore", "lasagna": "yes", "stancl": "no", "nestjs": "no", "advantage": "lasagna" },
     { "category": "cli", "feature": "tenant:clone", "lasagna": "yes", "stancl": "no", "nestjs": "no", "advantage": "lasagna" },

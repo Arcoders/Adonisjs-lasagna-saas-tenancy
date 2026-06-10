@@ -1,13 +1,14 @@
 ---
 title: Impersonation
-description: Admin enters a tenant as a target user. Time-boxed, audited, HMAC-signed, single-use.
+description: Admin enters a tenant as a target user. Time-boxed, tenant-bound, HMAC-signed, revocable, audited.
 ---
 
 # Impersonation
 
 Lets an operator enter a tenant as a specific user; for support
 work, debugging, or onboarding. The flow is time-boxed (default 1
-hour), single-use, HMAC-signed, and audited end-to-end.
+hour), bound to the tenant it was issued for, HMAC-signed, revocable,
+and audited.
 
 ## Configuration
 
@@ -22,8 +23,8 @@ node ace configure @adonisjs-lasagna/saas-tenancy --with=impersonation
 ```ts
 impersonation: {
   secret: env.get('IMPERSONATION_SECRET'),  // ≥ 32 chars; validated at boot
-  defaultDuration: 900,                     // seconds, default 900 (15 min)
-  maxDuration: 24 * 60 * 60,                // seconds, default 24h. consume() clamps requests to [60, maxDuration]
+  defaultDuration: 3600,                    // seconds; this is the default (1 h)
+  maxDuration: 24 * 60 * 60,                // seconds, default 24h. start() clamps requests to [60, maxDuration]
 }
 ```
 
@@ -45,15 +46,18 @@ import { ImpersonationService } from '@adonisjs-lasagna/saas-tenancy/services'
 
 const impersonation = await app.container.make(ImpersonationService)
 
-const { token, redirectUrl } = await impersonation.issue({
+const { token, sessionId, expiresAt } = await impersonation.start({
   tenantId: tenant.id,
   targetUserId: 'user-abc',
   adminId: 'admin-42',
   durationSeconds: 900,
   reason: 'support ticket #1234',
-  path: '/dashboard',
 })
 ```
+
+The ace command additionally prints a ready-to-paste redirect URL.
+Sessions can be ended early with `stop(token)` or, from an admin
+surface, `revokeById(sessionId)`.
 
 ## Verifying
 
@@ -65,31 +69,45 @@ router.use([ImpersonationMiddleware])
 
 The middleware:
 
-1. Reads the token from the `imp` query param or
-   `x-impersonation-token` header.
-2. HMAC-verifies it with `crypto.timingSafeEqual`.
-3. Looks up the Redis-backed grant (single-use; consumes on read).
-4. Sets `request.impersonation = { adminId, targetUserId, reason }`.
+1. Reads the token from the `x-impersonation-token` header or the
+   `__impersonation` cookie (both names configurable). Query-string
+   tokens are deliberately not supported — they leak into access
+   logs and referrers.
+2. HMAC-verifies it with `crypto.timingSafeEqual` and loads the
+   Redis-backed session (TTL = the session duration).
+3. Binds the token to the request's tenant: a token issued for
+   tenant A presented on tenant B's request is rejected with a 401.
+4. Sets `ctx.impersonation` to the verified session context
+   (`adminId`, `targetUserId`, `tenantId`, `reason`, timestamps).
 
 ## Audit trail
 
-Every issue and use is recorded via the audit satellite if enabled:
+Every step is recorded through the audit satellite when enabled,
+under `admin:impersonate:*` actions:
 
-| Event | Recorded |
+| Action | Recorded |
 |---|---|
-| `impersonation.granted` | `adminId`, `tenantId`, `targetUserId`, `reason`, `expiresAt` |
-| `impersonation.consumed` | `adminId`, `tenantId`, `targetUserId`, IP, user-agent |
-| `impersonation.expired` | `adminId`, `tenantId`, `targetUserId` |
+| `admin:impersonate:start` | `sessionId`, `targetUserId`, `durationSeconds`, `reason`, actor + IP |
+| `admin:impersonate:first-use` | the first request the session is used on (one entry per session, not per request) |
+| `admin:impersonate:stop` | explicit revocation via `stop()` / `revokeById()` |
+
+Expiry needs no audit row of its own — the session simply disappears
+when its Redis TTL lapses; the `start` row carries the planned
+duration.
 
 ## Security guarantees
 
-- Tokens are HMAC-SHA256 over a fixed-size payload.
+- Tokens are HMAC-SHA256 over a random 16-byte session id — a
+  captured token cannot be used to forge or re-derive another one.
 - Verification uses `timingSafeEqual`; constant-time, no oracle.
-- The shared secret is validated as ≥ 32 chars at provider boot.
-- Tokens are single-use; Redis `GETDEL` consumes the grant.
-- Tokens cannot be re-issued from a captured one; they sign a
-  random nonce, not a deterministic identifier.
-
+- The shared secret is validated as ≥ 32 chars at provider boot and
+  again at use.
+- Tokens are tenant-bound: presenting one on another tenant's
+  request throws `ImpersonationInvalidException` (401).
+- Sessions are time-boxed by a Redis TTL and revocable at any moment
+  (`stop()` / `revokeById()`). A token stays valid for its whole
+  session window — treat it like a short-lived credential and keep
+  durations tight for support work.
 
 ## Read next
 
