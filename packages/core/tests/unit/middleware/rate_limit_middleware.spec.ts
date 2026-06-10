@@ -265,6 +265,14 @@ test.group('RateLimitMiddleware — global resilience.redis.rateLimit fallback',
     setupTestConfig()
   })
 
+  // The tests below seed non-default resilience policies into the
+  // module-level config singleton; unit spec files share one process, so
+  // reset to the base config rather than leaking 'fail-open'/'fail-closed'
+  // into whichever file runs next.
+  group.each.teardown(() => {
+    setupTestConfig()
+  })
+
   test('global fail-open applies when the route passes no failOpen option', async ({
     assert,
   }) => {

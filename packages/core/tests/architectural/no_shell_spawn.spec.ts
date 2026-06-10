@@ -1,7 +1,8 @@
 import { test } from '@japa/runner'
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { walkTsFiles } from '../helpers/walk_ts_files.js'
 
 /**
  * Anti-regression guard for the security.md promise "No `shell: true` in
@@ -27,25 +28,16 @@ const ROOTS = [
   fileURLToPath(new URL('../../../backup/src/', import.meta.url)),
 ]
 
-function* walk(dir: string): Generator<string> {
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry)
-    const stat = statSync(full)
-    if (stat.isDirectory()) {
-      yield* walk(full)
-    } else if (entry.endsWith('.ts')) {
-      yield full
-    }
-  }
-}
-
 // A `shell:` property with anything but an explicit `false` inside the two
 // statements following a spawn/spawnSync call. Conservative on purpose: a
 // future `shell: someVar` is flagged too — make it a literal `false` or
 // restructure.
 const SHELL_TRUE = /shell\s*:(?!\s*false\b)/
 const SPAWN_CALL = /\bspawn(?:Sync)?\(/
-const EXEC_IMPORT = /\b(?:exec|execSync)\b(?=[^(]*from\s+['"]node:child_process['"])|require\(['"]child_process['"]\)/
+// The `node:` prefix is optional on purpose: `from 'child_process'` is
+// equally valid ESM and must not slip past the gate.
+const EXEC_IMPORT =
+  /\b(?:exec|execSync)\b(?=[^(]*from\s+['"](?:node:)?child_process['"])|require\(['"](?:node:)?child_process['"]\)/
 
 test.group('Architectural: child processes never get a shell', () => {
   test('no spawn() call site passes shell: true (core + backup src)', ({ assert }) => {
@@ -53,7 +45,7 @@ test.group('Architectural: child processes never get a shell', () => {
 
     for (const root of ROOTS) {
       if (!existsSync(root)) continue
-      for (const file of walk(root)) {
+      for (const file of walkTsFiles(root)) {
         const src = readFileSync(file, 'utf8')
         if (!SPAWN_CALL.test(src)) continue
 
@@ -94,7 +86,7 @@ test.group('Architectural: child processes never get a shell', () => {
 
     for (const root of ROOTS) {
       if (!existsSync(root)) continue
-      for (const file of walk(root)) {
+      for (const file of walkTsFiles(root)) {
         const src = readFileSync(file, 'utf8')
         if (EXEC_IMPORT.test(src)) {
           violations.push(relative(root, file))
@@ -119,13 +111,27 @@ test.group('Architectural: child processes never get a shell', () => {
       `spawn(cmd, args, { shell: false })`,
     ]
     for (const snippet of flagged) {
-      assert.isTrue(
-        SPAWN_CALL.test(snippet) && SHELL_TRUE.test(snippet),
-        `should flag: ${snippet}`
-      )
+      assert.isTrue(SPAWN_CALL.test(snippet) && SHELL_TRUE.test(snippet), `should flag: ${snippet}`)
     }
     for (const snippet of clean) {
       assert.isFalse(SHELL_TRUE.test(snippet), `should NOT flag: ${snippet}`)
+    }
+
+    const flaggedImports = [
+      `import { exec } from 'node:child_process'`,
+      `import { execSync } from 'child_process'`,
+      `const cp = require('child_process')`,
+      `const cp = require('node:child_process')`,
+    ]
+    const cleanImports = [
+      `import { execFile } from 'node:child_process'`,
+      `import { spawn } from 'node:child_process'`,
+    ]
+    for (const snippet of flaggedImports) {
+      assert.isTrue(EXEC_IMPORT.test(snippet), `should flag import: ${snippet}`)
+    }
+    for (const snippet of cleanImports) {
+      assert.isFalse(EXEC_IMPORT.test(snippet), `should NOT flag import: ${snippet}`)
     }
   })
 })

@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
-import { randomUUID } from 'node:crypto'
 import { WebhookService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { makeDelivery, makeHook } from '../../helpers/webhook_doubles.js'
 
 process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
 
@@ -12,31 +12,6 @@ process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
  * the delivery permanently failed without a single fetch. Guards the
  * security.md/webhooks.md SSRF promise at the boundary attackers reach.
  */
-function makeDelivery(overrides: Record<string, unknown> = {}) {
-  return {
-    id: randomUUID(),
-    event: 'user.created',
-    payload: { userId: '123' },
-    status: 'pending' as const,
-    attempt: 1,
-    statusCode: null as number | null,
-    responseBody: null as string | null,
-    nextRetryAt: null as unknown,
-    save: async () => {},
-    ...overrides,
-  }
-}
-
-function makeHook(url: string) {
-  return {
-    id: randomUUID(),
-    tenantId: randomUUID(),
-    url,
-    events: ['user.created'],
-    secret: null as string | null,
-    enabled: true,
-  }
-}
 
 const BLOCKED_TARGETS: Array<[label: string, url: string]> = [
   ['hex-octet IPv4 (metadata IP)', 'https://0xa9.0xfe.0xa9.0xfe/'],
@@ -73,7 +48,7 @@ test.group('WebhookService.send() — SSRF encoding matrix', (group) => {
       }) as unknown as typeof fetch
 
       const delivery = makeDelivery()
-      await svc.send(makeHook(url) as any, delivery as any)
+      await svc.send(makeHook({ url }) as any, delivery as any)
 
       assert.isFalse(fetchCalled, `fetch must never run for ${url}`)
       assert.equal(delivery.status, 'failed')
@@ -94,7 +69,7 @@ test.group('WebhookService.send() — SSRF encoding matrix', (group) => {
     })) as unknown as typeof fetch
 
     const delivery = makeDelivery()
-    await svc.send(makeHook('https://example.com/webhook') as any, delivery as any)
+    await svc.send(makeHook({ url: 'https://example.com/webhook' }) as any, delivery as any)
 
     assert.equal(delivery.status, 'success')
   })

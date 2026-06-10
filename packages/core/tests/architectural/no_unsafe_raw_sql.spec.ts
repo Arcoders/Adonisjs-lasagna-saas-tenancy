@@ -1,7 +1,8 @@
 import { test } from '@japa/runner'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { walkTsFiles } from '../helpers/walk_ts_files.js'
 
 const SRC_ROOT = fileURLToPath(new URL('../../src/', import.meta.url))
 
@@ -27,18 +28,6 @@ interface Hit {
   file: string
   line: number
   excerpt: string
-}
-
-function* walk(dir: string): Generator<string> {
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry)
-    const stat = statSync(full)
-    if (stat.isDirectory()) {
-      yield* walk(full)
-    } else if (entry.endsWith('.ts')) {
-      yield full
-    }
-  }
 }
 
 // Matches: .rawQuery(`...${...}...`) or .raw(`...${...}...`).
@@ -78,7 +67,7 @@ test.group('Architectural: raw SQL interpolation must be guarded', () => {
   }) => {
     const violations: string[] = []
 
-    for (const file of walk(SRC_ROOT)) {
+    for (const file of walkTsFiles(SRC_ROOT)) {
       const rel = relative(SRC_ROOT, file)
       // The validator itself is allowed — it owns the contract.
       if (rel.replace(/\\/g, '/') === 'services/isolation/identifier.ts') continue
