@@ -498,6 +498,30 @@ regression test), `doc-fix` (claim rewritten to match deliberate behavior), `tes
   a textfile-exporter pattern). Adding the metric is a small feature — roadmap note.
 - **Status:** open
 
+## F-31: the custom-isolation-driver recipe is impossible as documented (closed types, unexported helper, wrong arity)
+
+- **Claims:** [cdriver#1..5], [compare row "Pluggable IsolationDriver contract"]
+- **Severity:** HIGH (the headline extensibility story doesn't typecheck end to end)
+- **Reality:**
+  - `IsolationDriver.name` is the closed union `IsolationDriverName`
+    ('schema-pg'|'database-pg'|'rowscope-pg'|'sqlite-memory') (driver.ts:5,45) — a custom
+    `name = 'my-driver'` fails `implements IsolationDriver`; `isolation.driver` is the
+    closed `IsolationDriverChoice` too (config.ts:218), so `driver: 'my-driver'` fails.
+  - `assertSafeIdentifier` has NO public export (not in /services nor the main barrel) —
+    the recipe's import cannot resolve.
+  - `TenantModelContract` is exported from the main entry//types, not /services as the
+    recipe imports.
+  - `registry.register('my-driver', new MyDriver())` — real signature is
+    `register(driver, { activate? })` (isolation/registry.ts:12); the name comes from
+    `driver.name`.
+  - `migrate(tenant, { dryRun })` → real `migrate(tenant, MigrateOptions)` returning
+    `MigrateResult`; `destroy` takes `DestroyOptions`.
+- **Resolution:** code-fix (T13) — widen `name`/`driver` types to
+  `IsolationDriverName | (string & {})` (runtime already supports any name: the registry
+  is a `Map<string, IsolationDriver>`), export `assertSafeIdentifier` from /services.
+  doc-fix — correct imports, register arity, and the contract listing.
+- **Status:** open
+
 ## Addendum to F-17 (jobs.md)
 
 jobs.md also claims InstallTenant "runs migrations" — `install_tenant.ts:36` only calls

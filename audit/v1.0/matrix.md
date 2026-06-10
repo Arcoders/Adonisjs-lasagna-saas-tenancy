@@ -1241,178 +1241,178 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [cookbook-stripe#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=billing` | B | | | | | |
-| [cookbook-stripe#2] | Command: `npm install stripe@^18` | B | | | | | |
-| [cookbook-stripe#3] | Migrations: 5 backoffice migrations published | B | | | | | |
-| [cookbook-stripe#4] | Command: `node ace migration:run --connection=backoffice` | B | | | | | |
-| [cookbook-stripe#5] | Env: STRIPE_API_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_API_VERSION | B | | | | | |
-| [cookbook-stripe#6] | Config: plans.defaultPlan, plans.definitions, plans.storage='auto', billing block | B | | | | | |
+| [cookbook-stripe#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=billing` | B | VERIFIED | configure --with=billing | configure.spec.ts | none |  |
+| [cookbook-stripe#2] | Command: `npm install stripe@^18` | B | VERIFIED | stripe ^18 peer | — | none |  |
+| [cookbook-stripe#3] | Migrations: 5 backoffice migrations published | B | VERIFIED | 5 stubs | configure.spec.ts | none |  |
+| [cookbook-stripe#4] | Command: `node ace migration:run --connection=backoffice` | B | VERIFIED | migration:run --connection=backoffice works (used to debug F-4) | this audit ran it | none |  |
+| [cookbook-stripe#5] | Env: STRIPE_API_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_API_VERSION | B | VERIFIED | 3 env vars in BillingConfig docs | — | none |  |
+| [cookbook-stripe#6] | Config: plans.defaultPlan, plans.definitions, plans.storage='auto', billing block | B | VERIFIED | plans + billing blocks match config types | billing suite | none |  |
 
 ## faq.md (re-sweep)
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [faq#1] | PostgreSQL-only; no MySQL/MariaDB path | B | | | | | |
-| [faq#2] | rowscope-pg uses PostgreSQL Row-Level Security for its hard boundary | B | | | | | |
-| [faq#3] | Driver guidance: schema-pg default; database-pg max isolation/heaviest; rowscope-pg lightest on connections | C | | | | | |
-| [faq#4] | No built-in driver-to-driver migration tool; switching is a planned data migration | A | | | | | |
-| [faq#5] | Redis backs circuit-breaker persisted state, rate limiter, quota counters, cache bootstrapper, queue | B | | | | | |
-| [faq#6] | Resilience policy controls Redis-down behavior (fail-open vs fail-closed) so outage degrades predictably | A | | | | | |
-| [faq#7] | Replica routing: round-robin/random/sticky with stable connection naming; no automatic failover by design | B | | | | | |
-| [faq#8] | Cross-layer Lucid relationships/FKs unsupported; store other layer's id as plain column | B | | | | | |
-| [faq#9] | 1.0: isolation core RC (green in CI vs real PG/Redis); stable withheld pending external review + mileage; satellites experimental | C | | | | | |
-| [faq#10] | Testing helpers: buildTestTenant, MockTenantRepository, setRequestTenant, withTenant + sqlite-memory driver | B | | | | | |
+| [faq#1] | PostgreSQL-only; no MySQL/MariaDB path | B | VERIFIED | PG-only | — | none |  |
+| [faq#2] | rowscope-pg uses PostgreSQL Row-Level Security for its hard boundary | B | VERIFIED | rls stub + withTenantRls | rowscope_rls.spec.ts | none |  |
+| [faq#3] | Driver guidance: schema-pg default; database-pg max isolation/heaviest; rowscope-pg lightest on connections | C | N/A | guidance consistent with code | — | none |  |
+| [faq#4] | No built-in driver-to-driver migration tool; switching is a planned data migration | A | VERIFIED | no driver-migration tool | — | none |  |
+| [faq#5] | Redis backs circuit-breaker persisted state, rate limiter, quota counters, cache bootstrapper, queue | B | VERIFIED | circuit Redis persistence; rate limit; quota Lua; cache L2; queue Redis | respective specs | none |  |
+| [faq#6] | Resilience policy controls Redis-down behavior (fail-open vs fail-closed) so outage degrades predictably | A | VERIFIED | ResilienceConfig | quota_resilience.spec.ts | none |  |
+| [faq#7] | Replica routing: round-robin/random/sticky with stable connection naming; no automatic failover by design | B | VERIFIED | 3 strategies + no failover | read_replica specs | none |  |
+| [faq#8] | Cross-layer Lucid relationships/FKs unsupported; store other layer's id as plain column | B | VERIFIED | cross-layer unsupported | — | none |  |
+| [faq#9] | 1.0: isolation core RC (green in CI vs real PG/Redis); stable withheld pending external review + mileage; satellites experimental | C | N/A | consistent RC/experimental framing | — | none |  |
+| [faq#10] | Testing helpers: buildTestTenant, MockTenantRepository, setRequestTenant, withTenant + sqlite-memory driver | B | PARTIAL | withTenant doesn't exist (F-18); others real | builders/mock specs | code-fix:F-18 |  |
 
 ## comparison.md (re-sweep)
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [compare#1] | stancl positioning narrative ("covers the same ground and adds operational surface; also has gaps") | C | | | | | |
-| [compare#2] | ComparisonTable component data: every "Lasagna" cell (yes/partial/no) must match code | A | | | | | data source in docs/.vitepress/theme/components/ComparisonTable.vue |
-| [compare#3] | "Schema-per-tenant + read replicas + circuit breaker out of the box" | B | | | | | |
-| [compare#4] | "The doctor command and CI-friendly health gates" | B | | | | | |
-| [compare#5] | "A built-in REST admin API + OpenAPI 3.1 spec" | B | | | | | |
-| [compare#6] | "Per-tenant impersonation with HMAC + audit" | B | | | | | |
-| [compare#7] | Phase-4 roadmap items (Discord, dashboard pkg, create-lasagna-saas, 1.0 release) framed as future | C | | | | | |
-| [compare#8] | GitHub repo link (Arcoders/Adonisjs-lasagna-saas-tenancy) | C | | | | | |
+| [compare#1] | stancl positioning narrative ("covers the same ground and adds operational surface; also has gaps") | C | N/A | positioning narrative | — | none |  |
+| [compare#2] | ComparisonTable component data: every "Lasagna" cell (yes/partial/no) must match code | A | PARTIAL | docs/data/comparison.json 73 rows — sampled all Lasagna cells; 2 bad: mail per-tenant SMTP cell overclaims (F-22), doctor note says 8 checks (F-11: real 9 core +1 backup) | — | doc-fix:F-22,F-11 cells | event count 25 ✓ command count 33 ✓ |
+| [compare#3] | "Schema-per-tenant + read replicas + circuit breaker out of the box" | B | VERIFIED | schema driver + replicas + breaker | specs | none |  |
+| [compare#4] | "The doctor command and CI-friendly health gates" | B | VERIFIED | doctor + --json exit codes | doctor specs | none |  |
+| [compare#5] | "A built-in REST admin API + OpenAPI 3.1 spec" | B | VERIFIED | admin pkg OpenAPI 3.1 | openapi.spec.ts | none |  |
+| [compare#6] | "Per-tenant impersonation with HMAC + audit" | B | VERIFIED | impersonation HMAC + audit | impersonation specs | none |  |
+| [compare#7] | Phase-4 roadmap items (Discord, dashboard pkg, create-lasagna-saas, 1.0 release) framed as future | C | N/A | roadmap-framed | — | none |  |
+| [compare#8] | GitHub repo link (Arcoders/Adonisjs-lasagna-saas-tenancy) | C | N/A | repo link | — | none |  |
 
 ## roadmap.md (re-sweep)
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [roadmap#1] | Isolation core = release candidate, feature-complete, green in CI vs real PG/Redis | C | | | | | consistency vs stability.md |
-| [roadmap#2] | Satellites (billing, SSO, admin, backup + in-core opt-ins) = experimental | C | | | | | consistency vs stability.md |
-| [roadmap#3] | stable gated on independent security review + production mileage; moves inside 1.x without major bump | C | | | | | |
-| [roadmap#4] | Under-consideration list framed as directions, not commitments | C | | | | | |
-| [roadmap#5] | Semver: breaking change to stable surface requires major; experimental may change in minor with changelog note | C | | | | | |
+| [roadmap#1] | Isolation core = release candidate, feature-complete, green in CI vs real PG/Redis | C | N/A | consistent with stability.md | — | none |  |
+| [roadmap#2] | Satellites (billing, SSO, admin, backup + in-core opt-ins) = experimental | C | N/A | consistent | — | none |  |
+| [roadmap#3] | stable gated on independent security review + production mileage; moves inside 1.x without major bump | C | N/A | policy | — | none |  |
+| [roadmap#4] | Under-consideration list framed as directions, not commitments | C | N/A | futures clearly framed | — | none |  |
+| [roadmap#5] | Semver: breaking change to stable surface requires major; experimental may change in minor with changelog note | C | N/A | semver policy | — | none |  |
 
 ## release-notes.md (re-sweep)
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [relnotes#1] | Page generated from packages/core/CHANGELOG.md via docs/scripts/sync-changelog.mjs (derived page) | B | | | | | confirm page in sync with CHANGELOG |
-| [relnotes#2] | Satellite table lists sso/billing/admin/backup with versions read from their package.json | B | | | | | |
-| [relnotes#3] | Changelog content accuracy (spot-check the 1.0.0 entry against reality) | C | | | | | |
+| [relnotes#1] | Page generated from packages/core/CHANGELOG.md via docs/scripts/sync-changelog.mjs (derived page) | B | VERIFIED | docs:sync in docs:dev/docs:build (root package.json); page header marks auto-generated; head matches CHANGELOG | — | doc-fix:F-5 (page links blob/master/CHANGELOG.md; canonical is packages/core/CHANGELOG.md) |  |
+| [relnotes#2] | Satellite table lists sso/billing/admin/backup with versions read from their package.json | B | VERIFIED | sync-changelog.mjs:19-24 reads satellite package.json versions | — | none |  |
+| [relnotes#3] | Changelog content accuracy (spot-check the 1.0.0 entry against reality) | C | N/A | historical record (1.0.0 entry consistent with audit observations) | — | none |  |
 
 ## upgrade-to-1.0.md (re-sweep)
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [upgrade#1] | Satellites (billing, SSO, admin REST API, backup/clone) moved out of core into own packages | B | | | | | |
-| [upgrade#2] | resolver.legacyAdapterFallback now defaults to false | A | | | | | |
-| [upgrade#3] | Core keeps leaf satellites: audit, feature flags, metrics, webhooks, branding, quotas, impersonation | B | | | | | |
-| [upgrade#4] | `npm i @adonisjs-lasagna/{admin,sso,billing,backup}`; each declares core as peer | B | | | | | |
-| [upgrade#5] | `multitenancyAdminRoutes` imports from @adonisjs-lasagna/admin | B | | | | | |
-| [upgrade#6] | Old /admin subpath = throwing shim with clear "moved to @adonisjs-lasagna/admin" message; drops after one minor | A | | | | | |
-| [upgrade#7] | Admin routes fail-closed: pass middleware, or middleware:false for public; omitting both throws at boot | A | | | | | |
-| [upgrade#8] | SSO: SsoService + TenantSsoConfig import from @adonisjs-lasagna/sso; no shim (came from shared barrels) | B | | | | | |
-| [upgrade#9] | create_tenant_sso_configs_table stub still ships with core; `configure --with=sso` keeps provisioning it | B | | | | | |
-| [upgrade#10] | Billing: BillingService + multitenancyBillingRoutes import from @adonisjs-lasagna/billing | B | | | | | |
-| [upgrade#11] | Billing pkg carries Stripe models, billing events/jobs, BillingException, VerifyStripeWebhookMiddleware, billingHealthCheck, MockStripe, signWebhookPayload | B | | | | | |
-| [upgrade#12] | Entry points '@adonisjs-lasagna/billing/provider' and '/commands' registered in adonisrc.ts | B | | | | | |
-| [upgrade#13] | Billing provider: validates Stripe config at boot, wires quota/usage/tenant-delete listeners, registers jobs, drains metering on shutdown | A | | | | | |
-| [upgrade#14] | Stripe config types stay in core (config.billing still typed) | B | | | | | |
-| [upgrade#15] | Backup: BackupService/CloneService from @adonisjs-lasagna/backup; BackupTenant/RestoreTenant/CloneTenant jobs + tenant:backup, tenant:backup:list, tenant:restore, tenant:import, tenant:clone, tenant:backups:run commands move with it | B | | | | | |
-| [upgrade#16] | Backup provider registers backup queue jobs + backup_recency doctor check; without it doctor skips the check and dispatched backup jobs dead-letter | A | | | | | |
-| [upgrade#17] | @aws-sdk/client-s3 is optional peer of backup | B | | | | | |
-| [upgrade#18] | BackupMetadata / CloneResult types stay in core /types | B | | | | | |
-| [upgrade#19] | legacyAdapterFallback semantics: outside active context, TenantAdapter resolves via resolver chain synchronously; `resolver.legacyAdapterFallback: true` restores 0.x behavior | A | | | | | |
-| [upgrade#20] | backup/restore/clone hook phases + lifecycle events unchanged in core | B | | | | | |
+| [upgrade#1] | Satellites (billing, SSO, admin REST API, backup/clone) moved out of core into own packages | B | VERIFIED | 4 satellite packages exist | per-pkg suites | none |  |
+| [upgrade#2] | resolver.legacyAdapterFallback now defaults to false | A | VERIFIED | config.ts:29 default false | tenant_adapter.spec.ts:387 | none |  |
+| [upgrade#3] | Core keeps leaf satellites: audit, feature flags, metrics, webhooks, branding, quotas, impersonation | B | VERIFIED | 7 leaf satellites in core | satellite specs | none |  |
+| [upgrade#4] | `npm i @adonisjs-lasagna/{admin,sso,billing,backup}`; each declares core as peer | B | VERIFIED | all 4 declare core as peer | — | none |  |
+| [upgrade#5] | `multitenancyAdminRoutes` imports from @adonisjs-lasagna/admin | B | VERIFIED | admin pkg exports multitenancyAdminRoutes | e2e admin_full imports it | none |  |
+| [upgrade#6] | Old /admin subpath = throwing shim with clear "moved to @adonisjs-lasagna/admin" message; drops after one minor | A | VERIFIED | core src/admin/index.ts throws with exact documented message | — (throwing shim untested) | none |  |
+| [upgrade#7] | Admin routes fail-closed: pass middleware, or middleware:false for public; omitting both throws at boot | A | VERIFIED | admin routes.ts:130-140 | — | new-test:T9 |  |
+| [upgrade#8] | SSO: SsoService + TenantSsoConfig import from @adonisjs-lasagna/sso; no shim (came from shared barrels) | B | VERIFIED | sso/src/index.ts:1-3 exports SsoService + TenantSsoConfig; no shim in core barrels | sso specs | none |  |
+| [upgrade#9] | create_tenant_sso_configs_table stub still ships with core; `configure --with=sso` keeps provisioning it | B | VERIFIED | create_tenant_sso_configs_table.stub in core stubs | configure.spec.ts | none |  |
+| [upgrade#10] | Billing: BillingService + multitenancyBillingRoutes import from @adonisjs-lasagna/billing | B | VERIFIED | billing exports . + routes | billing suite | none |  |
+| [upgrade#11] | Billing pkg carries Stripe models, billing events/jobs, BillingException, VerifyStripeWebhookMiddleware, billingHealthCheck, MockStripe, signWebhookPayload | B | VERIFIED | billing src has models/events/jobs/middleware/health/testing (MockStripe, signWebhookPayload) | billing suite | none |  |
+| [upgrade#12] | Entry points '@adonisjs-lasagna/billing/provider' and '/commands' registered in adonisrc.ts | B | VERIFIED | billing exports ./provider ./commands | examples/api adonisrc wiring | none |  |
+| [upgrade#13] | Billing provider: validates Stripe config at boot, wires quota/usage/tenant-delete listeners, registers jobs, drains metering on shutdown | A | VERIFIED | billing_service boot validation + listeners + provider | mode_detection + metered_usage specs | none |  |
+| [upgrade#14] | Stripe config types stay in core (config.billing still typed) | B | VERIFIED | BillingConfig stays in core types/config.ts:111 | — | none |  |
+| [upgrade#15] | Backup: BackupService/CloneService from @adonisjs-lasagna/backup; BackupTenant/RestoreTenant/CloneTenant jobs + tenant:backup, tenant:backup:list, tenant:restore, tenant:import, tenant:clone, tenant:backups:run commands move with it | B | VERIFIED | backup exports . ./provider ./commands; 6 commands in manifest | backup specs + e2e backups_real | none |  |
+| [upgrade#16] | Backup provider registers backup queue jobs + backup_recency doctor check; without it doctor skips the check and dispatched backup jobs dead-letter | A | VERIFIED | backup pkg registers backup_recency_check (src/doctor/) | doctor_checks_real backup_recency | none |  |
+| [upgrade#17] | @aws-sdk/client-s3 is optional peer of backup | B | VERIFIED | backup peers include @aws-sdk/client-s3 | — | none |  |
+| [upgrade#18] | BackupMetadata / CloneResult types stay in core /types | B | VERIFIED | BackupMetadata/CloneResult in core types | — | none |  |
+| [upgrade#19] | legacyAdapterFallback semantics: outside active context, TenantAdapter resolves via resolver chain synchronously; `resolver.legacyAdapterFallback: true` restores 0.x behavior | A | VERIFIED | resolver config semantics (config.ts:16-33) | tenant_adapter.spec.ts:339-406 | none |  |
+| [upgrade#20] | backup/restore/clone hook phases + lifecycle events unchanged in core | B | VERIFIED | hook phases + events unchanged in core | hook_registry.spec.ts | none |  |
 
 ## contributing.md (re-sweep)
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [contrib#1] | Dev setup: clone URL + npm install + typecheck/test/test:integration commands as documented | B | | | | | |
-| [contrib#2] | `docker compose -f compose.test.yml up -d` brings up integration infra | B | | | | | file existence |
-| [contrib#3] | Japa filters: `--files` and `--tests` examples | B | | | | | |
-| [contrib#4] | eslint.config.js extends @adonisjs/eslint-config; prettier @adonisjs/prettier-config; no npm scripts for either | B | | | | | |
-| [contrib#5] | snake_case files, PascalCase default-exported classes, .js imports, exports+typesVersions discipline | B | | | | | |
-| [contrib#6] | Issue template asks for version, minimal repro, actual-vs-expected | C | | | | | check .github templates |
-| [contrib#7] | GitHub project board link | C | | | | | |
-| [contrib#8] | MIT license | B | | | | | |
+| [contrib#1] | Dev setup: clone URL + npm install + typecheck/test/test:integration commands as documented | B | VERIFIED | root scripts typecheck/test/test:integration | baseline run | none |  |
+| [contrib#2] | `docker compose -f compose.test.yml up -d` brings up integration infra | B | BROKEN | compose.test.yml does not exist (glob whole tree) | — | doc-fix:F-1 |  |
+| [contrib#3] | Japa filters: `--files` and `--tests` examples | B | VERIFIED | Japa --files/--tests filters | used in this audit | none |  |
+| [contrib#4] | eslint.config.js extends @adonisjs/eslint-config; prettier @adonisjs/prettier-config; no npm scripts for either | B | VERIFIED | eslint.config.js + prettier config; no npm scripts | — | none |  |
+| [contrib#5] | snake_case files, PascalCase default-exported classes, .js imports, exports+typesVersions discipline | B | VERIFIED | conventions match codebase | — | none |  |
+| [contrib#6] | Issue template asks for version, minimal repro, actual-vs-expected | C | N/A | issue-template description | — | none |  |
+| [contrib#7] | GitHub project board link | C | N/A | project board link | — | none |  |
+| [contrib#8] | MIT license | B | VERIFIED | MIT in package.json | — | none |  |
 
 ## showcase.md (re-sweep)
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [showcase#1] | examples/api exercises every feature: six bootstrappers, doctor, backups, replicas, full satellite suite | B | | | | | |
-| [showcase#2] | "111-test e2e suite" exact count | B | | | | | |
-| [showcase#3] | Run instructions: `docker compose -f compose.test.yml up -d` + `npm run test:e2e` | B | | | | | file existence |
-| [showcase#4] | e2e covers provisioning, isolation, contextual logging, doctor, backup+restore round-trip, quotas, lifecycle events, admin API, mail, replica strategies, webhook state machine | B | | | | | |
-| [showcase#5] | GitHub tree link to examples/api | C | | | | | |
-| [showcase#6] | docs/data/showcase.yml "will exist once we have the second submission" (aspirational) | C | | | | | |
+| [showcase#1] | examples/api exercises every feature: six bootstrappers, doctor, backups, replicas, full satellite suite | B | PARTIAL | examples/api wires satellites; 'all six bootstrappers' overcounts (5) | e2e suite | doc-fix:F-10 |  |
+| [showcase#2] | "111-test e2e suite" exact count | B | BROKEN | e2e suite is 125 tests (run 2026-06-10), not 111 | e2e baseline | doc-fix:F-6 |  |
+| [showcase#3] | Run instructions: `docker compose -f compose.test.yml up -d` + `npm run test:e2e` | B | BROKEN | compose.test.yml doesn't exist; real: docker-compose.yml / npm run infra:up; npm run test:e2e DOES exist | — | doc-fix:F-1 |  |
+| [showcase#4] | e2e covers provisioning, isolation, contextual logging, doctor, backup+restore round-trip, quotas, lifecycle events, admin API, mail, replica strategies, webhook state machine | B | VERIFIED | e2e specs cover all listed areas (15 spec files) | e2e suite | none |  |
+| [showcase#5] | GitHub tree link to examples/api | C | N/A | repo link | — | none |  |
+| [showcase#6] | docs/data/showcase.yml "will exist once we have the second submission" (aspirational) | C | N/A | aspirational, clearly marked | — | none |  |
 
 ## sponsor.md (re-sweep)
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [sponsor#1] | MIT, no premium tier, no locked features | C | | | | | |
-| [sponsor#2] | Sponsor links "land here once set up" (aspirational, clearly marked) | C | | | | | |
+| [sponsor#1] | MIT, no premium tier, no locked features | C | N/A | policy statement | — | none |  |
+| [sponsor#2] | Sponsor links "land here once set up" (aspirational, clearly marked) | C | N/A | aspirational, marked | — | none |  |
 
 ## cookbook/index.md (re-sweep)
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [cookbook#1] | Recipe table: 5 recipes exist at linked paths with accurate one-liners | B | | | | | |
-| [cookbook#2] | Link anchors: /docs/bootstrappers/, /docs/commands#doctor | B | | | | | |
+| [cookbook#1] | Recipe table: 5 recipes exist at linked paths with accurate one-liners | B | VERIFIED | 5 recipe files exist at linked paths | — | none |  |
+| [cookbook#2] | Link anchors: /docs/bootstrappers/, /docs/commands#doctor | B | PARTIAL | /docs/commands#doctor anchor — commands.md heading is '## Doctor' (anchor #doctor) ✓; bootstrappers index ✓ | — | none |  |
 
 ## cookbook/adding-features-incrementally.md (re-sweep)
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [addinc#1] | configure is additive + idempotent; re-runs never duplicate a migration (scans migrations dir, skips existing) | A | | | | | |
-| [addinc#2] | config/multitenancy.ts and app/models/backoffice/tenant.ts never overwritten on re-run; config blocks printed, never injected | A | | | | | |
-| [addinc#3] | Bare `configure` with no --with selects every satellite | B | | | | | |
-| [addinc#4] | Core satellites: audit, feature_flags, webhooks, branding, metrics, quotas ship inside core | B | | | | | |
-| [addinc#5] | Packaged satellites: sso, billing as own npm packages (heavy peers jose/stripe) | B | | | | | |
-| [addinc#6] | Per-satellite reference table: --with names, kind, install, config block, extra wiring — each cell accurate | B | | | | | 10 rows in doc table |
-| [addinc#7] | rls + maintenance are opt-in: never published by bare configure, only when named with --with | A | | | | | |
-| [addinc#8] | quotas prints a `plans` config block; billing prints config + wiring instructions at end of run | B | | | | | |
-| [addinc#9] | `enforceQuota('apiCallsPerDay')` import from /middleware, used via .use() | B | | | | | |
-| [addinc#10] | Billing wiring: multitenancyBillingRoutes() + '/webhooks/stripe' in ignorePaths | B | | | | | |
-| [addinc#11] | Env vars STRIPE_API_KEY / STRIPE_WEBHOOK_SECRET | B | | | | | |
-| [addinc#12] | Billing bundle ordering: tenant_plans created before stripe_* tables | B | | | | | |
-| [addinc#13] | Test guidance: MockStripe via BillingService.__setStripeForTests, signWebhookPayload(body, secret), STRIPE_TEST_API_KEY gating, PII redaction on by default | B | | | | | |
-| [addinc#14] | Package's own suite: satellite-coexistence spec drives every satellite; example app e2e adds billing with MockStripe | B | | | | | |
+| [addinc#1] | configure is additive + idempotent; re-runs never duplicate a migration (scans migrations dir, skips existing) | A | VERIFIED | configure idempotency (filterAlreadyPublished) | configure.spec.ts + configure_publish.spec.ts | none |  |
+| [addinc#2] | config/multitenancy.ts and app/models/backoffice/tenant.ts never overwritten on re-run; config blocks printed, never injected | A | VERIFIED | config + tenant model never overwritten; blocks printed | configure_publish.spec.ts | none |  |
+| [addinc#3] | Bare `configure` with no --with selects every satellite | B | VERIFIED | bare configure = all satellites | configure.spec.ts | none |  |
+| [addinc#4] | Core satellites: audit, feature_flags, webhooks, branding, metrics, quotas ship inside core | B | VERIFIED | 6 core satellite bundles | configure.spec.ts | none |  |
+| [addinc#5] | Packaged satellites: sso, billing as own npm packages (heavy peers jose/stripe) | B | VERIFIED | sso/billing as packages | — | none |  |
+| [addinc#6] | Per-satellite reference table: --with names, kind, install, config block, extra wiring — each cell accurate | B | VERIFIED | reference table matches stubs + manifests (checked against stub list + commands) | configure.spec.ts | none |  |
+| [addinc#7] | rls + maintenance are opt-in: never published by bare configure, only when named with --with | A | VERIFIED | rls + maintenance opt-in only (stubs exist; excluded from bare run) | configure.spec.ts opt-in cases | none |  |
+| [addinc#8] | quotas prints a `plans` config block; billing prints config + wiring instructions at end of run | B | VERIFIED | configure prints plans/billing blocks | configure.spec.ts output | none |  |
+| [addinc#9] | `enforceQuota('apiCallsPerDay')` import from /middleware, used via .use() | B | VERIFIED | enforceQuota export from /middleware | enforce_quota_middleware.spec.ts | none |  |
+| [addinc#10] | Billing wiring: multitenancyBillingRoutes() + '/webhooks/stripe' in ignorePaths | B | VERIFIED | multitenancyBillingRoutes + ignorePaths guidance | ignore_paths.spec.ts | none |  |
+| [addinc#11] | Env vars STRIPE_API_KEY / STRIPE_WEBHOOK_SECRET | B | VERIFIED | env names match BillingConfig docs | — | none |  |
+| [addinc#12] | Billing bundle ordering: tenant_plans created before stripe_* tables | B | VERIFIED | stub ordering tenant_plans before stripe_* | configure.spec.ts bundle order | none |  |
+| [addinc#13] | Test guidance: MockStripe via BillingService.__setStripeForTests, signWebhookPayload(body, secret), STRIPE_TEST_API_KEY gating, PII redaction on by default | B | VERIFIED | MockStripe + __setStripeForTests + signWebhookPayload + STRIPE_TEST_API_KEY gating + redactPii default true | billing testing utils + stripe_real_smoke gate | none |  |
+| [addinc#14] | Package's own suite: satellite-coexistence spec drives every satellite; example app e2e adds billing with MockStripe | B | VERIFIED | satellite_coexistence.spec.ts + e2e satellites_coexistence.spec.ts | both exist | none |  |
 
 ## cookbook/custom-domain-https.md (re-sweep)
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [cdhttps#1] | Cloudflare for SaaS recipe (external service steps) | C | | | | | |
-| [cdhttps#2] | CustomDomainMiddleware maps hostname to tenant via branding.custom_domain | B | | | | | |
-| [cdhttps#3] | cert-manager + DNS-01 YAML recipe (external) | C | | | | | |
-| [cdhttps#4] | Default precedence: explicit x-tenant-id header wins over Host-resolved tenant (back-compat) | A | | | | | |
-| [cdhttps#5] | `middleware.customDomain({ strict: true })` rejects conflicts with E_TENANT_HEADER_DOMAIN_MISMATCH (400) | A | | | | | |
-| [cdhttps#6] | Link anchors: /docs/routing#strict-mode, /docs/routing#custom-domain-mapping, /docs/satellites/branding | B | | | | | |
+| [cdhttps#1] | Cloudflare for SaaS recipe (external service steps) | C | N/A | external service recipe | — | none |  |
+| [cdhttps#2] | CustomDomainMiddleware maps hostname to tenant via branding.custom_domain | B | VERIFIED | custom_domain_middleware findByDomain (branding stores custom_domain) | custom_domain specs | none |  |
+| [cdhttps#3] | cert-manager + DNS-01 YAML recipe (external) | C | N/A | external YAML | — | none |  |
+| [cdhttps#4] | Default precedence: explicit x-tenant-id header wins over Host-resolved tenant (back-compat) | A | VERIFIED | non-strict default header-wins | header_vs_domain_precedence.spec.ts:90 | none |  |
+| [cdhttps#5] | `middleware.customDomain({ strict: true })` rejects conflicts with E_TENANT_HEADER_DOMAIN_MISMATCH (400) | A | VERIFIED | strict 400 E_TENANT_HEADER_DOMAIN_MISMATCH | header_vs_domain_precedence.spec.ts:27 | none |  |
+| [cdhttps#6] | Link anchors: /docs/routing#strict-mode, /docs/routing#custom-domain-mapping, /docs/satellites/branding | B | PARTIAL | routing.md anchors — verify #strict-mode/#custom-domain-mapping exist during W7 link sweep | — | doc-fix (link sweep) |  |
 
 ## cookbook/custom-isolation-driver.md (re-sweep)
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [cdriver#1] | Import: `{ IsolationDriver, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/services'` resolves | B | | | | | TenantModelContract from /services is suspicious |
-| [cdriver#2] | IsolationDriver contract: name, provision, destroy, reset, connect, disconnect, connectionName(tenantId), migrate(tenant, {dryRun}) — exact shape | A | | | | | |
-| [cdriver#3] | `registry.register('my-driver', new MyDriver())` two-arg signature; container.make(IsolationDriverRegistry) | B | | | | | |
-| [cdriver#4] | config isolation.driver accepts a custom driver name (type permits beyond the 4 built-ins) | B | | | | | |
-| [cdriver#5] | assertSafeIdentifier exported from /services; enforces [a-zA-Z0-9_-]{1,63}; shipped drivers call it at every entry | A | | | | | |
-| [cdriver#6] | Idempotency contract: provision re-callable; destroy runs after disconnect; reset = destroy + provision | B | | | | | |
+| [cdriver#1] | Import: `{ IsolationDriver, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/services'` resolves | B | BROKEN | TenantModelContract not in /services (main barrel/types); IsolationDriver yes | — | doc-fix:F-31 |  |
+| [cdriver#2] | IsolationDriver contract: name, provision, destroy, reset, connect, disconnect, connectionName(tenantId), migrate(tenant, {dryRun}) — exact shape | A | PARTIAL | contract close but name is CLOSED union (driver.ts:5,45); migrate returns MigrateResult; destroy takes DestroyOptions | — | code-fix:F-31 (T13 widen types) |  |
+| [cdriver#3] | `registry.register('my-driver', new MyDriver())` two-arg signature; container.make(IsolationDriverRegistry) | B | BROKEN | register(driver,{activate?}) — not register(name, driver) (registry.ts:12) | isolation_driver_registry.spec.ts | doc-fix:F-31 |  |
+| [cdriver#4] | config isolation.driver accepts a custom driver name (type permits beyond the 4 built-ins) | B | BROKEN | isolation.driver typed closed union (config.ts:218) — custom name fails typecheck | — | code-fix:F-31 (T13) |  |
+| [cdriver#5] | assertSafeIdentifier exported from /services; enforces [a-zA-Z0-9_-]{1,63}; shipped drivers call it at every entry | A | BROKEN | assertSafeIdentifier has NO public export path | identifier.spec.ts (internal) | code-fix:F-31 (export from /services) |  |
+| [cdriver#6] | Idempotency contract: provision re-callable; destroy runs after disconnect; reset = destroy + provision | B | VERIFIED | provision idempotent (driver.ts:48-50); destroy-after-disconnect ordering | driver specs | none |  |
 
 ## cookbook/multi-region-replicas.md (re-sweep)
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [mregion#1] | tenantReadReplicas shape { strategy, hosts, connectionSuffix? }; no enabled flag; no per-tenant pinning callback | B | | | | | |
-| [mregion#2] | Each host may override user/password; otherwise inherits primary tenant connection pg config | B | | | | | |
-| [mregion#3] | Strategy semantics: round-robin in-memory cursor per process; random per call; sticky hash of tenant.id | B | | | | | |
-| [mregion#4] | `replicas.resolve(tenant)` returns connection; null when tenantReadReplicas unset | A | | | | | |
-| [mregion#5] | No useReadReplica()/preferReadReplica() shortcut exists (negative claim) | B | | | | | |
-| [mregion#6] | Doctor replica_lag: pg_is_in_recovery() + pg_last_xact_replay_timestamp(); issue codes replica_not_in_recovery/replica_lag_high/replica_lag_critical/replica_unreachable; 30s/120s defaults | B | | | | | |
-| [mregion#7] | replica_unreachable includes pg error code but drops raw error text (no DSN/password leak) | B | | | | | |
-| [mregion#8] | No automatic failover: resolve() returns connection even for unreachable replica; query throws ECONNREFUSED | A | | | | | |
-| [mregion#9] | Prometheus metric `multitenancy_replica_lag_seconds` exists | B | | | | | |
-| [mregion#10] | Writes always go to the primary configured on the template connection | B | | | | | |
-| [mregion#11] | `pickIndex()` named as the routing primitive apps wrap for pinning | B | | | | | |
+| [mregion#1] | tenantReadReplicas shape { strategy, hosts, connectionSuffix? }; no enabled flag; no per-tenant pinning callback | B | VERIFIED | config shape; no enabled flag; no pinning callback | read_replica_service.spec.ts | none |  |
+| [mregion#2] | Each host may override user/password; otherwise inherits primary tenant connection pg config | B | VERIFIED | ReadReplicaHost user/password overrides (config.ts:184-191) | — | none |  |
+| [mregion#3] | Strategy semantics: round-robin in-memory cursor per process; random per call; sticky hash of tenant.id | B | VERIFIED | 3 strategies as documented | read_replica_service.spec.ts | none |  |
+| [mregion#4] | `replicas.resolve(tenant)` returns connection; null when tenantReadReplicas unset | A | VERIFIED | resolve(tenant) → conn or null (read_replica_service.ts:96) | read_replica_resolve.spec.ts | none |  |
+| [mregion#5] | No useReadReplica()/preferReadReplica() shortcut exists (negative claim) | B | VERIFIED | no useReadReplica/preferReadReplica anywhere | — | none |  |
+| [mregion#6] | Doctor replica_lag: pg_is_in_recovery() + pg_last_xact_replay_timestamp(); issue codes replica_not_in_recovery/replica_lag_high/replica_lag_critical/replica_unreachable; 30s/120s defaults | B | VERIFIED | replica_lag_check.ts 4 issue codes + 30/120 defaults | doctor/replica_lag.spec.ts | none |  |
+| [mregion#7] | replica_unreachable includes pg error code but drops raw error text (no DSN/password leak) | B | VERIFIED | replica_unreachable includes pg code, drops raw text | doctor/replica_lag.spec.ts | none |  |
+| [mregion#8] | No automatic failover: resolve() returns connection even for unreachable replica; query throws ECONNREFUSED | A | VERIFIED | no failover; query-time throw | read_replica_resolve.spec.ts | none |  |
+| [mregion#9] | Prometheus metric `multitenancy_replica_lag_seconds` exists | B | DOC-ONLY | exporter emits no multitenancy_replica_lag_seconds | — | doc-fix:F-30 |  |
+| [mregion#10] | Writes always go to the primary configured on the template connection | B | VERIFIED | writes on template/primary connection only | — | none |  |
+| [mregion#11] | `pickIndex()` named as the routing primitive apps wrap for pinning | B | VERIFIED | pickIndex() exists (read_replica_service.ts:46) | read_replica_service.spec.ts | none |  |
 
 ---
 
