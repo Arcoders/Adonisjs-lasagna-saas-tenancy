@@ -728,33 +728,33 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [webhook#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=webhooks` | B | | | | | |
-| [webhook#2] | Method: `subscribe({ tenantId, events, url, secret? })` | B | | | | | |
-| [webhook#3] | "Generated when omitted; encrypted at rest with APP_KEY (AES-256-GCM)" | B | | | | | |
-| [webhook#4] | Method: `dispatch({ tenantId, event, payload })` | B | | | | | |
-| [webhook#5] | Header: `content-type: application/json` | B | | | | | |
-| [webhook#6] | Header: `x-webhook-signature: <hex>` — HMAC-SHA256 over the raw body | B | | | | | |
-| [webhook#7] | Header: `x-webhook-event: <event>` | B | | | | | |
-| [webhook#8] | Header: `x-delivery-id: <uuid>` | B | | | | | |
-| [webhook#9] | Export: `verifyWebhookSignature(rawBody, signature, secret): boolean` | B | | | | | |
-| [webhook#10] | "Use constant-time helper; naive === comparisons leak timing" | A | | | | | |
-| [webhook#11] | "Pass the EXACT bytes received — not re-serialized JSON" | A | | | | | |
-| [webhook#12] | "To defeat replay, log x-delivery-id and reject duplicates within a small TTL window" | B | | | | | |
-| [webhook#13] | State: pending → delivering → delivered (2xx) or failed (non-2xx) | B | | | | | |
-| [webhook#14] | State: failed → retry_scheduled (if retries left) or permanently_failed (no retries) | B | | | | | |
-| [webhook#15] | State: retry_scheduled → delivering (after backoff elapsed) | B | | | | | |
-| [webhook#16] | Attempt 1→2: 10 s base delay | B | | | | | |
-| [webhook#17] | Attempt 2→3: 1 m | B | | | | | |
-| [webhook#18] | Attempt 3→4: 5 m | B | | | | | |
-| [webhook#19] | Attempt 4→5: 30 m | B | | | | | |
-| [webhook#20] | Attempt 5→6: 2 h | B | | | | | |
-| [webhook#21] | "After 5th attempt, delivery transitions to failed" | B | | | | | |
-| [webhook#22] | "All retries include ±20% jitter" | B | | | | | |
-| [webhook#23] | Cron: `* * * * * node ace tenant:webhooks:retry` | B | | | | | |
-| [webhook#24] | REST: GET /admin/multitenancy/tenants/{id}/webhooks | B | | | | | |
-| [webhook#25] | REST: POST /admin/multitenancy/tenants/{id}/webhooks | B | | | | | |
-| [webhook#26] | REST: DELETE /admin/multitenancy/tenants/{id}/webhooks/{webhookId} | B | | | | | |
-| [webhook#27] | REST: GET /admin/multitenancy/tenants/{id}/webhooks/{webhookId}/deliveries | B | | | | | |
+| [webhook#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=webhooks` | B | VERIFIED | configure --with=webhooks bundle | configure.spec.ts | none |  |
+| [webhook#2] | Method: `subscribe({ tenantId, events, url, secret? })` | B | BROKEN | no subscribe(); registerWebhook(tenantId,url,events,secret?) positional (webhook_service.ts:174) | webhook_service.spec.ts | doc-fix:F-23 |  |
+| [webhook#3] | "Generated when omitted; encrypted at rest with APP_KEY (AES-256-GCM)" | B | BROKEN | secret ? encrypt(secret) : null (:186) — NOT generated when omitted; unsigned delivery results | — | code-fix:F-23 (T12 generate-when-omitted) |  |
+| [webhook#4] | Method: `dispatch({ tenantId, event, payload })` | B | PARTIAL | dispatch(tenantId,event,payload) positional, not object | webhook_service.spec.ts | doc-fix:F-23 |  |
+| [webhook#5] | Header: `content-type: application/json` | B | VERIFIED | webhook_service.ts:124 | webhook_service.spec.ts headers | none |  |
+| [webhook#6] | Header: `x-webhook-signature: <hex>` — HMAC-SHA256 over the raw body | B | VERIFIED | :131 HMAC-SHA256 hex over raw body | webhook signature tests | none |  |
+| [webhook#7] | Header: `x-webhook-event: <event>` | B | VERIFIED | :125 | webhook_service.spec.ts | none |  |
+| [webhook#8] | Header: `x-delivery-id: <uuid>` | B | VERIFIED | :126 delivery.id | webhook_service.spec.ts | none |  |
+| [webhook#9] | Export: `verifyWebhookSignature(rawBody, signature, secret): boolean` | B | VERIFIED | verifyWebhookSignature export (:19-28) | signature spec | none |  |
+| [webhook#10] | "Use constant-time helper; naive === comparisons leak timing" | A | VERIFIED | timingSafeEqual in verify | signature spec | none |  |
+| [webhook#11] | "Pass the EXACT bytes received — not re-serialized JSON" | A | VERIFIED | doc guidance matches raw-body HMAC | — | none |  |
+| [webhook#12] | "To defeat replay, log x-delivery-id and reject duplicates within a small TTL window" | B | N/A | consumer-side guidance | — | none |  |
+| [webhook#13] | State: pending → delivering → delivered (2xx) or failed (non-2xx) | B | PARTIAL | real states: pending/success/failed/retrying (:88,:143) | webhook_service.spec.ts state machine | doc-fix:F-23 |  |
+| [webhook#14] | State: failed → retry_scheduled (if retries left) or permanently_failed (no retries) | B | PARTIAL | retrying until MAX_ATTEMPTS then failed (:153) — no retry_scheduled/permanently_failed states | webhook_service.spec.ts | doc-fix:F-23 |  |
+| [webhook#15] | State: retry_scheduled → delivering (after backoff elapsed) | B | PARTIAL | retrying → send on due nextRetryAt (processRetries :171) | webhook_service.spec.ts | doc-fix:F-23 |  |
+| [webhook#16] | Attempt 1→2: 10 s base delay | B | VERIFIED | backoff table [10s,60s,300s,1800s,7200s] | webhook_service.spec.ts:246 jitter bounds | none |  |
+| [webhook#17] | Attempt 2→3: 1 m | B | VERIFIED | 60s step | same | none |  |
+| [webhook#18] | Attempt 3→4: 5 m | B | VERIFIED | 300s step | same | none |  |
+| [webhook#19] | Attempt 4→5: 30 m | B | VERIFIED | 1800s step | same | none |  |
+| [webhook#20] | Attempt 5→6: 2 h | B | VERIFIED | 7200s step | same | none |  |
+| [webhook#21] | "After 5th attempt, delivery transitions to failed" | B | VERIFIED | MAX_ATTEMPTS=5 → failed (:153) | webhook_service.spec.ts dead-letter | none |  |
+| [webhook#22] | "All retries include ±20% jitter" | B | VERIFIED | ±20% jitter | webhook_service.spec.ts:246 | none |  |
+| [webhook#23] | Cron: `* * * * * node ace tenant:webhooks:retry` | B | VERIFIED | tenant_webhooks_retry.ts help text | e2e webhooks_delivery | none |  |
+| [webhook#24] | REST: GET /admin/multitenancy/tenants/{id}/webhooks | B | VERIFIED | packages/admin routes (webhooks list) | e2e admin_full | none |  |
+| [webhook#25] | REST: POST /admin/multitenancy/tenants/{id}/webhooks | B | VERIFIED | admin routes POST webhook | e2e admin_full | none |  |
+| [webhook#26] | REST: DELETE /admin/multitenancy/tenants/{id}/webhooks/{webhookId} | B | VERIFIED | admin routes DELETE webhook | e2e admin_full | none |  |
+| [webhook#27] | REST: GET /admin/multitenancy/tenants/{id}/webhooks/{webhookId}/deliveries | B | VERIFIED | admin routes deliveries | e2e admin_full | none |  |
 
 ## satellites/branding.md
 
@@ -884,26 +884,26 @@ Seeded 2026-06-10 from the extracted claims checklist (972 IDs) + Wave-0 re-swee
 
 | ID | Claim | Tier | Status | Code evidence | Test evidence | Action | Notes |
 |---|---|---|---|---|---|---|---|
-| [impersonate#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=impersonation` | B | | | | | |
-| [impersonate#2] | Config: `impersonation: { secret, defaultDuration, maxDuration }` | B | | | | | |
-| [impersonate#3] | "secret must be ≥ 32 chars; validated at boot" | A | | | | | |
-| [impersonate#4] | Config: `impersonation.defaultDuration` (default 900 seconds, min 60) | B | | | | | |
-| [impersonate#5] | Config: `impersonation.maxDuration` (default 86400 seconds) | B | | | | | |
-| [impersonate#6] | Command: `node ace tenant:impersonate <tenantId> <userId> --admin=<id> --duration=<seconds> --reason="…"` | B | | | | | |
-| [impersonate#7] | API: `issue({ tenantId, targetUserId, adminId, durationSeconds, reason, path }) → { token, redirectUrl }` | B | | | | | |
-| [impersonate#8] | Middleware: `ImpersonationMiddleware` | B | | | | | |
-| [impersonate#9] | "Reads token from imp query param or x-impersonation-token header" | B | | | | | |
-| [impersonate#10] | "HMAC-verifies it with crypto.timingSafeEqual" | B | | | | | |
-| [impersonate#11] | "Looks up Redis-backed grant (single-use; consumes on read)" | B | | | | | |
-| [impersonate#12] | "Sets request.impersonation = { adminId, targetUserId, reason }" | B | | | | | |
-| [impersonate#13] | Event: impersonation.granted — Records adminId, tenantId, targetUserId, reason, expiresAt | B | | | | | |
-| [impersonate#14] | Event: impersonation.consumed — Records adminId, tenantId, targetUserId, IP, user-agent | B | | | | | |
-| [impersonate#15] | Event: impersonation.expired — Records adminId, tenantId, targetUserId | B | | | | | |
-| [impersonate#16] | "Tokens are HMAC-SHA256 over a fixed-size payload" | A | | | | | |
-| [impersonate#17] | "Verification uses timingSafeEqual; constant-time" | A | | | | | |
-| [impersonate#18] | "The shared secret is validated as ≥ 32 chars at provider boot" | A | | | | | |
-| [impersonate#19] | "Tokens are single-use; Redis GETDEL consumes the grant" | A | | | | | |
-| [impersonate#20] | "Tokens cannot be re-issued from a captured one; they sign a random nonce" | A | | | | | |
+| [impersonate#1] | Command: `node ace configure @adonisjs-lasagna/saas-tenancy --with=impersonation` | B | VERIFIED | configure --with=impersonation | configure.spec.ts | none |  |
+| [impersonate#2] | Config: `impersonation: { secret, defaultDuration, maxDuration }` | B | VERIFIED | types/config.ts:386-396 | impersonation_service.spec.ts | none |  |
+| [impersonate#3] | "secret must be ≥ 32 chars; validated at boot" | A | VERIFIED | provider:150,230 boot validation + service :226 | impersonation_service.spec.ts secret cases | none |  |
+| [impersonate#4] | Config: `impersonation.defaultDuration` (default 900 seconds, min 60) | B | BROKEN | page says 900 (and '1 hour' in its own intro); code default 3600 (config.ts:390) | — | doc-fix:F-24 |  |
+| [impersonate#5] | Config: `impersonation.maxDuration` (default 86400 seconds) | B | VERIFIED | 86400 (config.ts:392) | — | none |  |
+| [impersonate#6] | Command: `node ace tenant:impersonate <tenantId> <userId> --admin=<id> --duration=<seconds> --reason="…"` | B | VERIFIED | commands.json tenant:impersonate flags | e2e | none |  |
+| [impersonate#7] | API: `issue({ tenantId, targetUserId, adminId, durationSeconds, reason, path }) → { token, redirectUrl }` | B | BROKEN | no issue(); start(opts)→{token,sessionId,expiresAt} (:46,:107); redirectUrl is command-level | impersonation_service.spec.ts | doc-fix:F-24 |  |
+| [impersonate#8] | Middleware: `ImpersonationMiddleware` | B | VERIFIED | middleware/impersonation_middleware.ts | unit+integration middleware specs | none |  |
+| [impersonate#9] | "Reads token from imp query param or x-impersonation-token header" | B | BROKEN | middleware reads header or cookie (:31-33); no imp query param | impersonation_middleware.spec.ts | doc-fix:F-24 |  |
+| [impersonate#10] | "HMAC-verifies it with crypto.timingSafeEqual" | B | VERIFIED | service verify() timingSafeEqual (:220) | impersonation_service.spec.ts | none |  |
+| [impersonate#11] | "Looks up Redis-backed grant (single-use; consumes on read)" | B | BROKEN | sessions persist with TTL (:86-91); verify() does NOT consume | impersonation_lifecycle.spec.ts (verify→list→expire) | doc-fix:F-24 |  |
+| [impersonate#12] | "Sets request.impersonation = { adminId, targetUserId, reason }" | B | PARTIAL | ctx.impersonation = verified (:65) — full session ctx, not just 3 fields | impersonation_middleware.spec.ts | doc-fix:F-24 |  |
+| [impersonate#13] | Event: impersonation.granted — Records adminId, tenantId, targetUserId, reason, expiresAt | B | PARTIAL | audit action is admin:impersonate:start (:97), not impersonation.granted | impersonation_middleware.spec.ts audit assertions | doc-fix:F-24 |  |
+| [impersonate#14] | Event: impersonation.consumed — Records adminId, tenantId, targetUserId, IP, user-agent | B | PARTIAL | companion use/stop audit actions named admin:impersonate:* not impersonation.consumed | integration audit checks | doc-fix:F-24 |  |
+| [impersonate#15] | Event: impersonation.expired — Records adminId, tenantId, targetUserId | B | PARTIAL | expiry via cache TTL; no impersonation.expired audit row | impersonation_lifecycle.spec.ts expire | doc-fix:F-24 |  |
+| [impersonate#16] | "Tokens are HMAC-SHA256 over a fixed-size payload" | A | VERIFIED | #sign(sessionId) HMAC-SHA256 (:108) | impersonation_service.spec.ts | none |  |
+| [impersonate#17] | "Verification uses timingSafeEqual; constant-time" | A | VERIFIED | :220 timingSafeEqual | impersonation_service.spec.ts | none |  |
+| [impersonate#18] | "The shared secret is validated as ≥ 32 chars at provider boot" | A | VERIFIED | provider:230 #validateImpersonationConfig | — | none |  |
+| [impersonate#19] | "Tokens are single-use; Redis GETDEL consumes the grant" | A | BROKEN | no GETDEL; sessions are NOT single-use — valid until TTL/stop() | impersonation_lifecycle.spec.ts | doc-fix:F-24 |  |
+| [impersonate#20] | "Tokens cannot be re-issued from a captured one; they sign a random nonce" | A | VERIFIED | token signs randomBytes(16) session id (:70) | impersonation_service.spec.ts | none |  |
 
 ## admin-rest-api.md
 

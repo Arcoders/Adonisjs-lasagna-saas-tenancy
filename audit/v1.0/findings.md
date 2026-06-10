@@ -353,6 +353,62 @@ regression test), `doc-fix` (claim rewritten to match deliberate behavior), `tes
   interception would be a major feature, out of audit scope — listed for the roadmap.
 - **Status:** open
 
+## F-23: webhooks.md — wrong API names, fictional auto-generated secret, wrong state names
+
+- **Claims:** [webhook#2], [webhook#3], [webhook#4], [webhook#13..15]
+- **Severity:** HIGH for the secret claim (users assuming auto-signing ship UNSIGNED
+  webhooks); MED for the rest
+- **Reality vs doc:**
+  - API: doc `webhooks.subscribe({ tenantId, events, url, secret? })` / `dispatch({...})`
+    object-style — code is positional `registerWebhook(tenantId, url, events, secret?)`
+    (webhook_service.ts:174) and `dispatch(tenantId, event, payload)`. No `subscribe`
+    exists; doc snippet doesn't compile.
+  - Secret: doc "Generated when omitted; encrypted at rest with APP_KEY (AES-256-GCM)" —
+    code `secret ? encrypt(secret) : null` (:186): nothing is generated; a null secret
+    means `x-webhook-signature` is simply not sent (:131 is conditional). Encryption at
+    rest of *provided* secrets is real (crypto.ts).
+  - Delivery states: doc `pending → delivering → delivered/failed →
+    retry_scheduled/permanently_failed` — code states are `pending`, `success`,
+    `failed`, `retrying` (:88,:143,:146,:153).
+  - Headers (4), backoff schedule + ±20% jitter, constant-time verify: all VERIFIED.
+- **Resolution:** decision for the maintainer baked into W7: either code-fix the secret
+  generation (generate a random secret when omitted — matches documented intent and is
+  safer-by-default; small change + test) or doc-fix to "unsigned when omitted". Given
+  "fix everything found" and that unsigned-by-silent-default is a footgun, plan is
+  code-fix (T12) + doc-fix for names/states.
+- **Status:** open
+
+## F-24: impersonation.md describes a one-shot-grant design that was never built (plus wrong defaults and API)
+
+- **Claims:** [impersonate#4], [impersonate#7], [impersonate#9], [impersonate#11..15],
+  [impersonate#19]
+- **Severity:** HIGH (security semantics: the page promises single-use tokens; real
+  tokens are valid for the whole session TTL — a captured token IS replayable until
+  expiry/stop; also the page contradicts itself on the default duration)
+- **Reality vs doc:**
+  - Default duration: page intro says "default 1 hour", its own config block says
+    "default 900 (15 min)" — code default is 3600 (config.ts:390).
+  - API: doc `impersonation.issue({...}) → { token, redirectUrl }` — code
+    `start(opts) → { token, sessionId, expiresAt }` (impersonation_service.ts:46,107);
+    `redirectUrl` is assembled by the ace command only. Snippet doesn't compile.
+  - Token sources: doc "imp query param or header" — code reads header
+    (`x-impersonation-token`) or cookie (`__impersonation`); NO query param
+    (impersonation_middleware.ts:31-33). Code is right (query tokens leak into logs).
+  - Single-use/GETDEL: doc claims consume-on-read three times — code sessions persist in
+    cache with TTL; verify() does not consume; stop()/revokeById() revoke explicitly.
+  - Audit actions: doc `impersonation.granted/consumed/expired` — code
+    `admin:impersonate:start` (+ companion actions in stop/verify paths).
+  - TRUE and verified: HMAC-SHA256 over random session id (:70,:108), timingSafeEqual
+    (:220), ≥32-char secret validated at provider boot
+    (multitenancy_provider.ts:150,230) AND at use (:226), clamp [60, maxDuration] (:68),
+    tenant binding (middleware:52-63, integration spec).
+- **Resolution:** doc-fix — rewrite the page around the real session model (time-boxed,
+  revocable, tenant-bound; NOT single-use), real API names, real defaults, real audit
+  actions. Making tokens literally single-use would break the documented "session"
+  workflow (every page navigation would need a new token) — the doc's own example
+  contradicts it, so the code's session design is the intent; the prose is wrong.
+- **Status:** open
+
 ## Addendum to F-17 (jobs.md)
 
 jobs.md also claims InstallTenant "runs migrations" — `install_tenant.ts:36` only calls
