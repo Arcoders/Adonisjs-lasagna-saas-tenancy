@@ -41,7 +41,9 @@ The phase decides what a thrown error does:
   hooks are side effects; a failed cache warm should never roll back a
   successful provision.
 
-Hooks for the same phase and event run in registration order.
+Hooks for the same phase and event run in registration order. The
+[provisioning sequence](/docs/jobs#how-provisioning-flows-through-the-queue)
+shows exactly where the two phases fire inside the job.
 
 ## Declarative hooks (config)
 

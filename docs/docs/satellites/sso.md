@@ -75,6 +75,29 @@ network.
 
 ## Login flow
 
+The whole round trip, from login to verified claims. The tenant id rides
+inside the Redis-stored state, which is why the callback route needs no
+tenant header of its own.
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant A as Your app
+  participant R as Redis
+  participant I as IdP
+  B->>A: GET /auth/login (tenant resolved)
+  A->>R: store state with tenantId and nonce, 600 s TTL
+  A-->>B: redirect to the IdP authorize URL (state, nonce)
+  B->>I: authenticate
+  I-->>B: redirect to /auth/callback with code and state
+  B->>A: GET /auth/callback
+  A->>R: GETDEL state (single use)
+  A->>I: exchange code at token_endpoint
+  I-->>A: tokens (id_token required)
+  A->>A: verify id_token via JWKS (discovery cached 1 h), iss/aud/exp with 60 s tolerance, nonce match
+  A-->>B: { tenantId, claims }
+```
+
 ```ts
 import { SsoService } from '@adonisjs-lasagna/sso'
 

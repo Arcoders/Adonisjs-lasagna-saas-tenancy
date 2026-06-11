@@ -52,6 +52,22 @@ All artifacts referenced live under `deploy/` in the repo:
 | `worker`           | Same image as `app`            | `node ace queue:work`, processes provisioning jobs |
 | `nginx`            | `nginx:1.27-alpine`            | Reverse proxy, JSON access logs                    |
 
+Wired together, the deploy unit is the app replicas plus the worker; both
+consume the same Postgres and Redis. The counts, ports and Redis db slots
+are the template's defaults; adapt them in your copy:
+
+```mermaid
+flowchart TB
+  N["nginx :80<br/>reverse proxy"] --> A["app ×3<br/>:3333, health on /readyz"]
+  W["worker ×1<br/>node ace queue:work"]
+  A --> P[("postgres-primary")]
+  A --> RP[("postgres-replica")]
+  A --> R[("redis<br/>queue db 1, cache db 2")]
+  W --> P
+  W --> R
+  P -. streaming replication .-> RP
+```
+
 The `worker` service is not optional. Tenant provisioning is dispatched on
 BullMQ: `tenant:create` and any HTTP flow that creates tenants return
 immediately and enqueue an install job. Without a worker process, every new
@@ -246,7 +262,9 @@ The fix is a process running `node ace queue:work` with the same env as the
 app. The compose template ships a `worker` service; on Kubernetes run a
 second Deployment with the same image and that command. The CI smoke test
 provisions tenants through this exact path on every PR
-(`deploy/scripts/deploy-smoke.sh`).
+(`deploy/scripts/deploy-smoke.sh`). The full command-to-worker sequence is
+diagrammed in
+[Background jobs](/docs/jobs#how-provisioning-flows-through-the-queue).
 
 ### "Cache invalidation drifts between pods"
 

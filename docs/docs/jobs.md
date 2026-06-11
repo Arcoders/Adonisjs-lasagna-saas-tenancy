@@ -37,6 +37,35 @@ import {
 } from '@adonisjs-lasagna/billing'
 ```
 
+## How provisioning flows through the queue
+
+The command-to-event sequence for `InstallTenant`, the job `tenant:create`
+dispatches behind every new tenant. The worker is the piece that actually
+provisions; without a process running `node ace queue:work`, the job sits
+in the queue and the tenant stays in `provisioning` forever.
+
+```mermaid
+sequenceDiagram
+  participant C as tenant create command
+  participant DB as tenant registry
+  participant Q as BullMQ
+  participant W as queue worker
+  C->>DB: create row, status provisioning
+  C--)Q: dispatch InstallTenant
+  Note over C: returns immediately (TenantCreated)
+  W->>Q: pick up job (a running worker is required)
+  W->>W: before:provision hook (throw = abort, queue retries)
+  W->>DB: driver.provision(tenant)
+  alt provision succeeds
+    W->>DB: status active
+    W->>W: after:provision hook (throw = logged, swallowed)
+    W--)C: TenantProvisioned
+  else provision throws
+    W->>DB: status failed, error rethrown for retry
+  end
+  Note over W: migrations are a separate step (tenant:migrate)
+```
+
 ## Dispatching
 
 Every job is a standard `@adonisjs/queue` job. Dispatch with the
