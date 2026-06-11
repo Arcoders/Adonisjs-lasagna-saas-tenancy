@@ -48,6 +48,34 @@ npm run test -- --tests "resolves tenant id from header"
 - No npm scripts for either; run `npx eslint` / `npx prettier`
   directly.
 
+## Diagram conventions
+
+The docs use Mermaid, inline in the markdown, and nothing else. No new
+visualization dependencies, no exported images for technical diagrams
+(they can't be diffed, so they drift). Rules for adding or changing one:
+
+- A diagram is a view, never a source. It may only restate facts already
+  present in the surrounding prose, tables, or linked code. If a fact
+  exists only in a diagram, that's a doc bug.
+- Label nodes with real identifiers (`InstallTenant`,
+  `E_TENANT_NOT_READY`, `past_due`), never invented shorthand, so grep
+  finds them and doc audits can verify them like prose.
+- One diagram per page is the norm, two is the cap. Keep them under
+  roughly 12 nodes and 4 sequence actors; needing more means the page
+  needs restructuring.
+- Precede every diagram with a one-sentence prose caption stating its
+  takeaway, so screen readers and skimmers lose nothing.
+- No per-diagram styling; inherit the global mermaid config so light and
+  dark mode keep working for free.
+
+When you change one of these areas, re-check the matching diagram:
+tenant resolution (`tenant_adapter.ts`, the resolver registry) →
+Tenant identification; provisioning (`install_tenant.ts`,
+`hook_registry.ts`) → Background jobs; tenant states
+(`TenantStatus`, `tenant_guard_middleware.ts`) → Lifecycle events;
+`sso_service.ts` → SSO; the Stripe dispatcher/job/replay → Billing;
+`deploy/docker-compose.prod.yml` → Deployment.
+
 ## File names and exports
 
 - `snake_case` files, `PascalCase` classes, default-exported.
