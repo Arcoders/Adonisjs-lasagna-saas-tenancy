@@ -2,8 +2,11 @@ import env from '#start/env'
 import multitenancyConfig from '#config/multitenancy'
 import { defineConfig } from '@adonisjs/lucid'
 
+// No `as const` here: it would freeze `migrations.paths` into a readonly
+// tuple, which Lucid's config type rejects (it wants a mutable string[]).
+// The client literal is pinned individually instead.
 const baseConnection = {
-  client: 'pg',
+  client: 'pg' as const,
   connection: {
     host: env.get('DB_HOST'),
     port: env.get('DB_PORT'),
@@ -15,7 +18,7 @@ const baseConnection = {
     naturalSort: true,
     paths: ['./database/migrations/backoffice'],
   },
-} as const
+}
 
 // Pool sizing: backoffice/central are *shared* connections used by every
 // request, so they get a generous pool. The `tenant` template is cloned per

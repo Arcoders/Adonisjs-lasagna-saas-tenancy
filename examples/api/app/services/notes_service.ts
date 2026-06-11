@@ -1,5 +1,6 @@
 import { tenantLogger } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
+import type Tenant from '#app/models/backoffice/tenant'
 import type { DemoMeta } from '#app/models/backoffice/tenant'
 
 export interface CreateNoteInput {
@@ -31,20 +32,28 @@ const INSERT_NOTE_SQL =
  * minimal worked example. Real apps usually extend `TenantBaseModel`.
  */
 export default class NotesService {
+  /**
+   * `request.tenant()` hands back the v2 contract, which deliberately
+   * dropped `getConnection` (connection routing lives on the isolation
+   * driver now). The runtime object is this app's own Tenant model, whose
+   * `getConnection()` the demo keeps for raw-SQL access — narrow once here.
+   */
+  #model(tenant: TenantModelContract<DemoMeta>): Tenant {
+    return tenant as Tenant
+  }
+
   async list(tenant: TenantModelContract<DemoMeta>): Promise<NoteRow[]> {
-    const result = await tenant.getConnection().rawQuery(SELECT_NOTES_SQL)
+    const result = await this.#model(tenant).getConnection().rawQuery(SELECT_NOTES_SQL)
     ;(await tenantLogger()).info({ count: result.rows.length }, 'listed notes')
     return result.rows
   }
 
-  async listFromReplica(
-    tenant: TenantModelContract<DemoMeta>
-  ): Promise<ReplicaListResult> {
+  async listFromReplica(tenant: TenantModelContract<DemoMeta>): Promise<ReplicaListResult> {
     // Falls back to the primary connection when no replica is configured OR
     // when the tenant model doesn't implement the optional method.
     const conn = tenant.getReadConnection
       ? await tenant.getReadConnection()
-      : tenant.getConnection()
+      : this.#model(tenant).getConnection()
     const result = await conn.rawQuery(SELECT_NOTES_SQL)
     return {
       readFrom: conn.connectionName,
@@ -53,14 +62,11 @@ export default class NotesService {
     }
   }
 
-  async create(
-    tenant: TenantModelContract<DemoMeta>,
-    input: CreateNoteInput
-  ): Promise<NoteRow> {
+  async create(tenant: TenantModelContract<DemoMeta>, input: CreateNoteInput): Promise<NoteRow> {
     // knex's bindings type rejects `null` literals; cast at the call site
     // because rawQuery passes them through to pg unchanged.
     const bindings = [input.title, input.body ?? null] as unknown as string[]
-    const result = await tenant.getConnection().rawQuery(INSERT_NOTE_SQL, bindings)
+    const result = await this.#model(tenant).getConnection().rawQuery(INSERT_NOTE_SQL, bindings)
     const row = result.rows[0] as NoteRow
     ;(await tenantLogger()).info({ noteId: row.id }, 'note created')
     return row

@@ -23,6 +23,11 @@ export interface DemoMeta {
   plan: 'free' | 'pro'
   tier: 'standard' | 'premium'
   industry?: string
+  // The contract's TenantMetadata is Record<string, unknown>; this index
+  // signature keeps DemoMeta assignable to it, so values typed
+  // TenantModelContract<DemoMeta> flow into package APIs that take the
+  // default TenantModelContract without casts.
+  [key: string]: unknown
 }
 
 const MAX_TENANT_CONNECTIONS = 50

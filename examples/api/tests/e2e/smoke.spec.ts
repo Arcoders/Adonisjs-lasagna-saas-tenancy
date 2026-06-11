@@ -13,8 +13,8 @@ test.group('smoke — testing helpers', () => {
     const tenant = buildTestTenant<DemoMeta>({
       metadata: { plan: 'pro', tier: 'premium', industry: 'demo' },
     })
-    assert.equal(tenant.metadata.plan, 'pro')
-    assert.equal(tenant.metadata.tier, 'premium')
+    assert.equal(tenant.metadata?.plan, 'pro')
+    assert.equal(tenant.metadata?.tier, 'premium')
     assert.equal(tenant.status, 'active')
   })
 

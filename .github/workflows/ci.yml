@@ -49,6 +49,12 @@ jobs:
       - name: Typecheck (benchmarks workspace)
         run: npm run typecheck:benchmarks
 
+      # The demo resolves the packages through their build/*.d.ts (built above).
+      # Gated since the deployment audit: it had been silently red for a while
+      # because nothing ran it.
+      - name: Typecheck (example app)
+        run: npm run typecheck --workspace @adonisjs-lasagna/saas-tenancy-example-api
+
       # Lint is a hard gate. The baseline of pre-existing findings was cleared
       # (eslint rules + prettier); CRLF-only prettier diffs don't surface here
       # because the Linux checkout is LF (.gitattributes `eol=lf`).

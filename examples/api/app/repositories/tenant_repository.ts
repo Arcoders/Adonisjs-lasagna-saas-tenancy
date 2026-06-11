@@ -3,6 +3,7 @@ import type {
   TenantRepositoryContract,
   TenantModelContract,
   TenantStatus,
+  EachOptions,
 } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
@@ -39,6 +40,25 @@ export default class TenantRepository implements TenantRepositoryContract {
     const query = Tenant.query().whereIn('id', ids)
     if (!includeDeleted) query.whereNull('deleted_at')
     return query
+  }
+
+  async each(
+    callback: (tenant: TenantModelContract) => Promise<void> | void,
+    options: EachOptions = {}
+  ): Promise<void> {
+    const batchSize = Math.max(1, options.batchSize ?? 100)
+    let page = 1
+    while (true) {
+      const query = Tenant.query().orderBy('id', 'asc')
+      if (!options.includeDeleted) query.whereNull('deleted_at')
+      if (options.statuses?.length) query.whereIn('status', options.statuses)
+      const result = await query.paginate(page, batchSize)
+      for (const tenant of result.all()) {
+        await callback(tenant)
+      }
+      if (!result.hasMorePages) break
+      page += 1
+    }
   }
 
   async create(data: {

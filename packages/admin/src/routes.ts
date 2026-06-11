@@ -9,11 +9,18 @@ import SsoController from './controllers/sso_controller.js'
 import MetricsController from './controllers/metrics_controller.js'
 import QuotasController from './controllers/quotas_controller.js'
 
-export type AdminRouteMiddleware =
+/**
+ * One middleware entry, in any of the shapes Adonis' `group.use(...)`
+ * accepts at runtime: a registered middleware name, a middleware function,
+ * or a named-middleware reference produced by `router.named(...)` (the
+ * `middleware.adminAuth()` shape, which carries a `handle` method).
+ */
+type AdminMiddlewareEntry =
   | string
-  | string[]
   | ((...args: any[]) => any)
-  | Array<string | ((...args: any[]) => any)>
+  | { name?: string; handle: (...args: any[]) => any }
+
+export type AdminRouteMiddleware = AdminMiddlewareEntry | AdminMiddlewareEntry[]
 
 /**
  * Hook that resolves the acting admin's id from the authenticated request.
