@@ -165,6 +165,28 @@ export default defineConfig({
 })
 ```
 
+The full branch order the adapter follows for a model query, including
+the escape hatches that bypass resolution entirely. An id taken from the
+active context routes straight to a connection; an id recovered from the
+request fallback is validated as a UUID v4 first.
+
+```mermaid
+flowchart TB
+  Q["Model query on a TenantBaseModel"] --> EX{"Explicit client or<br/>connection on the query?"}
+  EX -->|yes| USE["Use the explicit connection"]
+  EX -->|no| CTX{"Active tenant context?<br/>(guard ran, or tenancy.run)"}
+  CTX -->|yes| CONN["connection =<br/>tenantConnectionNamePrefix + id"]
+  CTX -->|no| HTTP{"Inside an HTTP request?"}
+  HTTP -->|no| ERR["MissingTenantHeaderException"]
+  HTTP -->|yes| LEG{"resolver.legacyAdapterFallback"}
+  LEG -->|"false (default)"| CHAIN["resolveSync over the chain,<br/>async resolvers are skipped"]
+  LEG -->|true| STRAT["resolverStrategy only<br/>(0.x behavior)"]
+  CHAIN --> V{"Valid UUID v4?"}
+  STRAT --> V
+  V -->|yes| CONN
+  V -->|"no, or nothing resolved"| ERR
+```
+
 <Callout type="tip" title="When this matters">
 If you rely on a <em>custom</em> resolver (or a chain) and you query tenant
 models outside the request guard, the default already routes those fallback
