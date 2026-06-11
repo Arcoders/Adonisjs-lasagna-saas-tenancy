@@ -56,6 +56,7 @@ export default {
     redis: {
       host: env.get('QUEUE_REDIS_HOST'),
       port: env.get('QUEUE_REDIS_PORT'),
+      password: env.get('REDIS_PASSWORD'),
       db: env.get('QUEUE_REDIS_DB'),
     },
   },
@@ -100,6 +101,7 @@ export default {
     redis: {
       host: env.get('CACHE_REDIS_HOST'),
       port: env.get('CACHE_REDIS_PORT'),
+      password: env.get('REDIS_PASSWORD'),
       db: env.get('CACHE_REDIS_DB'),
     },
   },

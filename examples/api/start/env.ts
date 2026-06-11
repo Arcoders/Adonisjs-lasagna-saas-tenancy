@@ -22,6 +22,9 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   REDIS_HOST: Env.schema.string({ format: 'host' }),
   REDIS_PORT: Env.schema.number(),
+  // Optional: local dev runs an open Redis; the deploy e2e stack (and any
+  // real deployment) runs requirepass, so the demo must wire it through.
+  REDIS_PASSWORD: Env.schema.string.optional(),
 
   QUEUE_REDIS_HOST: Env.schema.string({ format: 'host' }),
   QUEUE_REDIS_PORT: Env.schema.number(),

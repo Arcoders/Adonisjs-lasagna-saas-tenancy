@@ -100,6 +100,11 @@ services:
 
   app:
     build:
+      # This file is a TEMPLATE: copy deploy/ into your application repo,
+      # where `..` resolves to your AdonisJS app root (the Dockerfile runs
+      # `node ace build`). Inside this monorepo that context is the repo
+      # root — not an app — so the runnable, CI-tested variant of this
+      # topology is docker-compose.e2e.yml.
       context: ..
       dockerfile: deploy/Dockerfile
     image: lasagna-app:latest
@@ -134,6 +139,36 @@ services:
       resources:
         limits:
           memory: 768M
+    restart: unless-stopped
+
+  # Tenant provisioning (and the package's other background jobs) ride on
+  # BullMQ — without a worker process, every `tenant:create` sits in
+  # `provisioning` forever. Scale workers independently of HTTP replicas.
+  worker:
+    image: lasagna-app:latest
+    command: ['node', 'ace', 'queue:work']
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      APP_KEY: ${APP_KEY}
+      DB_HOST: postgres-primary
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: ${DB_NAME}
+      DB_REPLICA_HOST: postgres-replica
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      LOG_LEVEL: info
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     restart: unless-stopped
 
   nginx:

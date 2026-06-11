@@ -40,8 +40,10 @@ function treeKill(pid: number): void {
 
 function bootWithEnv(env: NodeJS.ProcessEnv): Promise<BootResult> {
   return new Promise((resolvePromise, rejectPromise) => {
-    // shell: true so `npx` resolves on both POSIX and Windows (npx.cmd).
-    const child = spawn('npx tsx bin/server.ts', {
+    // The real production entrypoint (`npm start`, deploy images): ts-exec,
+    // not tsx, because @inject() needs decorator metadata tsx cannot emit.
+    // shell: true so the command resolves on both POSIX and Windows.
+    const child = spawn('node --import=@poppinss/ts-exec bin/server.ts', {
       cwd: process.cwd(),
       env,
       shell: true,

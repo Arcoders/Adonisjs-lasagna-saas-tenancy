@@ -51,7 +51,13 @@ ENV HOST=0.0.0.0 \
 
 EXPOSE 3333
 
+# ts-exec, not tsx: the app relies on legacy decorators + design:paramtypes
+# for container injection, which tsx (esbuild) cannot emit. `ace serve` and
+# `ace test` install the same hooks in their child processes, which is why
+# dev and the test suite work while a bare `tsx bin/server.ts` boots an app
+# whose @inject() controllers cannot be constructed.
+#
 # No HEALTHCHECK here on purpose — deploy/docker-compose.e2e.yml owns the
 # /readyz probe so the gate lives next to the topology it protects.
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["npx", "tsx", "bin/server.ts"]
+CMD ["node", "--import=@poppinss/ts-exec", "bin/server.ts"]
