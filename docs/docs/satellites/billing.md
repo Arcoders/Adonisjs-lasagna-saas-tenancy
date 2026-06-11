@@ -112,25 +112,24 @@ Mounts `POST /webhooks/stripe` (or `webhook.path`), gated by
 [VerifyStripeWebhookMiddleware](#middleware), behind a route name of
 `billing.webhook`.
 
-End-to-end flow:
+End-to-end flow, including what happens to the `stripe_processed_events`
+row at each step. Rows stay `pending` while queue retries are in flight;
+`failed` rows are the replayable dead-letter set (see the
+[incident runbook](#incident-runbook)).
 
-```
-Stripe ─► POST /webhooks/stripe
-  ├─ VerifyStripeWebhookMiddleware
-  │   ├─ optional IP allowlist (literal + CIDR via node:net.BlockList)
-  │   ├─ HMAC-SHA256 signature verify (stripe-signature header)
-  │   └─ attach verified event to request.stripeEvent
-  │
-  ├─ StripeWebhookController
-  │   └─ INSERT INTO stripe_processed_events ... ON CONFLICT (event_id) DO NOTHING
-  │       ├─ rowCount = 0 ⇒ duplicate ⇒ return 200 (no dispatch)
-  │       └─ rowCount = 1 ⇒ ProcessStripeEventJob.dispatch({ eventId })
-  │
-  └─ ProcessStripeEventJob.execute()
-      ├─ retrieveEvent(eventId)        ; re-fetch from Stripe (or local payload jsonb fallback)
-      ├─ ordering guard via last_event_at
-      ├─ syncSubscription / dispatch table per event type
-      └─ mark stripe_processed_events.status='completed'
+```mermaid
+flowchart TB
+  WH["Stripe POST /webhooks/stripe"] --> SIG{"VerifyStripeWebhookMiddleware<br/>optional IP allowlist + HMAC-SHA256"}
+  SIG -->|invalid| REJ["rejected, invalid_signature"]
+  SIG -->|verified| INS["INSERT INTO stripe_processed_events<br/>ON CONFLICT DO NOTHING, status pending"]
+  INS -->|"rowCount 0 (duplicate)"| ACK["200, no dispatch"]
+  INS -->|"rowCount 1"| JOB["ProcessStripeEventJob<br/>re-fetch event, attempts + 1"]
+  JOB --> H["ordering guard, then the<br/>per-event-type dispatch table"]
+  H -->|"handled (stale events skip the write)"| DONE["status completed"]
+  H -->|retryable error| RET["status stays pending, lastError set"]
+  RET -->|queue retry| JOB
+  H -->|"fatal error, or retries exhausted"| FAIL["status failed<br/>BillingEventDeadLettered"]
+  FAIL --> REP["tenant:billing:replay<br/>failed back to pending, attempts kept"]
 ```
 
 The `INSERT ... ON CONFLICT DO NOTHING` is the atomicity primitive —
@@ -205,6 +204,21 @@ On `invoice.payment_failed`:
     keeps the original plan, so a successful retry's
     `customer.subscription.updated(active)` restores the upgraded
     plan automatically.
+
+The same flow drawn out, recovery path included. The downgrade touches
+quotas only, so a later successful retry restores the paid plan without
+operator action.
+
+```mermaid
+flowchart TB
+  F["invoice.payment_failed<br/>attempts = invoice.attempt_count"] --> FIN{"attempts >= dunning.maxAttempts?"}
+  FIN -->|no| NF["PaymentFailed final=false<br/>with attempts and nextRetry"]
+  FIN -->|yes| PD["stripe_subscriptions.status = past_due<br/>PaymentFailed final=true"]
+  PD --> ACT{"dunning.action"}
+  ACT -->|none| HOST["host listener owns the UX (default)"]
+  ACT -->|downgrade| DG["assignPlan(defaultPlan, source dunning)<br/>quota-only, planName unchanged"]
+  S["invoice.payment_succeeded"] --> REC["past_due or unpaid back to active,<br/>subscription.updated restores the plan"]
+```
 
 > `gracePeriodDays` is currently a no-op (the value is read but the
 > action fires immediately). Listen for `PaymentFailed{final:true}`
