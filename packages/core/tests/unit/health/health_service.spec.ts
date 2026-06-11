@@ -93,6 +93,76 @@ test.group('HealthService — readiness with checks', () => {
   })
 })
 
+test.group('HealthService — critical checks', () => {
+  test('a failing critical check forces fail even when every other check passes', async ({
+    assert,
+  }) => {
+    const svc = new HealthService()
+    svc.addCheck('db', () => ({ status: 'fail', durationMs: 0, message: 'down' }), {
+      critical: true,
+    })
+    svc.addCheck('redis', () => ({ status: 'pass', durationMs: 0 }))
+    svc.addCheck('circuits', () => ({ status: 'pass', durationMs: 0 }))
+
+    const report = await svc.readiness()
+    assert.equal(report.status, 'fail')
+    assert.equal(report.checks.db.status, 'fail')
+  })
+
+  test('the failing critical check is marked critical in the report', async ({ assert }) => {
+    const svc = new HealthService()
+    svc.addCheck('db', () => ({ status: 'fail', durationMs: 0 }), { critical: true })
+    svc.addCheck('redis', () => ({ status: 'pass', durationMs: 0 }))
+
+    const report = await svc.readiness()
+    assert.isTrue(report.checks.db.critical)
+    assert.isUndefined(report.checks.redis.critical)
+  })
+
+  test('a failing non-critical check among passes still reads degraded', async ({ assert }) => {
+    const svc = new HealthService()
+    svc.addCheck('db', () => ({ status: 'pass', durationMs: 0 }), { critical: true })
+    svc.addCheck('optional', () => ({ status: 'fail', durationMs: 0 }))
+
+    const report = await svc.readiness()
+    assert.equal(report.status, 'degraded')
+  })
+
+  test('two-argument addCheck keeps the legacy semantics (no critical escalation)', async ({
+    assert,
+  }) => {
+    const svc = new HealthService()
+    svc.addCheck('a', () => ({ status: 'fail', durationMs: 0 }))
+    svc.addCheck('b', () => ({ status: 'pass', durationMs: 0 }))
+
+    const report = await svc.readiness()
+    assert.equal(report.status, 'degraded')
+  })
+
+  test('a critical check that times out forces fail and keeps the timeout message', async ({
+    assert,
+  }) => {
+    const svc = new HealthService()
+    svc.addCheck('hang', () => new Promise(() => {}), { critical: true })
+    svc.addCheck('redis', () => ({ status: 'pass', durationMs: 0 }))
+
+    const report = await svc.readiness(50)
+    assert.equal(report.status, 'fail')
+    assert.isTrue(report.checks.hang.critical)
+    assert.match(report.checks.hang.message ?? '', /timeout/)
+  })
+
+  test('a passing critical check does not affect the aggregate', async ({ assert }) => {
+    const svc = new HealthService()
+    svc.addCheck('db', () => ({ status: 'pass', durationMs: 0 }), { critical: true })
+    svc.addCheck('redis', () => ({ status: 'pass', durationMs: 0 }))
+
+    const report = await svc.readiness()
+    assert.equal(report.status, 'ok')
+    assert.isTrue(report.checks.db.critical)
+  })
+})
+
 test.group('HealthService — registry helpers', () => {
   test('hasCheck reflects registration', ({ assert }) => {
     const svc = new HealthService()
@@ -106,5 +176,14 @@ test.group('HealthService — registry helpers', () => {
     svc.addCheck('foo', () => ({ status: 'pass', durationMs: 0 }))
     svc.removeCheck('foo')
     assert.isFalse(svc.hasCheck('foo'))
+  })
+
+  test('isCritical reflects the registration option', ({ assert }) => {
+    const svc = new HealthService()
+    svc.addCheck('hard', () => ({ status: 'pass', durationMs: 0 }), { critical: true })
+    svc.addCheck('soft', () => ({ status: 'pass', durationMs: 0 }))
+    assert.isTrue(svc.isCritical('hard'))
+    assert.isFalse(svc.isCritical('soft'))
+    assert.isFalse(svc.isCritical('missing'))
   })
 })
