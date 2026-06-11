@@ -12,6 +12,27 @@ API and get full payload typing for free.
 
 ## Tenant lifecycle
 
+The states behind these events, with the event each transition emits and
+the HTTP answer the guard gives while a tenant sits in each state.
+Maintenance is deliberately not a state: it is a separate flag that can
+be set on an active tenant (`TenantEnteredMaintenance` /
+`TenantExitedMaintenance`), and the guard answers
+`503 E_TENANT_MAINTENANCE` with a `Retry-After` header while it is on.
+
+```mermaid
+stateDiagram-v2
+  [*] --> provisioning: TenantCreated
+  provisioning --> active: TenantProvisioned
+  provisioning --> failed: provision error
+  failed --> provisioning: queue retry of InstallTenant
+  active --> suspended: TenantSuspended
+  suspended --> active: TenantActivated
+  active --> deleted: TenantDeleted (soft delete)
+  deleted --> [*]
+  note right of provisioning: guard answers 503 E_TENANT_NOT_READY (also for failed)
+  note right of suspended: guard answers 403 E_TENANT_SUSPENDED (also when soft deleted)
+```
+
 | Event | Payload | Dispatched by |
 |---|---|---|
 | `TenantCreated` | `tenant` | `tenant:create` command, `POST /admin/.../tenants` |
