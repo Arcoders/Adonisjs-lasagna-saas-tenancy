@@ -40,14 +40,13 @@ jobs:
       - name: Build satellite packages (sso, billing, admin, backup)
         run: npm run build:sso && npm run build:billing && npm run build:admin && npm run build:backup
 
-      - name: Typecheck
+      # One gate for every workspace with a typecheck script (--workspaces
+      # --if-present), so adding a package or example can't reopen the gap
+      # the demo app fell into when nothing ran its typecheck. Must run AFTER
+      # the builds above: satellites, demo and benchmarks all resolve
+      # @adonisjs-lasagna/* through each package's build/*.d.ts.
+      - name: Typecheck (all workspaces)
         run: npm run typecheck
-
-      # The benchmarks workspace imports the built core (public subpaths + a few
-      # exact-file deep imports), so it must run AFTER the core build above. Its
-      # own tsconfig covers the fixture app + harness + all four bench tiers.
-      - name: Typecheck (benchmarks workspace)
-        run: npm run typecheck:benchmarks
 
       # Lint is a hard gate. The baseline of pre-existing findings was cleared
       # (eslint rules + prettier); CRLF-only prettier diffs don't surface here
@@ -324,6 +323,76 @@ jobs:
       - name: Run e2e suite
         working-directory: examples/api
         run: npx tsx ace.ts test e2e
+
+  deploy-validate:
+    name: Deploy assets (static validation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Catches interpolation typos and schema drift in the compose files
+      # without booting anything. The prod file needs an env file because it
+      # requires APP_KEY/DB_*/REDIS_PASSWORD at interpolation time.
+      - name: Validate docker compose files
+        run: |
+          cp deploy/docker-compose.prod.example.env .env.compose-check
+          docker compose -f deploy/docker-compose.prod.yml --env-file .env.compose-check config -q
+          docker compose -f deploy/docker-compose.e2e.yml config -q
+
+      - name: Helm lint
+        run: helm lint deploy/charts/lasagna-app
+
+      # kubeconform validates the rendered manifests against the upstream
+      # Kubernetes JSON schemas — `helm template` alone accepts YAML the API
+      # server would reject. Pinned so the gate stays deterministic.
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar xz kubeconform
+          sudo mv kubeconform /usr/local/bin/kubeconform
+          kubeconform -v
+
+      - name: Helm template + kubeconform (default values)
+        run: helm template smoke deploy/charts/lasagna-app | kubeconform -strict -summary
+
+      - name: Helm template + kubeconform (production values)
+        run: |
+          helm template smoke deploy/charts/lasagna-app \
+            -f deploy/charts/lasagna-app/values.production.yaml \
+            | kubeconform -strict -summary
+
+  deploy-e2e:
+    name: Deploy E2E (compose stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Build once with the GHA layer cache (the npm-install layer survives
+      # source-only changes), then hand the tag to the smoke script so
+      # compose doesn't rebuild.
+      - name: Build demo image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: examples/api/Dockerfile
+          load: true
+          tags: lasagna-demo:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Boots deploy/docker-compose.e2e.yml (pg primary + streaming replica,
+      # password-protected redis, 2 app replicas + queue worker, nginx) and
+      # proves the deployment claims end to end: probes through the proxy,
+      # queue-driven tenant provisioning, isolation via nginx, replica reads,
+      # primary-outage -> 503 -> recovery, and fail-fast on missing APP_KEY.
+      # The script dumps compose logs itself on failure before tearing down.
+      - name: Run deploy smoke
+        env:
+          LASAGNA_DEMO_IMAGE: lasagna-demo:ci
+        run: bash deploy/scripts/deploy-smoke.sh
 
   coverage-report:
     name: Aggregate coverage (unit + integration)

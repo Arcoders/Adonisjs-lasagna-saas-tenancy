@@ -1,45 +1,24 @@
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import HealthService from './health_service.js'
-import { backofficeDbCheck, redisCheck, makeCircuitBreakerCheck } from './default_checks.js'
 import { collectSnapshot } from './metrics_collector.js'
 import { renderPrometheus } from './metrics_exporter.js'
-import CircuitBreakerService from '../services/circuit_breaker_service.js'
 
-let bootstrapped = false
-
-async function bootstrapDefaultChecks(): Promise<HealthService> {
-  const svc = await app.container.make(HealthService)
-  if (bootstrapped) return svc
-
-  if (!svc.hasCheck('backoffice_db')) svc.addCheck('backoffice_db', backofficeDbCheck)
-  if (!svc.hasCheck('redis')) svc.addCheck('redis', redisCheck)
-  if (!svc.hasCheck('circuit_breakers')) {
-    svc.addCheck(
-      'circuit_breakers',
-      makeCircuitBreakerCheck(async () => {
-        try {
-          const cb = await app.container.make(CircuitBreakerService)
-          return cb.getAllMetrics()
-        } catch {
-          return {}
-        }
-      })
-    )
-  }
-
-  bootstrapped = true
-  return svc
-}
-
+/**
+ * The default check set (backoffice_db, redis, circuit_breakers) is
+ * registered by the provider's `boot()` — see
+ * `registerDefaultChecks()` in default_checks.ts. The controller is
+ * stateless: it serves whatever the service holds at probe time, so a
+ * host that overrode or removed a default never has it resurrected here.
+ */
 export default class HealthController {
   async livez({ response }: HttpContext) {
-    const svc = await bootstrapDefaultChecks()
+    const svc = await app.container.make(HealthService)
     return response.ok(svc.liveness())
   }
 
   async readyz({ response }: HttpContext) {
-    const svc = await bootstrapDefaultChecks()
+    const svc = await app.container.make(HealthService)
     const report = await svc.readiness()
     if (report.status === 'fail') return response.serviceUnavailable(report)
     return response.ok(report)

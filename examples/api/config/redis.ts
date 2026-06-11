@@ -8,6 +8,7 @@ const redisConfig = defineConfig({
     default: {
       host: env.get('REDIS_HOST'),
       port: env.get('REDIS_PORT'),
+      password: env.get('REDIS_PASSWORD'),
       db: 0,
       keyPrefix: '',
       retryStrategy(times) {
@@ -17,6 +18,7 @@ const redisConfig = defineConfig({
     queue: {
       host: env.get('QUEUE_REDIS_HOST'),
       port: env.get('QUEUE_REDIS_PORT'),
+      password: env.get('REDIS_PASSWORD'),
       db: env.get('QUEUE_REDIS_DB'),
       keyPrefix: '',
       retryStrategy(times) {
@@ -26,6 +28,7 @@ const redisConfig = defineConfig({
     cache: {
       host: env.get('CACHE_REDIS_HOST'),
       port: env.get('CACHE_REDIS_PORT'),
+      password: env.get('REDIS_PASSWORD'),
       db: env.get('CACHE_REDIS_DB'),
       keyPrefix: '',
       retryStrategy(times) {

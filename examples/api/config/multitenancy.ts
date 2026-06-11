@@ -56,6 +56,7 @@ export default {
     redis: {
       host: env.get('QUEUE_REDIS_HOST'),
       port: env.get('QUEUE_REDIS_PORT'),
+      password: env.get('REDIS_PASSWORD'),
       db: env.get('QUEUE_REDIS_DB'),
     },
   },
@@ -100,6 +101,7 @@ export default {
     redis: {
       host: env.get('CACHE_REDIS_HOST'),
       port: env.get('CACHE_REDIS_PORT'),
+      password: env.get('REDIS_PASSWORD'),
       db: env.get('CACHE_REDIS_DB'),
     },
   },
@@ -156,11 +158,13 @@ export default {
   },
 
   // ─── Read replica routing ────────────────────────────────────────
-  // In docker-compose we only have one Postgres — pointing the "replica"
-  // at the same host is fine for demonstrating the routing API.
-  // Disable by removing this block.
+  // Local dev runs a single Postgres, so the "replica" falls back to the
+  // primary host — enough to demonstrate the routing API. The deploy e2e
+  // stack (deploy/docker-compose.e2e.yml) sets DB_REPLICA_HOST to a real
+  // streaming standby, so reads on the `_read` connection genuinely leave
+  // the primary. Disable by removing this block.
   tenantReadReplicas: {
-    hosts: [{ host: env.get('DB_HOST'), name: 'demo-replica-1' }],
+    hosts: [{ host: env.get('DB_REPLICA_HOST', env.get('DB_HOST')), name: 'demo-replica-1' }],
     strategy: 'sticky',
     connectionSuffix: '_read',
   },

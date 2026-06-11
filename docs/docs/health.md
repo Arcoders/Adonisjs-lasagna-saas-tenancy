@@ -16,32 +16,41 @@ Mount the routes from `start/routes.ts`:
 ```ts
 import { multitenancyRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
 
-multitenancyRoutes()                              // root paths
-multitenancyRoutes({ prefix: '/internal' })        // /internal/livez, etc.
-multitenancyRoutes({ metrics: false })             // skip /metrics
+multitenancyRoutes() // root paths
+multitenancyRoutes({ prefix: '/internal' }) // /internal/livez, etc.
+multitenancyRoutes({ metrics: false }) // skip /metrics
 ```
 
 Four endpoints are exposed by default:
 
-| Path | Purpose | Status code |
-|---|---|---|
-| `GET /livez` | Liveness — process is up. Never touches DB or Redis. | Always `200` while the event loop is alive |
-| `GET /readyz` | Readiness — every registered check passes | `200` when `ok` or `degraded`; `503` when `fail` |
-| `GET /healthz` | Same data as `/readyz`, full JSON report | `200` / `503` |
-| `GET /metrics` | Prometheus text exposition (snapshot of tenants, circuits, queues, uptime) | `200` |
+| Path           | Purpose                                                                    | Status code                                      |
+| -------------- | -------------------------------------------------------------------------- | ------------------------------------------------ |
+| `GET /livez`   | Liveness — process is up. Never touches DB or Redis.                       | Always `200` while the event loop is alive       |
+| `GET /readyz`  | Readiness — every registered check passes                                  | `200` when `ok` or `degraded`; `503` when `fail` |
+| `GET /healthz` | Same data as `/readyz`, full JSON report                                   | `200` / `503`                                    |
+| `GET /metrics` | Prometheus text exposition (snapshot of tenants, circuits, queues, uptime) | `200`                                            |
 
 Each one is opt-in via `multitenancyRoutes({ health: false, metrics: false })` so you can host them under your own auth middleware:
 
 ```ts
 import router from '@adonisjs/core/services/router'
-router.group(() => multitenancyRoutes()).prefix('/_ops').use([adminAuth])
+router
+  .group(() => multitenancyRoutes())
+  .prefix('/_ops')
+  .use([adminAuth])
 ```
 
 ## Built-in checks
 
-Lasagna registers no checks by default — they're explicit so you can
-control timeouts, dependencies, and ordering. The package exports
-three ready-to-use checks:
+The provider registers three default checks during `boot()`:
+`backoffice_db` (critical), `redis` (critical) and `circuit_breakers`
+(non-critical). Your own providers boot after the package's, so a check
+you `addCheck()` under one of those names replaces the default, and
+`removeCheck()` opts it out entirely — nothing re-registers behind your
+back at probe time. The same registration the provider runs is exported
+as `registerDefaultChecks(healthService)`, and the individual checks are
+exported too when you want to control criticality, timeouts or ordering
+yourself:
 
 ```ts
 import app from '@adonisjs/core/services/app'
@@ -56,20 +65,28 @@ import { CircuitBreakerService } from '@adonisjs-lasagna/saas-tenancy/services'
 const health = await app.container.make(HealthService)
 const breaker = await app.container.make(CircuitBreakerService)
 
-health.addCheck('backoffice_db', backofficeDbCheck)
-health.addCheck('redis', redisCheck)
+health.addCheck('backoffice_db', backofficeDbCheck, { critical: true })
+health.addCheck('redis', redisCheck, { critical: true })
 health.addCheck(
   'circuits',
   makeCircuitBreakerCheck(() => breaker.allMetrics())
 )
 ```
 
-| Check | What it does | When it fails |
-|---|---|---|
-| `backofficeDbCheck` | `SELECT 1` against the backoffice connection | DB unreachable, credentials wrong |
-| `redisCheck` | `PING` against the default Redis | Redis down or misconfigured |
-| `makeCircuitBreakerCheck(fn)` | Reports `fail` if any tenant circuit is `OPEN` | One or more tenant DBs are tripped |
-| `billingHealthCheck` | Pings the Stripe API + asserts webhooks are flowing (when active subs exist) | API unreachable, webhook secret missing, or last processed > 15 min |
+A check registered with `{ critical: true }` pulls the pod on its own: if
+it fails, the aggregate status is `fail` and `/readyz` answers 503 even
+while every other check passes. Use it for dependencies without which the
+pod cannot serve a single request; that's why the defaults mark the
+backoffice database and Redis critical. `health.isCritical(name)` reports
+how a check was registered, and the per-check entry in the report carries
+`critical: true` so the 503 body explains which check pulled the pod.
+
+| Check                         | What it does                                                                 | When it fails                                                       |
+| ----------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `backofficeDbCheck`           | `SELECT 1` against the backoffice connection                                 | DB unreachable, credentials wrong                                   |
+| `redisCheck`                  | `PING` against the default Redis                                             | Redis down or misconfigured                                         |
+| `makeCircuitBreakerCheck(fn)` | Reports `fail` if any tenant circuit is `OPEN`                               | One or more tenant DBs are tripped                                  |
+| `billingHealthCheck`          | Pings the Stripe API + asserts webhooks are flowing (when active subs exist) | API unreachable, webhook secret missing, or last processed > 15 min |
 
 When billing is enabled, register `billingHealthCheck` alongside the
 others. The check skips quietly when `config.billing` is unset, so
@@ -123,9 +140,14 @@ in `message`.
 The aggregate `/readyz` status is:
 
 - `ok` — every check passed (or no checks registered)
-- `degraded` — at least one passed, at least one failed (`200` so
-  Kubernetes keeps routing traffic but the dashboard reflects the issue)
-- `fail` — every check failed (`503`, traffic is removed)
+- `degraded` — at least one non-critical check failed while the rest
+  passed (`200` so Kubernetes keeps routing traffic but the dashboard
+  reflects the issue)
+- `fail` — any **critical** check failed, or every check failed (`503`,
+  traffic is removed)
+
+These semantics are pinned over real HTTP by
+`packages/core/tests/integration/health/readyz_http.spec.ts`.
 
 ## Prometheus metrics
 

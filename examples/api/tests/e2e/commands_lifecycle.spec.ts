@@ -39,10 +39,18 @@ test.group('e2e — tenant lifecycle CLI commands', (group) => {
     const { id } = await createInstalledTenant(client, { migrate: false })
 
     assert.equal(await runAce('tenant:suspend', [id]), 0)
-    assert.equal((await Tenant.findOrFail(id)).status, 'suspended', 'status is suspended after tenant:suspend')
+    assert.equal(
+      (await Tenant.findOrFail(id)).status,
+      'suspended',
+      'status is suspended after tenant:suspend'
+    )
 
     assert.equal(await runAce('tenant:activate', [id]), 0)
-    assert.equal((await Tenant.findOrFail(id)).status, 'active', 'status is active after tenant:activate')
+    assert.equal(
+      (await Tenant.findOrFail(id)).status,
+      'active',
+      'status is active after tenant:activate'
+    )
   })
 
   test('tenant:import loads a .sql dump into the tenant schema', async ({ client, assert }) => {
@@ -67,7 +75,11 @@ test.group('e2e — tenant lifecycle CLI commands', (group) => {
         .getConnection()
         .rawQuery(`SELECT title FROM notes WHERE title LIKE 'Imported %' ORDER BY title`)
       const titles = rows.rows.map((r: { title: string }) => r.title)
-      assert.deepEqual(titles, ['Imported A', 'Imported B'], 'both rows from the dump landed in the tenant schema')
+      assert.deepEqual(
+        titles,
+        ['Imported A', 'Imported B'],
+        'both rows from the dump landed in the tenant schema'
+      )
     } finally {
       await rm(file, { force: true })
     }
@@ -80,7 +92,9 @@ test.group('e2e — tenant lifecycle CLI commands', (group) => {
     await writeFile(file, `INSERT INTO notes (title, body) VALUES ('DryRun', 'x');\n`, 'utf8')
     try {
       assert.equal(await runAce('tenant:import', ['--tenant', id, '--file', file, '--dry-run']), 0)
-      const rows = await tenant.getConnection().rawQuery(`SELECT 1 FROM notes WHERE title = 'DryRun'`)
+      const rows = await tenant
+        .getConnection()
+        .rawQuery(`SELECT 1 FROM notes WHERE title = 'DryRun'`)
       assert.lengthOf(rows.rows, 0, 'dry-run must not write any rows')
     } finally {
       await rm(file, { force: true })
@@ -149,6 +163,9 @@ test.group('e2e — tenant lifecycle CLI commands', (group) => {
     // TenantGuardMiddleware must now block the request.
     const blocked = await client.get('/demo/connection').headers(headers)
     assert.equal(blocked.status(), 503, 'tenant-scoped route returns 503 while in maintenance')
+    const retryAfter = blocked.headers()['retry-after']
+    assert.exists(retryAfter, 'maintenance 503 must carry a Retry-After header')
+    assert.isFalse(Number.isNaN(Number(retryAfter)), 'Retry-After must be numeric seconds')
 
     // Exit maintenance — flips the column. Not asserting route-reachable here:
     // the gate is cached for schemaCacheTtl and bust-on-exit needs a host-wired

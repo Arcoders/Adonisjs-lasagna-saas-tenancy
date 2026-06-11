@@ -96,9 +96,13 @@ export interface TenantRepositoryContract<TMeta extends object = TenantMetadata>
   }): Promise<TenantModelContract<TMeta>[]>
   whereIn(ids: string[], includeDeleted?: boolean): Promise<TenantModelContract<TMeta>[]>
   /**
-   * Iterate over tenants in cursor-paginated batches. Memory-safe for large
-   * tenant counts. The callback runs sequentially per tenant; throw inside it
-   * to abort iteration.
+   * Iterate over tenants in cursor-paginated batches (keyset on the primary
+   * key, not OFFSET). Memory-safe for large tenant counts and stable under
+   * mutation: a callback that creates, deletes or status-changes tenants
+   * mid-iteration cannot shift the cursor, so every row that still matches
+   * the filters when its batch is fetched is visited exactly once. The
+   * callback runs sequentially per tenant; throw inside it to abort
+   * iteration.
    */
   each(
     callback: (tenant: TenantModelContract<TMeta>) => Promise<void> | void,

@@ -3,6 +3,7 @@ import type {
   TenantRepositoryContract,
   TenantModelContract,
   TenantStatus,
+  EachOptions,
 } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
@@ -39,6 +40,30 @@ export default class TenantRepository implements TenantRepositoryContract {
     const query = Tenant.query().whereIn('id', ids)
     if (!includeDeleted) query.whereNull('deleted_at')
     return query
+  }
+
+  async each(
+    callback: (tenant: TenantModelContract) => Promise<void> | void,
+    options: EachOptions = {}
+  ): Promise<void> {
+    const batchSize = Math.max(1, options.batchSize ?? 100)
+    // Keyset cursor on the primary key, not OFFSET pagination: a callback
+    // that mutates the rows being iterated (suspending tenants while
+    // filtering on status, say) would shift an offset window and silently
+    // skip rows, while an id cursor stays stable under any mutation.
+    let lastId: string | null = null
+    while (true) {
+      const query = Tenant.query().orderBy('id', 'asc').limit(batchSize)
+      if (lastId !== null) query.where('id', '>', lastId)
+      if (!options.includeDeleted) query.whereNull('deleted_at')
+      if (options.statuses?.length) query.whereIn('status', options.statuses)
+      const batch = await query
+      for (const tenant of batch) {
+        await callback(tenant)
+      }
+      if (batch.length < batchSize) break
+      lastId = batch[batch.length - 1].id
+    }
   }
 
   async create(data: {

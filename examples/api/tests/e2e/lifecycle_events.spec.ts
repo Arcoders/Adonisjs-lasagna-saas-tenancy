@@ -9,12 +9,7 @@ import {
 import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy'
 import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
 import Tenant from '#app/models/backoffice/tenant'
-import {
-  ADMIN_HEADERS,
-  createInstalledTenant,
-  dropAllTenants,
-  runAce,
-} from './_helpers.js'
+import { ADMIN_HEADERS, createInstalledTenant, dropAllTenants, runAce } from './_helpers.js'
 
 async function auditActions(tenantId: string): Promise<string[]> {
   const rows = await TenantAuditLog.query()
@@ -76,9 +71,10 @@ test.group('e2e — 11 lifecycle events surface in the audit log', (group) => {
   test('TenantUpdated fires when manually dispatched', async ({ client, assert }) => {
     const { id } = await createInstalledTenant(client)
     const tenant = await Tenant.findOrFail(id)
+    const previousName = tenant.name
     tenant.name = `Renamed ${id.slice(0, 8)}`
     await tenant.save()
-    await TenantUpdated.dispatch(tenant as any)
+    await TenantUpdated.dispatch(tenant as any, { name: { from: previousName, to: tenant.name } })
     const actions = await auditActions(id)
     assert.include(actions, 'tenant.updated')
 
@@ -152,13 +148,16 @@ test.group('e2e — 11 lifecycle events surface in the audit log', (group) => {
   }) => {
     const { id } = await createInstalledTenant(client)
     const tenant = await Tenant.findOrFail(id)
-    await TenantBackedUp.dispatch(tenant as any, {
-      file: 'tenant_synthetic.dump',
-      size: 4096,
-      timestamp: new Date().toISOString(),
-      tenantId: tenant.id,
-      schema: tenant.schemaName,
-    } as any)
+    await TenantBackedUp.dispatch(
+      tenant as any,
+      {
+        file: 'tenant_synthetic.dump',
+        size: 4096,
+        timestamp: new Date().toISOString(),
+        tenantId: tenant.id,
+        schema: tenant.schemaName,
+      } as any
+    )
 
     const row = await TenantAuditLog.query()
       .where('tenant_id', id)
@@ -191,11 +190,15 @@ test.group('e2e — 11 lifecycle events surface in the audit log', (group) => {
     const sourceModel = await Tenant.findOrFail(source.id)
     const destModel = await Tenant.findOrFail(dest.id)
 
-    await TenantCloned.dispatch(sourceModel as any, destModel as any, {
-      tablesCopied: 3,
-      rowsCopied: 42,
-      destination: destModel as any,
-    } as any)
+    await TenantCloned.dispatch(
+      sourceModel as any,
+      destModel as any,
+      {
+        tablesCopied: 3,
+        rowsCopied: 42,
+        destination: destModel as any,
+      } as any
+    )
 
     const row = await TenantAuditLog.query()
       .where('tenant_id', dest.id)

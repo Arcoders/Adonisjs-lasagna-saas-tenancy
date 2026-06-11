@@ -2,6 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { inject } from '@adonisjs/core'
 import TenantsService from '#app/services/tenants_service'
 import { createTenantValidator } from '#app/validators/tenants_validator'
+import { currentTenant } from '#app/helpers/current_tenant'
 
 /**
  * A friendlier façade over the package's admin endpoints — uses the same
@@ -63,7 +64,7 @@ export default class TenantsController {
 
   /** Schema-isolation probe: returns the tenant's named connection. */
   async connection({ request, response }: HttpContext) {
-    const tenant = await request.tenant()
+    const tenant = await currentTenant(request)
     return response.ok({
       tenantId: tenant.id,
       connectionName: tenant.getConnection().connectionName,

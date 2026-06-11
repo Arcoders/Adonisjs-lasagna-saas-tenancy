@@ -1,0 +1,164 @@
+# CI-verified proof of the production compose topology, run on every PR by
+# the deploy-e2e job (.github/workflows/ci.yml) through
+# deploy/scripts/deploy-smoke.sh. Same shape as docker-compose.prod.yml —
+# Postgres primary + streaming replica, password-protected Redis, app
+# replicas and a queue worker behind nginx — but built from the in-repo demo
+# app (examples/api/Dockerfile) so the stack is buildable from this
+# monorepo. The prod file stays a clean template for host applications.
+#
+# Local run:
+#   docker compose -f deploy/docker-compose.e2e.yml up -d --build --wait
+#   bash deploy/scripts/deploy-smoke.sh
+services:
+  postgres-primary:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: lasagna_e2e
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicate-me-e2e
+    command:
+      - 'postgres'
+      - '-c'
+      - 'wal_level=replica'
+      - '-c'
+      - 'max_wal_senders=10'
+      - '-c'
+      - 'max_replication_slots=10'
+      - '-c'
+      - 'hot_standby=on'
+    volumes:
+      - ./postgres/init-replica.sh:/docker-entrypoint-initdb.d/00-init-replica.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U app -d lasagna_e2e']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  postgres-replica:
+    image: postgres:16-alpine
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: lasagna_e2e
+      PGUSER: replicator
+      PGPASSWORD: replicate-me-e2e
+    command:
+      - 'bash'
+      - '-c'
+      - |
+        if [ ! -s "$$PGDATA/PG_VERSION" ]; then
+          until pg_basebackup -h postgres-primary -D "$$PGDATA" -U replicator -Fp -Xs -P -R; do
+            echo "Waiting for primary to accept replication"; sleep 2
+          done
+        fi
+        chmod 0700 "$$PGDATA"
+        exec docker-entrypoint.sh postgres
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U app -d lasagna_e2e']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass redis-e2e-password --appendonly yes
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', 'redis-e2e-password', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  app:
+    image: ${LASAGNA_DEMO_IMAGE:-lasagna-demo:local}
+    build:
+      context: ..
+      dockerfile: examples/api/Dockerfile
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      postgres-replica:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment: &app-env
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: 3333
+      LOG_LEVEL: info
+      APP_KEY: 'a-32-character-long-secret-key!!'
+      TENANT_HEADER_KEY: x-tenant-id
+      APP_DOMAIN: localhost
+      DB_HOST: postgres-primary
+      DB_PORT: 5432
+      DB_USER: app
+      DB_PASSWORD: app
+      DB_DATABASE: lasagna_e2e
+      # Reads on the demo's `_read` connection genuinely leave the primary.
+      DB_REPLICA_HOST: postgres-replica
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: redis-e2e-password
+      QUEUE_REDIS_HOST: redis
+      QUEUE_REDIS_PORT: 6379
+      QUEUE_REDIS_DB: 1
+      CACHE_REDIS_HOST: redis
+      CACHE_REDIS_PORT: 6379
+      CACHE_REDIS_DB: 2
+      DEMO_ADMIN_TOKEN: e2e-admin-token
+      BACKUP_STORAGE_PATH: /tmp/backups
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3333/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 768M
+
+  # Tenant provisioning is dispatched on BullMQ — without a worker, every
+  # created tenant sits in `provisioning` forever. The smoke script proves
+  # the queue-driven path end to end through this service.
+  worker:
+    image: ${LASAGNA_DEMO_IMAGE:-lasagna-demo:local}
+    command: ['node', '--import=@poppinss/ts-exec', 'ace.ts', 'queue:work']
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment: *app-env
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - '80:80'
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app

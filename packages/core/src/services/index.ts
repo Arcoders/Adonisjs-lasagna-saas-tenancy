@@ -22,7 +22,11 @@ export type { RegisterWebhookResult } from './webhook_service.js'
 // directly) don't have to dig into internal paths. `cacheFor(tenant)`
 // is the safer default — it returns a namespace already prefixed with
 // the tenant id so cross-tenant key collisions are impossible.
-export { getCache, cacheFor } from '../utils/cache.js'
+// `buildCacheStack` is the same factory the singleton runs through —
+// exported so tests and hosts needing an isolated instance exercise the
+// real wiring instead of copying it.
+export { getCache, cacheFor, buildCacheStack } from '../utils/cache.js'
+export type { CacheStackOptions } from '../utils/cache.js'
 export { default as BrandingService } from './branding_service.js'
 export type { BrandingData } from './branding_service.js'
 // `SsoService` moved to `@adonisjs-lasagna/sso`.

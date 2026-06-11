@@ -24,19 +24,27 @@ async function ensureBackofficeSchema(): Promise<void> {
   // function regardless of `search_path` ordering.
   await db.rawQuery('CREATE EXTENSION IF NOT EXISTS pgcrypto')
 
-  // Mirror the canonical schemas defined under stubs/migrations/. Kept in
-  // sync with those stubs by hand — when stubs change, update here too.
+  // Mirror the canonical schemas defined under stubs/migrations/. The unit
+  // spec tests/unit/stubs/bootstrap_ddl_drift.spec.ts fails when a stub
+  // gains a column this mirror lacks — when it does, add the column here
+  // (and an idempotent ALTER below for pre-existing local databases).
   const ddl = [
     `CREATE TABLE IF NOT EXISTS backoffice.tenants (
-       id            uuid PRIMARY KEY,
-       name          varchar(255) NOT NULL,
-       email         varchar(255) NOT NULL,
-       status        varchar(255) NOT NULL,
-       custom_domain varchar(255),
-       created_at    timestamptz NOT NULL DEFAULT now(),
-       updated_at    timestamptz NOT NULL DEFAULT now(),
-       deleted_at    timestamptz
+       id                  uuid PRIMARY KEY,
+       name                varchar(255) NOT NULL,
+       email               varchar(255) NOT NULL,
+       status              varchar(255) NOT NULL,
+       custom_domain       varchar(255),
+       maintenance         boolean NOT NULL DEFAULT false,
+       maintenance_message text,
+       created_at          timestamptz NOT NULL DEFAULT now(),
+       updated_at          timestamptz NOT NULL DEFAULT now(),
+       deleted_at          timestamptz
      )`,
+    // The maintenance pair arrived later (add_maintenance_to_tenants_table
+    // stub); patch pre-existing local databases the CREATE above skipped.
+    `ALTER TABLE backoffice.tenants ADD COLUMN IF NOT EXISTS maintenance boolean NOT NULL DEFAULT false`,
+    `ALTER TABLE backoffice.tenants ADD COLUMN IF NOT EXISTS maintenance_message text`,
     `CREATE TABLE IF NOT EXISTS backoffice.tenant_brandings (
        id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        tenant_id      uuid NOT NULL UNIQUE,

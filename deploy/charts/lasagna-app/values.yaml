@@ -113,9 +113,9 @@ readinessProbe:
   timeoutSeconds: 5
   failureThreshold: 3
 
-# These values flow into a ConfigMap (non-secret) and a Secret. Anything
-# under `app.secrets.*` becomes a Secret entry; anything under `app.env.*`
-# becomes a ConfigMap entry. The chart maps them to env vars verbatim.
+# Anything under `app.env.*` is rendered as inline env vars on the
+# Deployment (there is no ConfigMap in this chart); anything under
+# `app.secrets.*` becomes a Secret entry referenced via envFrom.
 app:
   env:
     NODE_ENV: production

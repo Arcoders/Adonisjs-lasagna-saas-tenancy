@@ -14,7 +14,7 @@
   "scripts": {
     "ace": "tsx ace.ts",
     "dev": "tsx ace.ts serve --hmr",
-    "start": "tsx bin/server.ts",
+    "start": "node --import=@poppinss/ts-exec bin/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx ace.ts test",
     "test:e2e": "bash ./scripts/e2e.sh",
