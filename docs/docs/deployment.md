@@ -53,7 +53,8 @@ All artifacts referenced live under `deploy/` in the repo:
 | `nginx`            | `nginx:1.27-alpine`            | Reverse proxy, JSON access logs                    |
 
 Wired together, the deploy unit is the app replicas plus the worker; both
-consume the same Postgres and Redis:
+consume the same Postgres and Redis. The counts, ports and Redis db slots
+are the template's defaults; adapt them in your copy:
 
 ```mermaid
 flowchart TB

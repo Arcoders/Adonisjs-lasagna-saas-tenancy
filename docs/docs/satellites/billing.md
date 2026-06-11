@@ -121,15 +121,15 @@ row at each step. Rows stay `pending` while queue retries are in flight;
 flowchart TB
   WH["Stripe POST /webhooks/stripe"] --> SIG{"VerifyStripeWebhookMiddleware<br/>optional IP allowlist + HMAC-SHA256"}
   SIG -->|invalid| REJ["rejected, invalid_signature"]
-  SIG -->|verified| INS["INSERT INTO stripe_processed_events<br/>ON CONFLICT DO NOTHING, status pending"]
+  SIG -->|verified| INS["StripeWebhookController<br/>INSERT INTO stripe_processed_events<br/>ON CONFLICT DO NOTHING, status pending"]
   INS -->|"rowCount 0 (duplicate)"| ACK["200, no dispatch"]
   INS -->|"rowCount 1"| JOB["ProcessStripeEventJob<br/>re-fetch event, attempts + 1"]
-  JOB --> H["ordering guard, then the<br/>per-event-type dispatch table"]
+  JOB --> H["per-event-type dispatch table<br/>(ordering guards inside the<br/>subscription and payment handlers)"]
   H -->|"handled (stale events skip the write)"| DONE["status completed"]
   H -->|retryable error| RET["status stays pending, lastError set"]
   RET -->|queue retry| JOB
   H -->|"fatal error, or retries exhausted"| FAIL["status failed<br/>BillingEventDeadLettered"]
-  FAIL --> REP["tenant:billing:replay<br/>failed back to pending, attempts kept"]
+  FAIL -->|"manual: operator runs"| REP["tenant:billing:replay<br/>failed back to pending, attempts kept"]
 ```
 
 The `INSERT ... ON CONFLICT DO NOTHING` is the atomicity primitive —
@@ -217,7 +217,9 @@ flowchart TB
   PD --> ACT{"dunning.action"}
   ACT -->|none| HOST["host listener owns the UX (default)"]
   ACT -->|downgrade| DG["assignPlan(defaultPlan, source dunning)<br/>quota-only, planName unchanged"]
-  S["invoice.payment_succeeded"] --> REC["past_due or unpaid back to active,<br/>subscription.updated restores the plan"]
+  PD -. a later retry succeeds .-> S["invoice.payment_succeeded"]
+  S --> REC["past_due or unpaid back to active"]
+  REC --> PLAN["customer.subscription.updated<br/>re-applies the plan from the product mapping"]
 ```
 
 > `gracePeriodDays` is currently a no-op (the value is read but the

@@ -39,14 +39,14 @@ import {
 
 ## How provisioning flows through the queue
 
-The command-to-event sequence for `InstallTenant`, the job behind every
-new tenant. The worker is the piece that actually provisions; without a
-process running `node ace queue:work`, the job sits in the queue and the
-tenant stays in `provisioning` forever.
+The command-to-event sequence for `InstallTenant`, the job `tenant:create`
+dispatches behind every new tenant. The worker is the piece that actually
+provisions; without a process running `node ace queue:work`, the job sits
+in the queue and the tenant stays in `provisioning` forever.
 
 ```mermaid
 sequenceDiagram
-  participant C as tenant:create
+  participant C as tenant create command
   participant DB as tenant registry
   participant Q as BullMQ
   participant W as queue worker

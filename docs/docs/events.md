@@ -13,7 +13,11 @@ API and get full payload typing for free.
 ## Tenant lifecycle
 
 The states behind these events, with the event each transition emits and
-the HTTP answer the guard gives while a tenant sits in each state.
+the HTTP answer the guard gives while a tenant sits in each state (the
+canonical state-to-response table lives in
+[Deployment](/docs/deployment#dependency-outages-fail-closed)). The
+soft-delete transition is drawn from `active` for readability; destroy has
+no state precondition, so it can leave from any state.
 Maintenance is deliberately not a state: it is a separate flag that can
 be set on an active tenant (`TenantEnteredMaintenance` /
 `TenantExitedMaintenance`), and the guard answers
@@ -48,7 +52,7 @@ stateDiagram-v2
 | `QuotaTracked` | `tenant`, `quota`, `amount`, `total` | `QuotaService.track` / `consume` when `plans.emitTracked` is on (drives the Stripe metering bridge) |
 | `TenantEnteredMaintenance` | `tenant`, `message: string \| null` | `tenant:maintenance` command, `POST .../maintenance` |
 | `TenantExitedMaintenance` | `tenant` | `tenant:maintenance --off`, `DELETE .../maintenance` |
-| `TenantDeleted` | `tenant` | `tenant:destroy` command, `UninstallTenant` job, `DELETE .../tenants/:id` |
+| `TenantDeleted` | `tenant` | `tenant:destroy` command, `UninstallTenant` job, `POST .../tenants/:id/destroy` |
 
 ::: tip TenantUpdated
 The class is exported and ready to dispatch from host code (e.g. an
