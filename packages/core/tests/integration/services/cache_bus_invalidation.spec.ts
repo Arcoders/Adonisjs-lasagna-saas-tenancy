@@ -1,32 +1,25 @@
 import { test } from '@japa/runner'
 import { randomUUID } from 'node:crypto'
-import { BentoCache, bentostore } from 'bentocache'
-import { memoryDriver } from 'bentocache/drivers/memory'
-import { redisDriver, redisBusDriver } from 'bentocache/drivers/redis'
+import { buildCacheStack } from '@adonisjs-lasagna/saas-tenancy/services'
 
 /**
  * The deployment docs tell operators that running several pods is safe
  * because the package cache is memory L1 + shared Redis L2 with a Redis bus
- * that invalidates peer L1s (src/utils/cache.ts builds exactly that store).
- * This spec proves the claim with two independent BentoCache instances —
- * the in-process equivalent of two pods — against the suite's real Redis:
- * a value written through instance A is visible to B via L2, and a delete
- * issued through A evicts B's already-populated L1 via the bus.
+ * that invalidates peer L1s. This spec proves the claim with two instances
+ * built through the same `buildCacheStack` factory the package singleton
+ * uses (src/utils/cache.ts) — the in-process equivalent of two pods —
+ * against the suite's real Redis: a value written through instance A is
+ * visible to B via L2, and a delete issued through A evicts B's
+ * already-populated L1 via the bus.
  */
 function buildCacheInstance() {
-  const connection = {
-    host: process.env.CACHE_REDIS_HOST ?? process.env.REDIS_HOST ?? '127.0.0.1',
-    port: Number(process.env.CACHE_REDIS_PORT ?? process.env.REDIS_PORT ?? 6379),
-    db: Number(process.env.CACHE_REDIS_DB ?? 2),
-  }
-  return new BentoCache({
-    default: 'cache',
-    stores: {
-      cache: bentostore()
-        .useL1Layer(memoryDriver({ maxSize: 1024 * 1024 }))
-        .useL2Layer(redisDriver({ connection }))
-        .useBus(redisBusDriver({ connection })),
+  return buildCacheStack({
+    connection: {
+      host: process.env.CACHE_REDIS_HOST ?? process.env.REDIS_HOST ?? '127.0.0.1',
+      port: Number(process.env.CACHE_REDIS_PORT ?? process.env.REDIS_PORT ?? 6379),
+      db: Number(process.env.CACHE_REDIS_DB ?? 2),
     },
+    l1MaxSizeBytes: 1024 * 1024,
   })
 }
 

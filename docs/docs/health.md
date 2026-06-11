@@ -42,13 +42,15 @@ router
 
 ## Built-in checks
 
-On the first probe request, the controller lazily registers three default
-checks: `backoffice_db` (critical), `redis` (critical) and
-`circuit_breakers` (non-critical). Registration is guarded by
-`hasCheck()`, so anything you register under the same names before the
-first probe wins, and `removeCheck()` opts a default out entirely. The
-same three checks are exported for explicit registration when you want to
-control criticality, timeouts or ordering yourself:
+The provider registers three default checks during `boot()`:
+`backoffice_db` (critical), `redis` (critical) and `circuit_breakers`
+(non-critical). Your own providers boot after the package's, so a check
+you `addCheck()` under one of those names replaces the default, and
+`removeCheck()` opts it out entirely — nothing re-registers behind your
+back at probe time. The same registration the provider runs is exported
+as `registerDefaultChecks(healthService)`, and the individual checks are
+exported too when you want to control criticality, timeouts or ordering
+yourself:
 
 ```ts
 import app from '@adonisjs/core/services/app'

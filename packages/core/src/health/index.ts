@@ -13,7 +13,12 @@ export { multitenancyRoutes } from './routes.js'
 export type { MultitenancyRoutesOptions, RouteMiddleware } from './routes.js'
 // `multitenancyBillingRoutes` + `billingHealthCheck` moved to `@adonisjs-lasagna/billing`.
 
-export { backofficeDbCheck, redisCheck, makeCircuitBreakerCheck } from './default_checks.js'
+export {
+  backofficeDbCheck,
+  redisCheck,
+  makeCircuitBreakerCheck,
+  registerDefaultChecks,
+} from './default_checks.js'
 
 export { renderPrometheus } from './metrics_exporter.js'
 export type { MetricsSnapshot } from './metrics_exporter.js'

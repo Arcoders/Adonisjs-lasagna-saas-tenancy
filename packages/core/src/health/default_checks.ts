@@ -1,4 +1,7 @@
+import app from '@adonisjs/core/services/app'
 import { getConfig } from '../config.js'
+import CircuitBreakerService from '../services/circuit_breaker_service.js'
+import type HealthService from './health_service.js'
 import type { HealthCheckFn, CheckResult } from './health_service.js'
 
 const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default).catch(() => null)
@@ -38,6 +41,42 @@ export const redisCheck: HealthCheckFn = async (): Promise<CheckResult> => {
  * Reports a `pass` only when no circuits are OPEN. The provider can be
  * sync or async; useful for resolving the service from the container.
  */
+/**
+ * Registers the package's default check set on the given service:
+ * backoffice_db (critical), redis (critical) and circuit_breakers
+ * (non-critical). backoffice_db and redis are critical because a pod that
+ * cannot reach either one cannot serve a single tenant request, so a failure
+ * must pull it from rotation (503) even while the other checks pass. One
+ * tenant's open circuit must not unready the whole pod, hence circuit_breakers
+ * stays non-critical.
+ *
+ * The provider calls this once in `boot()`. It skips any name that is already
+ * registered, and since host providers boot after this package's, a host can
+ * override a default with `addCheck` (same name replaces) or drop it with
+ * `removeCheck` from its own `boot()` — the change sticks, nothing re-registers
+ * behind its back.
+ */
+export function registerDefaultChecks(svc: HealthService): HealthService {
+  if (!svc.hasCheck('backoffice_db')) {
+    svc.addCheck('backoffice_db', backofficeDbCheck, { critical: true })
+  }
+  if (!svc.hasCheck('redis')) svc.addCheck('redis', redisCheck, { critical: true })
+  if (!svc.hasCheck('circuit_breakers')) {
+    svc.addCheck(
+      'circuit_breakers',
+      makeCircuitBreakerCheck(async () => {
+        try {
+          const cb = await app.container.make(CircuitBreakerService)
+          return cb.getAllMetrics()
+        } catch {
+          return {}
+        }
+      })
+    )
+  }
+  return svc
+}
+
 export function makeCircuitBreakerCheck(
   circuitMetrics: () =>
     | Record<string, { state: string }>

@@ -200,11 +200,11 @@ app:
 
 ### "Deploy succeeds but `/readyz` returns 503"
 
-First, know what `/readyz` actually runs. On the first probe call the
-package registers three checks (unless you registered your own under the
-same names): `backoffice_db` (critical), `redis` (critical) and
-`circuit_breakers` (non-critical). Any check you add via
-`HealthService.addCheck()` joins them. The aggregate rules:
+First, know what `/readyz` actually runs. The provider registers three
+checks at boot (unless you registered your own under the same names):
+`backoffice_db` (critical), `redis` (critical) and `circuit_breakers`
+(non-critical). Any check you add via `HealthService.addCheck()` joins
+them. The aggregate rules:
 
 - every check passes → `ok`, HTTP 200
 - only non-critical checks fail → `degraded`, HTTP 200 (the pod keeps
@@ -512,8 +512,8 @@ sealed-secrets).
 `.github/workflows/ci.yml` and `benchmark-correctness.yml` gate every pull
 request with:
 
-- `npm run typecheck` (core, satellites, benchmarks workspace) and
-  `npm run lint`, both blocking.
+- `npm run typecheck` (every workspace with a typecheck script: core,
+  satellites, demo app, benchmarks) and `npm run lint`, both blocking.
 - Unit suites (core + satellites) and the integration suite against real
   PostgreSQL, Redis and a wire-compliant OIDC server, blocking, with an
   aggregate coverage gate (lines 80, functions 78, branches 77).

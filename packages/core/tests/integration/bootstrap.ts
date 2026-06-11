@@ -24,8 +24,10 @@ async function ensureBackofficeSchema(): Promise<void> {
   // function regardless of `search_path` ordering.
   await db.rawQuery('CREATE EXTENSION IF NOT EXISTS pgcrypto')
 
-  // Mirror the canonical schemas defined under stubs/migrations/. Kept in
-  // sync with those stubs by hand — when stubs change, update here too.
+  // Mirror the canonical schemas defined under stubs/migrations/. The unit
+  // spec tests/unit/stubs/bootstrap_ddl_drift.spec.ts fails when a stub
+  // gains a column this mirror lacks — when it does, add the column here
+  // (and an idempotent ALTER below for pre-existing local databases).
   const ddl = [
     `CREATE TABLE IF NOT EXISTS backoffice.tenants (
        id                  uuid PRIMARY KEY,

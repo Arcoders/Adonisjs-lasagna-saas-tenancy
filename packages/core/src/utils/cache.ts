@@ -4,8 +4,28 @@ import { redisDriver, redisBusDriver } from 'bentocache/drivers/redis'
 import { getConfig } from '../config.js'
 import { assertSafeIdentifier } from '../services/isolation/identifier.js'
 
-function buildCache() {
-  const { host, port, username, password, db } = getConfig().cache.redis
+export interface CacheStackOptions {
+  connection: {
+    host: string
+    port: number
+    username?: string | null
+    password?: string | null
+    db?: number | null
+  }
+  /** L1 memory budget in bytes. Default: 5 MiB (the package singleton's). */
+  l1MaxSizeBytes?: number
+}
+
+/**
+ * Builds the package's cache stack: in-process memory L1, shared Redis L2,
+ * and a Redis bus that invalidates peer L1s across processes. The singleton
+ * below and the multi-pod coherency spec
+ * (tests/integration/services/cache_bus_invalidation.spec.ts) both build
+ * through here, so what the test proves is the wiring production runs —
+ * not a hand-rolled copy that can drift.
+ */
+export function buildCacheStack(options: CacheStackOptions) {
+  const { host, port, username, password, db } = options.connection
   const connection = {
     host,
     port,
@@ -17,11 +37,15 @@ function buildCache() {
     default: 'cache',
     stores: {
       cache: bentostore()
-        .useL1Layer(memoryDriver({ maxSize: 5 * 1024 * 1024 }))
+        .useL1Layer(memoryDriver({ maxSize: options.l1MaxSizeBytes ?? 5 * 1024 * 1024 }))
         .useL2Layer(redisDriver({ connection }))
         .useBus(redisBusDriver({ connection })),
     },
   })
+}
+
+function buildCache() {
+  return buildCacheStack({ connection: getConfig().cache.redis })
 }
 
 type CacheInstance = ReturnType<typeof buildCache>

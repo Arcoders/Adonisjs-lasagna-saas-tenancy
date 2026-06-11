@@ -1,7 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import app from '@adonisjs/core/services/app'
 import { CircuitBreakerService } from '@adonisjs-lasagna/saas-tenancy/services'
-import type Tenant from '#app/models/backoffice/tenant'
+import { currentTenant } from '#app/helpers/current_tenant'
 
 /**
  * Reads the circuit breaker state for the current tenant. Run this after a
@@ -10,9 +10,7 @@ import type Tenant from '#app/models/backoffice/tenant'
  */
 export default class CircuitController {
   async state({ request, response }: HttpContext) {
-    // The v2 contract dropped getConnection; the runtime object is this
-    // app's Tenant model, which keeps it for demo purposes.
-    const tenant = (await request.tenant()) as Tenant
+    const tenant = await currentTenant(request)
     const svc = await app.container.make(CircuitBreakerService)
     // Touch the connection so a breaker is materialised for this tenant.
     tenant.getConnection()

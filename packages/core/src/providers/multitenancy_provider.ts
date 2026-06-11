@@ -24,6 +24,7 @@ import { builtInResolvers } from '../services/resolvers/builtins.js'
 import TenantLogContext from '../services/tenant_log_context.js'
 import { primeTenancy } from '../tenancy.js'
 import HealthService from '../health/health_service.js'
+import { registerDefaultChecks } from '../health/default_checks.js'
 import DoctorService from '../services/doctor/doctor_service.js'
 import { builtInChecks } from '../services/doctor/checks/index.js'
 import QuotaService from '../services/quota_service.js'
@@ -143,6 +144,12 @@ export default class MultitenancyProvider {
 
     const hooks = await this.app.container.make(HookRegistry)
     hooks.loadDeclarative(config.hooks)
+
+    // Default readiness checks live on the singleton from boot onward.
+    // Host providers boot after this one, so their addCheck/removeCheck
+    // calls override the defaults deterministically — the controller never
+    // re-registers anything at probe time.
+    registerDefaultChecks(await this.app.container.make(HealthService))
 
     const bootstrappers = await this.app.container.make(BootstrapperRegistry)
     if (!bootstrappers.has('cache')) bootstrappers.register(cacheBootstrapper)
