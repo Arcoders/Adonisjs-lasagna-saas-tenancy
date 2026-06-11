@@ -28,15 +28,21 @@ async function ensureBackofficeSchema(): Promise<void> {
   // sync with those stubs by hand — when stubs change, update here too.
   const ddl = [
     `CREATE TABLE IF NOT EXISTS backoffice.tenants (
-       id            uuid PRIMARY KEY,
-       name          varchar(255) NOT NULL,
-       email         varchar(255) NOT NULL,
-       status        varchar(255) NOT NULL,
-       custom_domain varchar(255),
-       created_at    timestamptz NOT NULL DEFAULT now(),
-       updated_at    timestamptz NOT NULL DEFAULT now(),
-       deleted_at    timestamptz
+       id                  uuid PRIMARY KEY,
+       name                varchar(255) NOT NULL,
+       email               varchar(255) NOT NULL,
+       status              varchar(255) NOT NULL,
+       custom_domain       varchar(255),
+       maintenance         boolean NOT NULL DEFAULT false,
+       maintenance_message text,
+       created_at          timestamptz NOT NULL DEFAULT now(),
+       updated_at          timestamptz NOT NULL DEFAULT now(),
+       deleted_at          timestamptz
      )`,
+    // The maintenance pair arrived later (add_maintenance_to_tenants_table
+    // stub); patch pre-existing local databases the CREATE above skipped.
+    `ALTER TABLE backoffice.tenants ADD COLUMN IF NOT EXISTS maintenance boolean NOT NULL DEFAULT false`,
+    `ALTER TABLE backoffice.tenants ADD COLUMN IF NOT EXISTS maintenance_message text`,
     `CREATE TABLE IF NOT EXISTS backoffice.tenant_brandings (
        id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        tenant_id      uuid NOT NULL UNIQUE,

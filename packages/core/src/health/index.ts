@@ -1,5 +1,11 @@
 export { default as HealthService } from './health_service.js'
-export type { CheckStatus, CheckResult, HealthCheckFn, HealthReport } from './health_service.js'
+export type {
+  CheckStatus,
+  CheckResult,
+  HealthCheckFn,
+  HealthReport,
+  AddCheckOptions,
+} from './health_service.js'
 
 export { default as HealthController } from './health_controller.js'
 

@@ -3,10 +3,16 @@ import db from '@adonisjs/lucid/services/db'
 import { middleware } from './kernel.js'
 import { multitenancyAdminRoutes } from '@adonisjs-lasagna/admin'
 import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
+import { multitenancyRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
 
 router.get('/health', async ({ response }) => {
   return response.ok({ status: 'ok' })
 })
+
+// Package operational probes under /ops (the bare /health above predates
+// them). Used by the readyz_http integration spec to assert the real HTTP
+// status codes (200 ok/degraded, 503 fail) Kubernetes probes would see.
+multitenancyRoutes({ prefix: '/ops' })
 
 // Mount admin REST + OpenAPI docs without auth — the fixture is for tests
 // only, and individual specs supply their own ad-hoc gating where needed.
