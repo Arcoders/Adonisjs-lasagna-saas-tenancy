@@ -15,6 +15,10 @@ export default await Env.create(new URL('../', import.meta.url), {
   DB_USER: Env.schema.string(),
   DB_PASSWORD: Env.schema.string.optional(),
   DB_DATABASE: Env.schema.string(),
+  // Streaming read replica host. Optional: local dev runs a single Postgres
+  // and falls back to DB_HOST; the deploy e2e stack points it at the real
+  // standby so replica routing is exercised end to end.
+  DB_REPLICA_HOST: Env.schema.string.optional({ format: 'host' }),
 
   REDIS_HOST: Env.schema.string({ format: 'host' }),
   REDIS_PORT: Env.schema.number(),
