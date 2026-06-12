@@ -75,8 +75,10 @@ test.group('MetricsService (integration)', (group) => {
 })
 
 test.group('MetricsService.flush — bulk upsert (P2-1)', (group) => {
-  const t1 = 'flush-tenant-1'
-  const t2 = 'flush-tenant-2'
+  // tenant_metrics.tenant_id is a uuid column, so these must be valid UUIDs
+  // (the flush writes them straight from the parsed Redis key).
+  const t1 = '11111111-1111-4111-8111-111111111111'
+  const t2 = '22222222-2222-4222-8222-222222222222'
   const svc = new MetricsService()
 
   group.each.teardown(async () => {
