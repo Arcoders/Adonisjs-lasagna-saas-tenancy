@@ -14,6 +14,20 @@ const lazyLogger = () =>
 
 export const MAX_ATTEMPTS = 5
 
+/**
+ * Cap on how much of a webhook target's response (or error) we persist per
+ * delivery row. The body is stored only for operator debugging; a hostile or
+ * misconfigured receiver could otherwise return megabytes and bloat the
+ * deliveries table one row at a time.
+ */
+export const MAX_RESPONSE_BODY_CHARS = 4096
+
+function truncateBody(value: string | null): string | null {
+  if (value === null) return null
+  if (value.length <= MAX_RESPONSE_BODY_CHARS) return value
+  return `${value.slice(0, MAX_RESPONSE_BODY_CHARS)}… [truncated ${value.length - MAX_RESPONSE_BODY_CHARS} chars]`
+}
+
 export interface RegisterWebhookResult {
   hook: TenantWebhook
   /**
@@ -190,7 +204,7 @@ export default class WebhookService {
         signal: AbortSignal.timeout(10000),
       })
       delivery.statusCode = res.status
-      delivery.responseBody = await res.text().catch(() => null)
+      delivery.responseBody = truncateBody(await res.text().catch(() => null))
       delivery.status = res.ok ? 'success' : 'failed'
 
       if (!res.ok && delivery.attempt < MAX_ATTEMPTS) {
@@ -200,7 +214,7 @@ export default class WebhookService {
       }
     } catch (err) {
       delivery.statusCode = null
-      delivery.responseBody = String(err)
+      delivery.responseBody = truncateBody(String(err))
       delivery.status = delivery.attempt < MAX_ATTEMPTS ? 'retrying' : 'failed'
 
       if (delivery.status === 'retrying') {

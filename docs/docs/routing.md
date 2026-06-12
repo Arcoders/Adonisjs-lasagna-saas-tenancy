@@ -66,14 +66,14 @@ The middleware queries your tenant repository's `findByDomain(host)`
 and rewrites the request to the canonical tenant header before
 `router.tenant()` / `router.universal()` blocks resolve.
 
-### Strict mode
+### Strict mode (the default)
 
-By default the middleware lets an explicit `x-tenant-id` header win
-over the `Host`-resolved tenant. That preserves backwards
-compatibility, but in a multi-tenant SaaS it lets a caller who knows
-your custom domain shape a request that hops tenants. Opt into
-`strict: true` to reject conflicting signals with HTTP 400
-(`E_TENANT_HEADER_DOMAIN_MISMATCH`):
+The middleware is **secure by default**: the verified `Host`-resolved
+custom domain is authoritative. When both a matching `Host` and an
+`x-tenant-id` header are present and they disagree, the request is
+rejected with HTTP 400 (`E_TENANT_HEADER_DOMAIN_MISMATCH`) before any
+handler runs — closing the tenant-hop vector where a caller who knows
+your custom domain shapes a request for a different tenant.
 
 ```ts
 // start/kernel.ts
@@ -81,18 +81,23 @@ server.use([
   () => import('@adonisjs-lasagna/saas-tenancy/middleware')
     .then((m) => ({ default: m.CustomDomainMiddleware })),
 ])
-// then attach with options on the route group / kernel that uses
-// it, e.g. via a named middleware:
-//   middleware.customDomain({ strict: true })
+// Attach via a named middleware — strict is the default, no option needed:
+//   middleware.customDomain()
 ```
+
+Opt **out** only if you intentionally route by header on hosts the
+package also manages as custom domains (the pre-1.0 behavior):
+`middleware.customDomain({ strict: false })`. Understand the trade-off
+— any caller able to set the header can then address a different tenant
+through a verified domain.
 
 When both `Host` matches a registered custom domain AND
 `x-tenant-id` is present:
 
 | Mode | Header agrees | Header disagrees | Header only (no domain match) |
 |---|---|---|---|
-| Default | header wins | header wins (vector!) | header wins |
-| `strict: true` | header wins | **reject 400** | header wins |
+| **Default (strict)** | header agrees, allow | **reject 400** | header wins |
+| `strict: false` (opt-in) | header wins | header wins (vector!) | header wins |
 
 ## Imperative API
 

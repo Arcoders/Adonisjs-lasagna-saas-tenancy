@@ -38,12 +38,29 @@ export interface ResolverConfig {
    * any tenant work — a fixed latency add and a contention point that funnels
    * all traffic through one pool.
    *
-   * When enabled, a resolved tenant is cached in-process (per pod) for `ttlMs`
-   * and invalidated immediately, in-process, on the tenant lifecycle events
-   * (suspend / activate / update / delete / maintenance). Cross-instance
-   * propagation of a status change is bounded by `ttlMs` — a tenant suspended on
-   * one pod may keep serving on another for up to `ttlMs`. Keep `ttlMs` short
-   * (seconds) so that window stays small.
+   * When enabled, a resolved tenant is cached in-process (per pod) for `ttlMs`.
+   * In-process invalidation is wired to the tenant lifecycle events (suspend /
+   * activate / update / delete / maintenance), so the entry is dropped the moment
+   * one of those events fires ON THIS POD.
+   *
+   * IMPORTANT — the invalidation depends on the event actually being emitted:
+   *   - The `@adonisjs-lasagna/admin` package emits these events for you on every
+   *     status change it performs.
+   *   - The core emits `TenantDeleted` (uninstall) and the provisioning events,
+   *     but it does NOT emit suspend/activate/maintenance on its own. If you
+   *     change a tenant's status by any other means (your own admin code, a raw
+   *     `UPDATE`, a custom service), you MUST dispatch the matching event
+   *     (`TenantSuspended`, etc.) yourself, or the cached entry will keep serving
+   *     until it expires. Without that, suspending a tenant takes effect only
+   *     after `ttlMs` even on the pod that performed the change.
+   *
+   * Cross-instance propagation is ALWAYS bounded by `ttlMs` regardless of events:
+   * a tenant suspended on one pod may keep serving on another for up to `ttlMs`
+   * (events are per-process; there is no shared invalidation bus). Keep `ttlMs`
+   * short (seconds) so that window stays small. Treat the cache as a throughput
+   * optimization with bounded staleness, not as an instant kill-switch — for an
+   * immediate, fleet-wide suspend, gate on a fresh status check or disable the
+   * cache.
    *
    * IMPORTANT: the cached `request.tenant()` is shared across concurrent requests
    * in the same process — treat it as READ-ONLY. For a mutate-then-save flow,
@@ -289,6 +306,21 @@ export interface IsolationConfig {
    * to `tenant_id`.
    */
   rowScopeColumn?: string
+  /**
+   * For `rowscope-pg`: assert that the SQL-level Row-Level Security backstop is
+   * in place. With `rowscope-pg`, the `withTenantScope` mixin adds
+   * `WHERE tenant_id = ?`, but a hand-written top-level `orWhere` can compose a
+   * query the mixin cannot retroactively group and leak another tenant's rows.
+   * The fix is the `enable_rls_tenant_isolation` migration plus routing writes
+   * through `withTenantRls()` — see docs/data-isolation/rowscope-pg.
+   *
+   * Leave this `false`/unset and the provider logs a one-time WARNING at boot
+   * that `rowscope-pg` is running on mixin-only (convention) isolation. Set it
+   * to `true` once you have shipped the RLS migration to assert the enforced
+   * backstop is present and silence the warning. This is an acknowledgment flag,
+   * not a runtime check — it records that you made the call deliberately.
+   */
+  rowScopeRls?: boolean
   /**
    * For `rowscope-pg` (or any code using `withTenantScope`): how to behave
    * when a scoped model query runs outside both `tenancy.run()` and

@@ -15,10 +15,13 @@ Mount the routes from `start/routes.ts`:
 
 ```ts
 import { multitenancyRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
+import { middleware } from '#start/kernel'
 
-multitenancyRoutes() // root paths
-multitenancyRoutes({ prefix: '/internal' }) // /internal/livez, etc.
-multitenancyRoutes({ metrics: false }) // skip /metrics
+// `/metrics` is FAIL-CLOSED: it exposes tenant enumeration + business KPIs, so
+// it refuses to mount without a guard. Pass auth for it (the probes stay public):
+multitenancyRoutes({ metricsMiddleware: middleware.auth() })
+multitenancyRoutes({ prefix: '/internal', metricsMiddleware: middleware.auth() })
+multitenancyRoutes({ metrics: false }) // skip /metrics entirely (no guard needed)
 ```
 
 Four endpoints are exposed by default:
@@ -30,15 +33,25 @@ Four endpoints are exposed by default:
 | `GET /healthz` | Same data as `/readyz`, full JSON report                                   | `200` / `503`                                    |
 | `GET /metrics` | Prometheus text exposition (snapshot of tenants, circuits, queues, uptime) | `200`                                            |
 
-Each one is opt-in via `multitenancyRoutes({ health: false, metrics: false })` so you can host them under your own auth middleware:
+`/livez` and `/readyz` stay public — Kubernetes probes must reach them without
+auth. `/metrics` is different: its snapshot carries per-tenant labels
+(circuit-breaker state, queue depths) and tenant counts by status, so it is
+**fail-closed**. Calling `multitenancyRoutes()` with `metrics` enabled and no
+`metricsMiddleware` throws at startup. Your three choices:
 
 ```ts
-import router from '@adonisjs/core/services/router'
-router
-  .group(() => multitenancyRoutes())
-  .prefix('/_ops')
-  .use([adminAuth])
+// 1) Guard it (recommended) — pass any auth/network middleware:
+multitenancyRoutes({ metricsMiddleware: middleware.auth() })
+
+// 2) Mount it public on purpose — ONLY behind a trusted network boundary
+//    (a private VPC, an authenticating gateway, scrape-only network):
+multitenancyRoutes({ metricsMiddleware: false })
+
+// 3) Don't mount it at all:
+multitenancyRoutes({ metrics: false })
 ```
+
+You can also disable the probes (`health: false`) to host them yourself.
 
 ## Built-in checks
 

@@ -112,13 +112,12 @@ gives you the moving parts.
 - **HSTS preload**: tenants who enable HSTS preload through your
   apex domain commit to TLS for the apex *and every subdomain* for
   ~2 years. Confirm with each tenant before adding.
-- **Header-domain disagreement**: by default, an explicit
-  `x-tenant-id` header wins over the `Host`-resolved tenant. That
-  preserves backwards compatibility but lets a caller who knows
-  your custom domain hop tenants. Opt into
-  `middleware.customDomain({ strict: true })` to reject conflicts
-  with `E_TENANT_HEADER_DOMAIN_MISMATCH` (400). See
-  [Routing — strict mode](/docs/routing#strict-mode).
+- **Header-domain disagreement**: by default the verified `Host`-resolved
+  custom domain is authoritative — a conflicting `x-tenant-id` header is
+  rejected with `E_TENANT_HEADER_DOMAIN_MISMATCH` (400), closing the
+  tenant-hop vector. Opt out with `middleware.customDomain({ strict: false })`
+  only if you intentionally route by header on managed domains. See
+  [Routing — strict mode](/docs/routing#strict-mode-the-default).
 
 ## Read next
 

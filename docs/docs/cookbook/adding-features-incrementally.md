@@ -85,7 +85,7 @@ node ace backoffice:setup
 | Feature flags | `feature_flags` | core | — | — | — |
 | Webhooks | `webhooks` | core | — | — | queue worker for delivery retries |
 | Branding | `branding` | core | — | — | — |
-| Metrics | `metrics` | core | — | optional `observability` | `/metrics` is served by `multitenancyRoutes()` |
+| Metrics | `metrics` | core | — | optional `observability` | `/metrics` is served by `multitenancyRoutes({ metricsMiddleware })` (fail-closed) |
 | Quotas | `quotas` | core | — | `plans` | `enforceQuota()` middleware on routes |
 | SSO | `sso` | package | `@adonisjs-lasagna/sso` (+ optional `jose`) | — | import `SsoService` / `TenantSsoConfig` (no provider) |
 | Billing | `billing` | package | `@adonisjs-lasagna/billing` + `stripe@^18` | `billing` + `plans` | provider + commands + `multitenancyBillingRoutes()` + env vars |
@@ -105,10 +105,13 @@ node ace configure @adonisjs-lasagna/saas-tenancy --with=quotas,metrics
 node ace backoffice:setup
 ```
 
-`metrics` needs nothing else; its `/metrics` endpoint is already served if
-you mount `multitenancyRoutes()` (the operational health routes). `quotas`
-prints a `plans` block to paste into `config/multitenancy.ts`, then you
-gate routes with the middleware:
+`metrics` needs nothing else; its `/metrics` endpoint is served when you mount
+`multitenancyRoutes({ metricsMiddleware: middleware.auth() })` (the operational
+health routes). `/metrics` is fail-closed — it leaks tenant enumeration + KPIs,
+so the call throws unless you pass `metricsMiddleware` (or `metricsMiddleware:
+false` to mount it public behind a trusted network boundary). See
+[Health & metrics](/docs/health). `quotas` prints a `plans` block to paste into
+`config/multitenancy.ts`, then you gate routes with the middleware:
 
 ```ts
 // start/routes.ts

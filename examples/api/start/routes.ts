@@ -24,7 +24,11 @@ const SsoController = () => import('#app/controllers/demo/sso_controller')
 const BillingController = () => import('#app/controllers/demo/billing_controller')
 
 /* ─── Operational endpoints (livez / readyz / healthz / metrics) ─────────── */
-multitenancyRoutes()
+// `/livez` and `/readyz` stay public for k8s probes. `/metrics` leaks tenant
+// enumeration + business KPIs, so it is fail-closed: gate it with the same auth
+// as the admin API. (Pass `metricsMiddleware: false` only to mount it public
+// behind a trusted network boundary.)
+multitenancyRoutes({ metricsMiddleware: [middleware.demoAdminAuth()] })
 
 /* ─── Package admin REST API (header-token gated) ────────────────────────── */
 multitenancyAdminRoutes({

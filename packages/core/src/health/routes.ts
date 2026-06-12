@@ -1,18 +1,26 @@
 import router from '@adonisjs/core/services/router'
 import HealthController from './health_controller.js'
+import { assertMetricsGuarded } from './assert_metrics_guarded.js'
 // The Stripe webhook route (`multitenancyBillingRoutes`) moved to
 // `@adonisjs-lasagna/billing`.
 
 /**
- * Middleware accepted by {@link MultitenancyRoutesOptions.metricsMiddleware}.
- * A registered name, a callable, or an array of either — same shape Adonis'
- * `group.use(...)` accepts.
+ * A single middleware entry, in any shape Adonis' `group.use(...)` accepts at
+ * runtime: a registered name, a middleware function, or a named-middleware
+ * reference produced by `router.named(...)` (the `middleware.auth()` shape,
+ * which carries a `handle` method). Mirrors the admin routes' middleware type so
+ * the same `middleware.x()` value works for both.
  */
-export type RouteMiddleware =
+export type RouteMiddlewareEntry =
   | string
-  | string[]
   | ((...args: any[]) => any)
-  | Array<string | ((...args: any[]) => any)>
+  | { name?: string; handle: (...args: any[]) => any }
+
+/**
+ * Middleware accepted by {@link MultitenancyRoutesOptions.metricsMiddleware}:
+ * one entry or an array of entries.
+ */
+export type RouteMiddleware = RouteMiddlewareEntry | RouteMiddlewareEntry[]
 
 export interface MultitenancyRoutesOptions {
   /** URL prefix for all mounted endpoints. Defaults to no prefix (root paths). */
@@ -25,13 +33,19 @@ export interface MultitenancyRoutesOptions {
    * Middleware applied to `/metrics` only. The Prometheus output carries
    * per-tenant labels (circuit-breaker state, queue depths) plus total /
    * by-status tenant counts, so a public `/metrics` leaks tenant enumeration
-   * and business metrics. Pass your auth (or a network guard) here, or restrict
-   * the endpoint at the network layer.
+   * and business metrics.
+   *
+   * REQUIRED when `metrics` is enabled (the default). The endpoint refuses to
+   * mount without it — pass your auth (or a network guard) here, or pass
+   * `metricsMiddleware: false` to intentionally mount it public (only ever
+   * behind a trusted network boundary such as a private VPC or an
+   * authenticating gateway). Omitting both throws at startup. This mirrors the
+   * fail-closed posture of `multitenancyAdminRoutes`.
    *
    * `/livez` and `/readyz` are intentionally left public — Kubernetes probes
    * must reach them without auth.
    */
-  metricsMiddleware?: RouteMiddleware
+  metricsMiddleware?: RouteMiddleware | false
 }
 
 /**
@@ -46,6 +60,14 @@ export interface MultitenancyRoutesOptions {
  */
 export function multitenancyRoutes(options: MultitenancyRoutesOptions = {}): void {
   const { prefix = '', health = true, metrics = true, metricsMiddleware } = options
+
+  // Fail closed, BEFORE registering any route: /metrics leaks tenant
+  // enumeration + business metrics, so it must not mount silently public. The
+  // rule lives in a router-free module so the misuse throws before a single
+  // `router.get` runs (fail fast) and stays unit-testable. Mirrors
+  // `multitenancyAdminRoutes`.
+  assertMetricsGuarded(metrics, metricsMiddleware)
+
   const controller = new HealthController()
 
   // Probes stay public (k8s needs them unauthenticated).
@@ -66,6 +88,7 @@ export function multitenancyRoutes(options: MultitenancyRoutesOptions = {}): voi
       router.get('/metrics', (ctx) => controller.metrics(ctx))
     })
     if (prefix) group.prefix(prefix)
-    if (metricsMiddleware) (group as any).use(metricsMiddleware)
+    // `false` is the explicit "mount public" opt-out; anything else is real middleware.
+    if (metricsMiddleware !== false) (group as any).use(metricsMiddleware)
   }
 }

@@ -319,8 +319,11 @@ function postPublishConfigReminders(command: Configure, selected: string[]): voi
   if (has('metrics')) {
     log.log('')
     log.log('— Metrics — additional setup —')
-    log.log('Expose the Prometheus endpoint by calling multitenancyRoutes() from')
-    log.log("  '@adonisjs-lasagna/saas-tenancy/health' in start/routes.ts (adds /metrics).")
+    log.log('Expose the Prometheus endpoint from start/routes.ts:')
+    log.log('  multitenancyRoutes({ metricsMiddleware: middleware.auth() })')
+    log.log('/metrics is fail-closed (it leaks tenant enumeration + KPIs): it refuses to')
+    log.log('mount without a guard. Pass metricsMiddleware: false to mount it public on')
+    log.log('purpose, behind a trusted network boundary.')
     log.log('Tune via billing.observability.metrics and resilience.redis.metrics (both optional).')
   }
 

@@ -8,6 +8,7 @@ import BrandingController from './controllers/branding_controller.js'
 import SsoController from './controllers/sso_controller.js'
 import MetricsController from './controllers/metrics_controller.js'
 import QuotasController from './controllers/quotas_controller.js'
+import { isAbsentAdminMiddleware } from './is_absent_middleware.js'
 
 /**
  * One middleware entry, in any of the shapes Adonis' `group.use(...)`
@@ -133,8 +134,11 @@ export function multitenancyAdminRoutes(options: MultitenancyAdminRoutesOptions 
 
   // Fail closed: the admin surface includes destructive routes, so it must not
   // mount silently public. Require explicit auth, or an explicit `false` opt-out.
-  // `null` is treated like `undefined` (omitted), not like the `false` opt-out.
-  if (middleware === undefined || middleware === null) {
+  // Only `false` is the public opt-out; every other "effectively absent" value
+  // is rejected — `undefined`, `null`, an empty string, and an EMPTY ARRAY. The
+  // empty array is the dangerous one: `authEnabled ? [auth] : []` would
+  // otherwise mount the admin API public silently while looking guarded.
+  if (isAbsentAdminMiddleware(middleware)) {
     throw new Error(
       'multitenancyAdminRoutes: `middleware` is required. The admin API exposes destructive ' +
         'routes (tenant destroy, impersonation, SSO config), so it refuses to mount without auth. ' +

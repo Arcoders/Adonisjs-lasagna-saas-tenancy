@@ -12,7 +12,10 @@ router.get('/health', async ({ response }) => {
 // Package operational probes under /ops (the bare /health above predates
 // them). Used by the readyz_http integration spec to assert the real HTTP
 // status codes (200 ok/degraded, 503 fail) Kubernetes probes would see.
-multitenancyRoutes({ prefix: '/ops' })
+// `metricsMiddleware: false` mounts /metrics public on purpose — this is a test
+// fixture behind no network boundary, and the readyz_http spec asserts the raw
+// HTTP status codes. Production must pass real auth (it now throws otherwise).
+multitenancyRoutes({ prefix: '/ops', metricsMiddleware: false })
 
 // Mount admin REST + OpenAPI docs without auth — the fixture is for tests
 // only, and individual specs supply their own ad-hoc gating where needed.
@@ -120,18 +123,21 @@ router
   .use(middleware.tenantGuard())
   .use(middleware.impersonation())
 
-// Used by custom_domain_middleware integration tests
+// Legacy (opt-out) mode — used by custom_domain_middleware integration tests.
+// `strict: false` restores the pre-1.0 behavior where an explicit header wins
+// over a matching custom domain. Secure-by-default is the bare call below.
 router
   .get('/custom-domain-check', async ({ request, response }) => {
     return response.ok({ tenantId: request.header('x-tenant-id') ?? null })
   })
-  .use(middleware.customDomain())
+  .use(middleware.customDomain({ strict: false }))
 
-// Same handler under strict mode — used by header_vs_domain_precedence
-// to prove that a header conflicting with a registered custom domain is
-// rejected (rather than silently shadowing the domain-derived tenant).
+// Default (secure) mode — `customDomain()` with no options is now strict.
+// header_vs_domain_precedence proves a header conflicting with a registered
+// custom domain is rejected (rather than silently shadowing the domain-derived
+// tenant) WITHOUT having to opt in.
 router
   .get('/custom-domain-strict-check', async ({ request, response }) => {
     return response.ok({ tenantId: request.header('x-tenant-id') ?? null })
   })
-  .use(middleware.customDomain({ strict: true }))
+  .use(middleware.customDomain())

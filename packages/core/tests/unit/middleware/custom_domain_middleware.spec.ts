@@ -72,19 +72,50 @@ test.group('CustomDomainMiddleware', (group) => {
     assert.isTrue(nextCalled)
   })
 
-  test('non-strict: an explicit header wins and the domain is not consulted', async ({
+  test('non-strict (opt-in): an explicit header wins and the domain is not consulted', async ({
     assert,
   }) => {
     let lookups = 0
     const m = makeMiddleware({ 'acme.com': { id: UUID_B } }, () => (lookups += 1))
     const { ctx, headers } = makeCtx({ host: 'acme.com', tenantHeader: UUID_A })
     let nextCalled = false
+    await m.handle(
+      ctx,
+      async () => {
+        nextCalled = true
+      },
+      { strict: false }
+    )
+    assert.isTrue(nextCalled)
+    assert.equal(lookups, 0)
+    // Header left untouched in legacy pass-through.
+    assert.equal(headers['x-tenant-id'], UUID_A)
+  })
+
+  test('secure by default: a header that disagrees with the domain is rejected without opting in', async ({
+    assert,
+  }) => {
+    const m = makeMiddleware({ 'acme.com': { id: UUID_A } })
+    const { ctx } = makeCtx({ host: 'acme.com', tenantHeader: UUID_B })
+    let nextCalled = false
+    // No options at all — strict must be the default.
+    const err = await catchError(() =>
+      m.handle(ctx, async () => {
+        nextCalled = true
+      })
+    )
+    assert.instanceOf(err, TenantHeaderDomainMismatchException)
+    assert.isFalse(nextCalled)
+  })
+
+  test('secure by default: a header that agrees with the domain passes', async ({ assert }) => {
+    const m = makeMiddleware({ 'acme.com': { id: UUID_A } })
+    const { ctx, headers } = makeCtx({ host: 'acme.com', tenantHeader: UUID_A })
+    let nextCalled = false
     await m.handle(ctx, async () => {
       nextCalled = true
     })
     assert.isTrue(nextCalled)
-    assert.equal(lookups, 0)
-    // Header left untouched in legacy pass-through.
     assert.equal(headers['x-tenant-id'], UUID_A)
   })
 

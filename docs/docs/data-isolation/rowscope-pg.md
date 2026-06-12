@@ -152,6 +152,13 @@ reused pooled connection — `nullif(...)` makes the predicate `NULL`, so it
 matches nothing and `WITH CHECK` blocks the insert. A forgotten scope returns
 zero rows instead of leaking, which is the point.
 
+Once the migration is shipped and your writes go through `withTenantRls()`, set
+`isolation.rowScopeRls: true` in `config/multitenancy.ts`. This acknowledges that
+the enforced backstop is in place and silences the boot-time warning the provider
+otherwise logs for `rowscope-pg` (which runs on the mixin — convention, not
+enforcement — until RLS is present). The flag is an acknowledgment, not a runtime
+check: it records that you made the call deliberately.
+
 <Callout type="warning" title="Run your app without SUPERUSER / BYPASSRLS">
 <code>FORCE ROW LEVEL SECURITY</code> makes the policy apply to the table owner
 too (apps usually connect as the owner). But a role with <code>SUPERUSER</code>

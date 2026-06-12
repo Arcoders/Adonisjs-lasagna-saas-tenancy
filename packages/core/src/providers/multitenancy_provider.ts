@@ -124,6 +124,23 @@ export default class MultitenancyProvider {
         { activate: true }
       )
     }
+    // rowscope-pg's default isolation is the `withTenantScope` mixin —
+    // convention, not enforcement. A hand-written top-level `orWhere` can escape
+    // it. The enforced backstop is PostgreSQL RLS (the
+    // `enable_rls_tenant_isolation` migration + `withTenantRls`). Warn whenever
+    // rowscope-pg is the ACTIVE driver without the acknowledgment, regardless of
+    // whether this provider registered it or a host pre-registered its own — the
+    // pre-registered case arguably needs the hint most.
+    if (choice === 'rowscope-pg' && !config.isolation?.rowScopeRls) {
+      logger.warn(
+        'multitenancy: isolation.driver is "rowscope-pg" without the RLS backstop. ' +
+          'Tenant isolation is enforced only by the withTenantScope mixin (WHERE tenant_id = ?), ' +
+          'which a top-level orWhere can escape. Ship the `enable_rls_tenant_isolation` migration ' +
+          'and route queries through withTenantRls() for SQL-level enforcement, then set ' +
+          'isolation.rowScopeRls=true to acknowledge it and silence this warning. ' +
+          'See docs/data-isolation/rowscope-pg.'
+      )
+    }
     if (choice === 'sqlite-memory' && !drivers.has('sqlite-memory')) {
       drivers.register(new SqliteMemoryDriver(), { activate: true })
     }

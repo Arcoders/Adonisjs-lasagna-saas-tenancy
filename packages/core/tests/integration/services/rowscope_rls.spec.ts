@@ -45,6 +45,24 @@ test.group('rowscope RLS (integration)', (group) => {
     const flags = rowsOf(flagsRes)[0]
     rlsEnforced = !(flags.super === true || flags.bypass === true)
 
+    // Fail loud — rather than skip — whenever a least-privilege RLS role was
+    // CONFIGURED but the proof still wouldn't be enforced. We key off
+    // `RLS_DB_USER` (the env the CI workflow sets to point `rls_probe` at the
+    // NOSUPERUSER `rls_ci` role) instead of a generic `CI` flag: that fires
+    // exactly when the proof is meant to run, and won't surprise a local dev who
+    // merely has `CI` exported but no RLS role provisioned. If the wiring drifts
+    // (role/env renamed, connection misconfigured) the spec would otherwise go
+    // GREEN by skipping and ship `rowscope-pg`'s headline guarantee unverified.
+    if (!rlsEnforced && process.env.RLS_DB_USER) {
+      throw new Error(
+        `RLS proof cannot run: RLS_DB_USER="${process.env.RLS_DB_USER}" is set, but the ` +
+          `"${PROBE_CONN}" connection still authenticated as a SUPERUSER/BYPASSRLS role, so the ` +
+          `policy is not enforced. This is a hard failure — the role must be NOSUPERUSER ` +
+          `NOBYPASSRLS and RLS_DB_USER/RLS_DB_PASSWORD must point at it (see ` +
+          `.github/workflows/ci.yml). Refusing to pass by skipping.`
+      )
+    }
+
     await admin.rawQuery(`DROP TABLE IF EXISTS ${TABLE}`)
     await admin.rawQuery(`
       CREATE TABLE ${TABLE} (

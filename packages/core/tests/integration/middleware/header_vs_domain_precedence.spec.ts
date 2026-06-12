@@ -6,13 +6,15 @@ import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 /**
  * S1-5: header-vs-domain precedence under CustomDomainMiddleware.
  *
- * Default (legacy) mode: an explicit `x-tenant-id` header wins over a
- * matching `Host`. That's a tenant-hop vector when an attacker knows
- * the custom domain — already covered by the existing spec.
+ * Secure-by-default mode (this spec; `/custom-domain-strict-check` mounts
+ * `customDomain()` with NO options): if both a matching `Host` and an
+ * `x-tenant-id` header are present and they DISAGREE, the request is rejected
+ * with 400 — the verified domain is authoritative. If only one signal is
+ * present, the middleware behaves as before.
  *
- * Strict mode (this spec): if both signals are present and DISAGREE,
- * the request is rejected with 400. If only one is present, the
- * middleware behaves as before.
+ * Legacy mode (opt-in via `strict: false`, where an explicit header wins over a
+ * matching `Host` — a tenant-hop vector) is covered by the separate
+ * custom_domain_middleware spec against `/custom-domain-check`.
  */
 test.group('CustomDomainMiddleware — strict mode (header/domain precedence)', () => {
   async function bindTenantToDomain(tenantId: string, domain: string): Promise<void> {

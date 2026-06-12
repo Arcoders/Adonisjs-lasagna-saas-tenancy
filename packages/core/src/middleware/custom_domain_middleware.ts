@@ -9,14 +9,17 @@ import type { NextFn } from '@adonisjs/core/types/http'
 
 export interface CustomDomainOptions {
   /**
-   * When `strict` is true and both a `Host` matching a custom domain AND
-   * an `x-tenant-id` header are present, the request is REJECTED with
-   * 400 unless they agree. Without this, a header value can override
-   * the domain — a tenant-hop vector if your CDN/edge fixes Host but
-   * passes through arbitrary headers.
+   * When `strict` is true (the default) and both a `Host` matching a custom
+   * domain AND an `x-tenant-id` header are present, the request is REJECTED
+   * with 400 unless they agree. The verified domain is authoritative; letting
+   * a header override it is a tenant-hop vector if your CDN/edge fixes Host
+   * but passes through arbitrary headers.
    *
-   * Default `false` for backwards compatibility. Multi-tenant SaaS
-   * deployments should set this to `true` in their kernel.
+   * Set to `false` only if you intentionally route by header on hosts the
+   * package also manages as custom domains (the pre-1.0 behavior, where an
+   * explicit header won without consulting the domain). Understand the
+   * trade-off before opting out: any caller able to set the header can then
+   * address a different tenant through a verified domain.
    */
   strict?: boolean
 }
@@ -30,6 +33,9 @@ export default class CustomDomainMiddleware {
   }
 
   async handle({ request }: HttpContext, next: NextFn, options: CustomDomainOptions = {}) {
+    // Secure by default: the verified domain is authoritative. Opt out only by
+    // passing `strict: false` explicitly (the legacy header-wins behavior).
+    const strict = options.strict ?? true
     // Use the configured tenant header so the Host->tenant hand-off matches what
     // the resolver reads downstream (getConfig().tenantHeaderKey), rather than a
     // fixed 'x-tenant-id'. Raw Node headers are lower-cased, so the auto-fill
@@ -40,8 +46,8 @@ export default class CustomDomainMiddleware {
 
     if (!host) return next()
 
-    if (headerTenantId && !options.strict) {
-      // Legacy behavior: an explicit header wins, even if it disagrees
+    if (headerTenantId && !strict) {
+      // Legacy (opt-in) behavior: an explicit header wins, even if it disagrees
       // with the Host. Document and skip.
       return next()
     }
@@ -58,7 +64,7 @@ export default class CustomDomainMiddleware {
       return next()
     }
 
-    if (headerTenantId && options.strict && headerTenantId !== tenant.id) {
+    if (headerTenantId && strict && headerTenantId !== tenant.id) {
       // Both signals are present and they disagree. Reject — the safer
       // failure mode is "no service" rather than "service for whichever
       // side the attacker controls".
