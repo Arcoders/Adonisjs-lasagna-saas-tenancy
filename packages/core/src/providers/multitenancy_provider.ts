@@ -1,6 +1,5 @@
 import type { ApplicationService } from '@adonisjs/core/types'
 import { Database } from '@adonisjs/lucid/database'
-import logger from '@adonisjs/core/services/logger'
 import { setConfig } from '../config.js'
 import type { MultitenancyConfig } from '../types/config.js'
 import { BackofficeAdapter, TenantAdapter } from '../models/adapters/index.js'
@@ -130,9 +129,13 @@ export default class MultitenancyProvider {
     // `enable_rls_tenant_isolation` migration + `withTenantRls`). Warn whenever
     // rowscope-pg is the ACTIVE driver without the acknowledgment, regardless of
     // whether this provider registered it or a host pre-registered its own — the
-    // pre-registered case arguably needs the hint most.
+    // pre-registered case arguably needs the hint most. The logger MUST come
+    // from the container here: the `@adonisjs/core/services/logger` binding
+    // only materializes once the app reaches `booted`, and provider boot()
+    // runs before that, so the eager import is still undefined at this point.
     if (choice === 'rowscope-pg' && !config.isolation?.rowScopeRls) {
-      logger.warn(
+      const bootLogger = await this.app.container.make('logger').catch(() => undefined)
+      bootLogger?.warn(
         'multitenancy: isolation.driver is "rowscope-pg" without the RLS backstop. ' +
           'Tenant isolation is enforced only by the withTenantScope mixin (WHERE tenant_id = ?), ' +
           'which a top-level orWhere can escape. Ship the `enable_rls_tenant_isolation` migration ' +
@@ -249,7 +252,11 @@ export default class MultitenancyProvider {
         Locator.register(JobClass.options?.name ?? JobClass.name, JobClass as never)
       }
     } catch (error) {
-      logger.warn(
+      // Container-resolved on purpose: this runs during boot(), before the
+      // eager `@adonisjs/core/services/logger` binding exists (see the
+      // rowscope warning above for the same constraint).
+      const bootLogger = await this.app.container.make('logger').catch(() => undefined)
+      bootLogger?.warn(
         { err: (error as Error)?.message },
         '[multitenancy] could not auto-register queue jobs with the @adonisjs/queue Locator — dispatch a job through a worker only if you register them yourself'
       )
