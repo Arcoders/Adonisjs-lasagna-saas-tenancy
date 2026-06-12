@@ -1,6 +1,7 @@
 import { test } from '@japa/runner'
 import { buildTestTenant, MockTenantRepository } from '@adonisjs-lasagna/saas-tenancy/testing'
 import type { DemoMeta } from '#app/models/backoffice/tenant'
+import { ADMIN_HEADERS } from './_helpers.js'
 
 /**
  * Smoke tests — one assertion per public surface that doesn't require a fully
@@ -47,8 +48,10 @@ test.group('smoke — health endpoints', () => {
     response.assertBodyContains({ status: response.body().status })
   })
 
+  // /metrics is fail-closed (it leaks tenant enumeration + KPIs) and the demo
+  // gates it with the same x-admin-token as the admin API.
   test('/metrics returns prometheus text exposition', async ({ assert, client }) => {
-    const response = await client.get('/metrics')
+    const response = await client.get('/metrics').headers(ADMIN_HEADERS)
     response.assertStatus(200)
     assert.match(response.text(), /multitenancy_uptime_seconds/)
   })
@@ -57,6 +60,11 @@ test.group('smoke — health endpoints', () => {
 test.group('smoke — admin auth', () => {
   test('/admin/* rejects requests without the token', async ({ client }) => {
     const response = await client.get('/admin/tenants')
+    response.assertStatus(401)
+  })
+
+  test('/metrics rejects requests without the token', async ({ client }) => {
+    const response = await client.get('/metrics')
     response.assertStatus(401)
   })
 })

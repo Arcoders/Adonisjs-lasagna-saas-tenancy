@@ -109,7 +109,7 @@ Every section below is a copy paste recipe for one feature. Same shape, differen
 | `REDIS_*`, `QUEUE_REDIS_*`, `CACHE_REDIS_*` | localhost:56379, dbs 0 / 1 / 2 | Three logical Redis databases, one container |
 | `BACKUP_STORAGE_PATH` | `./storage/backups` | Where `pg_dump` writes |
 | `BACKUP_S3_*` | disabled | Set `BACKUP_S3_ENABLED=true` to mirror to S3 |
-| `DEMO_ADMIN_TOKEN` | required | Sent as `x-admin-token` to gate the admin API |
+| `DEMO_ADMIN_TOKEN` | required | Sent as `x-admin-token` to gate the admin API and `/metrics` |
 | `MAILCATCHER_HOST`, `MAILCATCHER_PORT` | `127.0.0.1`, `1025` | SMTP target. Web UI lives on port 1080 |
 | `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | `demo@example.test`, `Demo Multitenancy` | Default From header when a tenant has no branding row |
 
@@ -200,13 +200,14 @@ curl -H "x-tenant-id: $TENANT_ID" http://localhost:3333/demo/notes
 
 ### 6. Health probes and Prometheus
 
-One call mounts `/livez`, `/readyz`, `/healthz`, and `/metrics`. Same shape as a real production deployment.
+One call mounts `/livez`, `/readyz`, `/healthz`, and `/metrics`. Same shape as a real production deployment. The probes stay public for orchestrators; `/metrics` is fail-closed (it exposes per-tenant labels and tenant counts), so the demo gates it with the same `x-admin-token` as the admin API.
 
 ```bash
 curl http://localhost:3333/livez       # process is alive
 curl http://localhost:3333/readyz      # DB + Redis + circuit checks
 curl http://localhost:3333/healthz     # the full diagnostic JSON
-curl http://localhost:3333/metrics     # Prometheus 0.0.4 text exposition
+curl http://localhost:3333/metrics \
+  -H "x-admin-token:$(grep DEMO_ADMIN_TOKEN .env | cut -d= -f2)"  # Prometheus 0.0.4 text exposition
 ```
 
 ### 7. The doctor

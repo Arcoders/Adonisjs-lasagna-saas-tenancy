@@ -27,11 +27,35 @@ test.group('Multi-pod cache coherency via the Redis bus (integration)', (group) 
   let podA: ReturnType<typeof buildCacheInstance>
   let podB: ReturnType<typeof buildCacheInstance>
 
+  // bentocache's bus subscribes fire-and-forget (the constructor never awaits
+  // the ioredis SUBSCRIBE, which rides a separate connection), and Redis
+  // pub/sub has no replay: a message published before B's subscription lands
+  // is lost forever. A fixed sleep is therefore a race on a slow CI runner.
+  // Instead, prove the A→bus→B path is live with probe rounds — each round
+  // publishes a FRESH delete, so a message lost during subscription startup
+  // is retried, not fatal. A genuinely broken bus still fails loudly here.
+  async function waitForBusReady(timeoutMs = 15_000) {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      const probe = `bus-ready-${randomUUID()}`
+      await podA.set({ key: probe, value: 'x' })
+      await podB.get({ key: probe }) // fill B's L1 with the copy to invalidate
+      await podA.delete({ key: probe }) // publish the invalidation
+      const roundEnd = Date.now() + 750
+      while (Date.now() < roundEnd) {
+        if ((await podB.get({ key: probe })) == null) return
+        await new Promise((r) => setTimeout(r, 50))
+      }
+    }
+    throw new Error(
+      `Redis bus never delivered an invalidation within ${timeoutMs}ms — bus wiring or Redis pub/sub broken`
+    )
+  }
+
   group.setup(async () => {
     podA = buildCacheInstance()
     podB = buildCacheInstance()
-    // Give both bus subscriptions a beat to come up before the first publish.
-    await new Promise((r) => setTimeout(r, 300))
+    await waitForBusReady()
   })
 
   group.teardown(async () => {

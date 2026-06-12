@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import db from '@adonisjs/lucid/services/db'
 import { BillingService, MockStripe, StripeCustomer } from '@adonisjs-lasagna/billing'
-import { createInstalledTenant, dropAllTenants } from './_helpers.js'
+import { ADMIN_HEADERS, createInstalledTenant, dropAllTenants } from './_helpers.js'
 
 /**
  * The end-to-end answer to "I installed some satellites, can I add billing
@@ -72,8 +72,8 @@ test.group('e2e — satellites coexistence (flags + branding + webhooks + audit 
     assert.isTrue(status.body().hasCustomer)
     assert.isNotNull(await StripeCustomer.find(id), 'Stripe customer mirror persisted')
 
-    // ── metrics endpoint still serves (operational, not tenant-scoped) ──
-    const metrics = await client.get('/metrics')
+    // ── metrics endpoint still serves (operational, admin-token-gated) ──
+    const metrics = await client.get('/metrics').headers(ADMIN_HEADERS)
     metrics.assertStatus(200)
     assert.match(metrics.text(), /multitenancy_/)
 

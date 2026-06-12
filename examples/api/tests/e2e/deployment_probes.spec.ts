@@ -1,4 +1,5 @@
 import { test } from '@japa/runner'
+import { ADMIN_HEADERS } from './_helpers.js'
 
 // The deploy assets (compose healthchecks, Helm readiness/liveness probes,
 // nginx /healthz bypass) all point at these four endpoints, so this spec pins
@@ -47,8 +48,10 @@ test.group('e2e — deployment probes', () => {
     assert.equal(healthz.body().status, ready.body().status)
   })
 
+  // /metrics is fail-closed in the demo (gated by x-admin-token); a real
+  // Prometheus scrape job carries the credential as a request header too.
   test('GET /metrics serves Prometheus text exposition', async ({ client, assert }) => {
-    const res = await client.get('/metrics')
+    const res = await client.get('/metrics').headers(ADMIN_HEADERS)
     res.assertStatus(200)
     assert.include(res.header('content-type') ?? '', 'text/plain')
     assert.include(res.text(), 'multitenancy_uptime_seconds')

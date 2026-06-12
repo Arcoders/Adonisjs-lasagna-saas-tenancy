@@ -133,7 +133,7 @@ test.group('e2e — full feature tour', (group) => {
     client,
     assert,
   }) => {
-    const r = await client.get('/metrics')
+    const r = await client.get('/metrics').headers(ADMIN_HEADERS)
     r.assertStatus(200)
     assert.match(r.text(), /multitenancy_uptime_seconds/)
     assert.match(r.text(), /multitenancy_tenants_total/)
