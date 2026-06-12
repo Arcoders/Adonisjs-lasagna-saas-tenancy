@@ -1,20 +1,8 @@
 # @adonisjs-lasagna/saas-tenancy
 
-```
- ██╗      █████╗ ███████╗ █████╗  ██████╗ ███╗   ██╗ █████╗
- ██║     ██╔══██╗██╔════╝██╔══██╗██╔════╝ ████╗  ██║██╔══██╗
- ██║     ███████║███████╗███████║██║  ███╗██╔██╗ ██║███████║
- ██║     ██╔══██║╚════██║██╔══██║██║   ██║██║╚██╗██║██╔══██║
- ███████╗██║  ██║███████║██║  ██║╚██████╔╝██║ ╚████║██║  ██║
- ╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝
-```
-
-SaaS multi-tenancy for AdonisJS 7. Every tenant lives in its own
-isolated PostgreSQL schema. Around it: connection
-routing, circuit breaking, queues, contextual logging, plans and quotas,
-scheduled backups with retention, read-replica routing, soft delete, and
-a satellite suite covering audit logs, webhooks, branding, SSO, feature
-flags, metrics, and Stripe billing.
+<p align="center">
+  <img src="assets/banner.png" alt="Lasagna — SaaS multi-tenancy for AdonisJS 7. Every tenant lives in its own isolated PostgreSQL schema. Around it: connection routing, circuit breaking, queues, contextual logging, plans and quotas, scheduled backups with retention, read-replica routing, soft delete, and a satellite suite covering audit logs, webhooks, branding, SSO, feature flags, metrics, and Stripe billing." width="100%" />
+</p>
 
 [![npm](https://img.shields.io/npm/v/@adonisjs-lasagna/saas-tenancy?color=C26A4B&label=npm)](https://www.npmjs.com/package/@adonisjs-lasagna/saas-tenancy)
 [![Stability: release candidate](https://img.shields.io/badge/stability-release_candidate-C26A4B)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/stability)
