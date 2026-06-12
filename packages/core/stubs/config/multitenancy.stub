@@ -18,6 +18,15 @@ export default defineConfig({
   tenantHeaderKey: env.get('TENANT_HEADER_KEY', 'x-tenant-id'),
   baseDomain: env.get('APP_DOMAIN', 'localhost'),
 
+  // Optional performance knob. By default the guard looks the tenant up in the
+  // central DB on EVERY request. Enabling this caches the resolved tenant per
+  // pod for `ttlMs` and invalidates it immediately on lifecycle events
+  // (suspend/activate/update/delete/maintenance). Cross-pod status changes
+  // propagate within `ttlMs`. Treat `request.tenant()` as read-only when on.
+  // resolver: {
+  //   cache: { enabled: true, ttlMs: 10_000, maxEntries: 10_000 },
+  // },
+
   schemaCacheTtl: 300,
   // Paths that bypass TenantGuardMiddleware. Any inbound endpoint that
   // doesn't carry a resolvable tenant must live here — Stripe webhook is

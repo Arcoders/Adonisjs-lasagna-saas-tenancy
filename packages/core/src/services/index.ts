@@ -35,6 +35,11 @@ export { default as QuotaService } from './quota_service.js'
 export type { QuotaCheckResult, QuotaStateSnapshot, QuotaMode } from './quota_service.js'
 // `BillingService` + `redactStripeEvent` moved to `@adonisjs-lasagna/billing`.
 export { default as ReadReplicaService } from './read_replica_service.js'
+export {
+  default as TenantResolutionCache,
+  DEFAULT_RESOLUTION_CACHE_TTL_MS,
+  DEFAULT_RESOLUTION_CACHE_MAX,
+} from './tenant_resolution_cache.js'
 export { default as HookRegistry } from './hook_registry.js'
 export { default as BootstrapperRegistry } from './bootstrapper_registry.js'
 export type { BootstrapperContext, TenantBootstrapper } from './bootstrapper_registry.js'

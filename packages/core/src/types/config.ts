@@ -31,6 +31,41 @@ export interface ResolverConfig {
    * you depended on the old `resolverStrategy`-only fallback.
    */
   legacyAdapterFallback?: boolean
+  /**
+   * Opt-in per-process cache for the tenant-registry lookup that the HTTP guard
+   * and universal middleware run on EVERY request (`repo.findById`). Without it,
+   * every tenant request makes a round-trip to the shared backoffice DB before
+   * any tenant work — a fixed latency add and a contention point that funnels
+   * all traffic through one pool.
+   *
+   * When enabled, a resolved tenant is cached in-process (per pod) for `ttlMs`
+   * and invalidated immediately, in-process, on the tenant lifecycle events
+   * (suspend / activate / update / delete / maintenance). Cross-instance
+   * propagation of a status change is bounded by `ttlMs` — a tenant suspended on
+   * one pod may keep serving on another for up to `ttlMs`. Keep `ttlMs` short
+   * (seconds) so that window stays small.
+   *
+   * IMPORTANT: the cached `request.tenant()` is shared across concurrent requests
+   * in the same process — treat it as READ-ONLY. For a mutate-then-save flow,
+   * load a fresh instance through your repository instead of mutating the
+   * resolved request tenant. Disabled by default (behaviour is byte-for-byte
+   * unchanged unless you opt in).
+   */
+  cache?: {
+    /** Turn the cache on. Default `false`. */
+    enabled?: boolean
+    /**
+     * Time-to-live per cached tenant, in ms. Also the upper bound on how long a
+     * cross-pod status change can take to propagate. Default `10_000` (10s).
+     */
+    ttlMs?: number
+    /**
+     * Max tenants cached per process before the least-recently-used entry is
+     * evicted (keeps memory bounded under a very large tenant base). Default
+     * `10_000`.
+     */
+    maxEntries?: number
+  }
 }
 
 /**
@@ -458,6 +493,22 @@ export interface MultitenancyConfig {
       password?: string
       db?: number
     }
+    /**
+     * Upper bound on simultaneously-open per-tenant `Queue` handles kept in
+     * `TenantQueueService` (the dispatch path). Each handle owns an ioredis
+     * connection, so an unbounded map under high tenant churn would leak one
+     * connection per dispatched tenant and eventually exhaust Redis
+     * `maxclients`. When over cap, the least-recently-used IDLE handle (one not
+     * touched within `queueIdleGraceMs`) is closed and re-created lazily on the
+     * next dispatch. Default 100.
+     */
+    maxOpenQueues?: number
+    /**
+     * In-use grace window (ms) for the queue-handle LRU above. A handle touched
+     * more recently than this is never evicted even over cap, so an in-flight
+     * dispatch is never severed. Default 30_000 (mirrors the connection LRU).
+     */
+    queueIdleGraceMs?: number
   }
   /**
    * Optional backup config block. Consumed only by the extracted

@@ -94,6 +94,21 @@ export interface TenantRepositoryContract<TMeta extends object = TenantMetadata>
     includeDeleted?: boolean
     statuses?: TenantStatus[]
   }): Promise<TenantModelContract<TMeta>[]>
+  /**
+   * Optional aggregate: counts of tenants grouped by status, computed in the
+   * database (`GROUP BY status`) WITHOUT hydrating any rows.
+   *
+   * When implemented, ops paths that only need counts — notably the `/metrics`
+   * collector — use this instead of `all()`, turning an O(n-tenants) full-table
+   * load on every Prometheus scrape into a single O(1) aggregate. Implementations
+   * that omit it keep working: callers fall back to `all()` and count in memory.
+   *
+   * Returns a partial map (a status absent from the result counts as 0). Include
+   * soft-deleted tenants when `includeDeleted` is true.
+   */
+  countByStatus?(options?: {
+    includeDeleted?: boolean
+  }): Promise<Partial<Record<TenantStatus, number>>>
   whereIn(ids: string[], includeDeleted?: boolean): Promise<TenantModelContract<TMeta>[]>
   /**
    * Iterate over tenants in cursor-paginated batches (keyset on the primary

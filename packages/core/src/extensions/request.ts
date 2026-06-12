@@ -12,6 +12,10 @@ import { getActiveDriver } from '../services/isolation/active_driver.js'
 import { isUuidV4 } from '../services/isolation/identifier.js'
 import { isProductionNodeEnv } from '../utils/env.js'
 import TenantResolverRegistry from '../services/resolvers/registry.js'
+import TenantResolutionCache, {
+  DEFAULT_RESOLUTION_CACHE_MAX,
+  DEFAULT_RESOLUTION_CACHE_TTL_MS,
+} from '../services/tenant_resolution_cache.js'
 import type { TenantResolveResult } from '../services/resolvers/resolver.js'
 import { HttpRequest } from '@adonisjs/core/http'
 import app from '@adonisjs/core/services/app'
@@ -42,6 +46,114 @@ async function getResolverRegistry(): Promise<TenantResolverRegistry | undefined
 
 export function __resetResolverRegistryCacheForTests(): void {
   cachedResolverRegistry = undefined
+}
+
+/**
+ * Cached handle to the per-process tenant-resolution cache singleton. Resolved
+ * lazily (a miss before boot just disables caching and falls through to the DB).
+ */
+let cachedResolutionCache: TenantResolutionCache | undefined
+
+async function getResolutionCache(): Promise<TenantResolutionCache | undefined> {
+  if (cachedResolutionCache) return cachedResolutionCache
+  try {
+    cachedResolutionCache = await app.container.make(TenantResolutionCache)
+    return cachedResolutionCache
+  } catch {
+    return undefined
+  }
+}
+
+export function __resetResolutionCacheRefForTests(): void {
+  cachedResolutionCache = undefined
+}
+
+/**
+ * Test-only: inject a resolution cache directly, skipping the container — so the
+ * caching hot path can be exercised in a unit test without booting the app.
+ */
+export function __setResolutionCacheForTests(cache: TenantResolutionCache | undefined): void {
+  cachedResolutionCache = cache
+}
+
+/**
+ * Load a tenant by id, served from the per-process resolution cache when
+ * `config.resolver.cache.enabled` (P1-1).
+ *
+ * When the cache is disabled (or unavailable before boot), this falls straight
+ * through to `repo.findById(id, includeDeleted)` honouring the caller's
+ * `includeDeleted` — so the cache-off path is byte-for-byte the legacy behaviour
+ * (the guard passes `true`, the universal middleware passes `false`).
+ *
+ * When the cache IS enabled, a single entry per tenant is shared across call
+ * sites, so the backing fetch always uses `includeDeleted=true` (the superset):
+ * the guard inspects `isDeleted` itself, and the universal middleware likewise
+ * degrades a soft-deleted tenant to `null` via its own `isDeleted` check. That
+ * one cached entry is the whole point of the optimization.
+ */
+export async function findTenantByIdCached(
+  repo: TenantRepositoryContract,
+  id: string,
+  includeDeleted: boolean = true
+): Promise<TenantModelContract | null> {
+  let cacheCfg: { enabled?: boolean; ttlMs?: number; maxEntries?: number } | undefined
+  try {
+    cacheCfg = getConfig().resolver?.cache
+  } catch {
+    cacheCfg = undefined
+  }
+  if (!cacheCfg?.enabled) return repo.findById(id, includeDeleted)
+
+  const cache = await getResolutionCache()
+  if (!cache) return repo.findById(id, includeDeleted)
+
+  const hit = cache.get(id)
+  if (hit) return hit
+
+  const tenant = await findThenCache(repo, id, cache, cacheCfg)
+  return tenant
+}
+
+async function findThenCache(
+  repo: TenantRepositoryContract,
+  id: string,
+  cache: TenantResolutionCache,
+  cacheCfg: { ttlMs?: number; maxEntries?: number }
+): Promise<TenantModelContract | null> {
+  const tenant = await repo.findById(id, true)
+  if (tenant) {
+    cache.set(
+      id,
+      tenant,
+      cacheCfg.ttlMs ?? DEFAULT_RESOLUTION_CACHE_TTL_MS,
+      cacheCfg.maxEntries ?? DEFAULT_RESOLUTION_CACHE_MAX
+    )
+  }
+  return tenant
+}
+
+/**
+ * Prime the resolution cache with a tenant the caller already loaded by another
+ * key (e.g. the custom-domain middleware, which resolves by `findByDomain` and
+ * then rewrites the request to the tenant id). Without this, the guard's
+ * subsequent by-id lookup would miss the cache on the first request and hit the
+ * DB a second time for the same tenant. No-op when the cache is disabled.
+ */
+export async function primeResolvedTenant(tenant: TenantModelContract): Promise<void> {
+  let cacheCfg: { enabled?: boolean; ttlMs?: number; maxEntries?: number } | undefined
+  try {
+    cacheCfg = getConfig().resolver?.cache
+  } catch {
+    return
+  }
+  if (!cacheCfg?.enabled) return
+  const cache = await getResolutionCache()
+  cache?.set(
+    tenant.id,
+    tenant,
+    cacheCfg.ttlMs ?? DEFAULT_RESOLUTION_CACHE_TTL_MS,
+    cacheCfg.maxEntries ?? DEFAULT_RESOLUTION_CACHE_MAX
+  )
 }
 
 /**
@@ -151,7 +263,7 @@ export function dependencyUnavailable(
   try {
     if (result?.type === 'id') {
       assert(isUuidV4(result.tenantId), new MissingTenantHeaderException())
-      tenant = await repo.findById(result.tenantId, true)
+      tenant = await findTenantByIdCached(repo, result.tenantId)
     } else if (result?.type === 'domain') {
       tenant = await repo.findByDomain(result.domain)
     } else {

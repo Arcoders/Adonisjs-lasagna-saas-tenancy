@@ -11,15 +11,31 @@ description: Measured throughput and latency for the tenancy hot paths, plus the
 
 _Last run: 2026-06-07T15:10:14.310Z · node v24.16.0 · AMD EPYC 7763 64-Core Processor · commit dc4e35f._
 
+> ## ⚙️ Operational must-knows (read before sizing)
+>
+> 1. **Open connections scale with *active tenants*, not `maxTenantConnections`.**
+>    The in-use-aware LRU never severs an in-flight connection, so under the
+>    default 30s grace a burst of N concurrently-active tenants opens ~N
+>    connections (see the connection-budget burst tier). The real ceiling is
+>    Postgres `max_connections` — **size it (and front with PgBouncer transaction
+>    pooling at higher tenant counts) for your peak concurrent-tenant count**,
+>    not for `maxTenantConnections`.
+> 2. **The first query for an idle tenant pays a ~9ms cold-connection cliff**
+>    (register connection + pool + `SET search_path`). Keep hot tenants warm:
+>    set `maxTenantConnections` above your steady concurrent-tenant count and
+>    `evictionGracePeriodMs` above your p99 request latency.
+> 3. **Every tenant request makes a backoffice lookup by default.** The guard
+>    resolves the tenant from the central DB on each request — a second round
+>    trip on the hot path. Enable `resolver.cache` to serve warm tenants from a
+>    per-pod cache (status changes still invalidate within the TTL), cutting the
+>    steady-state backoffice round-trips per request from two to one.
+
 > **Read the shape, not the absolutes.** The durable signal here is the
 > *relative* cost across drivers and code paths — header resolution is far
 > cheaper than subdomain/path; rowscope-pg reads faster than schema-pg ≈
-> database-pg. Note: open tenant connections are bounded by the eviction
-> grace window, **not** by `maxTenantConnections` — under the default 30s
-> grace a burst of N active tenants opens ~N connections (see the
-> connection-budget burst tier); size `max_connections` / PgBouncer for that.
-> Absolute req/s and latency depend on the host, the pool sizes, and the data
-> volume of the run; read them as indicative shape, not a number to quote.
+> database-pg. Absolute req/s and latency depend on the host, the pool sizes,
+> and the data volume of the run; read them as indicative shape, not a number
+> to quote.
 
 ## db — driver `rowscope-pg`
 

@@ -26,8 +26,16 @@ const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default
  * (`tenantReadReplicas.maxReplicaConnections`, default 50) so that
  * `tenants * hosts` connections can't grow without bound.
  */
+/** Bound on the sticky-hash memo so a huge tenant base can't grow it unbounded. */
+const STICKY_HASH_CACHE_MAX = 10_000
+
 export default class ReadReplicaService {
   #cursor = 0
+  // Memoized SHA-1 → uint32 per tenant for the `sticky` strategy. The hash is
+  // independent of host count, so we cache the raw 32-bit value and apply the
+  // modulo per call — a host-pool change still routes correctly without
+  // re-hashing on every read.
+  readonly #stickyHashCache = new Map<string, number>()
   readonly #lru = new ConnectionLru({
     label: 'ReadReplicaService',
     cap: () =>
@@ -54,8 +62,15 @@ export default class ReadReplicaService {
     }
 
     if (strategy === 'sticky') {
-      const hash = createHash('sha1').update(tenantId).digest()
-      return hash.readUInt32BE(0) % cfg.hosts.length
+      let hash = this.#stickyHashCache.get(tenantId)
+      if (hash === undefined) {
+        hash = createHash('sha1').update(tenantId).digest().readUInt32BE(0)
+        // Simple bound: drop the whole memo when it grows too large rather than
+        // tracking per-entry recency — the hash recomputes cheaply on the next miss.
+        if (this.#stickyHashCache.size >= STICKY_HASH_CACHE_MAX) this.#stickyHashCache.clear()
+        this.#stickyHashCache.set(tenantId, hash)
+      }
+      return hash % cfg.hosts.length
     }
 
     // round-robin

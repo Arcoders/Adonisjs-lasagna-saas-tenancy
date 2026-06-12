@@ -34,10 +34,23 @@ export async function collectSnapshot(options: CollectOptions = {}): Promise<Met
   if (includeTenants) {
     try {
       const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
-      const tenants = await repo.all({ includeDeleted: true })
-      tenantsTotal = tenants.length
-      for (const t of tenants as TenantModelContract[]) {
-        tenantsByStatus[t.status] = (tenantsByStatus[t.status] ?? 0) + 1
+      // Prefer the O(1) aggregate: the scrape only needs counts, so a host that
+      // implements countByStatus lets us avoid loading (and hydrating) every
+      // tenant row on every Prometheus poll. Fall back to the full scan only when
+      // the repo doesn't provide it.
+      if (typeof repo.countByStatus === 'function') {
+        const byStatus = await repo.countByStatus({ includeDeleted: true })
+        for (const [status, count] of Object.entries(byStatus)) {
+          if (typeof count !== 'number') continue
+          tenantsByStatus[status] = (tenantsByStatus[status] ?? 0) + count
+          tenantsTotal += count
+        }
+      } else {
+        const tenants = await repo.all({ includeDeleted: true })
+        tenantsTotal = tenants.length
+        for (const t of tenants as TenantModelContract[]) {
+          tenantsByStatus[t.status] = (tenantsByStatus[t.status] ?? 0) + 1
+        }
       }
     } catch (err) {
       await warn('tenants_unavailable', err)

@@ -1,6 +1,19 @@
-import { Queue, type JobsOptions } from 'bullmq'
-import logger from '@adonisjs/core/services/logger'
+import { Queue, type JobsOptions, type QueueOptions } from 'bullmq'
 import { getConfig } from '../config.js'
+import ConnectionLru, { DEFAULT_EVICTION_GRACE_MS } from './isolation/connection_lru.js'
+
+// Lazy logger so importing this service never triggers `@adonisjs/core`'s
+// top-level `await app.booted(...)` outside an Ignitor (which throws). Matches
+// the pattern in CircuitBreakerService / ConnectionLru / WebhookService and
+// keeps the module importable from unit tests.
+const lazyLogger = () =>
+  import('@adonisjs/core/services/logger').then((m) => m.default).catch(() => null)
+
+/** Default cap on simultaneously-open per-tenant queue handles. */
+export const DEFAULT_MAX_OPEN_QUEUES = 100
+
+/** Default fan-out width when collecting stats for an explicit tenant list. */
+export const DEFAULT_STATS_CONCURRENCY = 10
 
 export interface TenantQueueStats {
   tenantId: string
@@ -28,6 +41,44 @@ export interface TenantQueueStats {
 export default class TenantQueueService {
   private queues = new Map<string, Queue>()
 
+  // Bounds the persistent dispatch-path handle map. Each `Queue` owns an
+  // ioredis connection, so without this an app/worker that dispatches to many
+  // distinct tenants over its lifetime would accumulate one open connection per
+  // tenant forever (the read-only inspection path already dodges this via
+  // `withTempQueue`). Mirrors the in-use-aware connection LRU: an idle handle is
+  // closed when over cap; a handle touched within the grace window is never
+  // evicted, so an in-flight dispatch is never severed.
+  readonly #lru = new ConnectionLru({
+    label: 'TenantQueueService',
+    cap: () => getConfig().queue.maxOpenQueues ?? DEFAULT_MAX_OPEN_QUEUES,
+    graceMs: () => getConfig().queue.queueIdleGraceMs ?? DEFAULT_EVICTION_GRACE_MS,
+    release: async (tenantId) => {
+      // Delete synchronously (before the await) so a concurrent getOrCreate for
+      // the same tenant re-creates a fresh handle instead of handing back the
+      // one that is closing. The close() drains in the background.
+      const queue = this.queues.get(tenantId)
+      if (!queue) return
+      this.queues.delete(tenantId)
+      await queue.close()
+    },
+    now: () => this.now(),
+  })
+
+  /** Clock source for the handle LRU. A method seam so tests can drive eviction
+   * deterministically instead of depending on `Date.now()` advancing. */
+  protected now(): number {
+    return Date.now()
+  }
+
+  /**
+   * Number of persistent per-tenant queue handles currently held open on the
+   * dispatch path. Bounded by `config.queue.maxOpenQueues`; exposed for the
+   * doctor/metrics surface and to make the eviction bound testable.
+   */
+  get openHandleCount(): number {
+    return this.queues.size
+  }
+
   getQueueName(tenantId: string): string {
     return `${getConfig().queue.tenantQueuePrefix}${tenantId}`
   }
@@ -43,14 +94,24 @@ export default class TenantQueueService {
     }
   }
 
+  /**
+   * Construct a BullMQ `Queue`. A method seam (not a bare `new Queue`) so unit
+   * tests can exercise the handle-eviction logic with an in-memory stub instead
+   * of a live ioredis connection.
+   */
+  protected createQueue(name: string, options: QueueOptions): Queue {
+    return new Queue(name, options)
+  }
+
   getOrCreate(tenantId: string): Queue {
     if (this.queues.has(tenantId)) {
+      this.#lru.touch(tenantId)
       return this.queues.get(tenantId)!
     }
 
     const { attempts } = getConfig().queue
 
-    const queue = new Queue(this.getQueueName(tenantId), {
+    const queue = this.createQueue(this.getQueueName(tenantId), {
       connection: this.#connection(),
       defaultJobOptions: {
         attempts,
@@ -59,8 +120,14 @@ export default class TenantQueueService {
       },
     })
 
-    logger.debug({ tenantId, queueName: this.getQueueName(tenantId) }, 'Tenant queue created')
+    void lazyLogger().then((l) =>
+      l?.debug({ tenantId, queueName: this.getQueueName(tenantId) }, 'Tenant queue created')
+    )
     this.queues.set(tenantId, queue)
+    this.#lru.touch(tenantId)
+    // Reclaim an idle handle if this push put us over the cap. Fire-and-forget,
+    // in-use-aware: never closes a handle dispatched to within the grace window.
+    this.#lru.evictIfNeeded()
     return queue
   }
 
@@ -71,7 +138,7 @@ export default class TenantQueueService {
    * paths (which are polled), eventually exhausting Redis `maxclients`.
    */
   async withTempQueue<T>(tenantId: string, fn: (queue: Queue) => Promise<T>): Promise<T> {
-    const queue = new Queue(this.getQueueName(tenantId), { connection: this.#connection() })
+    const queue = this.createQueue(this.getQueueName(tenantId), { connection: this.#connection() })
     try {
       return await fn(queue)
     } finally {
@@ -100,11 +167,23 @@ export default class TenantQueueService {
    * Stats for an explicit set of tenants. Prefer this over {@link getAllStats}
    * when you have the tenant list (e.g. the /metrics collector) — it reflects
    * ALL tenants, not just the ones this process happened to dispatch to.
+   *
+   * Each tenant's counts come from a short-lived handle ({@link withTempQueue}),
+   * so a naive sequential loop pays N connect/handshake/close cycles back to
+   * back. This runs them in bounded-concurrency batches instead: peak open
+   * connections never exceed `concurrency` (default 10) regardless of list size,
+   * and the wall-clock drops by roughly that factor.
    */
-  async statsForTenants(tenantIds: string[]): Promise<TenantQueueStats[]> {
-    const results: TenantQueueStats[] = []
-    for (const id of tenantIds) {
-      results.push(await this.getStats(id))
+  async statsForTenants(
+    tenantIds: string[],
+    concurrency: number = DEFAULT_STATS_CONCURRENCY
+  ): Promise<TenantQueueStats[]> {
+    const width = Math.max(1, concurrency)
+    const results: TenantQueueStats[] = new Array(tenantIds.length)
+    for (let i = 0; i < tenantIds.length; i += width) {
+      const batch = tenantIds.slice(i, i + width)
+      const stats = await Promise.all(batch.map((id) => this.getStats(id)))
+      for (let j = 0; j < batch.length; j++) results[i + j] = stats[j]
     }
     return results
   }
@@ -141,15 +220,21 @@ export default class TenantQueueService {
     const queue = this.queues.get(tenantId) ?? this.getOrCreate(tenantId)
     try {
       await queue.obliterate({ force: true })
-      logger.info({ tenantId }, 'Tenant queue destroyed')
+      ;(await lazyLogger())?.info({ tenantId }, 'Tenant queue destroyed')
     } catch (error) {
-      logger.warn({ tenantId, error: (error as Error).message }, 'Failed to destroy tenant queue')
+      ;(await lazyLogger())?.warn(
+        { tenantId, error: (error as Error).message },
+        'Failed to destroy tenant queue'
+      )
     } finally {
       // Close in finally: if obliterate() throws, the Queue (and its ioredis
       // connection) must still be released — the map delete below drops our
       // only reference to it.
       await queue.close().catch(() => {})
       this.queues.delete(tenantId)
+      // Keep the LRU bookkeeping in sync so the slot is freed and a later
+      // re-create isn't shadowed by a stale entry.
+      this.#lru.delete(tenantId)
     }
   }
 }

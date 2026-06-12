@@ -42,6 +42,25 @@ export default class TenantRepository implements TenantRepositoryContract {
     return query
   }
 
+  /**
+   * Counts grouped by status, computed in the database — at most one row per
+   * status, never the full table. The package's `/metrics` collector prefers
+   * this over `all()` so a Prometheus scrape stays O(1) regardless of how many
+   * tenants exist.
+   */
+  async countByStatus(
+    options: { includeDeleted?: boolean } = {}
+  ): Promise<Partial<Record<TenantStatus, number>>> {
+    const query = Tenant.query().select('status').count('* as total').groupBy('status')
+    if (!options.includeDeleted) query.whereNull('deleted_at')
+    const rows = await query
+    const result: Partial<Record<TenantStatus, number>> = {}
+    for (const row of rows) {
+      result[row.status as TenantStatus] = Number((row.$extras as { total?: unknown }).total ?? 0)
+    }
+    return result
+  }
+
   async each(
     callback: (tenant: TenantModelContract) => Promise<void> | void,
     options: EachOptions = {}

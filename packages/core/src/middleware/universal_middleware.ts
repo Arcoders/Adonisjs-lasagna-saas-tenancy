@@ -1,6 +1,11 @@
 import { TENANT_REPOSITORY } from '../types/contracts.js'
 import type { TenantModelContract, TenantRepositoryContract } from '../types/contracts.js'
-import { resolveTenant, __setMemoizedTenant, dependencyUnavailable } from '../extensions/request.js'
+import {
+  resolveTenant,
+  __setMemoizedTenant,
+  dependencyUnavailable,
+  findTenantByIdCached,
+} from '../extensions/request.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import { isUuidV4 } from '../services/isolation/identifier.js'
 import TenantLogContext from '../services/tenant_log_context.js'
@@ -61,7 +66,11 @@ export default class UniversalMiddleware {
     try {
       if (result.type === 'id') {
         if (!isUuidV4(result.tenantId)) return null
-        tenant = await repo.findById(result.tenantId, false)
+        // Pass includeDeleted=false to preserve the exact legacy behaviour when
+        // the cache is off. When the cache is on, the shared entry is the deleted
+        // -inclusive superset and the isSuspended/isDeleted checks below still
+        // degrade a soft-deleted tenant to null.
+        tenant = await findTenantByIdCached(repo, result.tenantId, false)
       } else if (result.type === 'domain') {
         tenant = await repo.findByDomain(result.domain)
       }

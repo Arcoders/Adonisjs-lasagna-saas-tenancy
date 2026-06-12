@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import redis from '@adonisjs/redis/services/main'
+import db from '@adonisjs/lucid/services/db'
 import { DateTime } from 'luxon'
 import { MetricsService } from '@adonisjs-lasagna/saas-tenancy/services'
 
@@ -70,5 +71,65 @@ test.group('MetricsService (integration)', (group) => {
       assert.equal(parts[1], tenantId)
       assert.match(parts[2], /^\d{4}-\d{2}-\d{2}$/, 'period must be YYYY-MM-DD')
     }
+  })
+})
+
+test.group('MetricsService.flush — bulk upsert (P2-1)', (group) => {
+  const t1 = 'flush-tenant-1'
+  const t2 = 'flush-tenant-2'
+  const svc = new MetricsService()
+
+  group.each.teardown(async () => {
+    for (const t of [t1, t2]) {
+      const keys = await redis.keys(`metrics:${t}:*`)
+      if (keys.length) await redis.del(...keys)
+    }
+    await db
+      .connection('backoffice')
+      .query()
+      .from('tenant_metrics')
+      .whereIn('tenant_id', [t1, t2])
+      .delete()
+  })
+
+  test('flushes every tenant counter into tenant_metrics in one pass', async ({ assert }) => {
+    await svc.increment(t1, 'requests', 4)
+    await svc.increment(t1, 'errors', 1)
+    await svc.trackBandwidth(t1, 2048)
+    await svc.increment(t2, 'requests', 9)
+
+    await svc.flush(TODAY)
+
+    const rows = await db
+      .connection('backoffice')
+      .query()
+      .from('tenant_metrics')
+      .whereIn('tenant_id', [t1, t2])
+      .andWhere('period', TODAY)
+      .orderBy('tenant_id', 'asc')
+
+    assert.lengthOf(rows, 2)
+    const byTenant = Object.fromEntries(rows.map((r: any) => [r.tenant_id, r]))
+    assert.equal(Number(byTenant[t1].request_count), 4)
+    assert.equal(Number(byTenant[t1].error_count), 1)
+    assert.equal(Number(byTenant[t1].bandwidth_bytes), 2048)
+    assert.equal(Number(byTenant[t2].request_count), 9)
+  })
+
+  test('re-flushing the same period upserts (no duplicate rows)', async ({ assert }) => {
+    await svc.increment(t1, 'requests', 4)
+    await svc.flush(TODAY)
+    await svc.increment(t1, 'requests', 6) // now 10 total in redis
+    await svc.flush(TODAY)
+
+    const rows = await db
+      .connection('backoffice')
+      .query()
+      .from('tenant_metrics')
+      .where('tenant_id', t1)
+      .andWhere('period', TODAY)
+
+    assert.lengthOf(rows, 1)
+    assert.equal(Number(rows[0].request_count), 10)
   })
 })

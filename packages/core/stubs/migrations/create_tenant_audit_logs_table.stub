@@ -9,13 +9,21 @@ export default class extends BaseSchema {
   async up() {
     this.schema.withSchema('backoffice').createTable(this.tableName, (table) => {
       table.uuid('id').primary().defaultTo(this.db.rawQuery('gen_random_uuid()').knexQuery)
-      table.uuid('tenant_id').nullable().index()
+      table.uuid('tenant_id').nullable()
       table.string('actor_type').notNullable()
       table.uuid('actor_id').nullable()
       table.string('action').notNullable()
       table.jsonb('metadata').nullable()
       table.string('ip_address').nullable()
       table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(this.now())
+
+      // Composite index for the canonical access pattern: filter by tenant_id,
+      // order by created_at desc (AuditLogService.listForTenant). A bare
+      // tenant_id index would still force a sort per page; (tenant_id,
+      // created_at) serves the filter AND the ordering from the index, and a
+      // tenant-prefixed lookup still uses it, so no separate tenant_id index is
+      // needed. Audit logs are append-only and unbounded — index for scale.
+      table.index(['tenant_id', 'created_at'], 'tenant_audit_logs_tenant_created_idx')
     })
 
     // Audit logs are append-only. Enforce at the database level so a

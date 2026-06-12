@@ -2,6 +2,7 @@ import { TENANT_REPOSITORY } from '../types/contracts.js'
 import type { TenantRepositoryContract } from '../types/contracts.js'
 import TenantHeaderDomainMismatchException from '../exceptions/tenant_header_domain_mismatch_exception.js'
 import { getConfig } from '../config.js'
+import { primeResolvedTenant } from '../extensions/request.js'
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
@@ -67,6 +68,10 @@ export default class CustomDomainMiddleware {
     // Either the header agrees with the domain (strict pass-through), or
     // there was no header at all (legacy auto-fill).
     request.request.headers[headerKey.toLowerCase()] = tenant.id
+    // We already loaded this tenant by domain; prime the by-id resolution cache
+    // (when enabled) so the downstream guard's by-id lookup is a hit instead of
+    // a second backoffice round-trip for the same tenant.
+    await primeResolvedTenant(tenant)
     return next()
   }
 }

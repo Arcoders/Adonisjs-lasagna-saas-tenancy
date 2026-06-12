@@ -30,6 +30,17 @@ import DoctorService from '../services/doctor/doctor_service.js'
 import { builtInChecks } from '../services/doctor/checks/index.js'
 import QuotaService from '../services/quota_service.js'
 import ReadReplicaService from '../services/read_replica_service.js'
+import TenantResolutionCache from '../services/tenant_resolution_cache.js'
+import {
+  TenantActivated,
+  TenantSuspended,
+  TenantDeleted,
+  TenantUpdated,
+  TenantProvisioned,
+  TenantRestored,
+  TenantEnteredMaintenance,
+  TenantExitedMaintenance,
+} from '../events/index.js'
 import ResilienceService from '../services/resilience_service.js'
 import CrossDomainRedirectService from '../services/cross_domain_redirect_service.js'
 import ImpersonationService from '../services/impersonation_service.js'
@@ -59,6 +70,7 @@ export default class MultitenancyProvider {
     })
     this.app.container.singleton(QuotaService, () => new QuotaService())
     this.app.container.singleton(ReadReplicaService, () => new ReadReplicaService())
+    this.app.container.singleton(TenantResolutionCache, () => new TenantResolutionCache())
     this.app.container.singleton(ResilienceService, () => new ResilienceService())
     this.app.container.singleton(CrossDomainRedirectService, () => new CrossDomainRedirectService())
     this.app.container.singleton(AuditLogService, () => new AuditLogService())
@@ -161,7 +173,43 @@ export default class MultitenancyProvider {
 
     this.#validateImpersonationConfig(config)
 
+    await this.#wireResolutionCacheInvalidation(config)
+
     await this.#registerQueueJobs()
+  }
+
+  /**
+   * When the opt-in tenant-resolution cache is enabled, drop a tenant's cached
+   * entry the moment its status changes in-process, so a suspend/maintenance/
+   * delete takes effect immediately on this pod rather than waiting out the TTL.
+   * (Cross-pod propagation is still bounded by the TTL — documented on the
+   * config.) No-op when the cache is off. The emitter is resolved lazily so a
+   * stripped-down container without it doesn't break boot.
+   */
+  async #wireResolutionCacheInvalidation(config: MultitenancyConfig): Promise<void> {
+    if (!config.resolver?.cache?.enabled) return
+    const emitter = await import('@adonisjs/core/services/emitter')
+      .then((m) => m.default)
+      .catch(() => null)
+    if (!emitter) return
+
+    const cache = await this.app.container.make(TenantResolutionCache)
+    const lifecycleEvents = [
+      TenantActivated,
+      TenantSuspended,
+      TenantDeleted,
+      TenantUpdated,
+      TenantProvisioned,
+      TenantRestored,
+      TenantEnteredMaintenance,
+      TenantExitedMaintenance,
+    ]
+    for (const Event of lifecycleEvents) {
+      emitter.on(Event, (event: { tenant?: { id?: string } }) => {
+        const id = event?.tenant?.id
+        if (id) cache.delete(id)
+      })
+    }
   }
 
   // Register package jobs with @adonisjs/queue's Locator. Host apps
