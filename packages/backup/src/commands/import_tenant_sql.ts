@@ -55,12 +55,16 @@ export default class ImportTenantSql extends BaseCommand {
   })
   declare force: boolean
 
+  // Strict (all-or-nothing) is the DEFAULT: a restore either fully applies or
+  // leaves nothing behind. Continuing past failures can leave the tenant
+  // partially imported, so it is the explicit opt-out.
   @flags.boolean({
-    flagName: 'strict',
-    description: 'All-or-nothing: abort and roll back the whole import on the first error',
+    flagName: 'continue-on-error',
+    description:
+      'Apply each statement in its own savepoint and continue past failures (may leave a PARTIAL import; the default aborts and rolls back on the first error)',
     default: false,
   })
-  declare strict: boolean
+  declare continueOnError: boolean
 
   async run() {
     const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
@@ -110,7 +114,7 @@ export default class ImportTenantSql extends BaseCommand {
             result = await service.import(tenant, filePath, {
               sourceSchema: this.schemaReplace,
               dryRun: this.dryRun,
-              strict: this.strict,
+              strict: !this.continueOnError,
             })
             return result.errors.length > 0 ? task.error('completed with errors') : 'completed'
           } catch (err: any) {
@@ -129,6 +133,13 @@ export default class ImportTenantSql extends BaseCommand {
     this.logger.info(`  Executed   : ${result.statementsExecuted}`)
     this.logger.info(`  Skipped    : ${result.statementsSkipped}`)
     this.logger.info(`  Errors     : ${result.errors.length}`)
+
+    // Data-integrity flags (e.g. the schema rewrite touched a string literal)
+    // are loud even on a "successful" import — a silently mutated value in a
+    // restore is worse than a visible failure.
+    for (const warning of result.warnings) {
+      this.logger.warning(`  [WARN] ${warning}`)
+    }
 
     if (result.errors.length > 0) {
       if (this.verbose) {

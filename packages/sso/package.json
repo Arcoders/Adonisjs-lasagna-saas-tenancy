@@ -1,6 +1,6 @@
 {
   "name": "@adonisjs-lasagna/sso",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Per-tenant OIDC/SSO for @adonisjs-lasagna/saas-tenancy (discovery, auth URL, callback verification, config model)",
   "type": "module",
   "license": "MIT",

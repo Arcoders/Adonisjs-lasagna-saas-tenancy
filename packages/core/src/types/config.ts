@@ -340,6 +340,15 @@ export interface IsolationConfig {
    * your PostgreSQL `max_connections` budget (roughly
    * `maxTenantConnections * poolMax` server connections). The LRU never evicts
    * a connection used within `evictionGracePeriodMs`.
+   *
+   * SIZING WARNING: this is a SOFT cap by default. Open connections scale with
+   * concurrently ACTIVE tenants, not with this number — a burst of N active
+   * tenants opens ~N pools (none are evictable inside the grace window), and
+   * exhausting PostgreSQL `max_connections` takes down the whole database, not
+   * just the burst. Size `max_connections` for your peak concurrent-tenant
+   * count, front Postgres with PgBouncer at higher tenant counts, and see
+   * `enforceConnectionCap` for the hard-bound trade-off. Full guidance:
+   * docs "Scaling limits".
    */
   maxTenantConnections?: number
   /**

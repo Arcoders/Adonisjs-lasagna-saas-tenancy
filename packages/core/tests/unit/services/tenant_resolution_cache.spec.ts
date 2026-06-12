@@ -48,4 +48,30 @@ test.group('TenantResolutionCache (P1-1)', () => {
     assert.equal(cache.get('a')?.id, 'a')
     assert.equal(cache.get('c')?.id, 'c')
   })
+
+  // Pins the sharing contract (P2-2): the cache hands the SAME instance to
+  // every concurrent request — it does not snapshot or freeze. This is exactly
+  // why the config doc says "treat the resolved tenant as READ-ONLY; load a
+  // fresh instance to mutate". If this test starts failing because get()
+  // returns a copy, the documented contract changed: update the config JSDoc
+  // and performance.md in the same change.
+  test('get returns the same shared instance — a mutation is visible to other readers', ({
+    assert,
+  }) => {
+    const cache = new TenantResolutionCache()
+    const tenant = fakeTenant('a') as TenantModelContract & { name?: string }
+    cache.set('a', tenant, 10_000, 100)
+
+    const requestOne = cache.get('a') as typeof tenant
+    const requestTwo = cache.get('a') as typeof tenant
+    assert.strictEqual(requestOne, tenant)
+    assert.strictEqual(requestTwo, tenant)
+
+    requestOne.name = 'mutated-by-request-one'
+    assert.equal(
+      (cache.get('a') as typeof tenant).name,
+      'mutated-by-request-one',
+      'a mutation through one reader bleeds into every other reader — the reason the contract is read-only'
+    )
+  })
 })

@@ -1,4 +1,5 @@
 import { resolveTenantId } from '../extensions/request.js'
+import { tenancy } from '../tenancy.js'
 import { getConfig } from '../config.js'
 import RateLimitUnavailableException from '../exceptions/rate_limit_unavailable_exception.js'
 import TooManyRequestsException from '../exceptions/too_many_requests_exception.js'
@@ -65,6 +66,14 @@ export default class RateLimitMiddleware {
     }
   }
 
+  /**
+   * Seam (same pattern as the impersonation middleware) so unit specs can
+   * exercise attribution without an AsyncLocalStorage context.
+   */
+  protected currentTenantId(): string | undefined {
+    return tenancy.currentId()
+  }
+
   async handle({ request, response }: HttpContext, next: NextFn, options: RateLimitOptions) {
     const { limit, windowSeconds, prefix = 'rl', bypassInTestEnv = false } = options
     const failOpen = options.failOpen ?? this.configuredFailOpen()
@@ -73,8 +82,18 @@ export default class RateLimitMiddleware {
       return next()
     }
 
+    // `request.ip()` honours X-Forwarded-For only per the app's `trustProxy`
+    // config — a misconfigured trustProxy lets a client mint fresh buckets per
+    // spoofed XFF value. Document/verify trustProxy wherever this middleware
+    // is enabled behind a proxy.
     const ip = request.ip()
-    const tenantId = resolveTenantId(request) ?? 'global'
+    // Attribution: prefer the canonical id the guard already resolved
+    // (`tenancy.currentId()`), because the sync legacy resolver can come up
+    // empty under domain/custom-domain strategies — which would collapse every
+    // tenant into one shared per-IP 'global' bucket and let one tenant starve
+    // the others' quota. The resolver stays as the fallback for routes where
+    // rate-limit runs before (or without) the guard.
+    const tenantId = this.currentTenantId() ?? resolveTenantId(request) ?? 'global'
     const key = `${prefix}:${tenantId}:${ip}`
 
     const now = Date.now()

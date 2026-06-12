@@ -9,6 +9,18 @@ Schema-per-tenant is the right default for most SaaS, but it is not free at
 high tenant counts. This page is the honest version of where the ceiling is so
 you can plan before you hit it.
 
+::: warning Size for active tenants, not for the cap
+The single most important sizing fact: **open connections scale with
+concurrently *active* tenants, not with `maxTenantConnections`.** The default
+soft cap never severs a connection inside the 30 s grace window, so a burst of
+N active tenants opens ~N pools, bounded only by PostgreSQL `max_connections` —
+and exhausting `max_connections` takes down everything, not just the burst.
+Size `max_connections` for your peak concurrent-tenant count, front Postgres
+with PgBouncer at higher tenant counts, and consider `enforceConnectionCap:
+true` when a firm budget matters more than absorbing every burst. The details
+are in [the connection budget](#the-connection-budget) below.
+:::
+
 ## Where the sweet spot ends
 
 `schema-pg` keeps every tenant in its own PostgreSQL schema inside one

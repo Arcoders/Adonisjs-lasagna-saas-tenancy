@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import SqlImportService, {
   rewriteSchemaPreservingCopyData,
+  lineRewritesInsideLiteral,
 } from '../../src/services/sql_import_service.js'
 
 /**
@@ -113,5 +114,84 @@ test.group('rewriteSchemaPreservingCopyData', () => {
     assert.equal(lines[3], '\\.')
     // …and statements after the block resume rewriting.
     assert.include(lines[4], 'INSERT INTO "tenant_abc".notes')
+  })
+
+  // P2-7: the rewriter cannot avoid mutating `<source>.` inside a string
+  // literal (that needs a SQL parser), but it must not be SILENT about it.
+  test('flags lines where the rewrite touches a string LITERAL', ({ assert }) => {
+    const sql = [
+      "INSERT INTO public.notes (body) VALUES ('see public.foo for details');",
+      'INSERT INTO public.notes (id) VALUES (1);',
+    ].join('\n')
+
+    const flagged: string[] = []
+    rewriteSchemaPreservingCopyData(sql, 'public', 'tenant_abc', (line) => flagged.push(line))
+
+    assert.lengthOf(flagged, 1, 'only the literal-bearing line is flagged')
+    assert.include(flagged[0], "'see public.foo for details'")
+  })
+})
+
+test.group('lineRewritesInsideLiteral', () => {
+  test('detects a source-schema match inside a single-quoted literal', ({ assert }) => {
+    assert.isTrue(lineRewritesInsideLiteral("INSERT INTO t (v) VALUES ('public.foo');", 'public'))
+    assert.isTrue(
+      lineRewritesInsideLiteral(`UPDATE t SET v = 'a "public".b path' WHERE id = 1;`, 'public')
+    )
+  })
+
+  test('identifier-only lines are not flagged', ({ assert }) => {
+    assert.isFalse(lineRewritesInsideLiteral('INSERT INTO public.notes (id) VALUES (1);', 'public'))
+    assert.isFalse(lineRewritesInsideLiteral('CREATE TABLE "public"."t" (id int);', 'public'))
+  })
+
+  test("honours '' escapes — the literal does not end at the escaped quote", ({ assert }) => {
+    assert.isTrue(
+      lineRewritesInsideLiteral("INSERT INTO t (v) VALUES ('it''s in public.foo');", 'public')
+    )
+    // The match sits OUTSIDE the literal here; the literal closes before it.
+    assert.isFalse(
+      lineRewritesInsideLiteral("INSERT INTO public.t (v) VALUES ('it''s fine');", 'public')
+    )
+  })
+})
+
+test.group('SqlImportService.import — literal-rewrite warnings (dry-run)', (group) => {
+  let dir: string
+
+  group.each.setup(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'sqlimport-warn-'))
+  })
+  group.each.teardown(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  test('a literal containing the source schema surfaces as a warning', async ({ assert }) => {
+    const file = join(dir, 'dump.sql')
+    await writeFile(
+      file,
+      [
+        "INSERT INTO public.notes (body) VALUES ('docs live at public.docs');",
+        'INSERT INTO public.notes (id) VALUES (1);',
+      ].join('\n'),
+      'utf-8'
+    )
+    const svc = new SqlImportService()
+    const tenant = { id: 't', schemaName: 'tenant_abc' } as any
+
+    const result = await svc.import(tenant, file, { sourceSchema: 'public', dryRun: true })
+
+    assert.lengthOf(result.warnings, 1)
+    assert.include(result.warnings[0], 'string literal')
+  })
+
+  test('a clean dump reports zero warnings', async ({ assert }) => {
+    const file = join(dir, 'dump.sql')
+    await writeFile(file, 'INSERT INTO public.notes (id) VALUES (1);', 'utf-8')
+    const svc = new SqlImportService()
+    const tenant = { id: 't', schemaName: 'tenant_abc' } as any
+
+    const result = await svc.import(tenant, file, { sourceSchema: 'public', dryRun: true })
+    assert.isEmpty(result.warnings)
   })
 })

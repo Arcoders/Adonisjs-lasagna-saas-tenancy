@@ -1,6 +1,6 @@
 {
   "name": "@adonisjs-lasagna/billing",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Stripe billing for @adonisjs-lasagna/saas-tenancy: webhook pipeline, subscriptions, metered usage, dunning, and the billing ace commands",
   "type": "module",
   "license": "MIT",

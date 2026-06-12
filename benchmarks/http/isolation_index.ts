@@ -73,27 +73,59 @@ try {
   // The self-test deliberately forces isolationCheck=FAIL to prove the detector
   // is not a no-op. Do NOT persist that result: a later `bench:check` scans the
   // newest file per suite via latestBySuiteDriver and would fail the gate on this
-  // negative control. We still exit 1 below (CI inverts it), so detection is
-  // asserted by the exit code, not by a written FAIL.
+  // negative control. CI INVERTS this mode's exit code, so the contract is
+  // strict: exit 1 means exactly "the detector caught the planted leak" — and
+  // NOTHING else may exit 1 here, or a degraded/errored run would rubber-stamp
+  // the detector. A scenario with zero observed mismatches (e.g. the requests
+  // mostly errored, so the content check never ran) is INCONCLUSIVE and exits 0,
+  // which the inverted CI step reads as the self-test failing.
   if (sizes.iso.selftest) {
     // eslint-disable-next-line no-console
     console.log('Self-test mode: result not written (the expected FAIL must not reach the gate).')
+    const detectedEverywhere = results.every(
+      (r) => Number(r.meta?.crossTenantResponses ?? 0) > 0
+    )
+    if (detectedEverywhere) {
+      // eslint-disable-next-line no-console
+      console.error('SELF-TEST: planted mismatches detected in every scenario — exiting 1 as designed.')
+      exitCode = 1
+    } else {
+      // eslint-disable-next-line no-console
+      console.error(
+        'SELF-TEST INCONCLUSIVE: a scenario produced ZERO mismatches (degraded run?). ' +
+          'Exiting 0 so the inverted CI step fails instead of rubber-stamping the detector.'
+      )
+      exitCode = 0
+    }
   } else {
     writeResult('iso', results, {
       pgVersion: pg,
       meta: { tenants: sizes.iso.tenants, requests: sizes.iso.requests, concurrency: sizes.iso.concurrency },
     })
-  }
 
-  // Hard-fail the process on any cross-tenant leak, so the gate and CI catch it.
-  const leaked = results.some((r) => r.meta?.isolationCheck === 'FAIL')
-  if (leaked) {
-    // eslint-disable-next-line no-console
-    console.error('ISOLATION CHECK FAILED — cross-tenant data observed.')
-    exitCode = 1
+    // Hard-fail the process on any cross-tenant leak, so the gate and CI catch it.
+    const leaked = results.some((r) => r.meta?.isolationCheck === 'FAIL')
+    if (leaked) {
+      // eslint-disable-next-line no-console
+      console.error('ISOLATION CHECK FAILED — cross-tenant data observed.')
+      exitCode = 1
+    }
+    // An isolation PASS built mostly on errored requests is vacuous — too few
+    // 200s were actually content-checked. Fail rather than certify it.
+    const degraded = results.some((r) => r.meta?.errorRateCheck === 'FAIL')
+    if (degraded) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `ERROR-RATE CEILING EXCEEDED (> ${sizes.iso.maxErrorRate * 100}% non-200) — ` +
+          'the isolation PASS would be vacuous on this run.'
+      )
+      exitCode = 1
+    }
   }
 } catch (error) {
-  exitCode = 1
+  // In self-test mode a crash is INCONCLUSIVE, not detection: exit 0 so the
+  // inverted CI step goes red instead of reading the crash as a caught leak.
+  exitCode = sizes.iso.selftest ? 0 : 1
   // eslint-disable-next-line no-console
   console.error(error)
 } finally {

@@ -33,7 +33,10 @@ _Last run: 2026-06-07T15:10:14.310Z · node v24.16.0 · AMD EPYC 7763 64-Core Pr
 >    invalidation fires only when the matching lifecycle event is emitted (the
 >    admin package does this; if you suspend tenants another way, emit
 >    `TenantSuspended` yourself or rely on the TTL). Treat it as a throughput
->    optimization with bounded staleness, not an instant suspend.
+>    optimization with bounded staleness, not an instant suspend. The cached
+>    tenant is the SAME instance for every concurrent request in the pod —
+>    treat it as read-only and load a fresh instance for any mutate-then-save
+>    flow.
 
 > **Read the shape, not the absolutes.** The durable signal here is the
 > *relative* cost across drivers and code paths — header resolution is far

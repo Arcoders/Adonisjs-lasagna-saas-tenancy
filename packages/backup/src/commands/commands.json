@@ -52,7 +52,8 @@
         { "name": "schemaReplace", "flagName": "schema-replace", "required": false, "type": "string", "description": "Source schema name in the dump to rewrite" },
         { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Parse file and report counts without executing" },
         { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Print each failed statement" },
-        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "description": "Allow import into non-active tenants" }
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "description": "Allow import into non-active tenants" },
+        { "name": "continueOnError", "flagName": "continue-on-error", "required": false, "type": "boolean", "description": "Continue past failing statements (may leave a partial import; default aborts and rolls back)" }
       ],
       "args": [],
       "options": { "startApp": true },

@@ -6,12 +6,13 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.0] — 2026-06-08
+## [0.1.0] — 2026-06-08
 
-Initial standalone release. The REST admin API was extracted from
+Initial standalone release, versioned `0.x` to match its `experimental` stability
+label (see the stability matrix): the surface may change in any minor. The REST admin API was extracted from
 `@adonisjs-lasagna/saas-tenancy` so the admin surface versions independently and is only
-installed by apps that mount it. It depends on the core and on `@adonisjs-lasagna/sso` as peers
-(`^1.0.0`).
+installed by apps that mount it. It depends on the core (`^1.0.0`) and on
+`@adonisjs-lasagna/sso` (`^0.1.0`) as peers.
 
 **Stability: experimental.** The API is covered by tests but may change in a minor release.
 Pin the version and read this changelog before upgrading. See the

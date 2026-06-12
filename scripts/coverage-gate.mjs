@@ -13,22 +13,24 @@
  *
  * Thresholds (percent) come from the environment so CI can ratchet them up
  * without touching code:
- *   COV_MIN_LINES      (default 34)
- *   COV_MIN_FUNCTIONS  (default 58)
- *   COV_MIN_BRANCHES   (default 70)
+ *   COV_MIN_LINES      (default 80)
+ *   COV_MIN_FUNCTIONS  (default 78)
+ *   COV_MIN_BRANCHES   (default 77)
  *
- * The defaults mirror the unit floors in .c8rc.json. A merged report can only
- * cover MORE than the unit run (hits are a union), so these defaults never
- * produce a false failure; raise them once a CI run prints the real aggregate.
+ * The defaults mirror the measured-and-ratcheted values ci.yml exports (the
+ * canonical gate — see the "Coverage gate (aggregate)" step), NOT the much
+ * lower unit floors this script originally defaulted to. That way a run that
+ * loses the env wiring fails loudly instead of silently gating at a level
+ * every report clears. Ratchet ci.yml and these defaults together.
  */
 import { readFileSync } from 'node:fs'
 
 const file = process.argv[2] ?? 'coverage-combined.info'
 
 const thresholds = {
-  lines: Number(process.env.COV_MIN_LINES ?? 34),
-  functions: Number(process.env.COV_MIN_FUNCTIONS ?? 58),
-  branches: Number(process.env.COV_MIN_BRANCHES ?? 70),
+  lines: Number(process.env.COV_MIN_LINES ?? 80),
+  functions: Number(process.env.COV_MIN_FUNCTIONS ?? 78),
+  branches: Number(process.env.COV_MIN_BRANCHES ?? 77),
 }
 
 let raw

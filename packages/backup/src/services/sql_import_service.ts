@@ -23,12 +23,14 @@ export interface SqlImportOptions {
   sourceSchema: string
   dryRun: boolean
   /**
-   * All-or-nothing import. When `true`, the first failing statement aborts the
-   * whole import and rolls back every change (transactional path), or stops
-   * psql at the first error (COPY path). When `false` (default) the importer
-   * applies each statement in its own savepoint and continues past failures,
-   * collecting them in `errors` — which can leave the tenant partially
-   * imported. Prefer `strict` for restores that must be consistent.
+   * All-or-nothing import. When `true` (the default), the first failing
+   * statement aborts the whole import and rolls back every change
+   * (transactional path), or stops psql at the first error (COPY path) — a
+   * restore either fully applies or leaves nothing behind. Set `false` to
+   * apply each statement in its own savepoint and continue past failures,
+   * collecting them in `errors`; that can leave the tenant PARTIALLY
+   * imported, which on a restore path is usually worse than a clean failure,
+   * so it is the explicit opt-out, not the default.
    */
   strict?: boolean
 }
@@ -40,6 +42,15 @@ export interface SqlImportResult {
   copyBlocksExecuted: number
   copyRowsImported: number
   errors: Array<{ statement: string; message: string }>
+  /**
+   * Non-fatal data-integrity flags, surfaced loudly so a silent mutation never
+   * hides in a restore. Today: lines where the schema rewrite touched a
+   * `<source>.` substring INSIDE a SQL string literal (the rewriter cannot
+   * distinguish identifiers from literals without a full parser, so the value
+   * was rewritten — likely corrupting it). Re-export with `pg_dump --inserts`
+   * or a matching schema name if any appear.
+   */
+  warnings: string[]
   /**
    * 'transactional' when the dump was applied via Lucid in a savepoint transaction.
    * 'psql' when the dump contained `COPY … FROM stdin` blocks and was applied by
@@ -87,11 +98,25 @@ export default class SqlImportService {
     await access(filePath)
 
     const raw = await readFile(filePath, 'utf-8')
+    const suspectLiteralLines: string[] = []
     const transformed = rewriteSchemaPreservingCopyData(
       raw,
       options.sourceSchema,
-      tenant.schemaName
+      tenant.schemaName,
+      (line) => suspectLiteralLines.push(line)
     )
+    const warnings = suspectLiteralLines.map(
+      (line) =>
+        `schema rewrite touched "${options.sourceSchema}." inside a string literal — ` +
+        `the stored value was likely corrupted: ${line.trim().slice(0, 160)}`
+    )
+    if (warnings.length > 0) {
+      ;(await lazyLogger())?.warn(
+        { count: warnings.length, sample: warnings.slice(0, 3) },
+        'SQL import rewrote schema references inside string literals — re-export with ' +
+          '`pg_dump --inserts` or a matching schema name if these values matter'
+      )
+    }
     const tokens = splitSqlStatementsTagged(transformed)
     const hasCopyBlocks = tokens.some((t) => t.kind === 'copy')
 
@@ -103,6 +128,7 @@ export default class SqlImportService {
         copyBlocksExecuted: 0,
         copyRowsImported: 0,
         errors: [],
+        warnings,
         mode: 'dry-run',
       }
       for (const token of tokens) {
@@ -119,10 +145,14 @@ export default class SqlImportService {
     }
 
     if (hasCopyBlocks) {
-      return await this.#runViaPsql(tenant, transformed, tokens, options.strict ?? false)
+      const result = await this.#runViaPsql(tenant, transformed, tokens, options.strict ?? true)
+      result.warnings = warnings
+      return result
     }
 
-    return await this.#runTransactional(tenant, tokens, options.strict ?? false)
+    const result = await this.#runTransactional(tenant, tokens, options.strict ?? true)
+    result.warnings = warnings
+    return result
   }
 
   async #runTransactional(
@@ -137,6 +167,7 @@ export default class SqlImportService {
       copyBlocksExecuted: 0,
       copyRowsImported: 0,
       errors: [],
+      warnings: [],
       mode: 'transactional',
     }
 
@@ -238,6 +269,7 @@ export default class SqlImportService {
       copyBlocksExecuted: tokens.filter((t) => t.kind === 'copy').length,
       copyRowsImported: tokens.reduce((n, t) => (t.kind === 'copy' ? n + t.rows.length : n), 0),
       errors: [],
+      warnings: [],
       mode: 'psql',
     }
 
@@ -382,15 +414,19 @@ export default class SqlImportService {
  *
  * Known remaining gap: a `<source>.` substring inside a SQL *string literal*
  * (outside COPY) is still rewritten — distinguishing identifiers from literals
- * needs a full SQL parser. Prefer `pg_dump --inserts` or a matching schema name
- * when the data may contain such values.
+ * needs a full SQL parser. The importer cannot avoid it, but it refuses to be
+ * SILENT about it: `onSuspectLiteral` fires for every line where the rewrite
+ * touched a single-quoted literal, and the import surfaces those as warnings.
+ * Prefer `pg_dump --inserts` or a matching schema name when the data may
+ * contain such values.
  *
  * Exported for unit testing.
  */
 export function rewriteSchemaPreservingCopyData(
   sql: string,
   source: string,
-  target: string
+  target: string,
+  onSuspectLiteral?: (line: string) => void
 ): string {
   const lines = sql.split('\n')
   const out: string[] = []
@@ -407,10 +443,60 @@ export function rewriteSchemaPreservingCopyData(
       out.push(line) // data row or terminator — never rewritten
       continue
     }
+    if (onSuspectLiteral && lineRewritesInsideLiteral(line, source)) {
+      onSuspectLiteral(line)
+    }
     out.push(rewriteSchema(line, source, target))
   }
 
   return out.join('\n')
+}
+
+/**
+ * Heuristic for the literal-rewrite gap above: does this line contain a
+ * `<source>.` match INSIDE a single-quoted SQL string? Tracks `''` escapes;
+ * dollar-quoted strings ($$…$$) are not modeled (rare in pg_dump output).
+ * Exported for unit testing.
+ */
+export function lineRewritesInsideLiteral(line: string, source: string): boolean {
+  const regions = singleQuotedRegions(line)
+  if (regions.length === 0) return false
+
+  const escapedSource = source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`(?:"${escapedSource}"|\\b${escapedSource})\\.`, 'g')
+  let match: RegExpExecArray | null
+  while ((match = re.exec(line)) !== null) {
+    const at = match.index
+    if (regions.some(([start, end]) => at > start && at < end)) return true
+  }
+  return false
+}
+
+/** [start, end] index pairs of single-quoted regions, honouring `''` escapes. */
+function singleQuotedRegions(line: string): Array<[number, number]> {
+  const regions: Array<[number, number]> = []
+  let i = 0
+  while (i < line.length) {
+    if (line[i] !== "'") {
+      i++
+      continue
+    }
+    const start = i
+    i++
+    while (i < line.length) {
+      if (line[i] === "'") {
+        if (line[i + 1] === "'") {
+          i += 2 // escaped quote inside the literal
+          continue
+        }
+        break
+      }
+      i++
+    }
+    regions.push([start, Math.min(i, line.length)])
+    i++
+  }
+  return regions
 }
 
 /** Rewrite `<source>.` / `"<source>".` identifier prefixes to the target schema. */

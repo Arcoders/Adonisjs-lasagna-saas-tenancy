@@ -42,9 +42,10 @@ is installed and its provider + commands are wired in `adonisrc.ts`.
 | `tenant:backups:run` | Cron-friendly: backs up tenants whose tier interval has elapsed, then applies retention. `--dry-run`, `--no-retention`. |
 | `tenant:backup:list` | List available backups. |
 | `tenant:restore --tenant=<id> --file=<name>` | Restore a tenant schema from a `.dump` file. |
-| `tenant:import --tenant=<id> --file=<path>` | Import a `pg_dump` `.sql` file into a tenant schema. |
+| `tenant:import --tenant=<id> --file=<path>` | Import a `pg_dump` `.sql` file into a tenant schema. All-or-nothing by default (the first error aborts and rolls everything back); `--continue-on-error` opts into per-statement savepoints, which can leave a partial import. Warns when the schema rewrite touches a string literal. |
 | `tenant:clone --source=<id> --name=<name> --email=<email>` | Provision a new tenant by cloning an existing one. `--schema-only`, `--clear-sessions`. |
 | `tenant:queue:stats` | BullMQ queue statistics. |
+| `tenant:secrets:reencrypt` | Re-encrypt stored secrets (webhook signing secrets, SSO client secrets) after an `APP_KEY` rotation. Reads the previous key from `OLD_APP_KEY` (env only, never a flag); idempotent, supports `--dry-run`. Ships in core. See the [security guide](/security). |
 
 ## Doctor
 

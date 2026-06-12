@@ -6,9 +6,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.0] — 2026-06-08
+## [0.1.0] — 2026-06-08
 
-Initial standalone release. The per-tenant OIDC/SSO surface was extracted from
+Initial standalone release, versioned `0.x` to match its `experimental` stability
+label (see the stability matrix): the surface may change in any minor. The per-tenant OIDC/SSO surface was extracted from
 `@adonisjs-lasagna/saas-tenancy` so it versions on its own and is only installed by apps
 that use it. It depends on the core as a peer (`^1.0.0`).
 

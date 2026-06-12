@@ -6,9 +6,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.0] — 2026-06-08
+## [0.1.0] — 2026-06-08
 
-Initial standalone release. The Stripe billing pipeline (shipped inside
+Initial standalone release, versioned `0.x` to match its `experimental` stability
+label (see the stability matrix): the surface may change in any minor. The Stripe billing pipeline (shipped inside
 `@adonisjs-lasagna/saas-tenancy` since 0.2.0) was extracted into its own package so a CVE in
 the Stripe SDK no longer forces a core bump and so billing versions independently. It depends
 on the core as a peer (`^1.0.0`); `stripe` is an optional peer dependency.

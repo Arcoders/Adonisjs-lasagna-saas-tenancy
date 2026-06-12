@@ -186,6 +186,19 @@
       "filePath": "tenant_webhooks_retry.js"
     },
     {
+      "commandName": "tenant:secrets:reencrypt",
+      "description": "Re-encrypt stored secrets after an APP_KEY rotation (reads the previous key from OLD_APP_KEY)",
+      "help": "OLD_APP_KEY=<previous key> node ace tenant:secrets:reencrypt — APP_KEY must already hold the new key. Idempotent; use --dry-run first.",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report what would be re-encrypted without writing" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_secrets_reencrypt.js"
+    },
+    {
       "commandName": "tenant:metrics:flush",
       "description": "Flush Redis metric counters to the database for all tenants",
       "help": "Run daily via cron: 0 1 * * * node ace tenant:metrics:flush",

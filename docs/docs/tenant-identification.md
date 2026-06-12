@@ -105,6 +105,18 @@ Always call this helper rather than reading the header directly. The
 strategy can be any of the five, and bypassing the helper introduces
 subtle bugs.
 
+The macro is fail-closed on lifecycle: a soft-deleted or suspended tenant
+throws a 403 (`E_TENANT_SUSPENDED`) before any tenant connection is opened,
+even on routes that never ran the guard middleware — forgetting the guard on a
+route group cannot serve a suspended tenant. The guard still adds the richer
+checks (provisioning/failed, maintenance with bypass, circuit breaker). An
+admin or recovery flow that legitimately needs an inactive tenant opts in
+explicitly:
+
+```ts
+const tenant = await request.tenant({ allowInactive: true })
+```
+
 ## Custom resolvers
 
 Implement the `TenantResolver` contract and register it in your

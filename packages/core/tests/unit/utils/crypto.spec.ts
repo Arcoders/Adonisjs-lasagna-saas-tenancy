@@ -1,5 +1,11 @@
 import { test } from '@japa/runner'
-import { encrypt, decrypt, isEncrypted } from '../../../src/utils/crypto.js'
+import {
+  encrypt,
+  decrypt,
+  decryptStrict,
+  decryptWithAppKey,
+  isEncrypted,
+} from '../../../src/utils/crypto.js'
 
 const TEST_KEY = 'test-app-key-for-unit-tests-only!!'
 
@@ -92,6 +98,47 @@ test.group('crypto — isEncrypted', (group) => {
   test('returns false for a similar but wrong prefix', ({ assert }) => {
     assert.isFalse(isEncrypted('enc_v2:something'))
     assert.isFalse(isEncrypted('ENC_V1:something'))
+  })
+})
+
+// P3-3: rotation tooling. `decryptWithAppKey` is what tenant:secrets:reencrypt
+// uses to read values written under the PREVIOUS key; `decryptStrict` is for
+// call sites where a non-prefixed value can only mean corruption.
+test.group('crypto — key rotation + strict mode', (group) => {
+  group.each.setup(() => {
+    process.env.APP_KEY = TEST_KEY
+  })
+  group.each.teardown(() => {
+    delete process.env.APP_KEY
+  })
+
+  test('decryptWithAppKey reads a value written under a different APP_KEY', ({ assert }) => {
+    const ciphertext = encrypt('rotate me') // written under TEST_KEY
+    process.env.APP_KEY = 'the-new-rotated-application-key!!'
+    // The process key no longer decrypts it…
+    assert.throws(() => decrypt(ciphertext))
+    // …but the rotation path, given the old key explicitly, does.
+    assert.equal(decryptWithAppKey(ciphertext, TEST_KEY), 'rotate me')
+  })
+
+  test('the full rotation round-trip: old-key decrypt, new-key encrypt, plain decrypt', ({
+    assert,
+  }) => {
+    const ciphertext = encrypt('webhook-signing-secret')
+    process.env.APP_KEY = 'the-new-rotated-application-key!!'
+    const reencrypted = encrypt(decryptWithAppKey(ciphertext, TEST_KEY))
+    assert.equal(decrypt(reencrypted), 'webhook-signing-secret')
+  })
+
+  test('decryptWithAppKey rejects a non-ciphertext value instead of passing it through', ({
+    assert,
+  }) => {
+    assert.throws(() => decryptWithAppKey('plain', TEST_KEY), /not enc_v1 ciphertext/)
+  })
+
+  test('decryptStrict rejects a non-prefixed value (no plaintext passthrough)', ({ assert }) => {
+    assert.throws(() => decryptStrict('not ciphertext'), /not enc_v1 ciphertext/)
+    assert.equal(decryptStrict(encrypt('x')), 'x')
   })
 })
 

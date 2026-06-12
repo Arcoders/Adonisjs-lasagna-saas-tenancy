@@ -6,6 +6,7 @@ import type {
 } from '../types/contracts.js'
 import MissingTenantHeaderException from '../exceptions/missing_tenant_header_exception.js'
 import TenantNotFoundException from '../exceptions/tenant_not_found_exception.js'
+import TenantSuspendedException from '../exceptions/tenant_suspended_exception.js'
 import DependencyUnavailableException from '../exceptions/dependency_unavailable_exception.js'
 import { getConfig } from '../config.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
@@ -23,7 +24,18 @@ import assert from 'node:assert'
 
 declare module '@adonisjs/core/http' {
   interface HttpRequest {
-    tenant<TMeta extends object = TenantMetadata>(): Promise<TenantModelContract<TMeta>>
+    /**
+     * Resolve, validate, connect, and memoize the request's tenant.
+     *
+     * Fail-closed on lifecycle: a soft-deleted or suspended tenant throws a
+     * 403 `TenantSuspendedException` even on routes that never ran the guard
+     * middleware, so forgetting the guard on a route group cannot serve a
+     * suspended tenant. Admin/recovery flows that legitimately need an
+     * inactive tenant opt in with `{ allowInactive: true }`.
+     */
+    tenant<TMeta extends object = TenantMetadata>(options?: {
+      allowInactive?: boolean
+    }): Promise<TenantModelContract<TMeta>>
   }
 }
 
@@ -250,54 +262,83 @@ export function dependencyUnavailable(
   return exc
 }
 
-;(HttpRequest as any).macro('tenant', async function (this: HttpRequest) {
-  if ((this as any)[TENANT_MEMO_KEY]) {
-    return (this as any)[TENANT_MEMO_KEY] as TenantModelContract
-  }
-
-  const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
-
-  const result = await resolveTenant(this)
-  let tenant: TenantModelContract | null = null
-
-  try {
-    if (result?.type === 'id') {
-      assert(isUuidV4(result.tenantId), new MissingTenantHeaderException())
-      tenant = await findTenantByIdCached(repo, result.tenantId)
-    } else if (result?.type === 'domain') {
-      tenant = await repo.findByDomain(result.domain)
-    } else {
-      throw new MissingTenantHeaderException()
+;(HttpRequest as any).macro(
+  'tenant',
+  async function (this: HttpRequest, options?: { allowInactive?: boolean }) {
+    const memoized = (this as any)[TENANT_MEMO_KEY] as TenantModelContract | undefined
+    if (memoized) {
+      // Re-check on every read: an earlier `allowInactive: true` call must not
+      // leak an inactive tenant into a later strict call through the memo.
+      assertTenantActive(memoized, options)
+      return memoized
     }
-  } catch (err) {
-    // Respect an error that already declares an HTTP status — a 400 missing
-    // header, a 404 not-found, a 500 config fault: the layer that threw it
-    // already decided the right response. Anything else is the tenant registry
-    // (central DB) being unreachable, so fail closed with a 503 rather than
-    // leaking a raw Lucid 500. A host repository that wants a specific status
-    // for its own errors should throw an Exception carrying one.
-    if (typeof (err as any)?.status === 'number') throw err
-    throw dependencyUnavailable(
-      'tenant.lookup',
-      err,
-      result?.type === 'id' ? result.tenantId : undefined
-    )
-  }
 
-  if (!tenant) throw new TenantNotFoundException()
+    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
 
-  const driver = await getActiveDriver()
-  try {
-    await driver.connect(tenant)
-  } catch (err) {
-    // Respect a decided HTTP status: the hard-cap 503 (TenantConnectionLimit)
-    // and the 500 misconfig (IsolationConfig) both carry one and pass straight
-    // through. Any other connect failure (Postgres down, ECONNREFUSED, timeout)
-    // is a raw backend outage — map it to a clean, retry-able 503 instead of
-    // letting a raw Lucid error bubble up as an opaque 500.
-    if (typeof (err as any)?.status === 'number') throw err
-    throw dependencyUnavailable('tenant.connect', err, tenant.id)
+    const result = await resolveTenant(this)
+    let tenant: TenantModelContract | null = null
+
+    try {
+      if (result?.type === 'id') {
+        assert(isUuidV4(result.tenantId), new MissingTenantHeaderException())
+        tenant = await findTenantByIdCached(repo, result.tenantId)
+      } else if (result?.type === 'domain') {
+        tenant = await repo.findByDomain(result.domain)
+      } else {
+        throw new MissingTenantHeaderException()
+      }
+    } catch (err) {
+      // Respect an error that already declares an HTTP status — a 400 missing
+      // header, a 404 not-found, a 500 config fault: the layer that threw it
+      // already decided the right response. Anything else is the tenant registry
+      // (central DB) being unreachable, so fail closed with a 503 rather than
+      // leaking a raw Lucid 500. A host repository that wants a specific status
+      // for its own errors should throw an Exception carrying one.
+      if (typeof (err as any)?.status === 'number') throw err
+      throw dependencyUnavailable(
+        'tenant.lookup',
+        err,
+        result?.type === 'id' ? result.tenantId : undefined
+      )
+    }
+
+    if (!tenant) throw new TenantNotFoundException()
+
+    // Fail closed on lifecycle (P2-3), BEFORE connecting: a soft-deleted or
+    // suspended tenant must not be served — nor have a pool opened for it —
+    // just because a route group forgot the guard middleware. The guard still
+    // runs its own richer checks (provisioning/failed, maintenance bypass,
+    // circuit breaker); this is the order-independent floor underneath them.
+    assertTenantActive(tenant, options)
+
+    const driver = await getActiveDriver()
+    try {
+      await driver.connect(tenant)
+    } catch (err) {
+      // Respect a decided HTTP status: the hard-cap 503 (TenantConnectionLimit)
+      // and the 500 misconfig (IsolationConfig) both carry one and pass straight
+      // through. Any other connect failure (Postgres down, ECONNREFUSED, timeout)
+      // is a raw backend outage — map it to a clean, retry-able 503 instead of
+      // letting a raw Lucid error bubble up as an opaque 500.
+      if (typeof (err as any)?.status === 'number') throw err
+      throw dependencyUnavailable('tenant.connect', err, tenant.id)
+    }
+    ;(this as any)[TENANT_MEMO_KEY] = tenant
+    return tenant
   }
-  ;(this as any)[TENANT_MEMO_KEY] = tenant
-  return tenant
-})
+)
+
+/**
+ * The lifecycle floor for `request.tenant()`: deleted/suspended tenants are
+ * rejected with the same 403 the guard middleware would produce, unless the
+ * caller explicitly opted into inactive tenants (admin/recovery flows).
+ */
+function assertTenantActive(
+  tenant: TenantModelContract,
+  options?: { allowInactive?: boolean }
+): void {
+  if (options?.allowInactive) return
+  if (tenant.isDeleted || tenant.isSuspended) {
+    throw new TenantSuspendedException()
+  }
+}

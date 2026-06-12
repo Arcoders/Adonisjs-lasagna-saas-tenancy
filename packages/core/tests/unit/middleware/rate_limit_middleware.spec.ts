@@ -260,6 +260,73 @@ test.group('RateLimitMiddleware', (group) => {
   })
 })
 
+// Records the bucket key the middleware hands to Redis, so the attribution
+// tests can assert WHICH tenant a request was counted against.
+class KeyCapturingPipeline extends CountingPipeline {
+  constructor(private capture: (key: string) => void) {
+    super(1)
+  }
+  zadd(key?: string) {
+    if (key) this.capture(key)
+    return this
+  }
+}
+
+class KeyCapturingRateLimit extends RateLimitMiddleware {
+  capturedKey: string | undefined
+  constructor(private contextTenantId?: string) {
+    super()
+  }
+  protected currentTenantId(): string | undefined {
+    return this.contextTenantId
+  }
+  protected async getRedis(): Promise<any> {
+    return { pipeline: () => new KeyCapturingPipeline((k) => (this.capturedKey = k)) }
+  }
+}
+
+// P3-2: attribution must prefer the canonical id the guard resolved
+// (tenancy.currentId()) over the sync legacy resolver — under domain-based
+// strategies the resolver comes up empty and would collapse every tenant into
+// one shared per-IP 'global' bucket.
+test.group('RateLimitMiddleware — tenant attribution (P3-2)', (group) => {
+  group.each.setup(() => {
+    setupTestConfig()
+  })
+
+  const opts = { limit: 10, windowSeconds: 60, bypassInTestEnv: true }
+
+  test('prefers the active tenancy context id over the request resolver', async ({ assert }) => {
+    const m = new KeyCapturingRateLimit('ctx-tenant')
+    await m.handle(
+      { request: makeRequest({ 'x-tenant-id': 'header-tenant' }), response: makeResponse() } as any,
+      async () => {},
+      opts
+    )
+    assert.equal(m.capturedKey, 'rl:ctx-tenant:127.0.0.1')
+  })
+
+  test('falls back to the sync resolver when no tenancy context is active', async ({ assert }) => {
+    const m = new KeyCapturingRateLimit(undefined)
+    await m.handle(
+      { request: makeRequest({ 'x-tenant-id': 'header-tenant' }), response: makeResponse() } as any,
+      async () => {},
+      opts
+    )
+    assert.equal(m.capturedKey, 'rl:header-tenant:127.0.0.1')
+  })
+
+  test("collapses to the shared 'global' bucket only when nothing resolves", async ({ assert }) => {
+    const m = new KeyCapturingRateLimit(undefined)
+    await m.handle(
+      { request: makeRequest(), response: makeResponse() } as any,
+      async () => {},
+      opts
+    )
+    assert.equal(m.capturedKey, 'rl:global:127.0.0.1')
+  })
+})
+
 test.group('RateLimitMiddleware — global resilience.redis.rateLimit fallback', (group) => {
   group.each.setup(() => {
     setupTestConfig()

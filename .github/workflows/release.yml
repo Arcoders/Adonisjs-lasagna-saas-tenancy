@@ -1,17 +1,26 @@
 name: Release
 
-# Changesets-driven release. On every push to master:
+# Changesets-driven release, gated on CI (audit P2-1): this workflow fires only
+# when the `CI` workflow COMPLETES for a master commit, and the job runs only on
+# `conclusion == success` — so "published to npm" mechanically implies "the full
+# test suite passed on that exact commit". The old `on: push` form relied on
+# ci.yml merely running on the same commit, which never actually blocked a
+# publish on a red suite.
+#
+# On each gated run:
 #   - if changeset files are pending, open/update a "version packages" PR
 #     (bumps versions + rewrites each package's CHANGELOG);
 #   - if none are pending, run `changeset publish` to ship any package whose
 #     package.json version isn't on npm yet (idempotent, core before satellites).
 # The break-glass manual publisher lives in publish.yml (workflow_dispatch).
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [master]
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
 permissions:
@@ -22,10 +31,17 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # `types: [completed]` fires on failure and cancellation too; this guard is
+    # the actual gate.
+    if: github.event.workflow_run.conclusion == 'success'
     steps:
+      # Check out the exact commit CI validated, not the branch tip — if master
+      # moved while CI ran, the tip's suite hasn't passed yet and its publish
+      # will be gated by its own CI completion.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -39,10 +55,10 @@ jobs:
           npm_config_ignore_scripts: 'false'
         run: npm install --legacy-peer-deps --include=optional
 
-      # No separate typecheck/lint gate here: ci.yml runs the full suite on this
-      # same master commit (and on the PR before merge). `npm run release` builds
-      # every package with tsc before `changeset publish`, so the shipped code is
-      # compile-checked at publish time without a redundant second build.
+      # No separate typecheck/lint gate here: the workflow_run gate above means
+      # the full CI suite already passed on this exact commit. `npm run release`
+      # still builds every package with tsc before `changeset publish`, so the
+      # shipped artifact is compile-checked at publish time.
       - name: Create Release PR or publish
         uses: changesets/action@v1
         with:

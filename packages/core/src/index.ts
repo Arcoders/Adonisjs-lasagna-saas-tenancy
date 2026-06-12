@@ -175,5 +175,5 @@ export type {
   SetTenantRlsGucOptions,
   WithTenantRlsOptions,
 } from './services/isolation/rls.js'
-export { encrypt, decrypt, isEncrypted } from './utils/crypto.js'
+export { encrypt, decrypt, decryptStrict, decryptWithAppKey, isEncrypted } from './utils/crypto.js'
 export { validateExternalHttpsUrl, validateResolvedHostIsPublic } from './utils/url.js'

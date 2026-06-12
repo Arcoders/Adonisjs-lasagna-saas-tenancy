@@ -50,9 +50,13 @@ same bar on its own.
   minor. Breaking changes are still called out in the changelog, but they are not
   gated behind a major.
 
-Deprecations follow the same rule that already governs the moved satellite
-subpaths: a removed entry first becomes a throwing shim with a migration hint for
-one minor, then drops at the next major.
+Deprecations: where a removed surface had its own subpath (the `/admin` entry
+point is the precedent), it first becomes a throwing shim with a migration hint
+for one minor, then drops at the next major. Symbols that lived in a shared
+barrel (the SSO/billing/backup exports the 1.0 split moved out) are removed
+outright: TypeScript users get a compile error pointing at the import, plain-JS
+users get `undefined` at the import site — check the upgrade guide's symbol map
+when an import stops resolving.
 
 ## Feature stability matrix
 
@@ -93,6 +97,12 @@ The isolation substrate. Everything here is **release candidate** unless noted.
 | `@adonisjs-lasagna/sso` | Experimental | Per-tenant OIDC / SSO. |
 | `@adonisjs-lasagna/billing` | Experimental | Stripe billing pipeline. |
 | `@adonisjs-lasagna/backup` | Experimental | Backup / restore / clone / SQL import. |
+
+The version number says the same thing the label does: experimental satellites
+are published as `0.x`, so the version string a consumer reads off npm never
+claims a semver promise this page does not make. Each satellite is promoted to
+`1.0.0` when its label is. CI enforces the agreement mechanically
+(`scripts/check-stability-versions.mjs` parses this page).
 
 ## How to read this if you are adopting
 

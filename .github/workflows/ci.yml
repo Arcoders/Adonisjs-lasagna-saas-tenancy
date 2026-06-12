@@ -54,6 +54,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Versions must agree with the stability labels in docs/docs/stability.md
+      # (experimental -> 0.x, release candidate/stable -> >=1.0.0). Labels are
+      # parsed from the doc, so relabeling without re-versioning fails here.
+      - name: Stability labels vs. versions
+        run: node scripts/check-stability-versions.mjs
+
       - name: Test (unit) + coverage
         run: npm run test:coverage
 

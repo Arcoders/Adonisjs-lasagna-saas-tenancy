@@ -24,7 +24,7 @@ interface NotesBody {
 }
 
 export async function runIsolationLoad(baseUrl: string, tenantIds: string[]): Promise<BenchResult[]> {
-  const { requests, concurrency, selftest } = sizes.iso
+  const { requests, concurrency, selftest, maxErrorRate } = sizes.iso
   const results: BenchResult[] = []
 
   const scenario = async (name: string, path: string): Promise<BenchResult> => {
@@ -62,6 +62,11 @@ export async function runIsolationLoad(baseUrl: string, tenantIds: string[]): Pr
     })
 
     const leaks = r.mismatches
+    // The isolation check only inspects 200s, so a run that mostly errors could
+    // read PASS vacuously. The error-rate ceiling makes that a FAIL in its own
+    // right — and because bench:check fails the PR on any `*Check=FAIL`, a
+    // degraded persisted run can't slip through the correctness gate either.
+    const errorRate = r.total === 0 ? 1 : r.errors / r.total
     return zeroMetric(
       name,
       {
@@ -70,8 +75,10 @@ export async function runIsolationLoad(baseUrl: string, tenantIds: string[]): Pr
         ok: r.ok,
         crossTenantResponses: leaks,
         transportErrors: r.errors,
+        errorRatePct: Math.round(errorRate * 10_000) / 100,
         p99Ms: Math.round(percentileNs(r.latencyNs, 99) / 1e5) / 10,
         isolationCheck: leaks === 0 ? 'PASS' : 'FAIL',
+        errorRateCheck: errorRate <= maxErrorRate ? 'PASS' : 'FAIL',
         sample: r.sampleMismatches.slice(0, 3).join(' | '),
         errorSample: r.sampleErrors.slice(0, 3).join(' | '),
       },

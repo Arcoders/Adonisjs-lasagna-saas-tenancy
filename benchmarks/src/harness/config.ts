@@ -67,6 +67,13 @@ export const sizes = {
     concurrency: int('BENCH_ISO_CONCURRENCY', CI_MODE ? 16 : 32),
     /** Inject a deliberately-wrong correlation to prove the check catches leaks. */
     selftest: process.env.BENCH_ISO_SELFTEST === '1',
+    /**
+     * Ceiling on non-200 responses (fraction of total). The isolation check
+     * only inspects 200s, so a run where most cross-tenant requests error out
+     * could read `isolationCheck: PASS` vacuously — above this rate the run
+     * fails instead of rubber-stamping.
+     */
+    maxErrorRate: float('BENCH_ISO_MAX_ERROR_RATE', 0.05),
   },
   /** Connection-budget burst tier: concurrent workers over distinct tenants. */
   burst: {

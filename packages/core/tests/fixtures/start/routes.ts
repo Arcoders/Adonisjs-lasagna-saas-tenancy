@@ -67,6 +67,18 @@ router
   .prefix('tenant')
   .use(middleware.tenantGuard())
 
+// Deliberately UNGUARDED (P2-3): proves `request.tenant()` itself fails closed
+// (403) on a suspended/deleted tenant even when no guard middleware ran, and
+// that `{ allowInactive: true }` is the explicit admin-flow escape hatch.
+router.get('/unguarded-tenant', async ({ request, response }) => {
+  const tenant = await request.tenant()
+  return response.ok({ id: tenant.id, status: tenant.status })
+})
+router.get('/unguarded-tenant-inactive', async ({ request, response }) => {
+  const tenant = await request.tenant({ allowInactive: true })
+  return response.ok({ id: tenant.id, status: tenant.status })
+})
+
 // Rate-limit integration: bypassInTestEnv opts back in so the real Redis
 // pipeline runs. `/strict` fails closed (503), `/open` fails open (200).
 // Distinct prefixes keep parallel specs from sharing keys.

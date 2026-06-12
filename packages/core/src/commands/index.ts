@@ -13,6 +13,7 @@ export { default as TenantQueueStats } from './tenant_queue_stats.js'
 // `tenant:backup`, `tenant:backup:list`, `tenant:restore`, `tenant:import`,
 // `tenant:clone`, `tenant:backups:run` moved to `@adonisjs-lasagna/backup`.
 export { default as TenantWebhooksRetry } from './tenant_webhooks_retry.js'
+export { default as TenantSecretsReencrypt } from './tenant_secrets_reencrypt.js'
 export { default as TenantMetricsFlush } from './tenant_metrics_flush.js'
 export { default as TenantDoctor } from './tenant_doctor.js'
 export { default as TenantSeed } from './tenant_seed.js'
