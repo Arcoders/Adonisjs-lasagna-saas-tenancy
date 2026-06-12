@@ -14,7 +14,7 @@ CI-runnable **regression gate** over the hot paths.
 | 2 DB | a booted headless app (the fixture) | per-driver query latency, cold-connection cost, connection churn (mixed read+write) + read/write leakage checks | Postgres |
 | 3 HTTP | the served fixture | end-to-end req/s per driver, middleware overhead, resolver-strategy cost | Postgres + Redis |
 | 4 Memory | a booted headless app (the fixture) | connection budget (steady **and** honest burst under the 30s grace) + saturation/recovery, catalog-bloat curve via `search_path` | Postgres |
-| Isolation | the served fixture | **content-correlated** cross-tenant assertion under concurrency, on the real request path (ALS) — `isolationCheck` is a hard gate | Postgres + Redis |
+| Isolation | the served fixture | **content-correlated** cross-tenant assertion under concurrency, on the real request path (ALS) — `isolationCheck` is a hard gate, and `errorRateCheck` (default ceiling 5% non-200) keeps a degraded run from passing it vacuously | Postgres + Redis |
 | Soak | a booted headless app | long-running churn; RSS/heap/backend/fd time series + `soakStableCheck` | Postgres |
 | Resilience | the served fixture + Docker | Redis/Postgres `docker stop/start`; asserts the real fail policy (rate-limit 503 fail-closed) + recovery | Postgres + Redis + Docker |
 

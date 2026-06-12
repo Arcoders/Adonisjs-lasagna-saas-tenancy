@@ -49,6 +49,27 @@ for a copy-paste migration.
 - **The admin API is fail-closed.** `multitenancyAdminRoutes` now throws at boot
   unless you pass `middleware`, or `middleware: false` to mount it public on
   purpose. (Shipped behind the extraction; see `@adonisjs-lasagna/admin`.)
+- **`/metrics` is fail-closed.** The Prometheus output carries per-tenant labels
+  (circuit-breaker state, queue depths) and by-status tenant counts, so
+  `multitenancyRoutes()` now throws at boot when metrics is enabled without a
+  `metricsMiddleware`. Effectively-absent values (`[]`, `''`, `null`) are
+  rejected too, so a conditional like `authEnabled ? [auth] : []` cannot mount
+  it public silently. Pass `metricsMiddleware: false` to mount it public on
+  purpose behind a trusted network boundary, or `metrics: false` to skip the
+  endpoint.
+- **`CustomDomainMiddleware` is strict by default.** A request whose
+  `x-tenant-id` header conflicts with the tenant of a verified custom domain is
+  rejected with 400 (`TenantHeaderDomainMismatchException`) before any handler
+  runs; the domain is authoritative. The previous default let the header
+  override the domain (a tenant-hop vector behind an edge that forwards client
+  headers). Opt back into header-wins with `customDomain({ strict: false })`
+  only for deliberate header routing on managed domains.
+- **`request.tenant()` is fail-closed on tenant lifecycle.** A soft-deleted or
+  suspended tenant now throws a 403 (`TenantSuspendedException`) before any
+  tenant connection is opened, even on routes that never ran the guard
+  middleware — forgetting the guard on a route group can no longer serve a
+  suspended tenant. Admin/recovery flows that legitimately need an inactive
+  tenant opt in with `request.tenant({ allowInactive: true })`.
 
 ### Added
 
@@ -81,6 +102,27 @@ for a copy-paste migration.
   (`TenantConnectionLimitException`) instead of exceeding the cap. The default
   still favours availability (never sever an in-flight request); the hard cap is
   the documented opt-in for deployments fronted by PgBouncer.
+- **Opt-in tenant-resolution cache.** `resolver.cache.{enabled, ttlMs, maxEntries}`
+  (default off / 10 s / 10 000) serves warm tenants from a bounded per-process
+  LRU, cutting the steady-state backoffice round-trips per request from two to
+  one. Staleness is bounded by the TTL; the in-process fast-path invalidation
+  fires when the matching lifecycle event is emitted (the admin package does
+  this — if you suspend tenants another way, emit `TenantSuspended` yourself or
+  rely on the TTL). The cached tenant is the same instance for every concurrent
+  request in the pod: treat it as read-only and load a fresh instance for any
+  mutate-then-save flow.
+- **`APP_KEY` rotation support.** Stored secrets (webhook signing secrets, SSO
+  client secrets) are encrypted under a key derived from `APP_KEY`, so rotating
+  it used to turn them all into permanent decryption failures. New
+  `tenant:secrets:reencrypt` command (previous key via the `OLD_APP_KEY` env
+  variable, idempotent, `--dry-run`) re-encrypts them under the new key; the
+  crypto utils gained `decryptWithAppKey` (rotation) and `decryptStrict`
+  (rejects a non-ciphertext value instead of passing it through).
+- **`isolation.rowScopeRls` acknowledgment flag.** The provider logs a boot-time
+  warning whenever `rowscope-pg` is the active driver without the RLS backstop
+  (the mixin alone is convention, not enforcement); setting the flag after
+  shipping the `enable_rls_tenant_isolation` migration acknowledges it and
+  silences the warning.
 - **Stability taxonomy.** A [stability matrix](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/stability.md)
   labels every feature. The isolation core is `release-candidate` (feature
   complete and green in CI, with `stable` withheld until an independent security
@@ -120,7 +162,12 @@ for a copy-paste migration.
   tenant A and presented on a request resolved to tenant B is rejected with 401.
   The check no longer depends on the tenant guard running first: when no context
   is active the middleware resolves the request's tenant itself, so the binding
-  holds regardless of middleware order. Locked by an integration test.
+  holds regardless of middleware order. The binding is also enforced under
+  domain-based resolution: a `domain`-typed result is resolved to its canonical
+  tenant id via `findByDomain` and compared, failing closed on a lookup error
+  (previously that path skipped the check). Locked by integration tests.
+- **Webhook delivery response bodies are truncated to 4 KB** before persistence,
+  so a hostile or oversized webhook target cannot bloat the deliveries table.
 - **SSRF guard hardened (internal audit).** Outbound-fetch validation now
   canonicalises IP literals via `node:net`, so an IPv4-mapped IPv6 address in hex
   form (`[::ffff:7f00:1]`, which `new URL` produces for any mapped address) can no
@@ -145,9 +192,19 @@ for a copy-paste migration.
   breaker's health probe target the database where rowscope data actually lives.
   `templateConnectionName` is a schema-pg/database-pg clone-template knob and is no
   longer consulted by rowscope-pg.
-- Coverage gate raised to 46 lines / 77 branches / 67 functions on the unit run;
+- **Rate-limit attribution prefers the guard's canonical tenant id.**
+  `RateLimitMiddleware` keys its bucket on `tenancy.currentId()` first and falls
+  back to the synchronous resolver, so domain-resolved tenants no longer collapse
+  into one shared per-IP `global` bucket. The per-IP part comes from
+  `request.ip()`, which honours `X-Forwarded-For` only per your `trustProxy`
+  config — verify it behind a proxy.
+- Coverage gate raised to 48 lines / 78 branches / 68 functions on the unit run;
   CI also runs the billing and backup package unit suites and aggregates
   unit + integration coverage.
+- **Satellite packages publish as `0.x`** (matching their `experimental`
+  stability label), and CI enforces the agreement between stability labels and
+  versions mechanically. The published release pipeline is gated on the full CI
+  suite passing on the exact commit being released.
 - `engines.node` stays `>=24` (required by AdonisJS 7 / Lucid 22).
 
 ---

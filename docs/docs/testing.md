@@ -75,6 +75,11 @@ setRequestTenant(ctx, tenant) // memoises onto the request
 // ctx.request.tenant() now resolves to `tenant` without hitting the repo
 ```
 
+The lifecycle floor still applies to the memo: a seeded tenant whose status is
+`suspended` (or that is soft-deleted) makes `request.tenant()` throw the same
+403 it would in production — call `request.tenant({ allowInactive: true })` in
+tests that exercise inactive tenants on purpose.
+
 ## `withTenant`
 
 Test-time convenience over `tenancy.run()`:

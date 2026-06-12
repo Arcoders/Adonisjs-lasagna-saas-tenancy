@@ -171,10 +171,10 @@ real BullMQ; no mocks, no in-memory shortcuts.
 - **Audit log immutability.** `tenant_audit_logs` carries Postgres
   triggers that block `UPDATE`, `DELETE`, and `TRUNCATE` from
   inside the tenant's own schema.
-- **Header-vs-domain hijack.** `customDomain({ strict: true })`
-  rejects a request whose `x-tenant-id` disagrees with the
-  custom-domain match — 400 `E_TENANT_HEADER_DOMAIN_MISMATCH`, not
-  a silent override.
+- **Header-vs-domain hijack.** `customDomain()` is strict by
+  default: it rejects a request whose `x-tenant-id` disagrees with
+  the custom-domain match — 400 `E_TENANT_HEADER_DOMAIN_MISMATCH`,
+  not a silent override.
 - **Rate-limit fails closed.** Redis down means 503, never silent
   fail-open. Opt into `failOpen: true` only if your threat model
   accepts it.

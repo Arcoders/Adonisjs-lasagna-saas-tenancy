@@ -5,13 +5,18 @@ description: Migrate from 0.x to 1.0 — the satellite packages and the unified 
 
 # Upgrade to 1.0
 
-Two things change in 1.0, and both are mechanical:
+Three things change in 1.0, and all are mechanical:
 
 1. The optional satellites (billing, SSO, the admin REST API, backup/clone) moved
    out of the core into their own packages. You install the ones you use and
    update a handful of imports.
 2. `resolver.legacyAdapterFallback` now defaults to `false`, so raw model queries
    that run outside an active tenant context route through the resolver chain.
+3. Several surfaces flip to their safe posture by default: `/metrics` is
+   fail-closed, custom domains are strict, and `request.tenant()` rejects
+   suspended/deleted tenants on its own. Each has a one-line opt-out if you
+   relied on the old behavior — see
+   [the safe-by-default changes](#_4-adopt-the-safe-by-default-changes).
 
 The core keeps every tenancy primitive plus the leaf satellites (audit, feature
 flags, metrics, webhooks, branding, quotas, impersonation). If you only use those,
@@ -180,7 +185,62 @@ export default defineConfig({
 See [Tenant identification](/docs/tenant-identification) for the full routing
 model.
 
-## 4. Rebuild and run your tests
+## 4. Adopt the safe-by-default changes
+
+1.0 flips three surfaces to their secure posture. Each is a one-line change if
+you relied on the previous default.
+
+### `/metrics` requires a middleware (or an explicit opt-out)
+
+The Prometheus output carries per-tenant labels and tenant counts by status, so
+a bare `multitenancyRoutes()` with metrics enabled now **throws at boot** instead
+of mounting `/metrics` public:
+
+```ts
+// Before (0.x): mounted /metrics public
+multitenancyRoutes()
+
+// After (1.0): pick one
+multitenancyRoutes({ metricsMiddleware: middleware.auth() }) // gated (recommended)
+multitenancyRoutes({ metricsMiddleware: false }) // public ON PURPOSE (trusted network)
+multitenancyRoutes({ metrics: false }) // no /metrics endpoint
+```
+
+Conditional values that are effectively absent (`[]`, `''`) are rejected too.
+Remember your Prometheus scrape job now needs the credential. See
+[Health & metrics](/docs/health).
+
+### Custom domains are strict
+
+A request whose tenant header conflicts with the tenant of a verified custom
+domain is rejected with 400 before any handler runs; the domain is
+authoritative. If you deliberately route by header on managed domains:
+
+```ts
+// Restore the 0.x header-wins behavior (understand the trade-off first)
+middleware.customDomain({ strict: false })
+```
+
+See [Routing — strict mode](/docs/routing#strict-mode-the-default).
+
+### `request.tenant()` rejects suspended and soft-deleted tenants
+
+The macro now throws a 403 (`E_TENANT_SUSPENDED`) for an inactive tenant before
+opening any connection, even on routes without the guard middleware. Admin or
+recovery flows that legitimately load inactive tenants opt in:
+
+```ts
+const tenant = await request.tenant({ allowInactive: true })
+```
+
+### Related: `tenant:import` is all-or-nothing by default
+
+In `@adonisjs-lasagna/backup`, the SQL importer now aborts and rolls back on the
+first failing statement. Pass `--continue-on-error` to restore per-statement
+savepoints (which can leave a partial import), and watch for the new warnings
+when the schema rewrite touches a string literal.
+
+## 5. Rebuild and run your tests
 
 After updating imports and `adonisrc.ts`, a typecheck surfaces anything left
 pointing at a moved symbol (the shimmed `/admin` path throws at runtime with a

@@ -42,6 +42,9 @@ intended guard. Read config at request or job time, not at module top-level.
 | `resolverStrategy` | `'subdomain' \| 'header' \| 'path' \| 'domain-or-subdomain' \| 'request-data'` |  | How the tenant id is read from the request. |
 | `resolverChain` | `string[]` |  | Ordered resolver names; first hit wins. **Overrides** `resolverStrategy`. |
 | `resolver.legacyAdapterFallback` | `boolean` | `false` | Restore the 0.x `resolverStrategy`-only fallback for model queries outside an active tenant context. See [Upgrade to 1.0](/docs/upgrade-to-1.0#_3-check-the-resolver-default). |
+| `resolver.cache.enabled` | `boolean` | `false` | Opt-in per-process cache of resolved tenants — cuts the steady-state backoffice round-trips per request from two to one. The cached tenant is the SAME instance for every concurrent request: treat it as read-only. See [Performance](/docs/performance). |
+| `resolver.cache.ttlMs` | `number` | `10000` | Freshness bound per entry; also the cross-pod staleness bound for a status change (in-process invalidation fires when the matching lifecycle event is emitted). |
+| `resolver.cache.maxEntries` | `number` | `10000` | LRU cap on simultaneously-cached tenants per process. |
 | `tenantHeaderKey` | `string` |  | Header name read by the `header` resolver. |
 | `baseDomain` | `string` |  | Apex domain used to parse subdomains. |
 | `requestData.queryKey` | `string` | `'tenant_id'` | Query-string key for the `request-data` resolver. |
@@ -67,6 +70,7 @@ isolation: { driver: 'schema-pg' }
 | `isolation.rowScopeTables` | `string[]` |  | Tenant-scoped tables (`rowscope-pg`) for `destroy`/`reset`. |
 | `isolation.rowScopeColumn` | `string` | `'tenant_id'` | Tenant id column (`rowscope-pg`). |
 | `isolation.rowScopeMode` | `'strict' \| 'allowGlobal'` | `'strict'` | `strict` throws on an unscoped query outside `tenancy.run()`. This is the safe default. |
+| `isolation.rowScopeRls` | `boolean` | `false` | Acknowledges the PostgreSQL RLS backstop is applied (`--with=rls` migration + `withTenantRls`). Until set, the provider logs a boot warning that bare `rowscope-pg` is convention-isolated. See [rowscope-pg](/docs/data-isolation/rowscope-pg). |
 | `isolation.maxTenantConnections` | `number` | `50` | LRU budget for open tenant connections (`schema-pg`/`database-pg`). Keep `cap × pool max` under PG's `max_connections`. |
 | `isolation.evictionGracePeriodMs` | `number` | `30000` | A connection touched more recently than this is in-use and never evicted — set above your p99 request duration. |
 | `isolation.enforceConnectionCap` | `boolean` | `false` | Turn the LRU budget into a hard cap: refuse new tenant connections with a 503 (`TenantConnectionLimitException`) instead of exceeding it. |

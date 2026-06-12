@@ -65,8 +65,11 @@ setting and its trade-off are explained.
       the destructive routes are guarded; it is fail-closed and throws at boot if you
       omit it. Use `middleware: false` only behind a trusted network boundary. See
       [Admin REST API](/docs/admin-rest-api).
-- [ ] **Metrics exposure.** Authenticate `/metrics` if it carries per-tenant
-      series; expose only the `/livez`, `/readyz`, `/healthz` probes publicly. See
+- [ ] **Metrics exposure.** `/metrics` always carries per-tenant series and is
+      fail-closed: `multitenancyRoutes` throws at boot without a
+      `metricsMiddleware` (pass `metricsMiddleware: false` only behind a trusted
+      network boundary). Expose only the `/livez`, `/readyz`, `/healthz` probes
+      publicly, and remember the Prometheus scrape job needs the credential. See
       [Health & metrics](/docs/health).
 - [ ] **Webhooks.** Keep `WEBHOOKS_ALLOW_LOOPBACK_TARGETS` off in production.
 - [ ] **Stripe (if billing).** Use real keys and keep `STRIPE_ALLOW_LIVE_IN_DEV`

@@ -25,7 +25,13 @@ Pin the version and read this changelog before upgrading. See the
 - `BackupRetentionService`: tier-based intervals and `keepLast` with S3 purge awareness.
 - `CloneService`: tenant cloning with a correct integer-sequence reset.
 - `SqlImportService`: SQL file import with a lazily-loaded logger; throws `PsqlNotAvailableError`
-  when `psql` is absent.
+  when `psql` is absent. **Strict (all-or-nothing) is the default**: the first failing statement
+  aborts and rolls back the whole import — `tenant:import --continue-on-error` (or
+  `strict: false` on the service) opts into per-statement savepoints, which can leave a partial
+  import. The schema rewriter surfaces `warnings` whenever it touched a `<source>.` substring
+  inside a SQL string literal (it cannot avoid the rewrite without a full parser, but it refuses
+  to be silent about it); re-export with `pg_dump --inserts` or a matching schema name if those
+  values matter.
 - Jobs `BackupTenant`, `RestoreTenant`, `CloneTenant`, and the `tenant:backup*` / `tenant:clone`
   / `tenant:import` ace commands.
 - `backupRecencyCheck`: a doctor check the provider registers into the core `DoctorService`.
