@@ -40,7 +40,7 @@ export default class CloneTenant extends Job<CloneTenantPayload> {
         clearSessions,
       })
 
-      new TenantQueueService().getOrCreate(result.destination.id)
+      ;(await app.container.make(TenantQueueService)).getOrCreate(result.destination.id)
 
       logger.info(
         {

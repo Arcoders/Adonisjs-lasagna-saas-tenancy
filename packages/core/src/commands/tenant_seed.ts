@@ -65,7 +65,8 @@ export default class TenantSeed extends BaseCommand {
 
     try {
       const driver = await getActiveDriver()
-      await driver.connect(tenant)
+      // Operational path: don't let request-path connection backpressure refuse a seed.
+      await driver.connect(tenant, { bypassHardCap: true })
     } catch (error: any) {
       this.logger.error(`Could not open connection for ${tenant.id}: ${error.message}`)
       return false

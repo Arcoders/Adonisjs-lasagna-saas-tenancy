@@ -55,13 +55,16 @@ test.group('ReadReplicaService — resolve() against real PG', (group) => {
     }
   })
 
-  test('resolve() returns a working connection pointed at the replica host (real reachable replica)', async ({
+  test('resolve() returns a connection whose search_path targets the tenant schema (real reachable replica)', async ({
     assert,
   }) => {
     // Single-host test: use the same PG we already have as a "fake
-    // replica" — the host is reachable, the search_path is preserved.
-    // This proves the connection-building path; whether the row data
-    // is actually replicated is up to the operator's PG topology.
+    // replica" — the host is reachable. The point of this test is to prove
+    // the replica connection inherits the tenant's search_path. A bug that
+    // nests `searchPath` under `connection` (which knex ignores) silently
+    // routes every read to the default `public` schema — a cross-tenant
+    // leak. A bare `SELECT 1` would NOT catch that; reading a table that
+    // only exists inside the tenant schema does.
     const baseConn = (originalConfig as any).backup?.pgConnection ?? {
       host: '127.0.0.1',
       port: 5432,
@@ -77,18 +80,38 @@ test.group('ReadReplicaService — resolve() against real PG', (group) => {
     const t = await createTestTenant({ status: 'provisioning' })
     const tenant = await findTenant(t.id)
     await driver.provision(tenant)
-    const svc = new ReadReplicaService()
     const replicaConn = `tenant_${t.id}_read_0`
     cleanup.push({ tenantId: t.id, connNames: [replicaConn, `tenant_${t.id}`] })
 
+    // Create a table + row INSIDE the tenant schema via the PRIMARY tenant
+    // connection (its search_path already points at tenant_<uuid>).
+    const primary = await driver.connect(tenant)
+    await primary.rawQuery(
+      'CREATE TABLE IF NOT EXISTS replica_probe (id int primary key, marker text)'
+    )
+    await primary.rawQuery("INSERT INTO replica_probe (id, marker) VALUES (1, 'tenant-scoped')")
+
+    const svc = new ReadReplicaService()
     const conn = await svc.resolve(tenant)
     assert.isNotNull(conn, 'resolve must return a connection when replicas are configured')
     assert.equal((conn as any).connectionName, replicaConn)
 
-    // Functional sanity: a SELECT 1 has to come back from the replica.
-    const result = await conn!.rawQuery('SELECT 1 as one')
+    // The replica must resolve the UNQUALIFIED table name through the tenant
+    // search_path. If search_path defaulted to `public`, this throws
+    // `relation "replica_probe" does not exist`.
+    const result = await conn!.rawQuery('SELECT marker FROM replica_probe WHERE id = 1')
     const rows = Array.isArray(result.rows) ? result.rows : (result as any).rows
-    assert.equal(Number(rows[0].one), 1)
+    assert.equal(rows[0].marker, 'tenant-scoped')
+
+    // And prove the search_path explicitly so the intent can't regress to a
+    // path-independent assertion.
+    const sp = await conn!.rawQuery('SHOW search_path')
+    const spRows = Array.isArray(sp.rows) ? sp.rows : (sp as any).rows
+    assert.include(
+      String(spRows[0].search_path),
+      tenant.schemaName,
+      'replica search_path must include the tenant schema, not just public'
+    )
   })
 
   test('resolve() returns a connection that THROWS on query when the replica is unreachable', async ({

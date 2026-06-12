@@ -67,10 +67,35 @@ test.group('SubdomainResolver', (group) => {
     assert.isUndefined(r.resolve(makeRequest({ headers: { host: 'example.com' } })))
   })
 
-  test('falls back to leftmost label when host does not end with baseDomain', ({ assert }) => {
-    const r = new SubdomainResolver()
-    const result = r.resolve(makeRequest({ headers: { host: 'acme.test.local' } }))
-    assert.deepEqual(result, { type: 'id', tenantId: 'acme' })
+  test('falls back to leftmost label when host does not end with baseDomain (dev only)', ({
+    assert,
+  }) => {
+    const prev = process.env.NODE_ENV
+    process.env.NODE_ENV = 'development'
+    try {
+      const r = new SubdomainResolver()
+      const result = r.resolve(makeRequest({ headers: { host: 'acme.test.local' } }))
+      assert.deepEqual(result, { type: 'id', tenantId: 'acme' })
+    } finally {
+      process.env.NODE_ENV = prev
+    }
+  })
+
+  test('refuses the off-baseDomain leftmost-label fallback in production', ({ assert }) => {
+    const prev = process.env.NODE_ENV
+    try {
+      // Both spellings AdonisJS normalizes to production must close the gate.
+      for (const env of ['production', 'prod']) {
+        process.env.NODE_ENV = env
+        const r = new SubdomainResolver()
+        assert.isUndefined(
+          r.resolve(makeRequest({ headers: { host: 'acme.test.local' } })),
+          `NODE_ENV=${env} must refuse the fallback`
+        )
+      }
+    } finally {
+      process.env.NODE_ENV = prev
+    }
   })
 
   test('returns miss when host has no labels (single hostname)', ({ assert }) => {

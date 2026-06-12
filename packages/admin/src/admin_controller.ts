@@ -151,7 +151,7 @@ export default class AdminController {
     const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
     const tenant = await repo.findById(params.id, true)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
-    const stats = await new TenantQueueService().getStats(tenant.id)
+    const stats = await (await app.container.make(TenantQueueService)).getStats(tenant.id)
     return response.ok({ data: stats })
   }
 

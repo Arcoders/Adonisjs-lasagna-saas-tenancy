@@ -90,7 +90,7 @@ export default class RowScopePgDriver implements IsolationDriver {
     await this.destroy(tenant)
   }
 
-  async connect(_tenant: TenantModelContract) {
+  async connect(_tenant: TenantModelContract, _opts: { bypassHardCap?: boolean } = {}) {
     const { db } = await lucid()
     return db.connection(this.#centralConnectionName)
   }

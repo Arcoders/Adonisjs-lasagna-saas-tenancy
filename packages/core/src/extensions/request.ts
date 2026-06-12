@@ -10,6 +10,7 @@ import DependencyUnavailableException from '../exceptions/dependency_unavailable
 import { getConfig } from '../config.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import { isUuidV4 } from '../services/isolation/identifier.js'
+import { isProductionNodeEnv } from '../utils/env.js'
 import TenantResolverRegistry from '../services/resolvers/registry.js'
 import type { TenantResolveResult } from '../services/resolvers/resolver.js'
 import { HttpRequest } from '@adonisjs/core/http'
@@ -61,6 +62,9 @@ function legacyResolveTenantId(request: HttpRequest): string | undefined {
       return sub || undefined
     }
     if (host === baseDomain) return undefined
+    // Dev-only leftmost-label fallback (mirrors SubdomainResolver). Production
+    // refuses an off-baseDomain host rather than guessing a tenant from it.
+    if (isProductionNodeEnv()) return undefined
     const labels = host.split('.')
     return labels.length > 1 ? labels[0] : undefined
   }

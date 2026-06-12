@@ -157,6 +157,12 @@ jobs:
       # mock-oauth2-server for sso_oidc_real.spec.ts. `default` = mock's
       # placeholder issuer path for unspecified issuers.
       MOCK_OIDC_BASE_URL: http://127.0.0.1:8080/default
+      # Least-privilege role for the rowscope RLS enforcement proof. The default
+      # DB user is the image bootstrap SUPERUSER, which BYPASSes RLS — so without
+      # this the proof self-skips and ships false-green. Created below; the
+      # fixture's `rls_probe` connection picks these up.
+      RLS_DB_USER: rls_ci
+      RLS_DB_PASSWORD: rls_ci
 
     steps:
       - uses: actions/checkout@v4
@@ -206,6 +212,33 @@ jobs:
             sleep 1
           done
           echo "mock-oidc failed to become ready"; exit 1
+
+      # psql for the role-creation step below. Don't rely on the runner image's
+      # preinstalled client (the e2e job installs it explicitly for the same
+      # reason — image contents rotate).
+      - name: Install postgresql-client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      # Create a NOSUPERUSER NOBYPASSRLS role so rowscope_rls.spec.ts runs its
+      # enforcement proof for real instead of self-skipping under the bootstrap
+      # superuser. The fixture's `rls_probe` connection authenticates as this
+      # role (via RLS_DB_USER/RLS_DB_PASSWORD); the spec's setup GRANTs table
+      # access to PUBLIC so the role can read/write within the policy.
+      - name: Create least-privilege RLS role
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d multitenancy_test -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'rls_ci') THEN
+              CREATE ROLE rls_ci LOGIN PASSWORD 'rls_ci' NOSUPERUSER NOBYPASSRLS;
+            END IF;
+          END $$;
+          GRANT CONNECT ON DATABASE multitenancy_test TO rls_ci;
+          GRANT USAGE ON SCHEMA public TO rls_ci;
+          SQL
 
       - name: Test (integration) + coverage
         run: npm run test:integration:coverage

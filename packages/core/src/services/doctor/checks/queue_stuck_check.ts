@@ -1,3 +1,4 @@
+import app from '@adonisjs/core/services/app'
 import { getConfig } from '../../../config.js'
 import TenantQueueService from '../../tenant_queue_service.js'
 import type { DoctorCheck, DiagnosisIssue } from '../types.js'
@@ -12,7 +13,7 @@ const queueStuckCheck: DoctorCheck = {
     'Flags tenant queues with failed jobs, delayed backlogs, or jobs that have been active for too long (stalled).',
 
   async run(ctx): Promise<DiagnosisIssue[]> {
-    const svc = new TenantQueueService()
+    const svc = await app.container.make(TenantQueueService)
     const issues: DiagnosisIssue[] = []
     const stalledMinutes = getConfig().doctor?.queueStalledMinutes ?? DEFAULT_STALLED_MINUTES
     const stalledMs = stalledMinutes * 60_000
@@ -20,7 +21,33 @@ const queueStuckCheck: DoctorCheck = {
     for (const tenant of ctx.tenants) {
       if (!tenant.isActive && !tenant.isSuspended) continue
       try {
-        const stats = await svc.getStats(tenant.id)
+        // One short-lived handle per tenant for the whole inspection (counts +
+        // active-job listing), closed afterwards. The doctor runs over HTTP
+        // (`GET /health/report`); a persistent handle per tenant would leak an
+        // ioredis connection on every probe.
+        const { stats, activeJobs } = await svc.withTempQueue(tenant.id, async (queue) => {
+          const counts = await queue.getJobCounts(
+            'waiting',
+            'active',
+            'completed',
+            'failed',
+            'delayed'
+          )
+          const active = (counts.active ?? 0) > 0 ? await queue.getActive(0, 50) : []
+          return {
+            stats: {
+              tenantId: tenant.id,
+              queueName: svc.getQueueName(tenant.id),
+              waiting: counts.waiting ?? 0,
+              active: counts.active ?? 0,
+              completed: counts.completed ?? 0,
+              failed: counts.failed ?? 0,
+              delayed: counts.delayed ?? 0,
+            },
+            activeJobs: active,
+          }
+        })
+
         if (stats.failed >= FAILED_THRESHOLD) {
           issues.push({
             code: 'queue_failed_jobs',
@@ -43,9 +70,7 @@ const queueStuckCheck: DoctorCheck = {
         // Stalled detection: any job in `active` state whose `processedOn`
         // timestamp is older than `stalledMs` is considered stuck — typically
         // because the worker that picked it up died without releasing it.
-        if (stats.active > 0) {
-          const queue = svc.getOrCreate(tenant.id)
-          const activeJobs = await queue.getActive(0, 50)
+        if (activeJobs.length > 0) {
           const now = Date.now()
           const stalled = activeJobs.filter((j) => {
             const startedAt = j.processedOn ?? j.timestamp

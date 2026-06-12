@@ -1,7 +1,7 @@
 import TenantSsoConfig from './tenant_sso_config.js'
 import { buildAuthorizationUrl, isLoopbackIssuer } from './authorize.js'
 import { getCache } from '@adonisjs-lasagna/saas-tenancy/services'
-import { validateResolvedHostIsPublic } from '@adonisjs-lasagna/saas-tenancy'
+import { validateResolvedHostIsPublic, encrypt, decrypt } from '@adonisjs-lasagna/saas-tenancy'
 import redis from '@adonisjs/redis/services/main'
 import { randomBytes } from 'node:crypto'
 
@@ -28,6 +28,9 @@ export interface IdTokenClaims {
 
 const STATE_TTL_SECONDS = 600
 const CLOCK_SKEW_SECONDS = 60
+// Cap server-side calls to the IdP so a hung/slow provider can't pin a callback
+// request (and its tenant connection) open indefinitely.
+const IDP_FETCH_TIMEOUT_MS = 10_000
 
 export default class SsoService {
   async getConfig(tenantId: string): Promise<TenantSsoConfig | null> {
@@ -49,7 +52,10 @@ export default class SsoService {
       {
         provider: 'oidc',
         clientId: data.clientId,
-        clientSecret: data.clientSecret,
+        // Encrypt the IdP client secret at rest (AES-256-GCM, same as webhook
+        // signing secrets). A backoffice DB/backup leak must not hand out every
+        // tenant's OIDC token-exchange credential in plaintext.
+        clientSecret: encrypt(data.clientSecret),
         issuerUrl: data.issuerUrl,
         redirectUri: data.redirectUri,
         scopes: data.scopes ?? ['openid', 'email', 'profile'],
@@ -110,8 +116,11 @@ export default class SsoService {
         code,
         redirect_uri: config.redirectUri,
         client_id: config.clientId,
-        client_secret: config.clientSecret,
+        // `decrypt` returns the value unchanged when it lacks the enc_v1: prefix,
+        // so rows written before encryption was added keep working.
+        client_secret: decrypt(config.clientSecret),
       }),
+      signal: AbortSignal.timeout(IDP_FETCH_TIMEOUT_MS),
     })
 
     if (!tokenRes.ok) throw new Error('Token exchange failed')
@@ -191,7 +200,9 @@ export default class SsoService {
             }
           }
           const base = issuerUrl.replace(/\/$/, '')
-          const res = await fetch(`${base}/.well-known/openid-configuration`)
+          const res = await fetch(`${base}/.well-known/openid-configuration`, {
+            signal: AbortSignal.timeout(IDP_FETCH_TIMEOUT_MS),
+          })
           if (!res.ok) throw new Error(`OIDC discovery failed for ${issuerUrl}`)
           const doc = (await res.json()) as Partial<OidcDiscovery>
           if (!doc.issuer || !doc.authorization_endpoint || !doc.token_endpoint || !doc.jwks_uri) {

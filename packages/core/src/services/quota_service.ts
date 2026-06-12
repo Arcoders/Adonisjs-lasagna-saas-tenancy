@@ -64,11 +64,19 @@ async function resolveStorageMode(): Promise<PlanStorageMode> {
         `${getConfig().backofficeSchemaName}.tenant_plans`,
       ])
     const rows = (result?.rows ?? result) as Array<{ reg: string | null }>
+    // Only LATCH on a definitive answer: a successful probe genuinely tells us
+    // whether the table exists.
     _storageProbe = rows[0]?.reg ? 'tenant_plans' : 'config-only'
+    return _storageProbe
   } catch {
-    _storageProbe = 'config-only'
+    // The probe THREW — almost certainly a transient infra failure (pool
+    // timeout, a backoffice failover at first read), not "table missing".
+    // Do NOT memoize: latching 'config-only' here would permanently disable
+    // storage-backed plans for the rest of the process even after the DB
+    // recovers (every tenant silently dropped to defaultPlan). Leave the probe
+    // unlatched so the next read retries.
+    return 'config-only'
   }
-  return _storageProbe
 }
 
 /** @internal — for tests only */
@@ -283,8 +291,24 @@ export default class QuotaService {
       fallback: () => null,
       run: async () => {
         const redis = await this.requireRedis()
-        const next = await redis.incrby(key, amount)
-        await redis.expire(key, ROLLING_TTL_SECONDS)
+        // INCRBY + EXPIRE in one pipeline so a crash between them can't leave a
+        // TTL-less counter key lingering. (Bounded anyway — the key is
+        // date-scoped — but a clean atomic pair costs nothing.)
+        const results = (await redis
+          .pipeline()
+          .incrby(key, amount)
+          .expire(key, ROLLING_TTL_SECONDS)
+          .exec()) as [[Error | null, number], [Error | null, unknown]] | null
+        // ioredis types exec() as nullable (aborted pipelines); destructuring
+        // null would throw an opaque TypeError instead of a classified
+        // dependency failure.
+        if (!results) throw new Error('quota.track: redis pipeline returned no results')
+        const [[incrErr, next], [expireErr]] = results
+        if (incrErr) throw incrErr
+        // Surface an EXPIRE-only failure too: the increment stuck but the key
+        // has no TTL — silent acceptance would leave a counter that never
+        // resets while reporting success.
+        if (expireErr) throw expireErr
         return Number(next) || 0
       },
     })

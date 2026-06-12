@@ -27,6 +27,9 @@ export default class InstallTenant extends Job<InstallTenantPayload> {
       const hooks = await app.container.make(HookRegistry)
 
       logger.info({ tenantId: tenant.id }, 'Provisioning tenant schema')
+      // NOTE: `before:provision` runs on EVERY job attempt (BullMQ retries),
+      // whereas `after:provision` only fires once the provision succeeds. Host
+      // hooks here must be idempotent — a retried install re-runs them.
       await hooks.run('before', 'provision', { tenant })
 
       const driver = await getActiveDriver()
@@ -42,8 +45,7 @@ export default class InstallTenant extends Job<InstallTenantPayload> {
         throw error
       }
       logger.info({ tenantId: tenant.id }, 'Tenant provisioned successfully')
-
-      new TenantQueueService().getOrCreate(tenant.id)
+      ;(await app.container.make(TenantQueueService)).getOrCreate(tenant.id)
       logger.info({ tenantId: tenant.id }, 'Tenant queue initialized')
 
       await hooks.run('after', 'provision', { tenant })

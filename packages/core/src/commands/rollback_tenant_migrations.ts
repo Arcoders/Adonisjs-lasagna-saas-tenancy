@@ -56,7 +56,7 @@ export default class RollbackTenantMigrations extends BaseCommand {
       .add(`Rolling back tenant "${tenant.name}": schema (${tenant.schemaName})`, async (task) => {
         try {
           task.update('Connecting to the tenant database')
-          await driver.connect(tenant)
+          await driver.connect(tenant, { bypassHardCap: true })
 
           if (!this.dryRun) {
             await hooks.run('before', 'migrate', { tenant, direction: 'down' })

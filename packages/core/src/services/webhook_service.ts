@@ -9,6 +9,9 @@ import {
 import { DateTime } from 'luxon'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 
+const lazyLogger = () =>
+  import('@adonisjs/core/services/logger').then((m) => m.default).catch(() => null)
+
 export const MAX_ATTEMPTS = 5
 
 export interface RegisterWebhookResult {
@@ -73,7 +76,14 @@ async function mapConcurrent<T>(
   fn: (item: T) => Promise<void>
 ): Promise<void> {
   for (let i = 0; i < items.length; i += concurrency) {
-    await Promise.all(items.slice(i, i + concurrency).map(fn))
+    // allSettled so one row's failure (e.g. a save() conflict) can't abort the
+    // whole sweep — every `* * * * *` retry tick must make progress on the rest.
+    const results = await Promise.allSettled(items.slice(i, i + concurrency).map(fn))
+    const failed = results.filter((r) => r.status === 'rejected').length
+    if (failed > 0) {
+      const logger = await lazyLogger()
+      logger?.warn({ failed, batch: results.length }, 'webhook.retry: some deliveries threw')
+    }
   }
 }
 
@@ -84,7 +94,20 @@ export default class WebhookService {
       .where('enabled', true)
       .whereRaw('? = ANY(events)', [event])
 
-    await Promise.all(hooks.map((hook) => this.deliver(hook, event, payload)))
+    // allSettled, not all: each delivery persists its own outcome in send(), so
+    // one hook's unexpected failure (e.g. the delivery-row INSERT erroring) must
+    // not reject the whole dispatch and hide the siblings.
+    const results = await Promise.allSettled(
+      hooks.map((hook) => this.deliver(hook, event, payload))
+    )
+    const failed = results.filter((r) => r.status === 'rejected').length
+    if (failed > 0) {
+      const logger = await lazyLogger()
+      logger?.warn(
+        { tenantId, event, failed, total: hooks.length },
+        'webhook.dispatch: some deliveries failed to enqueue (see per-delivery rows)'
+      )
+    }
   }
 
   private async deliver(
@@ -138,8 +161,25 @@ export default class WebhookService {
     }
 
     if (hook.secret) {
-      const plainSecret = decrypt(hook.secret)
-      headers['x-webhook-signature'] = createHmac('sha256', plainSecret).update(body).digest('hex')
+      // A stored secret that can't be decrypted (APP_KEY rotated, ciphertext
+      // corrupted) is a PERMANENT failure. Decrypting OUTSIDE this guard would
+      // throw straight out of send(), leaving the delivery row stuck `pending`
+      // (the retry sweep only selects `retrying`) and — through the allSettled
+      // fan-out — surfacing as a rejection. Mark it failed with no retry and
+      // stop here instead.
+      try {
+        const plainSecret = decrypt(hook.secret)
+        headers['x-webhook-signature'] = createHmac('sha256', plainSecret)
+          .update(body)
+          .digest('hex')
+      } catch (err) {
+        delivery.statusCode = null
+        delivery.responseBody = `secret_decrypt_failed:${(err as Error)?.message ?? String(err)}`
+        delivery.status = 'failed'
+        delivery.nextRetryAt = null
+        await delivery.save()
+        return
+      }
     }
 
     try {
@@ -173,6 +213,9 @@ export default class WebhookService {
   }
 
   async processRetries(): Promise<void> {
+    // At-least-once: this sweep does not claim rows, so two instances running
+    // the `* * * * *` cron can both pick the same `retrying` row and double-send
+    // (possibly one over MAX_ATTEMPTS). Receivers MUST dedupe on `x-delivery-id`.
     const due = await TenantWebhookDelivery.query()
       .where('status', 'retrying')
       .where('next_retry_at', '<=', DateTime.utc().toISO())

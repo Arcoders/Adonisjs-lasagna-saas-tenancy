@@ -37,6 +37,7 @@ export default class TenantRepl extends BaseCommand {
     const driver = await getActiveDriver()
     const db = await driver.connect(tenant)
     const cb = await this.app.container.make(CircuitBreakerService)
+    const queue = await this.app.container.make(TenantQueueService)
     const logCtx = await this.app.container.make(TenantLogContext)
 
     const repl = await this.app.container.make('repl')
@@ -60,7 +61,7 @@ export default class TenantRepl extends BaseCommand {
       // `sso` moved to @adonisjs-lasagna/sso; the core REPL no longer preloads
       // it (core never imports a satellite package).
       metrics: new MetricsService(),
-      queue: new TenantQueueService(),
+      queue,
       circuit: cb,
       logCtx,
     })

@@ -90,9 +90,20 @@ export default class SchemaPgDriver implements IsolationDriver {
     await this.connect(tenant, { bypassHardCap: true })
   }
 
+  /** Refresh the in-use grace window for a tenant's connection on every query. */
+  markUsed(tenantId: string): void {
+    const name = this.connectionName(tenantId)
+    if (this.#lru.has(name)) this.#lru.touch(name)
+  }
+
   async connect(tenant: TenantModelContract, opts: { bypassHardCap?: boolean } = {}) {
     const { db } = await lucid()
     const name = this.connectionName(tenant.id)
+
+    // If this connection was just evicted, wait for its pool to finish draining
+    // before deciding it's still registered — otherwise we'd re-adopt a closing
+    // pool and queries would fail mid-flight.
+    await this.#lru.settlePending(name)
 
     if (db.manager.has(name)) {
       this.#lru.touch(name)
@@ -131,6 +142,10 @@ export default class SchemaPgDriver implements IsolationDriver {
     const { db } = await lucid()
     const name = this.connectionName(tenant.id)
     this.#lru.delete(name)
+    // If an eviction is already draining this pool, wait for it instead of
+    // racing it with a second release (idempotent in Lucid, but the await
+    // keeps the manager state deterministic for the `has()` check below).
+    await this.#lru.settlePending(name)
     if (db.manager.has(name)) {
       // `release` both closes the pool and unregisters the connection from
       // the manager. `close` only ends the pool — `manager.has()` would
@@ -141,6 +156,10 @@ export default class SchemaPgDriver implements IsolationDriver {
 
   async migrate(tenant: TenantModelContract, opts: MigrateOptions): Promise<MigrateResult> {
     const { db, app, MigrationRunner } = await lucid()
+    // Self-connect (bypassing the hard cap) so migrate() works regardless of
+    // whether the caller pre-connected — matching database-pg / sqlite. An
+    // operational migration must never be refused by request-path backpressure.
+    await this.connect(tenant, { bypassHardCap: true })
     const runner = new MigrationRunner(db, app, {
       ...opts,
       connectionName: this.connectionName(tenant.id),

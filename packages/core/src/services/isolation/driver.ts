@@ -79,8 +79,15 @@ export interface IsolationDriver {
    * Return (and lazily register) the Lucid client routed to this tenant's
    * storage. Implementations are expected to memoize within a connection
    * pool so repeated calls within a request reuse the same client.
+   *
+   * `bypassHardCap` skips the opt-in connection-cap admission check — operational
+   * paths (provisioning, migrations, seeding) must not be refused by request-path
+   * backpressure. Drivers without a per-tenant pool ignore it.
    */
-  connect(tenant: TenantModelContract): Promise<QueryClientContract>
+  connect(
+    tenant: TenantModelContract,
+    opts?: { bypassHardCap?: boolean }
+  ): Promise<QueryClientContract>
 
   /**
    * Close and unregister the tenant's connection from the Lucid manager.
@@ -94,6 +101,14 @@ export interface IsolationDriver {
    * `TenantAdapter` can resolve the name without loading the model.
    */
   connectionName(tenantId: string): string
+
+  /**
+   * Synchronously mark this tenant's connection as just-used, refreshing the
+   * in-use grace window so a long-running request isn't evicted mid-flight.
+   * Called by `TenantAdapter` on every model-query routing. Optional: drivers
+   * without a per-tenant connection pool (rowscope-pg) don't implement it.
+   */
+  markUsed?(tenantId: string): void
 
   /**
    * Run migrations against the tenant's storage. For drivers without

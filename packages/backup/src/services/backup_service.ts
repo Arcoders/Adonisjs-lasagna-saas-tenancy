@@ -162,10 +162,35 @@ export default class BackupService {
   async #persistMetadata(tenantId: string, list: BackupMetadata[]): Promise<void> {
     const json = JSON.stringify(list)
     const redis = await lazyRedis()
-    await Promise.all([
-      redis?.setex(this.metaKey(tenantId), backupConfig().metadataTtl, json).catch(() => {}),
-      writeFile(this.sidecarPath(tenantId), json, 'utf-8').catch(() => {}),
+    // Two redundant stores (Redis + a filesystem sidecar). Swallowing ONE leg is
+    // resilience; swallowing BOTH silently loses the manifest, so `listBackups`
+    // goes blind to an existing dump. Log each failed leg and throw only when
+    // both fail, so a caller (and ops) learns the backup is unindexed.
+    const results = await Promise.allSettled([
+      redis
+        ? redis.setex(this.metaKey(tenantId), backupConfig().metadataTtl, json)
+        : Promise.reject(new Error('redis unavailable')),
+      writeFile(this.sidecarPath(tenantId), json, 'utf-8'),
     ])
+    const [redisResult, fileResult] = results
+    if (redisResult.status === 'rejected' && redis) {
+      await logWarn(
+        { tenantId, error: (redisResult.reason as Error)?.message },
+        'Failed to persist backup metadata to Redis'
+      )
+    }
+    if (fileResult.status === 'rejected') {
+      await logWarn(
+        { tenantId, error: (fileResult.reason as Error)?.message },
+        'Failed to persist backup metadata sidecar to disk'
+      )
+    }
+    if (redisResult.status === 'rejected' && fileResult.status === 'rejected') {
+      throw new Error(
+        `Failed to persist backup metadata for tenant ${tenantId} to BOTH Redis and disk — ` +
+          `the backup file is unindexed and will not appear in listBackups().`
+      )
+    }
   }
 
   async #loadMetadata(tenantId: string): Promise<BackupMetadata[]> {

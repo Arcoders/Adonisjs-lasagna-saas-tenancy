@@ -55,7 +55,11 @@ export async function collectSnapshot(options: CollectOptions = {}): Promise<Met
   let queues: any[] = []
   if (includeQueues) {
     try {
-      const qs = new TenantQueueService()
+      // Resolve the singleton so the map reflects queues this process has
+      // dispatched to (a fresh `new TenantQueueService()` always reported an
+      // empty map). Per-process by design; scrape every instance for a full
+      // fleet view.
+      const qs = await app.container.make(TenantQueueService)
       queues = await qs.getAllStats()
     } catch (err) {
       await warn('queue_stats_unavailable', err)

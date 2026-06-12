@@ -44,6 +44,10 @@ export default class TenantAdapter extends DefaultLucidAdapter {
 
     const tenantId = this.#resolveTenantId()
     const driver = this.drivers.active()
+    // Refresh the in-use grace window so a request that runs longer than the
+    // eviction grace period isn't picked as a victim mid-query. No-op on drivers
+    // without a per-tenant pool (rowscope-pg).
+    driver.markUsed?.(tenantId)
     return this.db.connection(driver.connectionName(tenantId))
   }
 

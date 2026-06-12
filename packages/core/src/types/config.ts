@@ -434,6 +434,13 @@ export interface MultitenancyConfig {
     resetTimeout: number
     rollingCountTimeout: number
     volumeThreshold: number
+    /**
+     * Upper bound on simultaneously-tracked tenant breakers. Past it, the
+     * oldest CLOSED breaker is shut down and evicted (it re-creates cheaply on
+     * the tenant's next request); OPEN/HALF_OPEN breakers are never evicted.
+     * Default: 5000.
+     */
+    maxTrackedCircuits?: number
   }
   /**
    * Optional unified degradation policy for backing dependencies. When

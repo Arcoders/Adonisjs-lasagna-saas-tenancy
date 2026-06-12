@@ -13,6 +13,15 @@ export interface CircuitMetrics {
 
 const REDIS_KEY_PREFIX = 'cb:state:'
 
+/**
+ * Upper bound on simultaneously-tracked tenant breakers. Each breaker holds two
+ * opossum rolling-stats intervals, so an unbounded map under high tenant churn
+ * leaks timers + memory. When exceeded we evict the oldest CLOSED breaker (it
+ * re-creates cheaply on the next request); OPEN / HALF_OPEN breakers are kept
+ * because they are actively failing fast and must not be dropped.
+ */
+const DEFAULT_MAX_TRACKED_CIRCUITS = 5_000
+
 const lazyRedis = () =>
   import('@adonisjs/redis/services/main').then((m) => m.default).catch(() => null)
 
@@ -73,6 +82,7 @@ export default class CircuitBreakerService {
       await this.#persistState(tenantId, 'HALF_OPEN')
     })
 
+    this.#evictIfOverCapacity()
     this.circuits.set(tenantId, breaker)
     // Best-effort restore: if this tenant's breaker was OPEN when the previous
     // process exited, re-open it now so we fail fast against a still-down tenant
@@ -104,6 +114,27 @@ export default class CircuitBreakerService {
         { tenantId, err: (err as Error)?.message ?? String(err) },
         'CircuitBreakerService: failed to restore persisted circuit state from Redis'
       )
+    }
+  }
+
+  /**
+   * Keep the breaker map bounded. When at/over capacity, shut down and drop the
+   * oldest CLOSED breakers (Map preserves insertion order) until one slot is
+   * free for the caller's add. Skips OPEN/HALF_OPEN breakers — they're actively
+   * failing fast. If every tracked breaker is non-closed we let the map exceed
+   * the bound briefly rather than drop a live one (matching the connection
+   * LRU's "never sever an active resource" stance); evicting down to the cap
+   * (not just one) lets the map DEFLATE again after such a burst.
+   */
+  #evictIfOverCapacity(): void {
+    const max = getConfig().circuitBreaker?.maxTrackedCircuits ?? DEFAULT_MAX_TRACKED_CIRCUITS
+    if (this.circuits.size < max) return
+    for (const [tenantId, breaker] of this.circuits) {
+      if (this.circuits.size < max) return
+      if (!breaker.opened && !breaker.halfOpen) {
+        breaker.shutdown()
+        this.circuits.delete(tenantId)
+      }
     }
   }
 

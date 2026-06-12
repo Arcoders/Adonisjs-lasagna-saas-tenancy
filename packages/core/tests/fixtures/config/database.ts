@@ -42,5 +42,22 @@ export default defineConfig({
         naturalSort: true,
       },
     },
+    // Least-privilege connection used ONLY by rowscope_rls.spec.ts to execute
+    // the RLS enforcement proof. Defaults to the main DB user (a superuser in
+    // local/default setups → the spec self-skips). CI sets RLS_DB_USER to a
+    // NOSUPERUSER NOBYPASSRLS role so the proof actually runs. Lazy pool
+    // (min: 0) so the role only ever connects when that spec uses it.
+    rls_probe: {
+      client: 'pg',
+      connection: {
+        host: env.get('DB_HOST'),
+        port: env.get('DB_PORT'),
+        user: process.env.RLS_DB_USER ?? env.get('DB_USER'),
+        password: process.env.RLS_DB_PASSWORD ?? env.get('DB_PASSWORD'),
+        database: env.get('DB_DATABASE'),
+      },
+      ...sharedPool,
+      searchPath: ['public'],
+    },
   },
 })

@@ -15,7 +15,7 @@ export default class TenantQueueStats extends BaseCommand {
 
   async run() {
     const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
-    const service = new TenantQueueService()
+    const service = await app.container.make(TenantQueueService)
 
     const allTenants = await repo.all({ statuses: ['active', 'suspended'] })
     const tenants = this.tenant?.length

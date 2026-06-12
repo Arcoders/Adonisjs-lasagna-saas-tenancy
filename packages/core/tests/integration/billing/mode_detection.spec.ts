@@ -101,10 +101,12 @@ test.group('BillingService.verify — mode + config validation', (group) => {
     const billing = await app.container.make(BillingService)
     billing.__resetForTests()
 
-    // Should not reject — the escape hatch is the operator's explicit
-    // opt-in for staging environments that legitimately use live keys.
-    await billing.verify()
-    assert.isTrue(true)
+    // The escape hatch is the operator's explicit opt-in for staging
+    // environments that legitimately use live keys: verify must NOT reject.
+    // NOTE: no 2nd argument — @japa/assert treats a string there as an
+    // error-MESSAGE MATCHER ("must not reject with this message"), which would
+    // let any other rejection pass silently.
+    await assert.doesNotReject(() => billing.verify())
   })
 
   test('aborts boot when webhookSecret is empty', async ({ assert }) => {
@@ -166,9 +168,9 @@ test.group('BillingService.verify — mode + config validation', (group) => {
     billing.__resetForTests()
 
     await billing.verify()
-    await billing.verify() // must not throw on second call
-
-    assert.isTrue(true) // no throw = pass
+    // A second verify() must be a no-op. (No 2nd arg: a string there is an
+    // error-message matcher, not a label — it would mask real rejections.)
+    await assert.doesNotReject(() => billing.verify())
   })
 
   test('verify is a no-op when config.billing is absent', async ({ assert }) => {
@@ -177,8 +179,9 @@ test.group('BillingService.verify — mode + config validation', (group) => {
     const billing = await app.container.make(BillingService)
     billing.__resetForTests()
 
-    await billing.verify() // should resolve silently
-    assert.isTrue(true)
+    // verify() must resolve silently when config.billing is absent. (No 2nd
+    // arg: a string there is an error-message matcher, not a label.)
+    await assert.doesNotReject(() => billing.verify())
   })
 })
 

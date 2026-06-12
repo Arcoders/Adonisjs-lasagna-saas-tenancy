@@ -9,12 +9,17 @@ import { randomUUID } from 'node:crypto'
  * `withTenantScope` mixin cannot retroactively group) still returns only the
  * active tenant's rows, because the PostgreSQL policy enforces it.
  *
- * Self-skips when the test DB role is SUPERUSER or has BYPASSRLS, since RLS is
- * not enforced for those roles and the proof would be meaningless. The
- * deterministic coverage lives in tests/unit/services/rls.spec.ts.
+ * The PROOF runs on the `rls_probe` connection, which CI authenticates as a
+ * NOSUPERUSER NOBYPASSRLS role (via RLS_DB_USER/RLS_DB_PASSWORD) so the policy
+ * is actually enforced. DDL + seeding run on the privileged `public` connection.
+ * Self-skips only when `rls_probe` resolves to a SUPERUSER/BYPASSRLS role (the
+ * local default), since the proof would be meaningless there. The deterministic
+ * coverage lives in tests/unit/services/rls.spec.ts.
  */
 const TABLE = 'lasagna_rls_test_posts'
 const POLICY = 'tenant_isolation'
+// The connection the proof executes on — least-privilege in CI.
+const PROBE_CONN = 'rls_probe'
 
 let rlsEnforced = false
 const tenantA = randomUUID()
@@ -26,20 +31,22 @@ function rowsOf(result: any): any[] {
 
 test.group('rowscope RLS (integration)', (group) => {
   group.setup(async () => {
-    const conn = db.connection('public')
+    const admin = db.connection('public') // privileged: DDL + seed + grants
+    const probe = db.connection(PROBE_CONN) // the role the proof runs as
 
-    // Does this role actually get RLS enforced? Superusers and BYPASSRLS roles
-    // are exempt even with FORCE ROW LEVEL SECURITY.
-    const probe = await conn.rawQuery(
+    // Does the PROBE role actually get RLS enforced? Superusers and BYPASSRLS
+    // roles are exempt even with FORCE ROW LEVEL SECURITY. We must check the
+    // role that EXECUTES the proof, not the privileged DDL role.
+    const flagsRes = await probe.rawQuery(
       `select
          current_setting('is_superuser') = 'on' as super,
          coalesce((select rolbypassrls from pg_roles where rolname = current_user), false) as bypass`
     )
-    const flags = rowsOf(probe)[0]
+    const flags = rowsOf(flagsRes)[0]
     rlsEnforced = !(flags.super === true || flags.bypass === true)
 
-    await conn.rawQuery(`DROP TABLE IF EXISTS ${TABLE}`)
-    await conn.rawQuery(`
+    await admin.rawQuery(`DROP TABLE IF EXISTS ${TABLE}`)
+    await admin.rawQuery(`
       CREATE TABLE ${TABLE} (
         id serial PRIMARY KEY,
         title text NOT NULL,
@@ -49,7 +56,7 @@ test.group('rowscope RLS (integration)', (group) => {
 
     // Seed BOTH tenants BEFORE enabling RLS, so the read test starts from a
     // table that genuinely contains another tenant's rows.
-    await conn.table(TABLE).multiInsert([
+    await admin.table(TABLE).multiInsert([
       { title: 'a1', tenant_id: tenantA },
       { title: 'mid', tenant_id: tenantB },
       { title: 'b1', tenant_id: tenantB },
@@ -57,14 +64,18 @@ test.group('rowscope RLS (integration)', (group) => {
 
     if (!rlsEnforced) return
 
-    await conn.rawQuery(`ALTER TABLE ${TABLE} ENABLE ROW LEVEL SECURITY`)
-    await conn.rawQuery(`ALTER TABLE ${TABLE} FORCE ROW LEVEL SECURITY`)
-    await conn.rawQuery(`DROP POLICY IF EXISTS ${POLICY} ON ${TABLE}`)
-    await conn.rawQuery(
+    await admin.rawQuery(`ALTER TABLE ${TABLE} ENABLE ROW LEVEL SECURITY`)
+    await admin.rawQuery(`ALTER TABLE ${TABLE} FORCE ROW LEVEL SECURITY`)
+    await admin.rawQuery(`DROP POLICY IF EXISTS ${POLICY} ON ${TABLE}`)
+    await admin.rawQuery(
       `CREATE POLICY ${POLICY} ON ${TABLE} ` +
         `USING ("tenant_id"::text = nullif(current_setting('app.tenant_id', true), '')) ` +
         `WITH CHECK ("tenant_id"::text = nullif(current_setting('app.tenant_id', true), ''))`
     )
+    // Let the least-privilege probe role read/write the table; RLS still
+    // constrains which rows it sees (USING) and may write (WITH CHECK).
+    await admin.rawQuery(`GRANT SELECT, INSERT ON ${TABLE} TO PUBLIC`)
+    await admin.rawQuery(`GRANT USAGE, SELECT ON SEQUENCE ${TABLE}_id_seq TO PUBLIC`)
   })
 
   group.teardown(async () => {
@@ -80,7 +91,7 @@ test.group('rowscope RLS (integration)', (group) => {
           .where('title', 'a1')
           .orWhere('title', 'mid') // belongs to tenant B
           .orWhere('title', 'b1'), // belongs to tenant B
-      { connectionName: 'public' }
+      { connectionName: PROBE_CONN }
     )
 
     assert.lengthOf(rows, 1, 'only tenant A row survives the policy')
@@ -92,7 +103,7 @@ test.group('rowscope RLS (integration)', (group) => {
   }).skip(() => !rlsEnforced, 'DB role is SUPERUSER/BYPASSRLS — RLS not enforced, proof skipped')
 
   test('a plain query with the setting unset returns nothing (fail-closed)', async ({ assert }) => {
-    const result = await db.connection('public').rawQuery(`SELECT * FROM ${TABLE}`)
+    const result = await db.connection(PROBE_CONN).rawQuery(`SELECT * FROM ${TABLE}`)
     assert.lengthOf(rowsOf(result), 0, 'unset app.tenant_id matches no rows')
   }).skip(() => !rlsEnforced, 'DB role is SUPERUSER/BYPASSRLS — RLS not enforced, proof skipped')
 
@@ -104,7 +115,7 @@ test.group('rowscope RLS (integration)', (group) => {
         withTenantRls(
           tenantA,
           (trx) => (trx as any).table(TABLE).insert({ title: 'sneaky', tenant_id: tenantB }),
-          { connectionName: 'public' }
+          { connectionName: PROBE_CONN }
         ),
       /row-level security|violates row-level/i
     )

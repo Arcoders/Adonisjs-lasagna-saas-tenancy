@@ -44,9 +44,25 @@ export interface ConnectionLruOptions {
  */
 export default class ConnectionLru {
   readonly #map = new Map<string, number>()
+  // In-flight release() promises keyed by connection name. A connection being
+  // evicted is deleted from #map immediately but its pool drains asynchronously;
+  // until that settles, the entry is still registered (state 'closing') in
+  // Lucid's manager. `connect()` must await any pending release for a name
+  // before its `manager.has()` check, or it would re-adopt a closing pool.
+  readonly #pendingReleases = new Map<string, Promise<void>>()
   #lastOverCapWarnAt = 0
 
   constructor(private readonly opts: ConnectionLruOptions) {}
+
+  /**
+   * Resolve once any in-flight release for `name` has settled. No-op when none
+   * is pending. Callers await this before deciding whether the connection is
+   * still registered.
+   */
+  async settlePending(name: string): Promise<void> {
+    const pending = this.#pendingReleases.get(name)
+    if (pending) await pending
+  }
 
   #now(): number {
     return (this.opts.now ?? Date.now)()
@@ -120,15 +136,31 @@ export default class ConnectionLru {
 
     this.#map.delete(victim)
     const name = victim
+    // Track the in-flight release so a concurrent connect() for this same name
+    // awaits the pool drain instead of re-adopting the closing connection.
     // Don't swallow: a failed release leaves a pool entry registered in the
     // manager (the LRU and the manager then disagree about open connections).
-    this.opts.release(name).catch(async (err: unknown) => {
-      const logger = await lazyLogger()
-      logger?.warn(
-        { connection: name, err: (err as Error)?.message ?? String(err), owner: this.opts.label },
-        `${this.opts.label}: failed to release evicted connection; pool entry may linger`
-      )
-    })
+    const releasing = this.opts
+      .release(name)
+      .catch(async (err: unknown) => {
+        const logger = await lazyLogger()
+        logger?.warn(
+          {
+            connection: name,
+            err: (err as Error)?.message ?? String(err),
+            owner: this.opts.label,
+          },
+          `${this.opts.label}: failed to release evicted connection; pool entry may linger`
+        )
+      })
+      .finally(() => {
+        // Only clear if we're still the current pending release for this name
+        // (a later re-add + re-evict could have replaced it).
+        if (this.#pendingReleases.get(name) === releasing) {
+          this.#pendingReleases.delete(name)
+        }
+      })
+    this.#pendingReleases.set(name, releasing)
   }
 
   #warnOverCap(cap: number): void {

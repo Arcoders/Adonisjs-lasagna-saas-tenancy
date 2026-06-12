@@ -110,20 +110,34 @@ export default class ReadReplicaService {
       const driver = await getActiveDriver()
       await driver.connect(tenant)
       const primaryName = `${getConfig().tenantConnectionNamePrefix}${tenant.id}`
-      const primary =
+      const primary: any =
         (db.manager as any).get?.(primaryName)?.config ??
         (db as any).getRawConnection?.(primaryName)?.config
 
       const baseConnection: any = primary?.connection ?? {}
+      // Clone the FULL primary config and override only host/credentials with
+      // the replica's. Spreading `primary` carries over pool sizing, ssl,
+      // wrapIdentifier, and — critically — the TOP-LEVEL `searchPath`.
+      //
+      // `searchPath` MUST stay at the top level: knex reads `config.searchPath`,
+      // not `config.connection.searchPath`. The previous bug nested it inside
+      // `connection`, so it was ignored and every replica read ran against the
+      // default `public` search path (the wrong schema for schema-pg).
+      //
+      // We deliberately do NOT fabricate a searchPath when the primary lacks
+      // one: schema-pg's primary always carries `[tenant_<uuid>]` (inherited
+      // here), while database-pg's primary intentionally has none (its tenant
+      // data lives in the tenant database's own `public` schema). Forcing a
+      // schema name would break database-pg replicas.
       db.manager.add(connName, {
-        client: 'pg',
+        ...(primary ?? {}),
+        client: primary?.client ?? 'pg',
         connection: {
           ...baseConnection,
           host: host.host,
           port: host.port ?? baseConnection.port,
           user: host.user ?? baseConnection.user,
           password: host.password ?? baseConnection.password,
-          searchPath: baseConnection.searchPath ?? tenant.schemaName,
         },
       })
       this.#lru.touch(connName)

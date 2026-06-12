@@ -1,5 +1,6 @@
 import type { HttpRequest } from '@adonisjs/core/http'
 import { getConfig } from '../../config.js'
+import { isProductionNodeEnv } from '../../utils/env.js'
 import { ResolverHit, type TenantResolveResult, type TenantResolver } from './resolver.js'
 
 /**
@@ -43,8 +44,13 @@ export class SubdomainResolver implements TenantResolver {
       const sub = host.slice(0, host.length - suffix.length)
       return sub ? ResolverHit.id(sub) : ResolverHit.miss()
     }
-    // Host doesn't end with baseDomain — fall back to the leftmost label
-    // so dev environments using `127.0.0.1.nip.io`-style hosts still work.
+    // Host doesn't end with baseDomain. In dev we fall back to the leftmost
+    // label so `127.0.0.1.nip.io`-style hosts still resolve. In PRODUCTION we
+    // refuse: accepting an arbitrary off-baseDomain host would let any host
+    // routed to the app pick a tenant from its leftmost label, diluting the
+    // "host must be under baseDomain" invariant. (Downstream UUID validation
+    // already blocks non-UUID labels, but don't rely on that alone.)
+    if (isProductionNodeEnv()) return ResolverHit.miss()
     const labels = host.split('.')
     return labels.length > 1 ? ResolverHit.id(labels[0]) : ResolverHit.miss()
   }

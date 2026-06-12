@@ -29,8 +29,8 @@ export default class UninstallTenant extends Job<UninstallTenantPayload> {
       logger.info({ tenantId: tenant.id }, 'Uninstalling tenant schema')
       await hooks.run('before', 'destroy', { tenant })
 
-      await new TenantQueueService().destroy(tenant.id)
-      await new CircuitBreakerService().destroy(tenant.id)
+      await (await app.container.make(TenantQueueService)).destroy(tenant.id)
+      await (await app.container.make(CircuitBreakerService)).destroy(tenant.id)
 
       const driver = await getActiveDriver()
       await driver.destroy(tenant)

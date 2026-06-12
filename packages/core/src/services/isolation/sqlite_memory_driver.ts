@@ -67,7 +67,7 @@ export default class SqliteMemoryDriver implements IsolationDriver {
     await this.connect(tenant)
   }
 
-  async connect(tenant: TenantModelContract) {
+  async connect(tenant: TenantModelContract, _opts: { bypassHardCap?: boolean } = {}) {
     const { db } = await lucid()
     const name = this.connectionName(tenant.id)
 

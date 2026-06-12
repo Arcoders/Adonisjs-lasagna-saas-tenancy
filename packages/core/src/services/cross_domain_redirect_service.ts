@@ -63,7 +63,7 @@ export default class CrossDomainRedirectService {
   ): string {
     const protocol = (opts.protocol ?? request.protocol()) as 'http' | 'https'
     const merged: BuildUrlOptions = { ...opts, protocol }
-    let path = 'tenant' in target ? target.path : target.path
+    let path = target.path
     if (opts.preserveQuery) {
       const qs = request.parsedUrl?.query
       if (qs && typeof qs === 'string' && qs.length > 0) {

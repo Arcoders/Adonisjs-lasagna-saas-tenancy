@@ -12,6 +12,7 @@ import mailBootstrapper from '../services/bootstrappers/mail_bootstrapper.js'
 import sessionBootstrapper from '../services/bootstrappers/session_bootstrapper.js'
 import transmitBootstrapper from '../services/bootstrappers/transmit_bootstrapper.js'
 import CircuitBreakerService from '../services/circuit_breaker_service.js'
+import TenantQueueService from '../services/tenant_queue_service.js'
 import HookRegistry from '../services/hook_registry.js'
 import IsolationDriverRegistry from '../services/isolation/registry.js'
 import { assertConfiguredDriverRegistered } from '../services/isolation/validate_driver_choice.js'
@@ -45,6 +46,9 @@ export default class MultitenancyProvider {
     this.app.container.singleton(IsolationDriverRegistry, () => new IsolationDriverRegistry())
     this.app.container.singleton(TenantResolverRegistry, () => new TenantResolverRegistry())
     this.app.container.singleton(CircuitBreakerService, () => new CircuitBreakerService())
+    // Instance-stateful (holds a per-tenant Queue map). Must be a singleton so
+    // dispatch reuses connections and destroy/stats see a consistent map.
+    this.app.container.singleton(TenantQueueService, () => new TenantQueueService())
     this.app.container.singleton(HookRegistry, () => new HookRegistry())
     this.app.container.singleton(TenantLogContext, () => new TenantLogContext())
     this.app.container.singleton(HealthService, () => new HealthService())
