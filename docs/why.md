@@ -1,6 +1,6 @@
 ---
 title: Why Lasagna
-description: Why a Moroccan-tiled, layer-stacked multi-tenancy package exists in the AdonisJS world; and what makes it different from stancl/tenancy.
+description: Why a layered, opt-in multi-tenancy package exists in the AdonisJS world, and what makes it different from stancl/tenancy.
 ---
 
 # Why Lasagna
@@ -78,12 +78,11 @@ Postgres core stable.
 
 </LasagnaCard>
 
-## The Zellige principle
+## The Lasagna principle
 
-Each tile in a Moroccan Zellige mosaic is shaped by hand. It has its
-own colour, its own cut, its own place. From far away you see the
-star; from up close you see thousands of clean, precise edges that
-never overlap.
+Cut a good lasagna and the slice holds its shape. Every layer meets
+the next at a clean edge, and you can lift one out without dragging
+the rest along with it. The structure is in the seams.
 
 That is the second principle of Lasagna: **clean edges**. The package
 never imports your `Tenant` model; it asks the IoC container for a
