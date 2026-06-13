@@ -23,6 +23,9 @@ Pin the version and read this changelog before upgrading. See the
 - `AdminController` and `multitenancyAdminRoutes`: tenant CRUD, impersonation, and satellite
   management. 36 endpoints with an OpenAPI 3.1 spec and Swagger UI.
 - `AdminRouteMiddleware` and `AdminActorResolver` types so the host supplies its own auth.
+  `AdminRouteMiddleware` accepts a string, a bare function, or a named-middleware reference
+  (`router.named(...)` / the `middleware.adminAuth()` shape), matching what `multitenancyAdminRoutes`
+  always accepted at runtime.
 
 ### Security
 

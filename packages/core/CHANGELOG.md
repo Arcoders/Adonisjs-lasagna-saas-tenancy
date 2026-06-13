@@ -137,6 +137,20 @@ for a copy-paste migration.
   on a Linux runner and aggregated over multiple full-size sweeps, so the
   published numbers are reproducible and the docs drop their provisional caveat. A
   `Capture 1.0.0 baseline` workflow regenerates it on demand.
+- **Critical readiness checks.** `health.addCheck(name, fn, { critical: true })`
+  marks a check whose failure alone flips `/readyz` to `fail` (503), while
+  non-critical failures keep it `degraded` (200). The default `backoffice_db` and
+  `redis` checks are critical, so a pod that loses Postgres or Redis is pulled from
+  rotation instead of lingering green; `circuit_breakers` stays non-critical so one
+  tenant's open circuit cannot unready the whole pod. The provider registers the
+  defaults in `boot()` (a host `addCheck` under the same name replaces one,
+  `removeCheck` drops it permanently), `registerDefaultChecks(healthService)` is
+  exported from `/health`, and `HealthService.isCritical(name)` exposes the flag.
+  `TenantMaintenanceException` now renders a `Retry-After` header on its 503.
+- **`buildCacheStack(options)` exported from `/services`.** The same factory the
+  package's cache singleton is built through (memory L1 + Redis L2 + bus), so tests
+  and hosts that need an isolated instance exercise the real production wiring
+  instead of copying it.
 
 ### Security
 
