@@ -3,6 +3,7 @@ import { mkdir, unlink, stat, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/internal'
 import { backupConfig } from '../config.js'
+import { withTenantOperationLock } from './tenant_operation_lock.js'
 import type { BackupMetadata, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 // `BackupMetadata` is defined in the core (the lifecycle hook context + the
@@ -52,6 +53,11 @@ export default class BackupService {
   }
 
   async backup(tenant: TenantModelContract): Promise<BackupMetadata> {
+    // Serialise against any other backup/restore/clone/import of this tenant.
+    return withTenantOperationLock(tenant.id, 'backup', () => this.#backupLocked(tenant))
+  }
+
+  async #backupLocked(tenant: TenantModelContract): Promise<BackupMetadata> {
     const schema = tenant.schemaName
     // Defense-in-depth: `schema` is driver-derived (already validated), but it
     // is passed to pg_dump as `--schema=<schema>`. spawn() uses an argv array
@@ -99,6 +105,13 @@ export default class BackupService {
   }
 
   async restore(tenant: TenantModelContract, fileName: string): Promise<void> {
+    // Serialise against any other backup/restore/clone/import of this tenant.
+    return withTenantOperationLock(tenant.id, 'restore', () =>
+      this.#restoreLocked(tenant, fileName)
+    )
+  }
+
+  async #restoreLocked(tenant: TenantModelContract, fileName: string): Promise<void> {
     if (!FILE_PATTERN.test(fileName)) {
       throw new Error(`Invalid backup file name: ${fileName}`)
     }

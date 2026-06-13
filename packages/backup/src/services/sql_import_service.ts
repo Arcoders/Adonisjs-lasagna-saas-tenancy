@@ -10,6 +10,7 @@ import {
   assertSafeIdentifier,
   splitSqlStatementsTagged,
 } from '@adonisjs-lasagna/saas-tenancy/internal'
+import { withTenantOperationLock } from './tenant_operation_lock.js'
 
 const isWin = process.platform === 'win32'
 
@@ -91,6 +92,17 @@ interface PgConnectionConfig {
 
 export default class SqlImportService {
   async import(
+    tenant: TenantModelContract,
+    filePath: string,
+    options: SqlImportOptions
+  ): Promise<SqlImportResult> {
+    // Serialise against any other backup/restore/clone/import of this tenant.
+    return withTenantOperationLock(tenant.id, 'import', () =>
+      this.#importLocked(tenant, filePath, options)
+    )
+  }
+
+  async #importLocked(
     tenant: TenantModelContract,
     filePath: string,
     options: SqlImportOptions

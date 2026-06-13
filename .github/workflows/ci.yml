@@ -359,7 +359,12 @@ jobs:
         working-directory: examples/api
         run: npx tsx ace.ts backoffice:setup
 
-      - name: Run e2e suite
+      # Runs the whole e2e suite, which auto-includes the hardening specs under
+      # tests/e2e/hardening/** (isolation under concurrency, quota atomicity,
+      # circuit-breaker fail-fast, audit immutability, SSO replay, concurrent
+      # provisioning, admin/OpenAPI conformance, doctor --json) via the
+      # `tests/e2e/**/*.spec.ts` suite glob — no separate job needed.
+      - name: Run e2e suite (includes hardening/**)
         working-directory: examples/api
         run: npx tsx ace.ts test e2e
 

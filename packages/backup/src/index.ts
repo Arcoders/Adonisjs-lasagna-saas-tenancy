@@ -10,6 +10,14 @@ export {
 } from './services/sql_import_service.js'
 export type { SqlImportOptions, SqlImportResult } from './services/sql_import_service.js'
 
+// Per-tenant mutual exclusion for backup-family operations. Exported so a host
+// app (or an admin API layer) can reuse the lock or catch the typed exception.
+export {
+  withTenantOperationLock,
+  TenantOperationLockedException,
+  tenantOperationLockKey,
+} from './services/tenant_operation_lock.js'
+
 export { default as BackupTenant } from './jobs/backup_tenant.js'
 export { default as RestoreTenant } from './jobs/restore_tenant.js'
 export { default as CloneTenant } from './jobs/clone_tenant.js'
