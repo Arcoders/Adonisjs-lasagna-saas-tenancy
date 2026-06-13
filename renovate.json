@@ -1,0 +1,69 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "timezone": "UTC",
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "schedule": ["at any time"]
+  },
+  "osvVulnerabilityAlerts": true,
+  "packageRules": [
+    {
+      "description": "Group the AdonisJS framework + first-party packages",
+      "matchPackageNames": ["@adonisjs/**"],
+      "groupName": "adonisjs"
+    },
+    {
+      "description": "Group OpenTelemetry",
+      "matchPackageNames": ["@opentelemetry/**"],
+      "groupName": "opentelemetry"
+    },
+    {
+      "description": "Group @types/* type definitions",
+      "matchPackageNames": ["@types/**"],
+      "groupName": "types"
+    },
+    {
+      "description": "Group the Japa test runner + plugins",
+      "matchPackageNames": ["@japa/**"],
+      "groupName": "japa"
+    },
+    {
+      "description": "Group the ESLint stack (config 3.x targets eslint 10)",
+      "matchPackageNames": ["eslint", "@adonisjs/eslint-config"],
+      "groupName": "eslint"
+    },
+    {
+      "description": "Group the Prettier stack",
+      "matchPackageNames": ["prettier", "@adonisjs/prettier-config"],
+      "groupName": "prettier"
+    },
+    {
+      "description": "Auto-merge only patch-level devDependency bumps once CI passes",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "description": "Keep GitHub Actions pinned to a digest with a version comment",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true
+    },
+    {
+      "description": "Hold knip at 5.x: 6.x switched to oxc-parser, which crashes (RangeError: Array buffer allocation failed). Lift once that is fixed upstream.",
+      "matchPackageNames": ["knip"],
+      "allowedVersions": "<6"
+    }
+  ]
+}
