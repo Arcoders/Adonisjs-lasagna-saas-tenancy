@@ -38,7 +38,6 @@
     "@poppinss/ts-exec": "^1.4.4",
     "@vinejs/vine": "^4.1.0",
     "luxon": "^3.0.0",
-    "nodemailer": "^8.0.0",
     "pg": "^8.13.0",
     "reflect-metadata": "^0.2.0",
     "stripe": "^22.0.0"

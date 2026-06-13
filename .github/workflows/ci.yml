@@ -85,11 +85,15 @@ jobs:
           path: coverage/.v8/unit
           if-no-files-found: warn
 
-      # Surfaces unused exports / orphaned files / unused deps. `--no-exit-code`
-      # so the report is informational; flip to required once the baseline
-      # is enforced.
+      # Full report (unused exports / orphaned files / deps) stays informational.
       - name: Knip (unused-code report)
         run: npm run knip
+
+      # Blocking: fails on an unused dependency so dead deps like gsap / motion /
+      # tailwindcss can't creep back in. Scoped to the dependency issue type via
+      # `--include dependencies`; unused exports and files stay informational above.
+      - name: Knip (unused-dependency gate)
+        run: npm run knip:deps
 
       # Production-only audit so we don't trip on devDependency-only CVEs that
       # never ship to consumers. `high` level matches the publish-gate bar.

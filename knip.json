@@ -1,14 +1,30 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignoreDependencies": [
-    "@aws-sdk/client-s3",
-    "better-sqlite3",
-    "@adonisjs/drive",
-    "@adonisjs/mail",
-    "@adonisjs/session"
-  ],
+  "ignoreDependencies": ["@aws-sdk/client-s3", "jose"],
   "ignoreExportsUsedInFile": true,
   "workspaces": {
+    ".": {
+      "entry": [
+        "docs/.vitepress/config.ts",
+        "docs/.vitepress/theme/index.ts",
+        "docs/.vitepress/theme/**/*.vue",
+        "docs/scripts/*.mjs",
+        "scripts/*.mjs"
+      ],
+      "project": [
+        "docs/.vitepress/**/*.ts",
+        "docs/.vitepress/**/*.vue",
+        "docs/scripts/*.mjs",
+        "scripts/*.mjs"
+      ],
+      "ignoreDependencies": [
+        "@adonisjs/lucid",
+        "@adonisjs/queue",
+        "@adonisjs/redis",
+        "stripe",
+        "@phosphor-icons/vue"
+      ]
+    },
     "packages/core": {
       "entry": [
         "src/index.ts",
@@ -34,6 +50,29 @@
         "tests/fixtures/**/*.ts"
       ],
       "project": ["src/**/*.ts", "configure.ts", "bin/**/*.ts", "tests/**/*.ts"]
+    },
+    "examples/api": {
+      "entry": [
+        "adonisrc.ts",
+        "bin/**/*.ts",
+        "start/**/*.ts",
+        "config/**/*.ts",
+        "database/**/*.ts",
+        "app/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "project": ["**/*.ts"],
+      "ignoreDependencies": ["pg"]
+    },
+    "benchmarks": {
+      "entry": [
+        "src/*/index.ts",
+        "src/harness/*.ts",
+        "src/**/*.bench.ts",
+        "http/*.ts"
+      ],
+      "project": ["src/**/*.ts", "http/**/*.ts"],
+      "ignoreDependencies": ["pg"]
     }
   }
 }
