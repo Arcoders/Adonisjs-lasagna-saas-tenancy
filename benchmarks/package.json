@@ -31,8 +31,8 @@
   "devDependencies": {
     "@types/autocannon": "^7.12.0",
     "@types/luxon": "^3.0.0",
-    "@types/node": "^22.0.0",
-    "autocannon": "^7.15.0",
+    "@types/node": "^24.0.0",
+    "autocannon": "^8.0.0",
     "tsx": "^4.19.0",
     "typescript": "~5.7"
   }
