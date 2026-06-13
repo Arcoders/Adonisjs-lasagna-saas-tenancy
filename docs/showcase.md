@@ -11,6 +11,23 @@ appear here, [open a PR on the docs
 repo](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy)
 adding your card to this page.
 
+## Built and maintained by Unreallab
+
+Lasagna was created by Unreallab, a startup, and it is currently the
+foundation of two of our own projects. We build on it every day, so it is
+maintained because we depend on it, not as a side project we might walk away
+from. We will keep maintaining it.
+
+We made it public for a simple reason: we ran into the hard multi-tenancy
+problems ourselves, from connection routing to the isolation guarantees to the
+operational plumbing, and we would rather no other developer lose the time we
+did solving them. If it saves you that time, it has done its job.
+
+Community collaboration is welcome too. Open an issue, send a pull request, or
+tell us what your stack is missing; real use cases decide where this goes next.
+
+Built with a lot of love by **Ismael Haytam Tanane** and **Ayoub Fellat**.
+
 ## Reference application
 
 <LasagnaCard variant="feature" title="examples/api">
