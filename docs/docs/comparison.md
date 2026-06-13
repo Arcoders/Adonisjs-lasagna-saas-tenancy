@@ -40,6 +40,10 @@ context, not scored.
 | A built-in REST admin API + OpenAPI 3.1 spec | Lasagna |
 | Per-tenant impersonation with HMAC + audit | Lasagna |
 
+MySQL/MariaDB is the row where stancl wins on availability today. It is on
+Lasagna's [roadmap](/docs/roadmap) as a future satellite; if you need MySQL now,
+stancl is the right call.
+
 If your stack is AdonisJS and Postgres, Lasagna ships more
 production plumbing in one box than any other package on the
 ecosystem today. If your stack is Laravel and you want the maturity

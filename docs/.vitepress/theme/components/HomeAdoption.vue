@@ -16,7 +16,7 @@ const reachFor = [
 const lookElsewhere = [
   'Your app is single-tenant, or will stay that way.',
   'A single tenant_id column already covers your isolation needs.',
-  'You are committed to MySQL, MongoDB, or a non-PostgreSQL store.',
+  'You are committed to MongoDB or another non-PostgreSQL store. (MySQL/MariaDB is on the roadmap as a future satellite.)',
   'You want a hosted control plane rather than a library in your app.',
 ]
 

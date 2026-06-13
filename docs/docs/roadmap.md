@@ -42,6 +42,12 @@ These are directions, not commitments, and not ordered by priority:
 - A driver-migration path (moving an existing tenant between isolation drivers).
 - Richer feature-flag targeting beyond boolean + free-form config.
 - First-class starter-kit / scaffolding for a new multi-tenant app.
+- MySQL/MariaDB support as an opt-in satellite driver, built on the
+  `IsolationDriver` extension point. It would be database-per-tenant only, with
+  no schema-per-tenant or native Row-Level-Security equivalent, so it ships with
+  explicit caveats. This is deliberately secondary to keeping the PostgreSQL core
+  stable, conditioned on real MySQL-only demand, and would land additively in a
+  future 1.x minor without a major bump.
 
 If one of these blocks your adoption, open an issue describing the use case;
 real demand reorders this list.

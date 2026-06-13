@@ -20,10 +20,14 @@ Every driver implements `IsolationDriver`:
 | `provision`       | Create the tenant's storage (schema/database/rows)   |
 | `destroy`         | Drop it cleanly (terminates active sessions first)   |
 | `reset`           | Drop and recreate (used by `tenant:migrate:fresh`)   |
-| `connect`         | Open the runtime Lucid connection                    |
+| `connect`         | Open the runtime Lucid connection and return its client |
 | `disconnect`      | Close it                                             |
 | `connectionName`  | Synchronous resolver for the active query's connection|
 | `migrate`         | Run migrations against this tenant's storage         |
+
+This contract is the package's public extension point. To support a storage
+shape the four shipped drivers don't cover, implement `IsolationDriver` and
+register it; see [Custom isolation driver](/docs/cookbook/custom-isolation-driver).
 
 ## The four drivers
 

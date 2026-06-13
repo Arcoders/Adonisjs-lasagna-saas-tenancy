@@ -7,9 +7,13 @@ description: Common questions about database support, isolation drivers, scaling
 
 ## Does it work with MySQL or MariaDB?
 
-No. The package is PostgreSQL-only. Schema-per-tenant and database-per-tenant lean on
-Postgres-native concepts, and `rowscope-pg` uses PostgreSQL Row-Level Security for its hard
-boundary. There is no MySQL/MariaDB path.
+Not in 1.0. The package is PostgreSQL-only today: schema-per-tenant and database-per-tenant lean
+on Postgres-native concepts, and `rowscope-pg` uses PostgreSQL Row-Level Security for its hard
+boundary. MySQL is planned as a future opt-in satellite driver (see the [roadmap](/docs/roadmap)),
+built on the [custom isolation driver](/docs/cookbook/custom-isolation-driver) extension point. It
+would carry explicit caveats: database-per-tenant only, with no schema-per-tenant equivalent and no
+native RLS, so the `rowscope-pg` database-level boundary would not carry over. If you need MySQL
+today, use another package such as `stancl/tenancy` (Laravel).
 
 ## Which isolation driver should I choose?
 

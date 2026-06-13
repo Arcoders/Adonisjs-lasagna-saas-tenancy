@@ -16,12 +16,13 @@ and register it.
 ```ts
 import type { IsolationDriver, DestroyOptions, MigrateOptions, MigrateResult } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
+import type { QueryClientContract } from '@adonisjs/lucid/types/database'
 
 export class MyDriver implements IsolationDriver {
   readonly name = 'my-driver'
 
   async provision(tenant: TenantModelContract): Promise<void> {
-    // Create the tenant's storage. Idempotent — the package may retry.
+    // Create the tenant's storage. Idempotent: the package may retry.
   }
 
   async destroy(tenant: TenantModelContract, opts?: DestroyOptions): Promise<void> {
@@ -35,8 +36,13 @@ export class MyDriver implements IsolationDriver {
     await this.provision(tenant)
   }
 
-  async connect(tenant: TenantModelContract): Promise<void> {
-    // Open or register the runtime connection used by Lucid.
+  async connect(
+    tenant: TenantModelContract,
+    opts?: { bypassHardCap?: boolean }
+  ): Promise<QueryClientContract> {
+    // Open or register the runtime Lucid connection and return its client.
+    // `bypassHardCap` lets operational paths (provisioning, migrations) skip the
+    // optional connection-cap admission check; ignore it if you have no pool.
   }
 
   async disconnect(tenant: TenantModelContract): Promise<void> {
@@ -48,7 +54,14 @@ export class MyDriver implements IsolationDriver {
     return `my-driver:${tenantId}`
   }
 
-  async migrate(tenant: TenantModelContract, opts?: MigrateOptions): Promise<MigrateResult> {
+  // Optional. Called on every query routing to refresh the in-use grace window
+  // so a long request is not evicted mid-flight. Omit it if your driver has no
+  // per-tenant connection pool.
+  markUsed?(tenantId: string): void {
+    // refresh last-used timestamp
+  }
+
+  async migrate(tenant: TenantModelContract, opts: MigrateOptions): Promise<MigrateResult> {
     // Run migrations against this tenant's storage. Drivers that
     // don't own per-tenant migrations return { executed: 0, noop: true }.
     return { executed: 0, noop: true }
@@ -127,6 +140,17 @@ almost always want to compose. Wrap `SchemaPgDriver` in your driver
 and delegate, overriding only what you need. Forking the whole
 thing means keeping up with bug fixes that we ship; composition
 keeps you on the upgrade path.
+
+## Stability of this contract
+
+The `IsolationDriver` interface and `IsolationDriverRegistry` are a supported
+public extension point, exported from
+`@adonisjs-lasagna/saas-tenancy/services`. They carry the same
+`release-candidate` stability as the isolation core (see
+[Stability](/docs/stability)): the shape is considered final under the 1.x
+semver promise. This is the seam additional storage backends build on. A MySQL
+satellite, when it lands, will be a driver registered here rather than a change
+to the core (see the [roadmap](/docs/roadmap)).
 
 
 ## Read next

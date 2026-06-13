@@ -71,7 +71,10 @@ AdonisJS, you already know how to use Lasagna.
 <LasagnaCard variant="default" title="PostgreSQL 14+">
 
 The foundation. Schemas are a Postgres-native concept and we lean
-into that. MySQL and MariaDB are not on the roadmap.
+into that. 1.0 is PostgreSQL-only. MySQL and MariaDB support is a
+planned future satellite (see the [roadmap](/docs/roadmap)), built on
+the isolation-driver extension point and secondary to keeping the
+Postgres core stable.
 
 </LasagnaCard>
 
@@ -202,9 +205,10 @@ Honesty is part of the pitch. Reach for something else when:
 - **A single `tenant_id` column already covers you.** If your isolation
   need is a `where('tenant_id', …)` and nothing more, a thin scope in
   your own app is simpler than a package.
-- **You are committed to MySQL, MariaDB, or a non-PostgreSQL store.**
-  Lasagna leans on PostgreSQL schemas; that is the whole strategy.
-  `stancl/tenancy` supports MySQL today.
+- **You are committed to MongoDB or another non-PostgreSQL store.**
+  Lasagna leans on PostgreSQL schemas; that is the core strategy. MySQL
+  and MariaDB are on the [roadmap](/docs/roadmap) as a future satellite,
+  but if you need MySQL today, `stancl/tenancy` supports it now.
 - **You want a hosted control plane.** Lasagna is a library inside your
   AdonisJS app, not a managed service or an admin dashboard out of the
   box.

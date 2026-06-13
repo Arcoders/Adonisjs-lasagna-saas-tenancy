@@ -35,8 +35,9 @@ core is a release candidate, the satellites are experimental.
 | `jose`                      | latest               | Optional (`@adonisjs-lasagna/sso`)                |
 | `@aws-sdk/client-s3`        | latest               | Optional (`@adonisjs-lasagna/backup` S3 archival) |
 
-The package targets PostgreSQL only. MySQL and MariaDB are not supported (schemas
-are a Postgres-native concept).
+The package targets PostgreSQL only. MySQL and MariaDB are not supported in 1.0 (schemas
+are a Postgres-native concept); MySQL is a planned future satellite, see the
+[roadmap](/docs/roadmap).
 
 ## Pre-flight checklist
 

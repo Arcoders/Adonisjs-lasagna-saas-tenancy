@@ -41,8 +41,9 @@ Lasagna handles the seams.
 
 ## What you *don't* get (yet)
 
-- MySQL or MariaDB. Schemas are a Postgres-native concept and the
-  package leans into them.
+- MySQL or MariaDB in 1.0. Schemas are a Postgres-native concept and
+  the package leans into them. MySQL is planned as a future opt-in
+  satellite driver; see the [roadmap](/docs/roadmap).
 - An admin dashboard UI. Only the REST API. The Inertia + Vue
   dashboard is on the post-1.0 roadmap.
 - A starter kit. `create-lasagna-saas` is roadmap, not shipping.

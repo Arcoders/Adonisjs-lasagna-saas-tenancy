@@ -56,7 +56,8 @@ Two questions to ask before adopting:
    migrations, this is for you. If you don't, save yourself the
    operational complexity.
 2. **Are you on PostgreSQL?** Schemas are a Postgres-native concept.
-   MySQL and MariaDB users should look elsewhere.
+   1.0 is PostgreSQL-only; MySQL and MariaDB are on the roadmap as a
+   future opt-in satellite. If you need MySQL today, use another package.
 
 ## Install
 
@@ -114,7 +115,7 @@ state machine.
 
 - **Node.js 24+**, ESM-native (`module: NodeNext`)
 - **AdonisJS 7** with `@adonisjs/lucid`, `@adonisjs/queue`, `@adonisjs/redis`
-- **PostgreSQL 14+** (the package does not target MySQL/MariaDB)
+- **PostgreSQL 14+** (1.0 is PostgreSQL-only; MySQL/MariaDB is a planned future satellite)
 - Optional peers: `@adonisjs/drive`, `@adonisjs/mail`, `@adonisjs/session`,
   `@aws-sdk/client-s3`, `jose` (only when SSO is used), `better-sqlite3`
   (in-memory testing driver)
