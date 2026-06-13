@@ -172,7 +172,9 @@ export default withMermaid({
   },
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
+    ['link', { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32.png' }],
+    ['link', { rel: 'icon', type: 'image/png', sizes: '128x128', href: '/favicon.png' }],
+    ['link', { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' }],
     ['meta', { name: 'theme-color', content: '#C26A4B' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:site_name', content: 'Lasagna SaaS Tenancy' }],
@@ -202,7 +204,7 @@ export default withMermaid({
 
   themeConfig: {
     siteTitle: 'Lasagna',
-    logo: { light: '/logo.svg', dark: '/logo-dark.svg' },
+    logo: '/logo.png',
 
     nav: [
       { text: 'Docs', link: '/docs/introduction', activeMatch: '/docs/' },
