@@ -93,7 +93,7 @@ jobs:
     steps:
       # fetch-depth: 0 so `git branch --contains` can resolve the PR base for a
       # tag push (needs the remote-tracking branches).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
@@ -146,14 +146,19 @@ jobs:
           echo "Postgres did not become ready"; docker logs bench-postgres; exit 1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
+          cache: npm
 
       - name: Install dependencies
-        env:
-          npm_config_ignore_scripts: 'false'
-        run: npm install --legacy-peer-deps --include=optional
+        run: npm ci --include=optional
+
+      # .npmrc keeps install scripts off; the bench tiers run via tsx, which
+      # needs esbuild's postinstall to place the platform binary. Rebuild only
+      # that one package with scripts enabled.
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
 
       # The bench fixture imports the built core via the workspace symlink, so a
       # fresh build is mandatory. The satellites are not used.
@@ -200,7 +205,7 @@ jobs:
       # Always available, even if PR creation is disabled for Actions on this repo.
       - name: Upload baseline + raw + docs (artifact)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: baseline-1.0.0
           path: |

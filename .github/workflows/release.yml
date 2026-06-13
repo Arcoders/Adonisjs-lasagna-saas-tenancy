@@ -38,29 +38,32 @@ jobs:
       # Check out the exact commit CI validated, not the branch tip — if master
       # moved while CI ran, the tip's suite hasn't passed yet and its publish
       # will be gated by its own CI completion.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
+          cache: npm
 
-      # Repo .npmrc sets ignore-scripts=true for local-dev safety; CI needs
-      # esbuild's postinstall so the platform binary lands on disk.
       - name: Install dependencies
-        env:
-          npm_config_ignore_scripts: 'false'
-        run: npm install --legacy-peer-deps --include=optional
+        run: npm ci --include=optional
+
+      # .npmrc keeps install scripts off; esbuild (tsx/vitepress) needs its
+      # postinstall to place the platform binary, so rebuild only that one
+      # package with scripts enabled rather than the whole token-bearing tree.
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
 
       # No separate typecheck/lint gate here: the workflow_run gate above means
       # the full CI suite already passed on this exact commit. `npm run release`
       # still builds every package with tsc before `changeset publish`, so the
       # shipped artifact is compile-checked at publish time.
       - name: Create Release PR or publish
-        uses: changesets/action@v1
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
           version: npm run version-packages
           publish: npm run release

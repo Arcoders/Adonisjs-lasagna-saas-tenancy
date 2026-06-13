@@ -25,28 +25,30 @@ jobs:
     name: Build VitePress site
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0 # lastUpdated needs full git history
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
 
-      # Repo .npmrc disables postinstall scripts for safety; CI is a
-      # controlled env where esbuild's platform binary fetch is needed.
       - name: Install dependencies
-        env:
-          npm_config_ignore_scripts: 'false'
-        run: npm install --legacy-peer-deps --include=optional
+        run: npm ci --include=optional
+
+      # .npmrc keeps install scripts off; the VitePress build runs esbuild via
+      # vite, which needs its postinstall to place the platform binary. Rebuild
+      # only that one package with scripts enabled.
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
 
       - name: Build site
         run: npm run docs:build
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: docs/.vitepress/dist
 
@@ -59,4 +61,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

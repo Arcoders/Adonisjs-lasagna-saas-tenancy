@@ -39,7 +39,7 @@
     "coverage:report": "c8 report --temp-directory=coverage/.v8/all --reporter=lcov --reporter=text-summary",
     "coverage:gate": "node scripts/coverage-gate.mjs",
     "knip": "knip --no-exit-code",
-    "audit:prod": "npm audit --omit=dev --audit-level=high",
+    "audit:prod": "npm audit --omit=dev --audit-level=moderate",
     "docs:sync": "node docs/scripts/sync-changelog.mjs",
     "docs:clean": "node -e \"const{rmSync}=require('fs');rmSync('docs/.vitepress/cache',{recursive:true,force:true});rmSync('docs/.vitepress/dist',{recursive:true,force:true})\"",
     "docs:dev": "npm run docs:sync && vitepress dev docs",

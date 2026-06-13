@@ -18,20 +18,23 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
+          cache: npm
 
-      # Repo .npmrc sets `ignore-scripts=true` for local-dev safety; CI needs
-      # esbuild's postinstall to run so the platform binary lands on disk.
       - name: Install dependencies
-        env:
-          npm_config_ignore_scripts: 'false'
-        run: npm install --legacy-peer-deps --include=optional
+        run: npm ci --include=optional
+
+      # .npmrc keeps install scripts off; esbuild (tsx/vitepress) needs its
+      # postinstall to place the platform binary, so rebuild only that one
+      # package with scripts enabled rather than the whole token-bearing tree.
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
 
       - name: Typecheck
         run: npm run typecheck
