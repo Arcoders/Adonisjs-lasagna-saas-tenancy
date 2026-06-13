@@ -1,7 +1,10 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import app from '@adonisjs/core/services/app'
-import { IsolationDriverRegistry, SchemaPgDriver } from '@adonisjs-lasagna/saas-tenancy/services'
+import {
+  IsolationDriverRegistry,
+  type SchemaPgDriver,
+} from '@adonisjs-lasagna/saas-tenancy/services'
 import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'

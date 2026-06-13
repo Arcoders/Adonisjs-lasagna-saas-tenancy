@@ -1,7 +1,7 @@
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import { FeatureFlagService } from '@adonisjs-lasagna/saas-tenancy/services'
-import { TenantFeatureFlag } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import { type TenantFeatureFlag } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { loadTenantOr404, isNonEmptyString } from './helpers.js'
 
 function serialize(f: TenantFeatureFlag) {

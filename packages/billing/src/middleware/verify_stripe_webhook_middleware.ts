@@ -1,5 +1,5 @@
 import app from '@adonisjs/core/services/app'
-import { HttpRequest } from '@adonisjs/core/http'
+import { type HttpRequest } from '@adonisjs/core/http'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
 import type Stripe from 'stripe'

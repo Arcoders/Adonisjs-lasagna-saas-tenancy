@@ -1,7 +1,7 @@
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import { MetricsService } from '@adonisjs-lasagna/saas-tenancy/services'
-import { TenantMetric } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import { type TenantMetric } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { loadTenantOr404, clamp } from './helpers.js'
 
 function serialize(m: TenantMetric) {

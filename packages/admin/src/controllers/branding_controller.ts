@@ -1,7 +1,7 @@
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import { BrandingService, type BrandingData } from '@adonisjs-lasagna/saas-tenancy/services'
-import { TenantBranding } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import { type TenantBranding } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { loadTenantOr404 } from './helpers.js'
 
 function serialize(b: TenantBranding | null) {

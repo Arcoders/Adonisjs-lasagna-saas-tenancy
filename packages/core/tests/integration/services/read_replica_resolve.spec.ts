@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto'
 import {
   ReadReplicaService,
   IsolationDriverRegistry,
-  SchemaPgDriver,
+  type SchemaPgDriver,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'

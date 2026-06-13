@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import { createServer, type Server } from 'node:http'
-import { AddressInfo } from 'node:net'
+import { type AddressInfo } from 'node:net'
 import { generateKeyPair, exportJWK, SignJWT, type KeyLike, type JWK } from 'jose'
 import { SsoService, TenantSsoConfig } from '@adonisjs-lasagna/sso'
 import redis from '@adonisjs/redis/services/main'
