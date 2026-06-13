@@ -1,7 +1,7 @@
 # @adonisjs-lasagna/saas-tenancy
 
 <p align="center">
-  <img src="assets/lasagna-hero.webp" alt="Lasagna — SaaS multi-tenancy for AdonisJS 7. Every tenant lives in its own isolated PostgreSQL schema. Around it: connection routing, circuit breaking, queues, contextual logging, plans and quotas, scheduled backups with retention, read-replica routing, soft delete, and a satellite suite covering audit logs, webhooks, branding, SSO, feature flags, metrics, and Stripe billing." width="100%" />
+  <img src="assets/hero.webp" alt="Lasagna — SaaS multi-tenancy for AdonisJS 7. Every tenant lives in its own isolated PostgreSQL schema. Around it: connection routing, circuit breaking, queues, contextual logging, plans and quotas, scheduled backups with retention, read-replica routing, soft delete, and a satellite suite covering audit logs, webhooks, branding, SSO, feature flags, metrics, and Stripe billing." width="100%" />
 </p>
 
 [![npm](https://img.shields.io/npm/v/@adonisjs-lasagna/saas-tenancy?color=C26A4B&label=npm)](https://www.npmjs.com/package/@adonisjs-lasagna/saas-tenancy)
