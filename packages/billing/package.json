@@ -54,7 +54,7 @@
     "@adonisjs/queue": "^0.6.0",
     "@adonisjs/redis": "^10.0.0",
     "luxon": "^3.0.0",
-    "stripe": "^18.0.0"
+    "stripe": "^22.0.0"
   },
   "peerDependenciesMeta": {
     "stripe": {

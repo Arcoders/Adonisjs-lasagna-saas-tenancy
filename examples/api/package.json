@@ -41,7 +41,7 @@
     "nodemailer": "^8.0.0",
     "pg": "^8.13.0",
     "reflect-metadata": "^0.2.0",
-    "stripe": "^18.0.0"
+    "stripe": "^22.0.0"
   },
   "devDependencies": {
     "@adonisjs/assembler": "^8.4.0",

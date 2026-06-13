@@ -134,7 +134,7 @@
     "@adonisjs/redis": "^10.0.0",
     "@adonisjs/session": "^7.0.0",
     "better-sqlite3": "^11.0.0",
-    "stripe": "^18.0.0"
+    "stripe": "^22.0.0"
   },
   "peerDependenciesMeta": {
     "@adonisjs/drive": {

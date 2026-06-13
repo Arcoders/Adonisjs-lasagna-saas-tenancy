@@ -1,7 +1,7 @@
 import { test } from '@japa/runner'
 import { createServer, type Server } from 'node:http'
 import { type AddressInfo } from 'node:net'
-import { generateKeyPair, exportJWK, SignJWT, type KeyLike, type JWK } from 'jose'
+import { generateKeyPair, exportJWK, SignJWT, type JWK } from 'jose'
 import { SsoService, TenantSsoConfig } from '@adonisjs-lasagna/sso'
 import redis from '@adonisjs/redis/services/main'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
@@ -9,7 +9,7 @@ import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 interface FakeIdpHandle {
   baseUrl: string
   publicJwk: JWK
-  privateKey: KeyLike
+  privateKey: CryptoKey
   /**
    * What the next /token request will return as id_token. The test mutates
    * this to simulate happy-path / tampering / expired tokens.
@@ -28,7 +28,9 @@ interface FakeIdpHandle {
 }
 
 async function startFakeIdp(): Promise<FakeIdpHandle> {
-  const { publicKey, privateKey } = await generateKeyPair('RS256')
+  // jose 6 defaults generateKeyPair to extractable: false; exportJWK(publicKey)
+  // below needs an extractable key or it throws at runtime.
+  const { publicKey, privateKey } = await generateKeyPair('RS256', { extractable: true })
   const publicJwk = await exportJWK(publicKey)
   publicJwk.kid = 'test-key-1'
   publicJwk.alg = 'RS256'
@@ -100,7 +102,7 @@ async function startFakeIdp(): Promise<FakeIdpHandle> {
 }
 
 interface SignArgs {
-  privateKey: KeyLike
+  privateKey: CryptoKey
   iss: string
   aud: string
   nonce?: string

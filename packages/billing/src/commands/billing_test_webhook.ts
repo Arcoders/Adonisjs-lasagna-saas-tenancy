@@ -2,6 +2,7 @@ import { BaseCommand, args, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import { signWebhookPayload } from '../testing/sign_webhook_payload.js'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import { DEFAULT_STRIPE_API_VERSION } from '../stripe_api_version.js'
 
 const TEMPLATES: Record<string, () => Record<string, unknown>> = {
   'customer.subscription.created': () => ({
@@ -91,7 +92,7 @@ export default class BillingTestWebhook extends BaseCommand {
       id: `evt_test_${Date.now()}`,
       object: 'event',
       type: this.event,
-      api_version: cfg.stripe.apiVersion ?? '2025-08-27.basil',
+      api_version: cfg.stripe.apiVersion ?? DEFAULT_STRIPE_API_VERSION,
       created: Math.floor(Date.now() / 1000),
       data: { object: dataObject },
       livemode: false,

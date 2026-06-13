@@ -10,6 +10,7 @@ import StripeMeterEvent from '../models/satellites/stripe_meter_event.js'
 import StripeProcessedEvent from '../models/satellites/stripe_processed_event.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { redactStripeEvent, rebuildStripeEvent } from './billing/redact.js'
+import { DEFAULT_STRIPE_API_VERSION } from '../stripe_api_version.js'
 
 const lazyLogger = () =>
   import('@adonisjs/core/services/logger').then((m) => m.default).catch(() => null)
@@ -17,7 +18,6 @@ const lazyLogger = () =>
 const lazyEmitter = () =>
   import('@adonisjs/core/services/emitter').then((m) => m.default).catch(() => null)
 
-const DEFAULT_API_VERSION = '2025-08-27.basil'
 const DEFAULT_TIMEOUT_MS = 10_000
 const DEFAULT_NETWORK_RETRIES = 3
 
@@ -651,12 +651,17 @@ export default class BillingService {
     } catch {
       throw new BillingException(
         'peer_missing',
-        '[billing] config.billing is set but the `stripe` peer dep is not installed. Run: npm install stripe@^18'
+        '[billing] config.billing is set but the `stripe` peer dep is not installed. Run: npm install stripe@^22'
       )
     }
 
     this.#stripe = new StripeCtor(cfg.stripe.apiKey, {
-      apiVersion: (cfg.stripe.apiVersion ?? DEFAULT_API_VERSION) as Stripe.LatestApiVersion,
+      // Derive the apiVersion type from the constructor itself rather than a
+      // named export: Stripe moved `LatestApiVersion` out of the `Stripe`
+      // namespace in v22, and this form survives the next reshuffle too.
+      apiVersion: (cfg.stripe.apiVersion ?? DEFAULT_STRIPE_API_VERSION) as NonNullable<
+        ConstructorParameters<typeof StripeCtor>[1]
+      >['apiVersion'],
       timeout: cfg.stripe.timeout ?? DEFAULT_TIMEOUT_MS,
       maxNetworkRetries: cfg.stripe.maxNetworkRetries ?? DEFAULT_NETWORK_RETRIES,
     })

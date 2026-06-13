@@ -45,7 +45,7 @@
     "@adonisjs/core": "^7.0.0",
     "@adonisjs/lucid": "^22.0.0",
     "@adonisjs/redis": "^10.0.0",
-    "jose": "^5.0.0",
+    "jose": "^6.0.0",
     "luxon": "^3.0.0"
   },
   "peerDependenciesMeta": {
