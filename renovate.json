@@ -64,6 +64,11 @@
       "description": "Hold knip at 5.x: 6.x switched to oxc-parser, which crashes (RangeError: Array buffer allocation failed). Lift once that is fixed upstream.",
       "matchPackageNames": ["knip"],
       "allowedVersions": "<6"
+    },
+    {
+      "description": "Hold @japa/runner at 4.x: runner 5 adds an exception monitor that fails the integration suite on the benign teardown 'Connection terminated' race (no opt-out). Lift once that race is fixed at the source.",
+      "matchPackageNames": ["@japa/runner"],
+      "allowedVersions": "<5"
     }
   ]
 }

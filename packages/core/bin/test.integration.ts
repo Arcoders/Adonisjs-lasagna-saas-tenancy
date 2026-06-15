@@ -34,6 +34,11 @@ const swallowConnectionTerminated = (reason: unknown): void => {
 }
 process.on('unhandledRejection', swallowConnectionTerminated)
 process.on('uncaughtException', swallowConnectionTerminated)
+// NOTE: keep @japa/runner on 4.x. Runner 5 adds its own
+// unhandledRejection/uncaughtException monitor that flips the run to exit 1 on
+// ANY rejection — including the benign "Connection terminated" race swallowed
+// above (Node fires every listener, so this swallow can't stop it). It offers
+// no opt-out, so bumping to 5 needs that teardown race fixed at the source first.
 
 const IMPORTER = (filePath: string) => {
   if (filePath.startsWith('./') || filePath.startsWith('../')) {

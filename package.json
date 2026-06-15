@@ -76,7 +76,7 @@
     "@japa/api-client": "^3.2.1",
     "@japa/assert": "^4.0.1",
     "@japa/plugin-adonisjs": "^5.0.0",
-    "@japa/runner": "^5.0.0",
+    "@japa/runner": "^4.2.0",
     "@phosphor-icons/vue": "^2.2.1",
     "@types/luxon": "^3.0.0",
     "@types/node": "^24.0.0",
