@@ -5,8 +5,12 @@ import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe } from '@adonisjs-lasagna/billing'
 import { signWebhookPayload } from '@adonisjs-lasagna/billing'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { StripeProcessedEvent, StripeCustomer, StripeSubscription } from '@adonisjs-lasagna/billing'
-import { ProcessStripeEventJob } from '@adonisjs-lasagna/billing'
+import {
+  BillingProcessedEvent,
+  BillingCustomer,
+  BillingSubscription,
+} from '@adonisjs-lasagna/billing'
+import { ProcessBillingEventJob } from '@adonisjs-lasagna/billing'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import {
   setupBillingConfig,
@@ -29,7 +33,7 @@ import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 test.group('Webhook idempotency (integration)', (group) => {
   const cleanupTenants: string[] = []
   let originalConfig: ReturnType<typeof getConfig>
-  let originalDispatch: typeof ProcessStripeEventJob.dispatch
+  let originalDispatch: typeof ProcessBillingEventJob.dispatch
   let dispatchCount = 0
 
   group.each.setup(async () => {
@@ -44,9 +48,9 @@ test.group('Webhook idempotency (integration)', (group) => {
     // dedupe worked. The dispatch counter proves the controller skipped
     // the dispatch on the duplicate path.
     dispatchCount = 0
-    originalDispatch = ProcessStripeEventJob.dispatch
+    originalDispatch = ProcessBillingEventJob.dispatch
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: (payload: { eventId: string }) => Promise<void>
       }
     ).dispatch = async () => {
@@ -56,7 +60,7 @@ test.group('Webhook idempotency (integration)', (group) => {
 
   group.each.teardown(async () => {
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: typeof originalDispatch
       }
     ).dispatch = originalDispatch
@@ -67,7 +71,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   test('duplicate event_id POSTs do NOT create two ledger rows', async ({ assert, client }) => {
@@ -76,13 +80,13 @@ test.group('Webhook idempotency (integration)', (group) => {
 
     // Seed a customer mapping so the (unused-here) downstream resolution
     // works; the duplicate guard happens in the controller before that.
-    const cus = new StripeCustomer()
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
+    cus.providerCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
     await cus.save()
 
     // Build one event; we'll POST it twice.
-    const sub = buildSubscription({ customer: cus.stripeCustomerId, productId: 'prod_pro' })
+    const sub = buildSubscription({ customer: cus.providerCustomerId, productId: 'prod_pro' })
     const event = buildEvent('customer.subscription.created', sub, { id: 'evt_idem_dup' })
 
     // Stripe SDK is mocked; the controller's webhook signature middleware
@@ -91,7 +95,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     const mock = new MockStripe('whsec_test_billing_helper')
     mock.injectEvent(event)
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     const body = JSON.stringify(event)
     const sig = signWebhookPayload(body, 'whsec_test_billing_helper')
@@ -111,7 +115,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     // attempts=0, which the C-1 redispatch branch explicitly retries.
     // Simulate worker progress so the second POST exercises the
     // "already in flight, do nothing" path.
-    const inflight = await StripeProcessedEvent.find('evt_idem_dup')
+    const inflight = await BillingProcessedEvent.find('evt_idem_dup')
     inflight!.attempts = 1
     await inflight!.save()
 
@@ -122,7 +126,7 @@ test.group('Webhook idempotency (integration)', (group) => {
       .json(event)
     res2.assertStatus(200)
 
-    const rows = await StripeProcessedEvent.query().where('event_id', 'evt_idem_dup')
+    const rows = await BillingProcessedEvent.query().where('event_id', 'evt_idem_dup')
     assert.lengthOf(rows, 1, 'exactly one ledger row for the duplicated event')
 
     // The actual contract: the heavy job runs ONCE even though Stripe
@@ -142,7 +146,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     // saw 200, so the event was lost. The fix re-throws so the response
     // is 5xx — Stripe's automatic retry kicks in over the next 3 days.
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: (payload: { eventId: string }) => Promise<void>
       }
     ).dispatch = async () => {
@@ -155,7 +159,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     })
     mock.injectEvent(event)
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     const body = JSON.stringify(event)
     const sig = signWebhookPayload(body, 'whsec_test_billing_helper')
@@ -170,7 +174,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     // The ledger row was inserted (the INSERT happens before the
     // dispatch attempt) and is left in 'pending' so the next Stripe
     // retry can pick it up via the duplicate-recovery branch.
-    const rows = await StripeProcessedEvent.query().where('event_id', 'evt_queue_down')
+    const rows = await BillingProcessedEvent.query().where('event_id', 'evt_queue_down')
     assert.lengthOf(rows, 1)
     assert.equal(rows[0].status, 'pending')
     assert.equal(rows[0].attempts, 0)
@@ -187,7 +191,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     const event = buildEvent('customer.subscription.created', buildSubscription(), {
       id: 'evt_retry_after_outage',
     })
-    const ledger = new StripeProcessedEvent()
+    const ledger = new BillingProcessedEvent()
     ledger.eventId = event.id
     ledger.eventType = event.type
     ledger.status = 'pending'
@@ -198,7 +202,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     const mock = new MockStripe('whsec_test_billing_helper')
     mock.injectEvent(event)
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     const sig = signWebhookPayload(JSON.stringify(event), 'whsec_test_billing_helper')
     const res = await client
@@ -212,7 +216,7 @@ test.group('Webhook idempotency (integration)', (group) => {
 
     // Still exactly one ledger row — the recovery path does not insert
     // a second row.
-    const rows = await StripeProcessedEvent.query().where('event_id', event.id)
+    const rows = await BillingProcessedEvent.query().where('event_id', event.id)
     assert.lengthOf(rows, 1)
   })
 
@@ -223,12 +227,12 @@ test.group('Webhook idempotency (integration)', (group) => {
     // Worker incremented attempts to 1 (line ~52 of process_stripe_event_job)
     // and is still running (or crashed mid-flight). We must not over-dispatch
     // in that case — concurrent jobs racing on the same row can lose updates
-    // on StripeSubscription. The manual `tenant:billing:replay` command is
+    // on BillingSubscription. The manual `tenant:billing:replay` command is
     // the recovery path for stuck-in-progress rows.
     const event = buildEvent('customer.subscription.created', buildSubscription(), {
       id: 'evt_inflight',
     })
-    const ledger = new StripeProcessedEvent()
+    const ledger = new BillingProcessedEvent()
     ledger.eventId = event.id
     ledger.eventType = event.type
     ledger.status = 'pending'
@@ -239,7 +243,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     const mock = new MockStripe('whsec_test_billing_helper')
     mock.injectEvent(event)
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     const sig = signWebhookPayload(JSON.stringify(event), 'whsec_test_billing_helper')
     const res = await client
@@ -257,7 +261,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     const event = buildEvent('customer.subscription.created', buildSubscription(), {
       id: 'evt_already_done',
     })
-    const ledger = new StripeProcessedEvent()
+    const ledger = new BillingProcessedEvent()
     ledger.eventId = event.id
     ledger.eventType = event.type
     ledger.status = 'completed'
@@ -268,7 +272,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     const mock = new MockStripe('whsec_test_billing_helper')
     mock.injectEvent(event)
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     const sig = signWebhookPayload(JSON.stringify(event), 'whsec_test_billing_helper')
     const res = await client
@@ -286,16 +290,16 @@ test.group('Webhook idempotency (integration)', (group) => {
     client,
   }) => {
     // BullMQ normally locks a job, but a worker crash + redelivery can
-    // still produce overlap. The PK on stripe_subscriptions.id stops a
+    // still produce overlap. The PK on billing_subscriptions.id stops a
     // double-mirror; the loser's INSERT fails and the job would retry.
     // The invariant under test: whatever races, the FINAL state is one
     // correct mirror row + one tenant_plans row.
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     const subId = `sub_${randomUUID().slice(0, 8)}`
@@ -303,7 +307,7 @@ test.group('Webhook idempotency (integration)', (group) => {
       'customer.subscription.created',
       buildSubscription({
         id: subId,
-        customer: stripeCustomerId,
+        customer: providerCustomerId,
         productId: 'prod_pro',
         status: 'active',
       }),
@@ -312,7 +316,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     const mock = new MockStripe('whsec_test_billing_helper')
     mock.injectEvent(event)
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     // POST once → controller inserts the ledger row.
     const sig = signWebhookPayload(JSON.stringify(event), 'whsec_test_billing_helper')
@@ -324,9 +328,9 @@ test.group('Webhook idempotency (integration)', (group) => {
     res.assertStatus(200)
 
     // Two workers pick it up at the same time.
-    const jobA = new ProcessStripeEventJob()
+    const jobA = new ProcessBillingEventJob()
     hydrateJob(jobA, { eventId: 'evt_concurrent' })
-    const jobB = new ProcessStripeEventJob()
+    const jobB = new ProcessBillingEventJob()
     hydrateJob(jobB, { eventId: 'evt_concurrent' })
     const settled = await Promise.allSettled([jobA.execute(), jobB.execute()])
     assert.isAtLeast(
@@ -336,7 +340,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     )
 
     // The race must not leave duplicates or inconsistency.
-    const mirrors = await StripeSubscription.query().where('stripeSubscriptionId', subId)
+    const mirrors = await BillingSubscription.query().where('providerSubscriptionId', subId)
     assert.lengthOf(mirrors, 1, 'exactly one subscription mirror row')
     assert.equal(mirrors[0].status, 'active')
     assert.equal(mirrors[0].planName, 'pro')
@@ -345,7 +349,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     assert.lengthOf(plans, 1, 'exactly one tenant_plans row')
     assert.equal(plans[0].planName, 'pro')
 
-    const ledger = await StripeProcessedEvent.find('evt_concurrent')
+    const ledger = await BillingProcessedEvent.find('evt_concurrent')
     assert.equal(ledger?.status, 'completed', 'the winner marked the event completed')
     assert.isAtLeast(ledger?.attempts ?? 0, 1)
   })
@@ -369,7 +373,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     )
     mock.injectEvent(noCustomerEvent)
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     let sig = signWebhookPayload(JSON.stringify(noCustomerEvent), 'whsec_test_billing_helper')
     await client
@@ -378,7 +382,7 @@ test.group('Webhook idempotency (integration)', (group) => {
       .header('stripe-signature', sig)
       .json(noCustomerEvent)
 
-    const jobA = new ProcessStripeEventJob()
+    const jobA = new ProcessBillingEventJob()
     hydrateJob(jobA, { eventId: 'evt_malformed_no_customer' })
     let threw = false
     try {
@@ -387,7 +391,7 @@ test.group('Webhook idempotency (integration)', (group) => {
       threw = true
     }
     assert.isTrue(threw, 'a retryable error re-throws — worker did not silently swallow it')
-    const badLedger = await StripeProcessedEvent.find('evt_malformed_no_customer')
+    const badLedger = await BillingProcessedEvent.find('evt_malformed_no_customer')
     assert.equal(badLedger?.status, 'pending', 'still pending — eligible for BullMQ retry')
     assert.match(
       badLedger?.lastError ?? '',
@@ -399,17 +403,17 @@ test.group('Webhook idempotency (integration)', (group) => {
     // holds; lands the tenant on defaultPlan instead of crashing.
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     const subId = `sub_${randomUUID().slice(0, 8)}`
     const noItemsEvent = buildEvent(
       'customer.subscription.created',
       {
-        ...buildSubscription({ id: subId, customer: stripeCustomerId, status: 'active' }),
+        ...buildSubscription({ id: subId, customer: providerCustomerId, status: 'active' }),
         items: { object: 'list', data: [], has_more: false, url: '' },
       } as unknown as Stripe.Subscription,
       { id: 'evt_malformed_no_items' }
@@ -422,20 +426,20 @@ test.group('Webhook idempotency (integration)', (group) => {
       .header('stripe-signature', sig)
       .json(noItemsEvent)
 
-    const jobB = new ProcessStripeEventJob()
+    const jobB = new ProcessBillingEventJob()
     hydrateJob(jobB, { eventId: 'evt_malformed_no_items' })
     await jobB.execute() // must not throw
 
-    const mirror = await StripeSubscription.find(subId)
+    const mirror = await BillingSubscription.find(subId)
     assert.isNotNull(mirror, 'mirror created despite missing items')
     assert.equal(mirror?.planName, 'starter', 'fell back to defaultPlan')
     assert.equal((await TenantPlan.find(tenant.id))?.planName, 'starter')
-    assert.equal((await StripeProcessedEvent.find('evt_malformed_no_items'))?.status, 'completed')
+    assert.equal((await BillingProcessedEvent.find('evt_malformed_no_items'))?.status, 'completed')
   })
 
   test('a missing stripe-signature header returns 400', async ({ assert, client }) => {
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     const res = await client
       .post('/webhooks/stripe')
@@ -443,7 +447,7 @@ test.group('Webhook idempotency (integration)', (group) => {
       .json({ id: 'evt_no_sig', type: 'customer.subscription.created', data: { object: {} } })
     assert.isAbove(res.status(), 399, 'must reject without a signature header')
     assert.isBelow(res.status(), 500)
-    const ledger = await StripeProcessedEvent.query()
+    const ledger = await BillingProcessedEvent.query()
     assert.lengthOf(ledger, 0, 'no ledger row written when signature is missing')
   })
 
@@ -453,7 +457,7 @@ test.group('Webhook idempotency (integration)', (group) => {
   }) => {
     const mock = new MockStripe('whsec_test_billing_helper')
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     const event = buildEvent('customer.subscription.created', buildSubscription(), {
       id: 'evt_tampered',
@@ -472,7 +476,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     // runs first; tests using the mock confirm the dispatch path is gated.
     // If the mock were stricter (real HMAC), this would fail outright.
     assert.notEqual(res.status(), 500)
-    const rows = await StripeProcessedEvent.query().where('event_id', 'evt_tampered')
+    const rows = await BillingProcessedEvent.query().where('event_id', 'evt_tampered')
     // Either rejected (no row) or accepted but won't reprocess; we
     // verify the more important property: at most one row.
     assert.isAtMost(rows.length, 1)

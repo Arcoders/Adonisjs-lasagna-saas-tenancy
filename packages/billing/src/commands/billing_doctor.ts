@@ -1,9 +1,8 @@
 import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
-import app from '@adonisjs/core/services/app'
 import { DateTime } from 'luxon'
-import BillingService from '../services/billing_service.js'
-import StripeProcessedEvent from '../models/satellites/stripe_processed_event.js'
+import BillingProcessedEvent from '../models/satellites/billing_processed_event.js'
+import { getActiveBillingDriver } from '../services/billing/active_billing_driver.js'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 
 interface CheckResult {
@@ -13,16 +12,16 @@ interface CheckResult {
 }
 
 /**
- * Quick sanity check across the billing wiring. Exits non-zero on any
- * `error`. Designed to slot into deploy pipelines:
+ * Quick sanity check across the billing wiring. Exits non-zero on any `error`.
+ * Designed to slot into deploy pipelines:
  *   `node ace tenant:billing:doctor || exit 1`.
  *
- * Distinct from `tenant:doctor` (the package-wide doctor) — this one
- * focuses purely on billing surfaces and stays cheap to run.
+ * Provider-agnostic: validates the active driver's config + reachability plus
+ * the driver-neutral plan mappings and recent webhook health.
  */
 export default class BillingDoctor extends BaseCommand {
   static readonly commandName = 'tenant:billing:doctor'
-  static readonly description = 'Diagnose Stripe billing config + recent webhook health'
+  static readonly description = 'Diagnose billing config + recent webhook health'
   static readonly options: CommandOptions = { startApp: true }
 
   @flags.boolean({ flagName: 'json', default: false, description: 'Emit JSON' })
@@ -43,21 +42,18 @@ export default class BillingDoctor extends BaseCommand {
       return
     }
 
-    // 1. Webhook secret format (we never check the value, only that it's there).
-    if (!cfg.stripe.webhookSecret) {
+    const driver = await getActiveBillingDriver()
+
+    // 1. Driver config (key mode, secret shape — provider-specific checks).
+    try {
+      await driver.verifyConfig()
+      results.push({ name: 'driver_config', status: 'ok', message: `${driver.name} config valid` })
+    } catch (err) {
       results.push({
-        name: 'webhook_secret',
+        name: 'driver_config',
         status: 'error',
-        message: 'config.billing.stripe.webhookSecret is empty',
+        message: `${driver.name} config invalid: ${(err as Error)?.message}`,
       })
-    } else if (!cfg.stripe.webhookSecret.startsWith('whsec_')) {
-      results.push({
-        name: 'webhook_secret',
-        status: 'warn',
-        message: 'webhook secret does not start with `whsec_` — likely wrong env var',
-      })
-    } else {
-      results.push({ name: 'webhook_secret', status: 'ok', message: 'present' })
     }
 
     // 2. Default plan + product mappings declared.
@@ -73,13 +69,13 @@ export default class BillingDoctor extends BaseCommand {
     }
 
     let unmapped = 0
-    for (const [stripeId, planName] of Object.entries(cfg.products)) {
+    for (const [productId, planName] of Object.entries(cfg.products)) {
       if (plansCfg && !plansCfg.definitions[planName]) {
         unmapped += 1
         results.push({
           name: 'product_mapping',
           status: 'error',
-          message: `products["${stripeId}"] = "${planName}" not in plans.definitions`,
+          message: `products["${productId}"] = "${planName}" not in plans.definitions`,
         })
       }
     }
@@ -91,24 +87,30 @@ export default class BillingDoctor extends BaseCommand {
       })
     }
 
-    // 3. Stripe API reachable + key valid.
-    try {
-      const billing = await app.container.make(BillingService)
-      const stripe = await billing.getClient()
-      await stripe.balance.retrieve()
-      results.push({ name: 'stripe_api', status: 'ok', message: 'balance.retrieve OK' })
-    } catch (err) {
+    // 3. Provider API reachable (when the driver exposes a probe).
+    if (driver.healthCheck) {
+      try {
+        await driver.healthCheck()
+        results.push({ name: 'provider_api', status: 'ok', message: `${driver.name} API OK` })
+      } catch (err) {
+        results.push({
+          name: 'provider_api',
+          status: 'error',
+          message: `${driver.name} API unreachable or key invalid: ${(err as Error)?.message}`,
+        })
+      }
+    } else {
       results.push({
-        name: 'stripe_api',
-        status: 'error',
-        message: `Stripe API unreachable or key invalid: ${(err as Error)?.message}`,
+        name: 'provider_api',
+        status: 'ok',
+        message: `${driver.name} driver has no health probe — skipped`,
       })
     }
 
     // 4. No old failed events (>24h).
     try {
       const cutoff = DateTime.utc().minus({ hours: 24 })
-      const stale = await StripeProcessedEvent.query()
+      const stale = await BillingProcessedEvent.query()
         .where('status', 'failed')
         .where('processedAt', '<', cutoff.toSQL()!)
         .count('* as total')

@@ -3,8 +3,12 @@ import app from '@adonisjs/core/services/app'
 import { randomUUID } from 'node:crypto'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe, signWebhookPayload } from '@adonisjs-lasagna/billing'
-import { StripeCustomer, StripeProcessedEvent, StripeSubscription } from '@adonisjs-lasagna/billing'
-import { ProcessStripeEventJob } from '@adonisjs-lasagna/billing'
+import {
+  BillingCustomer,
+  BillingProcessedEvent,
+  BillingSubscription,
+} from '@adonisjs-lasagna/billing'
+import { ProcessBillingEventJob } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import {
   setupBillingConfig,
@@ -20,7 +24,7 @@ import type Stripe from 'stripe'
  * `checkout.session.completed` is the real production entry point: the
  * host 302s the tenant to a Checkout Session, Stripe completes it, and
  * this webhook arrives carrying the freshly-minted customer id. The
- * handler writes the `stripe_customers` mapping so the subsequent
+ * handler writes the `billing_customers` mapping so the subsequent
  * `customer.subscription.created` event can resolve the tenant.
  *
  * Driven end-to-end (POST signed → middleware → controller → job →
@@ -29,7 +33,7 @@ import type Stripe from 'stripe'
 test.group('checkout.session.completed (integration)', (group) => {
   const cleanupTenants: string[] = []
   let originalConfig: ReturnType<typeof getConfig>
-  let originalDispatch: typeof ProcessStripeEventJob.dispatch
+  let originalDispatch: typeof ProcessBillingEventJob.dispatch
   let mock: MockStripe
   let pendingJobs: string[] = []
 
@@ -40,12 +44,12 @@ test.group('checkout.session.completed (integration)', (group) => {
 
     mock = new MockStripe('whsec_test_billing_helper')
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     pendingJobs = []
-    originalDispatch = ProcessStripeEventJob.dispatch
+    originalDispatch = ProcessBillingEventJob.dispatch
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: (p: { eventId: string }) => Promise<void>
       }
     ).dispatch = async (p) => {
@@ -55,7 +59,7 @@ test.group('checkout.session.completed (integration)', (group) => {
 
   group.each.teardown(async () => {
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: typeof originalDispatch
       }
     ).dispatch = originalDispatch
@@ -66,13 +70,13 @@ test.group('checkout.session.completed (integration)', (group) => {
     }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   async function flushJobs(): Promise<void> {
     while (pendingJobs.length) {
       const eventId = pendingJobs.shift()!
-      const job = new ProcessStripeEventJob()
+      const job = new ProcessBillingEventJob()
       hydrateJob(job, { eventId })
       await job.execute()
     }
@@ -111,7 +115,7 @@ test.group('checkout.session.completed (integration)', (group) => {
     } as unknown as Stripe.Checkout.Session
   }
 
-  test('checkout.session.completed creates the stripe_customers mapping', async ({
+  test('checkout.session.completed creates the billing_customers mapping', async ({
     assert,
     client,
   }) => {
@@ -127,11 +131,11 @@ test.group('checkout.session.completed (integration)', (group) => {
     await postSignedEvent(client, event)
     await flushJobs()
 
-    const mapping = await StripeCustomer.find(tenant.id)
-    assert.isNotNull(mapping, 'stripe_customers row created for the tenant')
-    assert.equal(mapping?.stripeCustomerId, customerId)
+    const mapping = await BillingCustomer.find(tenant.id)
+    assert.isNotNull(mapping, 'billing_customers row created for the tenant')
+    assert.equal(mapping?.providerCustomerId, customerId)
 
-    const ledger = await StripeProcessedEvent.find('evt_checkout_create')
+    const ledger = await BillingProcessedEvent.find('evt_checkout_create')
     assert.equal(ledger?.status, 'completed')
   })
 
@@ -153,7 +157,7 @@ test.group('checkout.session.completed (integration)', (group) => {
       )
     )
     await flushJobs()
-    assert.isNotNull(await StripeCustomer.find(tenant.id))
+    assert.isNotNull(await BillingCustomer.find(tenant.id))
 
     // 2. Subscription created for the same customer → must resolve the
     //    tenant via the mapping (would throw tenant_not_resolvable
@@ -174,12 +178,12 @@ test.group('checkout.session.completed (integration)', (group) => {
     )
     await flushJobs()
 
-    const mirror = await StripeSubscription.find(subId)
+    const mirror = await BillingSubscription.find(subId)
     assert.isNotNull(mirror, 'subscription mirror created')
     assert.equal(mirror?.tenantId, tenant.id)
     assert.equal(mirror?.planName, 'pro')
 
-    const subLedger = await StripeProcessedEvent.find('evt_co_then_sub_2')
+    const subLedger = await BillingProcessedEvent.find('evt_co_then_sub_2')
     assert.equal(
       subLedger?.status,
       'completed',
@@ -196,9 +200,9 @@ test.group('checkout.session.completed (integration)', (group) => {
     cleanupTenants.push(tenant.id)
 
     // Pre-existing mapping.
-    const cus = new StripeCustomer()
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = 'cus_original_A'
+    cus.providerCustomerId = 'cus_original_A'
     await cus.save()
 
     // Checkout fires with a DIFFERENT customer id (operator misconfig:
@@ -213,10 +217,10 @@ test.group('checkout.session.completed (integration)', (group) => {
     )
     await flushJobs()
 
-    const mapping = await StripeCustomer.find(tenant.id)
-    assert.equal(mapping?.stripeCustomerId, 'cus_original_A', 'mapping NOT overwritten')
+    const mapping = await BillingCustomer.find(tenant.id)
+    assert.equal(mapping?.providerCustomerId, 'cus_original_A', 'mapping NOT overwritten')
 
-    const ledger = await StripeProcessedEvent.find('evt_co_mismatch')
+    const ledger = await BillingProcessedEvent.find('evt_co_mismatch')
     assert.equal(ledger?.status, 'completed', 'still acked — handler returns noop, not an error')
   })
 
@@ -243,9 +247,9 @@ test.group('checkout.session.completed (integration)', (group) => {
     await flushJobs()
 
     assert.isNull(
-      await StripeCustomer.find(tenant.id),
+      await BillingCustomer.find(tenant.id),
       'no mapping for a non-subscription/payment session'
     )
-    assert.equal((await StripeProcessedEvent.find('evt_co_setup_mode'))?.status, 'completed')
+    assert.equal((await BillingProcessedEvent.find('evt_co_setup_mode'))?.status, 'completed')
   })
 })

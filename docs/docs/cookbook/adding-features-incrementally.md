@@ -72,7 +72,7 @@ install and a little wiring, all of which `configure` prints for you:
 
 ```bash
 node ace configure @adonisjs-lasagna/saas-tenancy --with=billing
-npm install @adonisjs-lasagna/billing stripe@^18
+npm install @adonisjs-lasagna/billing stripe@^22
 # register the provider/commands/routes + paste the config block (see below)
 node ace backoffice:setup
 ```
@@ -88,7 +88,7 @@ node ace backoffice:setup
 | Metrics | `metrics` | core | — | optional `observability` | `/metrics` is served by `multitenancyRoutes({ metricsMiddleware })` (fail-closed) |
 | Quotas | `quotas` | core | — | `plans` | `enforceQuota()` middleware on routes |
 | SSO | `sso` | package | `@adonisjs-lasagna/sso` (+ optional `jose`) | — | import `SsoService` / `TenantSsoConfig` (no provider) |
-| Billing | `billing` | package | `@adonisjs-lasagna/billing` + `stripe@^18` | `billing` + `plans` | provider + commands + `multitenancyBillingRoutes()` + env vars |
+| Billing | `billing` | package | `@adonisjs-lasagna/billing` + `stripe@^22` | `billing` + `plans` | provider + commands + `multitenancyBillingRoutes()` + env vars |
 | RLS hardening | `rls` (opt-in) | core | — | `isolation.driver: 'rowscope-pg'` | edit the published migration, run under a non-BYPASSRLS role |
 | Maintenance mode | `maintenance` (opt-in) | core | — | optional `maintenance` | migration alters the central `tenants` table |
 
@@ -131,8 +131,12 @@ and `webhooks`:
 node ace configure @adonisjs-lasagna/saas-tenancy --with=billing
 
 # 2. Install the package and its Stripe peer dependency
-npm install @adonisjs-lasagna/billing stripe@^18
+npm install @adonisjs-lasagna/billing stripe@^22
 ```
+
+Stripe is the default driver and needs the `stripe` package. To use Paddle
+or Lemon Squeezy instead, set `billing.driver` accordingly; those drivers
+talk REST and need no extra peer dependency.
 
 `configure` then prints exactly what to do. **3.** Register the provider
 and commands in `adonisrc.ts`:
@@ -192,7 +196,7 @@ migrate. This is intentional: host config varies too much to patch safely.
 - **Duplicate migrations from an older version.** The idempotency guard
   ships in current releases. If a pre-guard run left two migrations for
   the same table, delete the extra file before you migrate.
-- **Ordering.** Billing's `tenant_plans` is created before the `stripe_*`
+- **Ordering.** Billing's `tenant_plans` is created before the `billing_*`
   tables. The published bundle is already ordered correctly; keep that
   order if you renumber the files.
 - **Your tenant model is preserved.** `app/models/backoffice/tenant.ts`
@@ -200,15 +204,20 @@ migrate. This is intentional: host config varies too much to patch safely.
 
 ## Secrets in tests
 
-When you add billing, keep real Stripe keys out of the test suite:
+When you add billing, keep real provider keys out of the test suite:
 
-- Inject `MockStripe` via `BillingService.__setStripeForTests(...)` for
-  deterministic tests. The real SDK is never instantiated, and the keys
-  in your test config can be obvious fakes (`sk_test_...`, `whsec_...`).
-- Sign webhook payloads in tests with `signWebhookPayload(body, secret)`.
-- Gate any real-API smoke test behind an env var (for example
-  `STRIPE_TEST_API_KEY` starting with `sk_test_`) and skip it when unset,
-  so CI without the secret stays green.
+- For deterministic tests, register `MockBillingDriver` as the active
+  driver (the provider-agnostic in-memory double), or inject `MockStripe`
+  into the Stripe driver with `await billing.__setStripeForTests(...)`.
+  The real SDK is never instantiated, and the keys in your test config can
+  be obvious fakes (`sk_test_...`, `whsec_...`).
+- Sign Stripe webhook payloads in tests with `signWebhookPayload(body, secret)`.
+  `MockBillingDriver.signMockWebhook(body)` does the same for the neutral
+  double.
+- Gate any real-API smoke test behind an env var and skip it when unset, so
+  CI without the secret stays green: `STRIPE_TEST_API_KEY` (Stripe),
+  `PADDLE_TEST_API_KEY` (Paddle sandbox), or `LEMONSQUEEZY_TEST_API_KEY` plus
+  `LEMONSQUEEZY_TEST_STORE_ID` (Lemon Squeezy).
 - Never commit live keys. Inject them in CI as secrets. PII redaction is
   on by default.
 

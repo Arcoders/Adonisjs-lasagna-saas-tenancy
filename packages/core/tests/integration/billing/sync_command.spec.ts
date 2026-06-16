@@ -6,7 +6,7 @@ import ace from '@adonisjs/core/services/ace'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe } from '@adonisjs-lasagna/billing'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { StripeCustomer, StripeSubscription } from '@adonisjs-lasagna/billing'
+import { BillingCustomer, BillingSubscription } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
@@ -39,7 +39,7 @@ test.group('tenant:billing:sync (integration)', (group) => {
     }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   function mockListReturning(subs: Stripe.Subscription[]): MockStripe {
@@ -57,15 +57,15 @@ test.group('tenant:billing:sync (integration)', (group) => {
   test('repairs drift: local "active" but Stripe says "canceled"', async ({ assert }) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     const subId = `sub_${randomUUID().slice(0, 8)}`
-    const sub = new StripeSubscription()
-    sub.stripeSubscriptionId = subId
+    const sub = new BillingSubscription()
+    sub.providerSubscriptionId = subId
     sub.tenantId = tenant.id
     sub.status = 'active'
     sub.currentPeriodStart = DateTime.utc().minus({ days: 5 })
@@ -94,7 +94,7 @@ test.group('tenant:billing:sync (integration)', (group) => {
     const remoteSub = {
       id: subId,
       object: 'subscription',
-      customer: stripeCustomerId,
+      customer: providerCustomerId,
       status: 'canceled',
       items: {
         data: [
@@ -112,12 +112,12 @@ test.group('tenant:billing:sync (integration)', (group) => {
     } as unknown as Stripe.Subscription
 
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mockListReturning([remoteSub]))
+    await billing.__setStripeForTests(mockListReturning([remoteSub]))
 
     const command = await ace.exec('tenant:billing:sync', ['--json'])
     assert.equal(command.exitCode, 0)
 
-    const refreshed = await StripeSubscription.find(subId)
+    const refreshed = await BillingSubscription.find(subId)
     assert.equal(refreshed?.status, 'canceled', 'local mirror updated')
 
     const plan = await TenantPlan.find(tenant.id)
@@ -127,16 +127,16 @@ test.group('tenant:billing:sync (integration)', (group) => {
   test('clean state: scanned > 0, drifted = 0, repaired = 0, exit 0', async ({ assert }) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     // Both sides agree on "active".
     const subId = `sub_${randomUUID().slice(0, 8)}`
-    const local = new StripeSubscription()
-    local.stripeSubscriptionId = subId
+    const local = new BillingSubscription()
+    local.providerSubscriptionId = subId
     local.tenantId = tenant.id
     local.status = 'active'
     local.currentPeriodStart = DateTime.utc().minus({ days: 1 })
@@ -153,14 +153,14 @@ test.group('tenant:billing:sync (integration)', (group) => {
     const remoteSub = {
       id: subId,
       object: 'subscription',
-      customer: stripeCustomerId,
+      customer: providerCustomerId,
       status: 'active',
       items: { data: [{ price: { id: 'price_pro', product: 'prod_pro' } }] },
       cancel_at_period_end: false,
     } as unknown as Stripe.Subscription
 
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mockListReturning([remoteSub]))
+    await billing.__setStripeForTests(mockListReturning([remoteSub]))
 
     const command = await ace.exec('tenant:billing:sync', ['--dry-run'])
     assert.equal(command.exitCode, 0)
@@ -168,7 +168,7 @@ test.group('tenant:billing:sync (integration)', (group) => {
 
   test('--tenant=<id> with unknown tenant exits 1', async ({ assert }) => {
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     const command = await ace.exec('tenant:billing:sync', [`--tenant=${randomUUID()}`])
     assert.equal(command.exitCode, 1)
@@ -176,7 +176,7 @@ test.group('tenant:billing:sync (integration)', (group) => {
 
   test('--since with malformed timestamp exits 1', async ({ assert }) => {
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     const command = await ace.exec('tenant:billing:sync', ['--since=not-a-date'])
     assert.equal(command.exitCode, 1)
@@ -190,9 +190,9 @@ test.group('tenant:billing:sync (integration)', (group) => {
     // downgrade to defaultPlan.
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const cus = new StripeCustomer()
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()
 
     // Stale tenant_plans row, source=stripe, planName=pro.
@@ -208,7 +208,7 @@ test.group('tenant:billing:sync (integration)', (group) => {
     // Stripe lists nothing for this customer (the sub was deleted /
     // never properly recorded).
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mockListReturning([]))
+    await billing.__setStripeForTests(mockListReturning([]))
 
     const command = await ace.exec('tenant:billing:sync', ['--json'])
     assert.equal(command.exitCode, 0)
@@ -226,9 +226,9 @@ test.group('tenant:billing:sync (integration)', (group) => {
     // pass must not waste cycles re-touching this row.
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const cus = new StripeCustomer()
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()
 
     await TenantPlan.query().delete()
@@ -241,7 +241,7 @@ test.group('tenant:billing:sync (integration)', (group) => {
     await tp.save()
 
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mockListReturning([]))
+    await billing.__setStripeForTests(mockListReturning([]))
 
     const command = await ace.exec('tenant:billing:sync', ['--json'])
     assert.equal(command.exitCode, 0)
@@ -253,9 +253,9 @@ test.group('tenant:billing:sync (integration)', (group) => {
   test('reverse pass (G-5): --dry-run reports orphans without repairing', async ({ assert }) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const cus = new StripeCustomer()
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()
 
     await TenantPlan.query().delete()
@@ -268,7 +268,7 @@ test.group('tenant:billing:sync (integration)', (group) => {
     await tp.save()
 
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mockListReturning([]))
+    await billing.__setStripeForTests(mockListReturning([]))
 
     const command = await ace.exec('tenant:billing:sync', ['--dry-run'])
     assert.equal(command.exitCode, 0)

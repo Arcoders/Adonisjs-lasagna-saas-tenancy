@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe } from '@adonisjs-lasagna/billing'
-import { StripeCustomer, StripeMeterEvent } from '@adonisjs-lasagna/billing'
+import { BillingCustomer, BillingUsageEvent } from '@adonisjs-lasagna/billing'
 import UsageAutoBridgeListener from '../../../../../packages/billing/build/src/listeners/usage_auto_bridge_listener.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables, hydrateJob } from './helpers.js'
@@ -16,7 +16,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
  * Two layers in the metered-billing path:
  *
  *   1. `BillingService.reportUsage` — the always-available manual API.
- *      Persists `stripe_meter_events` row (UNIQUE idempotency_key) and
+ *      Persists `billing_usage_events` row (UNIQUE idempotency_key) and
  *      forwards to Stripe with the same key, so retries never produce
  *      duplicate meter events.
  *
@@ -50,7 +50,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   test('reportUsage persists audit row + forwards to Stripe with idempotency key', async ({
@@ -64,15 +64,15 @@ test.group('Metered/usage-based billing (integration)', (group) => {
       email: tenant.email,
     } as unknown as TenantModelContract
 
-    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     const billing = await app.container.make(BillingService)
     const mock = new MockStripe('whsec_test_billing_helper')
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     await billing.reportUsage(fakeTenant, { eventName: 'api_request' }, 5, {
       idempotencyKey: 'manual-key-1',
@@ -82,10 +82,10 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     assert.lengthOf(events, 1)
     assert.equal(events[0].event_name, 'api_request')
     assert.equal(events[0].payload.value, '5')
-    assert.equal(events[0].payload.stripe_customer_id, stripeCustomerId)
+    assert.equal(events[0].payload.stripe_customer_id, providerCustomerId)
     assert.equal(events[0].key, 'manual-key-1')
 
-    const audit = await StripeMeterEvent.query().where('tenant_id', tenant.id)
+    const audit = await BillingUsageEvent.query().where('tenant_id', tenant.id)
     assert.lengthOf(audit, 1)
     assert.equal(audit[0].status, 'sent')
     assert.equal(audit[0].quantity, 5)
@@ -101,15 +101,15 @@ test.group('Metered/usage-based billing (integration)', (group) => {
       email: tenant.email,
     } as unknown as TenantModelContract
 
-    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     const billing = await app.container.make(BillingService)
     const mock = new MockStripe('whsec_test_billing_helper')
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     await billing.reportUsage(fakeTenant, { eventName: 'api_request' }, 1, {
       idempotencyKey: 'replayed',
@@ -142,14 +142,14 @@ test.group('Metered/usage-based billing (integration)', (group) => {
       email: tenant.email,
     } as unknown as TenantModelContract
 
-    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     // Pre-seed the audit row in the post-blip state.
-    const orphan = new StripeMeterEvent()
+    const orphan = new BillingUsageEvent()
     orphan.id = randomUUID()
     orphan.tenantId = tenant.id
     orphan.meterEventName = 'api_request'
@@ -163,13 +163,13 @@ test.group('Metered/usage-based billing (integration)', (group) => {
 
     const billing = await app.container.make(BillingService)
     const mock = new MockStripe('whsec_test_billing_helper')
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     await billing.reportUsage(fakeTenant, { eventName: 'api_request' }, 5, {
       idempotencyKey: 'recovered_after_blip',
     })
 
-    const finalised = await StripeMeterEvent.find(orphan.id)
+    const finalised = await BillingUsageEvent.find(orphan.id)
     assert.equal(finalised?.status, 'sent', 'orphaned pending row was finalised')
     assert.isNotNull(finalised?.reportedAt)
     assert.equal(mock.meterEvents().length, 1, 'one Stripe call from the recovery')
@@ -184,13 +184,13 @@ test.group('Metered/usage-based billing (integration)', (group) => {
       name: tenant.name,
     } as unknown as TenantModelContract
 
-    const cus = new StripeCustomer()
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()
 
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     await assert.rejects(() => billing.reportUsage(fakeTenant, { eventName: 'x' }, -1))
     await assert.rejects(() => billing.reportUsage(fakeTenant, { eventName: 'x' }, Number.NaN))
@@ -281,15 +281,15 @@ test.group('Metered/usage-based billing (integration)', (group) => {
 
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     const mock = new MockStripe('whsec_test_billing_helper')
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     const job = new ReportUsageBatchJob()
     hydrateJob(job, { tenantId: tenant.id, meterEventName: 'api_request', quantity: 7 })
@@ -299,9 +299,9 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     assert.lengthOf(reported, 1, 'batch job forwarded one meter event to Stripe')
     assert.equal(reported[0].event_name, 'api_request')
     assert.equal(reported[0].payload.value, '7', 'aggregated quantity reached Stripe')
-    assert.equal(reported[0].payload.stripe_customer_id, stripeCustomerId)
+    assert.equal(reported[0].payload.stripe_customer_id, providerCustomerId)
 
-    const audit = await StripeMeterEvent.query().where('tenant_id', tenant.id)
+    const audit = await BillingUsageEvent.query().where('tenant_id', tenant.id)
     assert.lengthOf(audit, 1, 'one audit row written by the batch job')
     assert.equal(audit[0].status, 'sent')
     assert.equal(audit[0].quantity, 7)
@@ -318,7 +318,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     const { ReportUsageBatchJob } = await import('@adonisjs-lasagna/billing')
 
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     const ghostTenantId = randomUUID()
     const job = new ReportUsageBatchJob()
@@ -326,7 +326,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
 
     await job.execute() // must not throw
 
-    const audit = await StripeMeterEvent.query().where('tenant_id', ghostTenantId)
+    const audit = await BillingUsageEvent.query().where('tenant_id', ghostTenantId)
     assert.lengthOf(audit, 0, 'no audit row for a vanished tenant')
   })
 

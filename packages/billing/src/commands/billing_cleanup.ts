@@ -10,7 +10,7 @@ import { runBillingCleanup } from '../jobs/billing_cleanup_job.js'
 export default class BillingCleanup extends BaseCommand {
   static readonly commandName = 'tenant:billing:cleanup'
   static readonly description =
-    'Purge stripe_processed_events older than the configured retention window'
+    'Purge billing_processed_events older than the configured retention window'
   static readonly options: CommandOptions = { startApp: true }
 
   @flags.number({
@@ -23,7 +23,7 @@ export default class BillingCleanup extends BaseCommand {
   async run() {
     const result = await runBillingCleanup({ batchSize: this.batchSize })
     this.logger.success(
-      `purged ${result.deleted} stripe_processed_events + ${result.meterDeleted} stripe_meter_events older than ${result.cutoff}`
+      `purged ${result.deleted} billing_processed_events + ${result.meterDeleted} billing_usage_events older than ${result.cutoff}`
     )
   }
 }

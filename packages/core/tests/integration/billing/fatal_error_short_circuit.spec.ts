@@ -4,9 +4,9 @@ import { randomUUID } from 'node:crypto'
 import emitter from '@adonisjs/core/services/emitter'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe, signWebhookPayload } from '@adonisjs-lasagna/billing'
-import { StripeProcessedEvent } from '@adonisjs-lasagna/billing'
+import { BillingProcessedEvent } from '@adonisjs-lasagna/billing'
 import { BillingEventDeadLettered } from '@adonisjs-lasagna/billing'
-import { ProcessStripeEventJob } from '@adonisjs-lasagna/billing'
+import { ProcessBillingEventJob } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import {
   setupBillingConfig,
@@ -18,7 +18,7 @@ import {
 import type Stripe from 'stripe'
 
 /**
- * Covers `ProcessStripeEventJob.#shortCircuitIfFatal` — the fatal-error
+ * Covers `ProcessBillingEventJob.#shortCircuitIfFatal` — the fatal-error
  * gate added in the audit (A-6). A non-retryable `BillingException`
  * (revoked API key, invalid request, permission denied) must:
  *   - mark the ledger row `status='failed'` immediately
@@ -37,7 +37,7 @@ import type Stripe from 'stripe'
  */
 test.group('Fatal-error short-circuit (integration)', (group) => {
   let originalConfig: ReturnType<typeof getConfig>
-  let originalDispatch: typeof ProcessStripeEventJob.dispatch
+  let originalDispatch: typeof ProcessBillingEventJob.dispatch
   let mock: MockStripe
   let pendingJobs: string[] = []
 
@@ -48,12 +48,12 @@ test.group('Fatal-error short-circuit (integration)', (group) => {
 
     mock = new MockStripe('whsec_test_billing_helper')
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     pendingJobs = []
-    originalDispatch = ProcessStripeEventJob.dispatch
+    originalDispatch = ProcessBillingEventJob.dispatch
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: (p: { eventId: string }) => Promise<void>
       }
     ).dispatch = async (p) => {
@@ -63,14 +63,14 @@ test.group('Fatal-error short-circuit (integration)', (group) => {
 
   group.each.teardown(async () => {
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: typeof originalDispatch
       }
     ).dispatch = originalDispatch
     await clearBillingTables()
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   /** POST a signed event through the controller so the ledger row exists. */
@@ -92,7 +92,7 @@ test.group('Fatal-error short-circuit (integration)', (group) => {
 
   /** Run the single dispatched job inline; report whether execute() threw. */
   async function runJob(eventId: string): Promise<{ threw: boolean }> {
-    const job = new ProcessStripeEventJob()
+    const job = new ProcessBillingEventJob()
     hydrateJob(job, { eventId })
     try {
       await job.execute()
@@ -127,7 +127,7 @@ test.group('Fatal-error short-circuit (integration)', (group) => {
       const { threw } = await runJob(eventId)
       assert.isFalse(threw, 'fatal short-circuit returns instead of re-throwing — no BullMQ retry')
 
-      const ledger = await StripeProcessedEvent.find(eventId)
+      const ledger = await BillingProcessedEvent.find(eventId)
       assert.equal(ledger?.status, 'failed')
       assert.equal(ledger?.attempts, 1, 'exactly one attempt — retry budget untouched')
       assert.match(ledger?.lastError ?? '', /Stripe API key was rejected/)
@@ -162,7 +162,7 @@ test.group('Fatal-error short-circuit (integration)', (group) => {
       const { threw } = await runJob(eventId)
       assert.isTrue(threw, 'retryable error re-throws so BullMQ schedules a retry')
 
-      const ledger = await StripeProcessedEvent.find(eventId)
+      const ledger = await BillingProcessedEvent.find(eventId)
       assert.equal(
         ledger?.status,
         'pending',

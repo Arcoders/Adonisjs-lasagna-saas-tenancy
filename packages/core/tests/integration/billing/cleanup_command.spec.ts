@@ -2,8 +2,8 @@ import { test } from '@japa/runner'
 import { DateTime } from 'luxon'
 import { randomUUID } from 'node:crypto'
 import ace from '@adonisjs/core/services/ace'
-import { StripeProcessedEvent } from '@adonisjs-lasagna/billing'
-import { StripeMeterEvent } from '@adonisjs-lasagna/billing'
+import { BillingProcessedEvent } from '@adonisjs-lasagna/billing'
+import { BillingUsageEvent } from '@adonisjs-lasagna/billing'
 import { runBillingCleanup } from '../../../../../packages/billing/build/src/jobs/billing_cleanup_job.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
@@ -37,7 +37,7 @@ test.group('tenant:billing:cleanup (integration)', (group) => {
     const ids: string[] = []
     for (let i = 0; i < count; i++) {
       const eventId = `evt_${randomUUID().slice(0, 8)}_${i}`
-      const row = new StripeProcessedEvent()
+      const row = new BillingProcessedEvent()
       row.eventId = eventId
       row.eventType = 'customer.subscription.created'
       row.status = opts.status
@@ -66,16 +66,16 @@ test.group('tenant:billing:cleanup (integration)', (group) => {
 
     // Fresh completed survives.
     for (const id of freshCompleted) {
-      const row = await StripeProcessedEvent.find(id)
+      const row = await BillingProcessedEvent.find(id)
       assert.isNotNull(row, `${id} (10 days old) must NOT be purged`)
     }
     // Old failed survives — purge is for completed only (audit + replay window).
     for (const id of oldFailed) {
-      const row = await StripeProcessedEvent.find(id)
+      const row = await BillingProcessedEvent.find(id)
       assert.isNotNull(row, `${id} (failed, 100 days old) must NOT be purged`)
     }
     for (const id of oldCompleted) {
-      const row = await StripeProcessedEvent.find(id)
+      const row = await BillingProcessedEvent.find(id)
       assert.isNull(row, `${id} (completed, 100 days old) MUST be purged`)
     }
   })
@@ -97,7 +97,7 @@ test.group('tenant:billing:cleanup (integration)', (group) => {
     const result = await runBillingCleanup()
 
     assert.equal(result.deleted, 2, 'only events older than 7 days purged')
-    const survivors = await StripeProcessedEvent.query()
+    const survivors = await BillingProcessedEvent.query()
     assert.lengthOf(survivors, 2)
   })
 
@@ -118,7 +118,7 @@ test.group('tenant:billing:cleanup (integration)', (group) => {
     const result = await runBillingCleanup({ batchSize: 3 })
 
     assert.equal(result.deleted, 7, 'all rows purged across multiple batches')
-    const remaining = await StripeProcessedEvent.query()
+    const remaining = await BillingProcessedEvent.query()
     assert.lengthOf(remaining, 0)
   })
 
@@ -128,7 +128,7 @@ test.group('tenant:billing:cleanup (integration)', (group) => {
     const cmd = await ace.exec('tenant:billing:cleanup', [])
     assert.equal(cmd.exitCode, 0)
 
-    const remaining = await StripeProcessedEvent.query().where('status', 'completed')
+    const remaining = await BillingProcessedEvent.query().where('status', 'completed')
     assert.lengthOf(remaining, 0)
   })
 
@@ -141,7 +141,7 @@ test.group('tenant:billing:cleanup (integration)', (group) => {
     const tenantId = randomUUID()
     for (let i = 0; i < count; i++) {
       const id = randomUUID()
-      const row = new StripeMeterEvent()
+      const row = new BillingUsageEvent()
       row.id = id
       row.tenantId = tenantId
       row.meterEventName = 'api_calls'
@@ -171,15 +171,15 @@ test.group('tenant:billing:cleanup (integration)', (group) => {
     assert.equal(result.meterDeleted, 3)
 
     for (const id of oldSent) {
-      const row = await StripeMeterEvent.find(id)
+      const row = await BillingUsageEvent.find(id)
       assert.isNull(row, `old sent meter ${id} must be purged`)
     }
     for (const id of freshSent) {
-      const row = await StripeMeterEvent.find(id)
+      const row = await BillingUsageEvent.find(id)
       assert.isNotNull(row, `fresh sent meter ${id} must survive`)
     }
     for (const id of [...oldFailed, ...oldPending]) {
-      const row = await StripeMeterEvent.find(id)
+      const row = await BillingUsageEvent.find(id)
       assert.isNotNull(row, `non-sent meter ${id} must NOT be auto-purged`)
     }
   })

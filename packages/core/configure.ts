@@ -25,10 +25,10 @@ export const SATELLITE_BUNDLES: Record<string, string[]> = {
   billing: [
     // tenant_plans backs QuotaService.assignPlan; required for billing wiring
     'create_tenant_plans_table',
-    'create_stripe_customers_table',
-    'create_stripe_subscriptions_table',
-    'create_stripe_processed_events_table',
-    'create_stripe_meter_events_table',
+    'create_billing_customers_table',
+    'create_billing_subscriptions_table',
+    'create_billing_processed_events_table',
+    'create_billing_usage_events_table',
   ],
 }
 
@@ -374,22 +374,17 @@ async function postPublishBilling(command: Configure): Promise<void> {
   log.log('')
   log.log('— Billing satellite — additional setup —')
 
-  try {
-    const pkgPath = command.app.makePath('package.json')
-    const pkgJson = JSON.parse(await (await import('node:fs/promises')).readFile(pkgPath, 'utf8'))
-    const hasStripe = pkgJson?.dependencies?.stripe ?? pkgJson?.devDependencies?.stripe ?? null
-    if (!hasStripe) {
-      log.warning('stripe SDK not detected in package.json. Run:')
-      log.log('    npm install stripe@^18')
-    }
-  } catch {
-    /* fall through with the generic notice */
-  }
+  log.log('')
+  log.log('Pick a provider. The Stripe driver uses the official SDK (optional peer);')
+  log.log('the Paddle and Lemon Squeezy drivers talk to their REST APIs directly (no SDK):')
+  log.log('  Stripe:        npm install stripe@^22')
+  log.log('  Paddle:        (no package needed — REST driver built in)')
+  log.log('  Lemon Squeezy: (no package needed — REST driver built in)')
 
   log.log('')
-  log.log('Required environment variables:')
+  log.log('Required environment variables (Stripe shown; see docs for Paddle / Lemon Squeezy):')
   log.log('  STRIPE_API_KEY=sk_test_...        (test key in dev, live key in prod)')
-  log.log('  STRIPE_WEBHOOK_SECRET=whsec_...   (from the webhook endpoint in Stripe dashboard)')
+  log.log('  STRIPE_WEBHOOK_SECRET=whsec_...   (from the webhook endpoint in the Stripe dashboard)')
   log.log('  STRIPE_API_VERSION=2025-08-27.basil   (optional; pin recommended)')
 
   log.log('')
@@ -410,13 +405,13 @@ async function postPublishBilling(command: Configure): Promise<void> {
   log.log('Add to config/multitenancy.ts (inside defineConfig({...})):')
   log.log("  ignorePaths: ['/admin', '/api/webhooks', '/health', '/webhooks/stripe'],")
   log.log('  billing: {')
-  log.log("    driver: 'stripe',")
+  log.log("    driver: 'stripe',   // 'stripe' | 'paddle' | 'lemonsqueezy'")
   log.log('    stripe: {')
   log.log("      apiKey: env.get('STRIPE_API_KEY'),")
   log.log("      webhookSecret: env.get('STRIPE_WEBHOOK_SECRET'),")
   log.log('    },')
   log.log(
-    "    products: { prod_starter: 'starter', prod_pro: 'pro' },  // map your stripe product ids"
+    "    products: { prod_starter: 'starter', prod_pro: 'pro' },  // map provider product/price ids"
   )
   log.log("    defaultPlan: 'starter',")
   log.log('  },')

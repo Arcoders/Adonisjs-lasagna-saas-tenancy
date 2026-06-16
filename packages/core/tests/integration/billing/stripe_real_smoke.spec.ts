@@ -5,12 +5,13 @@ import { BillingService } from '@adonisjs-lasagna/billing'
 import { signWebhookPayload } from '@adonisjs-lasagna/billing'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import {
-  StripeCustomer,
-  StripeMeterEvent,
-  StripeProcessedEvent,
-  StripeSubscription,
+  BillingCustomer,
+  BillingUsageEvent,
+  BillingProcessedEvent,
+  BillingSubscription,
 } from '@adonisjs-lasagna/billing'
-import { ProcessStripeEventJob } from '@adonisjs-lasagna/billing'
+import type { Subscription, SubscriptionStatus } from '@adonisjs-lasagna/billing'
+import { ProcessBillingEventJob } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '../../helpers/config.js'
 import { clearBillingTables, hydrateJob } from './helpers.js'
@@ -32,15 +33,15 @@ const SHOULD_RUN = typeof REAL_KEY === 'string' && REAL_KEY.startsWith('sk_test_
 test.group('Stripe real-API smoke (T-12)', (group) => {
   const cleanupTenants: string[] = []
   let originalConfig: ReturnType<typeof getConfig>
-  let originalDispatch: typeof ProcessStripeEventJob.dispatch
+  let originalDispatch: typeof ProcessBillingEventJob.dispatch
   let pendingJobs: string[] = []
 
   group.each.setup(async () => {
     originalConfig = getConfig()
     pendingJobs = []
-    originalDispatch = ProcessStripeEventJob.dispatch
+    originalDispatch = ProcessBillingEventJob.dispatch
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: (payload: { eventId: string }) => Promise<void>
       }
     ).dispatch = async (p) => {
@@ -51,7 +52,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
 
   group.each.teardown(async () => {
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: typeof originalDispatch
       }
     ).dispatch = originalDispatch
@@ -62,7 +63,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
     }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   test('SDK call-site contract: checkout + portal + metered usage + subscriptions.list + balance.retrieve', async ({
@@ -101,9 +102,9 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
     } as never)
 
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
     await billing.verify()
-    const stripe = await billing.getClient()
+    const stripe = (await billing.getClient()) as Stripe
 
     // --- Fixtures: product + price + a Billing Meter (so meterEvents has a target) ---
     const product = await stripe.products.create({
@@ -143,7 +144,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       billing: { ...getConfig().billing!, products: { [product.id]: 'smoke_pro' } },
     } as never)
 
-    let stripeCustomerId: string | null = null
+    let providerCustomerId: string | null = null
     let subId: string | null = null
     try {
       const tenant = await createTestTenant()
@@ -163,10 +164,10 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       assert.match(checkout.id, /^cs_/, 'real Stripe returned a checkout session id')
       assert.match(checkout.url, /^https:\/\//, 'real Stripe returned a checkout URL')
 
-      const localCus = await StripeCustomer.find(tenant.id)
-      assert.isNotNull(localCus, 'ensureCustomer persisted a StripeCustomer mirror row')
-      stripeCustomerId = localCus!.stripeCustomerId
-      assert.match(stripeCustomerId, /^cus_/)
+      const localCus = await BillingCustomer.find(tenant.id)
+      assert.isNotNull(localCus, 'ensureCustomer persisted a BillingCustomer mirror row')
+      providerCustomerId = localCus!.providerCustomerId
+      assert.match(providerCustomerId, /^cus_/)
 
       // --- billingPortal.sessions.create ---
       const portal = await billing.createBillingPortalSession(fakeTenant, {
@@ -179,8 +180,8 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       await billing.reportUsage(fakeTenant, { eventName: meterEventName }, 7, {
         idempotencyKey: usageKey,
       })
-      let usageRows = await StripeMeterEvent.query().where('idempotencyKey', usageKey)
-      assert.lengthOf(usageRows, 1, 'one StripeMeterEvent audit row written')
+      let usageRows = await BillingUsageEvent.query().where('idempotencyKey', usageKey)
+      assert.lengthOf(usageRows, 1, 'one BillingUsageEvent audit row written')
       assert.equal(usageRows[0].status, 'sent', 'meter event reported to Stripe')
       assert.equal(Number(usageRows[0].quantity), 7)
       assert.isNotNull(usageRows[0].reportedAt)
@@ -192,12 +193,12 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       await billing.reportUsage(fakeTenant, { eventName: meterEventName }, 7, {
         idempotencyKey: usageKey,
       })
-      usageRows = await StripeMeterEvent.query().where('idempotencyKey', usageKey)
+      usageRows = await BillingUsageEvent.query().where('idempotencyKey', usageKey)
       assert.lengthOf(usageRows, 1, 'duplicate reportUsage did not create a second audit row')
 
       // --- subscriptions.list (the shape billing:sync relies on) ---
       const sub = await stripe.subscriptions.create({
-        customer: stripeCustomerId,
+        customer: providerCustomerId,
         items: [{ price: price.id }],
         payment_behavior: 'default_incomplete',
         metadata: { source: 'lasagna-saas-tenancy-smoke-test', run_id: runId },
@@ -218,7 +219,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       assert.isArray(balance.available)
     } finally {
       if (subId) await stripe.subscriptions.cancel(subId).catch(() => {})
-      if (stripeCustomerId) await stripe.customers.del(stripeCustomerId).catch(() => {})
+      if (providerCustomerId) await stripe.customers.del(providerCustomerId).catch(() => {})
       await stripe.billing.meters.deactivate(meter.id).catch(() => {})
       await stripe.prices.update(price.id, { active: false }).catch(() => {})
       await stripe.products.update(product.id, { active: false }).catch(() => {})
@@ -260,11 +261,11 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
     } as never)
 
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
 
     // verify() boots the real SDK (peer-dep import, mode check, plan map check).
     await billing.verify()
-    const stripe = await billing.getClient()
+    const stripe = (await billing.getClient()) as Stripe
 
     // --- 2. Provision a unique product + price for this run ---
     const runId = randomUUID().slice(0, 8)
@@ -291,8 +292,8 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       },
     } as never)
 
-    let stripeCustomerId: string | null = null
-    let stripeSubscriptionId: string | null = null
+    let providerCustomerId: string | null = null
+    let providerSubscriptionId: string | null = null
 
     try {
       // --- 3. Create tenant + Stripe customer ---
@@ -305,18 +306,18 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       } as unknown as TenantModelContract
 
       const customer = await billing.ensureCustomer(fakeTenant)
-      stripeCustomerId = customer.stripeCustomerId
-      assert.match(stripeCustomerId, /^cus_/, 'real Stripe returned a customer id')
+      providerCustomerId = customer.providerCustomerId
+      assert.match(providerCustomerId, /^cus_/, 'real Stripe returned a customer id')
 
       // --- 4. Create a subscription (default_incomplete avoids needing a payment method) ---
       const sub = await stripe.subscriptions.create({
-        customer: stripeCustomerId,
+        customer: providerCustomerId,
         items: [{ price: price.id }],
         payment_behavior: 'default_incomplete',
         metadata: { source: 'lasagna-saas-tenancy-smoke-test', run_id: runId },
       })
-      stripeSubscriptionId = sub.id
-      assert.match(stripeSubscriptionId, /^sub_/, 'real Stripe returned a subscription id')
+      providerSubscriptionId = sub.id
+      assert.match(providerSubscriptionId, /^sub_/, 'real Stripe returned a subscription id')
 
       // --- 5. Pull the corresponding subscription.created event from Stripe ---
       // Stripe events propagate near-synchronously but allow a short
@@ -333,7 +334,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
         event =
           list.data.find((e) => {
             const obj = e.data.object as Stripe.Subscription
-            return obj?.id === stripeSubscriptionId
+            return obj?.id === providerSubscriptionId
           }) ?? null
         if (!event) await new Promise((r) => setTimeout(r, 500))
       }
@@ -356,17 +357,17 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       assert.lengthOf(pendingJobs, 1, 'one job dispatched for the replayed event')
       while (pendingJobs.length) {
         const eventId = pendingJobs.shift()!
-        const job = new ProcessStripeEventJob()
+        const job = new ProcessBillingEventJob()
         hydrateJob(job, { eventId })
         await job.execute()
       }
 
       // --- 7. Assert: local mirror reflects the real Stripe state ---
-      const ledger = await StripeProcessedEvent.find(event!.id)
+      const ledger = await BillingProcessedEvent.find(event!.id)
       assert.equal(ledger?.status, 'completed', 'webhook ledger row marked completed')
 
-      const mirror = await StripeSubscription.find(stripeSubscriptionId)
-      assert.isNotNull(mirror, 'StripeSubscription mirror created')
+      const mirror = await BillingSubscription.find(providerSubscriptionId)
+      assert.isNotNull(mirror, 'BillingSubscription mirror created')
       assert.equal(mirror?.tenantId, tenant.id)
       assert.equal(mirror?.planName, 'smoke_pro', 'product mapping resolved to local plan')
       const expectedStatuses = ['active', 'incomplete', 'trialing']
@@ -389,7 +390,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       // nesting, status='canceled') is fully present on the returned
       // object. The webhook/controller/job path for deletions is covered
       // exhaustively by the MockStripe-based specs.
-      const canceled = await stripe.subscriptions.cancel(stripeSubscriptionId)
+      const canceled = await stripe.subscriptions.cancel(providerSubscriptionId)
       // Canceling an `incomplete` sub (we created it `default_incomplete`
       // to avoid needing a payment method) terminates it as
       // `incomplete_expired`; an active one would be `canceled`. Accept
@@ -399,13 +400,30 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
         terminal.includes(canceled.status),
         `Stripe reports the subscription terminated (got '${canceled.status}')`
       )
-      await billing.syncSubscription(
-        canceled as unknown as Stripe.Subscription,
-        Math.floor(Date.now() / 1000),
-        { downgrade: true }
-      )
+      // syncSubscription consumes a neutral Subscription now; map the real
+      // canceled Stripe object onto it (downgrade:true ignores product mapping).
+      const item0 = canceled.items?.data?.[0] as
+        | { current_period_start?: number; current_period_end?: number }
+        | undefined
+      const nowSec = Math.floor(Date.now() / 1000)
+      const neutralCanceled: Subscription = {
+        providerSubscriptionId: canceled.id,
+        customerId:
+          typeof canceled.customer === 'string' ? canceled.customer : (canceled.customer?.id ?? ''),
+        status: canceled.status as SubscriptionStatus,
+        currentPeriodStart: item0?.current_period_start ?? nowSec,
+        currentPeriodEnd: item0?.current_period_end ?? nowSec,
+        cancelAtPeriodEnd: canceled.cancel_at_period_end ?? false,
+        cancelAt: canceled.cancel_at ?? null,
+        canceledAt: canceled.canceled_at ?? null,
+        trialEnd: canceled.trial_end ?? null,
+        productId: null,
+        priceId: null,
+        raw: canceled as unknown as Record<string, unknown>,
+      }
+      await billing.syncSubscription(neutralCanceled, nowSec, { downgrade: true })
 
-      const canceledMirror = await StripeSubscription.find(stripeSubscriptionId)
+      const canceledMirror = await BillingSubscription.find(providerSubscriptionId)
       assert.equal(
         canceledMirror?.status,
         canceled.status,
@@ -415,17 +433,17 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       assert.equal(tpAfterCancel?.planName, 'starter', 'downgraded to defaultPlan after cancel')
     } finally {
       // --- 8. Cleanup (best-effort) ---
-      if (stripeSubscriptionId) {
-        await stripe.subscriptions.cancel(stripeSubscriptionId).catch(() => {})
+      if (providerSubscriptionId) {
+        await stripe.subscriptions.cancel(providerSubscriptionId).catch(() => {})
       }
-      if (stripeCustomerId) {
+      if (providerCustomerId) {
         // Deleting the customer in Stripe also cancels any remaining
         // subscriptions and invalidates payment methods.
-        const localCus = await StripeCustomer.query()
-          .where('stripeCustomerId', stripeCustomerId)
+        const localCus = await BillingCustomer.query()
+          .where('providerCustomerId', providerCustomerId)
           .first()
         if (localCus) {
-          await stripe.customers.del(stripeCustomerId).catch(() => {})
+          await stripe.customers.del(providerCustomerId).catch(() => {})
         }
       }
       // Stripe forbids deleting prices / products that have been used,

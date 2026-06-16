@@ -3,9 +3,9 @@ import app from '@adonisjs/core/services/app'
 import { randomUUID } from 'node:crypto'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe } from '@adonisjs-lasagna/billing'
-import { StripeCustomer, StripeSubscription } from '@adonisjs-lasagna/billing'
+import { BillingCustomer, BillingSubscription } from '@adonisjs-lasagna/billing'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { setupBillingConfig, buildSubscription, clearBillingTables } from './helpers.js'
+import { setupBillingConfig, buildNeutralSubscription, clearBillingTables } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 
 /**
@@ -32,7 +32,7 @@ test.group('Webhook ordering guard (integration)', (group) => {
     }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   test('out-of-order subscription.updated does NOT overwrite a more recent state', async ({
@@ -40,40 +40,40 @@ test.group('Webhook ordering guard (integration)', (group) => {
   }) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const stripeCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     // Step 1: latest event lands first (event_at = now).
     const tNow = Math.floor(Date.now() / 1000)
     const subId = `sub_ordering_${randomUUID().slice(0, 8)}`
-    const recent = buildSubscription({
+    const recent = buildNeutralSubscription({
       id: subId,
-      customer: stripeCustomerId,
+      customer: providerCustomerId,
       productId: 'prod_pro',
       status: 'active',
     })
     await billing.syncSubscription(recent, tNow)
-    let row = await StripeSubscription.find(subId)
+    let row = await BillingSubscription.find(subId)
     assert.equal(row?.status, 'active')
 
     // Step 2: a stale `subscription.updated` arrives 30s OLDER than what
     // we already wrote. The guard should reject it; status stays 'active'.
-    const stale = buildSubscription({
+    const stale = buildNeutralSubscription({
       id: subId,
-      customer: stripeCustomerId,
+      customer: providerCustomerId,
       productId: 'prod_pro',
       status: 'past_due',
     })
     const result = await billing.syncSubscription(stale, tNow - 30)
     assert.isNull(result, 'stale event returns null (no-op)')
 
-    row = await StripeSubscription.find(subId)
+    row = await BillingSubscription.find(subId)
     assert.equal(row?.status, 'active', 'state unchanged by stale event')
   })
 
@@ -82,21 +82,21 @@ test.group('Webhook ordering guard (integration)', (group) => {
   }) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const stripeCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     const tNow = Math.floor(Date.now() / 1000)
     const subId = `sub_jitter_${randomUUID().slice(0, 8)}`
     await billing.syncSubscription(
-      buildSubscription({
+      buildNeutralSubscription({
         id: subId,
-        customer: stripeCustomerId,
+        customer: providerCustomerId,
         productId: 'prod_pro',
         status: 'active',
       }),
@@ -105,9 +105,9 @@ test.group('Webhook ordering guard (integration)', (group) => {
 
     // 3s earlier — within the 5s jitter tolerance — should be accepted.
     const result = await billing.syncSubscription(
-      buildSubscription({
+      buildNeutralSubscription({
         id: subId,
-        customer: stripeCustomerId,
+        customer: providerCustomerId,
         productId: 'prod_pro',
         status: 'past_due',
       }),
@@ -115,7 +115,7 @@ test.group('Webhook ordering guard (integration)', (group) => {
     )
     assert.isNotNull(result, '3s-earlier event still applied (within tolerance)')
 
-    const row = await StripeSubscription.find(subId)
+    const row = await BillingSubscription.find(subId)
     assert.equal(row?.status, 'past_due')
   })
 })

@@ -1,37 +1,35 @@
 {{{
-  exports({ to: app.migrationsPath(`${Date.now()}_create_stripe_subscriptions_table.ts`) })
+  exports({ to: app.migrationsPath(`${Date.now()}_create_billing_subscriptions_table.ts`) })
 }}}
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
 /**
- * Local mirror of Stripe subscriptions. Reconciled by `tenant:billing:sync`.
+ * Provider-agnostic mirror of subscriptions. Reconciled by `tenant:billing:sync`.
  *
- * `last_event_at` is the ordering guard: webhook handlers reject events with
- * `event.created < last_event_at - 5s`. Stripe does NOT guarantee delivery
- * order; without this column a stale `subscription.updated` could revive a
- * canceled subscription.
+ * The natural key is `provider_subscription_id`; `provider` records which driver
+ * owns it (a single active driver per deployment, so ids don't collide).
  *
- * `raw` jsonb preserves the full Stripe payload so we can re-derive any
- * fields we didn't model explicitly without re-fetching from Stripe.
+ * `last_event_at` is the ordering guard: handlers reject events older than
+ * `last_event_at - 5s`. Providers don't guarantee delivery order; without it a
+ * stale `subscription.updated` could revive a canceled subscription.
+ *
+ * `raw` jsonb preserves the full provider payload for re-derivation.
  */
 export default class extends BaseSchema {
-  protected tableName = 'stripe_subscriptions'
+  protected tableName = 'billing_subscriptions'
 
   async up() {
     this.schema.withSchema('backoffice').createTable(this.tableName, (table) => {
-      table.string('stripe_subscription_id').primary()
-      // tenant_id is nullable + ON DELETE SET NULL so the
-      // `tenant_destroy` lifecycle hook can drop a `stripe_customers`
-      // row without violating the FK while keeping the subscription
-      // audit row intact (status='canceled' after the cancel call).
-      // Without this the FK RESTRICTed the parent delete and the
-      // listener's `customer.delete()` threw silently — the local
-      // mapping never got cleaned up.
+      table.string('provider_subscription_id').primary()
+      table.string('provider').notNullable()
+      // tenant_id is nullable + ON DELETE SET NULL so the `tenant_destroy`
+      // listener can drop a `billing_customers` row without violating the FK
+      // while keeping the subscription audit row intact (status='canceled').
       table
         .uuid('tenant_id')
         .nullable()
         .references('tenant_id')
-        .inTable('backoffice.stripe_customers')
+        .inTable('backoffice.billing_customers')
         .onDelete('SET NULL')
       table
         .enum('status', [

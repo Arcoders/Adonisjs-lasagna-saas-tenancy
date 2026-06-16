@@ -5,7 +5,7 @@ export default class SubscriptionCanceled extends BaseEvent {
   constructor(
     readonly payload: {
       tenantId: string
-      stripeSubscriptionId: string
+      subscriptionId: string
       previousPlan: string | null
       reason: 'user_canceled' | 'dunning_failed' | 'unknown'
     }

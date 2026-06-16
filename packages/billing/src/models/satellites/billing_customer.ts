@@ -2,8 +2,13 @@ import { BackofficeBaseModel } from '@adonisjs-lasagna/saas-tenancy/base-models'
 import { column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
 
-export default class StripeCustomer extends BackofficeBaseModel {
-  static readonly table = 'stripe_customers'
+/**
+ * Provider-agnostic customer mirror. One row per tenant. `provider` records
+ * which billing driver owns `providerCustomerId` (e.g. Stripe `cus_…`, a Paddle
+ * `ctm_…`, or a Lemon Squeezy numeric id).
+ */
+export default class BillingCustomer extends BackofficeBaseModel {
+  static readonly table = 'billing_customers'
 
   static selfAssignPrimaryKey = true
 
@@ -11,7 +16,10 @@ export default class StripeCustomer extends BackofficeBaseModel {
   declare tenantId: string
 
   @column()
-  declare stripeCustomerId: string
+  declare provider: string
+
+  @column()
+  declare providerCustomerId: string
 
   @column()
   declare defaultPaymentMethod: string | null

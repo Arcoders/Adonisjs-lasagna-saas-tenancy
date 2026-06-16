@@ -13,18 +13,24 @@ This is the *journey*. For the full reference (every config field,
 every event, every command, the storage shape, error codes, testing
 helpers), see the [Billing satellite](/docs/satellites/billing).
 
+Billing is provider-agnostic: Stripe is the driver used here, but the
+same flow works with Paddle or Lemon Squeezy by switching
+`billing.driver`. The storage tables, events, and `BillingService` API
+are all neutral. See [Drivers](/docs/satellites/billing#drivers) for the
+capability matrix and how to write your own.
+
 ## Quickstart
 
 ### 1. Configure with billing enabled
 
 ```bash
 node ace configure @adonisjs-lasagna/saas-tenancy --with=billing
-npm install stripe@^18
+npm install stripe@^22
 ```
 
 The configure step publishes 5 backoffice migrations
-(`tenant_plans`, `stripe_customers`, `stripe_subscriptions`,
-`stripe_processed_events`, `stripe_meter_events`), an
+(`tenant_plans`, `billing_customers`, `billing_subscriptions`,
+`billing_processed_events`, `billing_usage_events`), an
 `app/mailers/quota_warning_mailer.ts` + view, and prints the snippets
 to paste into `config/multitenancy.ts` and `start/routes.ts`.
 
@@ -139,8 +145,9 @@ Apply your own auth + role checks on these routes —
 `tenant_plans` and busts the `(tenant, plan)` cache key on every
 node via the BentoCache redis bus.
 
-`ProcessStripeEventJob` calls `assignPlan` automatically on every
-`customer.subscription.{created,updated,deleted}`. Plan
+`ProcessBillingEventJob` calls `assignPlan` automatically on every
+subscription create / update / delete event (Stripe's
+`customer.subscription.*`, normalised to the neutral taxonomy). Plan
 **definitions** (the limit values) live in `config.plans.definitions`;
 only the **assignment** (tenant → plan name) lives in the database.
 A misconfigured Stripe product that doesn't map to a declared plan

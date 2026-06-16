@@ -1,7 +1,7 @@
 import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
-import StripeProcessedEvent from '../models/satellites/stripe_processed_event.js'
-import ProcessStripeEventJob from '../jobs/process_stripe_event_job.js'
+import BillingProcessedEvent from '../models/satellites/billing_processed_event.js'
+import ProcessBillingEventJob from '../jobs/process_billing_event_job.js'
 
 /**
  * Re-dispatch a webhook event the queue gave up on. Use after fixing the
@@ -15,7 +15,7 @@ export default class BillingReplay extends BaseCommand {
   static readonly description = 'Re-dispatch a failed webhook event for processing'
   static readonly options: CommandOptions = { startApp: true }
 
-  @flags.string({ flagName: 'event-id', description: 'Specific Stripe event id (evt_xxx)' })
+  @flags.string({ flagName: 'event-id', description: 'Specific provider event id' })
   declare eventId?: string
 
   @flags.boolean({
@@ -33,8 +33,8 @@ export default class BillingReplay extends BaseCommand {
     }
 
     const targets = this.eventId
-      ? [await StripeProcessedEvent.find(this.eventId)].filter((r) => r !== null)
-      : await StripeProcessedEvent.query().where('status', 'failed')
+      ? [await BillingProcessedEvent.find(this.eventId)].filter((r) => r !== null)
+      : await BillingProcessedEvent.query().where('status', 'failed')
 
     if (targets.length === 0) {
       this.logger.info('No matching events to replay.')
@@ -50,7 +50,7 @@ export default class BillingReplay extends BaseCommand {
       row.lastError = null
       await row.save()
       try {
-        await ProcessStripeEventJob.dispatch({ eventId: row.eventId })
+        await ProcessBillingEventJob.dispatch({ eventId: row.eventId })
         dispatched += 1
         this.logger.success(`dispatched  ${row.eventId} (${row.eventType})`)
       } catch (err) {

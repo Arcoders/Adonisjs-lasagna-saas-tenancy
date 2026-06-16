@@ -60,10 +60,10 @@ test.group('configure — resolveMigrationStubs', () => {
   test('flattens the billing bundle in order', ({ assert }) => {
     assert.deepEqual(resolveMigrationStubs(['billing']), [
       'create_tenant_plans_table',
-      'create_stripe_customers_table',
-      'create_stripe_subscriptions_table',
-      'create_stripe_processed_events_table',
-      'create_stripe_meter_events_table',
+      'create_billing_customers_table',
+      'create_billing_subscriptions_table',
+      'create_billing_processed_events_table',
+      'create_billing_usage_events_table',
     ])
   })
 
@@ -123,10 +123,10 @@ test.group('configure — dedup across overlapping bundles', () => {
   test('quotas + billing emits tenant_plans exactly once, plans first', ({ assert }) => {
     assert.deepEqual(resolveMigrationStubs(['quotas', 'billing']), [
       'create_tenant_plans_table',
-      'create_stripe_customers_table',
-      'create_stripe_subscriptions_table',
-      'create_stripe_processed_events_table',
-      'create_stripe_meter_events_table',
+      'create_billing_customers_table',
+      'create_billing_subscriptions_table',
+      'create_billing_processed_events_table',
+      'create_billing_usage_events_table',
     ])
   })
 

@@ -130,31 +130,40 @@ async function ensureBackofficeSchema(): Promise<void> {
        assigned_at timestamptz NOT NULL DEFAULT now(),
        expires_at  timestamptz
      )`,
-    `CREATE TABLE IF NOT EXISTS backoffice.stripe_customers (
+    // `provider` defaults to 'stripe' here ONLY because many billing specs
+    // construct mirror rows directly (not through BillingService, which always
+    // sets it). The production stub has no default — provider is always written
+    // by the active driver. The default keeps test fixtures terse without
+    // weakening the real schema.
+    `CREATE TABLE IF NOT EXISTS backoffice.billing_customers (
        tenant_id              uuid PRIMARY KEY,
-       stripe_customer_id     varchar(255) NOT NULL UNIQUE,
+       provider               varchar(255) NOT NULL DEFAULT 'stripe',
+       provider_customer_id   varchar(255) NOT NULL,
        default_payment_method varchar(255),
        currency               varchar(255),
        created_at             timestamptz NOT NULL DEFAULT now(),
-       deleted_at             timestamptz
+       deleted_at             timestamptz,
+       UNIQUE(provider, provider_customer_id)
      )`,
-    `CREATE TABLE IF NOT EXISTS backoffice.stripe_subscriptions (
-       stripe_subscription_id varchar(255) PRIMARY KEY,
-       tenant_id              uuid REFERENCES backoffice.stripe_customers(tenant_id) ON DELETE SET NULL,
-       status                 varchar(255) NOT NULL,
-       current_period_start   timestamptz NOT NULL,
-       current_period_end     timestamptz NOT NULL,
-       cancel_at_period_end   boolean NOT NULL DEFAULT false,
-       cancel_at              timestamptz,
-       canceled_at            timestamptz,
-       trial_end              timestamptz,
-       plan_name              varchar(255) NOT NULL,
-       last_event_at          timestamptz NOT NULL,
-       raw                    jsonb NOT NULL,
-       updated_at             timestamptz NOT NULL DEFAULT now()
+    `CREATE TABLE IF NOT EXISTS backoffice.billing_subscriptions (
+       provider_subscription_id varchar(255) PRIMARY KEY,
+       provider                 varchar(255) NOT NULL DEFAULT 'stripe',
+       tenant_id                uuid REFERENCES backoffice.billing_customers(tenant_id) ON DELETE SET NULL,
+       status                   varchar(255) NOT NULL,
+       current_period_start     timestamptz NOT NULL,
+       current_period_end       timestamptz NOT NULL,
+       cancel_at_period_end     boolean NOT NULL DEFAULT false,
+       cancel_at                timestamptz,
+       canceled_at              timestamptz,
+       trial_end                timestamptz,
+       plan_name                varchar(255) NOT NULL,
+       last_event_at            timestamptz NOT NULL,
+       raw                      jsonb NOT NULL,
+       updated_at               timestamptz NOT NULL DEFAULT now()
      )`,
-    `CREATE TABLE IF NOT EXISTS backoffice.stripe_processed_events (
+    `CREATE TABLE IF NOT EXISTS backoffice.billing_processed_events (
        event_id     varchar(255) PRIMARY KEY,
+       provider     varchar(255) NOT NULL DEFAULT 'stripe',
        event_type   varchar(255) NOT NULL,
        processed_at timestamptz NOT NULL DEFAULT now(),
        completed_at timestamptz,
@@ -164,8 +173,9 @@ async function ensureBackofficeSchema(): Promise<void> {
        status       varchar(20) NOT NULL DEFAULT 'pending',
        payload      jsonb
      )`,
-    `CREATE TABLE IF NOT EXISTS backoffice.stripe_meter_events (
+    `CREATE TABLE IF NOT EXISTS backoffice.billing_usage_events (
        id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       provider          varchar(255) NOT NULL DEFAULT 'stripe',
        tenant_id         uuid NOT NULL,
        meter_event_name  varchar(255) NOT NULL,
        quantity          bigint NOT NULL,

@@ -37,7 +37,7 @@ test.group('BillingService.verify — mode + config validation', (group) => {
     process.env = { ...originalEnv }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   function setBillingConfig(
@@ -75,7 +75,7 @@ test.group('BillingService.verify — mode + config validation', (group) => {
     setBillingConfig({ apiKey: 'sk_test_abort_me' })
 
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
 
     await assert.rejects(() => billing.verify(), /test key but NODE_ENV=production/)
   })
@@ -88,7 +88,7 @@ test.group('BillingService.verify — mode + config validation', (group) => {
     setBillingConfig({ apiKey: 'sk_live_abort_me' })
 
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
 
     await assert.rejects(() => billing.verify(), /LIVE key but NODE_ENV is not "production"/)
   })
@@ -99,7 +99,7 @@ test.group('BillingService.verify — mode + config validation', (group) => {
     setBillingConfig({ apiKey: 'sk_live_intentional' })
 
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
 
     // The escape hatch is the operator's explicit opt-in for staging
     // environments that legitimately use live keys: verify must NOT reject.
@@ -114,7 +114,7 @@ test.group('BillingService.verify — mode + config validation', (group) => {
     setBillingConfig({ webhookSecret: '' })
 
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
 
     await assert.rejects(() => billing.verify(), /webhookSecret is empty/)
   })
@@ -125,7 +125,7 @@ test.group('BillingService.verify — mode + config validation', (group) => {
     setBillingConfig({ webhookSecret: 'sk_test_pasted_into_wrong_env_var' })
 
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
 
     await assert.rejects(() => billing.verify(), /does not start with "whsec_"/)
   })
@@ -138,7 +138,7 @@ test.group('BillingService.verify — mode + config validation', (group) => {
     })
 
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
 
     await assert.rejects(() => billing.verify(), /defaultPlan "enterprise" is not declared/)
   })
@@ -155,7 +155,7 @@ test.group('BillingService.verify — mode + config validation', (group) => {
     })
 
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
 
     await assert.rejects(() => billing.verify(), /products\["prod_phantom"\] = "phantom_plan"/)
   })
@@ -165,7 +165,7 @@ test.group('BillingService.verify — mode + config validation', (group) => {
     setBillingConfig({ apiKey: 'sk_test_xxx' })
 
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
 
     await billing.verify()
     // A second verify() must be a no-op. (No 2nd arg: a string there is an
@@ -177,7 +177,7 @@ test.group('BillingService.verify — mode + config validation', (group) => {
     setConfig({ ...testConfig } as MultitenancyConfig) // no `billing` key
 
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
 
     // verify() must resolve silently when config.billing is absent. (No 2nd
     // arg: a string there is an error-message matcher, not a label.)
@@ -210,7 +210,7 @@ test.group('BillingProvider.boot — billing.verify wiring', (group) => {
     setConfig(originalConfig)
     app.config.set('multitenancy', originalAdonisConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   test('provider.boot() refuses to start when verify rejects', async ({ assert }) => {
@@ -246,7 +246,7 @@ test.group('BillingProvider.boot — billing.verify wiring', (group) => {
     // different object than the one `provider.boot()` resolves and verifies.
 
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
 
     await assert.rejects(() => provider.boot(), /test key but NODE_ENV=production/)
   })

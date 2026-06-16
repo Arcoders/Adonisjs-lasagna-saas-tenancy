@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe } from '@adonisjs-lasagna/billing'
-import { StripeCustomer } from '@adonisjs-lasagna/billing'
+import { BillingCustomer } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
@@ -34,7 +34,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   test('createCheckoutSession provisions customer + returns url/id', async ({ assert }) => {
@@ -47,7 +47,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     } as unknown as TenantModelContract
 
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     const session = await billing.createCheckoutSession(fakeTenant, {
       priceId: 'price_pro_monthly',
@@ -64,9 +64,9 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     assert.match(session.url, /^https:\/\/checkout\.stripe\.test\//)
 
     // Local mapping was created.
-    const cus = await StripeCustomer.find(tenant.id)
+    const cus = await BillingCustomer.find(tenant.id)
     assert.isNotNull(cus, 'ensureCustomer fired during checkout')
-    assert.match(cus!.stripeCustomerId, /^cus_/)
+    assert.match(cus!.providerCustomerId, /^cus_/)
   })
 
   test('two checkout calls reuse the same customer (no duplicates)', async ({ assert }) => {
@@ -79,7 +79,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     } as unknown as TenantModelContract
 
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     await billing.createCheckoutSession(fakeTenant, {
       priceId: 'price_pro_monthly',
@@ -87,7 +87,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
       cancelUrl: 'https://app.example.com/cancel',
       allowUnknownPrices: true,
     })
-    const firstCustomer = await StripeCustomer.find(tenant.id)
+    const firstCustomer = await BillingCustomer.find(tenant.id)
 
     await billing.createCheckoutSession(fakeTenant, {
       priceId: 'price_team_yearly',
@@ -95,10 +95,10 @@ test.group('Checkout + portal helpers (integration)', (group) => {
       cancelUrl: 'https://app.example.com/cancel',
       allowUnknownPrices: true,
     })
-    const rows = await StripeCustomer.query().where('tenant_id', tenant.id)
+    const rows = await BillingCustomer.query().where('tenant_id', tenant.id)
 
     assert.lengthOf(rows, 1)
-    assert.equal(rows[0].stripeCustomerId, firstCustomer!.stripeCustomerId)
+    assert.equal(rows[0].providerCustomerId, firstCustomer!.providerCustomerId)
   })
 
   test('createBillingPortalSession throws when no customer exists yet', async ({ assert }) => {
@@ -111,7 +111,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     } as unknown as TenantModelContract
 
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     await assert.rejects(
       () =>
@@ -132,7 +132,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     } as unknown as TenantModelContract
 
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     await billing.ensureCustomer(fakeTenant)
 
@@ -158,7 +158,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     // Wire the price to a product that's NOT in cfg.products
     // (`prod_starter | prod_pro | prod_team`).
     mock.injectPrice('price_attacker_supplied', 'prod_unknown')
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     await assert.rejects(
       () =>
@@ -187,7 +187,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     // Realistic pattern: one Stripe product, multiple prices (monthly,
     // yearly). cfg.products keys the product, not each price.
     mock.injectPrice('price_pro_monthly_v2', 'prod_pro')
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     const session = await billing.createCheckoutSession(fakeTenant, {
       priceId: 'price_pro_monthly_v2',
@@ -212,7 +212,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     const billing = await app.container.make(BillingService)
     const mock = new MockStripe('whsec_test_billing_helper')
     mock.injectPrice('price_anything', 'prod_unknown')
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     // No throw — the flag opts out of the strict check.
     const session = await billing.createCheckoutSession(fakeTenant, {
@@ -244,7 +244,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
       captured.push({ client_reference_id: params.client_reference_id ?? null })
       return original.call(mock.checkout.sessions, params)
     }
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     await billing.createCheckoutSession(fakeTenant, {
       priceId: 'price_x',

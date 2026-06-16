@@ -2,6 +2,7 @@ import { BaseCommand, args, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import { signWebhookPayload } from '../testing/sign_webhook_payload.js'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import { getActiveBillingDriver } from '../services/billing/active_billing_driver.js'
 import { DEFAULT_STRIPE_API_VERSION } from '../stripe_api_version.js'
 
 const TEMPLATES: Record<string, () => Record<string, unknown>> = {
@@ -69,6 +70,15 @@ export default class BillingTestWebhook extends BaseCommand {
     const cfg = getConfig().billing
     if (!cfg) {
       this.logger.error('config.billing not set')
+      this.exitCode = 1
+      return
+    }
+
+    const driver = await getActiveBillingDriver()
+    if (driver.name !== 'stripe' || !cfg.stripe) {
+      this.logger.error(
+        `tenant:billing:test-webhook currently supports only the Stripe driver (active: "${driver.name}")`
+      )
       this.exitCode = 1
       return
     }

@@ -3,36 +3,36 @@ import app from '@adonisjs/core/services/app'
 import ace from '@adonisjs/core/services/ace'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe } from '@adonisjs-lasagna/billing'
-import { ProcessStripeEventJob } from '@adonisjs-lasagna/billing'
-import { StripeProcessedEvent } from '@adonisjs-lasagna/billing'
+import { ProcessBillingEventJob } from '@adonisjs-lasagna/billing'
+import { BillingProcessedEvent } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
 
 // Execution coverage for the two billing diagnostics commands (doctor +
-// test-webhook). Stripe is MockStripe; ProcessStripeEventJob.dispatch is
+// test-webhook). Stripe is MockStripe; ProcessBillingEventJob.dispatch is
 // stubbed so the controller's enqueue doesn't need a live worker.
 test.group('tenant:billing:doctor + tenant:billing:test-webhook (integration)', (group) => {
   let originalConfig: ReturnType<typeof getConfig>
-  let originalDispatch: typeof ProcessStripeEventJob.dispatch
+  let originalDispatch: typeof ProcessBillingEventJob.dispatch
 
   group.each.setup(async () => {
     originalConfig = getConfig()
     setupBillingConfig({ defaultPlan: 'starter' })
     await clearBillingTables()
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
-    originalDispatch = ProcessStripeEventJob.dispatch
-    ;(ProcessStripeEventJob as unknown as { dispatch: () => Promise<void> }).dispatch =
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    originalDispatch = ProcessBillingEventJob.dispatch
+    ;(ProcessBillingEventJob as unknown as { dispatch: () => Promise<void> }).dispatch =
       async () => {}
   })
 
   group.each.teardown(async () => {
-    ;(ProcessStripeEventJob as unknown as { dispatch: typeof originalDispatch }).dispatch =
+    ;(ProcessBillingEventJob as unknown as { dispatch: typeof originalDispatch }).dispatch =
       originalDispatch
     await clearBillingTables()
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   test('tenant:billing:doctor exits 0 when every check passes', async ({ assert }) => {
@@ -58,7 +58,7 @@ test.group('tenant:billing:doctor + tenant:billing:test-webhook (integration)', 
     ])
     assert.equal(cmd.exitCode, 0, 'the webhook route returned 2xx for the synthetic event')
 
-    const rows = await StripeProcessedEvent.query().where('eventType', eventType)
+    const rows = await BillingProcessedEvent.query().where('eventType', eventType)
     assert.isAtLeast(
       rows.length,
       1,

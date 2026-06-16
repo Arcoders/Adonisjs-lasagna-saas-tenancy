@@ -5,7 +5,7 @@ import { DateTime } from 'luxon'
 import { HookRegistry } from '@adonisjs-lasagna/saas-tenancy/services'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe } from '@adonisjs-lasagna/billing'
-import { StripeCustomer, StripeSubscription } from '@adonisjs-lasagna/billing'
+import { BillingCustomer, BillingSubscription } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
@@ -50,27 +50,27 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
     }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   async function seed(): Promise<{
     tenant: TenantModelContract
-    stripeCustomerId: string
-    stripeSubscriptionId: string
+    providerCustomerId: string
+    providerSubscriptionId: string
   }> {
     const t = await createTestTenant()
     cleanupTenants.push(t.id)
     const fakeTenant = { id: t.id, name: t.name, email: t.email } as unknown as TenantModelContract
 
-    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = t.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
 
-    const stripeSubscriptionId = `sub_${randomUUID().slice(0, 8)}`
-    const sub = new StripeSubscription()
-    sub.stripeSubscriptionId = stripeSubscriptionId
+    const providerSubscriptionId = `sub_${randomUUID().slice(0, 8)}`
+    const sub = new BillingSubscription()
+    sub.providerSubscriptionId = providerSubscriptionId
     sub.tenantId = t.id
     sub.status = 'active'
     sub.currentPeriodStart = DateTime.utc().minus({ days: 1 })
@@ -84,7 +84,7 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
     sub.raw = {}
     await sub.save()
 
-    return { tenant: fakeTenant, stripeCustomerId, stripeSubscriptionId }
+    return { tenant: fakeTenant, providerCustomerId, providerSubscriptionId }
   }
 
   /**
@@ -119,20 +119,20 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
   test("default 'cancel' policy: routes through HookRegistry → cancel called + customer dropped", async ({
     assert,
   }) => {
-    const { tenant, stripeSubscriptionId } = await seed()
+    const { tenant, providerSubscriptionId } = await seed()
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(wireMock())
+    await billing.__setStripeForTests(wireMock())
 
     // Critical: invoke the registry, not the listener directly.
     const hooks = await app.container.make(HookRegistry)
     await hooks.run('before', 'destroy', { tenant })
 
-    assert.deepEqual(cancelLog, [stripeSubscriptionId], 'cancel called with the active sub id')
+    assert.deepEqual(cancelLog, [providerSubscriptionId], 'cancel called with the active sub id')
 
-    const cus = await StripeCustomer.find(tenant.id)
-    assert.isNull(cus, 'local stripe_customers row removed')
+    const cus = await BillingCustomer.find(tenant.id)
+    assert.isNull(cus, 'local billing_customers row removed')
 
-    const sub = await StripeSubscription.find(stripeSubscriptionId)
+    const sub = await BillingSubscription.find(providerSubscriptionId)
     assert.isNotNull(sub, 'subscription audit row preserved')
     assert.equal(sub?.status, 'canceled')
   })
@@ -146,19 +146,19 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
       billing: { ...cfg.billing!, onTenantDelete: 'detach' },
     } as never)
 
-    const { tenant, stripeSubscriptionId } = await seed()
+    const { tenant, providerSubscriptionId } = await seed()
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(wireMock())
+    await billing.__setStripeForTests(wireMock())
 
     const hooks = await app.container.make(HookRegistry)
     await hooks.run('before', 'destroy', { tenant })
 
     assert.lengthOf(cancelLog, 0, 'detach must not call Stripe cancel')
 
-    const cus = await StripeCustomer.find(tenant.id)
+    const cus = await BillingCustomer.find(tenant.id)
     assert.isNull(cus, 'local mapping still removed')
 
-    const sub = await StripeSubscription.find(stripeSubscriptionId)
+    const sub = await BillingSubscription.find(providerSubscriptionId)
     assert.equal(sub?.status, 'active', 'subscription untouched on detach')
   })
 
@@ -169,19 +169,19 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
       billing: { ...cfg.billing!, onTenantDelete: 'preserve' },
     } as never)
 
-    const { tenant, stripeSubscriptionId } = await seed()
+    const { tenant, providerSubscriptionId } = await seed()
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(wireMock())
+    await billing.__setStripeForTests(wireMock())
 
     const hooks = await app.container.make(HookRegistry)
     await hooks.run('before', 'destroy', { tenant })
 
     assert.lengthOf(cancelLog, 0)
 
-    const cus = await StripeCustomer.find(tenant.id)
+    const cus = await BillingCustomer.find(tenant.id)
     assert.isNotNull(cus, 'preserve keeps the local mapping intact')
 
-    const sub = await StripeSubscription.find(stripeSubscriptionId)
+    const sub = await BillingSubscription.find(providerSubscriptionId)
     assert.isNotNull(sub)
   })
 
@@ -189,12 +189,12 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
     // A tenant may hold more than one active subscription (e.g. a base
     // plan plus an add-on product). The listener loops over all of them;
     // this exercises that loop, not just the single-sub happy path.
-    const { tenant, stripeSubscriptionId: subA } = await seed()
+    const { tenant, providerSubscriptionId: subA } = await seed()
 
     // Seed a second active subscription for the same tenant.
     const subB = `sub_${randomUUID().slice(0, 8)}`
-    const second = new StripeSubscription()
-    second.stripeSubscriptionId = subB
+    const second = new BillingSubscription()
+    second.providerSubscriptionId = subB
     second.tenantId = tenant.id
     second.status = 'active'
     second.currentPeriodStart = DateTime.utc().minus({ days: 2 })
@@ -209,7 +209,7 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
     await second.save()
 
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(wireMock())
+    await billing.__setStripeForTests(wireMock())
 
     const hooks = await app.container.make(HookRegistry)
     await hooks.run('before', 'destroy', { tenant })
@@ -220,9 +220,9 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
       'cancel called for BOTH active subscriptions'
     )
 
-    assert.equal((await StripeSubscription.find(subA))?.status, 'canceled')
-    assert.equal((await StripeSubscription.find(subB))?.status, 'canceled')
-    assert.isNull(await StripeCustomer.find(tenant.id), 'customer mapping dropped')
+    assert.equal((await BillingSubscription.find(subA))?.status, 'canceled')
+    assert.equal((await BillingSubscription.find(subB))?.status, 'canceled')
+    assert.isNull(await BillingCustomer.find(tenant.id), 'customer mapping dropped')
   })
 
   test('without a customer mapping the hook is a no-op', async ({ assert }) => {
@@ -231,7 +231,7 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
     const fakeTenant = { id: t.id, name: t.name, email: t.email } as unknown as TenantModelContract
 
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(wireMock())
+    await billing.__setStripeForTests(wireMock())
 
     const hooks = await app.container.make(HookRegistry)
     await hooks.run('before', 'destroy', { tenant: fakeTenant })

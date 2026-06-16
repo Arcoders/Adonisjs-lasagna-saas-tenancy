@@ -31,12 +31,17 @@ const SRC_ROOTS = [
   fileURLToPath(new URL('../../../backup/src/', import.meta.url)),
 ]
 
-const STATEFUL_SINGLETONS = ['TenantQueueService', 'CircuitBreakerService'] as const
+const STATEFUL_SINGLETONS = [
+  'TenantQueueService',
+  'CircuitBreakerService',
+  'BillingDriverRegistry',
+] as const
 const NEW_STATEFUL = new RegExp(`\\bnew\\s+(${STATEFUL_SINGLETONS.join('|')})\\s*\\(`)
 
 // Files allowed to `new` a stateful singleton: the provider (singleton factory)
 // and each service's own definition module.
-const NEW_ALLOWED = /(multitenancy_provider|tenant_queue_service|circuit_breaker_service)\.ts$/
+const NEW_ALLOWED =
+  /(multitenancy_provider|billing_provider|tenant_queue_service|circuit_breaker_service|billing_driver_registry)\.ts$/
 
 const HTTP_CONTEXT_IMPORT =
   /import\s+(?:type\s+)?\{[^}]*\bHttpContext\b[^}]*\}\s+from\s+['"]@adonisjs\/core\/http['"]/

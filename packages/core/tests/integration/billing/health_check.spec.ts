@@ -4,7 +4,11 @@ import { DateTime } from 'luxon'
 import { randomUUID } from 'node:crypto'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe } from '@adonisjs-lasagna/billing'
-import { StripeCustomer, StripeProcessedEvent, StripeSubscription } from '@adonisjs-lasagna/billing'
+import {
+  BillingCustomer,
+  BillingProcessedEvent,
+  BillingSubscription,
+} from '@adonisjs-lasagna/billing'
 import { billingHealthCheck } from '@adonisjs-lasagna/billing'
 import { SLOW_API_THRESHOLD_MS } from '../../../../../packages/billing/build/src/health/billing_health_check.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
@@ -36,7 +40,7 @@ test.group('billingHealthCheck (integration)', (group) => {
     }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   test('skips when config.billing is not configured', async ({ assert }) => {
@@ -70,7 +74,7 @@ test.group('billingHealthCheck (integration)', (group) => {
   test('passes with no active subs (clean app)', async ({ assert }) => {
     setupBillingConfig({ defaultPlan: 'starter' })
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     const result = await billingHealthCheck()
     assert.equal(result.status, 'pass')
@@ -82,17 +86,17 @@ test.group('billingHealthCheck (integration)', (group) => {
   }) => {
     setupBillingConfig({ defaultPlan: 'starter' })
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const cus = new StripeCustomer()
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()
 
-    const sub = new StripeSubscription()
-    sub.stripeSubscriptionId = `sub_${randomUUID().slice(0, 8)}`
+    const sub = new BillingSubscription()
+    sub.providerSubscriptionId = `sub_${randomUUID().slice(0, 8)}`
     sub.tenantId = tenant.id
     sub.status = 'active'
     sub.currentPeriodStart = DateTime.utc().minus({ days: 1 })
@@ -107,7 +111,7 @@ test.group('billingHealthCheck (integration)', (group) => {
     await sub.save()
 
     // Most recent completed event is 30min old → fail.
-    const evt = new StripeProcessedEvent()
+    const evt = new BillingProcessedEvent()
     evt.eventId = `evt_${randomUUID().slice(0, 8)}`
     evt.eventType = 'customer.subscription.created'
     evt.status = 'completed'
@@ -134,7 +138,7 @@ test.group('billingHealthCheck (integration)', (group) => {
       await new Promise((r) => setTimeout(r, SLOW_API_THRESHOLD_MS + 100))
       return { object: 'balance', available: [], pending: [] }
     }
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     const result = await billingHealthCheck()
     assert.equal(result.status, 'pass')
@@ -153,7 +157,7 @@ test.group('billingHealthCheck (integration)', (group) => {
     mock.balance.retrieve = async () => {
       throw new Error('connection refused')
     }
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     const result = await billingHealthCheck()
     assert.equal(result.status, 'fail')

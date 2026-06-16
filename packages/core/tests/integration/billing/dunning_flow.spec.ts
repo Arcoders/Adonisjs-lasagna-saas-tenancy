@@ -4,9 +4,13 @@ import { randomUUID } from 'node:crypto'
 import emitter from '@adonisjs/core/services/emitter'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe, signWebhookPayload } from '@adonisjs-lasagna/billing'
-import { StripeCustomer, StripeProcessedEvent, StripeSubscription } from '@adonisjs-lasagna/billing'
+import {
+  BillingCustomer,
+  BillingProcessedEvent,
+  BillingSubscription,
+} from '@adonisjs-lasagna/billing'
 import { PaymentFailed, PaymentSucceeded } from '@adonisjs-lasagna/billing'
-import { ProcessStripeEventJob } from '@adonisjs-lasagna/billing'
+import { ProcessBillingEventJob } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, buildEvent, clearBillingTables, hydrateJob } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
@@ -30,7 +34,7 @@ import type Stripe from 'stripe'
 test.group('Dunning state machine (integration)', (group) => {
   const cleanupTenants: string[] = []
   let originalConfig: ReturnType<typeof getConfig>
-  let originalDispatch: typeof ProcessStripeEventJob.dispatch
+  let originalDispatch: typeof ProcessBillingEventJob.dispatch
   let mock: MockStripe
   let pendingJobs: string[] = []
 
@@ -41,16 +45,16 @@ test.group('Dunning state machine (integration)', (group) => {
 
     mock = new MockStripe('whsec_test_billing_helper')
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     // Capture dispatch calls instead of queueing — the test harness has
     // no BullMQ wiring. We run the job inline at the assertion point so
     // every layer (controller insert + job retrieveEvent + dispatcher)
     // is exercised in order.
     pendingJobs = []
-    originalDispatch = ProcessStripeEventJob.dispatch
+    originalDispatch = ProcessBillingEventJob.dispatch
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: (p: { eventId: string }) => Promise<void>
       }
     ).dispatch = async (p) => {
@@ -60,7 +64,7 @@ test.group('Dunning state machine (integration)', (group) => {
 
   group.each.teardown(async () => {
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: typeof originalDispatch
       }
     ).dispatch = originalDispatch
@@ -71,14 +75,14 @@ test.group('Dunning state machine (integration)', (group) => {
     }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   /** Run all dispatched jobs inline (drains pendingJobs). */
   async function flushJobs(): Promise<void> {
     while (pendingJobs.length) {
       const eventId = pendingJobs.shift()!
-      const job = new ProcessStripeEventJob()
+      const job = new ProcessBillingEventJob()
       hydrateJob(job, { eventId })
       await job.execute()
     }
@@ -143,20 +147,20 @@ test.group('Dunning state machine (integration)', (group) => {
 
   async function seedActiveSubscription(): Promise<{
     tenantId: string
-    stripeCustomerId: string
+    providerCustomerId: string
     subId: string
   }> {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     const subId = `sub_${randomUUID().slice(0, 8)}`
-    const sub = new StripeSubscription()
-    sub.stripeSubscriptionId = subId
+    const sub = new BillingSubscription()
+    sub.providerSubscriptionId = subId
     sub.tenantId = tenant.id
     sub.status = 'active'
     sub.currentPeriodStart = DateTime.utc().minus({ days: 5 })
@@ -169,7 +173,7 @@ test.group('Dunning state machine (integration)', (group) => {
     sub.lastEventAt = DateTime.utc().minus({ minutes: 1 })
     sub.raw = {}
     await sub.save()
-    return { tenantId: tenant.id, stripeCustomerId, subId }
+    return { tenantId: tenant.id, providerCustomerId, subId }
   }
 
   test('attempts 1 and 2 emit PaymentFailed{final:false} and status stays active', async ({
@@ -187,7 +191,7 @@ test.group('Dunning state machine (integration)', (group) => {
         client,
         buildInvoiceEvent({
           eventId: 'evt_dun_1',
-          customer: seed.stripeCustomerId,
+          customer: seed.providerCustomerId,
           subscription: seed.subId,
           attemptCount: 1,
         })
@@ -196,7 +200,7 @@ test.group('Dunning state machine (integration)', (group) => {
         client,
         buildInvoiceEvent({
           eventId: 'evt_dun_2',
-          customer: seed.stripeCustomerId,
+          customer: seed.providerCustomerId,
           subscription: seed.subId,
           attemptCount: 2,
         })
@@ -209,11 +213,11 @@ test.group('Dunning state machine (integration)', (group) => {
       assert.equal(captured[0].attempts, 1)
       assert.equal(captured[1].attempts, 2)
 
-      const refreshed = await StripeSubscription.find(seed.subId)
+      const refreshed = await BillingSubscription.find(seed.subId)
       assert.equal(refreshed?.status, 'active', 'status preserved across non-final retries')
 
       // Both events were ledger'd exactly once.
-      const ledger = await StripeProcessedEvent.query().whereIn('event_id', [
+      const ledger = await BillingProcessedEvent.query().whereIn('event_id', [
         'evt_dun_1',
         'evt_dun_2',
       ])
@@ -238,7 +242,7 @@ test.group('Dunning state machine (integration)', (group) => {
         client,
         buildInvoiceEvent({
           eventId: 'evt_dun_final',
-          customer: seed.stripeCustomerId,
+          customer: seed.providerCustomerId,
           subscription: seed.subId,
           attemptCount: 3, // matches default dunning.maxAttempts
         })
@@ -248,7 +252,7 @@ test.group('Dunning state machine (integration)', (group) => {
       assert.lengthOf(finals, 1)
       assert.equal(finals[0], 3)
 
-      const refreshed = await StripeSubscription.find(seed.subId)
+      const refreshed = await BillingSubscription.find(seed.subId)
       assert.equal(refreshed?.status, 'past_due')
     } finally {
       off()
@@ -268,7 +272,7 @@ test.group('Dunning state machine (integration)', (group) => {
     try {
       const evt = buildInvoiceEvent({
         eventId: 'evt_dun_dup',
-        customer: seed.stripeCustomerId,
+        customer: seed.providerCustomerId,
         subscription: seed.subId,
         attemptCount: 3,
       })
@@ -278,7 +282,7 @@ test.group('Dunning state machine (integration)', (group) => {
 
       assert.equal(finalCount, 1, 'final PaymentFailed emitted exactly once')
 
-      const ledger = await StripeProcessedEvent.query().where('event_id', 'evt_dun_dup')
+      const ledger = await BillingProcessedEvent.query().where('event_id', 'evt_dun_dup')
       assert.lengthOf(ledger, 1, 'one ledger row for the duplicated event')
     } finally {
       off()
@@ -306,13 +310,13 @@ test.group('Dunning state machine (integration)', (group) => {
         client,
         buildInvoiceEvent({
           eventId: 'evt_recover_fail',
-          customer: seed.stripeCustomerId,
+          customer: seed.providerCustomerId,
           subscription: seed.subId,
           attemptCount: 3,
         })
       )
       await flushJobs()
-      let mirror = await StripeSubscription.find(seed.subId)
+      let mirror = await BillingSubscription.find(seed.subId)
       assert.equal(mirror?.status, 'past_due')
 
       // 2. Customer pays — payment_succeeded arrives.
@@ -320,14 +324,14 @@ test.group('Dunning state machine (integration)', (group) => {
         client,
         buildPaymentSucceededEvent({
           eventId: 'evt_recover_ok',
-          customer: seed.stripeCustomerId,
+          customer: seed.providerCustomerId,
           subscription: seed.subId,
         })
       )
       await flushJobs()
 
       // 3. Mirror flips back to active automatically.
-      mirror = await StripeSubscription.find(seed.subId)
+      mirror = await BillingSubscription.find(seed.subId)
       assert.equal(mirror?.status, 'active', 'recovery flips past_due → active')
       assert.lengthOf(succeeded, 1)
       assert.equal(succeeded[0], 1000)
@@ -342,7 +346,7 @@ test.group('Dunning state machine (integration)', (group) => {
   }) => {
     // Final invoice for a canceled subscription must not revive it.
     const seed = await seedActiveSubscription()
-    const canceledMirror = await StripeSubscription.find(seed.subId)
+    const canceledMirror = await BillingSubscription.find(seed.subId)
     canceledMirror!.status = 'canceled'
     await canceledMirror!.save()
 
@@ -350,13 +354,13 @@ test.group('Dunning state machine (integration)', (group) => {
       client,
       buildPaymentSucceededEvent({
         eventId: 'evt_late_pay',
-        customer: seed.stripeCustomerId,
+        customer: seed.providerCustomerId,
         subscription: seed.subId,
       })
     )
     await flushJobs()
 
-    const refreshed = await StripeSubscription.find(seed.subId)
+    const refreshed = await BillingSubscription.find(seed.subId)
     assert.equal(refreshed?.status, 'canceled', 'recovery only fires from past_due/unpaid')
   })
 
@@ -371,7 +375,7 @@ test.group('Dunning state machine (integration)', (group) => {
     const seed = await seedActiveSubscription()
     // Bump lastEventAt to "now" so an event with `created = now - 60s`
     // counts as stale (well outside the 5s tolerance).
-    const sub = await StripeSubscription.find(seed.subId)
+    const sub = await BillingSubscription.find(seed.subId)
     sub!.lastEventAt = DateTime.utc()
     await sub!.save()
 
@@ -379,7 +383,7 @@ test.group('Dunning state machine (integration)', (group) => {
       client,
       buildInvoiceEvent({
         eventId: 'evt_stale_fail',
-        customer: seed.stripeCustomerId,
+        customer: seed.providerCustomerId,
         subscription: seed.subId,
         attemptCount: 3,
         created: Math.floor(Date.now() / 1000) - 60,
@@ -387,7 +391,7 @@ test.group('Dunning state machine (integration)', (group) => {
     )
     await flushJobs()
 
-    const refreshed = await StripeSubscription.find(seed.subId)
+    const refreshed = await BillingSubscription.find(seed.subId)
     assert.equal(
       refreshed?.status,
       'active',
@@ -413,7 +417,7 @@ test.group('Dunning state machine (integration)', (group) => {
         client,
         buildInvoiceEvent({
           eventId: 'evt_dun_custom',
-          customer: seed.stripeCustomerId,
+          customer: seed.providerCustomerId,
           subscription: seed.subId,
           attemptCount: 1,
         })

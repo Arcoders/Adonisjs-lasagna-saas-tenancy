@@ -157,9 +157,22 @@ jobs:
       CACHE_REDIS_HOST: 127.0.0.1
       CACHE_REDIS_PORT: 6379
       CACHE_REDIS_DB: 2
-      # Optional Stripe test-mode key (sk_test_…) for stripe_real_smoke.spec.ts.
-      # Unset → spec skips visibly. Add via Settings → Secrets → Actions.
+      # Optional billing real-API smoke keys. Each *_real_smoke.spec.ts skips
+      # visibly when its key is unset. Add via Settings → Secrets → Actions.
+      # Stripe (sk_test_…) for stripe_real_smoke.spec.ts:
       STRIPE_TEST_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
+      # Paddle sandbox for paddle_real_smoke.spec.ts. API key alone runs the
+      # ensureCustomer + webhook round-trip; PRICE_ID adds the live checkout
+      # test; WEBHOOK_SECRET is optional (the round-trip self-signs).
+      PADDLE_TEST_API_KEY: ${{ secrets.PADDLE_TEST_API_KEY }}
+      PADDLE_TEST_PRICE_ID: ${{ secrets.PADDLE_TEST_PRICE_ID }}
+      PADDLE_TEST_WEBHOOK_SECRET: ${{ secrets.PADDLE_TEST_WEBHOOK_SECRET }}
+      # Lemon Squeezy test mode for lemon_squeezy_real_smoke.spec.ts. API key +
+      # STORE_ID run ensureCustomer + webhook round-trip (verifyConfig needs the
+      # store id); VARIANT_ID adds the live checkout test.
+      LEMONSQUEEZY_TEST_API_KEY: ${{ secrets.LEMONSQUEEZY_TEST_API_KEY }}
+      LEMONSQUEEZY_TEST_STORE_ID: ${{ secrets.LEMONSQUEEZY_TEST_STORE_ID }}
+      LEMONSQUEEZY_TEST_VARIANT_ID: ${{ secrets.LEMONSQUEEZY_TEST_VARIANT_ID }}
       # MinIO (S3) for backup_s3.spec.ts. Unset → spec skips.
       BACKUP_S3_ENDPOINT: http://127.0.0.1:9000
       BACKUP_S3_BUCKET: lasagna-test

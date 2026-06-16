@@ -5,7 +5,7 @@ export default class SubscriptionActivated extends BaseEvent {
   constructor(
     readonly payload: {
       tenantId: string
-      stripeSubscriptionId: string
+      subscriptionId: string
       planName: string
     }
   ) {

@@ -4,8 +4,8 @@ import { randomUUID } from 'node:crypto'
 import { DateTime } from 'luxon'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe, signWebhookPayload } from '@adonisjs-lasagna/billing'
-import { StripeCustomer, StripeSubscription } from '@adonisjs-lasagna/billing'
-import { ProcessStripeEventJob } from '@adonisjs-lasagna/billing'
+import { BillingCustomer, BillingSubscription } from '@adonisjs-lasagna/billing'
+import { ProcessBillingEventJob } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import {
   setupBillingConfig,
@@ -36,7 +36,7 @@ test.group('PII redaction (integration)', (group) => {
   const cleanupTenants: string[] = []
   let originalConfig: ReturnType<typeof getConfig>
   let originalStdoutWrite: typeof process.stdout.write
-  let originalDispatch: typeof ProcessStripeEventJob.dispatch
+  let originalDispatch: typeof ProcessBillingEventJob.dispatch
   let captured: string[] = []
   let pendingJobs: string[] = []
 
@@ -69,9 +69,9 @@ test.group('PII redaction (integration)', (group) => {
     }) as typeof process.stdout.write
 
     pendingJobs = []
-    originalDispatch = ProcessStripeEventJob.dispatch
+    originalDispatch = ProcessBillingEventJob.dispatch
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: (p: { eventId: string }) => Promise<void>
       }
     ).dispatch = async (p) => {
@@ -82,7 +82,7 @@ test.group('PII redaction (integration)', (group) => {
   group.each.teardown(async () => {
     process.stdout.write = originalStdoutWrite
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: typeof originalDispatch
       }
     ).dispatch = originalDispatch
@@ -93,14 +93,14 @@ test.group('PII redaction (integration)', (group) => {
     }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   /** Run any dispatched jobs inline (drains pendingJobs). */
   async function flushJobs(): Promise<void> {
     while (pendingJobs.length) {
       const eventId = pendingJobs.shift()!
-      const job = new ProcessStripeEventJob()
+      const job = new ProcessBillingEventJob()
       hydrateJob(job, { eventId })
       await job.execute().catch(() => {})
     }
@@ -112,16 +112,16 @@ test.group('PII redaction (integration)', (group) => {
   }) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     // Pre-existing subscription so the ordering guard's stale branch fires.
     const subId = `sub_${randomUUID().slice(0, 8)}`
-    const stale = new StripeSubscription()
-    stale.stripeSubscriptionId = subId
+    const stale = new BillingSubscription()
+    stale.providerSubscriptionId = subId
     stale.tenantId = tenant.id
     stale.status = 'active'
     stale.currentPeriodStart = DateTime.utc().minus({ days: 1 })
@@ -137,14 +137,14 @@ test.group('PII redaction (integration)', (group) => {
 
     const billing = await app.container.make(BillingService)
     const mock = new MockStripe('whsec_test_billing_helper')
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     // Hostile event payload — every PII landmine. The redacted output
-    // should land in stripe_processed_events.payload AND in the logs
+    // should land in billing_processed_events.payload AND in the logs
     // without these fields.
     const sub = buildSubscription({
       id: subId,
-      customer: stripeCustomerId,
+      customer: providerCustomerId,
       productId: 'prod_pro',
     })
     const hostile = buildEvent(
@@ -191,7 +191,7 @@ test.group('PII redaction (integration)', (group) => {
     }
 
     // Anchor the redaction check: the persisted payload (which the
-    // controller writes to `stripe_processed_events.payload`) goes
+    // controller writes to `billing_processed_events.payload`) goes
     // through `redactStripeEvent()`, so if the FORBIDDEN scan above
     // is vacuous (Pino's worker transport can bypass our
     // `process.stdout.write` patch when running through
@@ -199,7 +199,7 @@ test.group('PII redaction (integration)', (group) => {
     // path actually ran on the hostile event.
     const ledger = await (
       await import('@adonisjs-lasagna/billing')
-    ).StripeProcessedEvent.find('evt_pii_check')
+    ).BillingProcessedEvent.find('evt_pii_check')
     assert.isNotNull(ledger, 'controller wrote the idempotency ledger row')
     const payload = JSON.stringify(ledger?.payload ?? {})
     for (const needle of FORBIDDEN) {
@@ -216,7 +216,7 @@ test.group('PII redaction (integration)', (group) => {
     // a connection error explicitly to reach the failed() path.)
     const billing = await app.container.make(BillingService)
     const mock = new MockStripe('whsec_test_billing_helper')
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
     ;(mock.events as { retrieve: (id: string) => Promise<Stripe.Event> }).retrieve = async () => {
       throw Object.assign(new Error('socket hang up while reading cus_secret_pii'), {
         type: 'StripeConnectionError',
@@ -225,7 +225,7 @@ test.group('PII redaction (integration)', (group) => {
 
     // Seed a ledger row directly (skip the controller).
     const eventId = 'evt_failed_classify'
-    const row = new (await import('@adonisjs-lasagna/billing')).StripeProcessedEvent()
+    const row = new (await import('@adonisjs-lasagna/billing')).BillingProcessedEvent()
     row.eventId = eventId
     row.eventType = 'customer.subscription.created'
     row.status = 'pending'
@@ -233,7 +233,7 @@ test.group('PII redaction (integration)', (group) => {
     row.payload = null
     await row.save()
 
-    const job = new ProcessStripeEventJob()
+    const job = new ProcessBillingEventJob()
     hydrateJob(job, { eventId })
 
     let thrown: unknown
@@ -252,7 +252,7 @@ test.group('PII redaction (integration)', (group) => {
     // message, never the raw driver text or the leaked customer id.
     const updated = await (
       await import('@adonisjs-lasagna/billing')
-    ).StripeProcessedEvent.find(eventId)
+    ).BillingProcessedEvent.find(eventId)
     assert.isNotNull(updated)
     assert.notInclude(updated?.lastError ?? '', 'cus_secret_pii')
     assert.notInclude(updated?.lastError ?? '', 'socket hang up')

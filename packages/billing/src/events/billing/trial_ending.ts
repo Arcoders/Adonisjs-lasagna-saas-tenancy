@@ -9,7 +9,7 @@ export default class TrialEnding extends BaseEvent {
   constructor(
     readonly payload: {
       tenantId: string
-      stripeSubscriptionId: string
+      subscriptionId: string
       daysLeft: number
     }
   ) {

@@ -18,7 +18,7 @@ import {
   TenantPlan,
 } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { BillingService, MockStripe, StripeCustomer } from '@adonisjs-lasagna/billing'
+import { BillingService, MockStripe, BillingCustomer } from '@adonisjs-lasagna/billing'
 import { setupBillingConfig, clearBillingTables } from './billing/helpers.js'
 import { createTestTenant, destroyTestTenant } from './helpers/tenant.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
@@ -87,7 +87,7 @@ test.group('Satellite coexistence (integration)', (group) => {
     while (tenants.length) await cleanupTenant(tenants.pop()!)
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   test('every satellite persists for one tenant without interfering', async ({ assert }) => {
@@ -113,7 +113,7 @@ test.group('Satellite coexistence (integration)', (group) => {
     await quota.assignPlan(t.id, 'pro')
     // billing (MockStripe — auto-creates the Stripe customer mirror)
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
     await billing.createCheckoutSession(asTenant(t), {
       priceId: 'price_pro_monthly',
       successUrl: 'https://app.example.com/ok',
@@ -143,7 +143,7 @@ test.group('Satellite coexistence (integration)', (group) => {
     const plan = await TenantPlan.find(t.id)
     assert.equal(plan!.planName, 'pro')
 
-    const customer = await StripeCustomer.find(t.id)
+    const customer = await BillingCustomer.find(t.id)
     assert.isNotNull(customer, 'billing created the Stripe customer mirror')
   })
 
@@ -192,7 +192,7 @@ test.group('Satellite coexistence (integration)', (group) => {
 
     // "Newly added": billing.
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
     await billing.createCheckoutSession(asTenant(t), {
       priceId: 'price_pro_monthly',
       successUrl: 'https://app.example.com/ok',
@@ -206,6 +206,6 @@ test.group('Satellite coexistence (integration)', (group) => {
     assert.equal((await new BrandingService().getForTenant(t.id))!.fromName, 'Before Billing')
     assert.lengthOf(await new WebhookService().listWebhooks(t.id), 1)
     // And billing is now present.
-    assert.isNotNull(await StripeCustomer.find(t.id))
+    assert.isNotNull(await BillingCustomer.find(t.id))
   })
 })

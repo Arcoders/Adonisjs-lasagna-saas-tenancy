@@ -2,7 +2,7 @@
   "commands": [
     {
       "commandName": "tenant:billing:sync",
-      "description": "Reconcile Stripe subscriptions with the local mirror — recovers from missed webhooks",
+      "description": "Reconcile provider subscriptions with the local mirror — recovers from missed webhooks (Stripe driver)",
       "help": "Suggested cron: 0 4 * * * node ace tenant:billing:sync --json",
       "namespace": "tenant",
       "aliases": [],
@@ -38,7 +38,7 @@
       "namespace": "tenant",
       "aliases": [],
       "flags": [
-        { "name": "eventId", "flagName": "event-id", "required": false, "type": "string", "description": "Specific Stripe event id (evt_xxx)" },
+        { "name": "eventId", "flagName": "event-id", "required": false, "type": "string", "description": "Specific provider event id" },
         { "name": "allFailed", "flagName": "all-failed", "required": false, "type": "boolean", "description": "Replay every event currently in status=failed" }
       ],
       "args": [],
@@ -47,7 +47,7 @@
     },
     {
       "commandName": "tenant:billing:cleanup",
-      "description": "Purge stripe_processed_events older than the configured retention window",
+      "description": "Purge billing_processed_events older than the configured retention window",
       "help": "Suggested cron: 0 4 * * * node ace tenant:billing:cleanup",
       "namespace": "tenant",
       "aliases": [],
@@ -60,7 +60,7 @@
     },
     {
       "commandName": "tenant:billing:doctor",
-      "description": "Diagnose Stripe billing config + recent webhook health",
+      "description": "Diagnose billing config + recent webhook health",
       "help": "Exit code 1 when any check is in error state — pipeline-friendly",
       "namespace": "tenant",
       "aliases": [],

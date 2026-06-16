@@ -4,10 +4,12 @@ import { HookRegistry } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantQuotaExceeded, QuotaTracked } from '@adonisjs-lasagna/saas-tenancy/events'
 import type { MultitenancyConfig } from '@adonisjs-lasagna/saas-tenancy/types'
 import BillingService from '../src/services/billing_service.js'
+import BillingDriverRegistry from '../src/services/billing/billing_driver_registry.js'
+import type { BillingProviderContract } from '../src/contracts/billing_provider_contract.js'
 import UsageAutoBridgeListener from '../src/listeners/usage_auto_bridge_listener.js'
 import QuotaExceededBillingListener from '../src/listeners/quota_exceeded_billing_listener.js'
 import TenantDestroyBillingListener from '../src/listeners/tenant_destroy_billing_listener.js'
-import ProcessStripeEventJob from '../src/jobs/process_stripe_event_job.js'
+import ProcessBillingEventJob from '../src/jobs/process_billing_event_job.js'
 import BillingCleanupJob from '../src/jobs/billing_cleanup_job.js'
 import ReportUsageBatchJob from '../src/jobs/report_usage_batch_job.js'
 
@@ -28,19 +30,56 @@ export default class BillingProvider {
   constructor(protected app: ApplicationService) {}
 
   register() {
+    this.app.container.singleton(BillingDriverRegistry, () => new BillingDriverRegistry())
     this.app.container.singleton(BillingService, () => new BillingService())
     this.app.container.singleton(UsageAutoBridgeListener, () => new UsageAutoBridgeListener())
   }
 
   async boot() {
     const config = this.app.config.get<MultitenancyConfig>('multitenancy')
-    // Validate billing config + Stripe SDK availability eagerly, so a missing
-    // peer dep / wrong-mode key blows up at boot instead of at the first
-    // webhook (where the failure manifests as a 500 in front of Stripe's
+    if (!config?.billing) return
+
+    // Seed the active driver from config.billing.driver, then validate eagerly
+    // so a missing peer dep / wrong-mode key / malformed secret blows up at
+    // boot instead of at the first webhook (a 500 in front of the provider's
     // retry tier).
-    if (config?.billing) {
-      const billing = await this.app.container.make(BillingService)
-      await billing.verify()
+    const registry = await this.app.container.make(BillingDriverRegistry)
+    const choice = config.billing.driver ?? 'stripe'
+    if (!registry.has(choice)) {
+      registry.register(await this.#instantiateDriver(choice), { activate: true })
+    } else {
+      registry.use(choice)
+    }
+
+    const billing = await this.app.container.make(BillingService)
+    await billing.verify()
+  }
+
+  /**
+   * Construct a built-in driver by name. Custom drivers are registered by the
+   * host app on `BillingDriverRegistry` before boot, so they're already present
+   * (the `registry.has(choice)` guard skips this path for them).
+   */
+  async #instantiateDriver(choice: string): Promise<BillingProviderContract> {
+    switch (choice) {
+      case 'stripe': {
+        const { default: StripeDriver } = await import('../src/drivers/stripe/stripe_driver.js')
+        return new StripeDriver()
+      }
+      case 'paddle': {
+        const { default: PaddleDriver } = await import('../src/drivers/paddle/paddle_driver.js')
+        return new PaddleDriver()
+      }
+      case 'lemonsqueezy': {
+        const { default: LemonSqueezyDriver } =
+          await import('../src/drivers/lemon_squeezy/lemon_squeezy_driver.js')
+        return new LemonSqueezyDriver()
+      }
+      default:
+        throw new Error(
+          `[billing] unknown driver "${choice}". Register a custom driver on ` +
+            `BillingDriverRegistry before boot, or use 'stripe' | 'paddle' | 'lemonsqueezy'.`
+        )
     }
   }
 
@@ -59,7 +98,7 @@ export default class BillingProvider {
   async #registerBillingJobs(): Promise<void> {
     try {
       const { Locator } = await import('@adonisjs/queue')
-      for (const JobClass of [ProcessStripeEventJob, BillingCleanupJob, ReportUsageBatchJob]) {
+      for (const JobClass of [ProcessBillingEventJob, BillingCleanupJob, ReportUsageBatchJob]) {
         const J = JobClass as unknown as { name: string; options?: { name?: string } }
         Locator.register(J.options?.name ?? J.name, JobClass as never)
       }

@@ -1,7 +1,7 @@
 {
   "name": "@adonisjs-lasagna/billing",
   "version": "0.1.0",
-  "description": "Stripe billing for @adonisjs-lasagna/saas-tenancy: webhook pipeline, subscriptions, metered usage, dunning, and the billing ace commands",
+  "description": "Multi-provider billing for @adonisjs-lasagna/saas-tenancy: Stripe, Paddle & Lemon Squeezy drivers behind one contract — webhook pipeline, subscriptions, metered usage, dunning, and the billing ace commands",
   "type": "module",
   "license": "MIT",
   "author": "Ismael Haytam Tanane",
@@ -22,7 +22,10 @@
     "saas-tenancy",
     "multitenancy",
     "billing",
-    "stripe"
+    "payments",
+    "stripe",
+    "paddle",
+    "lemonsqueezy"
   ],
   "engines": {
     "node": ">=24.0.0"

@@ -4,8 +4,12 @@ import { randomUUID } from 'node:crypto'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe, signWebhookPayload } from '@adonisjs-lasagna/billing'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { StripeCustomer, StripeSubscription, StripeProcessedEvent } from '@adonisjs-lasagna/billing'
-import { ProcessStripeEventJob } from '@adonisjs-lasagna/billing'
+import {
+  BillingCustomer,
+  BillingSubscription,
+  BillingProcessedEvent,
+} from '@adonisjs-lasagna/billing'
+import { ProcessBillingEventJob } from '@adonisjs-lasagna/billing'
 import { BillingException } from '@adonisjs-lasagna/billing'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import {
@@ -30,7 +34,7 @@ import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 test.group('BillingService.retrieveEvent — local payload fallback (integration)', (group) => {
   const cleanupTenants: string[] = []
   let originalConfig: ReturnType<typeof getConfig>
-  let originalDispatch: typeof ProcessStripeEventJob.dispatch
+  let originalDispatch: typeof ProcessBillingEventJob.dispatch
   let pendingJobs: string[] = []
 
   group.each.setup(async () => {
@@ -40,9 +44,9 @@ test.group('BillingService.retrieveEvent — local payload fallback (integration
 
     // Capture dispatched job ids so we can drain them inline.
     pendingJobs = []
-    originalDispatch = ProcessStripeEventJob.dispatch
+    originalDispatch = ProcessBillingEventJob.dispatch
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: (p: { eventId: string }) => Promise<void>
       }
     ).dispatch = async (p) => {
@@ -52,7 +56,7 @@ test.group('BillingService.retrieveEvent — local payload fallback (integration
 
   group.each.teardown(async () => {
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: typeof originalDispatch
       }
     ).dispatch = originalDispatch
@@ -63,43 +67,43 @@ test.group('BillingService.retrieveEvent — local payload fallback (integration
     }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   async function flushJobs(): Promise<void> {
     while (pendingJobs.length) {
       const eventId = pendingJobs.shift()!
-      const job = new ProcessStripeEventJob()
+      const job = new ProcessBillingEventJob()
       hydrateJob(job, { eventId })
       await job.execute()
     }
   }
 
-  async function seedCustomer(): Promise<{ tenantId: string; stripeCustomerId: string }> {
+  async function seedCustomer(): Promise<{ tenantId: string; providerCustomerId: string }> {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const stripeCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
-    return { tenantId: tenant.id, stripeCustomerId }
+    return { tenantId: tenant.id, providerCustomerId }
   }
 
   test('aged-out event: rebuilt from local payload → mapped plan assigned', async ({
     assert,
     client,
   }) => {
-    const { tenantId, stripeCustomerId } = await seedCustomer()
+    const { tenantId, providerCustomerId } = await seedCustomer()
 
     const billing = await app.container.make(BillingService)
     const mock = new MockStripe('whsec_test_billing_helper')
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     const subId = `sub_replay_${randomUUID().slice(0, 8)}`
     const sub = buildSubscription({
       id: subId,
-      customer: stripeCustomerId,
+      customer: providerCustomerId,
       productId: 'prod_pro',
       status: 'active',
     })
@@ -118,7 +122,7 @@ test.group('BillingService.retrieveEvent — local payload fallback (integration
       .json(event)
     res.assertStatus(200)
 
-    const ledger = await StripeProcessedEvent.find('evt_replay_agedout')
+    const ledger = await BillingProcessedEvent.find('evt_replay_agedout')
     assert.isNotNull(ledger, 'controller wrote the ledger row + payload')
     assert.isObject(ledger?.payload, 'payload persisted')
 
@@ -127,7 +131,7 @@ test.group('BillingService.retrieveEvent — local payload fallback (integration
     await flushJobs()
 
     // 3) Faithful reconstruction proof: mapped plan, not the default.
-    const mirror = await StripeSubscription.find(subId)
+    const mirror = await BillingSubscription.find(subId)
     assert.isNotNull(mirror, 'subscription mirror written from the rebuilt event')
     assert.equal(mirror?.status, 'active')
     assert.equal(mirror?.planName, 'pro')
@@ -135,7 +139,7 @@ test.group('BillingService.retrieveEvent — local payload fallback (integration
     const tenantPlan = await TenantPlan.find(tenantId)
     assert.equal(tenantPlan?.planName, 'pro', 'tenant on mapped plan — reconstruction was faithful')
 
-    const processed = await StripeProcessedEvent.find('evt_replay_agedout')
+    const processed = await BillingProcessedEvent.find('evt_replay_agedout')
     assert.equal(processed?.status, 'completed')
   })
 
@@ -143,10 +147,10 @@ test.group('BillingService.retrieveEvent — local payload fallback (integration
     assert,
   }) => {
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     // Ledger row exists but payload is null (legacy / hand-dispatched).
-    const row = new StripeProcessedEvent()
+    const row = new BillingProcessedEvent()
     row.eventId = 'evt_no_payload'
     row.eventType = 'customer.subscription.updated'
     row.status = 'pending'

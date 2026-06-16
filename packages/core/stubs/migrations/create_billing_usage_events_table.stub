@@ -1,17 +1,24 @@
+{{{
+  exports({ to: app.migrationsPath(`${Date.now()}_create_billing_usage_events_table.ts`) })
+}}}
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
 /**
- * Audit ledger for usage-based / metered billing reports. Each row maps to one
- * `stripe.billing.meterEvents.create` call. `idempotency_key` is unique at the
- * DB layer (defense in depth) and sent to Stripe as `Idempotency-Key`.
+ * Audit ledger for usage-based / metered billing reports. Each row corresponds
+ * to one report through the active driver's metering API. `provider` records
+ * which driver it was sent through.
+ *
+ * `idempotency_key` is unique at the DB layer (defense in depth) AND sent to
+ * the provider, so retries from this side never produce duplicate meter events.
  */
 export default class extends BaseSchema {
-  protected tableName = 'stripe_meter_events'
+  protected tableName = 'billing_usage_events'
 
   async up() {
     this.schema.raw('CREATE EXTENSION IF NOT EXISTS pgcrypto')
     this.schema.withSchema('backoffice').createTable(this.tableName, (table) => {
       table.uuid('id').primary().defaultTo(this.db.rawQuery('gen_random_uuid()').knexQuery)
+      table.string('provider').notNullable()
       table.uuid('tenant_id').notNullable().index()
       table.string('meter_event_name').notNullable()
       table.bigInteger('quantity').notNullable()

@@ -1,25 +1,31 @@
 import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import app from '@adonisjs/core/services/app'
+import type Stripe from 'stripe'
 import BillingService from '../services/billing_service.js'
-import StripeSubscription from '../models/satellites/stripe_subscription.js'
-import StripeCustomer from '../models/satellites/stripe_customer.js'
+import BillingSubscription from '../models/satellites/billing_subscription.js'
+import BillingCustomer from '../models/satellites/billing_customer.js'
+import { getActiveBillingDriver } from '../services/billing/active_billing_driver.js'
+import { toSubscription } from '../drivers/stripe/stripe_mapper.js'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 
 /**
- * Reconcile drift between Stripe and our local mirror. Run as a daily cron
- * to recover from missed webhooks (Stripe outages, queue backlog).
+ * Reconcile drift between the provider and our local mirror. Run as a daily
+ * cron to recover from missed webhooks (provider outages, queue backlog).
  *
- * Idempotent: re-applying the same Stripe state via `syncSubscription` is
- * a no-op (the ordering guard handles redelivery; same plan = no quota
- * cache bust).
+ * Reconciliation pulls the provider's full subscription list, which is a
+ * provider-specific operation — this command currently supports the **Stripe**
+ * driver. (Paddle / Lemon Squeezy reconcile commands are a fast follow-up.)
+ *
+ * Idempotent: re-applying the same remote state via `syncSubscription` is a
+ * no-op (the ordering guard handles redelivery; same plan = no quota bust).
  */
 export default class BillingSync extends BaseCommand {
   static readonly commandName = 'tenant:billing:sync'
   static readonly description =
-    'Reconcile Stripe subscriptions with the local mirror — recovers from missed webhooks'
+    'Reconcile provider subscriptions with the local mirror — recovers from missed webhooks (Stripe driver)'
   static readonly options: CommandOptions = { startApp: true }
 
   @flags.boolean({
@@ -45,8 +51,16 @@ export default class BillingSync extends BaseCommand {
   declare json: boolean
 
   async run() {
+    const driver = await getActiveBillingDriver()
+    if (driver.name !== 'stripe') {
+      this.logger.warning(
+        `tenant:billing:sync currently supports only the Stripe driver (active: "${driver.name}"). Skipping.`
+      )
+      return
+    }
+
     const billing = await app.container.make(BillingService)
-    const stripe = await billing.getClient()
+    const stripe = (await billing.getClient()) as Stripe
 
     let scanned = 0
     let drifted = 0
@@ -55,13 +69,13 @@ export default class BillingSync extends BaseCommand {
 
     let customerFilter: string | undefined
     if (this.tenant) {
-      const c = await StripeCustomer.find(this.tenant)
+      const c = await BillingCustomer.find(this.tenant)
       if (!c) {
-        this.logger.error(`No Stripe customer for tenant ${this.tenant}`)
+        this.logger.error(`No billing customer for tenant ${this.tenant}`)
         this.exitCode = 1
         return
       }
-      customerFilter = c.stripeCustomerId
+      customerFilter = c.providerCustomerId
     }
 
     const params: Record<string, unknown> = { status: 'all', limit: 100 }
@@ -76,51 +90,48 @@ export default class BillingSync extends BaseCommand {
       params.created = { gte: Math.floor(ts / 1000) }
     }
 
-    // Stripe's list methods return an auto-paginating async iterator
-    // when used with `for await`. The cast widens the typed `params` for
-    // the SDK's discriminated union without dropping field validation
-    // (we already validated `since` above and Stripe ignores extras).
     const subs = stripe.subscriptions.list(
       params as Parameters<typeof stripe.subscriptions.list>[0]
     )
     for await (const sub of subs) {
       scanned += 1
-      const local = await StripeSubscription.find(sub.id)
+      const neutral = toSubscription(sub)
+      const local = await BillingSubscription.find(neutral.providerSubscriptionId)
       const localStatus = local?.status
-      const remoteStatus = sub.status
+      const remoteStatus = neutral.status
       const isDrift = !local || localStatus !== remoteStatus
 
       if (!isDrift) continue
       drifted += 1
 
       if (this.dryRun) {
-        this.logger.warning(`drift  ${sub.id}  ${localStatus ?? '(missing)'} → ${remoteStatus}`)
+        this.logger.warning(
+          `drift  ${neutral.providerSubscriptionId}  ${localStatus ?? '(missing)'} → ${remoteStatus}`
+        )
         continue
       }
 
       try {
-        // The sync uses the event's `created` timestamp for the ordering
-        // guard. For a manual reconcile, pass `now` so we always overwrite
-        // (this is the operator's explicit "I trust Stripe" signal).
-        await billing.syncSubscription(sub, Math.floor(Date.now() / 1000), {
+        // For a manual reconcile, pass `now` for the ordering guard so we always
+        // overwrite (the operator's explicit "I trust the provider" signal).
+        await billing.syncSubscription(neutral, Math.floor(Date.now() / 1000), {
           downgrade: remoteStatus === 'canceled',
         })
         repaired += 1
-        this.logger.success(`repaired  ${sub.id}  ${localStatus ?? '(missing)'} → ${remoteStatus}`)
+        this.logger.success(
+          `repaired  ${neutral.providerSubscriptionId}  ${localStatus ?? '(missing)'} → ${remoteStatus}`
+        )
       } catch (err) {
         const message = (err as Error)?.message ?? 'unknown error'
-        errors.push({ subscription_id: sub.id, error: message })
-        this.logger.error(`failed   ${sub.id}: ${message}`)
+        errors.push({ subscription_id: neutral.providerSubscriptionId, error: message })
+        this.logger.error(`failed   ${neutral.providerSubscriptionId}: ${message}`)
       }
     }
 
-    // Reverse pass — find tenants whose tenant_plans claims a Stripe-priced
-    // plan but whose local mirror has no active subscription. Possible
-    // causes: a `customer.subscription.deleted` webhook was missed BEFORE
-    // this command ran (the forward pass would have caught it via Stripe's
-    // listing), the stripe_subscriptions row was manually deleted, or the
-    // tenant_plans row was migrated from another system. Recovery is to
-    // downgrade them back to defaultPlan.
+    // Reverse pass — tenants whose tenant_plans claims a provider-priced plan
+    // but whose local mirror has no active subscription (a missed
+    // `subscription.deleted`, a manual row delete, or a migrated plan row).
+    // Recovery is to downgrade them back to defaultPlan.
     const cfg = getConfig().billing
     const defaultPlan = cfg?.defaultPlan
     let orphanedPlans = 0
@@ -128,12 +139,12 @@ export default class BillingSync extends BaseCommand {
     if (defaultPlan) {
       const ACTIVE_STATUSES = ['active', 'trialing', 'past_due', 'paused', 'unpaid']
       const orphanQuery = TenantPlan.query()
-        .where('source', 'stripe')
-        .whereNot('planName', defaultPlan) // already on default ⇒ not an orphan
+        .where('source', driver.name)
+        .whereNot('planName', defaultPlan)
       if (this.tenant) orphanQuery.where('tenantId', this.tenant)
-      const stripePlanRows = await orphanQuery
-      for (const row of stripePlanRows) {
-        const liveSub = await StripeSubscription.query()
+      const planRows = await orphanQuery
+      for (const row of planRows) {
+        const liveSub = await BillingSubscription.query()
           .where('tenantId', row.tenantId)
           .whereIn('status', ACTIVE_STATUSES)
           .first()
@@ -141,7 +152,7 @@ export default class BillingSync extends BaseCommand {
         orphanedPlans += 1
         if (this.dryRun) {
           this.logger.warning(
-            `orphan ${row.tenantId} plan=${row.planName} (source=stripe, no active subscription)`
+            `orphan ${row.tenantId} plan=${row.planName} (source=${driver.name}, no active subscription)`
           )
           continue
         }
@@ -158,14 +169,7 @@ export default class BillingSync extends BaseCommand {
       }
     }
 
-    const summary = {
-      scanned,
-      drifted,
-      repaired,
-      orphanedPlans,
-      orphansRepaired,
-      errors,
-    }
+    const summary = { scanned, drifted, repaired, orphanedPlans, orphansRepaired, errors }
     if (this.json) {
       this.logger.log(JSON.stringify(summary, null, 2))
     } else {

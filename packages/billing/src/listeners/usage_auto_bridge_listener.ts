@@ -22,7 +22,7 @@ const DEFAULT_FLUSH_MS = 10_000
  *
  * Why in-memory (not Redis): the worst-case loss on a process crash is
  * one bucket's worth (~10s) of usage data. The DB row in
- * `stripe_meter_events` lands ONLY after the flush succeeds, so we never
+ * `billing_usage_events` lands ONLY after the flush succeeds, so we never
  * "report and lose audit" — we either lose both or persist both. For
  * higher durability needs, a v1.1 enhancement would buffer to a Redis
  * sorted-set that workers atomically drain.

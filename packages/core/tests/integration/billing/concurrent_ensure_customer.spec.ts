@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe } from '@adonisjs-lasagna/billing'
-import { StripeCustomer } from '@adonisjs-lasagna/billing'
+import { BillingCustomer } from '@adonisjs-lasagna/billing'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
@@ -13,7 +13,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
  * provide that guarantee in tandem:
  *   - Stripe `Idempotency-Key: tenant:<id>:create-customer` → Stripe
  *     dedupes API-side, so even N parallel hits get back the same customer.
- *   - Local UNIQUE constraint on `stripe_customers.tenant_id` (the PK) →
+ *   - Local UNIQUE constraint on `billing_customers.tenant_id` (the PK) →
  *     the second writer's INSERT loses; we re-SELECT and return the winner.
  *
  * This spec runs N parallel ensureCustomer calls on the same tenant and
@@ -37,7 +37,7 @@ test.group('BillingService.ensureCustomer — concurrency (integration)', (group
     }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   test('50 parallel calls produce exactly one customer row', async ({ assert }) => {
@@ -51,7 +51,7 @@ test.group('BillingService.ensureCustomer — concurrency (integration)', (group
 
     const billing = await app.container.make(BillingService)
     const mock = new MockStripe('whsec_test_billing_helper')
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     const calls = await Promise.allSettled(
       Array.from({ length: 50 }, () => billing.ensureCustomer(fakeTenant))
@@ -63,12 +63,13 @@ test.group('BillingService.ensureCustomer — concurrency (integration)', (group
     // Every fulfilled value points to the same local row.
     const customerIds = new Set(
       fulfilled.map(
-        (c) => (c as PromiseFulfilledResult<{ stripeCustomerId: string }>).value.stripeCustomerId
+        (c) =>
+          (c as PromiseFulfilledResult<{ providerCustomerId: string }>).value.providerCustomerId
       )
     )
     assert.lengthOf([...customerIds], 1, 'all callers returned the same stripe_customer_id')
 
-    const rows = await StripeCustomer.query().where('tenant_id', tenant.id)
+    const rows = await BillingCustomer.query().where('tenant_id', tenant.id)
     assert.lengthOf(rows, 1, 'exactly one DB row')
 
     // The Stripe-side idempotency key was hit on the second through Nth
@@ -92,7 +93,7 @@ test.group('BillingService.ensureCustomer — concurrency (integration)', (group
 
     const billing = await app.container.make(BillingService)
     const mock = new MockStripe('whsec_test_billing_helper')
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     const first = await billing.ensureCustomer(fakeTenant)
     const beforeIdempotencyHit = mock.idempotencyHits(`tenant:${tenant.id}:create-customer`)
@@ -100,11 +101,11 @@ test.group('BillingService.ensureCustomer — concurrency (integration)', (group
     // Replace the mock with a fresh one — proves the second call did NOT
     // hit Stripe at all (it short-circuits on the local row lookup).
     const freshMock = new MockStripe('whsec_test_billing_helper')
-    billing.__setStripeForTests(freshMock)
+    await billing.__setStripeForTests(freshMock)
 
     const second = await billing.ensureCustomer(fakeTenant)
 
-    assert.equal(second.stripeCustomerId, first.stripeCustomerId)
+    assert.equal(second.providerCustomerId, first.providerCustomerId)
     assert.isTrue(beforeIdempotencyHit, 'first call reached Stripe')
     assert.isFalse(
       freshMock.idempotencyHits(`tenant:${tenant.id}:create-customer`),

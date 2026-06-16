@@ -5,27 +5,57 @@ export type {
   CreatePortalOptions,
   ReportUsageOptions,
 } from './services/billing_service.js'
-export { redactStripeEvent } from './services/billing/redact.js'
-export type { RedactedStripeEvent } from './services/billing/redact.js'
+export { redactBillingEvent } from './services/billing/redact.js'
+export type { RedactedBillingEvent } from './services/billing/redact.js'
 
-// Stripe satellite models
-export { default as StripeCustomer } from './models/satellites/stripe_customer.js'
-export { default as StripeSubscription } from './models/satellites/stripe_subscription.js'
-export type { StripeSubscriptionStatus } from './models/satellites/stripe_subscription.js'
-export { default as StripeProcessedEvent } from './models/satellites/stripe_processed_event.js'
-export type { StripeProcessedEventStatus } from './models/satellites/stripe_processed_event.js'
-export { default as StripeMeterEvent } from './models/satellites/stripe_meter_event.js'
-export type { StripeMeterEventStatus } from './models/satellites/stripe_meter_event.js'
+// Driver contract + neutral model (the public extension seam)
+export type { BillingProviderContract } from './contracts/billing_provider_contract.js'
+export type {
+  BillingCapability,
+  BillingDriverName,
+  BillingEventType,
+  BillingWebhookEvent,
+  CheckoutCompleted,
+  CheckoutOptions,
+  Customer,
+  CustomerRef,
+  Invoice,
+  PortalOptions,
+  Price,
+  Subscription,
+  SubscriptionStatus,
+  UsageOptions,
+} from './contracts/types.js'
+export { default as BillingDriverRegistry } from './services/billing/billing_driver_registry.js'
+export {
+  getActiveBillingDriver,
+  __resetActiveBillingDriverCache,
+  __setActiveBillingDriverRegistryForTests,
+} from './services/billing/active_billing_driver.js'
+
+// Built-in drivers
+export { default as StripeDriver } from './drivers/stripe/stripe_driver.js'
+export { default as PaddleDriver } from './drivers/paddle/paddle_driver.js'
+export { default as LemonSqueezyDriver } from './drivers/lemon_squeezy/lemon_squeezy_driver.js'
+
+// Provider-agnostic satellite models
+export { default as BillingCustomer } from './models/satellites/billing_customer.js'
+export { default as BillingSubscription } from './models/satellites/billing_subscription.js'
+export type { BillingSubscriptionStatus } from './models/satellites/billing_subscription.js'
+export { default as BillingProcessedEvent } from './models/satellites/billing_processed_event.js'
+export type { BillingProcessedEventStatus } from './models/satellites/billing_processed_event.js'
+export { default as BillingUsageEvent } from './models/satellites/billing_usage_event.js'
+export type { BillingUsageEventStatus } from './models/satellites/billing_usage_event.js'
 
 // Exception
 export { default as BillingException } from './exceptions/billing_exception.js'
 export type { BillingErrorCode } from './exceptions/billing_exception.js'
 
 // Middleware
-export { default as VerifyStripeWebhookMiddleware } from './middleware/verify_stripe_webhook_middleware.js'
+export { default as VerifyBillingWebhookMiddleware } from './middleware/verify_billing_webhook_middleware.js'
 
 // Jobs
-export { default as ProcessStripeEventJob } from './jobs/process_stripe_event_job.js'
+export { default as ProcessBillingEventJob } from './jobs/process_billing_event_job.js'
 export { default as BillingCleanupJob } from './jobs/billing_cleanup_job.js'
 export { default as ReportUsageBatchJob } from './jobs/report_usage_batch_job.js'
 
@@ -49,5 +79,6 @@ export type { MultitenancyBillingRoutesOptions } from './routes.js'
 export { billingHealthCheck } from './health/billing_health_check.js'
 
 // Testing helpers
+export { default as MockBillingDriver } from './testing/mock_billing_driver.js'
 export { MockStripe } from './testing/mock_stripe.js'
 export { signWebhookPayload } from './testing/sign_webhook_payload.js'

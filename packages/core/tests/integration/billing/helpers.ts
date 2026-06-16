@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '../../helpers/config.js'
 import type Stripe from 'stripe'
+import type { Subscription, SubscriptionStatus } from '@adonisjs-lasagna/billing'
 
 export interface BillingTestSetup {
   defaultPlan: string
@@ -92,6 +93,41 @@ export function buildSubscription(
 }
 
 /**
+ * Build a neutral `Subscription` (the shape `BillingService.syncSubscription`
+ * now consumes, after the multi-provider refactor). The override keys mirror
+ * `buildSubscription` for an easy swap: `customer` → `customerId`,
+ * `id` → `providerSubscriptionId`. Defaults to `active` / `prod_pro` / 30d.
+ */
+export function buildNeutralSubscription(
+  overrides: Partial<{
+    id: string
+    customer: string
+    status: SubscriptionStatus
+    productId: string
+    priceId: string
+    canceledAt: number | null
+    cancelAtPeriodEnd: boolean
+    trialEnd: number | null
+  }> = {}
+): Subscription {
+  const now = Math.floor(Date.now() / 1000)
+  return {
+    providerSubscriptionId: overrides.id ?? `sub_test_${randomUUID().slice(0, 8)}`,
+    customerId: overrides.customer ?? `cus_test_${randomUUID().slice(0, 8)}`,
+    status: overrides.status ?? 'active',
+    currentPeriodStart: now,
+    currentPeriodEnd: now + 30 * 86_400,
+    cancelAtPeriodEnd: overrides.cancelAtPeriodEnd ?? false,
+    cancelAt: null,
+    canceledAt: overrides.canceledAt ?? null,
+    trialEnd: overrides.trialEnd ?? null,
+    productId: overrides.productId ?? 'prod_pro',
+    priceId: overrides.priceId ?? 'price_pro_monthly',
+    raw: {},
+  }
+}
+
+/**
  * Wrap a subscription payload as a Stripe.Event.
  */
 export function buildEvent(
@@ -147,9 +183,9 @@ export function hydrateJob<P>(
  */
 export async function clearBillingTables(): Promise<void> {
   const conn = db.connection('backoffice')
-  await conn.rawQuery('DELETE FROM backoffice.stripe_meter_events')
-  await conn.rawQuery('DELETE FROM backoffice.stripe_processed_events')
-  await conn.rawQuery('DELETE FROM backoffice.stripe_subscriptions')
-  await conn.rawQuery('DELETE FROM backoffice.stripe_customers')
+  await conn.rawQuery('DELETE FROM backoffice.billing_usage_events')
+  await conn.rawQuery('DELETE FROM backoffice.billing_processed_events')
+  await conn.rawQuery('DELETE FROM backoffice.billing_subscriptions')
+  await conn.rawQuery('DELETE FROM backoffice.billing_customers')
   await conn.rawQuery('DELETE FROM backoffice.tenant_plans')
 }

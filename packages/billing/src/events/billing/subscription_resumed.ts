@@ -4,7 +4,7 @@ export default class SubscriptionResumed extends BaseEvent {
   constructor(
     readonly payload: {
       tenantId: string
-      stripeSubscriptionId: string
+      subscriptionId: string
     }
   ) {
     super()

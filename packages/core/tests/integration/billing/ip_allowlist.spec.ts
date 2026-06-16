@@ -1,7 +1,7 @@
 import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import { BillingService } from '@adonisjs-lasagna/billing'
-import { VerifyStripeWebhookMiddleware } from '@adonisjs-lasagna/billing'
+import { VerifyBillingWebhookMiddleware } from '@adonisjs-lasagna/billing'
 import { MockStripe, signWebhookPayload } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { buildEvent, buildSubscription, clearBillingTables } from './helpers.js'
@@ -9,7 +9,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
 
 /**
- * Middleware-level coverage. Imports `VerifyStripeWebhookMiddleware`
+ * Middleware-level coverage. Imports `VerifyBillingWebhookMiddleware`
  * via the package path (build), so the middleware shares the booted
  * provider's `_config` singleton. Importing it from `../../../src/...`
  * loads a separate module instance whose `_config` is null at runtime
@@ -30,7 +30,7 @@ test.group('IP allowlist — middleware integration', (group) => {
   group.each.teardown(async () => {
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   function withAllowlist(allowedIps: string[]): void {
@@ -90,10 +90,10 @@ test.group('IP allowlist — middleware integration', (group) => {
   test('blocked IP → 401, never reaches signature verification', async ({ assert }) => {
     withAllowlist(['203.0.113.1'])
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     const fake = fakeContext({ ip: '10.0.0.1' })
-    const middleware = new VerifyStripeWebhookMiddleware()
+    const middleware = new VerifyBillingWebhookMiddleware()
     await middleware.handle(fake.ctx, fake.next)
 
     assert.equal(fake.response.status, 401, 'rejected before signature check')
@@ -105,14 +105,14 @@ test.group('IP allowlist — middleware integration', (group) => {
   }) => {
     withAllowlist(['10.0.0.5'])
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     const event = buildEvent('customer.subscription.created', buildSubscription())
     const body = JSON.stringify(event)
     const sig = signWebhookPayload(body, 'whsec_test_billing_helper')
 
     const fake = fakeContext({ ip: '10.0.0.5', signature: sig, body })
-    const middleware = new VerifyStripeWebhookMiddleware()
+    const middleware = new VerifyBillingWebhookMiddleware()
     await middleware.handle(fake.ctx, fake.next)
 
     assert.isNull(fake.response.status, 'no 401 — middleware passed')
@@ -122,14 +122,14 @@ test.group('IP allowlist — middleware integration', (group) => {
   test('IP in CIDR /24 → middleware allows', async ({ assert }) => {
     withAllowlist(['10.0.0.0/24'])
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     const event = buildEvent('customer.subscription.created', buildSubscription())
     const body = JSON.stringify(event)
     const sig = signWebhookPayload(body, 'whsec_test_billing_helper')
 
     const fake = fakeContext({ ip: '10.0.0.42', signature: sig, body })
-    const middleware = new VerifyStripeWebhookMiddleware()
+    const middleware = new VerifyBillingWebhookMiddleware()
     await middleware.handle(fake.ctx, fake.next)
 
     assert.isNull(fake.response.status)
@@ -139,10 +139,10 @@ test.group('IP allowlist — middleware integration', (group) => {
   test('malformed remote IP rejected with 401, not 500', async ({ assert }) => {
     withAllowlist(['10.0.0.0/24'])
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     const fake = fakeContext({ ip: 'definitely-not-an-ip' })
-    const middleware = new VerifyStripeWebhookMiddleware()
+    const middleware = new VerifyBillingWebhookMiddleware()
     await middleware.handle(fake.ctx, fake.next)
 
     assert.equal(fake.response.status, 401)

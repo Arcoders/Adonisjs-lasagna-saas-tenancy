@@ -27,6 +27,7 @@ export type BillingErrorCode =
   | 'authentication_failed'
   | 'invalid_stripe_request'
   | 'permission_denied'
+  | 'unsupported_by_driver'
 
 /**
  * Whether a given error code represents a transient condition that
@@ -66,6 +67,7 @@ const FATAL_CODES = new Set<BillingErrorCode>([
   'authentication_failed',
   'invalid_stripe_request',
   'permission_denied',
+  'unsupported_by_driver',
 ])
 
 /**

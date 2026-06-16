@@ -9,7 +9,7 @@ import { BaseEvent } from '@adonisjs/core/events'
 export default class BillingMisconfigured extends BaseEvent {
   constructor(
     readonly payload: {
-      stripeSubscriptionId: string
+      subscriptionId: string
       productId: string | null
       priceId: string | null
     }

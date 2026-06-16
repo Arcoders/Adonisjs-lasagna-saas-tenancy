@@ -1,7 +1,7 @@
 import { Job } from '@adonisjs/queue'
 import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
-import StripeMeterEvent from '../models/satellites/stripe_meter_event.js'
+import BillingUsageEvent from '../models/satellites/billing_usage_event.js'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { TenantRepositoryContract } from '@adonisjs-lasagna/saas-tenancy/types'
@@ -63,7 +63,7 @@ export default class ReportUsageBatchJob extends Job<ReportUsageBatchPayload> {
   }
 
   async failed(error: Error): Promise<void> {
-    // The DB row in `stripe_meter_events` already records the failure —
+    // The DB row in `billing_usage_events` already records the failure —
     // we just emit a metric/log so ops sees the rate. No dead-letter event
     // for metering; loss of a single batch isn't worth paging on.
     logger.error(
@@ -76,7 +76,7 @@ export default class ReportUsageBatchJob extends Job<ReportUsageBatchPayload> {
     )
     // Update the audit row so the doctor surfaces the error.
     try {
-      const failed = await StripeMeterEvent.query()
+      const failed = await BillingUsageEvent.query()
         .where('tenantId', this.payload.tenantId)
         .where('meterEventName', this.payload.meterEventName)
         .where('status', 'pending')

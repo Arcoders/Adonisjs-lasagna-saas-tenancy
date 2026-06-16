@@ -1,21 +1,22 @@
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
 /**
- * Local mirror of Stripe subscriptions. Reconciled by `tenant:billing:sync`.
+ * Provider-agnostic mirror of subscriptions. Reconciled by `tenant:billing:sync`.
  * `last_event_at` is the ordering guard against out-of-order webhook delivery;
- * `raw` jsonb preserves the full Stripe payload.
+ * `raw` jsonb preserves the full provider payload.
  */
 export default class extends BaseSchema {
-  protected tableName = 'stripe_subscriptions'
+  protected tableName = 'billing_subscriptions'
 
   async up() {
     this.schema.withSchema('backoffice').createTable(this.tableName, (table) => {
-      table.string('stripe_subscription_id').primary()
+      table.string('provider_subscription_id').primary()
+      table.string('provider').notNullable()
       table
         .uuid('tenant_id')
         .nullable()
         .references('tenant_id')
-        .inTable('backoffice.stripe_customers')
+        .inTable('backoffice.billing_customers')
         .onDelete('SET NULL')
       table
         .enum('status', [

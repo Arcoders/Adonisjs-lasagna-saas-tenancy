@@ -3,8 +3,8 @@ import app from '@adonisjs/core/services/app'
 import { randomUUID } from 'node:crypto'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe, signWebhookPayload } from '@adonisjs-lasagna/billing'
-import { StripeCustomer, StripeProcessedEvent } from '@adonisjs-lasagna/billing'
-import { ProcessStripeEventJob } from '@adonisjs-lasagna/billing'
+import { BillingCustomer, BillingProcessedEvent } from '@adonisjs-lasagna/billing'
+import { ProcessBillingEventJob } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, buildEvent, clearBillingTables, hydrateJob } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
@@ -20,7 +20,7 @@ import type Stripe from 'stripe'
 test.group('customer.deleted (integration)', (group) => {
   const cleanupTenants: string[] = []
   let originalConfig: ReturnType<typeof getConfig>
-  let originalDispatch: typeof ProcessStripeEventJob.dispatch
+  let originalDispatch: typeof ProcessBillingEventJob.dispatch
   let mock: MockStripe
   let pendingJobs: string[] = []
 
@@ -31,12 +31,12 @@ test.group('customer.deleted (integration)', (group) => {
 
     mock = new MockStripe('whsec_test_billing_helper')
     const billing = await app.container.make(BillingService)
-    billing.__setStripeForTests(mock)
+    await billing.__setStripeForTests(mock)
 
     pendingJobs = []
-    originalDispatch = ProcessStripeEventJob.dispatch
+    originalDispatch = ProcessBillingEventJob.dispatch
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: (p: { eventId: string }) => Promise<void>
       }
     ).dispatch = async (p) => {
@@ -46,7 +46,7 @@ test.group('customer.deleted (integration)', (group) => {
 
   group.each.teardown(async () => {
     ;(
-      ProcessStripeEventJob as unknown as {
+      ProcessBillingEventJob as unknown as {
         dispatch: typeof originalDispatch
       }
     ).dispatch = originalDispatch
@@ -57,13 +57,13 @@ test.group('customer.deleted (integration)', (group) => {
     }
     setConfig(originalConfig)
     const billing = await app.container.make(BillingService)
-    billing.__resetForTests()
+    await billing.__resetForTests()
   })
 
   async function flushJobs(): Promise<void> {
     while (pendingJobs.length) {
       const eventId = pendingJobs.shift()!
-      const job = new ProcessStripeEventJob()
+      const job = new ProcessBillingEventJob()
       hydrateJob(job, { eventId })
       await job.execute()
     }
@@ -87,26 +87,26 @@ test.group('customer.deleted (integration)', (group) => {
   test('customer.deleted stamps deletedAt on the local mapping', async ({ assert, client }) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
-    const stripeCustomerId = `cus_${randomUUID().slice(0, 8)}`
-    const cus = new StripeCustomer()
+    const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
     cus.tenantId = tenant.id
-    cus.stripeCustomerId = stripeCustomerId
+    cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     const event = buildEvent(
       'customer.deleted',
-      { id: stripeCustomerId, object: 'customer', deleted: true },
+      { id: providerCustomerId, object: 'customer', deleted: true },
       { id: 'evt_customer_deleted' }
     )
     await postSignedEvent(client, event)
     await flushJobs()
 
-    const refreshed = await StripeCustomer.find(tenant.id)
+    const refreshed = await BillingCustomer.find(tenant.id)
     assert.isNotNull(refreshed, 'mapping row kept (soft delete, not hard delete)')
     assert.isNotNull(refreshed?.deletedAt, 'deletedAt stamped')
-    assert.equal(refreshed?.stripeCustomerId, stripeCustomerId, 'stripeCustomerId unchanged')
+    assert.equal(refreshed?.providerCustomerId, providerCustomerId, 'providerCustomerId unchanged')
 
-    const ledger = await StripeProcessedEvent.find('evt_customer_deleted')
+    const ledger = await BillingProcessedEvent.find('evt_customer_deleted')
     assert.equal(ledger?.status, 'completed')
     assert.equal(ledger?.tenantId, tenant.id, 'ledger row attributed to the resolved tenant')
   })
@@ -123,10 +123,10 @@ test.group('customer.deleted (integration)', (group) => {
     await postSignedEvent(client, event)
     await flushJobs() // must not throw
 
-    const ledger = await StripeProcessedEvent.find('evt_customer_deleted_unknown')
+    const ledger = await BillingProcessedEvent.find('evt_customer_deleted_unknown')
     assert.equal(ledger?.status, 'completed', 'acked cleanly')
     assert.isNull(ledger?.lastError)
-    const rows = await StripeCustomer.query()
+    const rows = await BillingCustomer.query()
     assert.lengthOf(rows, 0, 'nothing written')
   })
 })

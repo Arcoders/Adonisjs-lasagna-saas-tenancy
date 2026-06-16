@@ -1,8 +1,8 @@
 import { Job } from '@adonisjs/queue'
 import logger from '@adonisjs/core/services/logger'
 import { DateTime } from 'luxon'
-import StripeProcessedEvent from '../models/satellites/stripe_processed_event.js'
-import StripeMeterEvent from '../models/satellites/stripe_meter_event.js'
+import BillingProcessedEvent from '../models/satellites/billing_processed_event.js'
+import BillingUsageEvent from '../models/satellites/billing_usage_event.js'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 
 /**
@@ -14,11 +14,11 @@ import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
  * runs of the same retention sweep never delete the same row twice.
  *
  * Prunes:
- *   - `stripe_processed_events` with `status='completed'` older than TTL
- *     (Stripe's max retry window — older events can never legitimately
+ *   - `billing_processed_events` with `status='completed'` older than TTL
+ *     (the provider's max retry window — older events can never legitimately
  *     be re-delivered)
- *   - `stripe_meter_events` with `status='sent'` older than TTL
- *     (already accepted by Stripe; the audit row was useful while
+ *   - `billing_usage_events` with `status='sent'` older than TTL
+ *     (already accepted by the provider; the audit row was useful while
  *     reportedAt was null. `failed` and `pending` rows are NOT
  *     auto-pruned — they're operator concerns surfaced by
  *     `billing_doctor`)
@@ -35,7 +35,7 @@ export async function runBillingCleanup(opts: { batchSize?: number } = {}): Prom
 
   let totalDeleted = 0
   while (true) {
-    const ids = await StripeProcessedEvent.query()
+    const ids = await BillingProcessedEvent.query()
       .where('status', 'completed')
       .where('processedAt', '<', cutoff.toSQL()!)
       .limit(batchSize)
@@ -43,7 +43,7 @@ export async function runBillingCleanup(opts: { batchSize?: number } = {}): Prom
 
     if (ids.length === 0) break
 
-    await StripeProcessedEvent.query()
+    await BillingProcessedEvent.query()
       .whereIn(
         'eventId',
         ids.map((r) => r.eventId)
@@ -55,7 +55,7 @@ export async function runBillingCleanup(opts: { batchSize?: number } = {}): Prom
 
   let totalMeterDeleted = 0
   while (true) {
-    const meterIds = await StripeMeterEvent.query()
+    const meterIds = await BillingUsageEvent.query()
       .where('status', 'sent')
       .where('reportedAt', '<', cutoff.toSQL()!)
       .limit(batchSize)
@@ -63,7 +63,7 @@ export async function runBillingCleanup(opts: { batchSize?: number } = {}): Prom
 
     if (meterIds.length === 0) break
 
-    await StripeMeterEvent.query()
+    await BillingUsageEvent.query()
       .whereIn(
         'id',
         meterIds.map((r) => r.id)
@@ -89,9 +89,9 @@ export async function runBillingCleanup(opts: { batchSize?: number } = {}): Prom
 }
 
 /**
- * Purges `stripe_processed_events` rows whose `status='completed'` and
+ * Purges `billing_processed_events` rows whose `status='completed'` and
  * `processed_at` is older than the configured retention window
- * (default 90 days — matches Stripe's max retry window, so older events
+ * (default 90 days — matches the provider's max retry window, so older events
  * can never legitimately be re-delivered).
  *
  * Idempotent. Safe to run on a daily cron via `tenant:billing:cleanup`.

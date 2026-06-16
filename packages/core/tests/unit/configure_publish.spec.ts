@@ -136,10 +136,10 @@ test.group('configure() publish orchestration', (group) => {
 
     // The new satellites are published.
     assert.lengthOf(matching(secondRun, 'create_tenant_plans_table'), 1)
-    assert.lengthOf(matching(secondRun, 'create_stripe_customers_table'), 1)
-    assert.lengthOf(matching(secondRun, 'create_stripe_subscriptions_table'), 1)
-    assert.lengthOf(matching(secondRun, 'create_stripe_processed_events_table'), 1)
-    assert.lengthOf(matching(secondRun, 'create_stripe_meter_events_table'), 1)
+    assert.lengthOf(matching(secondRun, 'create_billing_customers_table'), 1)
+    assert.lengthOf(matching(secondRun, 'create_billing_subscriptions_table'), 1)
+    assert.lengthOf(matching(secondRun, 'create_billing_processed_events_table'), 1)
+    assert.lengthOf(matching(secondRun, 'create_billing_usage_events_table'), 1)
     assert.lengthOf(matching(secondRun, 'create_tenant_metrics_table'), 1)
 
     // Billing also published the mailer + view.

@@ -155,16 +155,29 @@ export interface PlansConfig {
 }
 
 /**
- * Stripe billing satellite — opt-in via `--with=billing` and declaring
- * `config.billing`. Documented end-to-end in `docs/cookbook/stripe-quotas.md`.
+ * The shipped billing driver names. `(string & {})` keeps autocomplete for the
+ * built-ins while admitting a custom driver a host registers on
+ * `BillingDriverRegistry`. Kept inline (not imported from `@adonisjs-lasagna/billing`)
+ * so core has no dependency on the billing satellite.
+ */
+export type BillingDriverChoice = 'stripe' | 'paddle' | 'lemonsqueezy' | (string & {})
+
+/**
+ * Billing satellite — opt-in via `--with=billing` and declaring `config.billing`.
+ * Provider-agnostic: pick `driver` and fill in the matching config block.
+ * Documented end-to-end in `docs/cookbook/stripe-quotas.md`.
  *
- * Plays platform-mode only in v1 (one Stripe account, tenants are subscribers).
- * Stripe Connect is a v1.1 add-on (`resolveAccount` callback).
+ * Plays platform-mode only (one provider account, tenants are subscribers).
  */
 export interface BillingConfig {
-  /** Reserved for future drivers (`'paddle'`, `'lemonsqueezy'`). v1 only ships `'stripe'`. */
-  driver: 'stripe'
-  stripe: {
+  /**
+   * Which billing provider to use. The matching config block below
+   * (`stripe` / `paddle` / `lemonSqueezy`) must be present; the driver's
+   * `verifyConfig()` validates it at boot.
+   */
+  driver: BillingDriverChoice
+  /** Stripe driver config. Required when `driver: 'stripe'`. */
+  stripe?: {
     /** Secret key. Read from `STRIPE_API_KEY`. Boot fails if `sk_live_*` and `NODE_ENV !== 'production'` unless `STRIPE_ALLOW_LIVE_IN_DEV=true`. */
     apiKey: string
     /** Webhook signing secret. Read from `STRIPE_WEBHOOK_SECRET`. */
@@ -176,7 +189,25 @@ export interface BillingConfig {
     /** SDK network retry attempts. Default 3. */
     maxNetworkRetries?: number
   }
-  /** Stripe product (or price) ID → plan name. Plan must exist in `plans.definitions`. */
+  /** Paddle Billing driver config. Required when `driver: 'paddle'`. */
+  paddle?: {
+    /** API key. Read from `PADDLE_API_KEY`. */
+    apiKey: string
+    /** Webhook signing secret (`Paddle-Signature`). Read from `PADDLE_WEBHOOK_SECRET`. */
+    webhookSecret: string
+    /** `'sandbox'` (default) or `'production'`. */
+    environment?: 'sandbox' | 'production'
+  }
+  /** Lemon Squeezy driver config. Required when `driver: 'lemonsqueezy'`. */
+  lemonSqueezy?: {
+    /** API key. Read from `LEMONSQUEEZY_API_KEY`. */
+    apiKey: string
+    /** Webhook signing secret (`X-Signature`). Read from `LEMONSQUEEZY_WEBHOOK_SECRET`. */
+    webhookSecret: string
+    /** Store id checkouts are created against. Read from `LEMONSQUEEZY_STORE_ID`. */
+    storeId: string
+  }
+  /** Provider product (or price/variant) ID → plan name. Plan must exist in `plans.definitions`. */
   products: Record<string, string>
   /** Plan assigned when a subscription is canceled or no mapping is found. Must exist in `plans.definitions`. */
   defaultPlan: string
@@ -215,13 +246,14 @@ export interface BillingConfig {
   }
   /** Send `QuotaWarningMailer` on `TenantQuotaExceeded`. Requires `@adonisjs/mail`. Default `false`. */
   notifyOnQuotaExceeded?: boolean
-  /** What to do with the Stripe subscription on tenant hard-delete. Default `'cancel'`. */
+  /** What to do with the provider subscription on tenant hard-delete. Default `'cancel'`. */
   onTenantDelete?: 'cancel' | 'detach' | 'preserve'
   /**
-   * Auto-bridge `QuotaService.track` → `stripe.billing.meterEvents.create`.
-   * Requires `plans.emitTracked = true`. Each entry maps a quota name to
-   * the Stripe meter event name. Reports are batched in-memory and flushed
-   * every `batchFlushMs` (default 10_000ms) per (tenant, meter).
+   * Auto-bridge `QuotaService.track` → the active driver's usage metering.
+   * Requires `plans.emitTracked = true` and a driver that supports
+   * `usage_metering`. Each entry maps a quota name to the provider meter event
+   * name. Reports are batched in-memory and flushed every `batchFlushMs`
+   * (default 10_000ms) per (tenant, meter).
    */
   usageMapping?: Record<string, { meterEventName: string; batchFlushMs?: number }>
   observability?: {
