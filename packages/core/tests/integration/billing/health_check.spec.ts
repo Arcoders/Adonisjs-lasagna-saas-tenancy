@@ -50,7 +50,10 @@ test.group('billingHealthCheck (integration)', (group) => {
     assert.equal(result.meta?.skipped, true)
   })
 
-  test('fails when webhook secret is empty', async ({ assert }) => {
+  test('verify() rejects an empty webhook secret (boot guard)', async ({ assert }) => {
+    // Config validation lives in the driver's verifyConfig() (run at boot via
+    // BillingService.verify()), not the runtime health check — the latter is a
+    // liveness probe, so an empty webhook secret must be rejected there.
     setConfig({
       ...testConfig,
       plans: {
@@ -66,9 +69,9 @@ test.group('billingHealthCheck (integration)', (group) => {
       },
     } as never)
 
-    const result = await billingHealthCheck()
-    assert.equal(result.status, 'fail')
-    assert.match(result.message ?? '', /webhook secret missing/)
+    const billing = await app.container.make(BillingService)
+    await billing.__resetForTests()
+    await assert.rejects(() => billing.verify(), /webhookSecret is empty/)
   })
 
   test('passes with no active subs (clean app)', async ({ assert }) => {

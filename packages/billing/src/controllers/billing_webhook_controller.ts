@@ -44,7 +44,7 @@ export default class BillingWebhookController {
          VALUES (?, ?, ?, now(), 'pending', 0, ?)
          ON CONFLICT (event_id) DO NOTHING
          RETURNING event_id`,
-      [schema, event.id, event.provider, event.type, JSON.stringify(replayablePayload)]
+      [schema, event.id, event.provider, event.nativeType, JSON.stringify(replayablePayload)]
     )
 
     const rowCount = Array.isArray(inserted?.rows) ? inserted.rows.length : 0

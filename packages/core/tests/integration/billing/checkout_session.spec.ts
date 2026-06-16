@@ -118,7 +118,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
         billing.createBillingPortalSession(fakeTenant, {
           returnUrl: 'https://app.example.com/settings',
         }),
-      /Tenant has no Stripe customer/
+      /Tenant has no billing customer/
     )
   })
 
