@@ -13,6 +13,7 @@ export default class extends BaseSchema {
       table.string('flag').notNullable()
       table.boolean('enabled').notNullable().defaultTo(false)
       table.jsonb('config').nullable()
+      table.timestamp('expires_at', { useTz: true }).nullable()
       table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(this.now())
       table.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(this.now())
       table.unique(['tenant_id', 'flag'])

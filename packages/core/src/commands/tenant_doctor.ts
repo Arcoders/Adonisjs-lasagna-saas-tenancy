@@ -48,6 +48,14 @@ export default class TenantDoctor extends BaseCommand {
   declare fix: boolean
 
   @flags.boolean({
+    flagName: 'interactive',
+    alias: 'i',
+    default: false,
+    description: 'With --fix, confirm before fixing each check',
+  })
+  declare interactive: boolean
+
+  @flags.boolean({
     flagName: 'json',
     default: false,
     description: 'Emit a JSON report on stdout instead of the table',
@@ -81,6 +89,20 @@ export default class TenantDoctor extends BaseCommand {
       return
     }
 
+    if (this.interactive && this.json) {
+      this.logger.warning(
+        '--interactive is ignored with --json (prompts cannot render to a JSON stream).'
+      )
+    }
+    if (this.interactive && !this.fix) {
+      this.logger.warning('--interactive has no effect without --fix.')
+    }
+
+    if (this.interactive && this.fix && !this.json) {
+      await this.#runInteractive(doctor)
+      return
+    }
+
     const result = await doctor.run({
       tenants: this.tenant,
       checks: this.check,
@@ -100,6 +122,9 @@ export default class TenantDoctor extends BaseCommand {
   async #runWatch(doctor: DoctorService) {
     if (this.fix) {
       this.logger.warning('--fix is ignored in --watch mode (no auto-fixes inside a polling loop).')
+    }
+    if (this.interactive) {
+      this.logger.warning('--interactive is ignored in --watch mode.')
     }
     if (this.json) {
       this.logger.warning('--json is ignored in --watch mode.')
@@ -133,6 +158,60 @@ export default class TenantDoctor extends BaseCommand {
       process.stdout.write('\n')
       this.logger.info('Stopped watch mode.')
     }
+  }
+
+  /**
+   * --fix --interactive: diagnose once with no fixes, show the report, then ask
+   * before fixing each check that has fixable issues. Confirmed checks are
+   * re-run with fix:true via the doctor's name filter (the check API applies
+   * fixes during its own run, so per-check is the granularity we can offer
+   * without changing the DoctorCheck contract). The exit code reflects errors
+   * left across every check — unconfirmed ones from the diagnosis pass plus
+   * whatever remains in the checks we re-ran.
+   */
+  async #runInteractive(doctor: DoctorService) {
+    const detect = await doctor.run({
+      tenants: this.tenant,
+      checks: this.check,
+      fix: false,
+    })
+    this.#renderReports(detect)
+
+    const fixable = detect.reports.filter((r) => r.issues.some((i) => i.fixable))
+    if (fixable.length === 0) {
+      this.logger.info('Nothing fixable.')
+      this.exitCode = detect.totals.error > 0 ? 1 : 0
+      return
+    }
+
+    const confirmed: string[] = []
+    for (const report of fixable) {
+      const n = report.issues.filter((i) => i.fixable).length
+      const ok = await this.prompt.confirm(`Fix ${n} fixable issue(s) in "${report.check}"?`)
+      if (ok) confirmed.push(report.check)
+    }
+
+    if (confirmed.length === 0) {
+      this.logger.info('No fixes applied.')
+      this.exitCode = detect.totals.error > 0 ? 1 : 0
+      return
+    }
+
+    this.logger.log('')
+    const result = await doctor.run({
+      tenants: this.tenant,
+      checks: confirmed,
+      fix: true,
+    })
+    this.#renderReports(result)
+
+    // Final error count: checks we did NOT re-run keep their diagnosis-pass
+    // errors; re-run checks contribute their post-fix errors.
+    const confirmedSet = new Set(confirmed)
+    const unconfirmedErrors = detect.reports
+      .filter((r) => !confirmedSet.has(r.check))
+      .reduce((sum, r) => sum + r.issues.filter((i) => i.severity === 'error').length, 0)
+    this.exitCode = unconfirmedErrors + result.totals.error > 0 ? 1 : 0
   }
 
   #sleep(ms: number, isCancelled: () => boolean): Promise<void> {

@@ -212,6 +212,69 @@
       "filePath": "tenant_metrics_flush.js"
     },
     {
+      "commandName": "tenant:feature-flag:set",
+      "description": "Create or update a tenant feature flag",
+      "help": "Requires Redis (invalidates the shared cache). Example: node ace tenant:feature-flag:set <id> beta true --config='{\"rollout\":25}' --expires-at=2026-12-31T23:59:59Z",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "config", "flagName": "config", "required": false, "type": "string", "description": "Optional JSON object stored alongside the flag" },
+        { "name": "expiresAt", "flagName": "expires-at", "required": false, "type": "string", "description": "Optional ISO 8601 instant after which the flag evaluates as disabled" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID", "type": "string" },
+        { "name": "flag", "argumentName": "flag", "required": true, "description": "Flag name", "type": "string" },
+        { "name": "enabled", "argumentName": "enabled", "required": true, "description": "Enabled state: true|false (also accepts 1|0)", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_feature_flag_set.js"
+    },
+    {
+      "commandName": "tenant:feature-flag:get",
+      "description": "Print one tenant feature flag as JSON (null when unset)",
+      "help": "Reads the database directly. Example: node ace tenant:feature-flag:get <id> beta",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID", "type": "string" },
+        { "name": "flag", "argumentName": "flag", "required": true, "description": "Flag name", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_feature_flag_get.js"
+    },
+    {
+      "commandName": "tenant:feature-flag:list",
+      "description": "List all feature flags for a tenant",
+      "help": "Reads the database directly. Use --json for a machine-readable array.",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit a JSON array instead of a table" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_feature_flag_list.js"
+    },
+    {
+      "commandName": "tenant:feature-flag:delete",
+      "description": "Delete a tenant feature flag",
+      "help": "Requires Redis (invalidates the shared cache). Prompts unless --force.",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "description": "Skip the confirmation prompt" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID", "type": "string" },
+        { "name": "flag", "argumentName": "flag", "required": true, "description": "Flag name", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_feature_flag_delete.js"
+    },
+    {
       "commandName": "tenant:doctor",
       "description": "Diagnose tenancy state — schema drift, migrations, circuits, queues, backups, stalled provisioning, failed tenants",
       "help": "Use --check=list to list available checks. Use --fix to auto-repair fixable issues.",
@@ -221,6 +284,7 @@
         { "name": "tenant", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Limit checks to one or more tenant IDs" },
         { "name": "check", "flagName": "check", "required": false, "type": "array", "description": "Run only the named check(s); pass --check=list to print available checks" },
         { "name": "fix", "flagName": "fix", "required": false, "type": "boolean", "description": "Apply auto-fix for fixable issues" },
+        { "name": "interactive", "flagName": "interactive", "required": false, "type": "boolean", "alias": "i", "description": "With --fix, confirm before fixing each check" },
         { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit a JSON report on stdout instead of the table" },
         { "name": "watch", "flagName": "watch", "required": false, "type": "boolean", "alias": "w", "description": "Re-run continuously and redraw a compact dashboard every --interval ms" },
         { "name": "interval", "flagName": "interval", "required": false, "type": "number", "description": "Refresh interval in ms when --watch is set (default 5000, min 1000)" }

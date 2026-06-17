@@ -20,6 +20,9 @@ export default class TenantFeatureFlag extends BackofficeBaseModel {
   @column()
   declare config: Record<string, unknown> | null
 
+  @column.dateTime()
+  declare expiresAt: DateTime | null
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 

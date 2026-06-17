@@ -2,6 +2,7 @@ import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import {
   CircuitBreakerService,
+  FeatureFlagService,
   MetricsService,
   TenantQueueService,
 } from '@adonisjs-lasagna/saas-tenancy/services'
@@ -105,9 +106,9 @@ test.group('e2e — misc CLI commands', (group) => {
     // migrated schema.
     assert.equal(code, 0, 'tenant:seed should succeed on a freshly migrated tenant')
 
-    const rows = await tenant.getConnection().rawQuery(
-      `SELECT title FROM notes WHERE title IN ('Welcome', 'Hello again')`
-    )
+    const rows = await tenant
+      .getConnection()
+      .rawQuery(`SELECT title FROM notes WHERE title IN ('Welcome', 'Hello again')`)
     const titles = rows.rows.map((r: any) => r.title)
     assert.includeMembers(titles, ['Welcome', 'Hello again'])
   })
@@ -140,5 +141,58 @@ test.group('e2e — misc CLI commands', (group) => {
   test('tenant:doctor --check=list prints the registered checks', async ({ assert }) => {
     const code = await runAce('tenant:doctor', ['--check', 'list'])
     assert.equal(code, 0)
+  })
+
+  test('tenant:feature-flag set/get/list/delete round-trips a flag', async ({ client, assert }) => {
+    const { id } = await createInstalledTenant(client)
+    const ff = new FeatureFlagService()
+
+    const setCode = await runAce('tenant:feature-flag:set', [
+      id,
+      'beta',
+      'true',
+      '--config',
+      '{"rollout":25}',
+    ])
+    assert.equal(setCode, 0)
+
+    const stored = await ff.getFlag(id, 'beta')
+    assert.isNotNull(stored)
+    assert.isTrue(stored!.enabled)
+    assert.deepEqual(stored!.config, { rollout: 25 })
+
+    assert.equal(await runAce('tenant:feature-flag:get', [id, 'beta']), 0)
+    assert.equal(await runAce('tenant:feature-flag:list', [id, '--json']), 0)
+
+    // --force bypasses the confirm prompt (the in-process runner is non-interactive).
+    assert.equal(await runAce('tenant:feature-flag:delete', [id, 'beta', '--force']), 0)
+    assert.isNull(await ff.getFlag(id, 'beta'))
+  })
+
+  test('tenant:feature-flag:set with a past --expires-at evaluates as disabled', async ({
+    client,
+    assert,
+  }) => {
+    const { id } = await createInstalledTenant(client)
+    const ff = new FeatureFlagService()
+
+    const code = await runAce('tenant:feature-flag:set', [
+      id,
+      'holiday',
+      'true',
+      '--expires-at',
+      '2020-01-01T00:00:00Z',
+    ])
+    assert.equal(code, 0)
+
+    // Stored enabled, but expired → isEnabled honours the expiry.
+    assert.isTrue((await ff.getFlag(id, 'holiday'))!.enabled)
+    assert.isFalse(await ff.isEnabled(id, 'holiday'))
+  })
+
+  test('tenant:feature-flag:set rejects a bad enabled value', async ({ client, assert }) => {
+    const { id } = await createInstalledTenant(client)
+    const code = await runAce('tenant:feature-flag:set', [id, 'oops', 'maybe'])
+    assert.equal(code, 1)
   })
 })

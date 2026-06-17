@@ -17,7 +17,15 @@ test.group('tenant:doctor — command metadata', () => {
     assert.equal(entry.options?.startApp, true)
 
     const flagNames = entry.flags.map((f: any) => f.flagName).sort()
-    assert.deepEqual(flagNames, ['check', 'fix', 'interval', 'json', 'tenant', 'watch'])
+    assert.deepEqual(flagNames, [
+      'check',
+      'fix',
+      'interactive',
+      'interval',
+      'json',
+      'tenant',
+      'watch',
+    ])
     assert.deepEqual(entry.args, [], 'tenant:doctor takes no positional args')
   })
 

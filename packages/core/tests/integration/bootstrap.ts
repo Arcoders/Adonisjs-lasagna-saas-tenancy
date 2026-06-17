@@ -63,10 +63,12 @@ async function ensureBackofficeSchema(): Promise<void> {
        flag        varchar(255) NOT NULL,
        enabled     boolean NOT NULL DEFAULT false,
        config      jsonb,
+       expires_at  timestamptz,
        created_at  timestamptz NOT NULL DEFAULT now(),
        updated_at  timestamptz NOT NULL DEFAULT now(),
        UNIQUE(tenant_id, flag)
      )`,
+    `ALTER TABLE backoffice.tenant_feature_flags ADD COLUMN IF NOT EXISTS expires_at timestamptz`,
     `CREATE TABLE IF NOT EXISTS backoffice.tenant_webhooks (
        id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        tenant_id   uuid NOT NULL,

@@ -69,6 +69,9 @@ node ace tenant:doctor --check=schema_drift,backup_recency
 # Auto-fix what's fixable
 node ace tenant:doctor --fix
 
+# Confirm before fixing each check (per-check, not per-issue)
+node ace tenant:doctor --fix --interactive
+
 # CI gate: exits non-zero if anything is unhealthy
 node ace tenant:doctor --json
 
@@ -101,6 +104,15 @@ node ace tenant:exec --status=active db:seed
 |---|---|
 | `tenant:maintenance <id>` | Toggle maintenance mode (independent of suspended). `--off` exits, `--message="…"` shows a custom 503 message. |
 | `tenant:impersonate <tenantId> <userId>` | Issue an admin impersonation token. `--admin=<id>`, `--duration=<seconds>`, `--reason="…"`, `--path=<path>`. |
+
+## Feature flags
+
+| Command | What it does |
+|---|---|
+| `tenant:feature-flag:set <tenantId> <flag> <true\|false>` | Create or update a flag. `--config='<json>'`, `--expires-at=<iso>`. Needs Redis (busts the cache). |
+| `tenant:feature-flag:get <tenantId> <flag>` | Print the stored row as JSON (or `null`). Reads the DB directly. |
+| `tenant:feature-flag:list <tenantId>` | List a tenant's flags as a table, or `--json`. Reads the DB directly. |
+| `tenant:feature-flag:delete <tenantId> <flag>` | Delete a flag. `--force` skips the confirmation prompt. Needs Redis. |
 
 ## Background tasks
 

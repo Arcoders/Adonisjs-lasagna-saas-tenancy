@@ -86,9 +86,15 @@ GET /tenants/{id}/audit-logs?from=…&to=…
 
 ```
 GET    /tenants/{id}/feature-flags
+POST   /tenants/{id}/feature-flags
 PUT    /tenants/{id}/feature-flags/{key}
 DELETE /tenants/{id}/feature-flags/{key}
 ```
+
+`POST`/`PUT` accept `flag` (POST only), `enabled` (boolean), `config` (optional
+object), and `expiresAt` (optional ISO 8601 — once past, the flag evaluates as
+disabled). An invalid `expiresAt` returns `400 invalid_expires_at`; omitting it
+clears any stored expiry. Each row serializes with an `expiresAt` field.
 
 ### Webhooks
 

@@ -158,6 +158,7 @@ const schemas = {
       flag: { type: 'string' },
       enabled: { type: 'boolean' },
       config: { type: ['object', 'null'] },
+      expiresAt: { type: ['string', 'null'], format: 'date-time' },
       createdAt: { type: ['string', 'null'], format: 'date-time' },
       updatedAt: { type: ['string', 'null'], format: 'date-time' },
     },
@@ -169,6 +170,7 @@ const schemas = {
       flag: { type: 'string' },
       enabled: { type: 'boolean' },
       config: { type: 'object' },
+      expiresAt: { type: 'string', format: 'date-time' },
     },
   },
   Branding: {
@@ -629,7 +631,11 @@ export function getOpenAPISpec(prefix = '/admin/multitenancy'): OpenApiDocument 
         requestBody: jsonBody({
           type: 'object',
           required: ['enabled'],
-          properties: { enabled: { type: 'boolean' }, config: { type: 'object' } },
+          properties: {
+            enabled: { type: 'boolean' },
+            config: { type: 'object' },
+            expiresAt: { type: 'string', format: 'date-time' },
+          },
         }),
         responses: jsonResponse('OK', { type: 'object', properties: { data: ref('FeatureFlag') } }),
       },
