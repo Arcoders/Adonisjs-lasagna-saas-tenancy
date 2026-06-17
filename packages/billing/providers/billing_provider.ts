@@ -11,6 +11,7 @@ import QuotaExceededBillingListener from '../src/listeners/quota_exceeded_billin
 import TenantDestroyBillingListener from '../src/listeners/tenant_destroy_billing_listener.js'
 import ProcessBillingEventJob from '../src/jobs/process_billing_event_job.js'
 import BillingCleanupJob from '../src/jobs/billing_cleanup_job.js'
+import BillingSweepJob from '../src/jobs/billing_sweep_job.js'
 import ReportUsageBatchJob from '../src/jobs/report_usage_batch_job.js'
 
 /**
@@ -98,7 +99,12 @@ export default class BillingProvider {
   async #registerBillingJobs(): Promise<void> {
     try {
       const { Locator } = await import('@adonisjs/queue')
-      for (const JobClass of [ProcessBillingEventJob, BillingCleanupJob, ReportUsageBatchJob]) {
+      for (const JobClass of [
+        ProcessBillingEventJob,
+        BillingCleanupJob,
+        BillingSweepJob,
+        ReportUsageBatchJob,
+      ]) {
         const J = JobClass as unknown as { name: string; options?: { name?: string } }
         Locator.register(J.options?.name ?? J.name, JobClass as never)
       }

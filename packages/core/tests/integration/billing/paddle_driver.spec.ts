@@ -93,6 +93,18 @@ test.group('PaddleDriver (stubbed fetch)', (group) => {
     assert.equal(captured!.method, 'POST')
   })
 
+  test('ensureCustomer sends an Idempotency-Key header so concurrent creates converge', async ({
+    assert,
+  }) => {
+    let headers: Record<string, string> | undefined
+    stub((_url, init) => {
+      headers = init?.headers as Record<string, string> | undefined
+      return jsonResponse({ data: { id: 'ctm_x' } })
+    })
+    await new PaddleDriver().ensureCustomer(fakeTenant({ id: 'tnt_abc' }))
+    assert.equal(headers?.['Idempotency-Key'], 'tenant:tnt_abc:create-customer')
+  })
+
   test('ensureCustomer throws when the tenant has no email', async ({ assert }) => {
     await assert.rejects(
       () => new PaddleDriver().ensureCustomer(fakeTenant({ email: null })),

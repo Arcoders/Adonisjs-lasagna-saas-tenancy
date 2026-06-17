@@ -28,6 +28,7 @@ const STRIPE_CAPABILITIES: ReadonlySet<BillingCapability> = new Set<BillingCapab
   'event_retrieval',
   'price_lookup',
   'subscription_cancel',
+  'subscription_cancel_immediate',
 ])
 
 /**

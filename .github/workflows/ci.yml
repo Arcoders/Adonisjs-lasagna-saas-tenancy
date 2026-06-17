@@ -70,7 +70,7 @@ jobs:
       # package-local japa runner), so they are not part of the core unit run.
       - name: Test (satellite package units)
         run: |
-          npm run test --workspace @adonisjs-lasagna/billing
+          npm run test:coverage --workspace @adonisjs-lasagna/billing
           npm run test --workspace @adonisjs-lasagna/backup
           npm run test --workspace @adonisjs-lasagna/sso
           npm run test --workspace @adonisjs-lasagna/admin

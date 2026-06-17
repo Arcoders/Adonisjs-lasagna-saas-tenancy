@@ -1,8 +1,10 @@
+import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 import BillingCustomer from '../models/satellites/billing_customer.js'
 import BillingSubscription from '../models/satellites/billing_subscription.js'
+import BillingService from '../services/billing_service.js'
 import { getActiveBillingDriver } from '../services/billing/active_billing_driver.js'
 import BillingException from '../exceptions/billing_exception.js'
 
@@ -62,11 +64,14 @@ export default class TenantDestroyBillingListener {
       return
     }
 
+    // Route through the service wrapper so the cancel is immediate (or emulated
+    // immediate for providers that only cancel at period end) and the mirror is
+    // reflected consistently. The wrapper's local-downgrade step is moot here
+    // (the customer row is dropped below) but harmless.
+    const billing = await app.container.make(BillingService)
     for (const sub of active) {
       try {
-        await driver.cancelSubscription(sub.providerSubscriptionId)
-        sub.status = 'canceled'
-        await sub.save()
+        await billing.cancelSubscription(sub.providerSubscriptionId, { atPeriodEnd: false })
       } catch (err) {
         const wrapped =
           err instanceof BillingException

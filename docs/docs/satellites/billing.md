@@ -107,7 +107,8 @@ Stripe request. The published `multitenancy.stub` already includes
 | `webhook.allowedIps` | `string[]?` | `[]` | Literal IPs and/or CIDR ranges (`54.187.174.0/24`). Backed by `node:net.BlockList` — zero deps, IPv4 + IPv6 + 4-mapped-6 normalisation. |
 | `dunning.maxAttempts` | `number?` | `3` | After this many failed invoice attempts, mark `past_due` and emit `PaymentFailed{final:true}`. Matches Stripe Smart Retries. |
 | `dunning.action` | `'none' \| 'downgrade'` | `'none'` | Auto-action on the final failed attempt. `'downgrade'` reassigns the tenant's quota to `defaultPlan` (mirror `planName` is preserved; a successful retry restores it). `'none'` leaves all behaviour to the host's `PaymentFailed{final:true}` listener. |
-| `dunning.gracePeriodDays` | `number?` | `0` | Days to wait after `past_due` before applying the action. |
+| `dunning.gracePeriodDays` | `number?` | `0` | Days to wait after `past_due` before applying the action. `0` applies it immediately; `> 0` schedules it (`dunning_downgrade_at`) and `tenant:billing:sweep` applies it once the window elapses, so run that command on a cron if you set a grace period. |
+| `trialEndingLeadDays` | `number?` | `3` | Days before `trial_end` to emit `TrialEnding`. Stripe fires `trial_will_end` natively; for Paddle / Lemon Squeezy (no such webhook) `tenant:billing:sweep` synthesises the notice from this lead time. Each subscription is notified exactly once across providers. |
 | `notifyOnQuotaExceeded` | `boolean?` | `false` | Dispatch `QuotaWarningMailer` on `TenantQuotaExceeded`. Requires `@adonisjs/mail`. |
 | `onTenantDelete` | `'cancel' \| 'detach' \| 'preserve'` | `'cancel'` | Tenant hard-delete policy (see below). |
 | `usageMapping` | `Record<string, { meterEventName: string; batchFlushMs?: number }>?` | — | Auto-bridge `QuotaService.track` to Stripe Meters. Requires `plans.emitTracked = true`. |
@@ -136,6 +137,7 @@ faking it. What ships today:
 |---|---|---|---|
 | `checkout` (hosted session URL) | ✅ | ✅ | ✅ |
 | `subscription_cancel` (tenant-delete cleanup) | ✅ | ✅ | ✅ |
+| `subscription_cancel_immediate` (cancel now, not at period end) | ✅ | ✅ | — |
 | `billing_portal` | ✅ | — | — |
 | `usage_metering` (metered billing) | ✅ | — | — |
 | `price_lookup` (checkout allowlist fallback) | ✅ | ✅ | — |
@@ -144,6 +146,25 @@ faking it. What ships today:
 Where a driver lacks `event_retrieval`, the job replays the
 signature-verified payload persisted at receive time instead of re-fetching
 — the signature is the security boundary either way.
+
+Two provider gaps are smoothed over by the framework rather than faked:
+
+- **Trial-ending notices.** Only Stripe emits a native `trial_will_end`
+  webhook. For Paddle and Lemon Squeezy, `tenant:billing:sweep` synthesises
+  `TrialEnding` from the mirror's `trial_end` and `trialEndingLeadDays`, deduped
+  against the native event so each subscription is notified exactly once.
+- **Immediate cancellation.** Lemon Squeezy only cancels at period end (no
+  `subscription_cancel_immediate`). When you request an immediate cancel,
+  `BillingService.cancelSubscription(id, { atPeriodEnd: false })` emulates it by
+  revoking access now (mirror → `canceled`, tenant reassigned to `defaultPlan`)
+  while LS keeps billing through the period end — there is no automatic refund.
+  Stripe and Paddle cancel immediately at the provider and let their deletion
+  webhook finalise the downgrade.
+
+The dunning escalation counter is provider-independent (persisted on the
+subscription, guarded against job-retry double-counting), so `dunning.maxAttempts`
+and `PaymentFailed{final:true}` work even though Lemon Squeezy reports no attempt
+count — see [Dunning](#dunning).
 
 The Stripe driver uses the official SDK. The Paddle and Lemon Squeezy drivers
 call their REST APIs directly and verify webhooks natively (`Paddle-Signature`
@@ -295,11 +316,11 @@ billing: {
 }
 ```
 
-On `invoice.payment_failed`:
+On a failed-payment event:
 
 - Every attempt emits `PaymentFailed{final:false}` with `attempts`
   and `nextRetry` so hosts can render in-app banners.
-- The `attempts === maxAttempts` attempt marks
+- The `attempts >= maxAttempts` attempt marks
   `billing_subscriptions.status = 'past_due'` and emits
   `PaymentFailed{final:true}`.
 - `action` then runs:
@@ -311,13 +332,20 @@ On `invoice.payment_failed`:
     `customer.subscription.updated(active)` restores the upgraded
     plan automatically.
 
+The attempt count is **provider-independent**: it is `max(provider attempt
+count, a counter persisted on the subscription)`. Stripe's real `attempt_count`
+drives it directly; for Lemon Squeezy (which reports no count) the persisted
+counter does, so dunning still escalates. The counter is guarded by
+`dunning_last_event_id` so a queue retry of the same event can't double-count,
+and a successful payment resets it.
+
 The same flow drawn out, recovery path included. The downgrade touches
 quotas only, so a later successful retry restores the paid plan without
 operator action.
 
 ```mermaid
 flowchart TB
-  F["invoice.payment_failed<br/>attempts = invoice.attempt_count"] --> FIN{"attempts >= dunning.maxAttempts?"}
+  F["invoice.payment_failed<br/>attempts = max(provider count, local counter)"] --> FIN{"attempts >= dunning.maxAttempts?"}
   FIN -->|no| NF["PaymentFailed final=false<br/>with attempts and nextRetry"]
   FIN -->|yes| PD["billing_subscriptions.status = past_due<br/>PaymentFailed final=true"]
   PD --> ACT{"dunning.action"}
@@ -328,9 +356,12 @@ flowchart TB
   REC --> PLAN["customer.subscription.updated<br/>re-applies the plan from the product mapping"]
 ```
 
-> `gracePeriodDays` is currently a no-op (the value is read but the
-> action fires immediately). Listen for `PaymentFailed{final:true}`
-> and defer your own enforcement if you need a grace window today.
+> With `gracePeriodDays: 0` (default) the `downgrade` action fires immediately.
+> With `gracePeriodDays > 0` it is deferred: the subscription is stamped with a
+> `dunning_downgrade_at` and `tenant:billing:sweep` applies the downgrade once
+> the window elapses (a recovery in between clears it). Run that command on a
+> cron if you use a grace period. The `PaymentFailed{final:true}` event still
+> fires at `past_due` time regardless, so host listeners can act immediately.
 
 For app-level blocking (refusing requests until billing is resolved),
 listen for `PaymentFailed{final:true}` and gate at your middleware.
@@ -426,7 +457,7 @@ underlying issue is resolved.
 ## Events
 
 10 events are dispatched from the billing pipeline. All exported
-from `@adonisjs-lasagna/saas-tenancy/events`:
+from `@adonisjs-lasagna/billing`:
 
 | Event | Payload | Dispatched by |
 |---|---|---|
@@ -435,7 +466,7 @@ from `@adonisjs-lasagna/saas-tenancy/events`:
 | `SubscriptionCanceled` | `tenantId, subscriptionId, previousPlan, reason` | `customer.subscription.deleted` (`reason`: `user_canceled` \| `dunning_failed` \| `unknown`) |
 | `SubscriptionPaused` | `tenantId, subscriptionId` | Stripe pause-collection or `customer.subscription.paused` |
 | `SubscriptionResumed` | `tenantId, subscriptionId` | `customer.subscription.resumed` |
-| `TrialEnding` | `tenantId, subscriptionId, daysLeft` | `customer.subscription.trial_will_end` |
+| `TrialEnding` | `tenantId, subscriptionId, daysLeft` | `customer.subscription.trial_will_end` (Stripe), or `tenant:billing:sweep` synthesising it from `trial_end` for Paddle / Lemon Squeezy |
 | `PaymentSucceeded` | `tenantId, invoiceId, amount, currency` | `invoice.payment_succeeded` |
 | `PaymentFailed` | `tenantId, invoiceId, amount, currency, attempts, final, nextRetry` | `invoice.payment_failed` (every attempt + final) |
 | `BillingMisconfigured` | `subscriptionId, productId, priceId` | A Stripe product/price has no mapping in `config.billing.products`. |
@@ -514,7 +545,8 @@ driver):
 | `createBillingPortalSession(tenant, opts)` | `Promise<{ url }>` | Builds a billing-portal URL. Requires a `billing_portal` driver (else `unsupported_by_driver`); throws `customer_not_found` if the tenant has no billing customer yet. |
 | `syncSubscription(sub, eventCreated, opts?)` | `Promise<{ tenant_id, plan, previousPlan } \| null>` | Reconciles a neutral `Subscription` into the local mirror + assigns the plan. Stale events (older than `last_event_at - 5s`) are rejected. |
 | `reportUsage(tenant, meter, qty, opts?)` | `Promise<void>` | Reports a meter event through the active driver (requires `usage_metering`). Persists an audit row in `billing_usage_events`. |
-| `retrieveEvent(eventId)` | `Promise<BillingWebhookEvent>` | Re-fetches the event as the source of truth. Uses the active driver's tamper guard (`event_retrieval`) when supported; otherwise (and when the provider reports the event aged out) falls back to the locally-persisted, signature-verified replayable `payload`. |
+| `cancelSubscription(id, opts?)` | `Promise<void>` | Cancels through the active driver and reflects it in the mirror. `atPeriodEnd: false` (default) cancels immediately; for a driver without `subscription_cancel_immediate` (Lemon Squeezy) it emulates immediate by marking the mirror `canceled` and reassigning `defaultPlan` now (the provider bills through period end — no auto-refund). `atPeriodEnd: true` flags `cancelAtPeriodEnd` and leaves the status change to the provider's webhook. |
+| `retrieveEvent(eventId)` | `Promise<BillingWebhookEvent>` | Re-fetches the event as the source of truth. Uses the active driver's tamper guard (`event_retrieval`) when supported; otherwise (and when the provider reports the event aged out) falls back to the locally-persisted, signature-verified replayable `payload`. Throws `api_error` when neither the provider nor a stored payload can supply it. |
 
 The host wires checkout and the portal as your own routes — apply
 your auth + role middleware (`auth + activeTenant + role(owner|admin)`
@@ -557,6 +589,7 @@ export default class BillingController {
 | `tenant:billing:backfill` | `--dry-run`, `--force`, `--plan=<name>` | Seeds `tenant_plans` rows with the default plan for every tenant that doesn't have one. `--force` overwrites existing rows. |
 | `tenant:billing:replay` | `--event-id=<evt>`, `--all-failed` | Re-dispatches a failed webhook event after the underlying issue is fixed (e.g. missing product mapping). |
 | `tenant:billing:cleanup` | `--batch-size=<n>` | Purges `billing_processed_events` older than `webhook.idempotencyTtlDays`. **Suggested cron**: `0 4 * * *`. |
+| `tenant:billing:sweep` | `--batch-size=<n>` | Emits due `TrialEnding` notices (the Paddle / Lemon Squeezy fallback for Stripe's native `trial_will_end`) and applies due grace-period dunning downgrades (`dunning.gracePeriodDays > 0`). Idempotent. **Suggested cron**: `0 * * * *` (hourly). |
 | `tenant:billing:doctor` | `--json` | Diagnoses Stripe config + recent webhook health. Exit 1 on any error. Pipeline-friendly. |
 | `tenant:billing:test-webhook` | `<event>` (positional), `--url=<url>`, `--object=<file>` | Generates and POSTs a signed synthetic Stripe event. Useful in CI without `stripe listen`. |
 
@@ -592,6 +625,10 @@ Provider-agnostic mirror of subscriptions. Reconciled by
 | `current_period_start/end` | `timestamptz` | |
 | `cancel_at_period_end` | `boolean` | |
 | `cancel_at`, `canceled_at`, `trial_end` | `timestamptz \| null` | |
+| `dunning_attempts` | `integer` | Provider-independent failed-payment counter (default 0; reset on recovery). |
+| `dunning_last_event_id` | `string \| null` | Last counted `payment.failed` event id — the per-event idempotency guard against queue-retry double-counting. |
+| `dunning_downgrade_at` | `timestamptz \| null` | Set when `dunning.gracePeriodDays > 0`: the moment `tenant:billing:sweep` should apply the downgrade. |
+| `trial_ending_notified_at` | `timestamptz \| null` | Stamped once `TrialEnding` has been emitted (native webhook or sweep), so each sub is notified once. |
 | `plan_name` | `string` | |
 | `last_event_at` | `timestamptz` | Ordering guard for out-of-order webhook delivery. |
 | `raw` | `jsonb` | Full provider payload so we can re-derive any field without re-fetching. |
@@ -795,7 +832,7 @@ Replace customer/product IDs in the template (or pass
 2. `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_API_VERSION`
    set in env.
 3. `tenant:billing:doctor --json` exits `0`.
-4. Cron: daily `tenant:billing:sync` and `tenant:billing:cleanup`.
+4. Cron: daily `tenant:billing:sync` and `tenant:billing:cleanup`; hourly `tenant:billing:sweep` (required if you use Paddle/Lemon Squeezy trial notices or `dunning.gracePeriodDays > 0`).
 5. Subscribe a paging integration (PagerDuty, Slack, Sentry) to
    `BillingEventDeadLettered`.
 6. (Optional) `webhook.enforceIpAllowlist: true` with

@@ -125,15 +125,34 @@ async function handleTrialWillEnd(
   const customer = await BillingCustomer.query().where('providerCustomerId', sub.customerId).first()
   if (!customer) return { outcome: 'noop' }
 
-  const trialEnd = sub.trialEnd ? DateTime.fromSeconds(sub.trialEnd) : null
+  // Dedupe against the `tenant:billing:sweep` fallback: whichever fires first
+  // stamps `trialEndingNotifiedAt`, the other no-ops, so each subscription is
+  // notified exactly once across providers.
+  const row = await BillingSubscription.find(sub.providerSubscriptionId)
+  if (row?.trialEndingNotifiedAt) return { outcome: 'noop', tenant_id: customer.tenantId }
+
+  await dispatchTrialEnding(customer.tenantId, sub.providerSubscriptionId, sub.trialEnd)
+  if (row) {
+    row.trialEndingNotifiedAt = DateTime.utc()
+    await row.save()
+  }
+  return { outcome: 'event_emitted', tenant_id: customer.tenantId }
+}
+
+/**
+ * Compute days-left and dispatch `TrialEnding`. Shared by the native Stripe
+ * `trial_will_end` handler and the provider-agnostic `tenant:billing:sweep`
+ * fallback (Paddle / Lemon Squeezy have no native trial-ending webhook).
+ */
+export async function dispatchTrialEnding(
+  tenantId: string,
+  subscriptionId: string,
+  trialEndSeconds: number | null
+): Promise<void> {
+  const trialEnd = trialEndSeconds ? DateTime.fromSeconds(trialEndSeconds) : null
   const daysLeft = trialEnd ? Math.max(0, Math.ceil(trialEnd.diff(DateTime.utc(), 'days').days)) : 0
   const { default: TrialEnding } = await import('../../events/billing/trial_ending.js')
-  await TrialEnding.dispatch({
-    tenantId: customer.tenantId,
-    subscriptionId: sub.providerSubscriptionId,
-    daysLeft,
-  })
-  return { outcome: 'event_emitted', tenant_id: customer.tenantId }
+  await TrialEnding.dispatch({ tenantId, subscriptionId, daysLeft })
 }
 
 async function handlePaymentSucceeded(
@@ -147,17 +166,26 @@ async function handlePaymentSucceeded(
     .first()
   if (!customer) return { outcome: 'noop' }
 
-  // Recover status from dunning when an outstanding invoice is paid. Without
-  // this, a customer who updates their card and triggers a successful retry
-  // stays "past_due" locally until a later subscription event corrects it.
+  // Recover status from dunning when an outstanding invoice is paid, and clear
+  // the dunning counter so a future failure streak starts fresh. Without the
+  // status recovery, a customer who updates their card and triggers a
+  // successful retry stays "past_due" locally until a later subscription event
+  // corrects it. The counter reset also covers the active-with-prior-failures
+  // case (attempts accumulated but not yet final), so a success doesn't leave a
+  // stale count that prematurely escalates the next failure.
   if (invoice.subscriptionId) {
     const sub = await BillingSubscription.find(invoice.subscriptionId)
-    if (sub && (sub.status === 'past_due' || sub.status === 'unpaid')) {
+    if (sub) {
       const eventAt = DateTime.fromSeconds(event.createdAt)
       if (eventAt >= sub.lastEventAt.minus({ seconds: 5 })) {
-        sub.status = 'active'
-        sub.lastEventAt = eventAt
-        await sub.save()
+        if (sub.status === 'past_due' || sub.status === 'unpaid') {
+          sub.status = 'active'
+          sub.lastEventAt = eventAt
+        }
+        sub.dunningAttempts = 0
+        sub.dunningLastEventId = null
+        sub.dunningDowngradeAt = null
+        if (sub.$isDirty) await sub.save()
       }
     }
   }
@@ -173,9 +201,21 @@ async function handlePaymentSucceeded(
 }
 
 /**
- * Dunning entry. After `maxAttempts` the row is marked `past_due` and a "final"
- * payment_failed event fires so the host's mailers / downgrades hook off
- * `final: true` rather than every retry.
+ * Dunning entry. Escalation is driven by a provider-independent attempt counter
+ * persisted on the subscription, so dunning works even for providers that
+ * under-report attempts (Lemon Squeezy sends none, Paddle approximates). We
+ * escalate on `max(provider.attemptCount, localCounter)`: Stripe's real
+ * `attempt_count` is never lost, and providers that report 0 still reach
+ * `maxAttempts` via the local count.
+ *
+ * Idempotency: the counter is guarded by `dunningLastEventId` so a job retry of
+ * the same event can't double-count. Ordering: a stale (out-of-order) failure
+ * neither increments nor escalates. On `maxAttempts` the row is marked
+ * `past_due` and a "final" `PaymentFailed` fires so the host's mailers /
+ * downgrades hook off `final: true` rather than every retry. The configured
+ * downgrade is applied immediately when `gracePeriodDays` is 0, or scheduled via
+ * `dunningDowngradeAt` (applied by `tenant:billing:sweep`) when a grace period
+ * is set.
  */
 async function handlePaymentFailed(
   event: EventOf<'payment.failed'>,
@@ -190,34 +230,44 @@ async function handlePaymentFailed(
 
   const cfg = getConfig().billing
   const maxAttempts = cfg?.dunning?.maxAttempts ?? 3
-  const attempts = invoice.attemptCount
-  const isFinal = attempts >= maxAttempts
+  const gracePeriodDays = cfg?.dunning?.gracePeriodDays ?? 0
+  const eventAt = DateTime.fromSeconds(event.createdAt)
 
-  if (isFinal) {
-    if (invoice.subscriptionId) {
-      const sub = await BillingSubscription.find(invoice.subscriptionId)
-      if (sub && sub.status !== 'past_due' && sub.status !== 'canceled') {
-        const eventAt = DateTime.fromSeconds(event.createdAt)
-        if (eventAt >= sub.lastEventAt.minus({ seconds: 5 })) {
-          sub.status = 'past_due'
-          sub.lastEventAt = eventAt
-          await sub.save()
-        }
+  const sub = invoice.subscriptionId ? await BillingSubscription.find(invoice.subscriptionId) : null
+
+  // Fresh = not an out-of-order replay of an event older than the last applied
+  // one. No subscription row (a one-off charge) is treated as fresh so the
+  // provider's own attempt count still drives `final`.
+  const fresh = !sub || eventAt >= sub.lastEventAt.minus({ seconds: 5 })
+  const alreadyCounted = sub?.dunningLastEventId === event.id
+  let localAttempts = sub?.dunningAttempts ?? 0
+  if (fresh && !alreadyCounted) localAttempts += 1
+  const attempts = Math.max(invoice.attemptCount, localAttempts)
+  const isFinal = fresh && attempts >= maxAttempts
+
+  if (sub && fresh) {
+    if (!alreadyCounted) {
+      sub.dunningAttempts = localAttempts
+      sub.dunningLastEventId = event.id
+    }
+    if (isFinal) {
+      if (sub.status !== 'past_due' && sub.status !== 'canceled') {
+        sub.status = 'past_due'
+        sub.lastEventAt = eventAt
+      }
+      if (cfg?.dunning?.action === 'downgrade' && cfg.defaultPlan && gracePeriodDays > 0) {
+        // Defer the downgrade — `tenant:billing:sweep` applies it once the
+        // grace window elapses (and a recovery clears it first).
+        sub.dunningDowngradeAt = eventAt.plus({ days: gracePeriodDays })
       }
     }
+    if (sub.$isDirty) await sub.save()
+  }
 
-    if (cfg?.dunning?.action === 'downgrade' && cfg.defaultPlan) {
-      try {
-        const { QuotaService } = await import('@adonisjs-lasagna/saas-tenancy/services')
-        const quotas = new QuotaService()
-        await quotas.assignPlan(customer.tenantId, cfg.defaultPlan, { source: 'dunning' })
-      } catch (assignErr) {
-        ctx.logger.error(
-          { tenant_id: customer.tenantId, err: (assignErr as Error)?.message },
-          'billing.dunning.downgrade_failed: could not assign defaultPlan'
-        )
-      }
-    }
+  // Immediate downgrade (grace period 0). Scheduled downgrades go through the
+  // sweep instead, so this only runs when there's no grace window.
+  if (isFinal && cfg?.dunning?.action === 'downgrade' && cfg.defaultPlan && gracePeriodDays === 0) {
+    await applyDunningDowngrade(customer.tenantId, cfg.defaultPlan, ctx.logger)
   }
 
   const { default: PaymentFailed } = await import('../../events/billing/payment_failed.js')
@@ -233,6 +283,29 @@ async function handlePaymentFailed(
       : null,
   })
   return { outcome: 'event_emitted', tenant_id: customer.tenantId }
+}
+
+/**
+ * Reassign a tenant to its `defaultPlan` as the dunning `downgrade` action.
+ * Shared by the immediate path here and the deferred grace-period path in
+ * `tenant:billing:sweep`. Never throws — a failed downgrade is logged so the
+ * webhook still acks (the next retry / sweep re-applies it idempotently).
+ */
+export async function applyDunningDowngrade(
+  tenantId: string,
+  defaultPlan: string,
+  logger: Logger
+): Promise<void> {
+  try {
+    const { QuotaService } = await import('@adonisjs-lasagna/saas-tenancy/services')
+    const quotas = new QuotaService()
+    await quotas.assignPlan(tenantId, defaultPlan, { source: 'dunning' })
+  } catch (assignErr) {
+    logger.error(
+      { tenant_id: tenantId, err: (assignErr as Error)?.message },
+      'billing.dunning.downgrade_failed: could not assign defaultPlan'
+    )
+  }
 }
 
 async function handleCustomerDeleted(

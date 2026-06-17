@@ -77,6 +77,42 @@ test.group('BillingService.syncSubscription (integration)', (group) => {
     assert.equal(tenantPlan?.source, 'stripe')
   })
 
+  test('an unrecognized provider status does not overwrite a known status (fail-safe)', async ({
+    assert,
+  }) => {
+    const { providerCustomerId } = await seedCustomer()
+    const billing = await app.container.make(BillingService)
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+    const now = Math.floor(Date.now() / 1000)
+
+    // 1. Establish a known active subscription.
+    const active = buildNeutralSubscription({
+      customer: providerCustomerId,
+      productId: 'prod_pro',
+      status: 'active',
+      id: 'sub_unknown_status',
+    })
+    await billing.syncSubscription(active, now)
+    let row = await BillingSubscription.find('sub_unknown_status')
+    assert.equal(row?.status, 'active')
+
+    // 2. A later event carries a status the driver couldn't map: the mapper
+    //    fails closed to `incomplete` and flags `statusRecognized: false`. The
+    //    mirror must KEEP the known `active`, never trust the guess.
+    const unknown = buildNeutralSubscription({
+      customer: providerCustomerId,
+      productId: 'prod_pro',
+      status: 'incomplete',
+      id: 'sub_unknown_status',
+    })
+    ;(unknown as { statusRecognized?: boolean }).statusRecognized = false
+    const result = await billing.syncSubscription(unknown, now + 10)
+
+    assert.isNotNull(result)
+    row = await BillingSubscription.find('sub_unknown_status')
+    assert.equal(row?.status, 'active', 'unknown status did not overwrite the known active status')
+  })
+
   test('subscription.deleted downgrades the tenant to defaultPlan', async ({ assert }) => {
     const { tenantId, providerCustomerId } = await seedCustomer()
     const billing = await app.container.make(BillingService)

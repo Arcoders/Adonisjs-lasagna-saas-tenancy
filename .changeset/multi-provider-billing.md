@@ -36,3 +36,30 @@ BREAKING:
   `VerifyBillingWebhookMiddleware`, `ProcessStripeEventJob` →
   `ProcessBillingEventJob`, `redactStripeEvent` → `redactBillingEvent`.
 - `config.billing.stripe` is now optional (provide the block matching `driver`).
+
+Hardening pass (same release):
+- Dunning is now provider-independent: escalation runs on `max(provider attempt
+  count, a counter persisted on the subscription)`, guarded against queue-retry
+  double-counting, so `PaymentFailed{final:true}` and the `downgrade` action work
+  even for Lemon Squeezy (which reports no attempt count). Reset on recovery.
+- `dunning.gracePeriodDays` is now honoured (previously read but ignored): a
+  non-zero grace schedules the downgrade and the new `tenant:billing:sweep`
+  command applies it once the window elapses.
+- Trial-ending parity: `tenant:billing:sweep` synthesises `TrialEnding` for
+  Paddle / Lemon Squeezy (no native `trial_will_end` webhook), deduped against
+  the native Stripe event via `trial_ending_notified_at`. New
+  `config.billing.trialEndingLeadDays` (default 3).
+- Immediate-cancel parity: new `subscription_cancel_immediate` capability and
+  `BillingService.cancelSubscription(id, { atPeriodEnd })`. Lemon Squeezy (period
+  -end only) is emulated by revoking access locally + reassigning `defaultPlan`.
+- `ensureCustomer` race-safety for the REST drivers: Paddle sends an
+  `Idempotency-Key`; Lemon Squeezy does find-or-create (lookup by email, reuse on
+  a 422 conflict).
+- Unknown provider subscription statuses fail closed (`incomplete` +
+  `statusRecognized: false`) and never overwrite a known status, instead of
+  silently mapping to `active`.
+- New `billing_subscriptions` columns: `dunning_attempts`,
+  `dunning_last_event_id`, `dunning_downgrade_at`, `trial_ending_notified_at`.
+  Re-run configure (or `ALTER TABLE ... ADD COLUMN`) to pick them up.
+- The internal `__*ForTests` active-driver hooks are no longer re-exported from
+  the package root (import from the driver module if needed).

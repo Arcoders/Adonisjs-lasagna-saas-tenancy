@@ -156,11 +156,21 @@ async function ensureBackofficeSchema(): Promise<void> {
        cancel_at                timestamptz,
        canceled_at              timestamptz,
        trial_end                timestamptz,
+       dunning_attempts         integer NOT NULL DEFAULT 0,
+       dunning_last_event_id    varchar(255),
+       dunning_downgrade_at     timestamptz,
+       trial_ending_notified_at timestamptz,
        plan_name                varchar(255) NOT NULL,
        last_event_at            timestamptz NOT NULL,
        raw                      jsonb NOT NULL,
        updated_at               timestamptz NOT NULL DEFAULT now()
      )`,
+    // Provider-independent dunning + trial-notice columns arrived later; patch
+    // pre-existing local databases the CREATE above skipped (CI starts clean).
+    `ALTER TABLE backoffice.billing_subscriptions ADD COLUMN IF NOT EXISTS dunning_attempts integer NOT NULL DEFAULT 0`,
+    `ALTER TABLE backoffice.billing_subscriptions ADD COLUMN IF NOT EXISTS dunning_last_event_id varchar(255)`,
+    `ALTER TABLE backoffice.billing_subscriptions ADD COLUMN IF NOT EXISTS dunning_downgrade_at timestamptz`,
+    `ALTER TABLE backoffice.billing_subscriptions ADD COLUMN IF NOT EXISTS trial_ending_notified_at timestamptz`,
     `CREATE TABLE IF NOT EXISTS backoffice.billing_processed_events (
        event_id     varchar(255) PRIMARY KEY,
        provider     varchar(255) NOT NULL DEFAULT 'stripe',

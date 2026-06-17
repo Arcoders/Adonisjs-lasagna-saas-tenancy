@@ -165,7 +165,9 @@ test.group('Lemon Squeezy webhook mapper → neutral', () => {
     assert.equal(sub.priceId, '9')
   })
 
-  test('subscription_payment_failed → payment.failed', ({ assert }) => {
+  test('subscription_payment_failed → payment.failed (attemptCount 0, provider reports none)', ({
+    assert,
+  }) => {
     const e = lsMap(
       {
         meta: { event_name: 'subscription_payment_failed' },
@@ -181,5 +183,68 @@ test.group('Lemon Squeezy webhook mapper → neutral', () => {
     assert.equal(inv.subscriptionId, '42')
     assert.equal(inv.amountDue, 999)
     assert.equal(inv.currency, 'usd')
+    // LS carries no attempt count — the dispatcher's local counter drives dunning.
+    assert.equal(inv.attemptCount, 0)
+  })
+})
+
+test.group('Subscription status fail-safe (unknown statuses)', () => {
+  test('Stripe: a known status is recognized; an unknown one fails closed to incomplete', ({
+    assert,
+  }) => {
+    const known = stripeMap(
+      stripeEvent('customer.subscription.updated', {
+        id: 'sub_k',
+        customer: 'cus_k',
+        status: 'active',
+        items: { data: [{ price: { id: 'price_pro', product: 'prod_pro' } }] },
+      })
+    ).data as any
+    assert.equal(known.status, 'active')
+    assert.isTrue(known.statusRecognized)
+
+    const unknown = stripeMap(
+      stripeEvent('customer.subscription.updated', {
+        id: 'sub_u',
+        customer: 'cus_u',
+        status: 'quantum_superposition',
+        items: { data: [{ price: { id: 'price_pro', product: 'prod_pro' } }] },
+      })
+    ).data as any
+    assert.equal(unknown.status, 'incomplete', 'fail closed, never silently active')
+    assert.isFalse(unknown.statusRecognized)
+  })
+
+  test('Paddle: unknown status → incomplete + statusRecognized=false', ({ assert }) => {
+    const sub = paddleMap({
+      event_id: 'ntf_u',
+      event_type: 'subscription.updated',
+      occurred_at: '2024-01-01T00:00:00Z',
+      data: { id: 'sub_pu', customer_id: 'ctm_1', status: 'brand_new_paddle_status' },
+    }).data as any
+    assert.equal(sub.status, 'incomplete')
+    assert.isFalse(sub.statusRecognized)
+  })
+
+  test('Lemon Squeezy: unknown status → incomplete + statusRecognized=false', ({ assert }) => {
+    const sub = lsMap(
+      {
+        meta: { event_name: 'subscription_updated' },
+        data: { id: 5, attributes: { status: 'brand_new_ls_status', customer_id: 7 } },
+      },
+      'lsq_evt_u'
+    ).data as any
+    assert.equal(sub.status, 'incomplete')
+    assert.isFalse(sub.statusRecognized)
+  })
+
+  test('a recognized status carries statusRecognized=true', ({ assert }) => {
+    const sub = paddleMap({
+      event_id: 'ntf_k',
+      event_type: 'subscription.updated',
+      occurred_at: '2024-01-01T00:00:00Z',
+      data: { id: 'sub_pk', customer_id: 'ctm_1', status: 'active' },
+    }).data as any
+    assert.isTrue(sub.statusRecognized)
   })
 })

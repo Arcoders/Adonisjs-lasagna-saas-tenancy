@@ -32,6 +32,14 @@ export type BillingCapability =
   | 'event_retrieval'
   | 'price_lookup'
   | 'subscription_cancel'
+  /**
+   * The driver can cancel a subscription *immediately* (stop the provider-side
+   * billing now), not only at period end. Stripe and Paddle support it; Lemon
+   * Squeezy does not, so `BillingService.cancelSubscription` emulates an
+   * immediate cancel locally (revoke access now) while LS bills through the
+   * period end.
+   */
+  | 'subscription_cancel_immediate'
 
 /**
  * Neutral subscription status. Identical to the original
@@ -39,15 +47,23 @@ export type BillingCapability =
  * (Paddle `active|trialing|past_due|paused|canceled`, Lemon Squeezy
  * `on_trial|active|past_due|unpaid|cancelled|expired`, ...).
  */
-export type SubscriptionStatus =
-  | 'incomplete'
-  | 'incomplete_expired'
-  | 'trialing'
-  | 'active'
-  | 'past_due'
-  | 'canceled'
-  | 'unpaid'
-  | 'paused'
+export const SUBSCRIPTION_STATUSES = [
+  'incomplete',
+  'incomplete_expired',
+  'trialing',
+  'active',
+  'past_due',
+  'canceled',
+  'unpaid',
+  'paused',
+] as const
+
+export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number]
+
+/** Type guard: is `s` one of the known neutral statuses? */
+export function isKnownSubscriptionStatus(s: string): s is SubscriptionStatus {
+  return (SUBSCRIPTION_STATUSES as readonly string[]).includes(s)
+}
 
 /** Neutral customer, as returned by `ensureCustomer`. */
 export interface Customer {
@@ -73,6 +89,14 @@ export interface Subscription {
   cancelAt: number | null
   canceledAt: number | null
   trialEnd: number | null
+  /**
+   * `false` when the driver could not map the provider's native status string
+   * to a known neutral status (e.g. the provider added a new one). Omitted /
+   * `true` means recognized. `syncSubscription` uses this to fail safe: it keeps
+   * an existing row's known status rather than overwriting it with a guessed
+   * value, and logs for an operator to update the mapping.
+   */
+  statusRecognized?: boolean
   /** Product id used for plan resolution against `config.billing.products`. */
   productId: string | null
   /** Price id used for plan resolution against `config.billing.products`. */

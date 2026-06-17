@@ -24,6 +24,14 @@ export interface MultitenancyBillingRoutesOptions {
  * Wires the verification middleware (active-driver signature check) → the
  * controller, which stamps an idempotency row and dispatches the heavy work to
  * `ProcessBillingEventJob`.
+ *
+ * NOTE: when `config.billing.webhook.enforceIpAllowlist` is on, the allowlist
+ * check uses `request.ip()`. Behind a proxy/load balancer you MUST configure
+ * AdonisJS `http.trustProxy` so `request.ip()` resolves the real client IP from
+ * `X-Forwarded-For` — otherwise every request looks like it comes from the proxy
+ * and the allowlist either blocks everything or trusts a spoofable header.
+ * Signature verification is the primary control; the allowlist is defence in
+ * depth.
  */
 export function multitenancyBillingRoutes(options: MultitenancyBillingRoutesOptions = {}): void {
   const cfg = getConfig().billing

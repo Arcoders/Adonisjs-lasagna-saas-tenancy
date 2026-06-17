@@ -6,6 +6,7 @@ import type {
   Subscription,
   SubscriptionStatus,
 } from '../../contracts/types.js'
+import { isKnownSubscriptionStatus } from '../../contracts/types.js'
 
 /**
  * Stripe → neutral mappers. Every Stripe quirk that used to live in
@@ -39,10 +40,17 @@ export function toSubscription(sub: Stripe.Subscription): Subscription {
   const periodStart = subItem?.current_period_start ?? subRaw.current_period_start ?? created
   const periodEnd = subItem?.current_period_end ?? subRaw.current_period_end ?? created
 
+  // Stripe's statuses match the neutral set 1:1, but guard against a future
+  // status Stripe adds: fail closed to `incomplete` + flag it, rather than
+  // writing a value the DB enum would reject (a hard crash) or silently
+  // entitling the tenant.
+  const statusRecognized = isKnownSubscriptionStatus(sub.status)
+
   return {
     providerSubscriptionId: sub.id,
     customerId,
-    status: sub.status as SubscriptionStatus,
+    status: statusRecognized ? (sub.status as SubscriptionStatus) : 'incomplete',
+    statusRecognized,
     currentPeriodStart: periodStart,
     currentPeriodEnd: periodEnd,
     cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,

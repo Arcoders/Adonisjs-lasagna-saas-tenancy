@@ -241,9 +241,21 @@ export interface BillingConfig {
      *     restores the upgraded plan automatically.
      */
     action?: 'none' | 'downgrade'
-    /** Days to wait after `past_due` before applying `action`. Default 0. */
+    /**
+     * Days to wait after `past_due` before applying `action`. Default 0
+     * (apply immediately). When `> 0`, the downgrade is scheduled and applied
+     * by `tenant:billing:sweep` once the window elapses — so run that command
+     * on a cron (hourly suggested) if you set a grace period.
+     */
     gracePeriodDays?: number
   }
+  /**
+   * Days before `trial_end` to emit `TrialEnding`. Default 3. Stripe fires a
+   * native `trial_will_end` webhook ~3 days out; for Paddle/Lemon Squeezy (no
+   * such webhook) `tenant:billing:sweep` synthesises the notice from this
+   * lead time. Each subscription is notified exactly once across providers.
+   */
+  trialEndingLeadDays?: number
   /** Send `QuotaWarningMailer` on `TenantQuotaExceeded`. Requires `@adonisjs/mail`. Default `false`. */
   notifyOnQuotaExceeded?: boolean
   /** What to do with the provider subscription on tenant hard-delete. Default `'cancel'`. */

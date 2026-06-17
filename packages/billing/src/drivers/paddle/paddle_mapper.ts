@@ -13,22 +13,27 @@ export function isoToSeconds(iso: string | null | undefined): number | null {
   return Number.isNaN(ms) ? null : Math.floor(ms / 1000)
 }
 
-/** Paddle Billing subscription status → neutral status. */
-function mapStatus(status: string): SubscriptionStatus {
+/**
+ * Paddle Billing subscription status → neutral status. `recognized: false` flags
+ * a status string Paddle added that we don't map yet — the default is the
+ * fail-closed `incomplete` (no entitlement) and `syncSubscription` keeps an
+ * existing row's known status rather than trusting the guess.
+ */
+function mapStatus(status: string): { status: SubscriptionStatus; recognized: boolean } {
   switch (status) {
     case 'active':
-      return 'active'
+      return { status: 'active', recognized: true }
     case 'trialing':
-      return 'trialing'
+      return { status: 'trialing', recognized: true }
     case 'past_due':
-      return 'past_due'
+      return { status: 'past_due', recognized: true }
     case 'paused':
-      return 'paused'
+      return { status: 'paused', recognized: true }
     case 'canceled':
     case 'cancelled':
-      return 'canceled'
+      return { status: 'canceled', recognized: true }
     default:
-      return 'active'
+      return { status: 'incomplete', recognized: false }
   }
 }
 
@@ -73,10 +78,12 @@ export function toSubscription(data: PaddleSubscriptionData): Subscription {
   const scheduledCancel =
     data.scheduled_change?.action === 'cancel' ? data.scheduled_change?.effective_at : null
   const now = Math.floor(Date.now() / 1000)
+  const mappedStatus = mapStatus(data.status)
   return {
     providerSubscriptionId: data.id,
     customerId: data.customer_id,
-    status: mapStatus(data.status),
+    status: mappedStatus.status,
+    statusRecognized: mappedStatus.recognized,
     currentPeriodStart: isoToSeconds(period?.starts_at) ?? now,
     currentPeriodEnd: isoToSeconds(period?.ends_at) ?? now,
     cancelAtPeriodEnd: Boolean(scheduledCancel),

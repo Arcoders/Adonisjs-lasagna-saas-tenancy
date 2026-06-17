@@ -13,24 +13,29 @@ export function isoToSeconds(iso: string | null | undefined): number | null {
   return Number.isNaN(ms) ? null : Math.floor(ms / 1000)
 }
 
-/** Lemon Squeezy subscription status → neutral status. */
-function mapStatus(status: string): SubscriptionStatus {
+/**
+ * Lemon Squeezy subscription status → neutral status. `recognized: false` flags
+ * a status string LS added that we don't map yet — the default is the
+ * fail-closed `incomplete` (no entitlement) and `syncSubscription` keeps an
+ * existing row's known status rather than trusting the guess.
+ */
+function mapStatus(status: string): { status: SubscriptionStatus; recognized: boolean } {
   switch (status) {
     case 'on_trial':
-      return 'trialing'
+      return { status: 'trialing', recognized: true }
     case 'active':
-      return 'active'
+      return { status: 'active', recognized: true }
     case 'past_due':
-      return 'past_due'
+      return { status: 'past_due', recognized: true }
     case 'unpaid':
-      return 'unpaid'
+      return { status: 'unpaid', recognized: true }
     case 'paused':
-      return 'paused'
+      return { status: 'paused', recognized: true }
     case 'cancelled':
     case 'expired':
-      return 'canceled'
+      return { status: 'canceled', recognized: true }
     default:
-      return 'active'
+      return { status: 'incomplete', recognized: false }
   }
 }
 
@@ -69,10 +74,12 @@ export function toSubscription(data: LsResource | undefined): Subscription {
   const now = Math.floor(Date.now() / 1000)
   const cancelled = attr<boolean>(data, 'cancelled') ?? false
   const endsAt = attr<string>(data, 'ends_at') ?? null
+  const mappedStatus = mapStatus(attr<string>(data, 'status') ?? '')
   return {
     providerSubscriptionId: String(data?.id ?? ''),
     customerId: String(attr<number | string>(data, 'customer_id') ?? ''),
-    status: mapStatus(attr<string>(data, 'status') ?? ''),
+    status: mappedStatus.status,
+    statusRecognized: mappedStatus.recognized,
     currentPeriodStart: isoToSeconds(attr<string>(data, 'created_at')) ?? now,
     currentPeriodEnd: isoToSeconds(attr<string>(data, 'renews_at')) ?? now,
     cancelAtPeriodEnd: cancelled,
@@ -94,7 +101,10 @@ export function toInvoice(data: LsResource | undefined): Invoice {
     amountPaid: total,
     amountDue: total,
     currency: (attr<string>(data, 'currency') ?? 'usd').toLowerCase(),
-    attemptCount: 1,
+    // Lemon Squeezy webhooks carry no dunning attempt count. Report 0 ("none
+    // from the provider") and let the dispatcher's provider-independent counter
+    // drive escalation — see `handlePaymentFailed`.
+    attemptCount: 0,
     nextPaymentAttempt: null,
   }
 }

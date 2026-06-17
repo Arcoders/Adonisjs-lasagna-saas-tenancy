@@ -27,11 +27,11 @@ export type {
   UsageOptions,
 } from './contracts/types.js'
 export { default as BillingDriverRegistry } from './services/billing/billing_driver_registry.js'
-export {
-  getActiveBillingDriver,
-  __resetActiveBillingDriverCache,
-  __setActiveBillingDriverRegistryForTests,
-} from './services/billing/active_billing_driver.js'
+// `getActiveBillingDriver` is the public accessor for the active driver. The
+// `__*ForTests` cache/registry seams in the same module are intentionally NOT
+// re-exported here — they're internal test hooks; import them from
+// `./services/billing/active_billing_driver.js` directly inside the package.
+export { getActiveBillingDriver } from './services/billing/active_billing_driver.js'
 
 // Built-in drivers
 export { default as StripeDriver } from './drivers/stripe/stripe_driver.js'
@@ -57,6 +57,7 @@ export { default as VerifyBillingWebhookMiddleware } from './middleware/verify_b
 // Jobs
 export { default as ProcessBillingEventJob } from './jobs/process_billing_event_job.js'
 export { default as BillingCleanupJob } from './jobs/billing_cleanup_job.js'
+export { default as BillingSweepJob, runBillingSweep } from './jobs/billing_sweep_job.js'
 export { default as ReportUsageBatchJob } from './jobs/report_usage_batch_job.js'
 
 // Events

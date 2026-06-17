@@ -73,16 +73,21 @@ test.group('QuotaService.assignPlan (integration)', (group) => {
     const quotas = await app.container.make(QuotaService)
 
     await quotas.assignPlan(tenant.id, 'pro', { source: 'stripe' })
-    const first = await TenantPlan.find(tenant.id)
-    const firstAt = first!.assignedAt.toISO()
 
-    // Sleep a hair so a write would produce a different timestamp.
-    await new Promise((r) => setTimeout(r, 50))
+    // Stamp a distinctly-old assigned_at: a real re-write resets it to now(),
+    // so we detect a write deterministically without sleeping (the old version
+    // raced a 50ms sleep against clock granularity on fast CI).
+    const row = await TenantPlan.find(tenant.id)
+    row!.assignedAt = DateTime.utc().minus({ days: 1 })
+    await row!.save()
 
     await quotas.assignPlan(tenant.id, 'pro', { source: 'stripe' })
     const second = await TenantPlan.find(tenant.id)
 
-    assert.equal(second!.assignedAt.toISO(), firstAt, 'no-op skips the write')
+    assert.isTrue(
+      second!.assignedAt < DateTime.utc().minus({ hours: 1 }),
+      'no-op skips the write (assigned_at not reset to now)'
+    )
   })
 
   test('changing plan invalidates the cache, next read sees the new plan', async ({ assert }) => {

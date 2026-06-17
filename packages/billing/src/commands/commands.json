@@ -59,6 +59,19 @@
       "filePath": "billing_cleanup.js"
     },
     {
+      "commandName": "tenant:billing:sweep",
+      "description": "Emit due trial-ending notices and apply due grace-period dunning downgrades",
+      "help": "Suggested cron: 0 * * * * node ace tenant:billing:sweep",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "batchSize", "flagName": "batch-size", "required": false, "type": "number", "description": "Rows per batch" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "billing_sweep.js"
+    },
+    {
       "commandName": "tenant:billing:doctor",
       "description": "Diagnose billing config + recent webhook health",
       "help": "Exit code 1 when any check is in error state — pipeline-friendly",

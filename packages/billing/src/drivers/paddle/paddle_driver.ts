@@ -20,6 +20,8 @@ const PADDLE_CAPABILITIES: ReadonlySet<BillingCapability> = new Set<BillingCapab
   'checkout',
   'price_lookup',
   'subscription_cancel',
+  // Paddle honours `effective_from: 'immediately'` on cancel.
+  'subscription_cancel_immediate',
 ])
 
 function codeForStatus(status: number): BillingErrorCode {
@@ -63,7 +65,12 @@ export default class PaddleDriver implements BillingProviderContract {
       : 'https://sandbox-api.paddle.com'
   }
 
-  async #request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  async #request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    opts?: { idempotencyKey?: string }
+  ): Promise<T> {
     const cfg = this.#config()
     let res: Response
     try {
@@ -72,6 +79,9 @@ export default class PaddleDriver implements BillingProviderContract {
         headers: {
           'Authorization': `Bearer ${cfg.apiKey}`,
           'Content-Type': 'application/json',
+          // Paddle Billing dedupes POSTs carrying the same Idempotency-Key, so
+          // two concurrent workers converge on one remote entity.
+          ...(opts?.idempotencyKey ? { 'Idempotency-Key': opts.idempotencyKey } : {}),
         },
         body: body === undefined ? undefined : JSON.stringify(body),
       })
@@ -109,11 +119,16 @@ export default class PaddleDriver implements BillingProviderContract {
         'Paddle requires an email to create a customer, but the tenant has none'
       )
     }
-    const data = await this.#request<{ id: string }>('POST', '/customers', {
-      email: tenant.email,
-      ...(tenant.name ? { name: tenant.name } : {}),
-      custom_data: { tenantId: tenant.id },
-    })
+    const data = await this.#request<{ id: string }>(
+      'POST',
+      '/customers',
+      {
+        email: tenant.email,
+        ...(tenant.name ? { name: tenant.name } : {}),
+        custom_data: { tenantId: tenant.id },
+      },
+      { idempotencyKey: `tenant:${tenant.id}:create-customer` }
+    )
     return { providerCustomerId: data.id, currency: null, defaultPaymentMethod: null }
   }
 

@@ -104,6 +104,19 @@ export default class LemonSqueezyDriver implements BillingProviderContract {
     }
   }
 
+  /**
+   * Find-or-create. Lemon Squeezy's JSON:API has no idempotency-key header, so
+   * we converge concurrent/retried creates ourselves: look the customer up by
+   * email first, and if the POST loses a race (LS returns `422 email has
+   * already been taken`) re-read and reuse the winner. The realistic
+   * sequential-retry path (a webhook redelivery, a double-click) is fully
+   * race-safe; a genuinely simultaneous double-create can still leave one
+   * orphaned LS customer (no subscription, no charge) — it is logged and
+   * reconciled by `tenant:billing:sync`. A connection-holding advisory lock was
+   * rejected: it would pin a pooled DB connection across the provider HTTP call,
+   * and the local `BillingService.ensureCustomer` SELECT fast-path already
+   * single-flights per tenant for its whole lifetime.
+   */
   async ensureCustomer(tenant: TenantModelContract): Promise<Customer> {
     if (!tenant.email) {
       throw new BillingException(
@@ -111,16 +124,44 @@ export default class LemonSqueezyDriver implements BillingProviderContract {
         'Lemon Squeezy requires an email to create a customer, but the tenant has none'
       )
     }
-    const data = await this.#request<{ id: string | number }>('POST', '/customers', {
-      data: {
-        type: 'customers',
-        attributes: { name: tenant.name ?? tenant.email, email: tenant.email },
-        relationships: {
-          store: { data: { type: 'stores', id: String(this.#config().storeId) } },
+
+    const existingId = await this.#findCustomerIdByEmail(tenant.email)
+    if (existingId) {
+      return { providerCustomerId: existingId, currency: null, defaultPaymentMethod: null }
+    }
+
+    try {
+      const data = await this.#request<{ id: string | number }>('POST', '/customers', {
+        data: {
+          type: 'customers',
+          attributes: { name: tenant.name ?? tenant.email, email: tenant.email },
+          relationships: {
+            store: { data: { type: 'stores', id: String(this.#config().storeId) } },
+          },
         },
-      },
-    })
-    return { providerCustomerId: String(data.id), currency: null, defaultPaymentMethod: null }
+      })
+      return { providerCustomerId: String(data.id), currency: null, defaultPaymentMethod: null }
+    } catch (err) {
+      // 422 = "email has already been taken": a concurrent create won. Re-read
+      // and reuse it instead of orphaning a second customer.
+      if (err instanceof BillingException && (err as { status?: number }).status === 422) {
+        const raced = await this.#findCustomerIdByEmail(tenant.email)
+        if (raced) {
+          return { providerCustomerId: raced, currency: null, defaultPaymentMethod: null }
+        }
+      }
+      throw err
+    }
+  }
+
+  /** Look up an LS customer id by email (the store-scoped unique key). */
+  async #findCustomerIdByEmail(email: string): Promise<string | null> {
+    const list = await this.#request<Array<{ id: string | number }>>(
+      'GET',
+      `/customers?filter[email]=${encodeURIComponent(email)}`
+    )
+    const first = Array.isArray(list) ? list[0] : null
+    return first ? String(first.id) : null
   }
 
   async createCheckoutSession(

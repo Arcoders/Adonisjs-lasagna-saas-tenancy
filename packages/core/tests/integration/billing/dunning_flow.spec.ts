@@ -399,6 +399,84 @@ test.group('Dunning state machine (integration)', (group) => {
     )
   })
 
+  test('a provider that reports no attempt count (0) still escalates via the local counter', async ({
+    assert,
+    client,
+  }) => {
+    // Lemon Squeezy sends no dunning attempt count (mapper reports 0). The
+    // dispatcher's provider-independent counter must still reach maxAttempts.
+    const seed = await seedActiveSubscription()
+    const captured: Array<{ final: boolean; attempts: number }> = []
+    const off = emitter.on(PaymentFailed, async (e) => {
+      captured.push({ final: e.payload.final, attempts: e.payload.attempts })
+    })
+
+    try {
+      for (let i = 1; i <= 3; i++) {
+        await postSignedEvent(
+          client,
+          buildInvoiceEvent({
+            eventId: `evt_ls_like_${i}`,
+            customer: seed.providerCustomerId,
+            subscription: seed.subId,
+            attemptCount: 0, // provider reports none
+          })
+        )
+      }
+      await flushJobs()
+
+      assert.deepEqual(
+        captured.map((c) => c.attempts),
+        [1, 2, 3],
+        'local counter increments per distinct failure'
+      )
+      assert.deepEqual(
+        captured.map((c) => c.final),
+        [false, false, true],
+        'final on the 3rd (maxAttempts=3) despite provider attemptCount=0'
+      )
+
+      const sub = await BillingSubscription.find(seed.subId)
+      assert.equal(sub?.status, 'past_due')
+      assert.equal(sub?.dunningAttempts, 3)
+    } finally {
+      off()
+    }
+  })
+
+  test('a job retry of the same payment.failed event does NOT double-count (dunningLastEventId guard)', async ({
+    assert,
+    client,
+  }) => {
+    const seed = await seedActiveSubscription()
+    const evt = buildInvoiceEvent({
+      eventId: 'evt_retry_guard',
+      customer: seed.providerCustomerId,
+      subscription: seed.subId,
+      attemptCount: 0,
+    })
+    await postSignedEvent(client, evt)
+    await flushJobs()
+
+    let sub = await BillingSubscription.find(seed.subId)
+    assert.equal(sub?.dunningAttempts, 1, 'first processing counts once')
+
+    // Simulate the queue re-running the SAME event (a retry after a transient
+    // failure that landed after the dunning write): reset the ledger row to
+    // pending and execute the job again. The guard must not re-increment.
+    const row = await BillingProcessedEvent.find('evt_retry_guard')
+    row!.status = 'pending'
+    await row!.save()
+
+    const job = new ProcessBillingEventJob()
+    hydrateJob(job, { eventId: 'evt_retry_guard' })
+    await job.execute()
+
+    sub = await BillingSubscription.find(seed.subId)
+    assert.equal(sub?.dunningAttempts, 1, 'same event id re-processed → counter unchanged')
+    assert.equal(sub?.dunningLastEventId, 'evt_retry_guard')
+  })
+
   test('honours custom maxAttempts from config.billing.dunning', async ({ assert, client }) => {
     const seed = await seedActiveSubscription()
     const cfg = getConfig()

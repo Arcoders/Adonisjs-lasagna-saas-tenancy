@@ -107,6 +107,40 @@ test.group('LemonSqueezyDriver (stubbed fetch)', (group) => {
     )
   })
 
+  test('ensureCustomer reuses a customer found by email (find-or-create, no POST)', async ({
+    assert,
+  }) => {
+    const calls: string[] = []
+    stub((url, init) => {
+      calls.push(`${init?.method ?? 'GET'} ${url}`)
+      return jsonResponse({ data: [{ id: 7 }] }) // list endpoint returns an array
+    })
+    const customer = await new LemonSqueezyDriver().ensureCustomer(fakeTenant())
+    assert.equal(customer.providerCustomerId, '7')
+    assert.lengthOf(calls, 1, 'no POST — reused the existing customer')
+    assert.match(calls[0], /^GET .*filter\[email\]/)
+  })
+
+  test('ensureCustomer reuses the winner on a 422 race (POST conflicts → re-GET finds it)', async ({
+    assert,
+  }) => {
+    const seq: string[] = []
+    let getCount = 0
+    stub((_url, init) => {
+      const method = init?.method ?? 'GET'
+      seq.push(method)
+      if (method === 'GET') {
+        getCount += 1
+        // First lookup misses; the lookup after the 422 finds the winner.
+        return jsonResponse({ data: getCount === 1 ? [] : [{ id: 9 }] })
+      }
+      return jsonResponse({ errors: [{ detail: 'email has already been taken' }] }, 422)
+    })
+    const customer = await new LemonSqueezyDriver().ensureCustomer(fakeTenant())
+    assert.equal(customer.providerCustomerId, '9')
+    assert.deepEqual(seq, ['GET', 'POST', 'GET'])
+  })
+
   test('createCheckoutSession returns the hosted url from attributes', async ({ assert }) => {
     stub(() =>
       jsonResponse({ data: { id: 'co_1', attributes: { url: 'https://store.ls/checkout' } } })

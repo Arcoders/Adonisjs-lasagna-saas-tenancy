@@ -177,6 +177,57 @@ export default class BillingService {
   }
 
   /**
+   * Cancel a subscription through the active driver and reflect it in the local
+   * mirror. Provider-neutral, with immediate-cancel emulation.
+   *
+   * `atPeriodEnd` (default `false` = immediate):
+   *   - `true`: the subscription stays active until period end; we just flag
+   *     `cancelAtPeriodEnd` locally and let the provider's later webhook
+   *     finalise the status.
+   *   - `false` (immediate): we mark the mirror `canceled` now. When the active
+   *     driver can cancel immediately at the provider (Stripe, Paddle) its
+   *     deletion webhook finalises the plan downgrade. When it cannot (Lemon
+   *     Squeezy, which only cancels at period end), we *emulate* an immediate
+   *     cancel — reassign the tenant to `defaultPlan` now so access is revoked
+   *     immediately, while the provider keeps billing through the period end
+   *     (there is no automatic refund).
+   */
+  async cancelSubscription(
+    providerSubscriptionId: string,
+    opts?: { atPeriodEnd?: boolean }
+  ): Promise<void> {
+    const atPeriodEnd = opts?.atPeriodEnd ?? false
+    const driver = await getActiveBillingDriver()
+    this.#assertSupports(driver, 'subscription_cancel')
+    await driver.cancelSubscription!(providerSubscriptionId, { atPeriodEnd })
+
+    const row = await BillingSubscription.find(providerSubscriptionId)
+    if (!row) return
+
+    if (atPeriodEnd) {
+      row.cancelAtPeriodEnd = true
+      if (row.$isDirty) await row.save()
+      return
+    }
+
+    const now = DateTime.utc()
+    row.status = 'canceled'
+    row.canceledAt = now
+    row.lastEventAt = now
+    await row.save()
+
+    // Emulate immediate cancel for drivers that can only cancel at period end.
+    if (!driver.supports('subscription_cancel_immediate') && row.tenantId) {
+      const cfg = getConfig().billing
+      if (cfg?.defaultPlan) {
+        const { QuotaService } = await import('@adonisjs-lasagna/saas-tenancy/services')
+        const quotas = new QuotaService()
+        await quotas.assignPlan(row.tenantId, cfg.defaultPlan, { source: 'cancel' })
+      }
+    }
+  }
+
+  /**
    * Reconcile a neutral subscription into the local mirror + plan assignment.
    * Called by the dispatcher for upsert/deleted/paused/resumed events.
    *
@@ -250,7 +301,22 @@ export default class BillingService {
       }
     }
 
-    const status = sub.status
+    let status = sub.status
+    if (sub.statusRecognized === false) {
+      const logger = await lazyLogger()
+      logger?.error(
+        {
+          provider_subscription_id: sub.providerSubscriptionId,
+          mapped_status: sub.status,
+          existing_status: existing?.status ?? null,
+        },
+        'billing.subscription.unknown_status: provider sent a status the driver does not map — ' +
+          'keeping the prior status; update the driver status mapping'
+      )
+      // Fail safe: never overwrite a known status with a guessed one. New rows
+      // keep the mapper's fail-closed default (`incomplete`, no entitlement).
+      if (existing) status = existing.status
+    }
 
     if (existing && existing.status !== status) {
       const allowed = LEGAL_SUBSCRIPTION_TRANSITIONS[existing.status]

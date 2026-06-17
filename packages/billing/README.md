@@ -1,24 +1,28 @@
 # @adonisjs-lasagna/billing
 
-Stripe billing for
+Multi-provider billing (Stripe, Paddle, Lemon Squeezy) for
 [`@adonisjs-lasagna/saas-tenancy`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy):
-the signed-webhook pipeline (verify -> idempotency -> `ProcessStripeEventJob`),
-subscription lifecycle events, metered-usage reporting, dunning, the
-`BillingService`, the Stripe satellite models, and the `tenant:billing:*` ace
-commands.
+one driver contract behind the signed-webhook pipeline (verify -> idempotency ->
+`ProcessBillingEventJob`), subscription lifecycle events, metered-usage
+reporting, dunning, the `BillingService`, the provider-agnostic satellite models,
+and the `tenant:billing:*` ace commands.
 
 [![Stability: experimental](https://img.shields.io/badge/stability-experimental-E0A106)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/stability)
 
 > **Experimental.** This satellite works and is covered by tests, but it is not part of the 1.x stability promise: its surface may change in a minor release. Pin the version and read the changelog before upgrading. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/stability).
 
-It was split out of the core so a Stripe-side change (or CVE) versions on its
-own cadence and is only installed by apps that bill through Stripe. `stripe` is
-an optional peer.
+It was split out of the core so a provider-side change (or CVE) versions on its
+own cadence and is only installed by apps that bill. Pick a provider with
+`config.billing.driver`; `stripe` is an optional peer (install it only for the
+Stripe driver — Paddle and Lemon Squeezy call their REST APIs directly).
 
 ## Install
 
 ```bash
+# Stripe driver:
 npm i @adonisjs-lasagna/billing stripe
+# Paddle or Lemon Squeezy driver (no SDK):
+npm i @adonisjs-lasagna/billing
 ```
 
 It declares `@adonisjs-lasagna/saas-tenancy` as a peer, so install the core
@@ -49,12 +53,12 @@ multitenancyBillingRoutes()
 ```
 
 The provider replaces what the core used to do: it registers `BillingService`,
-verifies the Stripe config on boot, wires the usage / quota / tenant-delete
-listeners on start, and drains the metering aggregator on shutdown.
+seeds + verifies the active driver's config on boot, wires the usage / quota /
+tenant-delete listeners on start, and drains the metering aggregator on shutdown.
 
 ## Migrating from the core barrels
 
-`BillingService`, `redactStripeEvent`, the Stripe models, the subscription /
+`BillingService`, `redactBillingEvent`, the satellite models, the subscription /
 payment events, `BillingException`, the webhook middleware, the billing jobs,
 `MockStripe` / `signWebhookPayload`, and `multitenancyBillingRoutes` all moved
 here:

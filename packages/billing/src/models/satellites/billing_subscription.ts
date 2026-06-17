@@ -58,6 +58,37 @@ export default class BillingSubscription extends BackofficeBaseModel {
   @column.dateTime()
   declare trialEnd: DateTime | null
 
+  /**
+   * Provider-independent dunning attempt counter. Incremented once per distinct
+   * `payment.failed` event (guarded by `dunningLastEventId` so a job retry of
+   * the same event can't double-count). The dispatcher escalates on
+   * `max(provider.attemptCount, dunningAttempts)` so dunning works even for
+   * providers that under-report attempts (Lemon Squeezy reports none). Reset to
+   * 0 when a payment succeeds and recovers the subscription.
+   */
+  @column()
+  declare dunningAttempts: number
+
+  /** Event id of the last counted `payment.failed` — the per-event idempotency guard. */
+  @column()
+  declare dunningLastEventId: string | null
+
+  /**
+   * When `dunning.gracePeriodDays > 0`, the moment the grace window elapses and
+   * `tenant:billing:sweep` should apply `dunning.action`. Null when no downgrade
+   * is pending (grace=0 applies immediately; recovery clears it).
+   */
+  @column.dateTime()
+  declare dunningDowngradeAt: DateTime | null
+
+  /**
+   * Stamped once `TrialEnding` has been emitted for this subscription (by the
+   * native Stripe `trial_will_end` webhook OR the `tenant:billing:sweep`
+   * fallback), so each subscription is notified exactly once across providers.
+   */
+  @column.dateTime()
+  declare trialEndingNotifiedAt: DateTime | null
+
   @column()
   declare planName: string
 
