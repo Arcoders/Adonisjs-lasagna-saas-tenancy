@@ -74,6 +74,7 @@ const sidebar = [
           },
           { text: 'Custom-domain HTTPS', link: '/docs/cookbook/custom-domain-https' },
           { text: 'Stripe + quotas', link: '/docs/cookbook/stripe-quotas' },
+          { text: 'Multi-tenant WebSockets', link: '/docs/cookbook/multi-tenant-websockets' },
           { text: 'Multi-region replicas', link: '/docs/cookbook/multi-region-replicas' },
           { text: 'Custom isolation driver', link: '/docs/cookbook/custom-isolation-driver' },
           { text: 'Creating a satellite', link: '/docs/cookbook/creating-a-satellite' },

@@ -30,6 +30,7 @@
     "@adonisjs-lasagna/billing": "*",
     "@adonisjs-lasagna/sso": "*",
     "@adonisjs-lasagna/backup": "*",
+    "@adonisjs-lasagna/websockets": "*",
     "@adonisjs/core": "^7.0.0",
     "@adonisjs/lucid": "^22.0.0",
     "@adonisjs/mail": "^10.2.0",

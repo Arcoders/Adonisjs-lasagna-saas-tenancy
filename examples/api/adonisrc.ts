@@ -25,6 +25,7 @@ export default defineConfig({
     () => import('@adonisjs-lasagna/saas-tenancy/providers/multitenancy_provider'),
     () => import('@adonisjs-lasagna/backup/provider'),
     () => import('@adonisjs-lasagna/billing/provider'),
+    () => import('@adonisjs-lasagna/websockets/provider'),
     () => import('#app/providers/app_provider'),
   ],
 
@@ -32,6 +33,7 @@ export default defineConfig({
     () => import('#start/env'),
     () => import('#start/kernel'),
     () => import('#start/routes'),
+    () => import('#start/socket'),
   ],
 
   tests: {

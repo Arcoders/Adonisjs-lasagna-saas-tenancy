@@ -44,7 +44,18 @@ The helpers handle channel **naming**. Authorization
 tenant-prefixed so the only check left is per-channel: does this
 user belong to this tenant? Does this user own order 123?
 
+## SSE vs. bidirectional WebSockets
+
+`tenantBroadcast` is **server→client** only (Transmit is SSE). When the client
+also needs to send messages — chat, collaborative editing, presence — reach for
+the [`@adonisjs-lasagna/websockets`](/docs/cookbook/multi-tenant-websockets)
+satellite, which runs socket.io with the same per-tenant isolation (a resolved,
+validated tenant at the handshake and tenant context re-entered around every
+inbound event). Use SSE when one-way push is enough; it is lighter and needs no
+extra dependency.
+
 ## Read next
 
+- [Multi-tenant WebSockets](/docs/cookbook/multi-tenant-websockets); the bidirectional counterpart.
 - [Bootstrappers](/docs/bootstrappers/); the rest of the per-tenant services.
 - [Background jobs](/docs/jobs); dispatching tenant-aware work.

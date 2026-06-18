@@ -157,6 +157,18 @@ export default {
     defaultPlan: 'free',
   },
 
+  // ─── Multi-tenant WebSockets (socket.io) ─────────────────────────
+  // Provided by @adonisjs-lasagna/websockets. The provider attaches socket.io
+  // to the HTTP server and isolates connections per tenant; start/socket.ts
+  // registers the chat handlers. Browsers connect with
+  // io(url, { auth: { tenantId } }). `authorize` is the seam for real auth —
+  // the demo accepts any resolved, active tenant.
+  websockets: {
+    cors: { origin: true, credentials: true },
+    handshake: { authKey: 'tenantId' },
+    authorize: async () => true,
+  },
+
   // ─── Read replica routing ────────────────────────────────────────
   // Local dev runs a single Postgres, so the "replica" falls back to the
   // primary host — enough to demonstrate the routing API. The deploy e2e

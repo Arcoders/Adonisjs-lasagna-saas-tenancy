@@ -99,6 +99,7 @@ The isolation substrate. Everything here is **release candidate** unless noted.
 | `@adonisjs-lasagna/sso` | Experimental | Per-tenant OIDC / SSO. |
 | `@adonisjs-lasagna/billing` | Experimental | Stripe billing pipeline. |
 | `@adonisjs-lasagna/backup` | Experimental | Backup / restore / clone / SQL import. |
+| `@adonisjs-lasagna/websockets` | Experimental | Multi-tenant bidirectional WebSockets on socket.io. |
 
 The version number says the same thing the label does: experimental satellites
 are published as `0.x`, so the version string a consumer reads off npm never
