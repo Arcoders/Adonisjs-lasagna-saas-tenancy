@@ -15,7 +15,7 @@ const UUID_B = '22222222-2222-4222-8222-222222222222'
 
 /**
  * A real ALS-backed harness so `currentTenantId()` reflects active
- * `runAsTenant` scopes — the same mechanism core's `TenantLogContext` uses.
+ * `runAsTenant` scopes, the same mechanism core's `TenantLogContext` uses.
  */
 function harness(
   opts: {
@@ -63,7 +63,7 @@ function tenant(id: string, status: TenantStatus = 'active'): TenantModelContrac
   return buildTestTenant({ id, status })
 }
 
-test.group('TenantSocketServer — handshake', () => {
+test.group('TenantSocketServer: handshake', () => {
   test('accepts an active tenant: connects, sets data.tenant, joins the room', async ({
     assert,
   }) => {
@@ -181,7 +181,7 @@ test.group('TenantSocketServer — handshake', () => {
   })
 })
 
-test.group('TenantSocketServer — per-event tenant context', () => {
+test.group('TenantSocketServer: per-event tenant context', () => {
   test('bindTenant re-connects then runs the handler inside the tenant scope', async ({
     assert,
   }) => {
@@ -270,7 +270,7 @@ test.group('TenantSocketServer — per-event tenant context', () => {
   })
 })
 
-test.group('TenantSocketServer — scoped emit + severance', () => {
+test.group('TenantSocketServer: scoped emit + severance', () => {
   test('emitToTenant reaches only that tenant’s sockets', async ({ assert }) => {
     const { server, io } = harness({ tenants: [tenant(UUID_A), tenant(UUID_B)] })
     server.attach(io)

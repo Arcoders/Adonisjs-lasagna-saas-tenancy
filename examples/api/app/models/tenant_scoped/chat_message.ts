@@ -5,7 +5,7 @@ import { DateTime } from 'luxon'
 /**
  * A tenant-scoped chat message. Lives in `tenant_<uuid>.chat_messages` thanks to
  * TenantBaseModel routing. The WebSockets demo (start/socket.ts) writes rows here
- * from inside a socket event handler — proving that a query made over a live
+ * from inside a socket event handler, proving that a query made over a live
  * WebSocket connection still lands in the connecting tenant's schema.
  */
 export default class ChatMessage extends TenantBaseModel {

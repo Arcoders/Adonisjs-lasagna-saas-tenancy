@@ -52,13 +52,13 @@ function connect(tenantId: string): Promise<any> {
   })
 }
 
-test.group('e2e — websockets: tenant isolation', (group) => {
+test.group('e2e websockets: tenant isolation', (group) => {
   group.setup(async () => {
     await dropAllTenants()
     if (!hasWs) return
     // testUtils.httpServer().start() (the suite setup) listens but does NOT emit
     // `http:server_ready`, so emit it to trigger the provider's socket.io attach
-    // onto the live node server — the same code path `node ace serve` uses.
+    // onto the live node server, the same code path `node ace serve` uses.
     emitter.emit('http:server_ready', { host: HOST, port: PORT, duration: [0, 0] } as any)
     await delay(200)
   })
@@ -92,7 +92,7 @@ test.group('e2e — websockets: tenant isolation', (group) => {
 
       // Give any (incorrect) cross-tenant delivery time to arrive before asserting.
       await delay(150)
-      assert.isFalse(bReceived, 'tenant B received tenant A’s message — isolation broken')
+      assert.isFalse(bReceived, 'isolation broken: tenant B received a tenant A message')
 
       // Persisted into tenant A's schema only.
       const tenantA = await Tenant.findOrFail(a.id)

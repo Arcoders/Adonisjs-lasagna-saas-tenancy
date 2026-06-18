@@ -15,7 +15,7 @@ import ChatMessage from '#app/models/tenant_scoped/chat_message'
  * its query would throw.
  *
  * Requires socket.io (`npm i socket.io`). Without it the provider logs a notice
- * and WebSockets stay off — the rest of the app is unaffected.
+ * and WebSockets stay off. The rest of the app is unaffected.
  */
 const sockets = await app.container.make(TenantSocketServer)
 

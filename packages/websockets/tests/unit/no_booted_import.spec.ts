@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
  * modules top-level-`await app.booted(...)` and throw outside an Ignitor; the
  * root barrel (`@adonisjs-lasagna/saas-tenancy`) pulls the logger in transitively.
  *
- * Those imports are fine in `providers/**`, which only runs inside the boot — so
+ * Those imports are fine in `providers/**`, which only runs inside the boot, so
  * this scan is scoped to `src/**`. A dynamic `await import(...)` is allowed (no
  * `from` clause, so the matcher below skips it).
  */
@@ -39,7 +39,7 @@ test.group('Architectural: src stays app.booted-safe', () => {
         .split('\n')
         .forEach((line, i) => {
           if (!isComment(line) && FORBIDDEN.test(line)) {
-            violations.push(`${relative(SRC, file)}:${i + 1} — ${line.trim().slice(0, 100)}`)
+            violations.push(`${relative(SRC, file)}:${i + 1}  ${line.trim().slice(0, 100)}`)
           }
         })
     }

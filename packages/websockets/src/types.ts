@@ -5,12 +5,12 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
  * package actually touches. Declaring it here (instead of importing from
  * `socket.io`) keeps socket.io a true *optional* peer: the satellite builds,
  * typechecks, and unit-tests with nothing installed, and the provider
- * lazy-imports the real implementation at runtime — the same pattern core uses
+ * lazy-imports the real implementation at runtime, the same pattern core uses
  * for the optional `@adonisjs/transmit` peer. The real socket.io types are
  * structurally compatible with these for the methods we use.
  */
 export interface IoHandshake {
-  /** socket.io `auth` payload — `io(url, { auth: { tenantId } })`. */
+  /** socket.io `auth` payload, e.g. `io(url, { auth: { tenantId } })`. */
   auth?: Record<string, unknown>
   headers: Record<string, unknown>
   query: Record<string, unknown>
@@ -42,7 +42,7 @@ export interface IoServer {
 /**
  * Where in the WebSocket handshake the tenant id is read from. The reader tries
  * the configured sources in this fixed precedence and stops at the first hit:
- * `auth` → `header` → `query` → `subdomain`. Set a key to `false` to disable
+ * `auth`, then `header`, then `query`, then `subdomain`. Set a key to `false` to disable
  * that source.
  */
 export interface WebSocketHandshakeConfig {
@@ -58,13 +58,13 @@ export interface WebSocketHandshakeConfig {
    */
   headerKey?: string | false
   /**
-   * Query-string parameter. Default `false` (disabled — query strings leak into
+   * Query-string parameter. Default `false` (disabled, since query strings leak into
    * logs). Set to a key like `'tenant_id'` to enable.
    */
   queryKey?: string | false
   /**
    * Derive the tenant id from the leftmost label of the `Host` header
-   * (`acme.app.com` → `acme`). Default `false`. Requires {@link baseDomain}.
+   * (`acme.app.com` gives `acme`). Default `false`. Requires {@link baseDomain}.
    */
   subdomain?: boolean
   /** Base domain to strip for `subdomain` resolution, e.g. `app.com`. */

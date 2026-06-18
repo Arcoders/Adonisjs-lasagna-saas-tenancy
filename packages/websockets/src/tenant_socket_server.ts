@@ -7,7 +7,7 @@ export const TENANT_ROOM_PREFIX = 'tenant:'
 /**
  * The deterministic socket.io room a tenant's sockets all join. The id is run
  * through the same identifier guard the rest of the package uses, so a malformed
- * id can never widen the room namespace — defense in depth on top of the UUID
+ * id can never widen the room namespace. It is defense in depth on top of the UUID
  * check the handshake reader already applies.
  */
 export function tenantRoom(tenantId: string): string {
@@ -40,7 +40,7 @@ export interface TenantSocketServerDeps {
   runAsTenant<T>(tenant: TenantModelContract, fn: () => T | Promise<T>): Promise<T>
   /** The active tenant id within a bound scope, or `undefined` outside one. */
   currentTenantId(): string | undefined
-  /** Optional authorization seam — falsy rejects the upgrade. */
+  /** Optional authorization seam. A falsy return rejects the upgrade. */
   authorize?(socket: IoSocket, tenant: TenantModelContract): boolean | Promise<boolean>
   logger?: LoggerLike
 }
@@ -52,7 +52,7 @@ export interface TenantSocketServerDeps {
  *    socket to its room;
  *  - `onTenantEvent` / `bindTenant`, which re-enter the tenant context around
  *    **each** inbound event (socket.io fires handlers in later event-loop ticks,
- *    so a context set once at connect time would not reach them — this is the
+ *    so a context set once at connect time would not reach them. This is the
  *    one rule app code must follow for DB queries inside handlers to route);
  *  - tenant-scoped emit/broadcast/disconnect helpers.
  */
@@ -90,7 +90,7 @@ export default class TenantSocketServer {
   }
 
   /**
-   * Register a per-connection setup callback — the place to wire your
+   * Register a per-connection setup callback. This is where you wire your
    * `onTenantEvent(...)` handlers. Safe to call before `attach()` (e.g. from a
    * `start/*.ts` preload that runs before the provider attaches socket.io):
    * callbacks are dispatched to each socket as it connects.
@@ -106,8 +106,8 @@ export default class TenantSocketServer {
     }
 
     // Backend I/O (tenant lookup, pool connect) is wrapped so a central-DB
-    // outage surfaces as a generic, retryable code — never the raw driver error
-    // string — mirroring how `request.tenant()` maps such failures to a 503
+    // outage surfaces as a generic, retryable code and never the raw driver error
+    // string. This mirrors how `request.tenant()` maps such failures to a 503
     // instead of leaking a Lucid message. The real error is logged server-side.
     let tenant: TenantModelContract | null
     try {
@@ -120,7 +120,7 @@ export default class TenantSocketServer {
       throw handshakeError('TENANT_NOT_FOUND', `Unknown tenant "${id}"`)
     }
 
-    // Fail closed on lifecycle BEFORE connecting — mirrors the HTTP guard so a
+    // Fail closed on lifecycle BEFORE connecting. This mirrors the HTTP guard so a
     // suspended/deleted tenant can never open a socket or a pool. These throw
     // their own deliberate codes (TENANT_SUSPENDED/…), which are safe to surface.
     this.#deps.assertServiceable(tenant)
@@ -175,7 +175,7 @@ export default class TenantSocketServer {
 
   /**
    * Register an inbound event handler that runs inside the socket's tenant
-   * context. **Use this (or `bindTenant`) for every handler** — a bare
+   * context. **Use this (or `bindTenant`) for every handler.** A bare
    * `socket.on(...)` runs with no tenant context and its DB queries will throw.
    */
   onTenantEvent<A extends unknown[]>(
@@ -214,7 +214,7 @@ export default class TenantSocketServer {
       .emit(event, ...args)
   }
 
-  /** Sever every socket of a tenant — used on suspend/delete. */
+  /** Sever every socket of a tenant. Used on suspend and delete. */
   disconnectTenant(tenantId: string): void {
     this.#requireIo().in(tenantRoom(tenantId)).disconnectSockets(true)
   }

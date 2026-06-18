@@ -11,7 +11,7 @@ import {
 /**
  * `node ace configure @adonisjs-lasagna/websockets`. The WebSockets satellite is
  * stateless (no migrations), so configure only registers the provider in the
- * host's `adonisrc.ts` and prints the manifest — it reads its own
+ * host's `adonisrc.ts` and prints the manifest. It reads its own
  * `package.json#lasagnaSatellite` so it stays in lockstep with the shared toolkit.
  */
 export default async function configure(command: Configure) {

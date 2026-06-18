@@ -12,7 +12,7 @@ export class FakeSocket implements IoSocket {
   readonly rooms = new Set<string>()
   data: IoSocket['data'] = {}
   connected = true
-  /** Messages the server pushed to this socket (server→client). */
+  /** Messages the server pushed to this socket (server to client). */
   readonly received: Array<{ event: string; args: unknown[] }> = []
   readonly #listeners = new Map<string, Array<(...args: any[]) => void>>()
 
@@ -35,7 +35,7 @@ export class FakeSocket implements IoSocket {
     this.connected = false
   }
 
-  /** Test-only: simulate the client emitting `event` (client→server). */
+  /** Test-only: simulate the client emitting `event` (client to server). */
   emitIncoming(event: string, ...args: unknown[]): void {
     for (const listener of this.#listeners.get(event) ?? []) listener(...args)
   }

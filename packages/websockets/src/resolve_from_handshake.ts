@@ -7,7 +7,7 @@ const DEFAULT_HEADER_KEY = 'x-tenant-id'
 /**
  * Map a socket.io handshake to a validated tenant id. Pure and side-effect free
  * so it is trivially unit-testable. Tries the configured sources in a fixed
- * precedence — `auth` → `header` → `query` → `subdomain` — and returns the first
+ * precedence (`auth`, then `header`, then `query`, then `subdomain`) and returns the first
  * candidate that is a valid UUID v4. Anything malformed yields `undefined`, so
  * the handshake middleware rejects the upgrade rather than opening a connection
  * against a garbage id.

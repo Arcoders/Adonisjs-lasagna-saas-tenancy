@@ -26,18 +26,18 @@ type MultitenancyConfigWithWs = MultitenancyConfig & { websockets?: WebSocketsCo
  * against core's public surfaces, resolving core services via
  * `app.container.make`.
  *
- *  - `register()` — bind the `TenantSocketServer` singleton.
- *  - `boot()`     — read + validate `config.multitenancy.websockets`, resolve the
+ *  - `register()`: bind the `TenantSocketServer` singleton.
+ *  - `boot()`: read and validate `config.multitenancy.websockets`, resolve the
  *                   circuit breaker, and subscribe to the framework
  *                   `http:server_ready` event so socket.io attaches the moment the
  *                   HTTP server is listening (lazy-imported, so socket.io stays
  *                   optional). ace/worker processes never emit that event, so WS
  *                   stays off there automatically.
- *  - `shutdown()` — drain the socket.io server.
+ *  - `shutdown()`: drain the socket.io server.
  *
  * Why `http:server_ready` and not the provider `ready()` hook: `node ace serve`
  * emits `http:server_ready` from inside the app's start callback, which runs
- * *before* provider `ready()` — so a `ready()` attach would miss the node server
+ * *before* provider `ready()`, so a `ready()` attach would miss the node server
  * timing in some runners. Subscribing in `boot()` (which always runs before the
  * event) is the reliable hook across `serve`, the test runner, and workers.
  */
@@ -106,7 +106,7 @@ export default class WebSocketsProvider implements SatelliteProviderContract {
       } catch (err) {
         logger.error(
           { err: (err as Error)?.message },
-          '[websockets] socket.io is not installed — WebSockets disabled. Run `npm i socket.io`.'
+          '[websockets] socket.io is not installed. WebSockets disabled. Run `npm i socket.io`.'
         )
         return
       }
@@ -173,7 +173,7 @@ export default class WebSocketsProvider implements SatelliteProviderContract {
    * event is emitted in the same process that holds the sockets. A suspension
    * triggered from a worker/ace process or another HTTP node will NOT sever
    * sockets elsewhere; for multi-node severance, propagate the event over Redis
-   * (e.g. a socket.io Redis adapter / pub-sub) — see the cookbook.
+   * (e.g. a socket.io Redis adapter or pub-sub). See the cookbook.
    */
   async #wireLifecycle(socketServer: TenantSocketServer): Promise<void> {
     const emitter = await this.app.container.make('emitter')
@@ -184,7 +184,7 @@ export default class WebSocketsProvider implements SatelliteProviderContract {
 
 /**
  * Fail-closed serviceability check, mirroring `TenantGuardMiddleware`: a
- * suspended/deleted/not-ready tenant — or one whose backend circuit is open —
+ * suspended, deleted, or not-ready tenant, or one whose backend circuit is open,
  * must not open a socket. Throwing here rejects the upgrade.
  */
 function assertServiceable(tenant: TenantModelContract, cb?: CircuitBreakerService): void {
