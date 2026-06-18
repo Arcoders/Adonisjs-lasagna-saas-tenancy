@@ -142,7 +142,7 @@ from `BillingDriverRegistry`. The provider seeds the active driver from
 `config.billing.driver` in `BillingProvider.boot()` — switching providers is
 a config change, not a code change.
 
-This mirrors the [isolation driver](/docs/concepts/isolation) seam: one
+This mirrors the [isolation driver](/docs/data-isolation/) seam: one
 contract, a registry singleton, and a config-selected active driver.
 
 ### Capability matrix

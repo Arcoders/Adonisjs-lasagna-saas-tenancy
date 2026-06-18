@@ -91,6 +91,7 @@ const sidebar = [
       { text: 'Webhooks', link: '/docs/satellites/webhooks' },
       { text: 'Branding', link: '/docs/satellites/branding' },
       { text: 'SSO', link: '/docs/satellites/sso' },
+      { text: 'WebSockets', link: '/docs/satellites/websockets' },
       { text: 'Metrics', link: '/docs/satellites/metrics' },
       { text: 'Quotas', link: '/docs/satellites/quotas' },
       { text: 'Billing', link: '/docs/satellites/billing' },

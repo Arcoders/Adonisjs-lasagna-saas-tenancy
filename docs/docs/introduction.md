@@ -27,9 +27,9 @@ Lasagna handles the seams.
   broadcasting. Each scoped to the active tenant via
   `AsyncLocalStorage`. Database routing is handled by the active
   isolation driver itself, not as a separate bootstrapper.
-- **Nine satellites**: audit logs, feature flags, webhooks,
-  branding, SSO, metrics, quotas, impersonation, Stripe billing.
-  None required, all consistent.
+- **Ten satellites**: audit logs, feature flags, webhooks,
+  branding, SSO, real-time WebSockets, metrics, quotas, impersonation,
+  Stripe billing. None required, all consistent.
 - **Operational kit**: `tenant:doctor` (nine built-in checks, plus
   `backup_recency` with the backup satellite, `--fix`,
   `--watch`, `--json`), backups with retention tiers, read replicas,

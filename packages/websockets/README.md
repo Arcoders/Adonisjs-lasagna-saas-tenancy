@@ -7,24 +7,24 @@ Multi-tenant, bidirectional WebSockets on [socket.io](https://socket.io) for
 
 > **Experimental.** This satellite works and is covered by tests, but it is not part of the 1.x stability promise: its surface may change in a minor release. Pin the version and read the changelog before upgrading. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/stability).
 
-The core ships **server→client** broadcasting over SSE (`tenantBroadcast`). This
-satellite adds the **bidirectional** channel — chat, presence, live dashboards —
-with the same isolation guarantees:
+The core ships one-way server-to-client broadcasting over SSE (`tenantBroadcast`).
+This satellite adds the bidirectional channel for chat, presence, and live
+dashboards, with the same isolation guarantees:
 
-- The tenant is resolved and **validated at the handshake** (`auth.tenantId` for
-  browsers, the `x-tenant-id` header, a query param, or a Host subdomain — always
+- The tenant is resolved and validated at the handshake (`auth.tenantId` for
+  browsers, the `x-tenant-id` header, a query param, or a Host subdomain, always
   UUID-checked), loaded via the host's `TenantRepositoryContract`, and refused
-  when suspended/deleted/not-ready or when its backend circuit is open.
-- `onTenantEvent(socket, event, handler)` / `bindTenant(socket, handler)` re-enter
-  `tenancy.run()` around **every** inbound event, so DB queries inside handlers
-  route to the tenant's schema. (socket.io fires handlers in later event-loop
-  ticks, so a context set once at connect time would not reach them — this wrapper
-  is required.)
-- Each socket joins a per-tenant room; `emitToTenant(id, …)`,
-  `broadcastToTenant(…)` and `disconnectTenant(id)` keep fan-out scoped. The
+  when it is suspended, deleted, not-ready, or has an open backend circuit.
+- `onTenantEvent(socket, event, handler)` and `bindTenant(socket, handler)`
+  re-enter `tenancy.run()` around every inbound event, so DB queries inside
+  handlers route to the tenant's schema. socket.io fires handlers in later
+  event-loop ticks, so a context set once at connect time would not reach them.
+  This wrapper is required.
+- Each socket joins a per-tenant room. `emitToTenant(id, …)`,
+  `broadcastToTenant(…)`, and `disconnectTenant(id)` keep fan-out scoped, and the
   provider severs a tenant's live sockets on `TenantSuspended` / `TenantDeleted`.
 - An optional `authorize(socket, tenant)` hook is the seam for real
-  authentication — resolving a client-supplied id is not, on its own, proof the
+  authentication. Resolving a client-supplied id is not, on its own, proof the
   client belongs to the tenant.
 
 ## Install
@@ -34,8 +34,8 @@ npm i @adonisjs-lasagna/websockets socket.io
 node ace configure @adonisjs-lasagna/websockets
 ```
 
-`socket.io` is an optional peer, lazy-imported at runtime. For multi-node fan-out,
-add [`@socket.io/redis-adapter`](https://socket.io/docs/v4/redis-adapter/).
+`socket.io` is an optional peer, loaded at runtime. For multi-node fan-out, add
+[`@socket.io/redis-adapter`](https://socket.io/docs/v4/redis-adapter/).
 
 ## Wire it up
 

@@ -46,8 +46,8 @@ user belong to this tenant? Does this user own order 123?
 
 ## SSE vs. bidirectional WebSockets
 
-`tenantBroadcast` is **server→client** only (Transmit is SSE). When the client
-also needs to send messages — chat, collaborative editing, presence — reach for
+`tenantBroadcast` is **server-to-client** only (Transmit is SSE). When the client
+also needs to send messages (chat, collaborative editing, presence), use
 the [`@adonisjs-lasagna/websockets`](/docs/cookbook/multi-tenant-websockets)
 satellite, which runs socket.io with the same per-tenant isolation (a resolved,
 validated tenant at the handshake and tenant context re-entered around every

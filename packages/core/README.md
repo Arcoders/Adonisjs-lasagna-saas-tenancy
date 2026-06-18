@@ -59,7 +59,7 @@ and runs 123 tests against it.
 | **Read replica routing** | Round-robin, random, or sticky-by-tenant-id with stable connection naming. |
 | **REST admin API** | 36 endpoints + OpenAPI 3.1 spec + Swagger UI. You bring the auth middleware. |
 | **Soft delete TTL** | Recycle bin pattern. `--keep-schema` on destroy, `tenant:purge-expired` on a cron. |
-| **Nine satellites** | Audit logs (append-only at the SQL level), webhooks (HMAC-signed + retries + verifier helper), quotas, feature flags, branding, SSO/OIDC, metrics, impersonation, and Stripe billing (idempotent webhook + dunning + metered + checkout/portal + lifecycle). All optional. |
+| **Ten satellites** | Audit logs (append-only at the SQL level), webhooks (HMAC-signed + retries + verifier helper), quotas, feature flags, branding, SSO/OIDC, real-time WebSockets (socket.io, tenant-isolated), metrics, impersonation, and Stripe billing (idempotent webhook + dunning + metered + checkout/portal + lifecycle). All optional. |
 
 Two questions to ask before adopting:
 

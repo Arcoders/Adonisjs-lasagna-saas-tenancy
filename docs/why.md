@@ -148,9 +148,9 @@ in-house, and that we already debugged:
   per-tenant resolution.
 - **REST admin API.** An OpenAPI 3.1 spec and Swagger UI. You
   bring the auth middleware; we bring the wiring.
-- **Audit, webhooks, quotas, feature flags, branding, SSO, metrics,
-  impersonation, Stripe billing.** Nine satellites, opt-in via the
-  configure command.
+- **Audit, webhooks, quotas, feature flags, branding, SSO, real-time
+  WebSockets, metrics, impersonation, Stripe billing.** Ten satellites,
+  opt-in via the configure command.
 
 ## Hardened against the failures that bite you in production
 

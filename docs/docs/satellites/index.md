@@ -1,15 +1,16 @@
 ---
 title: Satellites
-description: Nine opt-in features attached to tenants; audit logs, feature flags, webhooks, branding, SSO, metrics, quotas, impersonation, Stripe billing.
+description: Ten opt-in features attached to tenants; audit logs, feature flags, webhooks, branding, SSO, real-time WebSockets, metrics, quotas, impersonation, Stripe billing.
 ---
 
 # Satellites
 
 <Callout type="tip" title="Opt-in by design">
-None of these are required to run Lasagna. Each ships its own
-backoffice migration, its own service, and its own admin endpoint.
-Enable only what you need; the rest stays as zero-cost dead code in
-the bundle (tree-shaken at build time).
+None of these are required to run Lasagna. Most ship their own
+backoffice migration, service, and admin endpoint (a few, like
+WebSockets, are stateless and add none). Enable only what you need;
+the rest stays as zero-cost dead code in the bundle (tree-shaken at
+build time).
 </Callout>
 
 ## Enabling a satellite
@@ -42,7 +43,7 @@ blocks, recovery), see
 [Adding features later](/docs/cookbook/adding-features-incrementally).
 To build your own, see [Creating a satellite](/docs/cookbook/creating-a-satellite).
 
-## The nine satellites
+## The ten satellites
 
 | Satellite | What it gives you | Storage |
 |---|---|---|
@@ -51,6 +52,7 @@ To build your own, see [Creating a satellite](/docs/cookbook/creating-a-satellit
 | [Webhooks](/docs/satellites/webhooks) | HMAC-signed outbound events with delivery state machine and retries. | `tenant_webhooks`, `tenant_webhook_deliveries` |
 | [Branding](/docs/satellites/branding) | Per-tenant logo, colors, custom domain, encrypted SMTP. | `tenant_brandings` |
 | [SSO](/docs/satellites/sso) | Per-tenant OIDC config with JWKS-backed verification. | `tenant_sso_configs` |
+| [WebSockets](/docs/satellites/websockets) | Bidirectional socket.io, tenant-isolated per connection; per-tenant rooms + per-event tenant context. | None (stateless) |
 | [Metrics](/docs/satellites/metrics) | Time-series counters per tenant with cursor-based aggregation. | `tenant_metrics` |
 | [Quotas](/docs/satellites/quotas) | Plan-bound limits; rolling and snapshot, served as middleware. | Redis counters + `tenant_plans` |
 | [Billing](/docs/satellites/billing) | Stripe integration — idempotent webhook, dunning, metered, checkout/portal, lifecycle hook. | `stripe_customers`, `stripe_subscriptions`, `stripe_processed_events`, `stripe_meter_events` |
@@ -72,10 +74,12 @@ To build your own, see [Creating a satellite](/docs/cookbook/creating-a-satellit
 
 ## Build your own
 
-Satellites are a public extension point. The billing and SSO satellites ship as
-their own packages (`@adonisjs-lasagna/billing`, `@adonisjs-lasagna/sso`): each
-carries its own migrations and a configure hook, and registers itself through
-core's public registries without core ever importing it. You can publish your
+Satellites are a public extension point. The billing, SSO, and WebSockets
+satellites ship as their own packages (`@adonisjs-lasagna/billing`,
+`@adonisjs-lasagna/sso`, `@adonisjs-lasagna/websockets`): each carries its own
+configure hook (plus migrations when it has tables, though WebSockets is stateless
+and ships none), and registers itself through core's public registries without core
+ever importing it. You can publish your
 own the same way and have it discovered by `configure --list-satellites` and
 installed with `--with=<package>`. See
 [Creating a satellite](/docs/cookbook/creating-a-satellite).
