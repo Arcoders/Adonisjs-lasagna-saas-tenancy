@@ -42,7 +42,7 @@
     "coverage:gate": "node scripts/coverage-gate.mjs",
     "knip": "knip --no-exit-code",
     "knip:deps": "knip --include dependencies",
-    "audit:prod": "npm audit --omit=dev --audit-level=moderate",
+    "audit:prod": "node scripts/audit-gate.mjs",
     "docs:sync": "node docs/scripts/sync-changelog.mjs",
     "docs:clean": "node -e \"const{rmSync}=require('fs');rmSync('docs/.vitepress/cache',{recursive:true,force:true});rmSync('docs/.vitepress/dist',{recursive:true,force:true})\"",
     "docs:dev": "npm run docs:sync && vitepress dev docs",

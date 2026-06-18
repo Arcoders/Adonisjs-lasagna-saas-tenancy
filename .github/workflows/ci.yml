@@ -96,8 +96,11 @@ jobs:
       - name: Knip (unused-dependency gate)
         run: npm run knip:deps
 
-      # Production-only audit so we don't trip on devDependency-only CVEs that
-      # never ship to consumers. `high` level matches the publish-gate bar.
+      # Production-only audit (moderate+) so we don't trip on devDependency-only
+      # CVEs that never ship to consumers. Runs scripts/audit-gate.mjs, which wraps
+      # `npm audit --omit=dev` and fails on any moderate-or-higher advisory except
+      # the GHSA ids explicitly reviewed + allowlisted in that script (each with a
+      # justification and a removal condition).
       - name: npm audit (production deps)
         run: npm run audit:prod
 
@@ -498,7 +501,7 @@ jobs:
       # socket.io is an optional peer of @adonisjs-lasagna/websockets and
       # socket.io-client drives the test. Installed here (not committed to the
       # lockfile) so the WS e2e runs for real here while the general e2e job
-      # self-skips it. Pure JS — no install scripts needed.
+      # self-skips it. Pure JS, no install scripts needed.
       - name: Install socket.io (server + client) for the WS e2e
         run: npm install socket.io@^4 socket.io-client@^4 --no-save --include=optional
 
