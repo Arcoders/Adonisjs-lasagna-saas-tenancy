@@ -268,8 +268,15 @@ jobs:
       # preinstalled client (the e2e job installs it explicitly for the same
       # reason — image contents rotate).
       - name: Install postgresql-client
+        timeout-minutes: 5
         run: |
-          sudo apt-get update
+          # The runner's default apt mirror (azure.archive.ubuntu.com) is
+          # periodically unreachable, and apt then hangs retrying it for the
+          # whole job. Bound the retries and per-connection timeouts so this
+          # step fails fast, or falls through to the other mirrors in the
+          # runner's mirrorlist, instead of stalling for over an hour.
+          sudo apt-get -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
           sudo apt-get install -y --no-install-recommends postgresql-client
 
       # Create a NOSUPERUSER NOBYPASSRLS role so rowscope_rls.spec.ts runs its
@@ -386,8 +393,15 @@ jobs:
       # the import / clone tests run instead of skipping. The suite skips
       # gracefully when these are absent, but we want them green in CI.
       - name: Install postgresql-client
+        timeout-minutes: 5
         run: |
-          sudo apt-get update
+          # The runner's default apt mirror (azure.archive.ubuntu.com) is
+          # periodically unreachable, and apt then hangs retrying it for the
+          # whole job. Bound the retries and per-connection timeouts so this
+          # step fails fast, or falls through to the other mirrors in the
+          # runner's mirrorlist, instead of stalling for over an hour.
+          sudo apt-get -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
           sudo apt-get install -y --no-install-recommends postgresql-client
 
       - name: Install dependencies
