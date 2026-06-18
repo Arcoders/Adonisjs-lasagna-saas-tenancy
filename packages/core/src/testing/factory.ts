@@ -1,7 +1,18 @@
-import db from '@adonisjs/lucid/services/db'
 import { randomUUID } from 'node:crypto'
 import { getConfig } from '../config.js'
 import type { TenantStatus } from '../types/contracts.js'
+
+/**
+ * Lazily resolve the Lucid `db` service. Importing it at module top-level fires
+ * its `await app.booted(...)`, which throws outside an Ignitor — that would make
+ * the whole `/testing` barrel unloadable in a hermetic unit test (a satellite
+ * author importing one helper would crash on an unrelated one). The DB is only
+ * touched at call time, which is always inside a booted app, so deferring the
+ * import is free.
+ */
+async function getDb() {
+  return (await import('@adonisjs/lucid/services/db')).default
+}
 
 export interface TestTenantRow {
   id: string
@@ -28,6 +39,7 @@ export async function createTestTenant(
   const status: TenantStatus = overrides.status ?? 'active'
   const customDomain = overrides.customDomain ?? null
 
+  const db = await getDb()
   await db.connection(getConfig().backofficeConnectionName).table('tenants').insert({
     id,
     name,
@@ -43,6 +55,7 @@ export async function createTestTenant(
 }
 
 export async function destroyTestTenant(tenantId: string): Promise<void> {
+  const db = await getDb()
   await db
     .connection(getConfig().backofficeConnectionName)
     .query()
@@ -57,6 +70,7 @@ export interface CleanupFilter {
 }
 
 export async function cleanupTenants(filter: CleanupFilter = {}): Promise<number> {
+  const db = await getDb()
   const query = db.connection(getConfig().backofficeConnectionName).query().from('tenants')
 
   if (filter.emailLike) query.where('email', 'like', filter.emailLike)
@@ -70,6 +84,7 @@ export async function updateTestTenantStatus(
   tenantId: string,
   status: TenantStatus
 ): Promise<void> {
+  const db = await getDb()
   await db
     .connection(getConfig().backofficeConnectionName)
     .query()

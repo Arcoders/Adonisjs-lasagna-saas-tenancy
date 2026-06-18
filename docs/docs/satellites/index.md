@@ -15,11 +15,24 @@ the bundle (tree-shaken at build time).
 ## Enabling a satellite
 
 ```bash
-# Selective at install
+# Selective at install (core leaf satellites)
 node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,webhooks
 
 # Add a new one later — re-run with the satellite list you want
-node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,webhooks,sso
+node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,webhooks,metrics
+
+# List what's installable (core bundles + any packaged satellites you have installed)
+node ace configure @adonisjs-lasagna/saas-tenancy --list-satellites
+```
+
+Packaged satellites (billing, SSO, and any community package) carry
+their own migrations. Install them through core by package name, or
+run their own configure hook:
+
+```bash
+node ace configure @adonisjs-lasagna/saas-tenancy --with=@adonisjs-lasagna/billing
+# equivalently
+node ace configure @adonisjs-lasagna/billing
 ```
 
 The configure command is idempotent; re-running it does not
@@ -27,6 +40,7 @@ duplicate migrations or tenant model scaffolding. For the full
 step-by-step of adding a satellite to a running app (packages, config
 blocks, recovery), see
 [Adding features later](/docs/cookbook/adding-features-incrementally).
+To build your own, see [Creating a satellite](/docs/cookbook/creating-a-satellite).
 
 ## The nine satellites
 
@@ -55,6 +69,16 @@ blocks, recovery), see
 - Satellites never call each other directly; they go through their
   respective service contracts. Replace one and the rest keep
   working.
+
+## Build your own
+
+Satellites are a public extension point. The billing and SSO satellites ship as
+their own packages (`@adonisjs-lasagna/billing`, `@adonisjs-lasagna/sso`): each
+carries its own migrations and a configure hook, and registers itself through
+core's public registries without core ever importing it. You can publish your
+own the same way and have it discovered by `configure --list-satellites` and
+installed with `--with=<package>`. See
+[Creating a satellite](/docs/cookbook/creating-a-satellite).
 
 ## Read next
 

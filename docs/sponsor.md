@@ -24,6 +24,11 @@ move the project forward:
 - **Send a pull request.** Fixes, docs, and tests are all welcome.
 - **Submit a showcase.** [See the showcase page](/showcase); even one
   real-app submission helps every adopter who follows.
+- **Build and share a satellite.** Lasagna keeps a small stable core and
+  leaves the feature surface above it open: satellites are a public extension
+  point, not a closed list. If you build something your project needs, publish
+  it as a satellite package and every other adopter can install it, no PR to
+  core required. [Start with the satellite guide](/docs/cookbook/creating-a-satellite).
 
 ## Hit a problem? Reach out
 

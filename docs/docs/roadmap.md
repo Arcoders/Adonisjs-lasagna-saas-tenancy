@@ -19,6 +19,12 @@ scope, see [Known limitations](/docs/known-limitations).
 - The **satellites** (billing, SSO, admin, backup, and the in-core opt-in
   features like quotas, webhooks, metrics) are **experimental**: usable and
   tested, but their surface may shift within a minor release.
+- **Packaged satellites are a public extension point.** Third parties can ship
+  their own satellite package (provider, migrations, configure hook) and have it
+  discovered and installed by `configure`, without a PR to core. See
+  [Creating a satellite](/docs/cookbook/creating-a-satellite). The official
+  billing and SSO packages now own their own migrations through this same
+  mechanism.
 
 ## What unblocks `stable`
 

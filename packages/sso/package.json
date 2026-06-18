@@ -28,13 +28,27 @@
     "node": ">=24.0.0"
   },
   "files": [
-    "build"
+    "build",
+    "stubs"
   ],
   "exports": {
     ".": "./build/src/index.js"
   },
   "main": "./build/src/index.js",
   "types": "./build/src/index.d.ts",
+  "adonisjs": {
+    "configure": "./build/configure.js"
+  },
+  "lasagnaSatellite": {
+    "name": "sso",
+    "aliases": ["sso"],
+    "migrations": "stubs/migrations",
+    "install": [
+      "npm install @adonisjs-lasagna/sso",
+      "npm install jose   # optional: only for JWKS id-token verification"
+    ],
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/satellites/sso"
+  },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",

@@ -14,14 +14,14 @@ import { dirname, join } from 'node:path'
 import configure from '../../configure.js'
 
 /**
- * File-level test of `configure()`'s orchestration: selection → resolve →
- * dedup → idempotency guard → publish. We don't exercise the AdonisJS stub
- * renderer (framework code); instead we drive the real `configure()` with a
- * fake command whose `makeUsingStub` writes the *same destinations* the real
- * stubs target — crucially `database/migrations/${Date.now()}_<stub>.ts` — so
- * the timestamped-filename behaviour the guard defends against is reproduced
- * faithfully. This proves a later `--with` is additive and that re-running is
- * idempotent, without a build or an Ignitor.
+ * File-level test of `configure()`'s orchestration: selection → resolve → dedup
+ * → idempotency guard → publish, for BOTH core bundles and external (packaged)
+ * satellites. We drive the real `configure()` with a fake command whose
+ * `makeUsingStub` writes the same destinations the real stubs target —
+ * `database/migrations/${Date.now()}_<stub>.ts` — so the timestamped-filename
+ * behaviour the guard defends against is reproduced faithfully. External
+ * satellites are scaffolded as real `node_modules/<pkg>` trees so the real
+ * `discoverSatellites` resolver runs (no mocking).
  */
 
 async function exists(p: string): Promise<boolean> {
@@ -30,41 +30,41 @@ async function exists(p: string): Promise<boolean> {
     .catch(() => false)
 }
 
-// Maps a stub path to the destination the real stub writes to. Returns null
-// for stubs we don't model (none, currently).
+// Maps a stub path to the destination the real stub writes to.
 function destinationFor(stubPath: string, root: string, nextId: () => string): string | null {
-  switch (stubPath) {
-    case 'config/multitenancy.stub':
-      return join(root, 'config', 'multitenancy.ts')
-    case 'models/tenant.stub':
-      return join(root, 'app', 'models', 'backoffice', 'tenant.ts')
-    case 'mailers/quota_warning_mailer.stub':
-      return join(root, 'app', 'mailers', 'quota_warning_mailer.ts')
-    case 'views/emails/quota_warning.edge.stub':
-      return join(root, 'resources', 'views', 'emails', 'quota_warning.edge')
-    default:
-      if (stubPath.startsWith('migrations/')) {
-        const name = stubPath.slice('migrations/'.length).replace(/\.stub$/, '')
-        return join(root, 'database', 'migrations', `${nextId()}_${name}.ts`)
-      }
-      return null
-  }
+  if (stubPath === 'config/multitenancy.stub') return join(root, 'config', 'multitenancy.ts')
+  if (stubPath === 'models/tenant.stub')
+    return join(root, 'app', 'models', 'backoffice', 'tenant.ts')
+  // Core stubs are `migrations/<name>.stub`; external satellites publish via the
+  // toolkit as `<migrationsDir>/<name>.stub` (e.g. `stubs/migrations/<name>.stub`).
+  const m = stubPath.match(/(?:^|[\\/])migrations[\\/](.+)\.stub$/)
+  if (m) return join(root, 'database', 'migrations', `${nextId()}_${m[1]}.ts`)
+  return null
 }
 
-// Builds a fake `Configure` command rooted at `root`, selecting via --with.
-function fakeCommand(root: string, withFlag: string | undefined) {
+interface Captured {
+  providers: string[]
+  commands: string[]
+  logs: string[]
+  warnings: string[]
+}
+
+function fakeCommand(root: string, flags: Record<string, unknown> = {}) {
   let counter = 0
-  // All-digits, monotonic, unique → mirrors `${Date.now()}_<stub>.ts` while
-  // guaranteeing no two same-millisecond writes collide.
   const nextId = () => `${Date.now()}${String(counter++).padStart(4, '0')}`
+  const captured: Captured = { providers: [], commands: [], logs: [], warnings: [] }
 
   const codemods = {
     async updateRcFile(fn: (rc: any) => void) {
-      fn({ addProvider() {}, addCommand() {} })
+      fn({
+        addProvider(p: string) {
+          if (!captured.providers.includes(p)) captured.providers.push(p)
+        },
+        addCommand(c: string) {
+          if (!captured.commands.includes(c)) captured.commands.push(c)
+        },
+      })
     },
-    // Honours the real codemod's overwrite=false: skip when the destination
-    // already exists. Migration destinations are always new (the guard upstream
-    // is what prevents duplicates), config/model/mailer skip on re-run.
     async makeUsingStub(_stubsRoot: string, stubPath: string) {
       const dest = destinationFor(stubPath, root, nextId)
       if (!dest) return
@@ -74,17 +74,50 @@ function fakeCommand(root: string, withFlag: string | undefined) {
     },
   }
 
-  return {
+  const command = {
     app: {
       makePath: (...p: string[]) => join(root, ...p),
       migrationsPath: (...p: string[]) => join(root, 'database', 'migrations', ...p),
     },
-    logger: { info() {}, warning() {}, log() {}, success() {} },
-    parsed: { flags: { with: withFlag } },
+    logger: {
+      info: (m: string) => captured.logs.push(m),
+      warning: (m: string) => captured.warnings.push(m),
+      log: (m: string) => captured.logs.push(m),
+      success: (m: string) => captured.logs.push(m),
+      error: (m: string) => captured.warnings.push(m),
+    },
+    parsed: { flags },
     async createCodemods() {
       return codemods
     },
-  } as any
+    captured,
+  }
+  return command as any
+}
+
+// Write a packaged satellite under <root>/node_modules/<pkg> with .stub migrations.
+async function scaffoldSatellite(
+  root: string,
+  pkg: string,
+  manifest: Record<string, unknown>,
+  stubNames: string[]
+): Promise<void> {
+  const pkgDir = join(root, 'node_modules', ...pkg.split('/'))
+  await mkdir(join(pkgDir, 'stubs', 'migrations'), { recursive: true })
+  await writeFile(
+    join(pkgDir, 'package.json'),
+    JSON.stringify({ name: pkg, lasagnaSatellite: manifest })
+  )
+  for (const name of stubNames) {
+    await writeFile(join(pkgDir, 'stubs', 'migrations', `${name}.stub`), `// ${name}`)
+  }
+  // Ensure the host package.json lists the dep so discovery picks it up.
+  const hostPkgPath = join(root, 'package.json')
+  const hostPkg = (await exists(hostPkgPath))
+    ? JSON.parse(await readFile(hostPkgPath, 'utf8'))
+    : { name: 'host-app', dependencies: {} }
+  hostPkg.dependencies = { ...hostPkg.dependencies, [pkg]: '*' }
+  await writeFile(hostPkgPath, JSON.stringify(hostPkg))
 }
 
 async function listMigrations(root: string): Promise<string[]> {
@@ -96,9 +129,8 @@ function matching(files: string[], stub: string): string[] {
   return files.filter((f) => re.test(f))
 }
 
-test.group('configure() publish orchestration', (group) => {
+test.group('configure() publish orchestration — core bundles', (group) => {
   let root: string
-
   group.each.setup(async () => {
     root = await mkdtemp(join(tmpdir(), 'lasagna-configure-'))
   })
@@ -109,7 +141,7 @@ test.group('configure() publish orchestration', (group) => {
   test('first install publishes config, tenant model and the selected migrations', async ({
     assert,
   }) => {
-    await configure(fakeCommand(root, 'audit,webhooks'))
+    await configure(fakeCommand(root, { with: 'audit,webhooks' }))
 
     assert.isTrue(await exists(join(root, 'config', 'multitenancy.ts')))
     assert.isTrue(await exists(join(root, 'app', 'models', 'backoffice', 'tenant.ts')))
@@ -122,68 +154,290 @@ test.group('configure() publish orchestration', (group) => {
   })
 
   test('a later --with adds new satellites without touching the first ones', async ({ assert }) => {
-    await configure(fakeCommand(root, 'audit,webhooks'))
+    await configure(fakeCommand(root, { with: 'audit,webhooks' }))
     const firstRun = (await listMigrations(root)).sort()
 
-    // Simulate a host edit to the config to prove the re-run does not overwrite.
     await appendFile(join(root, 'config', 'multitenancy.ts'), '// host edit — keep me\n')
 
-    await configure(fakeCommand(root, 'quotas,billing,metrics'))
+    await configure(fakeCommand(root, { with: 'quotas,metrics' }))
     const secondRun = await listMigrations(root)
 
-    // The three original migrations survive verbatim.
     for (const f of firstRun) assert.include(secondRun, f)
-
-    // The new satellites are published.
     assert.lengthOf(matching(secondRun, 'create_tenant_plans_table'), 1)
-    assert.lengthOf(matching(secondRun, 'create_billing_customers_table'), 1)
-    assert.lengthOf(matching(secondRun, 'create_billing_subscriptions_table'), 1)
-    assert.lengthOf(matching(secondRun, 'create_billing_processed_events_table'), 1)
-    assert.lengthOf(matching(secondRun, 'create_billing_usage_events_table'), 1)
     assert.lengthOf(matching(secondRun, 'create_tenant_metrics_table'), 1)
 
-    // Billing also published the mailer + view.
-    assert.isTrue(await exists(join(root, 'app', 'mailers', 'quota_warning_mailer.ts')))
-    assert.isTrue(await exists(join(root, 'resources', 'views', 'emails', 'quota_warning.edge')))
-
-    // The config was NOT overwritten — the host edit is still there.
     const cfg = await readFile(join(root, 'config', 'multitenancy.ts'), 'utf8')
     assert.include(cfg, 'host edit — keep me')
   })
 
   test('re-running the same --with adds nothing (idempotent)', async ({ assert }) => {
-    await configure(fakeCommand(root, 'quotas,billing,metrics'))
+    await configure(fakeCommand(root, { with: 'quotas,metrics' }))
     const after1 = (await listMigrations(root)).sort()
 
-    await configure(fakeCommand(root, 'quotas,billing,metrics'))
+    await configure(fakeCommand(root, { with: 'quotas,metrics' }))
     const after2 = (await listMigrations(root)).sort()
 
     assert.deepEqual(after2, after1, 'no new migration files on a second identical run')
   })
 
-  test('quotas + billing publishes tenant_plans exactly once', async ({ assert }) => {
-    await configure(fakeCommand(root, 'quotas,billing'))
-    const migrations = await listMigrations(root)
-    assert.lengthOf(matching(migrations, 'create_tenant_plans_table'), 1)
-  })
-
-  test('a bare re-run after a full install duplicates nothing', async ({ assert }) => {
-    // First: explicit subset. Then: bare configure (no --with → publishes ALL
-    // satellites). The guard must skip the already-present ones.
-    await configure(fakeCommand(root, 'audit,webhooks'))
-    await configure(fakeCommand(root, undefined))
+  test('a bare run publishes every core satellite exactly once; a re-run duplicates nothing', async ({
+    assert,
+  }) => {
+    await configure(fakeCommand(root, {}))
+    await configure(fakeCommand(root, {}))
     const migrations = await listMigrations(root)
 
-    // Every stub appears at most once.
     for (const stub of [
       'create_tenant_audit_logs_table',
+      'create_tenant_feature_flags_table',
       'create_tenant_webhooks_table',
       'create_tenant_webhook_deliveries_table',
-      'create_tenant_plans_table',
-      'create_tenant_metrics_table',
       'create_tenant_brandings_table',
+      'create_tenant_metrics_table',
+      'create_tenant_plans_table',
     ]) {
       assert.lengthOf(matching(migrations, stub), 1, `${stub} published exactly once`)
     }
+  })
+
+  test('an uninstalled official satellite (billing) prints an install hint, publishes nothing', async ({
+    assert,
+  }) => {
+    const cmd = fakeCommand(root, { with: 'billing' })
+    await configure(cmd)
+    assert.lengthOf(await listMigrations(root), 0)
+    assert.isTrue(
+      cmd.captured.warnings.some((w: string) => w.includes('@adonisjs-lasagna/billing')),
+      'warns that billing must be installed'
+    )
+  })
+})
+
+test.group('configure() publish orchestration — external satellites', (group) => {
+  let root: string
+  group.each.setup(async () => {
+    root = await mkdtemp(join(tmpdir(), 'lasagna-configure-ext-'))
+  })
+  group.each.teardown(async () => {
+    await rm(root, { recursive: true, force: true })
+  })
+
+  const manifest = {
+    name: 'acme',
+    aliases: ['acme'],
+    migrations: 'stubs/migrations',
+    requires: ['quotas'],
+    provider: '@acme/widgets/provider',
+    commands: '@acme/widgets/commands',
+  }
+  const stubs = ['create_acme_one_table', 'create_acme_two_table']
+
+  test('--with=<package> copies its migrations, auto-resolves requires, registers it in adonisrc', async ({
+    assert,
+  }) => {
+    await scaffoldSatellite(root, '@acme/widgets', manifest, stubs)
+
+    const cmd = fakeCommand(root, { with: '@acme/widgets' })
+    await configure(cmd)
+
+    const migrations = await listMigrations(root)
+    // The two satellite migrations…
+    assert.lengthOf(matching(migrations, 'create_acme_one_table'), 1)
+    assert.lengthOf(matching(migrations, 'create_acme_two_table'), 1)
+    // …plus the required core `quotas` table, auto-added.
+    assert.lengthOf(matching(migrations, 'create_tenant_plans_table'), 1)
+
+    // Provider + commands registered in adonisrc.ts (plus the core provider).
+    assert.include(cmd.captured.providers, '@acme/widgets/provider')
+    assert.include(cmd.captured.commands, '@acme/widgets/commands')
+    assert.include(
+      cmd.captured.providers,
+      '@adonisjs-lasagna/saas-tenancy/providers/multitenancy_provider'
+    )
+  })
+
+  test('resolves the package by its manifest alias', async ({ assert }) => {
+    await scaffoldSatellite(root, '@acme/widgets', manifest, stubs)
+    await configure(fakeCommand(root, { with: 'acme' }))
+    const migrations = await listMigrations(root)
+    assert.lengthOf(matching(migrations, 'create_acme_one_table'), 1)
+  })
+
+  test('re-running an external --with is idempotent', async ({ assert }) => {
+    await scaffoldSatellite(root, '@acme/widgets', manifest, stubs)
+    await configure(fakeCommand(root, { with: '@acme/widgets' }))
+    const after1 = (await listMigrations(root)).sort()
+    await configure(fakeCommand(root, { with: '@acme/widgets' }))
+    const after2 = (await listMigrations(root)).sort()
+    assert.deepEqual(after2, after1)
+  })
+
+  test('--list-satellites lists installed satellites and publishes nothing', async ({ assert }) => {
+    await scaffoldSatellite(root, '@acme/widgets', manifest, stubs)
+
+    const cmd = fakeCommand(root, { 'list-satellites': true })
+    await configure(cmd)
+
+    assert.isFalse(await exists(join(root, 'config', 'multitenancy.ts')))
+    assert.lengthOf(await listMigrations(root), 0)
+    assert.isTrue(
+      cmd.captured.logs.some((l: string) => l.includes('@acme/widgets')),
+      'lists the discovered satellite'
+    )
+  })
+
+  test('--list-satellites with none installed says so and publishes nothing', async ({
+    assert,
+  }) => {
+    // `root` has no package.json (no scaffold), so discovery finds nothing.
+    const cmd = fakeCommand(root, { 'list-satellites': true })
+    await configure(cmd)
+    assert.lengthOf(await listMigrations(root), 0)
+    assert.isTrue(cmd.captured.logs.some((l: string) => /none found/i.test(l)))
+  })
+
+  test('a requires entry naming an unknown core feature warns but still publishes the satellite', async ({
+    assert,
+  }) => {
+    await scaffoldSatellite(
+      root,
+      '@acme/widgets',
+      { name: 'acme', migrations: 'stubs/migrations', requires: ['not_a_real_bundle'] },
+      ['create_acme_one_table']
+    )
+    const cmd = fakeCommand(root, { with: '@acme/widgets' })
+    await configure(cmd)
+
+    assert.lengthOf(matching(await listMigrations(root), 'create_acme_one_table'), 1)
+    assert.isTrue(
+      cmd.captured.warnings.some((w: string) => w.includes('not_a_real_bundle')),
+      'warns about the unknown required feature'
+    )
+  })
+
+  test('an external satellite with no migrations still registers its provider/commands', async ({
+    assert,
+  }) => {
+    await scaffoldSatellite(
+      root,
+      '@acme/nomig',
+      { name: 'nomig', provider: '@acme/nomig/provider', commands: '@acme/nomig/commands' },
+      []
+    )
+    const cmd = fakeCommand(root, { with: '@acme/nomig' })
+    await configure(cmd)
+
+    assert.lengthOf(await listMigrations(root), 0)
+    assert.include(cmd.captured.providers, '@acme/nomig/provider')
+    assert.include(cmd.captured.commands, '@acme/nomig/commands')
+  })
+
+  test('multiple externals in one --with are all published and registered', async ({ assert }) => {
+    await scaffoldSatellite(root, '@acme/widgets', manifest, ['create_acme_table'])
+    await scaffoldSatellite(
+      root,
+      '@beta/gadgets',
+      { name: 'beta', migrations: 'stubs/migrations', provider: '@beta/gadgets/provider' },
+      ['create_beta_table']
+    )
+    const cmd = fakeCommand(root, { with: '@acme/widgets,@beta/gadgets' })
+    await configure(cmd)
+
+    const migrations = await listMigrations(root)
+    assert.lengthOf(matching(migrations, 'create_acme_table'), 1)
+    assert.lengthOf(matching(migrations, 'create_beta_table'), 1)
+    assert.include(cmd.captured.providers, '@acme/widgets/provider')
+    assert.include(cmd.captured.providers, '@beta/gadgets/provider')
+  })
+
+  test('a core + external mix publishes both, plus the external requires', async ({ assert }) => {
+    await scaffoldSatellite(root, '@acme/widgets', manifest, ['create_acme_table'])
+    await configure(fakeCommand(root, { with: 'audit,@acme/widgets' }))
+
+    const migrations = await listMigrations(root)
+    assert.lengthOf(matching(migrations, 'create_tenant_audit_logs_table'), 1) // core
+    assert.lengthOf(matching(migrations, 'create_acme_table'), 1) // external
+    assert.lengthOf(matching(migrations, 'create_tenant_plans_table'), 1) // requires quotas
+  })
+
+  test('a duplicate external token (name + its own alias) is published once', async ({
+    assert,
+  }) => {
+    await scaffoldSatellite(root, '@acme/widgets', manifest, ['create_acme_table'])
+    await configure(fakeCommand(root, { with: '@acme/widgets,acme' }))
+    assert.lengthOf(matching(await listMigrations(root), 'create_acme_table'), 1)
+  })
+
+  test('two externals shipping a same-named stub publish it once (per-satellite re-list)', async ({
+    assert,
+  }) => {
+    await scaffoldSatellite(
+      root,
+      '@acme/widgets',
+      { name: 'acme', migrations: 'stubs/migrations' },
+      ['create_shared_table']
+    )
+    await scaffoldSatellite(
+      root,
+      '@beta/gadgets',
+      { name: 'beta', migrations: 'stubs/migrations' },
+      ['create_shared_table']
+    )
+    await configure(fakeCommand(root, { with: '@acme/widgets,@beta/gadgets' }))
+    assert.lengthOf(matching(await listMigrations(root), 'create_shared_table'), 1)
+  })
+
+  test('an unknown token warns (listing core + installed) and publishes config but no migrations', async ({
+    assert,
+  }) => {
+    await scaffoldSatellite(root, '@acme/widgets', manifest, stubs)
+    const cmd = fakeCommand(root, { with: 'totally_bogus' })
+    await configure(cmd)
+
+    assert.isTrue(await exists(join(root, 'config', 'multitenancy.ts')))
+    assert.lengthOf(await listMigrations(root), 0)
+    const warned = cmd.captured.warnings.join('\n')
+    assert.include(warned, 'totally_bogus')
+    assert.include(warned, '@acme/widgets') // installed satellites listed in the hint
+  })
+
+  test('a bare run does NOT auto-publish an installed external satellite (opt-in)', async ({
+    assert,
+  }) => {
+    await scaffoldSatellite(root, '@acme/widgets', manifest, ['create_acme_table'])
+    await configure(fakeCommand(root, {}))
+
+    const migrations = await listMigrations(root)
+    assert.lengthOf(matching(migrations, 'create_tenant_audit_logs_table'), 1) // core published
+    assert.lengthOf(matching(migrations, 'create_acme_table'), 0) // external NOT auto-published
+  })
+
+  test('interactive TTY selection splits core bundles from external satellites', async ({
+    assert,
+  }) => {
+    await scaffoldSatellite(root, '@acme/widgets', manifest, ['create_acme_table'])
+
+    const cmd = fakeCommand(root, {}) // no --with → interactive branch
+    cmd.prompt = {
+      async multiple() {
+        return ['audit', '@acme/widgets'] // one core bundle + one external satellite
+      },
+    }
+
+    const originalIsTTY = process.stdout.isTTY
+    try {
+      process.stdout.isTTY = true
+      await configure(cmd)
+    } finally {
+      process.stdout.isTTY = originalIsTTY
+    }
+
+    const migrations = await listMigrations(root)
+    assert.lengthOf(matching(migrations, 'create_tenant_audit_logs_table'), 1) // core pick
+    assert.lengthOf(matching(migrations, 'create_acme_table'), 1) // external pick
+    assert.lengthOf(matching(migrations, 'create_tenant_plans_table'), 1) // acme requires quotas
+    assert.include(cmd.captured.providers, '@acme/widgets/provider')
+    // NOT-selected core bundles must not be published.
+    assert.lengthOf(matching(migrations, 'create_tenant_metrics_table'), 0)
   })
 })

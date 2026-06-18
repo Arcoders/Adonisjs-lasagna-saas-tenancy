@@ -76,6 +76,7 @@ const sidebar = [
           { text: 'Stripe + quotas', link: '/docs/cookbook/stripe-quotas' },
           { text: 'Multi-region replicas', link: '/docs/cookbook/multi-region-replicas' },
           { text: 'Custom isolation driver', link: '/docs/cookbook/custom-isolation-driver' },
+          { text: 'Creating a satellite', link: '/docs/cookbook/creating-a-satellite' },
         ],
       },
     ],

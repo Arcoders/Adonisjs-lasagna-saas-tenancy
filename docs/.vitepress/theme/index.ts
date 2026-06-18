@@ -15,6 +15,7 @@ import HomeHero from './components/HomeHero.vue'
 import TrustBand from './components/TrustBand.vue'
 import HomeArchitecture from './components/HomeArchitecture.vue'
 import HomeAdoption from './components/HomeAdoption.vue'
+import HomeExtend from './components/HomeExtend.vue'
 import HomeCta from './components/HomeCta.vue'
 
 import './style.css'
@@ -28,8 +29,8 @@ import './style.css'
  * from frontmatter), but replaces the plain native hero with a richer custom
  * `HomeHero` (eyebrow, headline, install line, CTAs, and the layered-stack
  * visual) via the `home-hero-before` slot, nulling the native hero slots. The
- * compatibility band, architecture diagram, and adoption guide are injected
- * around the feature cards.
+ * compatibility band, architecture diagram, adoption guide, and the
+ * extend-it-yourself band are injected around the feature cards.
  */
 const LasagnaLayout = () => {
   const { frontmatter } = useData()
@@ -43,6 +44,7 @@ const LasagnaLayout = () => {
       'home-features-after': () => [
         h(HomeArchitecture),
         h(HomeAdoption),
+        h(HomeExtend),
         h(HomeCta),
       ],
     })

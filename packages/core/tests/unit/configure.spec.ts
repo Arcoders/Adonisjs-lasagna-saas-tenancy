@@ -3,7 +3,6 @@ import {
   parseWithFlag,
   filterUnknown,
   resolveMigrationStubs,
-  filterAlreadyPublished,
   ALL_FEATURES,
   KNOWN_FEATURES,
 } from '../../configure.js'
@@ -49,21 +48,30 @@ test.group('configure — filterUnknown', () => {
   })
 
   test('keeps everything when all features are known', ({ assert }) => {
-    assert.deepEqual(filterUnknown(['audit', 'billing']), {
-      known: ['audit', 'billing'],
+    assert.deepEqual(filterUnknown(['audit', 'metrics']), {
+      known: ['audit', 'metrics'],
       unknown: [],
+    })
+  })
+
+  test('treats the (now external) billing/sso short names as unknown core features', ({
+    assert,
+  }) => {
+    // billing/sso migrations moved to their own packages; they are no longer
+    // core bundles. configure() routes these through external discovery + the
+    // legacy-alias hint, not filterUnknown.
+    assert.deepEqual(filterUnknown(['billing', 'sso']), {
+      known: [],
+      unknown: ['billing', 'sso'],
     })
   })
 })
 
 test.group('configure — resolveMigrationStubs', () => {
-  test('flattens the billing bundle in order', ({ assert }) => {
-    assert.deepEqual(resolveMigrationStubs(['billing']), [
-      'create_tenant_plans_table',
-      'create_billing_customers_table',
-      'create_billing_subscriptions_table',
-      'create_billing_processed_events_table',
-      'create_billing_usage_events_table',
+  test('flattens a multi-stub core bundle in order (webhooks)', ({ assert }) => {
+    assert.deepEqual(resolveMigrationStubs(['webhooks']), [
+      'create_tenant_webhooks_table',
+      'create_tenant_webhook_deliveries_table',
     ])
   })
 
@@ -79,12 +87,15 @@ test.group('configure — resolveMigrationStubs', () => {
     assert.deepEqual(resolveMigrationStubs(['bogus']), [])
   })
 
+  test('skips the external billing/sso names (no core bundle)', ({ assert }) => {
+    assert.deepEqual(resolveMigrationStubs(['billing', 'sso']), [])
+  })
+
   test('concatenates a multi-feature list in selection then bundle order', ({ assert }) => {
-    assert.deepEqual(resolveMigrationStubs(['audit', 'webhooks', 'sso']), [
+    assert.deepEqual(resolveMigrationStubs(['audit', 'webhooks']), [
       'create_tenant_audit_logs_table',
       'create_tenant_webhooks_table',
       'create_tenant_webhook_deliveries_table',
-      'create_tenant_sso_configs_table',
     ])
   })
 })
@@ -119,97 +130,26 @@ test.group('configure — quotas & maintenance bundles', () => {
   })
 })
 
-test.group('configure — dedup across overlapping bundles', () => {
-  test('quotas + billing emits tenant_plans exactly once, plans first', ({ assert }) => {
-    assert.deepEqual(resolveMigrationStubs(['quotas', 'billing']), [
-      'create_tenant_plans_table',
-      'create_billing_customers_table',
-      'create_billing_subscriptions_table',
-      'create_billing_processed_events_table',
-      'create_billing_usage_events_table',
-    ])
-  })
-
-  test('billing + quotas is identical to billing alone (plans already leads)', ({ assert }) => {
-    assert.deepEqual(
-      resolveMigrationStubs(['billing', 'quotas']),
-      resolveMigrationStubs(['billing'])
-    )
+test.group('configure — dedup across overlapping selections', () => {
+  test('a repeated feature emits its stub exactly once', ({ assert }) => {
+    assert.deepEqual(resolveMigrationStubs(['quotas', 'quotas']), ['create_tenant_plans_table'])
   })
 
   test('a stub never appears twice for any selection', ({ assert }) => {
-    const stubs = resolveMigrationStubs(['quotas', 'billing', 'metrics', 'audit'])
+    const stubs = resolveMigrationStubs(['quotas', 'metrics', 'audit', 'webhooks'])
     assert.deepEqual([...new Set(stubs)], stubs)
   })
 })
 
 test.group('configure — incremental additivity', () => {
   test('a later selection never re-emits a stub from an earlier disjoint one', ({ assert }) => {
-    // First install: audit + webhooks. Later: everything else.
+    // First install: audit + webhooks. Later: every other core feature.
     const first = resolveMigrationStubs(['audit', 'webhooks'])
-    const later = resolveMigrationStubs([
-      'billing',
-      'metrics',
-      'sso',
-      'branding',
-      'feature_flags',
-      'quotas',
-    ])
+    const later = resolveMigrationStubs(['metrics', 'branding', 'feature_flags', 'quotas'])
     const overlap = first.filter((s) => later.includes(s))
     assert.deepEqual(overlap, [], 'no migration published by the first run reappears in the second')
   })
 })
 
-test.group('configure — filterAlreadyPublished (idempotency guard)', () => {
-  test('publishes everything when the migrations dir is empty', ({ assert }) => {
-    const { toPublish, skipped } = filterAlreadyPublished(
-      ['create_tenant_audit_logs_table', 'create_tenant_plans_table'],
-      []
-    )
-    assert.deepEqual(toPublish, ['create_tenant_audit_logs_table', 'create_tenant_plans_table'])
-    assert.deepEqual(skipped, [])
-  })
-
-  test('skips a stub already present under any timestamp prefix', ({ assert }) => {
-    const existing = ['1700000000000_create_tenant_audit_logs_table.ts']
-    const { toPublish, skipped } = filterAlreadyPublished(
-      ['create_tenant_audit_logs_table', 'create_tenant_plans_table'],
-      existing
-    )
-    assert.deepEqual(skipped, ['create_tenant_audit_logs_table'])
-    assert.deepEqual(toPublish, ['create_tenant_plans_table'])
-  })
-
-  test('matches on the full stub name, not a prefix (no false positives)', ({ assert }) => {
-    // A file for a *different* table must not mask a stub.
-    const existing = ['1700000000001_create_tenant_webhooks_table.ts']
-    const { toPublish, skipped } = filterAlreadyPublished(
-      ['create_tenant_webhook_deliveries_table'],
-      existing
-    )
-    assert.deepEqual(skipped, [])
-    assert.deepEqual(toPublish, ['create_tenant_webhook_deliveries_table'])
-  })
-
-  test('ignores files that do not match the <digits>_<stub>.ts shape', ({ assert }) => {
-    const existing = ['create_tenant_audit_logs_table.ts', 'README.md', '.gitkeep']
-    const { toPublish, skipped } = filterAlreadyPublished(
-      ['create_tenant_audit_logs_table'],
-      existing
-    )
-    assert.deepEqual(skipped, [])
-    assert.deepEqual(toPublish, ['create_tenant_audit_logs_table'])
-  })
-
-  test('a full re-run of an installed set skips everything', ({ assert }) => {
-    const installed = resolveMigrationStubs(['audit', 'webhooks']).map(
-      (s, i) => `170000000000${i}_${s}.ts`
-    )
-    const { toPublish, skipped } = filterAlreadyPublished(
-      resolveMigrationStubs(['audit', 'webhooks']),
-      installed
-    )
-    assert.deepEqual(toPublish, [])
-    assert.lengthOf(skipped, 3)
-  })
-})
+// `filterAlreadyPublished` moved to the satellite toolkit; its idempotency-guard
+// coverage lives in tests/unit/satellite/configure_kit.spec.ts.

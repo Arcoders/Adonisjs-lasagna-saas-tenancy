@@ -23,8 +23,21 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/testing'
 ```
 
-Imports are tree-shaken; the helpers don't pull in production
-services unless you use them.
+The barrel is safe to import in a hermetic unit test: it does not
+boot a database connection at import time.
+
+## In-memory doubles
+
+When a service is defined as an interface, an in-memory
+implementation lets you exercise it with no database — the "second
+implementation that proves the abstraction" pattern the billing
+satellite uses with its `MockBillingDriver`. The pattern needs no
+shared base class; a small id-keyed `Map` does the job. The
+[satellite template](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/tree/master/packages/satellite-template)
+ships a tiny, copyable `InMemoryStore` helper
+(`src/testing/in_memory_store.ts`) and a `WidgetStore` double built on
+it. See [Creating a satellite](/docs/cookbook/creating-a-satellite)
+for the full walkthrough.
 
 ## `buildTestTenant`
 

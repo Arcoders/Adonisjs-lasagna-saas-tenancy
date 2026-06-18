@@ -31,7 +31,8 @@
     "node": ">=24.0.0"
   },
   "files": [
-    "build"
+    "build",
+    "stubs"
   ],
   "exports": {
     ".": "./build/src/index.js",
@@ -41,9 +42,25 @@
   "main": "./build/src/index.js",
   "types": "./build/src/index.d.ts",
   "adonisjs": {
+    "configure": "./build/configure.js",
     "commands": [
       "./build/src/commands/main.js"
     ]
+  },
+  "lasagnaSatellite": {
+    "name": "billing",
+    "aliases": ["billing"],
+    "migrations": "stubs/migrations",
+    "requires": ["quotas"],
+    "provider": "@adonisjs-lasagna/billing/provider",
+    "commands": "@adonisjs-lasagna/billing/commands",
+    "env": ["STRIPE_API_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_API_VERSION"],
+    "install": [
+      "npm install @adonisjs-lasagna/billing",
+      "npm install stripe@^22   # only for the Stripe driver (optional peer)"
+    ],
+    "configSnippet": "ignorePaths: ['/admin', '/api/webhooks', '/health', '/webhooks/stripe'],\nbilling: {\n  driver: 'stripe',   // 'stripe' | 'paddle' | 'lemonsqueezy'\n  stripe: {\n    apiKey: env.get('STRIPE_API_KEY'),\n    webhookSecret: env.get('STRIPE_WEBHOOK_SECRET'),\n  },\n  products: { prod_starter: 'starter', prod_pro: 'pro' },  // map provider product/price ids\n  defaultPlan: 'starter',\n},",
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/cookbook/stripe-quotas"
   },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",

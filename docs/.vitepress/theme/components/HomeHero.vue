@@ -32,6 +32,13 @@ import HomeStack from './HomeStack.vue'
           backups, replicas, SSO, and billing. One package.
         </p>
 
+        <p class="hh__sub">
+          Multitenancy is the part most teams dread. We built Lasagna to take
+          that off your plate: developers adopt it without becoming isolation
+          experts, and operators get day-2 tooling (a doctor command, backups,
+          replicas, health probes, metrics) built in from day one.
+        </p>
+
         <CopyCommand class="hh__install" align="start" />
 
         <div class="hh__cta">
@@ -148,8 +155,15 @@ import HomeStack from './HomeStack.vue'
   font-size: 1.1rem;
   line-height: 1.6;
   color: var(--vp-c-text-2);
-  margin: 0 0 1.5rem;
+  margin: 0 0 0.9rem;
   max-width: 34em;
+}
+.hh__sub {
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: var(--vp-c-text-2);
+  margin: 0 0 1.5rem;
+  max-width: 36em;
 }
 .hh__install {
   margin-bottom: 1.5rem;

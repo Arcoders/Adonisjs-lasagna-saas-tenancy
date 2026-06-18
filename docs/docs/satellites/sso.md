@@ -11,9 +11,20 @@ and SSRF guards on the issuer URL.
 
 ## Configuration
 
+SSO ships as its own package and carries its own migration. Install
+it, then run its configure hook:
+
+```bash
+npm install @adonisjs-lasagna/sso
+node ace configure @adonisjs-lasagna/sso     # publishes the tenant_sso_configs migration
+npm install jose                             # optional peer, only for JWKS id_token verification
+```
+
+Once installed it is also reachable through core's configure, which
+recognises the `sso` short name:
+
 ```bash
 node ace configure @adonisjs-lasagna/saas-tenancy --with=sso
-npm install jose
 ```
 
 `jose` is an optional peer dependency; only required when SSO is

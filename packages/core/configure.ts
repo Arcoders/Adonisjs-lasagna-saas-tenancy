@@ -2,34 +2,40 @@ import type Configure from '@adonisjs/core/commands/configure'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { access } from 'node:fs/promises'
+import {
+  filterAlreadyPublished,
+  listExistingMigrations,
+  discoverSatellites,
+  indexSatellites,
+  publishSatellite,
+  registerSatelliteInRcFile,
+  printSatelliteManifest,
+} from './src/sdk/configure_kit.js'
+import type { DiscoveredSatellite } from './src/sdk/manifest.js'
 
 const stubsRoot = join(dirname(fileURLToPath(import.meta.url)), '..', 'stubs')
 
 /**
- * Each entry maps a satellite feature name to the migration stubs that
+ * Each entry maps a core satellite feature name to the migration stubs that
  * implement it. The key is what the user passes via `--with=<feature>` (CSV)
  * or selects from the interactive prompt.
+ *
+ * Only the *leaf* satellites whose tables core still owns live here. Billing and
+ * SSO moved their migrations into their own packages (`@adonisjs-lasagna/billing`,
+ * `/sso`); they are now discovered as external satellites (see
+ * `discoverSatellites`) and published through the shared satellite toolkit.
  */
 export const SATELLITE_BUNDLES: Record<string, string[]> = {
   audit: ['create_tenant_audit_logs_table'],
   feature_flags: ['create_tenant_feature_flags_table'],
   webhooks: ['create_tenant_webhooks_table', 'create_tenant_webhook_deliveries_table'],
   branding: ['create_tenant_brandings_table'],
-  sso: ['create_tenant_sso_configs_table'],
   metrics: ['create_tenant_metrics_table'],
-  // tenant_plans backs QuotaService.assignPlan/track. It is shared with the
-  // billing bundle below; `resolveMigrationStubs` dedups when both are
-  // requested, so adopting quotas standalone (`--with=quotas`) and later
-  // billing never emits the table twice.
+  // tenant_plans backs QuotaService.assignPlan/track. The billing satellite
+  // (now an external package) declares `requires: ["quotas"]` so this table is
+  // published before its own tables; `resolveMigrationStubs` dedups if both the
+  // quotas feature and a billing `requires` ask for it.
   quotas: ['create_tenant_plans_table'],
-  billing: [
-    // tenant_plans backs QuotaService.assignPlan; required for billing wiring
-    'create_tenant_plans_table',
-    'create_billing_customers_table',
-    'create_billing_subscriptions_table',
-    'create_billing_processed_events_table',
-    'create_billing_usage_events_table',
-  ],
 }
 
 /**
@@ -51,6 +57,18 @@ export const OPT_IN_BUNDLES: Record<string, string[]> = {
 export const ALL_FEATURES = Object.keys(SATELLITE_BUNDLES)
 export const KNOWN_FEATURES = [...ALL_FEATURES, ...Object.keys(OPT_IN_BUNDLES)]
 
+/**
+ * Legacy short names for the official satellites whose migrations moved out of
+ * core into their own package. Used ONLY to print a helpful "install it first"
+ * message when the user passes `--with=billing` (or `sso`) but the package is
+ * not installed (so discovery found nothing). When the package IS installed,
+ * its manifest `aliases` resolve the short name through discovery instead.
+ */
+const OFFICIAL_SATELLITE_ALIASES: Record<string, string> = {
+  billing: '@adonisjs-lasagna/billing',
+  sso: '@adonisjs-lasagna/sso',
+}
+
 export function parseWithFlag(raw: unknown): string[] | null {
   if (raw === undefined || raw === null) return null
   if (Array.isArray(raw)) {
@@ -69,9 +87,9 @@ export function parseWithFlag(raw: unknown): string[] | null {
 }
 
 /**
- * Split a requested feature list into the ones we know how to publish and the
- * ones we don't. The caller decides what to do with `unknown` (warn) and uses
- * `known` as the published set.
+ * Split a requested feature list into the ones we know how to publish as core
+ * bundles and the ones we don't. The caller routes `unknown` through external
+ * satellite discovery / legacy-alias handling, then warns on anything left.
  */
 export function filterUnknown(features: string[]): { known: string[]; unknown: string[] } {
   const known: string[] = []
@@ -84,11 +102,9 @@ export function filterUnknown(features: string[]): { known: string[]; unknown: s
 }
 
 /**
- * Flatten the selected features into the ordered list of migration stub names
- * to publish. Order follows the selection, then each feature's bundle order.
- * Unknown features (no bundle) are skipped. Deduped by first appearance:
- * `quotas` and `billing` share `create_tenant_plans_table`, so a request like
- * `--with=quotas,billing` must not emit that migration twice.
+ * Flatten the selected core features into the ordered list of migration stub
+ * names to publish. Order follows the selection, then each feature's bundle
+ * order. Unknown features (no bundle) are skipped. Deduped by first appearance.
  */
 export function resolveMigrationStubs(selected: string[]): string[] {
   const stubs: string[] = []
@@ -105,37 +121,21 @@ export function resolveMigrationStubs(selected: string[]): string[] {
   return stubs
 }
 
-/**
- * Split resolved stub names into the ones not yet published and the ones
- * already present in the host's migrations directory. A stub counts as already
- * published when an existing file matches `<digits>_<stub>.ts` — migration
- * stubs are emitted as `${Date.now()}_<stub>.ts`, so the timestamp prefix is
- * always new and the codemod's own "file exists" skip never fires.
- *
- * This is what makes `configure` safe to re-run: a second pass with the same
- * (or overlapping) `--with`, or a bare re-run, skips the migrations it already
- * wrote instead of emitting timestamped duplicates that would later collide on
- * `migration:run`.
- */
-export function filterAlreadyPublished(
-  stubs: string[],
-  existing: string[]
-): { toPublish: string[]; skipped: string[] } {
-  const toPublish: string[] = []
-  const skipped: string[] = []
-  for (const stub of stubs) {
-    const escaped = stub.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const re = new RegExp(`^\\d+_${escaped}\\.ts$`)
-    if (existing.some((file) => re.test(file))) skipped.push(stub)
-    else toPublish.push(stub)
-  }
-  return { toPublish, skipped }
-}
-
 export default async function configure(command: Configure) {
+  const flags = (command as any).parsed?.flags ?? {}
+  const hostRoot: string = command.app.makePath()
+  const warn = (m: string) => command.logger.warning(m)
+
+  // `--list-satellites`: discover + print, publish nothing.
+  if (flags['list-satellites']) {
+    const satellites = await discoverSatellites(hostRoot, warn)
+    printSatelliteList(command, satellites)
+    return
+  }
+
   const codemods = await command.createCodemods()
 
-  // Register provider and commands in adonisrc.ts
+  // Register the core provider and commands in adonisrc.ts
   await codemods.updateRcFile((rcFile: any) => {
     rcFile.addProvider('@adonisjs-lasagna/saas-tenancy/providers/multitenancy_provider')
     rcFile.addCommand('@adonisjs-lasagna/saas-tenancy/commands')
@@ -146,73 +146,136 @@ export default async function configure(command: Configure) {
 
   // Publish tenant model stub only if it doesn't already exist
   const modelPath = command.app.makePath('app/models/backoffice/tenant.ts')
-  const modelExists = await access(modelPath)
-    .then(() => true)
-    .catch(() => false)
-
-  if (!modelExists) {
+  if (!(await fileExists(modelPath))) {
     await codemods.makeUsingStub(stubsRoot, 'models/tenant.stub', {})
   } else {
     command.logger.info('skipping app/models/backoffice/tenant.ts — already exists')
   }
 
-  // Decide which satellite features to publish.
-  //   1. Explicit --with=audit,branding wins.
-  //   2. Else if interactive (TTY): prompt the operator.
-  //   3. Else (CI / piped): publish ALL satellites — the v1.x default. This
-  //      keeps `node ace configure ...` non-breaking for existing scripts.
-  const flagValue = (command as any).parsed?.flags?.with
+  // Discover installed external satellites once (reads package.json only — never
+  // imports a satellite).
+  const satellites = await discoverSatellites(hostRoot, warn)
+  const satIndex = indexSatellites(satellites)
+
+  // Decide what to publish.
+  //   1. Explicit --with=audit,@scope/pkg wins (core features + external satellites).
+  //   2. Else if interactive (TTY): prompt the operator (core + installed externals).
+  //   3. Else (CI / piped): publish ALL core satellites — the v1.x default. External
+  //      satellites are opt-in (they need config + a provider), so they are NOT
+  //      auto-published on a bare run; `--list-satellites` surfaces them.
+  let selectedCore: string[] = []
+  const selectedExternal: DiscoveredSatellite[] = []
+  const externalSeen = new Set<string>()
+
+  const flagValue = flags.with
   const fromFlag = parseWithFlag(flagValue)
 
-  let selected: string[]
   if (fromFlag) {
     const { known, unknown } = filterUnknown(fromFlag)
-    if (unknown.length > 0) {
+    selectedCore = known
+    const stillUnknown: string[] = []
+    for (const token of unknown) {
+      const sat = satIndex.get(token)
+      if (sat) {
+        if (!externalSeen.has(sat.packageName)) {
+          selectedExternal.push(sat)
+          externalSeen.add(sat.packageName)
+        }
+      } else if (OFFICIAL_SATELLITE_ALIASES[token]) {
+        const pkg = OFFICIAL_SATELLITE_ALIASES[token]
+        command.logger.warning(
+          `"${token}" now ships as ${pkg}. Install it (npm install ${pkg}) and re-run ` +
+            `configure --with=${token}.`
+        )
+      } else {
+        stillUnknown.push(token)
+      }
+    }
+    if (stillUnknown.length > 0) {
+      const installed = satellites.map((s) => s.packageName)
       command.logger.warning(
-        `unknown feature(s): ${unknown.join(', ')}. Known: ${KNOWN_FEATURES.join(', ')}`
+        `unknown feature(s): ${stillUnknown.join(', ')}. Known core: ${KNOWN_FEATURES.join(', ')}.` +
+          (installed.length ? ` Installed satellites: ${installed.join(', ')}.` : '')
       )
     }
-    selected = known
   } else if (process.stdout.isTTY && (command as any).prompt?.multiple) {
-    selected = (await (command as any).prompt.multiple(
-      'Select satellite features to publish (space to toggle, enter to confirm)',
-      ALL_FEATURES,
+    const externalChoices = satellites.map((s) => s.packageName)
+    const picked = (await (command as any).prompt.multiple(
+      'Select features to publish (space to toggle, enter to confirm)',
+      [...ALL_FEATURES, ...externalChoices],
       { default: ALL_FEATURES }
     )) as string[]
+    for (const p of picked) {
+      if (ALL_FEATURES.includes(p)) {
+        selectedCore.push(p)
+      } else {
+        const sat = satIndex.get(p)
+        if (sat && !externalSeen.has(sat.packageName)) {
+          selectedExternal.push(sat)
+          externalSeen.add(sat.packageName)
+        }
+      }
+    }
   } else {
-    selected = [...ALL_FEATURES]
+    selectedCore = [...ALL_FEATURES]
   }
 
-  if (selected.length === 0) {
-    command.logger.info(
-      'no satellite features selected — only core config + tenant model published'
-    )
+  // External satellites can require core bundles (e.g. billing needs `quotas`
+  // for tenant_plans). Auto-add them so the shared table is published first.
+  for (const sat of selectedExternal) {
+    for (const req of sat.manifest.requires ?? []) {
+      if (KNOWN_FEATURES.includes(req)) {
+        if (!selectedCore.includes(req)) selectedCore.push(req)
+      } else {
+        command.logger.warning(
+          `${sat.packageName} requires unknown core feature "${req}" — skipping that prerequisite`
+        )
+      }
+    }
+  }
+
+  if (selectedCore.length === 0 && selectedExternal.length === 0) {
+    command.logger.info('no features selected — only core config + tenant model published')
     return
   }
 
-  // Publish migration stubs for every selected feature, skipping any already
-  // present in the host's migrations directory. Migration stubs are emitted as
-  // `${Date.now()}_<stub>.ts`, so without this guard a re-run would write
-  // timestamped duplicates that collide on `migration:run`. The guard makes
-  // `configure` idempotent: re-running it (even bare) is safe and additive.
-  const resolved = resolveMigrationStubs(selected)
-  const existing = await listExistingMigrations(command)
-  const { toPublish, skipped } = filterAlreadyPublished(resolved, existing)
+  const migrationsDir = resolveMigrationsDir(command)
 
-  for (const name of toPublish) {
-    await codemods.makeUsingStub(stubsRoot, `migrations/${name}.stub`, {})
+  // Publish the selected core migration stubs, skipping any already present.
+  if (selectedCore.length > 0) {
+    const resolved = resolveMigrationStubs(selectedCore)
+    const existing = await listExistingMigrations(migrationsDir)
+    const { toPublish, skipped } = filterAlreadyPublished(resolved, existing)
+
+    for (const name of toPublish) {
+      await codemods.makeUsingStub(stubsRoot, `migrations/${name}.stub`, {})
+    }
+    if (skipped.length > 0) {
+      command.logger.info(
+        `skipped already-published migrations (re-run safe): ${skipped.join(', ')}`
+      )
+    }
+    command.logger.info(`published core migrations: ${selectedCore.join(', ')}`)
   }
 
-  if (skipped.length > 0) {
-    command.logger.info(`skipped already-published migrations (re-run safe): ${skipped.join(', ')}`)
+  // Publish each external satellite's own migrations + register it in adonisrc.
+  for (const sat of selectedExternal) {
+    const existing = await listExistingMigrations(migrationsDir)
+    const { published, skipped } = await publishSatellite(codemods, sat, existing)
+    if (skipped.length > 0) {
+      command.logger.info(
+        `${sat.packageName}: skipped already-published migrations: ${skipped.join(', ')}`
+      )
+    }
+    command.logger.info(
+      `published satellite: ${sat.packageName} (${published.length} migration(s))`
+    )
+    await registerSatelliteInRcFile(codemods, sat.manifest)
+    printSatelliteManifest(command.logger, sat.manifest)
   }
-  command.logger.info(`published migrations: ${selected.join(', ')}`)
 
-  // Stability notice. Every satellite is `experimental` in 1.x and is not
-  // covered by the semver promise. Surface it once, at install, so reaching for
-  // one is an informed choice rather than a surprise on the next minor. (`rls`
-  // is core hardening, not a satellite, so it is excluded.)
-  const experimentalSelected = selected.filter((f) => f in SATELLITE_BUNDLES)
+  // Stability notice for the core experimental satellites.
+  const experimentalSelected = selectedCore.filter((f) => f in SATELLITE_BUNDLES)
   if (experimentalSelected.length > 0) {
     command.logger.warning(`experimental satellites: ${experimentalSelected.join(', ')}`)
     command.logger.log('  Experimental features are not part of the 1.x stability promise and may')
@@ -223,82 +286,57 @@ export default async function configure(command: Configure) {
     command.logger.log('  https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/stability')
   }
 
-  // Per-feature follow-ups. The config file is never overwritten on a re-run
-  // (the codemod skips it), so any feature that needs a config block, a peer
-  // package, or an env var must be surfaced here — pasting it is the host's job.
-  postPublishConfigReminders(command, selected)
+  // Per-feature follow-ups for the core bundles.
+  postPublishConfigReminders(command, selectedCore)
 
-  if (selected.includes('rls')) {
+  if (selectedCore.includes('rls')) {
     postPublishRls(command)
-  }
-
-  if (selected.includes('billing')) {
-    // Publish the mailer + view so the QuotaExceededBillingListener has
-    // something to dispatch out of the box. Both stubs are skipped if the
-    // host already wrote their own (we never overwrite).
-    const mailerPath = command.app.makePath('app/mailers/quota_warning_mailer.ts')
-    if (!(await fileExists(mailerPath))) {
-      await codemods.makeUsingStub(stubsRoot, 'mailers/quota_warning_mailer.stub', {})
-    } else {
-      command.logger.info('skipping app/mailers/quota_warning_mailer.ts — already exists')
-    }
-
-    const viewPath = command.app.makePath('resources/views/emails/quota_warning.edge')
-    if (!(await fileExists(viewPath))) {
-      await codemods.makeUsingStub(stubsRoot, 'views/emails/quota_warning.edge.stub', {})
-    } else {
-      command.logger.info('skipping resources/views/emails/quota_warning.edge — already exists')
-    }
-
-    await postPublishBilling(command)
   }
 }
 
-/**
- * Read the basenames of every file under the host's migrations directory
- * (recursively, so hosts that organise migrations into subfolders are still
- * covered). Best-effort: a host that hasn't created the directory yet is
- * treated as having no migrations. Feeds `filterAlreadyPublished`.
- */
-async function listExistingMigrations(command: Configure): Promise<string[]> {
+/** Print the `--list-satellites` table: core bundles + installed externals. */
+function printSatelliteList(command: Configure, satellites: DiscoveredSatellite[]): void {
+  const log = command.logger
+  log.log('')
+  log.log('Core satellite bundles (publish with --with=<name>):')
+  for (const name of ALL_FEATURES) log.log(`  ${name}`)
+  log.log('Opt-in hardening bundles:')
+  for (const name of Object.keys(OPT_IN_BUNDLES)) log.log(`  ${name}`)
+
+  log.log('')
+  if (satellites.length === 0) {
+    log.log('Installed external satellites: none found.')
+    log.log('Publish one with: node ace configure @adonisjs-lasagna/saas-tenancy --with=<package>')
+    return
+  }
+  log.log('Installed external satellites (publish with --with=<package> or its own configure):')
+  for (const sat of satellites) {
+    const reqs = sat.manifest.requires?.length
+      ? ` requires: ${sat.manifest.requires.join(',')}`
+      : ''
+    log.log(`  ${sat.packageName}  (${sat.manifest.name})${reqs}`)
+  }
+}
+
+/** Resolve the host's migrations directory (recursively scanned by the guard). */
+function resolveMigrationsDir(command: Configure): string {
   const app = command.app as unknown as {
     migrationsPath?: (...p: string[]) => string
     makePath: (...p: string[]) => string
   }
-  const dir =
-    typeof app.migrationsPath === 'function'
-      ? app.migrationsPath()
-      : app.makePath('database', 'migrations')
-  try {
-    const { readdir } = await import('node:fs/promises')
-    const entries = await readdir(dir, { recursive: true })
-    return entries.map((entry) => entry.split(/[\\/]/).pop() ?? entry)
-  } catch {
-    return []
-  }
+  return typeof app.migrationsPath === 'function'
+    ? app.migrationsPath()
+    : app.makePath('database', 'migrations')
 }
 
 /**
- * Surface the config block / peer package / env each selected feature needs.
- * Most satellites (audit, feature_flags, webhooks, branding) are zero-config
- * and intentionally print nothing. Billing has its own richer hint
- * (`postPublishBilling`); this covers the rest. We never AST-patch the host's
- * config — the file is not overwritten on a re-run, so the operator pastes.
+ * Surface the config block each selected core feature needs. Most satellites
+ * (audit, feature_flags, webhooks, branding) are zero-config and print nothing.
+ * We never AST-patch the host's config — the operator pastes.
  */
 function postPublishConfigReminders(command: Configure, selected: string[]): void {
   const log = command.logger
   const has = (f: string) => selected.includes(f)
-
-  if (has('sso')) {
-    log.log('')
-    log.log('— SSO satellite — additional setup —')
-    log.log('Install the SSO package (ships the SsoService + TenantSsoConfig model):')
-    log.log('  npm install @adonisjs-lasagna/sso')
-    log.log(
-      '  npm install jose                      # optional, only for JWKS id-token verification'
-    )
-    log.log("  import { SsoService, TenantSsoConfig } from '@adonisjs-lasagna/sso'")
-  }
 
   if (has('quotas')) {
     log.log('')
@@ -359,62 +397,4 @@ async function fileExists(path: string): Promise<boolean> {
   return access(path)
     .then(() => true)
     .catch(() => false)
-}
-
-/**
- * Post-publish hint for the billing satellite. We deliberately don't
- * AST-patch `start/routes.ts` or `config/multitenancy.ts` — host code
- * varies enough that an AST patch is brittle. Instead, surface the exact
- * snippets the operator needs to paste, with stable file references.
- *
- * Also nudges peer-dep installation if `stripe` isn't already a dependency.
- */
-async function postPublishBilling(command: Configure): Promise<void> {
-  const log = command.logger
-  log.log('')
-  log.log('— Billing satellite — additional setup —')
-
-  log.log('')
-  log.log('Pick a provider. The Stripe driver uses the official SDK (optional peer);')
-  log.log('the Paddle and Lemon Squeezy drivers talk to their REST APIs directly (no SDK):')
-  log.log('  Stripe:        npm install stripe@^22')
-  log.log('  Paddle:        (no package needed — REST driver built in)')
-  log.log('  Lemon Squeezy: (no package needed — REST driver built in)')
-
-  log.log('')
-  log.log('Required environment variables (Stripe shown; see docs for Paddle / Lemon Squeezy):')
-  log.log('  STRIPE_API_KEY=sk_test_...        (test key in dev, live key in prod)')
-  log.log('  STRIPE_WEBHOOK_SECRET=whsec_...   (from the webhook endpoint in the Stripe dashboard)')
-  log.log('  STRIPE_API_VERSION=2025-08-27.basil   (optional; pin recommended)')
-
-  log.log('')
-  log.log('Install the billing satellite package (it ships its own provider + commands):')
-  log.log('  npm install @adonisjs-lasagna/billing')
-
-  log.log('')
-  log.log('Register it in adonisrc.ts:')
-  log.log("  providers: [() => import('@adonisjs-lasagna/billing/provider')]")
-  log.log("  commands: [() => import('@adonisjs-lasagna/billing/commands')]")
-
-  log.log('')
-  log.log('Wire the webhook in start/routes.ts:')
-  log.log("  import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'")
-  log.log('  multitenancyBillingRoutes()')
-
-  log.log('')
-  log.log('Add to config/multitenancy.ts (inside defineConfig({...})):')
-  log.log("  ignorePaths: ['/admin', '/api/webhooks', '/health', '/webhooks/stripe'],")
-  log.log('  billing: {')
-  log.log("    driver: 'stripe',   // 'stripe' | 'paddle' | 'lemonsqueezy'")
-  log.log('    stripe: {')
-  log.log("      apiKey: env.get('STRIPE_API_KEY'),")
-  log.log("      webhookSecret: env.get('STRIPE_WEBHOOK_SECRET'),")
-  log.log('    },')
-  log.log(
-    "    products: { prod_starter: 'starter', prod_pro: 'pro' },  // map provider product/price ids"
-  )
-  log.log("    defaultPlan: 'starter',")
-  log.log('  },')
-  log.log('')
-  log.log('See docs/cookbook/stripe-quotas.md for the full reference.')
 }

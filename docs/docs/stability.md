@@ -71,6 +71,7 @@ The isolation substrate. Everything here is **release candidate** unless noted.
 | Row-scope isolation (`rowscope-pg`) | Release candidate | Ship the `--with=rls` migration for the SQL-level backstop; see [rowscope-pg](/docs/data-isolation/rowscope-pg). |
 | `sqlite-memory` driver | Testing only | For tests; never for production. |
 | Custom isolation driver API (`IsolationDriver` + `IsolationDriverRegistry`) | Release candidate | Public extension point for additional backends. The seam a future MySQL satellite registers through. |
+| Packaged-satellite SDK (`/sdk`: `SatelliteManifest`, `SatelliteProviderContract`, configure toolkit) | Release candidate | Public extension point for third-party satellites. See [Creating a satellite](/docs/cookbook/creating-a-satellite). |
 | Tenant resolution (subdomain / path / header) | Release candidate | Always via `resolveTenantId()`. |
 | `TenantAdapter` + base-model routing | Release candidate | |
 | Connection LRU, budget, optional hard cap | Release candidate | `enforceConnectionCap` defaults `false`; see [scaling limits](/docs/scaling-limits). |

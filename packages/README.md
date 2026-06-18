@@ -242,10 +242,14 @@ are simply **removed** from the barrels (a documented breaking change).
    specs (`sso_service`, `sso_oidc_flow`, `sso_oidc_real`); the demo
    `sso_controller` + the demo `satellites` e2e spec; `examples/api/package.json`
    gains `file:` deps on the new packages.
-5. **Migration stub stays in core.** `stubs/migrations/create_tenant_sso_configs_table.stub`
-   and the `configure.ts` `sso: [...]` mapping stay in core — the migration is
-   plain SQL, independent of the model, so `--with=sso` still provisions the
-   table. (Per-package configure hooks are future work.)
+5. **Migration moved out of core (done).** `create_tenant_sso_configs_table.stub`
+   now lives in `packages/sso/stubs/migrations/`; the package declares a
+   `lasagnaSatellite` manifest + an `adonisjs.configure` hook. The core
+   `configure.ts` `sso: [...]` bundle is gone. `--with=sso` still works: core
+   discovers the installed package via its manifest `aliases` and copies its
+   migration through the shared `@adonisjs-lasagna/saas-tenancy/sdk`
+   toolkit. (Per-package configure hooks: **shipped** — see
+   `docs/cookbook/creating-a-satellite`.)
 6. **Build order:** `build:sso` added; `build:all` is now core -> sso -> admin
    (admin imports the sso package). CI's lint-and-typecheck builds sso then admin.
 
@@ -299,8 +303,13 @@ modules were rewritten.
    Billing reads config via a new lightweight `@adonisjs-lasagna/saas-tenancy/config`
    subpath (importing it from the root barrel crashes outside an app — the root
    and `/services` barrels eagerly touch `app.booted`).
-5. **Migration stubs stay in core** (`create_stripe_*` + the `configure.ts` mapping),
-   same rationale as sso.
+5. **Migrations moved out of core (done).** The four `create_billing_*.stub`
+   files (plus the `quota_warning` mailer/view) now live in
+   `packages/billing/stubs/`; the package declares a `lasagnaSatellite` manifest
+   (`requires: ["quotas"]` for `tenant_plans`, which stays in core) + an
+   `adonisjs.configure` hook. The core `billing: [...]` bundle is gone.
+   `--with=billing` resolves the installed package via its manifest alias and
+   copies its migrations through the shared satellite toolkit.
 6. **Package-local unit runner.** The six billing unit specs moved to
    `packages/billing/tests/unit/` with a `bin/test.ts` + `test` script, run from
    the package cwd (tsx then picks up the package tsconfig so the Lucid-model
@@ -321,8 +330,8 @@ jumped since the unit-uncovered billing left core `src`), and the package's own
 `npm run test --workspace @adonisjs-lasagna/billing` (**40 pass**). Smokes:
 `require.resolve` of `@adonisjs-lasagna/billing` + `/provider` + `/commands`;
 `commands.json` ships in the build; core `.d.ts` barrels name no billing symbol;
-the core tarball ships only the intentional `types/billing.*` + `create_stripe_*`
-stubs (no stale `.js`).
+the core tarball ships only the intentional `types/billing.*` (the billing
+migration stubs have since moved into `packages/billing/stubs/` — see item 5).
 
 ### CI-only (the elevated-risk part)
 

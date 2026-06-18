@@ -26,24 +26,42 @@ testing helpers.
 
 ## Configuration
 
+Billing ships as its own package and carries its own migrations.
+Install it, then run its configure hook:
+
 ```bash
-node ace configure @adonisjs-lasagna/saas-tenancy --with=billing
 npm install @adonisjs-lasagna/billing
+node ace configure @adonisjs-lasagna/billing
 # Stripe driver only — Paddle and Lemon Squeezy use REST (no SDK):
 npm install stripe@^22
 ```
 
+It is also reachable through core's configure, which recognises the
+`billing` short name once the package is installed:
+
+```bash
+node ace configure @adonisjs-lasagna/saas-tenancy --with=@adonisjs-lasagna/billing
+# or the short alias
+node ace configure @adonisjs-lasagna/saas-tenancy --with=billing
+```
+
 The configure step publishes:
 
-- 5 backoffice migrations: `tenant_plans`, `billing_customers`,
-  `billing_subscriptions`, `billing_processed_events`,
-  `billing_usage_events`. Each provider table carries a `provider`
-  column so the schema is provider-agnostic.
+- 4 backoffice migrations owned by the billing package:
+  `billing_customers`, `billing_subscriptions`,
+  `billing_processed_events`, `billing_usage_events`. Each carries a
+  `provider` column so the schema is provider-agnostic.
+- `tenant_plans` — billing declares `requires: ['quotas']`, so the
+  core `quotas` bundle is published alongside. Through core's
+  `--with=` path this is automatic; running billing's own hook prints
+  the prerequisite (`configure @adonisjs-lasagna/saas-tenancy
+  --with=quotas`) if `tenant_plans` is not yet present.
 - `app/mailers/quota_warning_mailer.ts` plus
   `resources/views/emails/quota_warning.edge` (the listener wired to
   `TenantQuotaExceeded` when `notifyOnQuotaExceeded: true`).
-- A printed snippet for `config/multitenancy.ts` and
-  `start/routes.ts`.
+- The billing provider + commands are registered in `adonisrc.ts`,
+  and a snippet for `config/multitenancy.ts` and `start/routes.ts` is
+  printed.
 
 Run the migrations:
 
