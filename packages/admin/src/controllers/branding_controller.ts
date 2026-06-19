@@ -3,6 +3,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { BrandingService, type BrandingData } from '@adonisjs-lasagna/saas-tenancy/services'
 import { type TenantBranding } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { loadTenantOr404 } from './helpers.js'
+import { looksLikeUrl, pickIfDefined } from './pure.js'
 
 function serialize(b: TenantBranding | null) {
   if (!b) return null
@@ -20,36 +21,6 @@ function serialize(b: TenantBranding | null) {
 }
 
 const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}){1,2}$/
-
-function looksLikeUrl(value: unknown): value is string {
-  if (typeof value !== 'string' || value.length === 0) return false
-  try {
-    new URL(value)
-    return true
-  } catch {
-    return false
-  }
-}
-
-/**
- * Three-state pick:
- *   - field absent (`undefined`) → return `undefined`, the caller skips it
- *   - field set to `null` → return `null`, the caller clears the column
- *   - field set to a value → run the validator; throw `invalid_<key>` on
- *     failure so the controller can surface a 400 with a stable code
- */
-function pickIfDefined<T>(
-  input: any,
-  key: string,
-  validator?: (v: unknown) => boolean
-): T | null | undefined {
-  if (input == null || input[key] === undefined) return undefined
-  if (input[key] === null) return null
-  if (validator && !validator(input[key])) {
-    throw new Error(`invalid_${key}`)
-  }
-  return input[key] as T
-}
 
 export default class BrandingController {
   async show(ctx: HttpContext) {

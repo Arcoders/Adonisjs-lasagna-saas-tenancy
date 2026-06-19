@@ -2,6 +2,7 @@ import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import { AuditLogService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { loadTenantOr404, clamp } from './helpers.js'
+import { parseDate } from './pure.js'
 
 export default class AuditLogsController {
   async list(ctx: HttpContext) {
@@ -24,10 +25,4 @@ export default class AuditLogsController {
     const paginated = await svc.listForTenant(tenant.id, page, limit, { from, to })
     return ctx.response.ok(paginated)
   }
-}
-
-function parseDate(raw: unknown): Date | undefined {
-  if (typeof raw !== 'string' || raw.length === 0) return undefined
-  const d = new Date(raw)
-  return Number.isNaN(d.getTime()) ? undefined : d
 }

@@ -11,6 +11,11 @@ import type {
 // `./helpers.js` unchanged.
 export { validateExternalHttpsUrl } from '@adonisjs-lasagna/saas-tenancy'
 
+// The pure, container-free helpers live in `./pure.js` (no core barrel import)
+// so they can be unit tested without booting an Ignitor. Re-exported here so the
+// controllers keep importing them from `./helpers.js` unchanged.
+export { clamp, isNonEmptyString } from './pure.js'
+
 /**
  * Resolve `params.id` to a tenant or short-circuit with a 404. Returns the
  * tenant on success and `null` on failure (the response has already been
@@ -24,14 +29,4 @@ export async function loadTenantOr404(ctx: HttpContext): Promise<TenantModelCont
     return null
   }
   return tenant
-}
-
-export function clamp(value: unknown, min: number, max: number, fallback: number): number {
-  const n = Number(value)
-  if (!Number.isFinite(n)) return fallback
-  return Math.min(max, Math.max(min, Math.trunc(n)))
-}
-
-export function isNonEmptyString(v: unknown): v is string {
-  return typeof v === 'string' && v.trim().length > 0
 }

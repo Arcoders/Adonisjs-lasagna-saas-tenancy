@@ -1,9 +1,9 @@
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
-import { DateTime } from 'luxon'
 import { FeatureFlagService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { type TenantFeatureFlag } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { loadTenantOr404, isNonEmptyString } from './helpers.js'
+import { parseExpiresAt } from './pure.js'
 
 function serialize(f: TenantFeatureFlag) {
   return {
@@ -16,20 +16,6 @@ function serialize(f: TenantFeatureFlag) {
     createdAt: f.createdAt?.toISO?.() ?? null,
     updatedAt: f.updatedAt?.toISO?.() ?? null,
   }
-}
-
-/**
- * Parse an optional `expiresAt` request input. Returns `{ ok: true, value }`
- * with a `DateTime` (or `null` when the field is absent/empty — which clears
- * any stored expiry, consistent with how `config` is handled), or
- * `{ ok: false }` when the value is present but not a valid ISO timestamp.
- */
-function parseExpiresAt(raw: unknown): { ok: true; value: DateTime | null } | { ok: false } {
-  if (raw === undefined || raw === null || raw === '') return { ok: true, value: null }
-  if (typeof raw !== 'string') return { ok: false }
-  const dt = DateTime.fromISO(raw)
-  if (!dt.isValid) return { ok: false }
-  return { ok: true, value: dt }
 }
 
 export default class FeatureFlagsController {

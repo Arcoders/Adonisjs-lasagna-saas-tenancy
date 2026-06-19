@@ -2,6 +2,7 @@ import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { SsoService, TenantSsoConfig } from '@adonisjs-lasagna/sso'
 import { loadTenantOr404, isNonEmptyString, validateExternalHttpsUrl } from './helpers.js'
+import { isHttpsUrl } from './pure.js'
 
 /**
  * `@adonisjs-lasagna/sso` is an OPTIONAL peer of admin: the admin API works
@@ -47,16 +48,6 @@ function serialize(c: TenantSsoConfig | null) {
     hasClientSecret: !!c.clientSecret,
     createdAt: c.createdAt?.toISO?.() ?? null,
     updatedAt: c.updatedAt?.toISO?.() ?? null,
-  }
-}
-
-function isHttpsUrl(v: unknown): v is string {
-  if (typeof v !== 'string') return false
-  try {
-    const u = new URL(v)
-    return u.protocol === 'https:' || u.protocol === 'http:'
-  } catch {
-    return false
   }
 }
 
