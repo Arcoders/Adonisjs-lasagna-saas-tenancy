@@ -20,7 +20,7 @@ import {
   hydrateJob,
 } from './helpers.js'
 import type Stripe from 'stripe'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**
  * Covers the controller's `INSERT ... ON CONFLICT DO NOTHING` ledger and

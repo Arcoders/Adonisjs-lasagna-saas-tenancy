@@ -9,7 +9,7 @@ import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**
  * `tenant:billing:sweep` / `runBillingSweep` drives the two time-based,

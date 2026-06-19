@@ -5,7 +5,7 @@ import { MockStripe } from '@adonisjs-lasagna/billing'
 import { BillingCustomer } from '@adonisjs-lasagna/billing'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**

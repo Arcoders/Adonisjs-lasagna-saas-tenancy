@@ -5,11 +5,11 @@ import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe } from '@adonisjs-lasagna/billing'
 import { BillingCustomer, BillingUsageEvent } from '@adonisjs-lasagna/billing'
-import UsageAutoBridgeListener from '../../../../../packages/billing/build/src/listeners/usage_auto_bridge_listener.js'
+import UsageAutoBridgeListener from '../../build/src/listeners/usage_auto_bridge_listener.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables, hydrateJob } from './helpers.js'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
-import QuotaTracked from '../../../src/events/quota_tracked.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
+import QuotaTracked from '../../../core/src/events/quota_tracked.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
@@ -270,7 +270,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     const listener = await app.container.make(UsageAutoBridgeListener)
 
     const ReportUsageBatchJob = (
-      await import('../../../../../packages/billing/build/src/jobs/report_usage_batch_job.js')
+      await import('../../build/src/jobs/report_usage_batch_job.js')
     ).default
     const dispatched: Array<{ tenantId: string; meterEventName: string; quantity: number }> = []
     const originalDispatch = (
@@ -395,7 +395,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     const emitter = (await import('@adonisjs/core/services/emitter')).default
     const listener = await app.container.make(UsageAutoBridgeListener)
     const ReportUsageBatchJob = (
-      await import('../../../../../packages/billing/build/src/jobs/report_usage_batch_job.js')
+      await import('../../build/src/jobs/report_usage_batch_job.js')
     ).default
     let dispatchedCount = 0
     const originalDispatch = (

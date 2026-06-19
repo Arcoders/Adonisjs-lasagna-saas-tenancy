@@ -8,7 +8,7 @@ import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { BillingCustomer, BillingSubscription } from '@adonisjs-lasagna/billing'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, buildNeutralSubscription, clearBillingTables } from './helpers.js'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**
  * BillingService.syncSubscription is the keystone routine — every

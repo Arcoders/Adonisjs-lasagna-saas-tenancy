@@ -19,7 +19,7 @@ import {
   clearBillingTables,
   hydrateJob,
 } from './helpers.js'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**
  * §B1 regression — `BillingService.retrieveEvent()` falls back to the

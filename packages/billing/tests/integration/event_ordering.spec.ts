@@ -6,7 +6,7 @@ import { MockStripe } from '@adonisjs-lasagna/billing'
 import { BillingCustomer, BillingSubscription } from '@adonisjs-lasagna/billing'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, buildNeutralSubscription, clearBillingTables } from './helpers.js'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**
  * Stripe does NOT guarantee delivery order. Without the `last_event_at`

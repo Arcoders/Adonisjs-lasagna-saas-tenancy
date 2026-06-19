@@ -8,7 +8,7 @@ import { MockStripe } from '@adonisjs-lasagna/billing'
 import { BillingCustomer, BillingSubscription } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
@@ -36,7 +36,7 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
     // Note: the `before:destroy` listener is auto-wired by
     // `MultitenancyProvider.start()` because the fixture's
     // `config/multitenancy.ts` includes a `billing` block. Importing
-    // `TenantDestroyBillingListener` from `../../../src/...` and
+    // `TenantDestroyBillingListener` from `../../../core/src/...` and
     // wiring it manually loaded a SECOND copy of the listener that
     // resolved `BillingService` against a different module-class key
     // than the one the spec mocked — the cancel mock never fired.

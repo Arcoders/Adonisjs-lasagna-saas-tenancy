@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import { createHmac } from 'node:crypto'
 import { PaddleDriver } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { testConfig } from '../../helpers/config.js'
+import { testConfig } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**

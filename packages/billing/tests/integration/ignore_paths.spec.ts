@@ -11,7 +11,7 @@ import { readFile } from 'node:fs/promises'
  */
 test.group('multitenancy.stub default ignorePaths', () => {
   test("includes '/webhooks/stripe' in the default ignorePaths array", async ({ assert }) => {
-    const stubUrl = new URL('../../../stubs/config/multitenancy.stub', import.meta.url)
+    const stubUrl = new URL('../../../core/stubs/config/multitenancy.stub', import.meta.url)
     const text = await readFile(stubUrl, 'utf8')
 
     // We can't `eval` the stub (it contains AdonisJS-specific imports),
@@ -24,7 +24,7 @@ test.group('multitenancy.stub default ignorePaths', () => {
   })
 
   test('includes the canonical paths a webhook flow needs', async ({ assert }) => {
-    const stubUrl = new URL('../../../stubs/config/multitenancy.stub', import.meta.url)
+    const stubUrl = new URL('../../../core/stubs/config/multitenancy.stub', import.meta.url)
     const text = await readFile(stubUrl, 'utf8')
     const match = /ignorePaths:\s*\[([^\]]+)\]/.exec(text)
     const list = match![1]

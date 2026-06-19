@@ -9,7 +9,7 @@ import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { BillingCustomer, BillingSubscription } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import type Stripe from 'stripe'
 
 /**

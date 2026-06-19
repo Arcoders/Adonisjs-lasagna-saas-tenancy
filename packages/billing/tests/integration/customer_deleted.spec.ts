@@ -7,7 +7,7 @@ import { BillingCustomer, BillingProcessedEvent } from '@adonisjs-lasagna/billin
 import { ProcessBillingEventJob } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, buildEvent, clearBillingTables, hydrateJob } from './helpers.js'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import type Stripe from 'stripe'
 
 /**

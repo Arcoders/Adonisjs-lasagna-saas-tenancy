@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { testConfig } from '../../helpers/config.js'
+import { testConfig } from '@adonisjs-lasagna/satellite-test-kit/testing'
 // Imported via the package path (build/) so we don't pull a parallel copy of
 // the satellite's `src/` — tsx will evaluate both copies of any module it can
 // resolve, and a duplicate model/service evaluation yields a second class

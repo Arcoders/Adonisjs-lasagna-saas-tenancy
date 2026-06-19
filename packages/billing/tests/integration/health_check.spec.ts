@@ -10,11 +10,11 @@ import {
   BillingSubscription,
 } from '@adonisjs-lasagna/billing'
 import { billingHealthCheck } from '@adonisjs-lasagna/billing'
-import { SLOW_API_THRESHOLD_MS } from '../../../../../packages/billing/build/src/health/billing_health_check.js'
+import { SLOW_API_THRESHOLD_MS } from '../../build/src/health/billing_health_check.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { testConfig } from '../../helpers/config.js'
+import { testConfig } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**
  * billingHealthCheck has 4 outcomes:

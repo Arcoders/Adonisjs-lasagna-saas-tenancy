@@ -4,9 +4,9 @@ import { DateTime } from 'luxon'
 import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { __resetPlanStorageProbe } from '../../../src/services/quota_service.js'
+import { __resetPlanStorageProbe } from '../../../core/src/services/quota_service.js'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**
  * QuotaService.assignPlan is the package's only public write into

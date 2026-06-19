@@ -4,7 +4,7 @@ import ace from '@adonisjs/core/services/ace'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { setupBillingConfig, clearBillingTables } from './helpers.js'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**
  * `tenant:billing:backfill` walks every tenant via the

@@ -1,7 +1,7 @@
 import db from '@adonisjs/lucid/services/db'
 import { randomUUID } from 'node:crypto'
 import { setConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { testConfig } from '../../helpers/config.js'
+import { testConfig } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import type Stripe from 'stripe'
 import type { Subscription, SubscriptionStatus } from '@adonisjs-lasagna/billing'
 

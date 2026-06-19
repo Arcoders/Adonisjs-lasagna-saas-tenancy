@@ -11,7 +11,7 @@ import type { NextFn } from '@adonisjs/core/types/http'
 /**
  * Middleware-level coverage. Imports `VerifyBillingWebhookMiddleware`
  * via the package path (build), so the middleware shares the booted
- * provider's `_config` singleton. Importing it from `../../../src/...`
+ * provider's `_config` singleton. Importing it from `../../../core/src/...`
  * loads a separate module instance whose `_config` is null at runtime
  * (the provider booted from build/ never wrote to it) and every test
  * fails with "saas-tenancy not configured".

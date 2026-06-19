@@ -9,9 +9,9 @@ import {
   getActiveBillingDriver,
 } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { testConfig } from '../../helpers/config.js'
+import { testConfig } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import { clearBillingTables } from './helpers.js'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
