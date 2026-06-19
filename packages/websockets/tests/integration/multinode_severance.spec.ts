@@ -201,7 +201,10 @@ test.group('Multi-node WebSocket severance (integration)', (group) => {
     await publisher.publish(SEVER_CHANNEL, suspended)
 
     await severed
-    assert.isFalse(onA.connected, 'the suspended tenant is severed on the node that saw the suspend')
+    assert.isFalse(
+      onA.connected,
+      'the suspended tenant is severed on the node that saw the suspend'
+    )
     assert.isFalse(onB.connected, 'and severed on the OTHER node via the Redis bridge')
     assert.isTrue(control.connected, 'a different tenant on the same node is untouched')
   })

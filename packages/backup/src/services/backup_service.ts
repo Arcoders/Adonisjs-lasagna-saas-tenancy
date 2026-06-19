@@ -81,11 +81,20 @@ export default class BackupService {
       filePath,
     ]
 
-    await this.#runProcess('pg_dump', args, {
-      PGPASSWORD: backupConfig().pgConnection.password,
-    })
-
-    const { size } = await stat(filePath)
+    let size: number
+    try {
+      await this.runProcess('pg_dump', args, {
+        PGPASSWORD: backupConfig().pgConnection.password,
+      })
+      size = (await stat(filePath)).size
+    } catch (error) {
+      // A dump that dies mid-write leaves a partial, unrestorable .dump on disk.
+      // Remove it so a later restore or retention sweep never treats a corrupt
+      // half-file as a real backup. Best effort: pg_dump may have failed before
+      // creating the file at all, in which case the unlink is a harmless no-op.
+      await unlink(filePath).catch(() => {})
+      throw error
+    }
 
     const meta: BackupMetadata = {
       file: fileName,
@@ -146,7 +155,7 @@ export default class BackupService {
       filePath,
     ]
 
-    await this.#runProcess('pg_restore', args, {
+    await this.runProcess('pg_restore', args, {
       PGPASSWORD: backupConfig().pgConnection.password,
     })
     await logInfo({ tenantId: tenant.id, file: fileName }, 'Restore completed')
@@ -302,7 +311,16 @@ export default class BackupService {
     await logInfo({ tenantId, file: fileName }, 'Backup downloaded from S3')
   }
 
-  #runProcess(command: string, args: string[], processEnv: Record<string, string>): Promise<void> {
+  /**
+   * Spawn `pg_dump` / `pg_restore` and resolve on a clean exit. `protected` so a
+   * test can substitute a process that fails mid-write (no real Postgres needed)
+   * to exercise the partial-artifact cleanup in {@link backup}.
+   */
+  protected runProcess(
+    command: string,
+    args: string[],
+    processEnv: Record<string, string>
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const proc = spawn(command, args, {
         env: { ...process.env, ...processEnv },
