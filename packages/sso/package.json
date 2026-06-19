@@ -55,8 +55,8 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx bin/test.ts",
     "test:coverage": "c8 --temp-directory=../../coverage/.v8/sso-unit tsx bin/test.ts",
-    "test:integration:run": "tsx bin/test.integration.ts",
-    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/sso-integration tsx bin/test.integration.ts"
+    "test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/sso-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
   },
   "peerDependencies": {
     "@adonisjs-lasagna/saas-tenancy": "^1.0.0",

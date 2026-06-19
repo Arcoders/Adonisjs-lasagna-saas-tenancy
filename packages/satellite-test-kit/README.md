@@ -61,12 +61,22 @@ await runIntegrationSuite({
 })
 ```
 
-…and its `package.json` mirrors core's scripts:
+…and its `package.json` scripts point tsx at the **root** tsconfig:
 
 ```jsonc
-"test:integration:run": "tsx bin/test.integration.ts",
-"test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/<sat>-integration tsx bin/test.integration.ts"
+"test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+"test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/<sat>-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
 ```
+
+**Why `--tsconfig ../../tsconfig.json` is mandatory (do not drop it).** A satellite boots
+core's canonical fixture, whose Lucid models use legacy (`experimentalDecorators`) decorators.
+tsx/esbuild applies a tsconfig's `experimentalDecorators` only to files **inside that
+tsconfig's directory tree**; the fixture lives under `packages/core/...`, outside the
+satellite's tree, so the satellite's own tsconfig does not cover it and esbuild rejects the
+decorators with `Decorators are not valid here`. The repo-root tsconfig's tree spans the whole
+monorepo (it covers both the fixture and the satellite's specs) and sets
+`experimentalDecorators: true`, so pointing tsx at it transforms everything correctly. (Core's
+own integration run needs no flag: its cwd tsconfig already contains the fixture.)
 
 Run one satellite's integration suite locally (needs the service stack — see below):
 
