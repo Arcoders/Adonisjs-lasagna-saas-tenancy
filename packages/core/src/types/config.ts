@@ -1,6 +1,33 @@
+import type { HttpContext } from '@adonisjs/core/http'
 import type { DeclarativeHooks } from '../services/hook_registry.js'
 import type { IsolationDriverName } from '../services/isolation/driver.js'
 import type { TenantModelContract } from './contracts.js'
+
+/**
+ * Optional MEMBERSHIP gate: does the authenticated caller belong to the
+ * resolved tenant? The package routes by tenant id and verifies the tenant
+ * exists + is active, but it never checks membership; that is the host's job,
+ * and skipping it is the classic cross-tenant IDOR (a swapped `x-tenant-id`
+ * served against another tenant's schema). This is the FIRST line of defense,
+ * not full authorization: keep role/permission checks in your own policies.
+ * Wire it to your auth layer; return `false` (or throw) to deny. Runs only on
+ * the `TenantGuardMiddleware` path (it needs the request principal).
+ *
+ * @example // @adonisjs/auth session guard (the common case)
+ *   authorizeTenantAccess: (ctx, tenant) => ctx.auth?.user?.tenantId === tenant.id
+ *
+ * @example // membership table (a user can belong to several tenants)
+ *   authorizeTenantAccess: async (ctx, tenant) =>
+ *     ctx.auth?.user != null &&
+ *     (await Membership.query()
+ *       .where('user_id', ctx.auth.user.id)
+ *       .where('tenant_id', tenant.id)
+ *       .first()) != null
+ */
+export type TenantAccessAuthorizer = (
+  ctx: HttpContext,
+  tenant: TenantModelContract
+) => boolean | Promise<boolean>
 
 export type TenantResolverStrategy =
   | 'subdomain'
@@ -484,6 +511,12 @@ export interface MultitenancyConfig {
    * historical behavior.
    */
   resolver?: ResolverConfig
+  /**
+   * Optional per-request tenant authorization gate run by `TenantGuardMiddleware`
+   * after the lifecycle checks. Returns `false` (or throws) to deny with a 403
+   * `TenantAccessForbiddenException`. See {@link TenantAccessAuthorizer}.
+   */
+  authorizeTenantAccess?: TenantAccessAuthorizer
   tenantHeaderKey: string
   baseDomain: string
   /** Settings for the `request-data` resolver. */

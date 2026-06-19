@@ -1,5 +1,8 @@
 import env from '../start/env.js'
-import type { TenantResolverStrategy } from '@adonisjs-lasagna/saas-tenancy/types'
+import type {
+  TenantResolverStrategy,
+  TenantAccessAuthorizer,
+} from '@adonisjs-lasagna/saas-tenancy/types'
 
 export default {
   backofficeSchemaName: 'backoffice',
@@ -9,6 +12,17 @@ export default {
   tenantConnectionNamePrefix: 'tenant_',
   tenantSchemaPrefix: 'tenant_',
   resolverStrategy: 'header' as TenantResolverStrategy,
+  // Opt-in membership gate, exercised by tenant_guard_authorize.spec.ts. It is a
+  // no-op for every other spec: only requests that send `x-test-principal-tenant`
+  // (a stand-in for an authenticated principal's tenant) are evaluated, so the
+  // gate doesn't disturb the rest of the shared integration suite. With the
+  // header present, the caller's tenant must match the resolved tenant or the
+  // guard returns 403, proving the seam closes the cross-tenant IDOR.
+  authorizeTenantAccess: ((ctx, tenant) => {
+    const principalTenant = ctx.request.header('x-test-principal-tenant')
+    if (!principalTenant) return true
+    return principalTenant === tenant.id
+  }) satisfies TenantAccessAuthorizer,
   tenantHeaderKey: env.get('TENANT_HEADER_KEY'),
   baseDomain: 'localhost',
   schemaCacheTtl: 300,

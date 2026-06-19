@@ -1,6 +1,7 @@
 export type {
   MultitenancyConfig,
   TenantResolverStrategy,
+  TenantAccessAuthorizer,
   IsolationConfig,
   IsolationDriverChoice,
   RequestDataResolverConfig,
@@ -147,6 +148,7 @@ export {
   MissingTenantHeaderException,
   TenantNotFoundException,
   TenantSuspendedException,
+  TenantAccessForbiddenException,
   TenantNotReadyException,
   CircuitOpenException,
   QuotaExceededException,

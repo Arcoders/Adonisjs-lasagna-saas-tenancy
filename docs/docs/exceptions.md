@@ -28,6 +28,7 @@ when you want a custom response.
 | `TenantNotFoundException` | `404` | `E_TENANT_NOT_FOUND` | The resolved tenant id doesn't exist in the repository. |
 | `CentralRouteViolationException` | `404` | `E_CENTRAL_ROUTE_VIOLATION` | A central-only route was reached in a tenant context (or vice-versa). |
 | `TenantSuspendedException` | `403` | `E_TENANT_SUSPENDED` | The tenant exists but is `suspended` or soft-deleted. Thrown by the guard middleware and by `request.tenant()` itself (so an unguarded route fails closed too); admin flows opt out with `request.tenant({ allowInactive: true })`. |
+| `TenantAccessForbiddenException` | `403` | `E_TENANT_ACCESS_FORBIDDEN` | The host's optional [`authorizeTenantAccess`](/security#what-the-host-owns) hook returned `false` for the resolved tenant. Thrown by the guard middleware; it is the seam that lets a host reject a caller who is not a member of the tenant. |
 | `TenantNotReadyException` | `503` | `E_TENANT_NOT_READY` | The tenant is still `provisioning`, so its schema isn't ready yet. |
 | `TenantMaintenanceException` | `503` | `E_TENANT_MAINTENANCE` | The tenant is in maintenance mode. Carries `retryAfterSeconds`. |
 | `CircuitOpenException` | `503` | `E_CIRCUIT_OPEN` | The tenant's DB circuit breaker is OPEN, so it fails fast instead of hammering a down database. |

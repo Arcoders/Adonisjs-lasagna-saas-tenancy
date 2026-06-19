@@ -87,7 +87,23 @@ async show({ request }: HttpContext) {
 }
 ```
 
-## 7. Verify it worked
+## 7. Secure your tenants
+
+The guard verifies the resolved tenant exists and is active, but resolution is
+trust-the-input, so it does **not** check that the caller belongs to that tenant.
+Add one line so a user of tenant A can't read tenant B by swapping `x-tenant-id`:
+
+```ts
+// config/multitenancy.ts: reject callers who don't belong to the resolved tenant
+authorizeTenantAccess: (ctx, tenant) => ctx.auth?.user?.tenantId === tenant.id
+```
+
+Return `false` (or throw) to deny with a 403. This is a membership check, not full
+RBAC; for users in several tenants, look the pair up in your membership table. See
+[Security › What the host owns](/security#what-the-host-owns) for the rationale
+and the multi-tenant variant.
+
+## 8. Verify it worked
 
 ```bash
 node ace tenant:doctor

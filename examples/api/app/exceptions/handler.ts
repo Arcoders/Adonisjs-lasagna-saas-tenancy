@@ -6,6 +6,7 @@ import {
   MissingTenantHeaderException,
   TenantNotFoundException,
   TenantSuspendedException,
+  TenantAccessForbiddenException,
   TenantNotReadyException,
   CircuitOpenException,
   QuotaExceededException,
@@ -51,6 +52,11 @@ export default class HttpExceptionHandler extends ExceptionHandler {
     if (error instanceof TenantSuspendedException) {
       return ctx.response.status(403).send({
         error: { code: 'TENANT_SUSPENDED', message: 'Tenant is suspended' },
+      })
+    }
+    if (error instanceof TenantAccessForbiddenException) {
+      return ctx.response.status(403).send({
+        error: { code: 'TENANT_ACCESS_FORBIDDEN', message: 'Not authorized for this tenant' },
       })
     }
     if (error instanceof TenantNotReadyException) {

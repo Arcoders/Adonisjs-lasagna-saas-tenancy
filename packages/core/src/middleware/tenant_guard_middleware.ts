@@ -3,6 +3,7 @@ import { getConfig } from '../config.js'
 import CircuitOpenException from '../exceptions/circuit_open_exception.js'
 import TenantNotReadyException from '../exceptions/tenant_not_ready_exception.js'
 import TenantSuspendedException from '../exceptions/tenant_suspended_exception.js'
+import TenantAccessForbiddenException from '../exceptions/tenant_access_forbidden_exception.js'
 import TenantMaintenanceException from '../exceptions/tenant_maintenance_exception.js'
 import CircuitBreakerService from '../services/circuit_breaker_service.js'
 import TenantLogContext from '../services/tenant_log_context.js'
@@ -11,7 +12,8 @@ import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
 
 export default class TenantGuardMiddleware {
-  async handle({ request }: HttpContext, next: NextFn) {
+  async handle(ctx: HttpContext, next: NextFn) {
+    const { request } = ctx
     const path = request.url(false).split('?')[0]
     const ignored = getConfig().ignorePaths.some((p) => path === p || path.startsWith(`${p}/`))
     if (ignored) return next()
@@ -20,6 +22,18 @@ export default class TenantGuardMiddleware {
 
     if (tenant.isSuspended || tenant.isDeleted) {
       throw new TenantSuspendedException()
+    }
+
+    // Membership gate (opt-in). The package routes by tenant id and verifies the
+    // tenant exists and is active, but it never checks that the authenticated
+    // caller belongs to this tenant; that is the host's job. Run it before the
+    // operational checks below so a non-member is rejected with a 403 without
+    // probing the tenant's provisioning/maintenance/circuit state. (Suspended and
+    // soft-deleted tenants are already rejected above by the lifecycle floor, so
+    // their 403 is observable independently of this gate.)
+    const authorize = getConfig().authorizeTenantAccess
+    if (authorize && !(await authorize(ctx, tenant))) {
+      throw new TenantAccessForbiddenException()
     }
 
     if (tenant.isProvisioning || tenant.isFailed) {
