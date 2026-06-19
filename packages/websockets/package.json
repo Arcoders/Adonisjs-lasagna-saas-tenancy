@@ -62,7 +62,8 @@
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "test": "tsx bin/test.ts",
-    "test:coverage": "c8 --temp-directory=../../coverage/.v8/websockets-unit tsx bin/test.ts"
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/websockets-unit tsx bin/test.ts",
+    "test:integration:run": "tsx bin/test.integration.ts"
   },
   "peerDependencies": {
     "@adonisjs-lasagna/saas-tenancy": "^1.0.0",

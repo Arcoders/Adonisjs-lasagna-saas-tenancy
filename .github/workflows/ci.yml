@@ -619,11 +619,13 @@ jobs:
         run: npm_config_ignore_scripts=false npm rebuild esbuild
 
       # socket.io is an optional peer of @adonisjs-lasagna/websockets and
-      # socket.io-client drives the test. Installed here (not committed to the
-      # lockfile) so the WS e2e runs for real here while the general e2e job
-      # self-skips it. Pure JS, no install scripts needed.
-      - name: Install socket.io (server + client) for the WS e2e
-        run: npm install socket.io@^4 socket.io-client@^4 --no-save --include=optional
+      # socket.io-client drives the test. @socket.io/redis-adapter is the optional
+      # multi-node fan-out peer the severance integration spec wires. Installed
+      # here (not committed to the lockfile) so the WS e2e + the multi-node
+      # integration tier run for real here while the general e2e job self-skips
+      # them. Pure JS, no install scripts needed.
+      - name: Install socket.io (server + client + redis adapter) for the WS tests
+        run: npm install socket.io@^4 socket.io-client@^4 @socket.io/redis-adapter@^8 --no-save --include=optional
 
       - name: Build packages
         run: npm run build:all
@@ -635,6 +637,15 @@ jobs:
       - name: Run websockets e2e spec
         working-directory: examples/api
         run: npx tsx ace.ts test e2e --files tests/e2e/websockets.spec.ts
+
+      # Multi-node severance (Phase 4 chaos): two real socket.io servers wired
+      # like the cookbook's multi-node recipe (Redis adapter + pub/sub severance
+      # bridge), proving a suspend on one node severs the tenant fleet-wide. Boots
+      # no Ignitor — a plain Japa runner over the websockets package's own
+      # tests/integration/**. Uses this job's Redis (REDIS_HOST/PORT) and the
+      # socket peers installed above; self-skips if they are absent.
+      - name: Test (websockets multi-node integration)
+        run: npm run test:integration:run --workspace @adonisjs-lasagna/websockets
 
   deploy-validate:
     name: Deploy assets (static validation)
