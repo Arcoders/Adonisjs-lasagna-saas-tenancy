@@ -13,9 +13,9 @@
  *
  * Thresholds (percent) come from the environment so CI can ratchet them up
  * without touching code:
- *   COV_MIN_LINES      (default 80)
+ *   COV_MIN_LINES      (default 81)
  *   COV_MIN_FUNCTIONS  (default 78)
- *   COV_MIN_BRANCHES   (default 77)
+ *   COV_MIN_BRANCHES   (default 78)
  *
  * The defaults mirror the measured-and-ratcheted values ci.yml exports (the
  * canonical gate — see the "Coverage gate (aggregate)" step), NOT the much
@@ -28,9 +28,9 @@ import { readFileSync } from 'node:fs'
 const file = process.argv[2] ?? 'coverage-combined.info'
 
 const thresholds = {
-  lines: Number(process.env.COV_MIN_LINES ?? 80),
+  lines: Number(process.env.COV_MIN_LINES ?? 81),
   functions: Number(process.env.COV_MIN_FUNCTIONS ?? 78),
-  branches: Number(process.env.COV_MIN_BRANCHES ?? 77),
+  branches: Number(process.env.COV_MIN_BRANCHES ?? 78),
 }
 
 let raw

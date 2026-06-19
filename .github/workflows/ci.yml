@@ -801,10 +801,17 @@ jobs:
       # LOWER here than in the unit gate. Keep a small margin under the measured
       # numbers and re-check after a run before ratcheting further.
       - name: Coverage gate (aggregate)
+        # Re-measured after the satellite test-tier migration (each satellite's
+        # integration V8 now merges in here, see the downloads above). Numbers
+        # come from a full merged run: lines ~82.7%, functions ~78.9%, branches
+        # ~78.5%. Functions dipped a touch from the old ~79.7% because the admin
+        # pure-helper extraction added functions the integration tier only
+        # partially exercises, so its floor stays at 78. Keep a small margin
+        # under the measured numbers and re-check a real run before ratcheting.
         env:
-          COV_MIN_LINES: '80' # measured ~81.5%
-          COV_MIN_FUNCTIONS: '78' # measured ~79.7%
-          COV_MIN_BRANCHES: '77' # measured ~77.5%
+          COV_MIN_LINES: '81' # measured ~82.7%
+          COV_MIN_FUNCTIONS: '78' # measured ~78.9%
+          COV_MIN_BRANCHES: '78' # measured ~78.5%
         run: node scripts/coverage-gate.mjs coverage/lcov.info
 
       - name: Upload combined coverage
