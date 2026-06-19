@@ -137,8 +137,7 @@
     "@adonisjs/queue": "^0.6.0",
     "@adonisjs/redis": "^10.0.0",
     "@adonisjs/session": "^7.0.0",
-    "better-sqlite3": "^11.0.0",
-    "stripe": "^22.0.0"
+    "better-sqlite3": "^11.0.0"
   },
   "peerDependenciesMeta": {
     "@adonisjs/drive": {
@@ -151,9 +150,6 @@
       "optional": true
     },
     "better-sqlite3": {
-      "optional": true
-    },
-    "stripe": {
       "optional": true
     }
   },

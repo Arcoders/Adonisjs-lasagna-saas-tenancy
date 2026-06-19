@@ -28,6 +28,29 @@ curl -H "Authorization: Bearer $TOKEN" \
   https://app.example.com/admin/multitenancy/tenants
 ```
 
+### CSRF
+
+The admin API does **not** apply CSRF protection itself. If you mount it behind a
+cookie/session-authenticated browser context, apply your app's CSRF middleware to
+these routes (`@adonisjs/shield` or your own). Token/bearer-authenticated callers
+(the common case for an admin API) are not exposed to CSRF, so this matters only
+when the auth is cookie-based.
+
+### Swagger / OpenAPI exposure
+
+The OpenAPI spec and Swagger UI are gated by your `middleware` by default
+(`docsAuth: true`): the spec maps the whole surface, including impersonation and
+destructive routes, so leaving it public lets an attacker enumerate the API
+without tripping auth. Pass `docsAuth: false` only when you intend to publish the
+spec (a developer portal, an internal Stoplight, etc.).
+
+### SSO endpoints need the SSO satellite
+
+The `/tenants/{id}/sso*` endpoints require `@adonisjs-lasagna/sso` (an optional
+peer of admin). When it is not installed they return **501 Not Implemented**
+rather than failing the whole admin module to load. The rest of the admin API
+works without it.
+
 ## Mounting
 
 ```ts

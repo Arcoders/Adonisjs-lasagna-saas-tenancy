@@ -11,6 +11,8 @@ import {
   registerSatelliteInRcFile,
   printSatelliteManifest,
 } from './src/sdk/configure_kit.js'
+import { SATELLITE_API_VERSION, checkSatelliteApiCompat } from './src/sdk/api_version.js'
+import { resolveSatelliteDependencies } from './src/sdk/dependencies.js'
 import type { DiscoveredSatellite } from './src/sdk/manifest.js'
 
 const stubsRoot = join(dirname(fileURLToPath(import.meta.url)), '..', 'stubs')
@@ -159,10 +161,14 @@ export default async function configure(command: Configure) {
 
   // Decide what to publish.
   //   1. Explicit --with=audit,@scope/pkg wins (core features + external satellites).
-  //   2. Else if interactive (TTY): prompt the operator (core + installed externals).
-  //   3. Else (CI / piped): publish ALL core satellites — the v1.x default. External
-  //      satellites are opt-in (they need config + a provider), so they are NOT
-  //      auto-published on a bare run; `--list-satellites` surfaces them.
+  //   2. Else if interactive (TTY): prompt the operator (core + installed externals),
+  //      with NOTHING preselected — every satellite is experimental, so publishing
+  //      one is an explicit opt-in, not a default.
+  //   3. Else (CI / piped): publish NOTHING beyond the core config + tenant model
+  //      (already emitted above). The core satellites are experimental and their
+  //      migrations create backoffice tables; a bare run must not scaffold features
+  //      the operator never asked for. Opt in with `--with=`; `--list-satellites`
+  //      surfaces what is installed. External satellites are likewise opt-in.
   let selectedCore: string[] = []
   const selectedExternal: DiscoveredSatellite[] = []
   const externalSeen = new Set<string>()
@@ -203,7 +209,7 @@ export default async function configure(command: Configure) {
     const picked = (await (command as any).prompt.multiple(
       'Select features to publish (space to toggle, enter to confirm)',
       [...ALL_FEATURES, ...externalChoices],
-      { default: ALL_FEATURES }
+      { default: [] }
     )) as string[]
     for (const p of picked) {
       if (ALL_FEATURES.includes(p)) {
@@ -217,7 +223,88 @@ export default async function configure(command: Configure) {
       }
     }
   } else {
-    selectedCore = [...ALL_FEATURES]
+    // Bare, non-interactive run: publish only the core config + tenant model
+    // (already emitted above). Experimental satellites are opt-in via `--with=`.
+    selectedCore = []
+  }
+
+  // Tracks whether we refused some/all of the requested external satellites, so
+  // the "nothing to publish" branch below doesn't report a clean no-op when we
+  // actually rejected the operator's selection.
+  let externalBatchFailed = false
+
+  // Resolve inter-satellite dependencies (`dependsOn`): pull each dependency
+  // into the selection, order dependencies before dependents, and refuse the
+  // batch on a missing dependency or a cycle. Range mismatches are advisory.
+  if (selectedExternal.length > 0) {
+    const dep = resolveSatelliteDependencies(selectedExternal, satIndex)
+    for (const rm of dep.rangeMismatches) {
+      command.logger.warning(
+        `${rm.from} wants ${rm.pkg}@"${rm.range}" but ${rm.actual} is installed`
+      )
+    }
+    if (dep.missing.length > 0 || dep.cycle) {
+      for (const m of dep.missing) {
+        command.logger.error(
+          `${m.from} depends on "${m.pkg}", which is not installed — run \`npm install ${m.pkg}\``
+        )
+      }
+      if (dep.cycle) {
+        command.logger.error(`satellite dependency cycle: ${dep.cycle.join(' -> ')} -> …`)
+      }
+      command.logger.error(
+        'refusing to configure external satellites until the dependency graph is valid'
+      )
+      ;(command as any).exitCode = 1
+      externalBatchFailed = true
+      selectedExternal.length = 0
+    } else {
+      // Replace with the topologically-ordered closure (deps first).
+      selectedExternal.length = 0
+      selectedExternal.push(...dep.ordered)
+    }
+  }
+
+  // Gate external satellites on the Satellite ABI version BEFORE wiring any of
+  // their code into the host. A satellite that needs a newer ABI than this core
+  // provides is refused (and `configure` exits non-zero); an older / undeclared
+  // one warns but proceeds. Pure check — see `checkSatelliteApiCompat`.
+  //
+  // `selectedExternal` is in dependency-first order here, so when we refuse a
+  // satellite we also refuse anything that depends on it: wiring a dependent
+  // whose dependency was rejected would boot it against a missing dependency.
+  if (selectedExternal.length > 0) {
+    const accepted: DiscoveredSatellite[] = []
+    const refused = new Set<string>()
+    for (const sat of selectedExternal) {
+      const compat = checkSatelliteApiCompat(sat.manifest, sat.packageName, SATELLITE_API_VERSION)
+      if (compat.level === 'fail') {
+        command.logger.error(compat.message)
+        refused.add(sat.packageName)
+        externalBatchFailed = true
+        ;(command as any).exitCode = 1
+        continue
+      }
+      // A dependency was refused above (resolve the declared name via the index,
+      // since `dependsOn` may use an alias). Topological order guarantees the
+      // dependency was already processed, so this also catches transitive chains.
+      const brokenDep = (sat.manifest.dependsOn ?? [])
+        .map((d) => satIndex.get(d.pkg)?.packageName ?? d.pkg)
+        .find((pkg) => refused.has(pkg))
+      if (brokenDep) {
+        command.logger.error(
+          `${sat.packageName} depends on "${brokenDep}", which was refused above — skipping it too`
+        )
+        refused.add(sat.packageName)
+        externalBatchFailed = true
+        ;(command as any).exitCode = 1
+        continue
+      }
+      if (compat.level === 'warn') command.logger.warning(compat.message)
+      accepted.push(sat)
+    }
+    selectedExternal.length = 0
+    selectedExternal.push(...accepted)
   }
 
   // External satellites can require core bundles (e.g. billing needs `quotas`
@@ -235,7 +322,11 @@ export default async function configure(command: Configure) {
   }
 
   if (selectedCore.length === 0 && selectedExternal.length === 0) {
-    command.logger.info('no features selected — only core config + tenant model published')
+    if (externalBatchFailed) {
+      command.logger.error('no external satellites were configured (see the errors above)')
+    } else {
+      command.logger.info('no features selected — only core config + tenant model published')
+    }
     return
   }
 
@@ -259,9 +350,11 @@ export default async function configure(command: Configure) {
   }
 
   // Publish each external satellite's own migrations + register it in adonisrc.
+  // `publishSatellite` reads the already-published set from `migrationsDir`
+  // itself, so a satellite always sees the files an earlier one in this loop
+  // just wrote (and namespaces its own).
   for (const sat of selectedExternal) {
-    const existing = await listExistingMigrations(migrationsDir)
-    const { published, skipped } = await publishSatellite(codemods, sat, existing)
+    const { published, skipped } = await publishSatellite(codemods, sat, migrationsDir)
     if (skipped.length > 0) {
       command.logger.info(
         `${sat.packageName}: skipped already-published migrations: ${skipped.join(', ')}`

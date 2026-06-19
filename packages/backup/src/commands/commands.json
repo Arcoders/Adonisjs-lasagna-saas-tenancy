@@ -53,6 +53,7 @@
         { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Parse file and report counts without executing" },
         { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Print each failed statement" },
         { "name": "force", "flagName": "force", "required": false, "type": "boolean", "description": "Allow import into non-active tenants" },
+        { "name": "allowUnsafeRewrite", "flagName": "allow-unsafe-rewrite", "required": false, "type": "boolean", "description": "Proceed even when the schema rewrite would alter a source-schema reference inside a string literal (risks corrupting that value)" },
         { "name": "continueOnError", "flagName": "continue-on-error", "required": false, "type": "boolean", "description": "Continue past failing statements (may leave a partial import; default aborts and rolls back)" }
       ],
       "args": [],

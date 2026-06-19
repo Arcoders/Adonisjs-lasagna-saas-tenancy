@@ -155,23 +155,75 @@ reject the upgrade.
 
 ## Scaling to multiple nodes
 
-socket.io rooms are per-process. With more than one app instance, install the
-[Redis adapter](https://socket.io/docs/v4/redis-adapter/) so `emitToTenant` and
-`broadcastToTenant` fan out across nodes:
+socket.io rooms are per-process. With more than one app instance two things stop
+working across nodes unless you bridge them over Redis: emitting to a tenant
+(`emitToTenant` / `broadcastToTenant` only reach the node that ran them), and
+severing a suspended tenant's sockets (the lifecycle event is in-process, so a
+suspension on one node leaves that tenant's sockets connected on the others).
+This is a real isolation gap at scale: a suspended tenant can keep streaming on a
+node that never saw the suspension. Close both with the recipe below.
+
+### 1. Fan out emits with the Redis adapter
 
 ```sh
 npm install @socket.io/redis-adapter
 ```
 
-Wire it onto the socket.io server in `start/socket.ts` using your existing Redis
-connection. Without it, an emit only reaches sockets on the node that ran it.
+The provider exposes the live socket.io server via the `TenantSocketServer`
+singleton. Attach the adapter and the cross-node severance bridge once, right
+after the server is ready, from `start/socket.ts` (import it from
+`adonisrc.ts#preloads`):
 
-The same per-process boundary applies to suspend and delete severance: the
-provider only disconnects sockets in the process that received the lifecycle
-event. If tenant suspension can happen off the HTTP node (a worker, an admin node,
-a second replica), bridge it yourself. For example, publish the tenant id on a
-Redis channel that every node subscribes to, and call `sockets.disconnectTenant(id)`
-when it arrives.
+```ts
+// start/socket.ts
+import emitter from '@adonisjs/core/services/emitter'
+import app from '@adonisjs/core/services/app'
+import redis from '@adonisjs/redis/services/main'
+import { createAdapter } from '@socket.io/redis-adapter'
+import { TenantSocketServer } from '@adonisjs-lasagna/websockets'
+
+const SEVER_CHANNEL = 'lasagna:ws:sever-tenant'
+
+emitter.on('http:server_ready', async () => {
+  const sockets = await app.container.make(TenantSocketServer)
+  const io = sockets.io // the attached socket.io Server, or undefined if disabled
+  if (!io) return
+
+  // Fan emitToTenant/broadcastToTenant across every node.
+  const pub = redis.connection().ioConnection.duplicate()
+  const sub = redis.connection().ioConnection.duplicate()
+  io.adapter(createAdapter(pub, sub))
+})
+```
+
+### 2. Propagate suspend / delete severance across nodes
+
+The provider already disconnects a tenant's sockets on `TenantSuspended` and
+`TenantDeleted`, but only in the process that emitted the event. Bridge it: have
+every node publish the tenant id on a Redis channel when it severs, and have every
+node disconnect that tenant locally when the message arrives. Add this to the same
+`start/socket.ts`:
+
+```ts
+import { TenantSuspended, TenantDeleted } from '@adonisjs-lasagna/saas-tenancy/events'
+
+// Publish on local suspend/delete so the other nodes hear about it too.
+emitter.on(TenantSuspended, (e) => redis.publish(SEVER_CHANNEL, e.tenant.id))
+emitter.on(TenantDeleted, (e) => redis.publish(SEVER_CHANNEL, e.tenant.id))
+
+// Every node subscribes and severs locally when any node publishes. redis.subscribe
+// manages a dedicated subscriber connection for you, so there's no raw client to
+// duplicate here (unlike the adapter above, which needs its own pub/sub clients).
+redis.subscribe(SEVER_CHANNEL, async (tenantId: string) => {
+  const sockets = await app.container.make(TenantSocketServer)
+  sockets.disconnectTenant(tenantId)
+})
+```
+
+With both wired, an emit reaches the tenant on every node, and suspending a tenant
+on any node severs its sockets fleet-wide. The local in-process severance keeps
+working as the fast path; the Redis bridge covers the cross-node case. A
+single-node deployment needs neither and behaves exactly as before.
 
 ## Read next
 

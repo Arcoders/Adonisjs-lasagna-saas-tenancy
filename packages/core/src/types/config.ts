@@ -620,6 +620,14 @@ export interface MultitenancyConfig {
       secretAccessKey: string
     }
     retention?: BackupRetentionConfig
+    /**
+     * When the Redis coordination layer is unreachable, the destructive
+     * operations (restore / clone / import) fail closed by default: they refuse
+     * to run unserialised rather than risk corrupting a schema. Set this `true`
+     * to opt them back into the legacy fail-open behaviour (proceed without the
+     * lock). The read-only `backup` always fails open regardless of this flag.
+     */
+    lockFailOpenOnDestructive?: boolean
   }
   cache: {
     ttl: number

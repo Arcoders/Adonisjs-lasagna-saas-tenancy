@@ -1,4 +1,4 @@
-import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/internal'
+import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { IoHandshake, IoServer, IoSocket } from './types.js'
 
@@ -87,6 +87,17 @@ export default class TenantSocketServer {
         }
       }
     })
+  }
+
+  /**
+   * The attached socket.io Server, or `undefined` before `attach()` runs (or
+   * when socket.io is not installed and WebSockets stayed disabled). Exposed so a
+   * host can attach the socket.io Redis adapter for multi-node fan-out and wire
+   * the cross-node severance bridge. See the "Scaling to multiple nodes" recipe
+   * in the multi-tenant WebSockets cookbook.
+   */
+  get io(): IoServer | undefined {
+    return this.#io
   }
 
   /**

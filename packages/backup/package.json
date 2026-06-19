@@ -1,6 +1,6 @@
 {
   "name": "@adonisjs-lasagna/backup",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Per-tenant backup, restore, clone, SQL import and retention for @adonisjs-lasagna/saas-tenancy (pg_dump/pg_restore, optional S3, the tenant:backup* / tenant:clone / tenant:import ace commands, and a doctor backup-recency check)",
   "type": "module",
   "license": "MIT",
@@ -36,17 +36,39 @@
     "./provider": "./build/providers/backup_provider.js",
     "./commands": "./build/src/commands/main.js"
   },
+  "typesVersions": {
+    "*": {
+      "provider": ["./build/providers/backup_provider.d.ts"],
+      "commands": ["./build/src/commands/main.d.ts"]
+    }
+  },
   "main": "./build/src/index.js",
   "types": "./build/src/index.d.ts",
   "adonisjs": {
+    "configure": "./build/configure.js",
     "commands": [
       "./build/src/commands/main.js"
     ]
   },
+  "lasagnaSatellite": {
+    "name": "backup",
+    "satelliteApi": 1,
+    "aliases": ["backup"],
+    "provider": "@adonisjs-lasagna/backup/provider",
+    "commands": "@adonisjs-lasagna/backup/commands",
+    "env": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION", "BACKUP_S3_BUCKET"],
+    "install": [
+      "npm install @adonisjs-lasagna/backup",
+      "npm install @aws-sdk/client-s3   # only for the s3 storage driver (optional peer)"
+    ],
+    "configSnippet": "backup: {\n  storagePath: app.tmpPath('backups'),\n  metadataTtl: 60 * 60 * 24 * 30,\n  pgConnection: {\n    host: env.get('DB_HOST'),\n    port: Number(env.get('DB_PORT')),\n    user: env.get('DB_USER'),\n    password: env.get('DB_PASSWORD', ''),\n    database: env.get('DB_DATABASE'),\n  },\n  // s3: { enabled: true, bucket: env.get('BACKUP_S3_BUCKET'), region: env.get('AWS_REGION'),\n  //   accessKeyId: env.get('AWS_ACCESS_KEY_ID'), secretAccessKey: env.get('AWS_SECRET_ACCESS_KEY') },\n},",
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/satellites/backup"
+  },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
     "typecheck": "tsc --noEmit",
-    "test": "tsx bin/test.ts"
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/backup-unit tsx bin/test.ts"
   },
   "peerDependencies": {
     "@adonisjs-lasagna/saas-tenancy": "^1.0.0",

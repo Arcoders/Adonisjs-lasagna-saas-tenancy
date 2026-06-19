@@ -18,18 +18,21 @@ test.group('satellite — real package manifests round-trip', () => {
     const { root, manifest } = await manifestOf('billing')
     assert.isNotNull(manifest)
     assert.equal(manifest!.name, 'billing')
+    assert.equal(manifest!.satelliteApi, 1)
     assert.include(manifest!.aliases ?? [], 'billing')
     assert.deepEqual(manifest!.requires, ['quotas'])
     assert.equal(manifest!.provider, '@adonisjs-lasagna/billing/provider')
     assert.equal(manifest!.commands, '@adonisjs-lasagna/billing/commands')
 
-    // The declared migrations dir exists and holds the four billing stubs.
+    // The declared migrations dir exists and holds the billing stubs (the four
+    // create-table stubs plus the per-tenant uniqueness fix migration).
     const files = await readdir(join(root, manifest!.migrations!))
     for (const stub of [
       'create_billing_customers_table.stub',
       'create_billing_subscriptions_table.stub',
       'create_billing_processed_events_table.stub',
       'create_billing_usage_events_table.stub',
+      'fix_billing_usage_events_unique_per_tenant.stub',
     ]) {
       assert.include(files, stub)
     }
@@ -52,6 +55,7 @@ test.group('satellite — real package manifests round-trip', () => {
     const { root, manifest } = await manifestOf('satellite-template')
     assert.isNotNull(manifest)
     assert.equal(manifest!.name, 'example-widgets')
+    assert.equal(manifest!.satelliteApi, 1)
     const files = await readdir(join(root, manifest!.migrations!))
     assert.include(files, 'create_example_widgets_table.stub')
   })

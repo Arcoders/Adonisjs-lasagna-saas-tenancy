@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module'
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile, readdir, rename } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, join, relative, isAbsolute } from 'node:path'
 import { readSatelliteManifest } from './manifest.js'
@@ -149,7 +149,13 @@ export async function discoverSatellites(
       continue
     }
     const manifest = readSatelliteManifest(pkgJson, onWarn)
-    if (manifest) found.push({ packageName: dep, root, manifest })
+    if (manifest) {
+      const version =
+        pkgJson && typeof (pkgJson as Record<string, unknown>).version === 'string'
+          ? ((pkgJson as Record<string, unknown>).version as string)
+          : undefined
+      found.push({ packageName: dep, root, version, manifest })
+    }
   }
 
   return found
@@ -170,25 +176,98 @@ export function indexSatellites(
 }
 
 /**
+ * A filesystem-safe slug for a package name, used to namespace the migrations a
+ * satellite publishes (`@adonisjs-lasagna/billing` → `adonisjs_lasagna_billing`).
+ */
+export function migrationSlug(packageName: string): string {
+  return packageName
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase()
+}
+
+/**
+ * Whether a stub is already published. Recognizes this satellite's namespaced
+ * form `<ts>_<slug>__<stub>.ts` (unambiguously ours) and the legacy
+ * un-namespaced `<ts>_<stub>.ts` that a pre-namespacing install wrote. A
+ * DIFFERENT satellite's namespaced file with the same basename is NOT a match.
+ *
+ * The legacy form carries no package info, so it is matched best-effort: it
+ * keeps a re-run on an existing install from duplicating that satellite's own
+ * migration. The (rare) cost is that if a DIFFERENT satellite later ships a stub
+ * with the same basename while a legacy file already exists for it, the newcomer
+ * is treated as already-published. Name your migration's TABLE for your package
+ * (the documented convention) so this can never matter in practice; new installs
+ * always namespace, so the only exposure is the pre-namespacing upgrade window.
+ */
+function isStubPublished(stub: string, existing: string[], slug: string): boolean {
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`^\\d+_(?:${esc(slug)}__)?${esc(stub)}\\.ts$`)
+  return existing.some((file) => re.test(file))
+}
+
+async function safeReaddir(dir: string): Promise<string[]> {
+  try {
+    return await readdir(dir)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Namespace the migration files a satellite just emitted: rename each newly
+ * created `<ts>_<basename>.ts` to `<ts>_<slug>__<basename>.ts`. The migration
+ * destination lives inside each stub's `exports({ to })` header, so the toolkit
+ * takes ownership of the final filename HERE — that is what stops two satellites
+ * that ship a stub with the same basename from colliding (the second used to be
+ * silently skipped, so its table was never created). Skips a rename whose target
+ * already exists so we never clobber a file.
+ */
+async function namespaceNewMigrations(
+  dir: string,
+  before: Set<string>,
+  slug: string
+): Promise<void> {
+  const present = new Set(await safeReaddir(dir))
+  for (const file of present) {
+    if (before.has(file)) continue
+    const m = file.match(/^(\d+)_(.+)\.ts$/)
+    if (!m) continue
+    if (m[2].startsWith(`${slug}__`)) continue // already namespaced
+    const target = `${m[1]}_${slug}__${m[2]}.ts`
+    if (present.has(target)) continue // never clobber an existing file
+    await rename(join(dir, file), join(dir, target))
+  }
+}
+
+/**
  * Publish a satellite's own migration stubs into the host. Reuses the exact
  * `codemods.makeUsingStub` path core uses for its own stubs, with the satellite
- * package root as `stubsRoot`. Idempotent via `filterAlreadyPublished`.
+ * package root as `stubsRoot`.
  *
- * Only `.stub` files are published — their `{{{ exports({ to:
- * app.migrationsPath(...) }) }}}` header is what emits the host migration with a
- * `${Date.now()}` prefix (and so the idempotency guard). Any other file in the
- * dir is ignored.
+ * Only `.stub` files are published. Every emitted file is namespaced by package
+ * (`<ts>_<slug>__<stub>.ts`) so two satellites that ship the same stub basename
+ * no longer collide (before this, the second was silently skipped and its table
+ * was never created). Namespacing is intrinsic, not opt-in: `hostMigrationsDir`
+ * — the host's migrations directory, the same dir each stub's `exports({ to })`
+ * targets — is required, and the toolkit owns the final filename.
+ *
+ * Idempotent: a stub already present (under either the namespaced form or the
+ * legacy un-namespaced `<ts>_<stub>.ts` an older install wrote) is skipped, so a
+ * re-run never writes a duplicate. The already-published set is read from
+ * `hostMigrationsDir`, so the caller cannot accidentally pass a stale or
+ * mismatched list.
  */
 export async function publishSatellite(
   codemods: CodemodsLike,
   satellite: DiscoveredSatellite,
-  existing: string[]
+  hostMigrationsDir: string
 ): Promise<{ published: string[]; skipped: string[] }> {
   const { root, manifest } = satellite
   if (!manifest.migrations) return { published: [], skipped: [] }
 
-  const migrationsDir = join(root, manifest.migrations)
-  const rel = relative(root, migrationsDir)
+  const stubsDir = join(root, manifest.migrations)
+  const rel = relative(root, stubsDir)
   if (rel.startsWith('..') || isAbsolute(rel)) {
     throw new Error(
       `[lasagna] ${satellite.packageName}: migrations dir escapes the package root — refusing`
@@ -197,16 +276,31 @@ export async function publishSatellite(
 
   let files: string[]
   try {
-    files = (await readdir(migrationsDir)).sort()
+    files = (await readdir(stubsDir)).sort()
   } catch {
     return { published: [], skipped: [] }
   }
 
+  const slug = migrationSlug(satellite.packageName)
+  const existing = await listExistingMigrations(hostMigrationsDir)
   const stubNames = files.filter((f) => f.endsWith('.stub')).map((f) => f.replace(/\.stub$/, ''))
-  const { toPublish, skipped } = filterAlreadyPublished(stubNames, existing)
+  const toPublish: string[] = []
+  const skipped: string[] = []
+  for (const name of stubNames) {
+    if (isStubPublished(name, existing, slug)) skipped.push(name)
+    else toPublish.push(name)
+  }
+  if (toPublish.length === 0) return { published: [], skipped }
+
+  // Snapshot before publishing so we can identify (and namespace) exactly the
+  // files these stubs emit into the host migrations dir.
+  const before = new Set(await safeReaddir(hostMigrationsDir))
+
   for (const name of toPublish) {
     await codemods.makeUsingStub(root, join(manifest.migrations, `${name}.stub`), {})
   }
+
+  await namespaceNewMigrations(hostMigrationsDir, before, slug)
 
   return { published: toPublish, skipped }
 }

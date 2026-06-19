@@ -11,6 +11,8 @@ import {
   splitSqlStatementsTagged,
 } from '@adonisjs-lasagna/saas-tenancy/internal'
 import { withTenantOperationLock } from './tenant_operation_lock.js'
+import { destructiveLockFailClosed } from '../config.js'
+import { assertRegularFile } from './fs_guards.js'
 
 const isWin = process.platform === 'win32'
 
@@ -34,6 +36,14 @@ export interface SqlImportOptions {
    * so it is the explicit opt-out, not the default.
    */
   strict?: boolean
+  /**
+   * Override the safety refusal when the schema rewrite would alter a
+   * `<sourceSchema>.` occurrence INSIDE a SQL string literal. By default such a
+   * dump is REFUSED (the rewrite would silently corrupt the stored value).
+   * Set `true` to import anyway, accepting that corruption. Prefer re-exporting
+   * with `pg_dump --inserts` or a matching schema name over forcing.
+   */
+  force?: boolean
 }
 
 export interface SqlImportResult {
@@ -97,8 +107,14 @@ export default class SqlImportService {
     options: SqlImportOptions
   ): Promise<SqlImportResult> {
     // Serialise against any other backup/restore/clone/import of this tenant.
-    return withTenantOperationLock(tenant.id, 'import', () =>
-      this.#importLocked(tenant, filePath, options)
+    // A real (mutating) import is destructive, so it fails closed when the lock
+    // is unavailable. A dry run mutates nothing, so it stays fail-open (and the
+    // short-circuit means dry runs never need a booted config to decide).
+    return withTenantOperationLock(
+      tenant.id,
+      'import',
+      () => this.#importLocked(tenant, filePath, options),
+      { failClosed: !options.dryRun && destructiveLockFailClosed() }
     )
   }
 
@@ -108,6 +124,9 @@ export default class SqlImportService {
     options: SqlImportOptions
   ): Promise<SqlImportResult> {
     await access(filePath)
+    // Reject a symlink standing in for the dump before we read it / hand it to
+    // psql. lstat does not follow the link.
+    await assertRegularFile(filePath)
 
     const raw = await readFile(filePath, 'utf-8')
     const suspectLiteralLines: string[] = []
@@ -155,6 +174,17 @@ export default class SqlImportService {
       }
       return result
     }
+
+    // Safety refusal (non-dry-run only): the textual schema rewrite cannot tell
+    // an identifier from a string literal without a full SQL parser, so a
+    // `<source>.` substring inside a literal got rewritten and the stored value
+    // is likely corrupted. Refuse unless the caller explicitly forces it. The
+    // dry run above already reported the same lines as warnings for inspection.
+    assertRewriteLiteralSafety({
+      suspectLiteralLines,
+      sourceSchema: options.sourceSchema,
+      force: options.force,
+    })
 
     if (hasCopyBlocks) {
       const result = await this.#runViaPsql(tenant, transformed, tokens, options.strict ?? true)
@@ -415,6 +445,27 @@ export default class SqlImportService {
   #shouldSkip(stmt: string): boolean {
     return SKIP_PATTERNS.some((p) => p.test(stmt.trimStart()))
   }
+}
+
+/**
+ * Refuse a real import when the schema rewrite would alter a `<source>.`
+ * occurrence inside a SQL string literal (which silently corrupts that stored
+ * value), unless the caller explicitly forces it. Pure and exported so the
+ * refusal contract is unit-testable without a DB / Redis. Throws on refusal;
+ * returns silently otherwise.
+ */
+export function assertRewriteLiteralSafety(opts: {
+  suspectLiteralLines: string[]
+  sourceSchema: string
+  force?: boolean
+}): void {
+  if (opts.suspectLiteralLines.length === 0 || opts.force) return
+  throw new Error(
+    `SQL import refused: the schema rewrite would alter "${opts.sourceSchema}." inside ` +
+      `${opts.suspectLiteralLines.length} string literal(s), corrupting those stored values. ` +
+      `Re-export with \`pg_dump --inserts\` or a matching schema name, or pass force=true to ` +
+      `import anyway. First offending line: ${opts.suspectLiteralLines[0]?.trim().slice(0, 160)}`
+  )
 }
 
 /**

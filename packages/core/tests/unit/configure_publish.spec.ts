@@ -125,7 +125,9 @@ async function listMigrations(root: string): Promise<string[]> {
 }
 
 function matching(files: string[], stub: string): string[] {
-  const re = new RegExp(`^\\d+_${stub}\\.ts$`)
+  // Tolerate the per-package namespace prefix external satellites now get
+  // (`<ts>_<slug>__<stub>.ts`) as well as the plain core form (`<ts>_<stub>.ts`).
+  const re = new RegExp(`^\\d+_(?:[a-z0-9_]+__)?${stub}\\.ts$`)
   return files.filter((f) => re.test(f))
 }
 
@@ -180,24 +182,22 @@ test.group('configure() publish orchestration — core bundles', (group) => {
     assert.deepEqual(after2, after1, 'no new migration files on a second identical run')
   })
 
-  test('a bare run publishes every core satellite exactly once; a re-run duplicates nothing', async ({
+  test('a bare run publishes ONLY core config + tenant model — no experimental satellites (B7)', async ({
     assert,
   }) => {
-    await configure(fakeCommand(root, {}))
-    await configure(fakeCommand(root, {}))
-    const migrations = await listMigrations(root)
+    const cmd = fakeCommand(root, {})
+    await configure(cmd)
 
-    for (const stub of [
-      'create_tenant_audit_logs_table',
-      'create_tenant_feature_flags_table',
-      'create_tenant_webhooks_table',
-      'create_tenant_webhook_deliveries_table',
-      'create_tenant_brandings_table',
-      'create_tenant_metrics_table',
-      'create_tenant_plans_table',
-    ]) {
-      assert.lengthOf(matching(migrations, stub), 1, `${stub} published exactly once`)
-    }
+    // Core scaffolding is always published…
+    assert.isTrue(await exists(join(root, 'config', 'multitenancy.ts')))
+    assert.isTrue(await exists(join(root, 'app', 'models', 'backoffice', 'tenant.ts')))
+
+    // …but NONE of the experimental satellite migrations are auto-published.
+    assert.lengthOf(await listMigrations(root), 0)
+    assert.isTrue(
+      cmd.captured.logs.some((l: string) => /no features selected/i.test(l)),
+      'tells the operator nothing beyond core config + model was published'
+    )
   })
 
   test('an uninstalled official satellite (billing) prints an install hint, publishes nothing', async ({
@@ -368,7 +368,7 @@ test.group('configure() publish orchestration — external satellites', (group) 
     assert.lengthOf(matching(await listMigrations(root), 'create_acme_table'), 1)
   })
 
-  test('two externals shipping a same-named stub publish it once (per-satellite re-list)', async ({
+  test('two externals shipping a same-named stub each publish their own (namespaced, no silent skip) (B2)', async ({
     assert,
   }) => {
     await scaffoldSatellite(
@@ -384,7 +384,27 @@ test.group('configure() publish orchestration — external satellites', (group) 
       ['create_shared_table']
     )
     await configure(fakeCommand(root, { with: '@acme/widgets,@beta/gadgets' }))
-    assert.lengthOf(matching(await listMigrations(root), 'create_shared_table'), 1)
+
+    const migrations = await listMigrations(root)
+    // Before B2 the second satellite was silently skipped (one file, one table).
+    // Now each publishes its own namespaced migration → both tables get created.
+    assert.lengthOf(matching(migrations, 'create_shared_table'), 2)
+    assert.isTrue(migrations.some((f) => /_acme_widgets__create_shared_table\.ts$/.test(f)))
+    assert.isTrue(migrations.some((f) => /_beta_gadgets__create_shared_table\.ts$/.test(f)))
+  })
+
+  test('re-running a namespaced external publish is idempotent (B2)', async ({ assert }) => {
+    await scaffoldSatellite(
+      root,
+      '@acme/widgets',
+      { name: 'acme', migrations: 'stubs/migrations' },
+      ['create_shared_table']
+    )
+    await configure(fakeCommand(root, { with: '@acme/widgets' }))
+    const after1 = (await listMigrations(root)).sort()
+    await configure(fakeCommand(root, { with: '@acme/widgets' }))
+    const after2 = (await listMigrations(root)).sort()
+    assert.deepEqual(after2, after1, 'no duplicate on a second run')
   })
 
   test('an unknown token warns (listing core + installed) and publishes config but no migrations', async ({
@@ -401,15 +421,113 @@ test.group('configure() publish orchestration — external satellites', (group) 
     assert.include(warned, '@acme/widgets') // installed satellites listed in the hint
   })
 
-  test('a bare run does NOT auto-publish an installed external satellite (opt-in)', async ({
+  test('a bare run auto-publishes NOTHING — neither core satellites nor externals (opt-in)', async ({
     assert,
   }) => {
     await scaffoldSatellite(root, '@acme/widgets', manifest, ['create_acme_table'])
     await configure(fakeCommand(root, {}))
 
     const migrations = await listMigrations(root)
-    assert.lengthOf(matching(migrations, 'create_tenant_audit_logs_table'), 1) // core published
+    // B7: core config + tenant model only; no satellite migrations at all.
+    assert.isTrue(await exists(join(root, 'config', 'multitenancy.ts')))
+    assert.lengthOf(matching(migrations, 'create_tenant_audit_logs_table'), 0) // core NOT auto-published
     assert.lengthOf(matching(migrations, 'create_acme_table'), 0) // external NOT auto-published
+  })
+
+  test('dependsOn: pulls in the dependency, publishes both, provider order deps-first (B3)', async ({
+    assert,
+  }) => {
+    await scaffoldSatellite(
+      root,
+      '@me/app',
+      {
+        name: 'app',
+        provider: '@me/app/provider',
+        migrations: 'stubs/migrations',
+        dependsOn: ['@me/lib'],
+      },
+      ['create_app_table']
+    )
+    await scaffoldSatellite(
+      root,
+      '@me/lib',
+      { name: 'lib', provider: '@me/lib/provider', migrations: 'stubs/migrations' },
+      ['create_lib_table']
+    )
+
+    const cmd = fakeCommand(root, { with: '@me/app' }) // only the dependent selected
+    await configure(cmd)
+
+    const migrations = await listMigrations(root)
+    assert.lengthOf(matching(migrations, 'create_app_table'), 1)
+    assert.lengthOf(matching(migrations, 'create_lib_table'), 1) // dependency pulled in
+    // dependency's provider is registered before the dependent's
+    const li = cmd.captured.providers.indexOf('@me/lib/provider')
+    const ai = cmd.captured.providers.indexOf('@me/app/provider')
+    assert.isAbove(li, -1)
+    assert.isAbove(ai, li, 'lib provider registered before app provider')
+  })
+
+  test('dependsOn: a missing dependency fails the batch and publishes no external (B3)', async ({
+    assert,
+  }) => {
+    await scaffoldSatellite(
+      root,
+      '@me/app',
+      { name: 'app', migrations: 'stubs/migrations', dependsOn: ['@me/ghost'] },
+      ['create_app_table']
+    )
+    const cmd = fakeCommand(root, { with: '@me/app' })
+    await configure(cmd)
+
+    assert.lengthOf(matching(await listMigrations(root), 'create_app_table'), 0)
+    assert.isTrue(
+      cmd.captured.warnings.some((w: string) => w.includes('@me/ghost')),
+      'errors that the dependency is not installed'
+    )
+  })
+
+  test('a dependency refused by the ABI gate also drops its dependent (B1 + B3)', async ({
+    assert,
+  }) => {
+    // @me/app dependsOn @me/lib; @me/lib needs a newer ABI than this core, so it
+    // is refused — and @me/app must NOT be wired against a dependency that was
+    // rejected.
+    await scaffoldSatellite(
+      root,
+      '@me/app',
+      {
+        name: 'app',
+        provider: '@me/app/provider',
+        migrations: 'stubs/migrations',
+        dependsOn: ['@me/lib'],
+      },
+      ['create_app_table']
+    )
+    await scaffoldSatellite(
+      root,
+      '@me/lib',
+      {
+        name: 'lib',
+        satelliteApi: 999,
+        provider: '@me/lib/provider',
+        migrations: 'stubs/migrations',
+      },
+      ['create_lib_table']
+    )
+
+    const cmd = fakeCommand(root, { with: '@me/app' })
+    await configure(cmd)
+
+    const migrations = await listMigrations(root)
+    assert.lengthOf(matching(migrations, 'create_lib_table'), 0) // ABI-refused
+    assert.lengthOf(matching(migrations, 'create_app_table'), 0) // dependent dropped too
+    assert.notInclude(cmd.captured.providers, '@me/app/provider')
+    assert.notInclude(cmd.captured.providers, '@me/lib/provider')
+    assert.isTrue(
+      cmd.captured.warnings.some((w: string) => /@me\/app/.test(w) && /@me\/lib/.test(w)),
+      'explains the dependent was dropped because its dependency was refused'
+    )
   })
 
   test('interactive TTY selection splits core bundles from external satellites', async ({

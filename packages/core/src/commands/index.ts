@@ -26,4 +26,5 @@ export { default as TenantPurgeExpired } from './tenant_purge_expired.js'
 export { default as TenantExec } from './tenant_exec.js'
 export { default as TenantMaintenance } from './tenant_maintenance.js'
 export { default as TenantImpersonate } from './tenant_impersonate.js'
+export { default as TenantSatelliteRemove } from './tenant_satellite_remove.js'
 // The `tenant:billing:*` commands moved to `@adonisjs-lasagna/billing`.

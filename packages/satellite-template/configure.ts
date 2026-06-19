@@ -3,7 +3,6 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readFile } from 'node:fs/promises'
 import {
-  listExistingMigrations,
   publishSatellite,
   registerSatelliteInRcFile,
   printSatelliteManifest,
@@ -36,11 +35,10 @@ export default async function configure(command: Configure) {
       : app.makePath('database', 'migrations')
 
   const codemods = await command.createCodemods()
-  const existing = await listExistingMigrations(migrationsDir)
   const { published, skipped } = await publishSatellite(
     codemods,
     { packageName: pkgJson.name, root: pkgRoot, manifest },
-    existing
+    migrationsDir
   )
 
   if (skipped.length > 0) {

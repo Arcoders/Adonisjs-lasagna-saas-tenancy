@@ -122,6 +122,12 @@ node ace tenant:exec --status=active db:seed
 | `tenant:metrics:flush` | Flush Redis metric counters to the database. Cron: `0 1 * * *`. |
 | `tenant:purge-expired` | Drop schemas of soft-deleted tenants past their retention window. Cron: `0 3 * * *`. |
 
+## Satellites
+
+| Command | What it does |
+|---|---|
+| `tenant:satellite:remove <package>` | Print a safe checklist for removing a packaged satellite (the `adonisrc.ts` lines, its published migrations, its config block, the uninstall command). Read-only: it never edits `adonisrc.ts` or drops data — removal stays deliberate. The inverse of `node ace configure <package>`. |
+
 ## Billing
 
 Available when `--with=billing` is configured. Full reference in the

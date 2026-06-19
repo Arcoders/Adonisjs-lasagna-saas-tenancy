@@ -21,3 +21,13 @@ export function backupConfig(): NonNullable<MultitenancyConfig['backup']> {
   }
   return cfg
 }
+
+/**
+ * Whether the destructive backup operations (restore / clone / import) should
+ * fail closed when the Redis operation lock is unavailable. Defaults to `true`
+ * (refuse rather than run unserialised); a host opts back into the legacy
+ * fail-open behaviour with `backup.lockFailOpenOnDestructive: true`.
+ */
+export function destructiveLockFailClosed(): boolean {
+  return getConfig().backup?.lockFailOpenOnDestructive !== true
+}

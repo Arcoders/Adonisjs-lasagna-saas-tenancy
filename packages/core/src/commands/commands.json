@@ -392,6 +392,19 @@
       "args": [],
       "options": { "startApp": true },
       "filePath": "tenant_purge_expired.js"
+    },
+    {
+      "commandName": "tenant:satellite:remove",
+      "description": "Print a safe checklist for removing a packaged satellite (does not auto-edit adonisrc.ts or drop data)",
+      "help": "Example: node ace tenant:satellite:remove @adonisjs-lasagna/billing",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [],
+      "args": [
+        { "name": "package", "argumentName": "package", "required": true, "description": "The satellite package name (or manifest alias) to remove", "type": "string" }
+      ],
+      "options": { "startApp": false },
+      "filePath": "tenant_satellite_remove.js"
     }
   ],
   "version": 1

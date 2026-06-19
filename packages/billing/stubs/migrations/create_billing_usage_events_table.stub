@@ -8,8 +8,12 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
  * to one report through the active driver's metering API. `provider` records
  * which driver it was sent through.
  *
- * `idempotency_key` is unique at the DB layer (defense in depth) AND sent to
- * the provider, so retries from this side never produce duplicate meter events.
+ * `idempotency_key` is unique PER TENANT at the DB layer (defense in depth) AND
+ * sent to the provider, so retries from this side never produce duplicate meter
+ * events. The uniqueness is scoped to `(tenant_id, idempotency_key)`, never
+ * global: a host that supplies its own `idempotencyKey` (rather than the
+ * tenant-prefixed default) must never have one tenant's report collide with a
+ * different tenant's row.
  */
 export default class extends BaseSchema {
   protected tableName = 'billing_usage_events'
@@ -22,12 +26,13 @@ export default class extends BaseSchema {
       table.uuid('tenant_id').notNullable().index()
       table.string('meter_event_name').notNullable()
       table.bigInteger('quantity').notNullable()
-      table.string('idempotency_key').notNullable().unique()
+      table.string('idempotency_key').notNullable()
       table.timestamp('reported_at', { useTz: true }).nullable()
       table.enum('status', ['pending', 'sent', 'failed']).notNullable().defaultTo('pending')
       table.text('last_error').nullable()
       table.integer('attempts').notNullable().defaultTo(0)
       table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(this.now())
+      table.unique(['tenant_id', 'idempotency_key'])
       table.index(['tenant_id', 'meter_event_name', 'status'])
     })
   }

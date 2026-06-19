@@ -1,4 +1,4 @@
-import { isUuidV4 } from '@adonisjs-lasagna/saas-tenancy/internal'
+import { isUuidV4 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import type { IoHandshake, WebSocketHandshakeConfig } from './types.js'
 
 const DEFAULT_AUTH_KEY = 'tenantId'

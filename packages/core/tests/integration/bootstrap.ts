@@ -191,12 +191,14 @@ async function ensureBackofficeSchema(): Promise<void> {
        tenant_id         uuid NOT NULL,
        meter_event_name  varchar(255) NOT NULL,
        quantity          bigint NOT NULL,
-       idempotency_key   varchar(255) NOT NULL UNIQUE,
+       idempotency_key   varchar(255) NOT NULL,
        reported_at       timestamptz,
        status            varchar(20) NOT NULL DEFAULT 'pending',
        last_error        text,
        attempts          integer NOT NULL DEFAULT 0,
-       created_at        timestamptz NOT NULL DEFAULT now()
+       created_at        timestamptz NOT NULL DEFAULT now(),
+       CONSTRAINT billing_usage_events_tenant_id_idempotency_key_unique
+         UNIQUE (tenant_id, idempotency_key)
      )`,
   ]
 

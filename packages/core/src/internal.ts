@@ -9,6 +9,15 @@
  * This is NOT part of the stable, app-facing public API. Host applications
  * should import from the documented surfaces (`/services`, `/types`, the root).
  * The contents here may change between minors to follow the satellites' needs.
+ *
+ * Stability policy (B8): anything a third-party satellite legitimately needs
+ * must ALSO live on a stable surface, so no one is forced onto this unstable
+ * subpath. The pure tenant-id validators (`isUuidV4`, `assertSafeIdentifier`)
+ * are now on the bare-safe `/sdk`, and `buildTestTenant` is on `/testing`. The
+ * re-exports below are kept for first-party back-compat. `getActiveDriver`
+ * (booted; resolves the active driver — third parties can use the public
+ * `IsolationDriverRegistry` on `/services`) and `splitSqlStatementsTagged` (a
+ * niche SQL-import helper) remain genuinely internal.
  */
 export { assertSafeIdentifier, isUuidV4 } from './services/isolation/identifier.js'
 export { getActiveDriver } from './services/isolation/active_driver.js'

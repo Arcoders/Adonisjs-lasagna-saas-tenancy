@@ -62,6 +62,13 @@ jobs:
       - name: Stability labels vs. versions
         run: node scripts/check-stability-versions.mjs
 
+      # Every satellite labeled `release candidate` must clear the graduation gate
+      # (own coverage gate, ABI-versioned manifest, configure hook, CHANGELOG, doc
+      # page, version >= 1.0.0), so a satellite can't carry the RC label without
+      # the artifacts that make it honest.
+      - name: Satellite graduation gate
+        run: node scripts/check-satellite-graduation.mjs
+
       - name: Test (unit) + coverage
         run: npm run test:coverage
 
@@ -71,10 +78,20 @@ jobs:
       - name: Test (satellite package units)
         run: |
           npm run test:coverage --workspace @adonisjs-lasagna/billing
-          npm run test --workspace @adonisjs-lasagna/backup
-          npm run test --workspace @adonisjs-lasagna/sso
-          npm run test --workspace @adonisjs-lasagna/admin
-          npm run test --workspace @adonisjs-lasagna/websockets
+          npm run test:coverage --workspace @adonisjs-lasagna/backup
+          npm run test:coverage --workspace @adonisjs-lasagna/sso
+          npm run test:coverage --workspace @adonisjs-lasagna/admin
+          npm run test:coverage --workspace @adonisjs-lasagna/websockets
+
+      # Satellite ABI compatibility (B5): the reference third-party satellite
+      # is built + tested against the freshly-built core above. Its typecheck
+      # (in the all-workspaces step) compiles against core's public `.d.ts`, and
+      # its unit suite exercises the SDK/registries at runtime — so a breaking
+      # change to the Satellite ABI fails here, not silently in a consumer.
+      - name: Build + test the reference satellite (ABI compat)
+        run: |
+          npm run build:template
+          npm run test --workspace @adonisjs-lasagna/satellite-template
 
       # Raw V8 so the coverage-report job can re-report it with source-map
       # remapping back to src/*.ts.
@@ -103,6 +120,23 @@ jobs:
       # justification and a removal condition).
       - name: npm audit (production deps)
         run: npm run audit:prod
+
+      # Package-contract gate (B5): publint validates each publishable package's
+      # exports/files map, and arethetypeswrong proves every declared subpath
+      # resolves to types + JS under node10 / node16 / bundler. (This caught the
+      # satellites' missing `typesVersions` for their /provider + /commands
+      # subpaths.) The ESM-only "cjs-resolves-to-esm" rule is expected — these
+      # packages are `"type": "module"` — so it is ignored. Runs after the builds
+      # above, since both tools inspect build/ through the exports map.
+      - name: Package contracts (publint + types resolution)
+        run: |
+          set -e
+          for pkg in core sso billing admin backup websockets; do
+            echo "== @adonisjs-lasagna/$pkg =="
+            ( cd "packages/$pkg" \
+              && npx -y publint@0.3.21 \
+              && npx -y @arethetypeswrong/cli@0.18.3 --pack --ignore-rules cjs-resolves-to-esm )
+          done
 
   test-integration:
     name: Integration Tests

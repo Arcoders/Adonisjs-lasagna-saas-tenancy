@@ -403,7 +403,14 @@ export default class BillingService {
     const minuteBucket = Math.floor(timestamp.toSeconds() / 60)
     const idempotencyKey = opts?.idempotencyKey ?? `${tenant.id}:${meter.eventName}:${minuteBucket}`
 
-    let audit = await BillingUsageEvent.query().where('idempotencyKey', idempotencyKey).first()
+    // Idempotency is always anchored per tenant: the DB constraint is
+    // UNIQUE(tenant_id, idempotency_key), so the lookup MUST scope by tenant too.
+    // A host that supplies its own (non-tenant-prefixed) idempotencyKey would
+    // otherwise read or collide with a different tenant's row.
+    let audit = await BillingUsageEvent.query()
+      .where('tenantId', tenant.id)
+      .where('idempotencyKey', idempotencyKey)
+      .first()
     if (audit?.status === 'sent') return
 
     if (!audit) {
@@ -421,7 +428,13 @@ export default class BillingService {
       try {
         await audit.save()
       } catch (err) {
-        audit = await BillingUsageEvent.query().where('idempotencyKey', idempotencyKey).first()
+        // Lost the INSERT race against a concurrent report for the SAME tenant +
+        // key. Re-read scoped by tenant so we adopt that row, never another
+        // tenant's collision.
+        audit = await BillingUsageEvent.query()
+          .where('tenantId', tenant.id)
+          .where('idempotencyKey', idempotencyKey)
+          .first()
         if (!audit) throw err
         if (audit.status === 'sent') return
       }

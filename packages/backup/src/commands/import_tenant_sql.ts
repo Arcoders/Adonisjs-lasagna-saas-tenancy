@@ -55,6 +55,19 @@ export default class ImportTenantSql extends BaseCommand {
   })
   declare force: boolean
 
+  // Distinct from --force on purpose: forcing an import into a non-active tenant
+  // must NOT also silently disable the data-corruption guard. This flag alone
+  // proceeds past the refusal when the schema rewrite would alter a source-schema
+  // reference inside a string literal.
+  @flags.boolean({
+    flagName: 'allow-unsafe-rewrite',
+    description:
+      'Proceed even when the schema rewrite would alter a source-schema reference inside a string ' +
+      'literal (risks corrupting that value; prefer re-exporting with `pg_dump --inserts`)',
+    default: false,
+  })
+  declare allowUnsafeRewrite: boolean
+
   // Strict (all-or-nothing) is the DEFAULT: a restore either fully applies or
   // leaves nothing behind. Continuing past failures can leave the tenant
   // partially imported, so it is the explicit opt-out.
@@ -115,6 +128,7 @@ export default class ImportTenantSql extends BaseCommand {
               sourceSchema: this.schemaReplace,
               dryRun: this.dryRun,
               strict: !this.continueOnError,
+              force: this.allowUnsafeRewrite,
             })
             return result.errors.length > 0 ? task.error('completed with errors') : 'completed'
           } catch (err: any) {

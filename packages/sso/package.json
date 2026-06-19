@@ -1,6 +1,6 @@
 {
   "name": "@adonisjs-lasagna/sso",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Per-tenant OIDC/SSO for @adonisjs-lasagna/saas-tenancy (discovery, auth URL, callback verification, config model)",
   "type": "module",
   "license": "MIT",
@@ -41,6 +41,7 @@
   },
   "lasagnaSatellite": {
     "name": "sso",
+    "satelliteApi": 1,
     "aliases": ["sso"],
     "migrations": "stubs/migrations",
     "install": [
@@ -52,7 +53,8 @@
   "scripts": {
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "test": "tsx bin/test.ts"
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/sso-unit tsx bin/test.ts"
   },
   "peerDependencies": {
     "@adonisjs-lasagna/saas-tenancy": "^1.0.0",

@@ -2,8 +2,9 @@ import { spawn } from 'node:child_process'
 import { mkdir, unlink, stat, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/internal'
-import { backupConfig } from '../config.js'
+import { backupConfig, destructiveLockFailClosed } from '../config.js'
 import { withTenantOperationLock } from './tenant_operation_lock.js'
+import { assertRegularFile } from './fs_guards.js'
 import type { BackupMetadata, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 // `BackupMetadata` is defined in the core (the lifecycle hook context + the
@@ -105,17 +106,23 @@ export default class BackupService {
   }
 
   async restore(tenant: TenantModelContract, fileName: string): Promise<void> {
+    // Validate the filename gate BEFORE acquiring (or failing closed on) the
+    // lock: a path-traversal attempt is a cheap, deterministic rejection that
+    // shouldn't depend on Redis being up.
+    if (!FILE_PATTERN.test(fileName)) {
+      throw new Error(`Invalid backup file name: ${fileName}`)
+    }
     // Serialise against any other backup/restore/clone/import of this tenant.
-    return withTenantOperationLock(tenant.id, 'restore', () =>
-      this.#restoreLocked(tenant, fileName)
+    // Destructive op: fail closed when the lock is unavailable (default).
+    return withTenantOperationLock(
+      tenant.id,
+      'restore',
+      () => this.#restoreLocked(tenant, fileName),
+      { failClosed: destructiveLockFailClosed() }
     )
   }
 
   async #restoreLocked(tenant: TenantModelContract, fileName: string): Promise<void> {
-    if (!FILE_PATTERN.test(fileName)) {
-      throw new Error(`Invalid backup file name: ${fileName}`)
-    }
-
     const schema = tenant.schemaName
     assertSafeIdentifier(schema, 'tenant schema')
     const filePath = join(this.getBackupDir(tenant.id), fileName)
@@ -123,6 +130,12 @@ export default class BackupService {
     if (backupConfig().s3?.enabled) {
       await this.#downloadFromS3(tenant.id, fileName, filePath)
     }
+
+    // Reject a symlink planted in the backup directory before handing the path
+    // to pg_restore. FILE_PATTERN already blocks path traversal in the name, but
+    // a symlink whose name passes the pattern could still point pg_restore at an
+    // arbitrary file outside the backup dir. lstat does not follow the link.
+    await assertRegularFile(filePath)
 
     const args = [
       ...this.buildConnectionArgs(),

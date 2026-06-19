@@ -19,10 +19,14 @@ import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/internal'
  * their work on one held SQL session, so a Redis lock is the right fit here (and
  * Redis is already a hard dependency of the package).
  *
- * Fail-open: when Redis is unavailable the operation proceeds WITHOUT the lock.
- * Blocking every backup because the coordination layer is down is worse than a
- * rare unserialised overlap, and these are operator-initiated commands. The
- * degradation is logged.
+ * Behaviour when Redis is unavailable is the caller's choice via `failClosed`:
+ *  - fail-OPEN (default): the operation proceeds WITHOUT the lock. Right for the
+ *    read-only `backup`: blocking every backup because the coordination layer is
+ *    down is worse than a rare unserialised read. The degradation is logged.
+ *  - fail-CLOSED: the operation is refused with
+ *    `TenantOperationLockUnavailableException` (503). Right for the DESTRUCTIVE
+ *    ops (restore / clone / import), where an unserialised overlap can corrupt a
+ *    schema irreversibly — a clean refusal beats silent corruption.
  */
 
 const lazyRedis = () =>
@@ -70,6 +74,41 @@ export class TenantOperationLockedException extends Error {
 }
 
 /**
+ * Thrown when a `failClosed` operation cannot acquire the lock because the Redis
+ * coordination layer is unreachable. Destructive operations refuse to run
+ * unserialised rather than risk corrupting a schema. Carries HTTP status 503 so
+ * an admin API layer can map it to Service Unavailable.
+ */
+export class TenantOperationLockUnavailableException extends Error {
+  readonly code = 'E_TENANT_OPERATION_LOCK_UNAVAILABLE'
+  readonly status = 503
+  readonly tenantId: string
+  readonly operation: string
+
+  constructor(tenantId: string, operation: string) {
+    super(
+      `Cannot acquire the operation lock for tenant ${tenantId} (requested: ${operation}): ` +
+        `the Redis coordination layer is unreachable. This is a destructive operation and is ` +
+        `configured to fail closed rather than run unserialised. Restore Redis and retry.`
+    )
+    this.name = 'TenantOperationLockUnavailableException'
+    this.tenantId = tenantId
+    this.operation = operation
+  }
+}
+
+/** Options for {@link withTenantOperationLock}. */
+export interface TenantOperationLockOptions {
+  /**
+   * When Redis is unreachable: `false` (default) proceeds WITHOUT the lock
+   * (fail-open, right for read-only backup); `true` refuses with
+   * {@link TenantOperationLockUnavailableException} (fail-closed, right for the
+   * destructive restore / clone / import).
+   */
+  failClosed?: boolean
+}
+
+/**
  * Run `fn` while holding the per-tenant operation lock. Throws
  * `TenantOperationLockedException` if another holder has it; otherwise runs
  * `fn`, renews the lock for the duration, and releases it in a `finally`.
@@ -77,12 +116,16 @@ export class TenantOperationLockedException extends Error {
 export async function withTenantOperationLock<T>(
   tenantId: string,
   operation: string,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
+  options: TenantOperationLockOptions = {}
 ): Promise<T> {
   assertSafeIdentifier(tenantId, 'tenant id')
 
   const redis = await lazyRedis()
   if (!redis) {
+    if (options.failClosed) {
+      throw new TenantOperationLockUnavailableException(tenantId, operation)
+    }
     const log = await lazyLogger()
     log?.warn(
       { tenantId, operation },

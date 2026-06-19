@@ -1,7 +1,33 @@
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
-import { SsoService, TenantSsoConfig } from '@adonisjs-lasagna/sso'
+import type { SsoService, TenantSsoConfig } from '@adonisjs-lasagna/sso'
 import { loadTenantOr404, isNonEmptyString, validateExternalHttpsUrl } from './helpers.js'
+
+/**
+ * `@adonisjs-lasagna/sso` is an OPTIONAL peer of admin: the admin API works
+ * without it, the SSO endpoints just return 501. So the package is never
+ * imported at module load time (a static import would make the whole admin
+ * module fail to load when sso is absent, defeating the optional peer). Each
+ * handler resolves it lazily and degrades to 501 if it is not installed.
+ */
+type SsoModule = typeof import('@adonisjs-lasagna/sso')
+
+async function loadSsoModule(): Promise<SsoModule | null> {
+  try {
+    return await import('@adonisjs-lasagna/sso')
+  } catch {
+    return null
+  }
+}
+
+function ssoNotInstalled(ctx: HttpContext) {
+  return ctx.response.status(501).send({
+    error: 'sso_not_installed',
+    message:
+      'The SSO admin endpoints require @adonisjs-lasagna/sso, which is not installed. ' +
+      'Run `npm i @adonisjs-lasagna/sso` to enable them.',
+  })
+}
 
 /**
  * Strips secret material before serializing. Admins can see whether a config
@@ -36,14 +62,18 @@ function isHttpsUrl(v: unknown): v is string {
 
 export default class SsoController {
   async show(ctx: HttpContext) {
+    const sso = await loadSsoModule()
+    if (!sso) return ssoNotInstalled(ctx)
     const tenant = await loadTenantOr404(ctx)
     if (!tenant) return
-    const svc = await app.container.make(SsoService)
+    const svc = await app.container.make(sso.SsoService)
     const config = await svc.getConfig(tenant.id)
     return ctx.response.ok({ data: serialize(config) })
   }
 
   async update(ctx: HttpContext) {
+    const sso = await loadSsoModule()
+    if (!sso) return ssoNotInstalled(ctx)
     const tenant = await loadTenantOr404(ctx)
     if (!tenant) return
 
@@ -68,7 +98,7 @@ export default class SsoController {
       return ctx.response.badRequest({ error: 'scopes_must_be_string_array' })
     }
 
-    const svc = await app.container.make(SsoService)
+    const svc = await app.container.make(sso.SsoService)
     const config = await svc.upsertConfig(tenant.id, {
       clientId,
       clientSecret,
@@ -80,9 +110,11 @@ export default class SsoController {
   }
 
   async disable(ctx: HttpContext) {
+    const sso = await loadSsoModule()
+    if (!sso) return ssoNotInstalled(ctx)
     const tenant = await loadTenantOr404(ctx)
     if (!tenant) return
-    const config = await TenantSsoConfig.query().where('tenant_id', tenant.id).first()
+    const config = await sso.TenantSsoConfig.query().where('tenant_id', tenant.id).first()
     if (!config) return ctx.response.notFound({ error: 'sso_config_not_found' })
     config.enabled = false
     await config.save()

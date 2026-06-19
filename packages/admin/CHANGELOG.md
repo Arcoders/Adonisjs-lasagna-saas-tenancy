@@ -6,6 +6,28 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.0] — 2026-06-19
+
+Graduated to `release candidate` and versioned `1.0.0` (see the stability matrix).
+Admin also became a first-class satellite: a `lasagnaSatellite` manifest at the
+frozen Satellite ABI and a guidance-only `adonisjs.configure` hook that prints the
+mount snippet (it never edits your routes file).
+
+- **SSO peer is now lazy (no hard coupling).** `@adonisjs-lasagna/sso` was imported
+  at module load, so admin failed to load when sso was not installed despite
+  declaring it optional. The SSO controller now imports sso lazily and the SSO
+  endpoints return **501** when it is absent; the rest of the admin API works
+  without it. The `sso` peer range moved to `^1.0.0`.
+- **Access model documented.** Clarified the CSRF responsibility (delegated to the
+  host), the Swagger/OpenAPI gating (`docsAuth`), and the fail-closed mount in the
+  docs.
+- **Coverage gate added** (`.c8rc.json`, `check-coverage: true`) over the
+  unit-testable security logic (the fail-closed mount guard).
+
+**Stability: release candidate.** The API is frozen under the 1.x promise, with the
+honest caveat that a correction forced by the pending security review or production
+mileage may land in a 1.x minor with a loud changelog entry.
+
 ## [0.1.0] — 2026-06-08
 
 Initial standalone release, versioned `0.x` to match its `experimental` stability

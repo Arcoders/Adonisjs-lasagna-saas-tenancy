@@ -58,6 +58,19 @@ outright: TypeScript users get a compile error pointing at the import, plain-JS
 users get `undefined` at the import site — check the upgrade guide's symbol map
 when an import stops resolving.
 
+### What the Satellite ABI freeze covers
+
+Now that the `/sdk` surface is `release candidate`, `SATELLITE_API_VERSION = 1`
+is a frozen contract. Concretely, the 1.x promise covers three things a satellite
+relies on: the core registries a satellite self-registers into (provider,
+commands, migrations discovery), the `lasagnaSatellite` manifest shape the
+configure toolkit reads, and the `SatelliteProviderContract` / configure-toolkit
+signatures exported from `/sdk`. A change that would break a satellite built
+against version 1 does not land in a minor; it ships as a `SATELLITE_API_VERSION`
+bump, and `checkSatelliteApiCompat` fails loudly when a satellite expects a newer
+ABI than the installed core provides. This is what lets the satellites below sit
+on `release candidate` ground rather than on a contract that could move under them.
+
 ## Feature stability matrix
 
 ### Core (`@adonisjs-lasagna/saas-tenancy`)
@@ -71,7 +84,7 @@ The isolation substrate. Everything here is **release candidate** unless noted.
 | Row-scope isolation (`rowscope-pg`) | Release candidate | Ship the `--with=rls` migration for the SQL-level backstop; see [rowscope-pg](/docs/data-isolation/rowscope-pg). |
 | `sqlite-memory` driver | Testing only | For tests; never for production. |
 | Custom isolation driver API (`IsolationDriver` + `IsolationDriverRegistry`) | Release candidate | Public extension point for additional backends. The seam a future MySQL satellite registers through. |
-| Packaged-satellite SDK (`/sdk`: `SatelliteManifest`, `SatelliteProviderContract`, configure toolkit) | Release candidate | Public extension point for third-party satellites. See [Creating a satellite](/docs/cookbook/creating-a-satellite). |
+| Packaged-satellite SDK (`/sdk`: `SatelliteManifest`, `SatelliteProviderContract`, configure toolkit, `SATELLITE_API_VERSION`) | Release candidate | Public extension point for third-party satellites. The *Satellite ABI* it commits to (the core registries a satellite self-registers into, the manifest shape, the configure contract) is now frozen and contract-tested, so `SATELLITE_API_VERSION = 1` is a stable contract under the 1.x promise. An incompatible ABI change ships as a `SATELLITE_API_VERSION` bump, which `checkSatelliteApiCompat` rejects against an older core, never as a silent break inside a minor. See [Creating a satellite](/docs/cookbook/creating-a-satellite). |
 | Tenant resolution (subdomain / path / header) | Release candidate | Always via `resolveTenantId()`. |
 | `TenantAdapter` + base-model routing | Release candidate | |
 | Connection LRU, budget, optional hard cap | Release candidate | `enforceConnectionCap` defaults `false`; see [scaling limits](/docs/scaling-limits). |
@@ -95,17 +108,26 @@ The isolation substrate. Everything here is **release candidate** unless noted.
 
 | Package | Stability | Surface |
 |---|---|---|
-| `@adonisjs-lasagna/admin` | Experimental | REST admin API + OpenAPI + Swagger. |
-| `@adonisjs-lasagna/sso` | Experimental | Per-tenant OIDC / SSO. |
-| `@adonisjs-lasagna/billing` | Experimental | Stripe billing pipeline. |
-| `@adonisjs-lasagna/backup` | Experimental | Backup / restore / clone / SQL import. |
-| `@adonisjs-lasagna/websockets` | Experimental | Multi-tenant bidirectional WebSockets on socket.io. |
+| `@adonisjs-lasagna/admin` | Release candidate | REST admin API + OpenAPI + Swagger. |
+| `@adonisjs-lasagna/sso` | Release candidate | Per-tenant OIDC / SSO. |
+| `@adonisjs-lasagna/billing` | Release candidate | Multi-provider billing pipeline (Stripe / Paddle / Lemon Squeezy). |
+| `@adonisjs-lasagna/backup` | Release candidate | Backup / restore / clone / SQL import. |
+| `@adonisjs-lasagna/websockets` | Release candidate | Multi-tenant bidirectional WebSockets on socket.io. |
 
-The version number says the same thing the label does: experimental satellites
-are published as `0.x`, so the version string a consumer reads off npm never
-claims a semver promise this page does not make. Each satellite is promoted to
-`1.0.0` when its label is. CI enforces the agreement mechanically
-(`scripts/check-stability-versions.mjs` parses this page).
+The version number says the same thing the label does: a `release candidate`
+satellite is published as `>=1.0.0`, so the version string a consumer reads off
+npm matches the semver promise this page makes. CI enforces the agreement
+mechanically: `scripts/check-stability-versions.mjs` parses this page, and
+`scripts/check-satellite-graduation.mjs` verifies each satellite meets the
+graduation gate (coverage gate, manifest, configure hook, CHANGELOG, doc page,
+version) before it can carry the `release candidate` label.
+
+Each satellite cleared the same graduation bar: an own coverage gate
+(`.c8rc.json`) with unit tests over its security-critical core, an
+auto-describable `lasagnaSatellite` manifest at the frozen Satellite ABI
+(`satelliteApi: 1`), green `publint` + `arethetypeswrong`, a doc page, and a
+CHANGELOG. As with the core, `release candidate` (not `stable`) reflects the two
+still-open items: an independent security review and production mileage.
 
 ## How to read this if you are adopting
 

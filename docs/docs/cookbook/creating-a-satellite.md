@@ -59,9 +59,11 @@ discovery.
   },
   "lasagnaSatellite": {
     "name": "my-feature",                 // label shown in --list-satellites
+    "satelliteApi": 1,                    // the Satellite ABI you built against (see below)
     "aliases": ["my-feature"],            // optional short names for --with=
     "migrations": "stubs/migrations",     // dir of .stub files, relative to the package root
     "requires": ["quotas"],               // optional core bundles to publish first
+    "dependsOn": ["@me/other-satellite"], // optional other satellite PACKAGES (see below)
     "provider": "@me/my-satellite/provider",  // optional: added to adonisrc.ts
     "commands": "@me/my-satellite/commands",   // optional: added to adonisrc.ts
     "env": ["MY_API_KEY"],                // optional: printed as a reminder
@@ -76,7 +78,37 @@ Only `name` is required. A satellite with no `migrations` is a config-only
 feature; one with no `provider` ships no AdonisJS provider.
 
 `migrations` must be a path inside your package. Absolute paths and `..`
-segments are rejected.
+segments are rejected — the same rule now applies to `provider` and `commands`,
+since they are written into the host's `adonisrc.ts` and imported on every boot.
+
+`requires` names core feature **bundles** (published from core, e.g. `quotas`).
+`dependsOn` names other satellite **packages** you need installed and configured
+first. `configure` pulls each into the selection, orders dependencies before
+dependents (so their provider boots first), and refuses to proceed on a missing
+dependency or a cycle. Use the object form to pin a version:
+`"dependsOn": [{ "pkg": "@me/other", "range": "^1.0.0" }]` (the range is checked
+best-effort and reported as a warning).
+
+## Declare the Satellite ABI you target
+
+`satelliteApi` is the version of the extension surface your satellite builds
+against — the core registries you self-register into (`HookRegistry`,
+`DoctorService`, `IsolationDriverRegistry`, the queue `Locator`, the emitter),
+the manifest shape, and the configure contract. Core exports the current value
+as `SATELLITE_API_VERSION` (from `@adonisjs-lasagna/saas-tenancy/sdk`); it is a
+single monotonic integer, bumped only on a backward-incompatible change to that
+surface, and versioned independently of core's published version.
+
+`configure` compares your declared `satelliteApi` against the installed core:
+
+- you need a **newer** ABI than the core provides — `configure` refuses to wire
+  the satellite and exits non-zero (upgrade the core),
+- you built against an **older** ABI — it warns but proceeds,
+- you **omit** it — it warns that compatibility is unverified.
+
+Set it to the value of `SATELLITE_API_VERSION` you developed against (today, `1`).
+You can also assert it at runtime in your provider's `boot()` via
+`checkSatelliteApiCompat(...)` from `/sdk`.
 
 ## The provider
 
@@ -113,6 +145,13 @@ core service yourself.
 Ship migrations as `.stub` files under the directory your manifest's
 `migrations` points at. Every satellite table lives in the shared `backoffice`
 schema, scoped by `tenant_id`, so cross-tenant reporting stays a single query.
+
+Because every satellite shares the `backoffice` schema, **name your table for
+your package** (e.g. `crm_contacts`, not `contacts`) so it can't collide with
+another satellite's table. `configure` namespaces the published migration *file*
+by package automatically (`<ts>_<your_pkg>__<stub>.ts`), so two satellites that
+happen to ship the same stub basename both install correctly — but the table
+name inside the migration is yours to keep unique.
 
 ```
 // stubs/migrations/create_my_table.stub
@@ -155,7 +194,6 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readFile } from 'node:fs/promises'
 import {
-  listExistingMigrations,
   publishSatellite,
   registerSatelliteInRcFile,
   printSatelliteManifest,
@@ -172,12 +210,13 @@ export default async function configure(command: Configure) {
   const migrationsDir = app.migrationsPath?.() ?? app.makePath('database', 'migrations')
 
   const codemods = await command.createCodemods()
-  const existing = await listExistingMigrations(migrationsDir)
+  // Publishes this package's migrations into the host's migrations dir,
+  // idempotently, namespacing each file by package so it can't collide with
+  // another satellite that ships the same stub basename.
   await publishSatellite(
     codemods,
     { packageName: pkgJson.name, root: pkgRoot, manifest },
-    existing,
-    { targetDir: migrationsDir }
+    migrationsDir
   )
   await registerSatelliteInRcFile(codemods, manifest)
   printSatelliteManifest(command.logger, manifest)

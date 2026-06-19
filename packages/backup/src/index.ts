@@ -15,8 +15,10 @@ export type { SqlImportOptions, SqlImportResult } from './services/sql_import_se
 export {
   withTenantOperationLock,
   TenantOperationLockedException,
+  TenantOperationLockUnavailableException,
   tenantOperationLockKey,
 } from './services/tenant_operation_lock.js'
+export type { TenantOperationLockOptions } from './services/tenant_operation_lock.js'
 
 export { default as BackupTenant } from './jobs/backup_tenant.js'
 export { default as RestoreTenant } from './jobs/restore_tenant.js'

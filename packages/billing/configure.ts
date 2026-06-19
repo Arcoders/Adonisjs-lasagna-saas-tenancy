@@ -3,7 +3,6 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readFile, access } from 'node:fs/promises'
 import {
-  listExistingMigrations,
   publishSatellite,
   registerSatelliteInRcFile,
   printSatelliteManifest,
@@ -45,13 +44,13 @@ export default async function configure(command: Configure) {
 
   const codemods = await command.createCodemods()
 
-  // Migrations (idempotent). billing requires the core `quotas` bundle for
-  // tenant_plans — the manifest declares it; this hook prints the prerequisite.
-  const existing = await listExistingMigrations(migrationsDir)
+  // Migrations (idempotent, namespaced by package). billing requires the core
+  // `quotas` bundle for tenant_plans — the manifest declares it; this hook
+  // prints the prerequisite.
   const { published, skipped } = await publishSatellite(
     codemods,
     { packageName: pkgJson.name, root: pkgRoot, manifest },
-    existing
+    migrationsDir
   )
   if (skipped.length > 0) {
     command.logger.info(`skipped already-published migrations (re-run safe): ${skipped.join(', ')}`)

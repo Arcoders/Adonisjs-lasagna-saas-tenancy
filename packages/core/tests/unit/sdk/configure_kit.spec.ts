@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, writeFile, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readSatelliteManifest, isSafeRelativePath } from '../../../src/sdk/manifest.js'
@@ -11,6 +11,7 @@ import {
   registerSatelliteInRcFile,
   printSatelliteManifest,
   filterAlreadyPublished,
+  migrationSlug,
 } from '../../../src/sdk/configure_kit.js'
 
 /* ════════════════════════ Layer 1 — manifest parser ════════════════════════ */
@@ -33,6 +34,7 @@ test.group('satellite — readSatelliteManifest', () => {
       name: '@me/sat',
       lasagnaSatellite: {
         name: 'sat',
+        satelliteApi: 1,
         aliases: ['s'],
         migrations: 'stubs/migrations',
         requires: ['quotas'],
@@ -46,6 +48,7 @@ test.group('satellite — readSatelliteManifest', () => {
     })
     assert.deepEqual(m, {
       name: 'sat',
+      satelliteApi: 1,
       aliases: ['s'],
       migrations: 'stubs/migrations',
       requires: ['quotas'],
@@ -56,6 +59,35 @@ test.group('satellite — readSatelliteManifest', () => {
       configSnippet: 'sat: {}',
       docs: 'https://x',
     })
+  })
+
+  test('satelliteApi: keeps a positive integer, drops anything else with a warning', ({
+    assert,
+  }) => {
+    assert.equal(
+      readSatelliteManifest({ name: '@me/s', lasagnaSatellite: { name: 's', satelliteApi: 2 } })
+        ?.satelliteApi,
+      2
+    )
+    // absent → undefined, no warning
+    const noWarn: string[] = []
+    assert.isUndefined(
+      readSatelliteManifest({ name: '@me/s', lasagnaSatellite: { name: 's' } }, (w) =>
+        noWarn.push(w)
+      )?.satelliteApi
+    )
+    assert.lengthOf(noWarn, 0)
+    // invalid (0, negative, float, non-number) → dropped + warned, manifest survives
+    for (const bad of [0, -1, 1.5, '1', null, {}]) {
+      const warnings: string[] = []
+      const m = readSatelliteManifest(
+        { name: '@me/s', lasagnaSatellite: { name: 's', satelliteApi: bad } },
+        (w) => warnings.push(w)
+      )
+      assert.equal(m?.name, 's')
+      assert.isUndefined(m?.satelliteApi, `satelliteApi=${JSON.stringify(bad)} should be dropped`)
+      assert.lengthOf(warnings, 1)
+    }
   })
 
   test('requires a non-empty name, warning and returning null without it', ({ assert }) => {
@@ -100,6 +132,68 @@ test.group('satellite — readSatelliteManifest', () => {
     assert.isUndefined(m?.commands)
     assert.isUndefined(m?.configSnippet)
     assert.isUndefined(m?.docs)
+  })
+
+  test('drops a path-traversing or absolute provider / commands with a warning (B6)', ({
+    assert,
+  }) => {
+    for (const key of ['provider', 'commands'] as const) {
+      for (const bad of ['../evil', '/abs/evil', 'a/../b', 'C:\\win', '\\unc']) {
+        const warnings: string[] = []
+        const m = readSatelliteManifest(
+          { name: '@me/sat', lasagnaSatellite: { name: 'sat', [key]: bad } },
+          (w) => warnings.push(w)
+        )
+        assert.equal(m?.name, 'sat')
+        assert.isUndefined(m?.[key], `${key}="${bad}" should be dropped`)
+        assert.lengthOf(warnings, 1)
+      }
+    }
+    // a normal package subpath specifier is kept (no `..`, not absolute)
+    const ok = readSatelliteManifest({
+      name: '@me/sat',
+      lasagnaSatellite: { name: 'sat', provider: '@me/sat/provider', commands: '@me/sat/commands' },
+    })
+    assert.equal(ok?.provider, '@me/sat/provider')
+    assert.equal(ok?.commands, '@me/sat/commands')
+  })
+
+  test('dependsOn: accepts string shorthand + { pkg, range }, drops invalid entries (B3)', ({
+    assert,
+  }) => {
+    const m = readSatelliteManifest({
+      name: '@me/sat',
+      lasagnaSatellite: {
+        name: 'sat',
+        dependsOn: ['@me/a', { pkg: '@me/b', range: '^1.0.0' }, { pkg: '@me/c' }],
+      },
+    })
+    assert.deepEqual(m?.dependsOn, [
+      { pkg: '@me/a' },
+      { pkg: '@me/b', range: '^1.0.0' },
+      { pkg: '@me/c' },
+    ])
+
+    // invalid entries are dropped with a warning; a valid one survives
+    const warnings: string[] = []
+    const m2 = readSatelliteManifest(
+      {
+        name: '@me/sat',
+        lasagnaSatellite: { name: 'sat', dependsOn: ['', 42, { range: 'x' }, '@me/ok'] },
+      },
+      (w) => warnings.push(w)
+    )
+    assert.deepEqual(m2?.dependsOn, [{ pkg: '@me/ok' }])
+    assert.isAbove(warnings.length, 0)
+
+    // non-array → dropped with a warning
+    const warn2: string[] = []
+    const m3 = readSatelliteManifest(
+      { name: '@me/sat', lasagnaSatellite: { name: 'sat', dependsOn: 'nope' } },
+      (w) => warn2.push(w)
+    )
+    assert.isUndefined(m3?.dependsOn)
+    assert.lengthOf(warn2, 1)
   })
 
   test('string-array fields: empty → dropped; mixed → only strings kept; non-array → dropped', ({
@@ -307,42 +401,64 @@ test.group('satellite — publishSatellite', (group) => {
   })
   group.each.teardown(async () => host.cleanup())
 
-  function fakeCodemods() {
+  // A codemods double that records its makeUsingStub calls AND writes exactly
+  // what a stub's `exports({ to })` emits — `<ts>_<basename>.ts` into the host
+  // migrations dir — so publishSatellite's read-back + namespacing runs for real.
+  function writingCodemods(migrationsDir: string) {
     const stubCalls: Array<{ stubsRoot: string; stubPath: string }> = []
+    let n = 0
     return {
       stubCalls,
       async makeUsingStub(stubsRoot: string, stubPath: string) {
         stubCalls.push({ stubsRoot, stubPath })
+        const base = stubPath.replace(/^.*[\\/]/, '').replace(/\.stub$/, '')
+        await writeFile(join(migrationsDir, `${1700000000000 + n++}_${base}.ts`), `// ${base}`)
       },
       async updateRcFile() {},
     }
   }
 
+  async function hostMigrations(): Promise<string> {
+    const dir = join(host.root, 'database', 'migrations')
+    await mkdir(dir, { recursive: true })
+    return dir
+  }
+
   test('publishes every stub when the host has none, idempotent on re-run', async ({ assert }) => {
     const found = await discoverSatellites(host.root)
     const sat = found.find((s) => s.packageName === '@fake/sat')!
+    const migrationsDir = await hostMigrations()
 
-    const codemods = fakeCodemods()
-    const first = await publishSatellite(codemods, sat, [])
+    const codemods = writingCodemods(migrationsDir)
+    const first = await publishSatellite(codemods, sat, migrationsDir)
     assert.deepEqual(first.published.sort(), ['create_fake_one_table', 'create_fake_two_table'])
     assert.lengthOf(first.skipped, 0)
     assert.lengthOf(codemods.stubCalls, 2)
     assert.equal(codemods.stubCalls[0].stubsRoot, sat.root)
     assert.match(codemods.stubCalls[0].stubPath, /^stubs[\\/]migrations[\\/]create_fake_/)
+    // Emitted files are namespaced by the satellite's package slug.
+    const files1 = (await readdir(migrationsDir)).sort()
+    assert.lengthOf(files1, 2)
+    assert.isTrue(
+      files1.every((f) => /^\d+_fake_sat__create_fake_(one|two)_table\.ts$/.test(f)),
+      `namespaced: ${files1.join(', ')}`
+    )
 
-    const existing = ['1700000000000_create_fake_one_table.ts']
-    const codemods2 = fakeCodemods()
-    const second = await publishSatellite(codemods2, sat, existing)
-    assert.deepEqual(second.published, ['create_fake_two_table'])
-    assert.deepEqual(second.skipped, ['create_fake_one_table'])
-    assert.lengthOf(codemods2.stubCalls, 1)
+    // Re-run sees its own published files and skips both — no duplicates.
+    const codemods2 = writingCodemods(migrationsDir)
+    const second = await publishSatellite(codemods2, sat, migrationsDir)
+    assert.deepEqual(second.published, [])
+    assert.deepEqual(second.skipped.sort(), ['create_fake_one_table', 'create_fake_two_table'])
+    assert.lengthOf(codemods2.stubCalls, 0)
+    assert.lengthOf(await readdir(migrationsDir), 2)
   })
 
   test('a satellite with no migrations publishes nothing', async ({ assert }) => {
     const found = await discoverSatellites(host.root)
     const devsat = found.find((s) => s.packageName === '@fake/devsat')!
-    const codemods = fakeCodemods()
-    const result = await publishSatellite(codemods, devsat, [])
+    const migrationsDir = await hostMigrations()
+    const codemods = writingCodemods(migrationsDir)
+    const result = await publishSatellite(codemods, devsat, migrationsDir)
     assert.deepEqual(result.published, [])
     assert.lengthOf(codemods.stubCalls, 0)
   })
@@ -355,8 +471,9 @@ test.group('satellite — publishSatellite', (group) => {
     await writeFile(join(dir, 'create_raw_table.sql'), '-- raw sql — must be ignored')
     await writeFile(join(dir, 'README.md'), '# notes')
 
-    const codemods = fakeCodemods()
-    const result = await publishSatellite(codemods, sat, [])
+    const migrationsDir = await hostMigrations()
+    const codemods = writingCodemods(migrationsDir)
+    const result = await publishSatellite(codemods, sat, migrationsDir)
     assert.deepEqual(result.published.sort(), ['create_fake_one_table', 'create_fake_two_table'])
     assert.lengthOf(codemods.stubCalls, 2)
   })
@@ -367,8 +484,9 @@ test.group('satellite — publishSatellite', (group) => {
       root: host.root,
       manifest: { name: 'missing', migrations: 'stubs/migrations' },
     }
-    const codemods = fakeCodemods()
-    const result = await publishSatellite(codemods, sat, [])
+    const migrationsDir = await hostMigrations()
+    const codemods = writingCodemods(migrationsDir)
+    const result = await publishSatellite(codemods, sat, migrationsDir)
     assert.deepEqual(result, { published: [], skipped: [] })
     assert.lengthOf(codemods.stubCalls, 0)
   })
@@ -379,9 +497,102 @@ test.group('satellite — publishSatellite', (group) => {
       root: host.root,
       manifest: { name: 'evil', migrations: '../escape' },
     }
+    const migrationsDir = await hostMigrations()
     await assert.rejects(async () => {
-      await publishSatellite(fakeCodemods(), sat, [])
+      await publishSatellite(writingCodemods(migrationsDir), sat, migrationsDir)
     }, /escapes the package root/)
+  })
+})
+
+test.group('satellite — publishSatellite namespacing (B2)', () => {
+  // A codemods double that writes exactly what a stub's `exports({ to })` emits:
+  // `<ts>_<basename>.ts` into the host migrations dir.
+  function writingCodemods(migrationsDir: string) {
+    let n = 0
+    return {
+      async makeUsingStub(_root: string, stubPath: string) {
+        const base = stubPath.replace(/^.*[\\/]/, '').replace(/\.stub$/, '')
+        await writeFile(join(migrationsDir, `${1700000000000 + n++}_${base}.ts`), `// ${base}`)
+      },
+      async updateRcFile() {},
+    }
+  }
+
+  async function scaffold(dir: string, stub: string) {
+    const pkgRoot = join(dir, 'pkg')
+    await mkdir(join(pkgRoot, 'stubs', 'migrations'), { recursive: true })
+    await writeFile(join(pkgRoot, 'stubs', 'migrations', `${stub}.stub`), '// s')
+    const migrationsDir = join(dir, 'migrations')
+    await mkdir(migrationsDir, { recursive: true })
+    const sat: DiscoveredSatellite = {
+      packageName: '@acme/widgets',
+      root: pkgRoot,
+      manifest: { name: 'acme', migrations: 'stubs/migrations' },
+    }
+    return { migrationsDir, sat }
+  }
+
+  test('migrationSlug sanitizes a scoped package name', ({ assert }) => {
+    assert.equal(migrationSlug('@adonisjs-lasagna/billing'), 'adonisjs_lasagna_billing')
+    assert.equal(migrationSlug('@me/My.Pkg'), 'me_my_pkg')
+  })
+
+  test('namespaces the emitted file by package; idempotent on re-run', async ({ assert }) => {
+    const dir = await mkdtemp(join(tmpdir(), 'lasagna-ns-'))
+    try {
+      const { migrationsDir, sat } = await scaffold(dir, 'create_shared_table')
+      const cm = writingCodemods(migrationsDir)
+
+      const first = await publishSatellite(cm, sat, migrationsDir)
+      assert.deepEqual(first.published, ['create_shared_table'])
+      const files = await readdir(migrationsDir)
+      assert.lengthOf(files, 1)
+      assert.match(files[0], /^\d+_acme_widgets__create_shared_table\.ts$/)
+
+      const second = await publishSatellite(cm, sat, migrationsDir)
+      assert.deepEqual(second.skipped, ['create_shared_table'])
+      assert.lengthOf(await readdir(migrationsDir), 1) // no duplicate
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('recognizes a legacy un-namespaced file (no duplicate on upgrade)', async ({ assert }) => {
+    const dir = await mkdtemp(join(tmpdir(), 'lasagna-ns2-'))
+    try {
+      const { migrationsDir, sat } = await scaffold(dir, 'create_legacy_table')
+      // simulate a pre-B2 install: a legacy file with no slug prefix
+      await writeFile(join(migrationsDir, '1700000000000_create_legacy_table.ts'), '// legacy')
+
+      const res = await publishSatellite(writingCodemods(migrationsDir), sat, migrationsDir)
+      assert.deepEqual(res.skipped, ['create_legacy_table'])
+      assert.lengthOf(await readdir(migrationsDir), 1) // no duplicate
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('a different package with the same basename is NOT skipped (its own namespaced file)', async ({
+    assert,
+  }) => {
+    const dir = await mkdtemp(join(tmpdir(), 'lasagna-ns3-'))
+    try {
+      const { migrationsDir, sat } = await scaffold(dir, 'create_shared_table') // @acme/widgets
+      await publishSatellite(writingCodemods(migrationsDir), sat, migrationsDir)
+
+      // A different satellite shipping the SAME stub basename must still publish.
+      const sat2: DiscoveredSatellite = { ...sat, packageName: '@beta/gadgets' }
+      const res = await publishSatellite(writingCodemods(migrationsDir), sat2, migrationsDir)
+      assert.deepEqual(res.published, ['create_shared_table'])
+      assert.lengthOf(res.skipped, 0)
+
+      const files = (await readdir(migrationsDir)).sort()
+      assert.lengthOf(files, 2)
+      assert.isTrue(files.some((f) => /_acme_widgets__create_shared_table\.ts$/.test(f)))
+      assert.isTrue(files.some((f) => /_beta_gadgets__create_shared_table\.ts$/.test(f)))
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })
 

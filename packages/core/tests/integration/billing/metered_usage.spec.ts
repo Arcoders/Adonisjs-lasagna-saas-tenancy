@@ -16,9 +16,10 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
  * Two layers in the metered-billing path:
  *
  *   1. `BillingService.reportUsage` — the always-available manual API.
- *      Persists `billing_usage_events` row (UNIQUE idempotency_key) and
- *      forwards to Stripe with the same key, so retries never produce
- *      duplicate meter events.
+ *      Persists a `billing_usage_events` row (UNIQUE per tenant on
+ *      idempotency_key) and forwards to Stripe with the same key, so retries
+ *      never produce duplicate meter events, and a custom key from one tenant
+ *      never collides with a different tenant's row.
  *
  *   2. `UsageAutoBridgeListener` — opt-in aggregator. Buffers
  *      `QuotaTracked` events per (tenant, meter) and dispatches a single
@@ -124,6 +125,58 @@ test.group('Metered/usage-based billing (integration)', (group) => {
 
     const events = mock.meterEvents()
     assert.lengthOf(events, 1, 'exactly one Stripe meter event despite the retry')
+  })
+
+  test('two tenants with the SAME custom idempotencyKey each get a row (B-BILL)', async ({
+    assert,
+  }) => {
+    // Idempotency is anchored per tenant: UNIQUE(tenant_id, idempotency_key),
+    // never global. A host that passes its own (non-tenant-prefixed) key must
+    // not have one tenant's usage report collide with — and silently drop —
+    // another tenant's. Before the fix the second INSERT hit a global unique
+    // constraint and the second tenant's billable event was lost.
+    const tenantA = await createTestTenant()
+    const tenantB = await createTestTenant()
+    cleanupTenants.push(tenantA.id, tenantB.id)
+    const asTenant = (t: typeof tenantA) =>
+      ({ id: t.id, name: t.name, email: t.email }) as unknown as TenantModelContract
+
+    for (const t of [tenantA, tenantB]) {
+      const cus = new BillingCustomer()
+      cus.tenantId = t.id
+      cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+      await cus.save()
+    }
+
+    const billing = await app.container.make(BillingService)
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+
+    const sharedKey = 'host-supplied-shared-key'
+    await billing.reportUsage(asTenant(tenantA), { eventName: 'api_request' }, 3, {
+      idempotencyKey: sharedKey,
+    })
+    await billing.reportUsage(asTenant(tenantB), { eventName: 'api_request' }, 7, {
+      idempotencyKey: sharedKey,
+    })
+
+    // Both rows exist, one per tenant, with their own quantities.
+    const rowsA = await BillingUsageEvent.query().where('tenant_id', tenantA.id)
+    const rowsB = await BillingUsageEvent.query().where('tenant_id', tenantB.id)
+    assert.lengthOf(rowsA, 1, 'tenant A keeps its own usage row')
+    assert.lengthOf(rowsB, 1, 'tenant B keeps its own usage row despite the shared key')
+    assert.equal(rowsA[0].quantity, 3)
+    assert.equal(rowsB[0].quantity, 7)
+
+    // The same idempotency_key now legitimately appears for both tenants.
+    const allWithKey = await BillingUsageEvent.query().where('idempotency_key', sharedKey)
+    assert.lengthOf(allWithKey, 2, 'one row per tenant under the shared key')
+
+    // A tenant's idempotency lookup never crosses into another tenant's row.
+    const lookupA = await BillingUsageEvent.query()
+      .where('tenant_id', tenantA.id)
+      .where('idempotency_key', sharedKey)
+    assert.lengthOf(lookupA, 1)
+    assert.equal(lookupA[0].tenantId, tenantA.id)
   })
 
   test('reportUsage recovers a pending audit row left by a prior DB blip (G-6)', async ({

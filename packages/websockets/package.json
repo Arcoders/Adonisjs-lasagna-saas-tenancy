@@ -1,6 +1,6 @@
 {
   "name": "@adonisjs-lasagna/websockets",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Multi-tenant WebSockets for @adonisjs-lasagna/saas-tenancy: socket.io with per-tenant handshake resolution, per-event tenant-context binding, and tenant-scoped rooms",
   "type": "module",
   "license": "MIT",
@@ -35,6 +35,11 @@
     ".": "./build/src/index.js",
     "./provider": "./build/providers/websockets_provider.js"
   },
+  "typesVersions": {
+    "*": {
+      "provider": ["./build/providers/websockets_provider.d.ts"]
+    }
+  },
   "main": "./build/src/index.js",
   "types": "./build/src/index.d.ts",
   "adonisjs": {
@@ -42,6 +47,7 @@
   },
   "lasagnaSatellite": {
     "name": "websockets",
+    "satelliteApi": 1,
     "aliases": ["ws"],
     "provider": "@adonisjs-lasagna/websockets/provider",
     "env": [],
@@ -55,7 +61,8 @@
   "scripts": {
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "test": "tsx bin/test.ts"
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/websockets-unit tsx bin/test.ts"
   },
   "peerDependencies": {
     "@adonisjs-lasagna/saas-tenancy": "^1.0.0",

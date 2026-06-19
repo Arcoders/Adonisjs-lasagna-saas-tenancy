@@ -28,6 +28,7 @@
   },
   "lasagnaSatellite": {
     "name": "example-widgets",
+    "satelliteApi": 1,
     "migrations": "stubs/migrations",
     "provider": "@adonisjs-lasagna/satellite-template/provider",
     "commands": "@adonisjs-lasagna/satellite-template/commands",

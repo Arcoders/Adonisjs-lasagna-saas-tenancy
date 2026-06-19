@@ -5,6 +5,7 @@ import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 import { getActiveDriver, assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/internal'
 import type { CloneResult, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { withTenantOperationLock } from './tenant_operation_lock.js'
+import { destructiveLockFailClosed } from '../config.js'
 
 // `CloneResult` is defined in the core (the lifecycle hook context + the
 // `TenantCloned` event carry it); re-exported here for this package's consumers.
@@ -26,8 +27,11 @@ export default class CloneService {
     // Lock on the SOURCE so a clone can't read it while it is being restored or
     // backed up. The destination is freshly provisioned here, so it has no
     // competing operations of its own.
-    return withTenantOperationLock(source.id, 'clone', () =>
-      this.#cloneLocked(source, destination, options)
+    return withTenantOperationLock(
+      source.id,
+      'clone',
+      () => this.#cloneLocked(source, destination, options),
+      { failClosed: destructiveLockFailClosed() }
     )
   }
 
