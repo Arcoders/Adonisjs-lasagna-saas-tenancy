@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import { SsoService, TenantSsoConfig } from '@adonisjs-lasagna/sso'
-import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 // SSO/OIDC interop against a real OIDC mock server (CI provides
 // ghcr.io/navikt/mock-oauth2-server). Skipped unless MOCK_OIDC_BASE_URL

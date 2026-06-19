@@ -75,7 +75,7 @@
       "ignoreDependencies": ["pg"]
     },
     "packages/satellite-test-kit": {
-      "entry": ["src/index.ts"],
+      "entry": ["src/index.ts", "src/helpers.ts"],
       "project": ["src/**/*.ts"]
     }
   }

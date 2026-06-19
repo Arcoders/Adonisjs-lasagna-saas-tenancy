@@ -21,17 +21,32 @@ The deep rationale for the exit-code logic is documented at the top of
 [`src/run_integration_suite.ts`](src/run_integration_suite.ts). Read it before touching the
 `.finally` recompute.
 
-## Public API
+## Public API — two entry points, split on boot-time safety
+
+The kit has **two** entry points, and which one you import matters (see the boot-ordering
+gotcha below):
+
+**`@adonisjs-lasagna/satellite-test-kit`** — the runner. SAFE to import before the app boots
+(a `bin/test.integration.ts` imports it at the top level, before the Ignitor exists).
 
 | Export | What it is | When to use it |
 |---|---|---|
 | `runIntegrationSuite({ fixtureRoot, suiteGlobs? })` | The Ignitor + Japa wiring and the authoritative exit-code recompute. | The whole body of a package's `bin/test.integration.ts`. |
-| `ensureBackofficeSchema()` | Idempotent DDL for `backoffice.tenants` + every satellite table (branding, feature flags, webhooks, SSO, metrics, audit logs, billing). | Wired automatically via `runnerHooks.setup`; call directly only for a bespoke runner. |
-| `runnerHooks` | `{ setup: [ensureBackofficeSchema], teardown: [] }`. | Passed through by `runIntegrationSuite`. |
-| `plugins` | `[assert(), apiClient(), pluginAdonisJS(app)]`. | Passed through by `runIntegrationSuite`. |
-| `configureSuite` | Starts the in-process HTTP server for the `integration` suite. | Passed through by `runIntegrationSuite`. |
+
+**`@adonisjs-lasagna/satellite-test-kit/testing`** — tenant/config helpers. Import these from
+your **spec files** (which load after the app boots), never from a `bin` entry: they pull in
+`@adonisjs/lucid/services/db`, which is only safe post-boot.
+
+| Export | What it is | When to use it |
+|---|---|---|
 | `createTestTenant` / `destroyTestTenant` / `updateTenantStatus` | Tenant-row factories against `backoffice.tenants`. | Per-spec setup/teardown of tenants. |
 | `setupTestConfig(overrides?)` / `testConfig` | Install a baseline `MultitenancyConfig` into the module-level singleton. | Specs that need config without a full boot. |
+
+**Internal (not exported):** `ensureBackofficeSchema()` (idempotent DDL for `backoffice.tenants`
++ every satellite table), `runnerHooks`, `plugins`, `configureSuite`. The runner loads these
+**lazily** via a dynamic `import('./bootstrap.js')` inside `.configure()` — i.e. after boot,
+because they import `@adonisjs/core/services/{app,test_utils}`, whose module bodies run
+`await app.booted(...)` and crash when `app` is still undefined.
 
 ## Usage
 
@@ -80,6 +95,13 @@ primitives — same `runIntegrationSuite`, different `fixtureRoot`.
 
 ## Gotchas
 
+- **Import the runner from `.`, helpers from `/testing` — never mix them.** The `bin` entry
+  runs before the Ignitor exists, so it must import ONLY `runIntegrationSuite`. Importing a
+  helper (or the old all-in-one barrel) from a `bin` transitively loads
+  `@adonisjs/core/services/test_utils`, whose module body runs `await app.booted(...)` and
+  throws `Cannot read properties of undefined (reading 'booted')` because `app` is still
+  undefined. This is exactly the failure that split the entry points. Specs import `/testing`;
+  they load after boot, where `services/db` etc. are safe.
 - **Cross-package spec resolution.** A satellite's specs live under its own
   `tests/integration/**`, outside the fixture root. `runIntegrationSuite` rewrites the rcFile
   suite globs to the caller's cwd-relative `suiteGlobs` (default

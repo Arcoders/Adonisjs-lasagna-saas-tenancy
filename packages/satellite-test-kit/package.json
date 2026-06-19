@@ -10,7 +10,8 @@
     "node": ">=24.0.0"
   },
   "exports": {
-    ".": "./build/src/index.js"
+    ".": "./build/src/index.js",
+    "./testing": "./build/src/helpers.js"
   },
   "main": "./build/src/index.js",
   "types": "./build/src/index.d.ts",

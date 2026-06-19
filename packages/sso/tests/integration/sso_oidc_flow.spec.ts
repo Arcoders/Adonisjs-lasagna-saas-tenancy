@@ -4,7 +4,7 @@ import { type AddressInfo } from 'node:net'
 import { generateKeyPair, exportJWK, SignJWT, type JWK } from 'jose'
 import { SsoService, TenantSsoConfig } from '@adonisjs-lasagna/sso'
 import redis from '@adonisjs/redis/services/main'
-import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 interface FakeIdpHandle {
   baseUrl: string
