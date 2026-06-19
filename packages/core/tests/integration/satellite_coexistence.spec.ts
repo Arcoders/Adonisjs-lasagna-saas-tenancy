@@ -19,9 +19,43 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { BillingService, MockStripe, BillingCustomer } from '@adonisjs-lasagna/billing'
-import { setupBillingConfig, clearBillingTables } from './billing/helpers.js'
 import { createTestTenant, destroyTestTenant } from './helpers/tenant.js'
+import { testConfig } from '../helpers/config.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
+
+// Billing config + table cleanup are inlined here (rather than imported from
+// billing's own test tree) so this cross-cutting core spec stays self-contained:
+// it owns the "every satellite coexists" narrative and shouldn't reach into a
+// satellite package's private test helpers. Mirrors billing's helpers.ts.
+function setupBillingConfig(opts: { defaultPlan: string } = { defaultPlan: 'starter' }): void {
+  setConfig({
+    ...testConfig,
+    plans: {
+      defaultPlan: opts.defaultPlan,
+      definitions: {
+        starter: { limits: { apiRequests: 100 } },
+        pro: { limits: { apiRequests: 10_000 } },
+        team: { limits: { apiRequests: 50_000 } },
+      },
+      storage: 'tenant_plans',
+    },
+    billing: {
+      driver: 'stripe',
+      stripe: { apiKey: 'sk_test_billing_test_helper', webhookSecret: 'whsec_test_billing_helper' },
+      products: { prod_starter: 'starter', prod_pro: 'pro', prod_team: 'team' },
+      defaultPlan: opts.defaultPlan,
+    },
+  } as never)
+}
+
+async function clearBillingTables(): Promise<void> {
+  const conn = db.connection('backoffice')
+  await conn.rawQuery('DELETE FROM backoffice.billing_usage_events')
+  await conn.rawQuery('DELETE FROM backoffice.billing_processed_events')
+  await conn.rawQuery('DELETE FROM backoffice.billing_subscriptions')
+  await conn.rawQuery('DELETE FROM backoffice.billing_customers')
+  await conn.rawQuery('DELETE FROM backoffice.tenant_plans')
+}
 
 /**
  * The user's real question: "I installed audit + webhooks; can I add billing,

@@ -269,9 +269,8 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     const emitter = (await import('@adonisjs/core/services/emitter')).default
     const listener = await app.container.make(UsageAutoBridgeListener)
 
-    const ReportUsageBatchJob = (
-      await import('../../build/src/jobs/report_usage_batch_job.js')
-    ).default
+    const ReportUsageBatchJob = (await import('../../build/src/jobs/report_usage_batch_job.js'))
+      .default
     const dispatched: Array<{ tenantId: string; meterEventName: string; quantity: number }> = []
     const originalDispatch = (
       ReportUsageBatchJob as unknown as { dispatch: (...a: unknown[]) => Promise<void> }
@@ -394,9 +393,8 @@ test.group('Metered/usage-based billing (integration)', (group) => {
 
     const emitter = (await import('@adonisjs/core/services/emitter')).default
     const listener = await app.container.make(UsageAutoBridgeListener)
-    const ReportUsageBatchJob = (
-      await import('../../build/src/jobs/report_usage_batch_job.js')
-    ).default
+    const ReportUsageBatchJob = (await import('../../build/src/jobs/report_usage_batch_job.js'))
+      .default
     let dispatchedCount = 0
     const originalDispatch = (
       ReportUsageBatchJob as unknown as { dispatch: (...a: unknown[]) => Promise<void> }
