@@ -36,7 +36,9 @@ const isConnectionTerminated = (reason: unknown): boolean => {
 // is NOT 5.x-only; it landed within the 4.x line.) So we don't fight japa's
 // listener: we let it set its exit code, then recompute the FINAL exit code in
 // `.finally` from real signals only. A process-level error that is NOT the
-// benign race is tracked here and always fails the run.
+// benign race is tracked here and always fails the run. (For that `.finally` to
+// run at all, `forceExit` must be off in the configure() call below; the fixture
+// rc turns it on and we override it there. See the note at that override.)
 let sawNonBenignProcessError = false
 const onProcessError = (reason: unknown): void => {
   if (isConnectionTerminated(reason)) return
@@ -95,6 +97,18 @@ new Ignitor(FIXTURE_ROOT, { importer: IMPORTER })
     configure({
       ...app.rcFile.tests,
       ...config,
+      // The fixture's adonisrc sets `forceExit: true`. That makes @japa/runner
+      // call `process.exit()` from inside run() the instant it computes an exit
+      // code: its run() does `if (summary.hasError || exceptionsManager.hasErrors)
+      // process.exitCode = 1` and then `if (forceExit) process.exit()`. The benign
+      // "Connection terminated" teardown race sets `exceptionsManager.hasErrors`,
+      // so with forceExit on the process would exit 1 right there, before the
+      // `.catch`/`.finally` below ever run. The whole exit-code recompute is then
+      // dead code. So we force it OFF here: run() resolves normally, and the
+      // `.finally` becomes the single authoritative exit point. The `.finally`
+      // always calls `process.exit()` itself, so we keep forceExit's "never hang
+      // on an open pg handle" guarantee while exiting with the corrected code.
+      forceExit: false,
       plugins: [...(config.plugins ?? []), captureRunner],
       suites,
       ...{
