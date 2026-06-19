@@ -123,6 +123,67 @@ export function resolveMigrationStubs(selected: string[]): string[] {
   return stubs
 }
 
+/** The outcome of gating a satellite selection on the Satellite ABI version. */
+export interface ApiCompatPartition {
+  /** Satellites cleared to wire, in the same (dependency-first) order received. */
+  accepted: DiscoveredSatellite[]
+  /** Satellites refused, each with the operator-facing reason to log as an error. */
+  refused: { packageName: string; reason: string }[]
+  /** Advisory messages for accepted satellites built against an older/undeclared ABI. */
+  warnings: string[]
+}
+
+/**
+ * Partition a dependency-ordered satellite list by Satellite ABI compatibility,
+ * BEFORE any of their code is wired into the host. A satellite that needs a
+ * NEWER ABI than this core provides is refused; a satellite that depends on a
+ * refused one is refused too (the input is dependency-first, so the dependency
+ * has always been seen by the time its dependent is processed — this also
+ * catches transitive chains). An OLDER or undeclared ABI is accepted with a
+ * warning.
+ *
+ * Pure: no logger, no command, no fs. `configure()` applies the side effects
+ * (logging each reason as an error, the warnings as warnings, and flipping the
+ * exit code), and tests assert the decision directly. See
+ * {@link checkSatelliteApiCompat} for the per-satellite comparison.
+ */
+export function partitionSatellitesByApiCompat(
+  ordered: DiscoveredSatellite[],
+  satIndex: Map<string, DiscoveredSatellite>,
+  coreApiVersion: number = SATELLITE_API_VERSION
+): ApiCompatPartition {
+  const accepted: DiscoveredSatellite[] = []
+  const refused: { packageName: string; reason: string }[] = []
+  const refusedNames = new Set<string>()
+  const warnings: string[] = []
+
+  for (const sat of ordered) {
+    const compat = checkSatelliteApiCompat(sat.manifest, sat.packageName, coreApiVersion)
+    if (compat.level === 'fail') {
+      refused.push({ packageName: sat.packageName, reason: compat.message })
+      refusedNames.add(sat.packageName)
+      continue
+    }
+    // A dependency was refused above. Resolve the declared name via the index,
+    // since `dependsOn` may use an alias rather than the full package name.
+    const brokenDep = (sat.manifest.dependsOn ?? [])
+      .map((d) => satIndex.get(d.pkg)?.packageName ?? d.pkg)
+      .find((pkg) => refusedNames.has(pkg))
+    if (brokenDep) {
+      refused.push({
+        packageName: sat.packageName,
+        reason: `${sat.packageName} depends on "${brokenDep}", which was refused above — skipping it too`,
+      })
+      refusedNames.add(sat.packageName)
+      continue
+    }
+    if (compat.level === 'warn') warnings.push(compat.message)
+    accepted.push(sat)
+  }
+
+  return { accepted, refused, warnings }
+}
+
 export default async function configure(command: Configure) {
   const flags = (command as any).parsed?.flags ?? {}
   const hostRoot: string = command.app.makePath()
@@ -274,34 +335,16 @@ export default async function configure(command: Configure) {
   // satellite we also refuse anything that depends on it: wiring a dependent
   // whose dependency was rejected would boot it against a missing dependency.
   if (selectedExternal.length > 0) {
-    const accepted: DiscoveredSatellite[] = []
-    const refused = new Set<string>()
-    for (const sat of selectedExternal) {
-      const compat = checkSatelliteApiCompat(sat.manifest, sat.packageName, SATELLITE_API_VERSION)
-      if (compat.level === 'fail') {
-        command.logger.error(compat.message)
-        refused.add(sat.packageName)
-        externalBatchFailed = true
-        ;(command as any).exitCode = 1
-        continue
-      }
-      // A dependency was refused above (resolve the declared name via the index,
-      // since `dependsOn` may use an alias). Topological order guarantees the
-      // dependency was already processed, so this also catches transitive chains.
-      const brokenDep = (sat.manifest.dependsOn ?? [])
-        .map((d) => satIndex.get(d.pkg)?.packageName ?? d.pkg)
-        .find((pkg) => refused.has(pkg))
-      if (brokenDep) {
-        command.logger.error(
-          `${sat.packageName} depends on "${brokenDep}", which was refused above — skipping it too`
-        )
-        refused.add(sat.packageName)
-        externalBatchFailed = true
-        ;(command as any).exitCode = 1
-        continue
-      }
-      if (compat.level === 'warn') command.logger.warning(compat.message)
-      accepted.push(sat)
+    const { accepted, refused, warnings } = partitionSatellitesByApiCompat(
+      selectedExternal,
+      satIndex,
+      SATELLITE_API_VERSION
+    )
+    for (const message of warnings) command.logger.warning(message)
+    if (refused.length > 0) {
+      for (const r of refused) command.logger.error(r.reason)
+      externalBatchFailed = true
+      ;(command as any).exitCode = 1
     }
     selectedExternal.length = 0
     selectedExternal.push(...accepted)

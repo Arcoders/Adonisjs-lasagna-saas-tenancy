@@ -73,6 +73,10 @@
       ],
       "project": ["src/**/*.ts", "http/**/*.ts"],
       "ignoreDependencies": ["pg"]
+    },
+    "packages/satellite-test-kit": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"]
     }
   }
 }

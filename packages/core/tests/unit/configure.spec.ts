@@ -3,9 +3,11 @@ import {
   parseWithFlag,
   filterUnknown,
   resolveMigrationStubs,
+  partitionSatellitesByApiCompat,
   ALL_FEATURES,
   KNOWN_FEATURES,
 } from '../../configure.js'
+import type { DiscoveredSatellite, SatelliteDependency } from '../../src/sdk/manifest.js'
 
 test.group('configure — parseWithFlag', () => {
   test('returns null for undefined and null (flag absent)', ({ assert }) => {
@@ -148,6 +150,122 @@ test.group('configure — incremental additivity', () => {
     const later = resolveMigrationStubs(['metrics', 'branding', 'feature_flags', 'quotas'])
     const overlap = first.filter((s) => later.includes(s))
     assert.deepEqual(overlap, [], 'no migration published by the first run reappears in the second')
+  })
+})
+
+test.group('configure — partitionSatellitesByApiCompat (ABI gate enforcement)', () => {
+  // The pure compat comparison itself is covered in tests/unit/sdk/api_version.spec.ts.
+  // These cases prove configure's ENFORCEMENT: which satellites it refuses to wire,
+  // the dependency-refusal cascade, and the warnings it surfaces. A fixed
+  // `coreApiVersion` keeps the assertions stable across future ABI bumps.
+  const CORE = 5
+
+  function sat(
+    packageName: string,
+    satelliteApi: number | undefined,
+    dependsOn?: SatelliteDependency[]
+  ): DiscoveredSatellite {
+    return {
+      packageName,
+      root: `/fake/${packageName}`,
+      manifest: { name: packageName, satelliteApi, dependsOn },
+    }
+  }
+
+  function indexOf(...sats: DiscoveredSatellite[]): Map<string, DiscoveredSatellite> {
+    const map = new Map<string, DiscoveredSatellite>()
+    for (const s of sats) {
+      map.set(s.packageName, s)
+      for (const alias of s.manifest.aliases ?? []) map.set(alias, s)
+    }
+    return map
+  }
+
+  test('accepts a satellite built against the exact core ABI', ({ assert }) => {
+    const ok = sat('@x/ok', CORE)
+    const result = partitionSatellitesByApiCompat([ok], indexOf(ok), CORE)
+    assert.deepEqual(
+      result.accepted.map((s) => s.packageName),
+      ['@x/ok']
+    )
+    assert.lengthOf(result.refused, 0)
+    assert.lengthOf(result.warnings, 0)
+  })
+
+  test('refuses a satellite that needs a NEWER ABI than the core provides', ({ assert }) => {
+    const tooNew = sat('@x/too-new', CORE + 1)
+    const result = partitionSatellitesByApiCompat([tooNew], indexOf(tooNew), CORE)
+    assert.lengthOf(result.accepted, 0)
+    assert.lengthOf(result.refused, 1)
+    assert.equal(result.refused[0].packageName, '@x/too-new')
+    assert.match(result.refused[0].reason, /requires Satellite ABI v6/)
+  })
+
+  test('accepts an OLDER-ABI satellite but surfaces a warning', ({ assert }) => {
+    const older = sat('@x/older', CORE - 1)
+    const result = partitionSatellitesByApiCompat([older], indexOf(older), CORE)
+    assert.deepEqual(
+      result.accepted.map((s) => s.packageName),
+      ['@x/older']
+    )
+    assert.lengthOf(result.refused, 0)
+    assert.lengthOf(result.warnings, 1)
+    assert.match(result.warnings[0], /built for Satellite ABI v4/)
+  })
+
+  test('accepts an undeclared-ABI satellite with an "unverified" warning', ({ assert }) => {
+    const undeclared = sat('@x/legacy', undefined)
+    const result = partitionSatellitesByApiCompat([undeclared], indexOf(undeclared), CORE)
+    assert.deepEqual(
+      result.accepted.map((s) => s.packageName),
+      ['@x/legacy']
+    )
+    assert.match(result.warnings[0], /does not declare/)
+  })
+
+  test('cascades the refusal: a dependent of a refused satellite is refused too', ({ assert }) => {
+    // Dependency-first order (the closure configure passes): the failing dep is
+    // seen before its dependent, so the dependent is dropped without being wired.
+    const dep = sat('@x/dep', CORE + 1) // needs a newer ABI → fail
+    const dependent = sat('@x/app', CORE, [{ pkg: '@x/dep' }])
+    const result = partitionSatellitesByApiCompat([dep, dependent], indexOf(dep, dependent), CORE)
+
+    assert.lengthOf(result.accepted, 0)
+    assert.deepEqual(result.refused.map((r) => r.packageName).sort(), ['@x/app', '@x/dep'])
+    assert.match(
+      result.refused.find((r) => r.packageName === '@x/app')!.reason,
+      /depends on "@x\/dep", which was refused above/
+    )
+  })
+
+  test('resolves a dependency alias through the index when cascading a refusal', ({ assert }) => {
+    // The dependent declares its dep via an alias; the index maps it to the real
+    // package name, so the cascade still fires.
+    const dep: DiscoveredSatellite = {
+      packageName: '@x/dep',
+      root: '/fake/dep',
+      manifest: { name: 'dep', satelliteApi: CORE + 1, aliases: ['dep-alias'] },
+    }
+    const dependent = sat('@x/app', CORE, [{ pkg: 'dep-alias' }])
+    const result = partitionSatellitesByApiCompat([dep, dependent], indexOf(dep, dependent), CORE)
+
+    assert.lengthOf(result.accepted, 0)
+    assert.deepEqual(result.refused.map((r) => r.packageName).sort(), ['@x/app', '@x/dep'])
+  })
+
+  test('keeps a healthy sibling while refusing only the incompatible one', ({ assert }) => {
+    const ok = sat('@x/ok', CORE)
+    const bad = sat('@x/bad', CORE + 2)
+    const result = partitionSatellitesByApiCompat([ok, bad], indexOf(ok, bad), CORE)
+
+    assert.deepEqual(
+      result.accepted.map((s) => s.packageName),
+      ['@x/ok']
+    )
+    assert.deepEqual(
+      result.refused.map((r) => r.packageName),
+      ['@x/bad']
+    )
   })
 })
 

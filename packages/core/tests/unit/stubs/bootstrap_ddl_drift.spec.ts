@@ -4,20 +4,23 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
- * tests/integration/bootstrap.ts hand-mirrors the table DDL that the
- * migration stubs under stubs/migrations/ scaffold into host apps. That
- * mirror has drifted before (the maintenance columns landed in the stub
- * first and the integration suite ran against a stale tenants table), so
- * this spec makes the duplication self-checking: every column a stub
- * defines for a table the bootstrap provisions must appear in the
- * bootstrap's DDL for that table. When it fails, update
- * ensureBackofficeSchema() in tests/integration/bootstrap.ts — including
- * an idempotent `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for databases
- * created before the change.
+ * The shared satellite-test-kit's ensureBackofficeSchema() hand-mirrors the
+ * table DDL that the migration stubs under stubs/migrations/ scaffold into host
+ * apps. That mirror has drifted before (the maintenance columns landed in the
+ * stub first and the integration suite ran against a stale tenants table), so
+ * this spec makes the duplication self-checking: every column a stub defines for
+ * a table the bootstrap provisions must appear in the bootstrap's DDL for that
+ * table. When it fails, update ensureBackofficeSchema() in
+ * packages/satellite-test-kit/src/bootstrap.ts — including an idempotent
+ * `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for databases created before the
+ * change. (The DDL moved out of core's tests/integration/bootstrap.ts into the
+ * kit when core and the satellites unified on one Ignitor boot path.)
  */
 
 const STUBS_DIR = fileURLToPath(new URL('../../../stubs/migrations/', import.meta.url))
-const BOOTSTRAP_PATH = fileURLToPath(new URL('../../integration/bootstrap.ts', import.meta.url))
+const BOOTSTRAP_PATH = fileURLToPath(
+  new URL('../../../../satellite-test-kit/src/bootstrap.ts', import.meta.url)
+)
 
 // Schema-builder methods that define a column. Calls like unique()/index()
 // take arrays or existing column names and never define one.
@@ -79,7 +82,7 @@ test.group('bootstrap DDL stays in sync with the migration stubs', () => {
     assert.include(
       bootstrapSource,
       'CREATE TABLE IF NOT EXISTS backoffice.tenants',
-      'bootstrap.ts no longer provisions backoffice.tenants — update this guard'
+      'the kit bootstrap no longer provisions backoffice.tenants — update this guard'
     )
 
     let comparedTables = 0
@@ -99,7 +102,7 @@ test.group('bootstrap DDL stays in sync with the migration stubs', () => {
           ddl,
           new RegExp(`\\b${column}\\b`),
           `stubs/migrations/${file} defines "${column}" on backoffice.${tableName}, ` +
-            `but the hand-mirrored DDL in tests/integration/bootstrap.ts does not mention it. ` +
+            `but the hand-mirrored DDL in satellite-test-kit/src/bootstrap.ts does not mention it. ` +
             `Add the column there (plus an idempotent ALTER TABLE ... ADD COLUMN IF NOT EXISTS ` +
             `so pre-existing local databases pick it up).`
         )

@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import { SsoService, TenantSsoConfig } from '@adonisjs-lasagna/sso'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit'
 
 test.group('SsoService (integration)', (group) => {
   const svc = new SsoService()

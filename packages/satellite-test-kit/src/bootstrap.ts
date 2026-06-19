@@ -5,29 +5,33 @@ import testUtils from '@adonisjs/core/services/test_utils'
 import { pluginAdonisJS } from '@japa/plugin-adonisjs'
 import type { Config } from '@japa/runner/types'
 
+/**
+ * The Japa plugin set every integration suite uses: assertions, the in-process
+ * HTTP client, and the AdonisJS bridge bound to the booted app singleton.
+ */
 export const plugins: Config['plugins'] = [assert(), apiClient(), pluginAdonisJS(app)]
 
 /**
  * Create the schemas and tables the integration suite expects on a clean
- * Postgres instance. CI spins up an empty `postgres:16-alpine` per job, so
- * we can't rely on prior state — we provision exactly what the helpers in
- * `tests/integration/helpers/tenant.ts` and the satellite-table services
- * need (`backoffice.tenants` plus the satellite tables exercised by the
- * branding/feature_flag/sso/metrics/webhook specs). Idempotent: running
- * twice is a no-op.
+ * Postgres instance. CI spins up an empty `postgres:16-alpine` per job, so we
+ * cannot rely on prior state: we provision exactly what the tenant helpers and
+ * the satellite services need (`backoffice.tenants` plus the satellite tables
+ * exercised by the branding/feature_flag/sso/metrics/webhook/billing specs).
+ * Idempotent: running it twice is a no-op.
+ *
+ * This is the single owner of the integration DDL. Core and every satellite
+ * boot through it, so a stub that gains a column is mirrored here once. The unit
+ * spec `tests/unit/stubs/bootstrap_ddl_drift.spec.ts` (in core) fails when a stub
+ * drifts from this mirror.
  */
-async function ensureBackofficeSchema(): Promise<void> {
+export async function ensureBackofficeSchema(): Promise<void> {
   const { default: db } = await import('@adonisjs/lucid/services/db')
   await db.rawQuery('CREATE SCHEMA IF NOT EXISTS backoffice')
-  // pgcrypto powers `gen_random_uuid()` defaults below — install once into
-  // the public schema so every table that references it can resolve the
-  // function regardless of `search_path` ordering.
+  // pgcrypto powers `gen_random_uuid()` defaults below: install once into the
+  // public schema so every table that references it resolves the function
+  // regardless of `search_path` ordering.
   await db.rawQuery('CREATE EXTENSION IF NOT EXISTS pgcrypto')
 
-  // Mirror the canonical schemas defined under stubs/migrations/. The unit
-  // spec tests/unit/stubs/bootstrap_ddl_drift.spec.ts fails when a stub
-  // gains a column this mirror lacks — when it does, add the column here
-  // (and an idempotent ALTER below for pre-existing local databases).
   const ddl = [
     `CREATE TABLE IF NOT EXISTS backoffice.tenants (
        id                  uuid PRIMARY KEY,
@@ -124,7 +128,7 @@ async function ensureBackofficeSchema(): Promise<void> {
        ip_address  varchar(255),
        created_at  timestamptz NOT NULL DEFAULT now()
      )`,
-    // Billing satellite — kept in sync with stubs/migrations/create_*.stub
+    // Billing satellite: kept in sync with stubs/migrations/create_*.stub
     `CREATE TABLE IF NOT EXISTS backoffice.tenant_plans (
        tenant_id   uuid PRIMARY KEY,
        plan_name   varchar(255) NOT NULL,
@@ -134,7 +138,7 @@ async function ensureBackofficeSchema(): Promise<void> {
      )`,
     // `provider` defaults to 'stripe' here ONLY because many billing specs
     // construct mirror rows directly (not through BillingService, which always
-    // sets it). The production stub has no default — provider is always written
+    // sets it). The production stub has no default: provider is always written
     // by the active driver. The default keeps test fixtures terse without
     // weakening the real schema.
     `CREATE TABLE IF NOT EXISTS backoffice.billing_customers (
@@ -206,9 +210,9 @@ async function ensureBackofficeSchema(): Promise<void> {
     await db.rawQuery(stmt)
   }
 
-  // Mirror the append-only trigger from the audit-logs migration stub
-  // so integration tests exercise the same enforcement that ships to
-  // host apps. Idempotent: drops and recreates on every test boot.
+  // Mirror the append-only trigger from the audit-logs migration stub so
+  // integration tests exercise the same enforcement that ships to host apps.
+  // Idempotent: drops and recreates on every test boot.
   await db.rawQuery(`
     CREATE OR REPLACE FUNCTION backoffice.tenant_audit_logs_no_mutate()
     RETURNS TRIGGER AS $$
@@ -244,11 +248,13 @@ async function ensureBackofficeSchema(): Promise<void> {
   `)
 }
 
+/** Suite-level setup/teardown: provision the backoffice schema before any spec. */
 export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
   setup: [ensureBackofficeSchema],
   teardown: [],
 }
 
+/** Start the in-process HTTP server for the `integration` suite (api-client). */
 export const configureSuite: Config['configureSuite'] = (suite) => {
   if (suite.name === 'integration') {
     return suite.setup(() => testUtils.httpServer().start())
