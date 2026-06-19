@@ -6,11 +6,11 @@ import {
   type SchemaPgDriver,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { CloneService } from '@adonisjs-lasagna/backup'
-import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 async function findTenant(id: string): Promise<TenantModelContract> {
-  const Tenant = (await import('../../fixtures/app/models/tenant.js')).default
+  const Tenant = (await import('../../../core/tests/fixtures/app/models/tenant.js')).default
   const t = await Tenant.find(id)
   if (!t) throw new Error(`tenant ${id} not found`)
   return t as unknown as TenantModelContract
@@ -143,7 +143,7 @@ test.group('CloneService — full lifecycle E2E', (group) => {
     }
     assert.isNotNull(caught, 'clone must throw when migration fails on the destination')
 
-    const Tenant = (await import('../../fixtures/app/models/tenant.js')).default
+    const Tenant = (await import('../../../core/tests/fixtures/app/models/tenant.js')).default
     const refreshed = (await Tenant.find(destination.id)) as any
     assert.equal(refreshed?.status, 'failed')
 

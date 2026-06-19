@@ -351,6 +351,12 @@ jobs:
       - name: Test (satellite integration) + coverage — sso
         run: npm run test:integration:coverage --workspace @adonisjs-lasagna/sso
 
+      # backup's integration tier: CloneService lifecycle (real PG) + the S3
+      # roundtrip against MinIO (backup_s3 self-skips without BACKUP_S3_ENDPOINT,
+      # which is set above). Reuses core's canonical fixture via the kit.
+      - name: Test (satellite integration) + coverage — backup
+        run: npm run test:integration:coverage --workspace @adonisjs-lasagna/backup
+
       # Raw V8, not lcov: the integration suite runs against build/*.js, so its
       # per-run lcov undercounts src. The coverage-report job re-reports this
       # raw data with the build source maps to attribute it back to src/*.ts.
@@ -371,6 +377,14 @@ jobs:
         with:
           name: c8-raw-sso-integration
           path: coverage/.v8/sso-integration
+          if-no-files-found: warn
+
+      - name: Upload raw satellite integration coverage (V8) — backup
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-backup-integration
+          path: coverage/.v8/backup-integration
           if-no-files-found: warn
 
   test-e2e-demo:
@@ -715,6 +729,12 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: c8-raw-sso-integration
+          path: coverage/.v8/all
+
+      - name: Download raw satellite integration coverage (V8) — backup
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-backup-integration
           path: coverage/.v8/all
 
       - name: Aggregate coverage report (unit + integration, remapped to src)

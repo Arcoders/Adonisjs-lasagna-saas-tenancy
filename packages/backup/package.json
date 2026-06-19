@@ -68,7 +68,9 @@
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
     "typecheck": "tsc --noEmit",
     "test": "tsx bin/test.ts",
-    "test:coverage": "c8 --temp-directory=../../coverage/.v8/backup-unit tsx bin/test.ts"
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/backup-unit tsx bin/test.ts",
+    "test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/backup-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
   },
   "peerDependencies": {
     "@adonisjs-lasagna/saas-tenancy": "^1.0.0",
