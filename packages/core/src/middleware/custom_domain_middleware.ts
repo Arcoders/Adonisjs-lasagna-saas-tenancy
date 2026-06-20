@@ -1,9 +1,8 @@
-import { TENANT_REPOSITORY } from '../types/contracts.js'
 import type { TenantRepositoryContract } from '../types/contracts.js'
+import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import TenantHeaderDomainMismatchException from '../exceptions/tenant_header_domain_mismatch_exception.js'
 import { getConfig } from '../config.js'
 import { primeResolvedTenant } from '../extensions/request.js'
-import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
 
@@ -29,7 +28,7 @@ export default class CustomDomainMiddleware {
   // factory resolves this class via the IoC container. The default resolves
   // the host-bound repository from the container; tests override it.
   protected getRepository(): Promise<TenantRepositoryContract> {
-    return app.container.make(TENANT_REPOSITORY as any) as Promise<TenantRepositoryContract>
+    return resolveTenantRepository()
   }
 
   async handle({ request }: HttpContext, next: NextFn, options: CustomDomainOptions = {}) {

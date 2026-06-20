@@ -1,6 +1,7 @@
 import type { ApplicationService } from '@adonisjs/core/types'
 import { Database } from '@adonisjs/lucid/database'
 import { setConfig } from '../config.js'
+import { assertConfigBounds } from './assert_config_bounds.js'
 import type { MultitenancyConfig } from '../types/config.js'
 import { BackofficeAdapter, TenantAdapter } from '../models/adapters/index.js'
 import { BackofficeBaseModel, TenantBaseModel, CentralBaseModel } from '../models/base/index.js'
@@ -89,6 +90,7 @@ export default class MultitenancyProvider {
   async boot() {
     const config = this.app.config.get<MultitenancyConfig>('multitenancy')
     this.#assertConfigShape(config)
+    assertConfigBounds(config)
     setConfig(config)
 
     BackofficeBaseModel.connection = config.backofficeConnectionName

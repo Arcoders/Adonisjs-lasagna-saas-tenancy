@@ -1,3 +1,4 @@
+export { resolveTenantRepository } from './resolve_tenant_repository.js'
 export { default as CircuitBreakerService } from './circuit_breaker_service.js'
 export type { CircuitState, CircuitMetrics } from './circuit_breaker_service.js'
 export { default as TenantQueueService } from './tenant_queue_service.js'

@@ -3,8 +3,7 @@ import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
 import BillingUsageEvent from '../models/satellites/billing_usage_event.js'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
-import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
-import type { TenantRepositoryContract } from '@adonisjs-lasagna/saas-tenancy/types'
+import { resolveTenantRepository } from '@adonisjs-lasagna/saas-tenancy/services'
 import BillingService from '../services/billing_service.js'
 
 interface ReportUsageBatchPayload {
@@ -42,7 +41,7 @@ export default class ReportUsageBatchJob extends Job<ReportUsageBatchPayload> {
       return
     }
 
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const tenant = await repo.findById(tenantId)
     if (!tenant) {
       logger.warn(

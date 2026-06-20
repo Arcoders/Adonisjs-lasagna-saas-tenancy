@@ -1,6 +1,5 @@
-import app from '@adonisjs/core/services/app'
-import { TENANT_REPOSITORY } from '../../types/contracts.js'
 import type { TenantRepositoryContract } from '../../types/contracts.js'
+import { resolveTenantRepository } from '../resolve_tenant_repository.js'
 import type {
   DoctorCheck,
   DoctorContext,
@@ -34,9 +33,7 @@ export default class DoctorService {
     options: DoctorRunOptions = {},
     repoOverride?: TenantRepositoryContract
   ): Promise<DoctorRunResult> {
-    const repo =
-      repoOverride ??
-      ((await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract)
+    const repo = repoOverride ?? (await resolveTenantRepository())
 
     const allTenants = await repo.all({ includeDeleted: true })
     const tenants =

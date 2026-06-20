@@ -1,9 +1,7 @@
 import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import app from '@adonisjs/core/services/app'
-import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
-import type { TenantRepositoryContract } from '@adonisjs-lasagna/saas-tenancy/types'
-import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { resolveTenantRepository, QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 
@@ -54,7 +52,7 @@ export default class BillingBackfill extends BaseCommand {
       return
     }
 
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
 
     const quotas = await app.container.make(QuotaService)
     let scanned = 0

@@ -9,9 +9,16 @@ import {
 import IsolationDriverRegistry from '../../../src/services/isolation/registry.js'
 import BootstrapperRegistry from '../../../src/services/bootstrapper_registry.js'
 import TenantLogContext from '../../../src/services/tenant_log_context.js'
+import {
+  findTenantByIdCached,
+  __setResolutionCacheForTests,
+  __resetResolutionCacheRefForTests,
+} from '../../../src/extensions/request.js'
+import TenantResolutionCache from '../../../src/services/tenant_resolution_cache.js'
 import { setupTestConfig } from '../../helpers/config.js'
 import { buildTestTenant } from '../../../src/testing/builders.js'
 import type { IsolationDriver } from '../../../src/services/isolation/driver.js'
+import type { TenantModelContract, TenantRepositoryContract } from '../../../src/types/contracts.js'
 
 /**
  * Backs security.md's "No singleton retention across boots":
@@ -34,11 +41,24 @@ function fakeDriver(): IsolationDriver {
   } as unknown as IsolationDriver
 }
 
+/** Repo double that counts `findById` hits, so a cache miss is observable. */
+function countingRepo() {
+  let calls = 0
+  const repo = {
+    async findById(id: string): Promise<TenantModelContract | null> {
+      calls += 1
+      return { id } as unknown as TenantModelContract
+    },
+  } as unknown as TenantRepositoryContract
+  return { repo, calls: () => calls }
+}
+
 test.group('provider shutdown — singleton cache invalidation', (group) => {
   group.each.setup(() => setupTestConfig())
   group.each.teardown(() => {
     __configureTenancyForTests({})
     __resetActiveDriverCache()
+    __resetResolutionCacheRefForTests()
   })
 
   test('drops the cached isolation-driver registry', async ({ assert }) => {
@@ -78,5 +98,24 @@ test.group('provider shutdown — singleton cache invalidation', (group) => {
     // so holding on to the old instances would be the only way to "pass".
     await assert.rejects(() => tenancy.run(tenant, async () => {}))
     assert.isUndefined(tenancy.currentId())
+  })
+
+  test('drops the cached request resolution cache', async ({ assert }) => {
+    setupTestConfig({ resolver: { cache: { enabled: true, ttlMs: 10_000 } } })
+    __setResolutionCacheForTests(new TenantResolutionCache())
+
+    const { repo, calls } = countingRepo()
+    // Warm the cache: first lookup hits the repo, the second is served from it.
+    await findTenantByIdCached(repo, 'tenant-1')
+    await findTenantByIdCached(repo, 'tenant-1')
+    assert.equal(calls(), 1)
+
+    await resetModuleCaches()
+
+    // The cached cache reference is gone, so the next lookup falls through to
+    // the repo again (re-resolving the cache from the absent unit-env container
+    // yields nothing). A retained reference would keep this at 1.
+    await findTenantByIdCached(repo, 'tenant-1')
+    assert.equal(calls(), 2)
   })
 })

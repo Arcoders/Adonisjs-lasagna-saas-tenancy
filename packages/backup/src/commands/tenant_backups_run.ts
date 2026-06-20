@@ -1,11 +1,7 @@
 import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
-import app from '@adonisjs/core/services/app'
-import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
-import type {
-  TenantRepositoryContract,
-  TenantModelContract,
-} from '@adonisjs-lasagna/saas-tenancy/types'
+import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
+import { resolveTenantRepository } from '@adonisjs-lasagna/saas-tenancy/services'
 import BackupService from '../services/backup_service.js'
 import BackupRetentionService from '../services/backup_retention_service.js'
 
@@ -44,7 +40,7 @@ export default class TenantBackupsRun extends BaseCommand {
   declare noRetention: boolean
 
   async run() {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const backups = new BackupService()
     const retention = new BackupRetentionService(backups)
 

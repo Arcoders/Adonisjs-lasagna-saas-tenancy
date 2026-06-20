@@ -1,8 +1,6 @@
 import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
-import app from '@adonisjs/core/services/app'
-import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
-import type { TenantRepositoryContract } from '@adonisjs-lasagna/saas-tenancy/types'
+import { resolveTenantRepository } from '@adonisjs-lasagna/saas-tenancy/services'
 import CloneService from '../services/clone_service.js'
 
 export default class TenantClone extends BaseCommand {
@@ -41,7 +39,7 @@ export default class TenantClone extends BaseCommand {
   declare clearSessions: boolean
 
   async run() {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const cloneService = new CloneService()
 
     let source: Awaited<ReturnType<typeof repo.findByIdOrFail>>

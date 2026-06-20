@@ -1,12 +1,8 @@
 import app from '@adonisjs/core/services/app'
 import CircuitBreakerService from '../services/circuit_breaker_service.js'
 import TenantQueueService from '../services/tenant_queue_service.js'
-import { TENANT_REPOSITORY } from '../types/contracts.js'
-import type {
-  TenantRepositoryContract,
-  TenantStatus,
-  TenantModelContract,
-} from '../types/contracts.js'
+import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
+import type { TenantStatus, TenantModelContract } from '../types/contracts.js'
 import type { MetricsSnapshot } from './metrics_exporter.js'
 
 const STATUSES: TenantStatus[] = ['provisioning', 'active', 'suspended', 'failed', 'deleted']
@@ -33,7 +29,7 @@ export async function collectSnapshot(options: CollectOptions = {}): Promise<Met
   // warn so the degradation is visible.
   if (includeTenants) {
     try {
-      const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+      const repo = await resolveTenantRepository()
       // Prefer the O(1) aggregate: the scrape only needs counts, so a host that
       // implements countByStatus lets us avoid loading (and hydrating) every
       // tenant row on every Prometheus poll. Fall back to the full scan only when

@@ -1,10 +1,12 @@
 import { Job } from '@adonisjs/queue'
 import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
-import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
-import type { TenantRepositoryContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import BackupService from '../services/backup_service.js'
-import { HookRegistry, TenantLogContext } from '@adonisjs-lasagna/saas-tenancy/services'
+import {
+  resolveTenantRepository,
+  HookRegistry,
+  TenantLogContext,
+} from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantRestored } from '@adonisjs-lasagna/saas-tenancy/events'
 
 interface RestoreTenantPayload {
@@ -19,7 +21,7 @@ export default class RestoreTenant extends Job<RestoreTenantPayload> {
     const { tenantId, fileName } = this.payload
     const logCtx = await app.container.make(TenantLogContext)
     return logCtx.run({ tenantId }, async () => {
-      const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+      const repo = await resolveTenantRepository()
       const tenant = await repo.findByIdOrFail(tenantId)
       const hooks = await app.container.make(HookRegistry)
 

@@ -1,8 +1,7 @@
 import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import app from '@adonisjs/core/services/app'
-import { TENANT_REPOSITORY } from '../types/contracts.js'
-import type { TenantRepositoryContract } from '../types/contracts.js'
+import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import HookRegistry from '../services/hook_registry.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import TenantMigrated from '../events/tenant_migrated.js'
@@ -40,7 +39,7 @@ export default class TenantMigrate extends BaseCommand {
   declare verbose: boolean
 
   async run() {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const tenants =
       this.tenantsIds && this.tenantsIds.length > 0
         ? await repo.whereIn(this.tenantsIds, true)

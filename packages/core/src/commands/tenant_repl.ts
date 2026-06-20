@@ -1,7 +1,6 @@
 import { BaseCommand, args } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
-import { TENANT_REPOSITORY } from '../types/contracts.js'
-import type { TenantRepositoryContract } from '../types/contracts.js'
+import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import AuditLogService from '../services/audit_log_service.js'
 import FeatureFlagService from '../services/feature_flag_service.js'
 import WebhookService from '../services/webhook_service.js'
@@ -22,9 +21,7 @@ export default class TenantRepl extends BaseCommand {
   declare tenantId: string
 
   async run() {
-    const repo = (await this.app.container.make(
-      TENANT_REPOSITORY as any
-    )) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const tenant = await repo.findById(this.tenantId, true)
 
     if (!tenant) {

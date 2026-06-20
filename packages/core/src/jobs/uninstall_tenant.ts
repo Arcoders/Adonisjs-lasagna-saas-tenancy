@@ -1,8 +1,7 @@
 import { Job } from '@adonisjs/queue'
 import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
-import { TENANT_REPOSITORY } from '../types/contracts.js'
-import type { TenantRepositoryContract } from '../types/contracts.js'
+import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import { DateTime } from 'luxon'
 import TenantQueueService from '../services/tenant_queue_service.js'
 import CircuitBreakerService from '../services/circuit_breaker_service.js'
@@ -22,7 +21,7 @@ export default class UninstallTenant extends Job<UninstallTenantPayload> {
     const { tenantId } = this.payload
     const logCtx = await app.container.make(TenantLogContext)
     return logCtx.run({ tenantId }, async () => {
-      const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+      const repo = await resolveTenantRepository()
       const tenant = await repo.findByIdOrFail(tenantId, true)
       const hooks = await app.container.make(HookRegistry)
 

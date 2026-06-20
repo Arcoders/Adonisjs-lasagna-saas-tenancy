@@ -1,10 +1,6 @@
-import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
-import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
-import type {
-  TenantRepositoryContract,
-  TenantModelContract,
-} from '@adonisjs-lasagna/saas-tenancy/types'
+import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
+import { resolveTenantRepository } from '@adonisjs-lasagna/saas-tenancy/services'
 
 // `validateExternalHttpsUrl` lives in core (both admin and SsoService need it).
 // Re-exported here so the admin controllers keep importing it from
@@ -22,7 +18,7 @@ export { clamp, isNonEmptyString } from './pure.js'
  * sent — the caller must `return`).
  */
 export async function loadTenantOr404(ctx: HttpContext): Promise<TenantModelContract | null> {
-  const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+  const repo = await resolveTenantRepository()
   const tenant = await repo.findById(ctx.params.id, true)
   if (!tenant) {
     ctx.response.notFound({ error: 'tenant_not_found' })

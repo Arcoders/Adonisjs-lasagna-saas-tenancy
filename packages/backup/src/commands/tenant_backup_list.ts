@@ -1,8 +1,6 @@
 import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
-import app from '@adonisjs/core/services/app'
-import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
-import type { TenantRepositoryContract } from '@adonisjs-lasagna/saas-tenancy/types'
+import { resolveTenantRepository } from '@adonisjs-lasagna/saas-tenancy/services'
 import BackupService from '../services/backup_service.js'
 
 export default class TenantBackupList extends BaseCommand {
@@ -14,7 +12,7 @@ export default class TenantBackupList extends BaseCommand {
   declare tenantId?: string
 
   async run() {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const service = new BackupService()
 
     const tenants = this.tenantId ? [await repo.findByIdOrFail(this.tenantId)] : await repo.all()

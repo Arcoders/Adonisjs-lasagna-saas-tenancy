@@ -1,12 +1,8 @@
 import app from '@adonisjs/core/services/app'
 import BootstrapperRegistry, { type BootstrapperContext } from './services/bootstrapper_registry.js'
 import TenantLogContext from './services/tenant_log_context.js'
-import { TENANT_REPOSITORY } from './types/contracts.js'
-import type {
-  TenantMetadata,
-  TenantModelContract,
-  TenantRepositoryContract,
-} from './types/contracts.js'
+import { resolveTenantRepository } from './services/resolve_tenant_repository.js'
+import type { TenantMetadata, TenantModelContract } from './types/contracts.js'
 
 /**
  * Canonical entry point for activating a tenant context outside HTTP — queue
@@ -96,9 +92,7 @@ async function current<
 >(): Promise<TenantModelContract<TMeta> | null> {
   const id = currentId()
   if (!id) return null
-  const repo = (await app.container.make(
-    TENANT_REPOSITORY as any
-  )) as TenantRepositoryContract<TMeta>
+  const repo = await resolveTenantRepository<TMeta>()
   return repo.findById(id, true)
 }
 

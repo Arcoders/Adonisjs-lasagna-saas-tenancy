@@ -1,13 +1,9 @@
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
-import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
-import type {
-  TenantRepositoryContract,
-  TenantStatus,
-  TenantModelContract,
-} from '@adonisjs-lasagna/saas-tenancy/types'
+import type { TenantStatus, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { InstallTenant } from '@adonisjs-lasagna/saas-tenancy/jobs'
 import {
+  resolveTenantRepository,
   TenantQueueService,
   DoctorService,
   HookRegistry,
@@ -55,7 +51,7 @@ function serialize(t: TenantModelContract) {
 
 export default class AdminController {
   async list({ request, response }: HttpContext) {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const includeDeleted =
       request.input('includeDeleted', false) === true || request.input('includeDeleted') === 'true'
     const status = request.input('status') as TenantStatus | undefined
@@ -69,7 +65,7 @@ export default class AdminController {
   }
 
   async show({ params, response }: HttpContext) {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id, true)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
     return response.ok({ data: serialize(tenant) })
@@ -82,7 +78,7 @@ export default class AdminController {
       return response.badRequest({ error: 'name_and_email_required' })
     }
 
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const tenant = await repo.create({ name, email, status: 'provisioning' })
     await TenantCreated.dispatch(tenant)
     await InstallTenant.dispatch({ tenantId: tenant.id })
@@ -90,7 +86,7 @@ export default class AdminController {
   }
 
   async activate({ params, response }: HttpContext) {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id, true)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
     if (tenant.isActive) return response.ok({ data: serialize(tenant), unchanged: true })
@@ -101,7 +97,7 @@ export default class AdminController {
   }
 
   async suspend({ params, response }: HttpContext) {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id, true)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
     if (tenant.isSuspended) return response.ok({ data: serialize(tenant), unchanged: true })
@@ -112,7 +108,7 @@ export default class AdminController {
   }
 
   async destroy({ params, request, response }: HttpContext) {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
 
@@ -137,7 +133,7 @@ export default class AdminController {
   }
 
   async restore({ params, response }: HttpContext) {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id, true)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
     if (!tenant.isDeleted) return response.ok({ data: serialize(tenant), unchanged: true })
@@ -148,7 +144,7 @@ export default class AdminController {
   }
 
   async queueStats({ params, response }: HttpContext) {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id, true)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
     const stats = await (await app.container.make(TenantQueueService)).getStats(tenant.id)
@@ -163,7 +159,7 @@ export default class AdminController {
   }
 
   async enterMaintenance({ params, request, response }: HttpContext) {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id, true)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
     if (typeof tenant.enterMaintenance !== 'function') {
@@ -178,7 +174,7 @@ export default class AdminController {
   }
 
   async exitMaintenance({ params, response }: HttpContext) {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id, true)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
     if (typeof tenant.exitMaintenance !== 'function') {
@@ -207,7 +203,7 @@ export default class AdminController {
       return response.unauthorized({ error: 'admin_actor_unresolved' })
     }
 
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
 

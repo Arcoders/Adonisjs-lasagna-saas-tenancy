@@ -4,8 +4,8 @@ import ImpersonationInvalidException from '../exceptions/impersonation_invalid_e
 import { getConfig } from '../config.js'
 import { tenancy } from '../tenancy.js'
 import { resolveTenant } from '../extensions/request.js'
-import { TENANT_REPOSITORY } from '../types/contracts.js'
 import type { TenantRepositoryContract } from '../types/contracts.js'
+import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import type { TenantResolveResult } from '../services/resolvers/resolver.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
@@ -38,7 +38,7 @@ export default class ImpersonationMiddleware {
 
   /** Test seam: the host's tenant repository (for the by-domain canonical id). */
   protected getRepository(): Promise<TenantRepositoryContract> {
-    return app.container.make(TENANT_REPOSITORY as any) as Promise<TenantRepositoryContract>
+    return resolveTenantRepository()
   }
 
   async handle(ctx: HttpContext, next: NextFn) {
@@ -67,7 +67,7 @@ export default class ImpersonationMiddleware {
     //     `request.tenant()` macro asserts it), so compare directly.
     //   - `domain`-typed resolution (custom domains): the request DOES name a
     //     tenant, just by host. We must resolve it to its canonical id and bind,
-    //     otherwise domain resolution would silently bypass the check (P1-2) — an
+    //     otherwise domain resolution would silently bypass the check: an
     //     A-token would attach on B's domain. If the host maps to no tenant there
     //     is nothing to bind (treated like a central route). If the lookup itself
     //     fails we cannot prove the token matches the surface, so we fail closed.

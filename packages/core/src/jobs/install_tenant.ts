@@ -1,8 +1,7 @@
 import { Job } from '@adonisjs/queue'
 import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
-import { TENANT_REPOSITORY } from '../types/contracts.js'
-import type { TenantRepositoryContract } from '../types/contracts.js'
+import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import TenantQueueService from '../services/tenant_queue_service.js'
 import HookRegistry from '../services/hook_registry.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
@@ -22,7 +21,7 @@ export default class InstallTenant extends Job<InstallTenantPayload> {
     const { tenantId } = this.payload
     const logCtx = await app.container.make(TenantLogContext)
     return logCtx.run({ tenantId }, async () => {
-      const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+      const repo = await resolveTenantRepository()
       const tenant = await repo.findByIdOrFail(tenantId)
       const hooks = await app.container.make(HookRegistry)
 

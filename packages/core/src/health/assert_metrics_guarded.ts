@@ -1,7 +1,7 @@
 import type { RouteMiddleware } from './routes.js'
 
 /**
- * Fail-closed guard for the `/metrics` endpoint (P0-2).
+ * Fail-closed guard for the `/metrics` endpoint.
  *
  * The Prometheus output carries per-tenant labels (circuit-breaker state, queue
  * depths) and tenant counts by status, so a public `/metrics` leaks tenant

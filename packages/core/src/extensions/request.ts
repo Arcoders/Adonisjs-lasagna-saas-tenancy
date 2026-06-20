@@ -1,4 +1,4 @@
-import { TENANT_REPOSITORY } from '../types/contracts.js'
+import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import type {
   TenantRepositoryContract,
   TenantModelContract,
@@ -90,7 +90,7 @@ export function __setResolutionCacheForTests(cache: TenantResolutionCache | unde
 
 /**
  * Load a tenant by id, served from the per-process resolution cache when
- * `config.resolver.cache.enabled` (P1-1).
+ * `config.resolver.cache.enabled`.
  *
  * When the cache is disabled (or unavailable before boot), this falls straight
  * through to `repo.findById(id, includeDeleted)` honouring the caller's
@@ -273,7 +273,7 @@ export function dependencyUnavailable(
       return memoized
     }
 
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
 
     const result = await resolveTenant(this)
     let tenant: TenantModelContract | null = null
@@ -304,7 +304,7 @@ export function dependencyUnavailable(
 
     if (!tenant) throw new TenantNotFoundException()
 
-    // Fail closed on lifecycle (P2-3), BEFORE connecting: a soft-deleted or
+    // Fail closed on lifecycle, BEFORE connecting: a soft-deleted or
     // suspended tenant must not be served — nor have a pool opened for it —
     // just because a route group forgot the guard middleware. The guard still
     // runs its own richer checks (provisioning/failed, maintenance bypass,

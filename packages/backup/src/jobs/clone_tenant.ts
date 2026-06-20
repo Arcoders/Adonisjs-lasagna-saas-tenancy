@@ -1,10 +1,9 @@
 import { Job } from '@adonisjs/queue'
 import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
-import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
-import type { TenantRepositoryContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import CloneService from '../services/clone_service.js'
 import {
+  resolveTenantRepository,
   TenantQueueService,
   HookRegistry,
   TenantLogContext,
@@ -25,7 +24,7 @@ export default class CloneTenant extends Job<CloneTenantPayload> {
     const { sourceTenantId, destinationTenantId, schemaOnly, clearSessions } = this.payload
     const logCtx = await app.container.make(TenantLogContext)
     return logCtx.run({ tenantId: destinationTenantId, sourceTenantId }, async () => {
-      const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+      const repo = await resolveTenantRepository()
       const [source, destination] = await Promise.all([
         repo.findByIdOrFail(sourceTenantId),
         repo.findByIdOrFail(destinationTenantId),

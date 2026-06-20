@@ -1,7 +1,7 @@
 import type { DiscoveredSatellite } from './manifest.js'
 
 /**
- * Inter-satellite dependency resolution for `configure` (B3). Pure (no fs, no
+ * Inter-satellite dependency resolution for `configure`. Pure (no fs, no
  * logger), so it is unit-testable and usable from a satellite's own configure
  * hook. Given the satellites the operator selected plus an index of everything
  * installed, it:

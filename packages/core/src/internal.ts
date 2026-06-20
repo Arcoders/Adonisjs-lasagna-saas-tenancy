@@ -10,7 +10,7 @@
  * should import from the documented surfaces (`/services`, `/types`, the root).
  * The contents here may change between minors to follow the satellites' needs.
  *
- * Stability policy (B8): anything a third-party satellite legitimately needs
+ * Stability policy: anything a third-party satellite legitimately needs
  * must ALSO live on a stable surface, so no one is forced onto this unstable
  * subpath. The pure tenant-id validators (`isUuidV4`, `assertSafeIdentifier`)
  * are now on the bare-safe `/sdk`, and `buildTestTenant` is on `/testing`. The

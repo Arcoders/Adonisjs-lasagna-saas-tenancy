@@ -5,7 +5,7 @@ import { readdir } from 'node:fs/promises'
 import { discoverSatellites, indexSatellites, migrationSlug } from '../sdk/configure_kit.js'
 
 /**
- * Print a safe, manual checklist for removing a packaged satellite (B4).
+ * Print a safe, manual checklist for removing a packaged satellite.
  *
  * Why guidance, not automation: the AdonisJS codemods API can ADD a provider /
  * command to `adonisrc.ts` but has no sanctioned removal, and migrations that

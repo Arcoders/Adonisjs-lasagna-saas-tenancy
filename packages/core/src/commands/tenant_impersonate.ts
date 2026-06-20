@@ -1,8 +1,7 @@
 import { BaseCommand, args, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import app from '@adonisjs/core/services/app'
-import { TENANT_REPOSITORY } from '../types/contracts.js'
-import type { TenantRepositoryContract } from '../types/contracts.js'
+import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import ImpersonationService from '../services/impersonation_service.js'
 import CrossDomainRedirectService from '../services/cross_domain_redirect_service.js'
 
@@ -33,7 +32,7 @@ export default class TenantImpersonate extends BaseCommand {
   declare path: string
 
   async run() {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
 
     try {
       const tenant = await repo.findByIdOrFail(this.tenantId)

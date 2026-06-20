@@ -1,5 +1,5 @@
-import { TENANT_REPOSITORY } from '../types/contracts.js'
 import type { TenantModelContract, TenantRepositoryContract } from '../types/contracts.js'
+import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import {
   resolveTenant,
   __setMemoizedTenant,
@@ -54,7 +54,7 @@ export default class UniversalMiddleware {
 
     let repo: TenantRepositoryContract | null = null
     try {
-      repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+      repo = await resolveTenantRepository()
     } catch {
       // Repo isn't bound (typical in unit tests / early boot). Silent: this
       // is expected, not a degradation.

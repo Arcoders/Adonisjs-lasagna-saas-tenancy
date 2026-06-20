@@ -1,12 +1,7 @@
 import { BaseCommand, args, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
-import app from '@adonisjs/core/services/app'
-import { TENANT_REPOSITORY } from '../types/contracts.js'
-import type {
-  TenantRepositoryContract,
-  TenantModelContract,
-  TenantStatus,
-} from '../types/contracts.js'
+import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
+import type { TenantModelContract, TenantStatus } from '../types/contracts.js'
 import { tenancy } from '../tenancy.js'
 
 /**
@@ -94,7 +89,7 @@ export default class TenantExec extends BaseCommand {
   declare dryRun: boolean
 
   async run() {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
 
     const allowedStatuses = this.#parseStatuses()
     let succeeded = 0

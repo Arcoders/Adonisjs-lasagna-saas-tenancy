@@ -1,4 +1,10 @@
 // Source: https://github.com/adonisjs/lucid/blob/develop/src/orm/adapter/index.ts
+//
+// Near-verbatim port of Lucid's own ORM adapter. The `any` return and parameter
+// types below intentionally mirror upstream's `AdapterContract` (the query
+// builder / row shapes Lucid itself leaves untyped). Keep them in lockstep with
+// upstream rather than tightening them here, or a future Lucid sync becomes a
+// painful merge for no real safety gain.
 
 import { Exception } from '@adonisjs/core/exceptions'
 import type {
