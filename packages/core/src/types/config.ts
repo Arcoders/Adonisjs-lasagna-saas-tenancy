@@ -29,6 +29,37 @@ export type TenantAccessAuthorizer = (
   tenant: TenantModelContract
 ) => boolean | Promise<boolean>
 
+/**
+ * Optional GDPR anonymizer SEAM. The package never imports your models, so YOU
+ * decide which columns are PII and how to mask them. `tenant:gdpr:anonymize`
+ * invokes this INSIDE `tenancy.run(tenant)`, so your model queries hit the
+ * tenant's own schema. Use it for Art.17 erasure-by-anonymization when a legal
+ * retention obligation means you must keep the row but strip the personal data.
+ * Honor `dryRun` (count, do not write) and return `{ affected }` for the audit
+ * trail. If this is not configured, `tenant:gdpr:anonymize` fails loudly — that
+ * is the signal your implementation is missing, not a bug.
+ *
+ * @example
+ *   compliance: {
+ *     anonymize: async ({ tenant, dryRun }) => {
+ *       const users = await User.query() // your model, not a package import
+ *       if (dryRun) return { affected: users.length }
+ *       for (const u of users) {
+ *         u.email = `redacted+${u.id}@anon.invalid`
+ *         u.fullName = 'Redacted'
+ *         u.phone = null
+ *         await u.save() // keeps non-PII rows (invoices, etc.) for legal retention
+ *       }
+ *       return { affected: users.length }
+ *     },
+ *   }
+ */
+export type TenantAnonymizer = (args: {
+  tenant: TenantModelContract
+  reason?: string
+  dryRun: boolean
+}) => Promise<{ affected?: number } | void>
+
 export type TenantResolverStrategy =
   | 'subdomain'
   | 'header'
@@ -683,6 +714,13 @@ export interface MultitenancyConfig {
      * `tenant:purge-expired` will drop it. Default: 30.
      */
     retentionDays: number
+  }
+  /**
+   * Optional compliance tooling seams. `anonymize` backs `tenant:gdpr:anonymize`
+   * (GDPR Art.17 erasure-by-anonymization). See {@link TenantAnonymizer}.
+   */
+  compliance?: {
+    anonymize?: TenantAnonymizer
   }
   plans?: PlansConfig
   /** Optional Stripe billing satellite. See {@link BillingConfig}. */

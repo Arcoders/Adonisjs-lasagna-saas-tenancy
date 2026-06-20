@@ -126,6 +126,26 @@ export default {
     retentionDays: 30,
   },
 
+  // ─── Compliance tooling seam ─────────────────────────────────────
+  // Powers `tenant:gdpr:anonymize` (GDPR Art.17 erasure-by-anonymization). The
+  // package never touches your models — YOU decide what PII is and how to mask
+  // it. This runs inside tenancy.run(tenant), so Note queries hit the tenant's
+  // own schema. Honors dryRun (count, don't write) and returns { affected } for
+  // the audit trail. Here Note stands in for a PII-bearing model.
+  compliance: {
+    anonymize: async ({ dryRun }: { dryRun: boolean }) => {
+      const { default: Note } = await import('#app/models/tenant_scoped/note')
+      const notes = await Note.all()
+      if (dryRun) return { affected: notes.length }
+      for (const note of notes) {
+        note.title = 'Redacted'
+        note.body = null
+        await note.save()
+      }
+      return { affected: notes.length }
+    },
+  },
+
   // ─── Plans + quotas ──────────────────────────────────────────────
   // The demo middleware enforceQuota('apiCallsPerDay') is wired on /demo/notes.
   plans: {

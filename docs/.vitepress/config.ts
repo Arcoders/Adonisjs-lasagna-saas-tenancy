@@ -105,6 +105,7 @@ const sidebar = [
     text: 'Production',
     items: [
       { text: 'Security', link: '/security' },
+      { text: 'Compliance (SOC2 & GDPR)', link: '/compliance' },
       { text: 'Resilience', link: '/docs/resilience' },
       { text: 'Health & monitoring', link: '/docs/health' },
       { text: 'Performance & benchmarks', link: '/docs/performance' },

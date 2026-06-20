@@ -102,5 +102,6 @@ you a queryable database; the long-term archive is your job.
 ## Read next
 
 - [Security](/security); the append-only guarantees at the SQL level.
+- [Compliance (SOC2 & GDPR)](/compliance); exporting the trail for auditors (`tenant:audit:export`) and how it maps to controls.
 - [Admin REST API](/docs/admin-rest-api); reading audit logs over HTTP.
 - [Satellites](/docs/satellites/); the rest of the opt-in features.

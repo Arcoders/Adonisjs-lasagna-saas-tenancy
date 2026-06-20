@@ -27,6 +27,8 @@ import HealthService from '../health/health_service.js'
 import { registerDefaultChecks } from '../health/default_checks.js'
 import DoctorService from '../services/doctor/doctor_service.js'
 import { builtInChecks } from '../services/doctor/checks/index.js'
+import ComplianceReportService from '../services/compliance/compliance_report_service.js'
+import { builtInControls } from '../services/compliance/controls/index.js'
 import QuotaService from '../services/quota_service.js'
 import ReadReplicaService from '../services/read_replica_service.js'
 import TenantResolutionCache from '../services/tenant_resolution_cache.js'
@@ -65,6 +67,11 @@ export default class MultitenancyProvider {
     this.app.container.singleton(DoctorService, () => {
       const svc = new DoctorService()
       for (const check of builtInChecks) svc.register(check)
+      return svc
+    })
+    this.app.container.singleton(ComplianceReportService, () => {
+      const svc = new ComplianceReportService()
+      for (const control of builtInControls) svc.register(control)
       return svc
     })
     this.app.container.singleton(QuotaService, () => new QuotaService())

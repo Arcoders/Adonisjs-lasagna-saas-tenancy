@@ -151,6 +151,10 @@ in-house, and that we already debugged:
 - **Audit, webhooks, quotas, feature flags, branding, SSO, real-time
   WebSockets, metrics, impersonation, Stripe billing.** Ten satellites,
   opt-in via the configure command.
+- **Compliance tooling.** Immutable audit export, GDPR
+  erasure-by-anonymization, and a posture report mapped to
+  SOC2/GDPR/ISO/HIPAA controls. Not a certification — the controls and
+  evidence that make passing one easier. See [Compliance](/compliance).
 
 ## Hardened against the failures that bite you in production
 

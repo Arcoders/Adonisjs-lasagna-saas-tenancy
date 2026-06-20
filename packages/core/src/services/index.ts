@@ -130,6 +130,24 @@ export type {
   DoctorRunOptions,
   DoctorRunResult,
 } from './doctor/index.js'
+export {
+  ComplianceReportService,
+  builtInControls,
+  auditImmutabilityControl,
+  secretEncryptionControl,
+  tenantIsolationControl,
+  accessAuthorizationControl,
+  dataRetentionControl,
+} from './compliance/index.js'
+export type {
+  ControlStatus,
+  ComplianceContext,
+  ControlDetection,
+  ComplianceControl,
+  ControlResult,
+  ComplianceReport,
+  ComplianceRunOptions,
+} from './compliance/index.js'
 export { default as TenantLogContext } from './tenant_log_context.js'
 export type { TenantLogContextData } from './tenant_log_context.js'
 export { tenantLogger } from './tenant_logger.js'

@@ -405,6 +405,56 @@
       ],
       "options": { "startApp": false },
       "filePath": "tenant_satellite_remove.js"
+    },
+    {
+      "commandName": "tenant:audit:export",
+      "description": "Export the immutable audit log as JSON or CSV (for auditors / GDPR data access & portability)",
+      "help": "Examples: node ace tenant:audit:export --tenant=<id> --from=2026-01-01 --to=2026-06-30 --format=csv --out=audit.csv",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenant", "flagName": "tenant", "required": false, "type": "string", "description": "Tenant ID to export. Omit to export every tenant (incl. system rows)." },
+        { "name": "from", "flagName": "from", "required": false, "type": "string", "description": "ISO 8601 lower bound on created_at (inclusive)" },
+        { "name": "to", "flagName": "to", "required": false, "type": "string", "description": "ISO 8601 upper bound on created_at (inclusive)" },
+        { "name": "format", "flagName": "format", "required": false, "type": "string", "description": "Output format: json | csv" },
+        { "name": "out", "flagName": "out", "required": false, "type": "string", "description": "Write to this file instead of stdout (overwritten if it exists)" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_audit_export.js"
+    },
+    {
+      "commandName": "tenant:gdpr:anonymize",
+      "description": "Run the host-provided anonymizer for a tenant (GDPR Art.17 erasure-by-anonymization) and record it in the audit log",
+      "help": "Requires config.compliance.anonymize. Example: node ace tenant:gdpr:anonymize <id> --reason=\"DSAR #1234\" --dry-run",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Invoke the anonymizer in dry-run mode (no writes) and report the count" },
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "alias": "y", "description": "Skip the confirmation prompt" },
+        { "name": "reason", "flagName": "reason", "required": false, "type": "string", "description": "Reason recorded in the audit log (e.g. a DSAR ticket id)" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to anonymize", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_gdpr_anonymize.js"
+    },
+    {
+      "commandName": "tenant:compliance:report",
+      "description": "Report compliance posture (SOC2/GDPR/ISO/HIPAA controls) by introspecting config and database state",
+      "help": "Examples: node ace tenant:compliance:report --json; node ace tenant:compliance:report --framework=gdpr --strict; node ace tenant:compliance:report --control=list",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "framework", "flagName": "framework", "required": false, "type": "string", "description": "Filter controls by framework: soc2 | gdpr | iso | hipaa | all (default all)" },
+        { "name": "control", "flagName": "control", "required": false, "type": "array", "description": "Run only the named control(s); pass --control=list to print available controls" },
+        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit a JSON report on stdout instead of the table" },
+        { "name": "strict", "flagName": "strict", "required": false, "type": "boolean", "description": "Exit 1 when any control reports action-needed (for CI gating)" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_compliance_report.js"
     }
   ],
   "version": 1

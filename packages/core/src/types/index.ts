@@ -2,6 +2,7 @@ export type {
   MultitenancyConfig,
   TenantResolverStrategy,
   TenantAccessAuthorizer,
+  TenantAnonymizer,
   BillingConfig,
   BackupRetentionConfig,
   BackupRetentionTier,

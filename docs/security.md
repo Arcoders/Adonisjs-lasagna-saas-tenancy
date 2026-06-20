@@ -98,6 +98,7 @@ guarantee table above is a good reference). We will acknowledge within
 
 ## Related
 
+- [Compliance (SOC2 & GDPR)](/compliance) — how these guarantees map to SOC2/GDPR/ISO/HIPAA controls, plus audit export, anonymization, and the posture report.
 - [Concepts](/docs/concepts) — connection routing, schema model, the boundary the guarantees sit on.
 - [Audit logs](/docs/satellites/audit) — append-only enforcement details.
 - [Quotas](/docs/satellites/quotas) — atomic enforcement details.

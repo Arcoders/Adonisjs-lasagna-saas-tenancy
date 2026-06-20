@@ -122,6 +122,17 @@ node ace tenant:exec --status=active db:seed
 | `tenant:metrics:flush` | Flush Redis metric counters to the database. Cron: `0 1 * * *`. |
 | `tenant:purge-expired` | Drop schemas of soft-deleted tenants past their retention window. Cron: `0 3 * * *`. |
 
+## Compliance
+
+Tooling that helps you satisfy SOC2 / GDPR / ISO 27001 / HIPAA
+controls. Full guide: [Compliance (SOC2 & GDPR)](/compliance).
+
+| Command | What it does |
+|---|---|
+| `tenant:audit:export` | Export the immutable audit log as JSON or CSV (auditors, GDPR data access & portability). `--tenant=<id>` (omit for all), `--from=<iso>`, `--to=<iso>`, `--format=json\|csv`, `--out=<file>`. Streams — safe on huge histories. |
+| `tenant:gdpr:anonymize <tenantId>` | Run your `config.compliance.anonymize` seam (GDPR Art.17 erasure-by-anonymization) and record it in the audit log. `--dry-run`, `--reason="…"`, `--force`. Fails loudly if the seam is unset. |
+| `tenant:compliance:report` | Report posture by introspecting config + DB state (triggers, encryption, isolation, access gate, retention). `--framework=soc2\|gdpr\|iso\|hipaa\|all`, `--control=<id>` (`list` to enumerate), `--json`, `--strict` (exit 1 on action-needed, for CI). |
+
 ## Satellites
 
 | Command | What it does |
