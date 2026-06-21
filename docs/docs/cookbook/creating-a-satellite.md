@@ -89,6 +89,10 @@ dependency or a cycle. Use the object form to pin a version:
 `"dependsOn": [{ "pkg": "@me/other", "range": "^1.0.0" }]` (the range is checked
 best-effort and reported as a warning).
 
+`configure` writes the satellite providers into `adonisrc.ts` in this dependency-first
+order. Do not hand-reorder that block: AdonisJS boots providers in file order, so moving a
+dependent above the dependency it relies on can start it before that dependency has booted.
+
 ## Declare the Satellite ABI you target
 
 `satelliteApi` is the version of the extension surface your satellite builds

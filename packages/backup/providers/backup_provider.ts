@@ -1,6 +1,10 @@
 import type { ApplicationService } from '@adonisjs/core/types'
 import logger from '@adonisjs/core/services/logger'
 import { DoctorService } from '@adonisjs-lasagna/saas-tenancy/services'
+import type {
+  SatelliteProviderConstructor,
+  SatelliteProviderContract,
+} from '@adonisjs-lasagna/saas-tenancy/sdk'
 import backupRecencyCheck from '../src/doctor/backup_recency_check.js'
 import backupEncryptionCheck from '../src/doctor/backup_encryption_check.js'
 import BackupTenant from '../src/jobs/backup_tenant.js'
@@ -17,7 +21,7 @@ import CloneTenant from '../src/jobs/clone_tenant.js'
  *                 package is installed.
  *  - `start()`  — register the backup jobs with the @adonisjs/queue Locator.
  */
-export default class BackupProvider {
+export default class BackupProvider implements SatelliteProviderContract {
   constructor(protected app: ApplicationService) {}
 
   async boot() {
@@ -73,3 +77,10 @@ export default class BackupProvider {
     }
   }
 }
+
+// Compile-time ABI pin: this provider's constructor AND instance must stay
+// assignable to the published Satellite contract. Any lifecycle-signature drift
+// fails `tsc` here (and at the `implements` clause), so a first-party provider
+// can never silently diverge from the ABI third-party satellites build against.
+// Runtime effect: a harmless no-op module-local, evaluated once at boot.
+const _satelliteAbiPin: SatelliteProviderConstructor = BackupProvider

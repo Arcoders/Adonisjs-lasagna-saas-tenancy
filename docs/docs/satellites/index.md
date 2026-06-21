@@ -70,7 +70,9 @@ not a feature of its own. They live here because that's where you'll look for th
 
 - Every satellite that writes to a database table goes through the
   `backoffice` schema; never the per-tenant schema. This makes
-  cross-tenant reporting and aggregate queries straightforward.
+  cross-tenant reporting and aggregate queries straightforward, and it
+  means removing a satellite is a single `migration:rollback` of its
+  backoffice tables, with nothing left behind in any per-tenant schema.
 - The audit satellite is the single point of truth for "who did
   what": impersonation writes its rows automatically, and every other
   satellite's mutations can be recorded through the same

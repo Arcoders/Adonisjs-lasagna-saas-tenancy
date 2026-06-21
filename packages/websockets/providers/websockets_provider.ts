@@ -11,7 +11,10 @@ import type {
   TenantModelContract,
   TenantRepositoryContract,
 } from '@adonisjs-lasagna/saas-tenancy/types'
-import type { SatelliteProviderContract } from '@adonisjs-lasagna/saas-tenancy/sdk'
+import type {
+  SatelliteProviderConstructor,
+  SatelliteProviderContract,
+} from '@adonisjs-lasagna/saas-tenancy/sdk'
 import TenantSocketServer from '../src/tenant_socket_server.js'
 import { resolveTenantIdFromHandshake } from '../src/resolve_from_handshake.js'
 import type { IoServer, WebSocketsConfig } from '../src/types.js'
@@ -212,3 +215,10 @@ function unavailable(code: string, message: string): Error {
 function lazyImport(specifier: string): Promise<any> {
   return (Function('s', 'return import(s)') as (s: string) => Promise<any>)(specifier)
 }
+
+// Compile-time ABI pin: this provider's constructor AND instance must stay
+// assignable to the published Satellite contract. Any lifecycle-signature drift
+// fails `tsc` here (and at the `implements` clause), so a first-party provider
+// can never silently diverge from the ABI third-party satellites build against.
+// Runtime effect: a harmless no-op module-local, evaluated once at boot.
+const _satelliteAbiPin: SatelliteProviderConstructor = WebSocketsProvider

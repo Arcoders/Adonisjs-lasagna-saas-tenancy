@@ -64,6 +64,8 @@ export default class TenantSatelliteRemove extends BaseCommand {
       log.log('2. These migrations were published by this satellite. Roll them back, then delete:')
       for (const f of published) log.log(`     database/migrations/${f}`)
       log.log("   (back up first — rolling back DROPs the satellite's backoffice tables.)")
+      log.log("   This satellite's tables all live in the shared backoffice schema, so this")
+      log.log('   rollback is the complete table cleanup. Nothing remains in a per-tenant schema.')
     } else {
       log.log('2. No published migrations from this satellite were found in database/migrations.')
     }

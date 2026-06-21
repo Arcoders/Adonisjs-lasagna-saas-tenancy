@@ -3,6 +3,10 @@ import logger from '@adonisjs/core/services/logger'
 import { HookRegistry } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantQuotaExceeded, QuotaTracked } from '@adonisjs-lasagna/saas-tenancy/events'
 import type { MultitenancyConfig } from '@adonisjs-lasagna/saas-tenancy/types'
+import type {
+  SatelliteProviderConstructor,
+  SatelliteProviderContract,
+} from '@adonisjs-lasagna/saas-tenancy/sdk'
 import BillingService from '../src/services/billing_service.js'
 import BillingDriverRegistry from '../src/services/billing/billing_driver_registry.js'
 import type { BillingProviderContract } from '../src/contracts/billing_provider_contract.js'
@@ -27,7 +31,7 @@ import ReportUsageBatchJob from '../src/jobs/report_usage_batch_job.js'
  *                    to core events + lifecycle hooks.
  *  - `shutdown()`  — drain the in-memory metering aggregator.
  */
-export default class BillingProvider {
+export default class BillingProvider implements SatelliteProviderContract {
   constructor(protected app: ApplicationService) {}
 
   register() {
@@ -171,3 +175,10 @@ export default class BillingProvider {
     }
   }
 }
+
+// Compile-time ABI pin: this provider's constructor AND instance must stay
+// assignable to the published Satellite contract. Any lifecycle-signature drift
+// fails `tsc` here (and at the `implements` clause), so a first-party provider
+// can never silently diverge from the ABI third-party satellites build against.
+// Runtime effect: a harmless no-op module-local, evaluated once at boot.
+const _satelliteAbiPin: SatelliteProviderConstructor = BillingProvider
