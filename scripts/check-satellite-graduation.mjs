@@ -14,6 +14,11 @@
  *
  *   - version >= 1.0.0
  *   - an own .c8rc.json with `check-coverage: true` (a real coverage gate)
+ *   - a declared `lasagnaSatellite.minMergedCoverage` floor at the graduation
+ *     bar (lines >= MIN_MERGED_LINES). The numeric value is enforced by
+ *     check-satellite-coverage.mjs in the coverage job (which has the merged
+ *     unit+integration lcov); here we only assert it is DECLARED and at the bar,
+ *     so an RC satellite can never ship without opting into the per-satellite gate.
  *   - `lasagnaSatellite.satelliteApi` is a positive integer (in the ABI net)
  *   - an `adonisjs.configure` hook (so `node ace configure <pkg>` works)
  *   - a CHANGELOG.md
@@ -29,6 +34,11 @@ import { join } from 'node:path'
 const STABILITY_DOC = 'docs/docs/stability.md'
 const PACKAGES_DIR = 'packages'
 const SATELLITE_DOCS_DIR = 'docs/docs/satellites'
+
+// The graduation bar for per-satellite MERGED (unit+integration) line coverage.
+// Kept in sync with scripts/check-satellite-coverage.mjs, which enforces the
+// actual number against the merged lcov.
+const MIN_MERGED_LINES = 60
 
 const doc = readFileSync(STABILITY_DOC, 'utf8')
 
@@ -70,6 +80,26 @@ for (const dir of readdirSync(PACKAGES_DIR)) {
   } else {
     const c8 = JSON.parse(readFileSync(c8Path, 'utf8'))
     if (c8['check-coverage'] !== true) fail('.c8rc.json does not set check-coverage: true')
+  }
+
+  // declared merged-coverage floor. The numeric value is enforced by
+  // scripts/check-satellite-coverage.mjs in the coverage job (which has the
+  // merged lcov); here we assert it is DECLARED and at the bar, so an RC
+  // satellite can never ship without opting into the per-satellite merged gate.
+  const merged = pkg.lasagnaSatellite.minMergedCoverage
+  if (!merged || typeof merged !== 'object') {
+    fail('missing lasagnaSatellite.minMergedCoverage (no per-satellite merged coverage floor)')
+  } else {
+    for (const metric of ['lines', 'functions', 'branches']) {
+      if (typeof merged[metric] !== 'number') {
+        fail(`lasagnaSatellite.minMergedCoverage.${metric} must be a number`)
+      }
+    }
+    if (typeof merged.lines === 'number' && merged.lines < MIN_MERGED_LINES) {
+      fail(
+        `lasagnaSatellite.minMergedCoverage.lines (${merged.lines}) is below the graduation bar of ${MIN_MERGED_LINES}`
+      )
+    }
   }
 
   // ABI-versioned manifest

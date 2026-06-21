@@ -77,6 +77,42 @@ right default for availability, but it is invisible unless you subscribe to
 `DependencyDegraded`. Choose `fail-closed` where correctness beats uptime.
 :::
 
+## The tenant circuit breaker
+
+The per-tenant circuit breaker is a separate mechanism from the dependency
+policies above, and it answers a common production worry directly: **a Redis
+outage cannot take it down.**
+
+The decision is in-memory and per-tenant. Each tenant gets its own in-process
+opossum breaker that trips on real `SELECT 1` probes against *that tenant's*
+database connection. When a tenant's DB starts failing, its breaker opens and the
+tenant fails fast (no more 5-second-timeout probes) while every healthy tenant is
+untouched. Redis is **not** in this decision path.
+
+Redis is used for one thing only: a best-effort cache of the OPEN state across
+process restarts, so a tenant whose DB was down stays OPEN through a deploy
+instead of re-learning it from scratch. Every read and write of that cache is
+wrapped in a try/catch that logs a warning and carries on. So when Redis is
+unavailable:
+
+- The breaker keeps working entirely from memory. It does not fail open, and it
+  does not fail closed.
+- Persisting a state change (open, close, half-open) logs a warning and moves on.
+- Restoring on startup logs a warning and the breaker simply starts CLOSED, then
+  re-learns the tenant's health from its next probe.
+
+The only degraded case is narrow: if the process restarts *during* a Redis
+outage, the persisted OPEN state is lost, so the first request to that tenant
+pays one bounded `circuitBreaker.resetTimeout` before the breaker re-trips. That
+is the same bounded delay described in
+[circuit breaker reopens after a restart](/docs/gotchas#circuit-breaker-reopens-after-a-restart),
+and it is deliberate.
+
+The path is covered end to end: a unit test asserts the full open/reset/destroy
+cycle never throws with no Redis bound, and an integration test forces the wired
+Redis to reject every command and proves the breaker still opens, resets, and
+restores without throwing.
+
 ## The exception
 
 A `fail-closed` dependency throws `DependencyUnavailableException` instead of a

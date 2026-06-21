@@ -26,13 +26,16 @@ the only thing to check is the resolver default at the end.
 
 1.0 narrows its promise on purpose. The isolation **core** is a release
 candidate: feature complete and green in CI, with the `stable` label withheld
-until an independent security review and production mileage close. The satellites
-(billing, SSO, the admin REST API, backup, and the opt-in in-core features like
-quotas, webhooks, and metrics) are **experimental** and are not covered by the
-1.x semver promise, so they may change in a minor release. The full breakdown and
-the per-tier rules are in the [stability matrix](/docs/stability). Pin your
-versions accordingly and check the changelog before upgrading an experimental
-surface.
+until an independent security review and production mileage close. The satellite
+**packages** (billing, SSO, the admin REST API, backup, websockets) are release
+candidates too: each cleared the same graduation gate as the core (frozen
+Satellite ABI, its own merged coverage floor, doc page, CHANGELOG), so they sit
+under the 1.x semver promise. The opt-in **in-core features** (quotas, webhooks,
+metrics, audit logs, branding, feature flags, impersonation) are still
+**experimental** and are not covered by that promise, so they may change in a
+minor release. The full breakdown and the per-tier rules are in the
+[stability matrix](/docs/stability). Pin your versions accordingly and check the
+changelog before upgrading an experimental surface.
 
 ## 1. Install the satellites you use
 

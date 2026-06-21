@@ -88,7 +88,7 @@ The isolation substrate. Everything here is **release candidate** unless noted.
 | Tenant resolution (subdomain / path / header) | Release candidate | Always via `resolveTenantId()`. |
 | `TenantAdapter` + base-model routing | Release candidate | |
 | Connection LRU, budget, optional hard cap | Release candidate | `enforceConnectionCap` defaults `false`; see [scaling limits](/docs/scaling-limits). |
-| Circuit breaker | Release candidate | OPEN state restored from Redis across restarts. |
+| Circuit breaker | Release candidate | In-memory and per-tenant; survives a Redis outage. See [resilience](/docs/resilience#the-tenant-circuit-breaker). |
 | Dependency resilience (`ResilienceService`, 503 fail-closed) | Release candidate | A resolved tenant whose DB is down returns a typed 503, never central. |
 | Contextual logging (`AsyncLocalStorage`) | Release candidate | |
 | Tenant lifecycle (provision / migrate), hooks, lifecycle events | Release candidate | |
@@ -119,15 +119,24 @@ satellite is published as `>=1.0.0`, so the version string a consumer reads off
 npm matches the semver promise this page makes. CI enforces the agreement
 mechanically: `scripts/check-stability-versions.mjs` parses this page, and
 `scripts/check-satellite-graduation.mjs` verifies each satellite meets the
-graduation gate (coverage gate, manifest, configure hook, CHANGELOG, doc page,
-version) before it can carry the `release candidate` label.
+graduation gate (coverage gate, merged-coverage floor, manifest, configure hook,
+CHANGELOG, doc page, version) before it can carry the `release candidate` label.
 
 Each satellite cleared the same graduation bar: an own coverage gate
-(`.c8rc.json`) with unit tests over its security-critical core, an
+(`.c8rc.json`) with unit tests over its security-critical core, a declared
+per-satellite **merged** (unit + integration) coverage floor enforced in CI
+(`scripts/check-satellite-coverage.mjs`), so a controller-heavy satellite whose
+handlers are exercised by the integration tier is still held to a real number; an
 auto-describable `lasagnaSatellite` manifest at the frozen Satellite ABI
 (`satelliteApi: 1`), green `publint` + `arethetypeswrong`, a doc page, and a
 CHANGELOG. As with the core, `release candidate` (not `stable`) reflects the two
 still-open items: an independent security review and production mileage.
+
+**What graduates an in-core opt-in feature to `release candidate`?** The same
+bar, scoped to a feature rather than a package: its own coverage at the
+graduation floor, a doc page, a stable public surface, and a CHANGELOG entry. The
+opt-in features listed above (quotas, webhooks, metrics, audit logs, branding,
+feature flags, impersonation) stay `experimental` until they clear it.
 
 ## How to read this if you are adopting
 
@@ -135,9 +144,15 @@ still-open items: an independent security review and production mileage.
   ground: the core. Pin the version, follow the [deployment](/docs/deployment)
   and [security](/security) guides, and you are leaning only on what is tested
   and gated in CI.
-- Reaching for a satellite (billing, SSO, admin, backup, quotas, webhooks, and
-  the rest)? Treat it as `experimental`: it works and is covered by tests, but
-  pin the version and read the changelog before each upgrade.
+- Reaching for a satellite *package* (billing, SSO, admin, backup, websockets)?
+  You are on `release-candidate` ground too: each cleared the graduation gate
+  above (frozen Satellite ABI, its own merged coverage floor, doc page, and
+  CHANGELOG). Pin the version and read the changelog before each upgrade, the
+  same as the core.
+- Using an in-core opt-in feature (quotas, webhooks, metrics, audit logs,
+  branding, feature flags, impersonation)? Those are still `experimental`: they
+  work and are covered by tests, but they are not under the 1.x semver promise,
+  so pin the version and read the changelog before each upgrade.
 - Watch this page. As the security review and production mileage close, the core
   moves to `stable` and the matrix is updated in the same change.
 

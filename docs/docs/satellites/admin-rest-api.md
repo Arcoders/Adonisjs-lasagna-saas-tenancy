@@ -28,6 +28,18 @@ curl -H "Authorization: Bearer $TOKEN" \
   https://app.example.com/admin/multitenancy/tenants
 ```
 
+For a concrete starting point, the demo app ships a minimal example at
+`examples/api/app/middleware/demo_admin_auth_middleware.ts` (a header check
+against an env token). Treat it as an illustration of *where* the guard goes, not
+a production auth primitive: swap it for your real session, bearer, or mTLS check.
+
+One footgun the boot guard closes for you: a pattern like
+`middleware: authEnabled ? [adminAuth] : []` would, when the flag is off, mount
+the destructive routes public while *looking* guarded. The startup check rejects
+an empty middleware array the same way it rejects an omitted one, so "looks
+guarded but is public" cannot happen. Going public is only possible by writing
+`middleware: false` on purpose.
+
 ### CSRF
 
 The admin API does **not** apply CSRF protection itself. If you mount it behind a

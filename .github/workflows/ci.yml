@@ -109,6 +109,51 @@ jobs:
           path: coverage/.v8/unit
           if-no-files-found: warn
 
+      # Each satellite's UNIT V8 (written by its test:coverage to
+      # coverage/.v8/<sat>-unit above). The coverage-report job merges these with
+      # each satellite's integration V8 so check-satellite-coverage.mjs can gate a
+      # real per-satellite MERGED number. One flat artifact per satellite (like the
+      # integration uploads) so they extract flat into the shared temp dir.
+      - name: Upload raw satellite unit coverage (V8) — sso
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-sso-unit
+          path: coverage/.v8/sso-unit
+          if-no-files-found: warn
+
+      - name: Upload raw satellite unit coverage (V8) — backup
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-backup-unit
+          path: coverage/.v8/backup-unit
+          if-no-files-found: warn
+
+      - name: Upload raw satellite unit coverage (V8) — admin
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-admin-unit
+          path: coverage/.v8/admin-unit
+          if-no-files-found: warn
+
+      - name: Upload raw satellite unit coverage (V8) — billing
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-billing-unit
+          path: coverage/.v8/billing-unit
+          if-no-files-found: warn
+
+      - name: Upload raw satellite unit coverage (V8) — websockets
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-websockets-unit
+          path: coverage/.v8/websockets-unit
+          if-no-files-found: warn
+
       # Full report (unused exports / orphaned files / deps) stays informational.
       - name: Knip (unused-code report)
         run: npm run knip
@@ -791,6 +836,40 @@ jobs:
           name: c8-raw-billing-integration
           path: coverage/.v8/all
 
+      # Satellite UNIT V8, merged into the same temp dir so each satellite's
+      # MERGED (unit+integration) src coverage is what check-satellite-coverage.mjs
+      # gates below. websockets has no integration tier here (it runs in the WS e2e
+      # job without coverage), so its merged number is unit-only (see the gate).
+      - name: Download raw satellite unit coverage (V8) — sso
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-sso-unit
+          path: coverage/.v8/all
+
+      - name: Download raw satellite unit coverage (V8) — backup
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-backup-unit
+          path: coverage/.v8/all
+
+      - name: Download raw satellite unit coverage (V8) — admin
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-admin-unit
+          path: coverage/.v8/all
+
+      - name: Download raw satellite unit coverage (V8) — billing
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-billing-unit
+          path: coverage/.v8/all
+
+      - name: Download raw satellite unit coverage (V8) — websockets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-websockets-unit
+          path: coverage/.v8/all
+
       - name: Aggregate coverage report (unit + integration, remapped to src)
         run: npm run coverage:report
 
@@ -808,11 +887,32 @@ jobs:
         # pure-helper extraction added functions the integration tier only
         # partially exercises, so its floor stays at 78. Keep a small margin
         # under the measured numbers and re-check a real run before ratcheting.
+        # NOTE: these numbers predate the per-satellite gate work, which also
+        # merges each satellite's UNIT V8 into this lcov (including websockets
+        # src, new to the aggregate). The shift is expected to be small and
+        # net-positive, but re-measure on the next full run before ratcheting.
         env:
           COV_MIN_LINES: '81' # measured ~82.7%
           COV_MIN_FUNCTIONS: '78' # measured ~78.9%
           COV_MIN_BRANCHES: '78' # measured ~78.5%
         run: node scripts/coverage-gate.mjs coverage/lcov.info
+
+      # Per-satellite MERGED coverage gate: buckets coverage/lcov.info by
+      # packages/<sat>/src and checks each RC satellite against the floor it
+      # declares in package.json (lasagnaSatellite.minMergedCoverage). This is
+      # the honest "is this satellite RC-worthy" number, because it counts the
+      # integration tier, which is where controller-heavy satellites (admin) are
+      # actually exercised.
+      #
+      # FIRST RUN IS REPORT-ONLY (SATELLITE_COV_REPORT_ONLY=1): the floors above
+      # are conservative placeholders. Read the printed per-satellite numbers from
+      # this step, ratchet each satellite's minMergedCoverage just under its
+      # measured actual (lines stays >= 60, the graduation bar), then DELETE the
+      # env line below to flip this into an enforcing gate.
+      - name: Per-satellite merged coverage gate
+        env:
+          SATELLITE_COV_REPORT_ONLY: '1'
+        run: node scripts/check-satellite-coverage.mjs coverage/lcov.info
 
       - name: Upload combined coverage
         if: always()

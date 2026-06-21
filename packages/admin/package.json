@@ -41,6 +41,7 @@
   "lasagnaSatellite": {
     "name": "admin",
     "satelliteApi": 1,
+    "minMergedCoverage": { "lines": 60, "functions": 50, "branches": 50 },
     "aliases": ["admin"],
     "install": [
       "npm install @adonisjs-lasagna/admin"

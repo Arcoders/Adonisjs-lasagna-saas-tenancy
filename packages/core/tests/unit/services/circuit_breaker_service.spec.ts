@@ -150,3 +150,28 @@ test.group('CircuitBreakerService — state transitions', (group) => {
     assert.isFalse(svc.isOpen('reset-force-tenant'))
   })
 })
+
+test.group('CircuitBreakerService — works without Redis (null seam)', (group) => {
+  group.each.setup(() => setupTestConfig())
+
+  // Documents the Concern 3 claim at the unit tier: with no Redis bound,
+  // lazyRedis() resolves to null and the persist/restore calls short-circuit, so
+  // a breaker still force-opens, resets, destroys, and reports state without
+  // throwing. The Redis-DOWN path (calls that reject mid-flight, hitting the
+  // catch+log branches) is covered by the integration spec
+  // circuit_breaker_service_redis_down.spec.ts.
+  test('full open -> reset -> destroy cycle never throws with no Redis', async ({ assert }) => {
+    const svc = new CircuitBreakerService()
+    const breaker = svc.getCircuit('no-redis-tenant')
+
+    assert.doesNotThrow(() => breaker.open())
+    assert.isTrue(svc.isOpen('no-redis-tenant'))
+    assert.equal(svc.getMetrics('no-redis-tenant')!.state, 'OPEN')
+
+    assert.doesNotThrow(() => svc.reset('no-redis-tenant'))
+    assert.isFalse(svc.isOpen('no-redis-tenant'))
+
+    await assert.doesNotReject(() => svc.destroy('no-redis-tenant'))
+    assert.isNull(svc.getMetrics('no-redis-tenant'))
+  })
+})

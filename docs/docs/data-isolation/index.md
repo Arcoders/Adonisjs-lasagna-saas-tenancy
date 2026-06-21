@@ -68,6 +68,35 @@ flowchart TB
   end
 ```
 
+## Why isolation holds under concurrency
+
+A fair worry with multitenancy is whether two tenants hammering the server at
+once can ever cross over. For the default `schema-pg` driver, three properties
+make that structurally impossible, not merely unlikely:
+
+- **One pool per tenant, `searchPath` baked into the connection config.** Each
+  tenant's `tenant_<uuid>` connection is created with its schema already set as
+  the `searchPath`. The package never runs a shared `SET search_path` on a pooled
+  connection, so there is no per-query mutation for a concurrent request to race.
+- **Pools are keyed by `tenant_<uuid>`.** A query for tenant A can only draw a
+  connection from tenant A's pool, so a warm pool for B can never serve A's query.
+- **`AsyncLocalStorage` keeps `tenancy.currentId()` accurate across `await`.**
+  Interleaved `await` points and `Promise.all` fan-out do not bleed one request's
+  tenant context into another.
+
+This is backed by tests, not just argument: a 16-way parallel `tenancy.run()`
+scope test proves the context never bleeds, the cross-tenant e2e fires 100
+interleaved HTTP writes across 5 tenants with a direct-DB read-back, and a fuzz
+spec scales that to roughly 1000 interleaved writes across 10 tenants. Every one
+asserts that a tenant's schema holds only its own rows.
+
+This argument is specific to `schema-pg` (and `database-pg`, which goes further
+with a whole database per tenant). The `rowscope-pg` driver is different by
+design: it shares one connection and scopes every query by a `tenant_id` filter
+(with an optional RLS backstop), so its isolation rests on the query-scoping
+mixin rather than on per-tenant pools. See
+[rowscope-pg](/docs/data-isolation/rowscope-pg).
+
 ## Choosing a driver
 
 - **Strict isolation, easy backups, easy per-tenant restore** →
