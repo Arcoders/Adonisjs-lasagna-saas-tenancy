@@ -192,9 +192,17 @@ test.group('Stripe Test Clocks — real billing cycle', (group) => {
       email: `clock+${runId}@example.test`,
       metadata: { ...SOURCE_META, run_id: runId, tenantId: tenant.id },
     })
-    await stripe.paymentMethods.attach('pm_card_visa', { customer: customer.id })
+    // Attaching the shared `pm_card_visa` token clones it into a real, customer-
+    // scoped PaymentMethod (pm_…). Reuse that concrete id for the default and on
+    // the subscription — passing the shared token string again makes Stripe
+    // resolve a *fresh* unattached clone ("customer does not have payment method
+    // pm_…"), which is exactly what broke this smoke when Stripe stopped
+    // deduplicating the token per customer.
+    const paymentMethod = await stripe.paymentMethods.attach('pm_card_visa', {
+      customer: customer.id,
+    })
     await stripe.customers.update(customer.id, {
-      invoice_settings: { default_payment_method: 'pm_card_visa' },
+      invoice_settings: { default_payment_method: paymentMethod.id },
     })
 
     // Local mirror — syncSubscription resolves the tenant by providerCustomerId.
@@ -207,7 +215,7 @@ test.group('Stripe Test Clocks — real billing cycle', (group) => {
     const subscription = await stripe.subscriptions.create({
       customer: customer.id,
       items: [{ price: price.id }],
-      default_payment_method: 'pm_card_visa',
+      default_payment_method: paymentMethod.id,
       metadata: { ...SOURCE_META, run_id: runId },
     })
 
