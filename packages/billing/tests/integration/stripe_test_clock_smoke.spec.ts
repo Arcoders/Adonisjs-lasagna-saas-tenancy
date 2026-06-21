@@ -346,10 +346,14 @@ test.group('Stripe Test Clocks — real billing cycle', (group) => {
       await replay(client, created!, webhookSecret)
 
       // Swap the subscription onto a card that fails when charged, so the next
-      // renewal invoice fails instead of paying.
-      await stripe.paymentMethods.attach('pm_card_chargeCustomerFail', { customer: ctx.customerId })
+      // renewal invoice fails instead of paying. Reuse the concrete attached id,
+      // not the shared token string (Stripe only resolves the token in `attach`;
+      // passing it as `default_payment_method` errors "No such PaymentMethod").
+      const failingPm = await stripe.paymentMethods.attach('pm_card_chargeCustomerFail', {
+        customer: ctx.customerId,
+      })
       await stripe.subscriptions.update(ctx.subscriptionId, {
-        default_payment_method: 'pm_card_chargeCustomerFail',
+        default_payment_method: failingPm.id,
       })
 
       const advanceFrom = Math.floor(Date.now() / 1000) - 5
