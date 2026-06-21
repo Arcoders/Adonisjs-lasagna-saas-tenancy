@@ -1,6 +1,6 @@
 ---
 title: Compliance (SOC2 & GDPR)
-description: How Lasagna's audit, isolation, encryption, retention, and erasure tooling maps to SOC2, GDPR, ISO 27001, and HIPAA controls — and what the host application still owns.
+description: How Lasagna's audit, isolation, encryption, retention, and erasure tooling maps to SOC2, GDPR, ISO 27001, and HIPAA controls, and what the host application still owns.
 ---
 
 # Compliance: SOC2 & GDPR
@@ -9,8 +9,8 @@ description: How Lasagna's audit, isolation, encryption, retention, and erasure 
 Using Lasagna does <strong>not</strong> make you SOC2 certified or GDPR
 compliant. Certification is earned by the <em>organization that deploys the
 software</em>, never by a dependency. What Lasagna gives you is the
-<strong>controls and the evidence</strong> — immutable audit, encryption of
-secrets, tenant isolation, retention, and erasure tooling — so your auditors
+<strong>controls and the evidence</strong> (immutable audit, encryption of
+secrets, tenant isolation, retention, and erasure tooling), so your auditors
 have fewer questions and your team designs fewer controls from scratch.
 </Callout>
 
@@ -30,12 +30,12 @@ primitive; you wire it into your environment and processes.
 
 | Control | Lasagna feature | What you own |
 |---|---|---|
-| **CC6.1** logical access | [`authorizeTenantAccess`](/security) membership gate + [tenant isolation](/docs/data-isolation) | Identity/membership source, full RBAC |
+| **CC6.1** logical access | [`authorizeTenantAccess`](/security) membership gate + [tenant isolation](/docs/data-isolation/) | Identity/membership source, full RBAC |
 | **CC6.7** encryption at rest | Stored secrets encrypted AES-256-GCM; rotation via `tenant:secrets:reencrypt` | App-data encryption + backup/volume encryption |
 | **CC7.2** system monitoring | [Append-only audit log](/docs/satellites/audit) + `tenant:doctor` + [metrics/health](/docs/health) | Alerting, SIEM, on-call |
 | **CC7.3** evaluating events | `tenant:audit:export` (evidence for investigators) | Investigation & response process |
 | **CC8.1** change management | Versioned per-tenant migrations + `doctor` schema-drift | CI/CD approvals, change records |
-| **C1** confidentiality | [Isolation drivers](/docs/data-isolation) (`schema-pg` / `database-pg` / `rowscope-pg`) | Data classification |
+| **C1** confidentiality | [Isolation drivers](/docs/data-isolation/) (`schema-pg` / `database-pg` / `rowscope-pg`) | Data classification |
 
 ## GDPR
 
@@ -78,7 +78,7 @@ Lasagna encrypts <strong>stored secrets</strong> only.
 To encrypt application data at rest, that is the host's job: encrypt the volume
 or disk, use database-level transparent encryption (TDE), or column-level
 encryption (`pgcrypto`). Encrypt backup storage (the volume or the S3 bucket)
-separately. Rotating `APP_KEY` re-keys stored secrets — run
+separately. Rotating `APP_KEY` re-keys stored secrets; run
 `OLD_APP_KEY=<previous> node ace tenant:secrets:reencrypt` as part of any
 rotation.
 
@@ -86,7 +86,7 @@ rotation.
 
 `tenant:gdpr:anonymize` is a **seam**, not a turnkey command. The package never
 imports your models, so **you** decide what counts as PII and how to mask it. If
-`config.compliance.anonymize` is not set, the command fails loudly — that means
+`config.compliance.anonymize` is not set, the command fails loudly: that means
 your implementation is missing, not that the command is broken.
 
 Use it for Art.17 erasure-by-anonymization when a legal retention obligation
@@ -132,7 +132,7 @@ node ace tenant:gdpr:anonymize <tenantId> --reason="DSAR #1234"
 ```
 
 Every run (success, dry-run, or failure) writes a `gdpr.anonymize` entry to the
-append-only audit log — your evidence that the erasure right was exercised.
+append-only audit log: your evidence that the erasure right was exercised.
 Advanced patterns: salted deterministic hashing (to preserve joins), an identity
 tombstone, or fanning out to downstream copies via the `TenantAnonymized` event.
 
@@ -152,17 +152,17 @@ snapshot, `tenant:audit:export` for the activity record. Gate CI with
 
 **Retention.** Set `softDelete.retentionDays` explicitly and schedule
 `tenant:purge-expired` on a cron. Audit-log retention runs under a separate
-privileged role — see [Audit logs → Retention](/docs/satellites/audit#retention).
+privileged role; see [Audit logs → Retention](/docs/satellites/audit#retention).
 
 **Data residency.** Use the [`database-pg`](/docs/data-isolation/database-pg)
 driver to place each tenant in its own database (and region).
 
 ## The compliance report
 
-`tenant:compliance:report` introspects real state — it checks the audit
+`tenant:compliance:report` introspects real state: it checks the audit
 immutability triggers are installed, `APP_KEY` is set, which isolation driver is
 active, whether `authorizeTenantAccess` is wired, and whether a retention window
-is configured — and maps each to the controls above.
+is configured, then maps each to the controls above.
 
 It is a **registry of controls**, like `tenant:doctor`'s checks: satellites
 register their own controls on boot, so the report stays current as you add
@@ -178,7 +178,7 @@ node ace tenant:compliance:report --control=list  # enumerate controls
 
 ## Read next
 
-- [Security](/security) — the guarantees these controls build on.
-- [Audit logs](/docs/satellites/audit) — append-only enforcement and retention.
-- [Data isolation](/docs/data-isolation) — choosing schema/database/row scoping.
-- [Production checklist](/docs/production-checklist) — the hardening runbook.
+- [Security](/security); the guarantees these controls build on.
+- [Audit logs](/docs/satellites/audit); append-only enforcement and retention.
+- [Data isolation](/docs/data-isolation/); choosing schema/database/row scoping.
+- [Production checklist](/docs/production-checklist); the hardening runbook.

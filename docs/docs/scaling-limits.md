@@ -13,7 +13,7 @@ you can plan before you hit it.
 The single most important sizing fact: **open connections scale with
 concurrently *active* tenants, not with `maxTenantConnections`.** The default
 soft cap never severs a connection inside the 30 s grace window, so a burst of
-N active tenants opens ~N pools, bounded only by PostgreSQL `max_connections` —
+N active tenants opens ~N pools, bounded only by PostgreSQL `max_connections`,
 and exhausting `max_connections` takes down everything, not just the burst.
 Size `max_connections` for your peak concurrent-tenant count, front Postgres
 with PgBouncer at higher tenant counts, and consider `enforceConnectionCap:
@@ -129,7 +129,7 @@ The claims above are validated empirically by the benchmark suite in
 - `database-pg` tenant read: **616 req/s** (p99 52.0 ms)
 - `schema-pg` tenant read: **609 req/s** (p99 56.0 ms)
 
-**Connection budget** (under the default 30s grace, open connections track N, not the cap — front with PgBouncer):
+**Connection budget** (under the default 30s grace, open connections track N, not the cap; front with PgBouncer):
 
 - _no memory results yet_
 

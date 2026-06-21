@@ -1,6 +1,6 @@
 ---
 title: Authentication
-description: How tenant auth composes with the package — bring your own auth, resolve the tenant first, and let tenant-scoped user models route to the right schema automatically.
+description: How tenant auth composes with the package; bring your own auth, resolve the tenant first, and let tenant-scoped user models route to the right schema automatically.
 ---
 
 # Authentication
@@ -49,7 +49,7 @@ your non-tenant routes, declared with `router.central()` (see
 
 ## Admin API authentication
 
-The [Admin REST API](/docs/admin-rest-api) is **fail-closed**: it refuses to
+The [Admin REST API](/docs/satellites/admin-rest-api) is **fail-closed**: it refuses to
 mount without an auth middleware you provide, and it asks for a
 `resolveAdminActor` callback so every privileged action is attributed to a real
 operator in the audit log. The package never assumes who your admins are; you

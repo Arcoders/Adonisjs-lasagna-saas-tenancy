@@ -58,6 +58,14 @@ To build your own, see [Creating a satellite](/docs/cookbook/creating-a-satellit
 | [Billing](/docs/satellites/billing) | Stripe integration — idempotent webhook, dunning, metered, checkout/portal, lifecycle hook. | `stripe_customers`, `stripe_subscriptions`, `stripe_processed_events`, `stripe_meter_events` |
 | [Impersonation](/docs/satellites/impersonation) | Admin enters a tenant as a target user, time-boxed and audited. | Redis (no DB row) |
 
+<Callout type="note" title="Also documented in this section">
+[Backup](/docs/satellites/backup) and [Admin](/docs/satellites/admin) appear in
+this section's sidebar but aren't tenant-attached feature satellites like the ten
+above. Backup is an operational concern (`pg_dump` with retention tiers, shipped as
+`@adonisjs-lasagna/backup`); Admin is the shared REST surface the satellites expose,
+not a feature of its own. They live here because that's where you'll look for them.
+</Callout>
+
 ## Cross-satellite invariants
 
 - Every satellite that writes to a database table goes through the
@@ -87,5 +95,5 @@ installed with `--with=<package>`. See
 ## Read next
 
 Pick a satellite from the table above, or look at the
-[admin REST API](/docs/admin-rest-api) for the HTTP surface they
+[admin REST API](/docs/satellites/admin-rest-api) for the HTTP surface they
 share.

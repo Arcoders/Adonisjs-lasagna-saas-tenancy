@@ -8,7 +8,7 @@ description: Tenant-stamped outbound mail via tenantMailer(). Per-tenant transpo
 Auto-detected when `@adonisjs/mail` is installed. It validates the
 tenant id at scope entry (the id lands in outbound message headers)
 and gives you `tenantMailer()`, a mailer handle that stamps
-`X-Tenant-Id` on every message it sends — so bounces, provider logs,
+`X-Tenant-Id` on every message it sends, so bounces, provider logs,
 and webhook events can always be traced back to the tenant.
 
 ## What it does
@@ -29,7 +29,7 @@ same way.
 ## Per-tenant transports and From addresses
 
 Selecting a different SMTP transport or `from` address per tenant is
-deliberately a host-app decision — the package can't know where your
+deliberately a host-app decision; the package can't know where your
 credentials live or what your deliverability setup looks like. Pass
 the transport name yourself, resolved however you like:
 

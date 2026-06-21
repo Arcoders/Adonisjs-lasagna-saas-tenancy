@@ -71,7 +71,7 @@ export class MyDriver implements IsolationDriver {
 
 ## Registering it
 
-Plug the driver into the registry from your provider — the registry
+Plug the driver into the registry from your provider; the registry
 keys it by `driver.name`:
 
 ```ts

@@ -52,5 +52,5 @@ features:
       width: 30
       height: 30
     title: Compliance-ready
-    details: Immutable audit, secret encryption, tenant isolation, retention, audit export, and GDPR anonymization — mapped to SOC2/GDPR/ISO/HIPAA controls. Not a certification; the controls and evidence that make one easier.
+    details: Immutable audit, secret encryption, tenant isolation, retention, audit export, and GDPR anonymization, mapped to SOC2/GDPR/ISO/HIPAA controls. Not a certification; the controls and evidence that make one easier.
 ---

@@ -7,7 +7,7 @@ description: Per-tenant email sender identity and presentation values (logo, col
 
 Stores tenant-customisable presentation values used when composing email and
 rendering tenant-facing UI: a sender name and address, a logo URL, a primary
-color, a support URL, and a free-form email footer. It holds **no secrets** —
+color, a support URL, and a free-form email footer. It holds **no secrets**:
 mail transport (SMTP host/credentials) is a host-app concern; see the
 [mail bootstrapper](/docs/bootstrappers/mail).
 
@@ -59,7 +59,7 @@ const ctx = branding.renderEmailContext(current)
 
 ## Custom domains
 
-Custom domains are **not** a branding concern — the hostname lives on the tenant
+Custom domains are **not** a branding concern; the hostname lives on the tenant
 model (`custom_domain`), and `CustomDomainMiddleware` queries the repository
 (`findByDomain(host)`) to resolve it. See
 [tenant identification](/docs/tenant-identification).
@@ -69,12 +69,13 @@ model (`custom_domain`), and `CustomDomainMiddleware` queries the repository
 Branding stores no credentials, so there is nothing here to encrypt or rotate.
 If your app does encrypt tenant secrets, the `utils/crypto.ts` helpers
 (`AES-256-GCM` keyed on `APP_KEY`) and the `tenant:secrets:reencrypt` command
-(which rotates the package's encrypted columns — webhook signing secrets and SSO
+(which rotates the package's encrypted columns, webhook signing secrets and SSO
 client secrets) are the supported path; add any new encrypted column to that
 command's table list.
 
 
 ## Read next
 
-- [Admin REST API](/docs/admin-rest-api); managing branding over HTTP.
+- [Admin REST API](/docs/satellites/admin-rest-api); managing branding over HTTP.
+- [Production checklist](/docs/production-checklist); the hardening runbook before you ship.
 - [Satellites](/docs/satellites/); the rest of the opt-in features.

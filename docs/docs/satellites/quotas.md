@@ -8,7 +8,7 @@ description: Plan-bound limits served as middleware. Rolling-day counters and sn
 Per-plan limits enforced via the `enforceQuota` middleware factory. Two
 counter modes: **rolling-day** (a 48-hour TTL counter you increment on
 every request) and **snapshot** (a watermark you update when something
-external changes — seats, storage). Over-quota requests respond with
+external changes, like seats or storage). Over-quota requests respond with
 HTTP **429 Too Many Requests** (`E_TENANT_QUOTA_EXCEEDED`).
 
 ## Configuration
@@ -27,13 +27,13 @@ Plan *definitions* (names + limits) are declared in
 `config/multitenancy.ts` under the `plans` key. Which plan a tenant is
 *on* resolves through `plans.storage`:
 
-- `'config-only'` — your `plans.getPlan(tenant)` callback decides;
+- `'config-only'`: your `plans.getPlan(tenant)` callback decides;
   `assignPlan()` is a no-op.
-- `'tenant_plans'` — assignments live in the backoffice `tenant_plans`
+- `'tenant_plans'`: assignments live in the backoffice `tenant_plans`
   table; `QuotaService.assignPlan(tenant, plan)` writes it (this is
   what the billing satellite calls when a subscription changes), and
   resolution falls back to that row when `getPlan` is undefined.
-- `'auto'` (default) — probe at boot: use the table if it exists, else
+- `'auto'` (default): probe at boot, using the table if it exists, else
   config-only.
 
 ```ts
@@ -54,14 +54,14 @@ export default defineConfig({
 ```
 
 `PlanDefinition.limits` is `Record<string, number>`. The same key is
-used by both rolling and snapshot quotas — the mode is decided by which
+used by both rolling and snapshot quotas; the mode is decided by which
 service method you call (`track` vs. `setUsage`), not by the plan
 config.
 
 ## Middleware
 
 The package exports an `enforceQuota(quotaName, options?)` factory.
-Apply it per-route, not globally — `TenantGuardMiddleware` must run
+Apply it per-route, not globally; `TenantGuardMiddleware` must run
 first so `request.tenant()` is available.
 
 ```ts
@@ -95,7 +95,7 @@ The middleware:
 > **Atomicity.** `consume` runs a single Redis `EVAL` (Lua) script
 > that GETs the counter, compares against the limit, and `INCRBY`s
 > only when the increment would still fit. Because Redis serializes
-> script execution, concurrent callers cannot over-grant the quota —
+> script execution, concurrent callers cannot over-grant the quota;
 > the limit is enforced exactly. Snapshot quotas (`setUsage`) are
 > not part of this atomic check; enforce those at the write site.
 
@@ -150,7 +150,7 @@ it falls back to the snapshot value.
 
 Plan resolution happens on every request (`getPlan(tenant)`). Changing
 the plan resolver's return value shifts the limits immediately, but the
-**counters are not reset** — a tenant upgrading from `starter` to `pro`
+**counters are not reset**; a tenant upgrading from `starter` to `pro`
 keeps its existing usage and just gets more headroom. To zero a counter
 explicitly, call `quotas.reset(tenant, quotaName)` or use the admin
 endpoint below.
@@ -165,7 +165,7 @@ PUT    /admin/multitenancy/tenants/{id}/quotas/usage   # set a snapshot value
 POST   /admin/multitenancy/tenants/{id}/quotas/reset   # reset rolling + snapshot
 ```
 
-There is no endpoint to assign a plan — the plan is resolved by your
+There is no endpoint to assign a plan; the plan is resolved by your
 `plans.getPlan(tenant)` callback, so the source of truth is wherever
 you store the tenant's plan column / metadata.
 
@@ -174,4 +174,5 @@ you store the tenant's plan column / metadata.
 
 - [Lifecycle events](/docs/events); the `TenantQuotaExceeded` event.
 - [Configuration](/docs/configuration); the plan and quota options.
+- [Production checklist](/docs/production-checklist); the hardening runbook before you ship.
 - [Satellites](/docs/satellites/); the rest of the opt-in features.

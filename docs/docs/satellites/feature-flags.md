@@ -87,7 +87,7 @@ node ace tenant:feature-flag:delete <tenantId> <flag> [--force]
 ```
 
 `get` and `list` read the database directly. `set` and `delete` go through the
-service so they invalidate the shared cache — they need Redis reachable.
+service so they invalidate the shared cache; they need Redis reachable.
 
 ## Admin REST
 
@@ -113,6 +113,7 @@ rejected with `400 invalid_expires_at`. Omitting it clears any stored expiry
 
 ## Read next
 
-- [Admin REST API](/docs/admin-rest-api); toggling flags over HTTP.
+- [Admin REST API](/docs/satellites/admin-rest-api); toggling flags over HTTP.
 - [Configuration](/docs/configuration); the flag defaults.
+- [Production checklist](/docs/production-checklist); the hardening runbook before you ship.
 - [Satellites](/docs/satellites/); the rest of the opt-in features.

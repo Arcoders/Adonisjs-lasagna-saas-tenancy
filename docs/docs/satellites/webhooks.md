@@ -35,7 +35,7 @@ const { hook, generatedSecret } = await webhooks.registerWebhook(
 ```
 
 The URL is validated against the SSRF guard at registration AND again
-at delivery time — loopback, private ranges, cloud-metadata IPs, and
+at delivery time: loopback, private ranges, cloud-metadata IPs, and
 every numeric encoding of them are refused.
 
 ## Sending
@@ -50,7 +50,7 @@ await webhooks.dispatch(tenant.id, 'subscription.upgraded', {
 The dispatch enqueues a job that POSTs the payload with:
 
 - `content-type: application/json`
-- `x-webhook-signature: <hex>` — HMAC-SHA256 over the raw body using
+- `x-webhook-signature: <hex>` is HMAC-SHA256 over the raw body using
   the per-subscription secret. Plain hex digest, no `sha256=` prefix.
 - `x-webhook-event: <event>`
 - `x-delivery-id: <uuid>`
@@ -58,7 +58,7 @@ The dispatch enqueues a job that POSTs the payload with:
 ## Verifying on the receiver
 
 The package exports a constant-time helper. Use this rather than
-rolling your own — naive `===` comparisons leak timing, and
+rolling your own; naive `===` comparisons leak timing, and
 re-serializing the body before hashing produces a different digest:
 
 ```ts
@@ -74,7 +74,7 @@ router.post('/webhooks/inbound', async ({ request, response }) => {
 })
 ```
 
-Pass the EXACT bytes your framework received — not a re-serialized
+Pass the EXACT bytes your framework received, not a re-serialized
 object. Re-stringifying through `JSON.parse` + `JSON.stringify`
 changes the digest.
 
@@ -125,13 +125,20 @@ Idempotent.
 ```http
 GET    /admin/multitenancy/tenants/{id}/webhooks
 POST   /admin/multitenancy/tenants/{id}/webhooks
+PUT    /admin/multitenancy/tenants/{id}/webhooks/{webhookId}
 DELETE /admin/multitenancy/tenants/{id}/webhooks/{webhookId}
 GET    /admin/multitenancy/tenants/{id}/webhooks/{webhookId}/deliveries
+POST   /admin/multitenancy/tenants/{id}/webhooks/deliveries/{deliveryId}/retry
 ```
 
+The `retry` route is the manual-replay action referenced above: it re-validates
+the stored URL against the SSRF guard and re-sends the delivery immediately,
+returning the updated row. Use it for a one-off replay; the
+`tenant:webhooks:retry` cron handles the automatic backoff schedule.
 
 ## Read next
 
 - [Lifecycle events](/docs/events); the events that drive deliveries.
-- [Admin REST API](/docs/admin-rest-api); managing subscriptions over HTTP.
+- [Admin REST API](/docs/satellites/admin-rest-api); managing subscriptions over HTTP.
+- [Production checklist](/docs/production-checklist); the hardening runbook before you ship.
 - [Satellites](/docs/satellites/); the rest of the opt-in features.

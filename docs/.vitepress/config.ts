@@ -98,7 +98,7 @@ const sidebar = [
       { text: 'Backup', link: '/docs/satellites/backup' },
       { text: 'Impersonation', link: '/docs/satellites/impersonation' },
       { text: 'Admin', link: '/docs/satellites/admin' },
-      { text: 'Admin REST API', link: '/docs/admin-rest-api' },
+      { text: 'Admin REST API', link: '/docs/satellites/admin-rest-api' },
     ],
   },
   {

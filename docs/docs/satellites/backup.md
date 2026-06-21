@@ -84,6 +84,7 @@ conservative:
 
 ## Read next
 
-- [Doctor](/docs/doctor); the `backup_recency` and `backup_encryption` checks.
+- [Doctor](/docs/commands#doctor); the `backup_recency` and `backup_encryption` checks.
 - [Deployment](/docs/deployment); the client-tool and storage requirements.
+- [Production checklist](/docs/production-checklist); the hardening runbook before you ship.
 - [Creating a satellite](/docs/cookbook/creating-a-satellite); how this package is built.

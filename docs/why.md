@@ -153,7 +153,7 @@ in-house, and that we already debugged:
   opt-in via the configure command.
 - **Compliance tooling.** Immutable audit export, GDPR
   erasure-by-anonymization, and a posture report mapped to
-  SOC2/GDPR/ISO/HIPAA controls. Not a certification — the controls and
+  SOC2/GDPR/ISO/HIPAA controls. Not a certification, but the controls and
   evidence that make passing one easier. See [Compliance](/compliance).
 
 ## Hardened against the failures that bite you in production
@@ -164,11 +164,11 @@ every guarantee in the list below against real Postgres, real Redis,
 real BullMQ; no mocks, no in-memory shortcuts.
 
 - **Cross-tenant isolation under HTTP concurrency.** Interleaved
-  requests across N tenants writing and reading their own rows —
+  requests across N tenants writing and reading their own rows,
   zero cross-reads, verified end-to-end.
 - **Quota atomicity.** `consume()` runs inside a single Redis Lua
   script. 50 parallel callers against `limit=10` produce exactly
-  ten successes and forty `QuotaExceededException`. No race window —
+  ten successes and forty `QuotaExceededException`. No race window
   while Redis is up; on an outage the configurable resilience policy
   decides between availability and enforcement.
 - **SSO replay protection.** OIDC `state` is consumed via atomic
@@ -179,7 +179,7 @@ real BullMQ; no mocks, no in-memory shortcuts.
   inside the tenant's own schema.
 - **Header-vs-domain hijack.** `customDomain()` is strict by
   default: it rejects a request whose `x-tenant-id` disagrees with
-  the custom-domain match — 400 `E_TENANT_HEADER_DOMAIN_MISMATCH`,
+  the custom-domain match, returning 400 `E_TENANT_HEADER_DOMAIN_MISMATCH`,
   not a silent override.
 - **Rate-limit fails closed.** Redis down means 503, never silent
   fail-open. Opt into `failOpen: true` only if your threat model
@@ -190,13 +190,13 @@ real BullMQ; no mocks, no in-memory shortcuts.
   without going through that helper.
 - **Doctor checks against real state.** `long_running_queries`,
   `replica_lag`, `queue_health` run in CI against a live Postgres /
-  BullMQ — not mocked clocks.
+  BullMQ, not mocked clocks.
 
 The list above is the *current* verification surface; every item has a spec
 under [`packages/core/tests/integration/`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/tree/master/packages/core/tests/integration).
 If you spot a tenancy guarantee that should be on it and isn't,
-[open an issue](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues)
-— the verification is iterative.
+[open an issue](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues);
+the verification is iterative.
 
 ## When not to use Lasagna
 

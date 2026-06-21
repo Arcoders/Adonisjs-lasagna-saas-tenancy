@@ -8,7 +8,7 @@ description: AsyncLocalStorage-backed tenant context that rides through HTTP, qu
 Threading `tenantId` through every function call by hand is the kind
 of work that quietly disappears as soon as someone forgets it on a
 new code path. Lasagna binds the active tenant to Node's
-`AsyncLocalStorage` so the tag rides on the call stack instead — log
+`AsyncLocalStorage` so the tag rides on the call stack instead: log
 lines, audit rows, and downstream services see the tenant id without
 you passing it.
 
@@ -29,7 +29,7 @@ await tenancy.run(tenant, async () => {
 ```
 
 Inside an HTTP request, `TenantGuardMiddleware` already wraps the
-handler in `tenancy.run(...)` for you — every controller, service,
+handler in `tenancy.run(...)` for you; every controller, service,
 and Lucid call inherits the binding without ceremony. Outside HTTP
 (queue jobs, scheduled commands, REPL scripts), you wrap the entry
 point yourself.
@@ -48,7 +48,7 @@ log.info({ orderId: order.id }, 'Order created')
 ```
 
 Outside any `tenancy.run()` scope, `tenantLogger()` returns the
-plain root logger. There's no penalty for calling it everywhere — if
+plain root logger. There's no penalty for calling it everywhere: if
 no context is active, no extra fields are attached.
 
 The wrapper uses Pino's native `child(bindings)` API, so the
@@ -110,7 +110,7 @@ tenancy.currentId()          // string | undefined — synchronous, cheap
 await tenancy.current()      // TenantModelContract | null — hits the repository
 ```
 
-For one-off log enrichment, use `currentId()` — synchronous, no
+For one-off log enrichment, use `currentId()`: synchronous, no
 container resolution, no DB call:
 
 ```ts
@@ -120,7 +120,7 @@ if (tenantId) span.setAttribute('tenant.id', tenantId)
 
 For full tenant data in scheduled jobs or background services, use
 `tenancy.current()`. It uses `findById(id, true)` so soft-deleted
-tenants resolve too — useful in cleanup or audit code.
+tenants resolve too, which is useful in cleanup or audit code.
 
 ## Nested scopes
 
@@ -143,7 +143,7 @@ Every tenant bootstrapper (cache, drive, mail, session, broadcasting)
 implements `enter(ctx)` / `leave(ctx)` and is invoked by
 `tenancy.run()` via the `BootstrapperRegistry`. So inside a
 `tenancy.run()` scope, the cache namespace, mailer, drive prefix, and
-session keys are all already pointing at the active tenant — without
+session keys are all already pointing at the active tenant, without
 extra wiring. See the [Bootstrappers overview](/docs/bootstrappers/).
 
 ## Testing
@@ -152,7 +152,7 @@ extra wiring. See the [Bootstrappers overview](/docs/bootstrappers/).
 directly:
 
 ```ts
-import TenantLogContext from '@adonisjs-lasagna/saas-tenancy/services'
+import { TenantLogContext } from '@adonisjs-lasagna/saas-tenancy/services'
 
 test('audit row carries the active tenant', async ({ assert }) => {
   const ctx = new TenantLogContext()
@@ -169,8 +169,8 @@ and the no-bleed guarantee at scope exit.
 
 ## Related
 
-- [Jobs](/docs/jobs) — every built-in job wraps work in `tenancy.run()`
-- [Concepts](/docs/concepts) — how AsyncLocalStorage interacts with
+- [Jobs](/docs/jobs); every built-in job wraps work in `tenancy.run()`
+- [Concepts](/docs/concepts); how AsyncLocalStorage interacts with
   per-tenant Lucid connections
-- [Lifecycle events](/docs/events) — listeners run inside the dispatching
+- [Lifecycle events](/docs/events); listeners run inside the dispatching
   scope, so `tenancy.currentId()` is available without extra plumbing

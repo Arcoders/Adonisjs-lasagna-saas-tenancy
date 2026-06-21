@@ -24,7 +24,7 @@ npm run test:integration  # builds + runs integration tests against ./build/
 
 The integration suite runs against real PostgreSQL and Redis. The
 fastest way to bring those up is the example app's compose file
-(Postgres on 55432, Redis on 56379 — the test fixtures point at those
+(Postgres on 55432, Redis on 56379; the test fixtures point at those
 ports already):
 
 ```bash

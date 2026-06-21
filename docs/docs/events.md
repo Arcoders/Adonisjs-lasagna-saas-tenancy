@@ -53,6 +53,7 @@ stateDiagram-v2
 | `TenantEnteredMaintenance` | `tenant`, `message: string \| null` | `tenant:maintenance` command, `POST .../maintenance` |
 | `TenantExitedMaintenance` | `tenant` | `tenant:maintenance --off`, `DELETE .../maintenance` |
 | `TenantDeleted` | `tenant` | `tenant:destroy` command, `UninstallTenant` job, `POST .../tenants/:id/destroy` |
+| `TenantAnonymized` | `tenant`, `details: { reason?, affected? }` | `tenant:gdpr:anonymize` command, real run only (never on `--dry-run`) |
 
 ::: tip TenantUpdated
 The class is exported and ready to dispatch from host code (e.g. an
@@ -106,7 +107,7 @@ and a best-effort error code. No driver message, no PII.
 
 ## Subscribing
 
-Register listeners during boot — usually inside a service provider's
+Register listeners during boot, usually inside a service provider's
 `boot()` hook so they're attached before any tenant request hits the
 container:
 
@@ -158,8 +159,8 @@ sibling listeners still run. If you need ordering or want one bad
 listener to block the others, dispatch through a queue job instead of
 listening inline.
 
-For batch use cases — long-running mailers, webhook fan-out, large
-DB writes — push the work onto a tenant queue from inside the
+For batch use cases (long-running mailers, webhook fan-out, large
+DB writes), push the work onto a tenant queue from inside the
 listener so the dispatch path stays cheap:
 
 ```ts
@@ -194,7 +195,7 @@ The integration suite covers every event in
 
 ## Related
 
-- [Jobs](/docs/jobs) — most events are dispatched from inside a job
-- [Quotas](/docs/satellites/quotas) — source of `TenantQuotaExceeded`
-- [Contextual logging](/docs/contextual-logging) — listener log lines
+- [Jobs](/docs/jobs); most events are dispatched from inside a job
+- [Quotas](/docs/satellites/quotas); source of `TenantQuotaExceeded`
+- [Contextual logging](/docs/contextual-logging); listener log lines
   inherit the active `tenantId`

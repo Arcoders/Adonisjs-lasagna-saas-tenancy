@@ -6,7 +6,7 @@ description: Structured per-tenant audit trail. Queryable by date range, indexed
 # Audit logs
 
 A tamper-proof, per-tenant audit trail with actor, payload, and IP
-address — queryable by date range via the admin REST API. The
+address, queryable by date range via the admin REST API. The
 package provides the storage, the immutability guarantees, and the
 `AuditLogService.log()` API; *what* gets recorded is mostly your
 call.
@@ -16,9 +16,9 @@ call.
 - Impersonation sessions: `admin:impersonate:start`,
   `admin:impersonate:first-use`, and `admin:impersonate:stop`.
 
-That is the only built-in writer today. Everything else — tenant
+That is the only built-in writer today. Everything else (tenant
 lifecycle transitions, webhook changes, branding/SSO updates, quota
-breaches — is recorded by *your* code via `audit.log()`; the
+breaches) is recorded by *your* code via `audit.log()`; the
 [lifecycle hooks](/docs/hooks) and [events](/docs/events) give you
 clean attachment points:
 
@@ -35,8 +35,8 @@ hooks: {
 You opt-in via `node ace configure @adonisjs-lasagna/saas-tenancy
 --with=audit`. The migration creates `tenant_audit_logs` in the
 backoffice schema with an index on `(tenant_id, created_at)` AND
-three PostgreSQL triggers — `BEFORE UPDATE`, `BEFORE DELETE`, and
-`BEFORE TRUNCATE` — that all `RAISE EXCEPTION`. **Audit rows are
+three PostgreSQL triggers (`BEFORE UPDATE`, `BEFORE DELETE`, and
+`BEFORE TRUNCATE`) that all `RAISE EXCEPTION`. **Audit rows are
 append-only at the database level**: a compromised tenant role or
 buggy controller cannot rewrite or erase evidence.
 
@@ -67,13 +67,13 @@ curl -H "x-admin-token: $TOKEN" \
 
 The `from` and `to` parameters expect ISO 8601 dates and rely on the
 `(tenant_id, created_at)` index. Results are page/limit paginated
-(limit capped at 200) — narrow the date range for tenants with very
+(limit capped at 200), so narrow the date range for tenants with very
 deep histories rather than walking far pages.
 
 ## Retention
 
 Because the table is append-only, you can't `DELETE FROM
-tenant_audit_logs` directly — the trigger will reject it. Two
+tenant_audit_logs` directly; the trigger will reject it. Two
 supported patterns:
 
 **Ship to a long-term store, then purge under controlled access.**
@@ -89,7 +89,7 @@ DELETE FROM backoffice.tenant_audit_logs WHERE created_at < now() - interval '90
 ALTER TABLE backoffice.tenant_audit_logs ENABLE TRIGGER tenant_audit_logs_no_delete;
 ```
 
-**Or partition by month** and `DETACH` + `DROP` old partitions —
+**Or partition by month** and `DETACH` + `DROP` old partitions;
 `DROP TABLE` doesn't fire the row-level triggers, so the partition
 itself can be archived to S3 and dropped without disabling
 anything. This is the recommended pattern for high-volume tenants.
@@ -98,10 +98,36 @@ Most teams ship audit rows to a long-term store (Loki, BigQuery,
 S3) and prune the operational table to 90 days. The package gives
 you a queryable database; the long-term archive is your job.
 
+## Exporting the trail
+
+When an auditor or a GDPR Art.15 / Art.20 request needs the raw trail,
+`tenant:audit:export` streams it out as JSON or CSV. It writes in batches, so a
+tenant with millions of rows is never held in memory.
+
+```bash
+# One tenant, a date window, as CSV, written to a file
+node ace tenant:audit:export \
+  --tenant=$ID --from=2026-01-01 --to=2026-03-31 \
+  --format=csv --out=audit-q1.csv
+
+# Every tenant (including system rows) as JSON, piped to gzip
+node ace tenant:audit:export --format=json | gzip > audit-all.json.gz
+```
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--tenant` | all tenants | Omit to export every tenant, including `system` rows. |
+| `--from` / `--to` | unbounded | ISO 8601 bounds on `created_at`, inclusive. |
+| `--format` | `json` | `json` or `csv`. |
+| `--out` | stdout | Write to a file instead. With no `--out`, the data stream is the only stdout output, so it stays pipe-friendly. |
+
+For how the export maps to specific SOC2 and GDPR controls, see
+[Compliance](/compliance).
 
 ## Read next
 
 - [Security](/security); the append-only guarantees at the SQL level.
 - [Compliance (SOC2 & GDPR)](/compliance); exporting the trail for auditors (`tenant:audit:export`) and how it maps to controls.
-- [Admin REST API](/docs/admin-rest-api); reading audit logs over HTTP.
+- [Admin REST API](/docs/satellites/admin-rest-api); reading audit logs over HTTP.
+- [Production checklist](/docs/production-checklist); the hardening runbook before you ship.
 - [Satellites](/docs/satellites/); the rest of the opt-in features.

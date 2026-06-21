@@ -1,6 +1,6 @@
 ---
 title: Installation & configuration
-description: The complete reference — requirements matrix, the configure command and its flags, database connections, middleware, and the tenant repository binding.
+description: The complete reference; requirements matrix, the configure command and its flags, database connections, middleware, and the tenant repository binding.
 ---
 
 # Installation & configuration
@@ -174,7 +174,7 @@ target the rate-limit codepath itself must opt in with
 Two attribution notes when running behind a proxy or CDN:
 
 - Buckets are keyed per tenant **and per client IP**, and the IP comes from
-  `request.ip()` — which honours `X-Forwarded-For` only according to your
+  `request.ip()`, which honours `X-Forwarded-For` only according to your
   app's `trustProxy` config. A misconfigured `trustProxy` lets a client mint
   unlimited fresh buckets by spoofing the header; verify it before relying on
   rate limits for abuse protection.

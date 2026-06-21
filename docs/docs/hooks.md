@@ -1,6 +1,6 @@
 ---
 title: Hooks
-description: Run your own code before and after tenant lifecycle operations — provision, destroy, migrate, backup, restore, and clone — programmatically or declaratively from config.
+description: Run your own code before and after tenant lifecycle operations (provision, destroy, migrate, backup, restore, and clone) programmatically or declaratively from config.
 ---
 
 # Hooks

@@ -107,7 +107,7 @@ node ace backoffice:setup
 
 `metrics` needs nothing else; its `/metrics` endpoint is served when you mount
 `multitenancyRoutes({ metricsMiddleware: middleware.auth() })` (the operational
-health routes). `/metrics` is fail-closed — it leaks tenant enumeration + KPIs,
+health routes). `/metrics` is fail-closed because it leaks tenant enumeration + KPIs,
 so the call throws unless you pass `metricsMiddleware` (or `metricsMiddleware:
 false` to mount it public behind a trusted network boundary). See
 [Health & metrics](/docs/health). `quotas` prints a `plans` block to paste into

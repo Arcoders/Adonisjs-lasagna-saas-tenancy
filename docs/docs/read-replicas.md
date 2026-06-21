@@ -71,7 +71,7 @@ if (conn) {
 you write code that works the same in dev (no replicas) and in prod
 (replica pool). The Lucid connection is registered on first use under
 a stable name (`${tenantConnectionNamePrefix}${tenantId}${suffix}_${idx}`)
-so subsequent calls reuse it — no per-query handshake.
+so subsequent calls reuse it, with no per-query handshake.
 
 ## Handling replica failure (no automatic failover)
 
@@ -114,7 +114,7 @@ read-your-own-write path should go straight to the primary instead (see below).
 
 ## Where this kicks in automatically
 
-Lasagna does not silently route every read to a replica — that would
+Lasagna does not silently route every read to a replica; that would
 introduce subtle replication-lag bugs. Instead, the service is
 exposed as a primitive you opt into where it's safe:
 
@@ -162,8 +162,8 @@ host config object directly when you want to log the chosen replica.
 
 ## Related
 
-- [Multi-region replicas cookbook](/docs/cookbook/multi-region-replicas) —
+- [Multi-region replicas cookbook](/docs/cookbook/multi-region-replicas);
   end-to-end recipe with Lucid model helpers
-- [Health & metrics](/docs/health) — replica state surfaces in
+- [Health & metrics](/docs/health); replica state surfaces in
   `tenant:doctor` and `/metrics`
-- [Concepts](/docs/concepts) — connection naming and pooling overview
+- [Concepts](/docs/concepts); connection naming and pooling overview

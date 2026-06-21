@@ -72,7 +72,7 @@ The middleware is **secure by default**: the verified `Host`-resolved
 custom domain is authoritative. When both a matching `Host` and an
 `x-tenant-id` header are present and they disagree, the request is
 rejected with HTTP 400 (`E_TENANT_HEADER_DOMAIN_MISMATCH`) before any
-handler runs — closing the tenant-hop vector where a caller who knows
+handler runs, closing the tenant-hop vector where a caller who knows
 your custom domain shapes a request for a different tenant.
 
 ```ts
@@ -87,8 +87,8 @@ server.use([
 
 Opt **out** only if you intentionally route by header on hosts the
 package also manages as custom domains (the pre-1.0 behavior):
-`middleware.customDomain({ strict: false })`. Understand the trade-off
-— any caller able to set the header can then address a different tenant
+`middleware.customDomain({ strict: false })`. Understand the trade-off:
+any caller able to set the header can then address a different tenant
 through a verified domain.
 
 When both `Host` matches a registered custom domain AND

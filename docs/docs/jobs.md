@@ -110,8 +110,8 @@ return logCtx.run({ tenantId }, async () => {
 })
 ```
 
-This means anything you call from a queue worker — services,
-repositories, third-party clients that take a logger — sees the
+This means anything you call from a queue worker (services,
+repositories, third-party clients that take a logger) sees the
 tenant context without you threading it through manually. See
 [Contextual logging](/docs/contextual-logging) for how the propagation
 works.
@@ -170,7 +170,7 @@ Each job overrides `failed(error)` to log a structured line keyed by
 
 The job stays on the queue's `failed` set per BullMQ's defaults
 (`removeOnFail: 100`). The `tenant:doctor queueStuckCheck` flags any
-tenant queue that accumulates failures faster than expected — see
+tenant queue that accumulates failures faster than expected; see
 [Health checks](/docs/health).
 
 ## Custom jobs that need tenant context
@@ -179,15 +179,14 @@ If you write your own job and want the same context propagation, wrap
 the body in `tenancy.run()`:
 
 ```ts
+// app/jobs/generate_invoice.ts
 import { Job } from '@adonisjs/queue'
 import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
-import app from '@adonisjs/core/services/app'
-import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
-import type { TenantRepositoryContract } from '@adonisjs-lasagna/saas-tenancy/types'
+import { resolveTenantRepository } from '@adonisjs-lasagna/saas-tenancy/services'
 
 export default class GenerateInvoice extends Job<{ tenantId: string; invoiceId: string }> {
   async execute() {
-    const repo = (await app.container.make(TENANT_REPOSITORY as any)) as TenantRepositoryContract
+    const repo = await resolveTenantRepository()
     const tenant = await repo.findByIdOrFail(this.payload.tenantId)
     return tenancy.run(tenant, async () => {
       // Lucid tenant models, tenantLogger, AuditLogService, etc.
@@ -197,13 +196,17 @@ export default class GenerateInvoice extends Job<{ tenantId: string; invoiceId: 
 }
 ```
 
+`resolveTenantRepository()` resolves the host's bound `TENANT_REPOSITORY` from
+the container; it is the typed replacement for the old `make(… as any)` cast, so a
+job no longer reaches for the container or the contract type directly.
+
 The integration suite proves this propagates correctly under
 contention with 30 jobs × 3 tenants concurrently:
 [`tests/integration/jobs/tenant_context.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/tests/integration/jobs/tenant_context.spec.ts).
 
 ## Related
 
-- [Lifecycle events](/docs/events) — what each job emits on success
-- [Commands](/docs/commands) — ace wrappers that dispatch these jobs
-- [Contextual logging](/docs/contextual-logging) — how the tenant id
+- [Lifecycle events](/docs/events); what each job emits on success
+- [Commands](/docs/commands); ace wrappers that dispatch these jobs
+- [Contextual logging](/docs/contextual-logging); how the tenant id
   rides the AsyncLocalStorage frame into every log line

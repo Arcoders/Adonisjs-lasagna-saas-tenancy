@@ -17,7 +17,7 @@ _Last run: 2026-06-07T15:10:14.310Z · node v24.16.0 · AMD EPYC 7763 64-Core Pr
 >    The in-use-aware LRU never severs an in-flight connection, so under the
 >    default 30s grace a burst of N concurrently-active tenants opens ~N
 >    connections (see the connection-budget burst tier). The real ceiling is
->    Postgres `max_connections` — **size it (and front with PgBouncer transaction
+>    Postgres `max_connections`: **size it (and front with PgBouncer transaction
 >    pooling at higher tenant counts) for your peak concurrent-tenant count**,
 >    not for `maxTenantConnections`.
 > 2. **The first query for an idle tenant pays a ~9ms cold-connection cliff**
@@ -25,7 +25,7 @@ _Last run: 2026-06-07T15:10:14.310Z · node v24.16.0 · AMD EPYC 7763 64-Core Pr
 >    set `maxTenantConnections` above your steady concurrent-tenant count and
 >    `evictionGracePeriodMs` above your p99 request latency.
 > 3. **Every tenant request makes a backoffice lookup by default.** The guard
->    resolves the tenant from the central DB on each request — a second round
+>    resolves the tenant from the central DB on each request, a second round
 >    trip on the hot path. Enable `resolver.cache` to serve warm tenants from a
 >    per-pod cache, cutting the steady-state backoffice round-trips per request
 >    from two to one. Staleness is bounded by the TTL (default 10s): a status
@@ -34,12 +34,12 @@ _Last run: 2026-06-07T15:10:14.310Z · node v24.16.0 · AMD EPYC 7763 64-Core Pr
 >    admin package does this; if you suspend tenants another way, emit
 >    `TenantSuspended` yourself or rely on the TTL). Treat it as a throughput
 >    optimization with bounded staleness, not an instant suspend. The cached
->    tenant is the SAME instance for every concurrent request in the pod —
+>    tenant is the SAME instance for every concurrent request in the pod, so
 >    treat it as read-only and load a fresh instance for any mutate-then-save
 >    flow.
 
 > **Read the shape, not the absolutes.** The durable signal here is the
-> *relative* cost across drivers and code paths — header resolution is far
+> *relative* cost across drivers and code paths: header resolution is far
 > cheaper than subdomain/path; rowscope-pg reads faster than schema-pg ≈
 > database-pg. Absolute req/s and latency depend on the host, the pool sizes,
 > and the data volume of the run; read them as indicative shape, not a number

@@ -40,6 +40,7 @@ Because the whole connection is tenant-scoped, **your model needs no `tenant_id`
 and no manual filtering.
 
 ```ts
+// app/models/invoice.ts
 import { column } from '@adonisjs/lucid/orm'
 import { TenantBaseModel } from '@adonisjs-lasagna/saas-tenancy'
 import { DateTime } from 'luxon'
@@ -51,6 +52,34 @@ export default class Invoice extends TenantBaseModel {
   @column.dateTime({ autoCreate: true }) declare createdAt: DateTime
 }
 ```
+
+Its migration lives in the tenant migrations folder
+(`database/migrations/tenant/`, the path `tenant:migrate` runs against). It is an
+ordinary Lucid migration; the driver applies it inside *each* tenant's schema, so
+it carries no `tenant_id` column:
+
+```ts
+// database/migrations/tenant/0001_create_invoices.ts
+import { BaseSchema } from '@adonisjs/lucid/schema'
+
+export default class extends BaseSchema {
+  async up() {
+    this.schema.createTable('invoices', (table) => {
+      table.increments('id')
+      table.string('number').notNullable()
+      table.integer('amount_cents').notNullable()
+      table.timestamp('created_at')
+    })
+  }
+
+  async down() {
+    this.schema.dropTable('invoices')
+  }
+}
+```
+
+Apply it across every tenant schema with `node ace tenant:migrate`. From there a
+controller queries the model with nothing tenant-specific in the call:
 
 ```ts
 // Inside an HTTP request the active tenant comes from the guard; just query.

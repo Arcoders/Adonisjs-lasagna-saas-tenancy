@@ -557,7 +557,7 @@ container images.
 
 - **Prometheus**: scrape `/metrics`. The endpoint is fail-closed (it carries
   per-tenant series), so the scrape job must send whatever credential your
-  `metricsMiddleware` checks — Prometheus supports `authorization` and custom
+  `metricsMiddleware` checks; Prometheus supports `authorization` and custom
   headers per scrape config. Alert on
   `multitenancy_circuit_state{state="OPEN"}`,
   `multitenancy_provisioning_failures_total`, and replica lag exceeding

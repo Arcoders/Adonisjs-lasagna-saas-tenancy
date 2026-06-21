@@ -113,11 +113,11 @@ gives you the moving parts.
   apex domain commit to TLS for the apex *and every subdomain* for
   ~2 years. Confirm with each tenant before adding.
 - **Header-domain disagreement**: by default the verified `Host`-resolved
-  custom domain is authoritative — a conflicting `x-tenant-id` header is
+  custom domain is authoritative; a conflicting `x-tenant-id` header is
   rejected with `E_TENANT_HEADER_DOMAIN_MISMATCH` (400), closing the
   tenant-hop vector. Opt out with `middleware.customDomain({ strict: false })`
   only if you intentionally route by header on managed domains. See
-  [Routing — strict mode](/docs/routing#strict-mode-the-default).
+  [Routing's strict mode](/docs/routing#strict-mode-the-default).
 
 ## Read next
 

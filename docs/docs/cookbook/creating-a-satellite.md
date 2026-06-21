@@ -1,6 +1,6 @@
 ---
 title: Creating a satellite
-description: Build and publish your own packaged Lasagna satellite — provider, migrations, configure hook, and in-memory tests — without a PR to core.
+description: Build and publish your own packaged Lasagna satellite (provider, migrations, configure hook, and in-memory tests) without a PR to core.
 ---
 
 # Creating a satellite
@@ -78,7 +78,7 @@ Only `name` is required. A satellite with no `migrations` is a config-only
 feature; one with no `provider` ships no AdonisJS provider.
 
 `migrations` must be a path inside your package. Absolute paths and `..`
-segments are rejected — the same rule now applies to `provider` and `commands`,
+segments are rejected; the same rule now applies to `provider` and `commands`,
 since they are written into the host's `adonisrc.ts` and imported on every boot.
 
 `requires` names core feature **bundles** (published from core, e.g. `quotas`).
@@ -92,7 +92,7 @@ best-effort and reported as a warning).
 ## Declare the Satellite ABI you target
 
 `satelliteApi` is the version of the extension surface your satellite builds
-against — the core registries you self-register into (`HookRegistry`,
+against: the core registries you self-register into (`HookRegistry`,
 `DoctorService`, `IsolationDriverRegistry`, the queue `Locator`, the emitter),
 the manifest shape, and the configure contract. Core exports the current value
 as `SATELLITE_API_VERSION` (from `@adonisjs-lasagna/saas-tenancy/sdk`); it is a
@@ -101,10 +101,10 @@ surface, and versioned independently of core's published version.
 
 `configure` compares your declared `satelliteApi` against the installed core:
 
-- you need a **newer** ABI than the core provides — `configure` refuses to wire
+- you need a **newer** ABI than the core provides: `configure` refuses to wire
   the satellite and exits non-zero (upgrade the core),
-- you built against an **older** ABI — it warns but proceeds,
-- you **omit** it — it warns that compatibility is unverified.
+- you built against an **older** ABI: it warns but proceeds,
+- you **omit** it: it warns that compatibility is unverified.
 
 Set it to the value of `SATELLITE_API_VERSION` you developed against (today, `1`).
 You can also assert it at runtime in your provider's `boot()` via
@@ -150,7 +150,7 @@ Because every satellite shares the `backoffice` schema, **name your table for
 your package** (e.g. `crm_contacts`, not `contacts`) so it can't collide with
 another satellite's table. `configure` namespaces the published migration *file*
 by package automatically (`<ts>_<your_pkg>__<stub>.ts`), so two satellites that
-happen to ship the same stub basename both install correctly — but the table
+happen to ship the same stub basename both install correctly, but the table
 name inside the migration is yours to keep unique.
 
 ```
@@ -257,8 +257,8 @@ node ace configure @adonisjs-lasagna/saas-tenancy --with=quotas
 Define your service as an interface, then provide two implementations: the real
 one (backed by your Lucid model) and an in-memory one for hermetic tests. The
 in-memory store needs nothing more than a small id-keyed `Map`. The template
-ships a tiny, copyable `InMemoryStore` helper at `src/testing/in_memory_store.ts`
-— copy it into your package (it has zero dependencies).
+ships a tiny, copyable `InMemoryStore` helper at `src/testing/in_memory_store.ts`;
+copy it into your package (it has zero dependencies).
 
 ```ts
 // src/testing/in_memory_my_store.ts
@@ -324,7 +324,7 @@ extension point under the 1.x semver promise. See [Stability](/docs/stability).
 
 ## Read next
 
-- [Satellites](/docs/satellites/) — the built-in feature set you are extending.
-- [Hooks](/docs/hooks) — the tenant-lifecycle phases your provider can attach to.
-- [Custom isolation driver](/docs/cookbook/custom-isolation-driver) — the other
+- [Satellites](/docs/satellites/); the built-in feature set you are extending.
+- [Hooks](/docs/hooks); the tenant-lifecycle phases your provider can attach to.
+- [Custom isolation driver](/docs/cookbook/custom-isolation-driver); the other
   public extension seam.

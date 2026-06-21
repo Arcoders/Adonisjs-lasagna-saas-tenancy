@@ -33,7 +33,7 @@ Four endpoints are exposed by default:
 | `GET /healthz` | Same data as `/readyz`, full JSON report                                   | `200` / `503`                                    |
 | `GET /metrics` | Prometheus text exposition (snapshot of tenants, circuits, queues, uptime) | `200`                                            |
 
-`/livez` and `/readyz` stay public — Kubernetes probes must reach them without
+`/livez` and `/readyz` stay public: Kubernetes probes must reach them without
 auth. `/metrics` is different: its snapshot carries per-tenant labels
 (circuit-breaker state, queue depths) and tenant counts by status, so it is
 **fail-closed**. Calling `multitenancyRoutes()` with `metrics` enabled and no
@@ -59,7 +59,7 @@ The provider registers three default checks during `boot()`:
 `backoffice_db` (critical), `redis` (critical) and `circuit_breakers`
 (non-critical). Your own providers boot after the package's, so a check
 you `addCheck()` under one of those names replaces the default, and
-`removeCheck()` opts it out entirely — nothing re-registers behind your
+`removeCheck()` opts it out entirely; nothing re-registers behind your
 back at probe time. The same registration the provider runs is exported
 as `registerDefaultChecks(healthService)`, and the individual checks are
 exported too when you want to control criticality, timeouts or ordering
@@ -152,11 +152,11 @@ in `message`.
 
 The aggregate `/readyz` status is:
 
-- `ok` — every check passed (or no checks registered)
-- `degraded` — at least one non-critical check failed while the rest
+- `ok`: every check passed (or no checks registered)
+- `degraded`: at least one non-critical check failed while the rest
   passed (`200` so Kubernetes keeps routing traffic but the dashboard
   reflects the issue)
-- `fail` — any **critical** check failed, or every check failed (`503`,
+- `fail`: any **critical** check failed, or every check failed (`503`,
   traffic is removed)
 
 These semantics are pinned over real HTTP by
@@ -220,11 +220,11 @@ readinessProbe:
 ```
 
 `/livez` is intentionally cheap so the kubelet doesn't kill a pod
-because Postgres hiccupped — that's `/readyz`'s job.
+because Postgres hiccupped; that's `/readyz`'s job.
 
 ## Related
 
-- [Deployment](/docs/deployment) — wiring the endpoints into a Helm chart
-- [Doctor command](/docs/commands#tenant-doctor) — deeper diagnostics
+- [Deployment](/docs/deployment); wiring the endpoints into a Helm chart
+- [Doctor command](/docs/commands#tenant-doctor); deeper diagnostics
   including replica lag, queue stalls, and stalled provisioning
-- [Custom-domain HTTPS cookbook](/docs/cookbook/custom-domain-https) — TLS termination concerns when these endpoints are exposed
+- [Custom-domain HTTPS cookbook](/docs/cookbook/custom-domain-https); TLS termination concerns when these endpoints are exposed

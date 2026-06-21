@@ -55,7 +55,7 @@ point is the precedent), it first becomes a throwing shim with a migration hint
 for one minor, then drops at the next major. Symbols that lived in a shared
 barrel (the SSO/billing/backup exports the 1.0 split moved out) are removed
 outright: TypeScript users get a compile error pointing at the import, plain-JS
-users get `undefined` at the import site — check the upgrade guide's symbol map
+users get `undefined` at the import site; check the upgrade guide's symbol map
 when an import stops resolving.
 
 ### What the Satellite ABI freeze covers

@@ -71,7 +71,7 @@ The middleware:
 
 1. Reads the token from the `x-impersonation-token` header or the
    `__impersonation` cookie (both names configurable). Query-string
-   tokens are deliberately not supported — they leak into access
+   tokens are deliberately not supported; they leak into access
    logs and referrers.
 2. HMAC-verifies it with `crypto.timingSafeEqual` and loads the
    Redis-backed session (TTL = the session duration).
@@ -91,13 +91,13 @@ under `admin:impersonate:*` actions:
 | `admin:impersonate:first-use` | the first request the session is used on (one entry per session, not per request) |
 | `admin:impersonate:stop` | explicit revocation via `stop()` / `revokeById()` |
 
-Expiry needs no audit row of its own — the session simply disappears
+Expiry needs no audit row of its own; the session simply disappears
 when its Redis TTL lapses; the `start` row carries the planned
 duration.
 
 ## Security guarantees
 
-- Tokens are HMAC-SHA256 over a random 16-byte session id — a
+- Tokens are HMAC-SHA256 over a random 16-byte session id, so a
   captured token cannot be used to forge or re-derive another one.
 - Verification uses `timingSafeEqual`; constant-time, no oracle.
 - The shared secret is validated as ≥ 32 chars at provider boot and
@@ -106,11 +106,12 @@ duration.
   request throws `ImpersonationInvalidException` (401).
 - Sessions are time-boxed by a Redis TTL and revocable at any moment
   (`stop()` / `revokeById()`). A token stays valid for its whole
-  session window — treat it like a short-lived credential and keep
+  session window, so treat it like a short-lived credential and keep
   durations tight for support work.
 
 ## Read next
 
 - [Authentication](/docs/authentication); operators acting as tenant users.
 - [Security](/security); the token and audit guarantees.
+- [Production checklist](/docs/production-checklist); the hardening runbook before you ship.
 - [Satellites](/docs/satellites/); the rest of the opt-in features.

@@ -24,6 +24,15 @@ core they sit on is `release-candidate`.
 For prose, examples, and storage details see each feature page; this page is the quick
 method lookup.
 
+::: info Core services live on their own pages
+This reference covers the leaf-satellite services. The cross-cutting core services are
+documented where they're used: [`ResilienceService`](/docs/resilience),
+[`ReadReplicaService`](/docs/read-replicas), [`DoctorService`](/docs/health),
+[`ComplianceReportService`](/compliance), [`TenantLogContext` and
+`tenantLogger`](/docs/contextual-logging), and the [isolation drivers and
+resolvers](/docs/data-isolation/).
+:::
+
 ## QuotaService
 
 Plan-bound, atomic per-tenant counters. See [Quotas](/docs/satellites/quotas).
@@ -99,6 +108,11 @@ Fixed per-tenant counters. See [Metrics](/docs/satellites/metrics).
 | `trackBandwidth(tenantId, bytes)` | `Promise<void>` |
 | `flush(period?)` | `Promise<void>` (rolls Redis counters into `tenant_metrics`) |
 | `getForTenant(tenantId, days = 30)` | `Promise<TenantMetric[]>` |
+
+Unlike `QuotaService`, `increment` and `trackBandwidth` `await` Redis directly with
+no resilience wrapper, so they reject on a Redis outage rather than degrading; catch
+at the call site if the write should be best-effort (see
+[Metrics caveats](/docs/satellites/metrics#caveats)).
 
 ## Read next
 

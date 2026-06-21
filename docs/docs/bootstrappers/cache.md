@@ -5,8 +5,8 @@ description: Per-tenant BentoCache namespaces with cacheFor(tenant). Memory L1, 
 
 # Cache bootstrapper
 
-The package ships a single shared BentoCache instance — memory L1,
-Redis L2, and a Redis bus for cross-process invalidation — and a
+The package ships a single shared BentoCache instance (memory L1,
+Redis L2, and a Redis bus for cross-process invalidation) plus a
 helper that returns a namespace prefixed by the tenant id. The
 bootstrapper is registered automatically; you don't have to enable
 it.
@@ -35,8 +35,8 @@ same logical key under `cacheFor()` see independent values.
 
 ## `getCache()` — the shared instance
 
-For cross-tenant data — feature-flag definitions, plan catalogs,
-anything global — reach for the unprefixed instance:
+For cross-tenant data (feature-flag definitions, plan catalogs,
+anything global), reach for the unprefixed instance:
 
 ```ts
 import { getCache } from '@adonisjs-lasagna/saas-tenancy/services'
@@ -73,9 +73,9 @@ export default defineConfig({
 ## Tenant id validation
 
 `cacheFor()` always validates the id against
-`/^[a-zA-Z0-9_-]{1,63}$/`. Crafted ids — path traversal, embedded
+`/^[a-zA-Z0-9_-]{1,63}$/`. Crafted ids (path traversal, embedded
 colons, newlines, anything that could collide with another tenant's
-prefix — are rejected synchronously before any Redis call:
+prefix) are rejected synchronously before any Redis call:
 
 ```ts
 cacheFor('../etc')         // throws Error: Refusing to use unsafe tenant id

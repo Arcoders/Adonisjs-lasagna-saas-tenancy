@@ -115,7 +115,7 @@ DELETE /tenants/{id}/feature-flags/{key}
 ```
 
 `POST`/`PUT` accept `flag` (POST only), `enabled` (boolean), `config` (optional
-object), and `expiresAt` (optional ISO 8601 — once past, the flag evaluates as
+object), and `expiresAt` (optional ISO 8601; once past, the flag evaluates as
 disabled). An invalid `expiresAt` returns `400 invalid_expires_at`; omitting it
 clears any stored expiry. Each row serializes with an `expiresAt` field.
 
@@ -124,14 +124,22 @@ clears any stored expiry. Each row serializes with an `expiresAt` field.
 ```
 GET    /tenants/{id}/webhooks
 POST   /tenants/{id}/webhooks
+PUT    /tenants/{id}/webhooks/{webhookId}
 DELETE /tenants/{id}/webhooks/{webhookId}
 GET    /tenants/{id}/webhooks/{webhookId}/deliveries
+POST   /tenants/{id}/webhooks/deliveries/{deliveryId}/retry
 ```
 
 When the `POST` body omits `secret`, the service generates one and the
-201 response carries it as a top-level `secret` field — that is the
+201 response carries it as a top-level `secret` field; that is the
 only time the plaintext is disclosed. It is stored encrypted; later
 responses only report `hasSecret: true`.
+
+The `retry` route manually replays a delivery: it re-validates the stored URL
+against the SSRF guard, then re-sends immediately and returns the updated
+delivery. It answers `422 webhook_url_unsafe` if the URL no longer passes
+validation, and `403 delivery_belongs_to_other_tenant` if the delivery is not
+owned by `{id}`.
 
 ### Branding
 
@@ -176,3 +184,4 @@ in CI.
 - [Security](/security); auth, fail-closed mounting, and the actor resolver.
 - [Authentication](/docs/authentication); wiring your guard in front of the API.
 - [CLI commands](/docs/commands); the same operations from the terminal.
+- [Production checklist](/docs/production-checklist); the hardening runbook before you ship.

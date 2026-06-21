@@ -115,12 +115,17 @@ broken tenant fails the build instead of production.
 
 ## What's next?
 
-- [Installation](/docs/installation); the full step-by-step.
-- [Concepts](/docs/concepts); the four-layer mental model.
-- [Tenant identification](/docs/tenant-identification); pick a
-  resolver strategy.
-- [Doctor](/docs/commands#doctor); wire `tenant:doctor` into CI
-  before you ship.
+Follow the path in order, or jump to whichever step you need:
+
+- [Concepts](/docs/concepts); the four-layer mental model behind what you just wired.
+- [Tenant identification](/docs/tenant-identification); pick the resolver strategy
+  that fits how your tenants reach the app.
+- [Models & adapters](/docs/models); define your first tenant-scoped model and watch
+  queries route themselves, no `where('tenant_id', …)` in sight. This is where you
+  start building features.
+- [Installation](/docs/installation); the exhaustive reference for when you need a
+  flag, a middleware, or a connection option this quickstart skipped.
+- [Doctor](/docs/commands#doctor); wire `tenant:doctor` into CI before you ship.
 
 ::: info Reference app
 The full feature surface lives in

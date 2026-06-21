@@ -1,6 +1,6 @@
 ---
 title: Multi-region replicas
-description: Read-replica routing via ReadReplicaService — round-robin, random, sticky — plus the doctor's replica_lag check.
+description: Read-replica routing via ReadReplicaService (round-robin, random, sticky), plus the doctor's replica_lag check.
 ---
 
 # Multi-region replicas
@@ -20,7 +20,7 @@ maximises throughput when tenants are large. Pick per workload.
 
 The replica list lives at `multitenancy.tenantReadReplicas` in
 `config/multitenancy.ts`. The shape is `{ strategy, hosts,
-connectionSuffix? }` — no `enabled` flag (presence implies enabled),
+connectionSuffix? }`: no `enabled` flag (presence implies enabled),
 no per-tenant pinning callback (apps that need pinning route through
 their own service in front of `pickIndex()`).
 
@@ -85,13 +85,13 @@ your handler can fall back to the primary cleanly.
 checks `pg_is_in_recovery()` + `pg_last_xact_replay_timestamp()`.
 Issues are emitted at four severities:
 
-- `replica_not_in_recovery` (error) — the host is a primary, not a
+- `replica_not_in_recovery` (error): the host is a primary, not a
   replica. Misconfiguration.
-- `replica_lag_high` (warn) — lag > `replicaLagWarnSeconds`
+- `replica_lag_high` (warn): lag > `replicaLagWarnSeconds`
   (default 30s).
-- `replica_lag_critical` (error) — lag > `replicaLagErrorSeconds`
+- `replica_lag_critical` (error): lag > `replicaLagErrorSeconds`
   (default 120s).
-- `replica_unreachable` (error) — pg connection refused / timed
+- `replica_unreachable` (error): pg connection refused / timed
   out. The pg error code is included in the message; the raw error
   text is dropped to avoid leaking DSNs / passwords into log
   shippers.
@@ -99,7 +99,7 @@ Issues are emitted at four severities:
 ## Failover
 
 There is **no automatic failover**. If a replica is unreachable,
-`resolve()` still returns a connection — but `conn.rawQuery()` will
+`resolve()` still returns a connection, but `conn.rawQuery()` will
 throw `ECONNREFUSED` (or similar). Apps that need fallback must
 catch and retry against the primary themselves:
 
@@ -127,7 +127,7 @@ configured on the template connection.
 ## Operational checklist
 
 - [ ] `tenant:doctor --check=replica_lag` in CI / monitoring (the
-      `/metrics` endpoint does not expose replica lag — run the doctor
+      `/metrics` endpoint does not expose replica lag, so run the doctor
       check on a cron and alert on its non-zero exit).
 - [ ] Test a failover quarterly; promote a replica, verify the app
       keeps serving (with reduced throughput) until the replica

@@ -1,6 +1,6 @@
 ---
 title: Upgrade to 1.0
-description: Migrate from 0.x to 1.0 — the satellite packages and the unified tenant-resolution default.
+description: Migrate from 0.x to 1.0; the satellite packages and the unified tenant-resolution default.
 ---
 
 # Upgrade to 1.0
@@ -15,7 +15,7 @@ Three things change in 1.0, and all are mechanical:
 3. Several surfaces flip to their safe posture by default: `/metrics` is
    fail-closed, custom domains are strict, and `request.tenant()` rejects
    suspended/deleted tenants on its own. Each has a one-line opt-out if you
-   relied on the old behavior — see
+   relied on the old behavior; see
    [the safe-by-default changes](#_4-adopt-the-safe-by-default-changes).
 
 The core keeps every tenancy primitive plus the leaf satellites (audit, feature
@@ -221,7 +221,7 @@ authoritative. If you deliberately route by header on managed domains:
 middleware.customDomain({ strict: false })
 ```
 
-See [Routing — strict mode](/docs/routing#strict-mode-the-default).
+See [Routing's strict mode](/docs/routing#strict-mode-the-default).
 
 ### `request.tenant()` rejects suspended and soft-deleted tenants
 

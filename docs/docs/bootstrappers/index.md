@@ -34,7 +34,7 @@ The scoping is explicit: each bootstrapper validates the tenant id at
 scope entry and exposes a tenant-aware helper (`cacheFor`,
 `tenantDisk`, `tenantMailer`, `tenantSession`, `tenantBroadcast`) that
 reads the active tenant from `AsyncLocalStorage`. The underlying
-Adonis services (`drive.use()`, `mail`, …) are untouched — code that
+Adonis services (`drive.use()`, `mail`, …) are untouched; code that
 calls them directly is not rewritten behind your back.
 
 The HTTP request path activates the registry inside
@@ -70,7 +70,7 @@ is present in the AdonisJS container. The provider probes
 `container.hasBinding(...)` for each candidate (`drive.manager`,
 `mail.manager`, `session`, `transmit`) and registers the matching
 bootstrapper only if the host app loaded the underlying service. The
-`cache` bootstrapper is always registered — the package treats it as a
+`cache` bootstrapper is always registered; the package treats it as a
 hard requirement.
 
 To opt out of an auto-registered bootstrapper, unregister it after

@@ -37,7 +37,7 @@ isolation: {
 ```
 
 `rowscope-pg` has no per-tenant connection: every tenant shares your
-`centralConnectionName`. You do **not** set `templateConnectionName` here —
+`centralConnectionName`. You do **not** set `templateConnectionName` here;
 that knob is a clone template for `schema-pg`/`database-pg` and is ignored by
 `rowscope-pg`.
 
@@ -147,29 +147,29 @@ CREATE POLICY tenant_isolation ON "public"."posts"
   WITH CHECK ("tenant_id"::text = nullif(current_setting('app.tenant_id', true), ''));
 ```
 
-When `app.tenant_id` is unset — or reset to `''` after a prior transaction on a
-reused pooled connection — `nullif(...)` makes the predicate `NULL`, so it
+When `app.tenant_id` is unset (or reset to `''` after a prior transaction on a
+reused pooled connection), `nullif(...)` makes the predicate `NULL`, so it
 matches nothing and `WITH CHECK` blocks the insert. A forgotten scope returns
 zero rows instead of leaking, which is the point.
 
 Once the migration is shipped and your writes go through `withTenantRls()`, set
 `isolation.rowScopeRls: true` in `config/multitenancy.ts`. This acknowledges that
 the enforced backstop is in place and silences the boot-time warning the provider
-otherwise logs for `rowscope-pg` (which runs on the mixin — convention, not
-enforcement — until RLS is present). The flag is an acknowledgment, not a runtime
+otherwise logs for `rowscope-pg` (which runs on the mixin, convention not
+enforcement, until RLS is present). The flag is an acknowledgment, not a runtime
 check: it records that you made the call deliberately.
 
 <Callout type="warning" title="Run your app without SUPERUSER / BYPASSRLS">
 <code>FORCE ROW LEVEL SECURITY</code> makes the policy apply to the table owner
 too (apps usually connect as the owner). But a role with <code>SUPERUSER</code>
-or <code>BYPASSRLS</code> skips RLS entirely — give your app's runtime role
+or <code>BYPASSRLS</code> skips RLS entirely, so give your app's runtime role
 neither attribute, or the policy is silently inert.
 </Callout>
 
 ### 2. Set the tenant per transaction
 
 The policy reads a per-transaction setting. `withTenantRls()` opens a
-transaction, sets it (transaction-local, so it resets on commit/rollback — the
+transaction, sets it (transaction-local, so it resets on commit/rollback, the
 only pooling-safe choice), and hands you the `trx`:
 
 ```ts
@@ -185,7 +185,7 @@ await withTenantRls(tenant.id, async (trx) => {
 **Pass `trx` to every scoped query inside the callback** (a raw `trx.from(...)`
 builder, or `model.useTransaction(trx)`). A query that ignores `trx` runs on a
 different pooled connection where the setting is not set, so RLS returns zero
-rows for it — no leak, but no data either. That fail-closed miss is the
+rows for it: no leak, but no data either. That fail-closed miss is the
 deliberate trade for shape-independent isolation.
 
 If you already manage your own request transaction, set the value directly with
@@ -197,7 +197,7 @@ reads an unset setting and every query silently returns nothing.
 <code>withTenantRls</code> only sets the database setting. It does <em>not</em>
 activate the application tenant scope, so a <code>withTenantScope</code> model
 used inside the callback still needs an active <code>tenancy.run()</code> (the
-HTTP guard provides one) or an <code>unscoped()</code> wrapper — otherwise the
+HTTP guard provides one) or an <code>unscoped()</code> wrapper; otherwise the
 mixin's strict-scope guard throws before any SQL runs, and create auto-fill
 won't populate <code>tenant_id</code>. Combine them, e.g.
 <code>tenancy.run(tenant, () =&gt; withTenantRls(tenant.id, (trx) =&gt; …))</code>:

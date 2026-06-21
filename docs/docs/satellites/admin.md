@@ -10,7 +10,7 @@ impersonation, and the satellite resources (audit logs, webhooks, feature flags,
 branding, SSO, metrics, quotas), with a generated OpenAPI 3.1 spec and Swagger UI.
 
 The full endpoint reference, request/response shapes and OpenAPI details live in
-the [Admin REST API](/docs/admin-rest-api) page. This page is the satellite
+the [Admin REST API](/docs/satellites/admin-rest-api) page. This page is the satellite
 overview: how it installs and the access model.
 
 ## Configuration
@@ -55,6 +55,7 @@ multitenancyAdminRoutes({
 
 ## Read next
 
-- [Admin REST API](/docs/admin-rest-api); the full endpoint and OpenAPI reference.
+- [Admin REST API](/docs/satellites/admin-rest-api); the full endpoint and OpenAPI reference.
 - [Security](/security); auth, fail-closed mounting, and the actor resolver.
 - [Impersonation](/docs/satellites/impersonation); the impersonation model.
+- [Production checklist](/docs/production-checklist); the hardening runbook before you ship.

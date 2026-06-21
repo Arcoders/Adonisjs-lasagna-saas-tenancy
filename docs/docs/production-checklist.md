@@ -65,7 +65,7 @@ setting and its trade-off are explained.
 - [ ] **Admin API auth.** Pass `middleware` to `multitenancyAdminRoutes(...)` so
       the destructive routes are guarded; it is fail-closed and throws at boot if you
       omit it. Use `middleware: false` only behind a trusted network boundary. See
-      [Admin REST API](/docs/admin-rest-api).
+      [Admin REST API](/docs/satellites/admin-rest-api).
 - [ ] **Metrics exposure.** `/metrics` always carries per-tenant series and is
       fail-closed: `multitenancyRoutes` throws at boot without a
       `metricsMiddleware` (pass `metricsMiddleware: false` only behind a trusted
@@ -148,9 +148,9 @@ the detail and the mitigation.
 
 Scrape `/metrics` (Prometheus). The series that predict incidents:
 
-- `multitenancy_circuit_state{state="OPEN"}` — a tenant DB is failing fast; alert
+- `multitenancy_circuit_state{state="OPEN"}`: a tenant DB is failing fast; alert
   on any sustained OPEN.
-- `multitenancy_provisioning_failures_total` — provisioning is erroring; pair
+- `multitenancy_provisioning_failures_total`: provisioning is erroring; pair
   with disk and Postgres resource dashboards.
 - Replica lag exceeding your `doctor.replicaLagWarnSeconds` threshold.
 

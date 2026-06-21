@@ -12,9 +12,9 @@ machine, optional metered billing, checkout and billing-portal helpers,
 and a per-policy tenant-delete cleanup hook.
 
 The provider is pluggable: pick `config.billing.driver` and the package
-core never imports a provider SDK. Three drivers ship — **Stripe**
-(official SDK), **Paddle** and **Lemon Squeezy** (REST + native webhook
-HMAC) — and you can author your own against
+core never imports a provider SDK. Three drivers ship: **Stripe**
+(official SDK), plus **Paddle** and **Lemon Squeezy** (REST + native webhook
+HMAC). You can also author your own against
 [`BillingProviderContract`](#drivers). Stripe is the default and the
 most fully-featured driver.
 
@@ -23,6 +23,59 @@ The journey-style recipe lives in
 is the reference: every config field, the driver contract, every event,
 every command, every storage table, the lifecycle policy, and the
 testing helpers.
+
+## Quick start
+
+The four steps to a working Stripe integration; each links to its full reference
+below. For the narrated walk-through that also wires checkout and the billing
+portal, follow [Stripe + quotas](/docs/cookbook/stripe-quotas).
+
+**1. Install, configure, migrate.**
+
+```bash
+node ace configure @adonisjs-lasagna/saas-tenancy --with=billing
+npm install stripe@^22
+node ace migration:run --connection=backoffice
+```
+
+**2. Set the environment.** The package refuses to boot on a `sk_test_*` key under
+`NODE_ENV=production` (or a live key outside it), and on a `STRIPE_WEBHOOK_SECRET`
+that doesn't start with `whsec_`. Full table: [Environment variables](#environment-variables).
+
+```bash
+STRIPE_API_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+**3. Add the starter config** to `config/multitenancy.ts`. Map your provider's
+product ids to plan names; the limit values themselves live in
+`plans.definitions`. Every field is documented under [Configuration](#configuration).
+
+```ts
+billing: {
+  driver: 'stripe',
+  stripe: {
+    apiKey: env.get('STRIPE_API_KEY'),
+    webhookSecret: env.get('STRIPE_WEBHOOK_SECRET'),
+  },
+  products: { prod_starter: 'starter', prod_pro: 'pro' },
+  defaultPlan: 'starter',
+},
+```
+
+**4. Mount the webhook receiver** in `start/routes.ts`. It registers
+`POST /webhooks/stripe`, gated by signature verification; add that path to
+`ignorePaths` so the tenant guard skips it.
+
+```ts
+import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
+
+multitenancyBillingRoutes()
+```
+
+From there a verified `customer.subscription.*` webhook calls
+`QuotaService.assignPlan` for you, and the [quotas satellite](/docs/satellites/quotas)
+enforces the new limits. The rest of this page is the exhaustive reference.
 
 ## Configuration
 
@@ -51,7 +104,7 @@ The configure step publishes:
   `billing_customers`, `billing_subscriptions`,
   `billing_processed_events`, `billing_usage_events`. Each carries a
   `provider` column so the schema is provider-agnostic.
-- `tenant_plans` — billing declares `requires: ['quotas']`, so the
+- `tenant_plans`: billing declares `requires: ['quotas']`, so the
   core `quotas` bundle is published alongside. Through core's
   `--with=` path this is automatic; running billing's own hook prints
   the prerequisite (`configure @adonisjs-lasagna/saas-tenancy
@@ -69,7 +122,7 @@ Run the migrations:
 node ace migration:run --connection=backoffice
 ```
 
-`stripe` is an **optional** peer dep, used only by the Stripe driver —
+`stripe` is an **optional** peer dep, used only by the Stripe driver;
 declare it in your host `package.json` so dependabot can bump it. The
 package never imports it statically (it lazy-loads on first use), so a
 host on Paddle or Lemon Squeezy pays nothing for it. The Paddle and
@@ -114,8 +167,14 @@ Stripe request. The published `multitenancy.stub` already includes
 | `stripe.apiVersion` | `string?` | `'2025-08-27.basil'` | Pin the Stripe API version. |
 | `stripe.timeout` | `number?` | `10_000` | SDK request timeout in ms. |
 | `stripe.maxNetworkRetries` | `number?` | `3` | SDK network-retry attempts. |
-| `paddle` | `object?` | required when `driver: 'paddle'` | `{ apiKey, webhookSecret, environment?: 'sandbox' \| 'production' }`. Read from `PADDLE_API_KEY` / `PADDLE_WEBHOOK_SECRET`. |
-| `lemonSqueezy` | `object?` | required when `driver: 'lemonsqueezy'` | `{ apiKey, webhookSecret, storeId }`. Read from `LEMONSQUEEZY_API_KEY` / `LEMONSQUEEZY_WEBHOOK_SECRET` / `LEMONSQUEEZY_STORE_ID`. |
+| `paddle` | `object?` | required when `driver: 'paddle'` | Paddle Billing driver config. |
+| `paddle.apiKey` | `string` | — | Read from `PADDLE_API_KEY`. |
+| `paddle.webhookSecret` | `string` | — | Read from `PADDLE_WEBHOOK_SECRET`. Verifies the `Paddle-Signature` (`ts;h1`) HMAC. |
+| `paddle.environment` | `'sandbox' \| 'production'?` | `'sandbox'` | API host: `'production'` targets `api.paddle.com`; anything else (including unset) targets `sandbox-api.paddle.com`. |
+| `lemonSqueezy` | `object?` | required when `driver: 'lemonsqueezy'` | Lemon Squeezy driver config. |
+| `lemonSqueezy.apiKey` | `string` | — | Read from `LEMONSQUEEZY_API_KEY`. |
+| `lemonSqueezy.webhookSecret` | `string` | — | Read from `LEMONSQUEEZY_WEBHOOK_SECRET`. Verifies the `X-Signature` HMAC-SHA256. |
+| `lemonSqueezy.storeId` | `string` | — | Read from `LEMONSQUEEZY_STORE_ID`. Scopes checkout and API calls to your store; boot fails if empty. |
 | `products` | `Record<string, string>` | required | Provider product / price / variant ID → plan name. Plan must exist in `plans.definitions`. |
 | `defaultPlan` | `string` | required | Plan assigned on cancel or unmapped product. Must exist in `plans.definitions`. |
 | `webhook.path` | `string?` | `'/webhooks/stripe'` | Mount path; must be in `ignorePaths`. |
@@ -139,7 +198,7 @@ A **driver** encapsulates one payment provider. `BillingService` owns the
 database mirror, plan assignment, audit rows, and the checkout price
 allowlist; it delegates every provider call to the active driver resolved
 from `BillingDriverRegistry`. The provider seeds the active driver from
-`config.billing.driver` in `BillingProvider.boot()` — switching providers is
+`config.billing.driver` in `BillingProvider.boot()`; switching providers is
 a config change, not a code change.
 
 This mirrors the [isolation driver](/docs/data-isolation/) seam: one
@@ -162,8 +221,8 @@ faking it. What ships today:
 | `event_retrieval` (webhook tamper guard) | ✅ | — | — |
 
 Where a driver lacks `event_retrieval`, the job replays the
-signature-verified payload persisted at receive time instead of re-fetching
-— the signature is the security boundary either way.
+signature-verified payload persisted at receive time instead of re-fetching;
+the signature is the security boundary either way.
 
 Two provider gaps are smoothed over by the framework rather than faked:
 
@@ -175,14 +234,14 @@ Two provider gaps are smoothed over by the framework rather than faked:
   `subscription_cancel_immediate`). When you request an immediate cancel,
   `BillingService.cancelSubscription(id, { atPeriodEnd: false })` emulates it by
   revoking access now (mirror → `canceled`, tenant reassigned to `defaultPlan`)
-  while LS keeps billing through the period end — there is no automatic refund.
+  while LS keeps billing through the period end; there is no automatic refund.
   Stripe and Paddle cancel immediately at the provider and let their deletion
   webhook finalise the downgrade.
 
 The dunning escalation counter is provider-independent (persisted on the
 subscription, guarded against job-retry double-counting), so `dunning.maxAttempts`
 and `PaymentFailed{final:true}` work even though Lemon Squeezy reports no attempt
-count — see [Dunning](#dunning).
+count; see [Dunning](#dunning).
 
 The Stripe driver uses the official SDK. The Paddle and Lemon Squeezy drivers
 call their REST APIs directly and verify webhooks natively (`Paddle-Signature`
@@ -193,7 +252,7 @@ Squeezy reconcile is a fast follow-up.
 ### Writing a billing driver
 
 Implement [`BillingProviderContract`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/billing/src/contracts/billing_provider_contract.ts)
-and register it before boot. The contract works in neutral types — your driver
+and register it before boot. The contract works in neutral types; your driver
 maps the provider's native shapes (in its mapper) so the dispatcher and service
 never see provider-specific data.
 
@@ -238,7 +297,7 @@ async boot() {
 
 Then set `config.billing.driver = 'acme'`. The registry keys on `driver.name`,
 so the built-in switch is skipped for names it already holds. Persist your
-provider's ids in the shared `billing_*` tables via the `provider` column —
+provider's ids in the shared `billing_*` tables via the `provider` column,
 or, if your provider's data shape diverges sharply, ship your own satellite
 tables alongside.
 
@@ -275,7 +334,7 @@ flowchart TB
   FAIL -->|"manual: operator runs"| REP["tenant:billing:replay<br/>failed back to pending, attempts kept"]
 ```
 
-The `INSERT ... ON CONFLICT DO NOTHING` is the atomicity primitive —
+The `INSERT ... ON CONFLICT DO NOTHING` is the atomicity primitive;
 duplicate event ids never dispatch the job a second time, even under
 concurrent webhook delivery.
 
@@ -318,7 +377,7 @@ Counter behaviour on plan change:
   reset).
 - Upgrades surface a higher limit on the next `getLimit` call (≤ 60s,
   bounded by the cache TTL).
-- Downgrades take effect immediately. Counters are NOT reset — a user
+- Downgrades take effect immediately. Counters are NOT reset; a user
   mid-period over their new limit gets 402s until the rolling counter
   rolls. Use `dunning.gracePeriodDays` to delay enforcement.
 
@@ -342,10 +401,10 @@ On a failed-payment event:
   `billing_subscriptions.status = 'past_due'` and emits
   `PaymentFailed{final:true}`.
 - `action` then runs:
-  - `'none'`: no-op (default — host owns the UX via the
+  - `'none'`: no-op (default; host owns the UX via the
     `PaymentFailed{final:true}` listener).
   - `'downgrade'`: `assignPlan(tenant, defaultPlan, { source: 'dunning' })`.
-    Note this is a quota-only side-effect — `billing_subscriptions.planName`
+    Note this is a quota-only side-effect; `billing_subscriptions.planName`
     keeps the original plan, so a successful retry's
     `customer.subscription.updated(active)` restores the upgraded
     plan automatically.
@@ -424,7 +483,7 @@ single `ReportUsageBatchJob` every `batchFlushMs` (default `10_000`)
 per bucket. On `provider.shutdown()` the listener drains in-flight
 buckets so a clean SIGTERM doesn't drop metering.
 
-Unmapped quotas are silently ignored — only quotas listed in
+Unmapped quotas are silently ignored; only quotas listed in
 `usageMapping` cross over to Stripe.
 
 ## Tenant hard-delete policy
@@ -441,14 +500,14 @@ Unmapped quotas are silently ignored — only quotas listed in
 ### What `'cancel'` actually does — and does NOT do
 
 - **Cancellation timing**: **immediate**. The subscription stops billing
-  the moment the API call returns. There is no `'at_period_end'` mode —
+  the moment the API call returns. There is no `'at_period_end'` mode;
   if you want a grace period, pre-update the subscription's
   `cancel_at_period_end=true` from your own admin tooling before
   destroying the tenant.
 - **Final invoice**: **none**. `invoice_now: false` means Stripe does
   not generate an out-of-cycle invoice for unbilled usage. If the
   tenant has unmetered usage between the last invoice and the destroy
-  call, that usage is **lost** — Stripe will not bill it later.
+  call, that usage is **lost**; Stripe will not bill it later.
   Hosts that need the final draw should call
   `stripe.invoices.create` themselves before the destroy.
 - **Proration / refunds**: **none**. `prorate: false` means no
@@ -460,7 +519,7 @@ Unmapped quotas are silently ignored — only quotas listed in
   Stripe dashboard. No automatic refund.
 - **Payment methods**: detached automatically when the Stripe customer
   is later deleted by an operator. The package does NOT delete the
-  customer itself — only the local mapping row. This preserves the
+  customer itself, only the local mapping row. This preserves the
   audit trail in Stripe for compliance / forensics.
 
 ### Failure behaviour
@@ -468,14 +527,17 @@ Unmapped quotas are silently ignored — only quotas listed in
 The listener (`TenantDestroyBillingListener`) is wired automatically
 when `config.billing` is set. Per-subscription cancellation failures
 log a structured warning with `billing_code` but never block tenant
-destroy — the audit trail is preserved for reconciliation, and a
+destroy; the audit trail is preserved for reconciliation, and a
 manual `tenant:billing:sync` pass can finish the job once the
 underlying issue is resolved.
 
 ## Events
 
 10 events are dispatched from the billing pipeline. All exported
-from `@adonisjs-lasagna/billing`:
+from `@adonisjs-lasagna/billing`. In practice most apps listen to just three:
+`PaymentFailed` (drive the dunning UX), `PaymentSucceeded` (clear the banner and
+track revenue), and `TrialEnding` (convert-or-remind). The rest are there when you
+need them, and `BillingEventDeadLettered` is the one to alert on for operations.
 
 | Event | Payload | Dispatched by |
 |---|---|---|
@@ -547,7 +609,7 @@ emitter.on(BillingEventDeadLettered, async (event) => {
 Listeners run after the webhook has been ack'd to Stripe and the
 mirror has been updated, so a slow listener never delays Stripe's
 delivery loop. Listener exceptions are logged but never reverted
-back to the dispatcher — keep them idempotent.
+back to the dispatcher; keep them idempotent.
 
 ## Service surface
 
@@ -566,7 +628,7 @@ driver):
 | `cancelSubscription(id, opts?)` | `Promise<void>` | Cancels through the active driver and reflects it in the mirror. `atPeriodEnd: false` (default) cancels immediately; for a driver without `subscription_cancel_immediate` (Lemon Squeezy) it emulates immediate by marking the mirror `canceled` and reassigning `defaultPlan` now (the provider bills through period end — no auto-refund). `atPeriodEnd: true` flags `cancelAtPeriodEnd` and leaves the status change to the provider's webhook. |
 | `retrieveEvent(eventId)` | `Promise<BillingWebhookEvent>` | Re-fetches the event as the source of truth. Uses the active driver's tamper guard (`event_retrieval`) when supported; otherwise (and when the provider reports the event aged out) falls back to the locally-persisted, signature-verified replayable `payload`. Throws `api_error` when neither the provider nor a stored payload can supply it. |
 
-The host wires checkout and the portal as your own routes — apply
+The host wires checkout and the portal as your own routes; apply
 your auth + role middleware (`auth + activeTenant + role(owner|admin)`
 is the recommended stack):
 
@@ -702,12 +764,12 @@ health.addCheck('billing', billingHealthCheck)
 
 Three states:
 
-- **`pass`** — the active driver's health probe responding under
+- **`pass`**: the active driver's health probe responding under
   `SLOW_API_THRESHOLD_MS` (3 s) (or no probe available), and (when
   active subs exist) the latest webhook completed in the last 5 min.
-- **`pass` with `meta.degraded = true`** — probe > 3 s, OR last
+- **`pass` with `meta.degraded = true`**: probe > 3 s, OR last
   processed between 5 and 15 min ago.
-- **`fail`** — the driver probe failed, or last processed > 15 min when
+- **`fail`**: the driver probe failed, or last processed > 15 min when
   active subs exist. (Config/secret validity is checked at boot by the
   driver's `verifyConfig`, not here.)
 
@@ -777,14 +839,14 @@ that retrying can't solve.
 
 The package ships two layers of test double:
 
-- **`MockBillingDriver`** — an in-memory implementation of the full
+- **`MockBillingDriver`**: an in-memory implementation of the full
   `BillingProviderContract`. Register it as the active driver to exercise
   `BillingService`, the dispatcher, and your own code provider-agnostically,
   with zero SDK or network. `signMockWebhook()` + `parseWebhookEvent()`
   round-trip a signed body; `injectEvent()` feeds the tamper-guard path.
-- **`MockStripe`** — an in-memory Stripe SDK double, for tests that target the
+- **`MockStripe`**: an in-memory Stripe SDK double, for tests that target the
   Stripe driver specifically. Inject it into the active Stripe driver via
-  `BillingService.__setStripeForTests` (async — it forwards to the driver).
+  `BillingService.__setStripeForTests` (async; it forwards to the driver).
 
 ```ts
 import {
@@ -865,7 +927,7 @@ Replace customer/product IDs in the template (or pass
 ## Incident runbook
 
 Designed to be the page on-call opens during a billing incident.
-Symptoms first, then triage, then recovery — copy the relevant
+Symptoms first, then triage, then recovery; copy the relevant
 commands as-is.
 
 ### 1. `BillingEventDeadLettered` fires
@@ -947,7 +1009,7 @@ If non-zero and growing, BullMQ/Redis is unhealthy.
 **Recovery**:
 
 1. Fix Redis / BullMQ (out of scope for this runbook).
-2. Stripe's own retry covers most of the gap — when it re-delivers,
+2. Stripe's own retry covers most of the gap; when it re-delivers,
    the controller's `INSERT ... ON CONFLICT` branch detects the
    pending-attempts-0 row and re-dispatches automatically (C-1
    recovery path).
@@ -1002,7 +1064,7 @@ node ace tenant:billing:sync --tenant=<uuid> --json
 ```
 
 For a system-wide drift sweep (e.g., after a long outage), drop
-`--tenant` and run for the entire account. Idempotent — safe to
+`--tenant` and run for the entire account. Idempotent; safe to
 re-run.
 
 ### 6. Configuration drift causing `plan_unmapped`
@@ -1022,14 +1084,15 @@ node ace tenant:billing:sync --json
 
 The state machine warnings (`stripe.subscription.illegal_transition`,
 `stripe.subscription.unknown_source_state`) in the log stream point
-at API drift or unexpected admin actions — surface in your error
+at API drift or unexpected admin actions; surface in your error
 aggregator and investigate the specific tenant.
 
 ## Read next
 
-- [Stripe + quotas (cookbook)](/docs/cookbook/stripe-quotas) — the
+- [Stripe + quotas (cookbook)](/docs/cookbook/stripe-quotas); the
   end-to-end recipe.
-- [Quotas satellite](/docs/satellites/quotas) — where the plan
+- [Quotas satellite](/docs/satellites/quotas); where the plan
   assignments land.
 - [Lifecycle events](/docs/events): the 10 billing events plus the
   14 tenant-lifecycle events.
+- [Production checklist](/docs/production-checklist); the hardening runbook before you ship.

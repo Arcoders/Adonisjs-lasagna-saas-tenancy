@@ -247,4 +247,5 @@ when it arrives.
 
 - [Multi-tenant WebSockets cookbook](/docs/cookbook/multi-tenant-websockets); the end-to-end build.
 - [Broadcasting](/docs/bootstrappers/broadcasting); one-way SSE push, when that is enough.
+- [Production checklist](/docs/production-checklist); the hardening runbook before you ship.
 - [Creating a satellite](/docs/cookbook/creating-a-satellite); how this package is built.

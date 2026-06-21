@@ -1,6 +1,6 @@
 ---
 title: Stripe + quotas
-description: Wire the billing satellite end-to-end — Stripe checkout → webhook → plan assignment → quota middleware. Atomic and idempotent.
+description: Wire the billing satellite end-to-end, Stripe checkout → webhook → plan assignment → quota middleware. Atomic and idempotent.
 ---
 
 # Stripe + quotas
@@ -136,7 +136,7 @@ export default class BillingController {
 }
 ```
 
-Apply your own auth + role checks on these routes —
+Apply your own auth + role checks on these routes;
 `auth + activeTenant + role(owner|admin)` is the recommended stack.
 
 ## How plan assignment works
@@ -160,7 +160,7 @@ Counter behaviour on plan change:
   reset).
 - Upgrades surface a higher limit on the next `getLimit` call
   (≤ 60 s).
-- Downgrades take effect immediately. Counters are NOT reset — a
+- Downgrades take effect immediately. Counters are NOT reset; a
   user mid-period over their new limit gets 402s until the rolling
   counter rolls. Configure `dunning.gracePeriodDays` to delay
   enforcement.
@@ -190,15 +190,15 @@ node ace tenant:billing:test-webhook customer.subscription.created
 endpoint. Replace customer/product IDs in the template (or pass
 `--object=path/to/body.json`) for an end-to-end run.
 
-For unit tests, use the in-memory SDK double — see
+For unit tests, use the in-memory SDK double; see
 [Billing satellite#testing](/docs/satellites/billing#testing).
 
 ## Read next
 
-- [Billing satellite](/docs/satellites/billing) — full reference:
+- [Billing satellite](/docs/satellites/billing); full reference:
   config table, all 10 events, all 6 ace commands, dunning, metered
   billing, lifecycle policies, error codes.
-- [Quotas satellite](/docs/satellites/quotas) — the limit-enforcement
+- [Quotas satellite](/docs/satellites/quotas); the limit-enforcement
   side of the integration.
-- [Webhooks satellite](/docs/satellites/webhooks) — outbound webhooks
+- [Webhooks satellite](/docs/satellites/webhooks); outbound webhooks
   to your tenants (separate from this inbound Stripe receiver).

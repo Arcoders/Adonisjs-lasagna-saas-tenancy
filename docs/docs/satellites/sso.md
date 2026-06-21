@@ -145,4 +145,5 @@ router
 
 - [Authentication](/docs/authentication); how SSO composes with tenant auth.
 - [Security](/security); the replay and state guarantees.
+- [Production checklist](/docs/production-checklist); the hardening runbook before you ship.
 - [Satellites](/docs/satellites/); the rest of the opt-in features.

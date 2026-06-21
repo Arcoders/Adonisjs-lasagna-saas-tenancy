@@ -26,7 +26,7 @@ await s3.get('reports/q1.csv')
 ```
 
 The helper works for every disk you've configured (`local`, `s3`,
-`gcs`, …) — pass the disk name. It throws outside a `tenancy.run()`
+`gcs`, …); pass the disk name. It throws outside a `tenancy.run()`
 scope (or an HTTP request that resolved a tenant).
 
 The scoping is explicit, not interception: a direct
@@ -36,14 +36,14 @@ anywhere tenant files are involved.
 
 ## What gets prefixed
 
-The keyed methods — `get`, `getStream`, `getUrl`, `getSignedUrl`,
+The keyed methods (`get`, `getStream`, `getUrl`, `getSignedUrl`,
 `put`, `putStream`, `delete`, `deleteAll`, `copy`, `move`, `exists`,
-`list`, and friends — have their key argument(s) prefixed. Everything
+`list`, and friends) have their key argument(s) prefixed. Everything
 else forwards to the disk untouched, so URL signing works on the
 prefixed key automatically.
 
 Note that `list()` results carry the full backend keys (including the
-`tenants/<id>/` prefix) — strip `tenantPrefix()` yourself if you need
+`tenants/<id>/` prefix); strip `tenantPrefix()` yourself if you need
 tenant-relative paths.
 
 ## Cleanup on tenant destroy

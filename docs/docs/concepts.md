@@ -16,6 +16,11 @@ pattern.
 
 ## The four layers
 
+It all lives in one PostgreSQL cluster, partitioned by schema. Which schema a
+query hits depends only on which layer the model belongs to, so the diagram below
+is the whole routing model on one screen. The rest of this page walks each layer
+in turn.
+
 ```mermaid
 flowchart TB
   subgraph cluster["One PostgreSQL cluster"]
@@ -49,7 +54,10 @@ manual `where('tenant_id', …)`, no global state.
 
 ### 4. Satellites
 
-Opt-in features that ride alongside tenants:
+Opt-in features that ride alongside tenants. None are required; you enable only
+the ones you need and the rest tree-shake out of the bundle. Most keep their data
+in the `backoffice` schema, which is what lets cross-tenant reporting stay a single
+query; a few (like WebSockets) are stateless and add no tables at all.
 
 - `audit`; every state change recorded with actor + payload.
 - `feature_flags`; per-tenant boolean flags, cached.
@@ -60,8 +68,22 @@ Opt-in features that ride alongside tenants:
 - `quotas`; plan-bound limits, rolling and snapshot.
 - `impersonation`; admin enters a tenant as a target user.
 
-Each satellite ships its own backoffice migration; you opt in via
-`node ace configure @adonisjs-lasagna/saas-tenancy --with=…`.
+Each stateful satellite ships its own backoffice migration; you opt in via
+`node ace configure @adonisjs-lasagna/saas-tenancy --with=…`. They never call each
+other directly, so you can adopt or drop one without touching the rest. See
+[Satellites](/docs/satellites/) for the full catalog.
+
+### Why split this way
+
+Schemas, not a shared `tenant_id` column, are the default because they let
+PostgreSQL enforce the boundary: a connection scoped to one tenant's schema
+physically cannot read another tenant's rows, even if a `WHERE` clause is wrong.
+Keeping operator data in its own `backoffice` schema (rather than a
+`backoffice_tenant_id` flag on shared tables) means the tenant registry and
+cross-tenant reports never have to special-case which rows are "yours". When you
+have very high tenant counts and want one shared schema instead, the `rowscope-pg`
+driver trades that physical boundary for a `tenant_id` predicate plus an RLS
+backstop; [Data isolation](/docs/data-isolation/) covers the trade-off.
 
 ## How a request flows
 

@@ -29,7 +29,7 @@ boot a database connection at import time.
 ## In-memory doubles
 
 When a service is defined as an interface, an in-memory
-implementation lets you exercise it with no database — the "second
+implementation lets you exercise it with no database: the "second
 implementation that proves the abstraction" pattern the billing
 satellite uses with its `MockBillingDriver`. The pattern needs no
 shared base class; a small id-keyed `Map` does the job. The
@@ -90,7 +90,7 @@ setRequestTenant(ctx, tenant) // memoises onto the request
 
 The lifecycle floor still applies to the memo: a seeded tenant whose status is
 `suspended` (or that is soft-deleted) makes `request.tenant()` throw the same
-403 it would in production — call `request.tenant({ allowInactive: true })` in
+403 it would in production; call `request.tenant({ allowInactive: true })` in
 tests that exercise inactive tenants on purpose.
 
 ## `withTenant`
@@ -132,7 +132,7 @@ registry.register({
 ```
 
 For database-shaped tests, prefer the `sqlite-memory` isolation
-driver — real SQL round-trips with zero infrastructure.
+driver: real SQL round-trips with zero infrastructure.
 
 ## Integration tests against real PostgreSQL
 
@@ -182,7 +182,7 @@ from a live backend.
 
 **Naming convention**: a spec whose name ends in `_real.spec.ts` (or
 `*_smoke*`) requires a live external dependency that's normally only
-present in CI — Stripe test-mode API key, MinIO container,
+present in CI: a Stripe test-mode API key, a MinIO container, or
 mock-oauth2-server. They skip silently (and visibly in the output)
 when their env var is missing; CI is configured to provide them.
 

@@ -150,6 +150,7 @@ Available when `--with=billing` is configured. Full reference in the
 | `tenant:billing:backfill` | Seed `tenant_plans` rows with the default plan for every tenant that doesn't have one. Flags: `--dry-run`, `--force`, `--plan=<name>`. |
 | `tenant:billing:replay` | Re-dispatch a failed webhook event after the underlying issue is fixed. Flags: `--event-id=<evt>`, `--all-failed`. |
 | `tenant:billing:cleanup` | Purge `stripe_processed_events` older than `webhook.idempotencyTtlDays`. Flag: `--batch-size=<n>`. Cron: `0 4 * * *`. |
+| `tenant:billing:sweep` | Emit due trial-ending notices (the Paddle / Lemon Squeezy fallback for Stripe's native `trial_will_end`) and apply due grace-period dunning downgrades. Idempotent. Flag: `--batch-size=<n>`. Cron: `0 * * * *` (hourly). |
 | `tenant:billing:doctor` | Diagnose Stripe config + recent webhook health. Exit 1 on any error (pipeline-friendly). Flag: `--json`. |
 | `tenant:billing:test-webhook <event>` | Generate and POST a signed synthetic Stripe event. Flags: `--url=<url>`, `--object=<file>`. Useful in CI without `stripe listen`. |
 

@@ -487,7 +487,7 @@ the repo:
 
 | Package | Current version |
 |---|---|
-| [`@adonisjs-lasagna/sso`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/sso/CHANGELOG.md) | 0.1.0 |
-| [`@adonisjs-lasagna/billing`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/billing/CHANGELOG.md) | 0.1.0 |
-| [`@adonisjs-lasagna/admin`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/admin/CHANGELOG.md) | 0.1.0 |
-| [`@adonisjs-lasagna/backup`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/backup/CHANGELOG.md) | 0.1.0 |
+| [`@adonisjs-lasagna/sso`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/sso/CHANGELOG.md) | 1.0.0 |
+| [`@adonisjs-lasagna/billing`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/billing/CHANGELOG.md) | 1.0.0 |
+| [`@adonisjs-lasagna/admin`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/admin/CHANGELOG.md) | 1.0.0 |
+| [`@adonisjs-lasagna/backup`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/backup/CHANGELOG.md) | 1.0.0 |

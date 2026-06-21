@@ -32,7 +32,7 @@ tenant-specific.
 If you're using subdomain-based routing and serve each tenant from a
 distinct origin (`acme.app.example.com`, `globex.app.example.com`),
 browsers already partition cookies by host, so session collision
-across tenants is impossible. Skip the helpers in that case — and if
+across tenants is impossible. Skip the helpers in that case, and if
 you want the registry slot gone entirely:
 
 ```ts

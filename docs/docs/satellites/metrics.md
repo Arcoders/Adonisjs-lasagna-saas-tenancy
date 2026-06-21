@@ -68,8 +68,12 @@ per-period rows.
 
 ## Caveats
 
-- Counter increments hit Redis, not the database. If Redis is unavailable,
-  increments for that window are lost.
+- Counter increments hit Redis, not the database. `increment()` and
+  `trackBandwidth()` `await` the Redis write directly and are **not** wrapped in
+  the [resilience](/docs/resilience) policy (unlike `QuotaService`), so a Redis
+  outage makes the call **reject** rather than silently drop it. Decide at your
+  call site whether a metrics write is best-effort (catch and ignore) or should
+  propagate.
 - The metric set is fixed (`requests`, `errors`, bandwidth). This satellite is for
   coarse per-tenant usage, not arbitrary named metrics or gauges.
 - For application-level telemetry (latency, traces) use the OpenTelemetry
@@ -80,4 +84,5 @@ per-period rows.
 
 - [Health & monitoring](/docs/health); the Prometheus and probe surface.
 - [Services API](/docs/services); the `MetricsService` methods.
+- [Production checklist](/docs/production-checklist); the hardening runbook before you ship.
 - [Satellites](/docs/satellites/); the rest of the opt-in features.
