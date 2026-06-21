@@ -59,7 +59,10 @@ test.group('CircuitBreakerService — survives a Redis outage (integration)', (g
     } catch {
       stubActive = true
     }
-    assert.isTrue(stubActive, 'the simulated Redis outage must be active for this test to be meaningful')
+    assert.isTrue(
+      stubActive,
+      'the simulated Redis outage must be active for this test to be meaningful'
+    )
 
     const svc = await app.container.make(CircuitBreakerService)
     const breaker = svc.getCircuit(TENANT)
