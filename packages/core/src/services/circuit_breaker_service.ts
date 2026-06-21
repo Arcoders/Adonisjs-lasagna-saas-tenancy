@@ -33,6 +33,16 @@ const lazyLogger = () =>
 export default class CircuitBreakerService {
   private circuits = new Map<string, CircuitBreaker>()
 
+  /**
+   * Override hook for tests: a spec can subclass and force the Redis calls to
+   * fail without mutating the shared `@adonisjs/redis` singleton (which would
+   * leak into sibling integration specs). Mirrors RateLimitMiddleware.getRedis.
+   * Returns the manager, or null when Redis isn't bound (e.g. unit tests).
+   */
+  protected getRedis(): Promise<any> {
+    return lazyRedis()
+  }
+
   getCircuit(tenantId: string): CircuitBreaker {
     if (this.circuits.has(tenantId)) {
       return this.circuits.get(tenantId)!
@@ -103,7 +113,7 @@ export default class CircuitBreakerService {
    */
   async #restorePersistedState(tenantId: string, breaker: CircuitBreaker): Promise<void> {
     try {
-      const redis = await lazyRedis()
+      const redis = await this.getRedis()
       const state = await redis?.get(`${REDIS_KEY_PREFIX}${tenantId}`)
       if (state === 'OPEN' && !breaker.opened) {
         breaker.open()
@@ -182,7 +192,7 @@ export default class CircuitBreakerService {
       this.circuits.delete(tenantId)
     }
     try {
-      const redis = await lazyRedis()
+      const redis = await this.getRedis()
       await redis?.del(`${REDIS_KEY_PREFIX}${tenantId}`)
     } catch (err) {
       const logger = await lazyLogger()
@@ -195,7 +205,7 @@ export default class CircuitBreakerService {
 
   async #persistState(tenantId: string, state: CircuitState): Promise<void> {
     try {
-      const redis = await lazyRedis()
+      const redis = await this.getRedis()
       await redis?.setex(`${REDIS_KEY_PREFIX}${tenantId}`, 3600, state)
     } catch (err) {
       // Surface persistence failures: the in-memory breaker keeps

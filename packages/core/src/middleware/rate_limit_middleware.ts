@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { resolveTenantId } from '../extensions/request.js'
 import { tenancy } from '../tenancy.js'
 import { getConfig } from '../config.js'
@@ -104,7 +105,12 @@ export default class RateLimitMiddleware {
       const r = await this.getRedis()
       const pipeline = r.pipeline()
       pipeline.zremrangebyscore(key, '-inf', windowStart)
-      pipeline.zadd(key, now, `${now}`)
+      // The member must be unique per request: the score (`now`) drives window
+      // pruning, but two requests in the SAME millisecond would share the member
+      // `${now}` and ZADD would de-duplicate them, so ZCARD undercounts and the
+      // limiter lets the burst through (429 -> 200). A random suffix keeps every
+      // request a distinct member (also across processes, for multi-node).
+      pipeline.zadd(key, now, `${now}-${randomUUID()}`)
       pipeline.zcard(key)
       pipeline.expire(key, windowSeconds)
 
