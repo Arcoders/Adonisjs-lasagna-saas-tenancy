@@ -530,6 +530,9 @@ jobs:
       MAILCATCHER_PORT: 1025
       MAIL_FROM_ADDRESS: demo@example.test
       MAIL_FROM_NAME: Demo Multitenancy
+      # Optional Stripe test key (sk_test_…) for the gated pricing-validation
+      # step below. Unset → the step self-skips. Add via Settings → Secrets.
+      STRIPE_TEST_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -574,6 +577,17 @@ jobs:
       - name: Backoffice setup (creates backoffice schema + tenants table)
         working-directory: examples/api
         run: npx tsx ace.ts backoffice:setup
+
+      # Gated pricing validation against the real Stripe test API. Self-skips
+      # when STRIPE_TEST_API_KEY is unset (same opt-in shape as the
+      # *_real_smoke specs). Proves the plan/price config is internally
+      # consistent and the provider key is valid in test mode before a deploy.
+      - name: Billing pricing validation (gated, Stripe test mode)
+        if: ${{ env.STRIPE_TEST_API_KEY != '' }}
+        working-directory: examples/api
+        env:
+          STRIPE_API_KEY: ${{ env.STRIPE_TEST_API_KEY }}
+        run: npx tsx ace.ts tenant:billing:pricing:validate --json
 
       # Runs the whole e2e suite, which auto-includes the hardening specs under
       # tests/e2e/hardening/** (isolation under concurrency, quota atomicity,

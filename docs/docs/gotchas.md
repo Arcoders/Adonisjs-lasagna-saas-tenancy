@@ -82,6 +82,11 @@ structurally-faithful copy in `stripe_processed_events.payload`, and
 the correct plan. Rows written before this behaviour (legacy flat payloads)
 can't be reconstructed, so those surface the original Stripe error.
 
+Use `tenant:billing:dlq:list` to see what's dead-lettered before replaying. For
+the full webhook failure/recovery map (queue outage, dead-letters, provider
+outage, the Lemon Squeezy replay-window note), see
+[Resilience → billing failure modes](./resilience#billing-satellite-failure-modes-and-recovery).
+
 ## A resolved tenant whose database is down returns 503, never central
 
 Once a tenant is resolved, an unreachable tenant registry or tenant connection

@@ -74,9 +74,64 @@ test.group('LemonSqueezyDriver (stubbed fetch)', (group) => {
     const d = new LemonSqueezyDriver()
     assert.isTrue(d.supports('checkout'))
     assert.isTrue(d.supports('subscription_cancel'))
+    assert.isTrue(d.supports('subscription_list'))
     assert.isFalse(d.supports('price_lookup'))
     assert.isFalse(d.supports('billing_portal'))
     assert.isFalse(d.supports('usage_metering'))
+  })
+
+  test('listSubscriptions pages through JSON:API and maps to neutral subscriptions', async ({
+    assert,
+  }) => {
+    const urls: string[] = []
+    stub((url) => {
+      urls.push(url)
+      if (urls.length === 1) {
+        return jsonResponse({
+          data: [
+            {
+              id: 1,
+              attributes: {
+                status: 'active',
+                customer_id: 7,
+                product_id: 3,
+                variant_id: 9,
+                created_at: '2024-01-01T00:00:00Z',
+                renews_at: '2024-02-01T00:00:00Z',
+              },
+            },
+          ],
+          meta: { page: { lastPage: 2 } },
+        })
+      }
+      return jsonResponse({
+        data: [
+          {
+            id: 2,
+            attributes: {
+              status: 'cancelled',
+              customer_id: 7,
+              cancelled: true,
+              created_at: '2024-01-01T00:00:00Z',
+              updated_at: '2024-03-01T00:00:00Z',
+              ends_at: '2024-04-01T00:00:00Z',
+            },
+          },
+        ],
+        meta: { page: { lastPage: 2 } },
+      })
+    })
+
+    const ids: string[] = []
+    for await (const sub of new LemonSqueezyDriver().listSubscriptions({ customerId: '7' })) {
+      ids.push(sub.providerSubscriptionId)
+    }
+
+    assert.deepEqual(ids, ['1', '2'])
+    assert.equal(urls.length, 2, 'followed pagination to the last page')
+    const firstUrl = decodeURIComponent(urls[0])
+    assert.match(firstUrl, /filter\[store_id\]=42/)
+    assert.match(firstUrl, /filter\[customer_id\]=7/)
   })
 
   test('verifyConfig rejects an empty webhook secret and an empty store id', async ({ assert }) => {
@@ -225,6 +280,58 @@ test.group('LemonSqueezyDriver (stubbed fetch)', (group) => {
     assert.equal((event.data as { providerSubscriptionId: string }).providerSubscriptionId, '42')
 
     await assert.rejects(() => d.parseWebhookEvent(body, 'deadbeef'), /signature mismatch/)
+  })
+
+  function lsSubscriptionBody(tenantId: string): string {
+    return JSON.stringify({
+      meta: { event_name: 'subscription_created', custom_data: { tenant_id: tenantId } },
+      data: {
+        id: 42,
+        attributes: {
+          status: 'active',
+          customer_id: 7,
+          product_id: 3,
+          variant_id: 9,
+          created_at: '2024-01-01T00:00:00Z',
+          renews_at: '2024-02-01T00:00:00Z',
+        },
+      },
+    })
+  }
+
+  // Lemon Squeezy's webhook HMAC carries no timestamp, so there is no replay
+  // window like Stripe's/Paddle's 300s tolerance. The mitigation is the
+  // synthetic event id derived from sha256(rawBody): a leaked secret only lets
+  // an attacker replay BYTE-IDENTICAL bodies, which the idempotency ledger
+  // already collapses via `ON CONFLICT (event_id) DO NOTHING`. These two tests
+  // pin that property so a future mapper change can't silently regress it.
+  test('replay window: identical bodies collapse to one synthetic event id', async ({ assert }) => {
+    const d = new LemonSqueezyDriver()
+    const body = lsSubscriptionBody('tnt_a')
+    const sig = createHmac('sha256', WEBHOOK_SECRET).update(body, 'utf8').digest('hex')
+
+    const first = await d.parseWebhookEvent(body, sig)
+    const second = await d.parseWebhookEvent(body, sig)
+
+    assert.equal(first.id, second.id, 'same body → same id → the ledger dedupes the replay')
+    assert.match(first.id, /^lsq_/)
+  })
+
+  test('replay window: distinct-tenant bodies do NOT collapse', async ({ assert }) => {
+    const d = new LemonSqueezyDriver()
+    const bodyA = lsSubscriptionBody('tnt_a')
+    const bodyB = lsSubscriptionBody('tnt_b')
+
+    const a = await d.parseWebhookEvent(
+      bodyA,
+      createHmac('sha256', WEBHOOK_SECRET).update(bodyA, 'utf8').digest('hex')
+    )
+    const b = await d.parseWebhookEvent(
+      bodyB,
+      createHmac('sha256', WEBHOOK_SECRET).update(bodyB, 'utf8').digest('hex')
+    )
+
+    assert.notEqual(a.id, b.id, 'different tenant in the body → different hash → both processed')
   })
 
   test('parseWebhookEvent maps a failed payment to payment.failed', async ({ assert }) => {

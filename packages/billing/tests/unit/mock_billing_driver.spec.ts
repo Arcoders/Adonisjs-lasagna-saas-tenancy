@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import MockBillingDriver from '../../src/testing/mock_billing_driver.js'
-import type { BillingWebhookEvent } from '../../src/contracts/types.js'
+import type { BillingWebhookEvent, Subscription } from '../../src/contracts/types.js'
 
 test.group('MockBillingDriver — contract round-trip', () => {
   test('signs + verifies + parses a webhook body back to a neutral event', async ({ assert }) => {
@@ -54,6 +54,40 @@ test.group('MockBillingDriver — contract round-trip', () => {
     assert.lengthOf(driver.usage, 1)
     assert.equal(driver.usage[0].quantity, 5)
     assert.equal(driver.usage[0].eventName, 'api_calls')
+  })
+
+  test('listSubscriptions enumerates injected subscriptions, filtered by customer', async ({
+    assert,
+  }) => {
+    const driver = new MockBillingDriver()
+    assert.isTrue(driver.supports('subscription_list'))
+
+    const mk = (id: string, customerId: string): Subscription => ({
+      providerSubscriptionId: id,
+      customerId,
+      status: 'active',
+      currentPeriodStart: 1,
+      currentPeriodEnd: 2,
+      cancelAtPeriodEnd: false,
+      cancelAt: null,
+      canceledAt: null,
+      trialEnd: null,
+      productId: 'prod_1',
+      priceId: 'price_1',
+      raw: {},
+    })
+    driver.injectSubscription(mk('s1', 'cus_1'))
+    driver.injectSubscription(mk('s2', 'cus_2'))
+
+    const all: string[] = []
+    for await (const s of driver.listSubscriptions()) all.push(s.providerSubscriptionId)
+    assert.deepEqual(all, ['s1', 's2'])
+
+    const filtered: string[] = []
+    for await (const s of driver.listSubscriptions({ customerId: 'cus_1' })) {
+      filtered.push(s.providerSubscriptionId)
+    }
+    assert.deepEqual(filtered, ['s1'])
   })
 
   test('retrieveEvent returns injected events for the tamper-guard path', async ({ assert }) => {

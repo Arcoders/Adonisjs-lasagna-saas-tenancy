@@ -3,6 +3,9 @@ import type Stripe from 'stripe'
 import { toBillingWebhookEvent as stripeMap } from '../../src/drivers/stripe/stripe_webhook_mapper.js'
 import { toBillingWebhookEvent as paddleMap } from '../../src/drivers/paddle/paddle_mapper.js'
 import { toBillingWebhookEvent as lsMap } from '../../src/drivers/lemon_squeezy/lemon_squeezy_mapper.js'
+import { toInvoice as stripeInvoice } from '../../src/drivers/stripe/stripe_mapper.js'
+import { toInvoice as paddleInvoice } from '../../src/drivers/paddle/paddle_mapper.js'
+import { toInvoice as lsInvoice } from '../../src/drivers/lemon_squeezy/lemon_squeezy_mapper.js'
 
 function stripeEvent(type: string, object: Record<string, unknown>): Stripe.Event {
   return {
@@ -246,5 +249,73 @@ test.group('Subscription status fail-safe (unknown statuses)', () => {
       data: { id: 'sub_pk', customer_id: 'ctm_1', status: 'active' },
     }).data as any
     assert.isTrue(sub.statusRecognized)
+  })
+})
+
+test.group('Invoice tax snapshot mapping (fiscal)', () => {
+  test('Stripe: subtotal / tax / total mapped from the invoice', ({ assert }) => {
+    const inv = stripeInvoice({
+      id: 'in_1',
+      customer: 'cus_1',
+      amount_paid: 1200,
+      amount_due: 1200,
+      currency: 'eur',
+      subtotal: 1000,
+      tax: 200,
+      total: 1200,
+    } as unknown as Stripe.Invoice)
+    assert.equal(inv.subtotal, 1000)
+    assert.equal(inv.tax, 200)
+    assert.equal(inv.total, 1200)
+  })
+
+  test('Stripe: tax summed from total_taxes when the legacy `tax` field is absent', ({
+    assert,
+  }) => {
+    const inv = stripeInvoice({
+      id: 'in_2',
+      customer: 'cus_1',
+      currency: 'usd',
+      subtotal: 5000,
+      total: 5435,
+      total_taxes: [{ amount: 400 }, { amount: 35 }],
+    } as unknown as Stripe.Invoice)
+    assert.equal(inv.tax, 435)
+    assert.equal(inv.total, 5435)
+  })
+
+  test('Paddle: subtotal / tax / total parsed from details.totals (minor-unit strings)', ({
+    assert,
+  }) => {
+    const inv = paddleInvoice({
+      id: 'txn_1',
+      customer_id: 'ctm_1',
+      currency_code: 'GBP',
+      details: { totals: { subtotal: '1000', tax: '200', total: '1200', grand_total: '1200' } },
+    })
+    assert.equal(inv.subtotal, 1000)
+    assert.equal(inv.tax, 200)
+    assert.equal(inv.total, 1200)
+  })
+
+  test('Lemon Squeezy: subtotal / tax / total from the invoice attributes', ({ assert }) => {
+    const inv = lsInvoice({
+      id: 7,
+      attributes: { subtotal: 1000, tax: 200, total: 1200, currency: 'USD', customer_id: 1 },
+    })
+    assert.equal(inv.subtotal, 1000)
+    assert.equal(inv.tax, 200)
+    assert.equal(inv.total, 1200)
+  })
+
+  test('tax fields are null when the provider omits them (no fabricated tax)', ({ assert }) => {
+    const inv = stripeInvoice({
+      id: 'in_3',
+      customer: 'cus_1',
+      amount_paid: 1000,
+      amount_due: 1000,
+      currency: 'usd',
+    } as unknown as Stripe.Invoice)
+    assert.isNull(inv.tax)
   })
 })

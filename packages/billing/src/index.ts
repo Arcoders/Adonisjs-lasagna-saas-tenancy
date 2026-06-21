@@ -46,6 +46,10 @@ export { default as BillingProcessedEvent } from './models/satellites/billing_pr
 export type { BillingProcessedEventStatus } from './models/satellites/billing_processed_event.js'
 export { default as BillingUsageEvent } from './models/satellites/billing_usage_event.js'
 export type { BillingUsageEventStatus } from './models/satellites/billing_usage_event.js'
+export { default as BillingInvoiceSnapshot } from './models/satellites/billing_invoice_snapshot.js'
+
+// Controllers (host-wired, behind your own auth + tenant middleware)
+export { default as BillingInvoiceController } from './controllers/billing_invoice_controller.js'
 
 // Exception
 export { default as BillingException } from './exceptions/billing_exception.js'

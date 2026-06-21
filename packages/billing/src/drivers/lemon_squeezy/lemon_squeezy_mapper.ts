@@ -94,6 +94,10 @@ export function toSubscription(data: LsResource | undefined): Subscription {
 
 export function toInvoice(data: LsResource | undefined): Invoice {
   const total = Number(attr<number>(data, 'total') ?? 0) || 0
+  const num = (key: string): number | null => {
+    const v = attr<number>(data, key)
+    return v === undefined ? null : Number(v) || 0
+  }
   return {
     id: String(data?.id ?? '') || null,
     customerId: String(attr<number | string>(data, 'customer_id') ?? '') || null,
@@ -106,6 +110,10 @@ export function toInvoice(data: LsResource | undefined): Invoice {
     // drive escalation — see `handlePaymentFailed`.
     attemptCount: 0,
     nextPaymentAttempt: null,
+    // LS invoice amounts are integer cents.
+    subtotal: num('subtotal'),
+    tax: num('tax'),
+    total: num('total'),
   }
 }
 

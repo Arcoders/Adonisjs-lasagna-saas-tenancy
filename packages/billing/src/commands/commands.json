@@ -2,7 +2,7 @@
   "commands": [
     {
       "commandName": "tenant:billing:sync",
-      "description": "Reconcile provider subscriptions with the local mirror — recovers from missed webhooks (Stripe driver)",
+      "description": "Reconcile provider subscriptions with the local mirror — recovers from missed webhooks (Stripe / Paddle / Lemon Squeezy)",
       "help": "Suggested cron: 0 4 * * * node ace tenant:billing:sync --json",
       "namespace": "tenant",
       "aliases": [],
@@ -46,6 +46,20 @@
       "filePath": "billing_replay.js"
     },
     {
+      "commandName": "tenant:billing:dlq:list",
+      "description": "List dead-lettered (failed) webhook events — read-only",
+      "help": "Pairs with tenant:billing:replay. Example: node ace tenant:billing:dlq:list --json",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit JSON" },
+        { "name": "limit", "flagName": "limit", "required": false, "type": "number", "description": "Max rows to report" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "billing_dlq_list.js"
+    },
+    {
       "commandName": "tenant:billing:cleanup",
       "description": "Purge billing_processed_events older than the configured retention window",
       "help": "Suggested cron: 0 4 * * * node ace tenant:billing:cleanup",
@@ -83,6 +97,19 @@
       "args": [],
       "options": { "startApp": true },
       "filePath": "billing_doctor.js"
+    },
+    {
+      "commandName": "tenant:billing:pricing:validate",
+      "description": "Validate billing plan/price configuration — CI-friendly (exit 1 on error)",
+      "help": "Run against the provider test environment in CI: node ace tenant:billing:pricing:validate --json",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit JSON" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "billing_pricing_validate.js"
     },
     {
       "commandName": "tenant:billing:test-webhook",

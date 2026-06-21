@@ -5,6 +5,7 @@ import { DateTime } from 'luxon'
 import ace from '@adonisjs/core/services/ace'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe } from '@adonisjs-lasagna/billing'
+import { BillingDriverRegistry } from '@adonisjs-lasagna/billing'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { BillingCustomer, BillingSubscription } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
@@ -248,6 +249,64 @@ test.group('tenant:billing:sync (integration)', (group) => {
 
     const refreshed = await TenantPlan.find(tenant.id)
     assert.equal(refreshed?.source, 'stripe', 'source preserved — not touched by reverse pass')
+  })
+
+  test('a driver without subscription_list skips the forward pass but still runs the reverse pass', async ({
+    assert,
+  }) => {
+    // A custom driver that cannot enumerate subscriptions. The forward pass
+    // (provider → mirror) must be skipped with a warning rather than crashing,
+    // while the driver-neutral reverse pass (orphaned plans → defaultPlan)
+    // still recovers drift.
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const cus = new BillingCustomer()
+    cus.tenantId = tenant.id
+    cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    await cus.save()
+
+    await TenantPlan.query().delete()
+    const tp = new TenantPlan()
+    tp.tenantId = tenant.id
+    tp.planName = 'pro'
+    tp.source = 'nolistdriver'
+    tp.assignedAt = DateTime.utc()
+    tp.expiresAt = null
+    await tp.save()
+
+    const registry = await app.container.make(BillingDriverRegistry)
+    const noListDriver = {
+      name: 'nolistdriver',
+      supports: () => false,
+      verifyConfig: async () => {},
+      ensureCustomer: async () => ({
+        providerCustomerId: 'x',
+        currency: null,
+        defaultPaymentMethod: null,
+      }),
+      createCheckoutSession: async () => ({ url: 'https://x', id: 'x' }),
+      parseWebhookEvent: async () => ({
+        id: 'x',
+        createdAt: 0,
+        provider: 'nolistdriver',
+        nativeType: '',
+        type: 'unknown' as const,
+        data: {},
+      }),
+    } as unknown as Parameters<BillingDriverRegistry['register']>[0]
+
+    registry.register(noListDriver, { activate: true })
+    try {
+      const command = await ace.exec('tenant:billing:sync', ['--json'])
+      assert.equal(command.exitCode, 0, 'forward pass skipped gracefully, no error')
+
+      const refreshed = await TenantPlan.find(tenant.id)
+      assert.equal(refreshed?.planName, 'starter', 'reverse pass downgraded the orphan')
+      assert.equal(refreshed?.source, 'reconciliation')
+    } finally {
+      // Restore the active driver so later specs keep using Stripe.
+      registry.use('stripe')
+    }
   })
 
   test('reverse pass (G-5): --dry-run reports orphans without repairing', async ({ assert }) => {

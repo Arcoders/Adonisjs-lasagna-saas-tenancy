@@ -611,6 +611,53 @@ mirror has been updated, so a slow listener never delays Stripe's
 delivery loop. Listener exceptions are logged but never reverted
 back to the dispatcher; keep them idempotent.
 
+### Retries, dead-lettering & alerting
+
+The package and the queue split responsibility cleanly:
+
+- **The package classifies the error.** `ProcessBillingEventJob`
+  splits failures into *fatal* and *retryable*. A known-fatal
+  `BillingException` (`authentication_failed`, `permission_denied`,
+  `invalid_stripe_request`, a `plan_unmapped`-class config error) is
+  short-circuited: the ledger row goes straight to `status='failed'`
+  and `BillingEventDeadLettered` fires immediately — retrying a
+  non-transient error only wastes attempts. A retryable error
+  (`network_error`, `rate_limited`, `api_error`, `queue_unavailable`)
+  is re-thrown so the queue retries it.
+- **The queue backend owns max-attempts and backoff.** The package
+  does not hard-code a retry count; that is your `@adonisjs/queue`
+  configuration. Recommended for billing: **3 attempts with
+  exponential backoff**, so a transient provider blip recovers
+  without hammering the API.
+
+  ```ts
+  // config/queue.ts — recommended worker policy for the billing job
+  // (BullMQ-style options; adapt to your queue transport).
+  const billingJobOptions = {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 30_000 }, // 30s, 60s, 120s
+  }
+  ```
+
+  When the retries are exhausted the job's `failed()` hook promotes
+  the row to `status='failed'` and fires `BillingEventDeadLettered`.
+  A fatal error reaches the dead-letter state on the **first** failure
+  (no waiting through the retry budget).
+
+Inspect the dead-letter queue and replay after a fix:
+
+```bash
+node ace tenant:billing:dlq:list --json   # read-only view of failed events
+node ace tenant:billing:replay --all-failed
+```
+
+For alerting, subscribe to `BillingEventDeadLettered` (the package
+ships the *signal*, you own the destination). A runnable demo listener
+lives at `examples/api/app/listeners/billing_dead_letter_listener.ts`:
+it enriches the PII-safe payload with provider / event type / tenant
+from the ledger and pages "louder" for payment-related events. Swap
+its `logger.error` for your PagerDuty / Slack / Sentry call.
+
 ## Service surface
 
 `BillingService` (singleton; delegates every provider call to the active
@@ -621,7 +668,7 @@ driver):
 | `verify()` | `Promise<void>` | Boot-time validation: runs the active driver's `verifyConfig()` (peer dep / key mode / secret shape) plus the driver-agnostic checks (`defaultPlan` and every product mapping point at declared plans). Idempotent. Called automatically from `BillingProvider.boot()`. |
 | `getClient()` | `Promise<unknown>` | Stripe-only escape hatch — returns the underlying Stripe SDK. Throws `unsupported_by_driver` when the active driver isn't Stripe. |
 | `ensureCustomer(tenant)` | `Promise<BillingCustomer>` | Idempotent customer creation; race-safe under concurrency (the driver uses a provider-side idempotency key where available). |
-| `createCheckoutSession(tenant, opts)` | `Promise<{ url, id }>` | Builds a hosted checkout URL. Auto-creates the customer. `opts`: `priceId, successUrl, cancelUrl, mode?, trialDays?, allowPromotionCodes?, clientReferenceId?, allowUnknownPrices?`. |
+| `createCheckoutSession(tenant, opts)` | `Promise<{ url, id }>` | Builds a hosted checkout URL. Auto-creates the customer. `opts`: `priceId, successUrl, cancelUrl, mode?, trialDays?, allowPromotionCodes?, clientReferenceId?, allowUnknownPrices?, currency?`. When `currency` is supplied and the customer already has an established currency, a mismatch is rejected up front with `currency_mismatch` (a customer can't be billed in two currencies). |
 | `createBillingPortalSession(tenant, opts)` | `Promise<{ url }>` | Builds a billing-portal URL. Requires a `billing_portal` driver (else `unsupported_by_driver`); throws `customer_not_found` if the tenant has no billing customer yet. |
 | `syncSubscription(sub, eventCreated, opts?)` | `Promise<{ tenant_id, plan, previousPlan } \| null>` | Reconciles a neutral `Subscription` into the local mirror + assigns the plan. Stale events (older than `last_event_at - 5s`) are rejected. |
 | `reportUsage(tenant, meter, qty, opts?)` | `Promise<void>` | Reports a meter event through the active driver (requires `usage_metering`). Persists an audit row in `billing_usage_events`. |
@@ -665,13 +712,37 @@ export default class BillingController {
 
 | Command | Args / flags | Purpose |
 |---|---|---|
-| `tenant:billing:sync` | `--dry-run`, `--tenant=<id>`, `--since=<iso>`, `--json` | Reconciles Stripe subscriptions with the local mirror; recovers from missed webhooks. **Suggested cron**: `0 4 * * *`. |
-| `tenant:billing:backfill` | `--dry-run`, `--force`, `--plan=<name>` | Seeds `tenant_plans` rows with the default plan for every tenant that doesn't have one. `--force` overwrites existing rows. |
+| `tenant:billing:sync` | `--dry-run`, `--tenant=<id>`, `--since=<iso>`, `--json` | Reconciles provider subscriptions with the local mirror; recovers from missed webhooks. Driver-neutral: the forward pass works for **Stripe, Paddle and Lemon Squeezy** (any driver with the `subscription_list` capability); the reverse pass (orphaned plans) runs for every driver. **Suggested cron**: `0 4 * * *`. |
+| `tenant:billing:backfill` | `--dry-run`, `--force`, `--plan=<name>` | Seeds `tenant_plans` rows with the default plan for every tenant that doesn't have one. `--force` overwrites existing rows. Provider-agnostic. |
 | `tenant:billing:replay` | `--event-id=<evt>`, `--all-failed` | Re-dispatches a failed webhook event after the underlying issue is fixed (e.g. missing product mapping). |
+| `tenant:billing:dlq:list` | `--json`, `--limit=<n>` | **Read-only** view of dead-lettered (`status='failed'`) webhook events: `event_id`, `provider`, `event_type`, `attempts`, `last_error`, age. Pairs with `replay`. |
 | `tenant:billing:cleanup` | `--batch-size=<n>` | Purges `billing_processed_events` older than `webhook.idempotencyTtlDays`. **Suggested cron**: `0 4 * * *`. |
 | `tenant:billing:sweep` | `--batch-size=<n>` | Emits due `TrialEnding` notices (the Paddle / Lemon Squeezy fallback for Stripe's native `trial_will_end`) and applies due grace-period dunning downgrades (`dunning.gracePeriodDays > 0`). Idempotent. **Suggested cron**: `0 * * * *` (hourly). |
-| `tenant:billing:doctor` | `--json` | Diagnoses Stripe config + recent webhook health. Exit 1 on any error. Pipeline-friendly. |
+| `tenant:billing:doctor` | `--json` | Diagnoses driver config + recent webhook health, and reports whether the active driver supports `subscription_list` reconciliation. Exit 1 on any error. Pipeline-friendly. |
+| `tenant:billing:pricing:validate` | `--json` | Validates the plan/price config before a deploy: every mapped plan + every active tenant's plan is defined, and the provider key is valid. **Exit 1** on a real misconfiguration; provider price resolution is warn-only (config keys are usually product ids). Run it in CI against the provider test environment (see below). |
 | `tenant:billing:test-webhook` | `<event>` (positional), `--url=<url>`, `--object=<file>` | Generates and POSTs a signed synthetic Stripe event. Useful in CI without `stripe listen`. |
+
+### Validating pricing in CI
+
+`tenant:billing:pricing:validate` is built to gate a deploy. Run it against the
+provider **test** environment, self-skipping when no test key is configured
+(the same opt-in shape as the `*_real_smoke` specs):
+
+```yaml
+# .github/workflows — gate a deploy on a consistent, reachable billing config
+- name: Billing pricing validation (gated, provider test mode)
+  if: ${{ env.STRIPE_TEST_API_KEY != '' }}
+  working-directory: examples/api
+  env:
+    STRIPE_API_KEY: ${{ env.STRIPE_TEST_API_KEY }}
+  run: node ace tenant:billing:pricing:validate --json
+```
+
+It exits non-zero on a product mapped to an undefined plan, a tenant stranded on
+a removed plan, or an invalid/unreachable key — so a bad config fails the
+pipeline rather than the first live webhook. Provider price resolution is
+warn-only (Lemon Squeezy has no `price_lookup` capability, and `products` keys
+are usually product ids), so it never produces a false failure.
 
 ## Storage
 
@@ -689,6 +760,7 @@ the keystone of every webhook lookup.
 | `provider_customer_id` | `string` | `UNIQUE (provider, provider_customer_id)` |
 | `default_payment_method` | `string \| null` | |
 | `currency` | `string \| null` | |
+| `country_code` | `string \| null` | ISO 3166-1 alpha-2. **Fiscal opt-in** — column ships with the fiscal migration; written only when `config.billing.fiscal.enabled`. |
 | `created_at`, `deleted_at` | `timestamptz` | |
 
 ### `billing_subscriptions`
@@ -749,6 +821,92 @@ extension (created by the migration if absent).
 | `last_error` | `text \| null` | |
 | `attempts`, `created_at` | — | |
 | **Index** | | `(tenant_id, meter_event_name, status)` |
+
+## Fiscal features (opt-in)
+
+Multi-country tax snapshots and an append-only invoice read model, for reporting
+and reconciliation. **The provider stays the system of record** — there is no
+local invoice numbering and no tax engine. We only record what the provider
+charged. Everything here is opt-in, in two steps:
+
+1. **Publish the DDL (configure time).** The fiscal migrations live in a separate
+   stub dir, so the core `--with=billing` path and the base `configure` never
+   publish them. Opt in explicitly:
+
+   ```bash
+   # interactive: answer yes to the fiscal prompt (default is no)
+   node ace configure @adonisjs-lasagna/billing
+   # non-interactive / CI:
+   LASAGNA_BILLING_FISCAL=1 node ace configure @adonisjs-lasagna/billing
+   ```
+
+   This publishes two reversible migrations: `add_country_code_to_billing_customers`
+   and `create_billing_invoice_snapshots_table`.
+
+2. **Enable the runtime behaviour (config).**
+
+   ```ts
+   // config/multitenancy.ts
+   billing: {
+     // ...
+     fiscal: {
+       enabled: true,        // capture tax + write the invoice read model
+       automaticTax: true,   // pass Stripe `automatic_tax` at checkout (Stripe Tax)
+     },
+   }
+   ```
+
+When `fiscal.enabled` is false (the default), none of the below runs and the
+extra column/table are never written — so installs that don't opt in pay nothing.
+
+**What you get:**
+
+- `billing_customers.country_code` (ISO 3166-1 alpha-2), populated from the
+  provider customer.
+- Tax breakdown on the neutral `Invoice` (`subtotal` / `tax` / `total`, integer
+  minor units) and on `PaymentSucceeded` (`tax` / `total`), mapped from whatever
+  the provider supplies (Stripe Tax / Paddle / Lemon Squeezy). Never computed
+  locally.
+- `billing_invoice_snapshots` — an append-only row per paid invoice
+  (`invoice.payment_succeeded`), idempotent on `(provider, provider_invoice_id)`.
+
+### `billing_invoice_snapshots`
+
+Append-only read model. Written only when `fiscal.enabled`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` | PK (self-assigned). |
+| `provider` | `string` | Source driver. |
+| `provider_invoice_id` | `string` | `UNIQUE (provider, provider_invoice_id)` — idempotent on redelivery. |
+| `tenant_id` | `uuid \| null` | |
+| `currency` | `string` | |
+| `subtotal_cents`, `tax_cents`, `total_cents` | `bigint` | Integer minor units, as the provider charged. |
+| `status` | `string` | e.g. `paid`. |
+| `pdf_url` | `string \| null` | Provider-hosted PDF, for read-through. |
+| `issued_at`, `created_at` | `timestamptz` | |
+| **Index** | | `(tenant_id, issued_at)` |
+
+### Read-through invoice endpoints
+
+The package exports `BillingInvoiceController` (`index` + `pdf`). Mount it behind
+your own auth + tenant middleware — the package never auto-registers
+unauthenticated tenant-data routes. Both actions scope every query to
+`request.tenant()`.
+
+```ts
+// start/routes.ts
+import { BillingInvoiceController } from '@adonisjs-lasagna/billing'
+router
+  .group(() => {
+    router.get('/billing/invoices', (ctx) => new BillingInvoiceController().index(ctx))
+    router.get('/billing/invoices/:id/pdf', (ctx) => new BillingInvoiceController().pdf(ctx))
+  })
+  .use([middleware.auth(), middleware.activeTenant()])
+```
+
+`GET /billing/invoices` lists the tenant's snapshots; `GET /billing/invoices/:id/pdf`
+redirects to the provider-hosted PDF (404 when none is recorded).
 
 ## Health
 
@@ -941,10 +1099,8 @@ queue retries.
 # Look at what failed and why
 node ace tenant:billing:doctor --json | jq '.checks[] | select(.status != "ok")'
 
-# Inspect the row directly
-psql -c "SELECT event_id, event_type, status, attempts, last_error
-         FROM backoffice.billing_processed_events
-         WHERE status = 'failed' ORDER BY processed_at DESC LIMIT 20;"
+# Inspect the dead-letter queue (read-only; no raw SQL needed)
+node ace tenant:billing:dlq:list --json
 ```
 
 The `errorCode` from the dead-letter payload tells you the class:
@@ -1043,7 +1199,7 @@ the lost window. Stripe retains deliveries for ~3 days so the
 events list in the Stripe dashboard still has them; pull each
 event_id and feed it to `tenant:billing:replay`.
 
-### 5. Drift between Stripe and local mirror
+### 5. Drift between the provider and local mirror
 
 **Symptom**: a tenant reports they cancelled but still have access,
 or the doctor flags drifted subscriptions.
@@ -1058,7 +1214,7 @@ node ace tenant:billing:sync --tenant=<uuid> --dry-run --json
 **Recovery**:
 
 ```bash
-# Forward pass aligns local with Stripe.
+# Forward pass aligns local with the provider.
 # Reverse pass downgrades orphan tenant_plans without an active sub.
 node ace tenant:billing:sync --tenant=<uuid> --json
 ```
@@ -1066,6 +1222,13 @@ node ace tenant:billing:sync --tenant=<uuid> --json
 For a system-wide drift sweep (e.g., after a long outage), drop
 `--tenant` and run for the entire account. Idempotent; safe to
 re-run.
+
+The forward pass needs the active driver's `subscription_list`
+capability (Stripe, Paddle and Lemon Squeezy all have it; a custom
+driver may not). `tenant:billing:doctor` reports a `reconciliation`
+check that warns when the active driver can't enumerate
+subscriptions — in that case only the reverse pass runs and provider
+→ mirror drift must be recovered from the provider dashboard.
 
 ### 6. Configuration drift causing `plan_unmapped`
 
@@ -1095,4 +1258,5 @@ aggregator and investigate the specific tenant.
   assignments land.
 - [Lifecycle events](/docs/events): the 10 billing events plus the
   14 tenant-lifecycle events.
+- [Resilience → billing failure modes](/docs/resilience#billing-satellite-failure-modes-and-recovery); the failure/recovery map for the webhook pipeline.
 - [Production checklist](/docs/production-checklist); the hardening runbook before you ship.

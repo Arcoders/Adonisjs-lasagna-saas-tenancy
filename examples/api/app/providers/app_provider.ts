@@ -77,11 +77,14 @@ export default class AppProvider {
     const [
       { default: AuditListener },
       { default: TenantWelcomeListener },
+      { default: BillingDeadLetterListener },
     ] = await Promise.all([
       import('#app/listeners/audit_listener'),
       import('#app/listeners/tenant_welcome_listener'),
+      import('#app/listeners/billing_dead_letter_listener'),
     ])
     AuditListener.register(emitter)
     TenantWelcomeListener.register(emitter)
+    BillingDeadLetterListener.register(emitter)
   }
 }

@@ -57,6 +57,45 @@ export default async function configure(command: Configure) {
   }
   command.logger.info(`published @adonisjs-lasagna/billing migrations: ${published.length}`)
 
+  // Fiscal features (opt-in): country_code + billing_invoice_snapshots. Their
+  // stubs live OUTSIDE the manifest's `migrations` dir, so neither the core
+  // `--with=` path nor the base publish above ever includes them. Publish only
+  // when the operator opts in — set LASAGNA_BILLING_FISCAL=1 (CI / non-TTY) or
+  // answer the prompt (default no) on an interactive run. Reuses the shared
+  // publisher with a manifest clone pointing at the fiscal stub dir, so it
+  // inherits the same namespacing + re-run idempotency as the base migrations.
+  const fiscalOptIn =
+    process.env.LASAGNA_BILLING_FISCAL === '1' ||
+    (Boolean(process.stdout.isTTY) &&
+      (await command.prompt.confirm(
+        'Enable billing fiscal features (multi-country tax snapshots + invoice read model)?',
+        { default: false }
+      )))
+
+  if (fiscalOptIn) {
+    const fiscal = await publishSatellite(
+      codemods,
+      {
+        packageName: pkgJson.name,
+        root: pkgRoot,
+        manifest: { ...manifest, migrations: 'stubs/migrations-fiscal' },
+      },
+      migrationsDir
+    )
+    if (fiscal.skipped.length > 0) {
+      command.logger.info(
+        `skipped already-published fiscal migrations: ${fiscal.skipped.join(', ')}`
+      )
+    }
+    command.logger.info(`published billing fiscal migrations: ${fiscal.published.length}`)
+    command.logger.info('Enable fiscal at runtime: config.billing.fiscal = { enabled: true }')
+  } else {
+    command.logger.info(
+      'billing fiscal features not enabled — re-run and answer yes (or set LASAGNA_BILLING_FISCAL=1) ' +
+        'to publish country_code + billing_invoice_snapshots'
+    )
+  }
+
   // Mailer + view so QuotaExceededBillingListener has something to dispatch out
   // of the box. Never overwrite the host's own copy.
   const mailerPath = command.app.makePath('app/mailers/quota_warning_mailer.ts')

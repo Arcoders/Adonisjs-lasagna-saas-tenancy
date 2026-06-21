@@ -1,10 +1,11 @@
 import type BillingService from '../billing_service.js'
 import type { Logger } from '@adonisjs/core/logger'
 import { DateTime } from 'luxon'
+import { randomUUID } from 'node:crypto'
 import BillingCustomer from '../../models/satellites/billing_customer.js'
 import BillingSubscription from '../../models/satellites/billing_subscription.js'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
-import type { BillingWebhookEvent } from '../../contracts/types.js'
+import type { BillingWebhookEvent, Invoice } from '../../contracts/types.js'
 import { redactBillingEvent } from './redact.js'
 
 export interface DispatchContext {
@@ -157,7 +158,7 @@ export async function dispatchTrialEnding(
 
 async function handlePaymentSucceeded(
   event: EventOf<'payment.succeeded'>,
-  _ctx: DispatchContext
+  ctx: DispatchContext
 ): Promise<DispatchResult> {
   const invoice = event.data
   if (!invoice.customerId) return { outcome: 'noop' }
@@ -190,14 +191,63 @@ async function handlePaymentSucceeded(
     }
   }
 
+  // Fiscal opt-in: snapshot the invoice for reporting/reconciliation. Best
+  // effort — a snapshot failure must never dead-letter a successful payment.
+  if (getConfig().billing?.fiscal?.enabled && invoice.id) {
+    await snapshotInvoice(event.provider, customer.tenantId, invoice, event.createdAt, ctx.logger)
+  }
+
   const { default: PaymentSucceeded } = await import('../../events/billing/payment_succeeded.js')
   await PaymentSucceeded.dispatch({
     tenantId: customer.tenantId,
     invoiceId: invoice.id,
     amount: invoice.amountPaid,
     currency: invoice.currency,
+    tax: invoice.tax ?? null,
+    total: invoice.total ?? null,
   })
   return { outcome: 'event_emitted', tenant_id: customer.tenantId }
+}
+
+/**
+ * Append (or no-op) a provider invoice into the fiscal read model. Idempotent on
+ * `(provider, provider_invoice_id)` via a unique-violation catch, so a webhook
+ * redelivery doesn't duplicate. Never throws — the snapshot is reporting-only.
+ */
+async function snapshotInvoice(
+  provider: string,
+  tenantId: string,
+  invoice: Invoice,
+  eventCreated: number,
+  logger: Logger
+): Promise<void> {
+  try {
+    const { default: BillingInvoiceSnapshot } =
+      await import('../../models/satellites/billing_invoice_snapshot.js')
+    const total = invoice.total ?? invoice.amountPaid
+    const tax = invoice.tax ?? 0
+    const subtotal = invoice.subtotal ?? total - tax
+    await BillingInvoiceSnapshot.create({
+      id: randomUUID(),
+      provider,
+      providerInvoiceId: invoice.id!,
+      tenantId,
+      currency: invoice.currency,
+      subtotalCents: subtotal,
+      taxCents: tax,
+      totalCents: total,
+      status: 'paid',
+      pdfUrl: null,
+      issuedAt: DateTime.fromSeconds(eventCreated),
+    })
+  } catch (err) {
+    // A duplicate (redelivery) trips the unique constraint — expected, ignore.
+    // Anything else is logged but not rethrown: the payment still succeeded.
+    logger.debug(
+      { provider, provider_invoice_id: invoice.id, err: (err as Error)?.message },
+      'billing.invoice_snapshot.skipped'
+    )
+  }
 }
 
 /**

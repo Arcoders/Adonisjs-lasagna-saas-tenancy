@@ -332,6 +332,30 @@ export interface BillingConfig {
     /** Redact PII (email, last4, phone, etc.) in logs and audit entries. Default `true`. */
     redactPii?: boolean
   }
+  /**
+   * Opt-in fiscal features (multi-country tax snapshots + an append-only invoice
+   * read model). The DDL is published separately at configure time
+   * (`node ace configure @adonisjs-lasagna/billing` → answer yes, or
+   * `LASAGNA_BILLING_FISCAL=1`); this block gates the runtime behaviour. The
+   * provider stays the source of truth for tax and invoices — we only record
+   * snapshots for reporting/reconciliation (no local invoice numbering, no tax
+   * engine). Disabled when absent.
+   */
+  fiscal?: {
+    /**
+     * Master switch for the fiscal runtime behaviour: capturing the provider's
+     * tax breakdown onto payment events / the ledger, writing the
+     * `billing_invoice_snapshots` read model, and mounting the invoice
+     * read-through routes. Default `false`.
+     */
+    enabled?: boolean
+    /**
+     * Pass Stripe `automatic_tax: { enabled: true }` at checkout so the provider
+     * computes tax. The provider does the math; we only snapshot the result.
+     * Default `false`.
+     */
+    automaticTax?: boolean
+  }
 }
 
 export type ReadReplicaStrategy = 'round-robin' | 'random' | 'sticky'

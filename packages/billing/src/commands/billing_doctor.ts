@@ -107,7 +107,22 @@ export default class BillingDoctor extends BaseCommand {
       })
     }
 
-    // 4. No old failed events (>24h).
+    // 4. Drift-recovery (forward pass) coverage for the active driver.
+    if (driver.supports('subscription_list')) {
+      results.push({
+        name: 'reconciliation',
+        status: 'ok',
+        message: `${driver.name} supports subscription listing — \`tenant:billing:sync\` forward pass available`,
+      })
+    } else {
+      results.push({
+        name: 'reconciliation',
+        status: 'warn',
+        message: `${driver.name} driver has no 'subscription_list' capability — \`tenant:billing:sync\` forward drift-recovery (provider → mirror) is unavailable; only the reverse pass (orphaned plans) runs`,
+      })
+    }
+
+    // 5. No old failed events (>24h).
     try {
       const cutoff = DateTime.utc().minus({ hours: 24 })
       const stale = await BillingProcessedEvent.query()

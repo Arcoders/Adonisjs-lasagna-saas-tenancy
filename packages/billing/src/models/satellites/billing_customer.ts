@@ -27,6 +27,15 @@ export default class BillingCustomer extends BackofficeBaseModel {
   @column()
   declare currency: string | null
 
+  /**
+   * ISO 3166-1 alpha-2 country, for tax-jurisdiction reporting. The column ships
+   * with the opt-in fiscal migration; `BillingService.ensureCustomer` writes it
+   * only when `config.billing.fiscal.enabled`, so non-fiscal installs (where the
+   * column does not exist) never set it and Lucid omits it from writes.
+   */
+  @column()
+  declare countryCode: string | null
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 

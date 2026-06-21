@@ -101,6 +101,70 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     assert.equal(rows[0].providerCustomerId, firstCustomer!.providerCustomerId)
   })
 
+  test('rejects a checkout currency that conflicts with the established customer currency', async ({
+    assert,
+  }) => {
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const fakeTenant = {
+      id: tenant.id,
+      name: tenant.name,
+      email: tenant.email,
+    } as unknown as TenantModelContract
+
+    // Customer already established in USD (e.g. from a prior subscription).
+    const cus = new BillingCustomer()
+    cus.tenantId = tenant.id
+    cus.providerCustomerId = 'cus_existing'
+    cus.currency = 'usd'
+    await cus.save()
+
+    const billing = await app.container.make(BillingService)
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+
+    await assert.rejects(
+      () =>
+        billing.createCheckoutSession(fakeTenant, {
+          priceId: 'price_eur',
+          successUrl: 'https://app.example.com/ok',
+          cancelUrl: 'https://app.example.com/cancel',
+          allowUnknownPrices: true,
+          currency: 'eur',
+        }),
+      /does not match the customer's established currency/
+    )
+  })
+
+  test('allows a checkout whose currency matches the established customer currency', async ({
+    assert,
+  }) => {
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const fakeTenant = {
+      id: tenant.id,
+      name: tenant.name,
+      email: tenant.email,
+    } as unknown as TenantModelContract
+
+    const cus = new BillingCustomer()
+    cus.tenantId = tenant.id
+    cus.providerCustomerId = 'cus_existing_usd'
+    cus.currency = 'usd'
+    await cus.save()
+
+    const billing = await app.container.make(BillingService)
+    await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
+
+    const session = await billing.createCheckoutSession(fakeTenant, {
+      priceId: 'price_usd',
+      successUrl: 'https://app.example.com/ok',
+      cancelUrl: 'https://app.example.com/cancel',
+      allowUnknownPrices: true,
+      currency: 'USD', // case-insensitive match
+    })
+    assert.isString(session.id)
+  })
+
   test('createBillingPortalSession throws when no customer exists yet', async ({ assert }) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)

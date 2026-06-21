@@ -185,6 +185,7 @@ export async function clearBillingTables(): Promise<void> {
   const conn = db.connection('backoffice')
   await conn.rawQuery('DELETE FROM backoffice.billing_usage_events')
   await conn.rawQuery('DELETE FROM backoffice.billing_processed_events')
+  await conn.rawQuery('DELETE FROM backoffice.billing_invoice_snapshots')
   await conn.rawQuery('DELETE FROM backoffice.billing_subscriptions')
   await conn.rawQuery('DELETE FROM backoffice.billing_customers')
   await conn.rawQuery('DELETE FROM backoffice.tenant_plans')

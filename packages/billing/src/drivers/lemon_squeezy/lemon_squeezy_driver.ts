@@ -9,8 +9,10 @@ import type {
   BillingWebhookEvent,
   CheckoutOptions,
   Customer,
+  ListSubscriptionsOptions,
+  Subscription,
 } from '../../contracts/types.js'
-import { toBillingWebhookEvent } from './lemon_squeezy_mapper.js'
+import { toBillingWebhookEvent, toSubscription } from './lemon_squeezy_mapper.js'
 
 const LS_API = 'https://api.lemonsqueezy.com/v1'
 const LS_MEDIA_TYPE = 'application/vnd.api+json'
@@ -18,6 +20,7 @@ const LS_MEDIA_TYPE = 'application/vnd.api+json'
 const LS_CAPABILITIES: ReadonlySet<BillingCapability> = new Set<BillingCapability>([
   'checkout',
   'subscription_cancel',
+  'subscription_list',
 ])
 
 function codeForStatus(status: number): BillingErrorCode {
@@ -127,7 +130,12 @@ export default class LemonSqueezyDriver implements BillingProviderContract {
 
     const existingId = await this.#findCustomerIdByEmail(tenant.email)
     if (existingId) {
-      return { providerCustomerId: existingId, currency: null, defaultPaymentMethod: null }
+      return {
+        providerCustomerId: existingId,
+        currency: null,
+        defaultPaymentMethod: null,
+        country: null,
+      }
     }
 
     try {
@@ -140,14 +148,24 @@ export default class LemonSqueezyDriver implements BillingProviderContract {
           },
         },
       })
-      return { providerCustomerId: String(data.id), currency: null, defaultPaymentMethod: null }
+      return {
+        providerCustomerId: String(data.id),
+        currency: null,
+        defaultPaymentMethod: null,
+        country: null,
+      }
     } catch (err) {
       // 422 = "email has already been taken": a concurrent create won. Re-read
       // and reuse it instead of orphaning a second customer.
       if (err instanceof BillingException && (err as { status?: number }).status === 422) {
         const raced = await this.#findCustomerIdByEmail(tenant.email)
         if (raced) {
-          return { providerCustomerId: raced, currency: null, defaultPaymentMethod: null }
+          return {
+            providerCustomerId: raced,
+            currency: null,
+            defaultPaymentMethod: null,
+            country: null,
+          }
         }
       }
       throw err
@@ -202,6 +220,61 @@ export default class LemonSqueezyDriver implements BillingProviderContract {
     // LS cancellation is always at period end (the subscription stays active
     // until `ends_at`). DELETE is the documented cancel verb.
     await this.#request('DELETE', `/subscriptions/${providerSubscriptionId}`)
+  }
+
+  async *listSubscriptions(opts?: ListSubscriptionsOptions): AsyncIterable<Subscription> {
+    // LS has no `created_after` filter on subscriptions; `createdAfter` is a
+    // Stripe-only scan optimization and is ignored here (full scan is correct).
+    let pageNum = 1
+    for (;;) {
+      const qs = new URLSearchParams({
+        'filter[store_id]': String(this.#config().storeId),
+        'page[size]': '100',
+        'page[number]': String(pageNum),
+      })
+      if (opts?.customerId) qs.set('filter[customer_id]', opts.customerId)
+      const page = await this.#listSubscriptionPage(`/subscriptions?${qs.toString()}`)
+      for (const item of page.data) {
+        yield toSubscription(item)
+      }
+      if (pageNum >= page.lastPage) break
+      pageNum += 1
+    }
+  }
+
+  /**
+   * GET one JSON:API page of subscriptions. Separate from `#request` because
+   * that helper discards the `meta.page` pagination block.
+   */
+  async #listSubscriptionPage(
+    path: string
+  ): Promise<{ data: Parameters<typeof toSubscription>[0][]; lastPage: number }> {
+    const cfg = this.#config()
+    let res: Response
+    try {
+      res = await fetch(`${LS_API}${path}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${cfg.apiKey}`, Accept: LS_MEDIA_TYPE },
+      })
+    } catch (err) {
+      throw new BillingException('network_error', 'Lemon Squeezy API connection error', {
+        status: 503,
+        cause: err,
+      })
+    }
+    const json = (await res.json().catch(() => ({}))) as {
+      data?: Parameters<typeof toSubscription>[0][]
+      meta?: { page?: { lastPage?: number } }
+      errors?: Array<{ detail?: string }>
+    }
+    if (!res.ok) {
+      throw new BillingException(
+        codeForStatus(res.status),
+        `Lemon Squeezy API GET /subscriptions failed: ${json.errors?.[0]?.detail ?? res.statusText}`,
+        { status: res.status }
+      )
+    }
+    return { data: json.data ?? [], lastPage: json.meta?.page?.lastPage ?? 1 }
   }
 
   verifyWebhookSignature(rawBody: string, signature: string | null): boolean {

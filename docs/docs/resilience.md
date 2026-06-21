@@ -213,6 +213,53 @@ fails the same way any tenant route does: a clean 503, never a raw 500 or a
 wrong-context serve. See
 [a resolved tenant whose database is down returns 503](./gotchas#a-resolved-tenant-whose-database-is-down-returns-503-never-central).
 
+## Billing satellite: failure modes and recovery
+
+The billing satellite turns an unreliable, out-of-order webhook stream into a
+consistent local mirror. Each failure mode below has a defined recovery path; the
+[billing incident runbook](./satellites/billing#incident-runbook) has the
+copy-paste commands, and the
+[retries & dead-lettering](./satellites/billing) section documents the queue
+contract.
+
+**A webhook can't be enqueued → 503, never a silent drop.** If the queue/Redis is
+down when a webhook arrives, the receiver returns 503 so the provider retries on
+its own schedule; the idempotency ledger (`INSERT … ON CONFLICT (event_id) DO
+NOTHING`) makes those retries safe. Recovery is automatic once the queue is back;
+anything the provider gave up on is recovered by `tenant:billing:sync`.
+
+**A webhook fails processing → retry, then dead-letter.** The job classifies the
+error: transient errors (network, rate-limit, 5xx) retry with the queue's backoff;
+known-fatal errors short-circuit straight to `status='failed'`. Either way an
+exhausted event fires `BillingEventDeadLettered`. Inspect with
+`tenant:billing:dlq:list`, fix the cause, and re-dispatch with
+`tenant:billing:replay`. Wire the event to your pager — see the demo listener in
+`examples/api/app/listeners/billing_dead_letter_listener.ts`.
+
+**Provider outage → reconcile.** While the provider is unreachable the mirror
+drifts; `tenant:billing:sync` pulls the provider's subscriptions back into the
+mirror (forward pass) and downgrades orphaned plans (reverse pass). It is
+driver-neutral across Stripe, Paddle and Lemon Squeezy; `tenant:billing:doctor`
+warns if the active driver can't enumerate subscriptions.
+
+**Out-of-order delivery → newest wins.** A stale event re-delivered after a newer
+one is dropped by the `last_event_at − 5s` ordering guard, so a late
+`subscription.updated` can't resurrect a canceled subscription or revert an upgrade.
+
+**A deleted tenant is never resurrected.** A late or replayed event for a tenant
+whose lifecycle status is `deleted` is a no-op (the customer mirror can outlive a
+soft status flip), so a stray webhook can't re-create a plan or quota for a tenant
+that's gone.
+
+**Lemon Squeezy replay window.** Unlike Stripe and Paddle (which enforce a 300s
+signature-timestamp tolerance), Lemon Squeezy's webhook HMAC carries no timestamp,
+so there is no replay window. The mitigation is the synthetic event id derived from
+`sha256(rawBody)`: a leaked secret only lets an attacker replay byte-identical
+bodies, which the idempotency ledger already collapses. Distinct payloads (e.g. a
+different tenant) hash differently and are processed normally. This is a residual,
+not a code path to fix unless Lemon Squeezy later signs a timestamp. Related:
+[replaying old provider events works, even past the retention window](./gotchas#replaying-old-stripe-events-works-even-past-30-days).
+
 ## Read next
 
 - [Configuration → Resilience](./configuration#resilience-degradation-policy)

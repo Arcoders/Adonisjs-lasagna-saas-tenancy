@@ -40,6 +40,15 @@ export type BillingCapability =
    * period end.
    */
   | 'subscription_cancel_immediate'
+  /**
+   * The driver can enumerate the provider's subscriptions, so
+   * `tenant:billing:sync` can run its forward pass (provider → local mirror) for
+   * drift recovery. A driver without it can still be reconciled by the
+   * driver-neutral reverse pass (orphaned `tenant_plans` → defaultPlan), but
+   * `sync`/`doctor` warn that forward drift-recovery is unavailable rather than
+   * implying coverage. Built-in for Stripe, Paddle, and Lemon Squeezy.
+   */
+  | 'subscription_list'
 
 /**
  * Neutral subscription status. Identical to the original
@@ -71,6 +80,13 @@ export interface Customer {
   providerCustomerId: string
   currency: string | null
   defaultPaymentMethod: string | null
+  /**
+   * ISO 3166-1 alpha-2 country, when the provider exposes it (e.g. Stripe
+   * `address.country`). Often null at creation and filled in later by the
+   * provider. Persisted to `billing_customers.country_code` only when fiscal
+   * features are enabled (the column ships with the opt-in fiscal migration).
+   */
+  country: string | null
 }
 
 /**
@@ -121,6 +137,16 @@ export interface Invoice {
   attemptCount: number
   /** Epoch seconds of the next retry, when the provider schedules one. */
   nextPaymentAttempt: number | null
+  /**
+   * Fiscal snapshot fields (integer minor units), populated by the mapper when
+   * the provider supplies them (Stripe Tax / Paddle / Lemon Squeezy). These are
+   * what the provider charged — we never compute tax. `null` when the provider
+   * doesn't break it out. Consumed by the opt-in invoice read model and carried
+   * on payment events for reporting.
+   */
+  subtotal?: number | null
+  tax?: number | null
+  total?: number | null
 }
 
 /** Data carried by a `checkout.completed` event. */
@@ -201,6 +227,14 @@ export interface CheckoutOptions {
 /** Options for `createBillingPortalSession`. */
 export interface PortalOptions {
   returnUrl: string
+}
+
+/** Options for `listSubscriptions`. Provider-neutral. */
+export interface ListSubscriptionsOptions {
+  /** Restrict the listing to a single provider customer id. */
+  customerId?: string
+  /** Only consider subscriptions created at/after this epoch-seconds time. */
+  createdAfter?: number
 }
 
 /** Options for `reportUsage`. */

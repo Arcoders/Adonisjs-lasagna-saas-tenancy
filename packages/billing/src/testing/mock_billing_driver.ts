@@ -7,8 +7,10 @@ import type {
   BillingWebhookEvent,
   CheckoutOptions,
   Customer,
+  ListSubscriptionsOptions,
   PortalOptions,
   Price,
+  Subscription,
 } from '../contracts/types.js'
 
 interface RecordedUsage {
@@ -39,6 +41,7 @@ export default class MockBillingDriver implements BillingProviderContract {
   readonly canceled: { id: string; atPeriodEnd: boolean }[] = []
   readonly #events = new Map<string, BillingWebhookEvent>()
   readonly #priceProducts = new Map<string, string | null>()
+  readonly #subscriptions: Subscription[] = []
 
   constructor(opts: { webhookSecret?: string } = {}) {
     this.#secret = opts.webhookSecret ?? 'whsec_mock'
@@ -55,6 +58,7 @@ export default class MockBillingDriver implements BillingProviderContract {
       providerCustomerId: `cus_mock_${tenant.id}`,
       currency: null,
       defaultPaymentMethod: null,
+      country: null,
     }
   }
 
@@ -93,6 +97,13 @@ export default class MockBillingDriver implements BillingProviderContract {
   async resolvePriceProduct(priceId: string): Promise<Price | null> {
     if (!this.#priceProducts.has(priceId)) return null
     return { id: priceId, productId: this.#priceProducts.get(priceId) ?? null }
+  }
+
+  async *listSubscriptions(opts?: ListSubscriptionsOptions): AsyncIterable<Subscription> {
+    for (const sub of this.#subscriptions) {
+      if (opts?.customerId && sub.customerId !== opts.customerId) continue
+      yield sub
+    }
   }
 
   verifyWebhookSignature(rawBody: string, signature: string | null): boolean {
@@ -134,5 +145,10 @@ export default class MockBillingDriver implements BillingProviderContract {
   /** Seed a price→product mapping for `resolvePriceProduct`. */
   injectPrice(priceId: string, productId: string | null): void {
     this.#priceProducts.set(priceId, productId)
+  }
+
+  /** Seed a subscription so `listSubscriptions` enumerates it (reconcile tests). */
+  injectSubscription(subscription: Subscription): void {
+    this.#subscriptions.push(subscription)
   }
 }

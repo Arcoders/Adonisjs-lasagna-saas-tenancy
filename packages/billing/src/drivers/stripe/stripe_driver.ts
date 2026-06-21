@@ -9,10 +9,12 @@ import type {
   BillingWebhookEvent,
   CheckoutOptions,
   Customer,
+  ListSubscriptionsOptions,
   PortalOptions,
   Price,
+  Subscription,
 } from '../../contracts/types.js'
-import { toCustomer } from './stripe_mapper.js'
+import { toCustomer, toSubscription } from './stripe_mapper.js'
 import { toBillingWebhookEvent } from './stripe_webhook_mapper.js'
 
 const DEFAULT_TIMEOUT_MS = 10_000
@@ -29,6 +31,7 @@ const STRIPE_CAPABILITIES: ReadonlySet<BillingCapability> = new Set<BillingCapab
   'price_lookup',
   'subscription_cancel',
   'subscription_cancel_immediate',
+  'subscription_list',
 ])
 
 /**
@@ -124,6 +127,10 @@ export default class StripeDriver implements BillingProviderContract {
         ...(opts.mode === 'subscription' && opts.trialDays
           ? { subscription_data: { trial_period_days: opts.trialDays } }
           : {}),
+        // Fiscal opt-in: let Stripe compute tax (Stripe Tax). The provider does
+        // the math; we only snapshot the result. Requires Stripe Tax enabled +
+        // a customer address / tax id on the customer.
+        ...(getConfig().billing?.fiscal?.automaticTax ? { automatic_tax: { enabled: true } } : {}),
         metadata: { tenantId: tenant.id },
       })
       if (!session.url) {
@@ -206,6 +213,19 @@ export default class StripeDriver implements BillingProviderContract {
         err,
         `priceId "${priceId}" could not be verified against Stripe`
       )
+    }
+  }
+
+  async *listSubscriptions(opts?: ListSubscriptionsOptions): AsyncIterable<Subscription> {
+    const stripe = await this.#getStripe()
+    const params: Record<string, unknown> = { status: 'all', limit: 100 }
+    if (opts?.customerId) params.customer = opts.customerId
+    if (typeof opts?.createdAfter === 'number') params.created = { gte: opts.createdAfter }
+    const page = stripe.subscriptions.list(
+      params as Parameters<typeof stripe.subscriptions.list>[0]
+    )
+    for await (const sub of page) {
+      yield toSubscription(sub)
     }
   }
 

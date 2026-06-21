@@ -55,6 +55,15 @@ export interface CreateCheckoutOptions extends CheckoutOptions {
    * only use it when the host validates priceIds upstream.
    */
   allowUnknownPrices?: boolean
+
+  /**
+   * The currency of the selected price (ISO 4217, e.g. `'usd'`). Optional
+   * defense-in-depth: when supplied and the customer already has an established
+   * currency, `createCheckoutSession` rejects a mismatch up front with a clear
+   * `currency_mismatch` error instead of a provider-specific one (a customer
+   * cannot be billed in two currencies). Omit it to keep the prior behaviour.
+   */
+  currency?: string
 }
 
 export type CreatePortalOptions = PortalOptions
@@ -133,6 +142,12 @@ export default class BillingService {
       row.providerCustomerId = remote.providerCustomerId
       row.currency = remote.currency
       row.defaultPaymentMethod = remote.defaultPaymentMethod
+      // Only touch country_code when fiscal features are enabled — the column
+      // ships with the opt-in fiscal migration, so on a non-fiscal install it
+      // does not exist and must stay out of the INSERT.
+      if (getConfig().billing?.fiscal?.enabled) {
+        row.countryCode = remote.country
+      }
       await row.save()
       return row
     } catch (err) {
@@ -156,6 +171,23 @@ export default class BillingService {
       await this.#assertPriceAllowed(driver, opts.priceId)
     }
     const customer = await this.ensureCustomer(tenant)
+
+    // Currency consistency guard: a customer with an established currency cannot
+    // be billed in another (Stripe errors; other providers vary). When the host
+    // passes the selected price's `currency`, reject a mismatch up front with a
+    // clear error rather than a provider-specific one.
+    if (
+      opts.currency &&
+      customer.currency &&
+      opts.currency.toLowerCase() !== customer.currency.toLowerCase()
+    ) {
+      throw new BillingException(
+        'currency_mismatch',
+        `checkout currency "${opts.currency}" does not match the customer's established ` +
+          `currency "${customer.currency}" — a customer cannot be billed in two currencies`
+      )
+    }
+
     return driver.createCheckoutSession(tenant, customer.providerCustomerId, opts)
   }
 
@@ -259,6 +291,31 @@ export default class BillingService {
         'tenant_not_resolvable',
         `no local billing_customers row for ${sub.customerId} — checkout must arrive first`
       )
+    }
+
+    // Tenant-state guard: never resurrect a deleted tenant's plan/quota from a
+    // late or replayed provider event. A hard delete drops the customer mirror
+    // (handled above), but a soft status flip can leave the mirror in place — so
+    // we check the host tenant's lifecycle status explicitly. Fail-open: a repo
+    // miss or error falls through and processes as before, so a transient fault
+    // (or a repo that doesn't surface the row) never drops a legitimate event.
+    try {
+      const { resolveTenantRepository } = await import('@adonisjs-lasagna/saas-tenancy/services')
+      const repo = await resolveTenantRepository()
+      const tenant = await repo.findById(customer.tenantId, true)
+      if (tenant && tenant.status === 'deleted') {
+        const logger = await lazyLogger()
+        logger?.warn(
+          {
+            tenant_id: customer.tenantId,
+            provider_subscription_id: sub.providerSubscriptionId,
+          },
+          'billing.tenant.deleted: skipping subscription sync for a deleted tenant (no resurrection)'
+        )
+        return null
+      }
+    } catch {
+      // Repository unavailable / not bound — process as before.
     }
 
     const eventAt = DateTime.fromSeconds(eventCreated)

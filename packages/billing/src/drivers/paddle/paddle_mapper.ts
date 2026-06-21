@@ -101,13 +101,24 @@ interface PaddleTransactionData {
   customer_id?: string | null
   subscription_id?: string | null
   currency_code?: string | null
-  details?: { totals?: { grand_total?: string; balance?: string } } | null
+  details?: {
+    totals?: {
+      subtotal?: string
+      tax?: string
+      total?: string
+      grand_total?: string
+      balance?: string
+    }
+  } | null
   payments?: Array<{ status?: string }>
 }
 
 export function toInvoice(data: PaddleTransactionData): Invoice {
   // Paddle amounts are integer minor-unit strings (e.g. "1000" = 10.00).
-  const grand = Number.parseInt(data.details?.totals?.grand_total ?? '0', 10) || 0
+  const totals = data.details?.totals
+  const grand = Number.parseInt(totals?.grand_total ?? '0', 10) || 0
+  const parse = (v: string | undefined): number | null =>
+    v === undefined ? null : Number.parseInt(v, 10) || 0
   return {
     id: data.id,
     customerId: data.customer_id ?? null,
@@ -117,6 +128,9 @@ export function toInvoice(data: PaddleTransactionData): Invoice {
     currency: (data.currency_code ?? 'usd').toLowerCase(),
     attemptCount: data.payments?.length ?? 0,
     nextPaymentAttempt: null,
+    subtotal: parse(totals?.subtotal),
+    tax: parse(totals?.tax),
+    total: parse(totals?.total ?? totals?.grand_total),
   }
 }
 

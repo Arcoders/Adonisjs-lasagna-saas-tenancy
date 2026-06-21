@@ -1,12 +1,10 @@
 import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import app from '@adonisjs/core/services/app'
-import type Stripe from 'stripe'
 import BillingService from '../services/billing_service.js'
 import BillingSubscription from '../models/satellites/billing_subscription.js'
 import BillingCustomer from '../models/satellites/billing_customer.js'
 import { getActiveBillingDriver } from '../services/billing/active_billing_driver.js'
-import { toSubscription } from '../drivers/stripe/stripe_mapper.js'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
@@ -15,9 +13,11 @@ import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
  * Reconcile drift between the provider and our local mirror. Run as a daily
  * cron to recover from missed webhooks (provider outages, queue backlog).
  *
- * Reconciliation pulls the provider's full subscription list, which is a
- * provider-specific operation — this command currently supports the **Stripe**
- * driver. (Paddle / Lemon Squeezy reconcile commands are a fast follow-up.)
+ * Provider-neutral: the forward pass (provider → mirror) enumerates the
+ * provider's subscriptions via the driver's `subscription_list` capability,
+ * implemented by Stripe, Paddle, and Lemon Squeezy. A custom driver that lacks
+ * the capability skips the forward pass with an explicit warning; the reverse
+ * pass (orphaned `tenant_plans` → defaultPlan) is driver-neutral and always runs.
  *
  * Idempotent: re-applying the same remote state via `syncSubscription` is a
  * no-op (the ordering guard handles redelivery; same plan = no quota bust).
@@ -25,7 +25,7 @@ import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 export default class BillingSync extends BaseCommand {
   static readonly commandName = 'tenant:billing:sync'
   static readonly description =
-    'Reconcile provider subscriptions with the local mirror — recovers from missed webhooks (Stripe driver)'
+    'Reconcile provider subscriptions with the local mirror — recovers from missed webhooks (Stripe / Paddle / Lemon Squeezy)'
   static readonly options: CommandOptions = { startApp: true }
 
   @flags.boolean({
@@ -52,15 +52,7 @@ export default class BillingSync extends BaseCommand {
 
   async run() {
     const driver = await getActiveBillingDriver()
-    if (driver.name !== 'stripe') {
-      this.logger.warning(
-        `tenant:billing:sync currently supports only the Stripe driver (active: "${driver.name}"). Skipping.`
-      )
-      return
-    }
-
     const billing = await app.container.make(BillingService)
-    const stripe = (await billing.getClient()) as Stripe
 
     let scanned = 0
     let drifted = 0
@@ -78,8 +70,7 @@ export default class BillingSync extends BaseCommand {
       customerFilter = c.providerCustomerId
     }
 
-    const params: Record<string, unknown> = { status: 'all', limit: 100 }
-    if (customerFilter) params.customer = customerFilter
+    let createdAfter: number | undefined
     if (this.since) {
       const ts = Date.parse(this.since)
       if (!Number.isFinite(ts)) {
@@ -87,45 +78,56 @@ export default class BillingSync extends BaseCommand {
         this.exitCode = 1
         return
       }
-      params.created = { gte: Math.floor(ts / 1000) }
+      createdAfter = Math.floor(ts / 1000)
     }
 
-    const subs = stripe.subscriptions.list(
-      params as Parameters<typeof stripe.subscriptions.list>[0]
-    )
-    for await (const sub of subs) {
-      scanned += 1
-      const neutral = toSubscription(sub)
-      const local = await BillingSubscription.find(neutral.providerSubscriptionId)
-      const localStatus = local?.status
-      const remoteStatus = neutral.status
-      const isDrift = !local || localStatus !== remoteStatus
+    // Forward pass (provider → local mirror). Requires the driver to enumerate
+    // its subscriptions. A driver without `subscription_list` (a custom driver)
+    // skips this pass with an explicit warning rather than silently implying
+    // drift-recovery; the reverse pass below is driver-neutral and still runs.
+    if (driver.supports('subscription_list') && typeof driver.listSubscriptions === 'function') {
+      for await (const neutral of driver.listSubscriptions({
+        customerId: customerFilter,
+        createdAfter,
+      })) {
+        scanned += 1
+        const local = await BillingSubscription.find(neutral.providerSubscriptionId)
+        const localStatus = local?.status
+        const remoteStatus = neutral.status
+        const isDrift = !local || localStatus !== remoteStatus
 
-      if (!isDrift) continue
-      drifted += 1
+        if (!isDrift) continue
+        drifted += 1
 
-      if (this.dryRun) {
-        this.logger.warning(
-          `drift  ${neutral.providerSubscriptionId}  ${localStatus ?? '(missing)'} → ${remoteStatus}`
-        )
-        continue
+        if (this.dryRun) {
+          this.logger.warning(
+            `drift  ${neutral.providerSubscriptionId}  ${localStatus ?? '(missing)'} → ${remoteStatus}`
+          )
+          continue
+        }
+
+        try {
+          // For a manual reconcile, pass `now` for the ordering guard so we
+          // always overwrite (the operator's explicit "I trust the provider").
+          await billing.syncSubscription(neutral, Math.floor(Date.now() / 1000), {
+            downgrade: remoteStatus === 'canceled',
+          })
+          repaired += 1
+          this.logger.success(
+            `repaired  ${neutral.providerSubscriptionId}  ${localStatus ?? '(missing)'} → ${remoteStatus}`
+          )
+        } catch (err) {
+          const message = (err as Error)?.message ?? 'unknown error'
+          errors.push({ subscription_id: neutral.providerSubscriptionId, error: message })
+          this.logger.error(`failed   ${neutral.providerSubscriptionId}: ${message}`)
+        }
       }
-
-      try {
-        // For a manual reconcile, pass `now` for the ordering guard so we always
-        // overwrite (the operator's explicit "I trust the provider" signal).
-        await billing.syncSubscription(neutral, Math.floor(Date.now() / 1000), {
-          downgrade: remoteStatus === 'canceled',
-        })
-        repaired += 1
-        this.logger.success(
-          `repaired  ${neutral.providerSubscriptionId}  ${localStatus ?? '(missing)'} → ${remoteStatus}`
-        )
-      } catch (err) {
-        const message = (err as Error)?.message ?? 'unknown error'
-        errors.push({ subscription_id: neutral.providerSubscriptionId, error: message })
-        this.logger.error(`failed   ${neutral.providerSubscriptionId}: ${message}`)
-      }
+    } else {
+      this.logger.warning(
+        `tenant:billing:sync: driver "${driver.name}" cannot enumerate subscriptions ` +
+          `(no 'subscription_list' capability) — skipping the forward pass (provider → mirror). ` +
+          `The reverse pass (orphaned plans → defaultPlan) still runs.`
+      )
     }
 
     // Reverse pass — tenants whose tenant_plans claims a provider-priced plan

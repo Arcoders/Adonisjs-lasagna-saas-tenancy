@@ -204,6 +204,26 @@ export async function ensureBackofficeSchema(): Promise<void> {
        CONSTRAINT billing_usage_events_tenant_id_idempotency_key_unique
          UNIQUE (tenant_id, idempotency_key)
      )`,
+    // Fiscal (opt-in) schema — bootstrapped so the fiscal integration specs run
+    // against the real shape. Mirrors the opt-in stubs in
+    // packages/billing/stubs/migrations-fiscal/ (country_code ALTER + the
+    // invoice-snapshots table). Harmless for non-fiscal specs.
+    `ALTER TABLE backoffice.billing_customers ADD COLUMN IF NOT EXISTS country_code varchar(2)`,
+    `CREATE TABLE IF NOT EXISTS backoffice.billing_invoice_snapshots (
+       id                  uuid PRIMARY KEY,
+       provider            varchar(255) NOT NULL DEFAULT 'stripe',
+       provider_invoice_id varchar(255) NOT NULL,
+       tenant_id           uuid,
+       currency            varchar(255) NOT NULL,
+       subtotal_cents      bigint NOT NULL DEFAULT 0,
+       tax_cents           bigint NOT NULL DEFAULT 0,
+       total_cents         bigint NOT NULL DEFAULT 0,
+       status              varchar(255) NOT NULL,
+       pdf_url             varchar(255),
+       issued_at           timestamptz,
+       created_at          timestamptz NOT NULL DEFAULT now(),
+       UNIQUE(provider, provider_invoice_id)
+     )`,
   ]
 
   for (const stmt of ddl) {

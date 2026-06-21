@@ -16,6 +16,7 @@ export type BillingErrorCode =
   | 'tenant_not_resolvable'
   | 'plan_unmapped'
   | 'invalid_price'
+  | 'currency_mismatch'
   | 'subscription_not_found'
   | 'card_declined'
   | 'rate_limited'
@@ -61,6 +62,7 @@ const FATAL_CODES = new Set<BillingErrorCode>([
   'webhook_body_unreadable',
   'plan_unmapped',
   'invalid_price',
+  'currency_mismatch',
   'subscription_not_found',
   'card_declined',
   'idempotency_conflict',

@@ -9,9 +9,11 @@ import type {
   BillingWebhookEvent,
   CheckoutOptions,
   Customer,
+  ListSubscriptionsOptions,
   Price,
+  Subscription,
 } from '../../contracts/types.js'
-import { toBillingWebhookEvent } from './paddle_mapper.js'
+import { toBillingWebhookEvent, toSubscription } from './paddle_mapper.js'
 
 /** Tolerance (s) for the Paddle-Signature timestamp. */
 const WEBHOOK_TOLERANCE_SECONDS = 300
@@ -22,6 +24,7 @@ const PADDLE_CAPABILITIES: ReadonlySet<BillingCapability> = new Set<BillingCapab
   'subscription_cancel',
   // Paddle honours `effective_from: 'immediately'` on cancel.
   'subscription_cancel_immediate',
+  'subscription_list',
 ])
 
 function codeForStatus(status: number): BillingErrorCode {
@@ -129,7 +132,12 @@ export default class PaddleDriver implements BillingProviderContract {
       },
       { idempotencyKey: `tenant:${tenant.id}:create-customer` }
     )
-    return { providerCustomerId: data.id, currency: null, defaultPaymentMethod: null }
+    return {
+      providerCustomerId: data.id,
+      currency: null,
+      defaultPaymentMethod: null,
+      country: null,
+    }
   }
 
   async createCheckoutSession(
@@ -173,6 +181,58 @@ export default class PaddleDriver implements BillingProviderContract {
       `/prices/${priceId}`
     )
     return { id: data.id, productId: data.product_id ?? null }
+  }
+
+  async *listSubscriptions(opts?: ListSubscriptionsOptions): AsyncIterable<Subscription> {
+    const params = new URLSearchParams({ per_page: '100' })
+    if (opts?.customerId) params.set('customer_id', opts.customerId)
+    // Paddle has no `created_after` filter on subscriptions; `createdAfter` is a
+    // Stripe-only scan optimization and is ignored here (full scan is correct).
+    let next: string | null = `${this.#baseUrl()}/subscriptions?${params.toString()}`
+    while (next) {
+      const page = await this.#getSubscriptionPage(next)
+      for (const item of page.data) {
+        yield toSubscription(item)
+      }
+      next = page.next
+    }
+  }
+
+  /**
+   * GET one page of subscriptions (paging via Paddle's `meta.pagination.next`
+   * absolute URL). Kept separate from `#request` because that helper discards
+   * the pagination meta and always prefixes the base URL.
+   */
+  async #getSubscriptionPage(
+    url: string
+  ): Promise<{ data: Parameters<typeof toSubscription>[0][]; next: string | null }> {
+    const cfg = this.#config()
+    let res: Response
+    try {
+      res = await fetch(url, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${cfg.apiKey}`, 'Content-Type': 'application/json' },
+      })
+    } catch (err) {
+      throw new BillingException('network_error', 'Paddle API connection error', {
+        status: 503,
+        cause: err,
+      })
+    }
+    const json = (await res.json().catch(() => ({}))) as {
+      data?: Parameters<typeof toSubscription>[0][]
+      meta?: { pagination?: { next?: string | null; has_more?: boolean } }
+      error?: { detail?: string }
+    }
+    if (!res.ok) {
+      throw new BillingException(
+        codeForStatus(res.status),
+        `Paddle API GET /subscriptions failed: ${json.error?.detail ?? res.statusText}`,
+        { status: res.status }
+      )
+    }
+    const pg = json.meta?.pagination
+    return { data: json.data ?? [], next: pg?.has_more && pg.next ? pg.next : null }
   }
 
   verifyWebhookSignature(rawBody: string, signature: string | null): boolean {

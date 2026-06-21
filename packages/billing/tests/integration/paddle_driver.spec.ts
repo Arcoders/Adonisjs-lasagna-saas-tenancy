@@ -70,8 +70,55 @@ test.group('PaddleDriver (stubbed fetch)', (group) => {
     assert.isTrue(d.supports('checkout'))
     assert.isTrue(d.supports('price_lookup'))
     assert.isTrue(d.supports('subscription_cancel'))
+    assert.isTrue(d.supports('subscription_list'))
     assert.isFalse(d.supports('billing_portal'))
     assert.isFalse(d.supports('usage_metering'))
+  })
+
+  test('listSubscriptions follows pagination and maps to neutral subscriptions', async ({
+    assert,
+  }) => {
+    const urls: string[] = []
+    stub((url) => {
+      urls.push(url)
+      if (urls.length === 1) {
+        return jsonResponse({
+          data: [
+            {
+              id: 'sub_1',
+              customer_id: 'ctm_1',
+              status: 'active',
+              items: [{ price: { id: 'pri_1', product_id: 'pro_1' } }],
+            },
+          ],
+          meta: {
+            pagination: {
+              has_more: true,
+              next: 'https://sandbox-api.paddle.com/subscriptions?after=sub_1&per_page=100',
+            },
+          },
+        })
+      }
+      return jsonResponse({
+        data: [{ id: 'sub_2', customer_id: 'ctm_1', status: 'canceled', items: [] }],
+        meta: { pagination: { has_more: false, next: null } },
+      })
+    })
+
+    const ids: string[] = []
+    for await (const sub of new PaddleDriver().listSubscriptions({ customerId: 'ctm_1' })) {
+      ids.push(sub.providerSubscriptionId)
+    }
+
+    assert.deepEqual(ids, ['sub_1', 'sub_2'])
+    assert.match(urls[0], /^https:\/\/sandbox-api\.paddle\.com\/subscriptions\?/)
+    assert.match(urls[0], /per_page=100/)
+    assert.match(urls[0], /customer_id=ctm_1/)
+    assert.equal(
+      urls[1],
+      'https://sandbox-api.paddle.com/subscriptions?after=sub_1&per_page=100',
+      'followed the absolute next URL'
+    )
   })
 
   test('verifyConfig rejects an empty webhook secret', async ({ assert }) => {

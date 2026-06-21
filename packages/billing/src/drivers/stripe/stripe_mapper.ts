@@ -19,6 +19,7 @@ export function toCustomer(c: Stripe.Customer): Customer {
     providerCustomerId: c.id,
     currency: c.currency ?? null,
     defaultPaymentMethod: null,
+    country: c.address?.country ?? null,
   }
 }
 
@@ -90,7 +91,25 @@ export function toInvoice(invoice: Stripe.Invoice): Invoice {
     currency: invoice.currency ?? 'usd',
     attemptCount: invoice.attempt_count ?? 0,
     nextPaymentAttempt: invoice.next_payment_attempt ?? null,
+    subtotal: invoice.subtotal ?? null,
+    // Stripe ≤ v17 exposes `tax`; v18+ moves the total tax to
+    // `total_taxes[].amount`. Read the legacy field first, then sum the new one.
+    tax: stripeInvoiceTax(invoice),
+    total: invoice.total ?? null,
   }
+}
+
+/** Total tax from a Stripe invoice across API-version shapes (`tax` vs `total_taxes`). */
+function stripeInvoiceTax(invoice: Stripe.Invoice): number | null {
+  const raw = invoice as unknown as {
+    tax?: number | null
+    total_taxes?: Array<{ amount?: number }> | null
+  }
+  if (typeof raw.tax === 'number') return raw.tax
+  if (Array.isArray(raw.total_taxes)) {
+    return raw.total_taxes.reduce((sum, t) => sum + (t.amount ?? 0), 0)
+  }
+  return null
 }
 
 /** Map a Stripe event type onto the package's canonical taxonomy. */

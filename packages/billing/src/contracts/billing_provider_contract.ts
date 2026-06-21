@@ -5,8 +5,10 @@ import type {
   BillingWebhookEvent,
   CheckoutOptions,
   Customer,
+  ListSubscriptionsOptions,
   PortalOptions,
   Price,
+  Subscription,
   UsageOptions,
 } from './types.js'
 
@@ -92,6 +94,15 @@ export interface BillingProviderContract {
    * `price_lookup`. Returns `null` when the price has no product.
    */
   resolvePriceProduct?(priceId: string): Promise<Price | null>
+
+  /**
+   * Enumerate the provider's subscriptions as neutral `Subscription`s, paging
+   * internally. Capability: `subscription_list`. Drives the `tenant:billing:sync`
+   * forward pass (provider → local mirror). Drivers without an enumerable
+   * subscription endpoint omit this; `sync`/`doctor` then warn that forward
+   * drift-recovery is unavailable for that provider.
+   */
+  listSubscriptions?(opts?: ListSubscriptionsOptions): AsyncIterable<Subscription>
 
   /**
    * Optional synchronous signature check, for drivers whose scheme is a plain
