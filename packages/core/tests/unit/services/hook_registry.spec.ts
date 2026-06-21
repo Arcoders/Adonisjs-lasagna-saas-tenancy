@@ -136,6 +136,45 @@ test.group('HookRegistry — error semantics', () => {
   })
 })
 
+test.group('HookRegistry — fail-closed destroy guarantee (U1 anchor)', () => {
+  // The destroy lifecycle (commands/destroy_tenant.ts) runs before('destroy')
+  // BEFORE driver.destroy (DROP SCHEMA CASCADE). These two tests are the
+  // locally-runnable anchor for that safety property: a throwing satellite
+  // cleanup hook must abort the destroy (no schema drop), and an after('destroy')
+  // failure must not undo a destroy that already happened. The integration spec
+  // destroy_hook_failclosed.spec.ts proves the end-to-end consequence on a real
+  // schema; this pins the unit-level contract it relies on.
+  test('a throwing before(destroy) hook makes run reject (destroy never proceeds)', async ({
+    assert,
+  }) => {
+    const reg = new HookRegistry()
+    reg.before('destroy', () => {
+      throw new Error('satellite cleanup failed')
+    })
+
+    await assert.rejects(
+      () => reg.run('before', 'destroy', { tenant: fakeTenant }),
+      'satellite cleanup failed'
+    )
+  })
+
+  test('a throwing after(destroy) hook is swallowed (destroy still completes)', async ({
+    assert,
+  }) => {
+    const reg = new HookRegistry()
+    let secondRan = false
+    reg.after('destroy', () => {
+      throw new Error('post-destroy notification failed')
+    })
+    reg.after('destroy', () => {
+      secondRan = true
+    })
+
+    await assert.doesNotReject(() => reg.run('after', 'destroy', { tenant: fakeTenant }))
+    assert.isTrue(secondRan, 'a failing after-hook must not stop the remaining after-hooks')
+  })
+})
+
 test.group('HookRegistry — declarative hooks loading', () => {
   test('loadDeclarative wires up all 12 hooks correctly', async ({ assert }) => {
     const reg = new HookRegistry()

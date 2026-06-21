@@ -44,6 +44,11 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   DEMO_ADMIN_TOKEN: Env.schema.string(),
 
+  // Billing provider selection. Optional: defaults to 'stripe' in config. Lets a
+  // deploy pick a provider without a code change (and lets the satellite boot
+  // e2e point it at a bogus driver to prove fail-fast boot).
+  BILLING_DRIVER: Env.schema.string.optional(),
+
   // ─── Mail (MailCatcher in dev/test, real SMTP in production) ─────
   MAILCATCHER_HOST: Env.schema.string.optional({ format: 'host' }),
   MAILCATCHER_PORT: Env.schema.number.optional(),

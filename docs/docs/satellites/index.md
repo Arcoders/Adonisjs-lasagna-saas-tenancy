@@ -82,6 +82,11 @@ not a feature of its own. They live here because that's where you'll look for th
   respective service contracts. Replace one and the rest keep
   working.
 
+For how the satellite lifecycle behaves under failure (a provider that throws at
+boot, a fail-closed tenant destroy, a migration that fails mid-batch, the
+read-only uninstall), see
+[Satellite lifecycle: failure modes and recovery](/docs/resilience#satellite-lifecycle-failure-modes-and-recovery).
+
 ## Build your own
 
 Satellites are a public extension point. The billing, SSO, and WebSockets

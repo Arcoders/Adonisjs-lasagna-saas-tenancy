@@ -165,7 +165,10 @@ export default {
   // MockStripe, so no real Stripe account is needed. `products` maps Stripe
   // product ids to plans declared in `plans.definitions` above.
   billing: {
-    driver: 'stripe',
+    // Configurable so deploys can pick a provider without a code change (and so
+    // the satellite_boot_failure e2e can point it at a bogus driver to prove the
+    // billing provider fails the boot fast and names itself). Defaults to stripe.
+    driver: env.get('BILLING_DRIVER', 'stripe'),
     stripe: {
       apiKey: env.get('STRIPE_API_KEY', 'sk_test_demo_placeholder_key'),
       webhookSecret: env.get('STRIPE_WEBHOOK_SECRET', 'whsec_demo_placeholder_secret'),

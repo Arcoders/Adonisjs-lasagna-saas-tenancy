@@ -166,6 +166,53 @@ message, no PII.
 The service is a stateless container singleton, so `new ResilienceService()`
 works anywhere you want to wrap your own dependency call with the same policy.
 
+## Satellite lifecycle: failure modes and recovery
+
+The policies above govern a backing dependency going down. The other axis is the
+satellite lifecycle itself: what happens when configure, boot, a tenant destroy, a
+migration, or an uninstall hits a failure, and how to recover. Each behaviour below
+is covered by a test in the suite.
+
+**Configure fails fast on a bad satellite set.** A missing or circular dependency,
+or an ABI-incompatible satellite, aborts the whole `configure` run and publishes
+nothing, with diagnostics that name the offender. A half-finished configure is
+recovered simply by re-running it; configure is idempotent.
+
+**A satellite that throws in `boot()` fails the app fast.** Provider boot
+validation (a missing optional peer, an unknown driver name, a malformed config)
+throws with the satellite named in the message, so the process exits non-zero
+instead of coming up half-wired and returning 500 on the first request. There is no
+partial start to clean up.
+
+**Tenant destroy is fail-closed.** The `before('destroy')` hook runs before the
+schema is dropped, and before-hooks re-throw, so a satellite cleanup hook that
+throws aborts the destroy: the schema and its rows stay intact, with no
+half-destroyed state to reconcile. A failing `after('destroy')` hook is logged and
+the destroy still completes. Destroying one tenant never touches another, because
+each cleanup hook is scoped to the destroyed tenant and the schema drop is
+per-tenant.
+
+**A satellite migration that fails mid-batch is recoverable.** Each migration runs
+in its own transaction, so a failure leaves the migrations that ran before it
+committed, the failing one with no table and no row in the migration ledger, and
+the error surfaced rather than swallowed. Fix the cause and re-run: only the
+failing migration is re-attempted, and the prior ones are skipped.
+
+**Uninstall is a read-only checklist, not an automated drop.**
+`tenant:satellite:remove <pkg>` prints the `adonisrc.ts` lines, the published
+backoffice migrations, and the config block to remove, but never edits
+`adonisrc.ts` or drops a table, because auto-dropping shared backoffice data is a
+footgun. Every satellite's tables live in the shared `backoffice` schema (see
+[Cross-satellite invariants](./satellites/)), so rolling back its backoffice
+migrations is the complete cleanup, with nothing left in any per-tenant schema.
+Reinstalling is re-running `configure` / `backoffice:setup`, which is idempotent
+and preserves existing rows.
+
+When the backing database itself is unreachable mid-request, a satellite endpoint
+fails the same way any tenant route does: a clean 503, never a raw 500 or a
+wrong-context serve. See
+[a resolved tenant whose database is down returns 503](./gotchas#a-resolved-tenant-whose-database-is-down-returns-503-never-central).
+
 ## Read next
 
 - [Configuration → Resilience](./configuration#resilience-degradation-policy)
