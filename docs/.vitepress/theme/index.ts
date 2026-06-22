@@ -13,6 +13,7 @@ import PageFeedback from './components/PageFeedback.vue'
 // They are not referenced from markdown, so they need no global registration.
 import HomeHero from './components/HomeHero.vue'
 import TrustBand from './components/TrustBand.vue'
+import HomeOrbit from './components/HomeOrbit.vue'
 import HomeArchitecture from './components/HomeArchitecture.vue'
 import HomeAdoption from './components/HomeAdoption.vue'
 import HomeExtend from './components/HomeExtend.vue'
@@ -25,12 +26,13 @@ import './style.css'
  * sidebar, and dark-mode toggle keep working) and layer a single accent and
  * two typefaces on top through `style.css`.
  *
- * The landing page keeps VitePress's `layout: home` (so the feature cards come
- * from frontmatter), but replaces the plain native hero with a richer custom
- * `HomeHero` (eyebrow, headline, install line, CTAs, and the layered-stack
- * visual) via the `home-hero-before` slot, nulling the native hero slots. The
- * compatibility band, architecture diagram, adoption guide, and the
- * extend-it-yourself band are injected around the feature cards.
+ * The landing page keeps VitePress's `layout: home`, but every section is
+ * custom: the native hero is replaced with `HomeHero` (eyebrow, headline,
+ * install line, CTAs, and the layered-stack visual) via `home-hero-before`,
+ * nulling the native hero slots. The flat feature grid is gone (no `features:`
+ * frontmatter) — the `home-features-before` slot renders the compatibility band
+ * and the `HomeOrbit` core-and-satellites visual, and `home-features-after`
+ * adds the architecture diagram, adoption guide, and extend-it-yourself band.
  */
 const LasagnaLayout = () => {
   const { frontmatter } = useData()
@@ -40,7 +42,7 @@ const LasagnaLayout = () => {
       'home-hero-before': () => h(HomeHero),
       'home-hero-info': () => null,
       'home-hero-image': () => null,
-      'home-features-before': () => h(TrustBand),
+      'home-features-before': () => [h(TrustBand), h(HomeOrbit)],
       'home-features-after': () => [
         h(HomeArchitecture),
         h(HomeAdoption),

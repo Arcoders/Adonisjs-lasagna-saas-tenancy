@@ -32,12 +32,12 @@ import HomeStack from './HomeStack.vue'
           backups, replicas, SSO, and billing. One package.
         </p>
 
-        <p class="hh__sub">
+        <!-- <p class="hh__sub">
           Multitenancy is the part most teams dread. We built Lasagna to take
           that off your plate: developers adopt it without becoming isolation
           experts, and operators get day-2 tooling (a doctor command, backups,
           replicas, health probes, metrics) built in from day one.
-        </p>
+        </p> -->
 
         <CopyCommand class="hh__install" align="start" />
 

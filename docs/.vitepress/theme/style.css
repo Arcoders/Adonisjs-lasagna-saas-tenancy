@@ -95,30 +95,9 @@
   display: none;
 }
 
-/* Breathing room between the compatibility band and the feature cards. */
-.VPHome .VPFeatures {
-  margin-top: 2.75rem;
-}
-
-/* Feature cards: a warm icon tile, a per-card accent edge, and a hover lift. */
-.VPHome .VPFeature {
-  border-top-width: 3px;
-  transition: transform 0.22s ease, border-color 0.22s ease,
-    box-shadow 0.22s ease;
-}
-.VPHome .VPFeature:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 16px 34px -18px rgba(0, 0, 0, 0.3);
-}
-.VPHome .VPFeature .icon {
-  background-color: var(--vp-c-brand-soft);
-}
-.VPHome .VPFeatures .item:nth-child(1) .VPFeature { border-top-color: #c2410c; }
-.VPHome .VPFeatures .item:nth-child(2) .VPFeature { border-top-color: #0f6f86; }
-.VPHome .VPFeatures .item:nth-child(3) .VPFeature { border-top-color: #d97706; }
-.VPHome .VPFeatures .item:nth-child(4) .VPFeature { border-top-color: #3f7d8c; }
-.VPHome .VPFeatures .item:nth-child(5) .VPFeature { border-top-color: #8a5a3a; }
-.VPHome .VPFeatures .item:nth-child(6) .VPFeature { border-top-color: #586b8c; }
+/* The flat feature grid is gone; HomeOrbit (injected via the
+ * `home-features-before` slot) replaces it. VitePress renders an empty
+ * `VPFeatures` element, which collapses on its own with no items. */
 
 /* ─── Doc content polish ────────────────────────────────────────────
  * Bring the home page's card language into the doc pages, subtly. Docs
