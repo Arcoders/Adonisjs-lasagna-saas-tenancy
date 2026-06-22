@@ -17,6 +17,7 @@ import type {
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import TenantSocketServer from '../src/tenant_socket_server.js'
 import { resolveTenantIdFromHandshake } from '../src/resolve_from_handshake.js'
+import { assertWebSocketsConfig } from '../src/validate_config.js'
 import type { IoServer, WebSocketsConfig } from '../src/types.js'
 
 /** Config shape read off `config/multitenancy.ts` without augmenting core. */
@@ -67,12 +68,7 @@ export default class WebSocketsProvider implements SatelliteProviderContract {
     if (!this.#enabled) return
 
     // Eager validation so a bad shape fails at boot, not at the first upgrade.
-    if (this.#config?.path !== undefined && typeof this.#config.path !== 'string') {
-      throw new Error('[websockets] config.websockets.path must be a string')
-    }
-    if (this.#config?.authorize !== undefined && typeof this.#config.authorize !== 'function') {
-      throw new Error('[websockets] config.websockets.authorize must be a function')
-    }
+    assertWebSocketsConfig(this.#config!)
 
     this.#cb = await this.app.container.make(CircuitBreakerService)
 

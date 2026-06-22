@@ -176,7 +176,12 @@ is covered by a test in the suite.
 **Configure fails fast on a bad satellite set.** A missing or circular dependency,
 or an ABI-incompatible satellite, aborts the whole `configure` run and publishes
 nothing, with diagnostics that name the offender. A half-finished configure is
-recovered simply by re-running it; configure is idempotent.
+recovered simply by re-running it; configure is idempotent. The recovery holds even
+when publishing got further: if a run copied some stubs and then a later step threw,
+re-running completes the install rather than duplicating it, because each step is
+idempotent. Stub publishing skips files that already exist
+(`filterAlreadyPublished`), and provider and command registration no-op when the
+entry is already present.
 
 **A satellite that throws in `boot()` fails the app fast.** Provider boot
 validation (a missing optional peer, an unknown driver name, a malformed config)

@@ -716,8 +716,21 @@ jobs:
       # no Ignitor — a plain Japa runner over the websockets package's own
       # tests/integration/**. Uses this job's Redis (REDIS_HOST/PORT) and the
       # socket peers installed above; self-skips if they are absent.
+      #
+      # Runs under c8 (test:integration:coverage) so this tier's V8 reaches the
+      # per-satellite merged-coverage gate in coverage-report. The integration
+      # specs run against src via tsx, so c8 attributes directly to
+      # packages/websockets/src/** (no build/ source-map hop needed).
       - name: Test (websockets multi-node integration)
-        run: npm run test:integration:run --workspace @adonisjs-lasagna/websockets
+        run: npm run test:integration:coverage --workspace @adonisjs-lasagna/websockets
+
+      - name: Upload raw websockets integration coverage (V8)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-websockets-integration
+          path: coverage/.v8/websockets-integration
+          if-no-files-found: warn
 
   deploy-validate:
     name: Deploy assets (static validation)
@@ -796,7 +809,7 @@ jobs:
     # coverage from both suites through a single `c8 report`, which remaps each
     # script back to src/*.ts via source maps — so the integration suite (run
     # against build/) finally counts toward src instead of reading as ~0.
-    needs: [lint-and-typecheck, test-integration]
+    needs: [lint-and-typecheck, test-integration, test-e2e-websockets]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -863,10 +876,19 @@ jobs:
           name: c8-raw-billing-integration
           path: coverage/.v8/all
 
+      # websockets integration V8 is produced by the test-e2e-websockets job (a
+      # different job than test-integration above), now run under c8. This is why
+      # test-e2e-websockets is in this job's needs:.
+      - name: Download raw satellite integration coverage (V8) — websockets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-websockets-integration
+          path: coverage/.v8/all
+
       # Satellite UNIT V8, merged into the same temp dir so each satellite's
       # MERGED (unit+integration) src coverage is what check-satellite-coverage.mjs
-      # gates below. websockets has no integration tier here (it runs in the WS e2e
-      # job without coverage), so its merged number is unit-only (see the gate).
+      # gates below. websockets now contributes both tiers: its unit V8 here plus
+      # its integration V8 from the test-e2e-websockets job above.
       - name: Download raw satellite unit coverage (V8) — sso
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
