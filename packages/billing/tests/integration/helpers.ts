@@ -178,6 +178,46 @@ export function hydrateJob<P>(
 }
 
 /**
+ * The neutral subscription statuses (kept in sync with `SUBSCRIPTION_STATUSES`
+ * in `src/contracts/types.ts`). Inlined here rather than importing the runtime
+ * guard, which is not part of the package's public barrel — keeping it off the
+ * public surface avoids a changeset just to assert in a test.
+ */
+const KNOWN_SUBSCRIPTION_STATUSES: readonly string[] = [
+  'incomplete',
+  'incomplete_expired',
+  'trialing',
+  'active',
+  'past_due',
+  'canceled',
+  'unpaid',
+  'paused',
+]
+
+/**
+ * Assert a row yielded by a driver's `listSubscriptions()` is a well-formed
+ * neutral `Subscription`. Used by the provider real-API reconciliation smokes to
+ * prove the live `/subscriptions` endpoint + pagination + `toSubscription`
+ * mapping produce the neutral shape (which the stubbed `*_driver.spec.ts` can't).
+ * Throws (failing the test) on any drift rather than relying on japa's `assert`.
+ */
+export function assertNeutralSubscription(sub: Subscription): void {
+  const dump = JSON.stringify(sub)
+  if (typeof sub.providerSubscriptionId !== 'string' || sub.providerSubscriptionId.length === 0) {
+    throw new Error(`listSubscriptions yielded a row without a providerSubscriptionId: ${dump}`)
+  }
+  if (typeof sub.customerId !== 'string') {
+    throw new Error(`listSubscriptions row missing a string customerId: ${dump}`)
+  }
+  if (!KNOWN_SUBSCRIPTION_STATUSES.includes(sub.status)) {
+    throw new Error(`listSubscriptions row mapped to a non-neutral status "${sub.status}": ${dump}`)
+  }
+  if (typeof sub.currentPeriodStart !== 'number' || typeof sub.currentPeriodEnd !== 'number') {
+    throw new Error(`listSubscriptions row has non-numeric period bounds: ${dump}`)
+  }
+}
+
+/**
  * Truncate every billing table — call this from `group.each.teardown` to
  * keep specs isolated. Order matters because of FKs.
  */

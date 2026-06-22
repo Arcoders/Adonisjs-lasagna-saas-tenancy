@@ -24,6 +24,16 @@ is the reference: every config field, the driver contract, every event,
 every command, every storage table, the lifecycle policy, and the
 testing helpers.
 
+::: warning Billing is not a fiscal system of record
+The payment provider (Stripe, Paddle, Lemon Squeezy) is the source of truth for
+charges, invoices, and tax. Lasagna keeps a mirror to drive plan assignment,
+webhook processing, dunning, and metered billing; the opt-in
+[fiscal features](#fiscal-features-opt-in) snapshot the provider's tax/invoice
+data for **reporting only**. Lasagna does not generate invoice numbers, compute
+tax, or enforce fiscal compliance — for accounting and audits, reconcile against
+your provider's dashboard.
+:::
+
 ## Quick start
 
 The four steps to a working Stripe integration; each links to its full reference
@@ -245,9 +255,10 @@ count; see [Dunning](#dunning).
 
 The Stripe driver uses the official SDK. The Paddle and Lemon Squeezy drivers
 call their REST APIs directly and verify webhooks natively (`Paddle-Signature`
-`ts;h1` HMAC, and `X-Signature` HMAC-SHA256 respectively). Reconcile commands
-(`tenant:billing:sync`) currently target the Stripe driver; Paddle / Lemon
-Squeezy reconcile is a fast follow-up.
+`ts;h1` HMAC, and `X-Signature` HMAC-SHA256 respectively). Reconcile
+(`tenant:billing:sync`) is driver-neutral: its forward pass works for every
+driver that advertises the `subscription_list` capability — Stripe, Paddle and
+Lemon Squeezy all do.
 
 ### Writing a billing driver
 
@@ -1229,6 +1240,18 @@ driver may not). `tenant:billing:doctor` reports a `reconciliation`
 check that warns when the active driver can't enumerate
 subscriptions — in that case only the reverse pass runs and provider
 → mirror drift must be recovered from the provider dashboard.
+
+::: tip What's actually tested
+Being honest about coverage: the full drift-repair cycle (enumerate →
+compare → repair) is verified with an in-process double for every
+driver (`sync_command.spec.ts`). Against the **live** provider APIs,
+Stripe (the primary provider) is exercised end-to-end on the blocking
+CI gate, including its `listSubscriptions` path. The Paddle and Lemon
+Squeezy `listSubscriptions` smokes assert auth, pagination, and neutral
+mapping (tolerating an empty sandbox) but run in a **non-blocking** CI
+lane, so a secondary-provider outage can't fail the build — see the
+satellite's `*_real_smoke.spec.ts`.
+:::
 
 ### 6. Configuration drift causing `plan_unmapped`
 

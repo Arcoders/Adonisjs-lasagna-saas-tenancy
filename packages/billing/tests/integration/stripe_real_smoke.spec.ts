@@ -3,6 +3,7 @@ import app from '@adonisjs/core/services/app'
 import { randomUUID } from 'node:crypto'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { signWebhookPayload } from '@adonisjs-lasagna/billing'
+import { getActiveBillingDriver } from '@adonisjs-lasagna/billing'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import {
   BillingCustomer,
@@ -14,7 +15,7 @@ import type { Subscription, SubscriptionStatus } from '@adonisjs-lasagna/billing
 import { ProcessBillingEventJob } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '@adonisjs-lasagna/satellite-test-kit/testing'
-import { clearBillingTables, hydrateJob } from './helpers.js'
+import { clearBillingTables, hydrateJob, assertNeutralSubscription } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import type Stripe from 'stripe'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
@@ -456,5 +457,47 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
     .skip(
       !SHOULD_RUN,
       'STRIPE_TEST_API_KEY env var not set or not an sk_test_* key — smoke test skipped'
+    )
+
+  test('reconciliation: driver.listSubscriptions enumerates the live API (auth + pagination + mapping)', async ({
+    assert,
+  }) => {
+    // The "SDK call-site" test above calls `stripe.subscriptions.list` raw; this
+    // one exercises the *driver's* `listSubscriptions()` async generator — the
+    // code path `tenant:billing:sync` actually uses — against the real API,
+    // closing the "generator, not raw SDK" gap. Tolerates zero rows.
+    setConfig({
+      ...testConfig,
+      plans: {
+        defaultPlan: 'starter',
+        definitions: { starter: { limits: { apiRequests: 100 } } },
+        storage: 'tenant_plans',
+      },
+      billing: {
+        driver: 'stripe',
+        stripe: { apiKey: REAL_KEY!, webhookSecret: 'whsec_smoke_reconcile' },
+        products: {},
+        defaultPlan: 'starter',
+      },
+    } as never)
+    const billing = await app.container.make(BillingService)
+    await billing.__resetForTests()
+    await billing.verify()
+
+    const driver = await getActiveBillingDriver()
+    assert.isTrue(driver.supports('subscription_list'), 'stripe advertises subscription_list')
+    assert.isFunction(driver.listSubscriptions, 'stripe implements listSubscriptions')
+
+    let count = 0
+    for await (const sub of driver.listSubscriptions!()) {
+      assertNeutralSubscription(sub)
+      if (++count >= 200) break
+    }
+    assert.isAtLeast(count, 0, 'listSubscriptions drained without throwing')
+  })
+    .timeout(45_000)
+    .skip(
+      !SHOULD_RUN,
+      'STRIPE_TEST_API_KEY env var not set or not an sk_test_* key — reconciliation smoke skipped'
     )
 })

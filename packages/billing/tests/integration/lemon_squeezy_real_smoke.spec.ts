@@ -10,7 +10,7 @@ import {
 } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '@adonisjs-lasagna/satellite-test-kit/testing'
-import { clearBillingTables } from './helpers.js'
+import { clearBillingTables, assertNeutralSubscription } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
@@ -144,6 +144,36 @@ test.group('Lemon Squeezy real-API smoke (test mode)', (group) => {
     .skip(
       !SHOULD_RUN,
       'LEMONSQUEEZY_TEST_API_KEY/LEMONSQUEEZY_TEST_STORE_ID not set — Lemon Squeezy smoke test skipped'
+    )
+
+  test('reconciliation: listSubscriptions pages the live store (auth + pagination + mapping)', async ({
+    assert,
+  }) => {
+    configureLemonSqueezy()
+    const billing = await app.container.make(BillingService)
+    await billing.__resetForTests()
+    await billing.verify()
+
+    const driver = await getActiveBillingDriver()
+    assert.isTrue(driver.supports('subscription_list'), 'LS advertises subscription_list')
+    assert.isFunction(driver.listSubscriptions, 'LS implements listSubscriptions')
+
+    // Drain against the REAL test-mode store. Tolerates zero rows: an empty
+    // store still proves auth, the filter[store_id] / page[number] params, the
+    // JSON:API lastPage loop, and toSubscription mapping against the live
+    // surface — what the stubbed lemon_squeezy_driver.spec.ts cannot. Capped so
+    // a populated store can't make the smoke run unbounded.
+    let count = 0
+    for await (const sub of driver.listSubscriptions!()) {
+      assertNeutralSubscription(sub)
+      if (++count >= 200) break
+    }
+    assert.isAtLeast(count, 0, 'listSubscriptions drained without throwing')
+  })
+    .timeout(45_000)
+    .skip(
+      !SHOULD_RUN,
+      'LEMONSQUEEZY_TEST_API_KEY/LEMONSQUEEZY_TEST_STORE_ID not set — Lemon Squeezy reconciliation smoke skipped'
     )
 
   test('live checkout session (needs LEMONSQUEEZY_TEST_VARIANT_ID)', async ({ assert }) => {

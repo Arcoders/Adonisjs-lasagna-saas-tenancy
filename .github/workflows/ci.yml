@@ -259,22 +259,16 @@ jobs:
       # → the spec self-skips.
       STRIPE_MOCK_HOST: 127.0.0.1
       STRIPE_MOCK_PORT: 12111
-      # Optional billing real-API smoke keys. Each *_real_smoke.spec.ts skips
-      # visibly when its key is unset. Add via Settings → Secrets → Actions.
-      # Stripe (sk_test_…) for stripe_real_smoke.spec.ts:
+      # Stripe is the primary provider, so its real-API smokes
+      # (stripe_real_smoke + stripe_test_clock_smoke) run on this BLOCKING gate.
+      # Keep STRIPE_TEST_API_KEY (sk_test_…) set so they execute; they self-skip
+      # only when it's absent (e.g. forks without secrets).
       STRIPE_TEST_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
-      # Paddle sandbox for paddle_real_smoke.spec.ts. API key alone runs the
-      # ensureCustomer + webhook round-trip; PRICE_ID adds the live checkout
-      # test; WEBHOOK_SECRET is optional (the round-trip self-signs).
-      PADDLE_TEST_API_KEY: ${{ secrets.PADDLE_TEST_API_KEY }}
-      PADDLE_TEST_PRICE_ID: ${{ secrets.PADDLE_TEST_PRICE_ID }}
-      PADDLE_TEST_WEBHOOK_SECRET: ${{ secrets.PADDLE_TEST_WEBHOOK_SECRET }}
-      # Lemon Squeezy test mode for lemon_squeezy_real_smoke.spec.ts. API key +
-      # STORE_ID run ensureCustomer + webhook round-trip (verifyConfig needs the
-      # store id); VARIANT_ID adds the live checkout test.
-      LEMONSQUEEZY_TEST_API_KEY: ${{ secrets.LEMONSQUEEZY_TEST_API_KEY }}
-      LEMONSQUEEZY_TEST_STORE_ID: ${{ secrets.LEMONSQUEEZY_TEST_STORE_ID }}
-      LEMONSQUEEZY_TEST_VARIANT_ID: ${{ secrets.LEMONSQUEEZY_TEST_VARIANT_ID }}
+      # Paddle / Lemon Squeezy are optional/secondary: their keys are deliberately
+      # NOT set here, so those smokes self-skip on the blocking gate. They run in
+      # the dedicated "Paddle / Lemon Squeezy real-API smokes (non-blocking)"
+      # step below (continue-on-error), so a secondary-provider outage can't fail
+      # the build. STRIPE_MOCK_* stays — stripe-mock is a deterministic container.
       # MinIO (S3) for backup_s3.spec.ts. Unset → spec skips.
       BACKUP_S3_ENDPOINT: http://127.0.0.1:9000
       BACKUP_S3_BUCKET: lasagna-test
@@ -416,6 +410,25 @@ jobs:
       # stripe_mock_smoke uses the stripe-mock service container above.
       - name: Test (satellite integration) + coverage — billing
         run: npm run test:integration:coverage --workspace @adonisjs-lasagna/billing
+
+      # Optional/secondary providers run here, NEVER on the blocking step above.
+      # `continue-on-error` keeps a Paddle/Lemon Squeezy outage or upstream change
+      # from reddening the gate — the failure shows as a red step, not a red job.
+      # Keys absent (the default — no sandbox secrets configured yet) → the
+      # Paddle/LS smokes self-skip → step passes trivially. (Stripe is excluded;
+      # it runs on the blocking gate above.)
+      - name: Paddle / Lemon Squeezy real-API smokes (non-blocking)
+        continue-on-error: true
+        env:
+          # Narrow the suite to the optional-provider (Paddle/LS) real smokes only.
+          BILLING_OPTIONAL_SMOKES_ONLY: '1'
+          PADDLE_TEST_API_KEY: ${{ secrets.PADDLE_TEST_API_KEY }}
+          PADDLE_TEST_PRICE_ID: ${{ secrets.PADDLE_TEST_PRICE_ID }}
+          PADDLE_TEST_WEBHOOK_SECRET: ${{ secrets.PADDLE_TEST_WEBHOOK_SECRET }}
+          LEMONSQUEEZY_TEST_API_KEY: ${{ secrets.LEMONSQUEEZY_TEST_API_KEY }}
+          LEMONSQUEEZY_TEST_STORE_ID: ${{ secrets.LEMONSQUEEZY_TEST_STORE_ID }}
+          LEMONSQUEEZY_TEST_VARIANT_ID: ${{ secrets.LEMONSQUEEZY_TEST_VARIANT_ID }}
+        run: npm run test:integration:run --workspace @adonisjs-lasagna/billing
 
       # Raw V8, not lcov: the integration suite runs against build/*.js, so its
       # per-run lcov undercounts src. The coverage-report job re-reports this

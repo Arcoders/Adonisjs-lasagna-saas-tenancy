@@ -10,7 +10,7 @@ import {
 } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '@adonisjs-lasagna/satellite-test-kit/testing'
-import { clearBillingTables } from './helpers.js'
+import { clearBillingTables, assertNeutralSubscription } from './helpers.js'
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
@@ -148,6 +148,33 @@ test.group('Paddle real-API smoke (sandbox)', (group) => {
   })
     .timeout(45_000)
     .skip(!SHOULD_RUN, 'PADDLE_TEST_API_KEY not set — Paddle smoke test skipped')
+
+  test('reconciliation: listSubscriptions enumerates the live sandbox (auth + pagination + mapping)', async ({
+    assert,
+  }) => {
+    configurePaddle()
+    const billing = await app.container.make(BillingService)
+    await billing.__resetForTests()
+    await billing.verify()
+
+    const driver = await getActiveBillingDriver()
+    assert.isTrue(driver.supports('subscription_list'), 'paddle advertises subscription_list')
+    assert.isFunction(driver.listSubscriptions, 'paddle implements listSubscriptions')
+
+    // Drain against the REAL sandbox. Tolerates zero rows: an empty sandbox
+    // still proves auth, the `/subscriptions` query params, the
+    // meta.pagination.next loop, and toSubscription mapping against the live
+    // surface — exactly what the stubbed paddle_driver.spec.ts cannot. Cap the
+    // drain so a populated sandbox can't make the smoke run unbounded.
+    let count = 0
+    for await (const sub of driver.listSubscriptions!()) {
+      assertNeutralSubscription(sub)
+      if (++count >= 200) break
+    }
+    assert.isAtLeast(count, 0, 'listSubscriptions drained without throwing')
+  })
+    .timeout(45_000)
+    .skip(!SHOULD_RUN, 'PADDLE_TEST_API_KEY not set — Paddle reconciliation smoke skipped')
 
   test('live price lookup + checkout session (needs PADDLE_TEST_PRICE_ID)', async ({ assert }) => {
     configurePaddle({ [PRICE_ID!]: 'pro' })

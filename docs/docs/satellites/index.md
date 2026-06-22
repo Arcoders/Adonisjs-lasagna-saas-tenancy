@@ -55,7 +55,7 @@ To build your own, see [Creating a satellite](/docs/cookbook/creating-a-satellit
 | [WebSockets](/docs/satellites/websockets) | Bidirectional socket.io, tenant-isolated per connection; per-tenant rooms + per-event tenant context. | None (stateless) |
 | [Metrics](/docs/satellites/metrics) | Time-series counters per tenant with cursor-based aggregation. | `tenant_metrics` |
 | [Quotas](/docs/satellites/quotas) | Plan-bound limits; rolling and snapshot, served as middleware. | Redis counters + `tenant_plans` |
-| [Billing](/docs/satellites/billing) | Stripe integration — idempotent webhook, dunning, metered, checkout/portal, lifecycle hook. | `stripe_customers`, `stripe_subscriptions`, `stripe_processed_events`, `stripe_meter_events` |
+| [Billing](/docs/satellites/billing) | Multi-provider (Stripe/Paddle/Lemon Squeezy) — idempotent webhook, dunning, metered, checkout/portal, lifecycle hook. Provider-driven, reporting-only (no tax engine / invoice numbering). | `billing_customers`, `billing_subscriptions`, `billing_processed_events`, `billing_usage_events` |
 | [Impersonation](/docs/satellites/impersonation) | Admin enters a tenant as a target user, time-boxed and audited. | Redis (no DB row) |
 
 <Callout type="note" title="Also documented in this section">
