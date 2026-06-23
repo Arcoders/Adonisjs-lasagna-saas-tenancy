@@ -953,14 +953,13 @@ jobs:
       # integration tier, which is where controller-heavy satellites (admin) are
       # actually exercised.
       #
-      # FIRST RUN IS REPORT-ONLY (SATELLITE_COV_REPORT_ONLY=1): the floors above
-      # are conservative placeholders. Read the printed per-satellite numbers from
-      # this step, ratchet each satellite's minMergedCoverage just under its
-      # measured actual (lines stays >= 60, the graduation bar), then DELETE the
-      # env line below to flip this into an enforcing gate.
+      # ENFORCING (a drop below any floor fails this step). Each floor was
+      # ratcheted to ~3-6 points under its measured merged actual (lines stays
+      # >= 60, the graduation bar). The margin absorbs run-to-run jitter from the
+      # conditional real-API smokes (Stripe/IdP) and small-denominator function
+      # counts. Re-measure and re-ratchet after a run that legitimately moves the
+      # numbers; never lower a floor to paper over a regression.
       - name: Per-satellite merged coverage gate
-        env:
-          SATELLITE_COV_REPORT_ONLY: '1'
         run: node scripts/check-satellite-coverage.mjs coverage/lcov.info
 
       - name: Upload combined coverage
