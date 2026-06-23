@@ -159,7 +159,9 @@ export {
   TenantExitedMaintenance,
 } from './events/index.js'
 export type { TenantMigrationDirection } from './events/index.js'
-export { InstallTenant, UninstallTenant } from './jobs/index.js'
+export { InstallTenant, UninstallTenant, TenantJob } from './jobs/index.js'
+export type { TenantJobPayload } from './jobs/index.js'
+export { buildTenantWorkerOptions } from './helpers/index.js'
 // `CloneTenant` / `BackupTenant` / `RestoreTenant` moved to `@adonisjs-lasagna/backup`.
 export {
   MissingTenantHeaderException,

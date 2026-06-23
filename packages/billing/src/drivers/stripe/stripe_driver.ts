@@ -32,6 +32,7 @@ const STRIPE_CAPABILITIES: ReadonlySet<BillingCapability> = new Set<BillingCapab
   'subscription_cancel',
   'subscription_cancel_immediate',
   'subscription_list',
+  'subscription_update',
 ])
 
 /**
@@ -198,6 +199,43 @@ export default class StripeDriver implements BillingProviderContract {
       }
     } catch (err) {
       throw BillingException.fromStripeError(err, 'failed to cancel subscription')
+    }
+  }
+
+  async changePlan(providerSubscriptionId: string, opts: { priceId: string }): Promise<void> {
+    const stripe = await this.#getStripe()
+    try {
+      // Swap the price on the subscription's existing item so this is an
+      // upgrade/downgrade, not a second subscription. Proration is left to
+      // Stripe's default behavior for the account.
+      //
+      // Single-item assumption: we target items.data[0]. For multi-item /
+      // metered subscriptions (a base plan plus a metered add-on) the base plan
+      // may not be the first item — those need per-item targeting and should be
+      // driven through the provider directly until that lands.
+      const sub = await stripe.subscriptions.retrieve(providerSubscriptionId)
+      const itemId = sub.items?.data?.[0]?.id
+      if (!itemId) {
+        throw new BillingException(
+          'invalid_stripe_request',
+          `subscription "${providerSubscriptionId}" has no items to update`
+        )
+      }
+      await stripe.subscriptions.update(
+        providerSubscriptionId,
+        {
+          items: [{ id: itemId, price: opts.priceId }],
+          proration_behavior: 'create_prorations',
+        },
+        {
+          // Deterministic so a retried changePlan converges on one change at the
+          // provider instead of stacking proration line items.
+          idempotencyKey: `subscription:${providerSubscriptionId}:change-plan:${opts.priceId}`,
+        }
+      )
+    } catch (err) {
+      if (err instanceof BillingException) throw err
+      throw BillingException.fromStripeError(err, 'failed to change subscription plan')
     }
   }
 

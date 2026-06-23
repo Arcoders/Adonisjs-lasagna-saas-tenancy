@@ -85,6 +85,13 @@ rather than sever an in-flight request. Under a burst of more than
 trend toward the number of active tenants, not the cap. This is the right
 default for most deployments, and it is the behaviour the 1.0 ships with.
 
+Eviction is by recency, not by tenant "noise": when the cap is reached the LRU
+drops the connection that has gone *idle* the longest, never the one that has
+sent the most queries. It is not a fair-share scheduler — a tenant with many
+concurrent requests is protected by the grace window, while a quiet tenant's
+connection is reclaimed first. Per-tenant load fairness (rate limits, worker
+concurrency) is a separate concern handled elsewhere.
+
 Set `enforceConnectionCap: true` to make the cap a firm ceiling instead: a new
 tenant's `connect()` is refused with a `503` (`TenantConnectionLimitException`)
 when the cap is full and nothing is evictable, rather than opening connection

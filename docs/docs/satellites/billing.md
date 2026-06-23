@@ -452,8 +452,47 @@ flowchart TB
 > fires at `past_due` time regardless, so host listeners can act immediately.
 
 For app-level blocking (refusing requests until billing is resolved),
-listen for `PaymentFailed{final:true}` and gate at your middleware.
-The package intentionally does not own that policy.
+listen for `PaymentFailed{final:true}` and gate at your middleware, or opt into
+the package's own suspension policy below.
+
+## Auto-suspend on payment failure
+
+Opt-in. Set `config.billing.suspendOnPaymentFailure: true` and the satellite
+suspends a tenant (status → `suspended`, blocking all API access) when:
+
+- `PaymentFailed` fires with `final: true` (dunning exhausted), or
+- `SubscriptionCanceled` fires with `reason: 'dunning_failed'`.
+
+A `user_canceled` cancellation and non-final dunning retries are ignored. The
+transition is idempotent (an already-suspended or deleted tenant is skipped) and
+dispatches `TenantSuspended`, so cache invalidation fires on the resolving pods.
+
+Suspension is **best-effort**: the listener is idempotent on state but, like all
+event listeners here, it logs-and-swallows on error rather than throwing back into
+the emitter (a thrown listener would break the dispatch). So two events racing the
+same tenant can dispatch `TenantSuspended` more than once (harmless re-invalidation),
+and a transient DB error during `suspend()` is logged, not retried. Treat the final
+source of truth as the tenant's status and reconcile drift with `node ace tenant:doctor`.
+
+```ts
+// config/multitenancy.ts
+billing: {
+  driver: 'stripe',
+  suspendOnPaymentFailure: true,        // suspend on terminal failure
+  reactivateOnPaymentSuccess: true,     // optional: un-suspend on recovery
+  // ...
+}
+```
+
+With `reactivateOnPaymentSuccess: true`, a later `PaymentSucceeded` transitions a
+suspended tenant back to `active` and dispatches `TenantActivated`. Both flags
+default to `false`; reactivation is ignored unless suspension is also enabled.
+
+::: tip Upgrades stay manual
+There is deliberately no "auto-upgrade on quota breach". Changing a customer's
+paid plan without consent is a billing and legal hazard. Drive upgrades from your
+own UI through `BillingService.changePlan` (below) after the customer opts in.
+:::
 
 ## Metered billing
 
@@ -684,6 +723,7 @@ driver):
 | `syncSubscription(sub, eventCreated, opts?)` | `Promise<{ tenant_id, plan, previousPlan } \| null>` | Reconciles a neutral `Subscription` into the local mirror + assigns the plan. Stale events (older than `last_event_at - 5s`) are rejected. |
 | `reportUsage(tenant, meter, qty, opts?)` | `Promise<void>` | Reports a meter event through the active driver (requires `usage_metering`). Persists an audit row in `billing_usage_events`. |
 | `cancelSubscription(id, opts?)` | `Promise<void>` | Cancels through the active driver and reflects it in the mirror. `atPeriodEnd: false` (default) cancels immediately; for a driver without `subscription_cancel_immediate` (Lemon Squeezy) it emulates immediate by marking the mirror `canceled` and reassigning `defaultPlan` now (the provider bills through period end — no auto-refund). `atPeriodEnd: true` flags `cancelAtPeriodEnd` and leaves the status change to the provider's webhook. |
+| `changePlan(tenant, newPriceId)` | `Promise<void>` | Upgrade/downgrade the tenant's active subscription to a different price. Validates `newPriceId` against `config.billing.products`, refuses deleted tenants, and requires a `subscription_update` driver (Stripe, Paddle; Lemon Squeezy throws `unsupported_by_driver`). Initiates the change at the provider with proration; the local mirror + plan reassignment land when the resulting `subscription.updated` webhook arrives (`syncSubscription`), so this is the *initiator*, not the source of truth for the new state. **Assumes a single-item subscription** — it swaps the price on the subscription's first line item. If you run multi-item or metered subscriptions (a base plan plus a metered add-on), the first item may not be the base plan; drive those changes through the provider directly until per-item targeting lands. |
 | `retrieveEvent(eventId)` | `Promise<BillingWebhookEvent>` | Re-fetches the event as the source of truth. Uses the active driver's tamper guard (`event_retrieval`) when supported; otherwise (and when the provider reports the event aged out) falls back to the locally-persisted, signature-verified replayable `payload`. Throws `api_error` when neither the provider nor a stored payload can supply it. |
 
 The host wires checkout and the portal as your own routes; apply

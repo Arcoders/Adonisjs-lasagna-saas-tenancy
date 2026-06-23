@@ -115,3 +115,84 @@ test.group('cacheBootstrapper — inside tenancy.run()', (group) => {
     assert.deepEqual(seen.sort(), ['tenant_alpha', 'tenant_beta', 'tenant_gamma'])
   })
 })
+
+test.group('cacheBootstrapper — enter rejects unsafe ids', (group) => {
+  group.each.teardown(() => __setNamespaceFactoryForTests(undefined))
+
+  test('throws when tenant id contains path-traversal chars', ({ assert }) => {
+    const { factory } = makeFakeFactory()
+    const b = createCacheBootstrapper(factory)
+    assert.throws(
+      () => b.enter({ tenant: { id: '../etc/passwd' } as any }),
+      /Refusing to use unsafe/
+    )
+  })
+
+  test('throws on separators that could escape a cache namespace', ({ assert }) => {
+    const { factory } = makeFakeFactory()
+    const b = createCacheBootstrapper(factory)
+    assert.throws(() => b.enter({ tenant: { id: 'a/b' } as any }), /Refusing to use unsafe/)
+    assert.throws(() => b.enter({ tenant: { id: 'a;b' } as any }), /Refusing to use unsafe/)
+  })
+
+  test('accepts UUID v4 tenant ids', ({ assert }) => {
+    const { factory } = makeFakeFactory()
+    const b = createCacheBootstrapper(factory)
+    assert.doesNotThrow(() =>
+      b.enter({ tenant: { id: '11111111-1111-4111-8111-111111111111' } as any })
+    )
+  })
+})
+
+test.group('cacheBootstrapper — tenancy.run rejects traversal payloads end-to-end', (group) => {
+  group.each.teardown(() => {
+    __configureTenancyForTests({})
+    __setNamespaceFactoryForTests(undefined)
+  })
+
+  const PAYLOADS = [
+    '../',
+    '..\\',
+    '../../etc/passwd',
+    '%2e%2e/',
+    'tenant_a/../tenant_b',
+    'a/b',
+    'a\\b',
+    'a;b',
+    'a"b',
+    'a b',
+    '',
+    'a'.repeat(64),
+  ]
+
+  for (const payload of PAYLOADS) {
+    test(`tenancy.run rejects tenant.id "${payload}" via the cache bootstrapper`, async ({
+      assert,
+    }) => {
+      const { factory } = makeFakeFactory()
+      __setNamespaceFactoryForTests(factory)
+      const logCtx = new TenantLogContext()
+      const registry = new BootstrapperRegistry()
+      registry.register(createCacheBootstrapper(factory))
+      __configureTenancyForTests({ logCtx, registry })
+
+      await assert.rejects(
+        () => tenancy.run(fakeTenant(payload), async () => 'reached'),
+        /Refusing to use unsafe/
+      )
+    })
+  }
+
+  test('tenantCache() throws on an unsafe id even when reached directly', async ({ assert }) => {
+    const { factory } = makeFakeFactory()
+    __setNamespaceFactoryForTests(factory)
+    const logCtx = new TenantLogContext()
+    // Register no bootstrapper so the enter() guard does not fire first; this
+    // proves tenantCache()'s own assertSafeIdentifier call is load-bearing.
+    __configureTenancyForTests({ logCtx, registry: new BootstrapperRegistry() })
+
+    await tenancy.run(fakeTenant('a;b'), async () => {
+      assert.throws(() => tenantCache(), /Refusing to use unsafe/)
+    })
+  })
+})

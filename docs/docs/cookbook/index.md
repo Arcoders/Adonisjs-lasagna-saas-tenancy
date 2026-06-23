@@ -16,6 +16,8 @@ primitives stay where they live.
 | Recipe | What you get | Reach for it when |
 |---|---|---|
 | [Adding features later](/docs/cookbook/adding-features-incrementally) | Add any satellite after the initial install; `configure` is additive and idempotent. | You shipped on the core and now want audit, webhooks, or billing without re-scaffolding. |
+| [Tenant onboarding & offboarding](/docs/cookbook/tenant-onboarding-offboarding) | Compose `afterProvision`/`beforeDestroy` hooks and lifecycle events to seed, welcome, and tear down tenants. | You need first-run setup (seed data, welcome email) or clean teardown on a tenant's lifecycle. |
+| [Per-tenant worker concurrency](/docs/cookbook/per-tenant-worker-concurrency) | A dedicated BullMQ worker per tenant with its own concurrency ceiling, so one noisy tenant can't starve the others. | A tenant's job burst monopolises your shared queue workers. |
 | [Custom-domain HTTPS](/docs/cookbook/custom-domain-https) | Per-tenant domains terminated by Cloudflare or cert-manager, with a wildcard fallback for the apex. | Tenants want to reach the app on their own `app.acme.com`, not just a subdomain. |
 | [Stripe + quotas](/docs/cookbook/stripe-quotas) | Stripe webhook → plan assignment → quota middleware, atomic and idempotent. | A paid plan should raise or lower a tenant's limits automatically. |
 | [Multi-tenant WebSockets](/docs/cookbook/multi-tenant-websockets) | Tenant-isolated socket.io rooms with per-event tenant context. | You need real-time features (live dashboards, chat, presence) scoped per tenant. |

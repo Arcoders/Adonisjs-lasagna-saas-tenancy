@@ -83,6 +83,12 @@ The per-tenant circuit breaker is a separate mechanism from the dependency
 policies above, and it answers a common production worry directly: **a Redis
 outage cannot take it down.**
 
+It is dependency-centric, not a noisy-neighbor guard. It trips on a tenant's own
+database *failing* (the `SELECT 1` probe below), so a broken tenant fails fast
+instead of dragging others down. It does **not** watch request volume or shed load
+from a tenant that is merely busy — for that, reach for per-tenant
+[rate limits](/docs/rate-limiting) and the per-tenant worker concurrency recipe.
+
 The decision is in-memory and per-tenant. Each tenant gets its own in-process
 opossum breaker that trips on real `SELECT 1` probes against *that tenant's*
 database connection. When a tenant's DB starts failing, its breaker opens and the

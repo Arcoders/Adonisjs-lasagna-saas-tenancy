@@ -7,4 +7,6 @@ export { default as UniversalMiddleware } from './universal_middleware.js'
 export { default as ImpersonationMiddleware } from './impersonation_middleware.js'
 export { enforceQuota } from './enforce_quota_middleware.js'
 export type { EnforceQuotaOptions } from './enforce_quota_middleware.js'
+export { enforceRateLimit } from './enforce_rate_limit_middleware.js'
+export type { EnforceRateLimitOptions } from './enforce_rate_limit_middleware.js'
 // `VerifyStripeWebhookMiddleware` moved to `@adonisjs-lasagna/billing`.

@@ -49,6 +49,15 @@ export type BillingCapability =
    * implying coverage. Built-in for Stripe, Paddle, and Lemon Squeezy.
    */
   | 'subscription_list'
+  /**
+   * The driver can push a plan/price change TO the provider (upgrade/downgrade
+   * an existing subscription), driving `BillingService.changePlan`. Stripe and
+   * Paddle support it; Lemon Squeezy does not (its API has no mid-period item
+   * swap), so it omits the capability and `changePlan` throws
+   * `unsupported_by_driver`. Distinct from inbound webhook reconciliation
+   * (`syncSubscription`), which mirrors changes the provider already made.
+   */
+  | 'subscription_update'
 
 /**
  * Neutral subscription status. Identical to the original

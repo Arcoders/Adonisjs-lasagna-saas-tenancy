@@ -1,6 +1,7 @@
 import type { BootstrapperContext, TenantBootstrapper } from '../bootstrapper_registry.js'
 import { getCache } from '../../utils/cache.js'
 import { tenancy } from '../../tenancy.js'
+import { assertSafeIdentifier } from '../isolation/identifier.js'
 
 type CacheNamespace = ReturnType<ReturnType<typeof getCache>['namespace']>
 type NamespaceFactory = (namespace: string) => CacheNamespace
@@ -32,6 +33,10 @@ export function createCacheBootstrapper(factory?: NamespaceFactory): TenantBoots
   return {
     name: 'cache',
     enter(ctx: BootstrapperContext) {
+      // Validate now so a malformed id never lands in a cache namespace
+      // (the namespace `tenant_<id>` keys every Redis entry for the scope;
+      // an injected separator could let one tenant read another's cache).
+      assertSafeIdentifier(ctx.tenant.id, 'tenant id')
       // Materialize once so a broken factory throws at the boundary, not
       // deep in user code. The handle is discarded — `tenantCache()` will
       // re-derive when callers ask for it.
@@ -55,5 +60,9 @@ export function tenantCache(): CacheNamespace {
       'tenantCache() called outside a tenancy.run() scope. Wrap your code in tenancy.run(tenant, fn) or use getCache() for non-tenant cache access.'
     )
   }
+  // Defense-in-depth: `tenantCache()` can be called directly (e.g. inside a
+  // custom hook) after the scope is established, so validate here too — same
+  // guard the other bootstrapper helpers (drive/mail/session/transmit) apply.
+  assertSafeIdentifier(id, 'tenant id')
   return namespaceFactory(`${CACHE_NAMESPACE_PREFIX}${id}`)
 }

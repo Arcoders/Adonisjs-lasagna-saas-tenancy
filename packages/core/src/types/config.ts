@@ -180,6 +180,18 @@ export interface BackupRetentionConfig {
  */
 export interface PlanDefinition {
   limits: Record<string, number>
+  /**
+   * Optional per-plan request rate limit, consumed by the `enforceRateLimit()`
+   * middleware. When omitted, the plan is not routable through
+   * `enforceRateLimit()` (the middleware throws), so free/pro tiers can carry
+   * different ceilings while an unlimited plan simply declares no `rateLimit`.
+   */
+  rateLimit?: {
+    /** Max requests per window. */
+    limit: number
+    /** Rolling window duration in seconds. */
+    windowSeconds: number
+  }
 }
 
 export interface PlansConfig {
@@ -316,6 +328,21 @@ export interface BillingConfig {
   trialEndingLeadDays?: number
   /** Send `QuotaWarningMailer` on `TenantQuotaExceeded`. Requires `@adonisjs/mail`. Default `false`. */
   notifyOnQuotaExceeded?: boolean
+  /**
+   * Auto-suspend a tenant when a terminal payment failure fires
+   * (`PaymentFailed` with `final: true`, or `SubscriptionCanceled` with
+   * `reason: 'dunning_failed'`). Blocks all API access until recovery or manual
+   * reactivation, and dispatches `TenantSuspended` for cache invalidation.
+   * Opt-in. Default `false`.
+   */
+  suspendOnPaymentFailure?: boolean
+  /**
+   * When `suspendOnPaymentFailure` is true, auto-reactivate a suspended tenant
+   * on `PaymentSucceeded` (transition back to `active`, dispatch
+   * `TenantActivated`). Ignored unless `suspendOnPaymentFailure` is true.
+   * Opt-in. Default `false`.
+   */
+  reactivateOnPaymentSuccess?: boolean
   /** What to do with the provider subscription on tenant hard-delete. Default `'cancel'`. */
   onTenantDelete?: 'cancel' | 'detach' | 'preserve'
   /**

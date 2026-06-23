@@ -105,6 +105,17 @@ export interface BillingProviderContract {
   listSubscriptions?(opts?: ListSubscriptionsOptions): AsyncIterable<Subscription>
 
   /**
+   * Change an existing subscription to a different price (upgrade/downgrade).
+   * Capability: `subscription_update`. Initiates the change at the provider with
+   * proration; the resulting `subscription.updated` webhook drives the local
+   * mirror + plan reassignment via `syncSubscription`, so this returns `void`.
+   * Must be idempotent (use the provider's idempotency key). Drivers without a
+   * mid-period item swap (Lemon Squeezy) omit this; `BillingService.changePlan`
+   * then throws `unsupported_by_driver`.
+   */
+  changePlan?(providerSubscriptionId: string, opts: { priceId: string }): Promise<void>
+
+  /**
    * Optional synchronous signature check, for drivers whose scheme is a plain
    * `crypto` HMAC needing no SDK (Paddle `Paddle-Signature`, Lemon Squeezy
    * `X-Signature`). Must not throw — return false on mismatch. Stripe folds

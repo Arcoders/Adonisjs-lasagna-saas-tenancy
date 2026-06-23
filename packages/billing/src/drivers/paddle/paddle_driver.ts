@@ -25,6 +25,7 @@ const PADDLE_CAPABILITIES: ReadonlySet<BillingCapability> = new Set<BillingCapab
   // Paddle honours `effective_from: 'immediately'` on cancel.
   'subscription_cancel_immediate',
   'subscription_list',
+  'subscription_update',
 ])
 
 function codeForStatus(status: number): BillingErrorCode {
@@ -181,6 +182,20 @@ export default class PaddleDriver implements BillingProviderContract {
       `/prices/${priceId}`
     )
     return { id: data.id, productId: data.product_id ?? null }
+  }
+
+  async changePlan(providerSubscriptionId: string, opts: { priceId: string }): Promise<void> {
+    // Paddle swaps the subscription's items in place with prorated billing.
+    // The Idempotency-Key dedupes a retried change at the provider.
+    await this.#request(
+      'PATCH',
+      `/subscriptions/${providerSubscriptionId}`,
+      {
+        items: [{ price_id: opts.priceId, quantity: 1 }],
+        proration_billing_mode: 'prorated_immediately',
+      },
+      { idempotencyKey: `subscription:${providerSubscriptionId}:change-plan:${opts.priceId}` }
+    )
   }
 
   async *listSubscriptions(opts?: ListSubscriptionsOptions): AsyncIterable<Subscription> {

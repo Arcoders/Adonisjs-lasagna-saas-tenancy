@@ -1,0 +1,140 @@
+import db from '@adonisjs/lucid/services/db'
+import { DateTime } from 'luxon'
+import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
+import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import { resolveTenantRepository } from '@adonisjs-lasagna/saas-tenancy/services'
+import { TenantMetric } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
+import type { AggregationOptions, ReportAggregate, TenantUsage, TopTenantMetric } from './types.js'
+import { clampLimit, mapAggregateRow, mapTopTenantRow } from './aggregate.js'
+import { resolvePeriod } from './validate.js'
+import { assertNotInTenantScope } from './guard.js'
+
+/**
+ * The SQL expression that buckets the `period` date column. Whitelisted (never
+ * built from user input) so it is safe to interpolate into the raw query.
+ */
+const BUCKET_SQL: Record<NonNullable<AggregationOptions['period']>, string> = {
+  day: 'period',
+  week: "DATE_TRUNC('week', period)::date",
+  month: "DATE_TRUNC('month', period)::date",
+}
+
+/**
+ * Cross-tenant reporting over the backoffice `tenant_metrics` table. Aggregating
+ * in the shared backoffice schema is isolation-safe by construction — these
+ * queries never enter a tenant's `search_path`. Requires PostgreSQL 13+
+ * (`DATE_TRUNC`).
+ *
+ * Every public method is guarded by {@link assertNotInTenantScope} so a reporting
+ * query can never accidentally run inside a `tenancy.run()` scope.
+ */
+export default class ReportingService {
+  /**
+   * Totals + error rate per period bucket (day/week/month), newest first.
+   */
+  async getAggregate(options: AggregationOptions = {}): Promise<ReportAggregate[]> {
+    assertNotInTenantScope('getAggregate', tenancy.currentId)
+    const { conn, schema } = this.#backoffice()
+    // Defense-in-depth: BUCKET_SQL is whitelisted, but resolve through
+    // resolvePeriod() so an out-of-enum `period` (e.g. a bad cast from a direct
+    // caller) falls back to 'day' instead of interpolating `undefined` into the
+    // SQL. HTTP callers are already rejected with 400 upstream.
+    const bucket = BUCKET_SQL[resolvePeriod(options.period)]
+    const { since, until } = this.#window(options)
+
+    const result = await conn.rawQuery(
+      `SELECT ${bucket} AS bucket,
+              SUM(request_count)::bigint   AS total_requests,
+              SUM(error_count)::bigint     AS total_errors,
+              SUM(bandwidth_bytes)::bigint AS total_bandwidth,
+              COUNT(DISTINCT tenant_id)::bigint AS active_tenants
+       FROM ??.??
+       WHERE period >= ? AND period <= ?
+       GROUP BY bucket
+       ORDER BY bucket DESC`,
+      [schema, TenantMetric.table, since, until]
+    )
+    return (result.rows as Parameters<typeof mapAggregateRow>[0][]).map(mapAggregateRow)
+  }
+
+  /**
+   * Top-N tenants by request volume over the window, busiest first.
+   */
+  async getTopTenants(options: AggregationOptions = {}): Promise<TopTenantMetric[]> {
+    assertNotInTenantScope('getTopTenants', tenancy.currentId)
+    const { conn, schema } = this.#backoffice()
+    const { since, until } = this.#window(options)
+    const limit = clampLimit(options.limit)
+
+    const result = await conn.rawQuery(
+      `SELECT tenant_id,
+              SUM(request_count)::bigint   AS requests,
+              SUM(error_count)::bigint     AS errors,
+              SUM(bandwidth_bytes)::bigint AS bandwidth_bytes
+       FROM ??.??
+       WHERE period >= ? AND period <= ?
+       GROUP BY tenant_id
+       ORDER BY SUM(request_count) DESC
+       LIMIT ?`,
+      [schema, TenantMetric.table, since, until, limit]
+    )
+    return (result.rows as Parameters<typeof mapTopTenantRow>[0][]).map(mapTopTenantRow)
+  }
+
+  /**
+   * Iterate every tenant that has metrics in the window, busiest first, yielding
+   * the hydrated tenant model alongside its aggregated usage. The grouped row set
+   * (one row per tenant) is read once; tenant models are hydrated lazily per
+   * yield, so memory stays bounded by the number of tenants, not metric rows.
+   *
+   * Resolves with `includeDeleted: true` (`findById(id, true)`) on purpose:
+   * soft-deleted tenants still own valid historical metrics worth reporting on.
+   */
+  async *iterateTenantsByUsage(
+    options: AggregationOptions = {}
+  ): AsyncIterable<{ tenant: TenantModelContract; usage: TenantUsage }> {
+    assertNotInTenantScope('iterateTenantsByUsage', tenancy.currentId)
+    const { conn, schema } = this.#backoffice()
+    const { since, until } = this.#window(options)
+    const repo = await resolveTenantRepository()
+
+    const result = await conn.rawQuery(
+      `SELECT tenant_id,
+              SUM(request_count)::bigint   AS requests,
+              SUM(error_count)::bigint     AS errors,
+              SUM(bandwidth_bytes)::bigint AS bandwidth_bytes
+       FROM ??.??
+       WHERE period >= ? AND period <= ?
+       GROUP BY tenant_id
+       ORDER BY SUM(request_count) DESC`,
+      [schema, TenantMetric.table, since, until]
+    )
+
+    for (const row of result.rows as Parameters<typeof mapTopTenantRow>[0][]) {
+      const tenant = await repo.findById(row.tenant_id, true)
+      if (!tenant) continue
+      const mapped = mapTopTenantRow(row)
+      yield {
+        tenant,
+        usage: {
+          requests: mapped.requests,
+          errors: mapped.errors,
+          bandwidthBytes: mapped.bandwidthBytes,
+        },
+      }
+    }
+  }
+
+  #backoffice() {
+    const cfg = getConfig()
+    return { conn: db.connection(cfg.backofficeConnectionName), schema: cfg.backofficeSchemaName }
+  }
+
+  #window(options: AggregationOptions): { since: string; until: string } {
+    return {
+      since: options.since || DateTime.utc().minus({ days: 30 }).toFormat('yyyy-MM-dd'),
+      until: options.until || DateTime.utc().toFormat('yyyy-MM-dd'),
+    }
+  }
+}

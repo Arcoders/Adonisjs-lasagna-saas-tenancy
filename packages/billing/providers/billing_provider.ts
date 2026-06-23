@@ -13,6 +13,11 @@ import type { BillingProviderContract } from '../src/contracts/billing_provider_
 import UsageAutoBridgeListener from '../src/listeners/usage_auto_bridge_listener.js'
 import QuotaExceededBillingListener from '../src/listeners/quota_exceeded_billing_listener.js'
 import TenantDestroyBillingListener from '../src/listeners/tenant_destroy_billing_listener.js'
+import SuspendOnPaymentFailureListener from '../src/listeners/suspend_on_payment_failure_listener.js'
+import ReactivateOnPaymentSuccessListener from '../src/listeners/reactivate_on_payment_success_listener.js'
+import PaymentFailed from '../src/events/billing/payment_failed.js'
+import SubscriptionCanceled from '../src/events/billing/subscription_canceled.js'
+import PaymentSucceeded from '../src/events/billing/payment_succeeded.js'
 import ProcessBillingEventJob from '../src/jobs/process_billing_event_job.js'
 import BillingCleanupJob from '../src/jobs/billing_cleanup_job.js'
 import BillingSweepJob from '../src/jobs/billing_sweep_job.js'
@@ -147,6 +152,26 @@ export default class BillingProvider implements SatelliteProviderContract {
       emitter.on(QuotaTracked, async (event) => {
         await listener.handle(event)
       })
+    }
+
+    // Opt-in: suspend a tenant on a terminal payment failure / dunning-failed
+    // cancellation. Wired only when `config.billing.suspendOnPaymentFailure`.
+    if (emitter && config.billing?.suspendOnPaymentFailure) {
+      const suspendListener = new SuspendOnPaymentFailureListener()
+      emitter.on(PaymentFailed, async (event) => {
+        await suspendListener.handlePaymentFailed(event)
+      })
+      emitter.on(SubscriptionCanceled, async (event) => {
+        await suspendListener.handleSubscriptionCanceled(event)
+      })
+
+      // Companion reactivation, wired only when BOTH flags are on.
+      if (config.billing?.reactivateOnPaymentSuccess) {
+        const reactivateListener = new ReactivateOnPaymentSuccessListener()
+        emitter.on(PaymentSucceeded, async (event) => {
+          await reactivateListener.handle(event)
+        })
+      }
     }
 
     // Tenant hard-delete cleanup. Always wired when billing is configured —

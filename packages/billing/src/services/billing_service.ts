@@ -260,6 +260,49 @@ export default class BillingService {
   }
 
   /**
+   * Change a tenant's active subscription to a different price (upgrade or
+   * downgrade). Validates the price against `config.billing.products`, refuses
+   * deleted tenants, then asks the driver to push the change at the provider.
+   *
+   * Capability: `subscription_update`. The local mirror and plan reassignment
+   * happen when the resulting `subscription.updated` webhook arrives
+   * (`syncSubscription`), so this returns `void` — call it as the *initiator*,
+   * not as a source of truth for the new state.
+   *
+   * Targets the most recently updated subscription in an actionable state
+   * (`active`, `trialing`, `past_due`, `paused` — the same "still billable" set
+   * the sync/cleanup paths use, and all states the transition table allows back
+   * to `active`). `unpaid` is intentionally excluded: a tenant in collections
+   * shouldn't be able to switch plans until payment recovers.
+   */
+  async changePlan(tenant: TenantModelContract, newPriceId: string): Promise<void> {
+    if (tenant.status === 'deleted') {
+      throw new BillingException(
+        'tenant_not_resolvable',
+        `tenant "${tenant.id}" is deleted — refusing to change plan`
+      )
+    }
+
+    const driver = await getActiveBillingDriver()
+    this.#assertSupports(driver, 'subscription_update')
+    await this.#assertPriceAllowed(driver, newPriceId)
+
+    const row = await BillingSubscription.query()
+      .where('tenantId', tenant.id)
+      .whereIn('status', ['active', 'trialing', 'past_due', 'paused'])
+      .orderBy('lastEventAt', 'desc')
+      .first()
+    if (!row) {
+      throw new BillingException(
+        'subscription_not_found',
+        `tenant "${tenant.id}" has no active subscription to change`
+      )
+    }
+
+    await driver.changePlan!(row.providerSubscriptionId, { priceId: newPriceId })
+  }
+
+  /**
    * Reconcile a neutral subscription into the local mirror + plan assignment.
    * Called by the dispatcher for upsert/deleted/paused/resumed events.
    *

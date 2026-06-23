@@ -71,8 +71,33 @@ test.group('PaddleDriver (stubbed fetch)', (group) => {
     assert.isTrue(d.supports('price_lookup'))
     assert.isTrue(d.supports('subscription_cancel'))
     assert.isTrue(d.supports('subscription_list'))
+    assert.isTrue(d.supports('subscription_update'))
     assert.isFalse(d.supports('billing_portal'))
     assert.isFalse(d.supports('usage_metering'))
+  })
+
+  test('changePlan PATCHes /subscriptions/{id} with prorated items + an idempotency key', async ({
+    assert,
+  }) => {
+    let captured: { url: string; init: RequestInit | undefined } | undefined
+    stub((url, init) => {
+      captured = { url, init }
+      return jsonResponse({ data: { id: 'sub_1' } })
+    })
+
+    const d = new PaddleDriver()
+    await d.changePlan!('sub_1', { priceId: 'pri_pro' })
+
+    assert.isDefined(captured)
+    assert.equal(captured!.init?.method, 'PATCH', 'changePlan uses PATCH')
+    assert.match(captured!.url, /\/subscriptions\/sub_1$/)
+
+    const body = JSON.parse(String(captured!.init?.body))
+    assert.deepEqual(body.items, [{ price_id: 'pri_pro', quantity: 1 }])
+    assert.equal(body.proration_billing_mode, 'prorated_immediately')
+
+    const headers = captured!.init?.headers as Record<string, string>
+    assert.equal(headers['Idempotency-Key'], 'subscription:sub_1:change-plan:pri_pro')
   })
 
   test('listSubscriptions follows pagination and maps to neutral subscriptions', async ({

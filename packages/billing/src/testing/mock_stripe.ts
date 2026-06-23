@@ -15,7 +15,7 @@ interface CreatedSubscription {
   id: string
   customer: string
   status: Stripe.Subscription.Status
-  items: { data: Array<{ price: { id: string; product: string } }> }
+  items: { data: Array<{ id: string; price: { id: string; product: string } }> }
   current_period_start: number
   current_period_end: number
   cancel_at_period_end: boolean
@@ -172,7 +172,8 @@ export class MockStripe {
           customer: params.customer,
           status: 'active',
           items: {
-            data: params.items.map((i) => ({
+            data: params.items.map((i, idx) => ({
+              id: `si_${id}_${idx}`,
               price: { id: i.price, product: i.price.replace('price_', 'prod_') },
             })),
           },
@@ -187,6 +188,35 @@ export class MockStripe {
         const existing = this.#subs.get(id)
         if (!existing) throw new Error(`No subscription ${id}`)
         existing.status = 'canceled'
+        return existing
+      },
+      update: async (
+        id: string,
+        params: {
+          items?: Array<{ id?: string; price: string }>
+          proration_behavior?: string
+        },
+        opts?: { idempotencyKey?: string }
+      ): Promise<CreatedSubscription> => {
+        const existing = this.#subs.get(id)
+        if (!existing) throw new Error(`No subscription ${id}`)
+        if (opts?.idempotencyKey) {
+          const cached = this.#idempotency.get(`subscriptions:${opts.idempotencyKey}`) as
+            | CreatedSubscription
+            | undefined
+          if (cached) return cached
+        }
+        // Swap the price on the targeted (or first) item in place.
+        const newPrice = params.items?.[0]?.price
+        if (newPrice && existing.items.data[0]) {
+          existing.items.data[0].price = {
+            id: newPrice,
+            product: newPrice.replace('price_', 'prod_'),
+          }
+        }
+        if (opts?.idempotencyKey) {
+          this.#idempotency.set(`subscriptions:${opts.idempotencyKey}`, existing)
+        }
         return existing
       },
       retrieve: async (id: string): Promise<CreatedSubscription | null> =>

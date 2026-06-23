@@ -77,8 +77,8 @@ export default {
   plans: {
     defaultPlan: 'starter',
     definitions: {
-      starter: { limits: { apiRequests: 100 } },
-      pro: { limits: { apiRequests: 10_000 } },
+      starter: { limits: { apiRequests: 100 }, rateLimit: { limit: 3, windowSeconds: 2 } },
+      pro: { limits: { apiRequests: 10_000 }, rateLimit: { limit: 10, windowSeconds: 2 } },
       team: { limits: { apiRequests: 50_000 } },
     },
     storage: 'tenant_plans',

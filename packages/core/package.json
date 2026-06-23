@@ -45,6 +45,7 @@
     "./services": "./build/src/services/index.js",
     "./events": "./build/src/events/index.js",
     "./jobs": "./build/src/jobs/index.js",
+    "./helpers": "./build/src/helpers/index.js",
     "./types": "./build/src/types/index.js",
     "./exceptions": "./build/src/exceptions/index.js",
     "./extensions/request": "./build/src/extensions/request.js",
@@ -83,6 +84,9 @@
       ],
       "jobs": [
         "./build/src/jobs/index.d.ts"
+      ],
+      "helpers": [
+        "./build/src/helpers/index.d.ts"
       ],
       "types": [
         "./build/src/types/index.d.ts"

@@ -1,6 +1,7 @@
 import router from '@adonisjs/core/services/router'
 import db from '@adonisjs/lucid/services/db'
 import { middleware } from './kernel.js'
+import { enforceRateLimit } from '@adonisjs-lasagna/saas-tenancy/middleware'
 import { multitenancyAdminRoutes } from '@adonisjs-lasagna/admin'
 import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
 import { multitenancyRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
@@ -104,6 +105,15 @@ router
       failOpen: true,
     })
   )
+
+// Plan-aware rate limiting: the limit comes from the resolved tenant's plan
+// (config.plans.definitions[plan].rateLimit), NOT from route options.
+// starter = 3/2s, pro = 10/2s. tenantGuard runs first so request.tenant()
+// resolves the model that enforceRateLimit reads the plan from.
+router
+  .get('/rate-limited/plan', async ({ response }) => response.ok({ ok: true }))
+  .use(middleware.tenantGuard())
+  .use(enforceRateLimit({ prefix: 'rl-it-plan', bypassInTestEnv: true }))
 
 // Universal route: serves both tenant and central contexts. Used by the
 // universal_connection_cap integration spec to prove that when the hard
