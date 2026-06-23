@@ -48,6 +48,20 @@ function makeFakeDriver(caps: BillingCapability[]): FakeDriver {
   } as FakeDriver
 }
 
+/**
+ * Capture a rejected `BillingException`'s stable `billingCode`. Tests assert on
+ * the code, never the message — the message is human text (and may be reworded),
+ * the `billingCode` is the contract (see BillingException's own JSDoc).
+ */
+async function billingCodeOf(fn: () => Promise<unknown>): Promise<string | undefined> {
+  try {
+    await fn()
+  } catch (err) {
+    return (err as { billingCode?: string }).billingCode
+  }
+  return undefined
+}
+
 test.group('BillingService.changePlan (integration)', (group) => {
   const cleanupTenants: string[] = []
   let originalConfig: ReturnType<typeof getConfig>
@@ -192,9 +206,9 @@ test.group('BillingService.changePlan (integration)', (group) => {
     const tenant = await repo.findByIdOrFail(t.id)
     const billing = await app.container.make(BillingService)
 
-    await assert.rejects(
-      () => billing.changePlan(tenant, 'price_pro_monthly'),
-      /unsupported_by_driver/
+    assert.equal(
+      await billingCodeOf(() => billing.changePlan(tenant, 'price_pro_monthly')),
+      'unsupported_by_driver'
     )
   })
 
@@ -209,9 +223,9 @@ test.group('BillingService.changePlan (integration)', (group) => {
     const tenant = await repo.findByIdOrFail(t.id)
     const billing = await app.container.make(BillingService)
 
-    await assert.rejects(
-      () => billing.changePlan(tenant, 'price_pro_monthly'),
-      /subscription_not_found/
+    assert.equal(
+      await billingCodeOf(() => billing.changePlan(tenant, 'price_pro_monthly')),
+      'subscription_not_found'
     )
   })
 
@@ -220,9 +234,9 @@ test.group('BillingService.changePlan (integration)', (group) => {
     const billing = await app.container.make(BillingService)
     const deleted = { id: randomUUID(), status: 'deleted' } as never
 
-    await assert.rejects(
-      () => billing.changePlan(deleted, 'price_pro_monthly'),
-      /tenant_not_resolvable/
+    assert.equal(
+      await billingCodeOf(() => billing.changePlan(deleted, 'price_pro_monthly')),
+      'tenant_not_resolvable'
     )
   })
 
@@ -236,7 +250,10 @@ test.group('BillingService.changePlan (integration)', (group) => {
     const tenant = await repo.findByIdOrFail(t.id)
     const billing = await app.container.make(BillingService)
 
-    await assert.rejects(() => billing.changePlan(tenant, 'price_not_allowed'), /invalid_price/)
+    assert.equal(
+      await billingCodeOf(() => billing.changePlan(tenant, 'price_not_allowed')),
+      'invalid_price'
+    )
   })
 })
 
@@ -290,9 +307,9 @@ test.group('StripeDriver.changePlan (MockStripe, in-process)', (group) => {
     const driver = await getActiveBillingDriver()
 
     const empty = await mock.subscriptions.create({ customer: 'cus_empty', items: [] })
-    await assert.rejects(
-      () => driver.changePlan!(empty.id, { priceId: 'price_pro_monthly' }),
-      /has no items/
+    assert.equal(
+      await billingCodeOf(() => driver.changePlan!(empty.id, { priceId: 'price_pro_monthly' })),
+      'invalid_stripe_request'
     )
   })
 })
