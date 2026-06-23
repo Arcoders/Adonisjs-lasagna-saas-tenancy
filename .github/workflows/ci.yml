@@ -105,6 +105,15 @@ jobs:
           npm run build:template
           npm run test --workspace @adonisjs-lasagna/satellite-template
 
+      # The shared integration harness underwrites core + every satellite, so it
+      # carries its own unit suite (the pure exit-code/glob/spec-import logic +
+      # the boot-safety metatest) behind a self-contained coverage floor
+      # (.c8rc check-coverage). Runs against source via tsx; its V8 is
+      # deliberately NOT uploaded to the merged aggregate — the kit is dev-only
+      # and must not move the repo-wide gate.
+      - name: Test (satellite-test-kit unit) + coverage
+        run: npm run test:coverage --workspace @adonisjs-lasagna/satellite-test-kit
+
       # Raw V8 so the coverage-report job can re-report it with source-map
       # remapping back to src/*.ts.
       - name: Upload raw unit coverage (V8)
@@ -416,6 +425,15 @@ jobs:
       # stripe_mock_smoke uses the stripe-mock service container above.
       - name: Test (satellite integration) + coverage — billing
         run: npm run test:integration:coverage --workspace @adonisjs-lasagna/billing
+
+      # Consumer canary: boot the shared harness from a fresh satellite (the
+      # reference template) against core's fixture. A kit change that breaks a
+      # real consumer fails here on an isolated, fast signal instead of buried in
+      # a satellite's full suite. `:run`, not `:coverage` — it is a boot canary,
+      # deliberately out of the merged-coverage path. The kit build it imports is
+      # produced by build:all in the core integration step above.
+      - name: Test (satellite-template canary) — kit harness boots for a fresh consumer
+        run: npm run test:integration:run --workspace @adonisjs-lasagna/satellite-template
 
       # Optional/secondary providers run here, NEVER on the blocking step above.
       # `continue-on-error` keeps a Paddle/Lemon Squeezy outage or upstream change

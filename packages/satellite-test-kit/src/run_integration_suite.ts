@@ -1,6 +1,12 @@
 import 'reflect-metadata'
 import { Ignitor, prettyPrintError } from '@adonisjs/core'
 import { configure, processCLIArgs, run } from '@japa/runner'
+import {
+  decideExit,
+  deriveSuiteDirectories,
+  isConnectionTerminated,
+  resolveSpecImport,
+} from './runner_logic.js'
 
 export interface RunIntegrationSuiteOptions {
   /**
@@ -17,47 +23,32 @@ export interface RunIntegrationSuiteOptions {
    * (which starts the test HTTP server) still applies.
    */
   suiteGlobs?: string[]
-}
-
-// Lucid drains the pg pool whenever a connection is released. That happens at
-// `app.terminate()`, but also when a per-tenant pool idle-closes or a schema is
-// dropped in a group teardown mid-suite. A query in flight at that moment
-// rejects with `Error: Connection terminated` (pg/lib/client.js, from the socket
-// `end` listener), and pg surfaces the same condition on the Client `'error'`
-// event when no query is queued. The originating caller is almost always a
-// fire-and-forget DB write from an event listener whose handler returned before
-// the write resolved, so the rejection has no `.catch()` and Node escalates it
-// to the process, flipping the exit code to 1 even though every test passed.
-//
-// This is never a real test signal. A query a test depends on is awaited and
-// fails that test's assertion directly; only orphaned, un-awaited writes reach
-// these process-level handlers. So we swallow this one specific error wherever
-// it fires and rethrow everything else.
-const isConnectionTerminated = (reason: unknown): boolean => {
-  const message =
-    reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : ''
-  return /^Connection terminated/.test(message)
+  /**
+   * When true, a suite that matched zero spec files exits 0 instead of failing.
+   * Default false: a no-file-matched glob is almost always a broken
+   * `suiteGlobs`/`cwd`. Self-skipping specs (`test.skip(...)`) still count in
+   * japa's `aggregates.total`, so the default does not affect key-gated smoke
+   * suites (e.g. `BILLING_OPTIONAL_SMOKES_ONLY`).
+   */
+  allowEmpty?: boolean
 }
 
 /**
  * Run an AdonisJS integration suite for the calling package. This owns the
  * single, fragile exit-code recompute: @japa/runner's exceptions monitor flips
  * the run to exit 1 on ANY unhandled rejection, including the benign
- * "Connection terminated" teardown race above. We do not fight japa's listener;
- * we let it set its exit code, then recompute the FINAL exit code in `.finally`
- * from real signals only. For that `.finally` to run, `forceExit` must be off in
- * the `configure()` call below (the fixture rc may turn it on; we override it).
+ * "Connection terminated" teardown race (see `isConnectionTerminated` in
+ * `runner_logic.ts`). We do not fight japa's listener; we let it set its exit
+ * code, then recompute the FINAL exit code in `.finally` via `decideExit` from
+ * real signals only. For that `.finally` to run, `forceExit` must be off in the
+ * `configure()` call below (the fixture rc may turn it on; we override it).
  */
 export async function runIntegrationSuite(options: RunIntegrationSuiteOptions): Promise<void> {
   process.env.NODE_ENV = 'test'
 
   const FIXTURE_ROOT = options.fixtureRoot
   const suiteGlobs = options.suiteGlobs ?? ['tests/integration/**/*.spec.ts']
-  // Strip a trailing `/**/*.spec.ts` (or similar) to derive the suite
-  // directories, mirroring core's rewrite. Fall back to `tests/integration`.
-  const suiteDirectories = suiteGlobs.map((g) => g.replace(/\/\*\*.*$/, '')) ?? [
-    'tests/integration',
-  ]
+  const suiteDirectories = deriveSuiteDirectories(suiteGlobs)
 
   let sawNonBenignProcessError = false
   const onProcessError = (reason: unknown): void => {
@@ -73,7 +64,9 @@ export async function runIntegrationSuite(options: RunIntegrationSuiteOptions): 
   // fires only when execution reached a clean end (it does NOT fire when a
   // setup/exec error trips run()'s internal catch), so it doubles as proof the
   // run completed rather than aborting early.
-  let capturedRunner: { getSummary(): { hasError: boolean } } | undefined
+  let capturedRunner:
+    | { getSummary(): { hasError: boolean; aggregates: { total: number } } }
+    | undefined
   let runnerEnded = false
   const captureRunner = ({ runner, emitter }: { runner: any; emitter: any }): void => {
     capturedRunner = runner
@@ -82,12 +75,7 @@ export async function runIntegrationSuite(options: RunIntegrationSuiteOptions): 
     })
   }
 
-  const IMPORTER = (filePath: string) => {
-    if (filePath.startsWith('./') || filePath.startsWith('../')) {
-      return import(new URL(filePath, FIXTURE_ROOT).href)
-    }
-    return import(filePath)
-  }
+  const IMPORTER = (filePath: string) => import(resolveSpecImport(filePath, FIXTURE_ROOT))
 
   await new Ignitor(FIXTURE_ROOT, { importer: IMPORTER })
     .tap((app) => {
@@ -140,22 +128,38 @@ export async function runIntegrationSuite(options: RunIntegrationSuiteOptions): 
       await prettyPrintError(error)
     })
     .finally(() => {
-      // A non-benign process error (or a rejected run) always fails.
-      if (sawNonBenignProcessError) process.exit(1)
-
-      let summaryHasError: boolean | undefined
+      // Read the authoritative test summary; an unreadable summary stays
+      // undefined and decideExit preserves japa's own exit code.
+      let summary: { hasError: boolean; aggregates: { total: number } } | undefined
       try {
-        summaryHasError = capturedRunner?.getSummary().hasError
+        summary = capturedRunner?.getSummary()
       } catch {
-        summaryHasError = undefined
+        summary = undefined
       }
 
-      // Downgrade japa's exit code to 0 ONLY when the run reached a clean end
-      // with every test passing: the lingering exit-1 can then only be the
-      // benign "Connection terminated" teardown race. Test failures
-      // (summaryHasError) and early aborts (runnerEnded === false, e.g. a
-      // setup/exec throw) keep the failure via japa's own exit code.
-      const ranClean = runnerEnded && summaryHasError === false
-      process.exit(ranClean ? 0 : (process.exitCode ?? 0))
+      const { code, reason } = decideExit({
+        sawNonBenignProcessError,
+        runnerEnded,
+        summary,
+        currentExitCode: Number(process.exitCode ?? 0),
+        allowEmpty: options.allowEmpty ?? false,
+        suiteGlobs,
+        fixtureRoot: FIXTURE_ROOT.href,
+        cwd: process.cwd(),
+      })
+
+      if (process.env.LASAGNA_TESTKIT_DEBUG) {
+        console.error('[testkit] fixtureRoot=%s', FIXTURE_ROOT.href)
+        console.error('[testkit] suiteGlobs=%o directories=%o', suiteGlobs, suiteDirectories)
+        console.error(
+          '[testkit] aggregates.total=%o runnerEnded=%o',
+          summary?.aggregates.total,
+          runnerEnded
+        )
+        console.error('[testkit] exit=%o reason=%s', code, reason ?? '(none)')
+      }
+
+      if (reason) console.error(reason)
+      process.exit(code)
     })
 }

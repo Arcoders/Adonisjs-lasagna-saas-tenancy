@@ -17,9 +17,9 @@ tree, and the next person to fix the race (or bump a Japa behavior) would have t
 all six. **This package owns it once.** Core and each satellite are thin callers.
 
 The deep rationale for the exit-code logic is documented at the top of
-`packages/core/bin/test.integration.ts` and mirrored in
-[`src/run_integration_suite.ts`](src/run_integration_suite.ts). Read it before touching the
-`.finally` recompute.
+`packages/core/bin/test.integration.ts`. The recompute itself is the pure, unit-tested
+`decideExit` in [`src/runner_logic.ts`](src/runner_logic.ts), called from the `.finally` in
+[`src/run_integration_suite.ts`](src/run_integration_suite.ts). Read both before touching it.
 
 ## Public API — two entry points, split on boot-time safety
 
@@ -31,7 +31,7 @@ gotcha below):
 
 | Export | What it is | When to use it |
 |---|---|---|
-| `runIntegrationSuite({ fixtureRoot, suiteGlobs? })` | The Ignitor + Japa wiring and the authoritative exit-code recompute. | The whole body of a package's `bin/test.integration.ts`. |
+| `runIntegrationSuite({ fixtureRoot, suiteGlobs?, allowEmpty? })` | The Ignitor + Japa wiring and the authoritative exit-code recompute (which also fails loud when zero specs match, unless `allowEmpty`). | The whole body of a package's `bin/test.integration.ts`. |
 
 **`@adonisjs-lasagna/satellite-test-kit/testing`** — tenant/config helpers. Import these from
 your **spec files** (which load after the app boots), never from a `bin` entry: they pull in
@@ -124,3 +124,32 @@ primitives — same `runIntegrationSuite`, different `fixtureRoot`.
 - **Consumed via build output.** Like the published satellites, this kit is imported by package
   name and resolves to `build/`, so `build:all` must run before any integration suite. It is
   dev-only and must never be published.
+
+## Testing & stability
+
+The kit underwrites the integration suite of core and every satellite, so it carries its own
+guardrails rather than relying on the suites it powers.
+
+- **Unit suite.** `npm run test --workspace @adonisjs-lasagna/satellite-test-kit` (or
+  `test:coverage`) runs `tests/unit/**` against source. It covers the pure decision logic in
+  [`src/runner_logic.ts`](src/runner_logic.ts): the benign-error filter, the suite-directory
+  derivation, the spec-import classification, and `decideExit` (including the zero-spec
+  false-green guard). It also runs a boot-safety metatest that imports the main barrel with no
+  Ignitor and asserts no eager file pulls in an `@adonisjs/core|lucid/services/*` module. The
+  `.c8rc` enforces a self-contained coverage floor on `runner_logic.ts`. That floor is local to
+  the kit and is not part of the merged-coverage aggregate.
+- **Consumer canary.** `packages/satellite-template` runs a one-spec integration suite
+  (`npm run test:integration:run --workspace @adonisjs-lasagna/satellite-template`) that boots
+  this harness from a fresh satellite. It proves the whole path still works for a real consumer:
+  boot, DDL, `/testing` helpers, and the exit-code recompute. CI runs it after the satellite
+  integration suites.
+- **Zero specs fail loud.** A `suiteGlobs`/`cwd` that matches no files now exits 1 with a
+  diagnostic instead of a silent green (a run of 0 tests reports no error). Pass
+  `allowEmpty: true` to opt out. Self-skipping specs still count, so key-gated smoke suites are
+  unaffected.
+
+**Stability policy.** Any change to `runIntegrationSuite`, the DDL in `bootstrap.ts`, or the
+`.`/`/testing` entry-point split is a cross-cutting change that touches every satellite's test
+run. It must keep the unit metatests and the template canary green and be recorded in
+[`CHANGELOG.md`](CHANGELOG.md). The package is `private` and never publishes, so this is the
+stability contract in lieu of semver.

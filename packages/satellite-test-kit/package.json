@@ -17,7 +17,9 @@
   "types": "./build/src/index.d.ts",
   "scripts": {
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/test-kit-unit tsx bin/test.ts"
   },
   "devDependencies": {
     "@adonisjs-lasagna/saas-tenancy": "*"
