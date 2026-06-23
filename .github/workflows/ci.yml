@@ -19,6 +19,12 @@ jobs:
           node-version: '24'
           cache: npm
 
+      # Fail fast with a clear message if a workspace package (e.g. a new
+      # satellite) was added without regenerating the lockfile — otherwise
+      # `npm ci` below dies with a confusing "Missing: <pkg> from lock file".
+      - name: Verify lockfile has every workspace
+        run: node scripts/check-lockfile-workspaces.mjs
+
       - name: Install dependencies
         run: npm ci --include=optional
 
