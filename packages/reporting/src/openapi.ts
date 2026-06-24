@@ -58,6 +58,11 @@ const schemas = {
             type: 'array',
             items: { $ref: '#/components/schemas/CustomMetricBreakdown' },
           },
+          dataAsOf: {
+            type: ['string', 'null'],
+            description:
+              'Latest flushed period (YYYY-MM-DD) the report reflects, or null when empty',
+          },
         },
       },
     },

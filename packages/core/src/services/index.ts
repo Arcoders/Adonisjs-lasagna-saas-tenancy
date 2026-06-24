@@ -1,4 +1,7 @@
 export { resolveTenantRepository } from './resolve_tenant_repository.js'
+export { mapTenants } from './map_tenants.js'
+export type { MapTenantsOptions, MapTenantsResult } from './map_tenants.js'
+export { mapDataAsOf, isStale, staleDays } from '../freshness.js'
 export { default as CircuitBreakerService } from './circuit_breaker_service.js'
 export type { CircuitState, CircuitMetrics } from './circuit_breaker_service.js'
 export { default as TenantQueueService } from './tenant_queue_service.js'
@@ -121,6 +124,7 @@ export {
   provisioningStalledCheck,
   failedTenantsCheck,
   connectionPoolCheck,
+  metricsFreshnessCheck,
 } from './doctor/index.js'
 export type {
   DiagnosisSeverity,

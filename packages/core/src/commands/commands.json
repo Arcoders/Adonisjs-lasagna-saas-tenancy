@@ -212,6 +212,20 @@
       "filePath": "tenant_metrics_flush.js"
     },
     {
+      "commandName": "tenant:metrics:rollup",
+      "description": "Recompute the per-tenant monthly rollup of tenant_metrics (for fast whole-month reporting)",
+      "help": "Idempotent; run after a month closes, e.g. 0 2 1 * * node ace tenant:metrics:rollup",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "since", "flagName": "since", "required": false, "type": "string", "description": "Start date (ISO YYYY-MM-DD). Default: the first recorded metric" },
+        { "name": "until", "flagName": "until", "required": false, "type": "string", "description": "End date (ISO YYYY-MM-DD). Default: the end of the last completed month" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_metrics_rollup.js"
+    },
+    {
       "commandName": "tenant:feature-flag:set",
       "description": "Create or update a tenant feature flag",
       "help": "Requires Redis (invalidates the shared cache). Example: node ace tenant:feature-flag:set <id> beta true --config='{\"rollout\":25}' --expires-at=2026-12-31T23:59:59Z",

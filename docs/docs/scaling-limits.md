@@ -153,6 +153,30 @@ _Generated from the latest results; see [Performance](/docs/performance)._
 
 See [Data isolation](/docs/data-isolation/) for the full driver comparison.
 
+## High-volume metrics tables
+
+The backoffice `tenant_metrics` / `tenant_custom_metrics` tables grow with
+`tenants × days`, so on a large fleet over years they become the biggest backoffice
+tables and cross-tenant aggregation slows down. Two host-managed levers, both
+documented under [reporting → Scaling the metrics table](/docs/satellites/reporting):
+
+- **Monthly rollup** (`tenant:metrics:rollup`) — pre-aggregate into a
+  ~30×-smaller per-tenant monthly table that reporting reads for whole-month windows.
+- **RANGE partitioning by `period`** — the package ships a plain table, but because
+  every reporting query filters and groups by `period`, partitioning lets the
+  planner prune to the months a window touches. Sketch:
+
+  ```sql
+  -- host-managed migration (not shipped — keeps the default install simple)
+  CREATE TABLE backoffice.tenant_metrics (...) PARTITION BY RANGE (period);
+  CREATE TABLE backoffice.tenant_metrics_2026 PARTITION OF backoffice.tenant_metrics
+    FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+  ```
+
+  The existing `UNIQUE(tenant_id, period)` already includes the partition key
+  `period` (Postgres requires it) — don't reorder it, or partitioning breaks. Use
+  attach/detach of yearly child partitions for retention.
+
 ## Read next
 
 - [Performance](/docs/performance); the benchmark numbers behind these ceilings.

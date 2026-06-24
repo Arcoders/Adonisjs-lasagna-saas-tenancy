@@ -203,4 +203,12 @@ export default {
     strategy: 'sticky',
     connectionSuffix: '_read',
   },
+
+  // ─── Reporting (@adonisjs-lasagna/reporting) ─────────────────────
+  // Opt into the monthly rollup read path (run `tenant:metrics:rollup` to fill it)
+  // and clear the dashboard cache the moment a flush lands.
+  reporting: {
+    rollups: { enabled: true },
+    cache: { invalidateOnFlush: true },
+  },
 } as const

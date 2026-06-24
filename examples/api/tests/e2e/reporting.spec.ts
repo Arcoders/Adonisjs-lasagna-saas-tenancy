@@ -1,5 +1,7 @@
 import { test } from '@japa/runner'
+import emitter from '@adonisjs/core/services/emitter'
 import { MetricsService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { MetricsFlushed } from '@adonisjs-lasagna/saas-tenancy/events'
 import { createInstalledTenant, dropAllTenants, runAce, ADMIN_HEADERS } from './_helpers.js'
 
 /**
@@ -69,6 +71,16 @@ test.group('e2e — reporting: metrics pipeline + dashboard + extensions', (grou
     res.assertStatus(404)
   })
 
+  test('the slow_tenants fan-out extension runs (bounded mapTenants)', async ({ client, assert }) => {
+    const res = await client
+      .get('/admin/reporting/reports/extension/slow_tenants')
+      .headers(ADMIN_HEADERS)
+    res.assertStatus(200)
+    const data = res.body().data
+    assert.property(data, 'scanned')
+    assert.equal(data.failed, 0)
+  })
+
   test('the CLI generates a report in json and runs an extension', async ({ assert }) => {
     assert.equal(await runAce('tenant:report:generate', ['--format=json']), 0)
     assert.equal(await runAce('tenant:report:generate', ['--extension=demo_summary']), 0)
@@ -79,5 +91,69 @@ test.group('e2e — reporting: metrics pipeline + dashboard + extensions', (grou
     res.assertStatus(200)
     assert.equal(res.body().openapi, '3.1.0')
     assert.exists(res.body().paths['/admin/reporting/dashboard'])
+  })
+
+  test('the dashboard payload carries dataAsOf', async ({ client, assert }) => {
+    const res = await client.get('/admin/reporting/dashboard').headers(ADMIN_HEADERS)
+    res.assertStatus(200)
+    assert.property(res.body().data, 'dataAsOf')
+  })
+
+  test('tenant:metrics:flush dispatches MetricsFlushed once', async ({ assert }) => {
+    let fired = 0
+    const handler = () => {
+      fired += 1
+    }
+    emitter.on(MetricsFlushed, handler)
+    try {
+      assert.equal(await runAce('tenant:metrics:flush'), 0)
+      await new Promise((r) => setTimeout(r, 30))
+    } finally {
+      emitter.off(MetricsFlushed, handler)
+    }
+    assert.equal(fired, 1)
+  })
+
+  test('a flush invalidates the cached dashboard (cache.invalidateOnFlush)', async ({
+    client,
+    assert,
+  }) => {
+    const { id } = await createInstalledTenant(client)
+    // Populate the (60s TTL) cache.
+    const first = await client.get('/admin/reporting/dashboard').headers(ADMIN_HEADERS)
+    first.assertStatus(200)
+    const beforeTotal = first
+      .body()
+      .data.aggregate.reduce((a: number, r: any) => a + r.totalRequests, 0)
+
+    // Generate a new tracked request and flush it to the backoffice.
+    await client.get('/demo/notes').header('x-tenant-id', id)
+    assert.equal(await runAce('tenant:metrics:flush'), 0)
+    // The MetricsFlushed listener clears the cache asynchronously (the emitter
+    // doesn't await listeners), so let it settle before reading.
+    await new Promise((r) => setTimeout(r, 200))
+
+    // Within the TTL: a fresh value here proves the cache was cleared on flush.
+    const second = await client.get('/admin/reporting/dashboard').headers(ADMIN_HEADERS)
+    const afterTotal = second
+      .body()
+      .data.aggregate.reduce((a: number, r: any) => a + r.totalRequests, 0)
+    assert.isAbove(afterTotal, beforeTotal)
+  })
+
+  test('a throwing MetricsFlushed listener does not fail the flush command', async ({ assert }) => {
+    const handler = () => {
+      throw new Error('listener blew up')
+    }
+    emitter.on(MetricsFlushed, handler)
+    try {
+      assert.equal(await runAce('tenant:metrics:flush'), 0) // best-effort dispatch
+    } finally {
+      emitter.off(MetricsFlushed, handler)
+    }
+  })
+
+  test('tenant:metrics:rollup runs green (monthly rollup path)', async ({ assert }) => {
+    assert.equal(await runAce('tenant:metrics:rollup'), 0)
   })
 })

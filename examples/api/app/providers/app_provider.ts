@@ -6,7 +6,9 @@ import {
   builtInChecks,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { DiagnosisIssue } from '@adonisjs-lasagna/saas-tenancy/services'
-import { ReportExtensionRegistry } from '@adonisjs-lasagna/reporting'
+import { mapTenants } from '@adonisjs-lasagna/saas-tenancy/services'
+import db from '@adonisjs/lucid/services/db'
+import { ReportExtensionRegistry, ReportingService } from '@adonisjs-lasagna/reporting'
 import type { ReportExtensionFilters } from '@adonisjs-lasagna/reporting'
 import TenantRepository from '#app/repositories/tenant_repository'
 
@@ -32,6 +34,37 @@ export default class AppProvider {
       description: 'A trivial demo report extension proving the registry is wired.',
       async execute(filters: ReportExtensionFilters) {
         return { ok: true, window: filters }
+      },
+    })
+
+    // Worked fan-out example: walk the busiest tenants (backoffice, no scope),
+    // then read a per-tenant-schema figure for each with bounded concurrency and
+    // error isolation via `mapTenants`. This is the documented escape hatch for
+    // extensions that must enter tenant schemas.
+    const app = this.app
+    registry.register({
+      name: 'slow_tenants',
+      description: 'Per-tenant schema probe across the busiest tenants (bounded, error-isolated).',
+      async execute(filters: ReportExtensionFilters) {
+        const reporting = await app.container.make(ReportingService)
+        const tenants = []
+        // iterateTenantsByUsage only reads the window; map the string filters to it.
+        for await (const { tenant } of reporting.iterateTenantsByUsage({
+          since: filters.since,
+          until: filters.until,
+        })) {
+          tenants.push(tenant)
+          if (tenants.length >= 5) break // demo: cap at the top 5 busiest
+        }
+        const { results, errors } = await mapTenants(
+          tenants,
+          async () => {
+            const r = await db.connection().rawQuery('SELECT current_schema() AS schema')
+            return (r.rows?.[0]?.schema ?? null) as string | null
+          },
+          { concurrency: 3 }
+        )
+        return { scanned: results.length, failed: errors.length, schemas: results.map((r) => r.value) }
       },
     })
   }

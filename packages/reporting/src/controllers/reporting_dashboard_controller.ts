@@ -109,11 +109,15 @@ export default class ReportingDashboardController {
 
   async #compute(params: { period: ReportPeriod; since?: string; until?: string; limit?: number }) {
     const svc = await app.container.make(ReportingService)
-    const [aggregate, topTenants, customMetrics] = await Promise.all([
+    const [aggregate, topTenants, customMetrics, dataAsOf] = await Promise.all([
       svc.getAggregate({ period: params.period, since: params.since, until: params.until }),
       svc.getTopTenants({ since: params.since, until: params.until, limit: params.limit }),
       svc.getCustomMetricsBreakdown({ since: params.since, until: params.until }),
+      svc.getDataAsOf(),
     ])
-    return { aggregate, topTenants, customMetrics }
+    // `dataAsOf` is the latest FLUSHED period — how current the report is. It rides
+    // inside the cached payload (so it's as stale as cacheTtlMs; a flush clears the
+    // cache when invalidation is on).
+    return { aggregate, topTenants, customMetrics, dataAsOf }
   }
 }

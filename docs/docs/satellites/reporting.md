@@ -161,11 +161,49 @@ or the endpoint (`GET {prefix}/reports/extension/top_properties`).
 ::: warning Extensions own their own isolation
 Built-in reporting reads the shared backoffice schema and never enters a tenant
 scope. An extension that fans out across **tenant schemas** (one query per tenant)
-is your responsibility: bound it with the `TenantQueueService.statsForTenants`
-concurrency pattern and mind the connection budget (see
+is your responsibility. Use the `mapTenants` helper (below) so the fan-out is
+bounded and error-isolated, and mind the connection budget (see
 [Scaling limits](/docs/scaling-limits)). The built-in cross-tenant guard protects
 only the built-in aggregations.
 :::
+
+### Fanning out across tenants — `mapTenants`
+
+When an extension must read inside each tenant's schema, use `mapTenants` from
+`@adonisjs-lasagna/saas-tenancy/services`. It runs your function inside each
+tenant's `tenancy.run` scope with **bounded concurrency** (default 10 — keep it
+well under `maxTenantConnections`) and **error isolation**: one tenant failing is
+collected into `errors`, not thrown, so a single bad tenant never aborts the
+report.
+
+```ts
+import { mapTenants } from '@adonisjs-lasagna/saas-tenancy/services'
+
+class SlowTenantsReport implements ReportExtension {
+  readonly name = 'slow_tenants'
+  readonly description = 'Per-tenant row counts across the busiest tenants'
+
+  async execute(filters: ReportExtensionFilters) {
+    const reporting = await app.container.make(ReportingService)
+    const tenants = []
+    for await (const { tenant } of reporting.iterateTenantsByUsage(filters)) {
+      tenants.push(tenant)        // busiest-first, from the backoffice (no scope)
+      if (tenants.length >= 50) break
+    }
+    // bounded, error-isolated fan-out into each tenant's schema
+    const { results, errors } = await mapTenants(
+      tenants,
+      async (t) => SomeTenantModel.query().count('* as total'),
+      { concurrency: 5 }
+    )
+    return { scanned: results.length, failed: errors.length, results }
+  }
+}
+```
+
+`mapTenants` accepts tenant **models** (not ids — `tenancy.run` needs the model);
+if you only have ids, resolve them first with `resolveTenantRepository`. Pass
+`{ continueOnError: false }` to fail fast on the first tenant error instead.
 
 ## Dashboard endpoint
 
@@ -189,11 +227,31 @@ multitenancyReportingRoutes({
 ```
 
 `GET /admin/reporting/dashboard?period=week&since=…&until=…&limit=20` returns
-`{ data: { aggregate, topTenants, customMetrics } }`. Invalid `period`, non-ISO
-`since`/`until`, or an over-wide/inverted window return `400`.
+`{ data: { aggregate, topTenants, customMetrics, dataAsOf } }`. Invalid `period`,
+non-ISO `since`/`until`, or an over-wide/inverted window return `400`.
 
 Caching is **global** (cross-tenant) by design — never tenant-scoped. It's a stale
-window: within `cacheTtlMs`, a repeated query is served from cache.
+window: within `cacheTtlMs`, a repeated query is served from cache. To keep the
+view fresh, opt into event-driven invalidation — the dashboard cache is cleared the
+moment `tenant:metrics:flush` lands:
+
+```ts
+// config/multitenancy.ts
+reporting: {
+  cache: { invalidateOnFlush: true },   // pair with cacheTtlMs on the routes
+},
+```
+
+### Data freshness
+
+Reports reflect **flushed** data only. The metrics pipeline buffers counters in
+Redis and `tenant:metrics:flush` writes them to the backoffice tables; reporting
+reads those tables, never Redis. So the newest data a report can show is the last
+flushed period — surfaced as `dataAsOf` (the latest `period` present, or `null`
+when empty) in the dashboard payload. There is **no Redis fallback** by design (it
+would expose partial, per-tenant data and reintroduce cross-tenant fan-out). Run
+the flush on a tight enough schedule for your freshness needs; the opt-in
+`metrics_freshness` doctor check warns when it falls behind.
 
 ## Command
 
@@ -206,12 +264,39 @@ node ace tenant:report:generate --extension=top_properties
 `--format` is `table` (default), `json`, or `csv`; `--out` writes to a file
 instead of stdout; `--extension` runs a registered report extension.
 
+## Scaling the metrics table
+
+Built-in aggregation runs live over the daily `tenant_metrics` table, which is fine
+into the thousands of tenants. For very large fleets (thousands of tenants × years
+of rows) two opt-in levers keep it fast:
+
+**Monthly rollup.** `tenant:metrics:rollup` collapses the daily rows into a
+per-tenant `tenant_metrics_monthly` table (one row per tenant per month). With
+`config.reporting.rollups.enabled`, `getAggregate({ period: 'month' })` and
+`getTopTenants` serve **whole-month, fully-closed, covered** windows from that
+~30×-smaller table; every other query (day/week, partial/open months, custom
+metrics) transparently falls back to live aggregation. The rollup is idempotent
+(re-running overwrites, never accumulates) and **never includes the open month**,
+so a closed-window report is byte-identical whether served from the rollup or live.
+
+```bash
+# after the month closes — e.g. nightly or on the 1st
+node ace tenant:metrics:rollup
+```
+
+**Partitioning.** Every reporting query filters `WHERE period BETWEEN … GROUP BY
+<bucket of period>`, which is partition-pruning friendly. RANGE-partition
+`tenant_metrics` (and `tenant_custom_metrics`) by `period` so the planner only
+scans the partitions a window touches. This is host-managed (the package ships a
+plain table); the existing `UNIQUE(tenant_id, period)` already includes the
+partition key, which Postgres requires — don't reorder it. See
+[Scaling limits](/docs/scaling-limits).
+
 ## Prepared for future iterations
 
 Not built yet, but on the roadmap: configurable dashboard panels (a backend
-contract + a `reporting-ui` satellite), a metrics-management CLI
-(`tenant:reporting:metrics:list`), and pre-computed rollup tables for very large
-fleets (live aggregation only today).
+contract + a `reporting-ui` satellite) and a metrics-management CLI
+(`tenant:reporting:metrics:list`).
 
 ## Read next
 

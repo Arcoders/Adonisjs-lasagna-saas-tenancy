@@ -55,6 +55,42 @@ test.group('assertReportingConfig', () => {
       /description must be a string/
     )
   })
+
+  test('accepts a valid rollups block (even without metrics)', ({ assert }) => {
+    assert.doesNotThrow(() => assertReportingConfig({ rollups: { enabled: true } }))
+    assert.doesNotThrow(() => assertReportingConfig({ rollups: {} }))
+    assert.doesNotThrow(() => assertReportingConfig({ rollups: { enabled: false } }))
+  })
+
+  test('rejects a non-object rollups', ({ assert }) => {
+    assert.throws(
+      () => assertReportingConfig({ rollups: 'yes' as any }),
+      /rollups must be an object/
+    )
+  })
+
+  test('rejects a non-boolean rollups.enabled', ({ assert }) => {
+    assert.throws(
+      () => assertReportingConfig({ rollups: { enabled: 'true' as any } }),
+      /rollups.enabled must be a boolean/
+    )
+  })
+
+  test('accepts a valid cache block', ({ assert }) => {
+    assert.doesNotThrow(() => assertReportingConfig({ cache: { invalidateOnFlush: true } }))
+    assert.doesNotThrow(() => assertReportingConfig({ cache: {} }))
+  })
+
+  test('rejects a non-object cache', ({ assert }) => {
+    assert.throws(() => assertReportingConfig({ cache: 1 as any }), /cache must be an object/)
+  })
+
+  test('rejects a non-boolean cache.invalidateOnFlush', ({ assert }) => {
+    assert.throws(
+      () => assertReportingConfig({ cache: { invalidateOnFlush: 'yes' as any } }),
+      /cache.invalidateOnFlush must be a boolean/
+    )
+  })
 })
 
 test.group('defineReportingConfig', () => {

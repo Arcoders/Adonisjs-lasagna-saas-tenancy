@@ -9,6 +9,9 @@ export { default as failedTenantsCheck } from './failed_tenants_check.js'
 export { default as replicaLagCheck } from './replica_lag_check.js'
 export { default as connectionPoolCheck } from './connection_pool_check.js'
 export { default as longRunningQueriesCheck } from './long_running_queries_check.js'
+// Opt-in: NOT added to `builtInChecks` (a fresh/empty metrics table would always
+// warn). Hosts running the metrics pipeline register it explicitly.
+export { default as metricsFreshnessCheck } from './metrics_freshness_check.js'
 
 import schemaDriftCheck from './schema_drift_check.js'
 import migrationStateCheck from './migration_state_check.js'

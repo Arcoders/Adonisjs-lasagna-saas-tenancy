@@ -2,8 +2,15 @@ import redis from '@adonisjs/redis/services/main'
 import db from '@adonisjs/lucid/services/db'
 import TenantMetric from '../models/satellites/tenant_metric.js'
 import TenantCustomMetric from '../models/satellites/tenant_custom_metric.js'
+import TenantMetricMonthly from '../models/satellites/tenant_metric_monthly.js'
 import { getConfig } from '../config.js'
 import { assertEmitMetricArgs } from './metrics_validation.js'
+import {
+  buildMonthlyRollupSql,
+  monthBuckets,
+  monthChunkBounds,
+  resolveRollupWindow,
+} from '../rollup.js'
 import { DateTime } from 'luxon'
 
 /** Counter TTL: 48h, long enough to survive a delayed flush. */
@@ -227,6 +234,48 @@ export default class MetricsService {
         .insert(batch)
         .onConflict(['tenant_id', 'period', 'name'])
         .merge(['value'])
+    }
+  }
+
+  /**
+   * Recompute the per-tenant monthly rollup (`tenant_metrics_monthly`) from the
+   * daily `tenant_metrics` base, one upsert per month bucket so each statement's
+   * working set stays bounded. Idempotent (`ON CONFLICT … DO UPDATE` overwrites,
+   * never accumulates), so it is safe to re-run from cron. Omitted bounds default
+   * to "first metric → last completed month" (the open month is excluded so a
+   * partial month never lands in the rollup). A no-op on an empty base table.
+   * Run by the `tenant:metrics:rollup` command.
+   */
+  async recomputeMonthlyRollup(options: { since?: string; until?: string } = {}): Promise<void> {
+    const cfg = getConfig()
+    const conn = db.connection(cfg.backofficeConnectionName)
+    const schema = cfg.backofficeSchemaName
+
+    const minResult = await conn.rawQuery(`SELECT MIN(period)::text AS min FROM ??.??`, [
+      schema,
+      TenantMetric.table,
+    ])
+    const minPeriod = (minResult.rows as Array<{ min: string | null }>)[0]?.min ?? null
+
+    const window = resolveRollupWindow({
+      minPeriod,
+      since: options.since,
+      until: options.until,
+      asOf: DateTime.utc().toFormat('yyyy-MM-dd'),
+    })
+    if (!window) return
+
+    const sql = buildMonthlyRollupSql()
+    for (const monthStart of monthBuckets(window.since, window.until)) {
+      const { lo, hi } = monthChunkBounds(monthStart, window)
+      await conn.rawQuery(sql, [
+        schema,
+        TenantMetricMonthly.table,
+        schema,
+        TenantMetric.table,
+        lo,
+        hi,
+      ])
     }
   }
 

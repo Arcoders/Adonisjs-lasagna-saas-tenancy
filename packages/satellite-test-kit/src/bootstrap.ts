@@ -127,6 +127,16 @@ export async function ensureBackofficeSchema(): Promise<void> {
        created_at  timestamptz NOT NULL DEFAULT now(),
        UNIQUE(tenant_id, period, name)
      )`,
+    `CREATE TABLE IF NOT EXISTS backoffice.tenant_metrics_monthly (
+       id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       tenant_id       uuid NOT NULL,
+       month           date NOT NULL,
+       request_count   bigint NOT NULL DEFAULT 0,
+       error_count     bigint NOT NULL DEFAULT 0,
+       bandwidth_bytes bigint NOT NULL DEFAULT 0,
+       computed_at     timestamptz NOT NULL DEFAULT now(),
+       UNIQUE(tenant_id, month)
+     )`,
     `CREATE TABLE IF NOT EXISTS backoffice.tenant_audit_logs (
        id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        tenant_id   uuid,

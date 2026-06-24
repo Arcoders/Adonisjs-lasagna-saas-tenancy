@@ -19,4 +19,5 @@ export {
   replicaLagCheck,
   connectionPoolCheck,
   longRunningQueriesCheck,
+  metricsFreshnessCheck,
 } from './checks/index.js'

@@ -47,6 +47,9 @@ multitenancyReportingRoutes({
   prefix: '/admin/reporting',
   middleware: [middleware.demoAdminAuth()],
   openapi: true,
+  // Cache dashboard responses; config.reporting.cache.invalidateOnFlush clears
+  // them on every tenant:metrics:flush so the view stays fresh.
+  cacheTtlMs: 60_000,
 })
 
 /* ─── /demo: tenant CRUD (no tenant guard — no tenant context yet) ───────── */

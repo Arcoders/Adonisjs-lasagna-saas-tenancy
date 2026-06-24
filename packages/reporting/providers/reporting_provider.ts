@@ -33,6 +33,41 @@ export default class ReportingProvider implements SatelliteProviderContract {
     const config = this.app.config.get<MultitenancyConfigWithReporting>('multitenancy')
     assertReportingConfig(config?.reporting)
   }
+
+  /**
+   * `ready` runs after `boot`, so the emitter (which resolves via `app.booted()`)
+   * is guaranteed to exist — wiring it in `boot()` would race that and silently
+   * skip the subscription. Same lifecycle the demo app provider uses for listeners.
+   */
+  async ready() {
+    const config = this.app.config.get<MultitenancyConfigWithReporting>('multitenancy')
+    await this.#wireFlushCacheInvalidation(config)
+  }
+
+  /**
+   * When `config.reporting.cache.invalidateOnFlush` is set, clear the global
+   * `reporting` dashboard cache on every `MetricsFlushed` event, so a cached
+   * dashboard refreshes the moment `tenant:metrics:flush` lands. Off by default
+   * (pair it with `cacheTtlMs > 0`). Always the GLOBAL namespace — never a tenant
+   * scope. (A surgical `.delete(key)` can't cover the rolling-window key space a
+   * flush touches, so we clear the whole namespace.) `.clear()` is best-effort.
+   */
+  async #wireFlushCacheInvalidation(config?: MultitenancyConfigWithReporting): Promise<void> {
+    if (!config?.reporting?.cache?.invalidateOnFlush) return
+    const emitter = await this.app.container.make('emitter')
+    const { MetricsFlushed } = await import('@adonisjs-lasagna/saas-tenancy/events')
+    const { getCache } = await import('@adonisjs-lasagna/saas-tenancy/services')
+    emitter.on(MetricsFlushed, () => {
+      try {
+        void getCache()
+          .namespace('reporting')
+          .clear()
+          .catch(() => {})
+      } catch {
+        // best-effort — never let cache invalidation break the emitter
+      }
+    })
+  }
 }
 
 // Compile-time ABI pin: fail the build if the provider drifts from the public

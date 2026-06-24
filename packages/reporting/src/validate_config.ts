@@ -19,6 +19,19 @@ export interface ReportingMetricDefinition {
 
 export interface ReportingConfig {
   metrics?: ReportingMetricDefinition[]
+  /**
+   * Opt-in monthly rollup read path. When `enabled`, whole-month, fully-closed,
+   * covered windows are served from `tenant_metrics_monthly` (populated by
+   * `tenant:metrics:rollup`) instead of the daily base. Off by default.
+   */
+  rollups?: { enabled?: boolean }
+  /**
+   * Dashboard cache behavior. `invalidateOnFlush` (off by default) clears the
+   * global `reporting` cache namespace when a `MetricsFlushed` event fires, so a
+   * cached dashboard refreshes the moment `tenant:metrics:flush` lands. Pair it
+   * with a `cacheTtlMs > 0` on the routes (otherwise there's nothing to clear).
+   */
+  cache?: { invalidateOnFlush?: boolean }
 }
 
 /** The core config extended with the optional `reporting` block (decoupled from
@@ -41,6 +54,8 @@ export function assertReportingConfig(config: ReportingConfig | undefined): void
   if (typeof config !== 'object') {
     throw new Error('[reporting] config.reporting must be an object')
   }
+  assertRollupsConfig(config.rollups)
+  assertCacheConfig(config.cache)
   if (config.metrics === undefined) return
   if (!Array.isArray(config.metrics)) {
     throw new Error('[reporting] config.reporting.metrics must be an array')
@@ -69,5 +84,27 @@ export function assertReportingConfig(config: ReportingConfig | undefined): void
     if (def.description !== undefined && typeof def.description !== 'string') {
       throw new Error(`[reporting] metric "${def.name}" description must be a string`)
     }
+  }
+}
+
+/** Validate the optional `rollups` block. Pure; called by {@link assertReportingConfig}. */
+export function assertRollupsConfig(rollups: ReportingConfig['rollups']): void {
+  if (rollups === undefined || rollups === null) return
+  if (typeof rollups !== 'object') {
+    throw new Error('[reporting] config.reporting.rollups must be an object')
+  }
+  if (rollups.enabled !== undefined && typeof rollups.enabled !== 'boolean') {
+    throw new Error('[reporting] config.reporting.rollups.enabled must be a boolean')
+  }
+}
+
+/** Validate the optional `cache` block. Pure; called by {@link assertReportingConfig}. */
+export function assertCacheConfig(cache: ReportingConfig['cache']): void {
+  if (cache === undefined || cache === null) return
+  if (typeof cache !== 'object') {
+    throw new Error('[reporting] config.reporting.cache must be an object')
+  }
+  if (cache.invalidateOnFlush !== undefined && typeof cache.invalidateOnFlush !== 'boolean') {
+    throw new Error('[reporting] config.reporting.cache.invalidateOnFlush must be a boolean')
   }
 }

@@ -2,8 +2,12 @@ import db from '@adonisjs/lucid/services/db'
 import { DateTime } from 'luxon'
 import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
-import { resolveTenantRepository } from '@adonisjs-lasagna/saas-tenancy/services'
-import { TenantMetric, TenantCustomMetric } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import { resolveTenantRepository, mapDataAsOf } from '@adonisjs-lasagna/saas-tenancy/services'
+import {
+  TenantMetric,
+  TenantCustomMetric,
+  TenantMetricMonthly,
+} from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type {
   AggregationOptions,
@@ -21,6 +25,8 @@ import {
   type CustomAggregation,
 } from './custom_aggregate.js'
 import { resolvePeriod } from './validate.js'
+import { chooseAggregateSource, chooseTopTenantsSource } from './rollup_source.js'
+import type { MultitenancyConfigWithReporting } from './validate_config.js'
 import { assertNotInTenantScope } from './guard.js'
 
 /**
@@ -48,13 +54,32 @@ export default class ReportingService {
    */
   async getAggregate(options: AggregationOptions = {}): Promise<ReportAggregate[]> {
     assertNotInTenantScope('getAggregate', tenancy.currentId)
-    const { conn, schema } = this.backoffice()
     // Defense-in-depth: BUCKET_SQL is whitelisted, but resolve through
     // resolvePeriod() so an out-of-enum `period` (e.g. a bad cast from a direct
     // caller) falls back to 'day' instead of interpolating `undefined` into the
     // SQL. HTTP callers are already rejected with 400 upstream.
-    const bucket = BUCKET_SQL[resolvePeriod(options.period)]
+    const period = resolvePeriod(options.period)
     const { since, until } = this.#window(options)
+
+    // Opt-in fast path: a whole-month, fully-closed, covered window is served from
+    // the small monthly rollup instead of SUM-ing the daily base. The result is
+    // identical (proven by an equivalence test); the source pick is a pure function.
+    if (this.rollupsEnabled() && period === 'month') {
+      const { min, max } = await this.rollupBounds()
+      const source = chooseAggregateSource({
+        enabled: true,
+        period,
+        since,
+        until,
+        rollupMin: min,
+        rollupMax: max,
+        asOfMonth: this.#asOfMonth(),
+      })
+      if (source === 'rollup') return this.#aggregateFromRollup(since, until)
+    }
+
+    const bucket = BUCKET_SQL[period]
+    const { conn, schema } = this.backoffice()
 
     const result = await conn.rawQuery(
       `SELECT ${bucket} AS bucket,
@@ -76,9 +101,25 @@ export default class ReportingService {
    */
   async getTopTenants(options: AggregationOptions = {}): Promise<TopTenantMetric[]> {
     assertNotInTenantScope('getTopTenants', tenancy.currentId)
-    const { conn, schema } = this.backoffice()
     const { since, until } = this.#window(options)
     const limit = clampLimit(options.limit)
+
+    // Top-N is a plain per-tenant window-sum, so the monthly rollup serves it for
+    // any covered, closed, month-aligned window (no period concept of its own).
+    if (this.rollupsEnabled()) {
+      const { min, max } = await this.rollupBounds()
+      const source = chooseTopTenantsSource({
+        enabled: true,
+        since,
+        until,
+        rollupMin: min,
+        rollupMax: max,
+        asOfMonth: this.#asOfMonth(),
+      })
+      if (source === 'rollup') return this.#topTenantsFromRollup(since, until, limit)
+    }
+
+    const { conn, schema } = this.backoffice()
 
     const result = await conn.rawQuery(
       `SELECT tenant_id,
@@ -189,6 +230,22 @@ export default class ReportingService {
   }
 
   /**
+   * The freshest period present in `tenant_metrics` (`MAX(period)`) as `yyyy-MM-dd`,
+   * or null when empty. Reports reflect FLUSHED data only, so this surfaces how
+   * current that data is (see the data-freshness note in the docs) — there is no
+   * Redis fallback by design. Cheap: served by `INDEX(period)`.
+   */
+  async getDataAsOf(): Promise<string | null> {
+    assertNotInTenantScope('getDataAsOf', tenancy.currentId)
+    const { conn, schema } = this.backoffice()
+    const result = await conn.rawQuery(`SELECT MAX(period)::text AS as_of FROM ??.??`, [
+      schema,
+      TenantMetric.table,
+    ])
+    return mapDataAsOf((result.rows as Array<{ as_of: unknown }>)[0])
+  }
+
+  /**
    * Resolve the backoffice connection + schema. `protected` (not `#private`) so
    * resilience specs can subclass and inject a connection whose `rawQuery`
    * rejects, proving a Postgres outage fails cleanly.
@@ -196,6 +253,76 @@ export default class ReportingService {
   protected backoffice() {
     const cfg = getConfig()
     return { conn: db.connection(cfg.backofficeConnectionName), schema: cfg.backofficeSchemaName }
+  }
+
+  /**
+   * Whether the opt-in monthly rollup read path is enabled. `protected` so tests
+   * can force it on without mutating global config. Reads the optional `reporting`
+   * block off the core config (present at runtime when the host declares it).
+   */
+  protected rollupsEnabled(): boolean {
+    const cfg = getConfig() as MultitenancyConfigWithReporting
+    return cfg.reporting?.rollups?.enabled === true
+  }
+
+  /**
+   * MIN/MAX month present in `tenant_metrics_monthly`, as `yyyy-MM-dd` strings (or
+   * null when empty). Cheap (covered by `INDEX(month)`). `protected` for the chaos
+   * outage subclass.
+   */
+  protected async rollupBounds(): Promise<{ min: string | null; max: string | null }> {
+    const { conn, schema } = this.backoffice()
+    const result = await conn.rawQuery(
+      `SELECT MIN(month)::text AS min, MAX(month)::text AS max FROM ??.??`,
+      [schema, TenantMetricMonthly.table]
+    )
+    const row = (result.rows as Array<{ min: string | null; max: string | null }>)[0] ?? {
+      min: null,
+      max: null,
+    }
+    return { min: row.min ?? null, max: row.max ?? null }
+  }
+
+  #asOfMonth(): string {
+    return DateTime.utc().startOf('month').toFormat('yyyy-MM-dd')
+  }
+
+  async #aggregateFromRollup(since: string, until: string): Promise<ReportAggregate[]> {
+    const { conn, schema } = this.backoffice()
+    const result = await conn.rawQuery(
+      `SELECT month AS bucket,
+              SUM(request_count)::bigint   AS total_requests,
+              SUM(error_count)::bigint     AS total_errors,
+              SUM(bandwidth_bytes)::bigint AS total_bandwidth,
+              COUNT(DISTINCT tenant_id)::bigint AS active_tenants
+       FROM ??.??
+       WHERE month >= ? AND month <= ?
+       GROUP BY month
+       ORDER BY month DESC`,
+      [schema, TenantMetricMonthly.table, since, until]
+    )
+    return (result.rows as Parameters<typeof mapAggregateRow>[0][]).map(mapAggregateRow)
+  }
+
+  async #topTenantsFromRollup(
+    since: string,
+    until: string,
+    limit: number
+  ): Promise<TopTenantMetric[]> {
+    const { conn, schema } = this.backoffice()
+    const result = await conn.rawQuery(
+      `SELECT tenant_id,
+              SUM(request_count)::bigint   AS requests,
+              SUM(error_count)::bigint     AS errors,
+              SUM(bandwidth_bytes)::bigint AS bandwidth_bytes
+       FROM ??.??
+       WHERE month >= ? AND month <= ?
+       GROUP BY tenant_id
+       ORDER BY SUM(request_count) DESC
+       LIMIT ?`,
+      [schema, TenantMetricMonthly.table, since, until, limit]
+    )
+    return (result.rows as Parameters<typeof mapTopTenantRow>[0][]).map(mapTopTenantRow)
   }
 
   #window(options: AggregationOptions): { since: string; until: string } {

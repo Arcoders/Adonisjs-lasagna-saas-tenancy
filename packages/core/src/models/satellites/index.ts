@@ -8,6 +8,7 @@ export { default as TenantBranding } from './tenant_branding.js'
 // `TenantSsoConfig` moved to `@adonisjs-lasagna/sso`.
 export { default as TenantMetric } from './tenant_metric.js'
 export { default as TenantCustomMetric } from './tenant_custom_metric.js'
+export { default as TenantMetricMonthly } from './tenant_metric_monthly.js'
 export { default as TenantPlan } from './tenant_plan.js'
 export type { TenantPlanSource } from './tenant_plan.js'
 // The Stripe satellite models (StripeCustomer / StripeSubscription /

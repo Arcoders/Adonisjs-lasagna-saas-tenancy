@@ -44,7 +44,25 @@ node ace tenant:metrics:flush 2026-04-30
 ```
 
 `MetricsService.flush(period?)` defaults to the current UTC day. It uses a SCAN
-cursor, so it is safe against arbitrarily large key sets (no `KEYS` pattern).
+cursor, so it is safe against arbitrarily large key sets (no `KEYS` pattern). After
+both flushes succeed the command emits a `MetricsFlushed` event (`/events`), which
+the [reporting satellite](/docs/satellites/reporting) can subscribe to for
+cache invalidation.
+
+### Monthly rollup (high volume)
+
+For very large fleets, `tenant:metrics:rollup` pre-aggregates the daily rows into a
+per-tenant `tenant_metrics_monthly` table that reporting reads for whole-month
+windows. It is idempotent and excludes the open month; run it after a month closes.
+See [reporting → Scaling the metrics table](/docs/satellites/reporting).
+
+### Partitioning
+
+`tenant_metrics` is a plain table by default. At years-of-rows scale you can
+RANGE-partition it by `period` without touching the package: the flush upsert's
+`ON CONFLICT (tenant_id, period)` already includes the partition key `period`,
+which Postgres requires (every unique/PK constraint on a partitioned table must
+contain the partition column — so don't drop `period` from that constraint).
 
 ## Reading
 
