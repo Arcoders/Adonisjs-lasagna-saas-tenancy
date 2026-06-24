@@ -19,23 +19,28 @@ export interface TenantResolver {
   resolve(request: HttpRequest): TenantResolveResult | Promise<TenantResolveResult>
 }
 
-export type TenantResolveResult =
-  | { type: 'id'; tenantId: string }
-  | { type: 'domain'; domain: string }
-  | undefined
+/**
+ * A positive resolution: either a tenant id or a `{ domain }` envelope. Absence
+ * (a resolver that doesn't apply) is modelled separately as `undefined` in
+ * {@link TenantResolveResult}, so the constructors below return a concrete hit
+ * and only `miss()` is `undefined`.
+ */
+export type TenantHit = { type: 'id'; tenantId: string } | { type: 'domain'; domain: string }
+
+export type TenantResolveResult = TenantHit | undefined
 
 /**
  * Convenience constructors so resolver implementations don't have to
  * spell the discriminated-union shape every time.
  */
 export const ResolverHit = {
-  id(tenantId: string): TenantResolveResult {
+  id(tenantId: string): TenantHit {
     return { type: 'id', tenantId }
   },
-  domain(domain: string): TenantResolveResult {
+  domain(domain: string): TenantHit {
     return { type: 'domain', domain }
   },
-  miss(): TenantResolveResult {
+  miss(): undefined {
     return undefined
   },
 }

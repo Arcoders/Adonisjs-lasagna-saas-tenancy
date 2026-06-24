@@ -9,6 +9,7 @@ import TenantNotFoundException from '../exceptions/tenant_not_found_exception.js
 import TenantSuspendedException from '../exceptions/tenant_suspended_exception.js'
 import DependencyUnavailableException from '../exceptions/dependency_unavailable_exception.js'
 import { getConfig } from '../config.js'
+import type { ResolverCacheConfig } from '../types/config.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import { isUuidV4 } from '../services/isolation/identifier.js'
 import { isProductionNodeEnv } from '../utils/env.js'
@@ -108,7 +109,7 @@ export async function findTenantByIdCached(
   id: string,
   includeDeleted: boolean = true
 ): Promise<TenantModelContract | null> {
-  let cacheCfg: { enabled?: boolean; ttlMs?: number; maxEntries?: number } | undefined
+  let cacheCfg: ResolverCacheConfig | undefined
   try {
     cacheCfg = getConfig().resolver?.cache
   } catch {
@@ -130,7 +131,7 @@ async function findThenCache(
   repo: TenantRepositoryContract,
   id: string,
   cache: TenantResolutionCache,
-  cacheCfg: { ttlMs?: number; maxEntries?: number }
+  cacheCfg: Pick<ResolverCacheConfig, 'ttlMs' | 'maxEntries'>
 ): Promise<TenantModelContract | null> {
   const tenant = await repo.findById(id, true)
   if (tenant) {
@@ -152,7 +153,7 @@ async function findThenCache(
  * DB a second time for the same tenant. No-op when the cache is disabled.
  */
 export async function primeResolvedTenant(tenant: TenantModelContract): Promise<void> {
-  let cacheCfg: { enabled?: boolean; ttlMs?: number; maxEntries?: number } | undefined
+  let cacheCfg: ResolverCacheConfig | undefined
   try {
     cacheCfg = getConfig().resolver?.cache
   } catch {
@@ -201,7 +202,7 @@ function legacyResolveTenantId(request: HttpRequest): string | undefined {
   if (resolverStrategy === 'request-data') {
     const fromQuery = request.qs()?.['tenant_id']
     if (typeof fromQuery === 'string' && fromQuery.length > 0) return fromQuery
-    const fromBody = (request as any).input?.('tenant_id')
+    const fromBody = request.input('tenant_id')
     if (typeof fromBody === 'string' && fromBody.length > 0) return fromBody
     return undefined
   }
@@ -262,6 +263,19 @@ export function dependencyUnavailable(
   return exc
 }
 
+/**
+ * True when an error already carries a decided HTTP status (an AdonisJS
+ * exception with a numeric `.status`). The tenant lookup/connect catch sites
+ * use this to pass such errors through untouched and wrap everything else as a
+ * 503 — the fail-closed-vs-pass-through contract lives here so a `statusCode`
+ * vs `status` typo can't drift across the four call sites that depend on it.
+ */
+export function hasDecidedHttpStatus(err: unknown): err is { status: number } {
+  return (
+    typeof err === 'object' && err !== null && typeof (err as { status?: unknown }).status === 'number'
+  )
+}
+
 ;(HttpRequest as any).macro(
   'tenant',
   async function (this: HttpRequest, options?: { allowInactive?: boolean }) {
@@ -294,7 +308,7 @@ export function dependencyUnavailable(
       // (central DB) being unreachable, so fail closed with a 503 rather than
       // leaking a raw Lucid 500. A host repository that wants a specific status
       // for its own errors should throw an Exception carrying one.
-      if (typeof (err as any)?.status === 'number') throw err
+      if (hasDecidedHttpStatus(err)) throw err
       throw dependencyUnavailable(
         'tenant.lookup',
         err,
@@ -320,7 +334,7 @@ export function dependencyUnavailable(
       // through. Any other connect failure (Postgres down, ECONNREFUSED, timeout)
       // is a raw backend outage — map it to a clean, retry-able 503 instead of
       // letting a raw Lucid error bubble up as an opaque 500.
-      if (typeof (err as any)?.status === 'number') throw err
+      if (hasDecidedHttpStatus(err)) throw err
       throw dependencyUnavailable('tenant.connect', err, tenant.id)
     }
     ;(this as any)[TENANT_MEMO_KEY] = tenant

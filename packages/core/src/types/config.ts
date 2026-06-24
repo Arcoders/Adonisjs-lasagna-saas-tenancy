@@ -144,6 +144,13 @@ export interface ResolverConfig {
 }
 
 /**
+ * The resolution-cache block of {@link ResolverConfig}, with `undefined`
+ * stripped. The single source of truth for the cache shape so call sites in
+ * `extensions/request.ts` don't hand-duplicate `{ enabled?, ttlMs?, maxEntries? }`.
+ */
+export type ResolverCacheConfig = NonNullable<ResolverConfig['cache']>
+
+/**
  * Per-strategy configuration the resolvers consume. Optional — the built-in
  * resolvers fall back to sensible defaults when these blocks are absent.
  */

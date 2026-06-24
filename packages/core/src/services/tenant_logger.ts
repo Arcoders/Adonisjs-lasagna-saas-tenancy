@@ -11,5 +11,5 @@ import TenantLogContext from './tenant_log_context.js'
  */
 export async function tenantLogger() {
   const ctx = await app.container.make(TenantLogContext)
-  return ctx.bind(logger as any)
+  return ctx.bind(logger)
 }

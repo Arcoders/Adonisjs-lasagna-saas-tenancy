@@ -121,7 +121,7 @@ export class RequestDataResolver implements TenantResolver {
     }
 
     // request.input(...) covers JSON, form-encoded, multipart bodies.
-    const fromBody = (request as any).input?.(bodyKey)
+    const fromBody = request.input(bodyKey)
     if (typeof fromBody === 'string' && fromBody.length > 0) {
       return ResolverHit.id(fromBody)
     }

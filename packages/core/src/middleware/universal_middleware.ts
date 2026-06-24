@@ -4,6 +4,7 @@ import {
   resolveTenant,
   __setMemoizedTenant,
   dependencyUnavailable,
+  hasDecidedHttpStatus,
   findTenantByIdCached,
 } from '../extensions/request.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
@@ -81,7 +82,7 @@ export default class UniversalMiddleware {
       // decided HTTP status; map a raw outage to a 503 — consistent with
       // `request.tenant()`. (A genuinely absent tenant returns null below and
       // still degrades to central, per the "as if it didn't exist" contract.)
-      if (typeof (err as any)?.status === 'number') throw err
+      if (hasDecidedHttpStatus(err)) throw err
       throw dependencyUnavailable(
         'tenant.lookup',
         err,
@@ -102,7 +103,7 @@ export default class UniversalMiddleware {
       // (the hard-cap 503, or a 500-class config fault); map any other connect
       // failure (Postgres down, etc.) to a clean 503 — consistent with
       // `request.tenant()`.
-      if (typeof (err as any)?.status === 'number') throw err
+      if (hasDecidedHttpStatus(err)) throw err
       throw dependencyUnavailable('tenant.connect', err, tenant.id)
     }
     __setMemoizedTenant(request, tenant)
