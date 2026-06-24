@@ -4,6 +4,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import BillingException from '../../exceptions/billing_exception.js'
 import { DEFAULT_STRIPE_API_VERSION } from '../../stripe_api_version.js'
 import type { BillingProviderContract } from '../../contracts/billing_provider_contract.js'
+import { BILLING_CONTRACT_VERSION } from '../../constants.js'
 import type {
   BillingCapability,
   BillingWebhookEvent,
@@ -45,6 +46,7 @@ const STRIPE_CAPABILITIES: ReadonlySet<BillingCapability> = new Set<BillingCapab
  */
 export default class StripeDriver implements BillingProviderContract {
   readonly name = 'stripe' as const
+  readonly contractVersion = BILLING_CONTRACT_VERSION
 
   #stripe: Stripe | null = null
 

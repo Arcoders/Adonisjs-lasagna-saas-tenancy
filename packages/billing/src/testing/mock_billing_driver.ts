@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import BillingException from '../exceptions/billing_exception.js'
 import type { BillingProviderContract } from '../contracts/billing_provider_contract.js'
+import { BILLING_CONTRACT_VERSION } from '../constants.js'
 import type {
   BillingCapability,
   BillingWebhookEvent,
@@ -34,6 +35,7 @@ interface RecordedUsage {
  */
 export default class MockBillingDriver implements BillingProviderContract {
   readonly name = 'mock' as const
+  readonly contractVersion = BILLING_CONTRACT_VERSION
 
   readonly #secret: string
   #seq = 0

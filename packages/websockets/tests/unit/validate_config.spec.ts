@@ -1,5 +1,7 @@
 import { test } from '@japa/runner'
 import { assertWebSocketsConfig } from '../../src/validate_config.js'
+import { normalizeAuthorize } from '../../src/resolve_authorize.js'
+import { WEBSOCKETS_CONTRACT_VERSION } from '../../src/constants.js'
 import type { WebSocketsConfig } from '../../src/types.js'
 
 test.group('assertWebSocketsConfig', () => {
@@ -31,6 +33,55 @@ test.group('assertWebSocketsConfig', () => {
           authorize: 'nope' as unknown as WebSocketsConfig['authorize'],
         }),
       '[websockets] config.websockets.authorize must be a function'
+    )
+  })
+
+  test('accepts the versioned object form of authorize', ({ assert }) => {
+    assert.doesNotThrow(() => assertWebSocketsConfig({ authorize: { authorize: () => true } }))
+    assert.doesNotThrow(() =>
+      assertWebSocketsConfig({
+        authorize: { contractVersion: WEBSOCKETS_CONTRACT_VERSION, authorize: () => true },
+      })
+    )
+  })
+
+  test('throws when the object form lacks an authorize function', ({ assert }) => {
+    assert.throws(
+      () =>
+        assertWebSocketsConfig({
+          authorize: { contractVersion: 1 } as unknown as WebSocketsConfig['authorize'],
+        }),
+      /must be a function or/
+    )
+  })
+})
+
+test.group('normalizeAuthorize', () => {
+  test('returns undefined when no authorize is configured', ({ assert }) => {
+    assert.isUndefined(normalizeAuthorize(undefined))
+  })
+
+  test('passes a bare function through unversioned', ({ assert }) => {
+    const fn = () => true
+    assert.strictEqual(normalizeAuthorize(fn), fn)
+  })
+
+  test('unwraps the object form to its authorize function', ({ assert }) => {
+    const fn = () => true
+    assert.strictEqual(
+      normalizeAuthorize({ contractVersion: WEBSOCKETS_CONTRACT_VERSION, authorize: fn }),
+      fn
+    )
+  })
+
+  test('rejects an object form built for a NEWER contract', ({ assert }) => {
+    assert.throws(
+      () =>
+        normalizeAuthorize({
+          contractVersion: WEBSOCKETS_CONTRACT_VERSION + 1,
+          authorize: () => true,
+        }),
+      /requires extension contract/
     )
   })
 })

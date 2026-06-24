@@ -71,6 +71,27 @@ export interface WebSocketHandshakeConfig {
   baseDomain?: string
 }
 
+/**
+ * Authorization seam. Resolving a client-supplied tenant id is NOT
+ * authentication: implement this to verify the connecting principal actually
+ * belongs to `tenant`. Returning a falsy value (or throwing) rejects the upgrade.
+ */
+export type WebSocketAuthorizeFn = (
+  socket: IoSocket,
+  tenant: TenantModelContract
+) => boolean | Promise<boolean>
+
+/**
+ * The versioned form of {@link WebSocketAuthorizeFn}. Supply this instead of a
+ * bare function to opt into the contract-version check at wiring time (see
+ * `WEBSOCKETS_CONTRACT_VERSION`): a version newer than this build throws, older
+ * or absent warns.
+ */
+export interface WebSocketAuthorizer {
+  readonly contractVersion?: number
+  authorize: WebSocketAuthorizeFn
+}
+
 export interface WebSocketsConfig {
   /** socket.io mount path. Default socket.io's own default (`/socket.io`). */
   path?: string
@@ -83,10 +104,10 @@ export interface WebSocketsConfig {
   /** Where to read the tenant id from the handshake. */
   handshake?: WebSocketHandshakeConfig
   /**
-   * Authorization seam. Resolving a client-supplied tenant id is NOT
-   * authentication: implement this to verify the connecting principal actually
-   * belongs to `tenant` (e.g. validate `socket.handshake.auth.token` and check
-   * membership). Returning a falsy value rejects the upgrade.
+   * Authorization seam, as a bare {@link WebSocketAuthorizeFn} (simple,
+   * unversioned) or a {@link WebSocketAuthorizer} object that declares the
+   * contract version it was built against. Returning a falsy value rejects the
+   * upgrade.
    */
-  authorize?(socket: IoSocket, tenant: TenantModelContract): boolean | Promise<boolean>
+  authorize?: WebSocketAuthorizeFn | WebSocketAuthorizer
 }

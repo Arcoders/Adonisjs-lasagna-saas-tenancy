@@ -13,7 +13,18 @@ export function assertWebSocketsConfig(config: WebSocketsConfig): void {
   if (config.path !== undefined && typeof config.path !== 'string') {
     throw new Error('[websockets] config.websockets.path must be a string')
   }
-  if (config.authorize !== undefined && typeof config.authorize !== 'function') {
-    throw new Error('[websockets] config.websockets.authorize must be a function')
+  if (config.authorize !== undefined) {
+    const a = config.authorize
+    const isFn = typeof a === 'function'
+    const isVersioned =
+      typeof a === 'object' &&
+      a !== null &&
+      typeof (a as { authorize?: unknown }).authorize === 'function'
+    if (!isFn && !isVersioned) {
+      throw new Error(
+        '[websockets] config.websockets.authorize must be a function or ' +
+          'an object `{ authorize, contractVersion? }`'
+      )
+    }
   }
 }

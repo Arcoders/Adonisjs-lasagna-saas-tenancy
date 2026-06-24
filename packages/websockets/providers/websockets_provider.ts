@@ -18,6 +18,7 @@ import type {
 import TenantSocketServer from '../src/tenant_socket_server.js'
 import { resolveTenantIdFromHandshake } from '../src/resolve_from_handshake.js'
 import { assertWebSocketsConfig } from '../src/validate_config.js'
+import { normalizeAuthorize } from '../src/resolve_authorize.js'
 import type { IoServer, WebSocketsConfig } from '../src/types.js'
 
 /** Config shape read off `config/multitenancy.ts` without augmenting core. */
@@ -159,7 +160,7 @@ export default class WebSocketsProvider implements SatelliteProviderContract {
       runAsTenant: <T>(tenant: TenantModelContract, fn: () => T | Promise<T>) =>
         tenancy.run(tenant, fn),
       currentTenantId: () => tenancy.currentId(),
-      authorize: this.#config?.authorize,
+      authorize: normalizeAuthorize(this.#config?.authorize),
       logger,
     }
   }

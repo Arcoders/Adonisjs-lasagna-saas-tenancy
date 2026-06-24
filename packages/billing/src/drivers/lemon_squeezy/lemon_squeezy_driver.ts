@@ -4,6 +4,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import BillingException from '../../exceptions/billing_exception.js'
 import type { BillingErrorCode } from '../../exceptions/billing_exception.js'
 import type { BillingProviderContract } from '../../contracts/billing_provider_contract.js'
+import { BILLING_CONTRACT_VERSION } from '../../constants.js'
 import type {
   BillingCapability,
   BillingWebhookEvent,
@@ -44,6 +45,7 @@ function codeForStatus(status: number): BillingErrorCode {
  */
 export default class LemonSqueezyDriver implements BillingProviderContract {
   readonly name = 'lemonsqueezy' as const
+  readonly contractVersion = BILLING_CONTRACT_VERSION
 
   supports(capability: BillingCapability): boolean {
     return LS_CAPABILITIES.has(capability)

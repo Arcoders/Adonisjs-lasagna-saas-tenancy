@@ -1,5 +1,7 @@
+import { assertContractCompat } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import type { BillingProviderContract } from '../../contracts/billing_provider_contract.js'
 import type { BillingDriverName } from '../../contracts/types.js'
+import { BILLING_CONTRACT_VERSION } from '../../constants.js'
 
 /**
  * Holds the active billing driver plus any alternates registered by user code.
@@ -15,6 +17,13 @@ export default class BillingDriverRegistry {
   #activeName: string | undefined
 
   register(driver: BillingProviderContract, opts: { activate?: boolean } = {}): this {
+    // Reject a driver built against an incompatible contract version at
+    // registration time (newer than this build → throw; older/absent → warn).
+    assertContractCompat(
+      driver.contractVersion,
+      BILLING_CONTRACT_VERSION,
+      `billing driver "${driver.name}"`
+    )
     this.#drivers.set(driver.name, driver)
     if (opts.activate || !this.#activeName) {
       this.#activeName = driver.name

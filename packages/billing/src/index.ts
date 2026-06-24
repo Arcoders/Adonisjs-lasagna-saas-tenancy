@@ -27,6 +27,7 @@ export type {
   UsageOptions,
 } from './contracts/types.js'
 export { default as BillingDriverRegistry } from './services/billing/billing_driver_registry.js'
+export { BILLING_CONTRACT_VERSION } from './constants.js'
 // `getActiveBillingDriver` is the public accessor for the active driver. The
 // `__*ForTests` cache/registry seams in the same module are intentionally NOT
 // re-exported here — they're internal test hooks; import them from

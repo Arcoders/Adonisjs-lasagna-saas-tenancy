@@ -30,6 +30,14 @@ import type {
 export interface BillingProviderContract {
   readonly name: BillingDriverName
 
+  /**
+   * The driver-contract version this driver was built against (see
+   * `BILLING_CONTRACT_VERSION`). Optional: an absent version registers with a
+   * one-time "unversioned" warning, never a failure, so drivers written before
+   * versioning keep working. Declare it to opt into the compatibility check.
+   */
+  readonly contractVersion?: number
+
   /** Whether this driver implements the given optional capability. */
   supports(capability: BillingCapability): boolean
 
