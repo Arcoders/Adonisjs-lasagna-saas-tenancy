@@ -91,6 +91,56 @@ test.group('assertReportingConfig', () => {
       /cache.invalidateOnFlush must be a boolean/
     )
   })
+
+  test('accepts a valid extensions block', ({ assert }) => {
+    assert.doesNotThrow(() => assertReportingConfig({ extensions: {} }))
+    assert.doesNotThrow(() => assertReportingConfig({ extensions: { timeoutMs: 30000 } }))
+    assert.doesNotThrow(() =>
+      assertReportingConfig({ extensions: { rateLimit: { limit: 10, windowSeconds: 60 } } })
+    )
+    assert.doesNotThrow(() =>
+      assertReportingConfig({
+        extensions: { timeoutMs: 5000, rateLimit: { limit: 5, windowSeconds: 1 } },
+      })
+    )
+  })
+
+  test('rejects a non-object extensions', ({ assert }) => {
+    assert.throws(
+      () => assertReportingConfig({ extensions: 1 as any }),
+      /extensions must be an object/
+    )
+  })
+
+  test('rejects a non-positive extensions.timeoutMs', ({ assert }) => {
+    assert.throws(
+      () => assertReportingConfig({ extensions: { timeoutMs: 0 } }),
+      /timeoutMs must be a positive number/
+    )
+    assert.throws(
+      () => assertReportingConfig({ extensions: { timeoutMs: -5 } }),
+      /timeoutMs must be a positive number/
+    )
+    assert.throws(
+      () => assertReportingConfig({ extensions: { timeoutMs: 'fast' as any } }),
+      /timeoutMs must be a positive number/
+    )
+  })
+
+  test('rejects an invalid extensions.rateLimit', ({ assert }) => {
+    assert.throws(
+      () => assertReportingConfig({ extensions: { rateLimit: 'no' as any } }),
+      /rateLimit must be an object/
+    )
+    assert.throws(
+      () => assertReportingConfig({ extensions: { rateLimit: { limit: 0, windowSeconds: 60 } } }),
+      /rateLimit.limit must be a positive number/
+    )
+    assert.throws(
+      () => assertReportingConfig({ extensions: { rateLimit: { limit: 10, windowSeconds: -1 } } }),
+      /rateLimit.windowSeconds must be a positive number/
+    )
+  })
 })
 
 test.group('defineReportingConfig', () => {

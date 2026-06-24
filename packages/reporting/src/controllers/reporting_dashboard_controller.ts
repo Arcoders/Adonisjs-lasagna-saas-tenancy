@@ -1,6 +1,6 @@
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
-import { getCache } from '@adonisjs-lasagna/saas-tenancy/services'
+import { getCache, executeExtension } from '@adonisjs-lasagna/saas-tenancy/services'
 import ReportingService from '../reporting_service.js'
 import ReportExtensionRegistry from '../report_extension_registry.js'
 import {
@@ -11,6 +11,8 @@ import {
 } from '../validate.js'
 import { isSafeMetricName } from '../custom_aggregate.js'
 import { reportingCacheKey } from '../cache_key.js'
+import { REPORTING_CONTRACT_VERSION } from '../constants.js'
+import { resolveExtensionGuards } from '../extension_guards.js'
 import type { ReportPeriod } from '../types.js'
 
 export interface ReportingControllerOptions {
@@ -83,12 +85,29 @@ export default class ReportingDashboardController {
     if (!ext) {
       return ctx.response.notFound({ error: `unknown report extension "${name}"` })
     }
-    const result = await ext.execute({
+    const filters = {
       since: ctx.request.input('since'),
       until: ctx.request.input('until'),
       period: ctx.request.input('period'),
-    })
+    }
+    // Attribution for the optional rate limit: the client ip when available.
+    // `executeExtension` only consults it when `reporting.extensions.rateLimit`
+    // is configured; an unguarded surface runs the extension directly.
+    const ip = typeof ctx.request.ip === 'function' ? ctx.request.ip() : undefined
+    const result = await executeExtension(
+      (signal) => ext.execute(filters, undefined, signal),
+      resolveExtensionGuards(name, ip)
+    )
     return ctx.response.ok({ data: result })
+  }
+
+  /**
+   * Report the extension-contract version this build implements, so a host can
+   * verify compatibility before relying on a custom report. Public metadata
+   * behind the same fail-closed mount as the dashboard.
+   */
+  async contractVersion(ctx: HttpContext) {
+    return ctx.response.ok({ version: REPORTING_CONTRACT_VERSION })
   }
 
   #load(params: { period: ReportPeriod; since?: string; until?: string; limit?: number }) {

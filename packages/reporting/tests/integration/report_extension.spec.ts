@@ -1,7 +1,10 @@
 import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
+import { ExtensionTimeoutError } from '@adonisjs-lasagna/saas-tenancy/services'
 import ReportExtensionRegistry from '../../src/report_extension_registry.js'
 import ReportingDashboardController from '../../src/controllers/reporting_dashboard_controller.js'
+import { REPORTING_CONTRACT_VERSION } from '../../src/constants.js'
+import { createTestExtension } from '../../src/testing/extension_helpers.js'
 import type {
   ReportExtension,
   ReportExtensionFilters,
@@ -121,5 +124,49 @@ test.group('report extensions (integration)', () => {
     await controller.extension(ctx)
     assert.equal(captured.status, 200)
     assert.equal(captured.body.data.count, 3)
+  })
+
+  test('contract-version endpoint reports the surface version', async ({ assert }) => {
+    const controller = new ReportingDashboardController()
+    const { ctx, captured } = makeCtx('ignored')
+    await controller.contractVersion(ctx)
+    assert.equal(captured.status, 200)
+    assert.deepEqual(captured.body, { version: REPORTING_CONTRACT_VERSION })
+  })
+})
+
+test.group('report extensions — execution guards (integration)', (group) => {
+  // The timeout guard reads `reporting.extensions.timeoutMs` from config; seed it
+  // for this group only and restore the original afterwards (the config singleton
+  // is shared across the booted suite).
+  let original: any
+  group.each.setup(() => {
+    original = app.config.get('multitenancy')
+  })
+  group.each.teardown(() => {
+    app.config.set('multitenancy', original)
+  })
+
+  test('CHAOS: a slow extension trips the configured timeout (504)', async ({ assert }) => {
+    app.config.set('multitenancy', { ...original, reporting: { extensions: { timeoutMs: 20 } } })
+    bindRegistry(
+      new ReportExtensionRegistry().register(createTestExtension({ name: 'slow', delayMs: 500 }))
+    )
+    const controller = new ReportingDashboardController()
+    await assert.rejects(() => controller.extension(makeCtx('slow').ctx), ExtensionTimeoutError)
+  })
+
+  test('a fast extension finishes within the timeout', async ({ assert }) => {
+    app.config.set('multitenancy', { ...original, reporting: { extensions: { timeoutMs: 500 } } })
+    bindRegistry(
+      new ReportExtensionRegistry().register(
+        createTestExtension({ name: 'fast', result: { ok: true } })
+      )
+    )
+    const controller = new ReportingDashboardController()
+    const { ctx, captured } = makeCtx('fast')
+    await controller.extension(ctx)
+    assert.equal(captured.status, 200)
+    assert.deepEqual(captured.body.data, { ok: true })
   })
 })

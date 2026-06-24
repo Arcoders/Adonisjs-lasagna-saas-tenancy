@@ -6,6 +6,7 @@ export { multitenancyReportingRoutes } from './routes.js'
 export type { ReportingRoutesOptions, ReportingRouteMiddleware } from './routes.js'
 export { default as ReportExtensionRegistry } from './report_extension_registry.js'
 export type { ReportExtension, ReportExtensionFilters } from './contracts/report_extension.js'
+export { REPORTING_CONTRACT_VERSION } from './constants.js'
 export { defineReportingConfig } from './validate_config.js'
 export type {
   ReportingConfig,

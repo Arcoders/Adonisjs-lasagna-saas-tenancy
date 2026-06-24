@@ -84,6 +84,7 @@ export function multitenancyReportingRoutes(options: ReportingRoutesOptions = {}
     const controller = new ReportingDashboardController({ cacheTtlMs, maxRangeDays })
     router.get('/dashboard', (ctx) => controller.dashboard(ctx))
     router.get('/reports/extension/:name', (ctx) => controller.extension(ctx))
+    router.get('/reports/contract-version', (ctx) => controller.contractVersion(ctx))
     if (openapi) {
       router.get('/openapi.json', (ctx) => ctx.response.ok(getReportingOpenAPISpec(prefix)))
       router.get('/docs', (ctx) => {

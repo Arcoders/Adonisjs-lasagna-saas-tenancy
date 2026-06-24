@@ -32,6 +32,22 @@ export interface ReportingConfig {
    * with a `cacheTtlMs > 0` on the routes (otherwise there's nothing to clear).
    */
   cache?: { invalidateOnFlush?: boolean }
+  /**
+   * Execution guards applied to host report extensions (the
+   * `GET {prefix}/reports/extension/:name` route and the CLI `--extension` flag).
+   * Both off by default — an unconfigured surface runs extensions unguarded.
+   *
+   *  - `timeoutMs`: a RESPONSE deadline. The extension's `AbortSignal` fires at
+   *    the deadline; cooperative extensions unwind, others keep running in the
+   *    background (mind the connection budget). Not a hard kill.
+   *  - `rateLimit`: a Redis-backed sliding window per `(extension, ip)` for HTTP
+   *    (per `(extension)` for the CLI). Requires Redis; follows the global
+   *    `resilience.redis.rateLimit` fail policy on an outage.
+   */
+  extensions?: {
+    timeoutMs?: number
+    rateLimit?: { limit: number; windowSeconds: number }
+  }
 }
 
 /** The core config extended with the optional `reporting` block (decoupled from
@@ -56,6 +72,7 @@ export function assertReportingConfig(config: ReportingConfig | undefined): void
   }
   assertRollupsConfig(config.rollups)
   assertCacheConfig(config.cache)
+  assertExtensionsConfig(config.extensions)
   if (config.metrics === undefined) return
   if (!Array.isArray(config.metrics)) {
     throw new Error('[reporting] config.reporting.metrics must be an array')
@@ -106,5 +123,32 @@ export function assertCacheConfig(cache: ReportingConfig['cache']): void {
   }
   if (cache.invalidateOnFlush !== undefined && typeof cache.invalidateOnFlush !== 'boolean') {
     throw new Error('[reporting] config.reporting.cache.invalidateOnFlush must be a boolean')
+  }
+}
+
+/** Validate the optional `extensions` block. Pure; called by {@link assertReportingConfig}. */
+export function assertExtensionsConfig(extensions: ReportingConfig['extensions']): void {
+  if (extensions === undefined || extensions === null) return
+  if (typeof extensions !== 'object') {
+    throw new Error('[reporting] config.reporting.extensions must be an object')
+  }
+  const { timeoutMs, rateLimit } = extensions
+  if (timeoutMs !== undefined) {
+    if (typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+      throw new Error('[reporting] config.reporting.extensions.timeoutMs must be a positive number')
+    }
+  }
+  if (rateLimit !== undefined && rateLimit !== null) {
+    if (typeof rateLimit !== 'object') {
+      throw new Error('[reporting] config.reporting.extensions.rateLimit must be an object')
+    }
+    for (const key of ['limit', 'windowSeconds'] as const) {
+      const value = rateLimit[key]
+      if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+        throw new Error(
+          `[reporting] config.reporting.extensions.rateLimit.${key} must be a positive number`
+        )
+      }
+    }
   }
 }

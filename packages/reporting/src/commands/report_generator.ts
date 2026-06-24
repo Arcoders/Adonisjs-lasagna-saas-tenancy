@@ -2,8 +2,10 @@ import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import app from '@adonisjs/core/services/app'
 import { writeFileSync } from 'node:fs'
+import { executeExtension } from '@adonisjs-lasagna/saas-tenancy/services'
 import ReportingService from '../reporting_service.js'
 import ReportExtensionRegistry from '../report_extension_registry.js'
+import { resolveExtensionGuards } from '../extension_guards.js'
 import { formatReport, isReportFormat, type ReportFormat } from '../format.js'
 import type { ReportPeriod } from '../types.js'
 
@@ -86,7 +88,13 @@ export default class ReportGenerator extends BaseCommand {
       this.exitCode = 1
       return ''
     }
-    const result = await ext.execute({ since: this.since, until: this.until, period: this.period })
+    const filters = { since: this.since, until: this.until, period: this.period }
+    // No client ip on the CLI path → the rate-limit bucket (if configured) keys
+    // by extension name alone. Guards are off unless reporting.extensions is set.
+    const result = await executeExtension(
+      (signal) => ext.execute(filters, undefined, signal),
+      resolveExtensionGuards(this.extension!)
+    )
     return JSON.stringify(result, null, 2)
   }
 }
