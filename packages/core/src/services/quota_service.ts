@@ -6,6 +6,13 @@ import QuotaExceededException from '../exceptions/quota_exceeded_exception.js'
 import TenantQuotaExceeded from '../events/tenant_quota_exceeded.js'
 import { cacheFor } from '../utils/cache.js'
 import ResilienceService from './resilience_service.js'
+import { ROLLING_TTL_SECONDS, QUOTA_CONSUME_LUA, rollingKey, snapshotKey } from './quota/keys.js'
+import { resolveStorageMode } from './quota/plan_storage.js'
+
+// The storage probe moved to ./quota/plan_storage.js; re-export its test reset
+// so the billing integration spec (imports it by deep path) and the package
+// barrels keep resolving it.
+export { __resetPlanStorageProbe } from './quota/plan_storage.js'
 
 const lazyRedis = () =>
   import('@adonisjs/redis/services/main').then((m) => m.default).catch(() => null)
@@ -15,99 +22,8 @@ const resilience = new ResilienceService()
 
 const lazyTenantPlan = () => import('../models/satellites/tenant_plan.js').then((m) => m.default)
 
-const ROLLING_TTL_SECONDS = 60 * 60 * 48
 const PLAN_CACHE_TTL_MS = 60_000
 const PLAN_CACHE_KEY = 'plan'
-
-type PlanStorageMode = 'config-only' | 'tenant_plans'
-
-let _storageProbe: PlanStorageMode | null = null
-
-/**
- * Decide once per process whether the storage-backed plan resolver is
- * available. With `storage: 'tenant_plans'` we trust the operator and fail
- * loudly on first read if the table is missing. With `storage: 'auto'`
- * (or omitted) we probe `to_regclass`; result is memoised so we don't pay
- * the round-trip on every getPlanFor.
- *
- * Tests that need to flip the answer should call `__resetStorageProbe()`.
- */
-async function resolveStorageMode(): Promise<PlanStorageMode> {
-  if (_storageProbe) return _storageProbe
-
-  const cfg = getConfig().plans
-  const declared = cfg?.storage
-
-  if (declared === 'config-only') {
-    _storageProbe = 'config-only'
-    return _storageProbe
-  }
-  if (declared === 'tenant_plans') {
-    _storageProbe = 'tenant_plans'
-    return _storageProbe
-  }
-
-  // 'auto' (or undefined) — probe the table.
-  try {
-    const TenantPlan = await lazyTenantPlan()
-    const conn = TenantPlan.$adapter
-    if (!conn) {
-      _storageProbe = 'config-only'
-      return _storageProbe
-    }
-    // We can't query through Lucid before the adapter is wired in tests, so
-    // go straight to the underlying connection by name.
-    const { default: db } = await import('@adonisjs/lucid/services/db')
-    const result = await db
-      .connection(getConfig().backofficeConnectionName)
-      .rawQuery(`SELECT to_regclass(?) AS reg`, [
-        `${getConfig().backofficeSchemaName}.tenant_plans`,
-      ])
-    const rows = (result?.rows ?? result) as Array<{ reg: string | null }>
-    // Only LATCH on a definitive answer: a successful probe genuinely tells us
-    // whether the table exists.
-    _storageProbe = rows[0]?.reg ? 'tenant_plans' : 'config-only'
-    return _storageProbe
-  } catch {
-    // The probe THREW — almost certainly a transient infra failure (pool
-    // timeout, a backoffice failover at first read), not "table missing".
-    // Do NOT memoize: latching 'config-only' here would permanently disable
-    // storage-backed plans for the rest of the process even after the DB
-    // recovers (every tenant silently dropped to defaultPlan). Leave the probe
-    // unlatched so the next read retries.
-    return 'config-only'
-  }
-}
-
-/** @internal — for tests only */
-export function __resetPlanStorageProbe(): void {
-  _storageProbe = null
-}
-
-/**
- * Atomic check-and-increment for `consume()`. Single round-trip to
- * Redis. Returns `{allowed, value}`:
- *   - `allowed=1` → counter was incremented; `value` is the new total.
- *   - `allowed=0` → would exceed limit; `value` is the unchanged
- *     pre-increment counter (i.e. what `getUsage` would have returned).
- *
- * KEYS[1] = rolling counter key
- * ARGV[1] = limit (integer; caller guarantees finite)
- * ARGV[2] = amount to increment by
- * ARGV[3] = TTL seconds
- */
-const QUOTA_CONSUME_LUA = `
-local current = tonumber(redis.call('GET', KEYS[1]) or '0')
-local limit   = tonumber(ARGV[1])
-local amount  = tonumber(ARGV[2])
-local ttl     = tonumber(ARGV[3])
-if current + amount > limit then
-  return {0, current}
-end
-local newval = redis.call('INCRBY', KEYS[1], amount)
-redis.call('EXPIRE', KEYS[1], ttl)
-return {1, newval}
-`.trim()
 
 export type QuotaMode = 'rolling-day' | 'snapshot'
 
@@ -284,7 +200,7 @@ export default class QuotaService {
    * key. Use this for per-day allowances like API calls per day.
    */
   async track(tenant: TenantModelContract, quota: string, amount: number = 1): Promise<number> {
-    const key = this.#rollingKey(tenant.id, quota)
+    const key = rollingKey(tenant.id, quota)
     const policy = getConfig().resilience?.redis?.quota ?? 'fail-open'
     const counted = await resilience.run<number | null>({
       dependency: 'redis',
@@ -332,7 +248,7 @@ export default class QuotaService {
   async setUsage(tenant: TenantModelContract, quota: string, value: number): Promise<void> {
     const redis = await lazyRedis()
     if (!redis) return
-    await redis.set(this.#snapshotKey(tenant.id, quota), String(Math.max(0, Math.floor(value))))
+    await redis.set(snapshotKey(tenant.id, quota), String(Math.max(0, Math.floor(value))))
   }
 
   /**
@@ -342,9 +258,9 @@ export default class QuotaService {
   async getUsage(tenant: TenantModelContract, quota: string): Promise<number> {
     const redis = await lazyRedis()
     if (!redis) return 0
-    const rolling = await redis.get(this.#rollingKey(tenant.id, quota))
+    const rolling = await redis.get(rollingKey(tenant.id, quota))
     if (rolling !== null) return Number(rolling) || 0
-    const snapshot = await redis.get(this.#snapshotKey(tenant.id, quota))
+    const snapshot = await redis.get(snapshotKey(tenant.id, quota))
     return snapshot !== null ? Number(snapshot) || 0 : 0
   }
 
@@ -398,7 +314,7 @@ export default class QuotaService {
       return await this.track(tenant, quota, amount)
     }
 
-    const key = this.#rollingKey(tenant.id, quota)
+    const key = rollingKey(tenant.id, quota)
     const policy = getConfig().resilience?.redis?.quota ?? 'fail-open'
     const result = await resilience.run<[number, number] | null>({
       dependency: 'redis',
@@ -468,8 +384,8 @@ export default class QuotaService {
     const redis = await lazyRedis()
     if (!redis) return
     if (quota) {
-      await redis.del(this.#rollingKey(tenant.id, quota))
-      await redis.del(this.#snapshotKey(tenant.id, quota))
+      await redis.del(rollingKey(tenant.id, quota))
+      await redis.del(snapshotKey(tenant.id, quota))
       return
     }
     // wildcard cleanup for the tenant
@@ -485,17 +401,5 @@ export default class QuotaService {
       cursor = next
     } while (cursor !== '0')
     if (pending.length > 0) await redis.del(...pending)
-  }
-
-  #periodToday(): string {
-    return DateTime.utc().toFormat('yyyy-MM-dd')
-  }
-
-  #rollingKey(tenantId: string, quota: string): string {
-    return `quota:${tenantId}:${this.#periodToday()}:${quota}`
-  }
-
-  #snapshotKey(tenantId: string, quota: string): string {
-    return `quota:${tenantId}:snap:${quota}`
   }
 }
