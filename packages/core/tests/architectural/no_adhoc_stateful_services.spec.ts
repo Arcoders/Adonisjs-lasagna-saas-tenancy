@@ -31,17 +31,37 @@ const SRC_ROOTS = [
   fileURLToPath(new URL('../../../backup/src/', import.meta.url)),
 ]
 
+// Every instance-stateful singleton the provider registers (each holds a Map or
+// an AsyncLocalStorage on the instance, so a fresh `new` silently gets empty
+// state). QuotaService / ResilienceService / AuditLogService are deliberately
+// NOT here: they are per-instance stateless (their state lives in Redis /
+// BentoCache / module scope), so the billing satellite and the REPL legitimately
+// `new` them. The provider's register() (multitenancy_provider.ts) is the single
+// authority for this list — keep them in sync when a new stateful singleton is
+// registered.
 const STATEFUL_SINGLETONS = [
   'TenantQueueService',
   'CircuitBreakerService',
   'BillingDriverRegistry',
+  'TenantResolutionCache',
+  'TenantLogContext',
+  'HookRegistry',
+  'ReadReplicaService',
+  'IsolationDriverRegistry',
+  'TenantResolverRegistry',
+  'BootstrapperRegistry',
+  'DoctorService',
+  'ComplianceReportService',
 ] as const
 const NEW_STATEFUL = new RegExp(`\\bnew\\s+(${STATEFUL_SINGLETONS.join('|')})\\s*\\(`)
 
 // Files allowed to `new` a stateful singleton: the provider (singleton factory)
-// and each service's own definition module.
+// and each service's own definition module. The two `registry.ts` files are
+// matched by path segment (not the bare basename) so an unrelated future
+// `registry.ts` is not silently exempted. Paths are normalized to forward
+// slashes before matching so this is cross-platform.
 const NEW_ALLOWED =
-  /(multitenancy_provider|billing_provider|tenant_queue_service|circuit_breaker_service|billing_driver_registry)\.ts$/
+  /(multitenancy_provider|billing_provider|tenant_queue_service|circuit_breaker_service|billing_driver_registry|tenant_resolution_cache|tenant_log_context|hook_registry|read_replica_service|bootstrapper_registry|doctor_service|compliance_report_service|isolation\/registry|resolvers\/registry)\.ts$/
 
 const HTTP_CONTEXT_IMPORT =
   /import\s+(?:type\s+)?\{[^}]*\bHttpContext\b[^}]*\}\s+from\s+['"]@adonisjs\/core\/http['"]/
@@ -60,7 +80,7 @@ test.group('Architectural: stateful services + job context hygiene', () => {
     for (const root of SRC_ROOTS) {
       if (!existsSync(root)) continue
       for (const file of walkTsFiles(root)) {
-        if (NEW_ALLOWED.test(file)) continue
+        if (NEW_ALLOWED.test(file.replace(/\\/g, '/'))) continue
         const lines = readFileSync(file, 'utf8').split('\n')
         lines.forEach((line, i) => {
           if (isComment(line)) return
@@ -109,12 +129,16 @@ test.group('Architectural: stateful services + job context hygiene', () => {
     for (const snippet of [
       `const q = new TenantQueueService()`,
       `await new CircuitBreakerService().destroy(id)`,
+      `const cache = new TenantResolutionCache()`,
+      `const svc = new ReadReplicaService()`,
+      `const reg = new IsolationDriverRegistry()`,
     ]) {
       assert.isTrue(NEW_STATEFUL.test(snippet), `should flag: ${snippet}`)
     }
     for (const snippet of [
       `const q = await app.container.make(TenantQueueService)`,
       `const cb = new ResilienceService()`, // stateless, allowed
+      `const quota = new QuotaService()`, // stateless, billing legitimately new's it
     ]) {
       assert.isFalse(NEW_STATEFUL.test(snippet), `should NOT flag: ${snippet}`)
     }

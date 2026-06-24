@@ -2,7 +2,8 @@ import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import db from '@adonisjs/lucid/services/db'
 import { getConfig } from '../config.js'
-import { encrypt, decryptWithAppKey, isEncrypted } from '../utils/crypto.js'
+import { encrypt } from '../utils/crypto.js'
+import { classifySecretRotation } from '../utils/secrets_rotation.js'
 
 /**
  * APP_KEY rotation tooling (audit P3-3). Stored secrets (webhook signing
@@ -80,23 +81,16 @@ export default class TenantSecretsReencrypt extends BaseCommand {
         .whereNotNull(column)
 
       for (const row of rows) {
-        if (!isEncrypted(row.value)) continue // plaintext-era row: nothing key-bound to rotate
-
-        // Try the old key first; if it fails, check whether the value already
-        // uses the current key (idempotent re-runs / partially rotated tables).
-        let plaintext: string
-        try {
-          plaintext = decryptWithAppKey(row.value, oldKey)
-        } catch {
-          try {
-            decryptWithAppKey(row.value, process.env.APP_KEY ?? '')
-            current++
-            continue
-          } catch {
-            failed++
-            this.logger.error(`${table}.${column} id=${row.id}: decrypts with NEITHER key`)
-            continue
-          }
+        const decision = classifySecretRotation(row.value, oldKey, process.env.APP_KEY ?? '')
+        if (decision.action === 'skip') continue // plaintext-era row: nothing key-bound to rotate
+        if (decision.action === 'current') {
+          current++ // already under the current key (idempotent re-run / partial rotation)
+          continue
+        }
+        if (decision.action === 'failed') {
+          failed++
+          this.logger.error(`${table}.${column} id=${row.id}: decrypts with NEITHER key`)
+          continue
         }
 
         if (!this.dryRun) {
@@ -104,7 +98,7 @@ export default class TenantSecretsReencrypt extends BaseCommand {
             .query()
             .from(table)
             .where('id', row.id)
-            .update({ [column]: encrypt(plaintext) })
+            .update({ [column]: encrypt(decision.plaintext) })
         }
         rotated++
       }
