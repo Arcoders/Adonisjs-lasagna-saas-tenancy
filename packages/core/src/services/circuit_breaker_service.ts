@@ -22,6 +22,20 @@ const REDIS_KEY_PREFIX = 'cb:state:'
  */
 const DEFAULT_MAX_TRACKED_CIRCUITS = 5_000
 
+/**
+ * Ceiling on the `SELECT 1` probe before opossum counts a timeout as a failure.
+ * This is the single value that decides how long a tenant request blocks on a
+ * dead DB before the breaker trips, so it overrides opossum's 10s default with
+ * a tighter bound.
+ */
+const PROBE_TIMEOUT_MS = 5_000
+
+/**
+ * TTL on the persisted breaker state in Redis. Bounds how long an OPEN state
+ * survives a process restart before it self-heals through HALF_OPEN.
+ */
+const PERSISTED_STATE_TTL_SECONDS = 60 * 60
+
 const lazyRedis = () =>
   import('@adonisjs/redis/services/main').then((m) => m.default).catch(() => null)
 
@@ -63,7 +77,7 @@ export default class CircuitBreakerService {
     }
 
     const breaker = new CircuitBreaker(probeFn, {
-      timeout: 5000,
+      timeout: PROBE_TIMEOUT_MS,
       errorThresholdPercentage: cfg.threshold,
       resetTimeout: cfg.resetTimeout,
       rollingCountTimeout: cfg.rollingCountTimeout,
@@ -206,7 +220,7 @@ export default class CircuitBreakerService {
   async #persistState(tenantId: string, state: CircuitState): Promise<void> {
     try {
       const redis = await this.getRedis()
-      await redis?.setex(`${REDIS_KEY_PREFIX}${tenantId}`, 3600, state)
+      await redis?.setex(`${REDIS_KEY_PREFIX}${tenantId}`, PERSISTED_STATE_TTL_SECONDS, state)
     } catch (err) {
       // Surface persistence failures: the in-memory breaker keeps
       // working, but ops needs to know that on a process restart we

@@ -78,6 +78,12 @@ export function verifyWebhookSignature(
 
 const RETRY_CONCURRENCY = 10
 
+/**
+ * Per-attempt outbound fetch budget. Bounds how long the retry sweep blocks on a
+ * single slow or hostile receiver before the delivery is abandoned for this round.
+ */
+const DELIVERY_TIMEOUT_MS = 10_000
+
 function backoffWithJitter(attempt: number): number {
   const base = BACKOFF_BASE_SECONDS[attempt - 1] ?? 7200
   const jitter = base * 0.2 * (Math.random() * 2 - 1)
@@ -201,7 +207,7 @@ export default class WebhookService {
         method: 'POST',
         headers,
         body,
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS),
       })
       delivery.statusCode = res.status
       delivery.responseBody = truncateBody(await res.text().catch(() => null))
