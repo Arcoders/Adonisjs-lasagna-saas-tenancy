@@ -135,3 +135,67 @@ test.group('MetricsService.flush — bulk upsert (P2-1)', (group) => {
     assert.equal(Number(rows[0].request_count), 10)
   })
 })
+
+test.group('MetricsService.flush — reads through the getRedis() seam', (group) => {
+  // A future period so it never collides with the TODAY-based groups above.
+  const tenantId = '33333333-3333-4333-8333-333333333333'
+  const period = '2099-02-20'
+
+  group.each.teardown(async () => {
+    await db
+      .connection('backoffice')
+      .query()
+      .from('tenant_metrics')
+      .where('tenant_id', tenantId)
+      .delete()
+  })
+
+  test('flush() scans + mgets through the overridden getRedis(), not module redis', async ({
+    assert,
+  }) => {
+    const keys = [
+      `metrics:${tenantId}:${period}:requests`,
+      `metrics:${tenantId}:${period}:errors`,
+      `metrics:${tenantId}:${period}:bandwidth`,
+    ]
+    const values: Record<string, string> = { [keys[0]]: '42', [keys[1]]: '3', [keys[2]]: '1024' }
+    let scanCalled = false
+    let mgetCalled = false
+
+    // A full fake (scan + mget). If any flush/scan path still reached the
+    // module-level `redis` instead of getRedis(), it would read the real
+    // (empty) store and the upsert below would not match these fake counts.
+    class FakeRedisMetrics extends MetricsService {
+      protected getRedis() {
+        return {
+          scan: async (cursor: string) => {
+            scanCalled = true
+            return cursor === '0' ? ['0', keys] : ['0', []]
+          },
+          mget: async (...ks: string[]) => {
+            mgetCalled = true
+            return ks.map((k) => values[k] ?? null)
+          },
+        } as any
+      }
+    }
+
+    await new FakeRedisMetrics().flush(period)
+
+    assert.isTrue(scanCalled, 'flush must SCAN through the overridden getRedis()')
+    assert.isTrue(mgetCalled, 'flush must MGET through the overridden getRedis()')
+
+    const row: any = await db
+      .connection('backoffice')
+      .query()
+      .from('tenant_metrics')
+      .where('tenant_id', tenantId)
+      .andWhere('period', period)
+      .first()
+
+    assert.isNotNull(row, 'flush must upsert the fake counters it read through the seam')
+    assert.equal(Number(row.request_count), 42)
+    assert.equal(Number(row.error_count), 3)
+    assert.equal(Number(row.bandwidth_bytes), 1024)
+  })
+})
