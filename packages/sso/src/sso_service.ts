@@ -1,5 +1,7 @@
 import type TenantSsoConfig from './tenant_sso_config.js'
 import { buildAuthorizationUrl, isLoopbackIssuer } from './authorize.js'
+import { identityProviderRegistry } from './identity_provider.js'
+import { SSO_CONTRACT_VERSION } from './constants.js'
 import { randomBytes } from 'node:crypto'
 
 interface OidcDiscovery {
@@ -100,6 +102,15 @@ function defaultDeps(): SsoServiceDeps {
 export default class SsoService {
   readonly #deps: SsoServiceDeps
 
+  /**
+   * SsoService IS the built-in `oidc` identity provider — it satisfies
+   * {@link IdentityProviderContract}. `name`/`contractVersion` let it be
+   * introspected like any host driver; alternates live on
+   * `identityProviderRegistry`.
+   */
+  readonly name = 'oidc' as const
+  readonly contractVersion = SSO_CONTRACT_VERSION
+
   constructor(deps: Partial<SsoServiceDeps> = {}) {
     this.#deps = { ...defaultDeps(), ...deps }
   }
@@ -137,6 +148,21 @@ export default class SsoService {
   }
 
   async buildAuthUrl(config: TenantSsoConfig): Promise<string> {
+    // Pluggable providers: a non-oidc tenant config delegates to a host driver
+    // that owns its own flow end to end. Dormant by default — `upsertConfig`
+    // always writes `provider: 'oidc'`, so the OIDC path below is unchanged.
+    const provider = config.provider ?? 'oidc'
+    if (provider !== 'oidc') {
+      const driver = identityProviderRegistry.get(provider)
+      if (!driver) {
+        throw new Error(
+          `SSO provider "${provider}" is not registered. Register an IdentityProvider on ` +
+            `identityProviderRegistry, or set the tenant's SSO provider to "oidc".`
+        )
+      }
+      return driver.buildAuthUrl(config)
+    }
+
     const discovery = await this.#discover(config.issuerUrl)
     const state = randomBytes(16).toString('hex')
     const nonce = randomBytes(16).toString('hex')
@@ -144,7 +170,9 @@ export default class SsoService {
     await this.#deps.redis.setex(
       `sso:state:${state}`,
       STATE_TTL_SECONDS,
-      JSON.stringify({ tenantId: config.tenantId, nonce })
+      // Record which provider initiated the flow so the state is unambiguous
+      // even once multiple drivers exist.
+      JSON.stringify({ tenantId: config.tenantId, nonce, provider })
     )
 
     return buildAuthorizationUrl(discovery.authorization_endpoint, {
@@ -167,13 +195,23 @@ export default class SsoService {
     const raw = await this.#deps.redis.getdel(`sso:state:${state}`)
     if (!raw) throw new Error('Invalid or expired SSO state')
 
-    let parsed: { tenantId: string; nonce: string }
+    // `provider` is present on states written by the current version; older
+    // states (pre-versioning) omit it and default to the OIDC path here.
+    let parsed: { tenantId: string; nonce: string; provider?: string }
     try {
       parsed = JSON.parse(raw)
     } catch {
       throw new Error('Corrupted SSO state payload')
     }
     const { tenantId, nonce } = parsed
+
+    // Defense in depth: this method is the built-in OIDC driver's callback and
+    // only ever processes states it wrote (always `provider: 'oidc'`; absent ⇒
+    // a pre-versioning OIDC state). A state tagged for another provider belongs
+    // to that driver's own callback and must not be replayed through OIDC here.
+    if (parsed.provider && parsed.provider !== 'oidc') {
+      throw new Error(`SSO state belongs to provider "${parsed.provider}", not the OIDC callback`)
+    }
 
     const config = await this.getConfig(tenantId)
     if (!config) throw new Error('SSO not configured for this tenant')

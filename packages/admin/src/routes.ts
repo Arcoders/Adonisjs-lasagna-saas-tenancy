@@ -8,6 +8,7 @@ import BrandingController from './controllers/branding_controller.js'
 import SsoController from './controllers/sso_controller.js'
 import MetricsController from './controllers/metrics_controller.js'
 import QuotasController from './controllers/quotas_controller.js'
+import AdminActionsController from './controllers/admin_actions_controller.js'
 import { isAbsentAdminMiddleware } from './is_absent_middleware.js'
 
 /**
@@ -69,6 +70,17 @@ export interface MultitenancyAdminRoutesOptions {
    * portal, internal Stoplight instance, etc.).
    */
   docsAuth?: boolean
+  /**
+   * Optional execution guards for host-registered admin actions (the
+   * `POST {prefix}/actions/:name` route). Both off by default — actions run
+   * unguarded. `timeoutMs` is a response deadline (fires the action's
+   * `AbortSignal`); `rateLimit` is a Redis-backed sliding window per
+   * `(action, ip)`.
+   */
+  actions?: {
+    timeoutMs?: number
+    rateLimit?: { limit: number; windowSeconds: number }
+  }
 }
 
 const DEFAULT_PREFIX = '/admin/multitenancy'
@@ -130,7 +142,13 @@ const DEFAULT_PREFIX = '/admin/multitenancy'
  *   POST   /tenants/:id/quotas/reset
  */
 export function multitenancyAdminRoutes(options: MultitenancyAdminRoutesOptions = {}): void {
-  const { prefix = DEFAULT_PREFIX, middleware, resolveAdminActor, docsAuth = true } = options
+  const {
+    prefix = DEFAULT_PREFIX,
+    middleware,
+    resolveAdminActor,
+    docsAuth = true,
+    actions: actionGuards,
+  } = options
 
   // Fail closed: the admin surface includes destructive routes, so it must not
   // mount silently public. Require explicit auth, or an explicit `false` opt-out.
@@ -209,6 +227,13 @@ export function multitenancyAdminRoutes(options: MultitenancyAdminRoutesOptions 
     router.get('/tenants/:id/quotas', (ctx) => quotas.show(ctx))
     router.put('/tenants/:id/quotas/usage', (ctx) => quotas.setUsage(ctx))
     router.post('/tenants/:id/quotas/reset', (ctx) => quotas.reset(ctx))
+
+    // Host-registered custom actions. `contract-version` + `actions` are GET and
+    // `dispatch` is POST, so the static GET paths never collide with `:name`.
+    const actions = new AdminActionsController(actionGuards)
+    router.get('/actions', (ctx) => actions.list(ctx))
+    router.get('/actions/contract-version', (ctx) => actions.contractVersion(ctx))
+    router.post('/actions/:name', (ctx) => actions.dispatch(ctx))
   }
 
   const group = router.group(define)

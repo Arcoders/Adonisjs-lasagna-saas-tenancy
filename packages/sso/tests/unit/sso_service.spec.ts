@@ -2,6 +2,8 @@ import { test } from '@japa/runner'
 import SsoService from '../../src/sso_service.js'
 import type { SsoServiceDeps } from '../../src/sso_service.js'
 import type TenantSsoConfig from '../../src/tenant_sso_config.js'
+import { identityProviderRegistry } from '../../src/identity_provider.js'
+import { SSO_CONTRACT_VERSION } from '../../src/constants.js'
 
 /**
  * Unit suite for the security-critical SSO flow (B-SSO).
@@ -331,5 +333,63 @@ test.group('SsoService — callback token + id_token verification', () => {
     assert.equal(tenantId, 't-1')
     assert.equal(claims.sub, 'user-1')
     assert.equal(claims.email, 'u@example.com')
+  })
+})
+
+test.group('SsoService — pluggable identity providers', (group) => {
+  group.each.teardown(() => identityProviderRegistry.clear())
+
+  test('SsoService is the built-in oidc driver', ({ assert }) => {
+    const svc = makeService()
+    assert.equal(svc.name, 'oidc')
+    assert.equal(svc.contractVersion, SSO_CONTRACT_VERSION)
+  })
+
+  test('the OIDC flow records its provider in the state record', async ({ assert }) => {
+    const { redis, store } = fakeRedis()
+    const svc = makeService({ over: { redis } })
+    await svc.buildAuthUrl(enabledConfig)
+    const stateEntry = [...store.values()][0]
+    assert.isString(stateEntry)
+    assert.deepInclude(JSON.parse(stateEntry), { tenantId: 't-1', provider: 'oidc' })
+  })
+
+  test('a non-oidc tenant config delegates to the registered driver', async ({ assert }) => {
+    let delegated = false
+    identityProviderRegistry.register({
+      name: 'saml',
+      contractVersion: SSO_CONTRACT_VERSION,
+      buildAuthUrl: async () => {
+        delegated = true
+        return 'https://idp.example.com/saml/login'
+      },
+      handleCallback: async () => ({ tenantId: 't-1', claims: {} as any }),
+    })
+    const svc = makeService()
+    const url = await svc.buildAuthUrl({ ...enabledConfig, provider: 'saml' } as TenantSsoConfig)
+    assert.isTrue(delegated)
+    assert.equal(url, 'https://idp.example.com/saml/login')
+  })
+
+  test('a non-oidc provider with no registered driver throws', async ({ assert }) => {
+    const svc = makeService()
+    await assert.rejects(
+      () => svc.buildAuthUrl({ ...enabledConfig, provider: 'saml' } as TenantSsoConfig),
+      /SSO provider "saml" is not registered/
+    )
+  })
+
+  test('the OIDC callback refuses a state tagged for another provider', async ({ assert }) => {
+    // A state written for a non-oidc driver must not be replayed through the
+    // OIDC callback — that driver owns its own callback. Seed such a state and
+    // confirm the GETDEL'd value is rejected before any token exchange.
+    const { redis } = fakeRedis({
+      'sso:state:S1': JSON.stringify({ tenantId: 't-1', nonce: 'n', provider: 'saml' }),
+    })
+    const svc = makeService({ over: { redis } })
+    await assert.rejects(
+      () => svc.handleCallback('S1', 'code'),
+      /belongs to provider "saml", not the OIDC callback/
+    )
   })
 })
