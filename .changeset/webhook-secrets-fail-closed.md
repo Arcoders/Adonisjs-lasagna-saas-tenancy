@@ -1,5 +1,5 @@
 ---
-"@adonisjs-lasagna/saas-tenancy": minor
+"@adonisjs-lasagna/saas-tenancy": major
 ---
 
 Webhook signing secrets now fail closed: delivery requires the stored
