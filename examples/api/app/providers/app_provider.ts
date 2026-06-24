@@ -6,6 +6,8 @@ import {
   builtInChecks,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { DiagnosisIssue } from '@adonisjs-lasagna/saas-tenancy/services'
+import { ReportExtensionRegistry } from '@adonisjs-lasagna/reporting'
+import type { ReportExtensionFilters } from '@adonisjs-lasagna/reporting'
 import TenantRepository from '#app/repositories/tenant_repository'
 
 export default class AppProvider {
@@ -13,6 +15,25 @@ export default class AppProvider {
 
   async boot() {
     this.bindContainerServices()
+    await this.registerReportExtensions()
+  }
+
+  /**
+   * Register a demo report extension so `tenant:report:generate --extension=…`
+   * and `GET /admin/reporting/reports/extension/:name` have something to run.
+   * The reporting provider binds the registry singleton in its `register()`;
+   * this provider boots after it.
+   */
+  private async registerReportExtensions() {
+    const registry = await this.app.container.make(ReportExtensionRegistry)
+    if (registry.has('demo_summary')) return
+    registry.register({
+      name: 'demo_summary',
+      description: 'A trivial demo report extension proving the registry is wired.',
+      async execute(filters: ReportExtensionFilters) {
+        return { ok: true, window: filters }
+      },
+    })
   }
 
   /**

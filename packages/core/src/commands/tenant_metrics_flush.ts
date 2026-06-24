@@ -17,6 +17,7 @@ export default class TenantMetricsFlush extends BaseCommand {
   async run() {
     const service = new MetricsService()
     await service.flush(this.period)
+    await service.flushCustomMetrics(this.period)
     this.logger.success(`Metrics flushed${this.period ? ` for period ${this.period}` : ''}`)
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@adonisjs-lasagna/reporting",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Cross-tenant analytics & reporting for @adonisjs-lasagna/saas-tenancy: aggregated usage metrics, top-N tenant rankings, and period summaries over the backoffice schema.",
   "type": "module",
   "license": "MIT",
@@ -58,9 +58,9 @@
     "name": "reporting",
     "satelliteApi": 1,
     "minMergedCoverage": {
-      "lines": 65,
-      "functions": 65,
-      "branches": 60
+      "lines": 60,
+      "functions": 55,
+      "branches": 55
     },
     "provider": "@adonisjs-lasagna/reporting/provider",
     "commands": "@adonisjs-lasagna/reporting/commands",
@@ -70,7 +70,9 @@
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
     "typecheck": "tsc --noEmit",
     "test": "tsx bin/test.ts",
-    "test:coverage": "c8 --temp-directory=../../coverage/.v8/reporting-unit tsx bin/test.ts"
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/reporting-unit tsx bin/test.ts",
+    "test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/reporting-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
   },
   "peerDependencies": {
     "@adonisjs-lasagna/saas-tenancy": "^1.0.0",

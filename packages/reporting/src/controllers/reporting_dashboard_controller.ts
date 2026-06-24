@@ -1,19 +1,36 @@
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
+import { getCache } from '@adonisjs-lasagna/saas-tenancy/services'
 import ReportingService from '../reporting_service.js'
-import { REPORT_PERIODS, isReportPeriod, isValidIsoDate } from '../validate.js'
+import ReportExtensionRegistry from '../report_extension_registry.js'
+import {
+  REPORT_PERIODS,
+  isReportPeriod,
+  isValidIsoDate,
+  assertWindowWithinMax,
+} from '../validate.js'
+import { isSafeMetricName } from '../custom_aggregate.js'
+import { reportingCacheKey } from '../cache_key.js'
+import type { ReportPeriod } from '../types.js'
+
+export interface ReportingControllerOptions {
+  /** When > 0, dashboard responses are cached in the global `reporting`
+   *  namespace for this many ms. Off by default. */
+  cacheTtlMs?: number
+  /** Max allowed since→until span in days (default 366). Over-wide/inverted → 400. */
+  maxRangeDays?: number
+}
 
 /**
  * Read-only dashboard endpoint backing a fleet-wide usage view. Returns the
- * period aggregate + the top tenants in one payload. The host mounts it via
- * {@link multitenancyReportingRoutes}, which is fail-closed and applies the
- * host's admin auth.
- *
- * Query input is validated here (not just cast) so a bad `period` or a non-ISO
- * `since`/`until` returns `400`, never a 500 from a malformed/typed-mismatched
- * SQL query downstream.
+ * period aggregate, the top tenants, and per-name custom-metric totals in one
+ * payload. Mounted via {@link multitenancyReportingRoutes} (fail-closed; host
+ * auth applied). Query input is validated here (not just cast) so bad input is a
+ * `400`, never a 500 from a malformed SQL query downstream.
  */
 export default class ReportingDashboardController {
+  constructor(private options: ReportingControllerOptions = {}) {}
+
   async dashboard(ctx: HttpContext) {
     const period = ctx.request.input('period', 'day')
     if (!isReportPeriod(period)) {
@@ -35,15 +52,68 @@ export default class ReportingDashboardController {
       }
     }
 
+    // Both bounds present + valid → enforce the max-range safety cap.
+    if (since && until) {
+      try {
+        assertWindowWithinMax(String(since), String(until), this.options.maxRangeDays ?? 366)
+      } catch (error) {
+        return ctx.response.badRequest({ error: (error as Error).message })
+      }
+    }
+
     const rawLimit = Number(ctx.request.input('limit'))
     const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : undefined
 
-    const svc = await app.container.make(ReportingService)
-    const [aggregate, topTenants] = await Promise.all([
-      svc.getAggregate({ period, since, until }),
-      svc.getTopTenants({ since, until, limit }),
-    ])
+    const data = await this.#load({ period, since, until, limit })
+    return ctx.response.ok({ data })
+  }
 
-    return ctx.response.ok({ data: { aggregate, topTenants } })
+  /**
+   * Run a host-registered report extension. Fail-closed mount applies the host's
+   * auth; an unknown or unsafe `:name` is a 404 (never a registry lookup on
+   * untrusted input).
+   */
+  async extension(ctx: HttpContext) {
+    const name = ctx.params.name
+    if (!isSafeMetricName(name)) {
+      return ctx.response.notFound({ error: `unknown report extension "${name}"` })
+    }
+    const registry = await app.container.make(ReportExtensionRegistry)
+    const ext = registry.get(name)
+    if (!ext) {
+      return ctx.response.notFound({ error: `unknown report extension "${name}"` })
+    }
+    const result = await ext.execute({
+      since: ctx.request.input('since'),
+      until: ctx.request.input('until'),
+      period: ctx.request.input('period'),
+    })
+    return ctx.response.ok({ data: result })
+  }
+
+  #load(params: { period: ReportPeriod; since?: string; until?: string; limit?: number }) {
+    const ttl = this.options.cacheTtlMs ?? 0
+    if (ttl > 0) {
+      // Global (backoffice) namespace — reporting data is cross-tenant by design,
+      // so this is NEVER a tenant-scoped cache.
+      return getCache()
+        .namespace('reporting')
+        .getOrSet({
+          key: reportingCacheKey(params),
+          factory: () => this.#compute(params),
+          ttl,
+        })
+    }
+    return this.#compute(params)
+  }
+
+  async #compute(params: { period: ReportPeriod; since?: string; until?: string; limit?: number }) {
+    const svc = await app.container.make(ReportingService)
+    const [aggregate, topTenants, customMetrics] = await Promise.all([
+      svc.getAggregate({ period: params.period, since: params.since, until: params.until }),
+      svc.getTopTenants({ since: params.since, until: params.until, limit: params.limit }),
+      svc.getCustomMetricsBreakdown({ since: params.since, until: params.until }),
+    ])
+    return { aggregate, topTenants, customMetrics }
   }
 }

@@ -271,6 +271,44 @@ different tenant) hash differently and are processed normally. This is a residua
 not a code path to fix unless Lemon Squeezy later signs a timestamp. Related:
 [replaying old provider events works, even past the retention window](./gotchas#replaying-old-stripe-events-works-even-past-30-days).
 
+## Reporting satellite: failure modes and recovery
+
+**Cross-tenant guard.** Every `ReportingService` method calls
+`assertNotInTenantScope()` before issuing SQL: a query that runs inside a
+`tenancy.run()` scope throws immediately (no SQL), so reporting can never leak
+another tenant's data into a tenant context. The guard is pure and unit-tested.
+
+**Aggregation is read-only over the backoffice schema.** Reporting never enters a
+tenant's `search_path`; it aggregates the shared `tenant_metrics` /
+`tenant_custom_metrics` tables. SQL is parameterized, the period bucket and the
+custom-metric aggregation come from whitelists, and metric names are validated —
+so a crafted `since`, `period`, `name`, or `aggregation` cannot inject SQL.
+
+**Concurrent writes during a read are consistent.** PostgreSQL MVCC gives each
+aggregation a snapshot as of its start; a write that begins after the read started
+is invisible to it. The chaos suite fires concurrent reads interleaved with writes
+and asserts every result stays internally consistent (`errors ≤ requests`,
+`errorRate ∈ [0,1]`).
+
+**Soft-deleted and missing tenants.** `iterateTenantsByUsage` hydrates with
+`includeDeleted: true`, so a soft-deleted tenant still appears in historical
+reports; a metric row whose tenant row no longer exists is skipped, not fatal.
+
+**Postgres outage fails clean (no resilience wrap, by design).** Reporting reads
+Postgres, not Redis; the Redis-scoped `config.resilience` policies don't apply.
+A database outage surfaces as a rejected query (no hang, no partial or
+cross-tenant result, the pool released) — acceptable for a backoffice/admin tool.
+Recovery is automatic once the database is back.
+
+**`emitMetric` is fail-open.** Recording a custom metric never throws on a Redis
+hiccup (matching `config.resilience.redis.metrics` default `'fail-open'`); a bad
+metric name or non-integer value is a programming error and fails loud instead.
+
+**Report extensions own their own resilience.** The built-in guarantees above
+cover the built-in aggregations. A host `ReportExtension` that fans out across
+tenant schemas must bound its own concurrency and tolerate per-tenant failures
+(see [Scaling limits](./scaling-limits)).
+
 ## Read next
 
 - [Configuration → Resilience](./configuration#resilience-degradation-policy)

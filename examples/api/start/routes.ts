@@ -4,6 +4,7 @@ import { enforceQuota } from '@adonisjs-lasagna/saas-tenancy/middleware'
 import { multitenancyRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
 import { multitenancyAdminRoutes } from '@adonisjs-lasagna/admin'
 import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
+import { multitenancyReportingRoutes } from '@adonisjs-lasagna/reporting'
 
 /**
  * Lazy controller imports — keeps the route file small and lets the
@@ -38,6 +39,15 @@ multitenancyAdminRoutes({
 
 /* ─── Stripe webhook receiver (ungated — in ignorePaths) ─────────────────── */
 multitenancyBillingRoutes()
+
+/* ─── Cross-tenant reporting dashboard (fail-closed, admin-gated) ─────────── */
+// Fleet-wide analytics, so it carries the same admin auth as /admin and /metrics.
+// `openapi: true` mounts /admin/reporting/openapi.json + /docs under the same auth.
+multitenancyReportingRoutes({
+  prefix: '/admin/reporting',
+  middleware: [middleware.demoAdminAuth()],
+  openapi: true,
+})
 
 /* ─── /demo: tenant CRUD (no tenant guard — no tenant context yet) ───────── */
 router
@@ -90,3 +100,7 @@ router
   })
   .prefix('/demo')
   .use(middleware.tenantGuard())
+  // Feed the metrics pipeline: count every tenant-scoped request. bypassInTestEnv
+  // is false so the e2e suite exercises the recording path (it resolves the tenant
+  // from the request header even after the guard's async scope unwinds).
+  .use([middleware.trackMetrics({ bypassInTestEnv: false })])

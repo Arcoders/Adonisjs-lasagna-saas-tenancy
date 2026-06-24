@@ -34,6 +34,27 @@
           "required": false,
           "type": "number",
           "description": "Top N tenants to list"
+        },
+        {
+          "name": "format",
+          "flagName": "format",
+          "required": false,
+          "type": "string",
+          "description": "Output format: table | json | csv"
+        },
+        {
+          "name": "out",
+          "flagName": "out",
+          "required": false,
+          "type": "string",
+          "description": "Write output to a file instead of stdout"
+        },
+        {
+          "name": "extension",
+          "flagName": "extension",
+          "required": false,
+          "type": "string",
+          "description": "Run a registered report extension by name instead of the built-in report"
         }
       ],
       "args": [],

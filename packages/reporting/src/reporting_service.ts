@@ -3,10 +3,23 @@ import { DateTime } from 'luxon'
 import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 import { resolveTenantRepository } from '@adonisjs-lasagna/saas-tenancy/services'
-import { TenantMetric } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import { TenantMetric, TenantCustomMetric } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
-import type { AggregationOptions, ReportAggregate, TenantUsage, TopTenantMetric } from './types.js'
+import type {
+  AggregationOptions,
+  CustomMetricBreakdown,
+  ReportAggregate,
+  TenantUsage,
+  TopTenantMetric,
+} from './types.js'
 import { clampLimit, mapAggregateRow, mapTopTenantRow } from './aggregate.js'
+import {
+  aggregationSql,
+  assertSafeMetricName,
+  mapCustomBreakdownRow,
+  resolveCustomAggregation,
+  type CustomAggregation,
+} from './custom_aggregate.js'
 import { resolvePeriod } from './validate.js'
 import { assertNotInTenantScope } from './guard.js'
 
@@ -35,7 +48,7 @@ export default class ReportingService {
    */
   async getAggregate(options: AggregationOptions = {}): Promise<ReportAggregate[]> {
     assertNotInTenantScope('getAggregate', tenancy.currentId)
-    const { conn, schema } = this.#backoffice()
+    const { conn, schema } = this.backoffice()
     // Defense-in-depth: BUCKET_SQL is whitelisted, but resolve through
     // resolvePeriod() so an out-of-enum `period` (e.g. a bad cast from a direct
     // caller) falls back to 'day' instead of interpolating `undefined` into the
@@ -63,7 +76,7 @@ export default class ReportingService {
    */
   async getTopTenants(options: AggregationOptions = {}): Promise<TopTenantMetric[]> {
     assertNotInTenantScope('getTopTenants', tenancy.currentId)
-    const { conn, schema } = this.#backoffice()
+    const { conn, schema } = this.backoffice()
     const { since, until } = this.#window(options)
     const limit = clampLimit(options.limit)
 
@@ -95,7 +108,7 @@ export default class ReportingService {
     options: AggregationOptions = {}
   ): AsyncIterable<{ tenant: TenantModelContract; usage: TenantUsage }> {
     assertNotInTenantScope('iterateTenantsByUsage', tenancy.currentId)
-    const { conn, schema } = this.#backoffice()
+    const { conn, schema } = this.backoffice()
     const { since, until } = this.#window(options)
     const repo = await resolveTenantRepository()
 
@@ -126,7 +139,61 @@ export default class ReportingService {
     }
   }
 
-  #backoffice() {
+  /**
+   * Cross-tenant aggregate of one host-defined custom metric over the window.
+   * The aggregation function is resolved through a whitelist (default `SUM`); the
+   * metric name is validated and parameterized. Guarded like the built-ins.
+   */
+  async getCustomAggregate(
+    options: AggregationOptions & { name: string; aggregation?: CustomAggregation }
+  ): Promise<{ name: string; aggregation: CustomAggregation; value: number }> {
+    assertNotInTenantScope('getCustomAggregate', tenancy.currentId)
+    assertSafeMetricName(options.name)
+    const aggregation = resolveCustomAggregation(options.aggregation)
+    const fn = aggregationSql(aggregation)
+    const { conn, schema } = this.backoffice()
+    const { since, until } = this.#window(options)
+
+    const result = await conn.rawQuery(
+      `SELECT ${fn}(value)::bigint AS result
+       FROM ??.??
+       WHERE name = ? AND period >= ? AND period <= ?`,
+      [schema, TenantCustomMetric.table, options.name, since, until]
+    )
+    const raw = (result.rows as Array<{ result: unknown }>)[0]?.result
+    const value = Number(raw ?? 0)
+    return { name: options.name, aggregation, value: Number.isFinite(value) ? value : 0 }
+  }
+
+  /**
+   * Per-name cross-tenant totals (`SUM`) for every custom metric in the window,
+   * newest names first by total. Unregistered names are included — config is
+   * metadata, never a gate.
+   */
+  async getCustomMetricsBreakdown(
+    options: AggregationOptions = {}
+  ): Promise<CustomMetricBreakdown[]> {
+    assertNotInTenantScope('getCustomMetricsBreakdown', tenancy.currentId)
+    const { conn, schema } = this.backoffice()
+    const { since, until } = this.#window(options)
+
+    const result = await conn.rawQuery(
+      `SELECT name, SUM(value)::bigint AS total
+       FROM ??.??
+       WHERE period >= ? AND period <= ?
+       GROUP BY name
+       ORDER BY SUM(value) DESC, name ASC`,
+      [schema, TenantCustomMetric.table, since, until]
+    )
+    return (result.rows as Parameters<typeof mapCustomBreakdownRow>[0][]).map(mapCustomBreakdownRow)
+  }
+
+  /**
+   * Resolve the backoffice connection + schema. `protected` (not `#private`) so
+   * resilience specs can subclass and inject a connection whose `rawQuery`
+   * rejects, proving a Postgres outage fails cleanly.
+   */
+  protected backoffice() {
     const cfg = getConfig()
     return { conn: db.connection(cfg.backofficeConnectionName), schema: cfg.backofficeSchemaName }
   }

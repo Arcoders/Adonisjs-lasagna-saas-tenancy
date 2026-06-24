@@ -16,4 +16,6 @@ export { default as TenantEnteredMaintenance } from './tenant_entered_maintenanc
 export { default as TenantExitedMaintenance } from './tenant_exited_maintenance.js'
 export { default as DependencyDegraded } from './dependency_degraded.js'
 export type { DependencyDegradedPayload } from './dependency_degraded.js'
+export { default as MetricRecorded } from './metric_recorded.js'
+export type { MetricRecordedPayload } from './metric_recorded.js'
 export type { TenantMigrationDirection } from './tenant_migrated.js'

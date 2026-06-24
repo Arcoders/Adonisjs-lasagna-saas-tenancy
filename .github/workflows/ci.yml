@@ -45,8 +45,8 @@ jobs:
       - name: Build (core)
         run: npm run build
 
-      - name: Build satellite packages (sso, billing, admin, backup, websockets)
-        run: npm run build:sso && npm run build:billing && npm run build:admin && npm run build:backup && npm run build:websockets
+      - name: Build satellite packages (sso, billing, admin, backup, websockets, reporting)
+        run: npm run build:sso && npm run build:billing && npm run build:admin && npm run build:backup && npm run build:websockets && npm run build:reporting
 
       # The dev-only satellite-test-kit is imported by core's bin/test.integration.ts
       # (and each satellite's), which core's tsconfig typechecks. Build it before the
@@ -94,6 +94,7 @@ jobs:
           npm run test:coverage --workspace @adonisjs-lasagna/sso
           npm run test:coverage --workspace @adonisjs-lasagna/admin
           npm run test:coverage --workspace @adonisjs-lasagna/websockets
+          npm run test:coverage --workspace @adonisjs-lasagna/reporting
 
       # Satellite ABI compatibility (B5): the reference third-party satellite
       # is built + tested against the freshly-built core above. Its typecheck
@@ -167,6 +168,14 @@ jobs:
         with:
           name: c8-raw-websockets-unit
           path: coverage/.v8/websockets-unit
+          if-no-files-found: warn
+
+      - name: Upload raw satellite unit coverage (V8) — reporting
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-reporting-unit
+          path: coverage/.v8/reporting-unit
           if-no-files-found: warn
 
       # Full report (unused exports / orphaned files / deps) stays informational.
@@ -426,6 +435,14 @@ jobs:
       - name: Test (satellite integration) + coverage — billing
         run: npm run test:integration:coverage --workspace @adonisjs-lasagna/billing
 
+      # reporting's integration tier: the raw-SQL aggregation (day/week/month
+      # buckets, top-N, custom-metric aggregation), the controller, and the chaos
+      # suite (cross-tenant guard, SQL-injection neutralization, MVCC consistency,
+      # soft-deleted hydration, PG-outage clean-failure) against real PG/Redis via
+      # core's canonical fixture + the kit (which provisions tenant_custom_metrics).
+      - name: Test (satellite integration) + coverage — reporting
+        run: npm run test:integration:coverage --workspace @adonisjs-lasagna/reporting
+
       # Consumer canary: boot the shared harness from a fresh satellite (the
       # reference template) against core's fixture. A kit change that breaks a
       # real consumer fails here on an isolated, fast signal instead of buried in
@@ -498,6 +515,14 @@ jobs:
         with:
           name: c8-raw-billing-integration
           path: coverage/.v8/billing-integration
+          if-no-files-found: warn
+
+      - name: Upload raw satellite integration coverage (V8) — reporting
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-reporting-integration
+          path: coverage/.v8/reporting-integration
           if-no-files-found: warn
 
   test-e2e-demo:
@@ -900,6 +925,12 @@ jobs:
           name: c8-raw-billing-integration
           path: coverage/.v8/all
 
+      - name: Download raw satellite integration coverage (V8) — reporting
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-reporting-integration
+          path: coverage/.v8/all
+
       # websockets integration V8 is produced by the test-e2e-websockets job (a
       # different job than test-integration above), now run under c8. This is why
       # test-e2e-websockets is in this job's needs:.
@@ -941,6 +972,12 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: c8-raw-websockets-unit
+          path: coverage/.v8/all
+
+      - name: Download raw satellite unit coverage (V8) — reporting
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-reporting-unit
           path: coverage/.v8/all
 
       - name: Aggregate coverage report (unit + integration, remapped to src)

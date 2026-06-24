@@ -22,5 +22,9 @@ export const middleware = router.named({
     import('@adonisjs-lasagna/saas-tenancy/middleware').then((m) => ({
       default: m.RateLimitMiddleware,
     })),
+  trackMetrics: () =>
+    import('@adonisjs-lasagna/saas-tenancy/middleware').then((m) => ({
+      default: m.TrackMetricsMiddleware,
+    })),
   demoAdminAuth: () => import('#app/middleware/demo_admin_auth_middleware'),
 })

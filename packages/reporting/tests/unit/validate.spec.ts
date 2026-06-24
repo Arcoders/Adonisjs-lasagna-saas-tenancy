@@ -4,6 +4,7 @@ import {
   isReportPeriod,
   resolvePeriod,
   isValidIsoDate,
+  assertWindowWithinMax,
 } from '../../src/validate.js'
 
 test.group('isReportPeriod', () => {
@@ -48,5 +49,32 @@ test.group('isValidIsoDate', () => {
     assert.isFalse(isValidIsoDate('2026-6-3'))
     assert.isFalse(isValidIsoDate('2026-06-23T00:00:00Z'))
     assert.isFalse(isValidIsoDate(''))
+  })
+})
+
+test.group('assertWindowWithinMax (max-range safety cap)', () => {
+  test('a window within the max passes', ({ assert }) => {
+    assert.doesNotThrow(() => assertWindowWithinMax('2026-01-01', '2026-02-01', 366))
+    assert.doesNotThrow(() => assertWindowWithinMax('2026-01-01', '2026-01-01', 366)) // equal dates
+  })
+
+  test('exactly maxDays passes; one day over throws (boundary)', ({ assert }) => {
+    assert.doesNotThrow(() => assertWindowWithinMax('2026-01-01', '2026-01-11', 10))
+    assert.throws(() => assertWindowWithinMax('2026-01-01', '2026-01-12', 10), /window too wide/)
+  })
+
+  test('an inverted window (since > until) throws', ({ assert }) => {
+    assert.throws(
+      () => assertWindowWithinMax('2030-01-01', '2020-01-01', 366),
+      /since.*is after.*until/
+    )
+  })
+
+  test('default max allows a full 12-month range', ({ assert }) => {
+    assert.doesNotThrow(() => assertWindowWithinMax('2026-01-01', '2026-12-31'))
+  })
+
+  test('invalid ISO input is a no-op (does not mask the dedicated ISO check)', ({ assert }) => {
+    assert.doesNotThrow(() => assertWindowWithinMax('garbage', 'also-garbage', 1))
   })
 })

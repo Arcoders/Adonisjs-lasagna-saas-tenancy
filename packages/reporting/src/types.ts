@@ -35,3 +35,9 @@ export interface TenantUsage {
   errors: number
   bandwidthBytes: number
 }
+
+/** A single host-defined metric's cross-tenant total over the window. */
+export interface CustomMetricBreakdown {
+  name: string
+  total: number
+}

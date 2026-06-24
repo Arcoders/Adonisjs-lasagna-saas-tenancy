@@ -22,3 +22,26 @@ export function resolvePeriod(value: unknown): ReportPeriod {
 export function isValidIsoDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && DateTime.fromISO(value).isValid
 }
+
+/**
+ * Reject an inverted (`since > until`) or over-wide window. A safety cap so a
+ * single dashboard request can't scan an unbounded range. `maxDays` defaults to
+ * 366 so a full 12-month monthly view still works. Pure — the controller wraps
+ * the throw into a 400. Both bounds must be valid ISO dates (the controller
+ * validates that first); invalid input here is a no-op so this never masks the
+ * dedicated ISO check.
+ */
+export function assertWindowWithinMax(since: string, until: string, maxDays = 366): void {
+  const s = DateTime.fromISO(since)
+  const u = DateTime.fromISO(until)
+  if (!s.isValid || !u.isValid) return
+  const days = u.diff(s, 'days').days
+  if (days < 0) {
+    throw new Error(`invalid window: "since" (${since}) is after "until" (${until})`)
+  }
+  if (days > maxDays) {
+    throw new Error(
+      `window too wide: ${Math.round(days)} days exceeds the ${maxDays}-day maximum — narrow since/until`
+    )
+  }
+}
