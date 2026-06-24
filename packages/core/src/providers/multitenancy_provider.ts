@@ -33,16 +33,7 @@ import { builtInControls } from '../services/compliance/controls/index.js'
 import QuotaService from '../services/quota_service.js'
 import ReadReplicaService from '../services/read_replica_service.js'
 import TenantResolutionCache from '../services/tenant_resolution_cache.js'
-import {
-  TenantActivated,
-  TenantSuspended,
-  TenantDeleted,
-  TenantUpdated,
-  TenantProvisioned,
-  TenantRestored,
-  TenantEnteredMaintenance,
-  TenantExitedMaintenance,
-} from '../events/index.js'
+import { wireResolutionCacheInvalidation } from './resolution_cache_invalidation.js'
 import ResilienceService from '../services/resilience_service.js'
 import CrossDomainRedirectService from '../services/cross_domain_redirect_service.js'
 import ImpersonationService from '../services/impersonation_service.js'
@@ -202,43 +193,7 @@ export default class MultitenancyProvider {
 
     this.#validateImpersonationConfig(config)
 
-    await this.#wireResolutionCacheInvalidation(config)
-
     await this.#registerQueueJobs()
-  }
-
-  /**
-   * When the opt-in tenant-resolution cache is enabled, drop a tenant's cached
-   * entry the moment its status changes in-process, so a suspend/maintenance/
-   * delete takes effect immediately on this pod rather than waiting out the TTL.
-   * (Cross-pod propagation is still bounded by the TTL — documented on the
-   * config.) No-op when the cache is off. The emitter is resolved lazily so a
-   * stripped-down container without it doesn't break boot.
-   */
-  async #wireResolutionCacheInvalidation(config: MultitenancyConfig): Promise<void> {
-    if (!config.resolver?.cache?.enabled) return
-    const emitter = await import('@adonisjs/core/services/emitter')
-      .then((m) => m.default)
-      .catch(() => null)
-    if (!emitter) return
-
-    const cache = await this.app.container.make(TenantResolutionCache)
-    const lifecycleEvents = [
-      TenantActivated,
-      TenantSuspended,
-      TenantDeleted,
-      TenantUpdated,
-      TenantProvisioned,
-      TenantRestored,
-      TenantEnteredMaintenance,
-      TenantExitedMaintenance,
-    ]
-    for (const Event of lifecycleEvents) {
-      emitter.on(Event, (event: { tenant?: { id?: string } }) => {
-        const id = event?.tenant?.id
-        if (id) cache.delete(id)
-      })
-    }
   }
 
   // Register package jobs with @adonisjs/queue's Locator. Host apps
@@ -385,6 +340,30 @@ export default class MultitenancyProvider {
         universalRoutesFile: config.routing?.universalRoutesFile,
       })
     }
+  }
+
+  /**
+   * When the opt-in tenant-resolution cache is enabled, drop a tenant's cached
+   * entry the moment a lifecycle event changes its status in-process, so a
+   * suspend / maintenance / delete takes effect immediately on this pod instead
+   * of waiting out the TTL. (Cross-pod propagation stays bounded by the TTL —
+   * documented on the config.) No-op when the cache is off.
+   *
+   * Wired in `ready()`, NOT `boot()`: the emitter is only fully constructed once
+   * the app is booted, so resolving it during boot() returns an unwired emitter
+   * and silently drops every subscription. `ready()` runs after the booted
+   * hooks (the same lifecycle the satellite providers use for listeners), and
+   * the emitter comes from the container — never the `services/emitter` module,
+   * which resolves to `undefined` mid-boot. It is resolved defensively so a
+   * stripped-down container without an emitter can't break startup.
+   */
+  async ready() {
+    const config = this.app.config.get<MultitenancyConfig>('multitenancy')
+    if (!config.resolver?.cache?.enabled) return
+    const emitter = await this.app.container.make('emitter').catch(() => null)
+    if (!emitter) return
+    const cache = await this.app.container.make(TenantResolutionCache)
+    wireResolutionCacheInvalidation(emitter, cache)
   }
 
   /**
