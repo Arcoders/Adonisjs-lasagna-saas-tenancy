@@ -149,6 +149,17 @@ the stored URL against the SSRF guard and re-sends the delivery immediately,
 returning the updated row. Use it for a one-off replay; the
 `tenant:webhooks:retry` cron handles the automatic backoff schedule.
 
+## Extensibility: payload transformers
+
+Register a `WebhookPayloadTransformer` on `WebhookTransformerRegistry` (a
+container singleton) to rewrite a payload before it is signed and delivered. The
+transform runs **once, in `dispatch()`, before the delivery row is persisted**,
+so the stored payload is exactly what gets signed and what retries re-send. It
+must return a plain JSON object; a transformer that throws records a failed,
+no-retry delivery and never sends an untransformed payload. With none registered,
+behavior and signatures are unchanged. Versioned via `WEBHOOKS_CONTRACT_VERSION`;
+see the [Extensibility standard](/docs/satellites/extensibility).
+
 ## Read next
 
 - [Lifecycle events](/docs/events); the events that drive deliveries.

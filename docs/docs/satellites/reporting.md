@@ -205,6 +205,80 @@ class SlowTenantsReport implements ReportExtension {
 if you only have ids, resolve them first with `resolveTenantRepository`. Pass
 `{ continueOnError: false }` to fail fast on the first tenant error instead.
 
+### Versioning your extension
+
+The extension contract is versioned. Declare the version your report was written
+against so the registry can reject an incompatible build at registration time
+instead of failing at the first request:
+
+```ts
+import { REPORTING_CONTRACT_VERSION } from '@adonisjs-lasagna/reporting'
+
+export class TopPropertiesReport implements ReportExtension {
+  name = 'top_properties'
+  description = 'Top 5 most-booked properties'
+  contractVersion = REPORTING_CONTRACT_VERSION // 1
+  async execute(filters, _options, signal) {
+    /* … */
+  }
+}
+```
+
+`ReportExtensionRegistry.register()` compares `contractVersion` to the surface's
+`REPORTING_CONTRACT_VERSION`. A version **newer** than this build fails fast (your
+report relies on contract this version doesn't provide). A version **older**, or no
+version at all, registers with a one-time warning so reports written before
+versioning keep working. `GET {prefix}/reports/contract-version` returns the
+version this deployment implements, so a host can check compatibility ahead of
+time. This is the same warn/fail rule the satellite ABI uses, one level down. See
+the [extensibility standard](/docs/satellites/extensibility) for how
+`contractVersion` relates to `satelliteApi`.
+
+### Execution guards: timeout and rate limit
+
+Both are opt-in through `config.reporting.extensions` and apply to the HTTP route
+and the CLI `--extension` flag. Without this block, extensions run unguarded.
+
+```ts
+// config/multitenancy.ts
+reporting: defineReportingConfig({
+  extensions: {
+    timeoutMs: 30_000,
+    rateLimit: { limit: 30, windowSeconds: 60 },
+  },
+})
+```
+
+`timeoutMs` is a **response deadline, not a kill switch**. `Promise.race` frees the
+caller when the deadline passes, but it cannot stop work already running. So the
+deadline also fires the `AbortSignal` passed to `execute(filters, options, signal)`:
+thread it into your `fetch`/queries and a slow report unwinds instead of holding a
+tenant connection past the deadline. A report that ignores the signal keeps running
+in the background, so still mind the connection budget. A tripped deadline answers
+`504`.
+
+`rateLimit` is a Redis-backed sliding window keyed per `(extension, ip)` on the
+route (per `(extension)` on the CLI). It needs Redis and follows the global
+`resilience.redis.rateLimit` fail policy on an outage (fail-closed by default,
+answering `503`). Exceeding the window answers `429`.
+
+### Testing your extension
+
+`@adonisjs-lasagna/reporting/testing` ships pure helpers (no booted app):
+
+```ts
+import { createTestExtension, registryWith } from '@adonisjs-lasagna/reporting/testing'
+
+// a compatible extension that returns a fixed payload
+const ext = createTestExtension({ name: 'demo', result: { rows: [] } })
+
+// drive the version check: a newer contract makes register() throw
+registryWith(createTestExtension({ contractVersion: REPORTING_CONTRACT_VERSION + 1 }))
+
+// exercise the timeout guard
+createTestExtension({ name: 'slow', delayMs: 5_000 })
+```
+
 ## Dashboard endpoint
 
 Mount the read-only dashboard with your own admin auth. It exposes fleet-wide
@@ -284,8 +358,8 @@ so a closed-window report is byte-identical whether served from the rollup or li
 node ace tenant:metrics:rollup
 ```
 
-**Partitioning.** Every reporting query filters `WHERE period BETWEEN … GROUP BY
-<bucket of period>`, which is partition-pruning friendly. RANGE-partition
+**Partitioning.** Every reporting query filters `WHERE period BETWEEN … GROUP BY`
+the period bucket, which is partition-pruning friendly. RANGE-partition
 `tenant_metrics` (and `tenant_custom_metrics`) by `period` so the planner only
 scans the partitions a window touches. This is host-managed (the package ships a
 plain table); the existing `UNIQUE(tenant_id, period)` already includes the

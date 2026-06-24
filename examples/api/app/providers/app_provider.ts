@@ -8,8 +8,13 @@ import {
 import type { DiagnosisIssue } from '@adonisjs-lasagna/saas-tenancy/services'
 import { mapTenants } from '@adonisjs-lasagna/saas-tenancy/services'
 import db from '@adonisjs/lucid/services/db'
-import { ReportExtensionRegistry, ReportingService } from '@adonisjs-lasagna/reporting'
+import {
+  ReportExtensionRegistry,
+  ReportingService,
+  REPORTING_CONTRACT_VERSION,
+} from '@adonisjs-lasagna/reporting'
 import type { ReportExtensionFilters } from '@adonisjs-lasagna/reporting'
+import { adminActionRegistry, ADMIN_CONTRACT_VERSION } from '@adonisjs-lasagna/admin'
 import TenantRepository from '#app/repositories/tenant_repository'
 
 export default class AppProvider {
@@ -18,6 +23,24 @@ export default class AppProvider {
   async boot() {
     this.bindContainerServices()
     await this.registerReportExtensions()
+    this.registerAdminActions()
+  }
+
+  /**
+   * Register a demo admin action so `POST /admin/multitenancy/actions/demo_ping`
+   * has something to run. The registry is a module-level singleton (admin ships
+   * no provider), so it's safe to populate here in `boot()`.
+   */
+  private registerAdminActions() {
+    if (adminActionRegistry.has('demo_ping')) return
+    adminActionRegistry.register({
+      name: 'demo_ping',
+      description: 'A trivial demo admin action proving the dispatch route is wired.',
+      contractVersion: ADMIN_CONTRACT_VERSION,
+      async execute(ctx) {
+        return { ok: true, at: ctx.request.url() }
+      },
+    })
   }
 
   /**
@@ -32,6 +55,7 @@ export default class AppProvider {
     registry.register({
       name: 'demo_summary',
       description: 'A trivial demo report extension proving the registry is wired.',
+      contractVersion: REPORTING_CONTRACT_VERSION,
       async execute(filters: ReportExtensionFilters) {
         return { ok: true, window: filters }
       },
@@ -45,6 +69,7 @@ export default class AppProvider {
     registry.register({
       name: 'slow_tenants',
       description: 'Per-tenant schema probe across the busiest tenants (bounded, error-isolated).',
+      contractVersion: REPORTING_CONTRACT_VERSION,
       async execute(filters: ReportExtensionFilters) {
         const reporting = await app.container.make(ReportingService)
         const tenants = []
@@ -64,7 +89,11 @@ export default class AppProvider {
           },
           { concurrency: 3 }
         )
-        return { scanned: results.length, failed: errors.length, schemas: results.map((r) => r.value) }
+        return {
+          scanned: results.length,
+          failed: errors.length,
+          schemas: results.map((r) => r.value),
+        }
       },
     })
   }
@@ -95,10 +124,7 @@ export default class AppProvider {
     // its any-keyed overload — cast at the binding site only.
     this.app.container.bind(TENANT_REPOSITORY as any, () => new TenantRepository())
 
-    this.app.container.singleton(
-      CircuitBreakerService,
-      () => new CircuitBreakerService()
-    )
+    this.app.container.singleton(CircuitBreakerService, () => new CircuitBreakerService())
 
     this.app.container.singleton(DoctorService, () => {
       const svc = new DoctorService()

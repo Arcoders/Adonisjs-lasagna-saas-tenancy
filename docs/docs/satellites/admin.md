@@ -53,6 +53,17 @@ multitenancyAdminRoutes({
 - **Optional SSO peer.** The SSO endpoints require `@adonisjs-lasagna/sso`; when it
   is not installed they return 501 and the rest of the admin API keeps working.
 
+## Extensibility: custom actions
+
+Register an `AdminAction` on the module-level `adminActionRegistry` to add a
+custom operation, dispatched at `POST {prefix}/actions/:name` behind the same
+admin auth as the rest of the API. `execute(ctx, signal?)` reads the request and
+returns a value. `GET {prefix}/actions` lists registered names and
+`GET {prefix}/actions/contract-version` reports the version. Optional `timeoutMs`
+/ `rateLimit` guards are passed through `multitenancyAdminRoutes({ actions })`.
+Versioned via `ADMIN_CONTRACT_VERSION`; see the
+[Extensibility standard](/docs/satellites/extensibility).
+
 ## Read next
 
 - [Admin REST API](/docs/satellites/admin-rest-api); the full endpoint and OpenAPI reference.

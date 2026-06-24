@@ -42,6 +42,7 @@
     "test:integration:coverage": "npm run build:all && npm run test:integration:coverage --workspace @adonisjs-lasagna/saas-tenancy",
     "coverage:report": "c8 report --temp-directory=coverage/.v8/all --reporter=lcov --reporter=text-summary",
     "coverage:gate": "node scripts/coverage-gate.mjs",
+    "check:extension-contracts": "node scripts/check-extension-contracts.mjs",
     "knip": "knip --no-exit-code",
     "knip:deps": "knip --include dependencies",
     "audit:prod": "node scripts/audit-gate.mjs",

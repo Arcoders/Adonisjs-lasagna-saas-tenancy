@@ -81,6 +81,12 @@ jobs:
       - name: Satellite graduation gate
         run: node scripts/check-satellite-graduation.mjs
 
+      # Every extension surface must declare a CONTRACT_VERSION, document it in
+      # the extensibility standard page, and the demo must declare contractVersion
+      # on the extensions it registers — so a surface can't ship unversioned.
+      - name: Extension-contract gate
+        run: node scripts/check-extension-contracts.mjs
+
       - name: Test (unit) + coverage
         run: npm run test:coverage
 

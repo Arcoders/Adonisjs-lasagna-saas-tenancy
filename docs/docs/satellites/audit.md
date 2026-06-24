@@ -124,6 +124,16 @@ node ace tenant:audit:export --format=json | gzip > audit-all.json.gz
 For how the export maps to specific SOC2 and GDPR controls, see
 [Compliance](/compliance).
 
+## Extensibility: log destinations
+
+Register an `AuditLogDestination` on `AuditLogDestinationRegistry` (a container
+singleton) to fan every audit entry out to an external sink (Datadog, Splunk, an
+S3 archive). The canonical `tenant_audit_log` row stays authoritative: it is
+written first and returned to the caller, then destinations run best-effort,
+isolated and time-bounded. A slow or throwing sink never fails the audited
+operation. With none registered, behavior is unchanged. Versioned via
+`AUDIT_CONTRACT_VERSION`; see the [Extensibility standard](/docs/satellites/extensibility).
+
 ## Read next
 
 - [Security](/security); the append-only guarantees at the SQL level.

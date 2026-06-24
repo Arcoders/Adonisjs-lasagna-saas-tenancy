@@ -1313,6 +1313,15 @@ The state machine warnings (`stripe.subscription.illegal_transition`,
 at API drift or unexpected admin actions; surface in your error
 aggregator and investigate the specific tenant.
 
+## Extensibility: payment drivers
+
+Billing is already pluggable: a driver implements `BillingProviderContract`,
+registers on `BillingDriverRegistry`, and is selected via `config.billing.driver`.
+Drivers now declare a `contractVersion`, checked at registration (newer than this
+build throws; older or absent warns). The built-in Stripe, Paddle, Lemon Squeezy,
+and Mock drivers all declare the current `BILLING_CONTRACT_VERSION`. See the
+[Extensibility standard](/docs/satellites/extensibility).
+
 ## Read next
 
 - [Stripe + quotas (cookbook)](/docs/cookbook/stripe-quotas); the

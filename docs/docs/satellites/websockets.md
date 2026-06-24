@@ -243,6 +243,14 @@ node, a second replica), bridge it yourself. For example, publish the tenant id 
 a Redis channel that every node subscribes to, and call `sockets.disconnectTenant(id)`
 when it arrives.
 
+## Extensibility: the authorize hook
+
+The `authorize` config is the extension point. It accepts a bare function (the
+simple form) or a versioned object `{ contractVersion, authorize }` that opts into
+the contract check at wiring time, validated against `WEBSOCKETS_CONTRACT_VERSION`.
+A bare function stays unversioned and works as before. See the
+[Extensibility standard](/docs/satellites/extensibility).
+
 ## Read next
 
 - [Multi-tenant WebSockets cookbook](/docs/cookbook/multi-tenant-websockets); the end-to-end build.

@@ -108,6 +108,7 @@ const sidebar = [
       { text: 'Impersonation', link: '/docs/satellites/impersonation' },
       { text: 'Admin', link: '/docs/satellites/admin' },
       { text: 'Admin REST API', link: '/docs/satellites/admin-rest-api' },
+      { text: 'Extensibility', link: '/docs/satellites/extensibility' },
     ],
   },
   {

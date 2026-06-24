@@ -141,6 +141,17 @@ router
 ```
 
 
+## Extensibility: identity providers
+
+OIDC is the built-in provider (`SsoService` is the `oidc` driver). To add another
+(SAML, a bespoke OAuth flavour), implement `IdentityProviderContract` and register
+it on the module-level `identityProviderRegistry`, then set a tenant's
+`TenantSsoConfig.provider` to its name. `buildAuthUrl` delegates to the matching
+driver, which owns its own state and nonce handling end to end; your callback
+route calls that driver's `handleCallback`. The OIDC path is unchanged and
+records its `provider` in the state record. Versioned via `SSO_CONTRACT_VERSION`;
+see the [Extensibility standard](/docs/satellites/extensibility).
+
 ## Read next
 
 - [Authentication](/docs/authentication); how SSO composes with tenant auth.

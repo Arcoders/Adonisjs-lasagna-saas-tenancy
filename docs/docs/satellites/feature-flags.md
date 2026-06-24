@@ -111,6 +111,18 @@ rejected with `400 invalid_expires_at`. Omitting it clears any stored expiry
   hits.
 
 
+## Extensibility: evaluation strategies
+
+Register an `EvaluationStrategy` on `EvaluationStrategyRegistry` (a container
+singleton) for rollout-percentage or context-aware decisions, then select it
+per-flag via the flag's `config.strategy`. `isEnabled(tenantId, flag, context?)`
+resolves the strategy and evaluates it **per call** against the stored record
+plus your context. The flag record is cached, but the decision is never cached,
+so a context-aware strategy can't leak one principal's result to another. A flag
+with no `config.strategy` takes the built-in default (enabled and not expired),
+identical to before. Versioned via `FEATURE_FLAGS_CONTRACT_VERSION`; see the
+[Extensibility standard](/docs/satellites/extensibility).
+
 ## Read next
 
 - [Admin REST API](/docs/satellites/admin-rest-api); toggling flags over HTTP.
