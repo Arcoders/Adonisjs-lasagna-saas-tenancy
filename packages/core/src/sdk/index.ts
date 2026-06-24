@@ -17,6 +17,19 @@ export type { SatelliteProviderContract, SatelliteProviderConstructor } from './
 export { SATELLITE_API_VERSION, checkSatelliteApiCompat } from './api_version.js'
 export type { SatelliteApiCompat } from './api_version.js'
 
+/**
+ * Per-surface extension contract versioning — one level below the Satellite
+ * ABI. A satellite's extension registry calls `assertContractCompat` in its
+ * `register()` to reject incompatible extensions at registration time. Pure +
+ * bare-safe, so it works from a satellite's own unit runner.
+ */
+export {
+  compareContractVersion,
+  checkContractCompat,
+  assertContractCompat,
+} from './contract_version.js'
+export type { ContractCompatLevel } from './contract_version.js'
+
 export { resolveSatelliteDependencies, satisfiesRange } from './dependencies.js'
 export type { DependencyResolution } from './dependencies.js'
 

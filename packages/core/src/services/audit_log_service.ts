@@ -1,4 +1,15 @@
 import TenantAuditLog, { type AuditActorType } from '../models/satellites/tenant_audit_log.js'
+import AuditLogDestinationRegistry, {
+  type AuditLogEntry,
+} from './audit_log_destination_registry.js'
+import { executeExtension } from './extensions/execute_extension.js'
+
+const lazyLogger = () =>
+  import('@adonisjs/core/services/logger').then((m) => m.default).catch(() => null)
+
+/** Per-destination fan-out deadline. Kept short so a slow sink never holds the
+ *  audited request. The canonical DB write is already done by the time it runs. */
+const DESTINATION_TIMEOUT_MS = 2_000
 
 export interface LogActionOptions {
   tenantId?: string | null
@@ -11,7 +22,11 @@ export interface LogActionOptions {
 
 export default class AuditLogService {
   async log(options: LogActionOptions): Promise<TenantAuditLog> {
-    return TenantAuditLog.create({
+    // The DB row is the source of truth and stays authoritative: it is written
+    // first and returned to the caller. Host destinations run afterwards,
+    // isolated and time-bounded, so a slow or throwing sink can never fail the
+    // audited operation nor change what `log()` returns.
+    const row = await TenantAuditLog.create({
       tenantId: options.tenantId ?? null,
       actorType: options.actorType ?? 'system',
       actorId: options.actorId ?? null,
@@ -19,6 +34,56 @@ export default class AuditLogService {
       metadata: options.metadata ?? null,
       ipAddress: options.ipAddress ?? null,
     })
+    await this.#fanOut(row)
+    return row
+  }
+
+  /**
+   * Fan the persisted row out to every registered destination, isolated
+   * (`allSettled`) and bounded (`executeExtension` timeout). No destinations
+   * registered → returns immediately, so the default path adds nothing.
+   */
+  async #fanOut(row: TenantAuditLog): Promise<void> {
+    const registry = await this.#destinationRegistry()
+    if (!registry || registry.list().length === 0) return
+
+    const entry: AuditLogEntry = {
+      id: row.id,
+      tenantId: row.tenantId ?? null,
+      actorType: row.actorType,
+      actorId: row.actorId ?? null,
+      action: row.action,
+      metadata: row.metadata ?? null,
+      ipAddress: row.ipAddress ?? null,
+      createdAt: row.createdAt?.toISO() ?? new Date().toISOString(),
+    }
+
+    const results = await Promise.allSettled(
+      registry.list().map((destination) =>
+        executeExtension(() => Promise.resolve(destination.write(entry)), {
+          label: `audit:${destination.name}`,
+          timeoutMs: DESTINATION_TIMEOUT_MS,
+        })
+      )
+    )
+    const failed = results.filter((r) => r.status === 'rejected').length
+    if (failed > 0) {
+      const logger = await lazyLogger()
+      logger?.warn(
+        { action: row.action, failed, total: results.length },
+        'audit.log: some destinations failed (the canonical DB row is unaffected)'
+      )
+    }
+  }
+
+  /** Resolve the host destination registry from the container, best-effort. */
+  async #destinationRegistry(): Promise<AuditLogDestinationRegistry | undefined> {
+    try {
+      const app = (await import('@adonisjs/core/services/app')).default
+      return await app.container.make(AuditLogDestinationRegistry)
+    } catch {
+      return undefined
+    }
   }
 
   async listForTenant(

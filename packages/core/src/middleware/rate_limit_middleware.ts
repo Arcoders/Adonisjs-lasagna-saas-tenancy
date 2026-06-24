@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto'
 import { resolveTenantId } from '../extensions/request.js'
 import { tenancy } from '../tenancy.js'
 import { getConfig } from '../config.js'
+import { consumeRateLimit } from '../services/rate_limiter.js'
 import RateLimitUnavailableException from '../exceptions/rate_limit_unavailable_exception.js'
 import TooManyRequestsException from '../exceptions/too_many_requests_exception.js'
 import app from '@adonisjs/core/services/app'
@@ -97,39 +97,21 @@ export default class RateLimitMiddleware {
     const tenantId = this.currentTenantId() ?? resolveTenantId(request) ?? 'global'
     const key = `${prefix}:${tenantId}:${ip}`
 
-    const now = Date.now()
-    const windowStart = now - windowSeconds * 1000
-
+    // The sliding-window counter (pipeline + ioredis outage detection) is the
+    // shared `consumeRateLimit` primitive; this middleware keeps ownership of
+    // attribution (the `key` above), the response headers, the 429, and the
+    // fail-open/closed policy below. `consumeRateLimit` THROWS on any backend
+    // failure, so the catch engages the configured policy exactly as before.
     let count: number
+    let now: number
     try {
-      const r = await this.getRedis()
-      const pipeline = r.pipeline()
-      pipeline.zremrangebyscore(key, '-inf', windowStart)
-      // The member must be unique per request: the score (`now`) drives window
-      // pruning, but two requests in the SAME millisecond would share the member
-      // `${now}` and ZADD would de-duplicate them, so ZCARD undercounts and the
-      // limiter lets the burst through (429 -> 200). A random suffix keeps every
-      // request a distinct member (also across processes, for multi-node).
-      pipeline.zadd(key, now, `${now}-${randomUUID()}`)
-      pipeline.zcard(key)
-      pipeline.expire(key, windowSeconds)
-
-      const results = await pipeline.exec()
-      // ioredis resolves `exec()` with per-command `[error, value]` tuples and
-      // does NOT reject when the backend is unreachable. So a Redis outage lands
-      // here, not in `catch`, with each tuple carrying an error and a null value.
-      // Detect a missing result set or any per-command error (or a non-numeric
-      // zcard) and treat it as a backend failure, so the configured fail policy
-      // actually engages. Without this, `count` silently defaulted to 0 and the
-      // limiter failed OPEN on a Redis outage — the opposite of the default.
-      if (!results) throw new Error('rate-limit pipeline returned no results')
-      const commandError = results.find((entry: [Error | null, unknown]) => entry?.[0])?.[0]
-      if (commandError) throw commandError
-      const zcard = results[2]?.[1]
-      if (typeof zcard !== 'number') {
-        throw new Error('rate-limit pipeline returned a non-numeric zcard result')
-      }
-      count = zcard
+      const reading = await consumeRateLimit({
+        getRedis: () => this.getRedis(),
+        key,
+        windowSeconds,
+      })
+      count = reading.count
+      now = reading.now
     } catch (error) {
       await warn('redis_pipeline_failed', error, { tenantId, key })
       // Unified observability: the same DependencyDegraded signal QuotaService

@@ -1,5 +1,6 @@
 import TenantWebhook from '../models/satellites/tenant_webhook.js'
 import TenantWebhookDelivery from '../models/satellites/tenant_webhook_delivery.js'
+import WebhookTransformerRegistry from './webhook_transformer_registry.js'
 import { encrypt, decryptStrict } from '../utils/crypto.js'
 import {
   validateExternalHttpsUrl,
@@ -114,11 +115,15 @@ export default class WebhookService {
       .where('enabled', true)
       .whereRaw('? = ANY(events)', [event])
 
+    // Resolve the (optional) transformer registry once for the fan-out. Absent /
+    // empty → no transformation, so the body is byte-identical to before.
+    const transformers = await this.#transformerRegistry()
+
     // allSettled, not all: each delivery persists its own outcome in send(), so
     // one hook's unexpected failure (e.g. the delivery-row INSERT erroring) must
     // not reject the whole dispatch and hide the siblings.
     const results = await Promise.allSettled(
-      hooks.map((hook) => this.deliver(hook, event, payload))
+      hooks.map((hook) => this.deliver(hook, event, payload, transformers))
     )
     const failed = results.filter((r) => r.status === 'rejected').length
     if (failed > 0) {
@@ -133,17 +138,58 @@ export default class WebhookService {
   private async deliver(
     hook: TenantWebhook,
     event: string,
-    payload: Record<string, unknown>
+    payload: Record<string, unknown>,
+    transformers?: WebhookTransformerRegistry
   ): Promise<void> {
+    // Transform ONCE, here, BEFORE persisting — so the stored payload is exactly
+    // what `send()` signs and what `processRetries()` re-sends. Running it in
+    // `send()` instead would re-transform on every retry and break the
+    // signature/stored-body invariant.
+    let finalPayload = payload
+    if (transformers && transformers.list().length > 0) {
+      try {
+        finalPayload = transformers.apply(event, payload)
+      } catch (err) {
+        // A transformer that throws must NOT deliver an untransformed payload.
+        // Record a failed, no-retry delivery (storing the ORIGINAL for
+        // debugging), mirroring the secret_decrypt_failed path in send().
+        await TenantWebhookDelivery.create({
+          webhookId: hook.id,
+          event,
+          payload,
+          status: 'failed',
+          attempt: 1,
+          statusCode: null,
+          responseBody: `transform_failed:${(err as Error)?.message ?? String(err)}`,
+          nextRetryAt: null,
+        })
+        return
+      }
+    }
+
     const delivery = await TenantWebhookDelivery.create({
       webhookId: hook.id,
       event,
-      payload,
+      payload: finalPayload,
       status: 'pending',
       attempt: 1,
     })
 
     await this.send(hook, delivery)
+  }
+
+  /**
+   * Resolve the host's transformer registry from the container, best-effort. A
+   * `new WebhookService()` outside a booted app (the REPL, the retry command)
+   * gets `undefined` and skips transformation, preserving current behavior.
+   */
+  async #transformerRegistry(): Promise<WebhookTransformerRegistry | undefined> {
+    try {
+      const app = (await import('@adonisjs/core/services/app')).default
+      return await app.container.make(WebhookTransformerRegistry)
+    } catch {
+      return undefined
+    }
   }
 
   async send(hook: TenantWebhook, delivery: TenantWebhookDelivery): Promise<void> {

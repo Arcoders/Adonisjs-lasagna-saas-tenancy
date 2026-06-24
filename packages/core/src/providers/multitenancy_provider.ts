@@ -38,6 +38,9 @@ import ResilienceService from '../services/resilience_service.js'
 import CrossDomainRedirectService from '../services/cross_domain_redirect_service.js'
 import ImpersonationService from '../services/impersonation_service.js'
 import AuditLogService from '../services/audit_log_service.js'
+import AuditLogDestinationRegistry from '../services/audit_log_destination_registry.js'
+import EvaluationStrategyRegistry from '../services/evaluation_strategy_registry.js'
+import WebhookTransformerRegistry from '../services/webhook_transformer_registry.js'
 // Billing (service, listeners, jobs, webhook route, drain) moved to
 // `@adonisjs-lasagna/billing`; its own provider wires those against core
 // events/hooks. The core provider no longer references billing.
@@ -72,6 +75,14 @@ export default class MultitenancyProvider {
     this.app.container.singleton(ResilienceService, () => new ResilienceService())
     this.app.container.singleton(CrossDomainRedirectService, () => new CrossDomainRedirectService())
     this.app.container.singleton(AuditLogService, () => new AuditLogService())
+    // Extension-surface registries (host-populated, Map-backed). Singletons so a
+    // host's registrations are visible to the services that consult them.
+    this.app.container.singleton(
+      AuditLogDestinationRegistry,
+      () => new AuditLogDestinationRegistry()
+    )
+    this.app.container.singleton(EvaluationStrategyRegistry, () => new EvaluationStrategyRegistry())
+    this.app.container.singleton(WebhookTransformerRegistry, () => new WebhookTransformerRegistry())
     this.app.container.singleton(ImpersonationService, async (resolver) => {
       const auditLog = await resolver.make(AuditLogService)
       return new ImpersonationService({ auditLog })

@@ -15,12 +15,32 @@ export type { FailurePolicy, ResilienceConfig } from '../types/config.js'
 // (`BackupMetadata`, `CloneResult`) live in `@adonisjs-lasagna/saas-tenancy/types`.
 export { default as AuditLogService } from './audit_log_service.js'
 export type { LogActionOptions } from './audit_log_service.js'
+export {
+  default as AuditLogDestinationRegistry,
+  AUDIT_CONTRACT_VERSION,
+} from './audit_log_destination_registry.js'
+export type { AuditLogDestination, AuditLogEntry } from './audit_log_destination_registry.js'
 export { default as CrossDomainRedirectService } from './cross_domain_redirect_service.js'
 export type { BuildUrlOptions } from './cross_domain_redirect_service.js'
 export { default as ImpersonationService } from './impersonation_service.js'
 export { default as FeatureFlagService } from './feature_flag_service.js'
+export type { FeatureFlagRecord } from './feature_flag_service.js'
+export {
+  default as EvaluationStrategyRegistry,
+  DEFAULT_EVALUATION_STRATEGY,
+  FEATURE_FLAGS_CONTRACT_VERSION,
+} from './evaluation_strategy_registry.js'
+export type {
+  EvaluationStrategy,
+  FeatureFlagEvaluationContext,
+} from './evaluation_strategy_registry.js'
 export { default as WebhookService, verifyWebhookSignature } from './webhook_service.js'
 export type { RegisterWebhookResult } from './webhook_service.js'
+export {
+  default as WebhookTransformerRegistry,
+  WEBHOOKS_CONTRACT_VERSION,
+} from './webhook_transformer_registry.js'
+export type { WebhookPayloadTransformer } from './webhook_transformer_registry.js'
 // Expose the shared BentoCache instance so apps that namespace their
 // own cache keys (and integration tests that need to seed sessions
 // directly) don't have to dig into internal paths. `cacheFor(tenant)`
@@ -39,6 +59,14 @@ export { default as QuotaService } from './quota_service.js'
 export type { QuotaCheckResult, QuotaStateSnapshot, QuotaMode } from './quota_service.js'
 // `BillingService` + `redactStripeEvent` moved to `@adonisjs-lasagna/billing`.
 export { default as ReadReplicaService } from './read_replica_service.js'
+// Shared extension-execution primitives: `consumeRateLimit` is the sliding-window
+// counter the rate-limit middleware also uses; `executeExtension` wraps
+// host-supplied extension code in optional timeout + rate-limit guards. See the
+// satellite extensibility standard (docs/satellites/extensibility).
+export { consumeRateLimit } from './rate_limiter.js'
+export type { ConsumeRateLimitArgs, RateLimitReading } from './rate_limiter.js'
+export { executeExtension, ExtensionTimeoutError } from './extensions/execute_extension.js'
+export type { ExecuteExtensionOptions } from './extensions/execute_extension.js'
 export {
   default as TenantResolutionCache,
   DEFAULT_RESOLUTION_CACHE_TTL_MS,
