@@ -38,6 +38,19 @@ The URL is validated against the SSRF guard at registration AND again
 at delivery time: loopback, private ranges, cloud-metadata IPs, and
 every numeric encoding of them are refused.
 
+::: warning Stored secrets must be `enc_v1` ciphertext
+`registerWebhook()` encrypts the signing secret for you. If you write
+`tenant_webhooks.secret` directly (your own admin UI, a seeder, raw SQL),
+you MUST store it encrypted — wrap the value in `encrypt()` from
+`@adonisjs-lasagna/saas-tenancy`. Delivery now **fails closed** on a
+non-`enc_v1` secret: a plaintext, corrupted, or wrong-key value marks the
+delivery failed (no retry) instead of signing with raw bytes.
+
+Upgrading from a version that allowed plaintext secrets? Run the one-time
+`node ace tenant:webhooks:encrypt-secrets` (idempotent, `--dry-run` first)
+to encrypt any existing plaintext rows before deliveries resume.
+:::
+
 ## Sending
 
 ```ts

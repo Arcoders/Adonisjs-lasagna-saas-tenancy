@@ -1,5 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import { TenantWebhook } from '@adonisjs-lasagna/saas-tenancy'
+import { TenantWebhook, encrypt } from '@adonisjs-lasagna/saas-tenancy'
 import { WebhookService } from '@adonisjs-lasagna/saas-tenancy/services'
 import {
   fireWebhookValidator,
@@ -28,7 +28,9 @@ export default class WebhooksController {
         tenantId: tenant.id,
         url: payload.url,
         events: payload.events,
-        secret: payload.secret ?? null,
+        // Webhook signing secrets are stored as enc_v1 ciphertext; the delivery
+        // path fails closed on anything else. Encrypt at the write boundary.
+        secret: payload.secret ? encrypt(payload.secret) : null,
         enabled: true,
       })
       .save()

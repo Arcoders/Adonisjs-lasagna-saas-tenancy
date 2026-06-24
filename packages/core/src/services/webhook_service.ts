@@ -1,6 +1,6 @@
 import TenantWebhook from '../models/satellites/tenant_webhook.js'
 import TenantWebhookDelivery from '../models/satellites/tenant_webhook_delivery.js'
-import { encrypt, decrypt } from '../utils/crypto.js'
+import { encrypt, decryptStrict } from '../utils/crypto.js'
 import {
   validateExternalHttpsUrl,
   validateResolvedHostIsPublic,
@@ -181,14 +181,15 @@ export default class WebhookService {
     }
 
     if (hook.secret) {
-      // A stored secret that can't be decrypted (APP_KEY rotated, ciphertext
-      // corrupted) is a PERMANENT failure. Decrypting OUTSIDE this guard would
-      // throw straight out of send(), leaving the delivery row stuck `pending`
-      // (the retry sweep only selects `retrying`) and — through the allSettled
-      // fan-out — surfacing as a rejection. Mark it failed with no retry and
-      // stop here instead.
+      // The stored secret MUST be enc_v1 ciphertext: we fail closed with
+      // decryptStrict, so a non-encrypted, corrupted, or wrong-key value is a
+      // PERMANENT failure rather than being signed with raw column bytes.
+      // Decrypting OUTSIDE this guard would throw straight out of send(),
+      // leaving the delivery row stuck `pending` (the retry sweep only selects
+      // `retrying`) and — through the allSettled fan-out — surfacing as a
+      // rejection. Mark it failed with no retry and stop here instead.
       try {
-        const plainSecret = decrypt(hook.secret)
+        const plainSecret = decryptStrict(hook.secret)
         headers['x-webhook-signature'] = createHmac('sha256', plainSecret)
           .update(body)
           .digest('hex')

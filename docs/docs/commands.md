@@ -46,6 +46,7 @@ is installed and its provider + commands are wired in `adonisrc.ts`.
 | `tenant:clone --source=<id> --name=<name> --email=<email>` | Provision a new tenant by cloning an existing one. `--schema-only`, `--clear-sessions`. |
 | `tenant:queue:stats` | BullMQ queue statistics. |
 | `tenant:secrets:reencrypt` | Re-encrypt stored secrets (webhook signing secrets, SSO client secrets) after an `APP_KEY` rotation. Reads the previous key from `OLD_APP_KEY` (env only, never a flag); idempotent, supports `--dry-run`. Ships in core. See the [security guide](/security). |
+| `tenant:webhooks:encrypt-secrets` | One-time upgrade step: encrypt any plaintext webhook signing secrets at rest. Webhook delivery now fails closed on a non-`enc_v1` secret, so run this once if you stored plaintext secrets before upgrading. Idempotent, supports `--dry-run`. |
 
 ## Doctor
 

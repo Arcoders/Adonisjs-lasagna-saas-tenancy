@@ -199,6 +199,19 @@
       "filePath": "tenant_secrets_reencrypt.js"
     },
     {
+      "commandName": "tenant:webhooks:encrypt-secrets",
+      "description": "Encrypt any plaintext webhook signing secrets at rest (one-time upgrade; idempotent)",
+      "help": "Run once after upgrading to fail-closed webhook signing: node ace tenant:webhooks:encrypt-secrets. Idempotent; use --dry-run first.",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report what would be encrypted without writing" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_webhooks_encrypt_secrets.js"
+    },
+    {
       "commandName": "tenant:metrics:flush",
       "description": "Flush Redis metric counters to the database for all tenants",
       "help": "Run daily via cron: 0 1 * * * node ace tenant:metrics:flush",

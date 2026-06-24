@@ -141,6 +141,49 @@ test.group('WebhookService.send() — delivery state machine', (group) => {
     assert.equal(capturedHeaders['x-webhook-signature'], expectedSig)
   })
 
+  test('fails closed on a corrupted enc_v1 secret and never calls fetch', async ({ assert }) => {
+    let fetchCalled = false
+    globalThis.fetch = (async () => {
+      fetchCalled = true
+      return { ok: true, status: 200, text: async () => '{}' }
+    }) as unknown as typeof fetch
+
+    const valid = encrypt('webhook-signing-secret')
+    // Flip the final ciphertext hex char so the GCM auth-tag check fails.
+    const corrupted = valid.slice(0, -1) + (valid.endsWith('a') ? 'b' : 'a')
+    const hook = makeHook({ secret: corrupted })
+    const delivery = makeDelivery()
+
+    await svc.send(hook as any, delivery as any)
+
+    assert.isFalse(fetchCalled, 'a secret that cannot be decrypted must never be signed or sent')
+    assert.equal(delivery.status, 'failed')
+    assert.match(String(delivery.responseBody), /secret_decrypt_failed/)
+    assert.isNull(delivery.statusCode)
+    assert.isNull(delivery.nextRetryAt)
+  })
+
+  test('fails closed on a non-enc_v1 (plaintext) secret instead of signing with raw bytes', async ({
+    assert,
+  }) => {
+    let fetchCalled = false
+    globalThis.fetch = (async () => {
+      fetchCalled = true
+      return { ok: true, status: 200, text: async () => '{}' }
+    }) as unknown as typeof fetch
+
+    // A secret that was never written through encrypt() (the old plaintext path).
+    const hook = makeHook({ secret: 'raw-plaintext-secret' })
+    const delivery = makeDelivery()
+
+    await svc.send(hook as any, delivery as any)
+
+    assert.isFalse(fetchCalled, 'a plaintext secret must fail closed, not be used as a raw HMAC key')
+    assert.equal(delivery.status, 'failed')
+    assert.match(String(delivery.responseBody), /secret_decrypt_failed/)
+    assert.isNull(delivery.nextRetryAt)
+  })
+
   test('does not add signature header when hook has no secret', async ({ assert }) => {
     const capturedHeaders: Record<string, string> = {}
 
