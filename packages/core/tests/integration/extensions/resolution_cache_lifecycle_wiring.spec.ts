@@ -5,9 +5,8 @@ import {
   setConfig,
   getConfig,
   TenantSuspended,
-  TENANT_REPOSITORY,
+  resolveTenantRepository,
 } from '@adonisjs-lasagna/saas-tenancy'
-import type { TenantRepositoryContract } from '@adonisjs-lasagna/saas-tenancy'
 import { createTestTenant, destroyTestTenant, updateTenantStatus } from '../helpers/tenant.js'
 
 /**
@@ -75,7 +74,7 @@ test.group('resolution cache invalidation — real provider wiring (integration)
       // Dispatch the real lifecycle event through the container emitter. The
       // provider's ready() listener must evict the cached entry. Resolve the
       // real model so every fixture listener (audit, etc.) gets a full tenant.
-      const repo = await app.container.make<TenantRepositoryContract>(TENANT_REPOSITORY)
+      const repo = await resolveTenantRepository()
       const model = await repo.findById(tenant.id, true)
       assert.isNotNull(model)
       try {
