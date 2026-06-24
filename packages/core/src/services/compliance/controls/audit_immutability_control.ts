@@ -24,16 +24,21 @@ const auditImmutabilityControl: ComplianceControl = {
   ],
 
   async detect({ config, db }) {
+    const schema = config.backofficeSchemaName
     const conn = db.connection(config.backofficeConnectionName)
+    // `nspname` is compared as a string value (not an identifier slot), so it
+    // binds as a `?` parameter — and it MUST be the configured schema, not a
+    // hardcoded 'backoffice', or a host that renamed the backoffice schema gets
+    // a false "missing trigger" verdict on this compliance control.
     const result = await conn.rawQuery(
       `SELECT t.tgname
          FROM pg_trigger t
          JOIN pg_class c ON c.oid = t.tgrelid
          JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE n.nspname = 'backoffice'
+        WHERE n.nspname = ?
           AND c.relname = 'tenant_audit_logs'
           AND t.tgname = ANY(?)`,
-      [TRIGGERS]
+      [schema, TRIGGERS]
     )
     const rows: any[] = result.rows ?? result ?? []
     const found = new Set(rows.map((r) => r.tgname))
@@ -44,7 +49,7 @@ const auditImmutabilityControl: ComplianceControl = {
         status: 'satisfied',
         evidence:
           'All three BEFORE UPDATE/DELETE/TRUNCATE triggers are installed on ' +
-          'backoffice.tenant_audit_logs; rows cannot be rewritten or erased by the app role.',
+          `${schema}.tenant_audit_logs; rows cannot be rewritten or erased by the app role.`,
         hostResponsibility:
           'Run audit-log retention under a separate privileged role (disable the trigger ' +
           'only inside a controlled window). Ship rows to a long-term store for archival.',

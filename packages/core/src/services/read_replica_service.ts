@@ -124,7 +124,13 @@ export default class ReadReplicaService {
       const { getActiveDriver } = await import('./isolation/active_driver.js')
       const driver = await getActiveDriver()
       await driver.connect(tenant)
-      const primaryName = `${getConfig().tenantConnectionNamePrefix}${tenant.id}`
+      // Use the driver's own name builder rather than re-deriving it from the
+      // prefix: for rowscope-pg the primary connection is the shared central
+      // one (not `${prefix}${id}`), so the hand-rolled name would miss the
+      // manager and the replica would clone empty config (dropping pool/ssl/
+      // searchPath). schema-pg/database-pg/sqlite are unchanged (their builder
+      // returns exactly `${prefix}${id}`).
+      const primaryName = driver.connectionName(tenant.id)
       const primary: any =
         (db.manager as any).get?.(primaryName)?.config ??
         (db as any).getRawConnection?.(primaryName)?.config

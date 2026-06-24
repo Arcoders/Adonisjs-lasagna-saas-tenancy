@@ -56,6 +56,35 @@ test.group('control — audit-immutability', () => {
     )
     assert.equal(used, 'backoffice')
   })
+
+  test('binds the configured backoffice schema name instead of a hardcoded literal', async ({
+    assert,
+  }) => {
+    let sql = ''
+    let bindings: unknown[] = []
+    const context = {
+      config: { ...testConfig, backofficeSchemaName: 'tenants_admin' } as MultitenancyConfig,
+      db: {
+        connection: () => ({
+          rawQuery: async (q: string, b: unknown[]) => {
+            sql = q
+            bindings = b
+            return { rows: ALL_TRIGGERS }
+          },
+        }),
+      } as any,
+    } as ComplianceContext
+
+    const r = await auditImmutabilityControl.detect(context)
+
+    assert.equal(r.status, 'satisfied')
+    assert.notInclude(sql, "'backoffice'", 'the schema must not be a hardcoded SQL literal')
+    assert.match(sql, /nspname = \?/)
+    assert.include(bindings as string[], 'tenants_admin')
+    // Evidence reflects the configured schema, so the report reads correctly
+    // for a host that renamed the backoffice schema.
+    assert.match(r.evidence, /tenants_admin\.tenant_audit_logs/)
+  })
 })
 
 test.group('control — secret-encryption', (group) => {
