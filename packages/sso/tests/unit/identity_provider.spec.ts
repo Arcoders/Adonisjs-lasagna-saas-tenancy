@@ -43,4 +43,22 @@ test.group('IdentityProviderRegistry', () => {
     )
     assert.isFalse(reg.has('future'))
   })
+
+  test('rejects a provider with an empty or non-string name', ({ assert }) => {
+    const reg = new IdentityProviderRegistry()
+    assert.throws(() => reg.register(provider('')), /non-empty name/)
+    assert.throws(
+      () => reg.register({ ...provider('x'), name: 123 as unknown as string }),
+      /non-empty name/
+    )
+  })
+
+  test('clear() empties the registry', ({ assert }) => {
+    const reg = new IdentityProviderRegistry()
+    reg.register(provider('saml'))
+    assert.isTrue(reg.has('saml'))
+    reg.clear()
+    assert.isFalse(reg.has('saml'))
+    assert.deepEqual([...reg.list()], [])
+  })
 })
