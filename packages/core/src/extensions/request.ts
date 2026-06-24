@@ -272,7 +272,9 @@ export function dependencyUnavailable(
  */
 export function hasDecidedHttpStatus(err: unknown): err is { status: number } {
   return (
-    typeof err === 'object' && err !== null && typeof (err as { status?: unknown }).status === 'number'
+    typeof err === 'object' &&
+    err !== null &&
+    typeof (err as { status?: unknown }).status === 'number'
   )
 }
 

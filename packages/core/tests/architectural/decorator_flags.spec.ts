@@ -15,11 +15,9 @@ import { fileURLToPath } from 'node:url'
 
 const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url))
 
-/** Strip // and /* *​/ comments so a JSONC tsconfig still parses. */
+/** Strip line and block comments so a JSONC tsconfig still parses. */
 function parseJsonc(text: string): Record<string, any> {
-  const noComments = text
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+  const noComments = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
   return JSON.parse(noComments)
 }
 

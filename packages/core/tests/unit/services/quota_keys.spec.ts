@@ -21,7 +21,10 @@ const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 test.group('quota keys', () => {
   test('rollingKey is quota:<id>:<yyyy-MM-dd UTC>:<quota>', ({ assert }) => {
     const today = DateTime.utc().toFormat('yyyy-MM-dd')
-    assert.equal(rollingKey(TENANT_ID, 'apiCallsPerDay'), `quota:${TENANT_ID}:${today}:apiCallsPerDay`)
+    assert.equal(
+      rollingKey(TENANT_ID, 'apiCallsPerDay'),
+      `quota:${TENANT_ID}:${today}:apiCallsPerDay`
+    )
     assert.equal(periodToday(), today)
   })
 

@@ -178,7 +178,10 @@ test.group('WebhookService.send() — delivery state machine', (group) => {
 
     await svc.send(hook as any, delivery as any)
 
-    assert.isFalse(fetchCalled, 'a plaintext secret must fail closed, not be used as a raw HMAC key')
+    assert.isFalse(
+      fetchCalled,
+      'a plaintext secret must fail closed, not be used as a raw HMAC key'
+    )
     assert.equal(delivery.status, 'failed')
     assert.match(String(delivery.responseBody), /secret_decrypt_failed/)
     assert.isNull(delivery.nextRetryAt)

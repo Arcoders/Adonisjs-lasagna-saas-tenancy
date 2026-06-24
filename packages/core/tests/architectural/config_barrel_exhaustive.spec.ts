@@ -33,7 +33,7 @@ import type {
  * downstream consumer breaks. The runtime body is trivial; the contract is the
  * import + the type map below.
  */
-type _ConfigBarrel = {
+type ConfigBarrel = {
   TenantAccessAuthorizer: TenantAccessAuthorizer
   TenantAnonymizer: TenantAnonymizer
   TenantResolverStrategy: TenantResolverStrategy
@@ -61,7 +61,7 @@ test.group('config barrel exhaustiveness', () => {
   test('every historical config type still re-exports from the config.ts barrel', ({ assert }) => {
     // The real contract is the compile-time type map above; this asserts the
     // module evaluated and lists the guarded surface for a human reader.
-    const guarded: Array<keyof _ConfigBarrel> = [
+    const guarded: Array<keyof ConfigBarrel> = [
       'TenantAccessAuthorizer',
       'TenantAnonymizer',
       'TenantResolverStrategy',

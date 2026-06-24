@@ -147,7 +147,14 @@ export default class MetricsService {
     const sql = buildMonthlyRollupSql()
     for (const monthStart of monthBuckets(window.since, window.until)) {
       const { lo, hi } = monthChunkBounds(monthStart, window)
-      await conn.rawQuery(sql, [schema, TenantMetricMonthly.table, schema, TenantMetric.table, lo, hi])
+      await conn.rawQuery(sql, [
+        schema,
+        TenantMetricMonthly.table,
+        schema,
+        TenantMetric.table,
+        lo,
+        hi,
+      ])
     }
   }
 

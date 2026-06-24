@@ -39,14 +39,12 @@ test.group('docs vs code contract', () => {
     )
   })
 
-  test('events.md documents the QuotaTracked payload field as newTotal, not total', ({ assert }) => {
+  test('events.md documents the QuotaTracked payload field as newTotal, not total', ({
+    assert,
+  }) => {
     const events = read(docPath('events.md'))
     assert.include(events, '`amount`, `newTotal`', 'QuotaTracked 4th field is `newTotal`')
-    assert.notInclude(
-      events,
-      '`amount`, `total`',
-      'the stale `total` field name must not reappear'
-    )
+    assert.notInclude(events, '`amount`, `total`', 'the stale `total` field name must not reappear')
   })
 
   test('events.md documents the public metrics events', ({ assert }) => {

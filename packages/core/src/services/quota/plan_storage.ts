@@ -1,7 +1,6 @@
 import { getConfig } from '../../config.js'
 
-const lazyTenantPlan = () =>
-  import('../../models/satellites/tenant_plan.js').then((m) => m.default)
+const lazyTenantPlan = () => import('../../models/satellites/tenant_plan.js').then((m) => m.default)
 
 export type PlanStorageMode = 'config-only' | 'tenant_plans'
 
@@ -46,7 +45,9 @@ export async function resolveStorageMode(): Promise<PlanStorageMode> {
     const { default: db } = await import('@adonisjs/lucid/services/db')
     const result = await db
       .connection(getConfig().backofficeConnectionName)
-      .rawQuery(`SELECT to_regclass(?) AS reg`, [`${getConfig().backofficeSchemaName}.tenant_plans`])
+      .rawQuery(`SELECT to_regclass(?) AS reg`, [
+        `${getConfig().backofficeSchemaName}.tenant_plans`,
+      ])
     const rows = (result?.rows ?? result) as Array<{ reg: string | null }>
     // Only LATCH on a definitive answer: a successful probe genuinely tells us
     // whether the table exists.
