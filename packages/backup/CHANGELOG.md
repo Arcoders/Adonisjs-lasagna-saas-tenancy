@@ -33,6 +33,18 @@ and self-describes like the other satellites.
   partway through the first upload.
 - **Coverage gate added** (`.c8rc.json`, `check-coverage: true`).
 
+### Fixed
+
+- **Failed dumps leave no half-written artifact.** `BackupService.backup()` now
+  unlinks the partial `.dump` and rethrows when `pg_dump` dies mid-write (a dropped
+  DB connection, a vanished schema, a full disk). Previously an unrestorable
+  half-dump survived on disk, where a later `restore` or a retention sweep could
+  pick it up as if it were a real backup.
+- **`typesVersions` for the `/provider` and `/commands` subpaths.** Those subpaths
+  were declared in `exports` but had no matching `typesVersions` entries, so a
+  consumer on `node10`-style module resolution could not resolve their type
+  declarations. Added the missing entries (mirroring core).
+
 **Stability: release candidate.** The API is frozen under the 1.x promise, with the
 honest caveat that a correction forced by the pending security review or production
 mileage may land in a 1.x minor with a loud changelog entry.

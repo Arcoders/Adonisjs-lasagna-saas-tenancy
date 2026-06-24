@@ -70,6 +70,24 @@ for a copy-paste migration.
   middleware — forgetting the guard on a route group can no longer serve a
   suspended tenant. Admin/recovery flows that legitimately need an inactive
   tenant opt in with `request.tenant({ allowInactive: true })`.
+- **Webhook signing secrets fail closed.** Delivery now requires the stored
+  `tenant_webhooks.secret` to be `enc_v1` ciphertext. `WebhookService.send()`
+  decrypted leniently before, so a plaintext, corrupted, or wrong-key secret was
+  silently signed with the raw column bytes; it now uses `decryptStrict` and
+  marks the delivery failed (no retry) instead of signing with the wrong key.
+  Secrets created through `registerWebhook()` are already encrypted and need no
+  action. If you ever wrote `tenant_webhooks.secret` directly, run the one-time,
+  idempotent `node ace tenant:webhooks:encrypt-secrets` (`--dry-run` to preview)
+  before deliveries resume.
+- **Stripe SDK type re-exports removed from the core surface.** The
+  `StripeEvent` / `StripeSubscription` / `StripeSubscriptionStatus` /
+  `StripeCustomer` / `StripeInvoice` / `StripeCheckoutSession` / `StripePrice` /
+  `StripeProduct` types and the `stripe` optional peer dependency are gone from
+  `@adonisjs-lasagna/saas-tenancy`, so the isolation core no longer couples its
+  public surface to one payment provider. Import these from `stripe` directly
+  (`import type Stripe from 'stripe'`) or use billing's own types from
+  `@adonisjs-lasagna/billing`. (The `BillingConfig` / billing result types still
+  live in core.)
 
 ### Added
 
@@ -151,6 +169,119 @@ for a copy-paste migration.
   package's cache singleton is built through (memory L1 + Redis L2 + bus), so tests
   and hosts that need an isolated instance exercise the real production wiring
   instead of copying it.
+- **`authorizeTenantAccess` tenant-membership hook.** An opt-in hook on the tenant
+  guard that runs after the lifecycle check: returning `false` (or throwing) yields
+  a 403 `TenantAccessForbiddenException`. The package routes by tenant id but never
+  verified the caller belongs to the resolved tenant, leaving the cross-tenant IDOR
+  (a swapped `x-tenant-id`) entirely to the host. It is a membership check, not full
+  RBAC; when unset, behavior is unchanged. Ships with a `createTestAuthzContext`
+  testing helper and an `@adonisjs/auth` example.
+- **Compliance tooling.** Three core ace commands map the existing isolation, audit,
+  encryption, and retention features to SOC2 / GDPR / ISO 27001 / HIPAA controls:
+  `tenant:audit:export` (stream the immutable audit log to JSON/CSV for GDPR
+  Art.15/Art.20), `tenant:gdpr:anonymize <tenantId>` (Art.17 erasure via the new
+  `config.compliance.anonymize` seam, recorded in the audit log and dispatching a
+  `TenantAnonymized` event), and `tenant:compliance:report` (an extensible control
+  registry that introspects real posture, with `--framework`/`--control`/`--json`/
+  `--strict`). Additive; no certification is claimed.
+- **`TenantJob` base class** (root and `/jobs`). Subclasses implement `perform()`;
+  the base `execute()` resolves the tenant from `payload.tenantId` and wraps the
+  work in `tenancy.run()` automatically (models, cache, drive, and logging resolve
+  to the tenant), running globally when the payload carries no `tenantId`. Removes
+  the manual `tenancy.run()` wrapping footgun for host and third-party jobs.
+- **`buildTenantWorkerOptions(tenantId, concurrency?)`** on a new `/helpers` subpath.
+  Assembles the per-tenant BullMQ `WorkerOptions` (Redis connection, name,
+  concurrency) needed to run a dedicated worker per tenant with its own concurrency
+  ceiling, so one tenant's job burst cannot starve the others. The package stays
+  dispatch-only; the host owns the `Worker` lifecycle.
+- **`mapTenants(tenants, fn, options)`** (`/services`). A bounded-concurrency,
+  error-isolated tenant fan-out primitive: it runs `fn` inside each tenant's
+  `tenancy.run` scope, bounds peak concurrency (default 10), and collects per-tenant
+  failures into `errors` instead of aborting the whole run. The safe building block
+  for cross-tenant jobs and report extensions.
+- **Plan-aware per-tenant rate limiting.** Plans can declare an optional
+  `rateLimit: { limit, windowSeconds }` in `config.plans.definitions`, and a new
+  `enforceRateLimit()` middleware reads the resolved tenant's plan to apply a
+  tier-specific ceiling, so a `free` tenant can be throttled tighter than a `pro`
+  tenant without hardcoding limits per route. Reuses the existing Redis
+  sliding-window limiter; a plan that omits `rateLimit` is not routable through it.
+- **Feature-flag temporal expiry and CLI.** `tenant_feature_flags` gains a nullable
+  `expires_at` column and `set()` takes an optional `expiresAt`; once the deadline
+  passes, `isEnabled()` returns false (compared at read time, so it is exact
+  regardless of the 60s cache). New `FeatureFlagService.getFlag(tenantId, flag)`
+  returns the raw `{ enabled, config, expiresAt } | null` record without listing
+  every flag, and new `tenant:feature-flag:set|get|list|delete` commands manage
+  flags from the CLI. The per-tenant cache key changed (`ff_map:` → `ffm2:`) because
+  the cached value shape changed; old entries age out on their own. Re-run
+  `configure --with=feature_flags` on a fresh install, or add the column to an
+  existing table.
+- **`BrandingService.getCurrent()`** resolves the active tenant's branding from the
+  ambient `tenancy` context (HTTP request or `tenancy.run(...)`), mirroring
+  `tenantMailer()`. Throws outside a tenant scope.
+- **`tenant:doctor --fix --interactive`** confirms before fixing each check
+  (per check, not per issue). Ignored under `--watch`/`--json`; a no-op without
+  `--fix`.
+- **Request-metrics pipeline and custom named metrics.** A new opt-in
+  `TrackMetricsMiddleware` (`/middleware`) records one request, an error on a
+  `>= errorThreshold` (default 500) response, and the response bandwidth against the
+  resolved tenant, feeding the `tenant_metrics` table; recording is fail-open and
+  bypasses `app.inTest` by default. `MetricsService.emitMetric(tenantId, name,
+  value)` plus `flushCustomMetrics()` record host-defined named metrics (integer
+  minor units, names validated as safe identifiers) through the same
+  Redis → backoffice pipeline; they flush to the new
+  `backoffice.tenant_custom_metrics` table (`tenant:metrics:flush` runs both
+  flushes) and `emitMetric` dispatches a `MetricRecorded` event (`/events`). New
+  installs run the `create_tenant_custom_metrics_table` migration.
+- **Per-tenant monthly metrics rollup.** A new `backoffice.tenant_metrics_monthly`
+  table (one row per tenant per month), a `tenant:metrics:rollup` command, and
+  `MetricsService.recomputeMonthlyRollup()` that collapses the daily
+  `tenant_metrics` rows into it. The recompute is idempotent and excludes the
+  still-open month by default. New installs run the
+  `create_tenant_metrics_monthly_table` migration. Lets the reporting satellite
+  serve whole-month, fully-closed windows from a ~30×-smaller table.
+- **`MetricsFlushed` event** (`/events`), dispatched by `tenant:metrics:flush` after
+  both the built-in and custom flushes succeed (best-effort, fired from the command
+  so it neither double-fires nor fires on standalone library use). Lets the
+  reporting cache refresh the moment new data lands.
+- **Reporting data-freshness helpers.** Pure `mapDataAsOf`/`isStale`/`staleDays`
+  helpers (`/services`) and an opt-in `metrics_freshness` doctor check that warns
+  when `tenant:metrics:flush` has fallen behind. The check is deliberately not in
+  `builtInChecks` (a fresh/empty metrics table would warn forever), so register it
+  where you run the metrics pipeline.
+- **Public satellite extension platform (`/sdk`).** A new bare-import-safe `/sdk`
+  subpath exports the `SatelliteManifest` + `SatelliteProviderContract` types and a
+  configure toolkit (`discoverSatellites`, `publishSatellite`,
+  `registerSatelliteInRcFile`, the migration-publishing helpers, plus the pure
+  `isUuidV4`/`assertSafeIdentifier` validators). `configure` gains
+  `--list-satellites` and `--with=<package>` to wire any installed package that
+  declares a `lasagnaSatellite` key in its `package.json`. Satellites can declare
+  `dependsOn` other satellites (ordered and cycle-checked at configure time), and
+  manifest `provider`/`commands` paths are validated as safe relative specifiers.
+  `SATELLITE_API_VERSION` (currently `1`) plus `checkSatelliteApiCompat(...)` freeze
+  the ABI under the 1.x promise: `configure` refuses to wire a satellite that needs
+  a newer ABI than the installed core. The `/testing` barrel is now safe to import
+  in a hermetic unit test (it no longer boots a DB connection at import time).
+- **`tenant:satellite:remove <package>`** prints a precise, safe checklist for
+  removing a packaged satellite (the `adonisrc.ts` lines, the migrations it
+  published, its config block, the uninstall command). It never mutates the app or
+  drops data.
+- **`resolveTenantRepository()` helper** (root and `/services`) centralizes the one
+  unavoidable `container.make(TENANT_REPOSITORY as any)` cast that was copy-pasted
+  across commands, jobs, middleware, and satellites, so every call site gets a typed
+  `TenantRepositoryContract`.
+- **Boot-time numeric config validation.** The provider range-checks the numeric
+  tunables (connection caps, eviction grace windows, circuit-breaker threshold,
+  queue sizes, impersonation durations, ...), so a misconfiguration like
+  `isolation.maxTenantConnections: 0` fails fast at boot with a clear message
+  instead of misbehaving at runtime.
+- **New `BillingConfig` flags read by the billing satellite.** `BillingConfig`
+  (inlined in core so it stays decoupled from the billing package) gains an optional
+  `fiscal` block (`{ enabled?, automaticTax? }`) and two opt-in flags (default
+  `false`) `suspendOnPaymentFailure` / `reactivateOnPaymentSuccess` that drive the
+  auto-suspend / reactivate listeners shipped in `@adonisjs-lasagna/billing`. Also
+  `config.multitenancy.backup.lockFailOpenOnDestructive?` opts the backup
+  satellite's destructive operations back into legacy fail-open locking. Additive
+  and optional.
 
 ### Security
 
@@ -219,7 +350,47 @@ for a copy-paste migration.
   stability label), and CI enforces the agreement between stability labels and
   versions mechanically. The published release pipeline is gated on the full CI
   suite passing on the exact commit being released.
+- **Curated root barrel.** The concrete built-in isolation drivers
+  (`SchemaPgDriver`, `DatabasePgDriver`, `RowScopePgDriver`, `SqliteMemoryDriver`)
+  and resolver classes (`HeaderResolver`, `SubdomainResolver`, `PathResolver`,
+  `DomainOrSubdomainResolver`, `RequestDataResolver`, `builtInResolvers`) are now
+  exported from `/services` only, not the package root. Apps pick a driver by config
+  (`isolation.driver`) and resolvers via `TenantResolverRegistry`, so this only
+  affects code that imported those implementation classes directly, so switch such
+  imports to the `/services` subpath. The extension registries
+  (`IsolationDriverRegistry`, `TenantResolverRegistry`) stay on the root.
+- **Safer `configure` default.** A bare, non-interactive `node ace configure
+  @adonisjs-lasagna/saas-tenancy` no longer auto-publishes every core satellite's
+  migrations; it publishes only the core config + tenant model, and you opt into
+  satellites explicitly with `--with=`. The interactive prompt preselects nothing.
+- **`MultitenancyProvider.shutdown()` is complete.** It now also resets the
+  request-resolution caches (resolver registry + resolution cache), so a provider
+  re-boot in the same process (hot reload, or a test reusing the container) can't
+  serve a stale resolver or cached tenant.
 - `engines.node` stays `>=24` (required by AdonisJS 7 / Lucid 22).
+
+### Fixed
+
+- **The opt-in tenant-resolution cache now evicts on lifecycle events.** It never
+  did before: the provider wired the invalidation listeners in `boot()` by importing
+  the `@adonisjs/core/services/emitter` module, which only assigns its export inside
+  an `app.booted()` hook that has not run during `boot()`, so the import resolved to
+  `undefined` and every subscription was silently skipped. A suspend / maintenance /
+  delete only took effect once the TTL expired. The wiring now runs in `ready()` and
+  resolves the emitter from the container, so a lifecycle event drops the cached
+  tenant on this pod the moment it fires. No effect when the cache is off (the
+  default).
+- **Sliding-window rate limiter no longer undercounts same-millisecond requests.**
+  The ZSET member was the millisecond timestamp, so two requests in the same
+  millisecond collided into one member and `ZCARD` undercounted, letting a burst
+  slip past the configured limit. The member now carries a unique per-request
+  suffix, so every request is counted.
+- **Satellite migration publishing namespaces each file by package** (data-loss
+  fix). Two satellites that shipped a stub with the same basename collided before:
+  the second was silently skipped and its table was never created. Files are now
+  named `<ts>_<pkg_slug>__<stub>.ts` intrinsically; idempotency recognizes both the
+  namespaced and legacy un-namespaced forms, so existing installs are not
+  re-published as duplicates.
 
 ---
 

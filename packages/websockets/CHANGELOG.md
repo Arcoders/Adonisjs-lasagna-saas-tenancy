@@ -21,6 +21,13 @@ production mileage.
 - **Coverage gate.** Added an own `.c8rc.json` (`check-coverage: true`) over the
   handshake resolution and per-event tenant binding, run as `test:coverage` in CI.
 
+### Fixed
+
+- **Type resolution for the `/provider` subpath.** Added the missing
+  `typesVersions` entry so the `/provider` export's declarations resolve under
+  `node10`-style module resolution (it previously declared the subpath in
+  `exports` without a matching types map, which `arethetypeswrong` flagged).
+
 **Stability: release candidate.** The API is frozen under the 1.x promise, with
 the one honest caveat that a correction forced by the pending security review or
 production mileage may land in a 1.x minor with a loud changelog entry. See the

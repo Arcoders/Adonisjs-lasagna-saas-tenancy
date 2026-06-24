@@ -23,6 +23,12 @@ production mileage.
 - **Clear error when `jose` is absent.** The OIDC callback path surfaces an
   explicit, actionable error when the optional `jose` peer is not installed.
 - **Coverage gate added** (`.c8rc.json`, `check-coverage: true`) over the service.
+- **The package now owns its own migrations.** The SSO migration stubs were
+  previously published from the core; they now ship with this package and are
+  installed through the satellite mechanism. Existing apps are unaffected (their
+  migrations are already committed), but a fresh install is now
+  `node ace configure @adonisjs-lasagna/sso` (equivalently `--with=sso`, which
+  requires the package to be installed).
 
 **Stability: release candidate.** The API is frozen under the 1.x promise, with the
 honest caveat that a correction forced by the pending security review or production

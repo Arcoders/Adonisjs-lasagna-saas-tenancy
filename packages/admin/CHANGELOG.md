@@ -23,6 +23,10 @@ mount snippet (it never edits your routes file).
   docs.
 - **Coverage gate added** (`.c8rc.json`, `check-coverage: true`) over the
   unit-testable security logic (the fail-closed mount guard).
+- **Feature-flag expiry on the admin API.** The feature-flags `POST`/`PUT`
+  endpoints accept an optional `expiresAt` (ISO 8601); an invalid value returns
+  `400 invalid_expires_at`, and omitting it clears any stored expiry. Responses
+  now include an `expiresAt` field.
 
 **Stability: release candidate.** The API is frozen under the 1.x promise, with the
 honest caveat that a correction forced by the pending security review or production

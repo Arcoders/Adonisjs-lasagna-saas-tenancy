@@ -22,6 +22,21 @@ Added:
   (`--format=table|json|csv`, `--out`), a **max date-range guard**, and **OpenAPI + Swagger
   UI** (`openapi: true`).
 - The dashboard payload now includes `customMetrics`.
+- **Data freshness.** `ReportingService.getDataAsOf()` returns the latest flushed
+  `period` (or null), surfaced as a `dataAsOf` field on the dashboard payload. Reports
+  reflect flushed data only, so this reports how current that data is rather than hiding
+  the lag. There is no Redis fallback by design: Redis holds only the partial current
+  period and merging it would reintroduce cross-tenant fan-out.
+- **Pre-computed monthly rollups** (opt-in via `config.reporting.rollups.enabled`).
+  `getAggregate({ period: 'month' })` and `getTopTenants` serve whole-month, fully-closed
+  windows from the ~30×-smaller `backoffice.tenant_metrics_monthly` table; every other
+  query (day/week, partial/open months, custom metrics) transparently falls back to live
+  aggregation, and a closed-window report is byte-identical either way. Adopting it applies
+  the `create_tenant_metrics_monthly_table` migration.
+- **Cache invalidation on flush** (opt-in via `config.reporting.cache.invalidateOnFlush`).
+  The provider subscribes to the core `MetricsFlushed` event and clears the global
+  `reporting` cache namespace on each flush, so a cached dashboard (`cacheTtlMs > 0`) goes
+  fresh as soon as new data lands. Off by default.
 
 Quality:
 - Full integration tier on the shared satellite-test-kit + a chaos suite (cross-tenant
@@ -32,8 +47,7 @@ Quality:
 Notes:
 - Merged-coverage floors (`minMergedCoverage`) are set conservatively (lines 60) for the
   first enforced CI run and will be ratcheted up to the measured baseline.
-- Deferred to future iterations: dashboard-panel config, a metrics-management CLI,
-  pre-computed rollup tables.
+- Deferred to future iterations: dashboard-panel config, a metrics-management CLI.
 
 Requires the core metrics pipeline; new installs run the
 `create_tenant_custom_metrics_table` migration (a core stub).
