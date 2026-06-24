@@ -381,7 +381,7 @@
       "aliases": [],
       "flags": [
         { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id (recorded in the audit log)" },
-        { "name": "duration", "flagName": "duration", "required": false, "type": "number", "description": "Session duration in seconds (default 3600)" },
+        { "name": "duration", "flagName": "duration", "required": false, "type": "number", "description": "Session duration in seconds (default 900)" },
         { "name": "reason", "flagName": "reason", "required": false, "type": "string", "description": "Optional reason recorded in audit trail" },
         { "name": "path", "flagName": "path", "required": false, "type": "string", "description": "Path embedded in the printed redirect URL (default /)" }
       ],

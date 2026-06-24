@@ -6,9 +6,10 @@ description: Plan-bound limits served as middleware. Rolling-day counters and sn
 # Quotas
 
 Per-plan limits enforced via the `enforceQuota` middleware factory. Two
-counter modes: **rolling-day** (a 48-hour TTL counter you increment on
-every request) and **snapshot** (a watermark you update when something
-external changes, like seats or storage). Over-quota requests respond with
+counter modes: **rolling-day** (a per-day counter keyed by the UTC calendar
+date, reset at 00:00 UTC, that you increment on every request) and
+**snapshot** (a watermark you update when something external changes, like
+seats or storage). Over-quota requests respond with
 HTTP **429 Too Many Requests** (`E_TENANT_QUOTA_EXCEEDED`).
 
 ## Configuration
@@ -121,7 +122,7 @@ and [Troubleshooting](/docs/gotchas#fail-open-quotas-silently-stop-enforcing).
 
 | Mode | Helper | Reset behaviour |
 |---|---|---|
-| `rolling-day` (default) | `track` / `consume` | Redis key with 48-hour TTL after the last write. Suitable for "API calls in the last 24h". |
+| `rolling-day` (default) | `track` / `consume` | Fixed UTC calendar-day bucket: the Redis key is dated `YYYY-MM-DD` (UTC) and resets at 00:00 UTC. The 48-hour TTL just garbage-collects the previous day's key. It is **not** a sliding window, so a tenant can spend the full limit on each side of midnight UTC (worst case ~2× the daily limit across the boundary). Suitable for per-day allowances like "API calls per day". |
 | `snapshot` | `setUsage` | No TTL. The app reports the new value (seats, storageMb) when it changes. |
 
 ```ts

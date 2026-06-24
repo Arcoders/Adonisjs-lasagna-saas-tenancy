@@ -20,7 +20,7 @@ export default class TenantImpersonate extends BaseCommand {
   @flags.string({ description: 'Acting admin id (free-form, recorded in the audit log)' })
   declare admin: string
 
-  @flags.number({ description: 'Session duration in seconds (default 3600)' })
+  @flags.number({ description: 'Session duration in seconds (default 900)' })
   declare duration: number
 
   @flags.string({ description: 'Optional reason recorded in the audit trail' })

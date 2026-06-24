@@ -277,8 +277,11 @@ export default class QuotaService {
   }
 
   /**
-   * Increment a rolling-day counter (default mode). Use this for things
-   * like API calls per day. Counter expires after 48h.
+   * Increment the per-day counter (default mode). The key is dated by the UTC
+   * calendar day (`#periodToday`), so it is a fixed daily bucket that resets at
+   * 00:00 UTC, not a sliding 24h window — a tenant can spend the limit on each
+   * side of midnight UTC. The 48h TTL only garbage-collects the previous day's
+   * key. Use this for per-day allowances like API calls per day.
    */
   async track(tenant: TenantModelContract, quota: string, amount: number = 1): Promise<number> {
     const key = this.#rollingKey(tenant.id, quota)
@@ -377,6 +380,9 @@ export default class QuotaService {
    * server side — no over-grant under burst.
    *
    * Notes:
+   *   - The counter is a fixed UTC calendar-day bucket (the key is dated
+   *     `YYYY-MM-DD`), not a sliding 24h window: it resets at 00:00 UTC, so a
+   *     tenant can consume up to the limit on each side of midnight UTC.
    *   - Snapshot quotas (`setUsage`) are independent of this counter
    *     and are NOT included in the atomic check. If your quota is
    *     reported externally (seats, storage), enforce it where you

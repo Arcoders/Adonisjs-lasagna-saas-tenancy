@@ -627,7 +627,7 @@ export interface MultitenancyConfig {
   impersonation?: {
     /** HMAC secret. MUST be at least 32 chars. */
     secret: string
-    /** Default session duration (seconds). Default: 3600 (1h). Min 60. */
+    /** Default session duration (seconds). Default: 900 (15m). Min 60. */
     defaultDuration?: number
     /** Hard upper bound (seconds). Default: 86400 (24h). */
     maxDuration?: number

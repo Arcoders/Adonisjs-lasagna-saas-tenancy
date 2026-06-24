@@ -145,7 +145,7 @@ known-down tenant DB isn't hammered with timeouts after a deploy.
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `impersonation.secret` | `string` |  | HMAC secret (≥ 32 chars). Without it, `start()` throws. |
-| `impersonation.defaultDuration` | `number` | `3600` | Session length (seconds, min 60). |
+| `impersonation.defaultDuration` | `number` | `900` | Session length (seconds, min 60). |
 | `impersonation.maxDuration` | `number` | `86400` | Hard upper bound (seconds). |
 | `impersonation.headerName` | `string` | `x-impersonation-token` | Header read by the middleware. |
 | `impersonation.cookieName` | `string` | `__impersonation` | Cookie fallback name. |

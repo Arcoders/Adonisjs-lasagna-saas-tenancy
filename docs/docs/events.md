@@ -49,7 +49,7 @@ stateDiagram-v2
 | `TenantRestored` | `tenant`, `fileName` | `RestoreTenant` job |
 | `TenantCloned` | `source`, `destination`, `result: CloneResult` | `CloneTenant` job |
 | `TenantQuotaExceeded` | `tenant`, `quota`, `limit`, `current`, `attempted` | `QuotaService.consume()` when an atomic check rejects the increment |
-| `QuotaTracked` | `tenant`, `quota`, `amount`, `total` | `QuotaService.track` / `consume` when `plans.emitTracked` is on (drives the Stripe metering bridge) |
+| `QuotaTracked` | `tenant`, `quota`, `amount`, `newTotal` | `QuotaService.track` / `consume` when `plans.emitTracked` is on (drives the Stripe metering bridge) |
 | `TenantEnteredMaintenance` | `tenant`, `message: string \| null` | `tenant:maintenance` command, `POST .../maintenance` |
 | `TenantExitedMaintenance` | `tenant` | `tenant:maintenance --off`, `DELETE .../maintenance` |
 | `TenantDeleted` | `tenant` | `tenant:destroy` command, `UninstallTenant` job, `POST .../tenants/:id/destroy` |
@@ -71,15 +71,15 @@ the [Billing satellite](/docs/satellites/billing#events).
 
 | Event | Payload | Dispatched by |
 |---|---|---|
-| `SubscriptionActivated` | `tenantId`, `stripeSubscriptionId`, `planName` | `customer.subscription.created` (or `.updated` flipping to active) |
-| `SubscriptionUpdated` | `tenantId`, `stripeSubscriptionId`, `previousPlan`, `newPlan` | `customer.subscription.updated` when plan changes |
-| `SubscriptionCanceled` | `tenantId`, `stripeSubscriptionId`, `previousPlan`, `reason` | `customer.subscription.deleted` (`reason`: `user_canceled` \| `dunning_failed` \| `unknown`) |
-| `SubscriptionPaused` | `tenantId`, `stripeSubscriptionId` | Stripe pause-collection or `customer.subscription.paused` |
-| `SubscriptionResumed` | `tenantId`, `stripeSubscriptionId` | `customer.subscription.resumed` |
-| `TrialEnding` | `tenantId`, `stripeSubscriptionId`, `daysLeft` | `customer.subscription.trial_will_end` |
+| `SubscriptionActivated` | `tenantId`, `subscriptionId`, `planName` | `customer.subscription.created` (or `.updated` flipping to active) |
+| `SubscriptionUpdated` | `tenantId`, `subscriptionId`, `previousPlan`, `newPlan` | `customer.subscription.updated` when plan changes |
+| `SubscriptionCanceled` | `tenantId`, `subscriptionId`, `previousPlan`, `reason` | `customer.subscription.deleted` (`reason`: `user_canceled` \| `dunning_failed` \| `unknown`) |
+| `SubscriptionPaused` | `tenantId`, `subscriptionId` | Stripe pause-collection or `customer.subscription.paused` |
+| `SubscriptionResumed` | `tenantId`, `subscriptionId` | `customer.subscription.resumed` |
+| `TrialEnding` | `tenantId`, `subscriptionId`, `daysLeft` | `customer.subscription.trial_will_end` |
 | `PaymentSucceeded` | `tenantId`, `invoiceId`, `amount`, `currency` | `invoice.payment_succeeded` |
 | `PaymentFailed` | `tenantId`, `invoiceId`, `amount`, `currency`, `attempts`, `final`, `nextRetry` | `invoice.payment_failed` (every attempt — match on `final: true` for the terminal step) |
-| `BillingMisconfigured` | `stripeSubscriptionId`, `productId`, `priceId` | A Stripe product/price has no mapping in `config.billing.products`. |
+| `BillingMisconfigured` | `subscriptionId`, `productId`, `priceId` | A Stripe product/price has no mapping in `config.billing.products`. |
 | `BillingEventDeadLettered` | `eventId`, `errorCode`, `details` | Webhook event exhausted all queue retries. `errorCode` is a stable enum (`BillingErrorCode \| 'unhandled_error'`). |
 
 ::: tip Subscribe paging to BillingEventDeadLettered
@@ -103,6 +103,23 @@ and the configured degradation policy kicks in. Full detail on the
 A burst of these means a backing service is down. The payload is alert-safe: a
 dependency name, an operation label, an optional tenant id, the applied policy,
 and a best-effort error code. No driver message, no PII.
+:::
+
+## Metrics
+
+Exported from `@adonisjs-lasagna/saas-tenancy/events` for host code and satellites
+that react to usage data. Unlike the lifecycle events, these carry a single
+`payload` object (typed `MetricRecordedPayload` / `MetricsFlushedPayload`).
+
+| Event | Payload | Dispatched by |
+|---|---|---|
+| `MetricRecorded` | `payload: { tenantId, name, value, period }` | `MetricsService.emitMetric()` after a custom named metric is written to Redis. Best-effort and fail-open, so it only fires when the value was actually recorded. |
+| `MetricsFlushed` | `payload: { period, tenantCount? }` | The `tenant:metrics:flush` command after both the built-in and custom counters are flushed to the backoffice tables. `tenantCount` is reserved: the command currently dispatches `{ period }` only, so treat it as optional. The `reporting` satellite subscribes to clear its dashboard cache. |
+
+::: tip MetricRecorded vs MetricsFlushed
+`MetricRecorded` fires per custom-metric write (high frequency); `MetricsFlushed`
+fires once per flush run. Use the former to mirror individual values, the latter
+to invalidate read-side caches once a period's data has landed.
 :::
 
 ## Subscribing

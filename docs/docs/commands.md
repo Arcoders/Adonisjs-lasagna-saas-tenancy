@@ -120,6 +120,7 @@ node ace tenant:exec --status=active db:seed
 |---|---|
 | `tenant:webhooks:retry` | Process pending webhook retries. Cron: `* * * * *`. |
 | `tenant:metrics:flush` | Flush Redis metric counters to the database. Cron: `0 1 * * *`. |
+| `tenant:metrics:rollup` | Recompute the per-tenant monthly rollup of `tenant_metrics` for fast whole-month reporting. Idempotent. `--since=<YYYY-MM-DD>`, `--until=<YYYY-MM-DD>`. Cron: `0 2 1 * *` (after a month closes). |
 | `tenant:purge-expired` | Drop schemas of soft-deleted tenants past their retention window. Cron: `0 3 * * *`. |
 
 ## Compliance
@@ -149,7 +150,7 @@ Available when `--with=billing` is configured. Full reference in the
 | `tenant:billing:sync` | Reconcile Stripe subscriptions with the local mirror; recovers from missed webhooks. Flags: `--dry-run`, `--tenant=<id>`, `--since=<iso>`, `--json`. Cron: `0 4 * * *`. |
 | `tenant:billing:backfill` | Seed `tenant_plans` rows with the default plan for every tenant that doesn't have one. Flags: `--dry-run`, `--force`, `--plan=<name>`. |
 | `tenant:billing:replay` | Re-dispatch a failed webhook event after the underlying issue is fixed. Flags: `--event-id=<evt>`, `--all-failed`. |
-| `tenant:billing:cleanup` | Purge `stripe_processed_events` older than `webhook.idempotencyTtlDays`. Flag: `--batch-size=<n>`. Cron: `0 4 * * *`. |
+| `tenant:billing:cleanup` | Purge `billing_processed_events` older than `webhook.idempotencyTtlDays`. Flag: `--batch-size=<n>`. Cron: `0 4 * * *`. |
 | `tenant:billing:sweep` | Emit due trial-ending notices (the Paddle / Lemon Squeezy fallback for Stripe's native `trial_will_end`) and apply due grace-period dunning downgrades. Idempotent. Flag: `--batch-size=<n>`. Cron: `0 * * * *` (hourly). |
 | `tenant:billing:doctor` | Diagnose Stripe config + recent webhook health. Exit 1 on any error (pipeline-friendly). Flag: `--json`. |
 | `tenant:billing:test-webhook <event>` | Generate and POST a signed synthetic Stripe event. Flags: `--url=<url>`, `--object=<file>`. Useful in CI without `stripe listen`. |

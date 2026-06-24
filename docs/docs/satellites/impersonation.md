@@ -23,7 +23,7 @@ node ace configure @adonisjs-lasagna/saas-tenancy --with=impersonation
 ```ts
 impersonation: {
   secret: env.get('IMPERSONATION_SECRET'),  // ≥ 32 chars; validated at boot
-  defaultDuration: 3600,                    // seconds; this is the default (1 h)
+  defaultDuration: 900,                     // seconds; the default when omitted (15 min)
   maxDuration: 24 * 60 * 60,                // seconds, default 24h. start() clamps requests to [60, maxDuration]
 }
 ```
