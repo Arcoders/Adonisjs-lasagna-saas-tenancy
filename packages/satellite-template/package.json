@@ -18,6 +18,16 @@
     "./provider": "./build/providers/example_provider.js",
     "./commands": "./build/src/commands/main.js"
   },
+  "typesVersions": {
+    "*": {
+      "provider": [
+        "./build/providers/example_provider.d.ts"
+      ],
+      "commands": [
+        "./build/src/commands/main.d.ts"
+      ]
+    }
+  },
   "main": "./build/src/index.js",
   "types": "./build/src/index.d.ts",
   "adonisjs": {

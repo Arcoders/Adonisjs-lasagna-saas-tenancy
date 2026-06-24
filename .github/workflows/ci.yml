@@ -206,7 +206,7 @@ jobs:
       - name: Package contracts (publint + types resolution)
         run: |
           set -e
-          for pkg in core sso billing admin backup websockets; do
+          for pkg in core sso billing admin backup websockets reporting; do
             echo "== @adonisjs-lasagna/$pkg =="
             ( cd "packages/$pkg" \
               && npx -y publint@0.3.21 \

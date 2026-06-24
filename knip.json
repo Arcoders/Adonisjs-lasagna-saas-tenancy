@@ -28,6 +28,7 @@
     "packages/core": {
       "entry": [
         "src/index.ts",
+        "src/internal.ts",
         "src/admin/index.ts",
         "src/commands/main.ts",
         "src/events/index.ts",
