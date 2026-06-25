@@ -127,8 +127,12 @@ test.group('configure — quotas & maintenance bundles', () => {
     assert.deepEqual(filterUnknown(['maintenance']), { known: ['maintenance'], unknown: [] })
   })
 
-  test('metrics resolves to its single table', ({ assert }) => {
-    assert.deepEqual(resolveMigrationStubs(['metrics']), ['create_tenant_metrics_table'])
+  test('metrics resolves to the daily, custom, and monthly-rollup tables', ({ assert }) => {
+    assert.deepEqual(resolveMigrationStubs(['metrics']), [
+      'create_tenant_metrics_table',
+      'create_tenant_custom_metrics_table',
+      'create_tenant_metrics_monthly_table',
+    ])
   })
 })
 

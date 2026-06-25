@@ -32,7 +32,16 @@ export const SATELLITE_BUNDLES: Record<string, string[]> = {
   feature_flags: ['create_tenant_feature_flags_table'],
   webhooks: ['create_tenant_webhooks_table', 'create_tenant_webhook_deliveries_table'],
   branding: ['create_tenant_brandings_table'],
-  metrics: ['create_tenant_metrics_table'],
+  // The metrics pipeline writes three backoffice tables: the daily counters
+  // (tenant_metrics), the host-defined named metrics that `MetricsService.emitMetric`
+  // flushes (tenant_custom_metrics), and the monthly rollup `tenant:metrics:rollup`
+  // collapses into (tenant_metrics_monthly). All three ship together so a host that
+  // selects metrics can emit custom metrics and run the rollup without a missing table.
+  metrics: [
+    'create_tenant_metrics_table',
+    'create_tenant_custom_metrics_table',
+    'create_tenant_metrics_monthly_table',
+  ],
   // tenant_plans backs QuotaService.assignPlan/track. The billing satellite
   // (now an external package) declares `requires: ["quotas"]` so this table is
   // published before its own tables; `resolveMigrationStubs` dedups if both the
@@ -419,7 +428,9 @@ export default async function configure(command: Configure) {
       '  change in a minor release. Pin your version and check the changelog before'
     )
     command.logger.log('  upgrading. Stability matrix:')
-    command.logger.log('  https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/stability')
+    command.logger.log(
+      '  https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability'
+    )
   }
 
   // Per-feature follow-ups for the core bundles.
