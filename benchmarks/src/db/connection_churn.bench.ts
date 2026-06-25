@@ -121,13 +121,21 @@ export async function runConnectionChurn(app: ApplicationService, db: any): Prom
       { group: GROUP, meta: { cap } }
     )
 
-    const { samples: churnSamples, writeOps } = await churnLoad(driver, db, refs, C, sizes.churn.opsPerStep)
+    const { samples: churnSamples, writeOps } = await churnLoad(
+      driver,
+      db,
+      refs,
+      C,
+      sizes.churn.opsPerStep
+    )
     const open = snapshotConnections(db).tenantOpen
     const backends = await pgBackendCount(db)
     const leaks = await countLeaks(driver, db, refs)
     const writeLeaks = await countWriteLeaks(driver, db, refs)
 
-    const churn = summarize(`cap=${cap} churn read+write (M=${M}, C=${C})`, churnSamples, { group: GROUP })
+    const churn = summarize(`cap=${cap} churn read+write (M=${M}, C=${C})`, churnSamples, {
+      group: GROUP,
+    })
     const degradationPct =
       baseline.ns.p99 > 0 ? ((churn.ns.p99 - baseline.ns.p99) / baseline.ns.p99) * 100 : 0
     churn.meta = {

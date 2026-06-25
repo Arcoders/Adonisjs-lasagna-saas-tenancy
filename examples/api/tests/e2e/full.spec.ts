@@ -1,12 +1,6 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
-import {
-  ADMIN_HEADERS,
-  runAce,
-  probePgTools,
-  installInline,
-  dropAllTenants,
-} from './_helpers.js'
+import { ADMIN_HEADERS, runAce, probePgTools, installInline, dropAllTenants } from './_helpers.js'
 
 let hasPgTools = false
 let primaryTenantId = ''
@@ -15,7 +9,6 @@ test.group('e2e — full feature tour', (group) => {
   group.setup(async () => {
     hasPgTools = await probePgTools()
     if (!hasPgTools) {
-      // eslint-disable-next-line no-console
       console.warn('[e2e] pg_dump/pg_restore/psql not on PATH — backup tests will be skipped')
     }
     await dropAllTenants()
@@ -63,9 +56,7 @@ test.group('e2e — full feature tour', (group) => {
   })
 
   test('connection name reflects the tenant', async ({ client, assert }) => {
-    const r = await client
-      .get('/demo/connection')
-      .header('x-tenant-id', primaryTenantId)
+    const r = await client.get('/demo/connection').header('x-tenant-id', primaryTenantId)
     r.assertStatus(200)
     assert.include(r.body().connectionName, `tenant_${primaryTenantId}`)
   })
@@ -146,10 +137,7 @@ test.group('e2e — full feature tour', (group) => {
   })
 
   // ─── 7. Doctor (HTTP form + CLI form) ───────────────────────────
-  test('GET /demo/doctor returns a JSON report from DoctorService', async ({
-    client,
-    assert,
-  }) => {
+  test('GET /demo/doctor returns a JSON report from DoctorService', async ({ client, assert }) => {
     const r = await client.get('/demo/doctor').header('x-tenant-id', primaryTenantId)
     r.assertStatus(200)
     assert.property(r.body(), 'reports')
@@ -201,9 +189,7 @@ test.group('e2e — full feature tour', (group) => {
   })
 
   // ─── 9. Backups ──────────────────────────────────────────────────
-  test('tenant:backup writes a dump file (skipped if pg_dump missing)', async ({
-    assert,
-  }) => {
+  test('tenant:backup writes a dump file (skipped if pg_dump missing)', async ({ assert }) => {
     if (!hasPgTools) {
       assert.isTrue(true, 'skipped — pg tools not on PATH')
       return
@@ -224,13 +210,9 @@ test.group('e2e — full feature tour', (group) => {
   })
 
   // ─── 12. Read replica routing ───────────────────────────────────
-  test('GET /demo/notes/read returns the replica connection name', async ({
-    client,
-    assert,
-  }) => {
+  test('GET /demo/notes/read returns the replica connection name', async ({ client, assert }) => {
     const r = await client.get('/demo/notes/read').header('x-tenant-id', primaryTenantId)
     if (r.status() !== 200) {
-      // eslint-disable-next-line no-console
       console.error('[replica test] body:', JSON.stringify(r.body()))
     }
     r.assertStatus(200)
@@ -250,10 +232,7 @@ test.group('e2e — full feature tour', (group) => {
     assert.isArray(r.body().data)
   })
 
-  test('admin /admin/health/report returns a DoctorService report', async ({
-    client,
-    assert,
-  }) => {
+  test('admin /admin/health/report returns a DoctorService report', async ({ client, assert }) => {
     const r = await client.get('/admin/health/report').headers(ADMIN_HEADERS)
     assert.oneOf(r.status(), [200, 503])
     assert.property(r.body(), 'reports')
@@ -284,9 +263,7 @@ test.group('e2e — full feature tour', (group) => {
       .rawQuery('SELECT 1 FROM information_schema.schemata WHERE schema_name = ?', [schemaName])
     assert.isAtLeast(before.rows.length, 1, 'schema should still exist after soft-delete')
 
-    const purge = await runAce('tenant:purge-expired', [
-      '--retention-days', '0', '--force',
-    ])
+    const purge = await runAce('tenant:purge-expired', ['--retention-days', '0', '--force'])
     assert.equal(purge, 0)
 
     const after = await db

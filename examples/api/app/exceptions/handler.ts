@@ -1,7 +1,7 @@
 import { appendFile, mkdir } from 'node:fs/promises'
 import { dirname, isAbsolute, resolve } from 'node:path'
 import app from '@adonisjs/core/services/app'
-import { ExceptionHandler, HttpContext } from '@adonisjs/core/http'
+import { ExceptionHandler, type HttpContext } from '@adonisjs/core/http'
 import {
   MissingTenantHeaderException,
   TenantNotFoundException,

@@ -7,7 +7,13 @@
  *   npm run bench:report -- --write-baseline=1.0.0
  */
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs'
-import { latestBySuiteDriver, latestNBySuiteDriver, median, iqr, type ResultFile } from './results.js'
+import {
+  latestBySuiteDriver,
+  latestNBySuiteDriver,
+  median,
+  iqr,
+  type ResultFile,
+} from './results.js'
 import type { BenchResult } from './runner.js'
 
 const PERF_DOC = new URL('../../../docs/guides/performance.md', import.meta.url)
@@ -70,7 +76,12 @@ function sectionTable(file: ResultFile): string {
 }
 
 /** Largest value seen for a meta key across a suite's rows (0 if absent). */
-function maxMeta(latest: Map<string, ResultFile>, suite: string, group: string, key: string): number {
+function maxMeta(
+  latest: Map<string, ResultFile>,
+  suite: string,
+  group: string,
+  key: string
+): number {
   let max = 0
   for (const file of latest.values()) {
     if (file.suite !== suite) continue
@@ -187,7 +198,9 @@ function buildMarkdown(latest: Map<string, ResultFile>): string {
     )
   }
   header.push(...caveat(anyEnv, latest))
-  const sections = files.map((f) => `## ${f.suite} — driver \`${f.env.driver}\`\n\n${sectionTable(f)}\n`)
+  const sections = files.map(
+    (f) => `## ${f.suite} — driver \`${f.env.driver}\`\n\n${sectionTable(f)}\n`
+  )
   return header.join('\n') + '\n' + sections.join('\n')
 }
 
@@ -203,7 +216,7 @@ function writeBaseline(name: string, latest: Map<string, ResultFile>): void {
   const env = [...latest.values()][0]?.env ?? null
   const path = new URL(`${name}.json`, BASELINES_DIR)
   writeFileSync(path, JSON.stringify({ capturedEnv: env, index }, null, 2))
-  // eslint-disable-next-line no-console
+
   console.log(`→ wrote baseline ${name}.json`)
 }
 
@@ -215,7 +228,10 @@ function writeBaseline(name: string, latest: Map<string, ResultFile>): void {
 function writeAggregatedBaseline(name: string, runs: number): void {
   mkdirSync(BASELINES_DIR, { recursive: true })
   const byKey = latestNBySuiteDriver(runs)
-  const index: Record<string, Record<string, { opsPerSec: number; nsMedian: number; iqr: number; runs: number }>> = {}
+  const index: Record<
+    string,
+    Record<string, { opsPerSec: number; nsMedian: number; iqr: number; runs: number }>
+  > = {}
   for (const [key, files] of byKey) {
     index[key] ??= {}
     // Collect each label's opsPerSec / nsMedian across the N files.
@@ -243,8 +259,11 @@ function writeAggregatedBaseline(name: string, runs: number): void {
   }
   const env = [...byKey.values()][0]?.[0]?.env ?? null
   const path = new URL(`${name}.json`, BASELINES_DIR)
-  writeFileSync(path, JSON.stringify({ capturedEnv: env, aggregatedOverRuns: runs, index }, null, 2))
-  // eslint-disable-next-line no-console
+  writeFileSync(
+    path,
+    JSON.stringify({ capturedEnv: env, aggregatedOverRuns: runs, index }, null, 2)
+  )
+
   console.log(`→ wrote baseline ${name}.json (median of up to ${runs} runs per suite/driver)`)
 }
 
@@ -267,7 +286,10 @@ function injectScalingLimits(latest: Map<string, ResultFile>): void {
     if (!key.startsWith('http:')) continue
     const driver = file.env.driver
     const read = file.results.find((r) => r.name.includes('guarded'))
-    if (read) httpLines.push(`- \`${driver}\` tenant read: **${read.opsPerSec.toLocaleString()} req/s** (p99 ${(read.ns.p99 / 1e6).toFixed(1)} ms)`)
+    if (read)
+      httpLines.push(
+        `- \`${driver}\` tenant read: **${read.opsPerSec.toLocaleString()} req/s** (p99 ${(read.ns.p99 / 1e6).toFixed(1)} ms)`
+      )
   }
   const budget = [...latest.values()].find((f) => f.suite === 'mem')
   // Prefer the HONEST burst tier (production grace) over the steady tier, which
@@ -297,14 +319,14 @@ function injectScalingLimits(latest: Map<string, ResultFile>): void {
 
   const re = new RegExp(`${INJECT_START}[\\s\\S]*?${INJECT_END}`)
   writeFileSync(SCALING_DOC, doc.replace(re, block))
-  // eslint-disable-next-line no-console
+
   console.log('→ injected summary into docs/guides/scaling-limits.md')
 }
 
 const latest = latestBySuiteDriver()
 const md = buildMarkdown(latest)
 writeFileSync(PERF_DOC, md)
-// eslint-disable-next-line no-console
+
 console.log(`→ wrote docs/guides/performance.md (${latest.size} suite/driver section(s))`)
 injectScalingLimits(latest)
 
@@ -316,6 +338,7 @@ if (writeArg) {
   if (runs > 1) writeAggregatedBaseline(name, runs)
   else writeBaseline(name, latest)
 } else if (runs > 1) {
-  // eslint-disable-next-line no-console
-  console.log('--runs given without --write-baseline; nothing to aggregate into. Add --write-baseline=<name>.')
+  console.log(
+    '--runs given without --write-baseline; nothing to aggregate into. Add --write-baseline=<name>.'
+  )
 }

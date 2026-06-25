@@ -134,7 +134,7 @@ async function runDatabaseCatalog(app: ApplicationService, db: any): Promise<Ben
   const perDbPgClass = await scalarInt(conn, 'SELECT count(*)::int AS c FROM pg_class')
   const databases = await scalarInt(
     db,
-    "SELECT count(*)::int AS c FROM pg_database WHERE datistemplate = false"
+    'SELECT count(*)::int AS c FROM pg_database WHERE datistemplate = false'
   )
   const plan = await measureLatency(
     'EXPLAIN via search_path (tenant database)',

@@ -73,9 +73,7 @@ test.group('e2e — satellites: feature flags, branding, SSO (HTTP)', (group) =>
     assert.notInclude(flags, 'temp_flag')
   })
 
-  test('POST /demo/feature-flags rejects requests without a flag name', async ({
-    client,
-  }) => {
+  test('POST /demo/feature-flags rejects requests without a flag name', async ({ client }) => {
     const { id } = await createInstalledTenant(client)
     const r = await client
       .post('/demo/feature-flags')
@@ -101,15 +99,12 @@ test.group('e2e — satellites: feature flags, branding, SSO (HTTP)', (group) =>
 
   test('PUT /demo/branding upserts and is read back via GET', async ({ client, assert }) => {
     const { id } = await createInstalledTenant(client)
-    const put = await client
-      .put('/demo/branding')
-      .header('x-tenant-id', id)
-      .json({
-        fromName: 'Acme',
-        fromEmail: 'no-reply@acme.test',
-        primaryColor: '#FF00FF',
-        supportUrl: 'https://acme.test/help',
-      })
+    const put = await client.put('/demo/branding').header('x-tenant-id', id).json({
+      fromName: 'Acme',
+      fromEmail: 'no-reply@acme.test',
+      primaryColor: '#FF00FF',
+      supportUrl: 'https://acme.test/help',
+    })
     put.assertStatus(200)
     assert.equal(put.body().branding.fromName, 'Acme')
     assert.equal(put.body().branding.primaryColor, '#FF00FF')
@@ -135,10 +130,7 @@ test.group('e2e — satellites: feature flags, branding, SSO (HTTP)', (group) =>
   })
 
   // ─── SSO ─────────────────────────────────────────────────────────
-  test('GET /demo/sso reports configured: false before any upsert', async ({
-    client,
-    assert,
-  }) => {
+  test('GET /demo/sso reports configured: false before any upsert', async ({ client, assert }) => {
     const { id } = await createInstalledTenant(client)
     const r = await client.get('/demo/sso').header('x-tenant-id', id)
     r.assertStatus(200)
@@ -173,10 +165,7 @@ test.group('e2e — satellites: feature flags, branding, SSO (HTTP)', (group) =>
 
   test('PUT /demo/sso rejects requests missing required fields', async ({ client }) => {
     const { id } = await createInstalledTenant(client)
-    const r = await client
-      .put('/demo/sso')
-      .header('x-tenant-id', id)
-      .json({ clientId: 'only-id' })
+    const r = await client.put('/demo/sso').header('x-tenant-id', id).json({ clientId: 'only-id' })
     // VineJS surfaces validation failures as 422.
     r.assertStatus(422)
   })
@@ -186,15 +175,12 @@ test.group('e2e — satellites: feature flags, branding, SSO (HTTP)', (group) =>
     assert,
   }) => {
     const { id } = await createInstalledTenant(client)
-    await client
-      .put('/demo/sso')
-      .header('x-tenant-id', id)
-      .json({
-        clientId: 'cid',
-        clientSecret: 'csec',
-        issuerUrl: 'https://acme.okta.com',
-        redirectUri: 'https://acme.test/cb',
-      })
+    await client.put('/demo/sso').header('x-tenant-id', id).json({
+      clientId: 'cid',
+      clientSecret: 'csec',
+      issuerUrl: 'https://acme.okta.com',
+      redirectUri: 'https://acme.test/cb',
+    })
 
     const row = await TenantSsoConfig.query().where('tenant_id', id).firstOrFail()
     assert.equal(row.clientId, 'cid')

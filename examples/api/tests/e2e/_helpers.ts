@@ -135,7 +135,9 @@ export async function waitFor<T>(
     if (v) return v as T
     await new Promise((r) => setTimeout(r, intervalMs))
   }
-  throw new Error(`waitFor timed out after ${timeoutMs}ms${opts.description ? `: ${opts.description}` : ''}`)
+  throw new Error(
+    `waitFor timed out after ${timeoutMs}ms${opts.description ? `: ${opts.description}` : ''}`
+  )
 }
 
 export function getEmitter() {

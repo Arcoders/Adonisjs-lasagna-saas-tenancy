@@ -4,12 +4,7 @@ import { join, resolve } from 'node:path'
 import app from '@adonisjs/core/services/app'
 import { BackupService } from '@adonisjs-lasagna/backup'
 import Tenant from '#app/models/backoffice/tenant'
-import {
-  createInstalledTenant,
-  dropAllTenants,
-  probePgTools,
-  runAce,
-} from './_helpers.js'
+import { createInstalledTenant, dropAllTenants, probePgTools, runAce } from './_helpers.js'
 
 let hasPgTools = false
 
@@ -135,9 +130,12 @@ test.group('e2e — backup, restore, import, clone (real)', (group) => {
     const fixture = resolve('tests/fixtures/demo-tenant.sql')
 
     const code = await runAce('tenant:import', [
-      '-t', id,
-      '-f', fixture,
-      '--schema-replace', 'public',
+      '-t',
+      id,
+      '-f',
+      fixture,
+      '--schema-replace',
+      'public',
       '--force',
     ])
     assert.equal(code, 0, 'tenant:import should exit 0')
@@ -146,9 +144,7 @@ test.group('e2e — backup, restore, import, clone (real)', (group) => {
     // migrations — its presence proves the dump was rewritten and applied.
     const tenant = await Tenant.findOrFail(id)
     const conn = tenant.getConnection()
-    const widgets = await conn.rawQuery(
-      'SELECT count(*)::int AS n FROM widgets'
-    )
+    const widgets = await conn.rawQuery('SELECT count(*)::int AS n FROM widgets')
     assert.equal(widgets.rows[0].n, 3, 'expected 3 widgets from the fixture')
 
     const notes = await conn.rawQuery(
@@ -167,9 +163,12 @@ test.group('e2e — backup, restore, import, clone (real)', (group) => {
     const fixture = resolve('tests/fixtures/demo-tenant.sql')
 
     const code = await runAce('tenant:import', [
-      '-t', id,
-      '-f', fixture,
-      '--schema-replace', 'public',
+      '-t',
+      id,
+      '-f',
+      fixture,
+      '--schema-replace',
+      'public',
       '--dry-run',
       '--force',
     ])
@@ -185,10 +184,7 @@ test.group('e2e — backup, restore, import, clone (real)', (group) => {
        ) AS present`,
       [tenant.schemaName]
     )
-    assert.isFalse(
-      Boolean(exists.rows[0].present),
-      'dry-run should not create the widgets table'
-    )
+    assert.isFalse(Boolean(exists.rows[0].present), 'dry-run should not create the widgets table')
   })
 
   test('tenant:clone copies schema + data into a new tenant', async ({ client, assert }) => {
@@ -215,15 +211,16 @@ test.group('e2e — backup, restore, import, clone (real)', (group) => {
 
     const stamp = Date.now().toString(36)
     const code = await runAce('tenant:clone', [
-      '--source', source.id,
-      '--name', `Cloned-${stamp}`,
-      '--email', `cloned-${stamp}@e2e.test`,
+      '--source',
+      source.id,
+      '--name',
+      `Cloned-${stamp}`,
+      '--email',
+      `cloned-${stamp}@e2e.test`,
     ])
     assert.equal(code, 0, 'tenant:clone should exit 0')
 
-    const dest = await Tenant.query()
-      .where('email', `cloned-${stamp}@e2e.test`)
-      .firstOrFail()
+    const dest = await Tenant.query().where('email', `cloned-${stamp}@e2e.test`).firstOrFail()
     assert.equal(dest.status, 'active', 'destination should be active after clone')
 
     // Cross-check via three independent reads. If they disagree, the failure
@@ -278,16 +275,17 @@ test.group('e2e — backup, restore, import, clone (real)', (group) => {
 
     const stamp = Date.now().toString(36) + '-struct'
     const code = await runAce('tenant:clone', [
-      '--source', source.id,
-      '--name', `Struct-${stamp}`,
-      '--email', `struct-${stamp}@e2e.test`,
+      '--source',
+      source.id,
+      '--name',
+      `Struct-${stamp}`,
+      '--email',
+      `struct-${stamp}@e2e.test`,
       '--schema-only',
     ])
     assert.equal(code, 0)
 
-    const dest = await Tenant.query()
-      .where('email', `struct-${stamp}@e2e.test`)
-      .firstOrFail()
+    const dest = await Tenant.query().where('email', `struct-${stamp}@e2e.test`).firstOrFail()
     const dbSvc = (await import('@adonisjs/lucid/services/db')).default
     const central = dbSvc.connection('public')
     const result = await central.rawQuery(

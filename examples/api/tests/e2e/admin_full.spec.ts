@@ -1,10 +1,5 @@
 import { test } from '@japa/runner'
-import {
-  ADMIN_HEADERS,
-  createInstalledTenant,
-  dropAllTenants,
-  installInline,
-} from './_helpers.js'
+import { ADMIN_HEADERS, createInstalledTenant, dropAllTenants, installInline } from './_helpers.js'
 import { randomUUID } from 'node:crypto'
 
 /**

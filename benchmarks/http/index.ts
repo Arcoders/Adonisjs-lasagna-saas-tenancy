@@ -41,7 +41,7 @@ let pg: string | null = null
 try {
   const db = await getDb()
   pg = await pgVersion(db)
-  // eslint-disable-next-line no-console
+
   console.log(`Seeding ${sizes.http.tenants} tenants × ${sizes.http.rows} rows (${DRIVER})…`)
   const seeded = await seedAll(seedApp, db, { tenants: sizes.http.tenants, rows: sizes.http.rows })
   tenantIds = seeded.ids
@@ -68,17 +68,21 @@ const server = spawn(process.execPath, ['--import', 'tsx', SERVER_ENTRY], {
 let exitCode = 0
 try {
   await waitForReady()
-  // eslint-disable-next-line no-console
+
   console.log(`Server ready at ${BASE_URL}; running autocannon scenarios…`)
   const results = await runHttpLoad(BASE_URL, tenantIds)
   printResults(`Tier 3 — HTTP (driver: ${DRIVER})`, results)
   writeResult('http', results, {
     pgVersion: pg,
-    meta: { tenants: sizes.http.tenants, connections: sizes.http.connections, durationSec: sizes.http.durationSec },
+    meta: {
+      tenants: sizes.http.tenants,
+      connections: sizes.http.connections,
+      durationSec: sizes.http.durationSec,
+    },
   })
 } catch (error) {
   exitCode = 1
-  // eslint-disable-next-line no-console
+
   console.error(error)
 } finally {
   server.kill('SIGTERM')

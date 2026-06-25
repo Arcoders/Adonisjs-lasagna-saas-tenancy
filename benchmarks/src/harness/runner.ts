@@ -44,7 +44,10 @@ const now = (): bigint => process.hrtime.bigint()
 
 function percentile(sortedAsc: number[], p: number): number {
   if (sortedAsc.length === 0) return 0
-  const idx = Math.min(sortedAsc.length - 1, Math.max(0, Math.ceil((p / 100) * sortedAsc.length) - 1))
+  const idx = Math.min(
+    sortedAsc.length - 1,
+    Math.max(0, Math.ceil((p / 100) * sortedAsc.length) - 1)
+  )
   return sortedAsc[idx]
 }
 
@@ -167,24 +170,25 @@ export async function measureLatency(
 
 /** Pretty console table for a set of results. */
 export function printResults(title: string, results: BenchResult[]): void {
-  // eslint-disable-next-line no-console
   console.log(`\n${title}`)
   const rows = results.map((r) => ({
-    name: r.group ? `${r.group} › ${r.name}` : r.name,
+    'name': r.group ? `${r.group} › ${r.name}` : r.name,
     'ns/op (median)': Math.round(r.ns.median).toLocaleString(),
-    p99: Math.round(r.ns.p99).toLocaleString(),
+    'p99': Math.round(r.ns.p99).toLocaleString(),
     'ops/sec': Math.round(r.opsPerSec).toLocaleString(),
     '± stddev': Math.round(r.ns.stddev).toLocaleString(),
   }))
-  // eslint-disable-next-line no-console
+
   console.table(rows)
 }
 
 /** Console table for metric-only (zeroMetric) results: one row per data point, columns from meta. */
 export function printMetricResults(title: string, results: BenchResult[]): void {
-  // eslint-disable-next-line no-console
   console.log(`\n${title}`)
-  const rows = results.map((r) => ({ metric: r.group ? `${r.group} › ${r.name}` : r.name, ...(r.meta ?? {}) }))
-  // eslint-disable-next-line no-console
+  const rows = results.map((r) => ({
+    metric: r.group ? `${r.group} › ${r.name}` : r.name,
+    ...(r.meta ?? {}),
+  }))
+
   console.table(rows)
 }

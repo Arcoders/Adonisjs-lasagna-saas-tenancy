@@ -31,7 +31,10 @@ const BUDGET_GRACE_MS = 50
  * validating `peak ≈ maxTenantConnections × poolMax`. For rowscope-pg there are
  * no per-tenant connections, so the count stays flat at 0 (one shared client).
  */
-export async function runConnectionBudget(app: ApplicationService, db: any): Promise<BenchResult[]> {
+export async function runConnectionBudget(
+  app: ApplicationService,
+  db: any
+): Promise<BenchResult[]> {
   const driver = await activeDriver(app)
   await ensureBackofficeSchema(db)
   const cfg: any = getConfig()
@@ -43,7 +46,9 @@ export async function runConnectionBudget(app: ApplicationService, db: any): Pro
   // the swept counts to keep the run sane — the per-database backend budget is
   // already visible at a modest N. schema-pg/rowscope provision cheaply.
   const counts =
-    driver.name === 'database-pg' ? sizes.budget.counts.filter((n) => n <= 200) : sizes.budget.counts
+    driver.name === 'database-pg'
+      ? sizes.budget.counts.filter((n) => n <= 200)
+      : sizes.budget.counts
 
   const results: BenchResult[] = []
   for (const count of counts) {
@@ -59,9 +64,7 @@ export async function runConnectionBudget(app: ApplicationService, db: any): Pro
     // database-pg keeps each tenant in its own database, so the per-tenant
     // backends do not show under current_database(); count across all databases.
     const isDatabasePg = driver.name === 'database-pg'
-    const backends = isDatabasePg
-      ? await pgBackendCountAllDatabases(db)
-      : await pgBackendCount(db)
+    const backends = isDatabasePg ? await pgBackendCountAllDatabases(db) : await pgBackendCount(db)
     const mem = memorySnapshot()
 
     results.push(

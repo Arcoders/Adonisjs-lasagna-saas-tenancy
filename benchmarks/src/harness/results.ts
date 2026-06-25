@@ -27,7 +27,7 @@ export function writeResult(
   const fileName = `${suite}-${env.driver}-${stamp}.json`
   const path = new URL(fileName, RESULTS_DIR)
   writeFileSync(path, JSON.stringify(payload, null, 2))
-  // eslint-disable-next-line no-console
+
   console.log(`\n→ wrote ${fileName}`)
   return path.pathname
 }
@@ -81,6 +81,7 @@ export function median(values: number[]): number {
 export function iqr(values: number[]): number {
   if (values.length < 2) return 0
   const s = [...values].sort((a, b) => a - b)
-  const at = (p: number) => s[Math.min(s.length - 1, Math.max(0, Math.ceil((p / 100) * s.length) - 1))]
+  const at = (p: number) =>
+    s[Math.min(s.length - 1, Math.max(0, Math.ceil((p / 100) * s.length) - 1))]
   return at(75) - at(25)
 }

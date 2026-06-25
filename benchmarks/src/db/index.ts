@@ -29,7 +29,7 @@ try {
   writeResult('db', results, { pgVersion: pg })
 } catch (error) {
   exitCode = 1
-  // eslint-disable-next-line no-console
+
   console.error(error)
 } finally {
   await terminateBenchApp(app)

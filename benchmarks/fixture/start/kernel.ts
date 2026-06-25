@@ -13,7 +13,9 @@ class BenchErrorHandler {
       typeof error?.status === 'number' && error.status >= 100 && error.status < 600
         ? error.status
         : 500
-    return ctx.response.status(status).send({ error: error?.message ?? String(error), code: error?.code })
+    return ctx.response
+      .status(status)
+      .send({ error: error?.message ?? String(error), code: error?.code })
   }
   async report() {}
 }

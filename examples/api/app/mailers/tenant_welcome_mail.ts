@@ -25,7 +25,10 @@ interface BrandingInfo {
  * assert its presence without parsing tokens.
  */
 export default class TenantWelcomeMail extends BaseMail {
-  constructor(public tenant: TenantInfo, public branding: BrandingInfo) {
+  constructor(
+    public tenant: TenantInfo,
+    public branding: BrandingInfo
+  ) {
     super()
   }
 

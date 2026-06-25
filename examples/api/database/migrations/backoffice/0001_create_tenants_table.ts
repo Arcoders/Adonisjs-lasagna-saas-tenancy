@@ -17,10 +17,7 @@ export default class extends BaseSchema {
       table.uuid('id').primary().defaultTo(this.db.rawQuery('gen_random_uuid()').knexQuery)
       table.string('name').notNullable()
       table.string('email').notNullable().unique()
-      table
-        .string('status')
-        .notNullable()
-        .defaultTo('provisioning')
+      table.string('status').notNullable().defaultTo('provisioning')
       table.string('custom_domain').nullable().unique()
       table.jsonb('metadata').nullable()
       table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(this.now())

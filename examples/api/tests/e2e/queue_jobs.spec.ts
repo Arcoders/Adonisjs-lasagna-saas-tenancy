@@ -68,7 +68,11 @@ async function startQueueWorker(settleMs = 6000): Promise<QueueWorker> {
     child.stdout?.on('data', onData)
     child.stderr?.on('data', onData)
     child.once('exit', (code) =>
-      finish(() => reject(new Error(`queue:work exited (code ${code}) before becoming ready:\n${chunks.join('')}`)))
+      finish(() =>
+        reject(
+          new Error(`queue:work exited (code ${code}) before becoming ready:\n${chunks.join('')}`)
+        )
+      )
     )
     const timer = setTimeout(() => finish(resolve), settleMs)
   })

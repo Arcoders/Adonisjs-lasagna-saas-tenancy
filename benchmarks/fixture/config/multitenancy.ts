@@ -16,7 +16,7 @@ const resolverStrategy = (process.env.RESOLVER_STRATEGY ?? 'header') as TenantRe
 
 const num = (name: string, fallback: number): number => {
   const raw = process.env[name]
-  const parsed = raw === undefined ? NaN : Number(raw)
+  const parsed = raw === undefined ? Number.NaN : Number(raw)
   return Number.isFinite(parsed) ? parsed : fallback
 }
 

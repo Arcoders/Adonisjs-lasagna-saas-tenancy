@@ -95,10 +95,7 @@ test.group('e2e — webhook delivery + HMAC + retry', (group) => {
     )
   })
 
-  test('subscriptions without a secret omit the signature header', async ({
-    client,
-    assert,
-  }) => {
+  test('subscriptions without a secret omit the signature header', async ({ client, assert }) => {
     const { id } = await createInstalledTenant(client)
     const url = `http://127.0.0.1:${port}/no-secret`
 
@@ -157,9 +154,7 @@ test.group('e2e — webhook delivery + HMAC + retry', (group) => {
     assert.isAtLeast(delivery.attempt, 1)
   })
 
-  test('tenant:webhooks:retry processes pending retries without crashing', async ({
-    assert,
-  }) => {
+  test('tenant:webhooks:retry processes pending retries without crashing', async ({ assert }) => {
     // The previous test left a retrying delivery in the DB. The command
     // should pick it up (or no-op if its `next_retry_at` hasn't elapsed).
     // Either way, exit code is 0.

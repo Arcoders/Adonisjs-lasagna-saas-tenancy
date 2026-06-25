@@ -60,7 +60,7 @@ try {
   const driver = await activeDriver(app)
 
   const tenants = Math.max(20, sizes.churn.caps[sizes.churn.caps.length - 1] * 2)
-  // eslint-disable-next-line no-console
+
   console.log(`Soak: provisioning ${tenants} tenants (${DRIVER})…`)
   const { refs } = await seedAll(app, db, { tenants, rows: 50 })
 
@@ -69,7 +69,7 @@ try {
   const concurrency = sizes.soak.concurrency
   const deadline = Date.now() + durationMs
   const t0 = Date.now()
-  // eslint-disable-next-line no-console
+
   console.log(
     `Soak: running ${sizes.soak.hours}h (${concurrency} workers, sample every ${sizes.soak.intervalSec}s)…`
   )
@@ -100,7 +100,7 @@ try {
         pgBackends: await pgBackendCount(db),
         fds: openFds(),
       })
-      // eslint-disable-next-line no-console
+
       console.log(`  t=${series[series.length - 1].tSec}s rss=${mem.rssMB}MB ops=${ops}`)
     }
   }
@@ -113,10 +113,15 @@ try {
   // huge false-positive leak. Drop a warmup prefix (~first quartile) and measure
   // the slope of what remains.
   const warmupDrop =
-    series.length >= 4 ? Math.min(series.length - 3, Math.max(1, Math.floor(series.length * 0.25))) : 0
+    series.length >= 4
+      ? Math.min(series.length - 3, Math.max(1, Math.floor(series.length * 0.25)))
+      : 0
   const stable = series.slice(warmupDrop)
   const xs = stable.map((s) => s.tSec)
-  const rssSlopePerSec = slope(xs, stable.map((s) => s.rssMB))
+  const rssSlopePerSec = slope(
+    xs,
+    stable.map((s) => s.rssMB)
+  )
   const rssSlopeMBPerHour = Math.round(rssSlopePerSec * 3600 * 10) / 10
   const backendsStart = stable[0]?.pgBackends ?? 0
   const backendsEnd = series[series.length - 1]?.pgBackends ?? 0
@@ -125,7 +130,15 @@ try {
   // slow leak. Measure the SLOPE of backends over the stable region instead (same
   // approach as RSS): after warmup it should be flat, and sustained growth is a
   // connection leak.
-  const backendsSlopePerHour = Math.round(slope(xs, stable.map((s) => s.pgBackends)) * 3600 * 10) / 10
+  const backendsSlopePerHour =
+    Math.round(
+      slope(
+        xs,
+        stable.map((s) => s.pgBackends)
+      ) *
+        3600 *
+        10
+    ) / 10
   // Thresholds: >25 MB/h sustained RSS growth, or >10 backends/h sustained growth
   // after warmup, is a leak signal worth a hard fail. Tunable off the baseline.
   const RSS_SLOPE_LIMIT = 25
@@ -157,7 +170,6 @@ try {
     'soak'
   )
 
-  // eslint-disable-next-line no-console
   console.log(
     `Soak done: ${ops} ops, RSS ${result.meta?.rssStartMB}→${result.meta?.rssEndMB}MB ` +
       `(${rssSlopeMBPerHour} MB/h), backends ${backendsStart}→${backendsEnd} (${backendsSlopePerHour}/h), ${soakStableCheck}`
@@ -166,7 +178,7 @@ try {
   if (soakStableCheck === 'FAIL') exitCode = 1
 } catch (error) {
   exitCode = 1
-  // eslint-disable-next-line no-console
+
   console.error(error)
 } finally {
   await terminateBenchApp(app)

@@ -104,7 +104,11 @@ test.group('e2e — read replica strategies', (group) => {
       const idx = indexFromConnectionName(r.body().readFrom)
       if (idx !== null) seen.add(idx)
     }
-    assert.equal(seen.size, REPLICA_COUNT, 'round-robin should hit every replica over enough requests')
+    assert.equal(
+      seen.size,
+      REPLICA_COUNT,
+      'round-robin should hit every replica over enough requests'
+    )
   })
 
   test('random strategy distributes across all replicas over N requests', async ({
@@ -121,7 +125,11 @@ test.group('e2e — read replica strategies', (group) => {
       const idx = indexFromConnectionName(r.body().readFrom)
       if (idx !== null) seen.add(idx)
     }
-    assert.equal(seen.size, REPLICA_COUNT, 'random should hit every replica with high probability over 60 requests')
+    assert.equal(
+      seen.size,
+      REPLICA_COUNT,
+      'random should hit every replica with high probability over 60 requests'
+    )
   })
 
   test('pickIndex() returns null when no replicas are configured', async ({ assert }) => {

@@ -36,12 +36,20 @@ export function runAdapterRouting(): BenchResult[] {
   const explicitCtor = { connection: 'public' } as any // fast path baseline
 
   const results = [
-    runMicro('currentId → connectionName → db.connection', () => adapter.modelConstructorClient(tenantCtor), {
-      group: GROUP,
-    }),
-    runMicro('explicit connection (fast path)', () => adapter.modelConstructorClient(explicitCtor), {
-      group: GROUP,
-    }),
+    runMicro(
+      'currentId → connectionName → db.connection',
+      () => adapter.modelConstructorClient(tenantCtor),
+      {
+        group: GROUP,
+      }
+    ),
+    runMicro(
+      'explicit connection (fast path)',
+      () => adapter.modelConstructorClient(explicitCtor),
+      {
+        group: GROUP,
+      }
+    ),
   ]
 
   // Reset so we don't leak the fake context into other tiers in this process.

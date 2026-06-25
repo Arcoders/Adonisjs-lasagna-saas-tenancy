@@ -32,9 +32,10 @@ function tolerance(suiteKey: string): number {
 
 let baseline: BaselineFile
 try {
-  baseline = JSON.parse(readFileSync(new URL(`../../baselines/${baselineName}.json`, import.meta.url), 'utf8'))
+  baseline = JSON.parse(
+    readFileSync(new URL(`../../baselines/${baselineName}.json`, import.meta.url), 'utf8')
+  )
 } catch {
-  // eslint-disable-next-line no-console
   console.log(
     `No baseline "${baselineName}.json" found. Capture one with ` +
       `\`npm run bench:report -- --write-baseline=${baselineName}\` first. Skipping check.`
@@ -60,9 +61,8 @@ for (const [key, file] of latest) {
   }
 }
 if (correctnessFailures.length) {
-  // eslint-disable-next-line no-console
   console.error('\nCORRECTNESS GATE FAILED (hard, ignores tolerance):')
-  // eslint-disable-next-line no-console
+
   for (const line of correctnessFailures) console.error(line)
 }
 
@@ -82,26 +82,23 @@ for (const [key, file] of latest) {
     const flag = delta < -tol
     const arrow = delta >= 0 ? '+' : ''
     const line = `${flag ? '✗' : '·'} ${key} › ${label}: ${arrow}${(delta * 100).toFixed(1)}% (tol -${(tol * 100).toFixed(0)}%)`
-    // eslint-disable-next-line no-console
+
     console.log(line)
     if (flag) regressions.push(line)
   }
 }
 
-// eslint-disable-next-line no-console
 console.log(
   `\nCompared ${compared} metric(s) against baseline "${baselineName}". ` +
     `${regressions.length} regression(s).`
 )
 
 if (correctnessFailures.length) {
-  // eslint-disable-next-line no-console
   console.error(`\n${correctnessFailures.length} correctness failure(s) — failing the build.`)
   process.exit(1)
 }
 
 if (regressions.length && ENFORCE) {
-  // eslint-disable-next-line no-console
   console.error('Regression gate FAILED (BENCH_GATE_ENFORCE=1).')
   process.exit(1)
 }

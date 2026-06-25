@@ -31,7 +31,7 @@ export default class BenchProvider {
     if (ids.length === 0) return
     const { warmTenantConnections } = await import('../../../src/harness/provision.js')
     await warmTenantConnections(this.app, ids)
-    // eslint-disable-next-line no-console
+
     console.log(`Warmed ${ids.length} tenant connections in the serve process.`)
   }
 }

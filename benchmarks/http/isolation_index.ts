@@ -41,8 +41,10 @@ let pg: string | null = null
 try {
   const db = await getDb()
   pg = await pgVersion(db)
-  // eslint-disable-next-line no-console
-  console.log(`Seeding ${sizes.iso.tenants} identifiable tenants × ${sizes.iso.rows} rows (${DRIVER})…`)
+
+  console.log(
+    `Seeding ${sizes.iso.tenants} identifiable tenants × ${sizes.iso.rows} rows (${DRIVER})…`
+  )
   const seeded = await provisionTenants(seedApp, db, sizes.iso.tenants)
   await seedIdentifiableNotes(seedApp, db, seeded.refs, sizes.iso.rows)
   tenantIds = seeded.ids
@@ -66,7 +68,7 @@ const server = spawn(process.execPath, ['--import', 'tsx', SERVER_ENTRY], {
 let exitCode = 0
 try {
   await waitForReady()
-  // eslint-disable-next-line no-console
+
   console.log(`Server ready at ${BASE_URL}; running isolation assertion…`)
   const results = await runIsolationLoad(BASE_URL, tenantIds)
   printMetricResults(`Isolation (driver: ${DRIVER}, NODE_ENV=${HTTP_NODE_ENV})`, results)
@@ -80,17 +82,14 @@ try {
   // mostly errored, so the content check never ran) is INCONCLUSIVE and exits 0,
   // which the inverted CI step reads as the self-test failing.
   if (sizes.iso.selftest) {
-    // eslint-disable-next-line no-console
     console.log('Self-test mode: result not written (the expected FAIL must not reach the gate).')
-    const detectedEverywhere = results.every(
-      (r) => Number(r.meta?.crossTenantResponses ?? 0) > 0
-    )
+    const detectedEverywhere = results.every((r) => Number(r.meta?.crossTenantResponses ?? 0) > 0)
     if (detectedEverywhere) {
-      // eslint-disable-next-line no-console
-      console.error('SELF-TEST: planted mismatches detected in every scenario — exiting 1 as designed.')
+      console.error(
+        'SELF-TEST: planted mismatches detected in every scenario — exiting 1 as designed.'
+      )
       exitCode = 1
     } else {
-      // eslint-disable-next-line no-console
       console.error(
         'SELF-TEST INCONCLUSIVE: a scenario produced ZERO mismatches (degraded run?). ' +
           'Exiting 0 so the inverted CI step fails instead of rubber-stamping the detector.'
@@ -100,13 +99,16 @@ try {
   } else {
     writeResult('iso', results, {
       pgVersion: pg,
-      meta: { tenants: sizes.iso.tenants, requests: sizes.iso.requests, concurrency: sizes.iso.concurrency },
+      meta: {
+        tenants: sizes.iso.tenants,
+        requests: sizes.iso.requests,
+        concurrency: sizes.iso.concurrency,
+      },
     })
 
     // Hard-fail the process on any cross-tenant leak, so the gate and CI catch it.
     const leaked = results.some((r) => r.meta?.isolationCheck === 'FAIL')
     if (leaked) {
-      // eslint-disable-next-line no-console
       console.error('ISOLATION CHECK FAILED — cross-tenant data observed.')
       exitCode = 1
     }
@@ -114,7 +116,6 @@ try {
     // 200s were actually content-checked. Fail rather than certify it.
     const degraded = results.some((r) => r.meta?.errorRateCheck === 'FAIL')
     if (degraded) {
-      // eslint-disable-next-line no-console
       console.error(
         `ERROR-RATE CEILING EXCEEDED (> ${sizes.iso.maxErrorRate * 100}% non-200) — ` +
           'the isolation PASS would be vacuous on this run.'
@@ -126,7 +127,7 @@ try {
   // In self-test mode a crash is INCONCLUSIVE, not detection: exit 0 so the
   // inverted CI step goes red instead of reading the crash as a caught leak.
   exitCode = sizes.iso.selftest ? 0 : 1
-  // eslint-disable-next-line no-console
+
   console.error(error)
 } finally {
   server.kill('SIGTERM')

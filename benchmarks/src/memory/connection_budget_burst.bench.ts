@@ -122,9 +122,9 @@ export async function runConnectionBudgetBurst(
   let errorClass = 'none'
   let maxOpenReached = 0
   try {
-    for (let i = 0; i < refs.length; i++) {
+    for (const [i, ref] of refs.entries()) {
       try {
-        const conn = await driver.connect(refs[i] as any)
+        const conn = await driver.connect(ref as any)
         await conn.rawQuery('SELECT 1')
         maxOpenReached = snapshotConnections(db).tenantOpen
       } catch (err) {

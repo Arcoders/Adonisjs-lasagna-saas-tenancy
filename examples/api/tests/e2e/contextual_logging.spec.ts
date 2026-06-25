@@ -55,9 +55,7 @@ test.group('e2e — contextual logging carries tenantId', (group) => {
     }
   })
 
-  test('outside any tenant context, currentTenantId() returns undefined', async ({
-    assert,
-  }) => {
+  test('outside any tenant context, currentTenantId() returns undefined', async ({ assert }) => {
     const ctx = new TenantLogContext()
     assert.isUndefined(ctx.currentTenantId())
     assert.isUndefined(ctx.current())
@@ -90,9 +88,7 @@ test.group('e2e — contextual logging carries tenantId', (group) => {
     assert.deepEqual(calls[0], { tenantId: 'abc-123', requestId: 'req-1' })
   })
 
-  test('TenantLogContext.bind() outside a context returns the logger unchanged', ({
-    assert,
-  }) => {
+  test('TenantLogContext.bind() outside a context returns the logger unchanged', ({ assert }) => {
     const ctx = new TenantLogContext()
     let childCalled = false
     const fakeLogger = {

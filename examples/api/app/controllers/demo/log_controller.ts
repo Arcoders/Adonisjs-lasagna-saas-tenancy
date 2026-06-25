@@ -1,9 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { inject } from '@adonisjs/core'
-import {
-  TenantLogContext,
-  tenantLogger,
-} from '@adonisjs-lasagna/saas-tenancy/services'
+import { TenantLogContext, tenantLogger } from '@adonisjs-lasagna/saas-tenancy/services'
 
 /**
  * Probe used by the contextual_logging e2e spec. The TenantGuardMiddleware

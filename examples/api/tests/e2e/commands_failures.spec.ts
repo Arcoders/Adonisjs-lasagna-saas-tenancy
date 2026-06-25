@@ -59,7 +59,11 @@ test.group('e2e — CLI failure robustness (tenant:seed --continue-on-error)', (
     assert.equal(await notesCount(healthyC.id), 2, 'tenant after the failure was still reached')
 
     const brokenRow = await Tenant.findOrFail(broken.id)
-    assert.equal(brokenRow.status, 'active', 'the broken tenant is a real active tenant, just unmigrated')
+    assert.equal(
+      brokenRow.status,
+      'active',
+      'the broken tenant is a real active tenant, just unmigrated'
+    )
   })
 
   test('default (no flag): a failing tenant surfaces as a non-zero exit', async ({

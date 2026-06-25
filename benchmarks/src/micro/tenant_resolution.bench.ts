@@ -28,7 +28,9 @@ function registry(names: string[]): TenantResolverRegistry {
  * later resolver, and a full miss across the 5-resolver chain.
  */
 export function runTenantResolution(): BenchResult[] {
-  const withHeader = fakeRequest({ headers: { 'x-tenant-id': '11111111-1111-4111-8111-111111111111' } })
+  const withHeader = fakeRequest({
+    headers: { 'x-tenant-id': '11111111-1111-4111-8111-111111111111' },
+  })
   const subdomainOnly = fakeRequest({ hostname: 'acme.localhost' })
   const pathOnly = fakeRequest({ hostname: 'localhost', url: '/acme/resource' })
   const miss = fakeRequest({ hostname: 'localhost', url: '/', qs: {} })
@@ -41,8 +43,12 @@ export function runTenantResolution(): BenchResult[] {
   return [
     runMicro('header hit (chain=1)', () => chain1.resolveSync(withHeader), { group: GROUP }),
     runMicro('header hit (chain=3)', () => chain3.resolveSync(withHeader), { group: GROUP }),
-    runMicro('subdomain hit (chain=3, header miss)', () => chain3.resolveSync(subdomainOnly), { group: GROUP }),
-    runMicro('path hit (fall-through to 3rd)', () => fallthrough.resolveSync(pathOnly), { group: GROUP }),
+    runMicro('subdomain hit (chain=3, header miss)', () => chain3.resolveSync(subdomainOnly), {
+      group: GROUP,
+    }),
+    runMicro('path hit (fall-through to 3rd)', () => fallthrough.resolveSync(pathOnly), {
+      group: GROUP,
+    }),
     runMicro('full miss (chain=5)', () => chain5.resolveSync(miss), { group: GROUP }),
   ]
 }

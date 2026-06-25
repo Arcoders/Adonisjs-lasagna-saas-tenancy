@@ -71,7 +71,10 @@ test.group('e2e — reporting: metrics pipeline + dashboard + extensions', (grou
     res.assertStatus(404)
   })
 
-  test('the slow_tenants fan-out extension runs (bounded mapTenants)', async ({ client, assert }) => {
+  test('the slow_tenants fan-out extension runs (bounded mapTenants)', async ({
+    client,
+    assert,
+  }) => {
     const res = await client
       .get('/admin/reporting/reports/extension/slow_tenants')
       .headers(ADMIN_HEADERS)

@@ -23,7 +23,10 @@ interface NotesBody {
   notes?: Array<{ id?: number; title?: string }>
 }
 
-export async function runIsolationLoad(baseUrl: string, tenantIds: string[]): Promise<BenchResult[]> {
+export async function runIsolationLoad(
+  baseUrl: string,
+  tenantIds: string[]
+): Promise<BenchResult[]> {
   const { requests, concurrency, selftest, maxErrorRate } = sizes.iso
   const results: BenchResult[] = []
 
@@ -46,7 +49,11 @@ export async function runIsolationLoad(baseUrl: string, tenantIds: string[]): Pr
         // not a cross-tenant leak. Flag it as `error` so it is counted as a
         // transport error, never as a mismatch that would fail the isolation gate.
         if (status !== 200)
-          return { ok: false, error: true, reason: `status ${status} (expected tenant ${expected})` }
+          return {
+            ok: false,
+            error: true,
+            reason: `status ${status} (expected tenant ${expected})`,
+          }
         const b = body as NotesBody
         if (b?.tenantId !== expected) {
           return { ok: false, reason: `echoed tenantId ${b?.tenantId} != ${expected}` }

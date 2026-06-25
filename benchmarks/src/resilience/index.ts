@@ -98,12 +98,10 @@ async function waitForReady(timeoutMs = 30_000): Promise<void> {
 // Skip cleanly (report-as-skipped) when not opted in or Docker is unavailable —
 // same convention as the real-API Stripe smoke spec.
 if (!sizes.resilience.enabled) {
-  // eslint-disable-next-line no-console
   console.log('Resilience tier skipped (set BENCH_RESILIENCE=1 to run). No result written.')
   process.exit(0)
 }
 if (!dockerOk()) {
-  // eslint-disable-next-line no-console
   console.log('Resilience tier skipped: docker CLI not available.')
   process.exit(0)
 }
@@ -249,7 +247,7 @@ try {
   if (results.some((r) => r.meta?.failPolicyCheck === 'FAIL')) exitCode = 1
 } catch (error) {
   exitCode = 1
-  // eslint-disable-next-line no-console
+
   console.error(error)
   // Best-effort: make sure containers are back up even on error.
   docker('start', redisContainer)

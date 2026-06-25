@@ -60,14 +60,16 @@ export async function runHttpLoad(baseUrl: string, tenantIds: string[]): Promise
     }
   }
 
-  const scenario = async (name: string, path: string, withTenant: boolean): Promise<BenchResult> => {
+  const scenario = async (
+    name: string,
+    path: string,
+    withTenant: boolean
+  ): Promise<BenchResult> => {
     const result = await autocannon({
       url: `${baseUrl}${path}`,
       connections,
       duration,
-      ...(withTenant
-        ? { headers: { 'x-tenant-id': tenantIds[0] }, setupRequest: rotate() }
-        : {}),
+      ...(withTenant ? { headers: { 'x-tenant-id': tenantIds[0] }, setupRequest: rotate() } : {}),
     } as autocannon.Options)
     return fromAutocannon(name, result as autocannon.Result)
   }

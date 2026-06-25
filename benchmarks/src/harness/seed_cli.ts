@@ -17,11 +17,11 @@ const rows = sizes.http.rows
 const app = await bootBenchApp()
 try {
   const db = await getDb()
-  // eslint-disable-next-line no-console
+
   console.log(`Seeding ${tenants} tenants × ${rows} rows for driver "${DRIVER}"…`)
   const start = Date.now()
   const result = await seedAll(app, db, { tenants, rows })
-  // eslint-disable-next-line no-console
+
   console.log(
     `Seeded ${result.ids.length} tenants in ${((Date.now() - start) / 1000).toFixed(1)}s.\n` +
       `First tenant id (for ad-hoc curl): ${result.ids[0]}`

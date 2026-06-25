@@ -2,10 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { inject } from '@adonisjs/core'
 import { TenantWebhook, encrypt } from '@adonisjs-lasagna/saas-tenancy'
 import { WebhookService } from '@adonisjs-lasagna/saas-tenancy/services'
-import {
-  fireWebhookValidator,
-  subscribeWebhookValidator,
-} from '#app/validators/webhooks_validator'
+import { fireWebhookValidator, subscribeWebhookValidator } from '#app/validators/webhooks_validator'
 
 /**
  * Subscriber CRUD + a "fire a test event" endpoint. Real apps usually expose

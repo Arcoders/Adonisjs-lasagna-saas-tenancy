@@ -23,9 +23,13 @@ export async function runDriverQuery(app: ApplicationService, db: any): Promise<
   const someId = Number(seed?.id ?? 1)
 
   const results: BenchResult[] = [
-    await measureLatency('SELECT by id', ITERS, () => selectById(conn, driver, ref, someId), { group: GROUP }),
+    await measureLatency('SELECT by id', ITERS, () => selectById(conn, driver, ref, someId), {
+      group: GROUP,
+    }),
     await measureLatency('INSERT', ITERS, () => insertNote(conn, driver, ref), { group: GROUP }),
-    await measureLatency('2-table self JOIN (limit 20)', ITERS, () => selfJoin(conn, driver, ref), { group: GROUP }),
+    await measureLatency('2-table self JOIN (limit 20)', ITERS, () => selfJoin(conn, driver, ref), {
+      group: GROUP,
+    }),
   ]
 
   if (driver.name === 'rowscope-pg') {

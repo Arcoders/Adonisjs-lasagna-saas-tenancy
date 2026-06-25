@@ -8,14 +8,14 @@ export const CI_MODE = process.env.BENCH_CI === '1' || process.env.CI === 'true'
 
 const int = (name: string, fallback: number): number => {
   const raw = process.env[name]
-  const n = raw === undefined ? NaN : Number(raw)
+  const n = raw === undefined ? Number.NaN : Number(raw)
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback
 }
 
 /** Like `int` but keeps fractions (e.g. BENCH_SOAK_HOURS=0.1 for a smoke soak). */
 const float = (name: string, fallback: number): number => {
   const raw = process.env[name]
-  const n = raw === undefined ? NaN : Number(raw)
+  const n = raw === undefined ? Number.NaN : Number(raw)
   return Number.isFinite(n) && n > 0 ? n : fallback
 }
 

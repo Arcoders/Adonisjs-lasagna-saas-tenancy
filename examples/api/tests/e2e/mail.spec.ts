@@ -2,12 +2,7 @@ import { test } from '@japa/runner'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { BrandingService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { useRealInstallTenantDispatch } from '#tests/bootstrap'
-import {
-  createInstalledTenant,
-  dropAllTenants,
-  installInline,
-  waitFor,
-} from './_helpers.js'
+import { createInstalledTenant, dropAllTenants, installInline, waitFor } from './_helpers.js'
 
 const MAILCATCHER_HOST = process.env.MAILCATCHER_HOST ?? '127.0.0.1'
 const MAILCATCHER_HTTP = `http://${MAILCATCHER_HOST}:1080`
@@ -133,10 +128,7 @@ test.group('e2e — mail (MailCatcher)', (group) => {
     restoreNoOpDispatch = await useRealInstallTenantDispatch()
     mcUp = await mailcatcherUp()
     if (!mcUp) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[e2e] MailCatcher not reachable at ${MAILCATCHER_HTTP} — mail tests will skip`
-      )
+      console.warn(`[e2e] MailCatcher not reachable at ${MAILCATCHER_HTTP} — mail tests will skip`)
     }
     if (mcUp) await clearMessages()
     await dropAllTenants()
@@ -376,7 +368,9 @@ test.group('e2e — mail (MailCatcher)', (group) => {
         email: 'outage@e2e.test',
       })
       // The host must still respond after the failed listener.
-      const ping = await client.get(`/admin/tenants/${id}`).header('x-admin-token', process.env.DEMO_ADMIN_TOKEN ?? 'demo-admin-token-change-me')
+      const ping = await client
+        .get(`/admin/tenants/${id}`)
+        .header('x-admin-token', process.env.DEMO_ADMIN_TOKEN ?? 'demo-admin-token-change-me')
       assert.oneOf(ping.status(), [200, 401], 'host process should still answer after mail outage')
     } finally {
       if (originalHost !== undefined) process.env.MAILCATCHER_HOST = originalHost
