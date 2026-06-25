@@ -67,6 +67,13 @@ jobs:
       - name: Docs path guard
         run: node scripts/check-doc-paths.mjs
 
+      # Lasagna is PostgreSQL-only and AdonisJS-only, by design. This guard fails
+      # if any tracked file reframes either decision as a deferral or implies
+      # framework portability, which the prose-blind dead-link and integrity
+      # gates can't catch.
+      - name: Positioning guard
+        run: node scripts/check-positioning.mjs
+
       # One gate for every workspace with a typecheck script (--workspaces
       # --if-present), so adding a package or example can't reopen the gap
       # the demo app fell into when nothing ran its typecheck. Must run AFTER

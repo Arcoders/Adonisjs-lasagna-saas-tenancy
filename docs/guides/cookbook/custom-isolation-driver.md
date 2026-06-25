@@ -148,9 +148,10 @@ public extension point, exported from
 `@adonisjs-lasagna/saas-tenancy/services`. They carry the same
 `release-candidate` stability as the isolation core (see
 [Stability](/reference/stability)): the shape is considered final under the 1.x
-semver promise. This is the seam additional storage backends build on. A MySQL
-satellite, when it lands, will be a driver registered here rather than a change
-to the core (see the [roadmap](/reference/roadmap)).
+semver promise. This is the seam a custom isolation strategy builds on. Lasagna
+itself ships only the PostgreSQL drivers and is PostgreSQL-only by design; the
+seam is a supported public API for a backend you build and maintain yourself,
+not a path to a first-party MySQL driver (we do not intend to ship one).
 
 
 ## Read next

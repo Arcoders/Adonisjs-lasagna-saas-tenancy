@@ -1,19 +1,25 @@
 ---
 title: FAQ
-description: Common questions about database support, isolation drivers, scaling, replicas, and production readiness.
+description: Common questions about database and framework support, isolation drivers, scaling, replicas, and production readiness.
 ---
 
 # FAQ
 
 ## Does it work with MySQL or MariaDB?
 
-Not in 1.0. The package is PostgreSQL-only today: schema-per-tenant and database-per-tenant lean
-on Postgres-native concepts, and `rowscope-pg` uses PostgreSQL Row-Level Security for its hard
-boundary. MySQL is planned as a future opt-in satellite driver (see the [roadmap](/reference/roadmap)),
-built on the [custom isolation driver](/guides/cookbook/custom-isolation-driver) extension point. It
-would carry explicit caveats: database-per-tenant only, with no schema-per-tenant equivalent and no
-native RLS, so the `rowscope-pg` database-level boundary would not carry over. If you need MySQL
-today, use another package such as `stancl/tenancy` (Laravel).
+No, and that is by design. Lasagna is PostgreSQL-only: schema-per-tenant and database-per-tenant
+lean on Postgres-native concepts, and `rowscope-pg` uses PostgreSQL Row-Level Security for its hard
+boundary. Supporting another database would mean compromising the parts we consider essential, so we
+focus on doing PostgreSQL really well rather than spreading thin across engines. This is a product
+decision, not a temporary gap. If you need MySQL today, use another package such as `stancl/tenancy`
+(Laravel).
+
+## Does it work with Express, NestJS, or another framework?
+
+No. Lasagna is built only for AdonisJS 7 and leans on its providers, middleware, ace commands, and
+container bindings throughout. Supporting other frameworks would mean making the package
+framework-neutral and giving up that deep integration, so it is a deliberate non-goal. If you know
+AdonisJS, you already know how to use Lasagna.
 
 ## Which isolation driver should I choose?
 

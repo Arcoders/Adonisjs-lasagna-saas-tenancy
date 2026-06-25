@@ -16,7 +16,8 @@ const reachFor = [
 const lookElsewhere = [
   'Your app is single-tenant, or will stay that way.',
   'A single tenant_id column already covers your isolation needs.',
-  'You are committed to MongoDB or another non-PostgreSQL store. (MySQL/MariaDB is on the roadmap as a future satellite.)',
+  'You are committed to MongoDB, MySQL, or another non-PostgreSQL store. Lasagna is PostgreSQL-only by design.',
+  'You need Express, NestJS, or another framework. Lasagna is AdonisJS-only by design.',
   'You want a hosted control plane rather than a library in your app.',
 ]
 

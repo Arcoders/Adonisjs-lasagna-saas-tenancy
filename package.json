@@ -46,6 +46,7 @@
     "coverage:gate": "node scripts/coverage-gate.mjs",
     "check:extension-contracts": "node scripts/check-extension-contracts.mjs",
     "check:doc-paths": "node scripts/check-doc-paths.mjs",
+    "check:positioning": "node scripts/check-positioning.mjs",
     "knip": "knip --no-exit-code",
     "knip:deps": "knip --include dependencies",
     "audit:prod": "node scripts/audit-gate.mjs",

@@ -56,8 +56,8 @@ Two questions to ask before adopting:
    migrations, this is for you. If you don't, save yourself the
    operational complexity.
 2. **Are you on PostgreSQL?** Schemas are a Postgres-native concept.
-   1.0 is PostgreSQL-only; MySQL and MariaDB are on the roadmap as a
-   future opt-in satellite. If you need MySQL today, use another package.
+   Lasagna is PostgreSQL-only by design, not a temporary limit. If you
+   need MySQL today, use another package such as `stancl/tenancy`.
 
 ## Install
 
@@ -115,7 +115,7 @@ state machine.
 
 - **Node.js 24+**, ESM-native (`module: NodeNext`)
 - **AdonisJS 7** with `@adonisjs/lucid`, `@adonisjs/queue`, `@adonisjs/redis`
-- **PostgreSQL 14+** (1.0 is PostgreSQL-only; MySQL/MariaDB is a planned future satellite)
+- **PostgreSQL 14+** (PostgreSQL-only by design)
 - Optional peers: `@adonisjs/drive`, `@adonisjs/mail`, `@adonisjs/session`,
   `@aws-sdk/client-s3`, `jose` (only when SSO is used), `better-sqlite3`
   (in-memory testing driver)

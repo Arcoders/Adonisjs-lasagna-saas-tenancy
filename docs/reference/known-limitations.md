@@ -11,10 +11,13 @@ design choices.
 
 ## Platform
 
-- **PostgreSQL only.** No MySQL/MariaDB. Schema and database isolation are Postgres-native,
-  and `rowscope-pg` relies on PostgreSQL RLS. MySQL/MariaDB is a planned future opt-in satellite,
-  not part of 1.0; see [Roadmap](/reference/roadmap). See also
-  [FAQ](/reference/faq#does-it-work-with-mysql-or-mariadb).
+- **PostgreSQL only, by design.** No MySQL/MariaDB. Schema and database isolation are
+  Postgres-native, and `rowscope-pg` relies on PostgreSQL RLS. This is a deliberate product
+  decision about focus and quality, not a deferral. See
+  [FAQ](/reference/faq#does-it-work-with-mysql-or-mariadb) and [Comparison](/reference/comparison).
+- **AdonisJS 7 only, by design.** No adapters for Express, NestJS, or other frameworks. The
+  package builds on AdonisJS providers, middleware, ace commands, and container bindings. See
+  [FAQ](/reference/faq#does-it-work-with-express-nestjs-or-another-framework).
 - **Node.js >= 24.** Required by AdonisJS 7 and Lucid 22.
 
 ## Maturity

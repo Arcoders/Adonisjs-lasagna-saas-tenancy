@@ -1,4 +1,4 @@
----
+﻿---
 title: Roadmap
 description: Where the package stands today, what has to land before the isolation core is labelled stable, and what is under consideration next.
 ---
@@ -48,15 +48,24 @@ These are directions, not commitments, and not ordered by priority:
 - A driver-migration path (moving an existing tenant between isolation drivers).
 - Richer feature-flag targeting beyond boolean + free-form config.
 - First-class starter-kit / scaffolding for a new multi-tenant app.
-- MySQL/MariaDB support as an opt-in satellite driver, built on the
-  `IsolationDriver` extension point. It would be database-per-tenant only, with
-  no schema-per-tenant or native Row-Level-Security equivalent, so it ships with
-  explicit caveats. This is deliberately secondary to keeping the PostgreSQL core
-  stable, conditioned on real MySQL-only demand, and would land additively in a
-  future 1.x minor without a major bump.
 
 If one of these blocks your adoption, open an issue describing the use case;
 real demand reorders this list.
+
+## Not planned (by design)
+
+These are deliberate non-goals. They come from focus and long-term
+maintainability, not from technical limitations.
+
+- Other databases (MySQL, MariaDB, and so on). Schema-per-tenant, Row-Level
+  Security, and `search_path` isolation are Postgres-native and central to how
+  Lasagna works. Supporting another database would mean compromising the parts
+  we consider essential, so we focus on doing one thing well. If you need MySQL,
+  see [Comparison](/reference/comparison) for packages that support it.
+- Adapters for Express, NestJS, Fastify, or any non-AdonisJS framework. Lasagna
+  is built only for AdonisJS 7. Going framework-neutral would mean giving up the
+  deep AdonisJS integration that defines it, so we put that effort into the best
+  possible experience for AdonisJS developers instead.
 
 ## How we version
 

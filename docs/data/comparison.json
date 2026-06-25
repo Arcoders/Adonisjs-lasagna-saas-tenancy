@@ -38,7 +38,7 @@
     { "category": "isolation", "feature": "Schema isolation (PostgreSQL)", "lasagna": "yes", "stancl": "yes", "nestjs": "partial", "lasagnaNote": "default driver", "nestjsNote": "DIY via TypeORM, no turnkey package" },
     { "category": "isolation", "feature": "Database-per-tenant", "lasagna": "yes", "stancl": "yes", "nestjs": "partial", "lasagnaNote": "database-pg driver", "nestjsNote": "MongoDB connection-per-tenant, not PG" },
     { "category": "isolation", "feature": "Single-database row scoping", "lasagna": "yes", "stancl": "yes", "nestjs": "no", "lasagnaNote": "rowscope-pg + withTenantScope mixin" },
-    { "category": "isolation", "feature": "MySQL / MariaDB support", "lasagna": "no", "stancl": "yes", "nestjs": "no", "advantage": "stancl", "lasagnaNote": "PostgreSQL is the strategic focus" },
+    { "category": "isolation", "feature": "MySQL / MariaDB support", "lasagna": "no", "stancl": "yes", "nestjs": "no", "advantage": "stancl", "lasagnaNote": "PostgreSQL-only by design; stancl supports MySQL today" },
     { "category": "isolation", "feature": "SQLite (in-memory testing)", "lasagna": "yes", "stancl": "yes", "nestjs": "no", "lasagnaNote": "sqlite-memory driver" },
     { "category": "isolation", "feature": "Per-tenant connection pool", "lasagna": "yes", "stancl": "yes", "nestjs": "partial", "nestjsNote": "Mongoose connection cache" },
     { "category": "isolation", "feature": "Read replicas (round-robin / random / sticky)", "lasagna": "yes", "stancl": "no", "nestjs": "no", "advantage": "lasagna" },

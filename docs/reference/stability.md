@@ -83,7 +83,7 @@ The isolation substrate. Everything here is **release candidate** unless noted.
 | Database isolation (`database-pg`) | Release candidate | One database per tenant. |
 | Row-scope isolation (`rowscope-pg`) | Release candidate | Ship the `--with=rls` migration for the SQL-level backstop; see [rowscope-pg](/guides/data-isolation/rowscope-pg). |
 | `sqlite-memory` driver | Testing only | For tests; never for production. |
-| Custom isolation driver API (`IsolationDriver` + `IsolationDriverRegistry`) | Release candidate | Public extension point for additional backends. The seam a future MySQL satellite registers through. |
+| Custom isolation driver API (`IsolationDriver` + `IsolationDriverRegistry`) | Release candidate | Public extension point for custom isolation strategies a host builds itself. Lasagna ships PostgreSQL drivers only. |
 | Packaged-satellite SDK (`/sdk`: `SatelliteManifest`, `SatelliteProviderContract`, configure toolkit, `SATELLITE_API_VERSION`) | Release candidate | Public extension point for third-party satellites. The *Satellite ABI* it commits to (the core registries a satellite self-registers into, the manifest shape, the configure contract) is now frozen and contract-tested, so `SATELLITE_API_VERSION = 1` is a stable contract under the 1.x promise. An incompatible ABI change ships as a `SATELLITE_API_VERSION` bump, which `checkSatelliteApiCompat` rejects against an older core, never as a silent break inside a minor. See [Creating a satellite](/guides/cookbook/creating-a-satellite). |
 | Tenant resolution (subdomain / path / header) | Release candidate | Always via `resolveTenantId()`. |
 | `TenantAdapter` + base-model routing | Release candidate | |

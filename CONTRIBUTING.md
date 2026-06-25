@@ -138,7 +138,7 @@ hand-bump a version or edit a `CHANGELOG.md`.
 
 ## A note on scope
 
-This package focuses on schema-based multi-tenancy for AdonisJS with PostgreSQL. We're cautious about adding features that drift from that scope (for example, supporting other databases, building general SaaS billing tools, or auth flows beyond SSO). If you're not sure whether your idea fits, open an issue first and we can talk it through.
+This package focuses on schema-based multi-tenancy for AdonisJS with PostgreSQL. By design it supports only PostgreSQL and only AdonisJS, and we're cautious about adding features that drift from that scope (for example, supporting other databases or non-AdonisJS frameworks, building general SaaS billing tools, or auth flows beyond SSO). If you're not sure whether your idea fits, open an issue first and we can talk it through.
 
 ---
 
