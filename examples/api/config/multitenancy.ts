@@ -3,7 +3,7 @@ import type { TenantResolverStrategy } from '@adonisjs-lasagna/saas-tenancy/type
 
 /**
  * Full configuration exercising every optional block:
- *  - lifecycle hooks (beforeCreate gates email allowlist; afterCreate logs)
+ *  - lifecycle hook (beforeProvision rejects non-.test emails to demo a hook aborting provisioning)
  *  - declarative plans + quotas
  *  - read replicas (single replica = primary in this demo)
  *  - backup retention with two tiers
@@ -111,6 +111,11 @@ export default {
   // provisioning and the tenant flips to status=failed.
   // `after*` hooks are best-effort and continue on error.
   hooks: {
+    // Demo-only business rule, deliberately placed in the hook to show a
+    // throwing beforeProvision aborting provisioning (status flips to failed —
+    // see tests/e2e/full.spec.ts). A production app would keep domain rules
+    // like this in a service or validator; email shape already lives in
+    // app/validators/tenants_validator.ts.
     beforeProvision: async ({ tenant }: { tenant: { email: string } }) => {
       if (!tenant.email.endsWith('.test')) {
         throw new Error(

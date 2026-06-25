@@ -8,13 +8,10 @@ import type Tenant from '#app/models/backoffice/tenant'
  * use the model's own getConnection()/getReadConnection(). The repository
  * bound to TENANT_REPOSITORY (app/providers/app_provider.ts) only ever
  * returns this model, so the narrowing is sound. Call it from tenant-guarded
- * routes only — an unresolved tenant throws instead of surfacing later as an
+ * routes only; `request.tenant()` itself throws when no tenant is resolved, so
+ * an unresolved tenant fails fast rather than surfacing later as an
  * undefined-method crash.
  */
 export async function currentTenant(request: HttpContext['request']): Promise<Tenant> {
-  const tenant = await request.tenant()
-  if (!tenant) {
-    throw new Error('currentTenant() needs a tenant-guarded route — request.tenant() was null')
-  }
-  return tenant as Tenant
+  return (await request.tenant()) as Tenant
 }

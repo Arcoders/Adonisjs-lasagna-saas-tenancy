@@ -1,8 +1,10 @@
 # Lasagna Multitenancy, the Reference API
 
-A real, runnable AdonisJS v7 app that exercises every corner of `@adonisjs-lasagna/saas-tenancy`. The README in the root of the repo is the spec. This folder is the proof. Clone it, bring up the stack, and you have working curl recipes for schema isolation, lifecycle hooks, contextual logging, plans and quotas, the doctor, scheduled backups, soft delete, the admin REST API, MailCatcher email capture, the webhooks pipeline, the satellites (feature flags, branding, SSO), and a 111 test Japa suite that runs the whole thing in 20 seconds.
+A real, runnable AdonisJS v7 app that exercises every corner of `@adonisjs-lasagna/saas-tenancy`. The README in the root of the repo is the spec. This folder is the proof. Clone it, bring up the stack, and you have working curl recipes for schema isolation, lifecycle hooks, contextual logging, plans and quotas, the doctor, scheduled backups, soft delete, the admin REST API, MailCatcher email capture, the webhooks pipeline, the satellites (feature flags, branding, SSO), and a Japa e2e suite that runs the whole thing end to end.
 
 If something in the package is broken, this app refuses to boot or the suite turns red. That is the whole point.
+
+> **Only need basic schema isolation?** Start with the [five-minute quickstart](../../docs/start/quickstart.md). This app is the full feature surface; the quickstart is the smallest wiring that gets one tenant resolving.
 
 ## What is in here
 
@@ -30,7 +32,7 @@ examples/api
 ├── docker-compose.yml         # postgres 16, redis 7, pgAdmin, MailCatcher
 ├── scripts                    # e2e.sh and e2e.ps1 wrap docker + suite
 └── tests
-    ├── e2e                    # 12 spec files, 111 tests
+    ├── e2e                    # end-to-end specs, plus a hardening/ suite
     ├── fixtures               # demo-tenant.sql, used by import + restore
     └── bootstrap.ts
 ```
@@ -39,7 +41,7 @@ The split is deliberate: controllers stay under ~10 lines per method, business l
 lives in [app/services/](app/services/), input shape lives in [app/validators/](app/validators/)
 (VineJS surfaces failures as `422` automatically), and event side-effects live in
 [app/listeners/](app/listeners/) — registered from `AppProvider.ready()`, not from
-`start/routes.ts`. The route file is 79 lines and contains route declarations only,
+`start/routes.ts`. The route file contains route declarations only,
 with lazy class handlers so `@inject()`-decorated controllers pick up their
 constructor dependencies from the IoC container.
 
@@ -56,7 +58,7 @@ That command does five things:
 1. Brings up `docker compose` (postgres 16, redis 7, MailCatcher, pgAdmin) and waits for each container's health check.
 2. Runs `node ace backoffice:setup`, which creates the `backoffice` schema and applies the eight satellite migrations (tenants, audit logs, webhooks, deliveries, branding, SSO, feature flags, metrics).
 3. Probes MailCatcher's HTTP API. If it isn't up the suite still runs, but the mail tests skip with a clear message rather than failing.
-4. Runs the Japa e2e suite. 111 tests, 20 seconds on a developer laptop, longer on a CI runner. Backups, restore, import, and clone tests skip gracefully when `pg_dump`, `pg_restore`, or `psql` aren't on PATH.
+4. Runs the Japa e2e suite (a few seconds on a developer laptop, longer on a CI runner). Backups, restore, import, and clone tests skip gracefully when `pg_dump`, `pg_restore`, or `psql` aren't on PATH.
 5. Tears the stack down with `docker compose down -v`. Pass `--keep` (or `-Keep` in PowerShell) when you want to poke at the data after a failure.
 
 Prerequisites are Node 24 or newer and Docker Desktop. The `--legacy-peer-deps` flag is needed because `@adonisjs/mail@10` declares a peer on a future Adonis version that npm refuses to resolve otherwise.
@@ -383,7 +385,7 @@ curl -X PUT -H "x-tenant-id: $TENANT_ID" -H 'content-type: application/json' \
 curl -H "x-tenant-id: $TENANT_ID" http://localhost:3333/demo/sso
 ```
 
-HTTP coverage lives in [tests/e2e/satellites.spec.ts](tests/e2e/satellites.spec.ts). Service level coverage with deeper assertions (cache invalidation, tenant isolation, default fallbacks) lives at [tests/integration/services/](../../tests/integration/services/) in the package root.
+HTTP coverage lives in [tests/e2e/satellites.spec.ts](tests/e2e/satellites.spec.ts). Service level coverage with deeper assertions (cache invalidation, tenant isolation, default fallbacks) lives at [packages/core/tests/integration/services/](../../packages/core/tests/integration/services/).
 
 ### 17. Testing helpers
 
