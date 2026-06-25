@@ -42,11 +42,11 @@ import HomeStack from './HomeStack.vue'
         <CopyCommand class="hh__install" align="start" />
 
         <div class="hh__cta">
-          <a class="hh__btn hh__btn--primary" :href="withBase('/quickstart')">
+          <a class="hh__btn hh__btn--primary" :href="withBase('/start/quickstart')">
             Start building
             <PhArrowRight :size="16" weight="bold" />
           </a>
-          <a class="hh__btn hh__btn--ghost" :href="withBase('/why')">Why Lasagna</a>
+          <a class="hh__btn hh__btn--ghost" :href="withBase('/start/why')">Why Lasagna</a>
           <a
             class="hh__btn hh__btn--quiet"
             href="https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy"

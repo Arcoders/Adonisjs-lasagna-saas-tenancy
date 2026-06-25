@@ -63,7 +63,7 @@
       "npm install @aws-sdk/client-s3   # only for the s3 storage driver (optional peer)"
     ],
     "configSnippet": "backup: {\n  storagePath: app.tmpPath('backups'),\n  metadataTtl: 60 * 60 * 24 * 30,\n  pgConnection: {\n    host: env.get('DB_HOST'),\n    port: Number(env.get('DB_PORT')),\n    user: env.get('DB_USER'),\n    password: env.get('DB_PASSWORD', ''),\n    database: env.get('DB_DATABASE'),\n  },\n  // s3: { enabled: true, bucket: env.get('BACKUP_S3_BUCKET'), region: env.get('AWS_REGION'),\n  //   accessKeyId: env.get('AWS_ACCESS_KEY_ID'), secretAccessKey: env.get('AWS_SECRET_ACCESS_KEY') },\n},",
-    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/satellites/backup"
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/backup"
   },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",

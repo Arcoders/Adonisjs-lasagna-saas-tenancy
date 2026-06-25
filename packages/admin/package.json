@@ -46,7 +46,7 @@
     "install": [
       "npm install @adonisjs-lasagna/admin"
     ],
-    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/satellites/admin"
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/admin"
   },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",

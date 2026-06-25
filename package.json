@@ -37,6 +37,8 @@
     "lint": "eslint packages",
     "lint:fix": "eslint packages --fix",
     "test": "npm run test --workspace @adonisjs-lasagna/saas-tenancy",
+    "test:integrity": "npm run test:integrity --workspace @adonisjs-lasagna/saas-tenancy",
+    "test:docs-code": "npm run build:all && node scripts/check-docs-code.mjs",
     "test:coverage": "npm run test:coverage --workspace @adonisjs-lasagna/saas-tenancy",
     "test:integration": "npm run build:all && npm run test:integration:run --workspace @adonisjs-lasagna/saas-tenancy",
     "test:integration:coverage": "npm run build:all && npm run test:integration:coverage --workspace @adonisjs-lasagna/saas-tenancy",

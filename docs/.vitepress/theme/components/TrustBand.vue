@@ -26,7 +26,7 @@ const chips = [
           Core: Release Candidate
         </li>
       </ul>
-      <a class="tb__link" :href="withBase('/security')">
+      <a class="tb__link" :href="withBase('/guides/security')">
         Hardened against real failure modes
         <span aria-hidden="true">&rarr;</span>
       </a>

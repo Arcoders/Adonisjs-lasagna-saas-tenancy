@@ -42,7 +42,7 @@
     "migrations": "stubs/migrations",
     "provider": "@adonisjs-lasagna/satellite-template/provider",
     "commands": "@adonisjs-lasagna/satellite-template/commands",
-    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/cookbook/creating-a-satellite"
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/cookbook/creating-a-satellite"
   },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",

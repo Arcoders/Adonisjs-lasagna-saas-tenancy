@@ -17,7 +17,7 @@ import { PhArrowRight } from '@phosphor-icons/vue'
         From <code>npm install</code> to a live, schema-isolated tenant in under
         ten minutes. No <code>tenant_id</code> in sight.
       </p>
-      <a class="cta__btn" :href="withBase('/quickstart')">
+      <a class="cta__btn" :href="withBase('/start/quickstart')">
         Start the quickstart
         <PhArrowRight :size="18" weight="bold" />
       </a>

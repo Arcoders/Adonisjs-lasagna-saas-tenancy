@@ -54,6 +54,12 @@ jobs:
       - name: Build satellite-test-kit (dev-only integration harness)
         run: npm run build:test-kit
 
+      # Every `@adonisjs-lasagna/*` import in the docs must resolve to a real export
+      # (catches a doc that imports from the wrong subpath or a renamed export). Runs
+      # after the builds above so it type-checks against the published build/*.d.ts.
+      - name: Docs code-fence import gate
+        run: node scripts/check-docs-code.mjs
+
       # One gate for every workspace with a typecheck script (--workspaces
       # --if-present), so adding a package or example can't reopen the gap
       # the demo app fell into when nothing ran its typecheck. Must run AFTER

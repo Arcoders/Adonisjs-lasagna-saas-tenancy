@@ -49,7 +49,7 @@
       "npm install @adonisjs-lasagna/sso",
       "npm install jose   # optional: only for JWKS id-token verification"
     ],
-    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/satellites/sso"
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/sso"
   },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",

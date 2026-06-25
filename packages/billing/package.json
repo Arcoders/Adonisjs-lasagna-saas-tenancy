@@ -68,7 +68,7 @@
       "npm install stripe@^22   # only for the Stripe driver (optional peer)"
     ],
     "configSnippet": "ignorePaths: ['/admin', '/api/webhooks', '/health', '/webhooks/stripe'],\nbilling: {\n  driver: 'stripe',   // 'stripe' | 'paddle' | 'lemonsqueezy'\n  stripe: {\n    apiKey: env.get('STRIPE_API_KEY'),\n    webhookSecret: env.get('STRIPE_WEBHOOK_SECRET'),\n  },\n  products: { prod_starter: 'starter', prod_pro: 'pro' },  // map provider product/price ids\n  defaultPlan: 'starter',\n},",
-    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/cookbook/stripe-quotas"
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/cookbook/stripe-quotas"
   },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",

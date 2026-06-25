@@ -17,7 +17,7 @@ a satellite suite covering audit logs, webhooks, branding, SSO, feature
 flags, metrics, and Stripe billing.
 
 [![npm](https://img.shields.io/npm/v/@adonisjs-lasagna/saas-tenancy?color=C26A4B&label=npm)](https://www.npmjs.com/package/@adonisjs-lasagna/saas-tenancy)
-[![Stability: release candidate](https://img.shields.io/badge/stability-release_candidate-C26A4B)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/stability)
+[![Stability: release candidate](https://img.shields.io/badge/stability-release_candidate-C26A4B)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A524-green)](https://nodejs.org)
 [![AdonisJS](https://img.shields.io/badge/AdonisJS-7-5a45ff)](https://adonisjs.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-%E2%89%A514-336791)](https://www.postgresql.org)
@@ -26,9 +26,9 @@ flags, metrics, and Stripe billing.
 [![Docs](https://img.shields.io/badge/docs-published-C26A4B)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/)
 [![License](https://img.shields.io/badge/License-MIT-blue)](./LICENSE)
 
-📖 **[Full documentation →](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/)** · [Quickstart](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/quickstart) · [Why Lasagna](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/why) · [Comparison vs stancl](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/comparison) · [Release notes](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/release-notes)
+📖 **[Full documentation →](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/)** · [Quickstart](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/start/quickstart) · [Why Lasagna](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/start/why) · [Comparison vs stancl](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/comparison) · [Release notes](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/release-notes)
 
-> **Stability: release candidate.** The isolation core is feature complete and green in CI against real Postgres and Redis, but the `stable` label is withheld until an independent security review and production mileage close. The satellites (billing, SSO, admin, backup, and the opt-in in-core features like quotas, webhooks, and metrics) are **experimental**. Full breakdown and the 1.x semver promise in the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/stability).
+> **Stability: release candidate.** The isolation core is feature complete and green in CI against real Postgres and Redis, but the `stable` label is withheld until an independent security review and production mileage close. The satellites (billing, SSO, admin, backup, and the opt-in in-core features like quotas, webhooks, and metrics) are **experimental**. Full breakdown and the 1.x semver promise in the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability).
 
 I built this because the AdonisJS ecosystem deserved a proper multi
 tenancy foundation, and because every SaaS I touched eventually outgrew
@@ -41,7 +41,7 @@ If you'd rather see it run than read about it, jump to
 exercises every feature, and one `npm run test:e2e` brings up the stack
 and runs 123 tests against it.
 
-🔒 Tested against the isolation failures that bite in production: cross-tenant access under concurrency, quota atomicity, SSO replay, audit immutability, header-vs-domain hijack. [See what we verified →](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/why#hardened-against-the-failures-that-bite-you-in-production)
+🔒 Tested against the isolation failures that bite in production: cross-tenant access under concurrency, quota atomicity, SSO replay, audit immutability, header-vs-domain hijack. [See what we verified →](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/start/why#hardened-against-the-failures-that-bite-you-in-production)
 
 ## Highlights
 
@@ -90,7 +90,7 @@ node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,webhooks
 node ace configure @adonisjs-lasagna/saas-tenancy --no-interaction --with=audit,branding
 ```
 
-The full [5-minute quickstart](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/quickstart)
+The full [5-minute quickstart](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/start/quickstart)
 covers DB connections, the tenant repository binding, middleware
 registration, and creating your first tenant.
 
@@ -100,10 +100,10 @@ The complete documentation lives at
 **[arcoders.github.io/Adonisjs-lasagna-saas-tenancy](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/)**.
 Direct links:
 
-- 🚀 [Quickstart](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/quickstart)
-- 🚢 [Deployment guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/deployment) (Dockerfile, docker-compose, Helm chart)
-- 🛡️ [Security guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/security) (what the package guarantees vs what the host owns)
-- ⚖️  [Comparison vs `stancl/tenancy`](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/comparison)
+- 🚀 [Quickstart](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/start/quickstart)
+- 🚢 [Deployment guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/deployment) (Dockerfile, docker-compose, Helm chart)
+- 🛡️ [Security guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/security) (what the package guarantees vs what the host owns)
+- ⚖️  [Comparison vs `stancl/tenancy`](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/comparison)
 
 ## Reference app
 

@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const REPO = 'https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy'
 const CHANGELOG_PATH = resolve(__dirname, '../../packages/core/CHANGELOG.md')
-const TARGET_PATH = resolve(__dirname, '../docs/release-notes.md')
+const TARGET_PATH = resolve(__dirname, '../reference/release-notes.md')
+const REDIRECTS_PATH = resolve(__dirname, '../redirects.json')
 
 // The satellites version independently and keep their own canonical changelogs.
 // Surface them as a linked index (name + current version) rather than inlining
@@ -14,7 +15,16 @@ const SATELLITES = ['sso', 'billing', 'admin', 'backup']
 
 const raw = readFileSync(CHANGELOG_PATH, 'utf8')
 
-const body = raw.replace(/^# Changelog\s*\n/, '').trimStart()
+let body = raw.replace(/^# Changelog\s*\n/, '').trimStart()
+
+// The CHANGELOG is the canonical historical record and still references the
+// pre-restructure `/docs/*` URLs. Normalise them to the new Start/Guides/Reference
+// paths on the generated page (longest-first so a page URL is rewritten before any
+// shorter prefix), so the dead-link check passes without editing release history.
+const redirects = JSON.parse(readFileSync(REDIRECTS_PATH, 'utf8'))
+for (const [oldUrl, newUrl] of Object.entries(redirects).sort((a, b) => b[0].length - a[0].length)) {
+  body = body.split(oldUrl).join(newUrl)
+}
 
 const satelliteRows = SATELLITES.map((dir) => {
   const pkg = JSON.parse(

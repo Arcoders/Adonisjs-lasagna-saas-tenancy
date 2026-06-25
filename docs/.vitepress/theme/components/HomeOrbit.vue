@@ -65,7 +65,7 @@ const bundled: Sat[] = [
     label: 'Audit',
     tier: 'bundled',
     icon: PhScroll,
-    href: withBase('/docs/satellites/audit'),
+    href: withBase('/guides/satellites/audit'),
     desc: 'Structured audit trail with actor and payload, queryable by date range.',
   },
   {
@@ -73,7 +73,7 @@ const bundled: Sat[] = [
     label: 'Feature flags',
     tier: 'bundled',
     icon: PhFlag,
-    href: withBase('/docs/satellites/feature-flags'),
+    href: withBase('/guides/satellites/feature-flags'),
     desc: 'Per-tenant boolean flags (kill switches, beta cohorts), cached.',
   },
   {
@@ -81,7 +81,7 @@ const bundled: Sat[] = [
     label: 'Webhooks',
     tier: 'bundled',
     icon: PhBroadcast,
-    href: withBase('/docs/satellites/webhooks'),
+    href: withBase('/guides/satellites/webhooks'),
     desc: 'HMAC-signed outbound events with a delivery state machine and retries.',
   },
   {
@@ -89,7 +89,7 @@ const bundled: Sat[] = [
     label: 'Branding',
     tier: 'bundled',
     icon: PhPalette,
-    href: withBase('/docs/satellites/branding'),
+    href: withBase('/guides/satellites/branding'),
     desc: 'Per-tenant logo, colors, custom domain, and encrypted SMTP.',
   },
   {
@@ -97,7 +97,7 @@ const bundled: Sat[] = [
     label: 'Metrics',
     tier: 'bundled',
     icon: PhChartLine,
-    href: withBase('/docs/satellites/metrics'),
+    href: withBase('/guides/satellites/metrics'),
     desc: 'Time-series counters per tenant with cursor-based aggregation.',
   },
   {
@@ -105,7 +105,7 @@ const bundled: Sat[] = [
     label: 'Quotas',
     tier: 'bundled',
     icon: PhGauge,
-    href: withBase('/docs/satellites/quotas'),
+    href: withBase('/guides/satellites/quotas'),
     desc: 'Plan-bound limits, rolling and snapshot, served as middleware.',
   },
   {
@@ -113,7 +113,7 @@ const bundled: Sat[] = [
     label: 'Impersonation',
     tier: 'bundled',
     icon: PhUserSwitch,
-    href: withBase('/docs/satellites/impersonation'),
+    href: withBase('/guides/satellites/impersonation'),
     desc: 'Admin enters a tenant as a target user, time-boxed and audited.',
   },
 ]
@@ -125,7 +125,7 @@ const packaged: Sat[] = [
     label: 'SSO',
     tier: 'package',
     icon: PhKey,
-    href: withBase('/docs/satellites/sso'),
+    href: withBase('/guides/satellites/sso'),
     desc: 'Per-tenant OIDC config with JWKS-backed verification.',
   },
   {
@@ -133,7 +133,7 @@ const packaged: Sat[] = [
     label: 'WebSockets',
     tier: 'package',
     icon: PhPlugsConnected,
-    href: withBase('/docs/satellites/websockets'),
+    href: withBase('/guides/satellites/websockets'),
     desc: 'Bidirectional socket.io, tenant-isolated per connection.',
   },
   {
@@ -141,7 +141,7 @@ const packaged: Sat[] = [
     label: 'Billing',
     tier: 'package',
     icon: PhCreditCard,
-    href: withBase('/docs/satellites/billing'),
+    href: withBase('/guides/satellites/billing'),
     desc: 'Multi-provider Stripe, Paddle, and Lemon Squeezy, with idempotent webhooks and dunning.',
   },
   {
@@ -149,7 +149,7 @@ const packaged: Sat[] = [
     label: 'Backup',
     tier: 'package',
     icon: PhCloudArrowUp,
-    href: withBase('/docs/satellites/backup'),
+    href: withBase('/guides/satellites/backup'),
     desc: 'Per-tenant backup, restore, clone, and SQL import via pg_dump and pg_restore.',
   },
 ]

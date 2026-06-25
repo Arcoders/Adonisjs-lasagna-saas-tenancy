@@ -63,7 +63,7 @@ const drivers = [
         <code>AsyncLocalStorage</code> carries the active tenant id beyond the
         request, so queued jobs, logs, cache, and drive resolve the same tenant
         without threading it by hand.
-        <a :href="withBase('/docs/concepts')">See the full flow →</a>
+        <a :href="withBase('/start/concepts')">See the full flow →</a>
       </p>
     </div>
   </section>

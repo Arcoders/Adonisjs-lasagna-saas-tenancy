@@ -15,3 +15,6 @@ docs/.vitepress/dist/
 # Benchmark run output (raw result JSON). Committed baselines live in
 # benchmarks/baselines/ and are tracked; per-run results are not.
 benchmarks/results/
+
+# Temp dir for the docs code-fence import gate (scripts/check-docs-code.mjs)
+.docs-code-tmp/

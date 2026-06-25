@@ -58,7 +58,7 @@ Everything beyond it is yours. You are not waiting on our roadmap to build what
 your product needs; you shape the feature surface around your project, on your
 own timeline.
 
-[Creating a satellite →](/docs/cookbook/creating-a-satellite)
+[Creating a satellite →](/guides/cookbook/creating-a-satellite)
 
 ## Reference application
 

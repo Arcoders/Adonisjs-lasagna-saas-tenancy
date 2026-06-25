@@ -68,7 +68,7 @@
     },
     "provider": "@adonisjs-lasagna/reporting/provider",
     "commands": "@adonisjs-lasagna/reporting/commands",
-    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/satellites/reporting"
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/reporting"
   },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",

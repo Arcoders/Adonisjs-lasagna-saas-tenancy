@@ -57,7 +57,7 @@
       "npm install @socket.io/redis-adapter   # only for multi-node fan-out (optional)"
     ],
     "configSnippet": "websockets: {\n  path: '/socket.io',\n  cors: { origin: true, credentials: true },\n  handshake: { authKey: 'tenantId' },  // browsers send io(url, { auth: { tenantId } })\n  // authorize(socket, tenant) { /* verify the connecting user belongs to tenant */ return true },\n},",
-    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/cookbook/multi-tenant-websockets"
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/cookbook/multi-tenant-websockets"
   },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",

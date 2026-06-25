@@ -5,7 +5,7 @@ satellite. It is `private` and never published — it lives in the monorepo so t
 public satellite contract is compiled and unit-tested against a fresh consumer in
 CI. Copy it as the starting point for your own satellite.
 
-See the full guide: **[Creating a satellite](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/cookbook/creating-a-satellite)**.
+See the full guide: **[Creating a satellite](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/cookbook/creating-a-satellite)**.
 
 ## What it demonstrates
 

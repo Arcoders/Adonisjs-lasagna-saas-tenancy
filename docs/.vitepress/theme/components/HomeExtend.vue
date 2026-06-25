@@ -32,7 +32,7 @@ import { PhArrowRight } from '@phosphor-icons/vue'
         Billing and SSO ship exactly this way, so there is no privileged
         internal API: what we build on, you build on.
       </p>
-      <a class="ex__btn" :href="withBase('/docs/cookbook/creating-a-satellite')">
+      <a class="ex__btn" :href="withBase('/guides/cookbook/creating-a-satellite')">
         Creating a satellite
         <PhArrowRight :size="16" weight="bold" />
       </a>

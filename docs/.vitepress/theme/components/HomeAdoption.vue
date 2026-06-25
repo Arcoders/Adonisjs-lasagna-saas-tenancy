@@ -23,8 +23,8 @@ const lookElsewhere = [
 const REPO = 'https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy'
 const links = [
   { text: 'Reference app', sub: 'A real AdonisJS 7 app', href: `${REPO}/tree/master/examples/api`, external: true },
-  { text: 'Benchmarks', sub: 'Numbers on real hardware', href: withBase('/docs/performance'), external: false },
-  { text: 'Comparison', sub: 'vs stancl & NestJS', href: withBase('/docs/comparison'), external: false },
+  { text: 'Benchmarks', sub: 'Numbers on real hardware', href: withBase('/guides/performance'), external: false },
+  { text: 'Comparison', sub: 'vs stancl & NestJS', href: withBase('/reference/comparison'), external: false },
 ]
 </script>
 
