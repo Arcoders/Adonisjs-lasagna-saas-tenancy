@@ -1,6 +1,6 @@
 /**
  * `npm run bench:report` — aggregate the newest result per suite/driver into
- * the generated docs page (docs/docs/performance.md) and, with
+ * the generated docs page (docs/guides/performance.md) and, with
  * `--write-baseline=<name>`, snapshot a flat baseline index for the gate.
  *
  * Run on the canonical reference box for the 1.0.0 numbers:
@@ -10,8 +10,8 @@ import { writeFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { latestBySuiteDriver, latestNBySuiteDriver, median, iqr, type ResultFile } from './results.js'
 import type { BenchResult } from './runner.js'
 
-const PERF_DOC = new URL('../../../docs/docs/performance.md', import.meta.url)
-const SCALING_DOC = new URL('../../../docs/docs/scaling-limits.md', import.meta.url)
+const PERF_DOC = new URL('../../../docs/guides/performance.md', import.meta.url)
+const SCALING_DOC = new URL('../../../docs/guides/scaling-limits.md', import.meta.url)
 const BASELINES_DIR = new URL('../../baselines/', import.meta.url)
 const INJECT_START = '<!-- BENCH:summary:start -->'
 const INJECT_END = '<!-- BENCH:summary:end -->'
@@ -298,14 +298,14 @@ function injectScalingLimits(latest: Map<string, ResultFile>): void {
   const re = new RegExp(`${INJECT_START}[\\s\\S]*?${INJECT_END}`)
   writeFileSync(SCALING_DOC, doc.replace(re, block))
   // eslint-disable-next-line no-console
-  console.log('→ injected summary into docs/docs/scaling-limits.md')
+  console.log('→ injected summary into docs/guides/scaling-limits.md')
 }
 
 const latest = latestBySuiteDriver()
 const md = buildMarkdown(latest)
 writeFileSync(PERF_DOC, md)
 // eslint-disable-next-line no-console
-console.log(`→ wrote docs/docs/performance.md (${latest.size} suite/driver section(s))`)
+console.log(`→ wrote docs/guides/performance.md (${latest.size} suite/driver section(s))`)
 injectScalingLimits(latest)
 
 const writeArg = process.argv.find((a) => a.startsWith('--write-baseline='))

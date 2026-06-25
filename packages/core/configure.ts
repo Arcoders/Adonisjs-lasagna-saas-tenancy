@@ -537,7 +537,7 @@ function postPublishRls(command: Configure): void {
   log.log(
     '  4. Wrap tenant work in withTenantRls(tenantId, (trx) => ...) so the policy sees the tenant.'
   )
-  log.log('See docs/data-isolation/rowscope-pg.md for the full pattern.')
+  log.log('See docs/guides/data-isolation/rowscope-pg.md for the full pattern.')
 }
 
 async function fileExists(path: string): Promise<boolean> {

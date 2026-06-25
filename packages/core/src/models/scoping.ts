@@ -112,7 +112,7 @@ export class MissingTenantScopeException extends Error {
  * enable PostgreSQL Row-Level Security on the scoped tables in addition to this
  * mixin: publish the policy migration with `configure --with=rls` and set the
  * tenant per transaction with `withTenantRls()` / `setTenantRlsGuc()`. See
- * docs/data-isolation/rowscope-pg.md.
+ * docs/guides/data-isolation/rowscope-pg.md.
  */
 export function withTenantScope<TBase extends LucidBaseModelClass>(Base: TBase): TBase {
   const Bootable = Base as TBase & Bootable

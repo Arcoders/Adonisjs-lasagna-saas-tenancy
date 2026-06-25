@@ -2,8 +2,8 @@
 
 Private workspace. Not published. It exists to (1) produce the empirical **1.0.0
 performance baseline** that backs the numbers in
-[scaling-limits.md](../docs/docs/scaling-limits.md) and the generated
-[performance.md](../docs/docs/performance.md), and (2) provide a repeatable,
+[scaling-limits.md](../docs/guides/scaling-limits.md) and the generated
+[performance.md](../docs/guides/performance.md), and (2) provide a repeatable,
 CI-runnable **regression gate** over the hot paths.
 
 ## What it measures (tiers)
@@ -143,4 +143,4 @@ throughput and the number would mislead.
 Warmup then a fixed sample count; report median + p99 + stddev; discard the first run; GC
 between groups (`--expose-gc`, already wired into `bench:micro`); one concurrency knob per
 run; seeded data with fixed tenant UUIDs and fixed row sizes. See
-[../docs/docs/performance.md](../docs/docs/performance.md) for the published write-up.
+[../docs/guides/performance.md](../docs/guides/performance.md) for the published write-up.

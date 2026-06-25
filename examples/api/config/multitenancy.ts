@@ -159,7 +159,7 @@ export default {
 
   // ─── Billing (Stripe) ────────────────────────────────────────────
   // Added incrementally on top of the satellites above — the exact flow this
-  // demonstrates lives in docs/cookbook/adding-features-incrementally.md.
+  // demonstrates lives in docs/guides/cookbook/adding-features-incrementally.md.
   // The keys are safe placeholders: BillingService.verify() runs at boot but
   // only validates the key shape (no network), and the e2e suite injects
   // MockStripe, so no real Stripe account is needed. `products` maps Stripe

@@ -9,7 +9,7 @@ export type BillingDriverChoice = 'stripe' | 'paddle' | 'lemonsqueezy' | (string
 /**
  * Billing satellite — opt-in via `--with=billing` and declaring `config.billing`.
  * Provider-agnostic: pick `driver` and fill in the matching config block.
- * Documented end-to-end in `docs/cookbook/stripe-quotas.md`.
+ * Documented end-to-end in `docs/guides/cookbook/stripe-quotas.md`.
  *
  * Plays platform-mode only (one provider account, tenants are subscribers).
  */

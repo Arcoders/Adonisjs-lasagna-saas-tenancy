@@ -2,7 +2,7 @@
 /**
  * Stability-label vs. version guard (audit P1-3).
  *
- * The stability page (docs/docs/stability.md) is the canonical source for what
+ * The stability page (docs/reference/stability.md) is the canonical source for what
  * each package promises: `experimental` surfaces "may change in any minor" and
  * are excluded from the semver promise, while `release candidate` / `stable`
  * surfaces freeze their API at >=1.0.0. A version string asserts the same
@@ -21,7 +21,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-const STABILITY_DOC = 'docs/docs/stability.md'
+const STABILITY_DOC = 'docs/reference/stability.md'
 const PACKAGES_DIR = 'packages'
 
 const doc = readFileSync(STABILITY_DOC, 'utf8')

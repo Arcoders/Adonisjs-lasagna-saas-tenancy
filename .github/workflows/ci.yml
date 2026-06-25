@@ -60,6 +60,13 @@ jobs:
       - name: Docs code-fence import gate
         run: node scripts/check-docs-code.mjs
 
+      # Every `docs/<page>.md` path referenced outside the docs markdown (scripts,
+      # workflows, the benchmark harness, tests, source JSDoc, READMEs/CHANGELOGs)
+      # must resolve. The dead-link gate only covers links INSIDE docs/, so this is
+      # what stops a docs move from silently breaking a script or a CI job.
+      - name: Docs path guard
+        run: node scripts/check-doc-paths.mjs
+
       # One gate for every workspace with a typecheck script (--workspaces
       # --if-present), so adding a package or example can't reopen the gap
       # the demo app fell into when nothing ran its typecheck. Must run AFTER
@@ -74,7 +81,7 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # Versions must agree with the stability labels in docs/docs/stability.md
+      # Versions must agree with the stability labels in docs/reference/stability.md
       # (experimental -> 0.x, release candidate/stable -> >=1.0.0). Labels are
       # parsed from the doc, so relabeling without re-versioning fails here.
       - name: Stability labels vs. versions

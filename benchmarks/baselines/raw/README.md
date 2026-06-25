@@ -3,7 +3,7 @@
 `benchmarks/results/` is gitignored (noisy per-run output). This folder is
 **tracked**: it holds the curated raw result JSONs behind a published number, so
 the figures in `benchmarks/results/PERFORMANCE_ASSESSMENT.md` and the generated
-`docs/docs/performance.md` are reproducible and auditable from the repo.
+`docs/guides/performance.md` are reproducible and auditable from the repo.
 
 ## Convention
 

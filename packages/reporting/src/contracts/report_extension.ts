@@ -14,7 +14,7 @@ export interface ReportExtensionFilters {
  * Built-in reporting reads the shared backoffice schema and never enters a
  * tenant scope. An extension that fans out across tenant schemas is the host's
  * responsibility — bound it with the `TenantQueueService.statsForTenants`-style
- * concurrency pattern and mind the connection budget (see docs/scaling-limits).
+ * concurrency pattern and mind the connection budget (see docs/guides/scaling-limits.md).
  */
 export interface ReportExtension {
   /** Safe identifier (`/^[a-zA-Z0-9_-]{1,63}$/`); used in the CLI flag + URL. */

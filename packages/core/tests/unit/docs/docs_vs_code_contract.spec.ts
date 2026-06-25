@@ -11,20 +11,28 @@ import { fileURLToPath } from 'node:url'
  */
 
 const corePath = (rel: string) => fileURLToPath(new URL(`../../../${rel}`, import.meta.url))
-const docsDir = fileURLToPath(new URL('../../../../../docs/docs/', import.meta.url))
+const docsDir = fileURLToPath(new URL('../../../../../docs/', import.meta.url))
 const docPath = (rel: string) => `${docsDir}${rel}`
+
+// Non-content directories under docs/ to skip when walking the corpus (mirrors
+// scripts/check-docs-code.mjs's walk): the VitePress app dir and static assets
+// hold no authored markdown.
+const SKIP_DIRS = new Set(['.vitepress', 'public'])
 
 function read(path: string): string {
   return readFileSync(path, 'utf8')
 }
 
-/** Every markdown file under docs/docs, recursively. */
+/** Every authored markdown file under docs/, recursively. */
 function allDocs(dir: string = docsDir): string[] {
   const out: string[] = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = `${dir}${entry.name}`
-    if (entry.isDirectory()) out.push(...allDocs(`${full}/`))
-    else if (entry.name.endsWith('.md')) out.push(full)
+    if (entry.isDirectory()) {
+      if (SKIP_DIRS.has(entry.name)) continue
+      out.push(...allDocs(`${dir}${entry.name}/`))
+    } else if (entry.name.endsWith('.md')) {
+      out.push(`${dir}${entry.name}`)
+    }
   }
   return out
 }
@@ -42,13 +50,13 @@ test.group('docs vs code contract', () => {
   test('events.md documents the QuotaTracked payload field as newTotal, not total', ({
     assert,
   }) => {
-    const events = read(docPath('events.md'))
+    const events = read(docPath('reference/events.md'))
     assert.include(events, '`amount`, `newTotal`', 'QuotaTracked 4th field is `newTotal`')
     assert.notInclude(events, '`amount`, `total`', 'the stale `total` field name must not reappear')
   })
 
   test('events.md documents the public metrics events', ({ assert }) => {
-    const events = read(docPath('events.md'))
+    const events = read(docPath('reference/events.md'))
     assert.include(events, 'MetricRecorded')
     assert.include(events, 'MetricsFlushed')
   })
@@ -72,7 +80,7 @@ test.group('docs vs code contract', () => {
       'config.ts JSDoc must document the real default'
     )
 
-    const configuration = read(docPath('configuration.md'))
+    const configuration = read(docPath('reference/configuration.md'))
     assert.include(
       configuration,
       `\`impersonation.defaultDuration\` | \`number\` | \`${seconds}\``,
@@ -84,9 +92,9 @@ test.group('docs vs code contract', () => {
     const manifest = JSON.parse(read(corePath('src/commands/commands.json'))) as {
       commands?: Array<{ commandName?: string }>
     }
-    const md = read(docPath('commands.md'))
+    const md = read(docPath('reference/commands.md'))
     const names = (manifest.commands ?? []).map((c) => c.commandName).filter(Boolean) as string[]
     const undocumented = names.filter((name) => !md.includes(name))
-    assert.deepEqual(undocumented, [], 'add the missing command(s) to docs/docs/commands.md')
+    assert.deepEqual(undocumented, [], 'add the missing command(s) to docs/reference/commands.md')
   })
 })

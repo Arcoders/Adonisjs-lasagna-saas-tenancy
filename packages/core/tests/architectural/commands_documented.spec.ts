@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
  * The "registered" set is the source of truth that ace itself reads: each
  * package's `src/commands/commands.json` manifest (the same file copied into
  * `build/` and loaded by the kernel). The "documented" set is the raw markdown
- * of docs/docs/commands.md — a command counts as documented when its exact
+ * of docs/reference/commands.md — a command counts as documented when its exact
  * `commandName` appears anywhere on the page (it's always inside an inline-code
  * span, e.g. `tenant:create <name> <email>`).
  *
@@ -83,7 +83,7 @@ test.group('Docs integrity: CLI commands', () => {
       undocumented,
       [],
       [
-        'These ace commands are registered but not documented in docs/docs/commands.md:',
+        'These ace commands are registered but not documented in docs/reference/commands.md:',
         ...undocumented.map((c) => `  - ${c}`),
         '',
         'Add a row to the CLI reference (or, if it is intentionally hidden, add it to',

@@ -29,7 +29,7 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-const STABILITY_DOC = 'docs/docs/stability.md'
+const STABILITY_DOC = 'docs/reference/stability.md'
 const PACKAGES_DIR = 'packages'
 const lcovFile = process.argv[2] ?? 'coverage/lcov.info'
 const reportOnly = process.env.SATELLITE_COV_REPORT_ONLY === '1'

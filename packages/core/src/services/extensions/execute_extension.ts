@@ -53,7 +53,7 @@ export interface ExecuteExtensionOptions {
  * cooperative extensions actually stop, we pass an `AbortSignal` to `fn` and
  * abort it when the timer fires; extensions that thread the signal into their
  * `fetch`/queries will unwind. Non-cooperative ones continue in the background
- * (mind the connection budget — see docs/scaling-limits).
+ * (mind the connection budget — see docs/guides/scaling-limits.md).
  */
 export async function executeExtension<T>(
   fn: (signal: AbortSignal) => Promise<T>,

@@ -59,7 +59,7 @@ machinery versions independently. It depends on the core as a peer (`^1.0.0`); `
 
 **Stability: experimental.** The API is covered by tests but may change in a minor release.
 Pin the version and read this changelog before upgrading. See the
-[stability matrix](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/stability.md).
+[stability matrix](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/stability.md).
 
 ### Added
 

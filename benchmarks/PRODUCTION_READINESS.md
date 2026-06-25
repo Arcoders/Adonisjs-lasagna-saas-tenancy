@@ -87,7 +87,7 @@ outages, negligible tenancy CPU overhead, and a regression gate that blocks corr
    `enforceConnectionCap` stays `false` (the LRU exceeds the cap rather than sever an in-flight
    request). The hard-cap path is the documented opt-in for a firm 503 bound; mitigations (opt-in
    cap, size `max_connections` to `maxTenantConnections × poolMax` + headroom, front Postgres with
-   **PgBouncer**) are written up in [docs Scaling limits](../docs/docs/scaling-limits.md).
+   **PgBouncer**) are written up in [docs Scaling limits](../docs/guides/scaling-limits.md).
 2. **Canonical 1.0.0 absolute — captured.** [baselines/1.0.0.json](baselines/1.0.0.json) holds a
    pinned Linux capture (AMD EPYC 7763, PostgreSQL 16.14, Node 24.16, median of 2 full sweeps,
    commit `dc4e35f`), so the generated performance docs no longer print their provisional caveat.
@@ -109,7 +109,7 @@ outages, negligible tenancy CPU overhead, and a regression gate that blocks corr
 
 **What graduation from release-candidate to `stable` still needs.** These are the two things a
 benchmark suite cannot supply on its own, and they are why the core ships as a release-candidate
-rather than `stable` (see [docs/docs/stability.md](../docs/docs/stability.md)):
+rather than `stable` (see [docs/reference/stability.md](../docs/reference/stability.md)):
 
 - An **independent external security review** of the isolation core. The audit run this session is
   a deep internal self-review, not third-party validation.

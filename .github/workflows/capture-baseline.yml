@@ -211,8 +211,8 @@ jobs:
           path: |
             benchmarks/baselines/1.0.0.json
             benchmarks/baselines/raw/
-            docs/docs/performance.md
-            docs/docs/scaling-limits.md
+            docs/guides/performance.md
+            docs/guides/scaling-limits.md
           if-no-files-found: warn
 
       - name: Open PR with the captured baseline
@@ -227,9 +227,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
-          git add benchmarks/baselines/1.0.0.json "$RAW_DIR" docs/docs/performance.md docs/docs/scaling-limits.md
+          git add benchmarks/baselines/1.0.0.json "$RAW_DIR" docs/guides/performance.md docs/guides/scaling-limits.md
           git commit -m "perf(benchmarks): capture canonical 1.0.0 baseline on ubuntu" \
-            -m "Full-size sweep aggregated over $RUNS throughput runs on ubuntu-latest (memory tier once). Replaces the placeholder baselines/1.0.0.json, commits the raw snapshot, and regenerates docs/docs/performance.md (the provisional dev-box caveat drops on Linux)."
+            -m "Full-size sweep aggregated over $RUNS throughput runs on ubuntu-latest (memory tier once). Replaces the placeholder baselines/1.0.0.json, commits the raw snapshot, and regenerates docs/guides/performance.md (the provisional dev-box caveat drops on Linux)."
           git push -u origin "$branch"
 
           {
@@ -243,7 +243,7 @@ jobs:
             echo "Contents:"
             echo "- \`benchmarks/baselines/1.0.0.json\` — median of $RUNS throughput runs (mem once), with IQR + run count per metric"
             echo "- raw snapshot under \`$RAW_DIR\`"
-            echo "- regenerated \`docs/docs/performance.md\` and \`scaling-limits.md\` (provisional caveat dropped)"
+            echo "- regenerated \`docs/guides/performance.md\` and \`scaling-limits.md\` (provisional caveat dropped)"
             echo
             echo "Targets \`$BASE_BRANCH\` (auto-detected). Before merging: paste the captured env into the **Canonical reference machine** block in \`benchmarks/README.md\`, and link \`$RAW_DIR\` from \`benchmarks/results/PERFORMANCE_ASSESSMENT.md\`."
           } > pr-body.md

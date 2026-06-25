@@ -5,7 +5,7 @@ import { assertSafeIdentifier } from './identifier.js'
  *
  * `withTenantScope` injects `WHERE tenant_id = ?`, but a hand-written top-level
  * `orWhere` can compose a query the mixin cannot retroactively group, leaking
- * another tenant's rows (see docs/data-isolation/rowscope-pg.md). RLS closes
+ * another tenant's rows (see docs/guides/data-isolation/rowscope-pg.md). RLS closes
  * that gap at the database: a policy keyed on a per-transaction setting is
  * enforced for EVERY query, regardless of how it is written.
  *

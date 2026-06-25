@@ -14,7 +14,7 @@ import { resolveTenantIdFromHandshake } from '../../src/resolve_from_handshake.j
  * the others — a real isolation gap at scale. The cookbook closes it with a Redis
  * pub/sub bridge: every node publishes the tenant id when it severs, and every
  * node subscribes and calls `disconnectTenant()` locally when a message arrives
- * (docs/docs/cookbook/multi-tenant-websockets.md, "Scaling to multiple nodes").
+ * (docs/guides/cookbook/multi-tenant-websockets.md, "Scaling to multiple nodes").
  *
  * This boots TWO real socket.io servers wired exactly like the recipe — the
  * @socket.io/redis-adapter for emit fan-out, plus the severance bridge — and

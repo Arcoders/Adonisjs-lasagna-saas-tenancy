@@ -52,7 +52,7 @@ const SURFACES = [
   },
 ]
 
-const DOCS = 'docs/docs/satellites/extensibility.md'
+const DOCS = 'docs/guides/extensibility.md'
 const EXAMPLE = 'examples/api/app/providers/app_provider.ts'
 
 const errors = []

@@ -3,7 +3,7 @@
  * Satellite graduation gate.
  *
  * A satellite may only carry the `release candidate` (or `stable`) label in
- * docs/docs/stability.md once it meets a uniform, mechanically-checkable bar.
+ * docs/reference/stability.md once it meets a uniform, mechanically-checkable bar.
  * This script enforces that bar so a satellite can never be relabeled to RC
  * without the artifacts that make the label honest. It complements
  * check-stability-versions.mjs (which enforces label <-> version agreement) by
@@ -22,7 +22,7 @@
  *   - `lasagnaSatellite.satelliteApi` is a positive integer (in the ABI net)
  *   - an `adonisjs.configure` hook (so `node ace configure <pkg>` works)
  *   - a CHANGELOG.md
- *   - a doc page at docs/docs/satellites/<manifest.name>.md
+ *   - a doc page at docs/guides/satellites/<manifest.name>.md
  *
  * Experimental satellites are reported but not enforced: they have not graduated.
  *
@@ -31,9 +31,9 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-const STABILITY_DOC = 'docs/docs/stability.md'
+const STABILITY_DOC = 'docs/reference/stability.md'
 const PACKAGES_DIR = 'packages'
-const SATELLITE_DOCS_DIR = 'docs/docs/satellites'
+const SATELLITE_DOCS_DIR = 'docs/guides/satellites'
 
 // The graduation bar for per-satellite MERGED (unit+integration) line coverage.
 // Kept in sync with scripts/check-satellite-coverage.mjs, which enforces the

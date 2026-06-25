@@ -2,8 +2,8 @@
 
 The full, maintained security policy (the per-feature guarantee table, the
 threat model, the host responsibilities, and the deployment checklist) lives in
-the docs: **[Security guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/security)**
-([source](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/security.md)).
+the docs: **[Security guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/security)**
+([source](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/guides/security.md)).
 This file is the short version so GitHub surfaces a Security policy.
 
 ## Supported versions
@@ -29,5 +29,5 @@ within **72 hours** and coordinate a fix and disclosure window.
 The isolation core is a release candidate and the satellites are experimental.
 Reports against the core isolation guarantees (cross-tenant read or write
 leakage, resolver hijack, fail-open under dependency outage) are highest
-priority. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/docs/stability)
+priority. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability)
 for the per-feature labels.

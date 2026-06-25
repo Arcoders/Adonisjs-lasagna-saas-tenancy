@@ -31,7 +31,7 @@ production mileage.
 **Stability: release candidate.** The API is frozen under the 1.x promise, with
 the one honest caveat that a correction forced by the pending security review or
 production mileage may land in a 1.x minor with a loud changelog entry. See the
-[stability matrix](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/stability.md).
+[stability matrix](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/stability.md).
 
 ## [0.1.0] — 2026-06-18
 

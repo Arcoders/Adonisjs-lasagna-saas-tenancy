@@ -12,7 +12,7 @@ The 1.0 cut. The optional satellites move out of the core into their own
 independently-versioned packages, and the unified tenant-resolution path becomes
 the default. The core now ships only the tenancy primitives plus the leaf
 satellites (audit, feature flags, metrics, webhooks, branding, quotas,
-impersonation). See the [Upgrade to 1.0 guide](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/upgrade-to-1.0.md)
+impersonation). See the [Upgrade to 1.0 guide](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/upgrade-to-1.0.md)
 for a copy-paste migration.
 
 ### Breaking changes
@@ -105,7 +105,7 @@ for a copy-paste migration.
 - New lightweight subpaths: `@adonisjs-lasagna/saas-tenancy/config` (read config
   outside a booted app) and `/internal` (app.booted-safe building blocks the
   official satellites consume).
-- Docs: a [Scaling limits](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/scaling-limits.md)
+- Docs: a [Scaling limits](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/guides/scaling-limits.md)
   page and the Upgrade to 1.0 guide.
 - **Row-Level Security for `rowscope-pg`.** A new opt-in
   (`configure --with=rls`) publishes a policy migration, plus `withTenantRls()`
@@ -113,7 +113,7 @@ for a copy-paste migration.
   The policy is fail-closed (an unset tenant matches no rows) and enforced by
   the database regardless of query shape, so a hand-written top-level `orWhere`
   can no longer escape the tenant scope. See
-  [rowscope-pg](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/data-isolation/rowscope-pg.md#hard-boundary-postgresql-row-level-security).
+  [rowscope-pg](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/guides/data-isolation/rowscope-pg.md#hard-boundary-postgresql-row-level-security).
 - **Optional hard connection cap.** `isolation.enforceConnectionCap` (default
   `false`) makes `maxTenantConnections` a firm ceiling: when it is full and
   nothing is evictable, a new tenant's `connect()` is refused with a 503
@@ -141,7 +141,7 @@ for a copy-paste migration.
   (the mixin alone is convention, not enforcement); setting the flag after
   shipping the `enable_rls_tenant_isolation` migration acknowledges it and
   silences the warning.
-- **Stability taxonomy.** A [stability matrix](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/stability.md)
+- **Stability taxonomy.** A [stability matrix](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/stability.md)
   labels every feature. The isolation core is `release-candidate` (feature
   complete and green in CI, with `stable` withheld until an independent security
   review and production mileage close); the satellites are `experimental`. The
@@ -149,7 +149,7 @@ for a copy-paste migration.
   notice when it publishes an experimental satellite.
 - **Security policy and operator docs.** A `.github/SECURITY.md` so GitHub
   surfaces the disclosure policy, and a consolidated
-  [Production checklist & runbook](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/docs/production-checklist.md)
+  [Production checklist & runbook](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/production-checklist.md)
   (compatibility matrix, pre-flight checklist, failure-mode table, runbook).
 - **Canonical performance baseline.** `benchmarks/baselines/1.0.0.json`, captured
   on a Linux runner and aggregated over multiple full-size sweeps, so the

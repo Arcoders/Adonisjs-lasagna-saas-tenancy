@@ -181,7 +181,7 @@ jobs:
           name: benchmark-results
           path: |
             benchmarks/results/
-            docs/docs/performance.md
+            docs/guides/performance.md
           if-no-files-found: warn
 
   # Fault injection needs to stop/start the backing services, which GitHub
