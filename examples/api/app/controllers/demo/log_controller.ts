@@ -1,5 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import app from '@adonisjs/core/services/app'
+import { inject } from '@adonisjs/core'
 import {
   TenantLogContext,
   tenantLogger,
@@ -15,10 +15,12 @@ import {
  * AsyncLocalStorage value matches `request.tenant().id` AND that the logger
  * automatically inherits the binding (i.e. no manual wiring required).
  */
+@inject()
 export default class LogController {
+  constructor(private readonly logContext: TenantLogContext) {}
+
   async emit({ request, response }: HttpContext) {
     const tenant = await request.tenant()
-    const ctxSvc = await app.container.make(TenantLogContext)
     const log = await tenantLogger()
 
     log.info({ source: 'log/emit' }, 'tenant context probe')
@@ -26,7 +28,7 @@ export default class LogController {
     return response.ok({
       ok: true,
       tenantId: tenant.id,
-      contextTenantId: ctxSvc.currentTenantId() ?? null,
+      contextTenantId: this.logContext.currentTenantId() ?? null,
       loggerBindings: readPinoBindings(log),
     })
   }

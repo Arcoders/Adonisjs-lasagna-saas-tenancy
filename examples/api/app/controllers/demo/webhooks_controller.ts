@@ -1,4 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
+import { inject } from '@adonisjs/core'
 import { TenantWebhook, encrypt } from '@adonisjs-lasagna/saas-tenancy'
 import { WebhookService } from '@adonisjs-lasagna/saas-tenancy/services'
 import {
@@ -6,14 +7,15 @@ import {
   subscribeWebhookValidator,
 } from '#app/validators/webhooks_validator'
 
-const webhooks = new WebhookService()
-
 /**
  * Subscriber CRUD + a "fire a test event" endpoint. Real apps usually expose
  * webhook management through their own admin UI; the demo routes are
  * deliberately bare so the wiring is obvious.
  */
+@inject()
 export default class WebhooksController {
+  constructor(private readonly webhooks: WebhookService) {}
+
   async list({ request, response }: HttpContext) {
     const tenant = await request.tenant()
     const subscriptions = await TenantWebhook.query().where('tenant_id', tenant.id)
@@ -40,7 +42,7 @@ export default class WebhooksController {
   async fire({ request, response }: HttpContext) {
     const tenant = await request.tenant()
     const payload = await request.validateUsing(fireWebhookValidator)
-    await webhooks.dispatch(tenant.id, payload.event, payload.payload ?? {})
+    await this.webhooks.dispatch(tenant.id, payload.event, payload.payload ?? {})
     return response.accepted({
       dispatched: payload.event,
       hint: 'Run `node ace tenant:webhooks:retry` to flush failed deliveries',

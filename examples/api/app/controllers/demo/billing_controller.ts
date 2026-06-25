@@ -1,5 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import app from '@adonisjs/core/services/app'
+import { inject } from '@adonisjs/core'
 import { BillingService, BillingCustomer } from '@adonisjs-lasagna/billing'
 import type { DemoMeta } from '#app/models/backoffice/tenant'
 
@@ -8,7 +8,7 @@ import type { DemoMeta } from '#app/models/backoffice/tenant'
  *   - GET  /demo/billing           → does this tenant have a billing customer?
  *   - POST /demo/billing/checkout  → create a Checkout session for a plan
  *
- * BillingService is resolved from the container (a singleton that delegates to
+ * BillingService is injected from the container (a singleton that delegates to
  * the active billing driver), so the e2e suite can inject a mock SDK / driver
  * before the request and the controller uses that same instance, no real
  * provider account required.
@@ -26,7 +26,10 @@ const PRICE_BY_PLAN: Record<string, string> = {
   pro: 'price_pro_monthly',
 }
 
+@inject()
 export default class BillingController {
+  constructor(private readonly billing: BillingService) {}
+
   async show({ request, response }: HttpContext) {
     const tenant = await request.tenant<DemoMeta>()
     const customer = await BillingCustomer.find(tenant.id)
@@ -45,8 +48,7 @@ export default class BillingController {
       return response.badRequest({ error: `unknown plan "${plan}"` })
     }
 
-    const billing = await app.container.make(BillingService)
-    const session = await billing.createCheckoutSession(tenant, {
+    const session = await this.billing.createCheckoutSession(tenant, {
       priceId,
       successUrl: 'https://app.example.test/billing/ok',
       cancelUrl: 'https://app.example.test/billing/cancel',
