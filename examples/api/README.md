@@ -6,6 +6,17 @@ If something in the package is broken, this app refuses to boot or the suite tur
 
 > **Only need basic schema isolation?** Start with the [five-minute quickstart](../../docs/start/quickstart.md). This app is the full feature surface; the quickstart is the smallest wiring that gets one tenant resolving.
 
+## A Practical Recommendation
+
+**Use this as a reference, not as a starting template.** Don't clone it and start deleting things. Instead:
+
+1. Read the entire README once to understand the scope.
+2. Identify the 2–3 features you actually need right now (e.g., schema isolation + quotas).
+3. Copy only those specific parts into your project understanding every line as you go.
+4. When you need webhooks, backups, or SSO, come back here and copy the next feature you need.
+
+In short: this example is valuable because it proves the package works in production and teaches you how to use it correctly. But it's a flight manual, not a tourist brochure.
+
 ## What is in here
 
 ```
