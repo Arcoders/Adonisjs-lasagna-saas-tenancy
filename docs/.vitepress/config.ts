@@ -22,6 +22,7 @@ const sidebar = [
     items: [
       { text: 'Introduction', link: '/start/introduction' },
       { text: 'Why multi-tenancy', link: '/start/why' },
+      { text: 'Why AdonisJS?', link: '/start/why-adonisjs' },
       { text: 'Concepts', link: '/start/concepts' },
       { text: 'Quickstart', link: '/start/quickstart' },
       { text: 'Installation & configuration', link: '/start/installation' },
