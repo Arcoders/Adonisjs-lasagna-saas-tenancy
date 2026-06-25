@@ -1,7 +1,10 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { inject } from '@adonisjs/core'
 import TenantsService from '#app/services/tenants_service'
-import { createTenantValidator } from '#app/validators/tenants_validator'
+import {
+  createTenantValidator,
+  destroyTenantQueryValidator,
+} from '#app/validators/tenants_validator'
 import { currentTenant } from '#app/helpers/current_tenant'
 
 /**
@@ -50,7 +53,8 @@ export default class TenantsController {
    * the retention window). Default queues UninstallTenant which drops it.
    */
   async destroy({ params, request, response }: HttpContext) {
-    if (request.input('keepSchema') === 'true') {
+    const { keepSchema } = await request.validateUsing(destroyTenantQueryValidator)
+    if (keepSchema) {
       const tenant = await this.tenants.softDelete(params.id)
       return response.ok({
         id: tenant.id,

@@ -166,39 +166,12 @@ export default class Tenant extends BackofficeBaseModel {
     return db.connection(this.connectionName)
   }
 
-  // Optional contract method — when a replica is configured, route reads to it.
-  // Falls back to the primary connection when no replica is registered.
-  //
-  // We re-implement the resolve step instead of calling replicaService.resolve()
-  // because the package puts searchPath inside the `connection` block as a string,
-  // whereas Lucid expects it at the top level as an array. This shape difference
-  // is a known caveat — track upstream.
+  // When a replica is configured, route reads to it via the package's
+  // ReadReplicaService (it clones the primary tenant config, swaps in the
+  // replica host, and preserves the schema search_path). Falls back to the
+  // primary connection when no replica is registered.
   async getReadConnection() {
-    const host = replicaService.pickHost(this.id)
-    if (!host) return this.getConnection()
-
-    const idx = replicaService.pickIndex(this.id)!
-    const connName = replicaService.connectionName(this.id, idx)
-
-    if (!db.manager.has(connName)) {
-      this.getConnection() // ensure primary exists so we can clone its config
-      const primary = db.manager.get(this.connectionName)?.config as PostgreConfig | undefined
-      assert(primary, 'Primary tenant connection missing')
-      const baseConn: any = primary.connection ?? {}
-      db.manager.add(connName, {
-        ...primary,
-        connection: {
-          ...baseConn,
-          host: host.host,
-          port: host.port ?? baseConn.port,
-          user: host.user ?? baseConn.user,
-          password: host.password ?? baseConn.password,
-        },
-        searchPath: [this.schemaName],
-      } as PostgreConfig)
-    }
-
-    return db.connection(connName)
+    return (await replicaService.resolve(this)) ?? this.getConnection()
   }
 
   async install() {
@@ -236,6 +209,4 @@ export default class Tenant extends BackofficeBaseModel {
     this.status = 'active'
     await this.save()
   }
-
-  async invalidateCache() {}
 }
