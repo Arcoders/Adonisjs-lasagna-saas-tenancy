@@ -19,7 +19,9 @@ const DEDUPE_TTL_SECONDS = 24 * 60 * 60
  * (no business consequence to a duplicate email beyond annoyance), and
  * Redis SETNX is one round-trip vs a SELECT/INSERT pair against
  * Postgres. The TTL also matches the renewal window we want, so no
- * cleanup job is needed.
+ * cleanup job is needed. Because it is advisory, the dedupe FAILS OPEN:
+ * a Redis outage downgrades to "no dedupe" (a possible duplicate email)
+ * rather than throwing or dropping the warning.
  *
  * Wiring is opt-in: registered by `MultitenancyProvider.start()` only
  * when `config.billing.notifyOnQuotaExceeded === true` AND the
@@ -30,18 +32,50 @@ const DEDUPE_TTL_SECONDS = 24 * 60 * 60
 export default class QuotaExceededBillingListener {
   async handle(event: TenantQuotaExceeded): Promise<void> {
     if (!getConfig().billing?.notifyOnQuotaExceeded) return
+    if (!(await this.#shouldDispatch(event))) return
+    await this.dispatchWarning(event)
+  }
 
-    const dedupeKey = `quota_warn:${event.tenant.id}:${event.quota}`
-    const redis = await lazyRedis()
-    if (redis) {
-      // SETNX with TTL — atomic. The first hit wins; subsequent hits
-      // within 24h see a 0 return value and skip the mailer dispatch.
+  /**
+   * Seam (overridable in tests): resolve the Redis client, or `null` when the
+   * `@adonisjs/redis` peer isn't installed.
+   */
+  protected resolveRedis(): ReturnType<typeof lazyRedis> {
+    return lazyRedis()
+  }
+
+  /**
+   * Advisory per-(tenant, quota) dedupe over a 24h window.
+   *
+   * FAILS OPEN: a Redis outage must never drop a quota warning, so on any Redis
+   * error we log and return `true` (dispatch anyway). Both resolving the client
+   * and the `SETNX` run inside the try, so any rejection (not just `lazyRedis()`'s
+   * caught import failure) fails open. Returns `true` when the caller should
+   * dispatch.
+   */
+  async #shouldDispatch(event: TenantQuotaExceeded): Promise<boolean> {
+    try {
+      const redis = await this.resolveRedis()
+      if (!redis) return true
+
+      const dedupeKey = `quota_warn:${event.tenant.id}:${event.quota}`
+      // SETNX with TTL — atomic. The first hit wins; subsequent hits within
+      // 24h see a null return value and skip the mailer dispatch.
       const acquired = await redis.set(dedupeKey, '1', 'EX', DEDUPE_TTL_SECONDS, 'NX')
-      if (acquired !== 'OK') {
-        return
-      }
+      return acquired === 'OK'
+    } catch (err) {
+      logger.warn(
+        { tenant_id: event.tenant.id, quota: event.quota, err: (err as Error)?.message },
+        'billing.notify_quota_exceeded.dedupe_unavailable: redis error, sending without dedupe'
+      )
+      return true
     }
+  }
 
+  /**
+   * Seam (overridable in tests): resolve and send the `QuotaWarningMailer`.
+   */
+  protected async dispatchWarning(event: TenantQuotaExceeded): Promise<void> {
     try {
       const mail = await lazyMail()
       if (!mail) {

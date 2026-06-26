@@ -144,6 +144,15 @@ production mileage.
 - **README refreshed for the 1.0 launch.** Badge corrected to release candidate;
   configure-first install documented; added a Configuration section (driver block,
   `products`/`defaultPlan`, and the webhook `ignorePaths` requirement).
+- **Quota-exceeded notification now fails open on a Redis outage.** The advisory
+  per-(tenant, quota) dedupe behind `notifyOnQuotaExceeded` now wraps its Redis
+  `SETNX`: a runtime Redis error logs and sends without dedupe instead of throwing
+  out of the listener (`lazyRedis()` only caught the peer-absent import, not a live
+  outage). A possible duplicate email beats a dropped warning, matching the
+  package's fail-open convention for advisory Redis paths. Covered by new
+  fail-open / dedupe / degraded tests; the fragile real Stripe Test Clock smoke now
+  also soft-skips Stripe-side infra failures while still blocking on genuine
+  renewal/dunning regressions (the skip-vs-fail classifier is unit-tested).
 
 **Stability: release candidate.** The API is frozen under the 1.x promise, with the
 honest caveat that a correction forced by the pending security review or production
