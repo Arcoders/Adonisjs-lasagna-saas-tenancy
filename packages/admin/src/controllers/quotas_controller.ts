@@ -1,7 +1,7 @@
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
-import { loadTenantOr404, isNonEmptyString } from './helpers.js'
+import { loadTenantOr404, isNonEmptyString, auditAdminAction } from './helpers.js'
 
 export default class QuotasController {
   async show(ctx: HttpContext) {
@@ -42,6 +42,7 @@ export default class QuotasController {
     }
     const svc = await app.container.make(QuotaService)
     await svc.setUsage(tenant, quota, value)
+    await auditAdminAction(ctx, 'admin:quota:set_usage', tenant.id, { quota, value })
     return ctx.response.ok({ tenantId: tenant.id, quota, usage: value })
   }
 
@@ -50,7 +51,11 @@ export default class QuotasController {
     if (!tenant) return
     const quota = ctx.request.input('quota')
     const svc = await app.container.make(QuotaService)
+    // Redis del/scan always mutates state (or is a deliberate no-op clear), so
+    // a reset is always an auditable admin action.
     await svc.reset(tenant, isNonEmptyString(quota) ? quota : undefined)
+    const target = isNonEmptyString(quota) ? quota : 'all'
+    await auditAdminAction(ctx, 'admin:quota:reset', tenant.id, { quota: target })
     return ctx.response.ok({ tenantId: tenant.id, reset: quota ?? 'all' })
   }
 }

@@ -31,8 +31,8 @@ Lasagna handles the seams.
   branding, SSO, real-time WebSockets, metrics, quotas, impersonation,
   Stripe billing. None required, all consistent.
 - **Operational kit**: `tenant:doctor` (nine built-in checks, plus
-  `backup_recency` with the backup satellite, `--fix`,
-  `--watch`, `--json`), backups with retention tiers, read replicas,
+  `backup_recency` and `backup_encryption` with the backup satellite,
+  `--fix`, `--watch`, `--json`), backups with retention tiers, read replicas,
   Prometheus, OpenTelemetry, health probes, and a per-dependency
   fail-open/fail-closed resilience policy.
 - **A full suite of ace commands** spanning provisioning, migrations,

@@ -21,7 +21,14 @@ multitenancyRoutes({ prefix: '/ops', metricsMiddleware: false })
 // Mount admin REST + OpenAPI docs without auth — the fixture is for tests
 // only, and individual specs supply their own ad-hoc gating where needed.
 // `middleware: false` is the explicit opt-out the package now requires.
-multitenancyAdminRoutes({ prefix: '/admin/multitenancy', middleware: false })
+// `resolveAdminActor` reads the acting admin from an `x-admin-id` header so the
+// audit-attribution specs can assert both the attributed and the null-actor
+// branches. `tenant_audit_logs.actor_id` is a uuid column, so tests send uuids.
+multitenancyAdminRoutes({
+  prefix: '/admin/multitenancy',
+  middleware: false,
+  resolveAdminActor: (ctx) => ctx.request.header('x-admin-id') ?? null,
+})
 
 // Mount the Stripe webhook receiver. Required by the dunning_flow,
 // webhook_idempotency, ip_allowlist (HTTP variant), and pii_redaction

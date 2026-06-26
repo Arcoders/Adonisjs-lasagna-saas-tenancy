@@ -2,6 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { executeExtension } from '@adonisjs-lasagna/saas-tenancy/services'
 import { adminActionRegistry, isSafeActionName } from '../admin_action_registry.js'
 import { ADMIN_CONTRACT_VERSION } from '../constants.js'
+import { auditAdminAction } from './helpers.js'
 
 export interface AdminActionsControllerOptions {
   /** Optional execution guards for host actions; off by default. */
@@ -26,6 +27,11 @@ export default class AdminActionsController {
     if (!action) {
       return ctx.response.notFound({ error: `unknown admin action "${name}"` })
     }
+
+    // Attribute the invocation of a host-registered action. A custom action can
+    // mutate anything, and its effects are opaque to the package, so we record
+    // only WHO ran WHICH action by name — never the request body or the result.
+    await auditAdminAction(ctx, 'admin:action:dispatch', null, { name })
 
     const ip = typeof ctx.request.ip === 'function' ? ctx.request.ip() : undefined
     const result = await executeExtension(

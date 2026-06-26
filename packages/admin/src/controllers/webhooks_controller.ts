@@ -5,7 +5,12 @@ import {
   TenantWebhook,
   TenantWebhookDelivery,
 } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { loadTenantOr404, isNonEmptyString, validateExternalHttpsUrl } from './helpers.js'
+import {
+  loadTenantOr404,
+  isNonEmptyString,
+  validateExternalHttpsUrl,
+  auditAdminAction,
+} from './helpers.js'
 
 function serialize(w: TenantWebhook) {
   return {
@@ -65,6 +70,13 @@ export default class WebhooksController {
       events,
       isNonEmptyString(secret) ? secret : undefined
     )
+    // Metadata records that a secret WAS generated, never the secret itself.
+    await auditAdminAction(ctx, 'admin:webhook:create', tenant.id, {
+      webhookId: hook.id,
+      url: hook.url,
+      events: hook.events,
+      secretGenerated: !!generatedSecret,
+    })
     // When the service generated the secret, this response is the ONE place
     // the plaintext is ever disclosed — it is stored encrypted and cannot be
     // read back later. Callers must persist it to verify signatures.
@@ -88,6 +100,12 @@ export default class WebhooksController {
     const events = ctx.request.input('events')
     const enabled = ctx.request.input('enabled')
 
+    // Nothing to change: short-circuit without saving or auditing. A PUT with
+    // an empty body is a no-op, not a mutation, so it leaves no audit row.
+    if (url === undefined && events === undefined && enabled === undefined) {
+      return ctx.response.ok({ data: serialize(hook), unchanged: true })
+    }
+
     if (url !== undefined) {
       const urlError = validateExternalHttpsUrl(url)
       if (urlError) return ctx.response.badRequest({ error: urlError })
@@ -106,14 +124,32 @@ export default class WebhooksController {
       hook.enabled = enabled
     }
     await hook.save()
+    const changed = [
+      url !== undefined ? 'url' : null,
+      events !== undefined ? 'events' : null,
+      enabled !== undefined ? 'enabled' : null,
+    ].filter((k): k is string => k !== null)
+    await auditAdminAction(ctx, 'admin:webhook:update', tenant.id, { webhookId: hook.id, changed })
     return ctx.response.ok({ data: serialize(hook) })
   }
 
   async destroy(ctx: HttpContext) {
     const tenant = await loadTenantOr404(ctx)
     if (!tenant) return
+
+    // Load-and-verify before deleting: `deleteWebhook` issues a `DELETE … WHERE`
+    // that silently no-ops on a missing row, so a blind delete would let us
+    // audit a removal that never happened. 404 on a missing/foreign webhook,
+    // and only audit a real deletion.
+    const hook = await TenantWebhook.query()
+      .where('id', ctx.params.webhookId)
+      .where('tenant_id', tenant.id)
+      .first()
+    if (!hook) return ctx.response.notFound({ error: 'webhook_not_found' })
+
     const svc = await app.container.make(WebhookService)
-    await svc.deleteWebhook(ctx.params.webhookId, tenant.id)
+    await svc.deleteWebhook(hook.id, tenant.id)
+    await auditAdminAction(ctx, 'admin:webhook:delete', tenant.id, { webhookId: hook.id })
     return ctx.response.noContent()
   }
 
@@ -160,6 +196,10 @@ export default class WebhooksController {
 
     const svc = await app.container.make(WebhookService)
     await svc.send(delivery.webhook, delivery)
+    await auditAdminAction(ctx, 'admin:webhook:retry', tenant.id, {
+      webhookId: delivery.webhook.id,
+      deliveryId: delivery.id,
+    })
     return ctx.response.ok({ data: serializeDelivery(delivery) })
   }
 }

@@ -88,11 +88,24 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # Versions must agree with the stability labels in docs/reference/stability.md
-      # (experimental -> 0.x, release candidate/stable -> >=1.0.0). Labels are
-      # parsed from the doc, so relabeling without re-versioning fails here.
+      # Versions AND each package README's stability badge must agree with the
+      # stability labels in docs/reference/stability.md (experimental -> 0.x,
+      # release candidate/stable -> >=1.0.0; the README badge mirrors the matrix
+      # label). Labels are parsed from the doc, so relabeling without re-versioning
+      # — or without updating the README badge — fails here.
       - name: Stability labels vs. versions
         run: node scripts/check-stability-versions.mjs
+
+      # Every README link must resolve: relative links from the README's own
+      # directory (the way GitHub and npm render them) and docs-site links to a
+      # real docs page. The dead-link gate only covers links INSIDE docs/.
+      - name: README link guard
+        run: node scripts/check-readme-links.mjs
+
+      # The core + root README structural counts (doctor checks, admin endpoints,
+      # typed events) are pinned to their source of truth so they can't drift.
+      - name: README count guard
+        run: node scripts/check-readme-counts.mjs
 
       # Every satellite labeled `release candidate` must clear the graduation gate
       # (own coverage gate, ABI-versioned manifest, configure hook, CHANGELOG, doc

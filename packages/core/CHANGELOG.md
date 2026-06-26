@@ -105,6 +105,10 @@ for a copy-paste migration.
 - New lightweight subpaths: `@adonisjs-lasagna/saas-tenancy/config` (read config
   outside a booted app) and `/internal` (app.booted-safe building blocks the
   official satellites consume).
+- **Audit attribution on the lifecycle commands.** `tenant:create`,
+  `tenant:activate`, `tenant:suspend`, `tenant:destroy`, and `tenant:maintenance`
+  take an optional `--admin=<id>` flag that attributes the append-only audit row to
+  that operator; absent, the row is recorded as `system`.
 - Docs: a [Scaling limits](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/guides/scaling-limits.md)
   page and the Upgrade to 1.0 guide.
 - **Row-Level Security for `rowscope-pg`.** A new opt-in
@@ -391,6 +395,20 @@ for a copy-paste migration.
   named `<ts>_<pkg_slug>__<stub>.ts` intrinsically; idempotency recognizes both the
   namespaced and legacy un-namespaced forms, so existing installs are not
   re-published as duplicates.
+- **`configure --with=metrics` now publishes every metrics table.** The bundle only
+  published `create_tenant_metrics_table`; `create_tenant_custom_metrics_table` and
+  `create_tenant_metrics_monthly_table` were orphaned (in no bundle), so a host that
+  selected `metrics` and emitted a custom metric hit a missing
+  `backoffice.tenant_custom_metrics` table on flush (and `tenant:metrics:rollup` a
+  missing `tenant_metrics_monthly`). The bundle now publishes all three; existing
+  hosts re-run `configure @adonisjs-lasagna/saas-tenancy --with=metrics` (idempotent)
+  then `migration:run --connection=backoffice`.
+- **README/docs accuracy.** Corrected the package README highlight counts (28 typed
+  events, 39 admin endpoints, nine doctor checks), described the satellite *packages*
+  as release candidate (only the in-core opt-in features stay experimental), and
+  pointed the reference-app snippets at the real `examples/api/docker-compose.yml`.
+  These structural counts and the README stability badges are now pinned by CI guards
+  so they cannot silently drift again.
 
 ---
 

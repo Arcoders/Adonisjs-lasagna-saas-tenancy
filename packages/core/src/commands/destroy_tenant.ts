@@ -2,6 +2,7 @@ import { BaseCommand, args, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import app from '@adonisjs/core/services/app'
 import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
+import { auditCliAction } from './audit_cli_action.js'
 import HookRegistry from '../services/hook_registry.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import TenantDeleted from '../events/tenant_deleted.js'
@@ -24,6 +25,9 @@ export default class DestroyTenant extends BaseCommand {
       'Soft-delete only — preserve the tenant schema for the configured retention window. Use tenant:purge-expired later.',
   })
   declare keepSchema: boolean
+
+  @flags.string({ description: 'Acting admin id recorded in the audit log (default: system)' })
+  declare admin?: string
 
   async run() {
     const repo = await resolveTenantRepository()
@@ -61,6 +65,12 @@ export default class DestroyTenant extends BaseCommand {
 
       await hooks.run('after', 'destroy', { tenant })
       await TenantDeleted.dispatch(tenant)
+      await auditCliAction(this.logger, {
+        tenantId: tenant.id,
+        action: 'admin:tenant:destroy',
+        adminId: this.admin,
+        metadata: { status: tenant.status, schemaDropped: !this.keepSchema },
+      })
 
       this.logger.success(`Tenant "${tenant.name}" has been destroyed.`)
     } catch (error) {

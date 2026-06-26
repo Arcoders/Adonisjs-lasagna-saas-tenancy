@@ -27,6 +27,18 @@ mount snippet (it never edits your routes file).
   endpoints accept an optional `expiresAt` (ISO 8601); an invalid value returns
   `400 invalid_expires_at`, and omitting it clears any stored expiry. Responses
   now include an `expiresAt` field.
+- **Audited admin mutations.** Every mutating admin action now writes an attributed,
+  append-only audit row under a single `admin:<resource>:<verb>` naming convention,
+  sourced from the `resolveAdminActor` hook (never the request body) and never
+  containing a secret; auditing is best-effort and never fails the operation it
+  records. New action names cover tenant lifecycle (REST **and** the matching ace
+  commands), satellite config (`admin:webhook:*`, `admin:feature_flag:*`,
+  `admin:branding:update`, `admin:sso:*`, `admin:quota:*`), and custom actions
+  (`admin:action:dispatch`). Deleting a non-existent webhook/feature flag now returns
+  **404** (was a silent 204), an empty webhook `PUT` and disabling an already-disabled
+  SSO config short-circuit with `unchanged: true` and write no row, and the OpenAPI
+  `info.version` now mirrors `package.json`. The `@adonisjs-lasagna/sso` peer is marked
+  optional in the manifest.
 
 **Stability: release candidate.** The API is frozen under the 1.x promise, with the
 honest caveat that a correction forced by the pending security review or production

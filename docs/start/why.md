@@ -137,10 +137,10 @@ in-house, and that we already debugged:
   down with it.
 - **Read replica routing.** Round-robin, random, or sticky-by-tenant.
   Connection naming is deterministic, lazy provisioning is built in.
-- **Doctor command.** `tenant:doctor` with nine built-in checks (a
-  tenth, `backup_recency`, registers when the backup satellite is
-  installed), a `--fix` flag for auto-recovery, `--json` for CI gates,
-  and `--watch` for a live TUI. The plugin API lets your app
+- **Doctor command.** `tenant:doctor` with nine built-in checks
+  (`backup_recency` and `backup_encryption` register when the backup
+  satellite is installed), a `--fix` flag for auto-recovery, `--json` for CI
+  gates, and `--watch` for a live TUI. The plugin API lets your app
   contribute checks.
 - **Backups with retention tiers.** `pg_dump`, S3 mirror, JSON sidecar
   with checksums, tier-based intervals (`standard`, `premium`, …),

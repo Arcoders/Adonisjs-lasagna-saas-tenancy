@@ -48,6 +48,8 @@ Notes:
 - Merged-coverage floors (`minMergedCoverage`) are set conservatively (lines 60) for the
   first enforced CI run and will be ratcheted up to the measured baseline.
 - Deferred to future iterations: dashboard-panel config, a metrics-management CLI.
+- The package now ships a README (badge, install, fail-closed routes mount, service
+  usage, custom-metric extensions, and the `tenant:report:generate` command).
 
 Requires the core metrics pipeline; new installs run the
 `create_tenant_custom_metrics_table` migration (a core stub).

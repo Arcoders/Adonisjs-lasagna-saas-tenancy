@@ -1,7 +1,12 @@
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { SsoService, TenantSsoConfig } from '@adonisjs-lasagna/sso'
-import { loadTenantOr404, isNonEmptyString, validateExternalHttpsUrl } from './helpers.js'
+import {
+  loadTenantOr404,
+  isNonEmptyString,
+  validateExternalHttpsUrl,
+  auditAdminAction,
+} from './helpers.js'
 import { isHttpsUrl } from './pure.js'
 
 /**
@@ -97,6 +102,14 @@ export default class SsoController {
       redirectUri,
       scopes: Array.isArray(scopes) ? scopes : undefined,
     })
+    // Metadata is non-secret config identity only — the clientSecret in scope
+    // above must NEVER reach the audit log (audit_coverage.spec.ts enforces it).
+    await auditAdminAction(ctx, 'admin:sso:update', tenant.id, {
+      provider: config.provider,
+      clientId: config.clientId,
+      issuerUrl: config.issuerUrl,
+      enabled: config.enabled,
+    })
     return ctx.response.ok({ data: serialize(config) })
   }
 
@@ -107,8 +120,13 @@ export default class SsoController {
     if (!tenant) return
     const config = await sso.TenantSsoConfig.query().where('tenant_id', tenant.id).first()
     if (!config) return ctx.response.notFound({ error: 'sso_config_not_found' })
+    // Already disabled: nothing to mutate, so no save and no audit row.
+    if (!config.enabled) {
+      return ctx.response.ok({ data: serialize(config), unchanged: true })
+    }
     config.enabled = false
     await config.save()
+    await auditAdminAction(ctx, 'admin:sso:disable', tenant.id, { provider: config.provider })
     return ctx.response.ok({ data: serialize(config) })
   }
 }

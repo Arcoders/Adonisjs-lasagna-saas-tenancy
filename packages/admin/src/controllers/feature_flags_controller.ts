@@ -1,8 +1,8 @@
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import { FeatureFlagService } from '@adonisjs-lasagna/saas-tenancy/services'
-import { type TenantFeatureFlag } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { loadTenantOr404, isNonEmptyString } from './helpers.js'
+import { TenantFeatureFlag } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import { loadTenantOr404, isNonEmptyString, auditAdminAction } from './helpers.js'
 import { parseExpiresAt } from './pure.js'
 
 function serialize(f: TenantFeatureFlag) {
@@ -48,6 +48,11 @@ export default class FeatureFlagsController {
 
     const svc = await app.container.make(FeatureFlagService)
     const row = await svc.set(tenant.id, flag, enabled, config ?? undefined, expiresAt.value)
+    await auditAdminAction(ctx, 'admin:feature_flag:create', tenant.id, {
+      flag,
+      enabled,
+      hasExpiry: expiresAt.value != null,
+    })
     return ctx.response.created({ data: serialize(row) })
   }
 
@@ -69,14 +74,32 @@ export default class FeatureFlagsController {
 
     const svc = await app.container.make(FeatureFlagService)
     const row = await svc.set(tenant.id, flag, enabled, config ?? undefined, expiresAt.value)
+    await auditAdminAction(ctx, 'admin:feature_flag:update', tenant.id, {
+      flag,
+      enabled,
+      hasExpiry: expiresAt.value != null,
+    })
     return ctx.response.ok({ data: serialize(row) })
   }
 
   async destroy(ctx: HttpContext) {
     const tenant = await loadTenantOr404(ctx)
     if (!tenant) return
+
+    // Load-and-verify before deleting: `FeatureFlagService.delete` issues a
+    // `DELETE … WHERE` that silently no-ops on a missing flag, so a blind delete
+    // would let us audit a removal that never happened. 404 if the flag is not
+    // set, and only audit a real deletion.
+    const flagKey = ctx.params.flagKey
+    const existing = await TenantFeatureFlag.query()
+      .where('tenant_id', tenant.id)
+      .where('flag', flagKey)
+      .first()
+    if (!existing) return ctx.response.notFound({ error: 'feature_flag_not_found' })
+
     const svc = await app.container.make(FeatureFlagService)
-    await svc.delete(tenant.id, ctx.params.flagKey)
+    await svc.delete(tenant.id, flagKey)
+    await auditAdminAction(ctx, 'admin:feature_flag:delete', tenant.id, { flag: flagKey })
     return ctx.response.noContent()
   }
 }

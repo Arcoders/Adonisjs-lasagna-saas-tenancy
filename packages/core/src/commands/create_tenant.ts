@@ -1,6 +1,7 @@
-import { BaseCommand, args } from '@adonisjs/core/ace'
+import { BaseCommand, args, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
+import { auditCliAction } from './audit_cli_action.js'
 import InstallTenant from '../jobs/install_tenant.js'
 import TenantCreated from '../events/tenant_created.js'
 
@@ -14,6 +15,9 @@ export default class CreateTenant extends BaseCommand {
 
   @args.string({ description: 'Tenant contact email' })
   declare email: string
+
+  @flags.string({ description: 'Acting admin id recorded in the audit log (default: system)' })
+  declare admin?: string
 
   async run() {
     const repo = await resolveTenantRepository()
@@ -50,6 +54,14 @@ export default class CreateTenant extends BaseCommand {
       .run()
 
     if (createdTenantId) {
+      // The task UI owns the create/dispatch flow; record the attributed audit
+      // row only once the tenant id is known and the row really exists.
+      await auditCliAction(this.logger, {
+        tenantId: createdTenantId,
+        action: 'admin:tenant:create',
+        adminId: this.admin,
+        metadata: { name: this.name, status: 'provisioning' },
+      })
       this.logger.info('Schema provisioning queued. Run "node ace queue:work" to process it.')
     }
   }

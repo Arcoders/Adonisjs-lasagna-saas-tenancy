@@ -3,9 +3,9 @@
 Per-tenant backup, restore, clone, SQL import and retention for
 [`@adonisjs-lasagna/saas-tenancy`](https://www.npmjs.com/package/@adonisjs-lasagna/saas-tenancy).
 
-[![Stability: experimental](https://img.shields.io/badge/stability-experimental-E0A106)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability)
+[![Stability: release candidate](https://img.shields.io/badge/stability-release_candidate-C26A4B)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability)
 
-> **Experimental.** This satellite works and is covered by tests, but it is not part of the 1.x stability promise: its surface may change in a minor release. Pin the version and read the changelog before upgrading. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability).
+> **Stability: release candidate.** The API is frozen under the 1.x promise, with the honest caveat that a correction forced by the pending security review or production mileage may land in a 1.x minor with a loud changelog entry. Pin the version and read the changelog before upgrading. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability).
 
 This satellite was extracted from the core package. It carries everything that
 shells out to `pg_dump` / `pg_restore` / `psql`, talks to S3, and copies tenant
@@ -21,8 +21,8 @@ schemas:
 - The `BackupTenant`, `RestoreTenant`, `CloneTenant` queue jobs.
 - The `tenant:backup`, `tenant:backup:list`, `tenant:restore`, `tenant:import`,
   `tenant:clone`, `tenant:backups:run` ace commands.
-- A `backup_recency` doctor check, registered into the core `DoctorService` by
-  this package's provider.
+- The `backup_recency` and `backup_encryption` doctor checks, registered into the
+  core `DoctorService` by this package's provider.
 
 The tenant-lifecycle hook contexts (`before/after backup|restore|clone`) and the
 `TenantBackedUp` / `TenantRestored` / `TenantCloned` events stay in the core —
@@ -33,30 +33,38 @@ they are part of the core lifecycle contract. The `backup` config block and its
 ## Install
 
 ```bash
-npm i @adonisjs-lasagna/backup
+npm i @adonisjs-lasagna/backup @adonisjs-lasagna/saas-tenancy @adonisjs/queue
+node ace configure @adonisjs-lasagna/backup
 ```
 
-`@adonisjs/redis` and `@aws-sdk/client-s3` are optional peers — install them only
-if you use the Redis metadata cache or S3 archival.
+`@adonisjs-lasagna/saas-tenancy` (the core) and `@adonisjs/queue` are required
+peers — the backup jobs are dispatched through the queue. `@adonisjs/redis` and
+`@aws-sdk/client-s3` are optional peers — install them only if you use the Redis
+metadata cache or S3 archival. Backup ships no migrations of its own.
 
 ## Wire it up
 
-Register the provider and the commands in `adonisrc.ts`, alongside the core
-provider:
+`node ace configure @adonisjs-lasagna/backup` registers the provider and commands
+in `adonisrc.ts`. The provider registers the backup jobs with the `@adonisjs/queue`
+Locator and the `backup_recency` + `backup_encryption` checks with the core
+`DoctorService`. Configure the `backup` block in `config/multitenancy.ts` (storage
+path, `pgConnection`, optional `s3` and `retention`) — the type lives in the core
+config.
 
-```ts
-providers: [
-  // ...
-  () => import('@adonisjs-lasagna/saas-tenancy/providers/multitenancy_provider'),
-  () => import('@adonisjs-lasagna/backup/provider'),
-],
-commands: [
-  () => import('@adonisjs-lasagna/saas-tenancy/commands'),
-  () => import('@adonisjs-lasagna/backup/commands'),
-],
-```
+## Commands
 
-The provider registers the backup jobs with the `@adonisjs/queue` Locator and the
-`backup_recency` check with the core `DoctorService`. Configure the `backup` block
-in `config/multitenancy.ts` (storage path, `pgConnection`, optional `s3` and
-`retention`) — the type lives in the core config.
+| Command | What it does | Key flags |
+|---|---|---|
+| `tenant:backup` | Back up one or all active tenants synchronously | `--tenant/-t` (repeatable) |
+| `tenant:backup:list` | List available backups for one or all tenants | `--tenant/-t` |
+| `tenant:restore` | Restore a tenant schema from a backup file | `--tenant/-t` (req), `--file` (req) |
+| `tenant:import` | Import a `.sql` dump into a tenant schema | `--tenant/-t` (req), `--file/-f` (req), `--schema-replace`, `--dry-run`, `--force`, `--continue-on-error` |
+| `tenant:clone` | Provision a new tenant and copy the source's rows | `--source/-s` (req), `--name/-n` (req), `--email/-e` (req), `--schema-only`, `--clear-sessions` |
+| `tenant:backups:run` | Run scheduled backups + retention across tenants (cron-safe) | `--tenant/-t`, `--force`, `--dry-run`, `--no-retention` |
+
+See the [backup guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/backup)
+for the full flag reference.
+
+## Full documentation
+
+<https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/backup>

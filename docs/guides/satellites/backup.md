@@ -51,7 +51,7 @@ tenant:backup        --tenant=<id>                 Dump one tenant's schema
 tenant:backups:run                                 Back up every active tenant
 tenant:backup:list   --tenant=<id>                 List a tenant's backups
 tenant:restore       --tenant=<id> --file=<name>   Restore a dump into a tenant
-tenant:clone         --source=<id> --dest=<id>     Clone one tenant's schema into another
+tenant:clone         --source=<id> --name=<n> --email=<e>  Clone a source tenant into a new one
 tenant:import        --tenant=<id> --file=<f.sql>  Import a .sql dump into a tenant schema
 ```
 

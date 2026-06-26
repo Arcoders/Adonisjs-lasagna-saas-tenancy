@@ -1,12 +1,20 @@
 import { test } from '@japa/runner'
+import { createRequire } from 'node:module'
 import { getOpenAPISpec, listSpecPaths } from '../../../../../packages/admin/src/openapi.js'
 
+// The spec's info.version mirrors the admin package.json (it was a stale literal
+// before); read it the same way so this mirror stays honest after version bumps.
+const adminVersion: string = createRequire(import.meta.url)(
+  '../../../../../packages/admin/package.json'
+).version
+
 test.group('OpenAPI spec', () => {
-  test('declares OpenAPI 3.1 with title and version', ({ assert }) => {
+  test('declares OpenAPI 3.1 with title and version mirroring package.json', ({ assert }) => {
     const spec = getOpenAPISpec()
     assert.equal(spec.openapi, '3.1.0')
     assert.equal(spec.info.title, 'Lasagna Multitenancy Admin API')
-    assert.equal(spec.info.version, '2.0.0')
+    assert.match(spec.info.version, /^\d+\.\d+\.\d+/)
+    assert.equal(spec.info.version, adminVersion)
   })
 
   test('paths use the configured prefix', ({ assert }) => {

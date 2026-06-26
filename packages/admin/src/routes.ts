@@ -1,6 +1,6 @@
 import router from '@adonisjs/core/services/router'
-import type { HttpContext } from '@adonisjs/core/http'
 import AdminController, { __setAdminActorResolver } from './admin_controller.js'
+import type { AdminActorResolver } from './admin_actor.js'
 import AuditLogsController from './controllers/audit_logs_controller.js'
 import WebhooksController from './controllers/webhooks_controller.js'
 import FeatureFlagsController from './controllers/feature_flags_controller.js'
@@ -30,10 +30,13 @@ export type AdminRouteMiddleware = AdminMiddlewareEntry | AdminMiddlewareEntry[]
  * trust an `adminId` field from the request body, since that would let any
  * caller falsify the audit trail. Return `null` to deny.
  *
+ * Defined in `./admin_actor.js` and re-exported here so it stays the public
+ * type the `index.js` barrel exposes.
+ *
  * @example
  *   resolveAdminActor: ({ auth }) => auth.user?.id ?? null
  */
-export type AdminActorResolver = (ctx: HttpContext) => string | null | Promise<string | null>
+export type { AdminActorResolver }
 
 export interface MultitenancyAdminRoutesOptions {
   /**

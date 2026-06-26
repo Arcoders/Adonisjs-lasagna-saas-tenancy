@@ -15,11 +15,11 @@ ships with: <code>node ace list:commands | grep -E 'tenant|backoffice|migration:
 | Command | What it does |
 |---|---|
 | `backoffice:setup` | Create the backoffice schema and run satellite migrations. Idempotent. |
-| `tenant:create <name> <email>` | Insert a tenant row and queue `InstallTenant`. |
+| `tenant:create <name> <email>` | Insert a tenant row and queue `InstallTenant`. `--admin=<id>` attributes the audit row to an operator (default: `system`). |
 | `tenant:list` | List tenants with current status. `--all` includes soft-deleted. |
-| `tenant:activate <id>` | Activate a suspended or failed tenant. |
-| `tenant:suspend <id>` | Block all API access without dropping the schema. |
-| `tenant:destroy <id>` | Soft-delete and tear down. `--force` skips prompt; `--keep-schema` preserves storage during retention. |
+| `tenant:activate <id>` | Activate a suspended or failed tenant. `--admin=<id>` attributes the audit row (default: `system`). |
+| `tenant:suspend <id>` | Block all API access without dropping the schema. `--admin=<id>` attributes the audit row (default: `system`). |
+| `tenant:destroy <id>` | Soft-delete and tear down. `--force` skips prompt; `--keep-schema` preserves storage during retention; `--admin=<id>` attributes the audit row (default: `system`). |
 
 ## Migrations
 
@@ -51,8 +51,8 @@ is installed and its provider + commands are wired in `adonisrc.ts`.
 ## Doctor
 
 `tenant:doctor` is the operational health command. Nine built-in
-checks (plus `backup_recency` when the backup satellite is
-installed), `--fix` to auto-recover, `--json` for CI gates,
+checks (plus `backup_recency` and `backup_encryption` when the backup
+satellite is installed), `--fix` to auto-recover, `--json` for CI gates,
 `--watch` for a live TUI.
 
 <Terminal src="/casts/doctor.cast.json" />
@@ -103,7 +103,7 @@ node ace tenant:exec --status=active db:seed
 
 | Command | What it does |
 |---|---|
-| `tenant:maintenance <id>` | Toggle maintenance mode (independent of suspended). `--off` exits, `--message="…"` shows a custom 503 message. |
+| `tenant:maintenance <id>` | Toggle maintenance mode (independent of suspended). `--off` exits, `--message="…"` shows a custom 503 message, `--admin=<id>` attributes the audit row (default: `system`). |
 | `tenant:impersonate <tenantId> <userId>` | Issue an admin impersonation token. `--admin=<id>`, `--duration=<seconds>`, `--reason="…"`, `--path=<path>`. |
 
 ## Feature flags

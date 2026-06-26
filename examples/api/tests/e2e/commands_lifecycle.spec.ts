@@ -222,3 +222,122 @@ test.group('e2e — tenant lifecycle CLI commands', (group) => {
     assert.equal(await runAce('tenant:webhooks:retry'), 0)
   })
 })
+
+// Runtime coverage for the CLI audit path (`audit_cli_action.ts` + the `--admin`
+// flag on the lifecycle commands). Asserts the rows are actually written, with
+// the admin/system attribution distinction and the no-op exemption.
+test.group('e2e — tenant lifecycle CLI audit attribution', (group) => {
+  group.setup(() => dropAllTenants())
+  group.teardown(() => dropAllTenants())
+
+  // tenant_audit_logs.actor_id is a uuid column, so --admin must be a uuid; a
+  // non-uuid would silently fail the swallowed insert and write no row.
+  const ADMIN_UUID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+
+  async function cliAudit(tenantId: string, action: string) {
+    const row = await TenantAuditLog.query()
+      .where('tenant_id', tenantId)
+      .where('action', action)
+      .orderBy('created_at', 'desc')
+      .first()
+    if (!row) return null
+    const raw = row.metadata as unknown
+    const metadata = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Record<
+      string,
+      unknown
+    > | null
+    return { actorType: row.actorType, actorId: row.actorId, metadata }
+  }
+
+  async function cliAuditCount(tenantId: string, action: string): Promise<number> {
+    const rows = await TenantAuditLog.query().where('tenant_id', tenantId).where('action', action)
+    return rows.length
+  }
+
+  test('tenant:suspend --admin attributes the row to the admin', async ({ client, assert }) => {
+    const { id } = await createInstalledTenant(client, { migrate: false })
+    assert.equal(await runAce('tenant:suspend', [id, '--admin', ADMIN_UUID]), 0)
+    const row = await cliAudit(id, 'admin:tenant:suspend')
+    assert.isNotNull(row)
+    assert.equal(row!.actorType, 'admin')
+    assert.equal(row!.actorId, ADMIN_UUID)
+    assert.equal(row!.metadata?.status, 'suspended')
+  })
+
+  test('tenant:suspend without --admin records a system actor', async ({ client, assert }) => {
+    const { id } = await createInstalledTenant(client, { migrate: false })
+    assert.equal(await runAce('tenant:suspend', [id]), 0)
+    const row = await cliAudit(id, 'admin:tenant:suspend')
+    assert.isNotNull(row)
+    assert.equal(row!.actorType, 'system')
+    assert.isNull(row!.actorId)
+  })
+
+  test('tenant:activate --admin records admin:tenant:activate', async ({ client, assert }) => {
+    const { id } = await createInstalledTenant(client, { migrate: false })
+    await runAce('tenant:suspend', [id])
+    assert.equal(await runAce('tenant:activate', [id, '--admin', ADMIN_UUID]), 0)
+    const row = await cliAudit(id, 'admin:tenant:activate')
+    assert.isNotNull(row)
+    assert.equal(row!.actorId, ADMIN_UUID)
+    assert.equal(row!.metadata?.status, 'active')
+  })
+
+  test('tenant:create --admin records admin:tenant:create', async ({ assert }) => {
+    assert.equal(
+      await runAce('tenant:create', ['CliAudit', 'cli-audit@e2e.test', '--admin', ADMIN_UUID]),
+      0
+    )
+    const tenant = await Tenant.query().where('email', 'cli-audit@e2e.test').first()
+    assert.isNotNull(tenant)
+    const row = await cliAudit(tenant!.id, 'admin:tenant:create')
+    assert.isNotNull(row)
+    assert.equal(row!.actorId, ADMIN_UUID)
+    assert.equal(row!.metadata?.name, 'CliAudit')
+    assert.equal(row!.metadata?.status, 'provisioning')
+  })
+
+  test('tenant:maintenance enter/exit record both actions', async ({ client, assert }) => {
+    const { id } = await createInstalledTenant(client, { migrate: false })
+    assert.equal(
+      await runAce('tenant:maintenance', [id, '--admin', ADMIN_UUID, '--message', 'brb']),
+      0
+    )
+    const enter = await cliAudit(id, 'admin:tenant:maintenance_enter')
+    assert.isNotNull(enter)
+    assert.equal(enter!.metadata?.hasMessage, true)
+
+    assert.equal(await runAce('tenant:maintenance', [id, '--off', '--admin', ADMIN_UUID]), 0)
+    const exit = await cliAudit(id, 'admin:tenant:maintenance_exit')
+    assert.isNotNull(exit)
+    assert.equal(exit!.actorId, ADMIN_UUID)
+  })
+
+  test('tenant:destroy --admin records schemaDropped true', async ({ client, assert }) => {
+    const { id } = await createInstalledTenant(client, { migrate: false })
+    assert.equal(await runAce('tenant:destroy', [id, '--admin', ADMIN_UUID, '--force']), 0)
+    const row = await cliAudit(id, 'admin:tenant:destroy')
+    assert.isNotNull(row)
+    assert.equal(row!.metadata?.schemaDropped, true)
+  })
+
+  test('tenant:destroy --keep-schema records schemaDropped false', async ({ client, assert }) => {
+    const { id } = await createInstalledTenant(client, { migrate: false })
+    assert.equal(
+      await runAce('tenant:destroy', [id, '--admin', ADMIN_UUID, '--keep-schema', '--force']),
+      0
+    )
+    const row = await cliAudit(id, 'admin:tenant:destroy')
+    assert.isNotNull(row)
+    assert.equal(row!.metadata?.schemaDropped, false)
+  })
+
+  test('a no-op suspend (already suspended) writes no new row', async ({ client, assert }) => {
+    const { id } = await createInstalledTenant(client, { migrate: false })
+    await runAce('tenant:suspend', [id, '--admin', ADMIN_UUID])
+    const before = await cliAuditCount(id, 'admin:tenant:suspend')
+    // Already suspended → the command returns early and audits nothing.
+    await runAce('tenant:suspend', [id, '--admin', ADMIN_UUID])
+    assert.equal(await cliAuditCount(id, 'admin:tenant:suspend'), before)
+  })
+})

@@ -2,7 +2,7 @@ import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import { BrandingService, type BrandingData } from '@adonisjs-lasagna/saas-tenancy/services'
 import { type TenantBranding } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { loadTenantOr404 } from './helpers.js'
+import { loadTenantOr404, auditAdminAction } from './helpers.js'
 import { looksLikeUrl, pickIfDefined } from './pure.js'
 
 function serialize(b: TenantBranding | null) {
@@ -70,6 +70,12 @@ export default class BrandingController {
 
     const svc = await app.container.make(BrandingService)
     const branding = await svc.upsert(tenant.id, data)
+    // `changed` is the set of branding keys the caller actually supplied
+    // (pickIfDefined leaves absent keys undefined). No secret material here.
+    const changed = Object.entries(data)
+      .filter(([, v]) => v !== undefined)
+      .map(([k]) => k)
+    await auditAdminAction(ctx, 'admin:branding:update', tenant.id, { changed })
     return ctx.response.ok({ data: serialize(branding) })
   }
 }

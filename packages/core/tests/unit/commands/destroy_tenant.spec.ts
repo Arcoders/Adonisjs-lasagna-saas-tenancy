@@ -18,7 +18,7 @@ test.group('tenant:destroy — command metadata', () => {
     assert.equal(entry.options?.startApp, true)
 
     const flagNames = entry.flags.map((f: any) => f.flagName).sort()
-    assert.deepEqual(flagNames, ['force', 'keep-schema'])
+    assert.deepEqual(flagNames, ['admin', 'force', 'keep-schema'])
 
     const argNames = entry.args.map((a: any) => a.argumentName)
     assert.deepEqual(argNames, ['tenantId'])

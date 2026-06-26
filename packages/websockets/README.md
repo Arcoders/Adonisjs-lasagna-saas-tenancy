@@ -3,9 +3,9 @@
 Multi-tenant, bidirectional WebSockets on [socket.io](https://socket.io) for
 [`@adonisjs-lasagna/saas-tenancy`](https://www.npmjs.com/package/@adonisjs-lasagna/saas-tenancy).
 
-[![Stability: experimental](https://img.shields.io/badge/stability-experimental-E0A106)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability)
+[![Stability: release candidate](https://img.shields.io/badge/stability-release_candidate-C26A4B)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability)
 
-> **Experimental.** This satellite works and is covered by tests, but it is not part of the 1.x stability promise: its surface may change in a minor release. Pin the version and read the changelog before upgrading. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability).
+> **Stability: release candidate.** The API is frozen under the 1.x promise, with the honest caveat that a correction forced by the pending security review or production mileage may land in a 1.x minor with a loud changelog entry. Pin the version and read the changelog before upgrading. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability).
 
 The core ships one-way server-to-client broadcasting over SSE (`tenantBroadcast`).
 This satellite adds the bidirectional channel for chat, presence, and live
@@ -49,7 +49,37 @@ providers: [
 ],
 ```
 
-Add a `websockets` block to `config/multitenancy.ts` and register your handlers
-through `onTenantEvent`. See the
+Add a `websockets` block to `config/multitenancy.ts`.
+
+## Usage
+
+Resolve the server from the container and register handlers through
+`server.onTenantEvent` (or `server.bindTenant`) so DB queries inside them route to
+the tenant's schema:
+
+```ts
+import { TenantSocketServer } from '@adonisjs-lasagna/websockets'
+
+const server = await app.container.make(TenantSocketServer)
+
+server.onConnection((socket) => {
+  // Correct: re-enters the tenant context for every inbound event.
+  server.onTenantEvent(socket, 'order:create', async (payload) => {
+    await Order.create(payload) // hits the tenant's schema
+  })
+
+  // Wrong: a bare socket.on runs with no tenant context, so a DB
+  // query inside it throws at query time.
+  socket.on('order:create', async (payload) => {
+    await Order.create(payload) // throws: no tenant bound
+  })
+})
+```
+
+See the
 [Multi-tenant WebSockets cookbook](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/cookbook/multi-tenant-websockets)
 for the full walkthrough.
+
+## Full documentation
+
+<https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/websockets>

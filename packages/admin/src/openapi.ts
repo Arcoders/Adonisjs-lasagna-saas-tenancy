@@ -5,6 +5,32 @@
  * Schemas mirror the controller serializers — when you add a field to a
  * `serialize()` function, mirror it here.
  */
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
+
+/**
+ * The spec's `info.version` mirrors `package.json#version` rather than a
+ * hand-kept literal (which drifted to a stale `2.0.0`). The manifest sits one
+ * directory up from `src/` in development (tsx runs the source) and two up from
+ * `build/src/` once published, so both candidates are tried; the `name` guard
+ * keeps us from latching onto an unrelated package.json higher up the tree.
+ */
+function readPackageVersion(): string {
+  for (const rel of ['../package.json', '../../package.json']) {
+    try {
+      const pkg = require(rel)
+      if (pkg?.name === '@adonisjs-lasagna/admin' && typeof pkg.version === 'string') {
+        return pkg.version
+      }
+    } catch {
+      // Try the next candidate layout.
+    }
+  }
+  return '0.0.0'
+}
+
+const PACKAGE_VERSION = readPackageVersion()
 
 export interface OpenApiDocument {
   openapi: '3.1.0'
@@ -733,7 +759,7 @@ export function getOpenAPISpec(prefix = '/admin/multitenancy'): OpenApiDocument 
     openapi: '3.1.0',
     info: {
       title: 'Lasagna Multitenancy Admin API',
-      version: '2.0.0',
+      version: PACKAGE_VERSION,
       description:
         'REST API for managing tenants and their satellite features (audit logs, webhooks, feature flags, branding, SSO, metrics, quotas) in `@adonisjs-lasagna/saas-tenancy`.',
     },

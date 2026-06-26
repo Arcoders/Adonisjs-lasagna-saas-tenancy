@@ -141,6 +141,9 @@ production mileage.
   a consumer on `node10`-style module resolution could not resolve their type
   declarations (surfaced by `arethetypeswrong`). Added `typesVersions` mirroring the
   core package.
+- **README refreshed for the 1.0 launch.** Badge corrected to release candidate;
+  configure-first install documented; added a Configuration section (driver block,
+  `products`/`defaultPlan`, and the webhook `ignorePaths` requirement).
 
 **Stability: release candidate.** The API is frozen under the 1.x promise, with the
 honest caveat that a correction forced by the pending security review or production

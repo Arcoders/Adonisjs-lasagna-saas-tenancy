@@ -15,11 +15,17 @@ call.
 
 - Impersonation sessions: `admin:impersonate:start`,
   `admin:impersonate:first-use`, and `admin:impersonate:stop`.
+- Admin mutations, when you mount [`@adonisjs-lasagna/admin`](/guides/satellites/admin)
+  or run the lifecycle ace commands (`tenant:create`, `tenant:suspend`,
+  `tenant:destroy`, and the rest): every tenant lifecycle transition, webhook
+  change, feature-flag/branding/SSO update, quota write, and custom-action
+  dispatch records an attributed `admin:<resource>:<verb>` row. See the
+  [Admin guide's Audit & accountability section](/guides/satellites/admin#audit-accountability)
+  for the full action table.
 
-That is the only built-in writer today. Everything else (tenant
-lifecycle transitions, webhook changes, branding/SSO updates, quota
-breaches) is recorded by *your* code via `audit.log()`; the
-[lifecycle hooks](/reference/hooks) and [events](/reference/events) give you
+Beyond those, anything specific to *your* application (domain events, quota
+breaches, your own background jobs) is recorded by your code via `audit.log()`;
+the [lifecycle hooks](/reference/hooks) and [events](/reference/events) give you
 clean attachment points:
 
 ```ts

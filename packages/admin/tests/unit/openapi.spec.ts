@@ -1,5 +1,11 @@
 import { test } from '@japa/runner'
+import { createRequire } from 'node:module'
 import { getOpenAPISpec, listSpecPaths } from '../../src/openapi.js'
+
+// Read the package version the same way the spec does, so the assertion locks
+// the "info.version mirrors package.json" contract instead of a literal that
+// drifts (it was a stale '2.0.0' before this test existed).
+const pkgVersion: string = createRequire(import.meta.url)('../../package.json').version
 
 /**
  * Package-local build+import+shape signal for the admin satellite, which
@@ -10,11 +16,13 @@ import { getOpenAPISpec, listSpecPaths } from '../../src/openapi.js'
  * AdminController and the app-coupled core barrels that trip `app.booted`).
  */
 test.group('admin OpenAPI spec', () => {
-  test('declares OpenAPI 3.1 with title and version', ({ assert }) => {
+  test('declares OpenAPI 3.1 with title and version mirroring package.json', ({ assert }) => {
     const spec = getOpenAPISpec()
     assert.equal(spec.openapi, '3.1.0')
     assert.equal(spec.info.title, 'Lasagna Multitenancy Admin API')
-    assert.equal(spec.info.version, '2.0.0')
+    // info.version mirrors the package manifest (admin-rest-api.md documents this).
+    assert.match(spec.info.version, /^\d+\.\d+\.\d+/)
+    assert.equal(spec.info.version, pkgVersion)
   })
 
   test('paths use the configured prefix', ({ assert }) => {

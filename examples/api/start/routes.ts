@@ -35,6 +35,13 @@ multitenancyRoutes({ metricsMiddleware: [middleware.demoAdminAuth()] })
 multitenancyAdminRoutes({
   prefix: '/admin',
   middleware: [middleware.demoAdminAuth()],
+  // The demo auth is a static shared token with no user identity, so we read
+  // the acting admin from an optional `x-admin-id` header (a real app returns
+  // `auth.user?.id`). The fallback keeps impersonation working, which needs a
+  // non-null actor; the header lets the e2e suite assert audit attribution.
+  // `tenant_audit_logs.actor_id` is a uuid column, so the id must be a uuid.
+  resolveAdminActor: (ctx) =>
+    ctx.request.header('x-admin-id') ?? 'dec0ffee-0000-4000-8000-000000000000',
 })
 
 /* ─── Stripe webhook receiver (ungated — in ignorePaths) ─────────────────── */
@@ -51,6 +58,17 @@ multitenancyReportingRoutes({
   // them on every tenant:metrics:flush so the view stays fresh.
   cacheTtlMs: 60_000,
 })
+
+/* ─── Impersonation verify probe ─────────────────────────────────────────── */
+// Echoes the verified impersonation context attached by ImpersonationMiddleware,
+// so a request carrying a token minted via the admin API can prove it resolves
+// end to end (the e2e impersonation flow asserts on `impersonation`). No tenant
+// guard: the middleware binds the token to its issuing tenant on its own.
+router
+  .get('/demo/impersonation-check', async (ctx: any) => {
+    return ctx.response.ok({ impersonation: ctx.impersonation ?? null })
+  })
+  .use([middleware.impersonation()])
 
 /* ─── /demo: tenant CRUD (no tenant guard — no tenant context yet) ───────── */
 router

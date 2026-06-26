@@ -62,7 +62,8 @@ document is cached for one hour and hardened before it is trusted:
 ## Storing config
 
 Per-tenant OIDC settings live in the `tenant_sso_configs` row (the
-migration stub ships with the core):
+migration stub ships with this package and is published by
+`node ace configure @adonisjs-lasagna/sso`):
 
 ```ts
 import { TenantSsoConfig } from '@adonisjs-lasagna/sso'

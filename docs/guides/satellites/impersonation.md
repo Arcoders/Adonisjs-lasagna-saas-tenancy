@@ -95,6 +95,13 @@ Expiry needs no audit row of its own; the session simply disappears
 when its Redis TTL lapses; the `start` row carries the planned
 duration.
 
+Impersonation is one writer among several. When you mount the
+[admin satellite](/guides/satellites/admin), every other admin mutation
+(tenant lifecycle, webhooks, feature flags, branding, SSO, quotas, custom
+actions) is also recorded under an `admin:<resource>:<verb>` action with the
+acting admin attributed. See the
+[Admin guide's Audit & accountability section](/guides/satellites/admin#audit-accountability).
+
 ## Security guarantees
 
 - Tokens are HMAC-SHA256 over a random 16-byte session id, so a

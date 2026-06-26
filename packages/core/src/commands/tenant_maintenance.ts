@@ -1,6 +1,7 @@
 import { BaseCommand, args, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
+import { auditCliAction } from './audit_cli_action.js'
 import TenantEnteredMaintenance from '../events/tenant_entered_maintenance.js'
 import TenantExitedMaintenance from '../events/tenant_exited_maintenance.js'
 
@@ -23,6 +24,9 @@ export default class TenantMaintenance extends BaseCommand {
   })
   declare message: string
 
+  @flags.string({ description: 'Acting admin id recorded in the audit log (default: system)' })
+  declare admin?: string
+
   async run() {
     const repo = await resolveTenantRepository()
 
@@ -43,6 +47,12 @@ export default class TenantMaintenance extends BaseCommand {
         }
         await tenant.exitMaintenance()
         await TenantExitedMaintenance.dispatch(tenant)
+        await auditCliAction(this.logger, {
+          tenantId: tenant.id,
+          action: 'admin:tenant:maintenance_exit',
+          adminId: this.admin,
+          metadata: {},
+        })
         this.logger.success(`Tenant "${tenant.name}" exited maintenance mode.`)
         return
       }
@@ -60,6 +70,12 @@ export default class TenantMaintenance extends BaseCommand {
       }
       await tenant.enterMaintenance(this.message ?? null)
       await TenantEnteredMaintenance.dispatch(tenant, this.message ?? null)
+      await auditCliAction(this.logger, {
+        tenantId: tenant.id,
+        action: 'admin:tenant:maintenance_enter',
+        adminId: this.admin,
+        metadata: { hasMessage: this.message != null },
+      })
       this.logger.success(`Tenant "${tenant.name}" entered maintenance mode.`)
     } catch (error) {
       this.logger.error(`Failed to toggle maintenance: ${error.message}`)

@@ -16,6 +16,12 @@
  * section header), not hard-coded, so relabeling a package without
  * re-versioning it (or vice versa) fails CI instead of shipping a lie.
  *
+ * It also asserts each non-private package's README stability BADGE mirrors that
+ * same matrix label. stability.md promises "the per-package READMEs and the npm
+ * pages mirror it", but nothing enforced it — four satellite READMEs silently
+ * drifted to an `experimental` badge while the matrix said `release candidate`
+ * and CI stayed green. This closes that hole.
+ *
  * Usage: node scripts/check-stability-versions.mjs
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
@@ -74,6 +80,28 @@ for (const dir of readdirSync(PACKAGES_DIR)) {
     }
   } else {
     failures.push(`${manifest.name}: unrecognized stability label "${label}" in ${STABILITY_DOC}`)
+  }
+
+  // The README's stability badge must mirror the matrix label. The badge is a
+  // shields token of the form `stability-<label>-<color>`, where the label has
+  // its spaces written as underscores (e.g. `release_candidate`).
+  if (label === 'experimental' || label === 'release candidate' || label === 'stable') {
+    const readmePath = join(PACKAGES_DIR, dir, 'README.md')
+    if (existsSync(readmePath)) {
+      const expected = label.replace(/ /g, '_')
+      const badge = readFileSync(readmePath, 'utf8').match(/stability-(experimental|release_candidate|stable)-/)
+      if (!badge) {
+        failures.push(
+          `${manifest.name}: README has no stability badge — it must mirror the "${label}" matrix ` +
+            `label (add a shields \`stability-${expected}\` badge)`
+        )
+      } else if (badge[1] !== expected) {
+        failures.push(
+          `${manifest.name}: README badges "${badge[1].replace(/_/g, ' ')}" but ${STABILITY_DOC} says ` +
+            `"${label}" — update the README badge to \`stability-${expected}\``
+        )
+      }
+    }
   }
 
   checked.push(`  ${manifest.name}@${version} — ${label}`)

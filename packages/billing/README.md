@@ -7,9 +7,9 @@ one driver contract behind the signed-webhook pipeline (verify -> idempotency ->
 reporting, dunning, the `BillingService`, the provider-agnostic satellite models,
 and the `tenant:billing:*` ace commands.
 
-[![Stability: experimental](https://img.shields.io/badge/stability-experimental-E0A106)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability)
+[![Stability: release candidate](https://img.shields.io/badge/stability-release_candidate-C26A4B)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability)
 
-> **Experimental.** This satellite works and is covered by tests, but it is not part of the 1.x stability promise: its surface may change in a minor release. Pin the version and read the changelog before upgrading. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability).
+> **Stability: release candidate.** The API is frozen under the 1.x promise, with the honest caveat that a correction forced by the pending security review or production mileage may land in a 1.x minor with a loud changelog entry. Pin the version and read the changelog before upgrading. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability).
 
 It was split out of the core so a provider-side change (or CVE) versions on its
 own cadence and is only installed by apps that bill. Pick a provider with
@@ -20,31 +20,27 @@ Stripe driver — Paddle and Lemon Squeezy call their REST APIs directly).
 
 ```bash
 # Stripe driver:
-npm i @adonisjs-lasagna/billing stripe
+npm i @adonisjs-lasagna/billing @adonisjs-lasagna/saas-tenancy stripe
 # Paddle or Lemon Squeezy driver (no SDK):
-npm i @adonisjs-lasagna/billing
+npm i @adonisjs-lasagna/billing @adonisjs-lasagna/saas-tenancy
+
+node ace configure @adonisjs-lasagna/billing
+node ace migration:run
 ```
 
-It declares `@adonisjs-lasagna/saas-tenancy` as a peer, so install the core
-package too.
+`@adonisjs-lasagna/saas-tenancy` (the core) is a required peer. `node ace
+configure` registers the provider and commands, publishes the billing migrations,
+scaffolds the quota mailer/view, and prints the webhook-route reminder — so run
+`migration:run` afterwards. See the
+[billing guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/billing)
+for the exact `migration:run` connection flag. An opt-in fiscal mode
+(`LASAGNA_BILLING_FISCAL=1` before `configure`) publishes two extra migrations.
 
-## Wiring
+## Wire it up
 
-Register the provider and commands in `adonisrc.ts` (alongside the core
-provider), and mount the webhook route:
-
-```ts
-// adonisrc.ts
-providers: [
-  // ...
-  () => import('@adonisjs-lasagna/saas-tenancy/providers/multitenancy_provider'),
-  () => import('@adonisjs-lasagna/billing/provider'),
-],
-commands: [
-  () => import('@adonisjs-lasagna/saas-tenancy/commands'),
-  () => import('@adonisjs-lasagna/billing/commands'),
-],
-```
+`node ace configure` already registered the provider and commands in
+`adonisrc.ts`. The one step it can't do is patch your routes file, so mount the
+webhook route yourself:
 
 ```ts
 // start/routes.ts
@@ -55,6 +51,31 @@ multitenancyBillingRoutes()
 The provider replaces what the core used to do: it registers `BillingService`,
 seeds + verifies the active driver's config on boot, wires the usage / quota /
 tenant-delete listeners on start, and drains the metering aggregator on shutdown.
+
+## Configuration
+
+Billing config lives on the host's core config object (`config.billing`), not in
+this package:
+
+```ts
+// config/multitenancy.ts (billing block)
+billing: {
+  driver: 'stripe', // 'stripe' | 'paddle' | 'lemonsqueezy'
+  stripe: {
+    apiKey: env.get('STRIPE_API_KEY'),
+    webhookSecret: env.get('STRIPE_WEBHOOK_SECRET'),
+  },
+  // paddle: { ... } or lemonSqueezy: { ... }
+  // note: the lemonsqueezy driver's config block key is camelCase `lemonSqueezy`.
+  products: { prod_pro: 'pro', prod_team: 'team' }, // provider product/price id -> plan key
+  defaultPlan: 'pro',
+},
+```
+
+The webhook path (default `/webhooks/stripe`) must be listed in
+`config.ignorePaths` so the signed-webhook body reaches the verifier unparsed. See
+the [billing guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/billing)
+for the exhaustive configuration reference.
 
 ## Migrating from the core barrels
 
@@ -71,3 +92,7 @@ here:
 
 The billing config (`config.billing`) and the Stripe data types still live in
 the core config object; only the runtime moved.
+
+## Full documentation
+
+<https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/billing>

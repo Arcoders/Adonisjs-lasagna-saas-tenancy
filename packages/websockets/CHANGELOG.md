@@ -27,6 +27,9 @@ production mileage.
   `typesVersions` entry so the `/provider` export's declarations resolve under
   `node10`-style module resolution (it previously declared the subpath in
   `exports` without a matching types map, which `arethetypeswrong` flagged).
+- **README refreshed for the 1.0 launch.** Badge corrected to release candidate;
+  added a handler-binding example showing the `onTenantEvent` rule (a bare `socket.on`
+  runs with no tenant context, so a DB query inside it throws).
 
 **Stability: release candidate.** The API is frozen under the 1.x promise, with
 the one honest caveat that a correction forced by the pending security review or

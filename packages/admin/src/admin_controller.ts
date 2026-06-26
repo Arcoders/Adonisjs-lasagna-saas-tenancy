@@ -1,5 +1,7 @@
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
+import { getAdminActorResolver } from './admin_actor.js'
+import { auditAdminAction } from './controllers/helpers.js'
 import type { TenantStatus, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { InstallTenant } from '@adonisjs-lasagna/saas-tenancy/jobs'
 import {
@@ -19,17 +21,11 @@ import {
   TenantExitedMaintenance,
 } from '@adonisjs-lasagna/saas-tenancy/events'
 
-/**
- * Resolver for the acting admin id. Wired by `multitenancyAdminRoutes(...)`.
- * Until set, the impersonation endpoints refuse to issue tokens — we never
- * accept an `adminId` from the request body, since that would let any
- * caller forge the audit trail.
- */
-type AdminActorResolver = (ctx: HttpContext) => string | null | Promise<string | null>
-let adminActorResolver: AdminActorResolver | null = null
-export function __setAdminActorResolver(fn: AdminActorResolver | null): void {
-  adminActorResolver = fn
-}
+// The acting-admin resolver now lives in its own module so satellite
+// controllers and the audit helper can read it without importing this
+// app-coupled controller. Re-exported as `__setAdminActorResolver` so
+// `routes.ts` keeps wiring it through the same name.
+export { setAdminActorResolver as __setAdminActorResolver } from './admin_actor.js'
 
 const VALID_STATUSES: TenantStatus[] = ['provisioning', 'active', 'suspended', 'failed', 'deleted']
 
@@ -71,7 +67,8 @@ export default class AdminController {
     return response.ok({ data: serialize(tenant) })
   }
 
-  async create({ request, response }: HttpContext) {
+  async create(ctx: HttpContext) {
+    const { request, response } = ctx
     const name = String(request.input('name') ?? '').trim()
     const email = String(request.input('email') ?? '').trim()
     if (!name || !email) {
@@ -82,10 +79,15 @@ export default class AdminController {
     const tenant = await repo.create({ name, email, status: 'provisioning' })
     await TenantCreated.dispatch(tenant)
     await InstallTenant.dispatch({ tenantId: tenant.id })
+    await auditAdminAction(ctx, 'admin:tenant:create', tenant.id, {
+      name: tenant.name,
+      status: tenant.status,
+    })
     return response.created({ data: serialize(tenant), provisioning: true })
   }
 
-  async activate({ params, response }: HttpContext) {
+  async activate(ctx: HttpContext) {
+    const { params, response } = ctx
     const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id, true)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
@@ -93,10 +95,12 @@ export default class AdminController {
 
     await tenant.activate()
     await TenantActivated.dispatch(tenant)
+    await auditAdminAction(ctx, 'admin:tenant:activate', tenant.id, { status: tenant.status })
     return response.ok({ data: serialize(tenant) })
   }
 
-  async suspend({ params, response }: HttpContext) {
+  async suspend(ctx: HttpContext) {
+    const { params, response } = ctx
     const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id, true)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
@@ -104,10 +108,12 @@ export default class AdminController {
 
     await tenant.suspend()
     await TenantSuspended.dispatch(tenant)
+    await auditAdminAction(ctx, 'admin:tenant:suspend', tenant.id, { status: tenant.status })
     return response.ok({ data: serialize(tenant) })
   }
 
-  async destroy({ params, request, response }: HttpContext) {
+  async destroy(ctx: HttpContext) {
+    const { params, request, response } = ctx
     const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
@@ -129,10 +135,18 @@ export default class AdminController {
 
     await hooks.run('after', 'destroy', { tenant })
     await TenantDeleted.dispatch(tenant)
+    // Safe to audit after the schema is dropped: TenantAuditLog lives on the
+    // backoffice connection, independent of the tenant schema, and tenantId has
+    // no foreign key.
+    await auditAdminAction(ctx, 'admin:tenant:destroy', tenant.id, {
+      status: tenant.status,
+      schemaDropped: !keepSchema,
+    })
     return response.ok({ data: serialize(tenant), schemaDropped: !keepSchema })
   }
 
-  async restore({ params, response }: HttpContext) {
+  async restore(ctx: HttpContext) {
+    const { params, response } = ctx
     const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id, true)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
@@ -140,6 +154,7 @@ export default class AdminController {
 
     tenant.deletedAt = null
     await tenant.save()
+    await auditAdminAction(ctx, 'admin:tenant:restore', tenant.id, { status: tenant.status })
     return response.ok({ data: serialize(tenant) })
   }
 
@@ -158,7 +173,8 @@ export default class AdminController {
     return response.send(result)
   }
 
-  async enterMaintenance({ params, request, response }: HttpContext) {
+  async enterMaintenance(ctx: HttpContext) {
+    const { params, request, response } = ctx
     const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id, true)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
@@ -170,10 +186,14 @@ export default class AdminController {
     const message = request.input('message') ?? null
     await tenant.enterMaintenance(message)
     await TenantEnteredMaintenance.dispatch(tenant, message)
+    await auditAdminAction(ctx, 'admin:tenant:maintenance_enter', tenant.id, {
+      hasMessage: message != null,
+    })
     return response.ok({ data: serialize(tenant) })
   }
 
-  async exitMaintenance({ params, response }: HttpContext) {
+  async exitMaintenance(ctx: HttpContext) {
+    const { params, response } = ctx
     const repo = await resolveTenantRepository()
     const tenant = await repo.findById(params.id, true)
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
@@ -184,12 +204,14 @@ export default class AdminController {
 
     await tenant.exitMaintenance()
     await TenantExitedMaintenance.dispatch(tenant)
+    await auditAdminAction(ctx, 'admin:tenant:maintenance_exit', tenant.id, {})
     return response.ok({ data: serialize(tenant) })
   }
 
   async startImpersonation(ctx: HttpContext) {
     const { params, request, response } = ctx
-    if (!adminActorResolver) {
+    const resolver = getAdminActorResolver()
+    if (!resolver) {
       // Without an actor resolver we'd have to trust `adminId` from the
       // request body — which means anyone hitting this endpoint could forge
       // the audit trail. Refuse loudly so the operator wires the hook.
@@ -198,7 +220,7 @@ export default class AdminController {
         hint: 'Pass `resolveAdminActor: ({ auth }) => auth.user?.id` to multitenancyAdminRoutes()',
       })
     }
-    const adminId = await adminActorResolver(ctx)
+    const adminId = await resolver(ctx)
     if (!adminId) {
       return response.unauthorized({ error: 'admin_actor_unresolved' })
     }

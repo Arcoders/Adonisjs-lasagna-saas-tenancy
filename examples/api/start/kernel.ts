@@ -26,5 +26,9 @@ export const middleware = router.named({
     import('@adonisjs-lasagna/saas-tenancy/middleware').then((m) => ({
       default: m.TrackMetricsMiddleware,
     })),
+  impersonation: () =>
+    import('@adonisjs-lasagna/saas-tenancy/middleware').then((m) => ({
+      default: m.ImpersonationMiddleware,
+    })),
   demoAdminAuth: () => import('#app/middleware/demo_admin_auth_middleware'),
 })

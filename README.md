@@ -1,7 +1,7 @@
 # @adonisjs-lasagna/saas-tenancy
 
 <p align="center">
-  <img src="assets/hero.webp" alt="Lasagna — SaaS multi-tenancy for AdonisJS 7. Every tenant lives in its own isolated PostgreSQL schema. Around it: connection routing, circuit breaking, queues, contextual logging, plans and quotas, scheduled backups with retention, read-replica routing, soft delete, and a satellite suite covering audit logs, webhooks, branding, SSO, feature flags, metrics, and Stripe billing." width="100%" />
+  <img src="assets/hero.webp" alt="Lasagna — SaaS multi-tenancy for AdonisJS 7. Every tenant lives in its own isolated PostgreSQL schema. Around it: connection routing, circuit breaking, queues, contextual logging, plans and quotas, scheduled backups with retention, read-replica routing, soft delete, and a satellite suite covering audit logs, webhooks, branding, SSO, feature flags, metrics, and multi-provider billing (Stripe, Paddle, Lemon Squeezy)." width="100%" />
 </p>
 
 [![npm](https://img.shields.io/npm/v/@adonisjs-lasagna/saas-tenancy?color=C26A4B&label=npm)](https://www.npmjs.com/package/@adonisjs-lasagna/saas-tenancy)
@@ -16,7 +16,7 @@
 
 📖 **[Full documentation →](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/)** · [Quickstart](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/start/quickstart) · [Why Lasagna](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/start/why) · [Comparison vs stancl](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/comparison) · [Release notes](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/release-notes)
 
-> **Stability: release candidate.** The isolation core is feature complete and green in CI against real Postgres and Redis, but the `stable` label is withheld until an independent security review and production mileage close. The satellites (billing, SSO, admin, backup, and the opt-in in-core features like quotas, webhooks, and metrics) are **experimental**. Full breakdown and the 1.x semver promise in the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability).
+> **Stability: release candidate.** The isolation core is feature complete and green in CI against real Postgres and Redis, but the `stable` label is withheld until an independent security review and production mileage close. The satellite **packages** (admin, SSO, billing, backup, websockets, reporting) are **release candidate** too; the opt-in in-core features (quotas, webhooks, metrics, audit logs, branding, feature flags, impersonation) are **experimental**. Full breakdown and the 1.x semver promise in the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability).
 
 I built this because the AdonisJS ecosystem deserved a proper multi
 tenancy foundation, and because every SaaS I touched eventually outgrew
@@ -38,16 +38,16 @@ and runs the full e2e suite against it.
 | **Schema isolation** | Each tenant gets its own `tenant_<uuid>` PostgreSQL schema, provisioned and routed automatically. |
 | **Circuit breaker** | Opossum wraps every tenant DB call; OPEN state is restored from Redis on restart so a known-down tenant DB fails fast across deploys. One bad schema can't take down the others. |
 | **Dependency resilience** | Per-dependency fail-open/fail-closed degradation policy via `ResilienceService`. Emits `DependencyDegraded` for alerting and returns a typed 503 (`DependencyUnavailableException`) when fail-closed. |
-| **Lifecycle hooks + 25 typed events** | Declarative `before` / `after` hooks wired into commands and jobs. 14 tenant/quota-lifecycle + 10 billing + 1 resilience event. |
+| **Lifecycle hooks + 28 typed events** | Declarative `before` / `after` hooks wired into commands and jobs. 18 core (tenant / quota / maintenance / resilience / metrics lifecycle) + 10 billing. |
 | **Contextual logging** | `tenantId` rides along through HTTP and queue jobs via `AsyncLocalStorage`. |
-| **`tenant:doctor`** | Ten built-in checks, `--fix` for auto-recovery, `--json` for CI, `--watch` for a live TUI. |
+| **`tenant:doctor`** | Nine built-in checks (plus `backup_recency` and `backup_encryption` when the backup satellite is installed), `--fix` for auto-recovery, `--json` for CI, `--watch` for a live TUI. |
 | **Plans and quotas** | Declarative plans, rolling counters, snapshot usage, an `enforceQuota()` middleware that returns 429 and emits `TenantQuotaExceeded`. |
 | **Scheduled backups + retention** | Tier-based intervals and `keepLast`, S3 mirror with purge awareness, idempotent cron command. |
 | **Health probes + Prometheus** | `/livez`, `/readyz`, `/healthz`, `/metrics`. No `prom-client` peer dep. |
 | **Read replica routing** | Round-robin, random, or sticky-by-tenant-id with stable connection naming. |
-| **REST admin API** | 36 endpoints + OpenAPI 3.1 spec + Swagger UI. You bring the auth middleware. |
+| **REST admin API** | 39 endpoints + OpenAPI 3.1 spec + Swagger UI. You bring the auth middleware. |
 | **Soft delete TTL** | Recycle bin pattern. `--keep-schema` on destroy, `tenant:purge-expired` on a cron. |
-| **Ten satellites** | Audit logs (append-only at the SQL level), webhooks (HMAC-signed + retries + verifier helper), quotas, feature flags, branding, SSO/OIDC, real-time WebSockets (socket.io, tenant-isolated), metrics, impersonation, and Stripe billing (idempotent webhook + dunning + metered + checkout/portal + lifecycle). All optional. |
+| **Ten satellites** | Audit logs (append-only at the SQL level), webhooks (HMAC-signed + retries + verifier helper), quotas, feature flags, branding, SSO/OIDC, real-time WebSockets (socket.io, tenant-isolated), metrics, impersonation, and multi-provider billing (Stripe / Paddle / Lemon Squeezy: idempotent webhook + dunning + metered + checkout/portal + lifecycle). All optional. |
 
 Two questions to ask before adopting:
 
@@ -100,8 +100,8 @@ every feature end-to-end:
 
 ```bash
 cd examples/api
-npm install
-docker compose -f compose.test.yml up -d
+npm install --legacy-peer-deps
+docker compose up -d
 npm run test:e2e
 ```
 
@@ -126,7 +126,7 @@ state machine.
 npm install --legacy-peer-deps
 npm run typecheck
 npm test
-docker compose -f compose.test.yml up -d
+docker compose -f examples/api/docker-compose.yml up -d
 npm run test:integration
 npm run docs:dev      # live preview of the docs site
 ```

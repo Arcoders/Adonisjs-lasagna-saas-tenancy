@@ -44,6 +44,10 @@ and self-describes like the other satellites.
   were declared in `exports` but had no matching `typesVersions` entries, so a
   consumer on `node10`-style module resolution could not resolve their type
   declarations. Added the missing entries (mirroring core).
+- **README refreshed for the 1.0 launch.** Badge corrected to release candidate;
+  configure-first install documented; the required `@adonisjs/queue` peer, both the
+  `backup_recency` and `backup_encryption` doctor checks, and a commands/flags table
+  are now in the README.
 
 **Stability: release candidate.** The API is frozen under the 1.x promise, with the
 honest caveat that a correction forced by the pending security review or production

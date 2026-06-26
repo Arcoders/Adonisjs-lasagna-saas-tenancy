@@ -30,7 +30,9 @@
       "help": "",
       "namespace": "tenant",
       "aliases": [],
-      "flags": [],
+      "flags": [
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id recorded in the audit log (default: system)" }
+      ],
       "args": [
         { "name": "name", "argumentName": "name", "required": true, "description": "Tenant name", "type": "string" },
         { "name": "email", "argumentName": "email", "required": true, "description": "Tenant contact email", "type": "string" }
@@ -44,7 +46,9 @@
       "help": "",
       "namespace": "tenant",
       "aliases": [],
-      "flags": [],
+      "flags": [
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id recorded in the audit log (default: system)" }
+      ],
       "args": [
         { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to activate", "type": "string" }
       ],
@@ -57,7 +61,9 @@
       "help": "",
       "namespace": "tenant",
       "aliases": [],
-      "flags": [],
+      "flags": [
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id recorded in the audit log (default: system)" }
+      ],
       "args": [
         { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to suspend", "type": "string" }
       ],
@@ -72,7 +78,8 @@
       "aliases": [],
       "flags": [
         { "name": "force", "flagName": "force", "required": false, "type": "boolean", "alias": "y", "description": "Skip confirmation prompt" },
-        { "name": "keepSchema", "flagName": "keep-schema", "required": false, "type": "boolean", "description": "Soft-delete only — preserve the tenant schema for the retention window" }
+        { "name": "keepSchema", "flagName": "keep-schema", "required": false, "type": "boolean", "description": "Soft-delete only — preserve the tenant schema for the retention window" },
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id recorded in the audit log (default: system)" }
       ],
       "args": [
         { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to destroy", "type": "string" }
@@ -378,7 +385,8 @@
       "aliases": [],
       "flags": [
         { "name": "off", "flagName": "off", "required": false, "type": "boolean", "description": "Exit maintenance mode (default: enter)" },
-        { "name": "message", "flagName": "message", "required": false, "type": "string", "description": "Optional message shown in the 503 response" }
+        { "name": "message", "flagName": "message", "required": false, "type": "string", "description": "Optional message shown in the 503 response" },
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id recorded in the audit log (default: system)" }
       ],
       "args": [
         { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to toggle", "type": "string" }
