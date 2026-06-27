@@ -4,7 +4,10 @@ import type { ApplicationService } from '@adonisjs/core/types'
 // barrel re-exports tenant_logger, which top-level-awaits app.booted and throws
 // when this module is first imported before the Ignitor has created the app.
 import IsolationDriverRegistry from '../../../packages/core/build/src/services/isolation/registry.js'
-import type { IsolationDriver } from '../../../packages/core/build/src/services/isolation/driver.js'
+import {
+  isProvisionableDriver,
+  type IsolationDriver,
+} from '../../../packages/core/build/src/services/isolation/driver.js'
 
 /**
  * Direct provisioning for the bench. Bypasses the async InstallTenant job so
@@ -112,7 +115,7 @@ export async function provisionTenants(
   const refs = tenantRefs(count)
   for (const ref of refs) {
     await insertTenantRow(db, ref)
-    await driver.provision(ref as any)
+    if (isProvisionableDriver(driver)) await driver.provision(ref as any)
     if (driver.name !== 'rowscope-pg') {
       await driver.migrate(ref as any, { direction: 'up' } as any)
     }

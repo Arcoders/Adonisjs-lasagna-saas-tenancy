@@ -2,6 +2,7 @@ import type { ApplicationService } from '@adonisjs/core/types'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 import { zeroMetric, type BenchResult } from '../harness/runner.js'
 import { activeDriver, tenantRefs, ensureBackofficeSchema } from '../harness/provision.js'
+import { isProvisionableDriver } from '../../../packages/core/build/src/services/isolation/driver.js'
 import {
   snapshotConnections,
   pgBackendCount,
@@ -55,7 +56,8 @@ export async function runConnectionBudget(
     await disconnectAllTenants(db)
     const refs = tenantRefs(count)
     for (const ref of refs) {
-      await driver.provision(ref as any) // ensure storage + register a connection
+      // ensure storage (provisionable drivers) + register a connection
+      if (isProvisionableDriver(driver)) await driver.provision(ref as any)
       const conn = await driver.connect(ref as any)
       await conn.rawQuery('SELECT 1') // force a real backend so pools actually open
     }

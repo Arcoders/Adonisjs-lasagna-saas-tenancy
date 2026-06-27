@@ -65,7 +65,7 @@ test.group('hardening — tenant:destroy partial failure leaves a recoverable or
       assert.isNotNull(t.deletedAt, 'tenant is soft-deleted (unreachable) despite the drop failure')
       assert.isTrue(await schemaExists(id), 'the schema is orphaned (still present)')
     } finally {
-      registry.setActive(real.name) // restore the real driver for recovery
+      registry.use(real.name) // restore the real driver for recovery
     }
 
     // Recovery WITHOUT waiting out retention: --include-orphans drops it now.

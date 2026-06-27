@@ -21,6 +21,7 @@
  */
 export { assertSafeIdentifier, isUuidV4 } from './services/isolation/identifier.js'
 export { getActiveDriver } from './services/isolation/active_driver.js'
+export { isProvisionableDriver } from './services/isolation/driver.js'
 export { splitSqlStatementsTagged } from './utils/sql_splitter.js'
 export { buildTestTenant } from './testing/builders.js'
 export type { BuildTestTenantOverrides } from './testing/builders.js'

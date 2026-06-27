@@ -2,7 +2,11 @@ import db from '@adonisjs/lucid/services/db'
 import logger from '@adonisjs/core/services/logger'
 import type { QueryClientContract, TransactionClientContract } from '@adonisjs/lucid/types/database'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
-import { getActiveDriver, assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/internal'
+import {
+  getActiveDriver,
+  assertSafeIdentifier,
+  isProvisionableDriver,
+} from '@adonisjs-lasagna/saas-tenancy/internal'
 import type { CloneResult, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { withTenantOperationLock } from './tenant_operation_lock.js'
 import { destructiveLockFailClosed } from '../config.js'
@@ -43,6 +47,16 @@ export default class CloneService {
     logger.info({ sourceId: source.id, destId: destination.id, options }, 'Starting tenant clone')
 
     const driver = await getActiveDriver()
+    // Clone provisions fresh per-tenant storage for the destination, so it only
+    // works on a driver that owns storage. A shared-storage driver (rowscope-pg)
+    // has nothing to provision — fail clearly rather than crash on a missing method.
+    if (!isProvisionableDriver(driver)) {
+      throw new Error(
+        `tenant:clone requires a provisionable isolation driver (one that owns per-tenant ` +
+          `storage). The active driver "${driver.name}" shares storage across tenants, so there ` +
+          `is no destination storage to provision.`
+      )
+    }
 
     try {
       await driver.provision(destination)
