@@ -106,6 +106,22 @@ export default class SchemaPgDriver implements IsolationDriver {
     await this.#lru.settlePending(name)
 
     if (db.manager.has(name)) {
+      // Verify the cached connection is still pinned to THIS tenant's schema
+      // before serving it. A name collision, a stale registration, or a
+      // changed prefix would otherwise hand back a connection scoped to a
+      // different tenant's schema, a silent cross-tenant leak. Fail closed.
+      const existing = db.manager.get(name)?.config as any
+      const expected = this.schemaName(tenant)
+      const actual = Array.isArray(existing?.searchPath)
+        ? existing.searchPath[0]
+        : existing?.searchPath
+      if (actual !== expected) {
+        throw new IsolationConfigException(
+          `SchemaPgDriver: connection "${name}" is registered with searchPath ` +
+            `${JSON.stringify(existing?.searchPath)} but tenant ${tenant.id} expects schema ` +
+            `"${expected}". Refusing to serve a possibly cross-tenant connection.`
+        )
+      }
       this.#lru.touch(name)
       return db.connection(name)
     }

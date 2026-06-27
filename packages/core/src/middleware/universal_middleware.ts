@@ -9,7 +9,7 @@ import {
 } from '../extensions/request.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import { isUuidV4 } from '../services/isolation/identifier.js'
-import TenantLogContext from '../services/tenant_log_context.js'
+import { tenancy } from '../tenancy.js'
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
@@ -39,8 +39,10 @@ export default class UniversalMiddleware {
     const tenant = await this.#tryResolve(request)
     if (!tenant) return next()
 
-    const logCtx = await app.container.make(TenantLogContext)
-    return logCtx.run({ tenantId: tenant.id }, () => next())
+    // Bind the tenant log context AND run the bootstrapper enter/leave
+    // lifecycle for the request, matching the guarded path and the background
+    // tenancy.run() path.
+    return tenancy.runForRequest(tenant, request, () => next())
   }
 
   async #tryResolve(request: HttpContext['request']): Promise<TenantModelContract | null> {

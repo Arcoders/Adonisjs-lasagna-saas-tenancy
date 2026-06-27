@@ -1,6 +1,7 @@
 import app from '@adonisjs/core/services/app'
 import BootstrapperRegistry, { type BootstrapperContext } from './services/bootstrapper_registry.js'
 import TenantLogContext from './services/tenant_log_context.js'
+import { getActiveDriver } from './services/isolation/active_driver.js'
 import { resolveTenantRepository } from './services/resolve_tenant_repository.js'
 import type { TenantMetadata, TenantModelContract } from './types/contracts.js'
 
@@ -37,10 +38,53 @@ async function getRegistry(): Promise<BootstrapperRegistry> {
   return cachedRegistry
 }
 
+/**
+ * Ensure the active isolation driver has registered this tenant's connection
+ * before any model query routes to it. `TenantAdapter` asserts the connection
+ * exists and fails closed otherwise, so this is the convenience that makes the
+ * background path work without the caller remembering to connect.
+ *
+ * If no isolation driver is registered yet (an unbooted unit-test context),
+ * skip silently: the adapter remains the hard guarantee. A driver that IS
+ * registered but whose `connect()` fails (a real backend outage) propagates.
+ */
+async function ensureConnected(tenant: TenantModelContract): Promise<void> {
+  let driver
+  try {
+    driver = await getActiveDriver()
+  } catch {
+    return
+  }
+  await driver.connect(tenant)
+}
+
 async function run<T>(tenant: TenantModelContract, fn: () => T | Promise<T>): Promise<T> {
   const logCtx = await getLogCtx()
   const registry = await getRegistry()
+  await ensureConnected(tenant)
   const ctx: BootstrapperContext = { tenant }
+
+  return logCtx.run({ tenantId: tenant.id }, () => registry.runScoped(ctx, fn))
+}
+
+/**
+ * HTTP-path analogue of {@link run}. The request already connected the tenant
+ * (request.tenant() / the universal middleware call driver.connect()), so this
+ * only binds the log context AND runs the bootstrapper enter/leave lifecycle,
+ * which the bare `logCtx.run()` the middlewares used before did NOT do. Used by
+ * `TenantGuardMiddleware` and `UniversalMiddleware` so a host's custom
+ * bootstrapper fires on HTTP requests, not only inside queue jobs. The atomic
+ * enter/leave guarantee of `runScoped` ensures `leave()` always pairs a
+ * successful `enter()` even when the downstream handler throws.
+ */
+async function runForRequest<T>(
+  tenant: TenantModelContract,
+  request: BootstrapperContext['request'],
+  fn: () => T | Promise<T>
+): Promise<T> {
+  const logCtx = await getLogCtx()
+  const registry = await getRegistry()
+  const ctx: BootstrapperContext = { tenant, request }
 
   return logCtx.run({ tenantId: tenant.id }, () => registry.runScoped(ctx, fn))
 }
@@ -98,6 +142,7 @@ async function current<
 
 export const tenancy = {
   run,
+  runForRequest,
   currentId,
   current,
 }

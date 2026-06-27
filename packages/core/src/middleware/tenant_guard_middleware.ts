@@ -6,7 +6,7 @@ import TenantSuspendedException from '../exceptions/tenant_suspended_exception.j
 import TenantAccessForbiddenException from '../exceptions/tenant_access_forbidden_exception.js'
 import TenantMaintenanceException from '../exceptions/tenant_maintenance_exception.js'
 import CircuitBreakerService from '../services/circuit_breaker_service.js'
-import TenantLogContext from '../services/tenant_log_context.js'
+import { tenancy } from '../tenancy.js'
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
@@ -53,8 +53,11 @@ export default class TenantGuardMiddleware {
       throw new CircuitOpenException()
     }
 
-    const logCtx = await app.container.make(TenantLogContext)
-    return logCtx.run({ tenantId: tenant.id }, () => next())
+    // Bind the tenant log context AND run the bootstrapper enter/leave
+    // lifecycle for the request (a bare logCtx.run skipped bootstrappers on the
+    // HTTP path, so a custom isolation bootstrapper silently no-opped here while
+    // working in jobs).
+    return tenancy.runForRequest(tenant, request, () => next())
   }
 
   #hasMaintenanceBypass(request: HttpContext['request']): boolean {

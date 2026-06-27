@@ -4,6 +4,7 @@ import type { Database } from '@adonisjs/lucid/database'
 import type { LucidModel, ModelAdapterOptions } from '@adonisjs/lucid/types/model'
 import assert from 'node:assert'
 import { getConfig } from '../../config.js'
+import IsolationConfigException from '../../exceptions/isolation_config_exception.js'
 import MissingTenantHeaderException from '../../exceptions/missing_tenant_header_exception.js'
 import { resolveTenantId } from '../../extensions/request.js'
 import { isUuidV4 } from '../../services/isolation/identifier.js'
@@ -48,7 +49,23 @@ export default class TenantAdapter extends DefaultLucidAdapter {
     // eviction grace period isn't picked as a victim mid-query. No-op on drivers
     // without a per-tenant pool (rowscope-pg).
     driver.markUsed?.(tenantId)
-    return this.db.connection(driver.connectionName(tenantId))
+    const name = driver.connectionName(tenantId)
+    // The adapter routes to a connection it does not register; establishing it
+    // is the job of context entry (request.tenant() on the HTTP path,
+    // tenancy.run() for jobs/scripts/commands, both of which call
+    // driver.connect()). If we reach here with no registered connection, fail
+    // closed with a typed, actionable error instead of letting Lucid throw an
+    // opaque "connection is not registered". A real Database always exposes a
+    // manager; a bare unit-test double without one skips the check.
+    const manager: any = (this.db as any).manager
+    if (manager && typeof manager.has === 'function' && !manager.has(name)) {
+      throw new IsolationConfigException(
+        `Tenant connection "${name}" is not established for tenant ${tenantId}. ` +
+          `Enter tenant context first: request.tenant() on the HTTP path, or ` +
+          `tenancy.run(tenant, fn) in jobs, scripts, and custom commands.`
+      )
+    }
+    return this.db.connection(name)
   }
 
   /**
