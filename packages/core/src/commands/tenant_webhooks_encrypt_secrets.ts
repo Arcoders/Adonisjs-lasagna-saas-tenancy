@@ -6,15 +6,15 @@ import { encrypt, isEncrypted } from '../utils/crypto.js'
 
 /**
  * One-time upgrade step. Webhook delivery now fails closed on a stored secret
- * that is not `enc_v1` ciphertext (it used to sign with raw column bytes for a
- * non-encrypted value). Hosts that wrote plaintext secrets — for example by
- * following the demo controller before it encrypted at the write boundary —
- * must run this once to encrypt them at rest, otherwise their deliveries start
- * failing after the upgrade.
+ * that is not `enc_v1`/`enc_v2` ciphertext (it used to sign with raw column
+ * bytes for a non-encrypted value). Hosts that wrote plaintext secrets — for
+ * example by following the demo controller before it encrypted at the write
+ * boundary — must run this once to encrypt them at rest, otherwise their
+ * deliveries start failing after the upgrade.
  *
- * Idempotent: a secret that is already `enc_v1` is left untouched, so the
- * command is safe to re-run and to schedule defensively. Use `--dry-run` to see
- * the counts first.
+ * Idempotent: a secret that is already encrypted (enc_v1 or enc_v2) is left
+ * untouched, so the command is safe to re-run and to schedule defensively. Use
+ * `--dry-run` to see the counts first.
  */
 export default class TenantWebhooksEncryptSecrets extends BaseCommand {
   static readonly commandName = 'tenant:webhooks:encrypt-secrets'

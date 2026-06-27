@@ -237,10 +237,10 @@ test.group('WebhookService.send() — delivery state machine', (group) => {
 })
 
 test.group('WebhookService — encryption', () => {
-  test('encrypt utility produces an enc_v1: prefixed value', ({ assert }) => {
+  test('encrypt utility produces an enc_v2: prefixed value', ({ assert }) => {
     const secret = 'my-webhook-secret'
     const encrypted = encrypt(secret)
-    assert.isTrue(encrypted.startsWith('enc_v1:'))
+    assert.isTrue(encrypted.startsWith('enc_v2:'))
     assert.notEqual(encrypted, secret)
   })
 })

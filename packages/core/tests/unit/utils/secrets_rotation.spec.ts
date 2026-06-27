@@ -27,7 +27,7 @@ function encryptUnder(appKey: string, plaintext: string): string {
 }
 
 test.group('classifySecretRotation', () => {
-  test('skips a plaintext-era (non-enc_v1) value', ({ assert }) => {
+  test('skips a plaintext-era (non-ciphertext) value', ({ assert }) => {
     assert.deepEqual(classifySecretRotation('raw-plaintext-secret', OLD_KEY, CURRENT_KEY), {
       action: 'skip',
     })
@@ -55,7 +55,7 @@ test.group('classifySecretRotation', () => {
     assert.deepEqual(classifySecretRotation(stored, OLD_KEY, CURRENT_KEY), { action: 'failed' })
   })
 
-  test('fails a corrupted enc_v1 ciphertext rather than treating it as plaintext', ({ assert }) => {
+  test('fails a corrupted ciphertext rather than treating it as plaintext', ({ assert }) => {
     const stored = encryptUnder(OLD_KEY, 'whsec_value')
     // Flip the last ciphertext hex char so the GCM auth tag check fails.
     const corrupted = stored.slice(0, -1) + (stored.endsWith('a') ? 'b' : 'a')

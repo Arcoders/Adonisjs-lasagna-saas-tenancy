@@ -19,8 +19,9 @@ const secretEncryptionControl: ComplianceControl = {
         status: 'satisfied',
         evidence:
           'APP_KEY is set; webhook signing secrets and SSO client secrets are stored ' +
-          'AES-256-GCM encrypted (enc_v1:). This covers SECRETS only — not arbitrary ' +
-          'application/tenant data, and not pg_dump archives at rest.',
+          'AES-256-GCM encrypted with an HKDF-derived key (enc_v2; enc_v1 still readable). ' +
+          'This covers SECRETS only — not arbitrary application/tenant data, and not ' +
+          'pg_dump archives at rest.',
         hostResponsibility:
           'Encrypt application data yourself (volume/disk encryption, TDE, or pgcrypto) ' +
           'and the backup storage at rest. Rotate APP_KEY via tenant:secrets:reencrypt.',

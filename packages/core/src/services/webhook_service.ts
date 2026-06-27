@@ -227,7 +227,7 @@ export default class WebhookService {
     }
 
     if (hook.secret) {
-      // The stored secret MUST be enc_v1 ciphertext: we fail closed with
+      // The stored secret MUST be enc_v1/enc_v2 ciphertext: we fail closed with
       // decryptStrict, so a non-encrypted, corrupted, or wrong-key value is a
       // PERMANENT failure rather than being signed with raw column bytes.
       // Decrypting OUTSIDE this guard would throw straight out of send(),

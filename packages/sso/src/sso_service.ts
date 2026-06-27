@@ -226,8 +226,8 @@ export default class SsoService {
         code,
         redirect_uri: config.redirectUri,
         client_id: config.clientId,
-        // `decrypt` returns the value unchanged when it lacks the enc_v1: prefix,
-        // so rows written before encryption was added keep working.
+        // `decrypt` returns the value unchanged when it lacks a known ciphertext
+        // prefix (enc_v1/enc_v2), so rows written before encryption keep working.
         client_secret: await this.#deps.decryptSecret(config.clientSecret),
       }),
       signal: AbortSignal.timeout(IDP_FETCH_TIMEOUT_MS),

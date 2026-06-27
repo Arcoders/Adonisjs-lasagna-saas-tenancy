@@ -13,11 +13,11 @@ import { classifySecretRotation } from '../utils/secrets_rotation.js'
  *
  *   OLD_APP_KEY=<previous key> node ace tenant:secrets:reencrypt
  *
- * For every known encrypted column it decrypts each `enc_v1:` value with the
- * OLD key and re-encrypts it with the CURRENT `APP_KEY`. Values that already
- * decrypt with the current key are skipped (the command is idempotent and
- * resumable). The old key comes from the environment, never argv, so it stays
- * out of shell history and process listings.
+ * For every known encrypted column it decrypts each `enc_v1`/`enc_v2` value with
+ * the OLD key and re-encrypts it with the CURRENT `APP_KEY` (always producing
+ * `enc_v2`). Values that already decrypt with the current key are skipped (the
+ * command is idempotent and resumable). The old key comes from the environment,
+ * never argv, so it stays out of shell history and process listings.
  *
  * Satellite tables are matched by name in the backoffice schema, so the
  * command covers `tenant_sso_configs` (the sso package's table) without core
