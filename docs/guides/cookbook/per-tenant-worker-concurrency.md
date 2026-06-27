@@ -29,7 +29,7 @@ context automatically — no manual `tenancy.run()` wrapping:
 
 ```ts
 // app/jobs/generate_invoice.ts
-import { TenantJob, type TenantJobPayload } from '@adonisjs-lasagna/saas-tenancy'
+import { TenantJob, type TenantJobPayload } from '@adonisjs-lasagna/saas-tenancy/jobs'
 
 interface GenerateInvoicePayload extends TenantJobPayload {
   invoiceId: string
