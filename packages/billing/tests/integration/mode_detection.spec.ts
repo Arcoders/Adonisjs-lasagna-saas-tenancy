@@ -71,8 +71,11 @@ test.group('BillingService.verify — mode + config validation', (group) => {
   }
 
   test('aborts boot when sk_test_* paired with NODE_ENV=production', async ({ assert }) => {
-    process.env.NODE_ENV = 'production'
+    // Configure while still in the (non-production) test env, THEN flip to
+    // production: setConfig refuses a second set under NODE_ENV=production (WS-5
+    // config immutability), and verify() reads NODE_ENV at call time anyway.
     setBillingConfig({ apiKey: 'sk_test_abort_me' })
+    process.env.NODE_ENV = 'production'
 
     const billing = await app.container.make(BillingService)
     await billing.__resetForTests()
@@ -214,8 +217,6 @@ test.group('BillingProvider.boot — billing.verify wiring', (group) => {
   })
 
   test('provider.boot() refuses to start when verify rejects', async ({ assert }) => {
-    process.env.NODE_ENV = 'production'
-
     const evilConfig: MultitenancyConfig = {
       ...testConfig,
       plans: {
@@ -237,6 +238,9 @@ test.group('BillingProvider.boot — billing.verify wiring', (group) => {
     // — so we have to update both for boot() to see the bad config.
     app.config.set('multitenancy', evilConfig)
     setConfig(evilConfig)
+    // Flip to production AFTER setConfig: WS-5 refuses a second setConfig under
+    // production; provider.boot() → verify() reads NODE_ENV at call time.
+    process.env.NODE_ENV = 'production'
 
     const provider = new BillingProvider(app as never)
     // Do NOT call `provider.register()` here. BillingProvider.register() binds
