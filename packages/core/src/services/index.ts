@@ -152,6 +152,7 @@ export {
   provisioningStalledCheck,
   failedTenantsCheck,
   connectionPoolCheck,
+  membershipGateCheck,
   metricsFreshnessCheck,
 } from './doctor/index.js'
 export type {

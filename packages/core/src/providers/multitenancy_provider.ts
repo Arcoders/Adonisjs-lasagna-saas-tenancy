@@ -2,6 +2,7 @@ import type { ApplicationService } from '@adonisjs/core/types'
 import { Database } from '@adonisjs/lucid/database'
 import { setConfig } from '../config.js'
 import { assertConfigBounds } from './assert_config_bounds.js'
+import { membershipGateRisk } from '../services/membership_gate.js'
 import type { MultitenancyConfig } from '../types/config.js'
 import { BackofficeAdapter, TenantAdapter } from '../models/adapters/index.js'
 import { BackofficeBaseModel, TenantBaseModel, CentralBaseModel } from '../models/base/index.js'
@@ -178,6 +179,18 @@ export default class MultitenancyProvider {
         ? config.resolverChain
         : [config.resolverStrategy]
     resolvers.setChain(chain)
+
+    // Cross-tenant IDOR signal. A client-controlled resolver strategy
+    // (header/path/request-data) with no `authorizeTenantAccess` means the
+    // package serves whatever tenant id the caller supplies. Warn once at boot
+    // unless the host explicitly accepted the risk via acknowledgeNoMembershipGate.
+    // The same verdict backs the `membership_gate` doctor check. Logger comes
+    // from the container (the eager logger binding is undefined this early in boot).
+    const idorWarning = membershipGateRisk(config)
+    if (idorWarning) {
+      const bootLogger = await this.app.container.make('logger').catch(() => undefined)
+      bootLogger?.warn(idorWarning)
+    }
 
     // When the unified resolution path is enabled, seed the tenant log context
     // into `tenancy` so `tenancy.currentId()` reflects the HTTP guard's context
