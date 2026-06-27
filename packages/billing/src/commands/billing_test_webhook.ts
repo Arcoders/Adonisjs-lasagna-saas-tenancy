@@ -55,7 +55,7 @@ export default class BillingTestWebhook extends BaseCommand {
 
   @flags.string({
     flagName: 'url',
-    default: 'http://127.0.0.1:3333/webhooks/stripe',
+    default: 'http://127.0.0.1:3333/webhooks/billing',
     description: 'Webhook URL (override host/port if needed)',
   })
   declare url: string

@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import { readFile } from 'node:fs/promises'
 
 /**
- * `configure --with=billing` advertises `/webhooks/stripe` as an
+ * `configure --with=billing` advertises `/webhooks/billing` as an
  * `ignorePaths` entry, but the stub the configure step copies into the
  * host MUST already contain it. A host that follows the docs and pastes
  * the published config will hit `TenantGuard` on every webhook otherwise.
@@ -10,7 +10,7 @@ import { readFile } from 'node:fs/promises'
  * This test reads the stub directly from disk — same bytes the user gets.
  */
 test.group('multitenancy.stub default ignorePaths', () => {
-  test("includes '/webhooks/stripe' in the default ignorePaths array", async ({ assert }) => {
+  test("includes '/webhooks/billing' in the default ignorePaths array", async ({ assert }) => {
     const stubUrl = new URL('../../../core/stubs/config/multitenancy.stub', import.meta.url)
     const text = await readFile(stubUrl, 'utf8')
 
@@ -20,7 +20,7 @@ test.group('multitenancy.stub default ignorePaths', () => {
     const match = /ignorePaths:\s*\[([^\]]+)\]/.exec(text)
     assert.isNotNull(match, 'ignorePaths key not found in stub')
     const list = match![1]
-    assert.include(list, "'/webhooks/stripe'", 'webhook path missing from default ignorePaths')
+    assert.include(list, "'/webhooks/billing'", 'webhook path missing from default ignorePaths')
   })
 
   test('includes the canonical paths a webhook flow needs', async ({ assert }) => {
@@ -30,7 +30,7 @@ test.group('multitenancy.stub default ignorePaths', () => {
     const list = match![1]
     // Defensive list of paths the package expects to be unauthenticated
     // out of the box — health, admin, generic webhooks, stripe webhook.
-    for (const required of ["'/health'", "'/admin'", "'/webhooks/stripe'"]) {
+    for (const required of ["'/health'", "'/admin'", "'/webhooks/billing'"]) {
       assert.include(list, required, `${required} missing from default ignorePaths`)
     }
   })

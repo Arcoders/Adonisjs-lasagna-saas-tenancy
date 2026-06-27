@@ -2,9 +2,10 @@ import { BlockList, isIPv4, isIPv6 } from 'node:net'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 
 /**
- * IP allowlist check for `/webhooks/stripe`. Defence-in-depth on top of
+ * IP allowlist check for the billing webhook path. Defence-in-depth on top of
  * HMAC signature verification — useful in environments where the secret
- * could be exposed (multi-team monorepos, leaked .env in CI).
+ * could be exposed (multi-team monorepos, leaked .env in CI). Stripe-specific:
+ * only Stripe publishes a webhook source-IP range list.
  *
  * Supports BOTH literal IPs and CIDR ranges. Stripe's published webhook
  * range list (`https://stripe.com/files/ips/ips_webhooks.json`) ships

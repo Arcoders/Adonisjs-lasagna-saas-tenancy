@@ -35,8 +35,8 @@ export type BillingErrorCode =
  * may succeed on retry (true) or a fatal one where retrying is a
  * waste of compute and tail-latency (false).
  *
- * Used by `ProcessStripeEventJob` to short-circuit BullMQ retries on
- * fatal errors — a revoked API key or a deleted Stripe customer
+ * Used by `ProcessBillingEventJob` to short-circuit BullMQ retries on
+ * fatal errors — a revoked API key or a deleted provider customer
  * isn't going to fix itself in 30s.
  *
  * Fatal:

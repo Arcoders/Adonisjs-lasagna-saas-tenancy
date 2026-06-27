@@ -20,7 +20,7 @@ import type Stripe from 'stripe'
 /**
  * Dunning flow drove end-to-end:
  *
- *   POST /webhooks/stripe (signed)
+ *   POST /webhooks/billing (signed)
  *     → middleware verifies signature
  *     → controller writes idempotency row + dispatches the job
  *     → job (executed inline below) calls retrieveEvent() and dispatcher
@@ -138,7 +138,7 @@ test.group('Dunning state machine (integration)', (group) => {
     const body = JSON.stringify(event)
     const sig = signWebhookPayload(body, 'whsec_test_billing_helper')
     const res = await client
-      .post('/webhooks/stripe')
+      .post('/webhooks/billing')
       .header('content-type', 'application/json')
       .header('stripe-signature', sig)
       .json(event)

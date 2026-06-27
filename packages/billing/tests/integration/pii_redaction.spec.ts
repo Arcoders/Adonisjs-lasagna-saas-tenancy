@@ -25,7 +25,7 @@ import type Stripe from 'stripe'
  * whole stream.
  *
  * Flow exercised:
- *   POST /webhooks/stripe (signed)
+ *   POST /webhooks/billing (signed)
  *     → middleware logs (none in happy path; signature mismatch logs)
  *     → controller logs (`stripe.webhook.duplicate` on dups)
  *     → job execute() logs (`stripe.event.processed`)
@@ -165,7 +165,7 @@ test.group('PII redaction (integration)', (group) => {
     const body = JSON.stringify(hostile)
     const sig = signWebhookPayload(body, 'whsec_test_billing_helper')
     const res = await client
-      .post('/webhooks/stripe')
+      .post('/webhooks/billing')
       .header('content-type', 'application/json')
       .header('stripe-signature', sig)
       .json(hostile)

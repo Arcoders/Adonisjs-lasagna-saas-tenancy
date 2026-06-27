@@ -54,7 +54,7 @@ test.group('tenant:billing:doctor + tenant:billing:test-webhook (integration)', 
     const cmd = await ace.exec('tenant:billing:test-webhook', [
       eventType,
       '--url',
-      `http://127.0.0.1:${port}/webhooks/stripe`,
+      `http://127.0.0.1:${port}/webhooks/billing`,
     ])
     assert.equal(cmd.exitCode, 0, 'the webhook route returned 2xx for the synthetic event')
 

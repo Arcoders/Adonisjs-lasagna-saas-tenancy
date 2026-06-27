@@ -56,9 +56,9 @@ export interface BillingConfig {
   /** Plan assigned when a subscription is canceled or no mapping is found. Must exist in `plans.definitions`. */
   defaultPlan: string
   webhook?: {
-    /** Mount path. Default `'/webhooks/stripe'`. Must be in `config.ignorePaths`. */
+    /** Mount path. Default `'/webhooks/billing'`. Must be in `config.ignorePaths`. */
     path?: string
-    /** BullMQ queue for `ProcessStripeEventJob`. Default `'billing-events'`. */
+    /** BullMQ queue for `ProcessBillingEventJob`. Default `'billing-events'`. */
     queueName?: string
     /** Retention for `billing_processed_events.completed` rows. Default 90 (Stripe's max retry window). */
     idempotencyTtlDays?: number

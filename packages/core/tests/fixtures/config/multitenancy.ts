@@ -26,7 +26,7 @@ export default {
   tenantHeaderKey: env.get('TENANT_HEADER_KEY'),
   baseDomain: 'localhost',
   schemaCacheTtl: 300,
-  ignorePaths: ['/health', '/admin', '/api/webhooks', '/webhooks/stripe'],
+  ignorePaths: ['/health', '/admin', '/api/webhooks', '/webhooks/billing'],
   maintenanceSchedule: { backupHour: 2, migrateAllHour: 3 },
   circuitBreaker: {
     threshold: 50,

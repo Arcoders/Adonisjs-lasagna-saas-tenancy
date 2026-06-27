@@ -64,7 +64,7 @@ import env from '#start/env'
 export default defineConfig({
   // …existing fields…
 
-  ignorePaths: ['/admin', '/api/webhooks', '/health', '/webhooks/stripe'],
+  ignorePaths: ['/admin', '/api/webhooks', '/health', '/webhooks/billing'],
 
   plans: {
     defaultPlan: 'starter',
@@ -102,7 +102,7 @@ import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
 multitenancyBillingRoutes()
 ```
 
-That registers `POST /webhooks/stripe`, gated by signature
+That registers `POST /webhooks/billing`, gated by signature
 verification.
 
 ### 5. Wire checkout and the billing portal (optional)
@@ -173,7 +173,7 @@ For the full state machine (dunning, ordering guards,
 
 ```bash
 # Forward Stripe webhooks to your local app
-stripe listen --forward-to localhost:3333/webhooks/stripe
+stripe listen --forward-to localhost:3333/webhooks/billing
 
 # Trigger an event without leaving the terminal
 stripe trigger customer.subscription.created

@@ -74,7 +74,7 @@ billing: {
 ```
 
 **4. Mount the webhook receiver** in `start/routes.ts`. It registers
-`POST /webhooks/stripe`, gated by signature verification; add that path to
+`POST /webhooks/billing`, gated by signature verification; add that path to
 `ignorePaths` so the tenant guard skips it.
 
 ```ts
@@ -162,7 +162,7 @@ Lemon Squeezy drivers talk to their REST APIs directly and need no SDK.
 The webhook path **must** appear in `config.ignorePaths` so
 `TenantGuardMiddleware` doesn't try to resolve a tenant from the
 Stripe request. The published `multitenancy.stub` already includes
-`/webhooks/stripe`; if you change `webhook.path`, update both.
+`/webhooks/billing`; if you change `webhook.path`, update both.
 
 ## Config fields
 
@@ -187,7 +187,7 @@ Stripe request. The published `multitenancy.stub` already includes
 | `lemonSqueezy.storeId` | `string` | — | Read from `LEMONSQUEEZY_STORE_ID`. Scopes checkout and API calls to your store; boot fails if empty. |
 | `products` | `Record<string, string>` | required | Provider product / price / variant ID → plan name. Plan must exist in `plans.definitions`. |
 | `defaultPlan` | `string` | required | Plan assigned on cancel or unmapped product. Must exist in `plans.definitions`. |
-| `webhook.path` | `string?` | `'/webhooks/stripe'` | Mount path; must be in `ignorePaths`. |
+| `webhook.path` | `string?` | `'/webhooks/billing'` | Mount path; must be in `ignorePaths`. |
 | `webhook.queueName` | `string?` | `'billing-events'` | BullMQ queue for `ProcessBillingEventJob`. |
 | `webhook.idempotencyTtlDays` | `number?` | `90` | Retention for `billing_processed_events.completed` rows. Stripe's max retry window. |
 | `webhook.enforceIpAllowlist` | `boolean?` | `false` | Hard-fail webhook delivery from non-listed IPs. |
@@ -325,7 +325,7 @@ import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
 multitenancyBillingRoutes()
 ```
 
-Mounts `POST /webhooks/stripe` (or `webhook.path`), gated by
+Mounts `POST /webhooks/billing` (or `webhook.path`), gated by
 [VerifyBillingWebhookMiddleware](#middleware), behind a route name of
 `billing.webhook`.
 
@@ -336,7 +336,7 @@ row at each step. Rows stay `pending` while queue retries are in flight;
 
 ```mermaid
 flowchart TB
-  WH["Stripe POST /webhooks/stripe"] --> SIG{"VerifyBillingWebhookMiddleware<br/>optional IP allowlist + HMAC-SHA256"}
+  WH["Stripe POST /webhooks/billing"] --> SIG{"VerifyBillingWebhookMiddleware<br/>optional IP allowlist + HMAC-SHA256"}
   SIG -->|invalid| REJ["rejected, invalid_signature"]
   SIG -->|verified| INS["BillingWebhookController<br/>INSERT INTO billing_processed_events<br/>ON CONFLICT DO NOTHING, status pending"]
   INS -->|"rowCount 0 (duplicate)"| ACK["200, no dispatch"]
@@ -1088,7 +1088,7 @@ const body = JSON.stringify(eventPayload)
 const sig = signWebhookPayload(body, 'whsec_test_secret')
 
 await client
-  .post('/webhooks/stripe')
+  .post('/webhooks/billing')
   .header('content-type', 'application/json')
   .header('stripe-signature', sig)
   .json(eventPayload)
@@ -1105,7 +1105,7 @@ explicitly internal, and only for test code.
 
 ```bash
 # Forward Stripe webhooks to your local app
-stripe listen --forward-to localhost:3333/webhooks/stripe
+stripe listen --forward-to localhost:3333/webhooks/billing
 
 # Trigger an event without leaving the terminal
 stripe trigger customer.subscription.created
@@ -1116,7 +1116,7 @@ For CI without `stripe listen` running, the package ships
 
 ```bash
 node ace tenant:billing:test-webhook customer.subscription.created \
-  --url=http://127.0.0.1:3333/webhooks/stripe
+  --url=http://127.0.0.1:3333/webhooks/billing
 ```
 
 Replace customer/product IDs in the template (or pass
@@ -1239,7 +1239,7 @@ node ace tenant:billing:replay --event-id=evt_XXX
 
 ### 4. Webhook signature failures
 
-**Symptom**: spikes in 401 responses on `/webhooks/stripe`; no
+**Symptom**: spikes in 401 responses on `/webhooks/billing`; no
 ledger rows appearing.
 
 **Triage**:

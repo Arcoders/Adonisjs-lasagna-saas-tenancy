@@ -134,7 +134,7 @@ test.group('Stripe Test Clocks — real billing cycle', (group) => {
     const body = JSON.stringify(event)
     const sig = signWebhookPayload(body, secret)
     const res = await client
-      .post('/webhooks/stripe')
+      .post('/webhooks/billing')
       .header('content-type', 'application/json')
       .header('stripe-signature', sig)
       .json(event as never)

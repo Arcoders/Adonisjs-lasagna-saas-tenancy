@@ -32,7 +32,7 @@ multitenancyAdminRoutes({
 
 // Mount the Stripe webhook receiver. Required by the dunning_flow,
 // webhook_idempotency, ip_allowlist (HTTP variant), and pii_redaction
-// integration specs — they POST signed events to /webhooks/stripe and
+// integration specs — they POST signed events to /webhooks/billing and
 // assert the controller + job pipeline.
 multitenancyBillingRoutes()
 

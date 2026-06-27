@@ -116,7 +116,7 @@ test.group('BillingService.retrieveEvent — local payload fallback (integration
     const body = JSON.stringify(event)
     const sig = signWebhookPayload(body, 'whsec_test_billing_helper')
     const res = await client
-      .post('/webhooks/stripe')
+      .post('/webhooks/billing')
       .header('content-type', 'application/json')
       .header('stripe-signature', sig)
       .json(event)

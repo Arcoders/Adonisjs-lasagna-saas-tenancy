@@ -163,7 +163,7 @@ multitenancyBillingRoutes()
 
 ```ts
 // config/multitenancy.ts
-ignorePaths: ['/admin', '/health', '/webhooks/stripe'],
+ignorePaths: ['/admin', '/health', '/webhooks/billing'],
 ```
 
 **5.** Paste the `billing` + `plans` blocks into `config/multitenancy.ts`

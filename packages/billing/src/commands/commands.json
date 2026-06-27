@@ -114,7 +114,7 @@
     {
       "commandName": "tenant:billing:test-webhook",
       "description": "Generate and POST a signed synthetic Stripe event",
-      "help": "Example: node ace tenant:billing:test-webhook customer.subscription.created --url=http://127.0.0.1:3333/webhooks/stripe",
+      "help": "Example: node ace tenant:billing:test-webhook customer.subscription.created --url=http://127.0.0.1:3333/webhooks/billing",
       "namespace": "tenant",
       "aliases": [],
       "flags": [

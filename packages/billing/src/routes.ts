@@ -2,13 +2,15 @@ import router from '@adonisjs/core/services/router'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 import BillingWebhookController from './controllers/billing_webhook_controller.js'
 import VerifyBillingWebhookMiddleware from './middleware/verify_billing_webhook_middleware.js'
+import { resolveBillingWebhookPath } from './webhook_path.js'
 
 export interface MultitenancyBillingRoutesOptions {
   /**
    * Webhook path. Defaults to `config.billing.webhook.path` or
-   * `'/webhooks/stripe'`. MUST be in `config.ignorePaths` so TenantGuard
-   * doesn't try to resolve a tenant for it (the job resolves the tenant from
-   * the provider customer id once the event is decoded).
+   * `'/webhooks/billing'` (provider-neutral — billing supports Stripe, Paddle,
+   * and Lemon Squeezy). MUST be in `config.ignorePaths` so TenantGuard doesn't
+   * try to resolve a tenant for it (the job resolves the tenant from the
+   * provider customer id once the event is decoded).
    */
   path?: string
 }
@@ -35,7 +37,7 @@ export interface MultitenancyBillingRoutesOptions {
  */
 export function multitenancyBillingRoutes(options: MultitenancyBillingRoutesOptions = {}): void {
   const cfg = getConfig().billing
-  const path = options.path ?? cfg?.webhook?.path ?? '/webhooks/stripe'
+  const path = resolveBillingWebhookPath(options, cfg)
 
   const verify = new VerifyBillingWebhookMiddleware()
   router

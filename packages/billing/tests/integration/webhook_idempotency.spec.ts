@@ -100,7 +100,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     const body = JSON.stringify(event)
     const sig = signWebhookPayload(body, 'whsec_test_billing_helper')
 
-    const url = '/webhooks/stripe'
+    const url = '/webhooks/billing'
     const res1 = await client
       .post(url)
       .header('content-type', 'application/json')
@@ -165,7 +165,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     const sig = signWebhookPayload(body, 'whsec_test_billing_helper')
 
     const res = await client
-      .post('/webhooks/stripe')
+      .post('/webhooks/billing')
       .header('content-type', 'application/json')
       .header('stripe-signature', sig)
       .json(event)
@@ -206,7 +206,7 @@ test.group('Webhook idempotency (integration)', (group) => {
 
     const sig = signWebhookPayload(JSON.stringify(event), 'whsec_test_billing_helper')
     const res = await client
-      .post('/webhooks/stripe')
+      .post('/webhooks/billing')
       .header('content-type', 'application/json')
       .header('stripe-signature', sig)
       .json(event)
@@ -247,7 +247,7 @@ test.group('Webhook idempotency (integration)', (group) => {
 
     const sig = signWebhookPayload(JSON.stringify(event), 'whsec_test_billing_helper')
     const res = await client
-      .post('/webhooks/stripe')
+      .post('/webhooks/billing')
       .header('content-type', 'application/json')
       .header('stripe-signature', sig)
       .json(event)
@@ -276,7 +276,7 @@ test.group('Webhook idempotency (integration)', (group) => {
 
     const sig = signWebhookPayload(JSON.stringify(event), 'whsec_test_billing_helper')
     const res = await client
-      .post('/webhooks/stripe')
+      .post('/webhooks/billing')
       .header('content-type', 'application/json')
       .header('stripe-signature', sig)
       .json(event)
@@ -321,7 +321,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     // POST once → controller inserts the ledger row.
     const sig = signWebhookPayload(JSON.stringify(event), 'whsec_test_billing_helper')
     const res = await client
-      .post('/webhooks/stripe')
+      .post('/webhooks/billing')
       .header('content-type', 'application/json')
       .header('stripe-signature', sig)
       .json(event)
@@ -377,7 +377,7 @@ test.group('Webhook idempotency (integration)', (group) => {
 
     let sig = signWebhookPayload(JSON.stringify(noCustomerEvent), 'whsec_test_billing_helper')
     await client
-      .post('/webhooks/stripe')
+      .post('/webhooks/billing')
       .header('content-type', 'application/json')
       .header('stripe-signature', sig)
       .json(noCustomerEvent)
@@ -421,7 +421,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     mock.injectEvent(noItemsEvent)
     sig = signWebhookPayload(JSON.stringify(noItemsEvent), 'whsec_test_billing_helper')
     await client
-      .post('/webhooks/stripe')
+      .post('/webhooks/billing')
       .header('content-type', 'application/json')
       .header('stripe-signature', sig)
       .json(noItemsEvent)
@@ -442,7 +442,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
 
     const res = await client
-      .post('/webhooks/stripe')
+      .post('/webhooks/billing')
       .header('content-type', 'application/json')
       .json({ id: 'evt_no_sig', type: 'customer.subscription.created', data: { object: {} } })
     assert.isAbove(res.status(), 399, 'must reject without a signature header')
@@ -467,7 +467,7 @@ test.group('Webhook idempotency (integration)', (group) => {
 
     const tampered = { ...event, type: 'customer.subscription.deleted' }
     const res = await client
-      .post('/webhooks/stripe')
+      .post('/webhooks/billing')
       .header('content-type', 'application/json')
       .header('stripe-signature', sig)
       .json(tampered)

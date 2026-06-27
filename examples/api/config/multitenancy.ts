@@ -25,7 +25,7 @@ export default {
 
   // Health, admin and the Stripe webhook don't carry a tenant — let them
   // through. The webhook resolves its tenant later from the event's customer id.
-  ignorePaths: ['/livez', '/readyz', '/healthz', '/metrics', '/admin', '/webhooks/stripe'],
+  ignorePaths: ['/livez', '/readyz', '/healthz', '/metrics', '/admin', '/webhooks/billing'],
 
   schemaCacheTtl: 300,
   maintenanceSchedule: { backupHour: 2, migrateAllHour: 3 },

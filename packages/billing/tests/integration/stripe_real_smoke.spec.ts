@@ -348,7 +348,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       const sig = signWebhookPayload(body, webhookSecret)
 
       const res = await client
-        .post('/webhooks/stripe')
+        .post('/webhooks/billing')
         .header('content-type', 'application/json')
         .header('stripe-signature', sig)
         .json(event as never)

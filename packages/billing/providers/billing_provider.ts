@@ -103,7 +103,7 @@ export default class BillingProvider implements SatelliteProviderContract {
 
   // Register the billing jobs with @adonisjs/queue's Locator. The core
   // provider auto-registers only the core jobs (its `jobs/index` no longer
-  // re-exports billing), so without this dispatched ProcessStripeEventJob /
+  // re-exports billing), so without this dispatched ProcessBillingEventJob /
   // BillingCleanupJob / ReportUsageBatchJob dead-letter at the worker.
   async #registerBillingJobs(): Promise<void> {
     try {

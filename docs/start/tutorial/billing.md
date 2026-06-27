@@ -74,7 +74,7 @@ import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
 multitenancyBillingRoutes()
 ```
 
-This registers `POST /webhooks/stripe`, gated by signature verification. The published
+This registers `POST /webhooks/billing`, gated by signature verification. The published
 config already lists that path in `ignorePaths` so `TenantGuardMiddleware` doesn't try to
 resolve a tenant from Stripe's request. When a verified `customer.subscription.*` event
 arrives, billing calls `QuotaService.assignPlan` for you and the tenant's limits change
@@ -131,7 +131,7 @@ upgraded to `pro` immediately gets 10,000, because plan resolution happens per r
 
 <Callout type="tip" title="Local webhook testing">
 You don't need a deployed URL to see plan assignment work. Run
-<code>stripe listen --forward-to localhost:3333/webhooks/stripe</code> and
+<code>stripe listen --forward-to localhost:3333/webhooks/billing</code> and
 <code>stripe trigger customer.subscription.created</code>, or use the bundled
 <code>node ace tenant:billing:test-webhook</code> command. Details in
 <a href="/guides/satellites/billing#local-development">Billing › Local development</a>.
