@@ -1,6 +1,7 @@
 import app from '@adonisjs/core/services/app'
 import BootstrapperRegistry, { type BootstrapperContext } from './services/bootstrapper_registry.js'
 import TenantLogContext from './services/tenant_log_context.js'
+import TelemetryService from './services/telemetry_service.js'
 import { getActiveDriver } from './services/isolation/active_driver.js'
 import { resolveTenantRepository } from './services/resolve_tenant_repository.js'
 import type { TenantMetadata, TenantModelContract } from './types/contracts.js'
@@ -61,10 +62,15 @@ async function ensureConnected(tenant: TenantModelContract): Promise<void> {
 async function run<T>(tenant: TenantModelContract, fn: () => T | Promise<T>): Promise<T> {
   const logCtx = await getLogCtx()
   const registry = await getRegistry()
-  await ensureConnected(tenant)
-  const ctx: BootstrapperContext = { tenant }
 
-  return logCtx.run({ tenantId: tenant.id }, () => registry.runScoped(ctx, fn))
+  // One span per activation carries the tenant id, and tenant connect runs
+  // inside it so its latency is attributed. When no OTel provider is wired
+  // (the default), `withSpan` opens a no-op span, so this is free in production.
+  return TelemetryService.withSpan('tenancy.run', { 'tenant.id': tenant.id }, async () => {
+    await ensureConnected(tenant)
+    const ctx: BootstrapperContext = { tenant }
+    return logCtx.run({ tenantId: tenant.id }, () => registry.runScoped(ctx, fn))
+  })
 }
 
 /**

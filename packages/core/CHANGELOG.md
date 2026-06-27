@@ -286,6 +286,14 @@ for a copy-paste migration.
   `config.multitenancy.backup.lockFailOpenOnDestructive?` opts the backup
   satellite's destructive operations back into legacy fail-open locking. Additive
   and optional.
+- **OpenTelemetry spans on the tenant hot path.** Tenant activation now opens a
+  span carrying `tenant.id` on both the HTTP path (`request.tenant()` →
+  `tenancy.http.resolve`, covering resolve + lifecycle + connect) and the
+  background path (`tenancy.run()` → `tenancy.run`). Tenant connect runs inside
+  the span so its latency is attributed, and deeper code (driver, adapter) that
+  calls `TelemetryService.setTenant()` attaches to the active span. When no OTel
+  provider is wired (the default) the spans are no-ops, so there is no runtime
+  cost.
 
 ### Security
 

@@ -13,6 +13,7 @@ import { getConfig } from '../config.js'
 import { hostMatchesExpectedSuffix } from '../services/resolvers/builtins.js'
 import type { ResolverCacheConfig } from '../types/config.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
+import TelemetryService from '../services/telemetry_service.js'
 import { isUuidV4 } from '../services/isolation/identifier.js'
 import { isProductionNodeEnv } from '../utils/env.js'
 import TenantResolverRegistry from '../services/resolvers/registry.js'
@@ -296,58 +297,65 @@ export function hasDecidedHttpStatus(err: unknown): err is { status: number } {
       return memoized
     }
 
-    const repo = await resolveTenantRepository()
+    // One span per request resolution covers resolve + lifecycle + connect, and
+    // is stamped with the resolved tenant id so any deeper code (driver, adapter)
+    // attaches to it. When no OTel provider is wired (the default), `withSpan`
+    // opens a no-op span, so the slow path stays free in production.
+    return TelemetryService.withSpan('tenancy.http.resolve', {}, async () => {
+      const repo = await resolveTenantRepository()
 
-    const result = await resolveTenant(this)
-    let tenant: TenantModelContract | null = null
+      const result = await resolveTenant(this)
+      let tenant: TenantModelContract | null = null
 
-    try {
-      if (result?.type === 'id') {
-        assert(isUuidV4(result.tenantId), new MissingTenantHeaderException())
-        tenant = await findTenantByIdCached(repo, result.tenantId)
-      } else if (result?.type === 'domain') {
-        tenant = await repo.findByDomain(result.domain)
-      } else {
-        throw new MissingTenantHeaderException()
+      try {
+        if (result?.type === 'id') {
+          assert(isUuidV4(result.tenantId), new MissingTenantHeaderException())
+          tenant = await findTenantByIdCached(repo, result.tenantId)
+        } else if (result?.type === 'domain') {
+          tenant = await repo.findByDomain(result.domain)
+        } else {
+          throw new MissingTenantHeaderException()
+        }
+      } catch (err) {
+        // Respect an error that already declares an HTTP status — a 400 missing
+        // header, a 404 not-found, a 500 config fault: the layer that threw it
+        // already decided the right response. Anything else is the tenant registry
+        // (central DB) being unreachable, so fail closed with a 503 rather than
+        // leaking a raw Lucid 500. A host repository that wants a specific status
+        // for its own errors should throw an Exception carrying one.
+        if (hasDecidedHttpStatus(err)) throw err
+        throw dependencyUnavailable(
+          'tenant.lookup',
+          err,
+          result?.type === 'id' ? result.tenantId : undefined
+        )
       }
-    } catch (err) {
-      // Respect an error that already declares an HTTP status — a 400 missing
-      // header, a 404 not-found, a 500 config fault: the layer that threw it
-      // already decided the right response. Anything else is the tenant registry
-      // (central DB) being unreachable, so fail closed with a 503 rather than
-      // leaking a raw Lucid 500. A host repository that wants a specific status
-      // for its own errors should throw an Exception carrying one.
-      if (hasDecidedHttpStatus(err)) throw err
-      throw dependencyUnavailable(
-        'tenant.lookup',
-        err,
-        result?.type === 'id' ? result.tenantId : undefined
-      )
-    }
 
-    if (!tenant) throw new TenantNotFoundException()
+      if (!tenant) throw new TenantNotFoundException()
 
-    // Fail closed on lifecycle, BEFORE connecting: a soft-deleted or
-    // suspended tenant must not be served — nor have a pool opened for it —
-    // just because a route group forgot the guard middleware. The guard still
-    // runs its own richer checks (provisioning/failed, maintenance bypass,
-    // circuit breaker); this is the order-independent floor underneath them.
-    assertTenantActive(tenant, options)
+      // Fail closed on lifecycle, BEFORE connecting: a soft-deleted or
+      // suspended tenant must not be served — nor have a pool opened for it —
+      // just because a route group forgot the guard middleware. The guard still
+      // runs its own richer checks (provisioning/failed, maintenance bypass,
+      // circuit breaker); this is the order-independent floor underneath them.
+      assertTenantActive(tenant, options)
+      TelemetryService.setTenant(tenant.id)
 
-    const driver = await getActiveDriver()
-    try {
-      await driver.connect(tenant)
-    } catch (err) {
-      // Respect a decided HTTP status: the hard-cap 503 (TenantConnectionLimit)
-      // and the 500 misconfig (IsolationConfig) both carry one and pass straight
-      // through. Any other connect failure (Postgres down, ECONNREFUSED, timeout)
-      // is a raw backend outage — map it to a clean, retry-able 503 instead of
-      // letting a raw Lucid error bubble up as an opaque 500.
-      if (hasDecidedHttpStatus(err)) throw err
-      throw dependencyUnavailable('tenant.connect', err, tenant.id)
-    }
-    ;(this as any)[TENANT_MEMO_KEY] = tenant
-    return tenant
+      const driver = await getActiveDriver()
+      try {
+        await driver.connect(tenant)
+      } catch (err) {
+        // Respect a decided HTTP status: the hard-cap 503 (TenantConnectionLimit)
+        // and the 500 misconfig (IsolationConfig) both carry one and pass straight
+        // through. Any other connect failure (Postgres down, ECONNREFUSED, timeout)
+        // is a raw backend outage — map it to a clean, retry-able 503 instead of
+        // letting a raw Lucid error bubble up as an opaque 500.
+        if (hasDecidedHttpStatus(err)) throw err
+        throw dependencyUnavailable('tenant.connect', err, tenant.id)
+      }
+      ;(this as any)[TENANT_MEMO_KEY] = tenant
+      return tenant
+    })
   }
 )
 
