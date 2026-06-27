@@ -24,7 +24,8 @@ design choices.
 
 - **No independent external security review yet.** The isolation core is
   `release-candidate`, not `stable`, precisely because that review and production mileage are
-  still open. The satellites are `experimental`. See [Stability](/reference/stability) and the
+  still open. The satellite packages are `release-candidate` too; the in-core opt-in features
+  are `experimental`. See [Stability](/reference/stability) and the
   [security guide](/guides/security).
 - **Single maintainer.** Mitigated by the test and documentation depth, but worth knowing.
 

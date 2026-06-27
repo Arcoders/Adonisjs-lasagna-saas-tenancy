@@ -71,7 +71,9 @@ connection. Store the other layer's id as a plain column and load it explicitly.
 
 The isolation core is **release candidate**: feature complete and green in CI against real
 Postgres and Redis. The `stable` label is withheld until an independent security review and
-production mileage close. The satellites are **experimental**. Read the full
+production mileage close. The satellite **packages** are **release candidate** too; the
+in-core opt-in **features** (quotas, webhooks, metrics, audit logs, …) are **experimental**.
+Read the full
 [stability matrix](/reference/stability) and the [security guide](/guides/security) before adopting, and
 pin your version.
 

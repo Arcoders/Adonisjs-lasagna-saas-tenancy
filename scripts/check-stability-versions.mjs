@@ -30,6 +30,45 @@ import { join } from 'node:path'
 const STABILITY_DOC = 'docs/reference/stability.md'
 const PACKAGES_DIR = 'packages'
 
+// Prose-drift pass (WS-10 / stability-prose-contradicts-matrix). These pages
+// must not call the satellite PACKAGES "experimental" — the matrix labels them
+// release candidate, and the README badges + versions agree. The in-core opt-in
+// FEATURES (quotas, webhooks, metrics, …) ARE still experimental, so only the
+// "satellites are/stay/from experimental" assertion is banned, not the word.
+const PROSE_PAGES = [
+  'docs/reference/stability.md',
+  '.github/SECURITY.md',
+  'docs/reference/faq.md',
+  'docs/reference/production-checklist.md',
+  'docs/reference/known-limitations.md',
+  'docs/reference/roadmap.md',
+]
+const BANNED_PROSE = [
+  /satellites?\s+(?:are|stay|remain)\s+[*`]*experimental/i,
+  /satellites?\s+from\s+experimental/i,
+]
+
+/** Pure: the banned matches in one page's text (for the prose pass + self-test). */
+function proseDrift(text) {
+  return BANNED_PROSE.map((re) => text.match(re)).filter(Boolean).map((m) => m[0])
+}
+
+if (process.argv.includes('--self-test')) {
+  const bad = 'The isolation core is RC and the satellites are **experimental**.'
+  const good =
+    'The satellite packages are release candidate; the in-core opt-in features are experimental.'
+  const problems = []
+  if (proseDrift(bad).length === 0) problems.push('bad fixture (satellites experimental) not flagged')
+  if (proseDrift(good).length !== 0) problems.push('good fixture (features experimental) flagged')
+  if (problems.length) {
+    console.error('check-stability-versions --self-test: FAIL')
+    for (const p of problems) console.error(`  - ${p}`)
+    process.exit(1)
+  }
+  console.log('check-stability-versions --self-test: OK')
+  process.exit(0)
+}
+
 const doc = readFileSync(STABILITY_DOC, 'utf8')
 
 /** @type {Map<string, string>} package name -> normalized label */
@@ -105,6 +144,20 @@ for (const dir of readdirSync(PACKAGES_DIR)) {
   }
 
   checked.push(`  ${manifest.name}@${version} — ${label}`)
+}
+
+// Prose-drift pass: catch pages that call the satellite packages experimental.
+for (const page of PROSE_PAGES) {
+  if (!existsSync(page)) {
+    failures.push(`stability prose: missing ${page}`)
+    continue
+  }
+  for (const hit of proseDrift(readFileSync(page, 'utf8'))) {
+    failures.push(
+      `stability prose drift in ${page}: "${hit}" — the satellite PACKAGES are release ` +
+        `candidate; only in-core FEATURES are experimental`
+    )
+  }
 }
 
 console.log('Stability/version agreement:')

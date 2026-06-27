@@ -33,8 +33,10 @@ A feature is promoted to `stable` only when all three hold at once:
 
 The isolation core meets (1) today and is the immediate candidate for `stable`.
 It moves to `stable` the moment (2) and (3) close, within the 1.x line and
-without a major bump. The satellites stay `experimental` until each clears the
-same bar on its own.
+without a major bump. The satellite **packages** have already cleared the
+graduation gate and sit at `release candidate`; they reach `stable` on the same
+two open items. The in-core opt-in **features** stay `experimental` until each
+clears the graduation bar on its own.
 
 ## The 1.x semver promise
 

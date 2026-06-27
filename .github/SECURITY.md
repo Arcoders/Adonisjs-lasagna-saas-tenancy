@@ -26,7 +26,7 @@ within **72 hours** and coordinate a fix and disclosure window.
 
 ## Stability and scope
 
-The isolation core is a release candidate and the satellites are experimental.
+The isolation core and the satellite packages are release candidates; the in-core opt-in features are experimental.
 Reports against the core isolation guarantees (cross-tenant read or write
 leakage, resolver hijack, fail-open under dependency outage) are highest
 priority. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability)

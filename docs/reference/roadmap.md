@@ -16,8 +16,11 @@ scope, see [Known limitations](/reference/known-limitations).
   candidate**: feature-complete and green in CI against real Postgres and
   Redis, hardened against the failure modes documented in
   [Security](/guides/security).
-- The **satellites** (billing, SSO, admin, backup, and the in-core opt-in
-  features like quotas, webhooks, metrics) are **experimental**: usable and
+- The **satellite packages** (billing, SSO, admin, backup, websockets,
+  reporting) are **release candidates**: each cleared the graduation gate (frozen
+  Satellite ABI, its own merged coverage floor, doc page, CHANGELOG).
+- The **in-core opt-in features** (quotas, webhooks, metrics, audit logs,
+  branding, feature flags, impersonation) are **experimental**: usable and
   tested, but their surface may shift within a minor release.
 - **Packaged satellites are a public extension point.** Third parties can ship
   their own satellite package (provider, migrations, configure hook) and have it
@@ -43,8 +46,9 @@ major bump**.
 
 These are directions, not commitments, and not ordered by priority:
 
-- Promoting individual satellites from experimental toward stable as they earn
-  mileage.
+- Promoting individual satellite packages from release candidate toward stable,
+  and in-core opt-in features from experimental toward release candidate, as they
+  earn mileage.
 - A driver-migration path (moving an existing tenant between isolation drivers).
 - Richer feature-flag targeting beyond boolean + free-form config.
 - First-class starter-kit / scaffolding for a new multi-tenant app.

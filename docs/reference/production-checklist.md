@@ -14,7 +14,8 @@ For the step-by-step install and the Docker / Kubernetes artifacts, follow
 [Installation](/start/installation) and [Deployment](/guides/deployment). For what
 the package guarantees versus what you own, read the [Security guide](/guides/security).
 The labels here reflect the [stability matrix](/reference/stability): the isolation
-core is a release candidate, the satellites are experimental.
+core and the satellite packages are release candidates; the in-core opt-in
+features are experimental.
 
 ## Compatibility matrix
 
