@@ -1,4 +1,9 @@
-import type { IsolationDriver, IsolationDriverName } from './driver.js'
+import { assertContractCompat } from '../../sdk/contract_version.js'
+import {
+  ISOLATION_CONTRACT_VERSION,
+  type IsolationDriver,
+  type IsolationDriverName,
+} from './driver.js'
 
 /**
  * Holds the active `IsolationDriver` plus any alternates registered by user
@@ -8,6 +13,11 @@ import type { IsolationDriver, IsolationDriverName } from './driver.js'
 export default class IsolationDriverRegistry {
   readonly #drivers = new Map<string, IsolationDriver>()
   #activeName: string | undefined
+
+  /** The isolation-driver contract version this registry enforces. */
+  get contractVersion(): number {
+    return ISOLATION_CONTRACT_VERSION
+  }
 
   register(driver: IsolationDriver, opts: { activate?: boolean; override?: boolean } = {}): this {
     const name = driver?.name
@@ -23,6 +33,13 @@ export default class IsolationDriverRegistry {
           `Pass { override: true } to replace it.`
       )
     }
+    // A driver built for a newer core contract would call methods this core does
+    // not provide: refuse it. An older one warns; an unversioned one warns.
+    assertContractCompat(
+      driver.contractVersion,
+      ISOLATION_CONTRACT_VERSION,
+      `isolation driver "${name}"`
+    )
     this.#drivers.set(name, driver)
     if (opts.activate || !this.#activeName) {
       this.#activeName = name

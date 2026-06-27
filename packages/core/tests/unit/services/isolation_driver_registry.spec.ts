@@ -1,14 +1,16 @@
 import { test } from '@japa/runner'
 import IsolationDriverRegistry from '../../../src/services/isolation/registry.js'
-import type {
-  IsolationDriver,
-  IsolationDriverName,
+import {
+  ISOLATION_CONTRACT_VERSION,
+  type IsolationDriver,
+  type IsolationDriverName,
 } from '../../../src/services/isolation/driver.js'
 
 function fakeDriver(name: IsolationDriverName | string): IsolationDriver {
   return {
     name: name as IsolationDriverName,
-    async provision() {},
+    contractVersion: ISOLATION_CONTRACT_VERSION,
+    enforce() {},
     async destroy() {},
     async reset() {},
     async connect() {

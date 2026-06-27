@@ -1,5 +1,7 @@
+export { ISOLATION_CONTRACT_VERSION, isProvisionableDriver } from './driver.js'
 export type {
   IsolationDriver,
+  ProvisionableDriver,
   IsolationDriverName,
   DestroyOptions,
   MigrateOptions,

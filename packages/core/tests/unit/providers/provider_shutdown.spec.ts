@@ -31,6 +31,8 @@ import type { TenantModelContract, TenantRepositoryContract } from '../../../src
 function fakeDriver(): IsolationDriver {
   return {
     name: 'schema-pg',
+    contractVersion: 1,
+    enforce: () => {},
     provision: async () => {},
     destroy: async () => {},
     reset: async () => {},

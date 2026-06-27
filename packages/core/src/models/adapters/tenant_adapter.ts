@@ -10,6 +10,7 @@ import { resolveTenantId } from '../../extensions/request.js'
 import { isUuidV4 } from '../../services/isolation/identifier.js'
 import type IsolationDriverRegistry from '../../services/isolation/registry.js'
 import type TenantResolverRegistry from '../../services/resolvers/registry.js'
+import { resolveIsolationKind } from '../base/isolation_kind.js'
 import { tenancy } from '../../tenancy.js'
 import DefaultLucidAdapter from './default_lucid_adapter.js'
 
@@ -31,6 +32,22 @@ export default class TenantAdapter extends DefaultLucidAdapter {
     private readonly resolvers?: TenantResolverRegistry
   ) {
     super(db)
+  }
+
+  /**
+   * The unified adapter routes by the model's declarative `static isolation`
+   * marker (default `tenant`). Backoffice models are schema-qualified at query
+   * time; central and tenant models are not. Other ORM operations (insert,
+   * update, delete, refresh) inherit the base adapter and route purely by
+   * connection, exactly as before.
+   */
+  override query(modelConstructor: LucidModel, options?: ModelAdapterOptions): any {
+    const client = this.modelConstructorClient(modelConstructor, options)
+    const builder = client.modelQuery(modelConstructor)
+    if (resolveIsolationKind(modelConstructor) === 'backoffice') {
+      return builder.withSchema(getConfig().backofficeSchemaName)
+    }
+    return builder
   }
 
   override modelConstructorClient(modelConstructor: LucidModel, options?: ModelAdapterOptions) {
@@ -65,7 +82,12 @@ export default class TenantAdapter extends DefaultLucidAdapter {
           `tenancy.run(tenant, fn) in jobs, scripts, and custom commands.`
       )
     }
-    return this.db.connection(name)
+    // Give the driver a chance to apply its tenant boundary to the resolved
+    // client (a no-op for connection-isolated drivers; the explicit contract
+    // point for row-scoping ones). See IsolationDriver.enforce.
+    const client = this.db.connection(name)
+    driver.enforce(client, tenantId)
+    return client
   }
 
   /**

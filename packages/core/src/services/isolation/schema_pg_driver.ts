@@ -1,11 +1,13 @@
+import type { QueryClientContract } from '@adonisjs/lucid/types/database'
 import { getConfig } from '../../config.js'
 import type { TenantModelContract } from '../../types/contracts.js'
+import { ISOLATION_CONTRACT_VERSION } from './driver.js'
 import type {
   DestroyOptions,
-  IsolationDriver,
   IsolationDriverName,
   MigrateOptions,
   MigrateResult,
+  ProvisionableDriver,
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
 import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
@@ -37,8 +39,9 @@ async function lucid() {
  * tenant's schema. An LRU bound caps how many simultaneous tenant
  * connections can stay open in the pool.
  */
-export default class SchemaPgDriver implements IsolationDriver {
+export default class SchemaPgDriver implements ProvisionableDriver {
   readonly name: IsolationDriverName = 'schema-pg'
+  readonly contractVersion = ISOLATION_CONTRACT_VERSION
   readonly #templateConnectionName: string
   readonly #lru = new ConnectionLru({
     label: 'SchemaPgDriver',
@@ -64,6 +67,11 @@ export default class SchemaPgDriver implements IsolationDriver {
     const id = typeof tenant === 'string' ? tenant : tenant.id
     assertSafeIdentifier(id, 'tenant id')
     return `${getConfig().tenantSchemaPrefix}${id}`
+  }
+
+  enforce(_client: QueryClientContract, _tenantId: string): void {
+    // No-op: the per-tenant connection (its search_path points at the tenant's
+    // own schema) IS the boundary. There is nothing to scope on the client.
   }
 
   async provision(tenant: TenantModelContract): Promise<void> {

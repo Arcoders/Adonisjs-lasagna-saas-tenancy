@@ -5,6 +5,7 @@ import { resolveTenantRepository } from '../services/resolve_tenant_repository.j
 import TenantQueueService from '../services/tenant_queue_service.js'
 import HookRegistry from '../services/hook_registry.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
+import { isProvisionableDriver } from '../services/isolation/driver.js'
 import TenantLogContext from '../services/tenant_log_context.js'
 import TenantProvisioned from '../events/tenant_provisioned.js'
 
@@ -35,7 +36,17 @@ export default class InstallTenant extends Job<InstallTenantPayload> {
       try {
         tenant.status = 'provisioning'
         await tenant.save()
-        await driver.provision(tenant)
+        if (isProvisionableDriver(driver)) {
+          await driver.provision(tenant)
+        } else {
+          // Shared-storage drivers (rowscope-pg) own no per-tenant storage to
+          // create — the central tables already exist — so there is nothing to
+          // provision. The tenant goes straight to active.
+          logger.info(
+            { tenantId: tenant.id, driver: driver.name },
+            'Driver owns no per-tenant storage; skipping provision step'
+          )
+        }
         tenant.status = 'active'
         await tenant.save()
       } catch (error) {

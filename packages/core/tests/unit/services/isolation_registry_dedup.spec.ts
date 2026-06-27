@@ -12,10 +12,10 @@ import TenantResolverRegistry from '../../../src/services/resolvers/registry.js'
  * RED (pre-fix): an empty name and a duplicate were both accepted.
  */
 function fakeDriver(name: string) {
-  return { name, connectionName: () => name } as any
+  return { name, contractVersion: 1, connectionName: () => name, enforce: () => {} } as any
 }
 function fakeResolver(name: string) {
-  return { name, resolve: () => undefined } as any
+  return { name, contractVersion: 1, resolve: () => undefined } as any
 }
 
 test.group('IsolationDriverRegistry — name/dedup guard', () => {

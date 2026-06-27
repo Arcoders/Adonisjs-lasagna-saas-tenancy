@@ -69,7 +69,7 @@ test.group('Satellite ABI — IsolationDriverRegistry', () => {
     for (const m of ['register', 'use', 'active', 'get', 'has', 'list', 'clear'] as const) {
       assert.isFunction((r as any)[m], `IsolationDriverRegistry.${m}`)
     }
-    const driver = { name: 'fake-driver' } as unknown as IsolationDriver
+    const driver = { name: 'fake-driver', contractVersion: 1 } as unknown as IsolationDriver
     r.register(driver, { activate: true })
     assert.equal(r.active().name, 'fake-driver')
     assert.isTrue(r.has('fake-driver'))
@@ -96,7 +96,7 @@ test.group('Satellite ABI — TenantResolverRegistry', () => {
     ] as const) {
       assert.isFunction((r as any)[m], `TenantResolverRegistry.${m}`)
     }
-    r.register({ name: 'fixed', resolve: () => ResolverHit.id('t-9') })
+    r.register({ name: 'fixed', contractVersion: 1, resolve: () => ResolverHit.id('t-9') })
     r.setChain(['fixed'])
     assert.deepEqual(await r.resolve({} as any), { type: 'id', tenantId: 't-9' })
     assert.deepEqual(r.resolveSync({} as any), { type: 'id', tenantId: 't-9' })

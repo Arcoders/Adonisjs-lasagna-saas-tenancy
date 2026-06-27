@@ -50,6 +50,16 @@ const SURFACES = [
     constant: 'WEBHOOKS_CONTRACT_VERSION',
     file: 'packages/core/src/services/webhook_transformer_registry.ts',
   },
+  {
+    key: 'isolation',
+    constant: 'ISOLATION_CONTRACT_VERSION',
+    file: 'packages/core/src/services/isolation/driver.ts',
+  },
+  {
+    key: 'resolver',
+    constant: 'RESOLVER_CONTRACT_VERSION',
+    file: 'packages/core/src/services/resolvers/resolver.ts',
+  },
 ]
 
 const DOCS = 'docs/guides/extensibility.md'

@@ -8,6 +8,7 @@ function fakeResolver(
 ): TenantResolver {
   return {
     name,
+    contractVersion: 1,
     resolve() {
       return returns
     },
@@ -86,6 +87,7 @@ test.group('TenantResolverRegistry — resolveSync', () => {
     returns: ReturnType<typeof ResolverHit.id>
   ): TenantResolver => ({
     name,
+    contractVersion: 1,
     async resolve() {
       return returns
     },

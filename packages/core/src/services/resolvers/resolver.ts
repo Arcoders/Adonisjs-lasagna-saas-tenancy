@@ -1,6 +1,16 @@
 import type { HttpRequest } from '@adonisjs/core/http'
 
 /**
+ * The tenant-resolver contract version: the shape of {@link TenantResolver}. A
+ * custom resolver declares the version it was built against via
+ * `contractVersion`; {@link TenantResolverRegistry} compares it to this constant
+ * so a resolver compiled for a newer core fails loudly at registration. Bump as
+ * a MAJOR for a backward-incompatible change. INDEPENDENT of the satellite ABI
+ * and the published version.
+ */
+export const RESOLVER_CONTRACT_VERSION = 1
+
+/**
  * Strategy contract every tenant resolver implements. A resolver inspects
  * the incoming HTTP request and returns either:
  *
@@ -16,6 +26,12 @@ import type { HttpRequest } from '@adonisjs/core/http'
  */
 export interface TenantResolver {
   readonly name: string
+  /**
+   * Contract version this resolver was built against (see
+   * {@link RESOLVER_CONTRACT_VERSION}). Omitted on legacy resolvers — the
+   * registry warns rather than fails when it is absent.
+   */
+  readonly contractVersion?: number
   resolve(request: HttpRequest): TenantResolveResult | Promise<TenantResolveResult>
 }
 

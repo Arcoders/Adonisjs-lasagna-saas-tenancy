@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import RowScopePgDriver from '../../../src/services/isolation/rowscope_pg_driver.js'
+import { isProvisionableDriver } from '../../../src/services/isolation/driver.js'
 import { setupTestConfig } from '../../helpers/config.js'
 import type { TenantModelContract } from '../../../src/types/contracts.js'
 
@@ -54,9 +55,12 @@ test.group('RowScopePgDriver — naming and configuration', (group) => {
 test.group('RowScopePgDriver — provision/migrate semantics', (group) => {
   group.each.setup(() => setupTestConfig())
 
-  test('provision is a no-op (storage is shared)', async ({ assert }) => {
+  test('is not provisionable — it owns no per-tenant storage to create', ({ assert }) => {
     const driver = new RowScopePgDriver()
-    await assert.doesNotReject(() => driver.provision(fakeTenant('a')))
+    // The contract split means rowscope-pg no longer ships a fake provision()
+    // no-op; it is a plain IsolationDriver, never a ProvisionableDriver.
+    assert.isFalse(isProvisionableDriver(driver))
+    assert.isUndefined((driver as any).provision)
   })
 
   test('migrate reports noop because central migrations own the schema', async ({ assert }) => {

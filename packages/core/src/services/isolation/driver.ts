@@ -41,30 +41,62 @@ export interface MigrateResult {
 }
 
 /**
- * The contract every isolation strategy must satisfy. A driver encapsulates
- * the answer to: "where does this tenant's data live, and how do I get a
- * Lucid client to it?".
+ * The isolation-driver contract version: the shape of {@link IsolationDriver}
+ * and {@link ProvisionableDriver}. A custom driver declares the version it was
+ * built against via `contractVersion`; {@link IsolationDriverRegistry} compares
+ * it to this constant so a driver compiled for a newer core fails loudly at
+ * registration instead of calling methods the running core does not provide.
+ * Bump as a MAJOR for a backward-incompatible change. INDEPENDENT of the
+ * satellite ABI and the published version.
+ */
+export const ISOLATION_CONTRACT_VERSION = 1
+
+/**
+ * The core contract every isolation strategy must satisfy. A driver encapsulates
+ * the answer to: "where does this tenant's data live, how do I get a Lucid
+ * client to it, and how is the tenant boundary enforced on that client?".
  *
- * Three production drivers are planned:
- *   - `schema-pg`     — one PostgreSQL schema per tenant (current default)
- *   - `database-pg`   — one PostgreSQL database per tenant
- *   - `rowscope-pg`   — shared schema, `tenant_id` column, scoping via
- *                       `withTenantScope()` mixin
+ * Storage *creation* is deliberately NOT here — a driver that shares one set of
+ * tables across tenants (rowscope-pg) owns no per-tenant storage to provision,
+ * and must not be forced to ship a `provision()` no-op that lies. That capability
+ * lives on {@link ProvisionableDriver}; use {@link isProvisionableDriver} to
+ * branch on it.
  *
- * Plus `sqlite-memory` for tests.
+ * Shipped drivers:
+ *   - `schema-pg`     — one PostgreSQL schema per tenant (default, provisionable)
+ *   - `database-pg`   — one PostgreSQL database per tenant (provisionable)
+ *   - `rowscope-pg`   — shared schema, `tenant_id` column, scoping via the
+ *                       `withTenantScope()` mixin (NOT provisionable)
+ *   - `sqlite-memory` — in-memory per-tenant SQLite for tests (provisionable)
  */
 export interface IsolationDriver {
   readonly name: IsolationDriverName
 
   /**
-   * Provision the underlying storage for a brand-new tenant. Idempotent:
-   * a second call on an already-provisioned tenant must not throw.
+   * Contract version this driver was built against (see
+   * {@link ISOLATION_CONTRACT_VERSION}). Omitted on legacy drivers — the
+   * registry warns rather than fails when it is absent.
    */
-  provision(tenant: TenantModelContract): Promise<void>
+  readonly contractVersion?: number
 
   /**
-   * Destroy the tenant's storage. By default removes data; pass
-   * `{ keepData: true }` for the recycle-bin pattern.
+   * Apply this driver's tenant boundary to a client the adapter just resolved
+   * for `tenantId`, called synchronously on every model-query routing. For
+   * connection-isolated drivers (schema-pg, database-pg, sqlite-memory) the
+   * connection *is* the boundary, so this is a documented no-op. Row-scoping
+   * drivers enforce the boundary at query time (the `withTenantScope()` mixin)
+   * and, optionally, per transaction via `withTenantRls()`, so there is nothing
+   * to stamp synchronously here either — but every driver declares the hook so
+   * the responsibility is explicit in the contract and a custom driver cannot
+   * forget it.
+   */
+  enforce(client: QueryClientContract, tenantId: string): void
+
+  /**
+   * Destroy the tenant's data. By default removes it; pass `{ keepData: true }`
+   * for the recycle-bin pattern. Every driver can tear a tenant down —
+   * schema-pg drops the schema, rowscope-pg deletes the scoped rows — so this
+   * stays on the core contract.
    */
   destroy(tenant: TenantModelContract, opts?: DestroyOptions): Promise<void>
 
@@ -116,6 +148,32 @@ export interface IsolationDriver {
    * noop: true }` — central migrations are the canonical source.
    */
   migrate(tenant: TenantModelContract, opts: MigrateOptions): Promise<MigrateResult>
+}
+
+/**
+ * An isolation driver that owns per-tenant storage and can create it. Only
+ * drivers that provision real storage (schema-pg, database-pg, sqlite-memory)
+ * implement this; rowscope-pg shares the central tables and is a plain
+ * {@link IsolationDriver}. Callers that need to provision a tenant must narrow
+ * with {@link isProvisionableDriver} first.
+ */
+export interface ProvisionableDriver extends IsolationDriver {
+  /**
+   * Provision the underlying storage for a brand-new tenant. Idempotent:
+   * a second call on an already-provisioned tenant must not throw.
+   */
+  provision(tenant: TenantModelContract): Promise<void>
+}
+
+/**
+ * Narrow an {@link IsolationDriver} to a {@link ProvisionableDriver}. True when
+ * the driver owns per-tenant storage it can create (it implements `provision`);
+ * false for shared-storage drivers like rowscope-pg.
+ */
+export function isProvisionableDriver(
+  driver: IsolationDriver | null | undefined
+): driver is ProvisionableDriver {
+  return typeof (driver as ProvisionableDriver | null | undefined)?.provision === 'function'
 }
 
 export interface ResetOptions {

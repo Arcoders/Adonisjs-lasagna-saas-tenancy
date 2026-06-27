@@ -1,5 +1,7 @@
+import type { QueryClientContract } from '@adonisjs/lucid/types/database'
 import { getConfig } from '../../config.js'
 import type { TenantModelContract } from '../../types/contracts.js'
+import { ISOLATION_CONTRACT_VERSION } from './driver.js'
 import type {
   DestroyOptions,
   IsolationDriver,
@@ -31,6 +33,7 @@ async function lucid() {
  */
 export default class RowScopePgDriver implements IsolationDriver {
   readonly name: IsolationDriverName = 'rowscope-pg'
+  readonly contractVersion = ISOLATION_CONTRACT_VERSION
   readonly #centralConnectionName: string
   readonly #scopedTables: string[]
   readonly #scopeColumn: string
@@ -66,8 +69,13 @@ export default class RowScopePgDriver implements IsolationDriver {
     return this.#centralConnectionName
   }
 
-  async provision(_tenant: TenantModelContract): Promise<void> {
-    // No-op: storage is shared, central migrations create the tables.
+  enforce(_client: QueryClientContract, _tenantId: string): void {
+    // No-op here: row scoping is applied at query time by the
+    // `withTenantScope()` model mixin (reading `tenancy.currentId()`) and, when
+    // a hard boundary is required, per transaction via `withTenantRls()` /
+    // `setTenantRlsGuc()`. There is nothing to stamp on the shared client
+    // synchronously. rowscope-pg owns no per-tenant storage, so it is a plain
+    // IsolationDriver, NOT a ProvisionableDriver — it has no `provision()`.
   }
 
   async destroy(tenant: TenantModelContract, opts: DestroyOptions = {}): Promise<void> {

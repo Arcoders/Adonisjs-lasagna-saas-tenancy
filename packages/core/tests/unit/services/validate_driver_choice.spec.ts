@@ -13,6 +13,8 @@ import type { IsolationDriver } from '../../../src/services/isolation/driver.js'
 function fakeDriver(name: string): IsolationDriver {
   return {
     name,
+    contractVersion: 1,
+    enforce: () => {},
     provision: async () => {},
     destroy: async () => {},
     reset: async () => {},

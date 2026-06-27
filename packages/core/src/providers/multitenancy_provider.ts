@@ -6,7 +6,7 @@ import { membershipGateRisk } from '../services/membership_gate.js'
 import { hostTrustWarning } from './assert_host_trust.js'
 import { assertRowScopeRlsPresent, probeRlsCatalog } from '../services/isolation/rls_boot_probe.js'
 import type { MultitenancyConfig } from '../types/config.js'
-import { BackofficeAdapter, TenantAdapter } from '../models/adapters/index.js'
+import { TenantAdapter } from '../models/adapters/index.js'
 import { BackofficeBaseModel, TenantBaseModel, CentralBaseModel } from '../models/base/index.js'
 import BootstrapperRegistry from '../services/bootstrapper_registry.js'
 import cacheBootstrapper from '../services/bootstrappers/cache_bootstrapper.js'
@@ -184,8 +184,14 @@ export default class MultitenancyProvider {
     // seeded just below; the adapter holds the reference and reads it lazily).
     const resolvers = await this.app.container.make(TenantResolverRegistry)
 
-    BackofficeBaseModel.$adapter = new BackofficeAdapter(db)
-    TenantBaseModel.$adapter = new TenantAdapter(db, drivers, resolvers)
+    // One unified adapter for all three base models. It routes by each model's
+    // declarative `static isolation` marker (tenant / backoffice / central)
+    // rather than by which adapter subclass was attached, so the base classes
+    // are thin shims that just set the marker (see models/base/isolation_kind).
+    const unifiedAdapter = new TenantAdapter(db, drivers, resolvers)
+    TenantBaseModel.$adapter = unifiedAdapter
+    BackofficeBaseModel.$adapter = unifiedAdapter
+    CentralBaseModel.$adapter = unifiedAdapter
 
     // Seed the resolver registry with the built-ins and apply the
     // configured strategy (or chain). Apps can register additional

@@ -1,5 +1,10 @@
 import type { HttpRequest } from '@adonisjs/core/http'
-import type { TenantResolver, TenantResolveResult } from './resolver.js'
+import { assertContractCompat } from '../../sdk/contract_version.js'
+import {
+  RESOLVER_CONTRACT_VERSION,
+  type TenantResolver,
+  type TenantResolveResult,
+} from './resolver.js'
 
 /**
  * Holds every registered `TenantResolver` plus the strategy chain to
@@ -19,6 +24,11 @@ export default class TenantResolverRegistry {
   readonly #resolvers = new Map<string, TenantResolver>()
   #chain: string[] = []
 
+  /** The tenant-resolver contract version this registry enforces. */
+  get contractVersion(): number {
+    return RESOLVER_CONTRACT_VERSION
+  }
+
   register(resolver: TenantResolver, opts: { override?: boolean } = {}): this {
     const name = resolver?.name
     if (typeof name !== 'string' || name.length === 0) {
@@ -32,6 +42,13 @@ export default class TenantResolverRegistry {
           `Pass { override: true } to replace it.`
       )
     }
+    // A resolver built for a newer core contract would expect a surface this
+    // core does not provide: refuse it. An older/unversioned one warns.
+    assertContractCompat(
+      resolver.contractVersion,
+      RESOLVER_CONTRACT_VERSION,
+      `tenant resolver "${name}"`
+    )
     this.#resolvers.set(name, resolver)
     return this
   }

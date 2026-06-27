@@ -5,6 +5,7 @@ import { resolveTenantRepository } from '../services/resolve_tenant_repository.j
 import { auditCliAction } from './audit_cli_action.js'
 import HookRegistry from '../services/hook_registry.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
+import { isProvisionableDriver } from '../services/isolation/driver.js'
 import TenantProvisioned from '../events/tenant_provisioned.js'
 
 /**
@@ -75,7 +76,11 @@ export default class ReprovisionTenant extends BaseCommand {
       try {
         tenant.status = 'provisioning'
         await tenant.save()
-        await driver.provision(tenant)
+        if (isProvisionableDriver(driver)) {
+          await driver.provision(tenant)
+        }
+        // Non-provisionable drivers (rowscope-pg) have no per-tenant storage to
+        // recreate; recovering the stuck status alone is the whole job here.
         tenant.status = 'active'
         await tenant.save()
       } catch (err) {

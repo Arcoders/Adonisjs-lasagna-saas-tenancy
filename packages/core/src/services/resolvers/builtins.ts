@@ -3,7 +3,12 @@ import { getConfig } from '../../config.js'
 import { isProductionNodeEnv } from '../../utils/env.js'
 import InvalidTenantIdentifierException from '../../exceptions/invalid_tenant_identifier_exception.js'
 import { isUuidV4 } from '../isolation/identifier.js'
-import { ResolverHit, type TenantResolveResult, type TenantResolver } from './resolver.js'
+import {
+  RESOLVER_CONTRACT_VERSION,
+  ResolverHit,
+  type TenantResolveResult,
+  type TenantResolver,
+} from './resolver.js'
 
 /**
  * Strip the port from a `Host` header value so subdomain math works
@@ -42,6 +47,7 @@ export function hostMatchesExpectedSuffix(host: string): boolean {
  */
 export class HeaderResolver implements TenantResolver {
   readonly name = 'header'
+  readonly contractVersion = RESOLVER_CONTRACT_VERSION
   resolve(request: HttpRequest): TenantResolveResult {
     const key = getConfig().tenantHeaderKey
     const value = request.header(key)
@@ -57,6 +63,7 @@ export class HeaderResolver implements TenantResolver {
  */
 export class SubdomainResolver implements TenantResolver {
   readonly name = 'subdomain'
+  readonly contractVersion = RESOLVER_CONTRACT_VERSION
   resolve(request: HttpRequest): TenantResolveResult {
     const { baseDomain } = getConfig()
     const host = hostnameOf(request)
@@ -90,6 +97,7 @@ export class SubdomainResolver implements TenantResolver {
  */
 export class PathResolver implements TenantResolver {
   readonly name = 'path'
+  readonly contractVersion = RESOLVER_CONTRACT_VERSION
   resolve(request: HttpRequest): TenantResolveResult {
     const { ignorePaths } = getConfig()
     const url = request.url(false)
@@ -111,6 +119,7 @@ export class PathResolver implements TenantResolver {
  */
 export class DomainOrSubdomainResolver implements TenantResolver {
   readonly name = 'domain-or-subdomain'
+  readonly contractVersion = RESOLVER_CONTRACT_VERSION
   resolve(request: HttpRequest): TenantResolveResult {
     const { baseDomain } = getConfig()
     const host = hostnameOf(request)
@@ -141,6 +150,7 @@ export class DomainOrSubdomainResolver implements TenantResolver {
  */
 export class RequestDataResolver implements TenantResolver {
   readonly name = 'request-data'
+  readonly contractVersion = RESOLVER_CONTRACT_VERSION
   resolve(request: HttpRequest): TenantResolveResult {
     const cfg = getConfig().requestData ?? {}
     const queryKey = cfg.queryKey ?? 'tenant_id'

@@ -327,6 +327,7 @@ test.group('TenantAdapter — legacyAdapterFallback flag (B1)', (group) => {
     const reg = new TenantResolverRegistry()
     reg.register({
       name: 'custom-header',
+      contractVersion: 1,
       resolve: (request: any) => {
         const v = request.header('x-custom-tenant')
         return v ? ResolverHit.id(v) : ResolverHit.miss()

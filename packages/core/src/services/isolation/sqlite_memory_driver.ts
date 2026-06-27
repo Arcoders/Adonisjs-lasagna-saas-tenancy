@@ -1,11 +1,13 @@
+import type { QueryClientContract } from '@adonisjs/lucid/types/database'
 import { getConfig } from '../../config.js'
 import type { TenantModelContract } from '../../types/contracts.js'
+import { ISOLATION_CONTRACT_VERSION } from './driver.js'
 import type {
   DestroyOptions,
-  IsolationDriver,
   IsolationDriverName,
   MigrateOptions,
   MigrateResult,
+  ProvisionableDriver,
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
 
@@ -41,12 +43,18 @@ async function lucid() {
  * dependency). The driver lazy-imports it via Lucid; a missing dep surfaces
  * as a clear "client not installed" error from Lucid itself.
  */
-export default class SqliteMemoryDriver implements IsolationDriver {
+export default class SqliteMemoryDriver implements ProvisionableDriver {
   readonly name: IsolationDriverName = 'sqlite-memory'
+  readonly contractVersion = ISOLATION_CONTRACT_VERSION
 
   connectionName(tenantId: string): string {
     assertSafeIdentifier(tenantId, 'tenant id')
     return `${getConfig().tenantConnectionNamePrefix}${tenantId}`
+  }
+
+  enforce(_client: QueryClientContract, _tenantId: string): void {
+    // No-op: each tenant gets its own in-memory database, so the connection is
+    // the boundary. Nothing to scope on the client.
   }
 
   async provision(tenant: TenantModelContract): Promise<void> {

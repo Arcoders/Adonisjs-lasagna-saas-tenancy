@@ -1,11 +1,13 @@
+import type { QueryClientContract } from '@adonisjs/lucid/types/database'
 import { getConfig } from '../../config.js'
 import type { TenantModelContract } from '../../types/contracts.js'
+import { ISOLATION_CONTRACT_VERSION } from './driver.js'
 import type {
   DestroyOptions,
-  IsolationDriver,
   IsolationDriverName,
   MigrateOptions,
   MigrateResult,
+  ProvisionableDriver,
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
 import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
@@ -43,8 +45,9 @@ async function lucid() {
  *   - The role used by the template connection must have `CREATEDB`
  *     privilege; `CREATE DATABASE` cannot run inside a transaction.
  */
-export default class DatabasePgDriver implements IsolationDriver {
+export default class DatabasePgDriver implements ProvisionableDriver {
   readonly name: IsolationDriverName = 'database-pg'
+  readonly contractVersion = ISOLATION_CONTRACT_VERSION
   readonly #templateConnectionName: string
   readonly #databasePrefix: string | undefined
   readonly #lru = new ConnectionLru({
@@ -73,6 +76,11 @@ export default class DatabasePgDriver implements IsolationDriver {
     assertSafeIdentifier(id, 'tenant id')
     const prefix = this.#databasePrefix ?? getConfig().tenantSchemaPrefix
     return `${prefix}${id}`
+  }
+
+  enforce(_client: QueryClientContract, _tenantId: string): void {
+    // No-op: each tenant has its own database, so the connection is the
+    // boundary. Nothing to scope on the client.
   }
 
   async provision(tenant: TenantModelContract): Promise<void> {

@@ -71,12 +71,17 @@ because that is what it is.
 | [audit](/guides/satellites/audit) | log destinations | `AuditLogDestinationRegistry` | `AUDIT_CONTRACT_VERSION` |
 | [feature-flags](/guides/satellites/feature-flags) | evaluation strategies | `EvaluationStrategyRegistry` | `FEATURE_FLAGS_CONTRACT_VERSION` |
 | [webhooks](/guides/satellites/webhooks) | payload transformers | `WebhookTransformerRegistry` | `WEBHOOKS_CONTRACT_VERSION` |
+| [isolation](/guides/cookbook/custom-isolation-driver) | custom isolation drivers | `IsolationDriverRegistry` | `ISOLATION_CONTRACT_VERSION` |
+| resolution | custom tenant resolvers | `TenantResolverRegistry` | `RESOLVER_CONTRACT_VERSION` |
 
 `reporting`, `audit`, `feature-flags`, and `webhooks` registries are container
 singletons (resolve via `container.make`). `admin` and `sso` ship no provider, so
 their registries are module-level singletons you import directly. `billing`
 selects its active driver from `config.billing.driver`; `websockets` reads its
-hook from config.
+hook from config. The `isolation` and `resolution` registries live in core and
+are also container singletons — a custom `IsolationDriver` or `TenantResolver`
+declares `contractVersion: ISOLATION_CONTRACT_VERSION` / `RESOLVER_CONTRACT_VERSION`
+and the registry refuses one built for a newer core (older/absent only warn).
 
 ## Writing an extension
 

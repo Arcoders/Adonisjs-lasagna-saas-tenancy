@@ -86,6 +86,8 @@ export {
   setTenantRlsGuc,
   withTenantRls,
   DEFAULT_RLS_GUC,
+  ISOLATION_CONTRACT_VERSION,
+  isProvisionableDriver,
 } from './isolation/index.js'
 // Custom isolation drivers interpolate tenant ids into DDL/paths and must
 // validate them the same way the shipped drivers do (see the
@@ -100,11 +102,13 @@ export {
   DomainOrSubdomainResolver,
   RequestDataResolver,
   ResolverHit,
+  RESOLVER_CONTRACT_VERSION,
   builtInResolvers,
 } from './resolvers/index.js'
 export type { TenantResolver, TenantResolveResult } from './resolvers/index.js'
 export type {
   IsolationDriver,
+  ProvisionableDriver,
   IsolationDriverName,
   DestroyOptions,
   MigrateOptions,
