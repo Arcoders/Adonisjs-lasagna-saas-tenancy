@@ -215,7 +215,7 @@ from a live backend.
 | SSO / OIDC                       | ✓ | Fake IdP + JWKS in-spec (`sso_oidc_flow`) **plus** real `mock-oauth2-server` container (`sso_oidc_real`) | —                                          |
 | Billing — Stripe / Paddle / Lemon Squeezy | ✓ | `MockStripe` + deterministic per-driver tests incl. reconciliation (`paddle_driver`, `lemon_squeezy_driver`); **real Stripe** smokes (`stripe_real_smoke` + Test Clocks for renewal/dunning, soft-skipping Stripe-side infra); opt-in Paddle/LS real smokes (skip without secrets) | Real webhook receiver |
 | Webhooks outbound (HMAC/retry)   | ✓ | Real HTTP receiver in-spec (`webhook_service`)                            | Real HTTP (`webhooks_delivery`)            |
-| Queue jobs (`InstallTenant`, `UninstallTenant`, `ProcessStripeEventJob`, …) | ✓ | Inline dispatch (`webhook_idempotency`)                                   | **Real `queue:work` subprocess** (`queue_jobs`) |
+| Queue jobs (`InstallTenant`, `UninstallTenant`, `ProcessBillingEventJob`, …) | ✓ | Inline dispatch (`webhook_idempotency`)                                   | **Real `queue:work` subprocess** (`queue_jobs`) |
 | Read replicas — strategies + unreachable | ✓ | Real Postgres (`read_replica_resolve`)                                    | Real HTTP (`replicas_strategies`)          |
 | Audit logs (append-only triggers) | ✓ | Real Postgres triggers (`audit_log_service`)                              | —                                          |
 | Telemetry / OpenTelemetry        | ✓ | `InMemorySpanExporter` + `AsyncLocalStorageContextManager` (`telemetry_export`) | —                                          |

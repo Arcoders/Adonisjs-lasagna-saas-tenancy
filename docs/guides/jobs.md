@@ -21,7 +21,7 @@ two ship in the core, three with the
 | `BackupTenant` | `@adonisjs-lasagna/backup` | Run `pg_dump` for a single tenant, mirror to S3 if configured | `tenant:backups:run` cron, ad-hoc dispatch |
 | `RestoreTenant` | `@adonisjs-lasagna/backup` | Run `pg_restore` against a stored dump | `tenant:restore` |
 | `CloneTenant` | `@adonisjs-lasagna/backup` | Provision a destination tenant + copy rows from source | `tenant:clone` |
-| `ProcessStripeEventJob` | `@adonisjs-lasagna/billing` | Process a verified Stripe webhook event (retrieve from Stripe, ordering guard, syncSubscription/dispatch table, mark completed) | `StripeWebhookController` after the idempotent `INSERT ... ON CONFLICT DO NOTHING` |
+| `ProcessBillingEventJob` | `@adonisjs-lasagna/billing` | Process a verified billing webhook event (retrieve from the provider, ordering guard, syncSubscription/dispatch table, mark completed) | `BillingWebhookController` after the idempotent `INSERT ... ON CONFLICT DO NOTHING` |
 | `ReportUsageBatchJob` | `@adonisjs-lasagna/billing` | Send aggregated meter events to Stripe in a single batch | `UsageAutoBridgeListener` flush (every `batchFlushMs`, default 10 s) |
 | `BillingCleanupJob` | `@adonisjs-lasagna/billing` | Purge `stripe_processed_events` older than `webhook.idempotencyTtlDays` | `tenant:billing:cleanup` command (also exposes `runBillingCleanup()` for direct invocation) |
 

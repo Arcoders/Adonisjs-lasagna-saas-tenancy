@@ -26,6 +26,29 @@ const id = resolveTenantId(request)
 `request.tenant()` (memoised per request) is the higher-level option when you
 need the full tenant model.
 
+## `getConfig()` throws before the provider boots
+
+`getConfig()` reads a module-level singleton that `MultitenancyProvider.boot()`
+populates via `setConfig()`. Call it **before** boot — at the top level of a
+module that loads during `register()`, or in a unit test that never booted an
+Ignitor — and it throws `multitenancy config not set`.
+
+```ts
+// ❌ runs at import time, before the provider booted → throws
+import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+const prefix = getConfig().tenantSchemaPrefix
+
+// ✅ call it inside the function/request, after boot
+function schemaFor(id: string) {
+  return `${getConfig().tenantSchemaPrefix}${id}`
+}
+```
+
+This is deliberate: the throw is a guard that surfaces a load-order bug loudly
+instead of silently reading `undefined`. In tests, seed it with
+`setupTestConfig()` (the `tests/helpers/config.ts` helper) before exercising any
+code path that reads config.
+
 ## The provisioning → active race (transient 503s)
 
 Creating a tenant enqueues an async install job. Between the row being created

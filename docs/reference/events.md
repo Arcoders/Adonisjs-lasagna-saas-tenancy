@@ -65,7 +65,7 @@ the same writer that mutates the row.
 ## Billing events
 
 Available when `--with=billing` is configured. All ten are dispatched
-from `ProcessStripeEventJob` in response to verified Stripe webhook
+from `ProcessBillingEventJob` in response to verified billing webhook
 events. Full reference (and the dunning/ordering semantics) lives in
 the [Billing satellite](/guides/satellites/billing#events).
 
