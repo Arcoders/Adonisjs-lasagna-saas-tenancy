@@ -59,5 +59,22 @@ export default defineConfig({
       ...sharedPool,
       searchPath: ['public'],
     },
+    // Same least-privilege role as `rls_probe`, but pinned to a SINGLE physical
+    // backend (min=max=1) so a transaction and a later bare query provably reuse
+    // the same connection — the setup needed to prove the transaction-local GUC
+    // does not leak across requests on a pooled connection. Used only by
+    // rowscope_rls.spec.ts's no-leak case.
+    rls_probe_single: {
+      client: 'pg',
+      connection: {
+        host: env.get('DB_HOST'),
+        port: env.get('DB_PORT'),
+        user: process.env.RLS_DB_USER ?? env.get('DB_USER'),
+        password: process.env.RLS_DB_PASSWORD ?? env.get('DB_PASSWORD'),
+        database: env.get('DB_DATABASE'),
+      },
+      pool: { min: 1, max: 1, idleTimeoutMillis: 10_000 },
+      searchPath: ['public'],
+    },
   },
 })

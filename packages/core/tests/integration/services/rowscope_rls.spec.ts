@@ -138,4 +138,58 @@ test.group('rowscope RLS (integration)', (group) => {
       /row-level security|violates row-level/i
     )
   }).skip(() => !rlsEnforced, 'DB role is SUPERUSER/BYPASSRLS — RLS not enforced, proof skipped')
+
+  test('a query that IGNORES the trx sees zero rows (the GUC is transaction-local)', async ({
+    assert,
+  }) => {
+    // The documented footgun: `app.tenant_id` is set with set_config(..., is_local
+    // => true), so it only applies to the trx that set it. A query that forgets to
+    // run on `trx` lands on a different pooled connection where the setting is
+    // unset, and RLS fail-closed returns NOTHING rather than leaking. Prove both
+    // halves in one transaction: the trx sees its row, a sibling connection sees 0.
+    const seen = await withTenantRls(
+      tenantA,
+      async (trx) => {
+        const inTrx = await (trx as any).from(TABLE).select('*')
+        // Same logical query, but on a SEPARATE pooled connection that ignores trx.
+        const offTrx = await db.connection(PROBE_CONN).from(TABLE).select('*')
+        return { inTrx, offTrx }
+      },
+      { connectionName: PROBE_CONN }
+    )
+
+    assert.isAbove(seen.inTrx.length, 0, 'the scoped trx must see the active tenant rows')
+    assert.isTrue(
+      seen.inTrx.every((r: any) => r.tenant_id === tenantA),
+      'the scoped trx must see only tenant A'
+    )
+    assert.lengthOf(seen.offTrx, 0, 'a query off the trx has no GUC set, so RLS returns nothing')
+  }).skip(() => !rlsEnforced, 'DB role is SUPERUSER/BYPASSRLS — RLS not enforced, proof skipped')
+
+  test('the GUC does not leak to a reused pooled connection after commit', async ({ assert }) => {
+    // Pin to a single physical backend (rls_probe_single is min=max=1) so the
+    // transaction below and the bare query after it provably reuse the SAME
+    // connection. If set_config used a session GUC instead of is_local, the value
+    // would survive the commit and leak to whoever reuses the connection next.
+    const SINGLE = 'rls_probe_single'
+
+    const inTrx = await withTenantRls(tenantA, (trx) => (trx as any).from(TABLE).select('*'), {
+      connectionName: SINGLE,
+    })
+    assert.isAbove(inTrx.length, 0, 'sanity: the scoped trx sees the active tenant rows')
+
+    // Same connection, no transaction, no GUC set: the setting must be reset and
+    // RLS must therefore return nothing.
+    const settingRes = await db
+      .connection(SINGLE)
+      .rawQuery(`SELECT nullif(current_setting('app.tenant_id', true), '') AS guc`)
+    assert.isNull(rowsOf(settingRes)[0].guc, 'app.tenant_id must be unset on the reused connection')
+
+    const afterCommit = await db.connection(SINGLE).from(TABLE).select('*')
+    assert.lengthOf(
+      afterCommit,
+      0,
+      'no rows leak through the reused connection (GUC did not persist)'
+    )
+  }).skip(() => !rlsEnforced, 'DB role is SUPERUSER/BYPASSRLS — RLS not enforced, proof skipped')
 })
