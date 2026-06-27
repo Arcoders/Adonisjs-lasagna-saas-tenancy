@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { getConfig } from '../config.js'
 import CircuitOpenException from '../exceptions/circuit_open_exception.js'
+import DependencyUnavailableException from '../exceptions/dependency_unavailable_exception.js'
 import TenantNotReadyException from '../exceptions/tenant_not_ready_exception.js'
 import TenantSuspendedException from '../exceptions/tenant_suspended_exception.js'
 import TenantAccessForbiddenException from '../exceptions/tenant_access_forbidden_exception.js'
@@ -48,9 +49,24 @@ export default class TenantGuardMiddleware {
       throw exc
     }
 
+    // Drive the breaker, don't just read it: firing the connectivity probe
+    // THROUGH the breaker is what lets repeated tenant-DB failures trip it
+    // (a passive isOpen() read never accumulates failures, so the breaker could
+    // never open). An already-OPEN breaker fast-fails here without probing.
     const cbService = await app.container.make(CircuitBreakerService)
-    if (cbService.isOpen(tenant.id)) {
-      throw new CircuitOpenException()
+    try {
+      await cbService.run(tenant.id)
+    } catch (err) {
+      if (cbService.isOpen(tenant.id) || cbService.isOpenRejection(err)) {
+        throw new CircuitOpenException()
+      }
+      // Probe failed while still CLOSED/HALF_OPEN (tenant DB unreachable but the
+      // breaker has not tripped yet): a clean 503 rather than an opaque 500.
+      throw new DependencyUnavailableException({
+        dependency: 'postgres',
+        operation: 'tenant.circuit_probe',
+        tenantId: tenant.id,
+      })
     }
 
     // Bind the tenant log context AND run the bootstrapper enter/leave

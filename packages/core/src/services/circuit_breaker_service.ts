@@ -57,6 +57,24 @@ export default class CircuitBreakerService {
     return lazyRedis()
   }
 
+  /**
+   * The connectivity action the breaker fires. Resolves the connection name from
+   * the active isolation driver rather than hardcoding `${prefix}${tenantId}`:
+   * `database-pg` matches that shape, but `rowscope-pg` shares one central
+   * connection, so the hardcoded name would not exist and every probe would
+   * fail. Overridable in tests to inject a deterministic success/failure without
+   * a live database (mirrors the `getRedis` seam).
+   */
+  protected buildProbe(tenantId: string): () => Promise<void> {
+    return async () => {
+      const db = await lazyDb()
+      if (!db) return
+      const { getActiveDriver } = await import('./isolation/active_driver.js')
+      const driver = await getActiveDriver()
+      await db.connection(driver.connectionName(tenantId)).rawQuery('SELECT 1')
+    }
+  }
+
   getCircuit(tenantId: string): CircuitBreaker {
     if (this.circuits.has(tenantId)) {
       return this.circuits.get(tenantId)!
@@ -64,19 +82,7 @@ export default class CircuitBreakerService {
 
     const cfg = getConfig().circuitBreaker
 
-    // Resolve the connection name from the active isolation driver rather than
-    // hardcoding `${prefix}${tenantId}`: `database-pg` matches that shape, but
-    // `rowscope-pg` shares one central connection, so the hardcoded name would
-    // not exist and every probe would fail.
-    const probeFn = async () => {
-      const db = await lazyDb()
-      if (!db) return
-      const { getActiveDriver } = await import('./isolation/active_driver.js')
-      const driver = await getActiveDriver()
-      await db.connection(driver.connectionName(tenantId)).rawQuery('SELECT 1')
-    }
-
-    const breaker = new CircuitBreaker(probeFn, {
+    const breaker = new CircuitBreaker(this.buildProbe(tenantId), {
       timeout: PROBE_TIMEOUT_MS,
       errorThresholdPercentage: cfg.threshold,
       resetTimeout: cfg.resetTimeout,
@@ -165,6 +171,27 @@ export default class CircuitBreakerService {
   isOpen(tenantId: string): boolean {
     if (!this.circuits.has(tenantId)) return false
     return this.circuits.get(tenantId)!.opened
+  }
+
+  /**
+   * Exercise the tenant's breaker by firing its connectivity probe THROUGH the
+   * breaker, so repeated failures actually TRIP it. Without a call site that
+   * fires the breaker it can never accumulate failures and never opens (it was
+   * previously only read via {@link isOpen}, so it was dead). The request
+   * middlewares call this on the tenant connect step.
+   *
+   * Resolves when the probe succeeds. Rejects with an opossum `EOPENBREAKER`
+   * error when the breaker is already OPEN (fast-fail, the probe is skipped), or
+   * with the probe's own error when it fails while CLOSED/HALF_OPEN — use
+   * {@link isOpenRejection} (or re-check {@link isOpen}) to tell the two apart.
+   */
+  async run(tenantId: string): Promise<void> {
+    await this.getCircuit(tenantId).fire()
+  }
+
+  /** True when an error thrown by {@link run} is opossum's "breaker is OPEN" fast-fail. */
+  isOpenRejection(err: unknown): boolean {
+    return (err as { code?: unknown })?.code === 'EOPENBREAKER'
   }
 
   getMetrics(tenantId: string): CircuitMetrics | null {

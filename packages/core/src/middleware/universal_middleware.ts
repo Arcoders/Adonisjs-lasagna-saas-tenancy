@@ -9,6 +9,8 @@ import {
 } from '../extensions/request.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import { isUuidV4 } from '../services/isolation/identifier.js'
+import CircuitBreakerService from '../services/circuit_breaker_service.js'
+import CircuitOpenException from '../exceptions/circuit_open_exception.js'
 import { tenancy } from '../tenancy.js'
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
@@ -95,6 +97,20 @@ export default class UniversalMiddleware {
     if (!tenant) return null
     if (tenant.isSuspended || tenant.isDeleted) return null
     if (tenant.isProvisioning || tenant.isFailed) return null
+
+    // Drive the tenant breaker so universal-route traffic trips it too. A named
+    // tenant whose DB is failing must fail closed (503), never degrade to
+    // central — that would serve a tenant-targeted request without its data.
+    const cbService = await app.container.make(CircuitBreakerService)
+    try {
+      await cbService.run(tenant.id)
+    } catch (err) {
+      if (cbService.isOpen(tenant.id) || cbService.isOpenRejection(err)) {
+        throw new CircuitOpenException()
+      }
+      if (hasDecidedHttpStatus(err)) throw err
+      throw dependencyUnavailable('tenant.circuit_probe', err, tenant.id)
+    }
 
     try {
       const driver = await getActiveDriver()
