@@ -27,3 +27,7 @@ export type { CloneTenantPayload } from './jobs/clone_tenant.js'
 
 // Doctor check (registered into the core DoctorService by the provider)
 export { default as backupRecencyCheck } from './doctor/backup_recency_check.js'
+
+// Config authoring surface (mirrors the reporting satellite).
+export { defineBackupConfig } from './define_config.js'
+export type { MultitenancyConfigWithBackup, BackupConfig } from './define_config.js'

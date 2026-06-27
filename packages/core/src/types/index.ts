@@ -4,6 +4,7 @@ export type {
   TenantAccessAuthorizer,
   TenantAnonymizer,
   BillingConfig,
+  BillingDriverChoice,
   BackupRetentionConfig,
   BackupRetentionTier,
 } from './config.js'

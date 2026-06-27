@@ -7,7 +7,6 @@ import { CircuitBreakerService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantSuspended, TenantDeleted } from '@adonisjs-lasagna/saas-tenancy/events'
 import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
 import type {
-  MultitenancyConfig,
   TenantModelContract,
   TenantRepositoryContract,
 } from '@adonisjs-lasagna/saas-tenancy/types'
@@ -20,10 +19,8 @@ import TenantSocketServer from '../src/tenant_socket_server.js'
 import { resolveTenantIdFromHandshake } from '../src/resolve_from_handshake.js'
 import { assertWebSocketsConfig } from '../src/validate_config.js'
 import { normalizeAuthorize } from '../src/resolve_authorize.js'
+import type { MultitenancyConfigWithWebsockets } from '../src/define_config.js'
 import type { IoServer, WebSocketsConfig } from '../src/types.js'
-
-/** Config shape read off `config/multitenancy.ts` without augmenting core. */
-type MultitenancyConfigWithWs = MultitenancyConfig & { websockets?: WebSocketsConfig }
 
 /**
  * Provider for `@adonisjs-lasagna/websockets`. Register it in `adonisrc.ts`
@@ -70,7 +67,7 @@ export default class WebSocketsProvider implements SatelliteProviderContract {
       logger.warn(m)
     )
 
-    const config = this.app.config.get<MultitenancyConfigWithWs>('multitenancy')
+    const config = this.app.config.get<MultitenancyConfigWithWebsockets>('multitenancy')
     this.#config = config?.websockets
     this.#enabled = Boolean(this.#config)
     if (!this.#enabled) return

@@ -11,13 +11,16 @@
  * their mapper.
  */
 
+import type { BillingDriverChoice } from '@adonisjs-lasagna/saas-tenancy/types'
+
 /**
  * The shipped driver names, plus any custom name a host registers via
- * `BillingDriverRegistry.register()`. `(string & {})` keeps editor
- * autocomplete for the built-ins while admitting custom names — mirrors
- * `IsolationDriverName`.
+ * `BillingDriverRegistry.register()`. Canonical definition is core's
+ * `BillingDriverChoice` (the value `config.billing.driver` accepts); this is the
+ * billing-package alias so the two unions can never drift. Guarded by
+ * scripts/check-billing-driver-name-canonical.mjs.
  */
-export type BillingDriverName = 'stripe' | 'paddle' | 'lemonsqueezy' | (string & {})
+export type BillingDriverName = BillingDriverChoice
 
 /**
  * Optional driver features. `BillingService` calls `driver.supports(cap)`
