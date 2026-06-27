@@ -13,7 +13,18 @@ import { dirname, join } from 'node:path'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const r = (p) => join(ROOT, p)
 
-const REQUIRED_MENTIONS = ['npm run lint', 'npm run typecheck', 'npm test', 'npm run check']
+// `check:full` covers the build-dependent gates `npm run check` can't run alone
+// (the doc code-fence gate + a full typecheck); `bench:isolation` is the
+// infra-dependent isolation/error-rate gate. Both are CI-blocking but easy to
+// forget locally, so CONTRIBUTING must name them.
+const REQUIRED_MENTIONS = [
+  'npm run lint',
+  'npm run typecheck',
+  'npm test',
+  'npm run check',
+  'npm run check:full',
+  'npm run bench:isolation',
+]
 const BANNED = /lint`?\s+if you want to check/i
 
 /** Pure rule over (package.json scripts, CONTRIBUTING text). */
@@ -33,7 +44,9 @@ function lint(scripts, contributing) {
 
 if (process.argv.includes('--self-test')) {
   const goodScripts = { check: 'node scripts/check.mjs' }
-  const goodDoc = 'Run npm run lint, npm run typecheck, npm test, npm run check before pushing.'
+  const goodDoc =
+    'Run npm run lint, npm run typecheck, npm test, npm run check, npm run check:full, ' +
+    'and (for isolation changes) npm run bench:isolation before pushing.'
   const badDoc = 'Run `npm run lint` if you want to check, or let your editor handle it.'
   const failures = []
   if (lint(goodScripts, goodDoc).length !== 0) failures.push('good fixture flagged')

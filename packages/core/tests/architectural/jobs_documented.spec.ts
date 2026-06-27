@@ -17,9 +17,7 @@ const DOC_PAGES = [
   '../../../../docs/guides/testing.md',
 ].map((p) => fileURLToPath(new URL(p, import.meta.url)))
 
-const BILLING_INDEX = fileURLToPath(
-  new URL('../../../billing/src/index.ts', import.meta.url)
-)
+const BILLING_INDEX = fileURLToPath(new URL('../../../billing/src/index.ts', import.meta.url))
 
 test.group('architectural — documented job names resolve to real exports', () => {
   test('no doc references the renamed-away ProcessStripeEventJob', ({ assert }) => {

@@ -82,12 +82,34 @@ npm run build        # confirms the package compiles cleanly
 npm test             # unit suite
 npm run knip:deps    # dependency hygiene (run whenever a package.json dep/peer changed)
 npm run test:integrity  # every command, config option, and package is documented
-npm run check        # the source-scan gates (stability, positioning, satellite wiring,
+npm run check        # the fast source-scan gates (stability, positioning, satellite wiring,
                      #   peer ranges, publish coverage, community health, …)
+npm run check:full   # build:all + check + the doc code-fence gate + a full typecheck in one
+                     #   pass — the build-dependent gates `npm run check` cannot run on its own
 ```
 
 `npm run lint` is **required**, not optional: `prettier/prettier` is configured
 as an ESLint error, so an unformatted file fails CI.
+
+#### Gates that need a build or external services
+
+A few CI gates are not in `npm run check` because they need a build or live
+services. `npm run check:full` covers the build-dependent ones (the doc code-fence
+gate and a full typecheck). The rest need infrastructure and are worth running when
+you touch the relevant code:
+
+```bash
+npm run test:docs-code              # type-checks every docs/ code fence (needs build:all)
+npm run test:integration:coverage   # integration suite (needs Postgres + Redis)
+BENCH_DRIVER=schema-pg npm run bench:isolation   # tenant-isolation assertion + error-rate ceiling
+```
+
+Run `npm run bench:isolation` (per driver: `schema-pg` / `database-pg` /
+`rowscope-pg`) whenever you change tenant isolation, connection handling, request
+middleware, or the circuit breaker. It boots a real fixture server, fires
+concurrent cross-tenant reads, and fails if any read leaks or more than 5% of
+requests error. It needs the throwaway stack in `benchmarks/docker-compose.yml`
+(`docker compose -f benchmarks/docker-compose.yml up -d`).
 
 ---
 
