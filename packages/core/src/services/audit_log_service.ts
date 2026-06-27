@@ -11,7 +11,7 @@ const lazyLogger = () =>
  *  audited request. The canonical DB write is already done by the time it runs. */
 const DESTINATION_TIMEOUT_MS = 2_000
 
-export interface LogActionOptions {
+export interface LogOptions {
   tenantId?: string | null
   actorType?: AuditActorType
   actorId?: string | null
@@ -20,8 +20,11 @@ export interface LogActionOptions {
   ipAddress?: string | null
 }
 
+/** @deprecated Renamed to {@link LogOptions} — `log()` takes log options, not "action" options. */
+export type LogActionOptions = LogOptions
+
 export default class AuditLogService {
-  async log(options: LogActionOptions): Promise<TenantAuditLog> {
+  async log(options: LogOptions): Promise<TenantAuditLog> {
     // The DB row is the source of truth and stays authoritative: it is written
     // first and returned to the caller. Host destinations run afterwards,
     // isolated and time-bounded, so a slow or throwing sink can never fail the

@@ -53,8 +53,7 @@
     "./commands": "./build/src/commands/main.js",
     "./testing": "./build/src/testing/index.js",
     "./health": "./build/src/health/index.js",
-    "./sdk": "./build/src/sdk/index.js",
-    "./admin": "./build/src/admin/index.js"
+    "./sdk": "./build/src/sdk/index.js"
   },
   "typesVersions": {
     "*": {
@@ -111,9 +110,6 @@
       ],
       "sdk": [
         "./build/src/sdk/index.d.ts"
-      ],
-      "admin": [
-        "./build/src/admin/index.d.ts"
       ]
     }
   },

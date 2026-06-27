@@ -117,6 +117,7 @@ export type {
   CircuitState,
   CircuitMetrics,
   TenantQueueStats,
+  LogOptions,
   LogActionOptions,
   BrandingData,
   TenantLifecyclePhase,

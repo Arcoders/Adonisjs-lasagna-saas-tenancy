@@ -14,7 +14,7 @@ export type { FailurePolicy, ResilienceConfig } from '../types/config.js'
 // moved to `@adonisjs-lasagna/backup`. Their shared result types
 // (`BackupMetadata`, `CloneResult`) live in `@adonisjs-lasagna/saas-tenancy/types`.
 export { default as AuditLogService } from './audit_log_service.js'
-export type { LogActionOptions } from './audit_log_service.js'
+export type { LogOptions, LogActionOptions } from './audit_log_service.js'
 export {
   default as AuditLogDestinationRegistry,
   AUDIT_CONTRACT_VERSION,

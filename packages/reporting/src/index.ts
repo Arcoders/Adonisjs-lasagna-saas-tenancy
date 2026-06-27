@@ -3,7 +3,11 @@ export { assertNotInTenantScope } from './guard.js'
 export { default as ReportingDashboardController } from './controllers/reporting_dashboard_controller.js'
 export type { ReportingControllerOptions } from './controllers/reporting_dashboard_controller.js'
 export { multitenancyReportingRoutes } from './routes.js'
-export type { ReportingRoutesOptions, ReportingRouteMiddleware } from './routes.js'
+export type {
+  MultitenancyReportingRoutesOptions,
+  ReportingRoutesOptions,
+  ReportingRouteMiddleware,
+} from './routes.js'
 export { default as ReportExtensionRegistry } from './report_extension_registry.js'
 export type { ReportExtension, ReportExtensionFilters } from './contracts/report_extension.js'
 export { REPORTING_CONTRACT_VERSION } from './constants.js'

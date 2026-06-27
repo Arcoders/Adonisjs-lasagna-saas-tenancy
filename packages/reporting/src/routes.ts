@@ -16,7 +16,7 @@ type ReportingMiddlewareEntry =
 
 export type ReportingRouteMiddleware = ReportingMiddlewareEntry | ReportingMiddlewareEntry[]
 
-export interface ReportingRoutesOptions {
+export interface MultitenancyReportingRoutesOptions {
   /** Mount prefix for the reporting routes. Default `/reporting`. */
   prefix?: string
   /**
@@ -61,7 +61,15 @@ export interface ReportingRoutesOptions {
  * Endpoints (relative to the prefix, default `/reporting`):
  *   GET /dashboard   ?period=&since=&until=&limit=
  */
-export function multitenancyReportingRoutes(options: ReportingRoutesOptions = {}): void {
+/**
+ * @deprecated Renamed to {@link MultitenancyReportingRoutesOptions} to match the
+ * `Multitenancy*RoutesOptions` convention the other satellites use.
+ */
+export type ReportingRoutesOptions = MultitenancyReportingRoutesOptions
+
+export function multitenancyReportingRoutes(
+  options: MultitenancyReportingRoutesOptions = {}
+): void {
   const { prefix = '/reporting', middleware, cacheTtlMs, maxRangeDays, openapi } = options
 
   // Fail closed: the dashboard exposes cross-tenant analytics, so it must not
