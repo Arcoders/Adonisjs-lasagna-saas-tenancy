@@ -1,5 +1,6 @@
 import type { ApplicationService } from '@adonisjs/core/types'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import { patchIsolationConfig } from '../harness/runtime_config.js'
 import { zeroMetric, type BenchResult } from '../harness/runner.js'
 import { activeDriver, tenantRefs, ensureBackofficeSchema } from '../harness/provision.js'
 import {
@@ -59,12 +60,10 @@ export async function runConnectionBudgetBurst(
   if (driver.name !== 'schema-pg') return []
   await ensureBackofficeSchema(db)
 
-  const cfg: any = getConfig()
-  cfg.isolation = cfg.isolation ?? {}
   // Pin the PRODUCTION default grace explicitly: the steady budget bench may
   // have shrunk it to 50ms in this same process; we want the honest 30s here.
-  cfg.isolation.evictionGracePeriodMs = PROD_GRACE_MS
-  const cap = cfg.isolation.maxTenantConnections ?? 50
+  patchIsolationConfig({ evictionGracePeriodMs: PROD_GRACE_MS })
+  const cap = getConfig().isolation?.maxTenantConnections ?? 50
 
   const maxConn = await showMaxConnections(db)
   // Leave headroom for central + backoffice + a margin so the honest-budget
@@ -186,7 +185,7 @@ export async function runConnectionBudgetBurst(
   const drainN = Math.max(...sizes.budget.counts, sizes.burst.saturateTo, cap * 3)
   for (const ref of tenantRefs(drainN)) await driver.disconnect(ref as any)
 
-  cfg.isolation.enforceConnectionCap = true
+  patchIsolationConfig({ enforceConnectionCap: true })
   await disconnectAllTenants(db)
   const hcTenants = cap * 3
   let opened = 0
@@ -203,7 +202,7 @@ export async function runConnectionBudgetBurst(
       }
     }
   } finally {
-    cfg.isolation.enforceConnectionCap = false // never leak the flag to later tiers
+    patchIsolationConfig({ enforceConnectionCap: false }) // never leak the flag to later tiers
   }
   const openWithHardCap = snapshotConnections(db).tenantOpen
   await disconnectAllTenants(db)

@@ -1,5 +1,5 @@
 import type { ApplicationService } from '@adonisjs/core/types'
-import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import { patchIsolationConfig } from '../harness/runtime_config.js'
 import type { IsolationDriver } from '@adonisjs-lasagna/saas-tenancy/services'
 import { measureLatency, summarize, type BenchResult } from '../harness/runner.js'
 import { activeDriver, seedAll } from '../harness/provision.js'
@@ -18,11 +18,9 @@ const GROUP = 'connection_churn'
 /** One in WRITE_EVERY churn ops is an insert, so the write path is churned too. */
 const WRITE_EVERY = 5
 
-/** Live-mutate the open-connection cap; the LRU reads it lazily each evict. */
+/** Re-publish the open-connection cap; the LRU reads it lazily each evict. */
 function setCap(cap: number): void {
-  const cfg: any = getConfig()
-  cfg.isolation = cfg.isolation ?? {}
-  cfg.isolation.maxTenantConnections = cap
+  patchIsolationConfig({ maxTenantConnections: cap })
 }
 
 async function churnLoad(

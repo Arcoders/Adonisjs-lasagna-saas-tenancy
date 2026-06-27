@@ -1,5 +1,6 @@
 import type { ApplicationService } from '@adonisjs/core/types'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import { patchIsolationConfig } from '../harness/runtime_config.js'
 import { zeroMetric, type BenchResult } from '../harness/runner.js'
 import { activeDriver, tenantRefs, ensureBackofficeSchema } from '../harness/provision.js'
 import { isProvisionableDriver } from '../../../packages/core/build/src/services/isolation/driver.js'
@@ -38,10 +39,8 @@ export async function runConnectionBudget(
 ): Promise<BenchResult[]> {
   const driver = await activeDriver(app)
   await ensureBackofficeSchema(db)
-  const cfg: any = getConfig()
-  cfg.isolation = cfg.isolation ?? {}
-  cfg.isolation.evictionGracePeriodMs = BUDGET_GRACE_MS
-  const cap = cfg.isolation.maxTenantConnections ?? 50
+  patchIsolationConfig({ evictionGracePeriodMs: BUDGET_GRACE_MS })
+  const cap = getConfig().isolation?.maxTenantConnections ?? 50
 
   // database-pg provisions a real database per tenant (CREATE DATABASE), so cap
   // the swept counts to keep the run sane — the per-database backend budget is
