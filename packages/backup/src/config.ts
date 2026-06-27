@@ -1,16 +1,16 @@
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
-import type { MultitenancyConfig } from '@adonisjs-lasagna/saas-tenancy/types'
+import type { BackupConfig } from './define_config.js'
 
 /**
  * Resolve the `backup` config block, throwing a clear, actionable error when
  * the host hasn't configured it.
  *
- * `MultitenancyConfig.backup` is optional in the core (the backup feature lives
- * in this satellite, so a core-only consumer must not be forced to declare it).
+ * `backup` is contributed to `MultitenancyConfig` by this satellite's
+ * `SatelliteConfigRegistry` augmentation (a core-only consumer never sees it).
  * Every backup code path goes through this accessor so a missing block surfaces
  * as one good error instead of an opaque "cannot read property of undefined".
  */
-export function backupConfig(): NonNullable<MultitenancyConfig['backup']> {
+export function backupConfig(): BackupConfig {
   const cfg = getConfig().backup
   if (!cfg) {
     throw new Error(

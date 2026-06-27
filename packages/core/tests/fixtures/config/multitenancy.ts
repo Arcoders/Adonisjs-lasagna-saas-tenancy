@@ -44,6 +44,13 @@ export default {
       db: env.get('QUEUE_REDIS_DB'),
     },
   },
+  // `backup` / `billing` are satellite config blocks. This fixture's config
+  // object is intentionally untyped (consumed via the AdonisJS config registry),
+  // so the blocks are plain runtime values here — the coexistence fixture
+  // registers the billing + backup providers (see adonisrc.ts), and the billing
+  // provider reads this block at boot to register its driver. Their TYPES live in
+  // each satellite (contributed to MultitenancyConfig via SatelliteConfigRegistry
+  // augmentation); core's own source never declares them.
   backup: {
     storagePath: '/tmp/backups',
     metadataTtl: 86400,
@@ -63,17 +70,6 @@ export default {
       db: env.get('CACHE_REDIS_DB', 2),
     },
   },
-  // Plans + billing are present at fixture-boot so
-  // `MultitenancyProvider.start()` wires `TenantDestroyBillingListener`
-  // into `HookRegistry` via the BUILD container — same identity the
-  // tenant_delete spec resolves through `app.container.make(BillingService)`,
-  // so its `__setStripeForTests(mock)` lands on the same instance the
-  // listener uses to cancel.
-  //
-  // No `usageMapping` here: the metered_usage spec wires its own
-  // listener (it stubs `ReportUsageBatchJob.dispatch` per-test), and
-  // an auto-wired listener would fire too and double-dispatch the
-  // batch.
   plans: {
     defaultPlan: 'starter',
     definitions: {
@@ -83,6 +79,9 @@ export default {
     },
     storage: 'tenant_plans',
   },
+  // Present so the coexistence fixture's billing provider registers its driver at
+  // boot (satellite_coexistence.spec.ts resolves BillingService). The billing
+  // listener wiring moved to @adonisjs-lasagna/billing at the 1.0 extraction.
   billing: {
     driver: 'stripe',
     stripe: {

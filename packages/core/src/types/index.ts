@@ -1,10 +1,9 @@
 export type {
   MultitenancyConfig,
+  SatelliteConfigRegistry,
   TenantResolverStrategy,
   TenantAccessAuthorizer,
   TenantAnonymizer,
-  BillingConfig,
-  BillingDriverChoice,
   BackupRetentionConfig,
   BackupRetentionTier,
 } from './config.js'

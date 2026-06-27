@@ -30,7 +30,11 @@ export { default as BillingDriverRegistry } from './services/billing/billing_dri
 export { BILLING_CONTRACT_VERSION } from './constants.js'
 // Config authoring surface (mirrors the reporting satellite).
 export { defineBillingConfig } from './define_config.js'
-export type { MultitenancyConfigWithBilling, BillingConfig } from './define_config.js'
+export type {
+  MultitenancyConfigWithBilling,
+  BillingConfig,
+  BillingDriverChoice,
+} from './define_config.js'
 // `getActiveBillingDriver` is the public accessor for the active driver. The
 // `__*ForTests` cache/registry seams in the same module are intentionally NOT
 // re-exported here — they're internal test hooks; import them from

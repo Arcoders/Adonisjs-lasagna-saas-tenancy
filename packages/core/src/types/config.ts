@@ -1,15 +1,27 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { DeclarativeHooks } from '../services/hook_registry.js'
 import type { TenantModelContract } from './contracts.js'
-import type { BillingConfig } from './config/billing.js'
 import type { IsolationConfig } from './config/isolation.js'
 import type { TenantResolver } from '../services/resolvers/resolver.js'
 
-// The large billing + isolation config shapes live in ./config/*.ts; re-export
-// them here so the public `./types` surface and every `from '../types/config.js'`
-// import keep resolving exactly as before.
-export type { BillingConfig, BillingDriverChoice } from './config/billing.js'
+// The large isolation config shape lives in ./config/isolation.ts; re-export it
+// here so the public `./types` surface and every `from '../types/config.js'`
+// import keep resolving exactly as before. Satellite config blocks (billing,
+// backup) are NOT declared here — see SatelliteConfigRegistry below.
 export type { IsolationConfig, IsolationDriverChoice } from './config/isolation.js'
+
+/**
+ * Open registry of satellite-contributed config blocks. Core declares it empty:
+ * the leaf satellites (`@adonisjs-lasagna/billing`, `@adonisjs-lasagna/backup`)
+ * each augment it via `declare module '@adonisjs-lasagna/saas-tenancy/types'` so
+ * their config block (`billing` / `backup`) appears on `MultitenancyConfig` ONLY
+ * in the compilation that imports the satellite. This keeps core's frozen public
+ * type free of satellite-specific shapes (a host that never installs billing
+ * sees no `billing` key) while the satellite's own code keeps `getConfig().billing`
+ * fully typed. Adding a field here from core would re-freeze satellite config into
+ * the core type — the exact coupling this indirection removes.
+ */
+export interface SatelliteConfigRegistry {}
 
 /**
  * Optional MEMBERSHIP gate: does the authenticated caller belong to the
@@ -342,7 +354,7 @@ export interface ResilienceConfig {
   observe?: boolean
 }
 
-export interface MultitenancyConfig {
+export interface MultitenancyConfig extends SatelliteConfigRegistry {
   backofficeSchemaName: string
   backofficeConnectionName: string
   centralSchemaName: string
@@ -503,40 +515,6 @@ export interface MultitenancyConfig {
      */
     queueIdleGraceMs?: number
   }
-  /**
-   * Optional backup config block. Consumed only by the extracted
-   * `@adonisjs-lasagna/backup` satellite (the core never reads it). Apps that
-   * don't install that package can omit this entirely; the satellite throws a
-   * clear error at call time if a backup operation runs without it configured.
-   */
-  backup?: {
-    storagePath: string
-    metadataTtl: number
-    pgConnection: {
-      host: string
-      port: number
-      user: string
-      password: string
-      database: string
-    }
-    s3?: {
-      enabled: boolean
-      bucket: string
-      region: string
-      endpoint?: string
-      accessKeyId: string
-      secretAccessKey: string
-    }
-    retention?: BackupRetentionConfig
-    /**
-     * When the Redis coordination layer is unreachable, the destructive
-     * operations (restore / clone / import) fail closed by default: they refuse
-     * to run unserialised rather than risk corrupting a schema. Set this `true`
-     * to opt them back into the legacy fail-open behaviour (proceed without the
-     * lock). The read-only `backup` always fails open regardless of this flag.
-     */
-    lockFailOpenOnDestructive?: boolean
-  }
   cache: {
     ttl: number
     redis: {
@@ -567,8 +545,6 @@ export interface MultitenancyConfig {
     anonymize?: TenantAnonymizer
   }
   plans?: PlansConfig
-  /** Optional Stripe billing satellite. See {@link BillingConfig}. */
-  billing?: BillingConfig
   tenantReadReplicas?: ReadReplicasConfig
   /**
    * Optional extra `/readyz` dimensions. Both are OFF by default because they

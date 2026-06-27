@@ -35,10 +35,17 @@ for a copy-paste migration.
     **`@adonisjs-lasagna/backup`**. Register `@adonisjs-lasagna/backup/provider`
     and `@adonisjs-lasagna/backup/commands` (this is what registers the
     `backup_recency` doctor check and the backup queue jobs).
-  - The result types `BackupMetadata` / `CloneResult` and the Stripe config types
-    stay in the core (`@adonisjs-lasagna/saas-tenancy/types`); only the runtime
-    moved. The tenant-lifecycle hook phases (`backup`/`restore`/`clone`) and the
-    `TenantBackedUp` / `TenantRestored` / `TenantCloned` events also stay in core.
+  - The result types `BackupMetadata` / `CloneResult` stay in the core
+    (`@adonisjs-lasagna/saas-tenancy/types`). The **satellite config types and
+    blocks** do NOT: `BillingConfig` / `BillingDriverChoice` now live in
+    **`@adonisjs-lasagna/billing`**, and the `billing` / `backup` config blocks
+    are contributed onto `MultitenancyConfig` by each satellite via the open
+    `SatelliteConfigRegistry` interface (declaration merging) rather than being
+    hard-coded into core's frozen type. Authoring `config.billing` / `config.backup`
+    is unchanged; only `import { BillingConfig } from '@adonisjs-lasagna/saas-tenancy/types'`
+    moves to `from '@adonisjs-lasagna/billing'`. The tenant-lifecycle hook phases
+    (`backup`/`restore`/`clone`) and the `TenantBackedUp` / `TenantRestored` /
+    `TenantCloned` events also stay in core.
 - **`resolver.legacyAdapterFallback` now defaults to `false`.** When a model
   query runs outside an active tenant context, `TenantAdapter` resolves the id
   through the resolver chain synchronously (`resolveSync`) instead of the
@@ -86,8 +93,8 @@ for a copy-paste migration.
   `@adonisjs-lasagna/saas-tenancy`, so the isolation core no longer couples its
   public surface to one payment provider. Import these from `stripe` directly
   (`import type Stripe from 'stripe'`) or use billing's own types from
-  `@adonisjs-lasagna/billing`. (The `BillingConfig` / billing result types still
-  live in core.)
+  `@adonisjs-lasagna/billing` (which now also owns `BillingConfig` /
+  `BillingDriverChoice`).
 
 ### Added
 

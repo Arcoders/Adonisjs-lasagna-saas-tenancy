@@ -10,8 +10,6 @@ import type {
   BackupRetentionConfig,
   PlanDefinition,
   PlansConfig,
-  BillingDriverChoice,
-  BillingConfig,
   ReadReplicaStrategy,
   ReadReplicaHost,
   ReadReplicasConfig,
@@ -21,6 +19,7 @@ import type {
   FailurePolicy,
   ResilienceConfig,
   MultitenancyConfig,
+  SatelliteConfigRegistry,
 } from '../../src/types/config.js'
 
 /**
@@ -44,8 +43,6 @@ type ConfigBarrel = {
   BackupRetentionConfig: BackupRetentionConfig
   PlanDefinition: PlanDefinition
   PlansConfig: PlansConfig
-  BillingDriverChoice: BillingDriverChoice
-  BillingConfig: BillingConfig
   ReadReplicaStrategy: ReadReplicaStrategy
   ReadReplicaHost: ReadReplicaHost
   ReadReplicasConfig: ReadReplicasConfig
@@ -55,6 +52,7 @@ type ConfigBarrel = {
   FailurePolicy: FailurePolicy
   ResilienceConfig: ResilienceConfig
   MultitenancyConfig: MultitenancyConfig
+  SatelliteConfigRegistry: SatelliteConfigRegistry
 }
 
 test.group('config barrel exhaustiveness', () => {
@@ -72,8 +70,6 @@ test.group('config barrel exhaustiveness', () => {
       'BackupRetentionConfig',
       'PlanDefinition',
       'PlansConfig',
-      'BillingDriverChoice',
-      'BillingConfig',
       'ReadReplicaStrategy',
       'ReadReplicaHost',
       'ReadReplicasConfig',
@@ -83,7 +79,8 @@ test.group('config barrel exhaustiveness', () => {
       'FailurePolicy',
       'ResilienceConfig',
       'MultitenancyConfig',
+      'SatelliteConfigRegistry',
     ]
-    assert.lengthOf(guarded, 21)
+    assert.lengthOf(guarded, 20)
   })
 })

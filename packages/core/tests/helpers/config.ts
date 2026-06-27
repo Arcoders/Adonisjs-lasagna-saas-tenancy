@@ -26,22 +26,14 @@ export const testConfig: MultitenancyConfig = {
     attempts: 3,
     redis: { host: '127.0.0.1', port: 6379, db: 1 },
   },
-  backup: {
-    storagePath: '/tmp/backups',
-    metadataTtl: 86400,
-    pgConnection: {
-      host: '127.0.0.1',
-      port: 5432,
-      user: 'postgres',
-      password: 'postgres',
-      database: 'test',
-    },
-  },
   cache: {
     ttl: 300,
     redis: { host: '127.0.0.1', port: 6379, db: 2 },
   },
 }
+// `backup` / `billing` are satellite config blocks contributed via each
+// satellite's `SatelliteConfigRegistry` augmentation; core's own test compilation
+// does not import those satellites, so they are not on `MultitenancyConfig` here.
 
 export function setupTestConfig(overrides?: Partial<MultitenancyConfig>): void {
   setConfig({ ...testConfig, ...overrides })

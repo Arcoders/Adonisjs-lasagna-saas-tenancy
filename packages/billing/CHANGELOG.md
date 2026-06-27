@@ -47,6 +47,13 @@ production mileage.
 
 ### Added
 
+- **Owns its config types + `config.billing` block.** `BillingConfig` and
+  `BillingDriverChoice` now live here (moved out of core), and the `billing` block
+  is contributed onto `MultitenancyConfig` via core's open `SatelliteConfigRegistry`
+  (declaration merging) — so core's frozen public type no longer hard-codes
+  billing's shape, and `getConfig().billing` is typed wherever this package is
+  imported. Authoring `config.billing` is unchanged; import `BillingConfig` from
+  `@adonisjs-lasagna/billing` (not `@adonisjs-lasagna/saas-tenancy/types`).
 - **Pluggable billing drivers.** `BillingProviderContract` plus a neutral data model
   (`Customer`, `Subscription`, `Invoice`, `BillingWebhookEvent`, canonical event
   taxonomy), `BillingDriverRegistry` + `getActiveBillingDriver()` (container

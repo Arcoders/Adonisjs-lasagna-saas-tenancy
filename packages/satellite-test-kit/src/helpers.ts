@@ -78,22 +78,15 @@ export const testConfig: MultitenancyConfig = {
     attempts: 3,
     redis: { host: '127.0.0.1', port: 6379, db: 1 },
   },
-  backup: {
-    storagePath: '/tmp/backups',
-    metadataTtl: 86400,
-    pgConnection: {
-      host: '127.0.0.1',
-      port: 5432,
-      user: 'postgres',
-      password: 'postgres',
-      database: 'test',
-    },
-  },
   cache: {
     ttl: 300,
     redis: { host: '127.0.0.1', port: 6379, db: 2 },
   },
 }
+// `backup` is intentionally absent: it is a satellite config block contributed
+// via the backup package's `SatelliteConfigRegistry` augmentation, and this
+// shared kit does not depend on the backup satellite. A suite that needs it sets
+// it through its own typed override.
 
 /** Install {@link testConfig} (shallow-merged with overrides) into the config singleton. */
 export function setupTestConfig(overrides?: Partial<MultitenancyConfig>): void {

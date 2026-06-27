@@ -65,9 +65,13 @@ test.group('ReadReplicaService — resolve() against real PG', (group) => {
     // routes every read to the default `public` schema — a cross-tenant
     // leak. A bare `SELECT 1` would NOT catch that; reading a table that
     // only exists inside the tenant schema does.
-    const baseConn = (originalConfig as any).backup?.pgConnection ?? {
-      host: '127.0.0.1',
-      port: 5432,
+    // Reuse the configured primary DB host/port as a "fake replica" target. Read
+    // from env (the fixture's database.ts uses the same DB_HOST/DB_PORT) so this
+    // does not depend on a `backup` config block, which now lives in the backup
+    // satellite rather than core's MultitenancyConfig.
+    const baseConn = {
+      host: process.env.DB_HOST ?? '127.0.0.1',
+      port: Number(process.env.DB_PORT ?? 5432),
     }
     setConfig({
       ...originalConfig,

@@ -26,7 +26,7 @@ const SURFACES = [
     banned: [{ re: /['"]\/webhooks\/stripe['"]/, why: "Stripe-branded webhook path literal (use '/webhooks/billing')" }],
   },
   {
-    file: 'packages/core/src/types/config/billing.ts',
+    file: 'packages/billing/src/define_config.ts',
     banned: [{ re: /ProcessStripeEventJob/, why: 'stale ProcessStripeEventJob reference (renamed to ProcessBillingEventJob)' }],
   },
   {
@@ -49,13 +49,15 @@ function lint(src, banned) {
 }
 
 if (process.argv.includes('--self-test')) {
-  const bannedRules = SURFACES[0].banned
+  // Explicit rule fixtures (not SURFACES[i].banned) so the self-test can never
+  // silently couple to the order of the SURFACES table.
+  const pathRule = [{ re: /['"]\/webhooks\/stripe['"]/, why: 'stripe path' }]
+  const jobRule = [{ re: /ProcessStripeEventJob/, why: 'stale job' }]
   const failures = []
-  if (lint("const p = '/webhooks/billing'", bannedRules).length !== 0) failures.push('good fixture flagged')
-  if (lint("const p = '/webhooks/stripe'", bannedRules).length === 0) failures.push('bad fixture passed')
-  const jobRules = SURFACES[1].banned
-  if (lint('dispatch ProcessBillingEventJob', jobRules).length !== 0) failures.push('good job fixture flagged')
-  if (lint('dispatch ProcessStripeEventJob', jobRules).length === 0) failures.push('bad job fixture passed')
+  if (lint("const p = '/webhooks/billing'", pathRule).length !== 0) failures.push('good path fixture flagged')
+  if (lint("const p = '/webhooks/stripe'", pathRule).length === 0) failures.push('bad path fixture passed')
+  if (lint('dispatch ProcessBillingEventJob', jobRule).length !== 0) failures.push('good job fixture flagged')
+  if (lint('dispatch ProcessStripeEventJob', jobRule).length === 0) failures.push('bad job fixture passed')
   if (failures.length) {
     console.error('check-billing-provider-neutral --self-test: FAIL')
     for (const f of failures) console.error(`  - ${f}`)
