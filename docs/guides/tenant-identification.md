@@ -131,28 +131,53 @@ const tenant = await request.tenant({ allowInactive: true })
 
 ## Custom resolvers
 
-Implement the `TenantResolver` contract and register it in your
-provider:
+Implement the `TenantResolver` contract. A resolver declares its `name`, a
+`contractVersion`, and a `resolve()` that returns a `ResolverHit`:
 
 ```ts
-import { TenantResolver, TenantResolverRegistry } from '@adonisjs-lasagna/saas-tenancy/services'
+import {
+  TenantResolver,
+  ResolverHit,
+  RESOLVER_CONTRACT_VERSION,
+} from '@adonisjs-lasagna/saas-tenancy/services'
 
-class GeoIpResolver implements TenantResolver {
-  resolve(ctx) {
-    const country = ctx.request.header('cf-ipcountry')
-    return country?.toLowerCase() ?? null
+class HeaderTokenResolver implements TenantResolver {
+  readonly name = 'header-token'
+  readonly contractVersion = RESOLVER_CONTRACT_VERSION
+  resolve(request) {
+    const id = decodeTenantFromToken(request.header('authorization'))
+    return id ? ResolverHit.id(id) : ResolverHit.miss()
   }
 }
+```
 
-// In your app provider
+The simplest way to wire it is inline in config — no provider needed. Pass the
+instance directly in `resolverChain`, or in the `resolvers` bag so a string in
+the chain can name it:
+
+```ts
+export default defineConfig({
+  // inline instance, or a name from `resolvers` below
+  resolverChain: [new HeaderTokenResolver(), 'header'],
+  // resolvers: [new HeaderTokenResolver()],  // then resolverChain: ['header-token', 'header']
+})
+```
+
+You can still register it in your provider instead, which is handy when the
+resolver needs container-resolved dependencies:
+
+```ts
+import { TenantResolverRegistry } from '@adonisjs-lasagna/saas-tenancy/services'
+
 const registry = await this.app.container.make(TenantResolverRegistry)
-registry.register('geoip', new GeoIpResolver())
+registry.register(new HeaderTokenResolver())
 ```
 
 ## Chained resolvers
 
 Set `resolverChain` to try multiple strategies in order; first one to
-return a non-null tenant id wins:
+return a hit wins. Entries are built-in names, names from `resolvers`, or inline
+`TenantResolver` instances — an unknown string name fails at boot:
 
 ```ts
 export default defineConfig({

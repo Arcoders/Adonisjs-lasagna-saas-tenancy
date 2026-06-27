@@ -40,7 +40,8 @@ intended guard. Read config at request or job time, not at module top-level.
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `resolverStrategy` | `'subdomain' \| 'header' \| 'path' \| 'domain-or-subdomain' \| 'request-data'` |  | How the tenant id is read from the request. |
-| `resolverChain` | `string[]` |  | Ordered resolver names; first hit wins. **Overrides** `resolverStrategy`. |
+| `resolverChain` | `Array<string \| TenantResolver>` |  | Ordered resolvers; first hit wins. **Overrides** `resolverStrategy`. Each entry is a built-in name, the name of an instance from `resolvers`, or an inline `TenantResolver`. Unknown names fail at boot. |
+| `resolvers` | `TenantResolver[]` |  | Custom `TenantResolver` instances registered at boot so they can be referenced by name in `resolverChain`. |
 | `resolver.legacyAdapterFallback` | `boolean` | `false` | Restore the 0.x `resolverStrategy`-only fallback for model queries outside an active tenant context. See [Upgrade to 1.0](/reference/upgrade-to-1.0#_3-check-the-resolver-default). |
 | `resolver.cache.enabled` | `boolean` | `false` | Opt-in per-process cache of resolved tenants — cuts the steady-state backoffice round-trips per request from two to one. The cached tenant is the SAME instance for every concurrent request: treat it as read-only. See [Performance](/guides/performance). |
 | `resolver.cache.ttlMs` | `number` | `10000` | Freshness bound per entry; also the cross-pod staleness bound for a status change (in-process invalidation fires when the matching lifecycle event is emitted). |

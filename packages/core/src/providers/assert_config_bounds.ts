@@ -1,6 +1,7 @@
 import type { MultitenancyConfig } from '../types/config.js'
 import { isProductionNodeEnv } from '../utils/env.js'
 import { hostTrustWarning } from './assert_host_trust.js'
+import { assertResolverChain } from './resolver_chain.js'
 
 /**
  * Range-check the numeric tunables at boot. The provider's `#assertConfigShape`
@@ -71,6 +72,10 @@ export function assertConfigBounds(config: MultitenancyConfig): void {
       fail('impersonation.maxDuration', '>= impersonation.defaultDuration', imp.maxDuration)
     }
   }
+
+  // A resolverChain entry that names no built-in / inline resolver is a deploy
+  // mistake that would otherwise pick the wrong (or no) tenant; fail at boot.
+  assertResolverChain(config)
 
   atLeast(config.maintenance?.retryAfterSeconds, 'maintenance.retryAfterSeconds', 1)
 

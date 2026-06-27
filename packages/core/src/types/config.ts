@@ -3,6 +3,7 @@ import type { DeclarativeHooks } from '../services/hook_registry.js'
 import type { TenantModelContract } from './contracts.js'
 import type { BillingConfig } from './config/billing.js'
 import type { IsolationConfig } from './config/isolation.js'
+import type { TenantResolver } from '../services/resolvers/resolver.js'
 
 // The large billing + isolation config shapes live in ./config/*.ts; re-export
 // them here so the public `./types` surface and every `from '../types/config.js'`
@@ -352,8 +353,21 @@ export interface MultitenancyConfig {
   /**
    * Optional: chain multiple resolvers in order. The first one to return a
    * hit wins. When provided, this overrides `resolverStrategy`.
+   *
+   * Each entry is either a built-in resolver name (`'header'`, `'subdomain'`, …),
+   * the name of an instance you passed in {@link resolvers}, or an inline
+   * `TenantResolver` instance — so a custom resolver can be chained without
+   * reaching into the registry. Unknown string names fail at boot with a clear
+   * config-level error.
    */
-  resolverChain?: string[]
+  resolverChain?: Array<TenantResolverStrategy | string | TenantResolver>
+  /**
+   * Optional: register custom `TenantResolver` instances at boot so they can be
+   * referenced by name in {@link resolverChain} (or selected via
+   * {@link resolverStrategy}). Inline instances placed directly in `resolverChain`
+   * are registered too; this bag is for resolvers you want available by name.
+   */
+  resolvers?: TenantResolver[]
   /**
    * Optional: tune how `TenantAdapter` routes model queries with no active
    * tenancy context. See {@link ResolverConfig}. Defaults preserve the

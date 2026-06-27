@@ -24,7 +24,7 @@ import DatabasePgDriver from '../services/isolation/database_pg_driver.js'
 import RowScopePgDriver from '../services/isolation/rowscope_pg_driver.js'
 import SqliteMemoryDriver from '../services/isolation/sqlite_memory_driver.js'
 import TenantResolverRegistry from '../services/resolvers/registry.js'
-import { builtInResolvers } from '../services/resolvers/builtins.js'
+import { wireResolverChain } from './resolver_chain.js'
 import TenantLogContext from '../services/tenant_log_context.js'
 import { primeTenancy } from '../tenancy.js'
 import HealthService from '../health/health_service.js'
@@ -193,17 +193,11 @@ export default class MultitenancyProvider {
     BackofficeBaseModel.$adapter = unifiedAdapter
     CentralBaseModel.$adapter = unifiedAdapter
 
-    // Seed the resolver registry with the built-ins and apply the
-    // configured strategy (or chain). Apps can register additional
-    // resolvers in their own provider's `boot()` after this one runs.
-    for (const r of builtInResolvers) {
-      if (!resolvers.has(r.name)) resolvers.register(r)
-    }
-    const chain =
-      config.resolverChain && config.resolverChain.length > 0
-        ? config.resolverChain
-        : [config.resolverStrategy]
-    resolvers.setChain(chain)
+    // Seed the resolver registry with the built-ins + any host-provided inline
+    // resolver instances, then apply the configured strategy (or chain). Apps
+    // can register additional resolvers in their own provider's `boot()` after
+    // this one runs. See providers/resolver_chain.
+    wireResolverChain(resolvers, config)
 
     // Cross-tenant IDOR signal. A client-controlled resolver strategy
     // (header/path/request-data) with no `authorizeTenantAccess` means the
