@@ -6,6 +6,7 @@
     "src/**/*.d.ts",
     "src/commands/commands.json",
     "src/index.ts",
+    "src/define_config.ts",
     "build/**",
     "bin/**",
     "tests/**"
