@@ -1,9 +1,10 @@
 import type { ApplicationService } from '@adonisjs/core/types'
 import logger from '@adonisjs/core/services/logger'
 import { DoctorService } from '@adonisjs-lasagna/saas-tenancy/services'
-import type {
-  SatelliteProviderConstructor,
-  SatelliteProviderContract,
+import {
+  assertSatelliteApiCompatAtBoot,
+  type SatelliteProviderConstructor,
+  type SatelliteProviderContract,
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import backupRecencyCheck from '../src/doctor/backup_recency_check.js'
 import backupEncryptionCheck from '../src/doctor/backup_encryption_check.js'
@@ -25,6 +26,12 @@ export default class BackupProvider implements SatelliteProviderContract {
   constructor(protected app: ApplicationService) {}
 
   async boot() {
+    // Runtime ABI backstop (see scripts/check-abi-boot-assertion.mjs; satelliteApi
+    // mirrors package.json#lasagnaSatellite). Fail fast on a core too old.
+    assertSatelliteApiCompatAtBoot({ satelliteApi: 1 }, '@adonisjs-lasagna/backup', (m) =>
+      logger.warn(m)
+    )
+
     const doctor = await this.app.container.make(DoctorService)
     if (!doctor.has('backup_recency')) doctor.register(backupRecencyCheck)
     if (!doctor.has('backup_encryption')) doctor.register(backupEncryptionCheck)

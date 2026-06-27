@@ -14,7 +14,11 @@ export { readSatelliteManifest, isSafeRelativePath } from './manifest.js'
 
 export type { SatelliteProviderContract, SatelliteProviderConstructor } from './contract.js'
 
-export { SATELLITE_API_VERSION, checkSatelliteApiCompat } from './api_version.js'
+export {
+  SATELLITE_API_VERSION,
+  checkSatelliteApiCompat,
+  assertSatelliteApiCompatAtBoot,
+} from './api_version.js'
 export type { SatelliteApiCompat } from './api_version.js'
 
 /**

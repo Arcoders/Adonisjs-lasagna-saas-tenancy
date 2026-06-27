@@ -1,7 +1,8 @@
 import type { ApplicationService } from '@adonisjs/core/types'
-import type {
-  SatelliteProviderConstructor,
-  SatelliteProviderContract,
+import {
+  assertSatelliteApiCompatAtBoot,
+  type SatelliteProviderConstructor,
+  type SatelliteProviderContract,
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import ReportingService from '../src/reporting_service.js'
 import ReportExtensionRegistry from '../src/report_extension_registry.js'
@@ -30,6 +31,10 @@ export default class ReportingProvider implements SatelliteProviderContract {
   }
 
   boot() {
+    // Runtime ABI backstop (see scripts/check-abi-boot-assertion.mjs; satelliteApi
+    // mirrors package.json#lasagnaSatellite). Fail fast on a core too old.
+    assertSatelliteApiCompatAtBoot({ satelliteApi: 1 }, '@adonisjs-lasagna/reporting')
+
     const config = this.app.config.get<MultitenancyConfigWithReporting>('multitenancy')
     assertReportingConfig(config?.reporting)
   }

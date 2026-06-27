@@ -11,9 +11,10 @@ import type {
   TenantModelContract,
   TenantRepositoryContract,
 } from '@adonisjs-lasagna/saas-tenancy/types'
-import type {
-  SatelliteProviderConstructor,
-  SatelliteProviderContract,
+import {
+  assertSatelliteApiCompatAtBoot,
+  type SatelliteProviderConstructor,
+  type SatelliteProviderContract,
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import TenantSocketServer from '../src/tenant_socket_server.js'
 import { resolveTenantIdFromHandshake } from '../src/resolve_from_handshake.js'
@@ -63,6 +64,12 @@ export default class WebSocketsProvider implements SatelliteProviderContract {
   }
 
   async boot() {
+    // Runtime ABI backstop (see scripts/check-abi-boot-assertion.mjs; satelliteApi
+    // mirrors package.json#lasagnaSatellite). Fail fast on a core too old.
+    assertSatelliteApiCompatAtBoot({ satelliteApi: 1 }, '@adonisjs-lasagna/websockets', (m) =>
+      logger.warn(m)
+    )
+
     const config = this.app.config.get<MultitenancyConfigWithWs>('multitenancy')
     this.#config = config?.websockets
     this.#enabled = Boolean(this.#config)

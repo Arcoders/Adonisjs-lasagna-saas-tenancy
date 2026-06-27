@@ -3,9 +3,10 @@ import logger from '@adonisjs/core/services/logger'
 import { HookRegistry } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantQuotaExceeded, QuotaTracked } from '@adonisjs-lasagna/saas-tenancy/events'
 import type { MultitenancyConfig } from '@adonisjs-lasagna/saas-tenancy/types'
-import type {
-  SatelliteProviderConstructor,
-  SatelliteProviderContract,
+import {
+  assertSatelliteApiCompatAtBoot,
+  type SatelliteProviderConstructor,
+  type SatelliteProviderContract,
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import BillingService from '../src/services/billing_service.js'
 import BillingDriverRegistry from '../src/services/billing/billing_driver_registry.js'
@@ -46,6 +47,14 @@ export default class BillingProvider implements SatelliteProviderContract {
   }
 
   async boot() {
+    // Runtime ABI backstop: configure gated this at install time, but a later
+    // core downgrade would slip past that one-time check. Fail fast on a core
+    // too old for this satellite. satelliteApi mirrors package.json#lasagnaSatellite
+    // (kept in lockstep by scripts/check-abi-boot-assertion.mjs).
+    assertSatelliteApiCompatAtBoot({ satelliteApi: 1 }, '@adonisjs-lasagna/billing', (m) =>
+      logger.warn(m)
+    )
+
     const config = this.app.config.get<MultitenancyConfig>('multitenancy')
     if (!config?.billing) return
 

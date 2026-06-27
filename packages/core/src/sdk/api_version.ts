@@ -72,3 +72,27 @@ export function checkSatelliteApiCompat(
 
   return { level: 'ok' }
 }
+
+/**
+ * Enforce {@link checkSatelliteApiCompat} at satellite `boot()` time: throw on
+ * `fail` (the running core is too old for this satellite — fail fast before any
+ * feature code runs), surface `warn` through `onWarn` (defaults to `console.warn`,
+ * the same fallback the registries use), do nothing on `ok`.
+ *
+ * `configure` already gates ABI at install time ({@link checkSatelliteApiCompat}
+ * via `partitionSatellitesByApiCompat`), but that only runs once, at scaffold
+ * time. A later `npm i @adonisjs-lasagna/saas-tenancy@older` downgrades the core
+ * underneath an already-configured satellite with no re-check — so each satellite
+ * provider calls this at boot as the runtime backstop. Pure (no fs/app import) so
+ * a provider can call it synchronously; pass a logger-backed `onWarn` if desired.
+ */
+export function assertSatelliteApiCompatAtBoot(
+  manifest: Pick<SatelliteManifest, 'satelliteApi'>,
+  packageName: string,
+  onWarn: (message: string) => void = (m) => console.warn(`[lasagna] ${m}`),
+  coreApiVersion: number = SATELLITE_API_VERSION
+): void {
+  const result = checkSatelliteApiCompat(manifest, packageName, coreApiVersion)
+  if (result.level === 'fail') throw new Error(result.message)
+  if (result.level === 'warn') onWarn(result.message)
+}
