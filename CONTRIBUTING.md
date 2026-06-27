@@ -4,6 +4,8 @@ Hey, thanks for thinking about contributing. Issues, suggestions, and pull reque
 
 This guide covers getting set up, making changes, and getting them merged. If anything here is unclear or out of date, open an issue.
 
+By participating, you agree to abide by the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ---
 
 ## Before you start
@@ -68,14 +70,24 @@ export CACHE_REDIS_HOST=127.0.0.1 CACHE_REDIS_PORT=6379 CACHE_REDIS_DB=2
 export APP_KEY=a-32-character-long-secret-key!! HOST=127.0.0.1 PORT=3333 LOG_LEVEL=error TENANT_HEADER_KEY=x-tenant-id
 ```
 
-Before pushing, also run:
+### Checks CI will run
+
+Run these before pushing — CI runs all of them and a PR cannot merge until they
+pass, so saving yourself the round-trip helps:
 
 ```bash
-npm run typecheck    # confirms TypeScript is happy
+npm run lint         # ESLint + Prettier (prettier/prettier is an error, not a warning)
+npm run typecheck    # tsc --noEmit across every workspace (run npm run build:all first)
 npm run build        # confirms the package compiles cleanly
+npm test             # unit suite
+npm run knip:deps    # dependency hygiene (run whenever a package.json dep/peer changed)
+npm run test:integrity  # every command, config option, and package is documented
+npm run check        # the source-scan gates (stability, positioning, satellite wiring,
+                     #   peer ranges, publish coverage, community health, …)
 ```
 
-CI will run all three, so saving yourself the round-trip helps.
+`npm run lint` is **required**, not optional: `prettier/prettier` is configured
+as an ESLint error, so an unformatted file fails CI.
 
 ---
 
@@ -84,7 +96,7 @@ CI will run all three, so saving yourself the round-trip helps.
 We try to keep things simple:
 
 - **TypeScript everywhere.** This is an npm-workspaces monorepo: the core package lives in `packages/core/` (source in `packages/core/src/`, tests in `packages/core/tests/`) and each satellite in `packages/<name>/`. The reference app is `examples/api/`.
-- **Follow the existing style.** ESLint and Prettier are set up. Run `npm run lint` if you want to check, or just let your editor's Prettier plugin handle it on save.
+- **Follow the existing style.** ESLint and Prettier are set up. Run `npm run lint` before pushing — `prettier/prettier` is an ESLint error, so an unformatted file fails CI (it is not optional). Your editor's Prettier-on-save keeps it green as you go.
 - **Naming.** Files are `snake_case.ts`. Classes are `PascalCase`. Functions and variables are `camelCase`.
 - **Add tests for what you change.** Bug fixes deserve a regression test. New features need their own tests covering the happy path and obvious edge cases.
 - **Keep it focused.** One PR should do one thing. If you find yourself fixing five unrelated issues, please split them into separate PRs.

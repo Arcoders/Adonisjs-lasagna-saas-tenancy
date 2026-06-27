@@ -40,7 +40,7 @@ and runs the full e2e suite against it.
 | **Dependency resilience** | Per-dependency fail-open/fail-closed degradation policy via `ResilienceService`. Emits `DependencyDegraded` for alerting and returns a typed 503 (`DependencyUnavailableException`) when fail-closed. |
 | **Lifecycle hooks + 28 typed events** | Declarative `before` / `after` hooks wired into commands and jobs. 18 core (tenant / quota / maintenance / resilience / metrics lifecycle) + 10 billing. |
 | **Contextual logging** | `tenantId` rides along through HTTP and queue jobs via `AsyncLocalStorage`. |
-| **`tenant:doctor`** | Nine built-in checks (plus `backup_recency` and `backup_encryption` when the backup satellite is installed), `--fix` for auto-recovery, `--json` for CI, `--watch` for a live TUI. |
+| **`tenant:doctor`** | Ten built-in checks (plus `backup_recency` and `backup_encryption` when the backup satellite is installed), `--fix` for auto-recovery, `--json` for CI, `--watch` for a live TUI. |
 | **Plans and quotas** | Declarative plans, rolling counters, snapshot usage, an `enforceQuota()` middleware that returns 429 and emits `TenantQuotaExceeded`. |
 | **Scheduled backups + retention** | Tier-based intervals and `keepLast`, S3 mirror with purge awareness, idempotent cron command. |
 | **Health probes + Prometheus** | `/livez`, `/readyz`, `/healthz`, `/metrics`. No `prom-client` peer dep. |

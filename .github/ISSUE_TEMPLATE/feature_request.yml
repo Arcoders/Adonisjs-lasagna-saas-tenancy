@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest an enhancement to Lasagna
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please open a feature request to discuss before sending a PR — it saves
+        everyone time if the idea doesn't fit the package's scope. Lasagna is
+        PostgreSQL-only and AdonisJS-only by design; see the roadmap before
+        proposing another database or framework.
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      description: Which package would this affect?
+      options:
+        - "@adonisjs-lasagna/saas-tenancy (core)"
+        - "@adonisjs-lasagna/billing"
+        - "@adonisjs-lasagna/backup"
+        - "@adonisjs-lasagna/sso"
+        - "@adonisjs-lasagna/admin"
+        - "@adonisjs-lasagna/websockets"
+        - "@adonisjs-lasagna/reporting"
+        - "A new satellite"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that's hard or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What you'd like to happen. Sketch the API/config if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you've tried or other approaches you weighed.
+    validations:
+      required: false

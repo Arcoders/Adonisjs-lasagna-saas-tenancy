@@ -120,6 +120,14 @@ jobs:
       - name: Extension-contract gate
         run: node scripts/check-extension-contracts.mjs
 
+      # Aggregate source-scan gate: runs every fast guard (the ones above plus
+      # backoffice-isolation, routes-options-naming, billing-provider-neutral,
+      # billing-driver-name-canonical, abi-boot-assertion, satellite-config-wiring,
+      # peer-ranges, publish-coverage, contributing-gates, community-health). The
+      # same command contributors run locally (`npm run check`).
+      - name: Source-scan gates (npm run check)
+        run: npm run check
+
       - name: Test (unit) + coverage
         run: npm run test:coverage
 
