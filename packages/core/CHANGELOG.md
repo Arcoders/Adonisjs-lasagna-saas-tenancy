@@ -315,6 +315,24 @@ for a copy-paste migration.
   a missing schema template) surfaces as `IsolationConfigException` (500), so a
   retryable 503 always means "dependency down", never "wrong config". Locked by
   the `connection_failure_503` integration tests.
+- **Connection-infrastructure failures fail closed as 503, not raw 500.** A
+  backend severed mid-handler (a failover, an admin `pg_terminate_backend`, a
+  crash) and a Lucid unregistered-connection error (`E_UNMANAGED_DB_CONNECTION`,
+  which carries a 500 but is transient) now map to a retry-able 503 on both the
+  guarded and universal paths via a narrow connection-outage classifier — an
+  ordinary constraint violation still passes straight through. The universal
+  middleware also now connects BEFORE probing the circuit breaker (matching the
+  guarded path); previously the probe ran first and failed a tenant's first
+  request with an unregistered-connection error. Postgres rolls an aborted
+  transaction back, so no partial write survives. Locked by
+  `pg_outage_mid_transaction`, `connection_failure_503`, and
+  `universal_connection_cap`.
+- **`rowscope-pg` cross-tenant isolation holds under concurrency, and the RLS GUC
+  is transaction-local.** New proofs cover interleaved writes/reads across many
+  tenants on the shared rowscope connection, a query that ignores the RLS
+  transaction returning zero rows, and the `app.tenant_id` setting not leaking to
+  a reused pooled connection after commit (`rowscope_cross_tenant_concurrent`,
+  `rowscope_rls`).
 - **Impersonation tokens are bound to the request's tenant.** A token minted for
   tenant A and presented on a request resolved to tenant B is rejected with 401.
   The check no longer depends on the tenant guard running first: when no context

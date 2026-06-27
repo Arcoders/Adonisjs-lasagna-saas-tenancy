@@ -288,18 +288,34 @@ export function hasDecidedHttpStatus(err: unknown): err is { status: number } {
 }
 
 /**
+ * Map an error raised during the tenant resolve/connect phase (registry lookup,
+ * circuit probe, driver connect) to the fail-closed response. A dependency
+ * outage maps to a retry-able 503 EVEN IF it carries an HTTP status — Lucid tags
+ * an unregistered-connection error (`E_UNMANAGED_DB_CONNECTION`, raised when a
+ * tenant's pool was never established) with a 500, but it is a transient
+ * connection-infrastructure failure, not a permanent decision. Any OTHER decided
+ * status is respected (the hard-cap 503, a 500-class `IsolationConfig` misconfig
+ * that is genuinely permanent). Everything else defaults to a 503. Returns the
+ * exception to throw; the caller throws it so the control flow stays explicit.
+ */
+export function mapTenantConnectError(operation: string, err: unknown, tenantId?: string): unknown {
+  if (isDependencyOutageError(err)) return dependencyUnavailable(operation, err, tenantId)
+  if (hasDecidedHttpStatus(err)) return err
+  return dependencyUnavailable(operation, err, tenantId)
+}
+
+/**
  * Map an error raised while a tenant request was running its handler (the
  * query phase, after connect succeeded). A backend severed mid-flight — a
  * failover, an admin `pg_terminate_backend`, a crash — otherwise bubbles a raw
  * Lucid 500 that reads as non-retryable, even though Postgres has already rolled
- * the transaction back. Map only unambiguous connection-loss signatures to a
- * clean, retry-able 503; pass everything else (an already-decided HTTP status,
- * an ordinary constraint violation, an application error) straight through so
- * the host's exception handler still owns it. The connect-phase analogue lives
- * in the `request.tenant()` / universal-middleware catch sites.
+ * the transaction back. An outage maps to a clean, retry-able 503 even if it
+ * carries a status; everything else (an ordinary constraint violation, an
+ * application error, a deliberate 4xx) passes straight through so the host's
+ * exception handler still owns it. The connect-phase analogue is
+ * {@link mapTenantConnectError}.
  */
 export function mapTenantQueryError(err: unknown, tenantId?: string): unknown {
-  if (hasDecidedHttpStatus(err)) return err
   if (isDependencyOutageError(err)) return dependencyUnavailable('tenant.query', err, tenantId)
   return err
 }
@@ -337,12 +353,11 @@ export function mapTenantQueryError(err: unknown, tenantId?: string): unknown {
       } catch (err) {
         // Respect an error that already declares an HTTP status — a 400 missing
         // header, a 404 not-found, a 500 config fault: the layer that threw it
-        // already decided the right response. Anything else is the tenant registry
-        // (central DB) being unreachable, so fail closed with a 503 rather than
-        // leaking a raw Lucid 500. A host repository that wants a specific status
-        // for its own errors should throw an Exception carrying one.
-        if (hasDecidedHttpStatus(err)) throw err
-        throw dependencyUnavailable(
+        // already decided the right response. A connection-infrastructure outage
+        // (even one Lucid tags with a 500) maps to a clean, retry-able 503; any
+        // other registry failure (central DB unreachable) likewise fails closed
+        // as a 503 rather than leaking a raw Lucid error.
+        throw mapTenantConnectError(
           'tenant.lookup',
           err,
           result?.type === 'id' ? result.tenantId : undefined
@@ -363,13 +378,12 @@ export function mapTenantQueryError(err: unknown, tenantId?: string): unknown {
       try {
         await driver.connect(tenant)
       } catch (err) {
-        // Respect a decided HTTP status: the hard-cap 503 (TenantConnectionLimit)
-        // and the 500 misconfig (IsolationConfig) both carry one and pass straight
-        // through. Any other connect failure (Postgres down, ECONNREFUSED, timeout)
-        // is a raw backend outage — map it to a clean, retry-able 503 instead of
-        // letting a raw Lucid error bubble up as an opaque 500.
-        if (hasDecidedHttpStatus(err)) throw err
-        throw dependencyUnavailable('tenant.connect', err, tenant.id)
+        // A connection-infrastructure outage (an unregistered-connection error
+        // Lucid tags with a 500, Postgres down, ECONNREFUSED, timeout) maps to a
+        // clean, retry-able 503. A genuinely decided status (the hard-cap 503
+        // TenantConnectionLimit, the permanent 500 IsolationConfig misconfig)
+        // still passes straight through.
+        throw mapTenantConnectError('tenant.connect', err, tenant.id)
       }
       ;(this as any)[TENANT_MEMO_KEY] = tenant
       return tenant

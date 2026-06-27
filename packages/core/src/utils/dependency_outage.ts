@@ -30,6 +30,16 @@ const OUTAGE_ERRNO = new Set([
 ])
 
 /**
+ * Driver/ORM-level error codes that mean the connection could not be
+ * established or is gone. Lucid raises `E_UNMANAGED_DB_CONNECTION` when a
+ * connection name is not registered — which is what surfaces when a tenant's
+ * `connect()` failed (or never ran) and a later probe/query tries to use the
+ * pool. It is a connection-infrastructure failure, not an application bug, so it
+ * belongs with the outage signatures even though Lucid tags it with a 500.
+ */
+const OUTAGE_DRIVER_CODES = new Set(['E_UNMANAGED_DB_CONNECTION'])
+
+/**
  * PostgreSQL SQLSTATE classes/codes for connection loss and server shutdown.
  * Class 08 = "Connection Exception"; 57P0x = operator/crash shutdown; 53300 =
  * too_many_connections (the server actively refused a new backend).
@@ -72,6 +82,7 @@ export function isDependencyOutageError(err: unknown): boolean {
   const code = (err as { code?: unknown }).code
   if (typeof code === 'string') {
     if (OUTAGE_ERRNO.has(code)) return true
+    if (OUTAGE_DRIVER_CODES.has(code)) return true
     if (OUTAGE_SQLSTATE.has(code)) return true
   }
 

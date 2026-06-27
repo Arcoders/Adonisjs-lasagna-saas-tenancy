@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import { isDependencyOutageError } from '../../../src/utils/dependency_outage.js'
-import { mapTenantQueryError } from '../../../src/extensions/request.js'
+import { mapTenantQueryError, mapTenantConnectError } from '../../../src/extensions/request.js'
 import DependencyUnavailableException from '../../../src/exceptions/dependency_unavailable_exception.js'
 
 /**
@@ -35,6 +35,14 @@ test.group('dependency-outage classifier', () => {
       { message: 'terminating connection due to administrator command' },
     ],
     ['server closed the connection', { message: 'server closed the connection unexpectedly' }],
+    [
+      'Lucid unregistered connection E_UNMANAGED_DB_CONNECTION (carries a 500)',
+      {
+        code: 'E_UNMANAGED_DB_CONNECTION',
+        status: 500,
+        message: 'Cannot connect to unregistered connection tenant_x',
+      },
+    ],
   ]
 
   for (const [label, err] of outages) {
@@ -77,10 +85,48 @@ test.group('mapTenantQueryError', () => {
     assert.strictEqual(mapTenantQueryError(original, 'tenant-7'), original)
   })
 
-  test('passes an already-decided HTTP status through untouched', ({ assert }) => {
-    const decided = Object.assign(new Error('forbidden'), { status: 403, code: 'ECONNRESET' })
-    // Even though it carries an outage code, a decided status wins (the layer
-    // that threw it already chose the response).
+  test('passes a non-outage decided HTTP status through untouched', ({ assert }) => {
+    const decided = Object.assign(new Error('forbidden'), { status: 403 })
     assert.strictEqual(mapTenantQueryError(decided, 'tenant-7'), decided)
+  })
+
+  test('maps an outage to 503 even when it carries a status (Lucid 500)', ({ assert }) => {
+    const outageWithStatus = Object.assign(new Error('unregistered connection'), {
+      code: 'E_UNMANAGED_DB_CONNECTION',
+      status: 500,
+    })
+    const mapped = mapTenantQueryError(outageWithStatus, 'tenant-7')
+    assert.instanceOf(mapped, DependencyUnavailableException)
+    assert.equal((mapped as DependencyUnavailableException).status, 503)
+  })
+})
+
+test.group('mapTenantConnectError', () => {
+  test('maps an unregistered-connection 500 to a 503 (the fail-closed bug fix)', ({ assert }) => {
+    // The exact shape Lucid throws from the circuit probe / connect when a
+    // tenant's pool was never established. It carries a 500, but it is a transient
+    // connection-infrastructure failure and must fail closed as a retry-able 503.
+    const err = Object.assign(new Error('Cannot connect to unregistered connection tenant_x'), {
+      code: 'E_UNMANAGED_DB_CONNECTION',
+      status: 500,
+    })
+    const mapped = mapTenantConnectError('tenant.connect', err, 'tenant-7')
+    assert.instanceOf(mapped, DependencyUnavailableException)
+    assert.equal((mapped as DependencyUnavailableException).status, 503)
+    assert.equal((mapped as DependencyUnavailableException).operation, 'tenant.connect')
+  })
+
+  test('respects a genuinely decided non-outage status (e.g. the hard-cap 503 / config 500)', ({
+    assert,
+  }) => {
+    const decided = Object.assign(new Error('connection limit'), { status: 503, code: 'E_X' })
+    assert.strictEqual(mapTenantConnectError('tenant.connect', decided, 'tenant-7'), decided)
+  })
+
+  test('defaults an undecided backend error to a 503', ({ assert }) => {
+    const mapped = mapTenantConnectError('tenant.lookup', new Error('central db down'), 'tenant-7')
+    assert.instanceOf(mapped, DependencyUnavailableException)
+    assert.equal((mapped as DependencyUnavailableException).status, 503)
+    assert.equal((mapped as DependencyUnavailableException).operation, 'tenant.lookup')
   })
 })

@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
-import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 import { getActiveDriver } from '@adonisjs-lasagna/saas-tenancy/services'
 import { createTestTenant, destroyTestTenant } from '../helpers/tenant.js'
 
@@ -31,26 +31,30 @@ async function clearTenantConnections(): Promise<void> {
  * request to central mode; it must now surface the 503 instead.
  */
 test.group('UniversalMiddleware — hard connection cap (integration)', (group) => {
-  let savedIsolation: any
+  let savedConfig: any
 
   group.each.setup(async () => {
-    const cfg: any = getConfig()
-    savedIsolation = cfg.isolation
-    // Hard cap of 1, a long grace so the single open connection is never
-    // evictable, and a fresh (empty) connection registry.
-    cfg.isolation = {
-      ...(cfg.isolation ?? {}),
-      enforceConnectionCap: true,
-      maxTenantConnections: 1,
-      evictionGracePeriodMs: 60_000,
-    }
+    // The config singleton is deep-frozen (config immutability), so an override
+    // must re-seed the whole config via setConfig (permitted outside production)
+    // rather than mutating the frozen object in place. Hard cap of 1, a long
+    // grace so the single open connection is never evictable, and a fresh (empty)
+    // connection registry.
+    savedConfig = getConfig()
+    setConfig({
+      ...savedConfig,
+      isolation: {
+        ...(savedConfig.isolation ?? {}),
+        enforceConnectionCap: true,
+        maxTenantConnections: 1,
+        evictionGracePeriodMs: 60_000,
+      },
+    })
     await clearTenantConnections()
   })
 
   group.each.teardown(async () => {
     await clearTenantConnections()
-    const cfg: any = getConfig()
-    cfg.isolation = savedIsolation
+    setConfig(savedConfig)
   })
 
   test('no tenant header still serves central mode (200)', async ({ client }) => {

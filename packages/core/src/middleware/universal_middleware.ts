@@ -3,8 +3,7 @@ import { resolveTenantRepository } from '../services/resolve_tenant_repository.j
 import {
   resolveTenant,
   __setMemoizedTenant,
-  dependencyUnavailable,
-  hasDecidedHttpStatus,
+  mapTenantConnectError,
   mapTenantQueryError,
   findTenantByIdCached,
 } from '../extensions/request.js'
@@ -89,12 +88,12 @@ export default class UniversalMiddleware {
     } catch (err) {
       // The request named a tenant but the registry lookup threw (central DB
       // down, etc.). Degrading to central here would serve a tenant-targeted
-      // request without its data context, so fail closed instead. Respect a
-      // decided HTTP status; map a raw outage to a 503 — consistent with
-      // `request.tenant()`. (A genuinely absent tenant returns null below and
-      // still degrades to central, per the "as if it didn't exist" contract.)
-      if (hasDecidedHttpStatus(err)) throw err
-      throw dependencyUnavailable(
+      // request without its data context, so fail closed instead. An outage maps
+      // to a 503 (even one Lucid tags with a 500); any other decided status is
+      // respected — consistent with `request.tenant()`. (A genuinely absent
+      // tenant returns null below and still degrades to central, per the "as if
+      // it didn't exist" contract.)
+      throw mapTenantConnectError(
         'tenant.lookup',
         err,
         result.type === 'id' ? result.tenantId : undefined
@@ -105,8 +104,27 @@ export default class UniversalMiddleware {
     if (tenant.isSuspended || tenant.isDeleted) return null
     if (tenant.isProvisioning || tenant.isFailed) return null
 
-    // Drive the tenant breaker so universal-route traffic trips it too. A named
-    // tenant whose DB is failing must fail closed (503), never degrade to
+    // Connect BEFORE probing the breaker, mirroring the guarded path (where
+    // `request.tenant()` connects first). The breaker probe runs `SELECT 1` on
+    // the tenant's connection NAME, which only exists once `connect()` has
+    // registered it — running the probe first would fail every tenant's first
+    // request with an unregistered-connection error. A connect failure (Postgres
+    // down, an unregistered-connection 500, the hard-cap limit) fails closed as
+    // the appropriate status instead of degrading to central.
+    try {
+      const driver = await getActiveDriver()
+      await driver.connect(tenant)
+    } catch (err) {
+      // The tenant resolved fine; only its backend connection failed. Fail
+      // closed rather than degrade to central. An outage (Postgres down, an
+      // unregistered-connection 500, etc.) maps to a clean 503; a genuinely
+      // decided status (the hard-cap 503, a 500-class config fault) passes
+      // through — consistent with `request.tenant()`.
+      throw mapTenantConnectError('tenant.connect', err, tenant.id)
+    }
+
+    // Drive the tenant breaker so universal-route traffic trips it too: a named
+    // tenant whose DB stops responding must fail closed (503), never degrade to
     // central — that would serve a tenant-targeted request without its data.
     const cbService = await app.container.make(CircuitBreakerService)
     try {
@@ -115,22 +133,9 @@ export default class UniversalMiddleware {
       if (cbService.isOpen(tenant.id) || cbService.isOpenRejection(err)) {
         throw new CircuitOpenException()
       }
-      if (hasDecidedHttpStatus(err)) throw err
-      throw dependencyUnavailable('tenant.circuit_probe', err, tenant.id)
+      throw mapTenantConnectError('tenant.circuit_probe', err, tenant.id)
     }
 
-    try {
-      const driver = await getActiveDriver()
-      await driver.connect(tenant)
-    } catch (err) {
-      // The tenant resolved fine; only its backend connection failed. Fail
-      // closed rather than degrade to central. Respect a decided HTTP status
-      // (the hard-cap 503, or a 500-class config fault); map any other connect
-      // failure (Postgres down, etc.) to a clean 503 — consistent with
-      // `request.tenant()`.
-      if (hasDecidedHttpStatus(err)) throw err
-      throw dependencyUnavailable('tenant.connect', err, tenant.id)
-    }
     __setMemoizedTenant(request, tenant)
     return tenant
   }
