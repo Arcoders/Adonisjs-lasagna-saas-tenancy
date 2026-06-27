@@ -363,6 +363,12 @@ for a copy-paste migration.
 
 ### Changed
 
+- **`@adonisjs/queue` is an optional, widened peer.** The range moved from a
+  capped `^0.6.0` to `>=0.6.0 <1` (a queue 0.7 release no longer breaks installs),
+  and the queue-backed job classes (`InstallTenant` / `UninstallTenant` /
+  `TenantJob`, which `extends Job`) are no longer re-exported from the main barrel,
+  so `import '@adonisjs-lasagna/saas-tenancy'` stays queue-free. Import them from
+  the `@adonisjs-lasagna/saas-tenancy/jobs` subpath when you run a worker.
 - **The core is smaller.** It no longer bundles a Stripe engine, an OIDC client,
   a REST admin API, or the backup/clone tooling, so a CVE in any of those no
   longer forces a core bump.

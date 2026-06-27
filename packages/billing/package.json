@@ -88,9 +88,6 @@
     "stripe": "^22.0.0"
   },
   "peerDependenciesMeta": {
-    "@adonisjs/queue": {
-      "optional": true
-    },
     "stripe": {
       "optional": true
     }

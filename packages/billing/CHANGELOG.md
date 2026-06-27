@@ -127,6 +127,10 @@ production mileage.
 
 ### Changed
 
+- **`@adonisjs/queue` peer widened to `>=0.6.0 <1`** (was a capped `^0.6.0`). It
+  stays a required peer: the package dispatches background jobs from its main
+  barrel (webhook processing via `ProcessBillingEventJob`, usage batching), so a
+  queue worker is part of the supported setup.
 - **Multi-provider reconciliation parity.** `tenant:billing:sync` is now
   driver-neutral: a capability-gated `subscription_list` (Stripe, Paddle, Lemon
   Squeezy) drives the forward pass for every provider. A driver without the capability

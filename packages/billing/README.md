@@ -54,8 +54,12 @@ tenant-delete listeners on start, and drains the metering aggregator on shutdown
 
 ## Configuration
 
-Billing config lives on the host's core config object (`config.billing`), not in
-this package:
+The `billing` block lives on the host's `config/multitenancy.ts`. Importing this
+package augments core's `MultitenancyConfig` (through `SatelliteConfigRegistry`
+declaration merging), so `config.billing` is typed wherever billing is installed,
+while core itself stays free of the billing shape. Type the whole object with
+`MultitenancyConfigWithBilling`, or author the block on its own with the
+`defineBillingConfig` helper:
 
 ```ts
 // config/multitenancy.ts (billing block)
@@ -72,7 +76,7 @@ billing: {
 },
 ```
 
-The webhook path (default `/webhooks/stripe`) must be listed in
+The webhook path (default `/webhooks/billing`) must be listed in
 `config.ignorePaths` so the signed-webhook body reaches the verifier unparsed. See
 the [billing guide](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/billing)
 for the exhaustive configuration reference.

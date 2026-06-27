@@ -41,6 +41,14 @@ const SURFACES = [
     file: 'packages/core/src/jobs/index.ts',
     banned: [{ re: /ProcessStripeEventJob/, why: 'stale ProcessStripeEventJob reference' }],
   },
+  {
+    // The published README is a doc surface too: the WS-7 webhook default moved to
+    // '/webhooks/billing', so the README must not advertise the old Stripe-branded
+    // path (a host that copies it into `config.ignorePaths` breaks signature
+    // verification on the real route).
+    file: 'packages/billing/README.md',
+    banned: [{ re: /\/webhooks\/stripe/, why: "Stripe-branded webhook path in README (default is now '/webhooks/billing')" }],
+  },
 ]
 
 /** Pure rule: return the violated `why`s for one source string. */
