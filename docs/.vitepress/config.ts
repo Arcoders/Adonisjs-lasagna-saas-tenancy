@@ -284,6 +284,7 @@ export default withMermaid({
       { text: 'Start', link: '/start/introduction', activeMatch: '/start/' },
       { text: 'Guides', link: '/guides/tenant-identification', activeMatch: '/guides/' },
       { text: 'Reference', link: '/reference/configuration', activeMatch: '/reference/' },
+      { text: 'Architecture', link: '/architecture', activeMatch: '/architecture' },
       { text: 'Showcase', link: '/showcase' },
       { text: 'Sponsor', link: '/sponsor' },
       {
