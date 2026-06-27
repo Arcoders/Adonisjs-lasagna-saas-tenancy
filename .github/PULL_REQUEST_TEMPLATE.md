@@ -5,7 +5,9 @@
 ## Checklist
 
 - [ ] Tests added/updated for the change (unit and/or integration).
-- [ ] `npm run typecheck`, `npm run lint`, and the test suites pass locally.
+- [ ] All CI gates pass locally: `npm run lint`, `npm run typecheck`, `npm test`,
+      `npm run check`, and `npm run knip:deps` (if a `package.json` dep/peer changed).
+      See [CONTRIBUTING.md](../CONTRIBUTING.md#checks-ci-will-run).
 - [ ] Added a changeset (`npx changeset`) if this changes published behaviour of any
       package (`@adonisjs-lasagna/saas-tenancy` or a satellite). Skip for docs/CI-only changes.
 - [ ] Docs touched? Followed [docs/STYLE.md](../docs/STYLE.md); `npm run docs:build` (dead-link
