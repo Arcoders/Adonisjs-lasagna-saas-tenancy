@@ -14,6 +14,7 @@ import { hostMatchesExpectedSuffix } from '../services/resolvers/builtins.js'
 import type { ResolverCacheConfig } from '../types/config.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import TelemetryService from '../services/telemetry_service.js'
+import { isDependencyOutageError } from '../utils/dependency_outage.js'
 import { isUuidV4 } from '../services/isolation/identifier.js'
 import { isProductionNodeEnv } from '../utils/env.js'
 import TenantResolverRegistry from '../services/resolvers/registry.js'
@@ -284,6 +285,23 @@ export function hasDecidedHttpStatus(err: unknown): err is { status: number } {
     err !== null &&
     typeof (err as { status?: unknown }).status === 'number'
   )
+}
+
+/**
+ * Map an error raised while a tenant request was running its handler (the
+ * query phase, after connect succeeded). A backend severed mid-flight — a
+ * failover, an admin `pg_terminate_backend`, a crash — otherwise bubbles a raw
+ * Lucid 500 that reads as non-retryable, even though Postgres has already rolled
+ * the transaction back. Map only unambiguous connection-loss signatures to a
+ * clean, retry-able 503; pass everything else (an already-decided HTTP status,
+ * an ordinary constraint violation, an application error) straight through so
+ * the host's exception handler still owns it. The connect-phase analogue lives
+ * in the `request.tenant()` / universal-middleware catch sites.
+ */
+export function mapTenantQueryError(err: unknown, tenantId?: string): unknown {
+  if (hasDecidedHttpStatus(err)) return err
+  if (isDependencyOutageError(err)) return dependencyUnavailable('tenant.query', err, tenantId)
+  return err
 }
 
 ;(HttpRequest as any).macro(

@@ -7,6 +7,7 @@ import TenantSuspendedException from '../exceptions/tenant_suspended_exception.j
 import TenantAccessForbiddenException from '../exceptions/tenant_access_forbidden_exception.js'
 import TenantMaintenanceException from '../exceptions/tenant_maintenance_exception.js'
 import CircuitBreakerService from '../services/circuit_breaker_service.js'
+import { mapTenantQueryError } from '../extensions/request.js'
 import { tenancy } from '../tenancy.js'
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
@@ -72,8 +73,15 @@ export default class TenantGuardMiddleware {
     // Bind the tenant log context AND run the bootstrapper enter/leave
     // lifecycle for the request (a bare logCtx.run skipped bootstrappers on the
     // HTTP path, so a custom isolation bootstrapper silently no-opped here while
-    // working in jobs).
-    return tenancy.runForRequest(tenant, request, () => next())
+    // working in jobs). A tenant backend severed mid-handler (failover, admin
+    // termination, crash) is mapped to a clean 503 instead of a raw Lucid 500;
+    // Postgres has already rolled the aborted transaction back, so no partial
+    // write survives. Ordinary handler errors pass straight through.
+    try {
+      return await tenancy.runForRequest(tenant, request, () => next())
+    } catch (err) {
+      throw mapTenantQueryError(err, tenant.id)
+    }
   }
 
   #hasMaintenanceBypass(request: HttpContext['request']): boolean {

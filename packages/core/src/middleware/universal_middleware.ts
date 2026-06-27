@@ -5,6 +5,7 @@ import {
   __setMemoizedTenant,
   dependencyUnavailable,
   hasDecidedHttpStatus,
+  mapTenantQueryError,
   findTenantByIdCached,
 } from '../extensions/request.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
@@ -43,8 +44,14 @@ export default class UniversalMiddleware {
 
     // Bind the tenant log context AND run the bootstrapper enter/leave
     // lifecycle for the request, matching the guarded path and the background
-    // tenancy.run() path.
-    return tenancy.runForRequest(tenant, request, () => next())
+    // tenancy.run() path. A tenant backend severed mid-handler maps to a clean
+    // 503 (Postgres has already rolled the aborted transaction back), matching
+    // the guarded path; ordinary handler errors pass through.
+    try {
+      return await tenancy.runForRequest(tenant, request, () => next())
+    } catch (err) {
+      throw mapTenantQueryError(err, tenant.id)
+    }
   }
 
   async #tryResolve(request: HttpContext['request']): Promise<TenantModelContract | null> {
