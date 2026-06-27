@@ -189,4 +189,32 @@ test.group('CustomDomainMiddleware', (group) => {
     const err = await catchError(() => m.handle(ctx, async () => {}, { strict: true }))
     assert.instanceOf(err, TenantHeaderDomainMismatchException)
   })
+
+  test('with expectedHostSuffix set, an off-allowlist Host skips the lookup (no auto-fill)', async ({
+    assert,
+  }) => {
+    // RED before the gate: findByDomain('evil.com') ran and the victim id was
+    // auto-filled (lookups === 1).
+    setupTestConfig({ resolver: { expectedHostSuffix: 'app.example' } })
+    let lookups = 0
+    const m = makeMiddleware({ 'evil.com': { id: UUID_A } }, () => (lookups += 1))
+    const { ctx, headers } = makeCtx({ host: 'evil.com' })
+    let nextCalled = false
+    await m.handle(ctx, async () => {
+      nextCalled = true
+    })
+    assert.isTrue(nextCalled)
+    assert.equal(lookups, 0)
+    assert.isUndefined(headers['x-tenant-id'])
+  })
+
+  test('with expectedHostSuffix set, an allowlisted Host still auto-fills', async ({ assert }) => {
+    setupTestConfig({ resolver: { expectedHostSuffix: 'app.example' } })
+    let lookups = 0
+    const m = makeMiddleware({ 'acme.app.example': { id: UUID_A } }, () => (lookups += 1))
+    const { ctx, headers } = makeCtx({ host: 'acme.app.example' })
+    await m.handle(ctx, async () => {})
+    assert.equal(lookups, 1)
+    assert.equal(headers['x-tenant-id'], UUID_A)
+  })
 })

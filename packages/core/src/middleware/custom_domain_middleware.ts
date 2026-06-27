@@ -2,6 +2,7 @@ import type { TenantRepositoryContract } from '../types/contracts.js'
 import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import TenantHeaderDomainMismatchException from '../exceptions/tenant_header_domain_mismatch_exception.js'
 import { getConfig } from '../config.js'
+import { hostMatchesExpectedSuffix } from '../services/resolvers/builtins.js'
 import { primeResolvedTenant } from '../extensions/request.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
@@ -44,6 +45,12 @@ export default class CustomDomainMiddleware {
     const headerTenantId = request.header(headerKey)
 
     if (!host) return next()
+
+    // When a host allowlist is configured, a Host outside it is not a domain we
+    // manage: skip the findByDomain lookup entirely (no auto-fill) so a spoofed
+    // or unexpected Host cannot be resolved to a tenant. Unset (default) accepts
+    // any host, matching the pre-allowlist behavior.
+    if (!hostMatchesExpectedSuffix(host)) return next()
 
     if (headerTenantId && !strict) {
       // Legacy (opt-in) behavior: an explicit header wins, even if it disagrees

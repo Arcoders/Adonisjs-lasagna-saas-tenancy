@@ -6,9 +6,11 @@ import {
   DomainOrSubdomainResolver,
   RequestDataResolver,
 } from '../../../src/services/resolvers/builtins.js'
+import InvalidTenantIdentifierException from '../../../src/exceptions/invalid_tenant_identifier_exception.js'
 import { setupTestConfig } from '../../helpers/config.js'
 
 const UUID = '11111111-1111-4111-8111-111111111111'
+const UUID2 = '22222222-2222-4222-8222-222222222222'
 
 function makeRequest(
   opts: {
@@ -102,6 +104,28 @@ test.group('SubdomainResolver', (group) => {
     const r = new SubdomainResolver()
     assert.isUndefined(r.resolve(makeRequest({ headers: { host: 'localhost' } })))
   })
+
+  test('with expectedHostSuffix set, an allowlisted host still resolves', ({ assert }) => {
+    setupTestConfig({ baseDomain: 'example.com', resolver: { expectedHostSuffix: 'example.com' } })
+    const r = new SubdomainResolver()
+    assert.deepEqual(r.resolve(makeRequest({ headers: { host: 'acme.example.com' } })), {
+      type: 'id',
+      tenantId: 'acme',
+    })
+  })
+
+  test('with expectedHostSuffix set, an off-allowlist host is refused (no label extraction)', ({
+    assert,
+  }) => {
+    // A spoofed X-Forwarded-Host ending in a baseDomain that is NOT on the
+    // allowlist must not resolve a tenant.
+    setupTestConfig({
+      baseDomain: 'example.com',
+      resolver: { expectedHostSuffix: 'app.example.com' },
+    })
+    const r = new SubdomainResolver()
+    assert.isUndefined(r.resolve(makeRequest({ headers: { host: 'victim.example.com' } })))
+  })
 })
 
 test.group('PathResolver', (group) => {
@@ -144,6 +168,30 @@ test.group('DomainOrSubdomainResolver', (group) => {
     const r = new DomainOrSubdomainResolver()
     assert.isUndefined(r.resolve(makeRequest({ headers: { host: 'app.test' } })))
   })
+
+  test('with expectedHostSuffix set, an off-allowlist host yields no domain envelope', ({
+    assert,
+  }) => {
+    // RED before the gate: this returned { type: 'domain', domain: 'evil.com' },
+    // which the registry would have looked up via findByDomain.
+    setupTestConfig({ baseDomain: 'app.test', resolver: { expectedHostSuffix: 'app.test' } })
+    const r = new DomainOrSubdomainResolver()
+    assert.isUndefined(r.resolve(makeRequest({ headers: { host: 'evil.com' } })))
+  })
+
+  test('with expectedHostSuffix listing a custom domain, that host still yields an envelope', ({
+    assert,
+  }) => {
+    setupTestConfig({
+      baseDomain: 'app.test',
+      resolver: { expectedHostSuffix: ['app.test', 'acme.com'] },
+    })
+    const r = new DomainOrSubdomainResolver()
+    assert.deepEqual(r.resolve(makeRequest({ headers: { host: 'acme.com' } })), {
+      type: 'domain',
+      domain: 'acme.com',
+    })
+  })
 })
 
 test.group('RequestDataResolver', (group) => {
@@ -173,5 +221,41 @@ test.group('RequestDataResolver', (group) => {
   test('returns miss when neither source has the key', ({ assert }) => {
     const r = new RequestDataResolver()
     assert.isUndefined(r.resolve(makeRequest({})))
+  })
+
+  test('throws a 400 when the query value is present but not a string (array)', ({ assert }) => {
+    const r = new RequestDataResolver()
+    assert.throws(
+      () => r.resolve(makeRequest({ qs: { tenant_id: [UUID, UUID2] as any } })),
+      InvalidTenantIdentifierException.message
+    )
+  })
+
+  test('throws a 400 when the body value is present but not a string (object)', ({ assert }) => {
+    const r = new RequestDataResolver()
+    assert.throws(
+      () => r.resolve(makeRequest({ body: { tenant_id: { nested: UUID } as any } })),
+      InvalidTenantIdentifierException.message
+    )
+  })
+
+  test('misses on a present-but-malformed (non-UUID) string so the chain can fall through', ({
+    assert,
+  }) => {
+    const r = new RequestDataResolver()
+    assert.isUndefined(r.resolve(makeRequest({ qs: { tenant_id: 'not-a-uuid' } })))
+  })
+
+  test('honors sourceOrder: body wins over query when configured first', ({ assert }) => {
+    setupTestConfig({ requestData: { sourceOrder: ['body', 'query'] } })
+    const r = new RequestDataResolver()
+    const result = r.resolve(makeRequest({ qs: { tenant_id: UUID }, body: { tenant_id: UUID2 } }))
+    assert.deepEqual(result, { type: 'id', tenantId: UUID2 })
+  })
+
+  test('default sourceOrder keeps query ahead of body', ({ assert }) => {
+    const r = new RequestDataResolver()
+    const result = r.resolve(makeRequest({ qs: { tenant_id: UUID }, body: { tenant_id: UUID2 } }))
+    assert.deepEqual(result, { type: 'id', tenantId: UUID })
   })
 })

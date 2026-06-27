@@ -97,6 +97,22 @@ export interface ResolverConfig {
    */
   legacyAdapterFallback?: boolean
   /**
+   * Allowlist of host suffixes the host-based resolvers (`subdomain`,
+   * `domain-or-subdomain`) and the custom-domain middleware will accept. When
+   * set, a request whose host is neither equal to nor a sub-host of one of
+   * these suffixes is refused BEFORE any tenant extraction or `findByDomain`
+   * lookup, so a spoofed `X-Forwarded-Host` (under a permissive proxy trust)
+   * cannot route to a tenant on an unexpected host.
+   *
+   * `'app.com'` matches `app.com` and `acme.app.com` but not `app.com.evil.io`.
+   * Provide several (e.g. your apex plus known custom-domain suffixes) as an
+   * array. Leave UNSET only when you intentionally accept arbitrary customer
+   * domains; then you MUST pin host trust at the proxy layer (do not trust
+   * `X-Forwarded-Host` from untrusted hops). A host strategy in production with
+   * this unset fails boot (see the Security guide).
+   */
+  expectedHostSuffix?: string | string[]
+  /**
    * Opt-in per-process cache for the tenant-registry lookup that the HTTP guard
    * and universal middleware run on EVERY request (`repo.findById`). Without it,
    * every tenant request makes a round-trip to the shared backoffice DB before
@@ -166,6 +182,13 @@ export interface RequestDataResolverConfig {
   queryKey?: string
   /** Request-body key (JSON / form / multipart). Default `tenant_id`. */
   bodyKey?: string
+  /**
+   * Which sources to read, in precedence order. The first source that yields a
+   * value wins. Default `['query', 'body']` (query before body, the historical
+   * order). Set `['body', 'query']` to prefer the body, or a single-element
+   * array to read only one source.
+   */
+  sourceOrder?: Array<'query' | 'body'>
 }
 
 export interface BackupRetentionTier {

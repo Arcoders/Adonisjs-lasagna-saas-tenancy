@@ -8,7 +8,9 @@ import MissingTenantHeaderException from '../exceptions/missing_tenant_header_ex
 import TenantNotFoundException from '../exceptions/tenant_not_found_exception.js'
 import TenantSuspendedException from '../exceptions/tenant_suspended_exception.js'
 import DependencyUnavailableException from '../exceptions/dependency_unavailable_exception.js'
+import InvalidTenantIdentifierException from '../exceptions/invalid_tenant_identifier_exception.js'
 import { getConfig } from '../config.js'
+import { hostMatchesExpectedSuffix } from '../services/resolvers/builtins.js'
 import type { ResolverCacheConfig } from '../types/config.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import { isUuidV4 } from '../services/isolation/identifier.js'
@@ -181,6 +183,9 @@ function legacyResolveTenantId(request: HttpRequest): string | undefined {
   if (resolverStrategy === 'subdomain' || resolverStrategy === 'domain-or-subdomain') {
     const hostname = request.hostname()
     const host = hostname?.split(':')[0] ?? ''
+    // Mirror the registry resolvers' host allowlist on the legacy path too, so a
+    // spoofed X-Forwarded-Host is refused regardless of which path resolves.
+    if (!hostMatchesExpectedSuffix(host)) return undefined
     const suffix = baseDomain.startsWith('.') ? baseDomain : `.${baseDomain}`
     if (host.endsWith(suffix)) {
       const sub = host.slice(0, host.length - suffix.length)
@@ -200,10 +205,12 @@ function legacyResolveTenantId(request: HttpRequest): string | undefined {
   }
 
   if (resolverStrategy === 'request-data') {
-    const fromQuery = request.qs()?.['tenant_id']
-    if (typeof fromQuery === 'string' && fromQuery.length > 0) return fromQuery
-    const fromBody = request.input('tenant_id')
-    if (typeof fromBody === 'string' && fromBody.length > 0) return fromBody
+    for (const raw of [request.qs()?.['tenant_id'], request.input('tenant_id')]) {
+      if (raw === undefined || raw === null) continue
+      // Present but not a string: fail closed (matches RequestDataResolver).
+      if (typeof raw !== 'string') throw new InvalidTenantIdentifierException()
+      if (raw.length > 0 && isUuidV4(raw)) return raw
+    }
     return undefined
   }
 

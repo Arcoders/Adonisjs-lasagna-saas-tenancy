@@ -16,3 +16,4 @@ export { default as TenantConnectionLimitException } from './tenant_connection_l
 export { default as DependencyUnavailableException } from './dependency_unavailable_exception.js'
 export type { DependencyUnavailableContext } from './dependency_unavailable_exception.js'
 export { default as IsolationConfigException } from './isolation_config_exception.js'
+export { default as InvalidTenantIdentifierException } from './invalid_tenant_identifier_exception.js'

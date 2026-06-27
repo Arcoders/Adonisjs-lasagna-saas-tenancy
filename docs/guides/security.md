@@ -76,6 +76,7 @@ responsibility (the package gives you the primitives).
 - [ ] A separate database role (or out-of-band script) handles audit-log retention with the trigger disabled in a controlled window.
 - [ ] `multitenancy.config.isolation.rowScopeMode` left at the default unless you've audited every cross-tenant query.
 - [ ] `CustomDomainMiddleware` registered with `strict: true` if you accept the tenant header *and* use custom domains.
+- [ ] If you resolve tenants by host (`subdomain` / `domain-or-subdomain`), set `resolver.expectedHostSuffix` to your tenant host suffix(es). A host strategy without it **fails boot in production**: the tenant is taken from the request host, which a spoofed `X-Forwarded-Host` can set under a permissive proxy trust, steering a request onto another tenant's host. Hosts outside the allowlist are refused before resolution and before any `findByDomain` lookup. Pair it with trusting `X-Forwarded-Host` only from a proxy you control.
 - [ ] Backup storage volume / S3 bucket is encrypted at rest and lifecycle-managed.
 - [ ] Rate-limit policy on `RateLimitUnavailableException` is decided and tested (fail-open vs fail-closed).
 - [ ] OIDC `client_secret`, encryption keys, and S3 credentials live in a secrets manager, not `.env` checked into git.

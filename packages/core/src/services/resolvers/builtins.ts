@@ -1,6 +1,8 @@
 import type { HttpRequest } from '@adonisjs/core/http'
 import { getConfig } from '../../config.js'
 import { isProductionNodeEnv } from '../../utils/env.js'
+import InvalidTenantIdentifierException from '../../exceptions/invalid_tenant_identifier_exception.js'
+import { isUuidV4 } from '../isolation/identifier.js'
 import { ResolverHit, type TenantResolveResult, type TenantResolver } from './resolver.js'
 
 /**
@@ -10,6 +12,28 @@ import { ResolverHit, type TenantResolveResult, type TenantResolver } from './re
 function hostnameOf(request: HttpRequest): string {
   const raw = request.hostname() ?? ''
   return raw.split(':')[0]
+}
+
+/** Normalize the `expectedHostSuffix` config into a clean list (leading dot stripped). */
+export function expectedHostSuffixes(): string[] {
+  const raw = getConfig().resolver?.expectedHostSuffix
+  if (!raw) return []
+  return (Array.isArray(raw) ? raw : [raw])
+    .filter((s): s is string => typeof s === 'string' && s.length > 0)
+    .map((s) => (s.startsWith('.') ? s.slice(1) : s).toLowerCase())
+}
+
+/**
+ * Is `host` allowed by the configured suffix allowlist? An empty allowlist
+ * (the default) allows everything — the boot check warns about that posture
+ * separately. A host matches a suffix when it equals it or is a sub-host of it
+ * (`app.com` matches `app.com` and `a.app.com`, never `app.com.evil.io`).
+ */
+export function hostMatchesExpectedSuffix(host: string): boolean {
+  const suffixes = expectedHostSuffixes()
+  if (suffixes.length === 0) return true
+  const h = host.toLowerCase()
+  return suffixes.some((suf) => h === suf || h.endsWith(`.${suf}`))
 }
 
 /**
@@ -37,6 +61,9 @@ export class SubdomainResolver implements TenantResolver {
     const { baseDomain } = getConfig()
     const host = hostnameOf(request)
     if (!host) return ResolverHit.miss()
+    // Reject a host outside the configured allowlist BEFORE extracting a label,
+    // so a spoofed X-Forwarded-Host cannot pick a tenant from an unexpected host.
+    if (!hostMatchesExpectedSuffix(host)) return ResolverHit.miss()
     if (host === baseDomain) return ResolverHit.miss()
 
     const suffix = baseDomain.startsWith('.') ? baseDomain : `.${baseDomain}`
@@ -88,6 +115,10 @@ export class DomainOrSubdomainResolver implements TenantResolver {
     const { baseDomain } = getConfig()
     const host = hostnameOf(request)
     if (!host) return ResolverHit.miss()
+    // A host outside the allowlist is refused before either the subdomain math
+    // OR the custom-domain `findByDomain` lookup — closing the spoofed-host hop
+    // for both branches in one place.
+    if (!hostMatchesExpectedSuffix(host)) return ResolverHit.miss()
 
     const suffix = baseDomain.startsWith('.') ? baseDomain : `.${baseDomain}`
     if (host !== baseDomain && host.endsWith(suffix)) {
@@ -114,16 +145,22 @@ export class RequestDataResolver implements TenantResolver {
     const cfg = getConfig().requestData ?? {}
     const queryKey = cfg.queryKey ?? 'tenant_id'
     const bodyKey = cfg.bodyKey ?? 'tenant_id'
+    const order = cfg.sourceOrder ?? ['query', 'body']
 
-    const fromQuery = request.qs()?.[queryKey]
-    if (typeof fromQuery === 'string' && fromQuery.length > 0) {
-      return ResolverHit.id(fromQuery)
-    }
+    for (const source of order) {
+      const raw = source === 'query' ? request.qs()?.[queryKey] : request.input(bodyKey)
+      if (raw === undefined || raw === null) continue
 
-    // request.input(...) covers JSON, form-encoded, multipart bodies.
-    const fromBody = request.input(bodyKey)
-    if (typeof fromBody === 'string' && fromBody.length > 0) {
-      return ResolverHit.id(fromBody)
+      // Present but not a string (e.g. `?tenant_id[]=a&tenant_id[]=b` arrives as
+      // an array, a nested object, a number): fail closed with a 400 rather than
+      // coercing a type-confusion attempt into a tenant id or silently missing.
+      if (typeof raw !== 'string') throw new InvalidTenantIdentifierException()
+
+      if (raw.length === 0) continue
+      // Only a well-formed tenant id is a hit; a present-but-malformed string
+      // falls through so a later resolver in the chain can still match (and, if
+      // none does, the guard's own UUID check rejects it).
+      if (isUuidV4(raw)) return ResolverHit.id(raw)
     }
 
     return ResolverHit.miss()

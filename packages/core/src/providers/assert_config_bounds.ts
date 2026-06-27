@@ -1,4 +1,6 @@
 import type { MultitenancyConfig } from '../types/config.js'
+import { isProductionNodeEnv } from '../utils/env.js'
+import { hostTrustWarning } from './assert_host_trust.js'
 
 /**
  * Range-check the numeric tunables at boot. The provider's `#assertConfigShape`
@@ -79,5 +81,13 @@ export function assertConfigBounds(config: MultitenancyConfig): void {
   const bypassToken = config.maintenance?.bypassToken
   if (bypassToken != null && bypassToken.length < 32) {
     fail('maintenance.bypassToken', 'at least 32 characters', `${bypassToken.length} chars`)
+  }
+
+  // Host-trust gate: a host-based strategy with no expectedHostSuffix is a
+  // spoofable tenant-hop. In production we fail closed at boot; in dev the
+  // provider logs the same message as a warning (it has the container logger).
+  if (isProductionNodeEnv()) {
+    const hostTrust = hostTrustWarning(config)
+    if (hostTrust) throw new Error(hostTrust)
   }
 }

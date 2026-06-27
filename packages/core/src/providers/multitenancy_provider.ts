@@ -3,6 +3,7 @@ import { Database } from '@adonisjs/lucid/database'
 import { setConfig } from '../config.js'
 import { assertConfigBounds } from './assert_config_bounds.js'
 import { membershipGateRisk } from '../services/membership_gate.js'
+import { hostTrustWarning } from './assert_host_trust.js'
 import type { MultitenancyConfig } from '../types/config.js'
 import { BackofficeAdapter, TenantAdapter } from '../models/adapters/index.js'
 import { BackofficeBaseModel, TenantBaseModel, CentralBaseModel } from '../models/base/index.js'
@@ -187,9 +188,13 @@ export default class MultitenancyProvider {
     // The same verdict backs the `membership_gate` doctor check. Logger comes
     // from the container (the eager logger binding is undefined this early in boot).
     const idorWarning = membershipGateRisk(config)
-    if (idorWarning) {
+    const hostTrust = hostTrustWarning(config)
+    if (idorWarning || hostTrust) {
       const bootLogger = await this.app.container.make('logger').catch(() => undefined)
-      bootLogger?.warn(idorWarning)
+      // assertConfigBounds already hard-failed the host-trust case in production,
+      // so reaching here with hostTrust set means a non-production boot.
+      if (idorWarning) bootLogger?.warn(idorWarning)
+      if (hostTrust) bootLogger?.warn(hostTrust)
     }
 
     // When the unified resolution path is enabled, seed the tenant log context
