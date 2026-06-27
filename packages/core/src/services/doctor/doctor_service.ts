@@ -1,4 +1,4 @@
-import type { TenantRepositoryContract } from '../../types/contracts.js'
+import type { TenantModelContract, TenantRepositoryContract } from '../../types/contracts.js'
 import { resolveTenantRepository } from '../resolve_tenant_repository.js'
 import type {
   DoctorCheck,
@@ -35,11 +35,18 @@ export default class DoctorService {
   ): Promise<DoctorRunResult> {
     const repo = repoOverride ?? (await resolveTenantRepository())
 
-    const allTenants = await repo.all({ includeDeleted: true })
-    const tenants =
-      options.tenants && options.tenants.length > 0
-        ? allTenants.filter((t) => options.tenants!.includes(t.id))
-        : allTenants
+    // Cursor-paginated (keyset) fetch instead of one unbounded `SELECT *`, so a
+    // large tenant base does not spike memory or hold a giant result set open on
+    // every doctor run. The checks still receive the full filtered list.
+    const selectedTenantIds =
+      options.tenants && options.tenants.length > 0 ? new Set(options.tenants) : null
+    const tenants: TenantModelContract[] = []
+    await repo.each(
+      (t) => {
+        if (!selectedTenantIds || selectedTenantIds.has(t.id)) tenants.push(t)
+      },
+      { includeDeleted: true }
+    )
 
     const selectedNames =
       options.checks && options.checks.length > 0 ? new Set(options.checks) : null

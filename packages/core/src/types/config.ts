@@ -557,6 +557,26 @@ export interface MultitenancyConfig {
   billing?: BillingConfig
   tenantReadReplicas?: ReadReplicasConfig
   /**
+   * Optional extra `/readyz` dimensions. Both are OFF by default because they
+   * probe tenant infrastructure on every readiness call. Both register as
+   * NON-critical checks (a failure degrades the pod, it does not 503 it) so a
+   * hot pool or a lagging replica sheds traffic without a hard outage.
+   */
+  health?: {
+    /**
+     * Register a `tenant_pools` readiness check that fails when any tenant Lucid
+     * connection pool is saturated (numUsed >= max). Reuses the
+     * `connection_pool` doctor logic.
+     */
+    tenantPoolsCheck?: boolean
+    /**
+     * Register a `read_replicas` readiness check that fails when a configured
+     * read replica is unreachable or critically lagged. Reuses the `replica_lag`
+     * doctor logic; only meaningful when `tenantReadReplicas.hosts` is non-empty.
+     */
+    readReplicasCheck?: boolean
+  }
+  /**
    * Optional thresholds for `tenant:doctor` checks. Each field overrides the
    * built-in default. All durations are in seconds unless noted.
    */

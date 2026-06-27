@@ -16,10 +16,16 @@ export default class TenantQueueStats extends BaseCommand {
     const repo = await resolveTenantRepository()
     const service = await app.container.make(TenantQueueService)
 
-    const allTenants = await repo.all({ statuses: ['active', 'suspended'] })
-    const tenants = this.tenant?.length
-      ? allTenants.filter((t) => this.tenant!.includes(t.id))
-      : allTenants
+    // Cursor-paginated (keyset) iteration instead of one unbounded `SELECT *`, so
+    // `queue:stats` stays memory-safe on a large tenant base.
+    const wanted = this.tenant?.length ? new Set(this.tenant) : null
+    const tenants: Array<{ id: string }> = []
+    await repo.each(
+      (t) => {
+        if (!wanted || wanted.has(t.id)) tenants.push(t)
+      },
+      { statuses: ['active', 'suspended'] }
+    )
 
     if (tenants.length === 0) {
       this.logger.info('No tenants found.')

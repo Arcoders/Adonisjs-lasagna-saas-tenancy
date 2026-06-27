@@ -16,6 +16,8 @@ export type { MultitenancyRoutesOptions, RouteMiddleware } from './routes.js'
 export {
   backofficeDbCheck,
   redisCheck,
+  tenantPoolsCheck,
+  readReplicasCheck,
   makeCircuitBreakerCheck,
   registerDefaultChecks,
 } from './default_checks.js'

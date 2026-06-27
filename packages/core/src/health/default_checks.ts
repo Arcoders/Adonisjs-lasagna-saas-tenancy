@@ -1,8 +1,15 @@
 import app from '@adonisjs/core/services/app'
 import { getConfig } from '../config.js'
 import CircuitBreakerService from '../services/circuit_breaker_service.js'
+import connectionPoolCheck from '../services/doctor/checks/connection_pool_check.js'
+import replicaLagCheck from '../services/doctor/checks/replica_lag_check.js'
+import type { DoctorContext } from '../services/doctor/types.js'
 import type HealthService from './health_service.js'
 import type { HealthCheckFn, CheckResult } from './health_service.js'
+
+// The pool/replica doctor checks ignore their context (they read getConfig and
+// db.manager directly), so a minimal stand-in is enough to reuse their logic.
+const EMPTY_DOCTOR_CTX = { tenants: [], repo: null, attemptFix: false } as unknown as DoctorContext
 
 const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default).catch(() => null)
 
@@ -34,6 +41,45 @@ export const redisCheck: HealthCheckFn = async (): Promise<CheckResult> => {
     return { status: reply === 'PONG' ? 'pass' : 'fail', durationMs: 0, meta: { reply } }
   } catch (error: any) {
     return { status: 'fail', durationMs: 0, message: error?.message ?? 'ping failed' }
+  }
+}
+
+/**
+ * Tenant-pool readiness: fails when any tenant Lucid pool is saturated
+ * (numUsed >= max), reusing the `connection_pool` doctor check. Pool warnings
+ * (near-saturation, pending acquires) keep the pod ready; only an actually-full
+ * pool fails the dimension.
+ */
+export const tenantPoolsCheck: HealthCheckFn = async (): Promise<CheckResult> => {
+  const issues = await connectionPoolCheck.run(EMPTY_DOCTOR_CTX)
+  const errors = issues.filter((i) => i.severity === 'error')
+  if (errors.length === 0) {
+    return { status: 'pass', durationMs: 0, meta: { warnings: issues.length } }
+  }
+  return {
+    status: 'fail',
+    durationMs: 0,
+    message: `${errors.length} tenant connection pool(s) saturated`,
+    meta: { codes: errors.map((e) => e.code) },
+  }
+}
+
+/**
+ * Read-replica readiness: fails when a configured replica is unreachable, not in
+ * recovery, or critically lagged, reusing the `replica_lag` doctor check. A pass
+ * when no replicas are configured (nothing to check).
+ */
+export const readReplicasCheck: HealthCheckFn = async (): Promise<CheckResult> => {
+  const issues = await replicaLagCheck.run(EMPTY_DOCTOR_CTX)
+  const errors = issues.filter((i) => i.severity === 'error')
+  if (errors.length === 0) {
+    return { status: 'pass', durationMs: 0, meta: { warnings: issues.length } }
+  }
+  return {
+    status: 'fail',
+    durationMs: 0,
+    message: `${errors.length} read-replica issue(s)`,
+    meta: { codes: errors.map((e) => e.code) },
   }
 }
 
@@ -74,6 +120,23 @@ export function registerDefaultChecks(svc: HealthService): HealthService {
       })
     )
   }
+
+  // Opt-in tenant-connectivity dimensions. Read config defensively: if the
+  // provider hasn't set it yet, just skip them (the defaults above still apply).
+  let healthCfg: { tenantPoolsCheck?: boolean; readReplicasCheck?: boolean } | undefined
+  try {
+    healthCfg = getConfig().health
+  } catch {
+    healthCfg = undefined
+  }
+  if (healthCfg?.tenantPoolsCheck === true && !svc.hasCheck('tenant_pools')) {
+    // Non-critical: a saturated pool degrades the pod, it does not 503 it.
+    svc.addCheck('tenant_pools', tenantPoolsCheck)
+  }
+  if (healthCfg?.readReplicasCheck === true && !svc.hasCheck('read_replicas')) {
+    svc.addCheck('read_replicas', readReplicasCheck)
+  }
+
   return svc
 }
 
