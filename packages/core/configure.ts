@@ -57,12 +57,18 @@ export const SATELLITE_BUNDLES: Record<string, string[]> = {
  * explicitly with `--with=rls`.
  */
 export const OPT_IN_BUNDLES: Record<string, string[]> = {
-  rls: ['enable_rls_tenant_isolation'],
+  'rls': ['enable_rls_tenant_isolation'],
+  // Defense-in-depth RLS for the SHARED backoffice schema (satellite tables).
+  // Opt-in for the same reason as `rls`: the migration must be edited to your
+  // installed tables and only makes sense once the backoffice GUC is wired on
+  // both the per-tenant and the cross-tenant-sweep paths. Request with
+  // `--with=rls-backoffice`.
+  'rls-backoffice': ['enable_rls_backoffice_isolation'],
   // Per-tenant maintenance mode adds an `is_maintenance` column to the host's
   // central `tenants` table. It alters host-owned schema rather than creating a
   // backoffice satellite table, so it is opt-in (never auto-published) and
   // requested explicitly with `--with=maintenance`.
-  maintenance: ['add_maintenance_to_tenants_table'],
+  'maintenance': ['add_maintenance_to_tenants_table'],
 }
 
 export const ALL_FEATURES = Object.keys(SATELLITE_BUNDLES)

@@ -162,6 +162,10 @@ export default class WebhooksController {
       .first()
     if (!hook) return ctx.response.notFound({ error: 'webhook_not_found' })
 
+    // Scoped via the parent webhook, loaded above with an explicit
+    // `tenant_id = tenant.id` filter, so `hook.id` is proven to belong to this
+    // tenant and its deliveries cannot cross tenants.
+    // backoffice-scope-exempt: tenant-scoped through the verified parent webhook.
     const deliveries = await TenantWebhookDelivery.query()
       .where('webhook_id', hook.id)
       .orderBy('created_at', 'desc')

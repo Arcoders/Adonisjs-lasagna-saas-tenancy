@@ -113,7 +113,12 @@ test.group('configure — default feature contract', () => {
   })
 
   test('KNOWN_FEATURES is the union of satellites and opt-in bundles', ({ assert }) => {
-    assert.deepEqual(KNOWN_FEATURES, [...ALL_FEATURES, 'rls', 'maintenance'])
+    assert.deepEqual(KNOWN_FEATURES, [...ALL_FEATURES, 'rls', 'rls-backoffice', 'maintenance'])
+  })
+
+  test('rls-backoffice is opt-in (never auto-published) and resolves to its stub', ({ assert }) => {
+    assert.notInclude(ALL_FEATURES, 'rls-backoffice')
+    assert.deepEqual(resolveMigrationStubs(['rls-backoffice']), ['enable_rls_backoffice_isolation'])
   })
 })
 

@@ -280,9 +280,12 @@ export default class WebhookService {
   }
 
   async processRetries(): Promise<void> {
+    // The retry sweep is intentionally cross-tenant: a single cron drains due
+    // deliveries for ALL tenants, each preloading its own tenant-scoped webhook.
     // At-least-once: this sweep does not claim rows, so two instances running
     // the `* * * * *` cron can both pick the same `retrying` row and double-send
     // (possibly one over MAX_ATTEMPTS). Receivers MUST dedupe on `x-delivery-id`.
+    // backoffice-scope-exempt: deliberate cross-tenant retry drain (see above).
     const due = await TenantWebhookDelivery.query()
       .where('status', 'retrying')
       .where('next_retry_at', '<=', DateTime.utc().toISO())

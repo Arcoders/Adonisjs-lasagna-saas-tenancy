@@ -81,9 +81,13 @@ export default class BillingPricingValidate extends BaseCommand {
       })
     }
 
-    // 3. No active tenant is entitled to a plan that no longer exists.
+    // 3. No active tenant is entitled to a plan that no longer exists. This
+    // validation is deliberately cross-tenant: it scans every tenant's active
+    // plan to flag any pointing at a removed plan definition (a fleet-wide
+    // pricing-config audit, not a tenant request).
     try {
       const nowSql = DateTime.utc().toSQL()!
+      // backoffice-scope-exempt: deliberate fleet-wide pricing-config audit.
       const activeRows = await TenantPlan.query().where((sub) => {
         sub.whereNull('expiresAt').orWhere('expiresAt', '>', nowSql)
       })
