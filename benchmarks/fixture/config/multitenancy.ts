@@ -1,5 +1,8 @@
 import env from '../start/env.js'
-import type { TenantResolverStrategy } from '@adonisjs-lasagna/saas-tenancy/types'
+import type {
+  MultitenancyConfig,
+  TenantResolverStrategy,
+} from '@adonisjs-lasagna/saas-tenancy/types'
 
 type BenchDriver = 'schema-pg' | 'database-pg' | 'rowscope-pg'
 
@@ -49,6 +52,29 @@ export default {
     rowScopeColumn: 'tenant_id',
   },
 
+  maintenanceSchedule: { backupHour: 2, migrateAllHour: 3 },
+
+  queue: {
+    tenantQueuePrefix: 'tenant_queue_',
+    defaultConcurrency: 1,
+    attempts: 3,
+    redis: {
+      host: env.get('QUEUE_REDIS_HOST'),
+      port: env.get('QUEUE_REDIS_PORT'),
+      db: env.get('QUEUE_REDIS_DB'),
+    },
+  },
+
+  // The breaker fires on every guarded request, so the config must carry the
+  // block — values mirror examples/api (volumeThreshold high enough not to trip
+  // under a healthy load run).
+  circuitBreaker: {
+    threshold: 50,
+    resetTimeout: 30_000,
+    rollingCountTimeout: 10_000,
+    volumeThreshold: 10,
+  },
+
   cache: {
     ttl: 300,
     redis: {
@@ -57,4 +83,4 @@ export default {
       db: env.get('CACHE_REDIS_DB'),
     },
   },
-}
+} satisfies MultitenancyConfig

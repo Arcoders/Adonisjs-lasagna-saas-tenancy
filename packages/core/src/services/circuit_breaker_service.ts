@@ -36,6 +36,20 @@ const PROBE_TIMEOUT_MS = 5_000
  */
 const PERSISTED_STATE_TTL_SECONDS = 60 * 60
 
+/**
+ * Fallback breaker tuning used when the config omits `circuitBreaker` (or a field
+ * of it). `circuitBreaker` is a required field of `MultitenancyConfig`, so a typed
+ * config (`defineConfig`) always supplies it; this only keeps an untyped or
+ * dynamically-assembled config from crashing the guarded request path, where the
+ * breaker now fires on every request. Values mirror the documented examples.
+ */
+const CIRCUIT_BREAKER_DEFAULTS = {
+  threshold: 50,
+  resetTimeout: 30_000,
+  rollingCountTimeout: 10_000,
+  volumeThreshold: 5,
+} as const
+
 const lazyRedis = () =>
   import('@adonisjs/redis/services/main').then((m) => m.default).catch(() => null)
 
@@ -80,14 +94,18 @@ export default class CircuitBreakerService {
       return this.circuits.get(tenantId)!
     }
 
+    // Read defensively: `circuitBreaker` is required in the type, but the breaker
+    // now fires on every guarded request, so an untyped/partial config that omits
+    // it must degrade to safe defaults rather than throw per request (which the
+    // guard would map to a 503). Mirrors the `?? DEFAULT` style in #evictIfOverCapacity.
     const cfg = getConfig().circuitBreaker
 
     const breaker = new CircuitBreaker(this.buildProbe(tenantId), {
       timeout: PROBE_TIMEOUT_MS,
-      errorThresholdPercentage: cfg.threshold,
-      resetTimeout: cfg.resetTimeout,
-      rollingCountTimeout: cfg.rollingCountTimeout,
-      volumeThreshold: cfg.volumeThreshold,
+      errorThresholdPercentage: cfg?.threshold ?? CIRCUIT_BREAKER_DEFAULTS.threshold,
+      resetTimeout: cfg?.resetTimeout ?? CIRCUIT_BREAKER_DEFAULTS.resetTimeout,
+      rollingCountTimeout: cfg?.rollingCountTimeout ?? CIRCUIT_BREAKER_DEFAULTS.rollingCountTimeout,
+      volumeThreshold: cfg?.volumeThreshold ?? CIRCUIT_BREAKER_DEFAULTS.volumeThreshold,
       name: `tenant_${tenantId}`,
     })
 
