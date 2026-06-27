@@ -5,6 +5,7 @@
   "exclude": [
     "src/**/*.d.ts",
     "src/commands/commands.json",
+    "src/define_config.ts",
     "build/**",
     "bin/**",
     "tests/**"
