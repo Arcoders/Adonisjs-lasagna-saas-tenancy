@@ -77,11 +77,14 @@
     "@adonisjs-lasagna/saas-tenancy": "^1.0.0",
     "@adonisjs/core": "^7.0.0",
     "@adonisjs/lucid": "^22.0.0",
-    "@adonisjs/queue": "^0.6.0",
+    "@adonisjs/queue": ">=0.6.0 <1",
     "@adonisjs/redis": "^10.0.0",
     "@aws-sdk/client-s3": "^3.0.0"
   },
   "peerDependenciesMeta": {
+    "@adonisjs/queue": {
+      "optional": true
+    },
     "@adonisjs/redis": {
       "optional": true
     },

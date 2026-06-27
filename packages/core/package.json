@@ -135,13 +135,16 @@
     "@adonisjs/drive": "^3.0.0",
     "@adonisjs/lucid": "^22.0.0",
     "@adonisjs/mail": "^10.0.0",
-    "@adonisjs/queue": "^0.6.0",
+    "@adonisjs/queue": ">=0.6.0 <1",
     "@adonisjs/redis": "^10.0.0",
     "@adonisjs/session": "^7.0.0",
     "better-sqlite3": "^11.0.0"
   },
   "peerDependenciesMeta": {
     "@adonisjs/drive": {
+      "optional": true
+    },
+    "@adonisjs/queue": {
       "optional": true
     },
     "@adonisjs/mail": {

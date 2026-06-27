@@ -160,8 +160,13 @@ export {
   TenantExitedMaintenance,
 } from './events/index.js'
 export type { TenantMigrationDirection } from './events/index.js'
-export { InstallTenant, UninstallTenant, TenantJob } from './jobs/index.js'
-export type { TenantJobPayload } from './jobs/index.js'
+// `InstallTenant` / `UninstallTenant` / `TenantJob` (and `TenantJobPayload`) are
+// NOT re-exported here: they `extends Job` from the optional `@adonisjs/queue`
+// peer, so re-exporting them from the package's main entry would pull the queue
+// into the module graph of every `import '@adonisjs-lasagna/saas-tenancy'` and
+// break a host that doesn't run background jobs. Import them from the dedicated
+// `@adonisjs-lasagna/saas-tenancy/jobs` subpath, which a queue-using host loads
+// explicitly. (Architectural guard: tests/architectural/jobs_lazy_import_queue.spec.ts.)
 export { buildTenantWorkerOptions } from './helpers/index.js'
 // `CloneTenant` / `BackupTenant` / `RestoreTenant` moved to `@adonisjs-lasagna/backup`.
 export {

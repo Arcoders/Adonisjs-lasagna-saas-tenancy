@@ -79,3 +79,5 @@ jobs:
           publish_pkg "packages/billing"
           publish_pkg "packages/admin"
           publish_pkg "packages/backup"
+          publish_pkg "packages/reporting"
+          publish_pkg "packages/websockets"
