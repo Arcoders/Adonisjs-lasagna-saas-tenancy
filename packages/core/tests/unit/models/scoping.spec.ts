@@ -9,6 +9,7 @@ import { tenancy, __configureTenancyForTests } from '../../../src/tenancy.js'
 import BootstrapperRegistry from '../../../src/services/bootstrapper_registry.js'
 import TenantLogContext from '../../../src/services/tenant_log_context.js'
 import { setupTestConfig } from '../../helpers/config.js'
+import { __resetConfigForTests } from '../../../src/config.js'
 import type { TenantModelContract } from '../../../src/types/contracts.js'
 
 const fakeTenant = (id = 'tenant-1') =>
@@ -257,6 +258,46 @@ test.group('withTenantScope — allowGlobal mode', (group) => {
     const q = new FakeQuery()
     assert.doesNotThrow(() => hooks.find[0](q))
     assert.deepEqual(q.predicates, [])
+  })
+})
+
+/**
+ * WS-5 / strict-scope-fails-open-on-getconfig-throw. When the config is
+ * UNREADABLE (getConfig threw — provider not booted yet), a scope-less query
+ * used to fall through to a GLOBAL query (fail-open). It must now fail closed.
+ *
+ * RED (pre-fix): with config reset, the find hook silently skipped the predicate.
+ */
+test.group('withTenantScope — fail-closed on unreadable config (WS-5)', (group) => {
+  // Boot needs a readable config (it reads the scope column), so we set config,
+  // boot, THEN reset it to simulate getConfig() throwing at query time.
+  group.each.setup(() => setupTestConfig())
+  group.each.teardown(() => {
+    setupTestConfig()
+    __configureTenancyForTests({})
+  })
+
+  test('a scope-less query throws when the config cannot be read', ({ assert }) => {
+    const { FakeBaseModel, hooks } = makeFakeBase()
+    const Scoped = withTenantScope(FakeBaseModel as any) as any
+    Scoped.boot()
+
+    __resetConfigForTests() // config now unreadable at query time
+    // No active tenant context AND no readable config → fail closed, never global.
+    assert.throws(() => hooks.find[0](new FakeQuery()), MissingTenantScopeException as any)
+  })
+
+  test('unscoped(fn) still suppresses the throw even with an unreadable config', async ({
+    assert,
+  }) => {
+    const { FakeBaseModel, hooks } = makeFakeBase()
+    const Scoped = withTenantScope(FakeBaseModel as any) as any
+    Scoped.boot()
+
+    __resetConfigForTests()
+    await unscoped(async () => {
+      assert.doesNotThrow(() => hooks.find[0](new FakeQuery()))
+    })
   })
 })
 

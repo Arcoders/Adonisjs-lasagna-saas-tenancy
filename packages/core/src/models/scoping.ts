@@ -36,18 +36,20 @@ export function isScopeBypassed(): boolean {
 }
 
 /**
- * Read the strict-mode flag from config. Strict (default) throws when a
- * scoped model is queried with no active `tenancy.run()` and no
- * `unscoped(fn)` wrapper — making forgotten context a loud failure
- * instead of a silent cross-tenant data leak.
+ * Whether a scope-less query (no active `tenancy.run()`, no `unscoped(fn)`) is
+ * permitted to run globally. Fail-closed: this is true ONLY when the config is
+ * readable AND explicitly opts out with `rowScopeMode: 'allowGlobal'`. Every
+ * other case — strict (the default) OR an UNREADABLE config (getConfig threw,
+ * e.g. the provider hasn't booted) — returns false so the caller throws rather
+ * than silently falling through to a cross-tenant global query.
+ *
+ * The previous version returned false (= strict) from getConfig()'s throw but
+ * was consulted as `isStrictScope()`, so an unreadable config actually meant
+ * "not strict" → fail-OPEN. Inverting to an explicit allow flag closes that.
  */
-function isStrictScope(): boolean {
-  // Pull dynamically: getConfig() throws if the provider hasn't booted, so
-  // tests that exercise the mixin without booting the app fall back to
-  // strict-mode-off (preserves existing test ergonomics) while production
-  // gets strict-on by default.
+function allowsGlobalScope(): boolean {
   try {
-    return (getConfig().isolation?.rowScopeMode ?? 'strict') === 'strict'
+    return getConfig().isolation?.rowScopeMode === 'allowGlobal'
   } catch {
     return false
   }
@@ -132,8 +134,10 @@ export function withTenantScope<TBase extends LucidBaseModelClass>(Base: TBase):
         if (isScopeBypassed()) return null
         const id = tenancy.currentId()
         if (id) return id
-        if (isStrictScope()) throw new MissingTenantScopeException(action)
-        return null
+        // No active tenant context: fail closed unless config EXPLICITLY opts
+        // out. An unreadable config no longer falls through to a global query.
+        if (allowsGlobalScope()) return null
+        throw new MissingTenantScopeException(action)
       }
 
       this.before('find', (query: any) => {
