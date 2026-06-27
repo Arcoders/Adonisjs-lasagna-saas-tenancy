@@ -422,11 +422,28 @@
       "flags": [
         { "name": "retentionDays", "flagName": "retention-days", "required": false, "type": "number", "description": "Override config.softDelete.retentionDays for this run" },
         { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report what would be purged without dropping anything" },
+        { "name": "includeOrphans", "flagName": "include-orphans", "required": false, "type": "boolean", "description": "Also drop schemas of soft-deleted tenants still within retention (recovers orphans from a failed tenant:destroy)" },
         { "name": "force", "flagName": "force", "required": false, "type": "boolean", "alias": "y", "description": "Skip the confirmation prompt" }
       ],
       "args": [],
       "options": { "startApp": true },
       "filePath": "tenant_purge_expired.js"
+    },
+    {
+      "commandName": "tenant:reprovision",
+      "description": "Re-run provisioning for a failed or stuck-provisioning tenant",
+      "help": "Example: node ace tenant:reprovision <tenantId> --force",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "alias": "y", "description": "Skip confirmation prompt" },
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id recorded in the audit log (default: system)" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to reprovision", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_reprovision.js"
     },
     {
       "commandName": "tenant:satellite:remove",

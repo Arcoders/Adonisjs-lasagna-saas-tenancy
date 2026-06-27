@@ -60,7 +60,28 @@ export default class DestroyTenant extends BaseCommand {
       } else {
         this.logger.info(`Tenant "${tenant.name}" soft-deleted. Uninstalling schema...`)
         const driver = await getActiveDriver()
-        await driver.destroy(tenant)
+        try {
+          await driver.destroy(tenant)
+        } catch (dropErr: any) {
+          // Partial failure: the tenant is already soft-deleted (so it is
+          // unreachable — isolation is intact), but the schema drop failed,
+          // leaving an ORPHAN schema. Don't bury it in the generic catch with a
+          // bare error: tell the operator it is recoverable WITHOUT waiting out
+          // the retention window, and record the partial state in the audit log.
+          this.logger.error(
+            `Tenant "${tenant.name}" was soft-deleted but its schema drop FAILED: ` +
+              `${dropErr?.message ?? dropErr}. The schema is orphaned (the tenant is already ` +
+              `unreachable). Reclaim it with: node ace tenant:purge-expired --include-orphans`
+          )
+          await auditCliAction(this.logger, {
+            tenantId: tenant.id,
+            action: 'admin:tenant:destroy',
+            adminId: this.admin,
+            metadata: { status: tenant.status, schemaDropped: false, orphanSchema: true },
+          })
+          this.exitCode = 1
+          return
+        }
       }
 
       await hooks.run('after', 'destroy', { tenant })

@@ -6,7 +6,7 @@ import { resolveTenantRepository } from '../services/resolve_tenant_repository.j
 import HookRegistry from '../services/hook_registry.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import TenantDeleted from '../events/tenant_deleted.js'
-import { isExpired, DEFAULT_SOFT_DELETE_RETENTION_DAYS } from '../utils/soft_delete.js'
+import { selectPurgeable, DEFAULT_SOFT_DELETE_RETENTION_DAYS } from '../utils/soft_delete.js'
 
 export default class TenantPurgeExpired extends BaseCommand {
   static readonly commandName = 'tenant:purge-expired'
@@ -28,6 +28,14 @@ export default class TenantPurgeExpired extends BaseCommand {
   declare dryRun: boolean
 
   @flags.boolean({
+    flagName: 'include-orphans',
+    default: false,
+    description:
+      'Also drop schemas of soft-deleted tenants still within the retention window — recovers orphan schemas left by a tenant:destroy whose drop failed after the soft-delete.',
+  })
+  declare includeOrphans: boolean
+
+  @flags.boolean({
     flagName: 'force',
     alias: 'y',
     default: false,
@@ -43,12 +51,15 @@ export default class TenantPurgeExpired extends BaseCommand {
     const repo = await resolveTenantRepository()
     const all = await repo.all({ includeDeleted: true })
 
-    const candidates = all.filter((t) => t.isDeleted && isExpired(t.deletedAt, retentionDays))
+    const candidates = selectPurgeable(all, retentionDays, {
+      includeOrphans: this.includeOrphans,
+    })
 
     if (candidates.length === 0) {
-      this.logger.info(
-        `No tenants past the ${retentionDays}-day retention window. Nothing to purge.`
-      )
+      const scope = this.includeOrphans
+        ? 'soft-deleted tenants'
+        : `tenants past the ${retentionDays}-day retention window`
+      this.logger.info(`No ${scope}. Nothing to purge.`)
       return
     }
 

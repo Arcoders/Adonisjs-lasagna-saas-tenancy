@@ -19,7 +19,8 @@ ships with: <code>node ace list:commands | grep -E 'tenant|backoffice|migration:
 | `tenant:list` | List tenants with current status. `--all` includes soft-deleted. |
 | `tenant:activate <id>` | Activate a suspended or failed tenant. `--admin=<id>` attributes the audit row (default: `system`). |
 | `tenant:suspend <id>` | Block all API access without dropping the schema. `--admin=<id>` attributes the audit row (default: `system`). |
-| `tenant:destroy <id>` | Soft-delete and tear down. `--force` skips prompt; `--keep-schema` preserves storage during retention; `--admin=<id>` attributes the audit row (default: `system`). |
+| `tenant:destroy <id>` | Soft-delete and tear down. `--force` skips prompt; `--keep-schema` preserves storage during retention; `--admin=<id>` attributes the audit row (default: `system`). If the schema drop fails after the soft-delete, the tenant is already unreachable and the orphan schema is reclaimable with `tenant:purge-expired --include-orphans`. |
+| `tenant:reprovision <id>` | Re-run provisioning for a `failed` or stuck-`provisioning` tenant (idempotent `driver.provision`, then `active`). Unlike `tenant:activate` (which only flips status), this re-creates the schema. No-op on an active tenant; refuses a soft-deleted one. `--force`, `--admin=<id>`. |
 
 ## Migrations
 
@@ -122,7 +123,7 @@ node ace tenant:exec --status=active db:seed
 | `tenant:webhooks:retry` | Process pending webhook retries. Cron: `* * * * *`. |
 | `tenant:metrics:flush` | Flush Redis metric counters to the database. Cron: `0 1 * * *`. |
 | `tenant:metrics:rollup` | Recompute the per-tenant monthly rollup of `tenant_metrics` for fast whole-month reporting. Idempotent. `--since=<YYYY-MM-DD>`, `--until=<YYYY-MM-DD>`. Cron: `0 2 1 * *` (after a month closes). |
-| `tenant:purge-expired` | Drop schemas of soft-deleted tenants past their retention window. Cron: `0 3 * * *`. |
+| `tenant:purge-expired` | Drop schemas of soft-deleted tenants past their retention window. Cron: `0 3 * * *`. `--include-orphans` also drops schemas of soft-deleted tenants still within retention (recovers orphans from a failed `tenant:destroy`). |
 
 ## Compliance
 
