@@ -4,6 +4,7 @@ import { setConfig } from '../config.js'
 import { assertConfigBounds } from './assert_config_bounds.js'
 import { membershipGateRisk } from '../services/membership_gate.js'
 import { hostTrustWarning } from './assert_host_trust.js'
+import { assertRowScopeRlsPresent, probeRlsCatalog } from '../services/isolation/rls_boot_probe.js'
 import type { MultitenancyConfig } from '../types/config.js'
 import { BackofficeAdapter, TenantAdapter } from '../models/adapters/index.js'
 import { BackofficeBaseModel, TenantBaseModel, CentralBaseModel } from '../models/base/index.js'
@@ -156,6 +157,23 @@ export default class MultitenancyProvider {
           'isolation.rowScopeRls=true to acknowledge it and silence this warning. ' +
           'See docs/data-isolation/rowscope-pg.'
       )
+    }
+    // When the operator ASSERTS the RLS backstop is in place (rowScopeRls=true),
+    // verify the claim at boot instead of trusting it: probe pg_class/pg_policies
+    // for every scoped table and fail closed (IsolationConfigException) if RLS is
+    // not ENABLED + FORCED + policied. A half-applied migration must not boot
+    // looking protected while the mixin is the only real boundary.
+    if (choice === 'rowscope-pg' && config.isolation?.rowScopeRls === true) {
+      const tables = config.isolation?.rowScopeTables ?? []
+      if (tables.length > 0) {
+        const rows = await probeRlsCatalog(
+          db as any,
+          config.centralConnectionName,
+          config.centralSchemaName,
+          tables
+        )
+        assertRowScopeRlsPresent(rows, tables)
+      }
     }
     if (choice === 'sqlite-memory' && !drivers.has('sqlite-memory')) {
       drivers.register(new SqliteMemoryDriver(), { activate: true })

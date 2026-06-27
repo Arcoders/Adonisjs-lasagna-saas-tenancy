@@ -19,8 +19,20 @@ export default class TenantResolverRegistry {
   readonly #resolvers = new Map<string, TenantResolver>()
   #chain: string[] = []
 
-  register(resolver: TenantResolver): this {
-    this.#resolvers.set(resolver.name, resolver)
+  register(resolver: TenantResolver, opts: { override?: boolean } = {}): this {
+    const name = resolver?.name
+    if (typeof name !== 'string' || name.length === 0) {
+      throw new Error('TenantResolverRegistry.register: resolver.name must be a non-empty string.')
+    }
+    // A duplicate name would silently shadow an existing resolver and change how
+    // tenants resolve. Refuse unless the caller explicitly overrides.
+    if (this.#resolvers.has(name) && opts.override !== true) {
+      throw new Error(
+        `TenantResolverRegistry: a resolver named "${name}" is already registered. ` +
+          `Pass { override: true } to replace it.`
+      )
+    }
+    this.#resolvers.set(name, resolver)
     return this
   }
 

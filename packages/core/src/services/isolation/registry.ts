@@ -9,10 +9,23 @@ export default class IsolationDriverRegistry {
   readonly #drivers = new Map<string, IsolationDriver>()
   #activeName: string | undefined
 
-  register(driver: IsolationDriver, opts: { activate?: boolean } = {}): this {
-    this.#drivers.set(driver.name, driver)
+  register(driver: IsolationDriver, opts: { activate?: boolean; override?: boolean } = {}): this {
+    const name = driver?.name
+    if (typeof name !== 'string' || name.length === 0) {
+      throw new Error('IsolationDriverRegistry.register: driver.name must be a non-empty string.')
+    }
+    // Fail loudly on a duplicate name rather than silently shadowing an existing
+    // driver (a copy-paste name collision would otherwise re-point routing with
+    // no signal). Opt in to replacement with { override: true }.
+    if (this.#drivers.has(name) && opts.override !== true) {
+      throw new Error(
+        `IsolationDriverRegistry: a driver named "${name}" is already registered. ` +
+          `Pass { override: true } to replace it.`
+      )
+    }
+    this.#drivers.set(name, driver)
     if (opts.activate || !this.#activeName) {
-      this.#activeName = driver.name
+      this.#activeName = name
     }
     return this
   }
