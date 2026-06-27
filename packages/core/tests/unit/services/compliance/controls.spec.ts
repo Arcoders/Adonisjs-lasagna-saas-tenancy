@@ -153,6 +153,28 @@ test.group('control — access-authorization', () => {
     assert.equal(r.status, 'action-needed')
     assert.match(r.evidence, /IDOR/)
   })
+
+  test('acknowledgeNoMembershipGate downgrades the unset hook from action-needed to an accepted-risk info', async ({
+    assert,
+  }) => {
+    const r = await accessAuthorizationControl.detect(ctx({ acknowledgeNoMembershipGate: true }))
+    assert.notEqual(
+      r.status,
+      'action-needed',
+      'an explicit acknowledgement must not stay action-needed'
+    )
+    assert.equal(r.status, 'info')
+    assert.match(r.evidence, /acknowledg|accepted/)
+  })
+
+  test('a wired hook still wins over the acknowledgement (satisfied, not info)', async ({
+    assert,
+  }) => {
+    const r = await accessAuthorizationControl.detect(
+      ctx({ authorizeTenantAccess: () => true, acknowledgeNoMembershipGate: true })
+    )
+    assert.equal(r.status, 'satisfied')
+  })
 })
 
 test.group('control — data-retention', () => {

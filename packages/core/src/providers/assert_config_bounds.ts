@@ -71,4 +71,13 @@ export function assertConfigBounds(config: MultitenancyConfig): void {
   }
 
   atLeast(config.maintenance?.retryAfterSeconds, 'maintenance.retryAfterSeconds', 1)
+
+  // The maintenance bypass token is a standing shared secret that lets a request
+  // skip the maintenance gate on a tenant deliberately taken offline (mid-migration,
+  // etc.). A short token is brute-forceable, and the constant-time compare leaks
+  // length, so require real entropy (matches the impersonation.secret floor).
+  const bypassToken = config.maintenance?.bypassToken
+  if (bypassToken != null && bypassToken.length < 32) {
+    fail('maintenance.bypassToken', 'at least 32 characters', `${bypassToken.length} chars`)
+  }
 }

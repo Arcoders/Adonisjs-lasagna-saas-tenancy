@@ -343,6 +343,18 @@ export interface MultitenancyConfig {
    * `TenantAccessForbiddenException`. See {@link TenantAccessAuthorizer}.
    */
   authorizeTenantAccess?: TenantAccessAuthorizer
+  /**
+   * Explicitly acknowledge running WITHOUT a package membership gate
+   * (`authorizeTenantAccess`) when a client-controlled resolver strategy
+   * (`header` / `path` / `request-data`) is active. Set to `true` only when an
+   * equivalent app-layer guard verifies the principal belongs to the resolved
+   * tenant, or membership is genuinely out of scope. It silences the
+   * cross-tenant-IDOR signal (boot warning + doctor / compliance check) so
+   * silence is a deliberate decision rather than an oversight. Leaving it unset
+   * with a client-controlled strategy and no `authorizeTenantAccess` is reported
+   * as a security risk.
+   */
+  acknowledgeNoMembershipGate?: boolean
   tenantHeaderKey: string
   baseDomain: string
   /** Settings for the `request-data` resolver. */

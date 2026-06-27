@@ -24,6 +24,19 @@ const accessAuthorizationControl: ComplianceControl = {
       }
     }
 
+    if (config.acknowledgeNoMembershipGate === true) {
+      return {
+        status: 'info',
+        evidence:
+          'config.authorizeTenantAccess is not set, but acknowledgeNoMembershipGate is true: the ' +
+          'host explicitly accepted the cross-tenant IDOR risk (membership enforced elsewhere or ' +
+          'out of scope).',
+        hostResponsibility:
+          'You opted out of the package membership gate. Ensure an equivalent app-layer guard ' +
+          'verifies the principal belongs to the resolved tenant, or remove the acknowledgement.',
+      }
+    }
+
     return {
       status: 'action-needed',
       evidence:

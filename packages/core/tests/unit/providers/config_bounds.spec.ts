@@ -135,6 +135,22 @@ test.group('assertConfigBounds()', () => {
     )
   })
 
+  test('rejects a maintenance.bypassToken shorter than 32 characters', ({ assert }) => {
+    assert.throws(
+      () => assertConfigBounds(config({ maintenance: { bypassToken: 'short' } })),
+      /maintenance\.bypassToken must be at least 32/
+    )
+  })
+
+  test('allows a >= 32 char bypassToken and an omitted one', ({ assert }) => {
+    assert.doesNotThrow(() =>
+      assertConfigBounds(config({ maintenance: { bypassToken: 'x'.repeat(32) } }))
+    )
+    assert.doesNotThrow(() =>
+      assertConfigBounds(config({ maintenance: { retryAfterSeconds: 600 } }))
+    )
+  })
+
   test('passes a fully valid set of tunables', ({ assert }) => {
     assert.doesNotThrow(() =>
       assertConfigBounds(

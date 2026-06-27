@@ -71,7 +71,7 @@ Before going live, work through this list; every item is a host
 responsibility (the package gives you the primitives).
 
 - [ ] Auth middleware wired in front of `multitenancyAdminRoutes(...)` and `resolveAdminActor` set.
-- [ ] `authorizeTenantAccess` set (or an equivalent app-layer guard) verifying the authenticated principal belongs to the resolved tenant; otherwise a swapped `x-tenant-id` is served against another tenant's schema.
+- [ ] `authorizeTenantAccess` set (or an equivalent app-layer guard) verifying the authenticated principal belongs to the resolved tenant; otherwise a swapped `x-tenant-id` is served against another tenant's schema. If membership is genuinely enforced elsewhere or out of scope, set `acknowledgeNoMembershipGate: true` to record that decision (it silences the cross-tenant-IDOR warning and the doctor / compliance check); leaving both unset with a client-controlled strategy (`header` / `path` / `request-data`) is flagged as a security risk.
 - [ ] Database role used by the app does **not** have `SUPERUSER` or `BYPASSRLS`.
 - [ ] A separate database role (or out-of-band script) handles audit-log retention with the trigger disabled in a controlled window.
 - [ ] `multitenancy.config.isolation.rowScopeMode` left at the default unless you've audited every cross-tenant query.
