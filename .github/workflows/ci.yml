@@ -307,9 +307,12 @@ jobs:
         run: npm ci --include=optional
 
       # tsx runs the tests through esbuild; its platform binary needs the scoped
-      # postinstall that .npmrc otherwise suppresses.
+      # postinstall that .npmrc otherwise suppresses. Use an env block (not a bash
+      # inline prefix) so the step also works under PowerShell on the Windows leg.
       - name: Rebuild esbuild (scoped install script)
-        run: npm_config_ignore_scripts=false npm rebuild esbuild
+        env:
+          npm_config_ignore_scripts: 'false'
+        run: npm rebuild esbuild
 
       - name: doc-coverage tests (property + golden + CRLF + RFC-status)
         run: npm run test --workspace @adonisjs-lasagna/doc-coverage

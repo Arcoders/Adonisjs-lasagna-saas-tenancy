@@ -32,8 +32,9 @@ export interface BuildResult {
 }
 
 /**
- * Normalize an `@doc` target (`docs/x.md#section` or `docs/x#section`) to the
- * doc-section node id used by the docs walker (`docs/x.md#slug`).
+ * Normalize an `@doc` target (a repo-relative page path with an optional
+ * `#section`, written with or without the `.md` suffix) to the doc-section node
+ * id used by the docs walker: the `.md` path plus the slugified fragment.
  */
 function normalizeDocTarget(target: string): string {
   const [path, frag] = target.split('#')
