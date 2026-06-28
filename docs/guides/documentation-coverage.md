@@ -18,8 +18,9 @@ none.
 <Callout type="info" title="Two docs, two audiences">
 This is the learning page. The full design contract lives in the dev-facing RFC
 (<code>docs/dev/doc-coverage-rfc.md</code> in the repo), which is the engineering
-spec for the <code>packages/doc-coverage</code> tool. This page is the "what it is
-and how I use it"; the RFC is the "how it is built".
+spec for the private <code>@adonisjs-lasagna/doc-coverage</code> workspace that
+implements it. This page is the "what it is and how I use it"; the RFC is the
+"how it is built".
 </Callout>
 
 ## The problem: the un-generatable surface

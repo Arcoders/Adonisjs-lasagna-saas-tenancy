@@ -29,6 +29,8 @@ const LANDING_OVERRIDES: Record<string, string | null> = {
   'core': null,
   'satellite-template': 'docs/guides/cookbook/creating-a-satellite.md',
   'satellite-test-kit': 'docs/guides/testing.md',
+  // Private dev-only tool (not a satellite); its learning page is the guide.
+  'doc-coverage': 'docs/guides/documentation-coverage.md',
 }
 
 function packageDirs(): string[] {
