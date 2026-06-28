@@ -5,6 +5,10 @@ description: How Lasagna keeps a large hand-written documentation surface honest
 
 # Documentation coverage
 
+The most dangerous page in your docs is not the one you never wrote. It is the
+one that was true last release, that a reader still trusts, and that now
+describes a tenant boundary that has moved.
+
 Lasagna has a lot of hand-written documentation, and hand-written documentation
 drifts. A method gains a parameter, an exception is renamed, a guard moves, and
 somewhere a paragraph that used to be true quietly is not. This page explains the
@@ -17,10 +21,12 @@ none.
 
 <Callout type="info" title="Two docs, two audiences">
 This is the learning page. The full design contract lives in the dev-facing RFC
-(<code>docs/dev/doc-coverage-rfc.md</code> in the repo), which is the engineering
-spec for the private <code>@adonisjs-lasagna/doc-coverage</code> workspace that
-implements it. This page is the "what it is and how I use it"; the RFC is the
-"how it is built".
+([<code>docs/dev/doc-coverage-rfc.md</code>](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/dev/doc-coverage-rfc.md)),
+which is the engineering spec for the private
+<code>@adonisjs-lasagna/doc-coverage</code> workspace that implements it. It is a
+dev-facing design document rather than a published page, so it lives in the
+repository, not on this site. This page is the "what it is and how I use it"; the
+RFC is the "how it is built".
 </Callout>
 
 ## The problem: the un-generatable surface
@@ -88,7 +94,8 @@ exists, a public symbol of a documentable kind has no page. Facts can block.
 **Tier 2 is the report, and it never blocks.** It is the impact analysis: changed
 symbols mapped to the pages that explain them, prose that is missing a term the
 code uses, a page that is older than the symbol it documents. Every item is a
-review prompt with an action and an escape valve, posted as a PR comment.
+review prompt with an action and an escape valve, surfaced in the report and
+never in the gate.
 
 <Callout type="tip" title="The one-line law">
 Only the deterministic gate blocks; everything else informs. Advisory noise that
@@ -130,11 +137,44 @@ rather than guessing.
 Run the doctor locally before you push:
 
 ```bash
-npm run docs:doctor
+npm run docs:doctor   # a root npm script that runs the private @adonisjs-lasagna/doc-coverage workspace
 ```
 
 You get the Tier-1 gate result, the Tier-2 review items, and the coverage line.
-On a pull request the same report is posted as a comment.
+This is a root npm script, not an `ace` command: the `docs:doctor` name only
+echoes `tenant:doctor` and `billing:doctor`, but the tool is a standalone CLI in
+the private dev-only workspace, run through `tsx`. Flags pass through after the
+npm `--` separator, for example `npm run docs:doctor -- --since origin/master...HEAD`.
+On a pull request the same run is published in CI; see [What happens in CI](#what-happens-in-ci)
+below.
+
+### Debug an edge with `--explain`
+
+When a finding is surprising, ask the graph why an edge exists. `--explain`
+prints a symbol's node and every doc that links to it, with the provenance and
+the source location of each link:
+
+```bash
+npm run docs:doctor -- --explain QuotaService
+```
+
+```
+@adonisjs-lasagna/saas-tenancy/services#QuotaService
+  kind:     service
+  source:   packages/core/src/services/quota_service.ts:24
+  contract: 9f2a1c7b4e0d6a83
+  members:  consume, reserve, settle, release
+  throws:   QuotaExceededError
+  documented by 2 edge(s):
+  declared:manual documents    <- docs/guides/satellites/quotas.md  (docs/guides/satellites/quotas.md:1)
+  derived:auto    exemplifies  <- docs/architecture.md  (docs/architecture.md:341)
+```
+
+The provenance column is the whole point: `declared:manual` is the front-matter
+or `<!-- doc:ref -->` link the gate trusts, `derived:auto` is a fence the tool
+inferred. The reverse lookup, `--why docs/architecture.md#cost-governor`, starts
+from a page and lists the symbols it links to, so you can answer "why is this
+page tied to this symbol?" from either end.
 
 **Declare an edge** when you want the strongest, gate-trusted link between a page
 and a symbol. Any one of these works:
@@ -169,6 +209,36 @@ Coverage: explained 39%, exemplified-only 28%, uncovered 33%
 *Exemplified-only* means it appears in a code sample but is never explained in
 words. *Uncovered* means neither. The split is deliberate: a fence is not an
 explanation, and counting it as one would let checkbox docs hide a real gap.
+
+## What happens in CI
+
+The same engine runs on every pull request, and it honours the one-line law: the
+deterministic gate blocks, the report informs.
+
+**One check blocks today: the API-report golden diff.** Each opted-in package
+commits an `etc/<pkg>.api.md` snapshot of its public surface. CI regenerates that
+snapshot and fails if a public-API change did not update the committed file, so a
+renamed export or a changed signature cannot merge without the reference moving
+with it. The fix is a single command, printed in the failure message, so keeping
+the snapshot current is never manual editing. It is per-package opt-in: a package
+without an api-extractor config is skipped, not failed.
+
+**The `docs:doctor` run is advisory today, and posts a job summary.** It runs with
+conservative day-one defaults, dead-member is a warning and the coverage floor is
+zero, so it never blocks a merge yet. It publishes the Tier-1 gate result, the
+Tier-2 review items, and the coverage line to the CI job summary, where you read
+them on the run. It is promoted toward blocking the same way the repository's
+coverage floors are: per-check severity is raised and a baseline is captured, so
+existing debt does not block while new drift does.
+
+**A separate matrix job proves the engine is cross-OS deterministic.** The tool's
+own test suite runs on Linux and Windows, because the contract hash is
+path-free and every document is normalized to LF on read, so the graph and the
+hashes come out byte-identical regardless of the runner's filesystem.
+
+The whole run needs no network and no secret, which is the practical payoff of the
+zero-LLM design: the gate runs the same on a fork as it does on the main
+repository.
 
 ## Honest limits
 
