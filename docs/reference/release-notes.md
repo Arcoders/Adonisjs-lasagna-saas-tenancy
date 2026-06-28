@@ -44,10 +44,17 @@ for a copy-paste migration.
     **`@adonisjs-lasagna/backup`**. Register `@adonisjs-lasagna/backup/provider`
     and `@adonisjs-lasagna/backup/commands` (this is what registers the
     `backup_recency` doctor check and the backup queue jobs).
-  - The result types `BackupMetadata` / `CloneResult` and the Stripe config types
-    stay in the core (`@adonisjs-lasagna/saas-tenancy/types`); only the runtime
-    moved. The tenant-lifecycle hook phases (`backup`/`restore`/`clone`) and the
-    `TenantBackedUp` / `TenantRestored` / `TenantCloned` events also stay in core.
+  - The result types `BackupMetadata` / `CloneResult` stay in the core
+    (`@adonisjs-lasagna/saas-tenancy/types`). The **satellite config types and
+    blocks** do NOT: `BillingConfig` / `BillingDriverChoice` now live in
+    **`@adonisjs-lasagna/billing`**, and the `billing` / `backup` config blocks
+    are contributed onto `MultitenancyConfig` by each satellite via the open
+    `SatelliteConfigRegistry` interface (declaration merging) rather than being
+    hard-coded into core's frozen type. Authoring `config.billing` / `config.backup`
+    is unchanged; only `import { BillingConfig } from '@adonisjs-lasagna/saas-tenancy/types'`
+    moves to `from '@adonisjs-lasagna/billing'`. The tenant-lifecycle hook phases
+    (`backup`/`restore`/`clone`) and the `TenantBackedUp` / `TenantRestored` /
+    `TenantCloned` events also stay in core.
 - **`resolver.legacyAdapterFallback` now defaults to `false`.** When a model
   query runs outside an active tenant context, `TenantAdapter` resolves the id
   through the resolver chain synchronously (`resolveSync`) instead of the
@@ -95,8 +102,8 @@ for a copy-paste migration.
   `@adonisjs-lasagna/saas-tenancy`, so the isolation core no longer couples its
   public surface to one payment provider. Import these from `stripe` directly
   (`import type Stripe from 'stripe'`) or use billing's own types from
-  `@adonisjs-lasagna/billing`. (The `BillingConfig` / billing result types still
-  live in core.)
+  `@adonisjs-lasagna/billing` (which now also owns `BillingConfig` /
+  `BillingDriverChoice`).
 
 ### Added
 
@@ -295,6 +302,14 @@ for a copy-paste migration.
   `config.multitenancy.backup.lockFailOpenOnDestructive?` opts the backup
   satellite's destructive operations back into legacy fail-open locking. Additive
   and optional.
+- **OpenTelemetry spans on the tenant hot path.** Tenant activation now opens a
+  span carrying `tenant.id` on both the HTTP path (`request.tenant()` →
+  `tenancy.http.resolve`, covering resolve + lifecycle + connect) and the
+  background path (`tenancy.run()` → `tenancy.run`). Tenant connect runs inside
+  the span so its latency is attributed, and deeper code (driver, adapter) that
+  calls `TelemetryService.setTenant()` attaches to the active span. When no OTel
+  provider is wired (the default) the spans are no-ops, so there is no runtime
+  cost.
 
 ### Security
 
@@ -316,6 +331,24 @@ for a copy-paste migration.
   a missing schema template) surfaces as `IsolationConfigException` (500), so a
   retryable 503 always means "dependency down", never "wrong config". Locked by
   the `connection_failure_503` integration tests.
+- **Connection-infrastructure failures fail closed as 503, not raw 500.** A
+  backend severed mid-handler (a failover, an admin `pg_terminate_backend`, a
+  crash) and a Lucid unregistered-connection error (`E_UNMANAGED_DB_CONNECTION`,
+  which carries a 500 but is transient) now map to a retry-able 503 on both the
+  guarded and universal paths via a narrow connection-outage classifier — an
+  ordinary constraint violation still passes straight through. The universal
+  middleware also now connects BEFORE probing the circuit breaker (matching the
+  guarded path); previously the probe ran first and failed a tenant's first
+  request with an unregistered-connection error. Postgres rolls an aborted
+  transaction back, so no partial write survives. Locked by
+  `pg_outage_mid_transaction`, `connection_failure_503`, and
+  `universal_connection_cap`.
+- **`rowscope-pg` cross-tenant isolation holds under concurrency, and the RLS GUC
+  is transaction-local.** New proofs cover interleaved writes/reads across many
+  tenants on the shared rowscope connection, a query that ignores the RLS
+  transaction returning zero rows, and the `app.tenant_id` setting not leaking to
+  a reused pooled connection after commit (`rowscope_cross_tenant_concurrent`,
+  `rowscope_rls`).
 - **Impersonation tokens are bound to the request's tenant.** A token minted for
   tenant A and presented on a request resolved to tenant B is rejected with 401.
   The check no longer depends on the tenant guard running first: when no context
@@ -339,6 +372,12 @@ for a copy-paste migration.
 
 ### Changed
 
+- **`@adonisjs/queue` is an optional, widened peer.** The range moved from a
+  capped `^0.6.0` to `>=0.6.0 <1` (a queue 0.7 release no longer breaks installs),
+  and the queue-backed job classes (`InstallTenant` / `UninstallTenant` /
+  `TenantJob`, which `extends Job`) are no longer re-exported from the main barrel,
+  so `import '@adonisjs-lasagna/saas-tenancy'` stays queue-free. Import them from
+  the `@adonisjs-lasagna/saas-tenancy/jobs` subpath when you run a worker.
 - **The core is smaller.** It no longer bundles a Stripe engine, an OIDC client,
   a REST admin API, or the backup/clone tooling, so a CVE in any of those no
   longer forces a core bump.
