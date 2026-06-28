@@ -75,7 +75,7 @@ export default class ProcessBillingEventJob extends Job<ProcessBillingEventPaylo
       event = await billing.retrieveEvent(eventId)
     } catch (err) {
       if (await this.#shortCircuitIfFatal(row, err, eventId)) return
-      await this.#markFailed(row, err)
+      await this.#releaseForRetry(row, err)
       throw err
     }
 
@@ -95,7 +95,7 @@ export default class ProcessBillingEventJob extends Job<ProcessBillingEventPaylo
       )
     } catch (err) {
       if (await this.#shortCircuitIfFatal(row, err, eventId)) return
-      await this.#markFailed(row, err)
+      await this.#releaseForRetry(row, err)
       throw err
     }
   }
@@ -165,8 +165,18 @@ export default class ProcessBillingEventJob extends Job<ProcessBillingEventPaylo
     return 'in_flight'
   }
 
-  async #markFailed(row: BillingProcessedEvent, err: unknown): Promise<void> {
+  /**
+   * Release the claim after a RETRYABLE error: record the error and put the row
+   * back to 'pending' so this job's BullMQ retry (and only it; concurrent
+   * duplicate deliveries already skipped on 'in_flight') can re-claim it. The
+   * claim bumped `attempts`, so we leave that alone. Skip this reset and the row
+   * sits in 'processing', so the next retry sees it as in-flight and skips,
+   * stalling the event until the 15-min stale window. That crash window stays
+   * the safety net for a worker that dies before it can reach here.
+   */
+  async #releaseForRetry(row: BillingProcessedEvent, err: unknown): Promise<void> {
     const { errorCode, details } = classifyError(err)
+    row.status = 'pending'
     row.lastError = (details ?? errorCode).slice(0, 500)
     await row.save()
   }
@@ -175,7 +185,7 @@ export default class ProcessBillingEventJob extends Job<ProcessBillingEventPaylo
    * If the error is a known-fatal `BillingException`, mark the row permanently
    * `failed`, fire the dead-letter event, and return true so the caller skips
    * the throw. Returns false for retryable errors (caller falls through to
-   * #markFailed + throw, letting the queue retry).
+   * #releaseForRetry + throw, letting the queue retry).
    */
   async #shortCircuitIfFatal(
     row: BillingProcessedEvent,
