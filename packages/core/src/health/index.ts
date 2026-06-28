@@ -1,9 +1,11 @@
-export { default as HealthService } from './health_service.js'
+export { default as HealthService, toPublicHealthReport } from './health_service.js'
 export type {
   CheckStatus,
   CheckResult,
   HealthCheckFn,
   HealthReport,
+  PublicCheckResult,
+  PublicHealthReport,
   AddCheckOptions,
 } from './health_service.js'
 

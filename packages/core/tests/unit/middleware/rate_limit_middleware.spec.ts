@@ -325,6 +325,34 @@ test.group('RateLimitMiddleware — tenant attribution (P3-2)', (group) => {
     )
     assert.equal(m.capturedKey, 'rl:global:127.0.0.1')
   })
+
+  // SECURITY (#4): a forged header carrying the ':' delimiter must NOT become a
+  // bucket key (key-structure injection / cross-tenant attribution). It degrades
+  // to the shared per-IP 'global' bucket instead of an attacker-chosen tenant.
+  test('a colon-injected fallback header degrades to the global bucket', async ({ assert }) => {
+    const m = new KeyCapturingRateLimit(undefined)
+    await m.handle(
+      {
+        request: makeRequest({ 'x-tenant-id': 'victim:rl:127.0.0.1' }),
+        response: makeResponse(),
+      } as any,
+      async () => {},
+      opts
+    )
+    assert.equal(m.capturedKey, 'rl:global:127.0.0.1', 'unsafe id must not be keyed verbatim')
+  })
+
+  test('a non-SAFE_IDENT active context id degrades to the global bucket (seam guard)', async ({
+    assert,
+  }) => {
+    const m = new KeyCapturingRateLimit('tenant:*:injected')
+    await m.handle(
+      { request: makeRequest(), response: makeResponse() } as any,
+      async () => {},
+      opts
+    )
+    assert.equal(m.capturedKey, 'rl:global:127.0.0.1')
+  })
 })
 
 test.group('RateLimitMiddleware — global resilience.redis.rateLimit fallback', (group) => {

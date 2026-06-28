@@ -46,13 +46,21 @@ export function auditRowToRecord(row: TenantAuditLog): AuditExportRecord {
   }
 }
 
-/** RFC 4180: quote a cell that holds a comma, quote, CR or LF; double inner quotes. */
+/**
+ * RFC 4180 quoting PLUS CSV formula-injection neutralization. A spreadsheet
+ * (Excel/Sheets/LibreOffice) executes any cell that begins with `=`, `+`, `-`,
+ * `@`, or a leading tab/CR. So a value planted in an audited field (action,
+ * metadata, ip) could run a formula on the analyst's machine when they open the
+ * forensic export. Neutralize by prefixing an apostrophe so the cell is treated
+ * as literal text, then apply RFC-4180 quoting.
+ */
 function escapeCsv(value: string | null): string {
   if (value == null) return ''
-  if (/[",\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`
+  const cell = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+  if (/[",\r\n]/.test(cell)) {
+    return `"${cell.replace(/"/g, '""')}"`
   }
-  return value
+  return cell
 }
 
 export function csvHeader(): string {

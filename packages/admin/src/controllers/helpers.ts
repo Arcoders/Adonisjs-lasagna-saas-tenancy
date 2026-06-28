@@ -66,7 +66,19 @@ export async function auditAdminAction(
       metadata,
       ipAddress,
     })
-  } catch {
-    // Best-effort: auditing must never fail the audited operation.
+  } catch (error) {
+    // Best-effort: auditing must never fail the audited operation. But a
+    // swallowed write means a privileged action left no evidence, so log it
+    // loudly instead of letting it disappear (the silent-loss bug that motivated
+    // widening `actor_id` to text). Never throw out of here.
+    try {
+      const logger = await app.container.make('logger').catch(() => undefined)
+      logger?.error(
+        { action, tenant_id: tenantId, err: (error as Error)?.message },
+        'admin.audit.write_failed: a privileged action was NOT recorded'
+      )
+    } catch {
+      /* logging must never throw out of the audit helper */
+    }
   }
 }

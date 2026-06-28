@@ -355,6 +355,18 @@ for your peak concurrent-tenant count, front Postgres with PgBouncer at higher c
 exception class is [`TenantConnectionLimitException`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/src/exceptions/tenant_connection_limit_exception.ts)
 (503).
 
+<Callout type="note" title="Two guards keep an active connection alive">
+Eviction is protected twice. The grace window is the cheap first pass: <code>touch(tenantId)</code>
+stamps a connection on every query, and anything touched within <code>evictionGracePeriodMs</code>
+(default 30s) is never a victim. The authoritative guard runs right before a stale victim is actually
+closed: the driver reads the knex pool's checked-out count, and if a query is still in flight (even a
+single long query that outlived the grace window) it declines the close and the connection goes back
+into the registry with a fresh heartbeat. So eviction only ever closes a genuinely idle pool. If the
+pool introspection ever can't read the count it falls back to the grace-window behaviour, which is
+why sizing <code>evictionGracePeriodMs</code> above your p99 query duration is still good practice.
+The check is <a href="https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/src/services/isolation/pool_in_use.ts">pool_in_use.ts</a>.
+</Callout>
+
 ## Resilience: breakers and fail-closed errors
 
 Two mechanisms keep one tenant's trouble from becoming everyone's. A per-tenant **circuit breaker**
@@ -553,10 +565,14 @@ insecure. Each domain chooses based on what the wrong answer costs.
 | Feature | Policy | Why |
 |---|---|---|
 | RLS | Fail-closed | Unset GUC returns zero rows. No data beats wrong data. |
-| Webhook SSRF | Fail-closed | A malicious URL is blocked. Never trust user input. |
+| Webhook SSRF | Fail-closed | A malicious URL is blocked, and a 3xx redirect is never followed. Never trust user input. |
+| Outbound redirects | Fail-closed | Every server-side fetch to a caller-influenced URL (webhook, OIDC discovery/token) pins `redirect: 'manual'` and rejects any 3xx. A redirect chosen by the receiver would slip past the URL guard. |
+| Attribution identity | Fail-closed | A tenant id that is not a `SAFE_IDENT` (e.g. carries the `:` Redis-key delimiter) never reaches a metric key or rate-limit bucket: it is dropped, or degrades to a per-IP `global` bucket, never an attacker-chosen tenant. |
+| Health probe surface | Fail-closed | The unauthenticated `/readyz` and `/healthz` expose only `{ status }` per check, never the per-check `meta`/`message` that carry OPEN-circuit tenant ids or raw DB/Redis errors. Detail stays behind the admin Doctor report. |
 | Impersonation token | Fail-closed | Invalid HMAC returns 403. Never fall back to anonymous. See [Impersonation](/guides/satellites/impersonation). |
 | Admin routes | Fail-closed | `multitenancyAdminRoutes` throws at startup without auth middleware; the host supplies the 401. Never mount admin APIs without middleware. |
 | Rate limiting | Fail-closed | A Redis outage returns 503; opt into `failOpen` per surface where availability beats abuse protection. See [Rate limiting](/guides/rate-limiting). |
+| Billing event ledger | Fail-closed | The webhook worker claims a row atomically (`pending`/`failed` → `processing`) before processing, so concurrent re-deliveries can't both fire the host-facing application event. |
 | Quota notification dedupe | Fail-open | On a Redis outage, send without dedupe. Spam beats silence. |
 | Read replica | Error (not fail-open) | A dead replica is an explicit 503. A masked outage stampedes the primary. |
 
@@ -582,10 +598,22 @@ flowchart TB
 
 [`validateResolvedHostIsPublic`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/src/utils/url.ts)
 resolves the hostname and rejects loopback (127.0.0.0/8, ::1), link-local and cloud metadata
-(169.254.0.0/16), RFC-1918 private ranges, carrier-grade NAT (100.64.0.0/10), and IPv6 ULA. The
-dev-only env flag `WEBHOOKS_ALLOW_LOOPBACK_TARGETS` relaxes loopback only; private and metadata
-ranges stay blocked even with it on. The payload transformer (if registered) runs **before** the
-delivery row is persisted, so what you store is what you send.
+(169.254.0.0/16), RFC-1918 private ranges, carrier-grade NAT (100.64.0.0/10), and IPv6 ULA. It also
+rejects the **IPv6 transition prefixes** (NAT64 `64:ff9b::/96`, 6to4 `2002::/16`, Teredo
+`2001:0000::/32`) outright. Those tunnel an IPv4 destination the host's gateway routes to (including
+cloud metadata via `64:ff9b::a9fe:a9fe` on an IPv6-only egress), so the embedded address must not be
+trusted. The dev-only env flag `WEBHOOKS_ALLOW_LOOPBACK_TARGETS` relaxes loopback only; private and
+metadata ranges stay blocked even with it on. The payload transformer (if registered) runs **before**
+the delivery row is persisted, so what you store is what you send.
+
+The guard validates the URL, but the **next hop** is not under its control: a conformant receiver
+answers `2xx`, but a 3xx `Location` is chosen by the (attacker-influenced) receiver and the guard
+never sees it. So every server-side fetch to a caller-influenced URL (webhook delivery and OIDC
+discovery/token exchange) pins `redirect: 'manual'` and treats any 3xx as a permanent, non-retryable
+failure rather than chasing it to an internal or metadata host. For OIDC the token POST carries the
+decrypted `client_secret`, so refusing the redirect is also what keeps that secret from being
+exfiltrated. The OIDC `issuerUrl` is validated at **write** time too (not just at fetch), so a
+private/metadata issuer can never be stored in the first place.
 
 <Callout type="warning" title="Residual risk: DNS rebinding (TOCTOU)">
 The guard resolves the hostname to classify it, but does not pin that IP for the subsequent fetch,
@@ -671,6 +699,11 @@ listed here because they drift; verify any decision against the history with
 | 2026-06 | Connection cap soft by default | Rejecting under burst (503) is an operator decision to opt into. | Soft: `enforceConnectionCap` already exists. |
 | 2026-06 | Monorepo split: core under `packages/core/` | Changesets cannot version a root package uniformly with workspace members. | Hard: would revert the release workflow. |
 | 2026-06 | `nullif(current_setting(...), '')` in the RLS policy | A pooled connection reverts the GUC to `''`, not `NULL`, after commit. | Hard: would break the fail-closed guarantee. |
+| 2026-06 | A resolved tenant id must be `SAFE_IDENT` before it keys a metric/bucket | An unvalidated id carrying `:` injects Redis-key structure and forges another tenant's metrics; an arbitrary id pollutes rate-limit buckets. | Soft: a stricter validator only narrows what is accepted. |
+| 2026-06 | `actor_id` is `text`, not `uuid`, in the audit log | Operator identity (from `resolveAdminActor` / `--admin`) may be a uuid, an int-as-string, or an email; a uuid column silently dropped the audit row for the most privileged actions. | Soft: widening is backward-compatible; the migration is shipped. |
+| 2026-06 | Server-side fetches pin `redirect: 'manual'` | A 3xx is chosen by the receiver and bypasses the URL guard; for the OIDC token POST it would also exfiltrate the `client_secret`. | Hard: changes outbound-fetch behavior for webhooks and OIDC. |
+| 2026-06 | The webhook event ledger uses an atomic claim (`processing` status) | A read-then-check let two concurrent re-deliveries both fire the host-facing application event and double-grant. | Soft: the new status value is additive; the migration is shipped. |
+| 2026-06 | Usage idempotency key sealed per-flush at dispatch, not from wall-clock | A minute-bucket key collapsed same-minute flushes (under-reporting) and a retry across a minute boundary minted a new key (double-billing). | Soft: the job falls back to the legacy key only for in-flight payloads during a deploy. |
 
 ## The 3 AM debugging guide
 
@@ -729,6 +762,9 @@ flush from Redis to the `backoffice.tenant_metrics` and `tenant_custom_metrics` 
 | "...within the in-use grace window; exceeding the cap..." | Connection LRU over the soft cap | Expected under burst; raise `maxTenantConnections` or scale out if sustained. |
 | "some destinations failed" (audit fan-out) | An audit sink errored or timed out | The canonical DB row is unaffected; check the slow sink. |
 | `Circuit OPEN — tenant DB unavailable` | Circuit breaker tripped for a tenant | That tenant's database is failing; the breaker is shielding it. |
+| `admin.audit.write_failed` | A privileged admin action could not be recorded | The action ran but left no audit row. Investigate the backoffice DB; attribution is missing. |
+| `billing.event.claim_lost` | Two workers raced the same billing event; the loser skipped | Expected under concurrent re-delivery; the atomic claim prevented a double-grant. |
+| `blocked_redirect:<status>` (webhook delivery) | A delivery target returned a 3xx | The receiver tried to redirect; delivery failed permanently by design. Check the endpoint. |
 
 ## Glossary
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import logger from '@adonisjs/core/services/logger'
 import type { QuotaTracked } from '@adonisjs-lasagna/saas-tenancy/events'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
@@ -79,10 +80,21 @@ export default class UsageAutoBridgeListener {
     if (bucket.quantity <= 0) return
 
     try {
+      // Stamp a STABLE, UNIQUE-per-flush idempotency key at dispatch time. This
+      // is the fix for two metering-integrity bugs:
+      //  - under-reporting: a wall-clock minute bucket made every flush within
+      //    the same minute (default flush is 10s → up to 6/min) collapse onto
+      //    ONE key, so the provider deduped 5 of every 6 batches away. A unique
+      //    key per flush makes each batch count.
+      //  - double-billing: deriving the key from Date.now() at JOB-EXECUTION time
+      //    meant a retry that crossed a minute boundary minted a NEW key, so the
+      //    provider re-counted it. Sealing the key into the (persisted) payload
+      //    means a retry of the SAME batch reuses the SAME key and is deduped.
       await ReportUsageBatchJob.dispatch({
         tenantId: bucket.tenantId,
         meterEventName: bucket.meterEventName,
         quantity: bucket.quantity,
+        idempotencyKey: `${bucket.tenantId}:${bucket.meterEventName}:${randomUUID()}`,
       })
     } catch (err) {
       logger.error(

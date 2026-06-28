@@ -1,6 +1,8 @@
 import { test } from '@japa/runner'
+import app from '@adonisjs/core/services/app'
 import { ADMIN_HEADERS, createInstalledTenant, dropAllTenants, installInline } from './_helpers.js'
 import { randomUUID } from 'node:crypto'
+import { TenantUpdated } from '@adonisjs-lasagna/saas-tenancy/events'
 
 /**
  * Full coverage of the package's REST admin API mounted at `/admin/*`.
@@ -129,9 +131,23 @@ test.group('e2e — admin REST endpoints', (group) => {
       .headers(ADMIN_HEADERS)
       .json({ keepSchema: true })
 
-    const r = await client.post(`/admin/tenants/${id}/restore`).headers(ADMIN_HEADERS)
-    r.assertStatus(200)
-    assert.isNull(r.body().data.deletedAt)
+    // SECURITY (#16): restore() must fire a cache-invalidating lifecycle event so
+    // the resolution-cache listener evicts the stale "deleted → 403" entry
+    // immediately. Without the event the un-deleted tenant stays locked out until
+    // the TTL.
+    const emitter = await app.container.make('emitter')
+    let restoredId: string | undefined
+    const off = (emitter as any).on(TenantUpdated, (e: any) => {
+      restoredId = e.tenant?.id ?? e?.id
+    })
+    try {
+      const r = await client.post(`/admin/tenants/${id}/restore`).headers(ADMIN_HEADERS)
+      r.assertStatus(200)
+      assert.isNull(r.body().data.deletedAt)
+      assert.equal(restoredId, id, 'restore must dispatch a cache-invalidating event')
+    } finally {
+      off?.()
+    }
   })
 
   test('POST /admin/tenants/:id/restore on a non-deleted tenant → unchanged: true', async ({

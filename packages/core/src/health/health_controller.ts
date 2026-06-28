@@ -1,6 +1,6 @@
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
-import HealthService from './health_service.js'
+import HealthService, { toPublicHealthReport } from './health_service.js'
 import { collectSnapshot } from './metrics_collector.js'
 import { renderPrometheus } from './metrics_exporter.js'
 
@@ -20,8 +20,13 @@ export default class HealthController {
   async readyz({ response }: HttpContext) {
     const svc = await app.container.make(HealthService)
     const report = await svc.readiness()
-    if (report.status === 'fail') return response.serviceUnavailable(report)
-    return response.ok(report)
+    // `/readyz` and `/healthz` are intentionally public (k8s probes), so the body
+    // is the binary up/down projection, never the full report. The per-check
+    // `meta`/`message` would leak OPEN-circuit tenant ids and raw DB/Redis errors
+    // to an anonymous caller. Detail stays behind the admin `/health/report` surface.
+    const publicReport = toPublicHealthReport(report)
+    if (report.status === 'fail') return response.serviceUnavailable(publicReport)
+    return response.ok(publicReport)
   }
 
   async healthz(ctx: HttpContext) {

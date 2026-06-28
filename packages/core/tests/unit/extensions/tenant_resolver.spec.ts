@@ -33,6 +33,29 @@ test.group('resolveTenantId — header strategy', (group) => {
     const req = makeRequest({ headers: { 'x-workspace-id': 'workspace-123' } })
     assert.equal(resolveTenantId(req), 'workspace-123')
   })
+
+  // SECURITY (#2/#4/#14): the header is client-controlled. A value that is not a
+  // SAFE_IDENT (e.g. carries the ':' Redis-key delimiter) must resolve to "no
+  // tenant" (fail-closed) rather than flow downstream into a metric/rate-limit
+  // key where it would inject structure or forge another tenant's attribution.
+  test('rejects a header carrying the ":" key delimiter (fail-closed)', ({ assert }) => {
+    const req = makeRequest({ headers: { 'x-tenant-id': 'victim:2026-06-28:requests' } })
+    assert.isUndefined(resolveTenantId(req))
+  })
+
+  test('rejects headers with whitespace, quotes, or other unsafe characters', ({ assert }) => {
+    for (const bad of ['a b', 'a"b', 'a/b', '../etc', 'a;b', '*']) {
+      const req = makeRequest({ headers: { 'x-tenant-id': bad } })
+      assert.isUndefined(resolveTenantId(req), `header "${bad}" must not resolve a tenant`)
+    }
+  })
+
+  test('still accepts a canonical UUID and opaque alphanumeric ids', ({ assert }) => {
+    const uuid = makeRequest({ headers: { 'x-tenant-id': '11111111-1111-4111-8111-111111111111' } })
+    assert.equal(resolveTenantId(uuid), '11111111-1111-4111-8111-111111111111')
+    const opaque = makeRequest({ headers: { 'x-tenant-id': 'acme_prod-01' } })
+    assert.equal(resolveTenantId(opaque), 'acme_prod-01')
+  })
 })
 
 test.group('resolveTenantId — subdomain strategy', (group) => {

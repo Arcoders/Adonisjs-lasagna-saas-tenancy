@@ -115,6 +115,39 @@ test.group('validateExternalHttpsUrl — SSRF guard', () => {
     assert.equal(validateExternalHttpsUrl('https://255.255.255.255/'), 'url_blocks_reserved')
   })
 
+  // SECURITY (#7): IPv6 transition prefixes tunnel an IPv4 the host's
+  // NAT64/6to4/Teredo gateway routes to, including cloud metadata, so they
+  // must be blocked even though the embedded IPv4 isn't visible as a v4 literal.
+  test('rejects IPv6 transition prefixes that tunnel private/metadata IPv4 (NAT64/6to4/Teredo)', ({
+    assert,
+  }) => {
+    // NAT64 well-known 64:ff9b::/96 mapping 169.254.169.254 (a9fe:a9fe), the
+    // cloud-metadata SSRF this gap enabled.
+    assert.equal(validateExternalHttpsUrl('https://[64:ff9b::a9fe:a9fe]/'), 'url_blocks_reserved')
+    assert.equal(
+      validateExternalHttpsUrl('https://[64:ff9b::169.254.169.254]/'),
+      'url_blocks_reserved'
+    )
+    // NAT64 mapping an RFC-1918 host (10.0.0.1).
+    assert.equal(validateExternalHttpsUrl('https://[64:ff9b::a00:1]/'), 'url_blocks_reserved')
+    // Even a NAT64-mapped "public" IPv4 is denied; the prefix has no business
+    // as a webhook/SSO target.
+    assert.equal(validateExternalHttpsUrl('https://[64:ff9b::808:808]/'), 'url_blocks_reserved')
+    // 6to4 2002::/16.
+    assert.equal(validateExternalHttpsUrl('https://[2002:a9fe:a9fe::1]/'), 'url_blocks_reserved')
+    // Teredo 2001:0000::/32.
+    assert.equal(
+      validateExternalHttpsUrl('https://[2001:0:53aa:64c:1c12:a9fe:a9fe:1]/'),
+      'url_blocks_reserved'
+    )
+  })
+
+  test('still accepts genuinely public IPv6 outside the transition prefixes', ({ assert }) => {
+    assert.isNull(validateExternalHttpsUrl('https://[2606:4700::1111]/'))
+    // 2001:4860::/32 is Google public space, NOT Teredo (2001:0000::/32).
+    assert.isNull(validateExternalHttpsUrl('https://[2001:4860:4860::8888]/'))
+  })
+
   test('rejects numeric IP encodings (URL parser canonicalises them to a blocked IP)', ({
     assert,
   }) => {

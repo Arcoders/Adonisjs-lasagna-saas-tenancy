@@ -26,6 +26,41 @@ export interface HealthReport {
   checks: Record<string, CheckResult>
 }
 
+/** A single check as exposed on the UNAUTHENTICATED probe surface. */
+export interface PublicCheckResult {
+  status: CheckStatus
+  /** Present (and `true`) only when the check is critical (non-identifying). */
+  critical?: boolean
+}
+
+export interface PublicHealthReport {
+  status: HealthReport['status']
+  uptime: number
+  checks: Record<string, PublicCheckResult>
+}
+
+/**
+ * Project a full {@link HealthReport} down to the binary up/down signal that is
+ * safe to expose on the UNAUTHENTICATED `/readyz` and `/healthz` probes.
+ *
+ * The full report's per-check `meta` can carry OPEN-circuit tenant ids (the same
+ * ids `/metrics` is gated to hide), `message` carries raw DB/Redis error strings,
+ * and `durationMs` is an internal timing signal. None of that belongs on an
+ * anonymous probe, so this keeps only the aggregate status, the uptime, and each
+ * check's status and criticality. That is all a Kubernetes probe needs, and it
+ * gives an attacker nothing to enumerate tenants or read internals with. The
+ * detailed report stays behind auth (the admin `/health/report` Doctor surface).
+ */
+export function toPublicHealthReport(report: HealthReport): PublicHealthReport {
+  const checks: Record<string, PublicCheckResult> = {}
+  for (const [name, result] of Object.entries(report.checks)) {
+    checks[name] = result.critical
+      ? { status: result.status, critical: true }
+      : { status: result.status }
+  }
+  return { status: report.status, uptime: report.uptime, checks }
+}
+
 const DEFAULT_TIMEOUT_MS = 2000
 
 interface RegisteredCheck {

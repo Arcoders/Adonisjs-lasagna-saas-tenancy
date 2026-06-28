@@ -16,6 +16,7 @@ import ConnectionLru, {
   DEFAULT_EVICTION_GRACE_MS,
   DEFAULT_MAX_TENANT_CONNECTIONS,
 } from './connection_lru.js'
+import { connectionHasActiveQuery } from './pool_in_use.js'
 
 /**
  * Lazily resolve `db` so unit tests don't drag the Lucid runtime — and
@@ -57,7 +58,12 @@ export default class DatabasePgDriver implements ProvisionableDriver {
     hardCap: () => getConfig().isolation?.enforceConnectionCap ?? false,
     release: async (name) => {
       const { db } = await lucid()
-      if (db.manager.has(name)) await db.manager.release(name)
+      if (!db.manager.has(name)) return true
+      // Keep a connection that still has a query running; the LRU will retry it
+      // once it goes idle.
+      if (connectionHasActiveQuery(db.manager, name)) return false
+      await db.manager.release(name)
+      return true
     },
   })
 

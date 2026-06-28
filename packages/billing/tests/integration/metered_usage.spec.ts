@@ -271,7 +271,12 @@ test.group('Metered/usage-based billing (integration)', (group) => {
 
     const ReportUsageBatchJob = (await import('../../build/src/jobs/report_usage_batch_job.js'))
       .default
-    const dispatched: Array<{ tenantId: string; meterEventName: string; quantity: number }> = []
+    const dispatched: Array<{
+      tenantId: string
+      meterEventName: string
+      quantity: number
+      idempotencyKey?: string
+    }> = []
     const originalDispatch = (
       ReportUsageBatchJob as unknown as { dispatch: (...a: unknown[]) => Promise<void> }
     ).dispatch
@@ -281,6 +286,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
           tenantId: string
           meterEventName: string
           quantity: number
+          idempotencyKey?: string
         }) => Promise<void>
       }
     ).dispatch = async (p) => {
@@ -306,6 +312,14 @@ test.group('Metered/usage-based billing (integration)', (group) => {
       assert.equal(dispatched[0].tenantId, tenant.id)
       assert.equal(dispatched[0].meterEventName, 'api_request')
       assert.equal(dispatched[0].quantity, 8, 'sum of all amounts')
+      // SECURITY (#1/#6): the listener seals a stable, unique-per-flush
+      // idempotency key into the payload. It must be present and scoped to the
+      // (tenant, meter) so the job never recomputes one from wall-clock.
+      assert.match(
+        dispatched[0].idempotencyKey ?? '',
+        new RegExp(`^${tenant.id}:api_request:`),
+        'a per-flush idempotency key is sealed at dispatch'
+      )
     } finally {
       off()
       ;(
@@ -313,6 +327,53 @@ test.group('Metered/usage-based billing (integration)', (group) => {
           dispatch: typeof originalDispatch
         }
       ).dispatch = originalDispatch
+      await listener.drainAll().catch(() => {})
+    }
+  })
+
+  // SECURITY (#1): under-reporting. The OLD key was tenant:meter:minute-bucket,
+  // so up to 6 flushes/minute (default 10s flush) collapsed onto ONE key and the
+  // provider deduped 5 of 6 away. Each flush must now mint a DISTINCT key.
+  test('each flush gets a DISTINCT idempotency key so same-minute flushes all count', async ({
+    assert,
+  }) => {
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const fakeTenant = {
+      id: tenant.id,
+      name: tenant.name,
+      email: tenant.email,
+    } as unknown as TenantModelContract
+
+    const listener = await app.container.make(UsageAutoBridgeListener)
+    const ReportUsageBatchJob = (await import('../../build/src/jobs/report_usage_batch_job.js'))
+      .default
+    const keys: Array<string | undefined> = []
+    const originalDispatch = (
+      ReportUsageBatchJob as unknown as { dispatch: (...a: unknown[]) => Promise<void> }
+    ).dispatch
+    ;(
+      ReportUsageBatchJob as unknown as {
+        dispatch: (p: { idempotencyKey?: string }) => Promise<void>
+      }
+    ).dispatch = async (p) => {
+      keys.push(p.idempotencyKey)
+    }
+
+    try {
+      // Two flush cycles for the SAME (tenant, meter), back to back, so the same
+      // wall-clock minute. The old minute-bucket key would be identical.
+      await listener.handle(new QuotaTracked(fakeTenant, 'apiRequests', 1, 1))
+      await listener.drainAll()
+      await listener.handle(new QuotaTracked(fakeTenant, 'apiRequests', 1, 1))
+      await listener.drainAll()
+
+      assert.lengthOf(keys, 2, 'two separate flushes dispatched two jobs')
+      assert.isString(keys[0])
+      assert.notEqual(keys[0], keys[1], 'same-minute flushes must NOT collapse onto one key')
+    } finally {
+      ;(ReportUsageBatchJob as unknown as { dispatch: typeof originalDispatch }).dispatch =
+        originalDispatch
       await listener.drainAll().catch(() => {})
     }
   })

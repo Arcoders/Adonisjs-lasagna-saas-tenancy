@@ -166,6 +166,57 @@ test.group('TrackMetricsMiddleware', (group) => {
     assert.equal(fake.increments[0]?.tenantId, 'header-tenant')
   })
 
+  // SECURITY (#2/#14): a client-controlled tenant id that is not a SAFE_IDENT
+  // must never reach the metric key. Otherwise a ':' in the header injects key
+  // structure and forges another tenant's row in backoffice.tenant_metrics.
+  test('drops a forged header carrying the ":" key delimiter instead of recording', async ({
+    assert,
+  }) => {
+    const fake = new FakeMetrics()
+    const m = new TestableTrackMetrics(fake, undefined)
+
+    await m.handle(
+      {
+        request: makeRequest({ 'x-tenant-id': 'victim-uuid:2026-06-28:requests' }),
+        response: makeResponse(200),
+      } as any,
+      async () => {}
+    )
+
+    assert.lengthOf(fake.increments, 0, 'a colon-injected tenant id must not be recorded')
+    assert.lengthOf(fake.bandwidth, 0)
+  })
+
+  test('drops a non-SAFE_IDENT active context id at the attribution seam', async ({ assert }) => {
+    // Even if a poisoned id somehow reached tenancy.currentId(), the seam guard
+    // refuses to key on it (defense in depth, independent of the resolver).
+    const fake = new FakeMetrics()
+    const m = new TestableTrackMetrics(fake, 'tenant:*:injected')
+
+    await m.handle(
+      { request: makeRequest(), response: makeResponse(200, '1024') } as any,
+      async () => {}
+    )
+
+    assert.lengthOf(fake.increments, 0)
+    assert.lengthOf(fake.bandwidth, 0)
+  })
+
+  test('still records a clean opaque host id (no false positives)', async ({ assert }) => {
+    const fake = new FakeMetrics()
+    const m = new TestableTrackMetrics(fake, undefined)
+
+    await m.handle(
+      {
+        request: makeRequest({ 'x-tenant-id': 'acme-prod-01' }),
+        response: makeResponse(200),
+      } as any,
+      async () => {}
+    )
+
+    assert.equal(fake.increments[0]?.tenantId, 'acme-prod-01')
+  })
+
   test('short-circuits in test env unless bypassInTestEnv is false', async ({ assert }) => {
     const fake = new FakeMetrics()
     const m = new TestableTrackMetrics(fake, TID, true)

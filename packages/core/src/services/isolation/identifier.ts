@@ -33,4 +33,16 @@ export function isUuidV4(value: string): boolean {
   return typeof value === 'string' && UUID_V4.test(value)
 }
 
+/**
+ * Non-throwing twin of {@link assertSafeIdentifier}. Use it at attribution
+ * seams (Redis metric keys, rate-limit buckets, log context) where a resolved
+ * tenant id must never carry a `:` delimiter or any other character that could
+ * inject key structure, but where the safe response is to drop/degrade rather
+ * than throw. Accepts the same set as the drivers require: UUID v4 and opaque
+ * alphanumeric host ids up to 63 chars; rejects the `:` used as a key separator.
+ */
+export function isSafeIdentifier(value: unknown): value is string {
+  return typeof value === 'string' && SAFE_IDENT.test(value)
+}
+
 export { UUID_V4, SAFE_IDENT }

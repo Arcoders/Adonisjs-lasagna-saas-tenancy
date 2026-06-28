@@ -141,7 +141,9 @@ export async function ensureBackofficeSchema(): Promise<void> {
        id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        tenant_id   uuid,
        actor_type  varchar(255) NOT NULL,
-       actor_id    uuid,
+       -- actor_id is a free-form operator identity (uuid, int-as-string, email),
+       -- not a tenant id; kept in sync with the create-table migration stub.
+       actor_id    varchar(255),
        action      varchar(255) NOT NULL,
        metadata    jsonb,
        ip_address  varchar(255),

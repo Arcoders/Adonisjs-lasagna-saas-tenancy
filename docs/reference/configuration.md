@@ -163,6 +163,14 @@ known-down tenant DB isn't hammered with timeouts after a deploy.
 (120), `longQueryWarnSeconds` (30), `longQueryErrorSeconds` (120),
 `poolSaturationWarnRatio` (0.9).
 
+`includeQueryText` (default `false`) controls whether the `long_running_queries`
+check puts the **raw SQL text** of a slow query in its diagnosis `meta`. It is off
+by default because that text can carry another tenant's secrets or PII as SQL
+literals, and the Doctor report is reachable over HTTP at the admin
+`/health/report` surface; off, the check emits only a non-reversible
+`queryFingerprint` so operators can still correlate queries. Turn it on only for
+trusted local CLI diagnosis.
+
 ## Routing, scheduling, onboarding, hooks
 
 | Key | Type | Default | Meaning |

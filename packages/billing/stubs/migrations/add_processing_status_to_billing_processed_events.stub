@@ -1,0 +1,48 @@
+{{{
+  exports({ to: app.migrationsPath(`${Date.now()}_add_processing_status_to_billing_processed_events.ts`) })
+}}}
+import { BaseSchema } from '@adonisjs/lucid/schema'
+
+/**
+ * Adds the `processing` value to the `billing_processed_events.status` CHECK so
+ * the webhook worker can ATOMICALLY claim a row (pending/failed → processing) in
+ * a single guarded UPDATE before it processes the event. Without the claim, two
+ * concurrent deliveries/retries of the same event both passed the read-check and
+ * double-dispatched the host-facing application event (e.g. PaymentSucceeded),
+ * double-granting entitlements. Existing installs need only this migration; new
+ * installs already get the four-value enum from the create migration.
+ *
+ * `table.enum()` is a varchar + CHECK constraint named `<table>_status_check`,
+ * so the value set is widened by swapping that constraint.
+ */
+export default class extends BaseSchema {
+  async up() {
+    this.schema.raw(
+      `ALTER TABLE "backoffice"."billing_processed_events"
+         DROP CONSTRAINT IF EXISTS "billing_processed_events_status_check"`
+    )
+    this.schema.raw(
+      `ALTER TABLE "backoffice"."billing_processed_events"
+         ADD CONSTRAINT "billing_processed_events_status_check"
+         CHECK ("status" IN ('pending', 'processing', 'completed', 'failed'))`
+    )
+  }
+
+  async down() {
+    // Reclaim any in-flight 'processing' rows to 'failed' (replayable) before
+    // narrowing the constraint back, so the down migration can't violate it.
+    this.schema.raw(
+      `UPDATE "backoffice"."billing_processed_events"
+         SET "status" = 'failed' WHERE "status" = 'processing'`
+    )
+    this.schema.raw(
+      `ALTER TABLE "backoffice"."billing_processed_events"
+         DROP CONSTRAINT IF EXISTS "billing_processed_events_status_check"`
+    )
+    this.schema.raw(
+      `ALTER TABLE "backoffice"."billing_processed_events"
+         ADD CONSTRAINT "billing_processed_events_status_check"
+         CHECK ("status" IN ('pending', 'completed', 'failed'))`
+    )
+  }
+}

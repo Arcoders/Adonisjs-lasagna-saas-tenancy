@@ -74,6 +74,46 @@ test.group('MetricsService (integration)', (group) => {
   })
 })
 
+test.group('MetricsService — key-injection guard (#2)', (group) => {
+  // The metric key uses ':' as its delimiter and the flusher parses the tenant
+  // id out of a fixed positional slot, so a ':' in the tenant id could forge or
+  // overwrite ANOTHER tenant's row in backoffice.tenant_metrics. The service
+  // drops any non-SAFE_IDENT tenant id (fail-open) before it reaches Redis.
+  const cleanup = async (pattern: string) => {
+    const keys = await redis.keys(pattern)
+    if (keys.length) await redis.del(...keys)
+  }
+  group.each.teardown(async () => {
+    await cleanup('metrics:victim*')
+    await cleanup('metrics:acme-prod-01:*')
+    await cleanup('custom_metrics:*')
+  })
+
+  test('increment DROPS a tenant id carrying the ":" delimiter (no Redis key written)', async ({
+    assert,
+  }) => {
+    const svc = new MetricsService()
+    await svc.increment('victim-uuid:2026-06-28:requests', 'requests')
+    const forged = await redis.keys('metrics:victim*')
+    assert.lengthOf(forged, 0, 'a colon-injected tenant id must never reach the keyspace')
+  })
+
+  test('trackBandwidth and emitMetric also drop unsafe ids', async ({ assert }) => {
+    const svc = new MetricsService()
+    await svc.trackBandwidth('a:b:c', 4096)
+    await svc.emitMetric('metrics:*', 'revenue_cents', 1299)
+    assert.lengthOf(await redis.keys('metrics:a:*'), 0)
+    assert.lengthOf(await redis.keys('custom_metrics:metrics:*'), 0)
+  })
+
+  test('a clean opaque host id still records (no false positives)', async ({ assert }) => {
+    const svc = new MetricsService()
+    await svc.increment('acme-prod-01', 'requests', 2)
+    const value = await redis.get('metrics:acme-prod-01:' + TODAY + ':requests')
+    assert.equal(value, '2')
+  })
+})
+
 test.group('MetricsService.flush — bulk upsert (P2-1)', (group) => {
   // tenant_metrics.tenant_id is a uuid column, so these must be valid UUIDs
   // (the flush writes them straight from the parsed Redis key).

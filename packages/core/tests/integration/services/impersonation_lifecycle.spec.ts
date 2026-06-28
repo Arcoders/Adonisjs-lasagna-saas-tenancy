@@ -116,6 +116,31 @@ test.group('ImpersonationService — lifecycle (integration)', (group) => {
     assert.isFalse(await svc.revokeById(sessionId), 'revokeById is idempotent')
   })
 
+  // SECURITY (#13): revokeById must audit symmetrically with stop(), otherwise a
+  // session ended via admin tooling shows a start/first-use with no end and the
+  // trail can't prove WHEN impersonation access stopped.
+  test('revokeById() writes an attributed admin:impersonate:stop audit row', async ({ assert }) => {
+    const { svc, audit } = makeSvc()
+    const { sessionId } = await svc.start(baseStart)
+
+    await svc.revokeById(sessionId)
+
+    const stopRows = audit.calls.filter((c) => c.action === 'admin:impersonate:stop')
+    assert.lengthOf(stopRows, 1, 'exactly one stop row for the revoked session')
+    assert.equal(stopRows[0].actorId, baseStart.adminId, 'attributed to the acting admin')
+    assert.equal((stopRows[0].metadata as any)?.targetUserId, baseStart.targetUserId)
+    assert.equal((stopRows[0].metadata as any)?.via, 'revoke-by-id')
+  })
+
+  test('revokeById() on a missing session writes NO stop row', async ({ assert }) => {
+    const { svc, audit } = makeSvc()
+    await svc.revokeById('does-not-exist')
+    assert.lengthOf(
+      audit.calls.filter((c) => c.action === 'admin:impersonate:stop'),
+      0
+    )
+  })
+
   test('revokeById() returns false for a non-existent session', async ({ assert }) => {
     const { svc } = makeSvc()
     assert.isFalse(await svc.revokeById('00000000000000000000000000000000'))

@@ -89,6 +89,29 @@ test.group('audit_export — CSV', () => {
     const cells = parseCsvLine(toCsvRow(auditRowToRecord(row({ action: 'a,b,c' }))))
     assert.lengthOf(cells, headerCount)
   })
+
+  // SECURITY (#12): CSV formula injection. A spreadsheet executes a cell that
+  // begins with =, +, -, @, or a leading tab/CR. The forensic export must
+  // neutralize those by prefixing an apostrophe so opening it can't run a formula.
+  test('neutralizes formula-injection payloads with a leading apostrophe', ({ assert }) => {
+    const dangerous = ['=HYPERLINK("http://evil","click")', '+1+1', '-2+3', '@SUM(A1:A9)']
+    for (const payload of dangerous) {
+      const cells = parseCsvLine(toCsvRow(auditRowToRecord(row({ action: payload }))))
+      assert.equal(cells[4], `'${payload}`, `"${payload}" must be prefixed with an apostrophe`)
+    }
+  })
+
+  test('does not touch a benign value that merely contains (not starts with) an operator', ({
+    assert,
+  }) => {
+    const cells = parseCsvLine(toCsvRow(auditRowToRecord(row({ action: 'plan=pro' }))))
+    assert.equal(cells[4], 'plan=pro', 'only a LEADING formula char is neutralized')
+  })
+
+  test('neutralizes AND quotes a payload that also holds a comma', ({ assert }) => {
+    const cells = parseCsvLine(toCsvRow(auditRowToRecord(row({ action: '=cmd,inject' }))))
+    assert.equal(cells[4], `'=cmd,inject`)
+  })
 })
 
 /** Minimal RFC 4180 single-record parser for asserting round-trips in tests. */

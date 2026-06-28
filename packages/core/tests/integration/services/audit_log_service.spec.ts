@@ -63,6 +63,40 @@ test.group('AuditLogService — public API', (group) => {
     assert.equal(row.ipAddress, '203.0.113.10')
   })
 
+  // SECURITY (#11/#18): `actor_id` is a free-form operator identity. A uuid
+  // column silently rejected every non-uuid id, and the best-effort audit write
+  // swallowed the failure, so destructive actions left no forensic record.
+  // Widened to text, a non-uuid operator id must now persist a row.
+  test('log() persists a NON-uuid actor id (no silent attribution loss)', async ({ assert }) => {
+    const t = await createTestTenant()
+    tenantIds.push(t.id)
+
+    const service = new AuditLogService()
+    for (const actorId of ['ops@acme.com', 'operator-42', '12345']) {
+      const row = await service.log({
+        tenantId: t.id,
+        actorType: 'admin',
+        actorId,
+        action: 'tenant.destroyed',
+        metadata: { via: 'cli' },
+      })
+      assert.equal(
+        row.actorId,
+        actorId,
+        `a non-uuid actor id (${actorId}) must be recorded verbatim`
+      )
+
+      // And it is genuinely in the table, not just on the returned model.
+      const persisted = await db
+        .connection('backoffice')
+        .query()
+        .from('tenant_audit_logs')
+        .where('id', row.id)
+        .first()
+      assert.equal(persisted.actor_id, actorId)
+    }
+  })
+
   test('log() applies sane defaults when fields are omitted', async ({ assert }) => {
     const t = await createTestTenant()
     tenantIds.push(t.id)

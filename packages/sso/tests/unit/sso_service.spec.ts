@@ -66,6 +66,24 @@ function jsonResponse(body: unknown, ok = true) {
   return { ok, status: ok ? 200 : 400, json: async () => body }
 }
 
+/**
+ * A redirect response as surfaced by `fetch(..., { redirect: 'manual' })`: a 3xx
+ * with `ok === false`. The `Location` deliberately points at cloud metadata so a
+ * followed redirect would be an SSRF (and, for the token POST, exfiltrate the
+ * client_secret).
+ */
+function redirectResponse(status = 302) {
+  return {
+    ok: false,
+    status,
+    headers: {
+      get: (h: string) => (h.toLowerCase() === 'location' ? 'http://169.254.169.254/' : null),
+    },
+    json: async () => ({}),
+    text: async () => '',
+  }
+}
+
 /** A fake `jose` whose jwtVerify returns a fixed payload (or throws). */
 function fakeJose(payload: Record<string, unknown>, throwVerify = false) {
   return {
@@ -157,6 +175,64 @@ test.group('SsoService — state GETDEL (CSRF/replay guard)', () => {
     const { redis } = fakeRedis({ 'sso:state:S1': 'not-json{' })
     const svc = makeService({ over: { redis } })
     await assert.rejects(() => svc.handleCallback('S1', 'code'), /Corrupted SSO state payload/)
+  })
+})
+
+// SECURITY (Clase B / #9, #10): the SSRF guard validates the URL, but a 3xx the
+// validated endpoint returns is chosen by an attacker-influenced party and would
+// reach internals past the guard if followed. Both server-side fetches pin
+// redirect:'manual' and reject any 3xx; the issuer is also validated at write.
+test.group('SsoService — redirect-following SSRF (Clase B)', () => {
+  test('discovery refuses to follow a 3xx redirect', async ({ assert }) => {
+    const svc = makeService({
+      fetchHandlers: [
+        {
+          match: (u) => u.includes('/.well-known/openid-configuration'),
+          respond: () => redirectResponse(302),
+        },
+      ],
+    })
+    await assert.rejects(() => svc.buildAuthUrl(enabledConfig), /attempted a redirect/)
+  })
+
+  test('token exchange refuses to follow a 3xx redirect (client_secret never leaves)', async ({
+    assert,
+  }) => {
+    const { redis } = fakeRedis({
+      'sso:state:S1': JSON.stringify({ tenantId: 't-1', nonce: 'N1' }),
+    })
+    const svc = makeService({
+      over: { redis },
+      fetchHandlers: [
+        {
+          match: (u) => u.includes('/.well-known/openid-configuration'),
+          respond: () => jsonResponse(discoveryDoc()),
+        },
+        { match: (u) => u === `${ISSUER}/token`, respond: () => redirectResponse(307) },
+      ],
+    })
+    await assert.rejects(
+      () => svc.handleCallback('S1', 'auth-code'),
+      /token endpoint attempted a redirect/
+    )
+  })
+
+  test('upsertConfig refuses to STORE a non-loopback issuer that fails the SSRF guard', async ({
+    assert,
+  }) => {
+    // Non-loopback issuer + a validator that flags it → must throw before the DB
+    // is ever touched, so a private/metadata issuer can never be persisted.
+    const svc = makeService({ validateHostIsPublic: async () => 'rfc1918' })
+    await assert.rejects(
+      () =>
+        svc.upsertConfig('t-1', {
+          clientId: 'c',
+          clientSecret: 's',
+          issuerUrl: 'https://10.0.0.5',
+          redirectUri: 'https://app.example.com/cb',
+        }),
+      /Refusing to store an unsafe SSO issuerUrl \(rfc1918\)/
+    )
   })
 })
 

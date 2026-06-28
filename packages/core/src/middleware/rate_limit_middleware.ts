@@ -1,4 +1,5 @@
 import { resolveTenantId } from '../extensions/request.js'
+import { isSafeIdentifier } from '../services/isolation/identifier.js'
 import { tenancy } from '../tenancy.js'
 import { getConfig } from '../config.js'
 import { consumeRateLimit } from '../services/rate_limiter.js'
@@ -94,7 +95,14 @@ export default class RateLimitMiddleware {
     // tenant into one shared per-IP 'global' bucket and let one tenant starve
     // the others' quota. The resolver stays as the fallback for routes where
     // rate-limit runs before (or without) the guard.
-    const tenantId = this.currentTenantId() ?? resolveTenantId(request) ?? 'global'
+    //
+    // The fallback re-reads a client-controlled header/segment, so it must be a
+    // `SAFE_IDENT` tenant id before it can become a bucket key: a value carrying
+    // `:` would inject key structure, and an arbitrary string would let a caller
+    // mint or pollute buckets. A non-safe (or absent) id degrades to the shared
+    // per-IP `global` bucket rather than an attacker-chosen tenant attribution.
+    const resolved = this.currentTenantId() ?? resolveTenantId(request)
+    const tenantId = isSafeIdentifier(resolved) ? resolved : 'global'
     const key = `${prefix}:${tenantId}:${ip}`
 
     // The sliding-window counter (pipeline + ioredis outage detection) is the

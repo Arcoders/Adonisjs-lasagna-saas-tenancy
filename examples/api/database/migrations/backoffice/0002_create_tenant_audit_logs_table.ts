@@ -8,7 +8,9 @@ export default class extends BaseSchema {
       table.uuid('id').primary().defaultTo(this.db.rawQuery('gen_random_uuid()').knexQuery)
       table.uuid('tenant_id').nullable()
       table.string('actor_type').notNullable()
-      table.uuid('actor_id').nullable()
+      // Free-form operator identity (uuid, int-as-string, email), not a tenant id.
+      // Text, not uuid, so a non-uuid admin id is recorded instead of dropped.
+      table.string('actor_id').nullable()
       table.string('action').notNullable()
       table.jsonb('metadata').nullable()
       table.string('ip_address').nullable()

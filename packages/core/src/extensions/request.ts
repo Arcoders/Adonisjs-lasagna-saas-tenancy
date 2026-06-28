@@ -15,7 +15,7 @@ import type { ResolverCacheConfig } from '../types/config.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import TelemetryService from '../services/telemetry_service.js'
 import { isDependencyOutageError } from '../utils/dependency_outage.js'
-import { isUuidV4 } from '../services/isolation/identifier.js'
+import { isUuidV4, isSafeIdentifier } from '../services/isolation/identifier.js'
 import { isProductionNodeEnv } from '../utils/env.js'
 import TenantResolverRegistry from '../services/resolvers/registry.js'
 import TenantResolutionCache, {
@@ -216,8 +216,13 @@ function legacyResolveTenantId(request: HttpRequest): string | undefined {
     return undefined
   }
 
-  // header (default)
-  return request.header(tenantHeaderKey) ?? undefined
+  // header (default). Validate the client-controlled header against the same
+  // `SAFE_IDENT` policy the drivers enforce before any id reaches SQL or a Redis
+  // key: a header carrying `:` (key-structure injection) or other unsafe chars
+  // must resolve to "no tenant" (fail-closed) rather than flow downstream into
+  // an attribution key. UUIDs and opaque alphanumeric host ids still pass.
+  const header = request.header(tenantHeaderKey)
+  return isSafeIdentifier(header) ? header : undefined
 }
 
 /**

@@ -25,6 +25,10 @@ test.group('Doctor: long_running_queries — real PG state', (group) => {
         ...(originalConfig.doctor ?? {}),
         longQueryWarnSeconds: 1,
         longQueryErrorSeconds: 60,
+        // This spec asserts on the raw query text, so it exercises the explicit
+        // opt-in path. The default scrub (no raw text, fingerprint only) is
+        // covered by the unit spec for buildLongQueryIssue.
+        includeQueryText: true,
       },
     })
   })
@@ -65,6 +69,7 @@ test.group('Doctor: long_running_queries — real PG state', (group) => {
       '3-second sleep must be warn, not critical (60s threshold)'
     )
     assert.match(String(sample.meta?.query ?? ''), /pg_sleep/i)
+    assert.isString(sample.meta?.queryFingerprint, 'a non-reversible fingerprint is always present')
     assert.isAbove(Number(sample.meta?.durationSeconds ?? 0), 1)
 
     // Drain the in-flight sleep so we don't leak it past the test.

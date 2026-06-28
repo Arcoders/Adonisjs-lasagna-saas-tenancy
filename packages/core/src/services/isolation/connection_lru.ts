@@ -24,8 +24,13 @@ export interface ConnectionLruOptions {
    * Defaults to false (the legacy "exceed the cap rather than sever" behavior).
    */
   hardCap?: () => boolean
-  /** Close + unregister a connection by name. */
-  release: (name: string) => Promise<void>
+  /**
+   * Close + unregister a connection by name. Return `false` to decline the close
+   * (the connection has a query in flight and must stay open); the registry then
+   * keeps it with a refreshed heartbeat so it is not retried until it goes idle.
+   * Returning `true` or nothing means it was closed.
+   */
+  release: (name: string) => Promise<void | boolean>
   /** Clock source. Defaults to `Date.now`; injectable for deterministic tests. */
   now?: () => number
 }
@@ -36,11 +41,18 @@ export interface ConnectionLruOptions {
  * The previous per-driver LRU evicted the oldest entry purely by last-`connect()`
  * time, with no notion of "currently serving a request". Under more than `cap`
  * concurrent distinct tenants, that could `release()` a connection whose request
- * was still in flight — severing the pool mid-query (the cross-tenant
- * data-loss symptom seen under load). This registry refuses to evict any
- * connection touched within `graceMs`: when every candidate is inside the grace
- * window it lets the pool exceed `cap` briefly and warns, which is strictly
- * safer than killing an active connection.
+ * was still in flight, severing the pool mid-query (the cross-tenant data-loss
+ * symptom seen under load).
+ *
+ * Two guards now keep an active connection alive. First, the grace window:
+ * `touch()` stamps a connection on every query, and a connection touched within
+ * `graceMs` is never a victim. Second, the authoritative one: before it actually
+ * closes a stale victim, the driver checks the knex pool's checked-out count
+ * ({@link connectionHasActiveQuery}). If a query is still running on it (even a
+ * single long query that outlived the grace window), the release is declined and
+ * the connection goes back into the registry. So eviction only ever closes a
+ * genuinely idle pool. When every candidate is busy the registry lets the pool
+ * exceed `cap` briefly and warns, which beats killing live work.
  */
 export default class ConnectionLru {
   readonly #map = new Map<string, number>()
@@ -140,8 +152,13 @@ export default class ConnectionLru {
     // awaits the pool drain instead of re-adopting the closing connection.
     // Don't swallow: a failed release leaves a pool entry registered in the
     // manager (the LRU and the manager then disagree about open connections).
-    const releasing = this.opts
-      .release(name)
+    const releasing = Promise.resolve(this.opts.release(name))
+      .then((closed) => {
+        // The driver declined because a query is still in flight on this
+        // connection. Put it back with a fresh heartbeat so a long query is
+        // never severed and we don't pick it again until it goes idle.
+        if (closed === false) this.#map.set(name, this.#now())
+      })
       .catch(async (err: unknown) => {
         const logger = await lazyLogger()
         logger?.warn(

@@ -3,6 +3,7 @@ import db from '@adonisjs/lucid/services/db'
 import TenantMetric from '../models/satellites/tenant_metric.js'
 import TenantMetricMonthly from '../models/satellites/tenant_metric_monthly.js'
 import { getConfig } from '../config.js'
+import { isSafeIdentifier } from './isolation/identifier.js'
 import { assertEmitMetricArgs } from './metrics_validation.js'
 import { flushBuiltInCounters, flushCustomCounters, type FlushRedis } from './metrics/flusher.js'
 import {
@@ -25,6 +26,24 @@ export default class MetricsService {
     return `custom_metrics:${tenantId}:${period}:${name}`
   }
 
+  /**
+   * Last line of defense against metric-key structure injection. The Redis key
+   * uses `:` as its delimiter and the flusher parses the tenant id out of a fixed
+   * positional slot (`flusher.ts` reads `parts[1]`), so a tenant id carrying a `:`
+   * could forge or overwrite *another* tenant's row in `backoffice.tenant_metrics`.
+   * Every real tenant id is already `SAFE_IDENT` (drivers assert it before any SQL),
+   * so a non-safe id here is a bug or an attack: drop it fail-open rather than let
+   * it reach the keyspace. Callers should also validate at the attribution seam.
+   */
+  #isSafeTenantId(tenantId: string, where: string): boolean {
+    if (isSafeIdentifier(tenantId)) return true
+    warnMetrics('unsafe_tenant_id', new Error(`rejected non-identifier tenant id`), {
+      tenantId,
+      where,
+    })
+    return false
+  }
+
   private currentPeriod(): string {
     return DateTime.utc().toFormat('yyyy-MM-dd')
   }
@@ -40,6 +59,7 @@ export default class MetricsService {
   }
 
   async increment(tenantId: string, metric: 'requests' | 'errors', amount = 1): Promise<void> {
+    if (!this.#isSafeTenantId(tenantId, metric)) return
     const key = this.key(tenantId, metric, this.currentPeriod())
     // One round-trip instead of two: a crash between INCRBY and EXPIRE can't
     // leave a TTL-less counter, and the hot path pays a single Redis hop.
@@ -47,6 +67,7 @@ export default class MetricsService {
   }
 
   async trackBandwidth(tenantId: string, bytes: number): Promise<void> {
+    if (!this.#isSafeTenantId(tenantId, 'bandwidth')) return
     const key = this.key(tenantId, 'bandwidth', this.currentPeriod())
     await this.getRedis().pipeline().incrby(key, bytes).expire(key, COUNTER_TTL_SECONDS).exec()
   }
@@ -64,6 +85,7 @@ export default class MetricsService {
    */
   async emitMetric(tenantId: string, name: string, value = 1): Promise<void> {
     assertEmitMetricArgs(name, value)
+    if (!this.#isSafeTenantId(tenantId, `custom:${name}`)) return
     const period = this.currentPeriod()
     const key = this.customKey(tenantId, name, period)
     try {

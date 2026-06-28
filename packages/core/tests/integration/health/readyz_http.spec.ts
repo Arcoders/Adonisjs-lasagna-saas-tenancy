@@ -116,6 +116,52 @@ test.group('Health probes over HTTP (integration)', (group) => {
     assert.equal(res.body().status, 'fail')
   })
 
+  // SECURITY (#5): /readyz and /healthz are public (k8s probes), so the body
+  // is the binary up/down projection, not the full report whose per-check
+  // `meta` carries OPEN-circuit tenant ids and `message` carries raw DB/Redis
+  // error strings. An anonymous caller must not be able to enumerate tenants or
+  // read internal error text off the probe.
+  test('the public probe never leaks per-check meta or message', async ({ client, assert }) => {
+    const svc = await app.container.make(HealthService)
+    // A non-critical check that mimics the circuit-breaker check: it carries a
+    // tenant id in `meta.open` and an internal error string in `message`.
+    svc.addCheck('synthetic_soft', () => ({
+      status: 'fail',
+      durationMs: 7,
+      message: 'connection refused at 10.1.2.3:5432 (backoffice)',
+      meta: { open: ['11111111-1111-4111-8111-111111111111'] },
+    }))
+
+    const res = await client.get('/ops/readyz')
+    res.assertStatus(200) // non-critical failure → degraded, still 200
+    const check = res.body().checks.synthetic_soft
+    assert.equal(check.status, 'fail', 'the up/down signal is preserved')
+    assert.isUndefined(check.meta, 'meta (tenant ids) must NOT reach the public probe')
+    assert.isUndefined(check.message, 'raw error strings must NOT reach the public probe')
+    assert.isUndefined(check.durationMs, 'internal timing must NOT reach the public probe')
+    // Nothing anywhere in the serialized body may contain the tenant id.
+    assert.notInclude(JSON.stringify(res.body()), '11111111-1111-4111-8111-111111111111')
+  })
+
+  test('a critical failure still surfaces its status + critical flag (no detail) on 503', async ({
+    client,
+    assert,
+  }) => {
+    const svc = await app.container.make(HealthService)
+    svc.addCheck(
+      'synthetic_critical',
+      () => ({ status: 'fail', durationMs: 0, message: 'secret outage detail', meta: { x: 1 } }),
+      { critical: true }
+    )
+
+    const res = await client.get('/ops/readyz')
+    res.assertStatus(503)
+    assert.equal(res.body().checks.synthetic_critical.status, 'fail')
+    assert.isTrue(res.body().checks.synthetic_critical.critical)
+    assert.isUndefined(res.body().checks.synthetic_critical.message)
+    assert.isUndefined(res.body().checks.synthetic_critical.meta)
+  })
+
   test('GET /ops/healthz mirrors the readyz status code and report', async ({ client, assert }) => {
     const ready = await client.get('/ops/readyz')
     const healthz = await client.get('/ops/healthz')

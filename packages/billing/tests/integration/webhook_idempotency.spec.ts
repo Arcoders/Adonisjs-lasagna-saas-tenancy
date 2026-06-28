@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
+import db from '@adonisjs/lucid/services/db'
 import { randomUUID } from 'node:crypto'
 import { BillingService } from '@adonisjs-lasagna/billing'
 import { MockStripe } from '@adonisjs-lasagna/billing'
@@ -352,6 +353,77 @@ test.group('Webhook idempotency (integration)', (group) => {
     const ledger = await BillingProcessedEvent.find('evt_concurrent')
     assert.equal(ledger?.status, 'completed', 'the winner marked the event completed')
     assert.isAtLeast(ledger?.attempts ?? 0, 1)
+  })
+
+  // SECURITY (#3): the atomic claim. A row already claimed ('processing') by a
+  // live worker must block a second concurrent worker from re-running the heavy
+  // path and double-dispatching the host-facing application event.
+  test('a fresh processing claim blocks a second worker (no double-dispatch)', async ({
+    assert,
+  }) => {
+    const event = buildEvent('customer.subscription.created', buildSubscription(), {
+      id: 'evt_claimed',
+    })
+    const ledger = new BillingProcessedEvent()
+    ledger.eventId = event.id
+    ledger.eventType = event.type
+    ledger.status = 'processing' // a live worker holds the claim
+    ledger.attempts = 1
+    ledger.payload = { id: event.id, type: event.type } as never
+    await ledger.save()
+
+    const job = new ProcessBillingEventJob()
+    hydrateJob(job, { eventId: 'evt_claimed' })
+    await job.execute() // must skip: the atomic claim returns 'in_flight'
+
+    const after = await BillingProcessedEvent.find('evt_claimed')
+    assert.equal(after?.status, 'processing', 'the row is left as-is for the live worker')
+    assert.equal(after?.attempts, 1, 'attempts NOT bumped: the claim matched zero rows')
+  })
+
+  test('a stale processing claim (crashed worker) is reclaimed and completed', async ({
+    assert,
+  }) => {
+    const tenant = await createTestTenant()
+    cleanupTenants.push(tenant.id)
+    const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
+    const cus = new BillingCustomer()
+    cus.tenantId = tenant.id
+    cus.providerCustomerId = providerCustomerId
+    await cus.save()
+
+    const subId = `sub_${randomUUID().slice(0, 8)}`
+    const event = buildEvent(
+      'customer.subscription.created',
+      buildSubscription({ id: subId, customer: providerCustomerId, status: 'active' }),
+      { id: 'evt_stale_claim' }
+    )
+    const mock = new MockStripe('whsec_test_billing_helper')
+    mock.injectEvent(event)
+    const billing = await app.container.make(BillingService)
+    await billing.__setStripeForTests(mock)
+
+    const ledger = new BillingProcessedEvent()
+    ledger.eventId = event.id
+    ledger.eventType = event.type
+    ledger.status = 'processing'
+    ledger.attempts = 1
+    ledger.payload = { id: event.id, type: event.type } as never
+    await ledger.save()
+    // Age the claim past the 15-minute stale window so its worker counts as gone.
+    await db.connection('backoffice').rawQuery(
+      `UPDATE backoffice.billing_processed_events
+           SET processed_at = now() - interval '30 minutes' WHERE event_id = ?`,
+      ['evt_stale_claim']
+    )
+
+    const job = new ProcessBillingEventJob()
+    hydrateJob(job, { eventId: 'evt_stale_claim' })
+    await job.execute() // reclaims the stale row and processes it
+
+    const after = await BillingProcessedEvent.find('evt_stale_claim')
+    assert.equal(after?.status, 'completed', 'a stale claim is reclaimable and gets completed')
+    assert.isAtLeast(after?.attempts ?? 0, 2, 'the reclaim bumped attempts past the dead worker’s')
   })
 
   test('a malformed subscription payload is handled cleanly (no crash, no raw stack)', async ({

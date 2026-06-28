@@ -10,6 +10,14 @@ interface ReportUsageBatchPayload {
   tenantId: string
   meterEventName: string
   quantity: number
+  /**
+   * Stable, unique-per-flush idempotency key sealed by the dispatching listener.
+   * The job uses it verbatim and never recomputes one from wall-clock, so each
+   * flush is counted once and a retry of the same batch is deduped. Optional only
+   * so a job enqueued by an older build mid-deploy still runs (it falls back to
+   * the legacy minute bucket).
+   */
+  idempotencyKey?: string
 }
 
 /**
@@ -53,11 +61,13 @@ export default class ReportUsageBatchJob extends Job<ReportUsageBatchPayload> {
 
     const billing = await app.container.make(BillingService)
     await billing.reportUsage(tenant, { eventName: meterEventName }, quantity, {
-      // Deterministic-ish key: tenant + meter + minute bucket. Two flushes
-      // landing in the same minute (e.g. a worker restart replay) collapse
-      // to one Stripe meter event — the second hit is silently absorbed by
-      // Stripe's idempotency layer.
-      idempotencyKey: `${tenantId}:${meterEventName}:${this.#minuteBucket()}`,
+      // Use the key the listener sealed at dispatch. It's unique per flush (so
+      // every batch counts) yet stable across retries of this same job (so a
+      // retry is deduped, not double-counted). Don't recompute it from wall-clock.
+      // The fallback only fires for a job enqueued by an older build still in the
+      // queue across a rolling deploy.
+      idempotencyKey:
+        this.payload.idempotencyKey ?? `${tenantId}:${meterEventName}:${this.#minuteBucket()}`,
     })
   }
 

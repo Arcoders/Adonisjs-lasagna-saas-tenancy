@@ -17,6 +17,7 @@ import {
   TenantActivated,
   TenantSuspended,
   TenantDeleted,
+  TenantUpdated,
   TenantEnteredMaintenance,
   TenantExitedMaintenance,
 } from '@adonisjs-lasagna/saas-tenancy/events'
@@ -154,6 +155,12 @@ export default class AdminController {
 
     tenant.deletedAt = null
     await tenant.save()
+    // Dispatch a lifecycle event so the resolution cache drops the old "deleted"
+    // entry on every pod right away. Otherwise a restored tenant keeps getting a
+    // 403 until the cache TTL expires. We use TenantUpdated: it's in
+    // RESOLUTION_CACHE_INVALIDATING_EVENTS and fits an un-delete. TenantRestored
+    // is the backup-restore event and needs a file name.
+    await TenantUpdated.dispatch(tenant, { deletedAt: { from: 'set', to: null } })
     await auditAdminAction(ctx, 'admin:tenant:restore', tenant.id, { status: tenant.status })
     return response.ok({ data: serialize(tenant) })
   }

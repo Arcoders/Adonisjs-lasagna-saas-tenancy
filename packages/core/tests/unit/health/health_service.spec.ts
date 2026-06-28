@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import HealthService from '../../../src/health/health_service.js'
+import HealthService, { toPublicHealthReport } from '../../../src/health/health_service.js'
 
 test.group('HealthService — liveness', () => {
   test('liveness returns ok with uptime >= 0', ({ assert }) => {
@@ -16,6 +16,43 @@ test.group('HealthService — readiness with no checks', () => {
     const report = await svc.readiness()
     assert.equal(report.status, 'ok')
     assert.deepEqual(report.checks, {})
+  })
+})
+
+// SECURITY (#5): the public projection that /readyz and /healthz serve must
+// strip every field that could enumerate tenants or leak internals.
+test.group('toPublicHealthReport — public probe projection', () => {
+  test('drops meta, message, and durationMs but keeps status + criticality', ({ assert }) => {
+    const projected = toPublicHealthReport({
+      status: 'degraded',
+      uptime: 42,
+      checks: {
+        circuit_breakers: {
+          status: 'fail',
+          durationMs: 9,
+          message: 'connection refused at 10.1.2.3',
+          meta: { open: ['11111111-1111-4111-8111-111111111111'] },
+        },
+        backoffice_db: { status: 'pass', durationMs: 3, critical: true },
+      },
+    })
+
+    assert.deepEqual(projected, {
+      status: 'degraded',
+      uptime: 42,
+      checks: {
+        circuit_breakers: { status: 'fail' },
+        backoffice_db: { status: 'pass', critical: true },
+      },
+    })
+    // The tenant id must not survive anywhere in the projected body.
+    assert.notInclude(JSON.stringify(projected), '11111111-1111-4111-8111-111111111111')
+  })
+
+  test('preserves the aggregate status for the 200/503 decision', ({ assert }) => {
+    for (const status of ['ok', 'degraded', 'fail'] as const) {
+      assert.equal(toPublicHealthReport({ status, uptime: 1, checks: {} }).status, status)
+    }
   })
 })
 

@@ -140,9 +140,27 @@ export default class ImpersonationService {
   /** Revoke by raw session id (admin tooling). */
   async revokeById(sessionId: string): Promise<boolean> {
     const ns = await this.#cacheNamespace()
-    const existed = (await ns.get({ key: sessionId })) !== undefined
-    if (!existed) return false
+    const session = (await ns.get({ key: sessionId })) as ImpersonationSession | undefined
+    if (!session) return false
     await ns.delete({ key: sessionId })
+
+    // Audit symmetrically with `stop()`. A session ended through admin tooling
+    // must leave the same `admin:impersonate:stop` trail. Otherwise the audit
+    // shows a `start`/`first-use` with no end, and you lose the one thing the
+    // impersonation audit exists to show: when access stopped.
+    await this.#audit({
+      tenantId: session.tenantId,
+      actorId: session.adminId,
+      actorType: session.adminType,
+      action: 'admin:impersonate:stop',
+      ipAddress: null,
+      metadata: {
+        sessionId: session.id,
+        targetUserId: session.targetUserId,
+        via: 'revoke-by-id',
+      },
+    })
+
     return true
   }
 

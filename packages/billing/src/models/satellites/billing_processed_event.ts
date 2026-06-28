@@ -2,7 +2,7 @@ import { BackofficeBaseModel } from '@adonisjs-lasagna/saas-tenancy/base-models'
 import { column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
 
-export type BillingProcessedEventStatus = 'pending' | 'completed' | 'failed'
+export type BillingProcessedEventStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
 /**
  * Idempotency ledger for inbound webhooks. `event_id` (the provider's event id,

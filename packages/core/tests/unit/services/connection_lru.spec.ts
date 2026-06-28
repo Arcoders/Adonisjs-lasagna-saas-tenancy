@@ -6,7 +6,13 @@ import ConnectionLru from '../../../src/services/isolation/connection_lru.js'
  * (the H1 fix) without a real database or wall-clock timing.
  */
 function makeLru(
-  opts: { cap?: number; graceMs?: number; failRelease?: boolean; hardCap?: boolean } = {}
+  opts: {
+    cap?: number
+    graceMs?: number
+    failRelease?: boolean
+    declineRelease?: boolean
+    hardCap?: boolean
+  } = {}
 ) {
   const released: string[] = []
   let clock = 1_000_000
@@ -17,7 +23,10 @@ function makeLru(
     hardCap: () => opts.hardCap ?? false,
     release: async (name) => {
       if (opts.failRelease) throw new Error('release failed')
+      // Simulate a connection with a query still in flight: the driver declines.
+      if (opts.declineRelease) return false
       released.push(name)
+      return true
     },
     now: () => clock,
   })
@@ -79,6 +88,35 @@ test.group('ConnectionLru — in-use-aware eviction', () => {
     lru.touch('c')
     lru.evictIfNeeded()
     assert.deepEqual(released, ['b'])
+    assert.isTrue(lru.has('a'))
+  })
+
+  // SECURITY/availability (#15): a stale connection that still has a query in
+  // flight must not be severed. The driver's release declines (returns false),
+  // and the LRU keeps the connection tracked with a fresh heartbeat.
+  test('keeps a stale-but-busy connection when release declines', async ({ assert }) => {
+    const { lru, released, advance } = makeLru({ cap: 2, graceMs: 1000, declineRelease: true })
+    lru.touch('a')
+    advance(5000) // 'a' is past the grace window: a candidate for eviction...
+    lru.touch('b')
+    lru.touch('c') // over cap, so 'a' gets picked
+    lru.evictIfNeeded()
+
+    await lru.settlePending('a')
+    assert.deepEqual(released, [], 'a busy connection is never closed')
+    assert.isTrue(lru.has('a'), 'it stays tracked after the decline')
+  })
+
+  test('a declined connection gets a fresh heartbeat so it is not picked again next cycle', async ({
+    assert,
+  }) => {
+    const { lru, advance } = makeLru({ cap: 1, graceMs: 1000, declineRelease: true })
+    lru.touch('a')
+    advance(5000)
+    lru.touch('b') // over cap → 'a' is the stale victim
+    lru.evictIfNeeded()
+    await lru.settlePending('a')
+    // 'a' was re-stamped at "now", so it is now the freshest, not the oldest.
     assert.isTrue(lru.has('a'))
   })
 

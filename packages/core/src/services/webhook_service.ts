@@ -254,8 +254,27 @@ export default class WebhookService {
         method: 'POST',
         headers,
         body,
+        // Do NOT follow redirects. The SSRF guard above validated `hook.url`, but
+        // a 3xx `Location` is chosen by the (attacker-influenced) receiver and the
+        // guard never sees it, so following it would reach an internal/metadata
+        // host behind the validated front door. A conformant webhook receiver
+        // answers 2xx, so treat a 3xx as a misconfiguration or an attack and fail.
+        redirect: 'manual',
         signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS),
       })
+
+      // With `redirect: 'manual'`, undici surfaces the 3xx itself (status in
+      // 300..399). Treat it as a permanent, non-retryable failure. We never read
+      // or follow the Location, so a redirect can't be used to pivot at internals.
+      if (res.status >= 300 && res.status < 400) {
+        delivery.statusCode = res.status
+        delivery.responseBody = `blocked_redirect:${res.status}`
+        delivery.status = 'failed'
+        delivery.nextRetryAt = null
+        await delivery.save()
+        return
+      }
+
       delivery.statusCode = res.status
       delivery.responseBody = truncateBody(await res.text().catch(() => null))
       delivery.status = res.ok ? 'success' : 'failed'

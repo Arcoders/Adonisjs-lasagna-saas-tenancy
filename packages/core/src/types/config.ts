@@ -581,6 +581,16 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
     longQueryWarnSeconds?: number
     /** Seconds before a long query escalates to error. Default 120. */
     longQueryErrorSeconds?: number
+    /**
+     * Include the RAW SQL text of a long-running query in `long_running_queries`
+     * diagnosis meta. **Default `false` (off).** Off, the check emits only a
+     * non-reversible `queryFingerprint` so operators can correlate without
+     * exposing the statement. The raw text can carry another tenant's secrets or
+     * PII as SQL literals, and the doctor report is reachable over HTTP at the
+     * admin `/health/report` surface, so it must never be exposed unless a host
+     * deliberately opts in (e.g. for local CLI diagnosis on a trusted box).
+     */
+    includeQueryText?: boolean
     /** Pool utilization (0-1) above which `connection_pool_check` warns. Default 0.9. */
     poolSaturationWarnRatio?: number
   }

@@ -177,7 +177,31 @@ function classifyIpv6(host: string): string | null {
   if (h[0] >= 0xfc00 && h[0] <= 0xfdff) return 'url_blocks_private'
   // link-local fe80::/10 (fe80..febf)
   if (h[0] >= 0xfe80 && h[0] <= 0xfebf) return 'url_blocks_link_local'
+  // IPv6 transition prefixes embed an IPv4 the host's NAT64/6to4/Teredo gateway
+  // routes to, including private (RFC 1918) and cloud-metadata (169.254.x)
+  // addresses that would otherwise bypass the IPv4 blocklist. On an IPv6-only
+  // egress with NAT64 (standard on AWS/GCP/Azure), `64:ff9b::a9fe:a9fe` reaches
+  // 169.254.169.254. A real webhook or OIDC target uses the public IPv4 or
+  // hostname directly, so deny the whole transition space rather than trust the
+  // embedded address.
+  if (isTransitionV6(h)) return 'url_blocks_reserved'
   return null
+}
+
+/**
+ * True for an IPv6 transition-address prefix that tunnels an IPv4 destination:
+ * NAT64 well-known `64:ff9b::/96`, 6to4 `2002::/16`, or Teredo `2001:0000::/32`.
+ */
+function isTransitionV6(h: readonly number[]): boolean {
+  // NAT64 well-known prefix 64:ff9b::/96 (last 32 bits carry the IPv4).
+  if (h[0] === 0x0064 && h[1] === 0xff9b && h[2] === 0 && h[3] === 0 && h[4] === 0 && h[5] === 0) {
+    return true
+  }
+  // 6to4 2002::/16 (IPv4 in h[1]:h[2]).
+  if (h[0] === 0x2002) return true
+  // Teredo 2001:0000::/32.
+  if (h[0] === 0x2001 && h[1] === 0x0000) return true
+  return false
 }
 
 function classifyEmbeddedV4(h6: number, h7: number): string | null {

@@ -59,6 +59,34 @@ test.group('WebhookService.send() — SSRF encoding matrix', (group) => {
     })
   }
 
+  // SECURITY (#8): the URL guard validated the front door, but a 3xx Location is
+  // chosen by the (attacker-influenced) receiver and the guard never sees it.
+  // send() must pin redirect:'manual' and treat a 3xx as a permanent failure,
+  // never following it to an internal/metadata host.
+  test('does not follow a 3xx redirect from a validated target', async ({ assert }) => {
+    let fetchCount = 0
+    let usedManualRedirect = false
+    globalThis.fetch = (async (_url: unknown, init: any) => {
+      fetchCount++
+      if (init?.redirect === 'manual') usedManualRedirect = true
+      return {
+        ok: false,
+        status: 302,
+        headers: { get: () => 'http://169.254.169.254/' },
+        text: async () => '',
+      }
+    }) as unknown as typeof fetch
+
+    const delivery = makeDelivery()
+    await svc.send(makeHook({ url: 'https://example.com/webhook' }) as any, delivery as any)
+
+    assert.isTrue(usedManualRedirect, "send() must request redirect:'manual'")
+    assert.equal(fetchCount, 1, 'the redirect must NOT be followed (single fetch)')
+    assert.equal(delivery.status, 'failed')
+    assert.match(String(delivery.responseBody), /blocked_redirect:302/)
+    assert.isNull(delivery.nextRetryAt, 'a redirect is a permanent, non-retryable failure')
+  })
+
   test('the matrix is not fail-everything: a public https url still delivers', async ({
     assert,
   }) => {

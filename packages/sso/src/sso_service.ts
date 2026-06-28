@@ -129,6 +129,20 @@ export default class SsoService {
       scopes?: string[]
     }
   ): Promise<TenantSsoConfig> {
+    // SSRF guard at WRITE time, not just at fetch time: a stored issuer pointing
+    // at a private/metadata host turns every later discovery into a server-side
+    // request to internal infrastructure. Reject it before it is ever persisted.
+    // Loopback is exempted to match `#discover` (in-process IdP test fixtures opt
+    // into it; the SsoController never accepts a loopback issuer from admin
+    // input), so only non-loopback private/metadata/non-https issuers are
+    // refused here.
+    if (!isLoopbackIssuer(data.issuerUrl)) {
+      const issuerErr = await this.#deps.validateHostIsPublic(data.issuerUrl)
+      if (issuerErr) {
+        throw new Error(`Refusing to store an unsafe SSO issuerUrl (${issuerErr}).`)
+      }
+    }
+
     const { default: TenantSsoConfig } = await import('./tenant_sso_config.js')
     return TenantSsoConfig.updateOrCreate(
       { tenantId },
@@ -230,9 +244,18 @@ export default class SsoService {
         // prefix (enc_v1/enc_v2), so rows written before encryption keep working.
         client_secret: await this.#deps.decryptSecret(config.clientSecret),
       }),
+      // Never follow a redirect on the token POST: the body carries the decrypted
+      // OIDC client_secret, so a 3xx from the validated token_endpoint to an
+      // attacker host would exfiltrate it past the SSRF guard. A conformant IdP
+      // never redirects the token exchange. (jose's createRemoteJWKSet already
+      // pins redirect:'manual'; mirror it here.)
+      redirect: 'manual',
       signal: AbortSignal.timeout(IDP_FETCH_TIMEOUT_MS),
     })
 
+    if (tokenRes.status >= 300 && tokenRes.status < 400) {
+      throw new Error('OIDC token endpoint attempted a redirect; refusing to follow (SSRF guard)')
+    }
     if (!tokenRes.ok) throw new Error('Token exchange failed')
     const tokens = (await tokenRes.json()) as { id_token?: string; access_token?: string }
 
@@ -310,8 +333,17 @@ export default class SsoService {
         }
         const base = issuerUrl.replace(/\/$/, '')
         const res = await this.#deps.fetch(`${base}/.well-known/openid-configuration`, {
+          // Don't follow redirects: a 3xx from the validated discovery URL to an
+          // internal/metadata host would reach it server-side past the SSRF guard
+          // (and the body is parsed + partially surfaced in errors).
+          redirect: 'manual',
           signal: AbortSignal.timeout(IDP_FETCH_TIMEOUT_MS),
         })
+        if (res.status >= 300 && res.status < 400) {
+          throw new Error(
+            `OIDC discovery for ${issuerUrl} attempted a redirect; refusing to follow`
+          )
+        }
         if (!res.ok) throw new Error(`OIDC discovery failed for ${issuerUrl}`)
         const doc = (await res.json()) as Partial<OidcDiscovery>
         if (!doc.issuer || !doc.authorization_endpoint || !doc.token_endpoint || !doc.jwks_uri) {

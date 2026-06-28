@@ -1,4 +1,5 @@
 import { resolveTenantId } from '../extensions/request.js'
+import { isSafeIdentifier } from '../services/isolation/identifier.js'
 import { tenancy } from '../tenancy.js'
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
@@ -79,8 +80,13 @@ export default class TrackMetricsMiddleware {
   }
 
   protected async record(ctx: HttpContext, options: TrackMetricsOptions): Promise<void> {
+    // Attribution: prefer the canonical id the guard already established
+    // (`tenancy.currentId()`, always a validated tenant id). The sync fallback
+    // re-reads a client-controlled header/segment, so a non-`SAFE_IDENT` value
+    // there is forged or injects `:` key structure. Drop it instead of letting it
+    // forge another tenant's row in `backoffice.tenant_metrics`.
     const tenantId = this.currentTenantId() ?? resolveTenantId(ctx.request)
-    if (!tenantId) return
+    if (!tenantId || !isSafeIdentifier(tenantId)) return
 
     const metrics = await this.getMetrics()
     await metrics.increment(tenantId, 'requests')
