@@ -46,6 +46,17 @@ const IDP_FETCH_TIMEOUT_MS = 10_000
  * Production never passes `deps`; `container.make(SsoService)` constructs it
  * argument-free and the defaults below apply.
  */
+/** The row attributes `upsertConfig` writes (post-encryption). */
+export interface PersistedSsoConfigAttrs {
+  provider: 'oidc'
+  clientId: string
+  clientSecret: string
+  issuerUrl: string
+  redirectUri: string
+  scopes: string[]
+  enabled: boolean
+}
+
 export interface SsoServiceDeps {
   redis: {
     getdel(key: string): Promise<string | null>
@@ -54,6 +65,7 @@ export interface SsoServiceDeps {
   fetch: typeof fetch
   cacheGetOrSet<T>(opts: { key: string; ttl: string; factory: () => Promise<T> }): Promise<T>
   loadEnabledConfig(tenantId: string): Promise<TenantSsoConfig | null>
+  persistConfig(tenantId: string, attrs: PersistedSsoConfigAttrs): Promise<TenantSsoConfig>
   validateHostIsPublic(url: string): Promise<string | null | undefined>
   encryptSecret(value: string): string | Promise<string>
   decryptSecret(value: string): string | Promise<string>
@@ -80,6 +92,10 @@ function defaultDeps(): SsoServiceDeps {
     async loadEnabledConfig(tenantId) {
       const { default: TenantSsoConfig } = await import('./tenant_sso_config.js')
       return TenantSsoConfig.query().where('tenant_id', tenantId).where('enabled', true).first()
+    },
+    async persistConfig(tenantId, attrs) {
+      const { default: TenantSsoConfig } = await import('./tenant_sso_config.js')
+      return TenantSsoConfig.updateOrCreate({ tenantId }, attrs)
     },
     async validateHostIsPublic(url) {
       const { validateResolvedHostIsPublic } = await import('@adonisjs-lasagna/saas-tenancy')
@@ -143,22 +159,18 @@ export default class SsoService {
       }
     }
 
-    const { default: TenantSsoConfig } = await import('./tenant_sso_config.js')
-    return TenantSsoConfig.updateOrCreate(
-      { tenantId },
-      {
-        provider: 'oidc',
-        clientId: data.clientId,
-        // Encrypt the IdP client secret at rest (AES-256-GCM, same as webhook
-        // signing secrets). A backoffice DB/backup leak must not hand out every
-        // tenant's OIDC token-exchange credential in plaintext.
-        clientSecret: await this.#deps.encryptSecret(data.clientSecret),
-        issuerUrl: data.issuerUrl,
-        redirectUri: data.redirectUri,
-        scopes: data.scopes ?? ['openid', 'email', 'profile'],
-        enabled: true,
-      }
-    )
+    return this.#deps.persistConfig(tenantId, {
+      provider: 'oidc',
+      clientId: data.clientId,
+      // Encrypt the IdP client secret at rest (AES-256-GCM, same as webhook
+      // signing secrets). A backoffice DB/backup leak must not hand out every
+      // tenant's OIDC token-exchange credential in plaintext.
+      clientSecret: await this.#deps.encryptSecret(data.clientSecret),
+      issuerUrl: data.issuerUrl,
+      redirectUri: data.redirectUri,
+      scopes: data.scopes ?? ['openid', 'email', 'profile'],
+      enabled: true,
+    })
   }
 
   async buildAuthUrl(config: TenantSsoConfig): Promise<string> {

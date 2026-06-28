@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import SsoService from '../../src/sso_service.js'
-import type { SsoServiceDeps } from '../../src/sso_service.js'
+import type { SsoServiceDeps, PersistedSsoConfigAttrs } from '../../src/sso_service.js'
 import type TenantSsoConfig from '../../src/tenant_sso_config.js'
 import { identityProviderRegistry } from '../../src/identity_provider.js'
 import { SSO_CONTRACT_VERSION } from '../../src/constants.js'
@@ -138,6 +138,8 @@ function makeService(
     cacheGetOrSet: (o) => o.factory(),
     validateHostIsPublic: opts.validateHostIsPublic ?? (async () => null),
     loadEnabledConfig: async () => (opts.config === undefined ? enabledConfig : opts.config),
+    persistConfig: async (tenantId, attrs) =>
+      ({ tenantId, ...attrs }) as unknown as TenantSsoConfig,
     encryptSecret: (v) => `enc:${v}`,
     decryptSecret: (v) => v.replace(/^enc:/, ''),
     importJose: async () =>
@@ -233,6 +235,67 @@ test.group('SsoService — redirect-following SSRF (Clase B)', () => {
         }),
       /Refusing to store an unsafe SSO issuerUrl \(rfc1918\)/
     )
+  })
+
+  test('upsertConfig persists a public issuer that passes the SSRF guard', async ({ assert }) => {
+    let saved: PersistedSsoConfigAttrs & { tenantId: string }
+    const svc = makeService({
+      validateHostIsPublic: async () => null, // public → check passes, falls through to persist
+      over: {
+        persistConfig: async (tenantId, attrs) => {
+          saved = { tenantId, ...attrs }
+          return saved as unknown as TenantSsoConfig
+        },
+      },
+    })
+
+    await svc.upsertConfig('t-1', {
+      clientId: 'c',
+      clientSecret: 's',
+      issuerUrl: 'https://idp.example.com',
+      redirectUri: 'https://app.example.com/cb',
+    })
+
+    assert.equal(saved!.tenantId, 't-1')
+    assert.equal(saved!.clientSecret, 'enc:s', 'the client secret is encrypted before it is stored')
+    assert.equal(saved!.issuerUrl, 'https://idp.example.com')
+    assert.deepEqual(
+      saved!.scopes,
+      ['openid', 'email', 'profile'],
+      'default scopes when none given'
+    )
+    assert.isTrue(saved!.enabled)
+  })
+
+  test('upsertConfig skips the public-host check for a loopback issuer', async ({ assert }) => {
+    // Loopback issuers are how in-process IdP test fixtures opt in; the check is
+    // bypassed (so it is never called) and the row still persists, this time with
+    // caller-supplied scopes.
+    let validatorCalled = false
+    let saved: (PersistedSsoConfigAttrs & { tenantId: string }) | undefined
+    const svc = makeService({
+      validateHostIsPublic: async () => {
+        validatorCalled = true
+        return 'should-not-be-reached'
+      },
+      over: {
+        persistConfig: async (tenantId, attrs) => {
+          saved = { tenantId, ...attrs }
+          return saved as unknown as TenantSsoConfig
+        },
+      },
+    })
+
+    await svc.upsertConfig('t-1', {
+      clientId: 'c',
+      clientSecret: 's',
+      issuerUrl: 'http://127.0.0.1:9999',
+      redirectUri: 'https://app.example.com/cb',
+      scopes: ['openid'],
+    })
+
+    assert.isFalse(validatorCalled, 'a loopback issuer bypasses the public-host validation')
+    assert.deepEqual(saved?.scopes, ['openid'], 'caller-supplied scopes are stored verbatim')
   })
 })
 
