@@ -146,6 +146,7 @@ const sidebar = [
           { text: 'Performance & benchmarks', link: '/guides/performance' },
           { text: 'Scaling limits', link: '/guides/scaling-limits' },
           { text: 'Deployment', link: '/guides/deployment' },
+          { text: 'Documentation coverage', link: '/guides/documentation-coverage' },
         ],
       },
     ],
@@ -218,7 +219,9 @@ export default withMermaid({
   lastUpdated: true,
 
   // STYLE.md is a contributor guide for writing these docs, not a published page.
-  srcExclude: ['STYLE.md'],
+  // dev/ holds dev-facing design contracts (the doc-coverage RFC): they are living
+  // engineering docs, kept out of the published site and the dead-link gate.
+  srcExclude: ['STYLE.md', 'dev/*.md'],
 
   // After the static build, emit redirect stubs for every pre-restructure URL so
   // existing inbound links and bookmarks land on the new Start/Guides/Reference path.

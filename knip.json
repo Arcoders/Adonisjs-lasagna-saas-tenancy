@@ -1,6 +1,12 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignoreDependencies": ["@aws-sdk/client-s3", "jose", "@adonisjs-lasagna/sso"],
+  "ignoreDependencies": [
+    "@aws-sdk/client-s3",
+    "jose",
+    "@adonisjs-lasagna/sso",
+    "@microsoft/api-extractor",
+    "ajv"
+  ],
   "ignoreExportsUsedInFile": true,
   "workspaces": {
     ".": {
@@ -74,6 +80,10 @@
     "packages/satellite-test-kit": {
       "entry": ["src/index.ts", "src/helpers.ts"],
       "project": ["src/**/*.ts"]
+    },
+    "packages/doc-coverage": {
+      "entry": ["src/index.ts", "bin/docs_doctor.ts", "tests/**/*.test.ts"],
+      "project": ["src/**/*.ts", "bin/**/*.ts", "tests/**/*.ts"]
     }
   }
 }

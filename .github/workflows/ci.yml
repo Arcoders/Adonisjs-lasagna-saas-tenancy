@@ -128,6 +128,28 @@ jobs:
       - name: Source-scan gates (npm run check)
         run: npm run check
 
+      # api-extractor golden-diff (Documentation Coverage Tier-1 gate, blocking).
+      # Each opted-in package commits etc/<pkg>.api.md; this regenerates and diffs
+      # it, failing on a public-API change that did not update the report. The fix
+      # is one command, printed on failure. Per-package opt-in: a package without
+      # an api-extractor.json is skipped. Needs the builds above (it reads
+      # build/src/index.d.ts).
+      - name: API report gate (api-extractor golden-diff)
+        run: node scripts/check-api-report.mjs
+
+      # Documentation Coverage (advisory, non-blocking). Builds the bidirectional
+      # code<->docs graph, runs the deterministic Tier-1 gate (conservative
+      # defaults: dead-member=warn, coverage floor 0, so it never blocks on day 1)
+      # and the Tier-2 impact report, and posts a job summary. Zero network, zero
+      # secret — works on forks. The gate is promoted to blocking later via
+      # per-check severity + a baseline (see docs/dev/doc-coverage-rfc.md). Runs
+      # against source via tsx; no build needed (it builds its own TS program).
+      - name: Documentation coverage (docs:doctor, advisory)
+        continue-on-error: true
+        run: |
+          node scripts/check-doc-coverage.mjs --summary >> "$GITHUB_STEP_SUMMARY"
+          node scripts/check-doc-coverage.mjs
+
       - name: Test (unit) + coverage
         run: npm run test:coverage
 
@@ -259,6 +281,38 @@ jobs:
               && npx -y publint@0.3.21 \
               && npx -y @arethetypeswrong/cli@0.18.3 --pack --ignore-rules cjs-resolves-to-esm )
           done
+
+  doc-coverage-cross-os:
+    # Proves the Documentation Coverage engine is cross-OS deterministic: the same
+    # suite (contract-hash path-freeness, CRLF front-matter parity, stable graph
+    # output, the golden fixture, and the RFC self-check) runs on both Linux and
+    # Windows. The path + CRLF normalization in the engine is what makes the graph
+    # and the contract hashes byte-identical regardless of the runner's filesystem.
+    name: doc-coverage tests (cross-OS)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      # tsx runs the tests through esbuild; its platform binary needs the scoped
+      # postinstall that .npmrc otherwise suppresses.
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
+
+      - name: doc-coverage tests (property + golden + CRLF + RFC-status)
+        run: npm run test --workspace @adonisjs-lasagna/doc-coverage
 
   test-integration:
     name: Integration Tests

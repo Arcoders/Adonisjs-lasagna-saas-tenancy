@@ -19,3 +19,11 @@ benchmarks/results/
 # Temp dir for the docs code-fence import gate (scripts/check-docs-code.mjs)
 .docs-code-tmp/
 docs/.vitepress/
+
+# doc-coverage: the graph is generated, never committed (RFC §5). The cache is
+# keyed by a src+docs content hash and is always safe to delete.
+doc-graph.json
+.doc-coverage-cache/
+
+# api-extractor scratch (the committed golden is etc/<pkg>.api.md; temp/ is not).
+packages/*/temp/

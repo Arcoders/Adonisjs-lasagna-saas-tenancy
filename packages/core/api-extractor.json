@@ -1,0 +1,34 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/api-extractor/v7/api-extractor.schema.json",
+
+  // Documentation-coverage golden-diff (RFC §8, B2). api-extractor rolls up the
+  // public API of the MAIN entry point into a committed `etc/<pkg>.api.md`; the
+  // check-api-report gate regenerates it and fails CI on any undocumented
+  // public-API change. The fix is one command: `api-extractor run --local`.
+  //
+  // Per-package opt-in: a package without this file is skipped, not failed.
+  // Message reporting is silenced so the run produces the report rather than
+  // failing on release-tag hygiene (out of scope for the golden-diff).
+  "mainEntryPointFilePath": "<projectFolder>/build/src/index.d.ts",
+
+  "apiReport": {
+    "enabled": true,
+    "reportFolder": "<projectFolder>/etc/",
+    "reportTempFolder": "<projectFolder>/temp/"
+  },
+  "docModel": { "enabled": false },
+  "dtsRollup": { "enabled": false },
+  "tsdocMetadata": { "enabled": false },
+
+  "messages": {
+    "compilerMessageReporting": {
+      "default": { "logLevel": "none" }
+    },
+    "extractorMessageReporting": {
+      "default": { "logLevel": "none" }
+    },
+    "tsdocMessageReporting": {
+      "default": { "logLevel": "none" }
+    }
+  }
+}
