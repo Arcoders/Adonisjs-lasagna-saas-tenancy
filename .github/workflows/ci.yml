@@ -10,6 +10,13 @@ jobs:
   lint-and-typecheck:
     name: Lint & Typecheck
     runs-on: ubuntu-latest
+    # Narrows this job's token to exactly what it needs: read the checkout, and
+    # upsert the docs:doctor PR comment below. Job-scoped on purpose, so the other
+    # jobs keep their default token. No other step here uses GITHUB_TOKEN for more
+    # (upload-artifact v4 uses its own runtime token; npm/knip/audit/publint none).
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -145,10 +152,38 @@ jobs:
       # per-check severity + a baseline (see docs/dev/doc-coverage-rfc.md). Runs
       # against source via tsx; no build needed (it builds its own TS program).
       - name: Documentation coverage (docs:doctor, advisory)
+        if: ${{ !cancelled() }}
         continue-on-error: true
         run: |
           node scripts/check-doc-coverage.mjs --summary >> "$GITHUB_STEP_SUMMARY"
-          node scripts/check-doc-coverage.mjs
+          node scripts/check-doc-coverage.mjs | tee doc-coverage-report.txt
+
+      # Mirror the report into one marked PR comment (RFC §7), upserted so re-runs
+      # edit it in place instead of stacking. Same-repo PRs only: a fork PR gets a
+      # read-only token AND is excluded by the guard, so it keeps the job-summary
+      # form above. gh CLI (the repo's GitHub-API idiom, no new action dependency);
+      # the marker is read by jq from the env, so the HTML comment never passes
+      # through shell quoting. continue-on-error so a transient API hiccup or 403
+      # can never redden the gate (the blocking gate stays the api-extractor diff).
+      - name: Documentation coverage PR comment (idempotent upsert)
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MARKER: '<!-- doc-coverage-report -->'
+        run: |
+          [ -f doc-coverage-report.txt ] || { echo "no report to post"; exit 0; }
+          { echo "$MARKER"; echo '## docs:doctor'; echo; echo '~~~'; cat doc-coverage-report.txt; echo '~~~'; } > doc-coverage-comment.md
+          id=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+            --jq 'map(select(.body | startswith(env.MARKER))) | .[0].id // empty')
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${id}" -F body=@doc-coverage-comment.md >/dev/null
+            echo "updated comment $id"
+          else
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" -F body=@doc-coverage-comment.md >/dev/null
+            echo "created comment"
+          fi
 
       - name: Test (unit) + coverage
         run: npm run test:coverage

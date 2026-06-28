@@ -195,7 +195,7 @@ Coverage: explained 88%, exemplified-only 6%, uncovered 6%
 ```
 
 CI runs the gate as a **required check** (Tier 1 only) and upserts one marked PR comment via
-`actions/github-script`. Fork PRs (no write token) get the report as a **job summary plus artifact**;
+the `gh` CLI. Fork PRs (no write token) get the report as a **job summary plus artifact**;
 the gate still runs and blocks, because it needs no secret.
 
 ## 8. The Deterministic Semantic Diff (D1 to D4)

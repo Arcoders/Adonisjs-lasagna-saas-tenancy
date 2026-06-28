@@ -227,9 +227,14 @@ without an api-extractor config is skipped, not failed.
 conservative day-one defaults, dead-member is a warning and the coverage floor is
 zero, so it never blocks a merge yet. It publishes the Tier-1 gate result, the
 Tier-2 review items, and the coverage line to the CI job summary, where you read
-them on the run. It is promoted toward blocking the same way the repository's
-coverage floors are: per-check severity is raised and a baseline is captured, so
-existing debt does not block while new drift does.
+them on the run. On a pull request from a branch in this repository it also
+upserts a single marked comment on the PR, so the report sits with the diff and a
+re-run edits that comment in place rather than stacking a new one. A pull request
+from a fork keeps the job-summary form, because a fork's token is read-only by
+design and the comment step is deliberately scoped to same-repository branches.
+It is promoted toward blocking the same way the repository's coverage floors are:
+per-check severity is raised and a baseline is captured, so existing debt does not
+block while new drift does.
 
 **A separate matrix job proves the engine is cross-OS deterministic.** The tool's
 own test suite runs on Linux and Windows, because the contract hash is
