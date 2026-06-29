@@ -26,28 +26,33 @@ import { createTestTenant, destroyTestTenant, updateTenantStatus } from '../help
  * still serve the stale active tenant and this test fails.
  */
 test.group('resolution cache invalidation — real provider wiring (integration)', (group) => {
-  let restore: (() => void) | undefined
-
+  // Restore the config swap even if the setup itself throws: Japa skips
+  // `group.teardown` when `group.setup` errors, so the restore lives in a
+  // try/catch (setup failure) plus the returned cleanup (success path). Capturing
+  // `original` first means a partial setup can never leak the cache-enabled config
+  // into the next spec.
   group.setup(async () => {
     const original = getConfig()
-    const enabled = {
-      ...original,
-      resolver: {
-        ...original.resolver,
-        cache: { enabled: true, ttlMs: 60_000, maxEntries: 100 },
-      },
-    }
-    setConfig(enabled) // the request macro reads cache.enabled from the package singleton
-    app.config.set('multitenancy', enabled) // provider.ready() reads it from app config
-    await new MultitenancyProvider(app).ready() // wires invalidation against the container emitter
-    restore = () => {
+    const restore = () => {
       setConfig(original)
       app.config.set('multitenancy', original)
     }
-  })
-
-  group.teardown(() => {
-    restore?.()
+    try {
+      const enabled = {
+        ...original,
+        resolver: {
+          ...original.resolver,
+          cache: { enabled: true, ttlMs: 60_000, maxEntries: 100 },
+        },
+      }
+      setConfig(enabled) // the request macro reads cache.enabled from the package singleton
+      app.config.set('multitenancy', enabled) // provider.ready() reads it from app config
+      await new MultitenancyProvider(app).ready() // wires invalidation against the container emitter
+    } catch (err) {
+      restore()
+      throw err
+    }
+    return restore
   })
 
   test('a dispatched TenantSuspended evicts the cached tenant so the next request reflects it', async ({

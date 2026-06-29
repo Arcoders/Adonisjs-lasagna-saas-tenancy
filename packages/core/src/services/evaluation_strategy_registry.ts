@@ -86,6 +86,17 @@ export default class EvaluationStrategyRegistry {
     return this
   }
 
+  /**
+   * Remove a previously registered strategy. The built-in `default` is never
+   * removable. Returns true when a strategy was removed, false when the name was
+   * the reserved default or was not registered. Useful for hot-reload paths and
+   * for tests that need to undo a registration so it does not leak into the next.
+   */
+  unregister(name: string): boolean {
+    if (name === 'default') return false
+    return this.#strategies.delete(name)
+  }
+
   get(name: string): EvaluationStrategy | undefined {
     return this.#strategies.get(name)
   }

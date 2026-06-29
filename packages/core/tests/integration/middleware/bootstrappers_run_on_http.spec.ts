@@ -51,13 +51,16 @@ test.group('bootstrapper enter/leave fire on the HTTP request path', (group) => 
     const reg = await app.container.make(IsolationDriverRegistry)
     driver = reg.active() as SchemaPgDriver
 
-    const registry = await app.container.make(BootstrapperRegistry)
-    hadProbe = registry.has(PROBE)
-    if (!hadProbe) registry.register(probe)
-
     const t = await createTestTenant({ status: 'active' })
     tenantId = t.id
     await driver.provision(await findTenant(t.id))
+
+    // Register the probe last: Japa skips group.teardown when group.setup throws,
+    // so a probe registered before a failing createTestTenant/provision would leak
+    // into the next spec.
+    const registry = await app.container.make(BootstrapperRegistry)
+    hadProbe = registry.has(PROBE)
+    if (!hadProbe) registry.register(probe)
   })
 
   group.teardown(async () => {

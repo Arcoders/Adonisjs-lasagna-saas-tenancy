@@ -17,6 +17,10 @@ test.group('FeatureFlagService — evaluation strategies (integration)', (group)
   const svc = new FeatureFlagService()
   const cleanup: string[] = []
 
+  // Track only what THIS group adds, so teardown unregisters exactly that and the
+  // strategies never leak into the shared registry for later specs.
+  const registeredHere: string[] = []
+
   group.setup(async () => {
     const registry = await app.container.make(EvaluationStrategyRegistry)
     if (!registry.has('force_off')) {
@@ -25,6 +29,7 @@ test.group('FeatureFlagService — evaluation strategies (integration)', (group)
         contractVersion: FEATURE_FLAGS_CONTRACT_VERSION,
         evaluate: () => false,
       })
+      registeredHere.push('force_off')
     }
     if (!registry.has('ctx_gate')) {
       registry.register({
@@ -32,7 +37,13 @@ test.group('FeatureFlagService — evaluation strategies (integration)', (group)
         contractVersion: FEATURE_FLAGS_CONTRACT_VERSION,
         evaluate: (_record, ctx) => ctx.userId === 'vip',
       })
+      registeredHere.push('ctx_gate')
     }
+  })
+
+  group.teardown(async () => {
+    const registry = await app.container.make(EvaluationStrategyRegistry)
+    for (const name of registeredHere.splice(0)) registry.unregister(name)
   })
 
   group.each.teardown(async () => {

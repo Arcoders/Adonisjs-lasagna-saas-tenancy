@@ -15,6 +15,10 @@ import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
  * RED (pre-fix): boot emitted zero membership warnings regardless of posture.
  */
 test.group('membership-gate boot warning — real provider wiring (integration)', (group) => {
+  // Capture the originals in setup and restore in an explicit `each.teardown`.
+  // Returning the cleanup from setup is fragile (it never registers if the setup
+  // throws before returning); an explicit teardown runs after every test, so the
+  // swapped config + logger binding can never leak into the next spec.
   let restore: (() => void) | undefined
 
   group.each.setup(async () => {
@@ -25,7 +29,10 @@ test.group('membership-gate boot warning — real provider wiring (integration)'
       app.config.set('multitenancy', originalCfg)
       app.container.bindValue('logger', originalLogger)
     }
-    return () => restore?.()
+  })
+
+  group.each.teardown(() => {
+    restore?.()
   })
 
   async function bootWith(overrides: Record<string, unknown>): Promise<string[]> {
