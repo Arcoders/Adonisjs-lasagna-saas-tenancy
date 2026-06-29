@@ -42,7 +42,7 @@ export default defineConfig({
     suites: [
       {
         name: 'e2e',
-        files: ['tests/e2e/**/*.spec.ts'],
+        files: ['tests/@integration/e2e/**/*.spec.ts'],
         timeout: 30_000,
       },
     ],

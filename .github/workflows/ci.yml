@@ -791,10 +791,10 @@ jobs:
         run: npx tsx ace.ts tenant:billing:pricing:validate --json
 
       # Runs the whole e2e suite, which auto-includes the hardening specs under
-      # tests/e2e/hardening/** (isolation under concurrency, quota atomicity,
-      # circuit-breaker fail-fast, audit immutability, SSO replay, concurrent
-      # provisioning, admin/OpenAPI conformance, doctor --json) via the
-      # `tests/e2e/**/*.spec.ts` suite glob — no separate job needed.
+      # tests/@integration/e2e/hardening/** (isolation under concurrency, quota
+      # atomicity, circuit-breaker fail-fast, audit immutability, SSO replay,
+      # concurrent provisioning, admin/OpenAPI conformance, doctor --json) via the
+      # `tests/@integration/e2e/**/*.spec.ts` suite glob — no separate job needed.
       - name: Run e2e suite (includes hardening/**)
         working-directory: examples/api
         run: npx tsx ace.ts test e2e
@@ -896,7 +896,7 @@ jobs:
 
       - name: Run websockets e2e spec
         working-directory: examples/api
-        run: npx tsx ace.ts test e2e --files tests/e2e/websockets.spec.ts
+        run: npx tsx ace.ts test e2e --files tests/@integration/e2e/websockets.spec.ts
 
       # Multi-node severance (Phase 4 chaos): two real socket.io servers wired
       # like the cookbook's multi-node recipe (Redis adapter + pub/sub severance
