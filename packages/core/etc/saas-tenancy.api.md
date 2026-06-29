@@ -40,7 +40,7 @@ import type { WorkerOptions as WorkerOptions_2 } from 'bullmq';
 // @public (undocumented)
 export type AuditActorType = 'admin' | 'system';
 
-// @public (undocumented)
+// @public
 export class AuditLogService {
     exportStream(options?: {
         tenantId?: string;
@@ -121,7 +121,7 @@ export class BootstrapperRegistry {
     unregister(name: string): boolean;
 }
 
-// @public (undocumented)
+// @public
 export interface BrandingData {
     // (undocumented)
     emailFooter?: Record<string, unknown> | null;
@@ -137,7 +137,7 @@ export interface BrandingData {
     supportUrl?: string | null;
 }
 
-// @public (undocumented)
+// @public
 export class BrandingService {
     getCurrent(): Promise<TenantBranding | null>;
     // (undocumented)
@@ -158,10 +158,10 @@ export class BrandingService {
 // @public
 export function buildTenantWorkerOptions(tenantId: string, concurrency?: number): WorkerOptions_2;
 
-// @public (undocumented)
+// @public
 export const CACHE_NAMESPACE_PREFIX = "tenant_";
 
-// @public (undocumented)
+// @public
 export const cacheBootstrapper: TenantBootstrapper;
 
 // @public (undocumented)
@@ -181,7 +181,7 @@ export class CentralOnlyMiddleware {
     handle(input: HttpContext, next: NextFn): Promise<any>;
 }
 
-// @public (undocumented)
+// @public
 export class CentralRouteViolationException extends Exception {
     // (undocumented)
     static readonly code = "E_CENTRAL_ROUTE_VIOLATION";
@@ -225,7 +225,7 @@ export interface CircuitMetrics {
     tenantId: string;
 }
 
-// @public (undocumented)
+// @public
 export class CircuitOpenException extends Exception {
     // (undocumented)
     static readonly code = "E_CIRCUIT_OPEN";
@@ -288,7 +288,7 @@ export class CrossDomainRedirectService {
     toTenantSubdomainHost(slug: string): string;
 }
 
-// @public (undocumented)
+// @public
 export class CustomDomainMiddleware {
     // (undocumented)
     protected getRepository(): Promise<TenantRepositoryContract>;
@@ -370,7 +370,7 @@ export interface DestroyOptions {
     keepData?: boolean;
 }
 
-// @public (undocumented)
+// @public
 export const driveBootstrapper: TenantBootstrapper;
 
 // @public
@@ -379,14 +379,14 @@ export function encrypt(plaintext: string, context?: string): string;
 // @public
 export function enforceQuota(quota: string, options?: EnforceQuotaOptions): (input: HttpContext, next: NextFn) => Promise<any>;
 
-// @public (undocumented)
+// @public
 export interface EnforceQuotaOptions {
     // (undocumented)
     amount?: number;
     enforce?: boolean;
 }
 
-// @public (undocumented)
+// @public
 export class FeatureFlagService {
     // (undocumented)
     delete(tenantId: string, flag: string): Promise<void>;
@@ -451,7 +451,7 @@ export interface ImpersonationContext {
     userId: string;
 }
 
-// @public (undocumented)
+// @public
 export class ImpersonationInvalidException extends Exception {
     // (undocumented)
     static readonly code = "E_IMPERSONATION_TOKEN_INVALID";
@@ -593,10 +593,10 @@ export class IsolationDriverRegistry {
 // @public
 export function isScopeBypassed(): boolean;
 
-// @public @deprecated (undocumented)
+// @public @deprecated
 export type LogActionOptions = LogOptions;
 
-// @public (undocumented)
+// @public
 export interface LogOptions {
     // (undocumented)
     action: string;
@@ -612,10 +612,10 @@ export interface LogOptions {
     tenantId?: string | null;
 }
 
-// @public (undocumented)
+// @public
 export const mailBootstrapper: TenantBootstrapper;
 
-// @public (undocumented)
+// @public
 export class MetricsService {
     emitMetric(tenantId: string, name: string, value?: number): Promise<void>;
     flush(period?: string): Promise<void>;
@@ -642,7 +642,7 @@ export interface MigrateResult {
     noop?: boolean;
 }
 
-// @public (undocumented)
+// @public
 export class MissingTenantHeaderException extends Exception {
     constructor();
     // (undocumented)
@@ -780,7 +780,7 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
     tenantSchemaPrefix: string;
 }
 
-// @public (undocumented)
+// @public
 export interface QuotaCheckResult {
     // (undocumented)
     allowed: boolean;
@@ -792,7 +792,7 @@ export interface QuotaCheckResult {
     limit: number;
 }
 
-// @public (undocumented)
+// @public
 export class QuotaExceededException extends Exception {
     constructor(payload: {
         tenantId: string;
@@ -818,10 +818,10 @@ export class QuotaExceededException extends Exception {
     readonly tenantId: string;
 }
 
-// @public (undocumented)
+// @public
 export type QuotaMode = 'rolling-day' | 'snapshot';
 
-// @public (undocumented)
+// @public
 export class QuotaService {
     assignPlan(tenantId: string, planName: string, opts?: {
         source?: string;
@@ -845,7 +845,7 @@ export class QuotaService {
     track(tenant: TenantModelContract, quota: string, amount?: number): Promise<number>;
 }
 
-// @public (undocumented)
+// @public
 export interface QuotaStateSnapshot {
     // (undocumented)
     limits: Record<string, number>;
@@ -855,7 +855,7 @@ export interface QuotaStateSnapshot {
     usage: Record<string, number>;
 }
 
-// @public (undocumented)
+// @public
 export class RateLimitMiddleware {
     protected configuredFailOpen(): boolean;
     protected currentTenantId(): string | undefined;
@@ -865,7 +865,7 @@ export class RateLimitMiddleware {
     protected isTestEnv(): boolean;
 }
 
-// @public (undocumented)
+// @public
 export interface RateLimitOptions {
     bypassInTestEnv?: boolean;
     failOpen?: boolean;
@@ -877,7 +877,7 @@ export interface RateLimitOptions {
     windowSeconds: number;
 }
 
-// @public (undocumented)
+// @public
 export class RateLimitUnavailableException extends Exception {
     // (undocumented)
     static readonly code = "E_RATE_LIMIT_UNAVAILABLE";
@@ -887,7 +887,7 @@ export class RateLimitUnavailableException extends Exception {
     static readonly status = 503;
 }
 
-// @public (undocumented)
+// @public
 export class ReadReplicaService {
     connectionName(tenantId: string, idx: number): string;
     // Warning: (ae-forgotten-export) The symbol "ReadReplicaHost" needs to be exported by the entry point index.d.ts
@@ -931,7 +931,7 @@ export interface RoutingConfig {
     universalRoutesFile?: string;
 }
 
-// @public (undocumented)
+// @public
 export const sessionBootstrapper: TenantBootstrapper;
 
 // @public (undocumented)
@@ -945,7 +945,7 @@ export interface SetTenantRlsGucOptions {
     gucName?: string;
 }
 
-// @public (undocumented)
+// @public
 export class TelemetryService {
     // (undocumented)
     static setTenant(tenantId: string): void;
@@ -963,25 +963,25 @@ export const tenancy: {
     current: typeof current;
 };
 
-// @public (undocumented)
+// @public
 export const TENANT_BROADCAST_PREFIX = "tenants/";
 
-// @public (undocumented)
+// @public
 export const TENANT_DRIVE_PREFIX = "tenants/";
 
-// @public (undocumented)
+// @public
 export const TENANT_MAIL_HEADER = "X-Tenant-Id";
 
 // @public
 export const TENANT_REPOSITORY: unique symbol;
 
-// @public (undocumented)
+// @public
 export const TENANT_SESSION_PREFIX = "tenants/";
 
 // @public
 export type TenantAccessAuthorizer = (ctx: HttpContext, tenant: TenantModelContract) => boolean | Promise<boolean>;
 
-// @public (undocumented)
+// @public
 export class TenantAccessForbiddenException extends Exception {
     // (undocumented)
     static readonly code = "E_TENANT_ACCESS_FORBIDDEN";
@@ -991,7 +991,7 @@ export class TenantAccessForbiddenException extends Exception {
     static readonly status = 403;
 }
 
-// @public (undocumented)
+// @public
 export class TenantActivated extends BaseEvent {
     constructor(tenant: TenantModelContract);
     // (undocumented)
@@ -1028,7 +1028,7 @@ export class TenantAuditLog extends BackofficeBaseModel {
     tenantId: string | null;
 }
 
-// @public (undocumented)
+// @public
 export class TenantBackedUp extends BaseEvent {
     constructor(tenant: TenantModelContract, metadata: BackupMetadata);
     // (undocumented)
@@ -1095,7 +1095,7 @@ export function tenantCache(): CacheNamespace;
 // @public
 export function tenantChannel(channel: string): string;
 
-// @public (undocumented)
+// @public
 export class TenantCloned extends BaseEvent {
     constructor(source: TenantModelContract, destination: TenantModelContract, result: CloneResult);
     // (undocumented)
@@ -1116,14 +1116,14 @@ export interface TenantCloneHookContext {
     source: TenantModelContract;
 }
 
-// @public (undocumented)
+// @public
 export class TenantCreated extends BaseEvent {
     constructor(tenant: TenantModelContract);
     // (undocumented)
     readonly tenant: TenantModelContract;
 }
 
-// @public (undocumented)
+// @public
 export class TenantDeleted extends BaseEvent {
     constructor(tenant: TenantModelContract);
     // (undocumented)
@@ -1133,7 +1133,7 @@ export class TenantDeleted extends BaseEvent {
 // @public
 export function tenantDisk(diskName?: string): Promise<any>;
 
-// @public (undocumented)
+// @public
 export class TenantEnteredMaintenance extends BaseEvent {
     constructor(tenant: TenantModelContract, message: string | null);
     // (undocumented)
@@ -1142,7 +1142,7 @@ export class TenantEnteredMaintenance extends BaseEvent {
     readonly tenant: TenantModelContract;
 }
 
-// @public (undocumented)
+// @public
 export class TenantExitedMaintenance extends BaseEvent {
     constructor(tenant: TenantModelContract);
     // (undocumented)
@@ -1171,13 +1171,13 @@ export class TenantFeatureFlag extends BackofficeBaseModel {
     updatedAt: DateTime;
 }
 
-// @public (undocumented)
+// @public
 export class TenantGuardMiddleware {
     // (undocumented)
     handle(ctx: HttpContext, next: NextFn): Promise<any>;
 }
 
-// @public (undocumented)
+// @public
 export class TenantHeaderDomainMismatchException extends Exception {
     // (undocumented)
     static readonly code = "E_TENANT_HEADER_DOMAIN_MISMATCH";
@@ -1202,7 +1202,7 @@ export type TenantLifecycleHook<C = TenantHookContext> = (ctx: C) => void | Prom
 // @public (undocumented)
 export type TenantLifecyclePhase = 'before' | 'after';
 
-// @public (undocumented)
+// @public
 export class TenantLogContext {
     // Warning: (ae-forgotten-export) The symbol "LoggerLike" needs to be exported by the entry point index.d.ts
     bind<L extends LoggerLike>(logger: L): L;
@@ -1211,7 +1211,7 @@ export class TenantLogContext {
     run<T>(context: TenantLogContextData, fn: () => T): T;
 }
 
-// @public (undocumented)
+// @public
 export interface TenantLogContextData {
     // (undocumented)
     [key: string]: unknown;
@@ -1225,7 +1225,7 @@ export function tenantLogger(): Promise<LoggerService>;
 // @public
 export function tenantMailer(transportName?: string): Promise<any>;
 
-// @public (undocumented)
+// @public
 export class TenantMaintenanceException extends Exception {
     // (undocumented)
     static readonly code = "E_TENANT_MAINTENANCE";
@@ -1262,7 +1262,7 @@ export class TenantMetric extends BackofficeBaseModel {
     tenantId: string;
 }
 
-// @public (undocumented)
+// @public
 export class TenantMigrated extends BaseEvent {
     constructor(tenant: TenantModelContract, direction: TenantMigrationDirection);
     // (undocumented)
@@ -1277,7 +1277,7 @@ export interface TenantMigrateHookContext extends TenantHookContext {
     direction: 'up' | 'down';
 }
 
-// @public (undocumented)
+// @public
 export type TenantMigrationDirection = 'up' | 'down';
 
 // @public
@@ -1325,7 +1325,7 @@ export interface TenantModelContract<TMeta extends object = TenantMetadata> {
     suspend(): Promise<void>;
 }
 
-// @public (undocumented)
+// @public
 export class TenantNotFoundException extends Exception {
     // (undocumented)
     static readonly code = "E_TENANT_NOT_FOUND";
@@ -1335,7 +1335,7 @@ export class TenantNotFoundException extends Exception {
     static readonly status = 404;
 }
 
-// @public (undocumented)
+// @public
 export class TenantNotReadyException extends Exception {
     // (undocumented)
     static readonly code = "E_TENANT_NOT_READY";
@@ -1348,7 +1348,7 @@ export class TenantNotReadyException extends Exception {
 // @public
 export function tenantPrefix(): string;
 
-// @public (undocumented)
+// @public
 export class TenantProvisioned extends BaseEvent {
     constructor(tenant: TenantModelContract);
     // (undocumented)
@@ -1375,7 +1375,7 @@ export class TenantQueueService {
     withTempQueue<T>(tenantId: string, fn: (queue: Queue) => Promise<T>): Promise<T>;
 }
 
-// @public (undocumented)
+// @public
 export interface TenantQueueStats {
     // (undocumented)
     active: number;
@@ -1393,7 +1393,7 @@ export interface TenantQueueStats {
     waiting: number;
 }
 
-// @public (undocumented)
+// @public
 export class TenantQuotaExceeded extends BaseEvent {
     constructor(tenant: TenantModelContract, quota: string, limit: number, current: number, attempted: number);
     // (undocumented)
@@ -1447,7 +1447,7 @@ export interface TenantResolver {
 
 // Warning: (ae-forgotten-export) The symbol "TenantHit" needs to be exported by the entry point index.d.ts
 //
-// @public (undocumented)
+// @public
 export type TenantResolveResult = TenantHit | undefined;
 
 // @public
@@ -1475,7 +1475,7 @@ export class TenantResolverRegistry {
 // @public (undocumented)
 export type TenantResolverStrategy = 'subdomain' | 'header' | 'path' | 'domain-or-subdomain' | 'request-data';
 
-// @public (undocumented)
+// @public
 export class TenantRestored extends BaseEvent {
     constructor(tenant: TenantModelContract, fileName: string);
     // (undocumented)
@@ -1506,14 +1506,14 @@ export function tenantSessionKey(key: string): string;
 // @public (undocumented)
 export type TenantStatus = 'provisioning' | 'active' | 'suspended' | 'failed' | 'deleted';
 
-// @public (undocumented)
+// @public
 export class TenantSuspended extends BaseEvent {
     constructor(tenant: TenantModelContract);
     // (undocumented)
     readonly tenant: TenantModelContract;
 }
 
-// @public (undocumented)
+// @public
 export class TenantSuspendedException extends Exception {
     // (undocumented)
     static readonly code = "E_TENANT_SUSPENDED";
@@ -1523,7 +1523,7 @@ export class TenantSuspendedException extends Exception {
     static readonly status = 403;
 }
 
-// @public (undocumented)
+// @public
 export class TenantUpdated extends BaseEvent {
     constructor(tenant: TenantModelContract, changes: Record<string, {
         from: unknown;
@@ -1590,7 +1590,7 @@ export class TenantWebhookDelivery extends BackofficeBaseModel {
     webhookId: string;
 }
 
-// @public (undocumented)
+// @public
 export class TooManyRequestsException extends Exception {
     // (undocumented)
     static readonly code = "E_TOO_MANY_REQUESTS";
@@ -1600,7 +1600,7 @@ export class TooManyRequestsException extends Exception {
     static readonly status = 429;
 }
 
-// @public (undocumented)
+// @public
 export const transmitBootstrapper: TenantBootstrapper;
 
 // @public
@@ -1618,7 +1618,7 @@ export function validateExternalHttpsUrl(value: unknown): string | null;
 // @public
 export function validateResolvedHostIsPublic(value: unknown): Promise<string | null>;
 
-// @public (undocumented)
+// @public
 export class WebhookService {
     // (undocumented)
     deleteWebhook(id: string, tenantId: string): Promise<void>;
@@ -1653,12 +1653,12 @@ export function withTenantScope<TBase extends LucidBaseModelClass>(Base: TBase):
 
 // Warnings were encountered during analysis:
 //
-// src/services/quota_service.ts:75:74 - (ae-forgotten-export) The symbol "PlanDefinition" needs to be exported by the entry point index.d.ts
+// src/services/quota_service.ts:111:74 - (ae-forgotten-export) The symbol "PlanDefinition" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "run" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "runForRequest" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "currentId" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "current" needs to be exported by the entry point index.d.ts
-// src/types/config.ts:545:5 - (ae-forgotten-export) The symbol "TenantAnonymizer" needs to be exported by the entry point index.d.ts
+// src/types/config.ts:550:5 - (ae-forgotten-export) The symbol "TenantAnonymizer" needs to be exported by the entry point index.d.ts
 
 // (No @packageDocumentation comment for this package)
 
