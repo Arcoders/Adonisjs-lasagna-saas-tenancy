@@ -102,7 +102,13 @@ export function defaultConfig(repoRoot: string): DocCoverageConfig {
     docsRoots: [join(repoRoot, 'docs')].filter((p) => existsSync(p)),
     packages: discoverPackages(repoRoot),
     synonyms: loadSynonyms(repoRoot),
-    coverageFloors: { explained: 0, exemplified: 0 },
+    // Set after the full-coverage pass that took every public symbol to explained
+    // (100%). The floor is a regression net, not a 100% trap: it sits a few points
+    // under the achieved number so adding a handful of new public symbols during
+    // active work does not flag, while a real documentation regression does. The
+    // docs:doctor CI step stays advisory, so a breach surfaces a review item rather
+    // than blocking. Revisit when the AI satellite lands and its surface settles.
+    coverageFloors: { explained: 90, exemplified: 0 },
     freshnessWindowDays: 0,
   }
 }
