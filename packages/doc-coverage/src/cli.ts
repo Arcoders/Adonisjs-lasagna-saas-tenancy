@@ -3,8 +3,8 @@
  * 2 a tool/internal error, so CI can tell "docs drifted" from "the tool broke".
  *
  *   docs:doctor [--since <ref>] [--package <name>] [--json | --summary]
- *               [--update-baseline] [--explain <symbol>] [--why <doc#section>]
- *               [--graph] [--init-anchors]
+ *               [--update-baseline] [--update-freshness] [--explain <symbol>]
+ *               [--why <doc#section>] [--graph] [--init-anchors]
  */
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -12,6 +12,8 @@ import { defaultConfig, findRepoRoot } from './config.js'
 import { runDoctor } from './doctor.js'
 import { runGate, DEFAULT_SEVERITY } from './gate.js'
 import { loadBaseline, saveBaseline, BASELINE_VERSION } from './baseline.js'
+import { loadFreshness, saveFreshness, FRESHNESS_VERSION } from './freshness.js'
+import { freshnessPairings } from './signals.js'
 import { formatHuman, formatJson, formatJobSummary } from './report.js'
 import { explainSymbol, whyDoc } from './explain.js'
 import { initAnchors } from './init_anchors.js'
@@ -61,7 +63,9 @@ export function main(argv: string[]): number {
     }
 
     const since = args.values.get('--since')
-    const result = runDoctor(config, { since })
+    const freshnessPath = join(repoRoot, 'doc-coverage.freshness.json')
+    const freshness = loadFreshness(freshnessPath)
+    const result = runDoctor(config, { since, freshness })
 
     if (args.flags.has('--graph')) {
       const path = join(repoRoot, 'doc-graph.json')
@@ -93,6 +97,22 @@ export function main(argv: string[]): number {
         floors: config.coverageFloors,
       })
       console.log(`wrote ${baselinePath} (${gate.allKeys.length} accepted finding key(s))`)
+      return 0
+    }
+
+    // Snapshot the current contract hash of every D3 pairing as "reviewed". Run
+    // this after reviewing the docs a contract change flagged: it records that
+    // the prose matches the symbol at its present contract, so D3 goes quiet
+    // until the contract changes again. Uses the same pairing set the checker
+    // does (`freshnessPairings`), so the snapshot and the check never diverge.
+    if (args.flags.has('--update-freshness')) {
+      const ignored = new Set(result.freshnessIgnore)
+      const reviewed: Record<string, string> = {}
+      for (const { node, page } of freshnessPairings(result.graph, ignored)) {
+        reviewed[`${node.id}|${page}`] = node.signatureHash!
+      }
+      saveFreshness(freshnessPath, { version: FRESHNESS_VERSION, reviewed })
+      console.log(`wrote ${freshnessPath} (${Object.keys(reviewed).length} reviewed pairing(s))`)
       return 0
     }
 

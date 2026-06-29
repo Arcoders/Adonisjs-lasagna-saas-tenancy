@@ -44,7 +44,9 @@ test('doc-synonyms.json is committed at the repo root and loads', () => {
 
 /** Build a one-service graph whose page lacks the "meter" token, with the given edge type. */
 function fixtureGraph(repoRoot: string, edgeType: 'documents' | 'exemplifies'): DocGraph {
-  const docId = 'docs/x.md'
+  // A synthetic fixture path kept out of the `docs/` namespace so the
+  // check-doc-paths guard does not mistake it for a real (missing) doc reference.
+  const docId = 'site/x.md'
   const sym = '@x/services#BillingService'
   const node: GraphNode = {
     id: sym,
@@ -83,13 +85,13 @@ function fixtureGraph(repoRoot: string, edgeType: 'documents' | 'exemplifies'): 
 test('D2-soft fires on a documents edge but ignores an exemplifies-only edge', () => {
   const repoRoot = mkdtempSync(join(tmpdir(), 'doccov-tune-'))
   try {
-    mkdirSync(join(repoRoot, 'docs'), { recursive: true })
+    mkdirSync(join(repoRoot, 'site'), { recursive: true })
     // Prose covers "usage" but not "meter"; "clear"/"cache" are stoplisted so they
     // must never be reported as missing regardless of the prose.
-    writeFileSync(join(repoRoot, 'docs', 'x.md'), 'The billing service records usage.\n')
+    writeFileSync(join(repoRoot, 'site', 'x.md'), 'The billing service records usage.\n')
     const config: DocCoverageConfig = {
       repoRoot,
-      docsRoots: [join(repoRoot, 'docs')],
+      docsRoots: [join(repoRoot, 'site')],
       packages: [],
       synonyms: {},
       coverageFloors: { explained: 0, exemplified: 0 },

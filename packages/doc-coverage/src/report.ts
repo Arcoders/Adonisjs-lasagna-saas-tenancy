@@ -26,10 +26,14 @@ export function formatHuman(result: DoctorResult, gate: GateOutcome): string {
   // Tier 2: advisory.
   const advisory = result.d3.length + result.d2soft.length + result.d4.length
   out.push(`⚠ Tier 2 (advisory): ${advisory} review item(s)`)
-  for (const f of result.d3.slice(0, 30)) {
+  const D3_SHOWN = 50
+  for (const f of result.d3.slice(0, D3_SHOWN)) {
     out.push(`  - ${f.doc} (-> ${short(f.symbol)}): ${f.reason}`)
-    out.push(`      Action: review whether the change needs a doc update.`)
+    out.push(`      Action: re-review the doc, then run docs:doctor --update-freshness.`)
     out.push(`      Suppress: <!-- doc:freshness-ignore reason="..." -->`)
+  }
+  if (result.d3.length > D3_SHOWN) {
+    out.push(`  ... (+${result.d3.length - D3_SHOWN} more freshness item(s))`)
   }
   for (const f of result.d2soft.slice(0, 30)) {
     out.push(

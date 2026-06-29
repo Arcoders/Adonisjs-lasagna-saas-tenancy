@@ -3,7 +3,7 @@
  *
  *   D2-hard  prose naming `Symbol.member(` where member no longer exists (gate-able)
  *   D2-soft  contract-vs-prose token diff, exact missing tokens (advisory)
- *   D3       freshness: a changed symbol whose linked doc was not also touched (advisory)
+ *   D3       freshness: a symbol whose CONTRACT hash changed since its linked doc was reviewed (advisory)
  *   D4       1-hop static reach of a changed symbol over the public boundary (advisory)
  *
  * All deterministic, no network, no model. D3/D4 use git via `./git.js`, which
@@ -23,6 +23,7 @@ import {
   diffTokens,
 } from './tokenize.js'
 import { changedFiles, lastCommitDate } from './git.js'
+import type { FreshnessCheckpoint } from './freshness.js'
 
 /** Strip `#section` / `:fence:NN` to get the doc's repo-relative file path. */
 function docFileOf(nodeId: string): string {
@@ -162,53 +163,106 @@ export interface D3Finding {
   reason: string
 }
 
-export function d3freshness(
+/** One symbol-to-doc pairing that D3 freshness watches. */
+export interface FreshnessPairing {
+  node: GraphNode
+  /** Repo-relative doc-page path (no `#section` / `:fence:NN`). */
+  page: string
+}
+
+/**
+ * Every (symbol, page) pairing D3 watches: a documentable symbol that has a
+ * contract hash and a source file, linked from a page by a `documents` or
+ * `exemplifies` edge, where the page is not freshness-ignored. D3 watches
+ * examples (`exemplifies`) as well as authoritative prose (`documents`) because
+ * an example can go stale on a real contract change too, and D1 only proves the
+ * fence compiles, not that it still matches the API shape. (D2-soft stays
+ * documents-only: vocabulary alignment is a different question from staleness.)
+ *
+ * The checker (`d3freshness`) and the snapshotter (`--update-freshness`) both
+ * derive their work from this one function, so the recorded checkpoint and the
+ * checked pairings can never drift apart.
+ */
+export function freshnessPairings(
   graph: DocGraph,
-  config: DocCoverageConfig,
-  opts: { since?: string } = {}
-): D3Finding[] {
+  ignored: ReadonlySet<string> = new Set()
+): FreshnessPairing[] {
   const incoming = incomingIndex(graph)
-  const findings: D3Finding[] = []
+  const out: FreshnessPairing[] = []
   const seen = new Set<string>()
-
-  const changed = opts.since ? new Set(changedFiles(config.repoRoot, opts.since)) : null
-
   for (const node of documentableNodes(graph)) {
     if (!node.signatureHash || !node.internalPath) continue
     const edges = (incoming.get(node.id) ?? []).filter(
       (e) => e.type === 'documents' || e.type === 'exemplifies'
     )
-    const pages = new Set(edges.map((e) => docFileOf(e.from)))
-    if (pages.size === 0) continue
+    for (const e of edges) {
+      const page = docFileOf(e.from)
+      if (ignored.has(page)) continue
+      const key = `${node.id}|${page}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push({ node, page })
+    }
+  }
+  return out
+}
 
-    if (changed) {
-      if (!changed.has(node.internalPath)) continue
-      for (const page of pages) {
-        if (changed.has(page)) continue
-        const key = `${node.id}|${page}`
-        if (seen.has(key)) continue
-        seen.add(key)
-        findings.push({
-          symbol: node.id,
-          doc: page,
-          reason: 'signature changed in this range; the doc was not touched',
-        })
-      }
-    } else {
-      const symDate = lastCommitDate(config.repoRoot, node.internalPath)
+export interface FreshnessOptions {
+  since?: string
+  /** Committed contract-hash checkpoint; absent means timestamp fallback. */
+  freshness?: FreshnessCheckpoint | null
+  /** Pages carrying `<!-- doc:freshness-ignore -->`. */
+  freshnessIgnore?: ReadonlySet<string>
+}
+
+export function d3freshness(
+  graph: DocGraph,
+  config: DocCoverageConfig,
+  opts: FreshnessOptions = {}
+): D3Finding[] {
+  const findings: D3Finding[] = []
+  const pairings = freshnessPairings(graph, opts.freshnessIgnore)
+
+  if (opts.since) {
+    // Git-range mode (PR diff): the symbol's file changed in this range but the
+    // doc did not. Coarse but useful for "what did this PR touch without a doc".
+    const changed = new Set(changedFiles(config.repoRoot, opts.since))
+    for (const { node, page } of pairings) {
+      if (!changed.has(node.internalPath!)) continue
+      if (changed.has(page)) continue
+      findings.push({
+        symbol: node.id,
+        doc: page,
+        reason: 'signature changed in this range; the doc was not touched',
+      })
+    }
+  } else if (opts.freshness) {
+    // Contract-checkpoint mode (RFC §6/§8): fire only when the symbol's contract
+    // hash differs from the hash recorded when the pairing was last reviewed. A
+    // comment-only edit leaves the hash unchanged, so it is silent by construction.
+    const reviewed = opts.freshness.reviewed
+    for (const { node, page } of pairings) {
+      if (reviewed[`${node.id}|${page}`] === node.signatureHash) continue
+      findings.push({
+        symbol: node.id,
+        doc: page,
+        reason: 'contract changed since the doc was last reviewed',
+      })
+    }
+  } else {
+    // Back-compat fallback when no checkpoint is committed: the coarse timestamp
+    // heuristic (doc commit older than source commit). Superseded by the
+    // checkpoint above, which a comment-only change cannot trip.
+    for (const { node, page } of pairings) {
+      const symDate = lastCommitDate(config.repoRoot, node.internalPath!)
       if (!symDate) continue
-      for (const page of pages) {
-        const docDate = lastCommitDate(config.repoRoot, page)
-        if (!docDate || docDate >= symDate) continue
-        const key = `${node.id}|${page}`
-        if (seen.has(key)) continue
-        seen.add(key)
-        findings.push({
-          symbol: node.id,
-          doc: page,
-          reason: 'source modified more recently than the doc',
-        })
-      }
+      const docDate = lastCommitDate(config.repoRoot, page)
+      if (!docDate || docDate >= symDate) continue
+      findings.push({
+        symbol: node.id,
+        doc: page,
+        reason: 'source modified more recently than the doc',
+      })
     }
   }
   return findings.sort((a, b) => (a.doc + a.symbol).localeCompare(b.doc + b.symbol))

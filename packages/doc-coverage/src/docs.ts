@@ -20,7 +20,12 @@ import type { GraphEdge, GraphNode } from './types.js'
 export interface DocsResult {
   nodes: GraphNode[]
   edges: GraphEdge[]
+  /** Pages carrying `<!-- doc:freshness-ignore -->`, suppressed from D3. */
+  freshnessIgnore: string[]
 }
+
+/** A page-level `<!-- doc:freshness-ignore reason="..." -->` directive (reason optional). */
+const FRESHNESS_IGNORE_RE = /<!--\s*doc:freshness-ignore(?:\s+reason="[^"]*")?\s*-->/
 
 function walk(dir: string): string[] {
   const out: string[] = []
@@ -131,6 +136,7 @@ export function buildDocNodes(opts: DocsOptions): DocsResult {
   const { docsRoot, repoRoot, knownPublicPaths, nameIndex, fileIndex } = opts
   const nodes: GraphNode[] = []
   const edges: GraphEdge[] = []
+  const freshnessIgnore: string[] = []
   const seenEdge = new Set<string>()
 
   const addEdge = (e: GraphEdge): void => {
@@ -165,6 +171,10 @@ export function buildDocNodes(opts: DocsOptions): DocsResult {
     const rel = relative(repoRoot, file).replace(/\\/g, '/')
     const pageId = rel
     nodes.push(docNode(pageId, 'doc-page', rel, 1))
+
+    // A page-level opt-out: silence D3 freshness for this whole page (the unit a
+    // maintainer reviews). This is the escape valve the report advertises.
+    if (FRESHNESS_IGNORE_RE.test(content)) freshnessIgnore.push(rel)
 
     const { code: fmCode } = parseFrontMatter(content)
     const lines = content.split('\n')
@@ -281,5 +291,5 @@ export function buildDocNodes(opts: DocsOptions): DocsResult {
     }
   }
 
-  return { nodes, edges }
+  return { nodes, edges, freshnessIgnore }
 }

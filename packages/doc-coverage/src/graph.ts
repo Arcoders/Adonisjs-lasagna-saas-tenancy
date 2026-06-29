@@ -29,6 +29,8 @@ export interface BuildResult {
   graph: DocGraph
   /** Non-fatal diagnostics (e.g. a barrel that did not resolve). */
   warnings: string[]
+  /** Repo-relative pages that opted out of D3 via `<!-- doc:freshness-ignore -->`. */
+  freshnessIgnore: string[]
 }
 
 /**
@@ -78,6 +80,7 @@ export function buildGraph(config: DocCoverageConfig): BuildResult {
 
   const docNodes: GraphNode[] = []
   const edges: GraphEdge[] = []
+  const freshnessIgnore: string[] = []
   for (const docsRoot of config.docsRoots) {
     const result = buildDocNodes({
       docsRoot,
@@ -89,6 +92,7 @@ export function buildGraph(config: DocCoverageConfig): BuildResult {
     })
     docNodes.push(...result.nodes)
     edges.push(...result.edges)
+    freshnessIgnore.push(...result.freshnessIgnore)
   }
 
   // Declared `@doc` anchors -> documents edges (doc-section/page -> symbol).
@@ -128,5 +132,6 @@ export function buildGraph(config: DocCoverageConfig): BuildResult {
   return {
     graph: { schemaVersion: SCHEMA_VERSION, nodes, edges: sortedEdges },
     warnings,
+    freshnessIgnore: [...new Set(freshnessIgnore)].sort(),
   }
 }
