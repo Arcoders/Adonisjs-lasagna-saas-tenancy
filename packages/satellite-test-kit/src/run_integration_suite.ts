@@ -89,6 +89,26 @@ export async function runIntegrationSuite(options: RunIntegrationSuiteOptions): 
     .configure(async (app) => {
       const { plugins, runnerHooks, configureSuite } = await import('./bootstrap.js')
 
+      // Isolation backstop: the suite boots one app, so every spec shares the
+      // config singleton. This guard snapshots the boot config on the first group
+      // and restores it after any group that left it swapped, so one spec's leaked
+      // `setConfig` can never poison the next (Japa runs files in undefined order).
+      // The emits are not awaited, so the handlers must be synchronous; restoring
+      // the config is sync, so they are.
+      const { getConfig, setConfig } = await import('@adonisjs-lasagna/saas-tenancy/config')
+      const { createConfigBaselineGuard } = await import('./config_baseline.js')
+      const configGuard = createConfigBaselineGuard({
+        getConfig,
+        setConfig,
+        warn: (message) => console.warn(message),
+      })
+      const configBaselinePlugin = ({ emitter }: { emitter: any }): void => {
+        emitter.on('group:start', () => configGuard.onGroupStart())
+        emitter.on('group:end', (payload: { title?: string }) =>
+          configGuard.onGroupEnd(payload?.title ?? '(unknown group)')
+        )
+      }
+
       processCLIArgs(process.argv.splice(2))
       // Rewrite the suite globs to be cwd-relative. The fixture rcFile uses
       // package-relative paths so the AdonisJS test command (cwd at the fixture
@@ -112,7 +132,7 @@ export async function runIntegrationSuite(options: RunIntegrationSuiteOptions): 
         // The `.finally` always calls `process.exit()` itself, so we keep
         // forceExit's "never hang on an open pg handle" guarantee.
         forceExit: false,
-        plugins: [...(plugins ?? []), captureRunner],
+        plugins: [...(plugins ?? []), captureRunner, configBaselinePlugin],
         suites,
         setup: runnerHooks.setup,
         teardown: runnerHooks.teardown.concat([
