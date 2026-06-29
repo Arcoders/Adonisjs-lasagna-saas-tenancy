@@ -208,7 +208,7 @@ test('suspending a tenant emits TenantSuspended', async ({ client }) => {
 ```
 
 The integration suite covers every event in
-[`tests/integration/events/lifecycle_dispatch.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/tests/integration/events/lifecycle_dispatch.spec.ts).
+[`tests/@guarantees/behavior/integration/behavior_lifecycle_dispatch.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/tests/@guarantees/behavior/integration/behavior_lifecycle_dispatch.spec.ts).
 
 ## Related
 

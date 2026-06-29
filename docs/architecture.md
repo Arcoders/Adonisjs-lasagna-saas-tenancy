@@ -463,7 +463,7 @@ The `AbortSignal` is a courtesy for cooperative extensions; a non-cooperative on
 keeps holding any tenant connection it took, which is why this interacts with the connection budget.
 See [`execute_extension.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/src/services/extensions/execute_extension.ts);
 the behavior is asserted by the "slow extension trips the configured timeout (504)" test in
-[`report_extension.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/reporting/tests/integration/report_extension.spec.ts).
+[`report_extension.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/reporting/tests/@guarantees/behavior/integration/behavior_report_extension.spec.ts).
 The default is "no timeout"; you opt in via `reporting.extensions.timeoutMs`.
 
 ## The IoC seam: TENANT_REPOSITORY

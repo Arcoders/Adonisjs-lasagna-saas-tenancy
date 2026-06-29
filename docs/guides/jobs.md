@@ -202,7 +202,7 @@ job no longer reaches for the container or the contract type directly.
 
 The integration suite proves this propagates correctly under
 contention with 30 jobs × 3 tenants concurrently:
-[`tests/integration/jobs/tenant_context.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/tests/integration/jobs/tenant_context.spec.ts).
+[`tests/@guarantees/behavior/integration/behavior_tenant_context.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/tests/@guarantees/behavior/integration/behavior_tenant_context.spec.ts).
 
 ## Related
 

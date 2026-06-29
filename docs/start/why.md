@@ -192,7 +192,7 @@ real BullMQ; no mocks, no in-memory shortcuts.
   BullMQ, not mocked clocks.
 
 The list above is the *current* verification surface; every item has a spec
-under [`packages/core/tests/integration/`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/tree/master/packages/core/tests/integration).
+under [`packages/core/tests/@guarantees/`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/tree/master/packages/core/tests/@guarantees).
 If you spot a tenancy guarantee that should be on it and isn't,
 [open an issue](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues);
 the verification is iterative.

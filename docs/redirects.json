@@ -73,5 +73,7 @@
   "/docs/satellites/reporting": "/guides/satellites/reporting",
   "/docs/satellites/sso": "/guides/satellites/sso",
   "/docs/satellites/webhooks": "/guides/satellites/webhooks",
-  "/docs/satellites/websockets": "/guides/satellites/websockets"
+  "/docs/satellites/websockets": "/guides/satellites/websockets",
+  "/testing/TESTING": "/guides/testing",
+  "/testing/COVERAGE_MATRIX": "/guides/testing"
 }

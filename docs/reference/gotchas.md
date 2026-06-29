@@ -170,7 +170,7 @@ map resolves to `./build/src/...`. So:
 - `npm run test:integration` runs `npm run build` first, so **don't skip it**.
 - Editing source and re-running integration tests *without* rebuilding silently
   tests stale code.
-- Unit tests (`tests/unit/`) import source paths directly and need no build.
+- Unit tests (`tests/@guarantees/**/unit/`) import source paths directly and need no build.
 
 See [Testing](/guides/testing).
 

@@ -97,7 +97,7 @@ export default class GenerateInvoice extends Job<{ tenantId: string; invoiceId: 
 
 The integration suite proves the propagation works under contention
 with 3 tenants × 30 jobs interleaved randomly:
-[`tests/integration/jobs/tenant_context.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/tests/integration/jobs/tenant_context.spec.ts).
+[`tests/@guarantees/behavior/integration/behavior_tenant_context.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/tests/@guarantees/behavior/integration/behavior_tenant_context.spec.ts).
 
 ## Reading the active tenant
 
@@ -163,7 +163,7 @@ test('audit row carries the active tenant', async ({ assert }) => {
 ```
 
 The full unit suite at
-[`tests/unit/services/tenant_log_context.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/tests/unit/services/tenant_log_context.spec.ts)
+[`tests/@guarantees/behavior/unit/behavior_tenant_log_context.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/tests/@guarantees/behavior/unit/behavior_tenant_log_context.spec.ts)
 covers parallel scopes, nested run, async continuation propagation,
 and the no-bleed guarantee at scope exit.
 

@@ -229,7 +229,7 @@ them. The aggregate rules:
   orchestrator pulls the pod)
 
 These exact semantics are pinned over real HTTP in
-`packages/core/tests/integration/health/readyz_http.spec.ts`. The 503 body
+`packages/core/tests/@guarantees/behavior/integration/behavior_readyz_http.spec.ts`. The 503 body
 lists every check with its status and message, and flags the critical one
 that pulled the pod, so start by reading the response body:
 
@@ -273,7 +273,7 @@ Redis bus that broadcasts invalidations so one pod's delete evicts the
 other pods' L1 copies. This is not optional wiring; `config.cache.redis` is
 required and the bus is always on. The cross-pod invalidation behavior is
 covered by
-`packages/core/tests/integration/services/cache_bus_invalidation.spec.ts`,
+`packages/core/tests/@guarantees/behavior/integration/behavior_cache_bus_invalidation.spec.ts`,
 which runs two cache instances against one Redis and asserts a delete on
 one evicts the other's hot L1.
 
@@ -388,9 +388,9 @@ leak.
 A resolved tenant whose database is unreachable gets a typed 503
 (`E_DEPENDENCY_UNAVAILABLE`), never a silent fallback to the central
 schema. Covered by
-`packages/core/tests/integration/middleware/connection_failure_503.spec.ts`.
+`packages/core/tests/@guarantees/behavior/integration/behavior_connection_failure_503.spec.ts`.
 Lifecycle states map to typed responses, covered by
-`packages/core/tests/integration/middleware/tenant_state_503.spec.ts`:
+`packages/core/tests/@guarantees/behavior/integration/behavior_tenant_state_503.spec.ts`:
 
 | Tenant state          | Response                                          |
 | --------------------- | ------------------------------------------------- |
@@ -412,7 +412,7 @@ a fixed-size payload, verify with `crypto.timingSafeEqual()`, and refuse to
 issue when the configured secret is shorter than 32 chars. The
 impersonation secret is validated at provider boot, so a misconfigured
 deploy fails on startup, not on the first admin request. Covered by
-`packages/core/tests/integration/services/impersonation_lifecycle.spec.ts`
+`packages/core/tests/@guarantees/security/integration/security_impersonation_lifecycle.spec.ts`
 and the impersonation middleware specs (including tenant binding: a token
 issued for tenant A is rejected on a request resolved to tenant B).
 
@@ -422,7 +422,7 @@ Outbound webhooks include `x-webhook-signature: <hex>`, a plain hex
 HMAC-SHA256 digest (no `sha256=` prefix) computed over the raw body using
 the per-subscription secret. The secret is encrypted at rest with
 AES-256-GCM keyed by `APP_KEY` (covered by the encryption group in
-`packages/core/tests/integration/services/webhook_service.spec.ts`).
+`packages/core/tests/@guarantees/behavior/integration/behavior_webhook_service.spec.ts`).
 Outbound URLs are validated against private, loopback, link-local and cloud
 metadata ranges; the loopback exemption is an explicit env opt-in
 (`WEBHOOKS_ALLOW_LOOPBACK_TARGETS`) meant for test rigs only. The guard
@@ -438,7 +438,7 @@ against the IdP's JWKS via discovery, `iss`/`aud`/`exp` checked with 60 s
 clock tolerance, and a nonce match before any claims are surfaced. Any
 mismatch aborts the callback. Exercised against a real wire-compliant OIDC
 server (mock-oauth2-server) on every PR by
-`packages/core/tests/integration/services/sso_oidc_real.spec.ts`.
+`packages/core/packages/sso/tests/@guarantees/security/integration/security_sso_oidc_real.spec.ts`.
 
 #### Cache, Drive, session, mail prefixing
 
@@ -586,7 +586,7 @@ is the cron-friendly scheduled variant. For production:
   `tenant:restore --tenant=ID --file=PATH` round-trips the schema; verify
   the row count matches the source. The demo e2e exercises backup, restore
   and corruption detection against real `pg_dump`/`pg_restore`
-  (`examples/api/tests/e2e/backups_real.spec.ts`,
+  (`examples/api/tests/@integration/e2e/backups_real.spec.ts`,
   `backups_corruption.spec.ts`).
 
 ### Reporting a vulnerability

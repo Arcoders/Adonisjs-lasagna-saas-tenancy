@@ -12,6 +12,31 @@ in-memory fakes. Reach for the SQLite memory driver only when your
 test needs real SQL round-trips.
 </Callout>
 
+## Test layout (organized by guarantee)
+
+Tests are organized by the **guarantee** they protect, not by the machinery that
+runs them. Each package's `tests/` looks like this:
+
+```
+tests/@guarantees/<g>/{unit,integration}/   # <g> = isolation | security | behavior | resilience | performance
+tests/@architecture/{docs,contracts,boundaries}/   # static guards (no DB); docs/ holds the *_documented integrity specs
+tests/@integration/{drivers,fault_injection}/      # drivers gate on every run; fault_injection is the chaos tier
+tests/fixtures/  tests/helpers/                     # shared support, never moved
+```
+
+The harness (unit vs integration) is the **leaf** inside each guarantee, because
+the two run in different worlds: unit specs run against source with `tsx` and no
+database, integration specs boot a real `Ignitor` + PostgreSQL against the
+compiled build. A runner therefore selects only the specs it can run with one
+recursive glob, while a maintainer still finds "everything about isolation" in
+one place. `examples/api` keeps the full-scenario suite under
+`tests/@integration/e2e/` (plus `hardening/`).
+
+Naming follows `<guarantee>_<context>_<outcome>.spec.ts` for guarantee specs;
+architectural and integration-dimension specs keep their existing descriptive
+names. The `@architecture/boundaries/guarantee_tree_consistent` spec fails if a
+directory under `@guarantees/` is not one of the canonical guarantees.
+
 ## The `/testing` subpath
 
 ```ts
@@ -143,8 +168,9 @@ Postgres. Patterns to copy:
   fixture app, hands the runner to `app.testRunner()`.
 - `tests/fixtures/`; a minimal AdonisJS app that imports the
   package via the `exports` map.
-- `examples/api/`; a complete reference app with an e2e suite of
-  120+ tests across the feature surface.
+- `examples/api/`; a complete reference app whose e2e suite lives
+  under `tests/@integration/e2e/` (with a `hardening/` subfolder for
+  the security and resilience scenarios).
 
 The reference suite uses `examples/api/docker-compose.yml` to bring
 up Postgres, Redis, and MailCatcher; everything Lasagna integrates
@@ -157,16 +183,20 @@ The core and every satellite share one dev-only harness,
 recompute live in a single place instead of being copy-pasted into each package's
 `bin/test.integration.ts`. It is never published; depend on it as a dev dependency.
 
-Its entry point is `runIntegrationSuite`, which boots a real `Ignitor` against a fixture
-app and hands the runner to `app.testRunner()`:
+The kit also single-sources the guarantee taxonomy and the suite globs
+(`GUARANTEES`, `guaranteeGlobs()`) and a thin unit runner (`runUnitSuite`), so a
+package's runners collapse to a couple of lines:
 
 ```ts
-// bin/test.integration.ts
-import { runIntegrationSuite } from '@adonisjs-lasagna/satellite-test-kit'
+// bin/test.ts (unit harness: @guarantees/**/unit + @architecture, against source)
+import { runUnitSuite } from '@adonisjs-lasagna/satellite-test-kit'
+runUnitSuite() // pass { withArchitecture: true } if the package has @architecture specs
 
+// bin/test.integration.ts (stack harness: real Ignitor + PostgreSQL)
+import { runIntegrationSuite, guaranteeGlobs } from '@adonisjs-lasagna/satellite-test-kit'
 await runIntegrationSuite({
-  importMetaUrl: import.meta.url,
-  globPattern: 'tests/integration/**/*.spec.ts',
+  fixtureRoot: new URL('../../core/tests/fixtures/', import.meta.url),
+  suiteGlobs: guaranteeGlobs().integration,
 })
 ```
 

@@ -16,8 +16,8 @@ import {
  * restore paths, asserting the physical schema (`tenant_<uuid>`) appears and
  * disappears at the right moments and that a restored tenant keeps its data.
  * Clone / backup / import are exercised by the existing
- * tests/e2e/backups_real.spec.ts and commands_lifecycle.spec.ts and are mapped
- * in COVERAGE_MATRIX.md rather than duplicated here.
+ * @integration/e2e/backups_real.spec.ts and commands_lifecycle.spec.ts rather
+ * than duplicated here.
  */
 test.group('hardening — provisioning & lifecycle', (group) => {
   const schemaExists = async (id: string) => {

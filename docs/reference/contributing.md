@@ -36,7 +36,7 @@ cd examples/api && docker compose up -d && cd ../..
 The repo uses Japa. Filter by file or test name:
 
 ```bash
-npm run test -- --files tests/unit/services/telemetry_service.spec.ts
+npm run test -- --files tests/@guarantees/behavior/unit/behavior_telemetry_service.spec.ts
 npm run test -- --tests "resolves tenant id from header"
 ```
 

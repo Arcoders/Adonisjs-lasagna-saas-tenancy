@@ -160,7 +160,7 @@ The aggregate `/readyz` status is:
   traffic is removed)
 
 These semantics are pinned over real HTTP by
-`packages/core/tests/integration/health/readyz_http.spec.ts`.
+`packages/core/tests/@guarantees/behavior/integration/behavior_readyz_http.spec.ts`.
 
 ## Prometheus metrics
 
