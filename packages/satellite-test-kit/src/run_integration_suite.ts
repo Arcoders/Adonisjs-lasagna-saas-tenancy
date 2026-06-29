@@ -7,6 +7,7 @@ import {
   isConnectionTerminated,
   resolveSpecImport,
 } from './runner_logic.js'
+import { resolveSuiteGlobs } from './guarantees.js'
 
 export interface RunIntegrationSuiteOptions {
   /**
@@ -31,6 +32,14 @@ export interface RunIntegrationSuiteOptions {
    * suites (e.g. `BILLING_OPTIONAL_SMOKES_ONLY`).
    */
   allowEmpty?: boolean
+  /**
+   * Narrow the run to one or more guarantees' `integration/` leaves (e.g.
+   * `['isolation']`). When set it REPLACES `suiteGlobs`; an unknown guarantee is
+   * rejected loudly. Used by `test:guarantee <category>`'s integration phase,
+   * which pairs it with `allowEmpty: true` (a guarantee may have only unit
+   * specs). See {@link resolveSuiteGlobs}.
+   */
+  guaranteeFilter?: string[]
 }
 
 /**
@@ -47,7 +56,10 @@ export async function runIntegrationSuite(options: RunIntegrationSuiteOptions): 
   process.env.NODE_ENV = 'test'
 
   const FIXTURE_ROOT = options.fixtureRoot
-  const suiteGlobs = options.suiteGlobs ?? ['tests/integration/**/*.spec.ts']
+  const suiteGlobs = resolveSuiteGlobs({
+    suiteGlobs: options.suiteGlobs ?? ['tests/integration/**/*.spec.ts'],
+    guaranteeFilter: options.guaranteeFilter,
+  })
   const suiteDirectories = deriveSuiteDirectories(suiteGlobs)
 
   let sawNonBenignProcessError = false

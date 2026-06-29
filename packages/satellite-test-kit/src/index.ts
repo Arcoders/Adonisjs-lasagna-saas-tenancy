@@ -14,3 +14,17 @@
 // is safe. Keeping them off this eager path is what prevents the boot crash.
 export { runIntegrationSuite } from './run_integration_suite.js'
 export type { RunIntegrationSuiteOptions } from './run_integration_suite.js'
+
+// Guarantee-oriented test foundations (all boot-safe; see module headers).
+// The unit runners reach these via a relative source path so the no-build unit
+// loop is preserved; integration runners and tooling get them from the build.
+export {
+  GUARANTEES,
+  guaranteeGlobs,
+  guaranteeTag,
+  isGuarantee,
+  resolveSuiteGlobs,
+} from './guarantees.js'
+export type { Guarantee, GuaranteeGlobs, GuaranteeGlobsOptions } from './guarantees.js'
+export { repoRoot, resolveWorkspaceRoot, readPackageManifest } from './repo_root.js'
+export { runUnitSuite } from './runner_entries.js'
