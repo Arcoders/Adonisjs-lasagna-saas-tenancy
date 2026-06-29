@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import { runIntegrationSuite } from '@adonisjs-lasagna/satellite-test-kit'
+import { runIntegrationSuite, guaranteeGlobs } from '@adonisjs-lasagna/satellite-test-kit'
 
 // backup's integration tier boots through the shared satellite-test-kit, the same
 // Ignitor + DDL bootstrap + exit-code recompute core uses. It reuses core's
@@ -9,5 +9,5 @@ import { runIntegrationSuite } from '@adonisjs-lasagna/satellite-test-kit'
 // up backup's own tests/integration/** specs.
 await runIntegrationSuite({
   fixtureRoot: new URL('../../core/tests/fixtures/', import.meta.url),
-  suiteGlobs: ['tests/integration/**/*.spec.ts'],
+  suiteGlobs: guaranteeGlobs().integration,
 })

@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import { runIntegrationSuite } from '@adonisjs-lasagna/satellite-test-kit'
+import { runIntegrationSuite, guaranteeGlobs } from '@adonisjs-lasagna/satellite-test-kit'
 
 // reporting's integration tier boots through the shared satellite-test-kit — the
 // same Ignitor + DDL bootstrap (which provisions backoffice.tenant_metrics AND
@@ -8,5 +8,5 @@ import { runIntegrationSuite } from '@adonisjs-lasagna/satellite-test-kit'
 // suite glob is cwd-relative, so it picks up reporting's own tests/integration/**.
 await runIntegrationSuite({
   fixtureRoot: new URL('../../core/tests/fixtures/', import.meta.url),
-  suiteGlobs: ['tests/integration/**/*.spec.ts'],
+  suiteGlobs: guaranteeGlobs().integration,
 })

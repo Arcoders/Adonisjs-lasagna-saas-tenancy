@@ -1,9 +1,5 @@
-import { configure, processCLIArgs, run } from '@japa/runner'
-import { assert } from '@japa/assert'
+import { runUnitSuite } from '../../satellite-test-kit/src/runner_entries.js'
 
-processCLIArgs(process.argv.splice(2))
-configure({
-  files: ['tests/unit/**/*.spec.ts'],
-  plugins: [assert()],
-})
-run()
+// Unit specs (no-DB, source harness). Globs and Japa config come from the shared
+// kit so every satellite's unit runner is one identical line; see runUnitSuite.
+runUnitSuite()

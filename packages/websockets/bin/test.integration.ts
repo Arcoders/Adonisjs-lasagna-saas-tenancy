@@ -1,5 +1,6 @@
 import { configure, processCLIArgs, run } from '@japa/runner'
 import { assert } from '@japa/assert'
+import { guaranteeGlobs } from '../../satellite-test-kit/src/guarantees.js'
 
 // websockets' integration tier does NOT boot an AdonisJS Ignitor: its specs
 // construct TenantSocketServer directly with stub deps (no container/boot
@@ -9,7 +10,7 @@ import { assert } from '@japa/assert'
 // run; every spec still closes its servers and clients in teardown.
 processCLIArgs(process.argv.splice(2))
 configure({
-  files: ['tests/integration/**/*.spec.ts'],
+  files: guaranteeGlobs().integration,
   plugins: [assert()],
   forceExit: true,
 })
