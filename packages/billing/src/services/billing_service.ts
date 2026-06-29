@@ -48,6 +48,12 @@ const LEGAL_SUBSCRIPTION_TRANSITIONS: Record<
   paused: new Set(['active', 'canceled']),
 }
 
+/**
+ * Options for creating a hosted checkout session for a tenant. It extends the base
+ * checkout fields with a flag to skip the priceId allowlist check (for hosts that
+ * validate prices upstream) and an optional currency that lets the service reject
+ * a currency mismatch up front rather than deep in the provider call.
+ */
 export interface CreateCheckoutOptions extends CheckoutOptions {
   /**
    * Skip the priceId allowlist check against `config.billing.products`.
@@ -66,8 +72,19 @@ export interface CreateCheckoutOptions extends CheckoutOptions {
   currency?: string
 }
 
+/**
+ * Options for opening the provider's customer billing portal for a tenant, where
+ * the customer manages their own subscription and payment methods. An alias of the
+ * driver-agnostic portal options shape passed through to the active driver.
+ */
 export type CreatePortalOptions = PortalOptions
 
+/**
+ * Options for reporting metered usage for a tenant. Carries an optional idempotency
+ * key and event timestamp; the default key is deterministic per tenant, meter, and
+ * minute, so a retry within the same minute is deduplicated by the provider and
+ * never double-counts the usage.
+ */
 export interface ReportUsageOptions {
   /**
    * Custom idempotency key. Default `<tenant>:<meter>:<minute-bucket>`, which is

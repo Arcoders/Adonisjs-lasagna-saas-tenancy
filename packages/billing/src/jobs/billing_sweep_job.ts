@@ -93,8 +93,10 @@ export async function runBillingSweep(opts: { batchSize?: number } = {}): Promis
 }
 
 /**
- * Queue wrapper for `runBillingSweep`. Idempotent. Safe to run on a cron via
- * `tenant:billing:sweep` (hourly suggested — see the command).
+ * Queue job wrapper around `runBillingSweep`. Idempotent and safe to run on a cron
+ * via the `tenant:billing:sweep` command (hourly is suggested). Each run sends
+ * provider-agnostic trial-ending notices and applies grace-period dunning
+ * downgrades that have come due, so a tenant is never notified or downgraded twice.
  */
 export default class BillingSweepJob extends Job<{ batchSize?: number }> {
   static options = { name: 'lasagna.BillingSweepJob' }

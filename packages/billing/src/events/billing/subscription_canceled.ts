@@ -1,6 +1,11 @@
 import { BaseEvent } from '@adonisjs/core/events'
 
-/** Emitted on `customer.subscription.deleted` (manual cancel or final dunning step). */
+/**
+ * Emitted when a tenant's subscription is canceled, on the provider's
+ * `customer.subscription.deleted` event, whether a manual cancellation or the
+ * final dunning step. The payload carries the tenant id, the subscription id, the
+ * previous plan, and a reason distinguishing a user cancel from a dunning failure.
+ */
 export default class SubscriptionCanceled extends BaseEvent {
   constructor(
     readonly payload: {

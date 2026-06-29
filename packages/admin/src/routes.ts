@@ -22,6 +22,12 @@ type AdminMiddlewareEntry =
   | ((...args: any[]) => any)
   | { name?: string; handle: (...args: any[]) => any }
 
+/**
+ * The middleware a host attaches to the admin routes: a single entry or an array
+ * of them, where each entry is a middleware name string, a bare function, or a
+ * named-middleware reference. It lets the host supply its own authentication for
+ * the admin surface.
+ */
 export type AdminRouteMiddleware = AdminMiddlewareEntry | AdminMiddlewareEntry[]
 
 /**

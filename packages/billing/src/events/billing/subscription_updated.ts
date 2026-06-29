@@ -1,6 +1,11 @@
 import { BaseEvent } from '@adonisjs/core/events'
 
-/** Emitted on `customer.subscription.updated` whenever the plan changes. */
+/**
+ * Emitted when a tenant's subscription plan changes, on the provider's
+ * `customer.subscription.updated` event. The payload carries the tenant id, the
+ * subscription id, and both the previous and new plan names, so listeners can
+ * adjust entitlements on an upgrade or a downgrade.
+ */
 export default class SubscriptionUpdated extends BaseEvent {
   constructor(
     readonly payload: {

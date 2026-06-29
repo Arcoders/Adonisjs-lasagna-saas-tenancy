@@ -12,6 +12,13 @@ interface OidcDiscovery {
   jwks_uri: string
 }
 
+/**
+ * The OpenID Connect ID-token claims Lasagna reads after cryptographically
+ * verifying a provider's token: the issuer, audience, expiry and issued-at
+ * timestamps, the subject identifier, an optional nonce, and the standard profile
+ * claims (email, verification flag, name) used to resolve or provision the user.
+ * Any additional provider claims are preserved on the index signature.
+ */
 export interface IdTokenClaims {
   iss: string
   aud: string | string[]
@@ -115,6 +122,14 @@ function defaultDeps(): SsoServiceDeps {
   }
 }
 
+/**
+ * The built-in `oidc` identity provider and the per-tenant SSO service. It stores
+ * and reads each tenant's OIDC configuration, builds the authorization-redirect
+ * URL with a signed state, and handles the callback: exchanging the code,
+ * verifying the ID token (issuer, audience, expiry, nonce) against the discovered
+ * provider metadata, and returning the resolved claims. It satisfies the
+ * `IdentityProviderContract`, so it can be introspected like any host driver.
+ */
 export default class SsoService {
   readonly #deps: SsoServiceDeps
 

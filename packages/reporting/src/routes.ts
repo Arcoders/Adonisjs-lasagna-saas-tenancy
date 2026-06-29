@@ -14,6 +14,12 @@ type ReportingMiddlewareEntry =
   | ((...args: any[]) => any)
   | { name?: string; handle: (...args: any[]) => any }
 
+/**
+ * The middleware a host attaches to the reporting routes: a single entry or an
+ * array of them, where each entry is a middleware name string, a bare function, or
+ * a named-middleware reference, so the host supplies its own authentication for the
+ * reporting dashboard endpoints.
+ */
 export type ReportingRouteMiddleware = ReportingMiddlewareEntry | ReportingMiddlewareEntry[]
 
 export interface MultitenancyReportingRoutesOptions {
