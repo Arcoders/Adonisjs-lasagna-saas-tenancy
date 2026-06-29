@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { repoRoot, resolveWorkspaceRoot, readPackageManifest } from '../../src/repo_root.js'
+import { repoRoot, resolveWorkspaceRoot, readPackageManifest } from '../../../../src/repo_root.js'
 
 test.group('resolveWorkspaceRoot (pure)', () => {
   test('returns the start dir when it declares workspaces', ({ assert }) => {

@@ -5,7 +5,7 @@ import {
   isConnectionTerminated,
   resolveSpecImport,
   type SummaryLike,
-} from '../../src/runner_logic.js'
+} from '../../../../src/runner_logic.js'
 
 /**
  * The runner's fragile decision logic, extracted so it is testable without an

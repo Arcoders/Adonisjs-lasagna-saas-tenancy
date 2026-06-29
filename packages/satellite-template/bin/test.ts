@@ -1,9 +1,6 @@
-import { configure, processCLIArgs, run } from '@japa/runner'
-import { assert } from '@japa/assert'
+import { runUnitSuite } from '../../satellite-test-kit/src/runner_entries.js'
 
-processCLIArgs(process.argv.splice(2))
-configure({
-  files: ['tests/unit/**/*.spec.ts'],
-  plugins: [assert()],
-})
-run()
+// Reference satellite: the unit runner is one line, the canonical shape a
+// consumer copies. Globs and Japa config come from the shared kit (runUnitSuite),
+// which discovers tests/@guarantees/<g>/unit/** in the guarantee tree.
+runUnitSuite()

@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import InMemoryStore from '../../src/testing/in_memory_store.js'
+import InMemoryStore from '../../../../src/testing/in_memory_store.js'
 
 interface Row {
   id: string

@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { createConfigBaselineGuard } from '../../src/config_baseline.js'
+import { createConfigBaselineGuard } from '../../../../src/config_baseline.js'
 
 /**
  * Chaos test for the integration-suite isolation backstop. It injects config

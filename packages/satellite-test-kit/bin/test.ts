@@ -1,9 +1,5 @@
-import { configure, processCLIArgs, run } from '@japa/runner'
-import { assert } from '@japa/assert'
+import { runUnitSuite } from '../src/runner_entries.js'
 
-processCLIArgs(process.argv.splice(2))
-configure({
-  files: ['tests/unit/**/*.spec.ts'],
-  plugins: [assert()],
-})
-run()
+// The kit dogfoods its own unit runner: the guarantee-tree globs and Japa config
+// live in runUnitSuite, so this collapses to one line like every package's runner.
+runUnitSuite()

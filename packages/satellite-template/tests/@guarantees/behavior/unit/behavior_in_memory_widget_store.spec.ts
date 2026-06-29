@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import InMemoryWidgetStore from '../../src/testing/in_memory_widget_store.js'
+import InMemoryWidgetStore from '../../../../src/testing/in_memory_widget_store.js'
 
 test.group('InMemoryWidgetStore (satellite template)', () => {
   test('create assigns a deterministic id and defaults enabled', async ({ assert }) => {

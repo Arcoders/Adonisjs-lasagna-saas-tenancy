@@ -5,7 +5,7 @@ import {
   guaranteeTag,
   isGuarantee,
   resolveSuiteGlobs,
-} from '../../src/guarantees.js'
+} from '../../../../src/guarantees.js'
 
 test.group('GUARANTEES taxonomy', () => {
   test('is the canonical, non-empty set', ({ assert }) => {

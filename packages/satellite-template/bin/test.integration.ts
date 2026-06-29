@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import { runIntegrationSuite } from '@adonisjs-lasagna/satellite-test-kit'
+import { runIntegrationSuite, guaranteeGlobs } from '@adonisjs-lasagna/satellite-test-kit'
 
 // Consumer canary: boot the shared integration harness from a fresh, minimal
 // satellite, reusing core's fixture. This proves @adonisjs-lasagna/satellite-test-kit
@@ -9,5 +9,5 @@ import { runIntegrationSuite } from '@adonisjs-lasagna/satellite-test-kit'
 // satellite's full suite. See packages/satellite-test-kit/README.md.
 await runIntegrationSuite({
   fixtureRoot: new URL('../../core/tests/fixtures/', import.meta.url),
-  suiteGlobs: ['tests/integration/**/*.spec.ts'],
+  suiteGlobs: guaranteeGlobs().integration,
 })

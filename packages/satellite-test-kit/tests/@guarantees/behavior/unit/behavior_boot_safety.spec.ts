@@ -31,7 +31,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const FORBIDDEN = ['@adonisjs/core/services/', '@adonisjs/lucid/services/']
 
-const BARREL = new URL('../../src/index.ts', import.meta.url)
+const BARREL = new URL('../../../../src/index.ts', import.meta.url)
 
 /** Collect the module specifiers of every static import/export-from statement,
  *  ignoring comments (the barrel documents the forbidden paths in prose). */
@@ -72,7 +72,7 @@ function eagerGraph(entry: URL): Array<{ path: string; specs: string[] }> {
 
 test.group('satellite-test-kit boot safety', () => {
   test('importing the main barrel does not require a booted app', async ({ assert }) => {
-    const mod = await import('../../src/index.js')
+    const mod = await import('../../../../src/index.js')
     // Importing the whole eager graph succeeds with no Ignitor. If any module in
     // it ever adds an eager import of a service that throws pre-boot, this throws.
     assert.isFunction(mod.runIntegrationSuite)
