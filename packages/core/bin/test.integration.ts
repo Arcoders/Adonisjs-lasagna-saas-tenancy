@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import { runIntegrationSuite } from '@adonisjs-lasagna/satellite-test-kit'
+import { runIntegrationSuite, guaranteeGlobs } from '@adonisjs-lasagna/satellite-test-kit'
 
 // The Ignitor wiring, the suite-glob rewrite, and the fragile exit-code recompute
 // (the benign "Connection terminated" pg teardown race) all live in the shared
@@ -9,5 +9,5 @@ import { runIntegrationSuite } from '@adonisjs-lasagna/satellite-test-kit'
 // backoffice/satellite DDL bootstrap (ensureBackofficeSchema).
 await runIntegrationSuite({
   fixtureRoot: new URL('../tests/fixtures/', import.meta.url),
-  suiteGlobs: ['tests/integration/**/*.spec.ts'],
+  suiteGlobs: guaranteeGlobs().integration,
 })

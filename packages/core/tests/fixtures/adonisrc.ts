@@ -33,7 +33,12 @@ export default defineConfig({
     suites: [
       {
         name: 'integration',
-        files: ['../../tests/integration/**/*.spec.ts'],
+        // The kit rewrites these to the caller's cwd-relative suiteGlobs at run
+        // time; kept in sync with guaranteeGlobs().integration for any direct ace run.
+        files: [
+          '../../tests/@guarantees/**/integration/**/*.spec.ts',
+          '../../tests/@integration/drivers/**/*.spec.ts',
+        ],
         timeout: 30000,
       },
     ],

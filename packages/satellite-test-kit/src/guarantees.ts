@@ -9,7 +9,13 @@
 // below exists for VALIDATION (the anti-drift architectural test, the
 // `test:guarantee` argument, the `guaranteeFilter`), not for building the globs.
 
-export const GUARANTEES = ['isolation', 'security', 'behavior', 'resilience', 'performance'] as const
+export const GUARANTEES = [
+  'isolation',
+  'security',
+  'behavior',
+  'resilience',
+  'performance',
+] as const
 
 export type Guarantee = (typeof GUARANTEES)[number]
 
@@ -76,7 +82,10 @@ export function guaranteeGlobs(options: GuaranteeGlobsOptions = {}): GuaranteeGl
  * `integration/` leaves and rejects an unknown guarantee loudly (a typo would
  * otherwise silently run nothing).
  */
-export function resolveSuiteGlobs(input: { suiteGlobs: string[]; guaranteeFilter?: string[] }): string[] {
+export function resolveSuiteGlobs(input: {
+  suiteGlobs: string[]
+  guaranteeFilter?: string[]
+}): string[] {
   const filter = input.guaranteeFilter
   if (!filter || filter.length === 0) return input.suiteGlobs
   const invalid = filter.filter((category) => !isGuarantee(category))
