@@ -323,7 +323,12 @@ export interface RoutingConfig {
   universalRoutesFile?: string
 }
 
-/** How a subsystem behaves when a backing dependency (Redis/PG/…) errors. */
+/**
+ * String-literal union describing how a subsystem reacts when a backing dependency such as Redis or
+ * PostgreSQL errors out. A value of `'fail-open'` keeps the request available by skipping the failed
+ * check, while `'fail-closed'` preserves correctness by rejecting the request, typically with a 503.
+ * Consumed by `ResilienceConfig` and `ResilienceService` to drive per-dependency degradation behavior.
+ */
 export type FailurePolicy = 'fail-open' | 'fail-closed'
 
 /**

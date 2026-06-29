@@ -1,5 +1,11 @@
 import { BaseEvent } from '@adonisjs/core/events'
 
+/**
+ * Describes the data carried by the MetricsFlushed event that the `tenant:metrics:flush`
+ * command emits once counters are written to the backoffice tables. It records the flushed
+ * period bucket as a UTC `YYYY-MM-DD` string and, when the command computed it, the count of
+ * distinct tenants written in that flush so read-side listeners can react to fresh data.
+ */
 export interface MetricsFlushedPayload {
   /** The period bucket that was flushed (YYYY-MM-DD, UTC). */
   period: string

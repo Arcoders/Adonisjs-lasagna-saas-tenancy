@@ -13,6 +13,18 @@ import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
 
+/**
+ * HTTP middleware that gates every tenant-scoped request. It skips configured
+ * ignore paths, resolves the current tenant, and rejects suspended or deleted
+ * tenants. It then runs the optional authorizeTenantAccess membership check
+ * (403 on failure), refuses provisioning or failed tenants, and enforces
+ * maintenance mode unless a constant-time-compared bypass token is presented.
+ * It drives the circuit breaker with a connectivity probe so repeated tenant-DB
+ * failures can trip it, mapping an open breaker to a circuit exception and a
+ * still-closed probe failure to a 503. Finally it binds the tenant log context
+ * and bootstrapper lifecycle while running the next handler, translating a
+ * severed tenant backend into a clean dependency-unavailable error.
+ */
 export default class TenantGuardMiddleware {
   async handle(ctx: HttpContext, next: NextFn) {
     const { request } = ctx

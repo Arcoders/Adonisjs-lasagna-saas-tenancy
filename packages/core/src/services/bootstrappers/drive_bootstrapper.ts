@@ -23,6 +23,12 @@ async function lazyDrive(): Promise<{
   return mod.default ?? mod
 }
 
+/**
+ * The base path segment prepended to every per-tenant Drive storage key. The
+ * tenant bootstrapper combines this constant with the active tenant id to form
+ * the full prefix `tenants/<id>/`, which scopes each tenant's files into its own
+ * folder or object-key namespace on the configured Drive backend (local disk, S3, etc).
+ */
 export const TENANT_DRIVE_PREFIX = 'tenants/'
 
 /**
@@ -75,12 +81,26 @@ export function createDriveBootstrapper(): TenantBootstrapper {
   }
 }
 
+/**
+ * The default `TenantBootstrapper` instance for `@adonisjs/drive`, produced by
+ * `createDriveBootstrapper()`. Registered under the name `drive`, its `enter`
+ * hook validates the active tenant id as a safe identifier so a malformed value
+ * can never escape the per-tenant `tenants/{id}/` path prefix; it does no other
+ * scope-entry work because Drive disks are stateless on the key axis and the
+ * prefix is applied lazily by `tenantDisk()` at each call site.
+ */
 const driveBootstrapper = createDriveBootstrapper()
 export default driveBootstrapper
 
 /**
- * Build the per-tenant key prefix for the active scope. Throws if no
- * `tenancy.run()` scope is active.
+ * Computes the Drive storage key prefix for the tenant of the currently active
+ * tenancy scope, in the form `tenants/<tenant-id>/`. It reads the active id from
+ * `tenancy.currentId()`, throwing a descriptive error when called outside a
+ * `tenancy.run()` scope, and validates the id with `assertSafeIdentifier` so a
+ * malformed value can never escape the tenant folder via path traversal.
+ *
+ * @returns The per-tenant key prefix string, e.g. `tenants/<tenant-id>/`.
+ * @throws If invoked without an active `tenancy.run()` scope, or if the resolved tenant id fails the safe-identifier check.
  */
 export function tenantPrefix(): string {
   const id = tenancy.currentId()
@@ -94,8 +114,12 @@ export function tenantPrefix(): string {
 }
 
 /**
- * Returns a Drive disk handle whose key-taking methods are auto-prefixed
- * with `tenants/{tenant.id}/`. Throws outside a `tenancy.run()` scope.
+ * Resolves an optional `@adonisjs/drive` disk and returns a Proxy-wrapped handle
+ * whose key-taking methods automatically prepend the active tenant's
+ * `tenants/{tenant.id}/` prefix to their first path argument, transparently
+ * scoping reads, writes, copies, and moves to the current tenant. It lazily
+ * imports Drive as an optional peer and throws when called outside a
+ * `tenancy.run()` scope, since the prefix depends on the resolved tenant id.
  *
  * @example
  *   await tenantDisk().put('avatar.png', bytes)

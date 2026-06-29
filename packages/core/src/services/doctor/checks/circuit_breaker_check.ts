@@ -2,6 +2,13 @@ import app from '@adonisjs/core/services/app'
 import CircuitBreakerService from '../../circuit_breaker_service.js'
 import type { DoctorCheck, DiagnosisIssue } from '../types.js'
 
+/**
+ * Doctor diagnostic check that inspects every tenant circuit breaker and reports those
+ * currently in the OPEN state as error-severity issues, recording each breaker's failure
+ * and success counts in the issue metadata. When the doctor run is invoked with the fix
+ * flag, it resets each open breaker to close it again, marking the outcome of every reset
+ * attempt in the issue meta.
+ */
 const circuitBreakerCheck: DoctorCheck = {
   name: 'circuit_breakers',
   description: 'Reports OPEN circuit breakers; with --fix, resets each one (closes it).',

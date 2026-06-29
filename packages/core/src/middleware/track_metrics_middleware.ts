@@ -6,6 +6,13 @@ import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
 import type MetricsService from '../services/metrics_service.js'
 
+/**
+ * Per-invocation options for {@link TrackMetricsMiddleware} that tune how the
+ * per-tenant metrics middleware records request, error, and bandwidth counters.
+ * Set `errorThreshold` to choose the HTTP status at or above which a response is
+ * counted as an error (default 500), and `bypassInTestEnv` to control whether the
+ * middleware short-circuits when running under `app.inTest` (default true).
+ */
 export interface TrackMetricsOptions {
   /**
    * HTTP status at or above which a response counts as an error. Default `500`,

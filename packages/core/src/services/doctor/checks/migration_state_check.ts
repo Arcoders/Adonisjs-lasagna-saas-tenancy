@@ -3,6 +3,15 @@ import type { DoctorCheck, DiagnosisIssue } from '../types.js'
 
 const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default).catch(() => null)
 
+/**
+ * Doctor diagnostic check that verifies migrations have run for every active tenant schema.
+ * For each active tenant it queries `information_schema.tables` on the central connection to
+ * confirm an `adonis_schema` table exists, reporting an error issue when migrations never ran
+ * and a warning issue when the schema could not be inspected. Returns a single error when
+ * `@adonisjs/lucid` is unavailable.
+ *
+ * @remarks Implements the DoctorCheck contract under the stable name `migration_state`.
+ */
 const migrationStateCheck: DoctorCheck = {
   name: 'migration_state',
   description:

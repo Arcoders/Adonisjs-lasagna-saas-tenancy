@@ -2,6 +2,12 @@ import { getConfig } from '../config.js'
 import type { TenantModelContract } from '../types/contracts.js'
 import type { HttpRequest } from '@adonisjs/core/http'
 
+/**
+ * Options object that tunes how CrossDomainRedirectService assembles an absolute URL when bridging
+ * the central domain and tenant hosts. It carries three optional knobs: preserveQuery to forward the
+ * source request's query string through fromRequest(), protocol to override the http or https scheme,
+ * and port to force an explicit port suffix instead of relying on the protocol default.
+ */
 export interface BuildUrlOptions {
   /**
    * Preserve query string from the source request when called via

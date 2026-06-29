@@ -25,8 +25,22 @@ const lazyTenantPlan = () => import('../models/satellites/tenant_plan.js').then(
 const PLAN_CACHE_TTL_MS = 60_000
 const PLAN_CACHE_KEY = 'plan'
 
+/**
+ * String-literal union naming the two ways QuotaService meters a tenant quota.
+ * `'rolling-day'` is an auto-incrementing counter scoped to a fixed UTC
+ * calendar day that resets at midnight (driven by `track` and `consume`), while
+ * `'snapshot'` is an externally reported absolute value with no expiry that the
+ * host sets via `setUsage`, suited to gauges like seats or stored megabytes.
+ */
 export type QuotaMode = 'rolling-day' | 'snapshot'
 
+/**
+ * Plain result object returned by `QuotaService.check()` describing whether a tenant
+ * may consume a given amount of a quota without actually incrementing any counter or
+ * throwing. It reports `allowed` (true when the current usage plus the attempted amount
+ * stays within the plan limit), the `current` usage read from Redis, the plan `limit`,
+ * and the `attempted` amount that was evaluated.
+ */
 export interface QuotaCheckResult {
   allowed: boolean
   current: number
@@ -34,6 +48,17 @@ export interface QuotaCheckResult {
   attempted: number
 }
 
+/**
+ * Immutable view of a tenant's quota state returned by `QuotaService.snapshot()`.
+ * It carries the resolved plan name, the limit ceilings declared for that plan,
+ * and the current consumption recorded for each of those limits, keyed by quota
+ * name. Intended to back a tenant-facing usage endpoint that reports remaining
+ * allowance.
+ *
+ * @property plan - Name of the plan currently applied to the tenant.
+ * @property limits - Declared ceiling for each quota in the plan, keyed by quota name.
+ * @property usage - Current consumption for each declared quota, keyed by quota name.
+ */
 export interface QuotaStateSnapshot {
   plan: string
   limits: Record<string, number>
@@ -45,6 +70,17 @@ const DEFAULT_FALLBACK: PlansConfig = {
   definitions: { __default__: { limits: {} } },
 }
 
+/**
+ * Enforces per-tenant usage quotas defined by the tenant's billing plan, backed by Redis counters.
+ * Resolves the active plan via host callback, a persisted `tenant_plans` row, or the configured
+ * default, and exposes that mapping through `getPlanFor`, `assignPlan`, `getAssignedPlan`, and
+ * `clearAssignedPlan`. Tracks consumption with two modes: a fixed UTC calendar-day rolling counter
+ * (`track`, `consume`) and externally reported snapshot values (`setUsage`) for things like seats or
+ * storage. `consume` performs an atomic Lua check-and-increment that throws `QuotaExceededException`
+ * when a limit would be exceeded, while `check` reports allowance without mutating state. Reads honor
+ * a configured resilience policy so a Redis outage degrades per policy rather than hard-failing, and
+ * `snapshot`/`reset` expose and clear current usage.
+ */
 export default class QuotaService {
   /**
    * Resolve the Redis client, throwing when `@adonisjs/redis` isn't

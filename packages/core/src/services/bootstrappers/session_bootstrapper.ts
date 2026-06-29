@@ -2,6 +2,13 @@ import type { BootstrapperContext, TenantBootstrapper } from '../bootstrapper_re
 import { tenancy } from '../../tenancy.js'
 import { assertSafeIdentifier } from '../isolation/identifier.js'
 
+/**
+ * The constant string namespace that prefixes every per-tenant session key built
+ * by `tenantSessionKey()`. Combined with the active tenant id and the caller's
+ * key, it produces values shaped like `tenants/<tenant.id>/<key>`, so writes from
+ * one tenant never collide with another tenant's slots even when both share the
+ * same user session.
+ */
 export const TENANT_SESSION_PREFIX = 'tenants/'
 
 /**
@@ -29,18 +36,26 @@ export function createSessionBootstrapper(): TenantBootstrapper {
   }
 }
 
+/**
+ * The default `TenantBootstrapper` instance for tenant-scoped session handling,
+ * produced by `createSessionBootstrapper()`. Named `'session'`, its `enter` hook
+ * validates the active tenant id as a safe identifier on scope entry so a malformed
+ * id cannot poison or collide with another tenant's namespaced session keys. It does
+ * not replace the underlying `@adonisjs/session` cookie or alter HTTP-level sharing.
+ */
 const sessionBootstrapper = createSessionBootstrapper()
 export default sessionBootstrapper
 
 /**
- * Build a per-tenant session key. Throws outside a `tenancy.run()` scope.
+ * Builds a per-tenant session key by prefixing the given key with the active
+ * tenant id, so writes from one tenant never collide with another tenant's data
+ * even when both share the same logged-in user session. It reads the current
+ * tenant id from the active scope and throws when called outside a
+ * `tenancy.run()` scope, then returns a key shaped like `tenants/<tenant.id>/<key>`.
  *
  * @example
  *   ctx.session.put(tenantSessionKey('cart'), cartItems)
  *   ctx.session.get(tenantSessionKey('cart'))
- *
- * Produces keys like `tenants/<tenant.id>/cart`. Tenant-A's writes never
- * collide with Tenant-B's even when both share the same user session.
  */
 export function tenantSessionKey(key: string): string {
   const id = tenancy.currentId()

@@ -17,8 +17,12 @@ export type RouteMiddlewareEntry =
   | { name?: string; handle: (...args: any[]) => any }
 
 /**
- * Middleware accepted by {@link MultitenancyRoutesOptions.metricsMiddleware}:
- * one entry or an array of entries.
+ * Type accepted by the `metricsMiddleware` option of `multitenancyRoutes`, used
+ * to guard the `/metrics` endpoint. It is either a single `RouteMiddlewareEntry`
+ * or an array of them, where each entry is a registered middleware name, a
+ * middleware function, or a `router.named(...)` reference carrying a `handle`
+ * method. The union lets callers pass one middleware or several to protect the
+ * tenant-labelled Prometheus output.
  */
 export type RouteMiddleware = RouteMiddlewareEntry | RouteMiddlewareEntry[]
 

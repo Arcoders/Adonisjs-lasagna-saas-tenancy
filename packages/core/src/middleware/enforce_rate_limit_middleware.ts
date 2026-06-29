@@ -4,6 +4,14 @@ import type { NextFn } from '@adonisjs/core/types/http'
 import RateLimitMiddleware from './rate_limit_middleware.js'
 import QuotaService from '../services/quota_service.js'
 
+/**
+ * Per-route configuration accepted by the `enforceRateLimit()` middleware factory. Each
+ * field overrides a default that otherwise comes from the resolved plan's `rateLimit`
+ * block or global config: `windowSeconds` shortens the plan window for a burst-sensitive
+ * route, `failOpen` overrides the global Redis-failure policy, `prefix` sets the Redis
+ * bucket key prefix (default `'rl'`), and `bypassInTestEnv` re-enables the limiter under
+ * `app.inTest`. All properties are optional, so an empty object falls back to plan defaults.
+ */
 export interface EnforceRateLimitOptions {
   /**
    * Override the window from the plan's `rateLimit.windowSeconds`. Useful when

@@ -14,6 +14,13 @@ interface UninstallTenantPayload {
   tenantId: string
 }
 
+/**
+ * Background queue job that tears down a tenant by its identifier. Running inside a tenant
+ * log context, it loads the tenant from the repository, fires the before-destroy hooks, then
+ * destroys the tenant queue and circuit breaker, drops the tenant schema through the active
+ * isolation driver, soft-deletes the tenant by stamping deletedAt, runs the after-destroy
+ * hooks, and dispatches a TenantDeleted event. On failure it logs the error against the tenant.
+ */
 export default class UninstallTenant extends Job<UninstallTenantPayload> {
   static options = { name: 'lasagna.UninstallTenant' }
 

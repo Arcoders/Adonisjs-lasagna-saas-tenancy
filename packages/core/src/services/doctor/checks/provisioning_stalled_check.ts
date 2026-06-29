@@ -3,6 +3,13 @@ import type { DoctorCheck, DiagnosisIssue } from '../types.js'
 
 const STALL_MINUTES = 30
 
+/**
+ * Doctor check that scans the tenants in scope and flags any that have been stuck in the
+ * 'provisioning' state for longer than the 30 minute stall threshold, measured from their
+ * creation time. Each stalled tenant produces an error-severity diagnosis issue carrying the
+ * elapsed minutes and creation timestamp. When the run requests a fix, it sets the tenant
+ * status to 'failed' and persists it, recording whether the repair succeeded in the issue meta.
+ */
 const provisioningStalledCheck: DoctorCheck = {
   name: 'provisioning_stalled',
   description: `Detects tenants stuck in 'provisioning' for more than ${STALL_MINUTES} minutes; with --fix, marks them as 'failed'.`,

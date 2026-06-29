@@ -1,5 +1,11 @@
 import type { DoctorCheck, DiagnosisIssue } from '../types.js'
 
+/**
+ * Doctor check named `failed_tenants` that scans the tenants in scope for the current
+ * diagnostic run and reports any whose status is failed. Its `run` method filters the
+ * context tenants by their `isFailed` flag and emits one error-severity `tenant_failed`
+ * diagnosis issue per failed tenant, carrying the tenant name in the message and its id.
+ */
 const failedTenantsCheck: DoctorCheck = {
   name: 'failed_tenants',
   description: 'Lists tenants whose status is `failed`.',

@@ -7,6 +7,13 @@ const FAILED_THRESHOLD = 1
 const DELAYED_THRESHOLD = 50
 const DEFAULT_STALLED_MINUTES = 10
 
+/**
+ * Doctor check named "queue_health" that inspects every active or suspended tenant's BullMQ
+ * queue for trouble. For each tenant it opens a short-lived queue handle, reads job counts, and
+ * raises warnings when failed jobs exist, when delayed jobs exceed a backlog threshold, or when
+ * active jobs have been processing longer than the configured stalled window. Failures to inspect
+ * a queue are reported as informational issues rather than crashing the whole diagnosis run.
+ */
 const queueStuckCheck: DoctorCheck = {
   name: 'queue_health',
   description:

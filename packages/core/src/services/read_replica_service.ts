@@ -29,6 +29,16 @@ const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default
 /** Bound on the sticky-hash memo so a huge tenant base can't grow it unbounded. */
 const STICKY_HASH_CACHE_MAX = 10_000
 
+/**
+ * Routes a tenant's read queries to a configured read replica, selecting a host
+ * by the `random`, `round-robin`, or `sticky` (hash of tenant id) strategy.
+ * Exposes `pickIndex` and `pickHost` to choose a replica, `connectionName` to
+ * build a stable connection name, and `resolve` to lazily create a Lucid
+ * connection cloned from the primary tenant config (preserving the top-level
+ * search_path) overriding only host and credentials. Returns `null` when no
+ * replicas are configured so callers fall back to the primary, and caps live
+ * connections with an in-use-aware LRU. `resetCursor` aids test determinism.
+ */
 export default class ReadReplicaService {
   #cursor = 0
   // Memoized SHA-1 → uint32 per tenant for the `sticky` strategy. The hash is

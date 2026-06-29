@@ -2,6 +2,12 @@ import TenantBranding from '../models/satellites/tenant_branding.js'
 import { getCache } from '../utils/cache.js'
 import { tenancy } from '../tenancy.js'
 
+/**
+ * Shape of the customizable branding fields a tenant can configure, used as the
+ * input payload for upserting a tenant's branding record. Every property is
+ * optional and nullable, covering the sender name and email, a logo URL, a
+ * primary brand color, a support URL, and a structured email footer object.
+ */
 export interface BrandingData {
   fromName?: string | null
   fromEmail?: string | null
@@ -11,6 +17,19 @@ export interface BrandingData {
   emailFooter?: Record<string, unknown> | null
 }
 
+/**
+ * Manages per-tenant branding stored in the `tenant_branding` satellite table, covering
+ * from-name, from-email, logo URL, primary color, support URL, and an email footer. Reads
+ * are served through a cached `getForTenant(tenantId)` (5 minute TTL in the `branding`
+ * namespace) and a scope-aware `getCurrent()` that resolves the active tenant from the
+ * ambient `tenancy` context. Writes go through `upsert()`, which updates or creates the row
+ * and invalidates the cache, while `renderEmailContext()` flattens a branding record into
+ * mail-template values with platform defaults when fields are missing.
+ *
+ * @see getForTenant
+ * @see getCurrent
+ * @see upsert
+ */
 export default class BrandingService {
   private cacheKey(tenantId: string) {
     return `branding:${tenantId}`

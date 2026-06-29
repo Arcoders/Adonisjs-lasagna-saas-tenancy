@@ -6,6 +6,13 @@ import { assertSafeIdentifier } from '../isolation/identifier.js'
 type CacheNamespace = ReturnType<ReturnType<typeof getCache>['namespace']>
 type NamespaceFactory = (namespace: string) => CacheNamespace
 
+/**
+ * The fixed string prefix prepended to a tenant's id to form its cache
+ * namespace key. Every per-tenant Redis entry is stored under `tenant_<id>`,
+ * which keeps one tenant's cached values isolated from another's within the
+ * active scope. Used by the cache bootstrapper's `enter` step and by
+ * `tenantCache()` when deriving the namespace for the current `tenancy.run()`.
+ */
 export const CACHE_NAMESPACE_PREFIX = 'tenant_'
 
 let namespaceFactory: NamespaceFactory = (name) => getCache().namespace(name)
@@ -45,6 +52,15 @@ export function createCacheBootstrapper(factory?: NamespaceFactory): TenantBoots
   }
 }
 
+/**
+ * Default `TenantBootstrapper` singleton named `cache` that prepares a
+ * per-tenant cache namespace whenever a `tenancy.run()` scope is entered. Its
+ * `enter` hook validates the tenant id with `assertSafeIdentifier` and then
+ * eagerly materializes the `tenant_<id>` namespace through the configured
+ * factory, so a malformed id or a broken factory fails at scope entry rather
+ * than later inside user code. The namespace handle itself is re-derived on
+ * demand by `tenantCache()`, keeping cache entries isolated between tenants.
+ */
 const cacheBootstrapper = createCacheBootstrapper()
 
 export default cacheBootstrapper

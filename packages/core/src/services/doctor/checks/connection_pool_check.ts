@@ -5,6 +5,15 @@ const DEFAULT_WARN_RATIO = 0.9
 
 const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default).catch(() => null)
 
+/**
+ * A doctor check that inspects each open Lucid connection pool and reports saturation problems. It
+ * lazily loads the Lucid db service, then iterates the tenant connections plus the central and
+ * backoffice ones (skipping internal `__doctor_` probes). For every pool it reads numUsed, numFree,
+ * pending acquires, and max, emitting a `pool_near_saturation` issue (warn, or error when fully used)
+ * once usage reaches the configured warn ratio, and a `pool_pending_acquires` issue when workers are
+ * queued waiting for a connection. It also extracts a tenant id from the connection name suffix when
+ * that suffix is a valid UUID. Returns a `lucid_unavailable` error issue if Lucid cannot be loaded.
+ */
 const connectionPoolCheck: DoctorCheck = {
   name: 'connection_pool',
   description:

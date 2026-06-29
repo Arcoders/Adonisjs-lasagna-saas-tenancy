@@ -1,9 +1,22 @@
 import type { TenantModelContract } from '../types/contracts.js'
 
-/** Default TTL for a cached tenant (ms). Also the cross-pod staleness bound. */
+/**
+ * Default time-to-live in milliseconds applied to a resolved tenant entry held
+ * in the in-process tenant resolution cache. After this interval an entry is
+ * treated as a miss, forcing a fresh backoffice lookup. Because each pod keeps
+ * its own cache with no shared L2, this value also bounds how long a tenant
+ * status change made on one pod can stay stale across the others, defaulting to
+ * ten seconds.
+ */
 export const DEFAULT_RESOLUTION_CACHE_TTL_MS = 10_000
 
-/** Default cap on simultaneously-cached tenants per process. */
+/**
+ * Default upper bound on the number of resolved tenants the in-process
+ * `TenantResolutionCache` keeps simultaneously per pod. When the LRU-backed Map
+ * grows past this cap on a `set`, the least-recently-used entries are evicted so
+ * a large tenant base cannot grow the cache without bound. The value 10,000 is
+ * the fallback applied when no explicit `maxEntries` is configured.
+ */
 export const DEFAULT_RESOLUTION_CACHE_MAX = 10_000
 
 interface Entry {

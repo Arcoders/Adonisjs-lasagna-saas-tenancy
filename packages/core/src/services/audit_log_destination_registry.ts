@@ -8,7 +8,13 @@ import type { AuditActorType } from '../models/satellites/tenant_audit_log.js'
  */
 export const AUDIT_CONTRACT_VERSION = 1
 
-/** The persisted audit row, handed to every registered destination. */
+/**
+ * Shape of a single persisted audit row that is handed to every registered audit
+ * destination after it has been written to the canonical `tenant_audit_log` table.
+ * It carries the row id, the owning tenant id, the actor type and id, the action
+ * string, optional structured metadata, the originating IP address, and an ISO 8601
+ * creation timestamp describing the database row.
+ */
 export interface AuditLogEntry {
   id: string
   tenantId: string | null

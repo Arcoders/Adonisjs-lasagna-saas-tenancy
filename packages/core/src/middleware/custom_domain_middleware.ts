@@ -24,6 +24,16 @@ export interface CustomDomainOptions {
   strict?: boolean
 }
 
+/**
+ * AdonisJS named middleware that maps an incoming request's verified `Host` to a
+ * tenant by looking it up through the tenant repository's `findByDomain`, then
+ * auto-fills the configured tenant header so downstream resolution targets that
+ * tenant. It honors an optional host allowlist (skipping unmanaged hosts), and in
+ * strict mode (the default) rejects requests whose existing tenant header
+ * disagrees with the domain-bound tenant by throwing a mismatch exception,
+ * treating the verified domain as authoritative. It also primes the by-id
+ * resolution cache so the downstream guard avoids a second backoffice lookup.
+ */
 export default class CustomDomainMiddleware {
   // Method seam (not constructor injection) because the named-middleware
   // factory resolves this class via the IoC container. The default resolves

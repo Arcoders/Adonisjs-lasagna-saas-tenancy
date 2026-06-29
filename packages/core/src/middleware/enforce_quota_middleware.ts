@@ -3,6 +3,13 @@ import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
 import QuotaService from '../services/quota_service.js'
 
+/**
+ * Configuration options passed to the `enforceQuota` middleware factory. The optional
+ * `amount` field sets how many units of the named quota each request consumes,
+ * defaulting to 1, and the optional `enforce` field controls whether an overrun throws
+ * a QuotaExceededException via `consume` or merely records usage via `track`, defaulting
+ * to true for hard enforcement.
+ */
 export interface EnforceQuotaOptions {
   amount?: number
   /**

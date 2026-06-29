@@ -15,6 +15,14 @@ export const DEFAULT_MAX_OPEN_QUEUES = 100
 /** Default fan-out width when collecting stats for an explicit tenant list. */
 export const DEFAULT_STATS_CONCURRENCY = 10
 
+/**
+ * A snapshot of BullMQ job counts for a single tenant's queue, identifying the
+ * tenant and queue by name and reporting how many jobs sit in each BullMQ
+ * state: waiting, active, completed, failed, and delayed. It is built from
+ * `queue.getJobCounts(...)` and returned by the service's `getStats`,
+ * `statsForTenants`, and `getAllStats` methods for doctor, admin, and metrics
+ * inspection paths.
+ */
 export interface TenantQueueStats {
   tenantId: string
   queueName: string

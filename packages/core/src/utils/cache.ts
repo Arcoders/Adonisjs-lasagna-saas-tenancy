@@ -4,6 +4,13 @@ import { redisDriver, redisBusDriver } from 'bentocache/drivers/redis'
 import { getConfig } from '../config.js'
 import { assertSafeIdentifier } from '../services/isolation/identifier.js'
 
+/**
+ * Configuration shape consumed by buildCacheStack when assembling the package
+ * cache. It carries the Redis connection coordinates (host, port, and optional
+ * username, password, and database index) used for both the L2 store and the
+ * cross-process invalidation bus, plus an optional l1MaxSizeBytes that caps the
+ * in-process memory layer and defaults to 5 MiB when omitted.
+ */
 export interface CacheStackOptions {
   connection: {
     host: string

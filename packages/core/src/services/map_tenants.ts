@@ -2,6 +2,15 @@ import { tenancy } from '../tenancy.js'
 import { boundedBatch } from '../concurrency.js'
 import type { TenantModelContract } from '../types/contracts.js'
 
+/**
+ * Options bag for the `mapTenants` fan-out helper, tuning how `fn` is run across
+ * many tenant schema scopes. The optional `concurrency` field caps how many
+ * tenants are processed at once (default 10), since each one opens a tenant
+ * connection and should stay well under the configured connection ceiling. The
+ * optional `continueOnError` field decides whether a tenant whose work throws is
+ * collected into the result's `errors` array while the fan-out continues
+ * (default true) or whether the first failure rejects the entire call.
+ */
 export interface MapTenantsOptions {
   /**
    * Peak tenants processed at once (default 10). Each one enters a `tenancy.run`
@@ -17,6 +26,15 @@ export interface MapTenantsOptions {
   continueOnError?: boolean
 }
 
+/**
+ * The outcome returned by `mapTenants` after fanning a function out across many
+ * tenant schemas. It splits the per-tenant work into two parallel arrays: `results`
+ * holds the successfully computed value for each tenant alongside its `tenantId`, and
+ * `errors` collects the `tenantId` and thrown `Error` for any tenant whose function
+ * failed, so a single failing tenant never discards the values gathered from the rest.
+ *
+ * @template T The value type produced per tenant by the mapped function.
+ */
 export interface MapTenantsResult<T> {
   results: Array<{ tenantId: string; value: T }>
   errors: Array<{ tenantId: string; error: Error }>

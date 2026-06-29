@@ -1,5 +1,11 @@
 import { context, trace, SpanStatusCode, type Span, type Tracer } from '@opentelemetry/api'
 
+/**
+ * Static helper that wraps OpenTelemetry tracing for the multitenancy package. It lazily
+ * builds a named tracer, runs an async callback inside a span via withSpan (setting OK or
+ * ERROR status, recording exceptions, and always ending the span), and annotates the
+ * active span with the current tenant id through setTenant.
+ */
 export default class TelemetryService {
   private static _tracer: Tracer | null = null
 

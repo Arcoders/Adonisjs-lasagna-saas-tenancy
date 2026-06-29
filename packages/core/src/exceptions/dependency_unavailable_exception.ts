@@ -1,6 +1,13 @@
 import { Exception } from '@adonisjs/core/exceptions'
 import type { HttpContext } from '@adonisjs/core/http'
 
+/**
+ * Describes the context passed to a `DependencyUnavailableException` when a
+ * fail-closed dependency goes down. It names the failing dependency (such as
+ * Redis, Postgres or Stripe), labels the operation that was attempting to use
+ * it, and optionally records the tenant id involved so the resulting 503 error
+ * carries enough detail for logging and a custom degraded response.
+ */
 export interface DependencyUnavailableContext {
   /** Logical dependency name, like `'redis'`, `'postgres'` or `'stripe'`. */
   dependency: string

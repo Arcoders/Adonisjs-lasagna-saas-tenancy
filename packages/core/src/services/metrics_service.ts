@@ -17,6 +17,17 @@ import { DateTime } from 'luxon'
 /** Counter TTL: 48h, long enough to survive a delayed flush. */
 const COUNTER_TTL_SECONDS = 172_800
 
+/**
+ * Per-tenant usage metrics service that buffers counters in Redis and flushes them into
+ * the backoffice schema. It increments built-in `requests`, `errors`, and `bandwidth`
+ * counters and records host-defined named metrics via `emitMetric`, keying each value by
+ * tenant id, period, and metric name with a 48-hour TTL. Flush methods drain the
+ * `metrics:*` and `custom_metrics:*` Redis keys into `tenant_metrics` and
+ * `tenant_custom_metrics`, while `recomputeMonthlyRollup` rebuilds the idempotent monthly
+ * rollup and `getForTenant` reads back recent daily rows. Tenant ids are validated as safe
+ * identifiers before touching the keyspace, and Redis writes fail open so a backend error
+ * never breaks the caller.
+ */
 export default class MetricsService {
   private key(tenantId: string, metric: string, period: string) {
     return `metrics:${tenantId}:${period}:${metric}`

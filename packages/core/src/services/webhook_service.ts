@@ -29,6 +29,14 @@ function truncateBody(value: string | null): string | null {
   return `${value.slice(0, MAX_RESPONSE_BODY_CHARS)}… [truncated ${value.length - MAX_RESPONSE_BODY_CHARS} chars]`
 }
 
+/**
+ * Return shape of `WebhookService.registerWebhook`. It always carries the
+ * persisted `TenantWebhook` record under `hook`, and additionally exposes the
+ * plaintext `generatedSecret` only when the service itself minted the signing
+ * secret because the caller omitted one. That secret is stored encrypted and
+ * cannot be read back later, so this result is the single chance to hand it to
+ * the subscriber.
+ */
 export interface RegisterWebhookResult {
   hook: TenantWebhook
   /**
@@ -108,6 +116,16 @@ async function mapConcurrent<T>(
   }
 }
 
+/**
+ * Manages tenant-scoped outbound webhooks. It dispatches an event to every
+ * enabled hook subscribed to it, applies optional payload transformers once
+ * before persisting, signs each delivery body with HMAC-SHA256, and records a
+ * per-delivery row capturing status, attempt count and response. Failed sends
+ * are retried with exponential backoff plus jitter up to MAX_ATTEMPTS via a
+ * cross-tenant retry sweep. An SSRF guard resolves and validates each target
+ * host, refuses redirects, and bounds the per-attempt fetch. Also registers
+ * (auto-generating a signing secret when omitted), lists, and deletes hooks.
+ */
 export default class WebhookService {
   async dispatch(tenantId: string, event: string, payload: Record<string, unknown>): Promise<void> {
     const hooks = await TenantWebhook.query()

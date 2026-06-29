@@ -1,6 +1,12 @@
 import { Exception } from '@adonisjs/core/exceptions'
 import type { HttpContext } from '@adonisjs/core/http'
 
+/**
+ * Exception thrown when a tenant is currently under maintenance, extending the AdonisJS
+ * base Exception with a 503 status and the `E_TENANT_MAINTENANCE` code. It carries an
+ * optional `retryAfterSeconds` hint and a `tenantMessage` override, and its `handle`
+ * method renders a `Retry-After` header plus a structured error body to the response.
+ */
 export default class TenantMaintenanceException extends Exception {
   static readonly status = 503
   static readonly code = 'E_TENANT_MAINTENANCE'

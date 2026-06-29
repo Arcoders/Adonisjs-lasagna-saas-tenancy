@@ -43,11 +43,20 @@ export interface TenantResolver {
  */
 export type TenantHit = { type: 'id'; tenantId: string } | { type: 'domain'; domain: string }
 
+/**
+ * The outcome returned by a {@link TenantResolver}'s `resolve()` call against an
+ * incoming HTTP request. It is either a positive {@link TenantHit} (a tenant id
+ * or a `{ domain }` envelope) or `undefined` when the resolver does not apply,
+ * letting the registry fall through to the next strategy in the chain.
+ */
 export type TenantResolveResult = TenantHit | undefined
 
 /**
- * Convenience constructors so resolver implementations don't have to
- * spell the discriminated-union shape every time.
+ * Convenience factory helpers that build the discriminated-union result a
+ * tenant resolver returns, so implementations never spell the shape by hand.
+ * Exposes `id(tenantId)` for a matched tenant id, `domain(domain)` for a
+ * custom-domain envelope the registry resolves via the repository, and
+ * `miss()` returning `undefined` when the resolver does not apply.
  */
 export const ResolverHit = {
   id(tenantId: string): TenantHit {

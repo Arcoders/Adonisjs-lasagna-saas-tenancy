@@ -26,6 +26,16 @@ import longRunningQueriesCheck from './long_running_queries_check.js'
 import membershipGateCheck from './membership_gate_check.js'
 import type { DoctorCheck } from '../types.js'
 
+/**
+ * The ordered list of default diagnostic checks the multitenancy provider registers into
+ * `DoctorService` at boot, covering failed and stalled tenant provisioning, schema drift,
+ * migration state, the circuit breaker, stuck queues, replica lag, connection pool usage,
+ * long-running queries, and the membership gate. The opt-in `metricsFreshnessCheck` is
+ * deliberately excluded because an empty metrics table would always warn, so hosts running
+ * the metrics pipeline register that one explicitly.
+ *
+ * @see DoctorCheck
+ */
 export const builtInChecks: DoctorCheck[] = [
   failedTenantsCheck,
   provisioningStalledCheck,

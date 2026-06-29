@@ -13,6 +13,15 @@ interface InstallTenantPayload {
   tenantId: string
 }
 
+/**
+ * Background queue job that provisions a single tenant's storage. It loads the tenant from the
+ * repository, transitions its status from provisioning to active (or failed on error), runs the
+ * registered before/after provision hooks, delegates schema creation to the active isolation driver
+ * (skipping shared-storage drivers that own no per-tenant storage), initializes the tenant's queue,
+ * and dispatches the TenantProvisioned event on success.
+ *
+ * @extends Job<InstallTenantPayload>
+ */
 export default class InstallTenant extends Job<InstallTenantPayload> {
   // Namespaced so a host app's own `InstallTenant` doesn't collide on
   // the global @adonisjs/queue Locator singleton.

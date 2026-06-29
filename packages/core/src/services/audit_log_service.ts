@@ -11,6 +11,13 @@ const lazyLogger = () =>
  *  audited request. The canonical DB write is already done by the time it runs. */
 const DESTINATION_TIMEOUT_MS = 2_000
 
+/**
+ * Describes the fields accepted by {@link AuditLogService.log} when recording a single
+ * audit entry. It carries the optional tenant id, actor type and actor id, the required
+ * action string, plus optional structured metadata and an originating IP address, all of
+ * which become columns on the persisted `TenantAuditLog` row before fan-out to any
+ * registered destinations.
+ */
 export interface LogOptions {
   tenantId?: string | null
   actorType?: AuditActorType
@@ -20,9 +27,23 @@ export interface LogOptions {
   ipAddress?: string | null
 }
 
-/** @deprecated Renamed to {@link LogOptions} — `log()` takes log options, not "action" options. */
+/**
+ * Deprecated alias for {@link LogOptions}, the shape passed to
+ * {@link AuditLogService.log} to describe one audit entry through fields such as
+ * `tenantId`, `actorType`, `actorId`, the required `action`, optional `metadata`,
+ * and `ipAddress`. Prefer importing `LogOptions` directly in new code.
+ * @deprecated Renamed to {@link LogOptions}; `log()` takes log options, not "action" options.
+ */
 export type LogActionOptions = LogOptions
 
+/**
+ * Writes append-only audit log rows to the backoffice satellite table and fans
+ * each persisted row out to any host-registered destinations. The canonical
+ * database row is created first and stays authoritative, while destination
+ * delivery runs afterward, isolated and time-bounded, so a slow or throwing
+ * sink can never fail the audited operation. It also exposes paginated
+ * per-tenant reads and an uncapped streaming export for deep histories.
+ */
 export default class AuditLogService {
   async log(options: LogOptions): Promise<TenantAuditLog> {
     // The DB row is the source of truth and stays authoritative: it is written

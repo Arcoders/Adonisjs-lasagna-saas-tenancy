@@ -42,8 +42,12 @@ export function hostMatchesExpectedSuffix(host: string): boolean {
 }
 
 /**
- * Reads the tenant id from a configured request header (default
- * `x-tenant-id`). Most server-to-server traffic uses this.
+ * Tenant resolver that reads the tenant identifier from a configured request
+ * header whose key comes from `getConfig().tenantHeaderKey` (default
+ * `x-tenant-id`). It implements the `TenantResolver` contract with a `header`
+ * name and the current contract version, returning a `ResolverHit.id` when the
+ * header is present and a `ResolverHit.miss` otherwise. This is the strategy
+ * most server-to-server traffic relies on.
  */
 export class HeaderResolver implements TenantResolver {
   readonly name = 'header'
@@ -177,6 +181,12 @@ export class RequestDataResolver implements TenantResolver {
   }
 }
 
+/**
+ * A frozen, read-only array holding one instance of every built-in tenant
+ * resolver: the header, subdomain, path, domain-or-subdomain, and request-data
+ * strategies. The provider seeds these into the resolver registry at boot so the
+ * async resolver chain can try each strategy in order until one returns a hit.
+ */
 export const builtInResolvers: readonly TenantResolver[] = Object.freeze([
   new HeaderResolver(),
   new SubdomainResolver(),

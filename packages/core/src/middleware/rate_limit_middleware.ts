@@ -11,6 +11,13 @@ import type { NextFn } from '@adonisjs/core/types/http'
 
 const lazyRedis = () => import('@adonisjs/redis/services/main').then((m) => m.default)
 
+/**
+ * Per-route configuration object passed to the rate-limit middleware. It declares
+ * the sliding-window quota through `limit` and `windowSeconds`, the optional Redis
+ * key `prefix` used to namespace buckets, the `failOpen` policy that decides whether
+ * a Redis outage rejects requests with 503 or lets them through, and `bypassInTestEnv`
+ * which forces the middleware to run instead of short-circuiting under `app.inTest`.
+ */
 export interface RateLimitOptions {
   limit: number
   windowSeconds: number
@@ -34,6 +41,15 @@ export interface RateLimitOptions {
   bypassInTestEnv?: boolean
 }
 
+/**
+ * AdonisJS HTTP middleware that enforces a per-tenant, per-IP sliding-window rate
+ * limit backed by Redis. Its handle method builds a bucket key from the prefix,
+ * the resolved tenant id, and the client IP, then consumes the shared
+ * sliding-window counter, emitting standard X-RateLimit headers and throwing a 429
+ * TooManyRequestsException when the configured limit is exceeded. On a Redis backend
+ * failure it applies the fail-open or fail-closed policy, returning 503 by default.
+ * It also bypasses itself in the test environment unless a route opts in.
+ */
 export default class RateLimitMiddleware {
   /**
    * Override hook for tests — lets a spec swap in a Redis stub that

@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto'
 
+/**
+ * Input shape for {@link consumeRateLimit}, bundling everything the sliding-window
+ * counter needs for a single hit. It carries an injectable `getRedis` accessor so
+ * the primitive stays importable without a booted app, the bucket `key` whose
+ * tenant or IP namespacing the caller owns, and the `windowSeconds` width of the
+ * window being measured.
+ */
 export interface ConsumeRateLimitArgs {
   /**
    * Redis accessor, injected so this stays importable without a booted app
@@ -11,6 +18,12 @@ export interface ConsumeRateLimitArgs {
   windowSeconds: number
 }
 
+/**
+ * Result returned by {@link consumeRateLimit} after recording one hit against a
+ * sliding-window counter. It reports the number of requests counted in the
+ * current window (this hit included) and the millisecond timestamp used as the
+ * ZSET score, from which callers derive the reset time for headers or retry hints.
+ */
 export interface RateLimitReading {
   /** Requests counted in the current window, this hit included. */
   count: number

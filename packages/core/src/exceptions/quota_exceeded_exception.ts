@@ -1,5 +1,14 @@
 import { Exception } from '@adonisjs/core/exceptions'
 
+/**
+ * Thrown when a tenant attempts an operation that would push a usage quota past its
+ * allowed limit. Extends the AdonisJS Exception with a 429 status and the
+ * E_TENANT_QUOTA_EXCEEDED code, and records the tenant id, quota name, limit, current
+ * usage, and attempted increment so handlers can report exactly which threshold was breached.
+ *
+ * @example
+ * throw new QuotaExceededException({ tenantId, quota: 'seats', limit: 10, current: 10, attempted: 1 })
+ */
 export default class QuotaExceededException extends Exception {
   static readonly status = 429
   static readonly code = 'E_TENANT_QUOTA_EXCEEDED'

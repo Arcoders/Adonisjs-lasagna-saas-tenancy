@@ -19,8 +19,24 @@ async function lazyTransmit(): Promise<{
   return mod.default ?? mod
 }
 
+/**
+ * The default channel-name prefix for tenant-scoped Transmit broadcasting,
+ * with the literal value `tenants/`. Broadcast helpers prepend this prefix
+ * together with the current tenant id to produce wire channel names of the
+ * form `tenants/<tenant.id>/<channel>`, so two tenants subscribing to the
+ * same logical channel never collide. It also serves as the fallback when
+ * `TransmitBootstrapperOptions.prefix` is not supplied.
+ */
 export const TENANT_BROADCAST_PREFIX = 'tenants/'
 
+/**
+ * Configuration options accepted by `createTransmitBootstrapper()` when wiring
+ * up per-tenant broadcasting on top of Transmit. The single `prefix` property
+ * lets callers override the channel-name prefix used to namespace tenant
+ * channels, which defaults to `tenants/`, producing wire channel names shaped
+ * as `<prefix><tenant.id>/<channel>` so that different tenants subscribing to
+ * the same logical channel never collide.
+ */
 export interface TransmitBootstrapperOptions {
   /**
    * Override the channel prefix. Default `tenants/`. Resulting channel
@@ -51,6 +67,14 @@ export function createTransmitBootstrapper(
   }
 }
 
+/**
+ * The default `TenantBootstrapper` for per-tenant Transmit broadcasting, built
+ * from `createTransmitBootstrapper()` with the standard `tenants/` channel
+ * prefix. On scope entry it validates the tenant id with `assertSafeIdentifier`
+ * so a malformed id cannot poison a channel name, and it holds no per-scope
+ * state. Channel names are derived on demand by `tenantBroadcast()` and
+ * `tenantChannel()` rather than retained here.
+ */
 const transmitBootstrapper = createTransmitBootstrapper()
 export default transmitBootstrapper
 

@@ -5,7 +5,14 @@ import EvaluationStrategyRegistry, {
 } from './evaluation_strategy_registry.js'
 import type { DateTime } from 'luxon'
 
-/** A flag's stored state, as returned by {@link FeatureFlagService.getFlag}. */
+/**
+ * Describes the stored state of a single tenant feature flag as returned by
+ * {@link FeatureFlagService.getFlag} and cached in the per-tenant flag map. It
+ * carries the raw `enabled` boolean, an optional `config` object holding extra
+ * settings such as a named evaluation strategy or rollout percentage, and an
+ * `expiresAt` ISO 8601 timestamp that is `null` when the flag never expires.
+ * The record is a faithful data shape only and does not itself apply expiry.
+ */
 export interface FeatureFlagRecord {
   enabled: boolean
   config: Record<string, unknown> | null
@@ -13,6 +20,14 @@ export interface FeatureFlagRecord {
   expiresAt: string | null
 }
 
+/**
+ * Manages per-tenant feature flags backed by the `TenantFeatureFlag` satellite
+ * table, with a short-lived per-tenant cache of the whole flag map. It evaluates
+ * whether a flag is enabled through `isEnabled` (honouring stored state, an
+ * `expiresAt` expiry, and an optional host-registered evaluation strategy named
+ * in `config.strategy`), reads the raw record via `getFlag`, and writes through
+ * `set`, `listForTenant`, and `delete`, invalidating the cache on every mutation.
+ */
 export default class FeatureFlagService {
   private mapCacheKey(tenantId: string) {
     // `ffm2:` (not `ff_map:`) — the cached value shape changed from a bare

@@ -6,6 +6,14 @@ import type { FailurePolicy } from '../types/config.js'
 const lazyLogger = () =>
   import('@adonisjs/core/services/logger').then((m) => m.default).catch(() => null)
 
+/**
+ * Describes a single guarded dependency call passed to `ResilienceService.run()`.
+ * It names the backing dependency and an operation label for telemetry, sets the
+ * `FailurePolicy` (`fail-open` or `fail-closed`) that decides what happens when the
+ * call throws, optionally carries a `tenantId`, and supplies both the `run()` function
+ * that performs the actual dependency call and a `fallback()` returning the typed value
+ * used when the policy is `fail-open` and `run()` fails.
+ */
 export interface ResilienceRunOptions<T> {
   /** Logical dependency name, like `'redis'`, `'postgres'` or `'stripe'`. */
   dependency: string

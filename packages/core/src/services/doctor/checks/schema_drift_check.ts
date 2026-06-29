@@ -3,6 +3,13 @@ import type { DoctorCheck, DiagnosisIssue } from '../types.js'
 
 const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default).catch(() => null)
 
+/**
+ * A doctor check that reconciles the tenant registry against the actual PostgreSQL schemas.
+ * It queries information_schema.schemata for every schema matching the configured tenant prefix,
+ * then reports an error issue for each non-deleted tenant whose schema is missing and a warning
+ * for each physical schema that has no matching tenant in the registry. Returns the collected
+ * issues, or a single lucid_unavailable error when the Lucid database service cannot be loaded.
+ */
 const schemaDriftCheck: DoctorCheck = {
   name: 'schema_drift',
   description:

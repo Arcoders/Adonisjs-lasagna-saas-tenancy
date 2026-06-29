@@ -8,6 +8,18 @@ import type {
   DiagnosisReport,
 } from './types.js'
 
+/**
+ * Registry and runner for tenant diagnostic checks. Holds a named map of
+ * DoctorCheck instances that callers register or unregister, then `run()`
+ * fetches every tenant through keyset (cursor) pagination, applies any tenant
+ * and check filters, executes each selected check against a shared context, and
+ * aggregates the resulting issues into per-check reports plus severity totals
+ * (info, warn, error, fixable). A check that throws is captured as a per-report
+ * error rather than failing the whole run, and `fix` opts into attempted repairs.
+ *
+ * @see DoctorCheck
+ * @see DoctorRunResult
+ */
 export default class DoctorService {
   readonly #checks = new Map<string, DoctorCheck>()
 

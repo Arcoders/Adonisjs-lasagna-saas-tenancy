@@ -59,6 +59,15 @@ export function buildLongQueryIssue(
 
 const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default).catch(() => null)
 
+/**
+ * Doctor check that queries `pg_stat_activity` on the central connection for client
+ * backends in `state=active` whose query duration exceeds the configured warn or error
+ * threshold, returning one diagnosis issue per offending backend. Raw SQL text is replaced
+ * with a non-reversible fingerprint by default and only emitted into the issue meta when
+ * the `doctor.includeQueryText` opt-in is set, keeping cross-tenant secrets out of the
+ * HTTP-exposed health report. Reports its own issues when Lucid is unavailable or the
+ * activity view cannot be read.
+ */
 const longRunningQueriesCheck: DoctorCheck = {
   name: 'long_running_queries',
   description:

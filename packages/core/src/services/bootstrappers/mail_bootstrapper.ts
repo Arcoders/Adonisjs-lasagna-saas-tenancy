@@ -16,6 +16,12 @@ async function lazyMail(): Promise<{ use(name?: string): any; send: any; sendLat
   return mod.default ?? mod
 }
 
+/**
+ * Name of the outbound mail header that carries the active tenant identifier.
+ * The mail bootstrapper and `tenantMailer()` stamp this header onto every
+ * message sent within a tenancy scope, and `stampHeader()` skips it when the
+ * host app has already set a value so a more specific override is preserved.
+ */
 export const TENANT_MAIL_HEADER = 'X-Tenant-Id'
 
 /**
@@ -37,6 +43,13 @@ export function createMailBootstrapper(): TenantBootstrapper {
   }
 }
 
+/**
+ * Default `TenantBootstrapper` instance for outbound mail, created by
+ * `createMailBootstrapper()`. It is named `mail` and, on scope entry,
+ * validates the active tenant id with `assertSafeIdentifier` because that id
+ * is later stamped into the `X-Tenant-Id` header of outgoing messages. Pair it
+ * with the `tenantMailer()` helper to auto-tag every send.
+ */
 const mailBootstrapper = createMailBootstrapper()
 export default mailBootstrapper
 

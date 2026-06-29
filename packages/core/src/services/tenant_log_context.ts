@@ -1,5 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 
+/**
+ * Shape of the per-tenant context stored in AsyncLocalStorage by TenantLogContext.
+ * It carries the required tenantId string plus an open-ended index signature for
+ * arbitrary additional log bindings, and these fields become the child logger
+ * bindings that any code running inside a run() scope will observe.
+ */
 export interface TenantLogContextData {
   tenantId: string
   [key: string]: unknown
@@ -15,6 +21,12 @@ interface LoggerLike {
   fatal(...args: any[]): void
 }
 
+/**
+ * Propagates per-tenant logging context across async boundaries using an
+ * AsyncLocalStorage store. It runs a function with tenant bindings in scope,
+ * exposes the active context and tenant id, and wraps a base logger so log
+ * lines emitted anywhere within the scope inherit those bindings automatically.
+ */
 export default class TenantLogContext {
   readonly #als = new AsyncLocalStorage<TenantLogContextData>()
 

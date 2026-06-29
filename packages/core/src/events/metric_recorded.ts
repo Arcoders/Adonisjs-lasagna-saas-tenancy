@@ -1,5 +1,11 @@
 import { BaseEvent } from '@adonisjs/core/events'
 
+/**
+ * Shape of the data carried by the `MetricRecorded` event when a custom named
+ * metric is recorded. It identifies the tenant, the host-defined metric name as
+ * a safe identifier, the integer value for this emit, and the UTC daily period
+ * bucket (YYYY-MM-DD) the value was accumulated into.
+ */
 export interface MetricRecordedPayload {
   tenantId: string
   /** The host-defined metric name (safe identifier). */

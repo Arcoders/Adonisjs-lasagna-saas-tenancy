@@ -1,6 +1,12 @@
 import { BaseEvent } from '@adonisjs/core/events'
 import type { FailurePolicy } from '../types/config.js'
 
+/**
+ * Shape of the data carried by the `DependencyDegraded` event, describing a wrapped
+ * dependency call that failed and triggered its configured degradation policy. It records
+ * the logical dependency name, the operation label, an optional tenant id, the failure
+ * policy that was applied, and a best-effort classification of the underlying error code.
+ */
 export interface DependencyDegradedPayload {
   /** Logical dependency name, like `'redis'`, `'postgres'` or `'stripe'`. */
   dependency: string
