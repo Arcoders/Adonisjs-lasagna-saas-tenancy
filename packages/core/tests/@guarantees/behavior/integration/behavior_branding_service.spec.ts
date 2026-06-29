@@ -1,7 +1,7 @@
 import { test } from '@japa/runner'
 import { BrandingService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantBranding } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 test.group('BrandingService (integration)', (group) => {
   const svc = new BrandingService()

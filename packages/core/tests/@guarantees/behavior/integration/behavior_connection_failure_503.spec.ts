@@ -3,7 +3,7 @@ import app from '@adonisjs/core/services/app'
 import { randomUUID } from 'node:crypto'
 import { getActiveDriver } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 import TenantRepository from '../../../fixtures/app/repositories/tenant_repository.js'
 
 /**

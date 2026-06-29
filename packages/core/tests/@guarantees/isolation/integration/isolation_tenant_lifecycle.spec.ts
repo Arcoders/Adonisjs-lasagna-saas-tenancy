@@ -10,7 +10,7 @@ import {
   createTestTenant,
   destroyTestTenant,
   updateTenantStatus,
-} from '../../../integration/helpers/tenant.js'
+} from '../../../helpers/tenant.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**

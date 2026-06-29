@@ -11,7 +11,7 @@ import {
   TenantWebhook,
   TenantWebhookDelivery,
 } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { createTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant } from '../../../helpers/tenant.js'
 
 process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
 

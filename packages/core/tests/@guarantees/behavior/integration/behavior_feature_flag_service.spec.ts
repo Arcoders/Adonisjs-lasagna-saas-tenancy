@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import { DateTime } from 'luxon'
 import { FeatureFlagService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantFeatureFlag } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 test.group('FeatureFlagService (integration)', (group) => {
   const svc = new FeatureFlagService()

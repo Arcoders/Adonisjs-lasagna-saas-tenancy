@@ -1,7 +1,7 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 /**
  * S1-2: enforces that audit rows are append-only at the DATABASE

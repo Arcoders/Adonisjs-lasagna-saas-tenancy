@@ -1,7 +1,7 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import { randomUUID } from 'node:crypto'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 test.group('CustomDomainMiddleware (integration)', () => {
   test('passes through without resolving tenant when x-tenant-id header is already set', async ({

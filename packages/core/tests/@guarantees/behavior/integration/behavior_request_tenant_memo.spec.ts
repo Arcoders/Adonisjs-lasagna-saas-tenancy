@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 test.group('request.tenant() — memoization (integration)', () => {
   test('returns the same object reference on repeated calls within one request', async ({

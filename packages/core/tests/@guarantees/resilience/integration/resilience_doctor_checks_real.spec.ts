@@ -15,7 +15,7 @@ import type {
   DoctorContext,
   DiagnosisIssue,
 } from '@adonisjs-lasagna/saas-tenancy/services'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy'
 
 // Real-state E2E for the five built-in doctor checks (the unit suite

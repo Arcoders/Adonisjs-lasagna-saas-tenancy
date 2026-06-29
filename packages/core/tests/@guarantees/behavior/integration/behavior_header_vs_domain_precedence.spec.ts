@@ -1,7 +1,7 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import { randomUUID } from 'node:crypto'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 /**
  * S1-5: header-vs-domain precedence under CustomDomainMiddleware.

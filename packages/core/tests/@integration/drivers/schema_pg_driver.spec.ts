@@ -5,7 +5,7 @@ import {
   type SchemaPgDriver,
   IsolationDriverRegistry,
 } from '@adonisjs-lasagna/saas-tenancy/services'
-import { createTestTenant, destroyTestTenant } from '../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../helpers/tenant.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 async function findTenant(id: string): Promise<TenantModelContract> {

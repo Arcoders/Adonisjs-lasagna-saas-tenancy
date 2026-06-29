@@ -327,7 +327,7 @@ test.group('WebhookService.processRetries() — dead-letter behaviour (real DB)'
   })
 
   test('a delivery in status=failed is NOT retried by processRetries()', async ({ assert }) => {
-    const { createTestTenant } = await import('../../../integration/helpers/tenant.js')
+    const { createTestTenant } = await import('../../../helpers/tenant.js')
     const { TenantWebhook, TenantWebhookDelivery } =
       await import('@adonisjs-lasagna/saas-tenancy/models/satellites')
 
@@ -377,7 +377,7 @@ test.group('WebhookService.processRetries() — dead-letter behaviour (real DB)'
   test('a delivery in status=retrying with future nextRetryAt is NOT retried yet', async ({
     assert,
   }) => {
-    const { createTestTenant } = await import('../../../integration/helpers/tenant.js')
+    const { createTestTenant } = await import('../../../helpers/tenant.js')
     const { TenantWebhook, TenantWebhookDelivery } =
       await import('@adonisjs-lasagna/saas-tenancy/models/satellites')
     const { DateTime } = await import('luxon')

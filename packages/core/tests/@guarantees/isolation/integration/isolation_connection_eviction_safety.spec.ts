@@ -7,7 +7,7 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import type { MultitenancyConfig } from '@adonisjs-lasagna/saas-tenancy/types'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**

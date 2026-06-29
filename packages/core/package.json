@@ -128,7 +128,8 @@
     "test:integrity": "tsx bin/test.ts --files documented",
     "test:coverage": "c8 --temp-directory=../../coverage/.v8/unit tsx bin/test.ts",
     "test:integration:run": "tsx bin/test.integration.ts",
-    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/integration tsx bin/test.integration.ts"
+    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/integration tsx bin/test.integration.ts",
+    "test:fault:run": "tsx bin/test.fault.ts"
   },
   "peerDependencies": {
     "@adonisjs/core": "^7.0.0",

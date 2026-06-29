@@ -7,7 +7,7 @@ import {
   type SchemaPgDriver,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 /**
  * I1 — Multi-tenant destroy cascade (no cross-tenant collateral).

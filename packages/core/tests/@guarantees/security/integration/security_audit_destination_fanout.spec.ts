@@ -7,7 +7,7 @@ import {
   AUDIT_CONTRACT_VERSION,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { AuditLogEntry } from '@adonisjs-lasagna/saas-tenancy/services'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 /**
  * The audit destination fan-out. The canonical DB row stays authoritative: a

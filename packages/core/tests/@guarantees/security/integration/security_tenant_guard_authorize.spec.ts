@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 // End-to-end proof that the opt-in `authorizeTenantAccess` gate closes the
 // cross-tenant IDOR through the real guard + HTTP + PostgreSQL stack. The

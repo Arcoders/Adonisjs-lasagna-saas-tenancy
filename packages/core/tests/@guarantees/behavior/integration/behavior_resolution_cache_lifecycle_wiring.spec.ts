@@ -11,7 +11,7 @@ import {
   createTestTenant,
   destroyTestTenant,
   updateTenantStatus,
-} from '../../../integration/helpers/tenant.js'
+} from '../../../helpers/tenant.js'
 
 /**
  * Pins the resolution-cache lifecycle invalidation to the REAL provider wiring,

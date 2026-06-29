@@ -6,7 +6,7 @@ import {
   createTestTenant,
   destroyTestTenant,
   updateTenantStatus,
-} from '../../../integration/helpers/tenant.js'
+} from '../../../helpers/tenant.js'
 
 /**
  * TenantGuardMiddleware turns tenant lifecycle state into typed HTTP

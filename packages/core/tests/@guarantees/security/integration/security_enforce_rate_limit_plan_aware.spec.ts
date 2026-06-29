@@ -1,7 +1,7 @@
 import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 // End-to-end proof that `enforceRateLimit()` reads the limit from the resolved
 // tenant's plan (config.plans.definitions[plan].rateLimit) rather than from

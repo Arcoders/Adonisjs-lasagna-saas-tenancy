@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import { randomUUID } from 'node:crypto'
-import { createTestTenant, destroyTestTenant } from '../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../helpers/tenant.js'
 
 test.group('TenantAdapter (integration)', () => {
   test('request with valid tenant header resolves connection from header', async ({ client }) => {

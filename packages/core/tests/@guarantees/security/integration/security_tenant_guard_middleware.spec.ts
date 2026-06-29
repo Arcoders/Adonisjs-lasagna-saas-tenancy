@@ -4,7 +4,7 @@ import {
   createTestTenant,
   destroyTestTenant,
   updateTenantStatus,
-} from '../../../integration/helpers/tenant.js'
+} from '../../../helpers/tenant.js'
 
 test.group('TenantGuardMiddleware (integration)', (group) => {
   group.each.setup(async () => {})

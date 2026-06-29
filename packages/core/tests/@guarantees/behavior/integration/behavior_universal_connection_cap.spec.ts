@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 import { getActiveDriver } from '@adonisjs-lasagna/saas-tenancy/services'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 /**
  * Release every registered tenant connection from BOTH the Lucid manager and the

@@ -6,7 +6,7 @@ import {
   type SchemaPgDriver,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**

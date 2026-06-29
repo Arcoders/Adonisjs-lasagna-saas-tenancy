@@ -15,7 +15,7 @@ import {
   TenantEnteredMaintenance,
   TenantExitedMaintenance,
 } from '@adonisjs-lasagna/saas-tenancy/events'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { BackupMetadata, CloneResult } from '@adonisjs-lasagna/saas-tenancy/types'
 

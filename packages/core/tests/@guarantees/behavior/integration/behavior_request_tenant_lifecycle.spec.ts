@@ -3,7 +3,7 @@ import {
   createTestTenant,
   destroyTestTenant,
   updateTenantStatus,
-} from '../../../integration/helpers/tenant.js'
+} from '../../../helpers/tenant.js'
 
 /**
  * P2-3: `request.tenant()` must be fail-closed on lifecycle by itself, not

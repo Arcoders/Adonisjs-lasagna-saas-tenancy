@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import { collectSnapshot } from '@adonisjs-lasagna/saas-tenancy/health'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 import type { TenantStatus } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**

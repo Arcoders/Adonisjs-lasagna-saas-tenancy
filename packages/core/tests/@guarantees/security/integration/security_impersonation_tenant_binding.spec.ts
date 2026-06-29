@@ -3,7 +3,7 @@ import app from '@adonisjs/core/services/app'
 import { randomUUID } from 'node:crypto'
 import { ImpersonationService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 const SECRET = 'c'.repeat(64)
 

@@ -6,7 +6,7 @@ import {
   FEATURE_FLAGS_CONTRACT_VERSION,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantFeatureFlag } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { createTestTenant, destroyTestTenant } from '../../../integration/helpers/tenant.js'
+import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 /**
  * The pluggable evaluation-strategy surface. The default path (no
