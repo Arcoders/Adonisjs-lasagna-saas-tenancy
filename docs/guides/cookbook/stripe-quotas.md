@@ -72,7 +72,7 @@ export default defineConfig({
       starter: { limits: { apiRequests: 10_000, storageBytes: 5 * 1024 ** 3 } },
       pro: { limits: { apiRequests: 100_000, storageBytes: 50 * 1024 ** 3 } },
     },
-    // omit `getPlan` to use the storage-backed default — the package reads
+    // omit `getPlan` to use the storage-backed default; the package reads
     // `tenant_plans` (populated by the webhook) and caches 60 s.
     storage: 'auto',
   },
@@ -168,6 +168,43 @@ Counter behaviour on plan change:
 For the full state machine (dunning, ordering guards,
 `INSERT ... ON CONFLICT DO NOTHING` idempotency) see the
 [Billing satellite](/guides/satellites/billing#webhook-receiver).
+
+## Usage metering (optional)
+
+Flat subscriptions assign a plan; *metered* plans bill by consumption (API
+calls, seats, GB processed). Report each unit with `BillingService.reportUsage`.
+It needs a driver that advertises the `usage_metering` capability (Stripe does;
+see the [capability matrix](../satellites/billing.md#drivers)).
+
+```ts
+import { BillingService } from '@adonisjs-lasagna/billing'
+
+const billing = await app.container.make(BillingService)
+await billing.reportUsage(tenant, { eventName: 'api_request' }, 1)
+```
+
+Every call writes an audit row to `billing_usage_events` before it reaches the
+provider, under a `UNIQUE(tenant_id, idempotency_key)` constraint. The default
+key buckets by the minute (`<tenant.id>:<eventName>:<minute>`), so a retry inside
+the same minute reports once and never double-bills. Pass your own
+`idempotencyKey` (it stays tenant-scoped) or an explicit `timestamp` when you
+need a different grain:
+
+```ts
+import { BillingService } from '@adonisjs-lasagna/billing'
+
+const billing = await app.container.make(BillingService)
+await billing.reportUsage(tenant, { eventName: 'seats' }, 5, {
+  idempotencyKey: `${tenant.id}:seats:${invoiceId}`,
+})
+```
+
+In hot request paths, don't report inline. Let the auto-bridge listener aggregate
+`QuotaTracked` events and flush them through `ReportUsageBatchJob` (one provider
+call per tenant and meter every `batchFlushMs`, default 10s); see
+[Background jobs](../jobs.md). The full reference (driver support, the metered
+config block, reconciliation) is in the
+[Billing satellite](../satellites/billing.md).
 
 ## Local development
 

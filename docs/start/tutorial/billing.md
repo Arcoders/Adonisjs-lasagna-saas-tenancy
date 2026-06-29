@@ -1,6 +1,6 @@
 ---
 title: 'Tutorial 4: Billing'
-description: Put Helpdesk tenants on Stripe plans — define starter and pro, send a tenant to hosted checkout, let the webhook assign the plan, and enforce a per-plan ticket quota.
+description: Put Helpdesk tenants on Stripe plans, define starter and pro, send a tenant to hosted checkout, let the webhook assign the plan, and enforce a per-plan ticket quota.
 ---
 
 # Step 4: Billing
@@ -140,5 +140,5 @@ You don't need a deployed URL to see plan assignment work. Run
 ## Read next
 
 - [Step 5: Reporting](/start/tutorial/reporting); turn tenant activity into a usage dashboard.
-- [Billing](/guides/satellites/billing); every config field, the dunning state machine, and metered billing.
+- [Billing](/guides/satellites/billing); every config field, the dunning state machine, the customer portal, cancellation and reconciliation, and metered billing.
 - [Quotas](/guides/satellites/quotas); counter modes, the Redis degradation policy, and admin endpoints.

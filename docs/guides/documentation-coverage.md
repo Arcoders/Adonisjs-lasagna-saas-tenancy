@@ -122,9 +122,11 @@ is dangerous for a security-critical tone, so it is deliberately out of scope.
   stoplist plus a `doc-synonyms.json` map of word variants. To add a variant, see
   the doc-coverage package README.
 - **D3, freshness (advisory).** A page is flagged only when the symbol's
-  **contract** changed since the page was last edited, where the contract is the
-  signature plus the thrown exceptions, never the comments. A body-only change is
-  suppressed, so this is far quieter than a raw "the file is newer" check.
+  **contract** changed since the page was last reviewed, where the contract is the
+  signature plus the thrown exceptions, never the comments. "Last reviewed" is a
+  committed checkpoint you refresh with `docs:doctor --update-freshness`, so a
+  body-only change is suppressed (far quieter than a raw "the file is newer"
+  check), and it covers code examples as well as prose.
 - **D4, reachability (advisory).** A changed symbol's new one-hop static reach
   over the public boundary, so a security note can be re-checked when the path it
   describes changes.
@@ -258,7 +260,8 @@ repository.
   and is flagged, but what to write is your work.
 - The soft signals need JSDoc to fire, and that is fine: coverage is the backstop,
   so a symbol with no JSDoc and no page still surfaces as uncovered.
-- Freshness is a prompt, not a proof. You can reset the clock by touching a file,
+- Freshness is a prompt, not a proof. You acknowledge a flag by re-running
+  `docs:doctor --update-freshness` (a committed record that you reviewed the page),
   and the report says so.
 
 ## Read next

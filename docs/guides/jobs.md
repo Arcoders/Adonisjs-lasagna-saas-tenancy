@@ -21,7 +21,7 @@ two ship in the core, three with the
 | `BackupTenant` | `@adonisjs-lasagna/backup` | Run `pg_dump` for a single tenant, mirror to S3 if configured | `tenant:backups:run` cron, ad-hoc dispatch |
 | `RestoreTenant` | `@adonisjs-lasagna/backup` | Run `pg_restore` against a stored dump | `tenant:restore` |
 | `CloneTenant` | `@adonisjs-lasagna/backup` | Provision a destination tenant + copy rows from source | `tenant:clone` |
-| `ProcessBillingEventJob` | `@adonisjs-lasagna/billing` | Process a verified billing webhook event (retrieve from the provider, ordering guard, syncSubscription/dispatch table, mark completed) | `BillingWebhookController` after the idempotent `INSERT ... ON CONFLICT DO NOTHING` |
+| `ProcessBillingEventJob` | `@adonisjs-lasagna/billing` | Process a verified billing webhook event. An atomic single-`UPDATE` claim (which also reclaims a row abandoned by a crashed worker after 15 min) blocks concurrent double-dispatch, then it retrieves the event from the provider, runs the ordering guard + syncSubscription/dispatch table, and marks it completed. A retryable error releases the claim back to `pending` for the queue retry; a fatal one dead-letters | `BillingWebhookController` after the idempotent `INSERT ... ON CONFLICT DO NOTHING` |
 | `ReportUsageBatchJob` | `@adonisjs-lasagna/billing` | Send aggregated meter events to Stripe in a single batch | `UsageAutoBridgeListener` flush (every `batchFlushMs`, default 10 s) |
 | `BillingCleanupJob` | `@adonisjs-lasagna/billing` | Purge `stripe_processed_events` older than `webhook.idempotencyTtlDays` | `tenant:billing:cleanup` command (also exposes `runBillingCleanup()` for direct invocation) |
 

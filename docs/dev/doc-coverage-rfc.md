@@ -163,10 +163,11 @@ floor so checkbox docs are not counted as done.
 Coverage: explained 88%, exemplified-only 6%, uncovered 6%
 ```
 
-**Freshness** is the drift-risk signal: a symbol whose **contract hash** (see §8, D3) changed since its
-linked doc was last edited, where the doc was not touched in the same change. It is gameable in the
-obvious way (touch the file to reset the clock), and stated as such in the report. It is a prompt, not
-a proof.
+**Freshness** is the drift-risk signal: a symbol whose **contract hash** (see §8, D3) changed since the
+doc was last reviewed, recorded in a committed `doc-coverage.freshness.json` checkpoint that
+`docs:doctor --update-freshness` refreshes. A comment-only edit never moves the contract hash, so it
+never trips freshness. It is gameable in the obvious way (re-snapshot without reading the doc), and
+stated as such in the report. It is a prompt, not a proof.
 
 ## 7. The `docs:doctor` CLI and CI
 
@@ -175,7 +176,7 @@ computes coverage and freshness, and, given a git ref range, emits the impact re
 
 ```
 docs:doctor [--since <ref>] [--package <name>] [--json]
-            [--init-anchors] [--update-baseline] [--no-cache]
+            [--init-anchors] [--update-baseline] [--update-freshness]
             [--explain <symbol>] [--why <doc#section>]
 ```
 
@@ -213,9 +214,11 @@ are distributed across the gate and the report.
   against the linked prose, emitting the **exact missing tokens, never a percentage**. D2 is
   **opportunistic**: it fires only where the contract has params/throws to check; missing JSDoc is
   never a failure, just no D2 signal there, and coverage% is the backstop.
-- **D3, contract-hash freshness (advisory).** A "doc older than symbol" warning fires only when the
-  symbol's **contract hash** changed since the doc's last edit; a body-only change is suppressed. Far
-  higher signal than raw `git log`.
+- **D3, contract-hash freshness (advisory).** A "doc may be stale" warning fires only when the symbol's
+  **contract hash** differs from the hash recorded for that pairing in the committed checkpoint
+  (`doc-coverage.freshness.json`, refreshed by `--update-freshness`); a body-only change is suppressed.
+  It watches `exemplifies` edges as well as `documents` ones, since a code example can drift on a real
+  contract change too. Far higher signal than raw `git log`.
 - **D4, call-graph reachability (advisory).** Depth-bounded to one or two hops over the **public**
   boundary, ranked by distance. Honest limit (stated in the report and §10): Lasagna resolves services
   via `container.make` (DI), invisible to the static compiler, so DI edges rely on declared anchors,
@@ -289,7 +292,7 @@ it, fails CI.
 - [x] D1, type-checked fences as `documents` edges (reuses `check-docs-code.mjs`, promoted to an edge source)
 - [x] D2-hard, dead `Symbol.member()` in prose, validated against the full member set (`warn` by default)
 - [x] D2-soft, token-set diff with member + param stoplists plus `doc-synonyms.json`, on documents edges (report)
-- [x] D3, path-normalized contract-hash freshness, git-range and last-commit modes (report)
+- [x] D3, path-normalized contract-hash freshness, git-range and contract-checkpoint modes (report)
 - [x] D4, depth-bounded static reachability of a changed symbol, 1-2 hops ranked by distance (report)
 - [x] Coverage metric, explained / exemplified-only / uncovered, with configurable floors
 - [x] api-extractor `.api.md` golden-diff (per-package opt-in via `api-extractor.json`; core opted in)
