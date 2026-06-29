@@ -14,7 +14,14 @@ import { join } from 'node:path'
 import type { DocCoverageConfig } from './config.js'
 import type { DocGraph, GraphEdge, GraphNode } from './types.js'
 import { DOCUMENTABLE_KINDS } from './types.js'
-import { PARAM_STOPLIST, tokenize, tokenSet, withSynonyms, diffTokens } from './tokenize.js'
+import {
+  PARAM_STOPLIST,
+  MEMBER_TOKEN_STOPLIST,
+  tokenize,
+  tokenSet,
+  withSynonyms,
+  diffTokens,
+} from './tokenize.js'
 import { changedFiles, lastCommitDate } from './git.js'
 
 /** Strip `#section` / `:fence:NN` to get the doc's repo-relative file path. */
@@ -52,10 +59,16 @@ function incomingIndex(graph: DocGraph): Map<string, GraphEdge[]> {
   return idx
 }
 
-/** The contract token set for a symbol: member names + non-stoplist param names. */
+/**
+ * The contract token set for a symbol: member-name tokens (minus the structural
+ * `MEMBER_TOKEN_STOPLIST`) plus non-stoplist param-name tokens. The two stoplists
+ * are separate because member names are tokenized then filtered per token, while
+ * param names are matched whole against `PARAM_STOPLIST` first.
+ */
 function contractTokens(node: GraphNode): Set<string> {
   const tokens = new Set<string>()
-  for (const m of node.jsdoc?.members ?? []) for (const t of tokenize(m)) tokens.add(t)
+  for (const m of node.jsdoc?.members ?? [])
+    for (const t of tokenize(m)) if (!MEMBER_TOKEN_STOPLIST.has(t)) tokens.add(t)
   for (const p of node.jsdoc?.params ?? []) {
     if (PARAM_STOPLIST.has(p.name.toLowerCase())) continue
     for (const t of tokenize(p.name)) tokens.add(t)
@@ -79,9 +92,11 @@ export function d2soft(graph: DocGraph, config: DocCoverageConfig): D2SoftFindin
   for (const node of documentableNodes(graph)) {
     const tokens = contractTokens(node)
     if (tokens.size === 0) continue
-    const edges = (incoming.get(node.id) ?? []).filter(
-      (e) => e.type === 'documents' || e.type === 'exemplifies'
-    )
+    // Only check pages that actually DOCUMENT the symbol (a declared `code:` /
+    // `@doc` / `<!-- doc:ref -->` edge), not pages that merely exemplify it in a
+    // fence. A page using a symbol as an example is not expected to enumerate its
+    // vocabulary; demanding that is the false-positive D2-soft is here to avoid.
+    const edges = (incoming.get(node.id) ?? []).filter((e) => e.type === 'documents')
     const pages = new Set(edges.map((e) => docFileOf(e.from)))
     for (const page of pages) {
       const key = `${node.id}|${page}`

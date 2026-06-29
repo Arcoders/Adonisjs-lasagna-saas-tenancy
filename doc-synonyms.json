@@ -1,0 +1,13 @@
+{
+  "assigned": ["assign"],
+  "phase": ["phases"],
+  "event": ["events"],
+  "plan": ["plans"],
+  "subscription": ["subscriptions"],
+  "customer": ["customers"],
+  "savepoint": ["savepoints"],
+  "recorded": ["recording", "records"],
+  "verify": ["verification", "verifies"],
+  "sign": ["signed"],
+  "discover": ["discovery"]
+}

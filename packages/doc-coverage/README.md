@@ -29,6 +29,25 @@ The design contract is the RFC at `docs/dev/doc-coverage-rfc.md`. The public
 learning page is `docs/guides/documentation-coverage.md`. The gate wrapper is
 `scripts/check-doc-coverage.mjs`.
 
+## Tuning D2-soft noise
+
+The advisory token-set diff (D2-soft) treats a symbol's method and parameter
+names as its vocabulary. Two levers keep the false-missing rate down, both meant
+to be edited as new code lands:
+
+- **Stoplists** in `src/tokenize.ts`. `MEMBER_TOKEN_STOPLIST` drops structural
+  method words (`get`, `clear`, `list`, a middleware `handle`); `PARAM_STOPLIST`
+  drops generic parameter names. Add a token here only if it is genuinely
+  structural; domain words (`meter`, `sync`, `verify`) must stay, so a real
+  capability gap still surfaces.
+- **`doc-synonyms.json`** at the repo root, shape `{ "canonical": ["alias", …] }`,
+  where the *canonical* is the contract token the diff reports and each *alias* is
+  the word the prose actually uses. The match expands both directions, so
+  `{"assigned": ["assign"]}` means prose saying "assign" satisfies a contract
+  token `assigned` and vice versa. Add an entry when a doc covers a concept under
+  a real word variant; prefer writing the missing prose over a synonym when the
+  concept is genuinely absent.
+
 ## Tests
 
 ```

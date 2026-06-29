@@ -242,11 +242,17 @@ All four passed. Three results are now binding design constraints.
    rule: D2/D3 derive the contract from the AST (body plus signature), with `@throws`/`@param` tags as
    an *optional supplement*. Driving them off tags alone would make both signals silent on most of the
    codebase.
-3. **D2-soft needs a param stoplist plus a synonyms map.** Against `quotas.md` the diff emitted
-   `missing: assigned, clear, opts`. `opts` is a generic param name (noise); `assigned` and `clear` are
-   morphological variants of documented words. Binding rule for B3: a param stoplist
-   (`opts, options, cb, fn, args, ctx, …`) and a `doc-synonyms.json` (`assign` maps to `assigned`, and
-   so on). This is why D2-soft is advisory, never a gate.
+3. **D2-soft needs a member + param stoplist plus a synonyms map, and checks `documents` edges only.**
+   Against `quotas.md` the spike diff emitted `missing: assigned, clear, opts`. `opts` is a generic param
+   name (noise); `assigned` and `clear` are morphological variants of documented words. The first full
+   repo run then showed the dominant noise is member (method) names: a symbol's vocabulary includes its
+   method names, and generic CRUD / lifecycle / framework verbs (`get`, `clear`, `list`, a middleware
+   `handle`) are not something a narrative doc should enumerate. Binding rules: (a) a param stoplist
+   (`opts, options, cb, fn, args, ctx, …`) plus a member-token stoplist (the structural-verb counterpart,
+   with domain words like `meter`/`sync`/`verify` deliberately kept as signal); (b) a `doc-synonyms.json`
+   (`assign` maps to `assigned`, and so on); (c) D2-soft fires only on pages with a `documents` edge to
+   the symbol, never on a page that merely exemplifies it in a fence, since an example is not expected to
+   enumerate the vocabulary. This is why D2-soft is advisory, never a gate.
 
 The D3 hash is stable under comment-only edits and changes under a param-type or throws change
 (regression-tested on fixtures). `typeToString` can shift on a **TS major** upgrade, so a TS-major bump
@@ -282,7 +288,7 @@ it, fails CI.
 
 - [x] D1, type-checked fences as `documents` edges (reuses `check-docs-code.mjs`, promoted to an edge source)
 - [x] D2-hard, dead `Symbol.member()` in prose, validated against the full member set (`warn` by default)
-- [x] D2-soft, token-set diff with param stoplist plus `doc-synonyms.json` (report)
+- [x] D2-soft, token-set diff with member + param stoplists plus `doc-synonyms.json`, on documents edges (report)
 - [x] D3, path-normalized contract-hash freshness, git-range and last-commit modes (report)
 - [x] D4, depth-bounded static reachability of a changed symbol, 1-2 hops ranked by distance (report)
 - [x] Coverage metric, explained / exemplified-only / uncovered, with configurable floors

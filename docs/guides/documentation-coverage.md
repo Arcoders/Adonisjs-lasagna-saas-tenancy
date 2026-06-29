@@ -116,7 +116,11 @@ is dangerous for a security-critical tone, so it is deliberately out of scope.
 - **D2, JSDoc and prose alignment.** The hard half is a gate: prose that calls
   `Symbol.method()` where the method no longer exists fails. The soft half is
   advisory: a token-set diff between the symbol's vocabulary and the linked
-  prose, reporting the **exact missing words, never a percentage**.
+  prose, reporting the **exact missing words, never a percentage**. It runs only
+  on a page that actually documents the symbol, not one that merely shows it in an
+  example, and it filters structural noise through a member and a parameter
+  stoplist plus a `doc-synonyms.json` map of word variants. To add a variant, see
+  the doc-coverage package README.
 - **D3, freshness (advisory).** A page is flagged only when the symbol's
   **contract** changed since the page was last edited, where the contract is the
   signature plus the thrown exceptions, never the comments. A body-only change is
@@ -190,7 +194,8 @@ code:
 ```
 
 - a JSDoc tag on the symbol: `@doc docs/guides/satellites/quotas.md#middleware`
-- an inline marker in the prose: `<!-- doc:ref @adonisjs-lasagna/saas-tenancy/services#QuotaService -->`
+- an inline marker in the prose: `<!-- doc:ref module#Symbol -->`, using the same
+  `module#Symbol` public path as the front-matter form above
 
 **Suppress a false positive** with a reason, the same auditable pattern as the
 existing `<!-- compile: skip -->` directive:
