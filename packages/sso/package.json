@@ -42,7 +42,7 @@
   "lasagnaSatellite": {
     "name": "sso",
     "satelliteApi": 1,
-    "minMergedCoverage": { "lines": 88, "functions": 58, "branches": 95 },
+    "minMergedCoverage": { "lines": 98, "functions": 73, "branches": 97 },
     "aliases": ["sso"],
     "migrations": "stubs/migrations",
     "install": [

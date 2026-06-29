@@ -62,9 +62,9 @@
     "name": "reporting",
     "satelliteApi": 1,
     "minMergedCoverage": {
-      "lines": 90,
-      "functions": 92,
-      "branches": 90
+      "lines": 96,
+      "functions": 97,
+      "branches": 93
     },
     "provider": "@adonisjs-lasagna/reporting/provider",
     "commands": "@adonisjs-lasagna/reporting/commands",
