@@ -15,6 +15,12 @@ import { destructiveLockFailClosed } from '../config.js'
 // `TenantCloned` event carry it); re-exported here for this package's consumers.
 export type { CloneResult }
 
+/**
+ * Options controlling a tenant clone: whether to copy only the schema (the table
+ * structure without any rows) and whether to clear the destination tenant's
+ * sessions after the copy, so users of the freshly cloned tenant start logged out
+ * rather than inheriting the source's live sessions.
+ */
 export interface CloneOptions {
   schemaOnly: boolean
   clearSessions: boolean
@@ -22,6 +28,14 @@ export interface CloneOptions {
 
 const MIGRATION_TABLES = new Set(['adonis_schema', 'adonis_schema_versions'])
 
+/**
+ * Clones one tenant into another by provisioning fresh per-tenant storage for the
+ * destination and copying the source's schema (and optionally its data) across,
+ * table by table, inside a single transaction. It locks the source so a clone
+ * cannot race a concurrent restore or backup, and requires a provisionable
+ * isolation driver, since a shared-storage driver has no per-tenant storage to
+ * provision for the destination.
+ */
 export default class CloneService {
   async clone(
     source: TenantModelContract,

@@ -13,6 +13,12 @@ interface BackupTenantPayload {
   tenantId: string
 }
 
+/**
+ * Queue job that backs up a single tenant. It resolves the tenant, runs the
+ * before and after `backup` lifecycle hooks around `BackupService.backup`, and
+ * dispatches the `TenantBackedUp` event with the resulting archive metadata, all
+ * inside the tenant's log context so the work is attributable to that tenant.
+ */
 export default class BackupTenant extends Job<BackupTenantPayload> {
   static options = { name: 'lasagna.BackupTenant' }
 

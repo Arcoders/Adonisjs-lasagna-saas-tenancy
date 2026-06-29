@@ -14,6 +14,12 @@ const DEFAULT_RETENTION: BackupRetentionConfig = {
   },
 }
 
+/**
+ * The outcome of evaluating a tenant's retention policy: the backups preserved
+ * on disk or in object storage after retention runs, and the older archives that
+ * would be (or were) purged. Returned by `planRetention` and `applyRetention` so
+ * a caller can inspect the decision before or confirm it after deletion.
+ */
 export interface RetentionPlan {
   /** Files preserved on disk/S3 after retention is applied. */
   kept: BackupMetadata[]
@@ -21,6 +27,13 @@ export interface RetentionPlan {
   purged: BackupMetadata[]
 }
 
+/**
+ * Decides per-tenant backup retention from each tenant's configured tier. It
+ * resolves the tier (honoring a host `getTier` hook), tells whether a tenant is
+ * due for a fresh backup from the tier's interval, and computes or applies which
+ * archives to keep versus purge, newest first. Deletion is best-effort, so one
+ * failed archive removal does not abort retention across the rest of the list.
+ */
 export default class BackupRetentionService {
   readonly #backups: BackupService
 

@@ -35,6 +35,14 @@ async function logWarn(payload: Record<string, unknown>, msg: string): Promise<v
 // the character class.
 const FILE_PATTERN = /^[A-Za-z0-9._-]+\.dump$/
 
+/**
+ * Per-tenant logical backup service. It shells out to `pg_dump` to write a
+ * tenant's schema and data to a timestamped `.dump` archive under the configured
+ * storage path (or object storage), records and lists archive metadata in Redis,
+ * restores a tenant from a named dump, and deletes archives. Every operation is
+ * guarded by a tenant operation lock and strict filename validation so one
+ * tenant can never read or overwrite another's archives.
+ */
 export default class BackupService {
   private getBackupDir(tenantId: string): string {
     return join(backupConfig().storagePath, tenantId)

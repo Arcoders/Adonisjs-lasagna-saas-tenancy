@@ -81,7 +81,13 @@ export interface SymbolContract {
   jsdoc: JsDocContract
 }
 
-function descriptionWordCount(checker: ts.TypeChecker, symbol: ts.Symbol): number {
+/**
+ * Word count of a symbol's leading JSDoc description (excluding `@param`/`@returns`
+ * tags). Reads from the aliased original declaration, so it works for a class, a
+ * function, OR an interface/type re-exported through a barrel. The coverage metric
+ * treats a description of >= 20 words as "explained".
+ */
+export function descriptionWordCount(checker: ts.TypeChecker, symbol: ts.Symbol): number {
   const text = ts.displayPartsToString(symbol.getDocumentationComment(checker)).trim()
   return text ? text.split(/\s+/).length : 0
 }

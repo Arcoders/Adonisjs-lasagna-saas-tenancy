@@ -10,7 +10,7 @@
 import ts from 'typescript'
 import { relative } from 'node:path'
 import type { GraphNode } from './types.js'
-import { buildSymbolContract } from './contract.js'
+import { buildSymbolContract, descriptionWordCount } from './contract.js'
 import { conventionKind, readKindDoc, resolveKind } from './kinds.js'
 
 export interface BarrelSpec {
@@ -114,6 +114,18 @@ export function buildCodeNodes(
         const contract = buildSymbolContract(checker, aliased, file)
         jsdoc = contract.jsdoc
         signatureHash = contract.contractString ? contract.hash : null
+      } else {
+        // Interfaces / type aliases / enums have no method contract to hash, but a
+        // substantial JSDoc description still documents them. Capture just the
+        // description word count so the coverage metric can credit it.
+        jsdoc = {
+          members: [],
+          allMembers: [],
+          params: [],
+          throws: [],
+          returnsTypeStr: null,
+          descriptionWordCount: descriptionWordCount(checker, aliased),
+        }
       }
 
       const publicPath = `${barrel.publicScope}#${exportName}`

@@ -14,6 +14,12 @@ interface RestoreTenantPayload {
   fileName: string
 }
 
+/**
+ * Queue job that restores a single tenant from a named backup archive. It
+ * resolves the tenant, runs the before and after `restore` lifecycle hooks around
+ * `BackupService.restore`, and dispatches the `TenantRestored` event, all within
+ * the tenant's log context so the restore is attributable to that tenant.
+ */
 export default class RestoreTenant extends Job<RestoreTenantPayload> {
   static options = { name: 'lasagna.RestoreTenant' }
 

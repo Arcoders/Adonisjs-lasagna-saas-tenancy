@@ -10,7 +10,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import ts from 'typescript'
-import { buildSymbolContract } from '../src/contract.js'
+import { buildSymbolContract, descriptionWordCount } from '../src/contract.js'
 import { tokenize, diffTokens, withSynonyms, tokenSet } from '../src/tokenize.js'
 
 const OPTS: ts.CompilerOptions = {
@@ -79,6 +79,34 @@ test('contract hash is path-free (no absolute import paths)', () => {
   // Two temp dirs produce different absolute paths; the hash must not encode them.
   const src = fixture('  /** d */', 'number', 'RangeError')
   assert.equal(hashOf(src), hashOf(src))
+})
+
+test('descriptionWordCount counts an interface JSDoc description (not just classes)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'doccov-iface-'))
+  const file = join(dir, 'sample.ts').replace(/\\/g, '/')
+  try {
+    writeFileSync(
+      file,
+      `/**
+ * Options controlling a tenant clone: whether to copy only the schema and
+ * whether to clear the destination tenant sessions after the copy completes.
+ */
+export interface CloneOptions {
+  schemaOnly: boolean
+  clearSessions: boolean
+}
+`
+    )
+    const program = ts.createProgram([file], OPTS)
+    const checker = program.getTypeChecker()
+    const mod = checker.getSymbolAtLocation(program.getSourceFile(file)!)!
+    const exp = checker.getExportsOfModule(mod).find((s) => s.getName() === 'CloneOptions')!
+    const sym = exp.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exp) : exp
+    // The leading description is ~20 words; tags would not count, but there are none.
+    assert.ok(descriptionWordCount(checker, sym) >= 18, 'an interface description is counted')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('tokenize splits camelCase and snake_case, drops short tokens', () => {

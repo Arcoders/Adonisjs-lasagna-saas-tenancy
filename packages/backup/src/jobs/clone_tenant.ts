@@ -10,6 +10,11 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantCloned } from '@adonisjs-lasagna/saas-tenancy/events'
 
+/**
+ * The queue payload for a `CloneTenant` job: the source and destination tenant
+ * ids plus the clone options (schema-only and clear-sessions) needed to reproduce
+ * the clone on a worker without re-reading any request state.
+ */
 export interface CloneTenantPayload {
   sourceTenantId: string
   destinationTenantId: string
@@ -17,6 +22,12 @@ export interface CloneTenantPayload {
   clearSessions: boolean
 }
 
+/**
+ * Queue job that clones one tenant into another. It loads both tenants, runs the
+ * before and after `clone` lifecycle hooks around `CloneService.clone`, registers
+ * a tenant queue for the new destination, and dispatches the `TenantCloned` event
+ * with the copy result, all inside the destination tenant's log context.
+ */
 export default class CloneTenant extends Job<CloneTenantPayload> {
   static options = { name: 'lasagna.CloneTenant' }
 
