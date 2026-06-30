@@ -2,6 +2,7 @@ import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import MultitenancyProvider from '@adonisjs-lasagna/saas-tenancy/providers/multitenancy_provider'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
+import { createResolverStateBaseline } from '@adonisjs-lasagna/saas-tenancy/internal'
 
 /**
  * WS-4 / membership-idor-gate-opt-in-no-runtime-signal — real provider wiring.
@@ -24,10 +25,17 @@ test.group('membership-gate boot warning — real provider wiring (integration)'
   group.each.setup(async () => {
     const originalCfg = getConfig()
     const originalLogger = await app.container.make('logger')
+    // bootWith() re-runs the provider, which rewires the resolver registry chain
+    // in place. Snapshot it here and restore it in teardown so a re-boot with a
+    // non-header strategy cannot leak into later specs (the config-baseline guard
+    // only restores the config, not the registry singleton derived from it).
+    const resolverBaseline = await createResolverStateBaseline(app)
+    const originalChain = resolverBaseline.capture()
     restore = () => {
       setConfig(originalCfg)
       app.config.set('multitenancy', originalCfg)
       app.container.bindValue('logger', originalLogger)
+      resolverBaseline.restore(originalChain)
     }
   })
 

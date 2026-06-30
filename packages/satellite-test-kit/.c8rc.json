@@ -5,7 +5,9 @@
     "src/runner_logic.ts",
     "src/guarantees.ts",
     "src/repo_root.ts",
-    "src/guarantee_tree.ts"
+    "src/guarantee_tree.ts",
+    "src/baseline_guard.ts",
+    "src/spec_order.ts"
   ],
   "exclude": ["src/**/*.d.ts"],
   "reporter": ["text-summary", "lcov"],

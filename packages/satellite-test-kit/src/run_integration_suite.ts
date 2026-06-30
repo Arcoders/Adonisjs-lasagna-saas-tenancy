@@ -8,6 +8,8 @@ import {
   resolveSpecImport,
 } from './runner_logic.js'
 import { resolveSuiteGlobs } from './guarantees.js'
+import { resolveOrderedSpecFiles } from './spec_order.js'
+import type { Baseline } from './baseline_guard.js'
 
 export interface RunIntegrationSuiteOptions {
   /**
@@ -102,22 +104,43 @@ export async function runIntegrationSuite(options: RunIntegrationSuiteOptions): 
       const { plugins, runnerHooks, configureSuite } = await import('./bootstrap.js')
 
       // Isolation backstop: the suite boots one app, so every spec shares the
-      // config singleton. This guard snapshots the boot config on the first group
-      // and restores it after any group that left it swapped, so one spec's leaked
-      // `setConfig` can never poison the next (Japa runs files in undefined order).
-      // The emits are not awaited, so the handlers must be synchronous; restoring
-      // the config is sync, so they are.
+      // process-level singletons (the config, the tenant resolver registry, the
+      // resolution caches). These guards snapshot the boot baseline on the first
+      // group and restore any that a group left drifted, so one spec's leaked
+      // mutation can never poison the next (Japa runs files in undefined order).
+      // The emits are not awaited, so the handlers must be synchronous; capture
+      // and restore are sync, so they are (any async work, like resolving a
+      // container singleton, happens here while building the baseline).
       const { getConfig, setConfig } = await import('@adonisjs-lasagna/saas-tenancy/config')
-      const { createConfigBaselineGuard } = await import('./config_baseline.js')
-      const configGuard = createConfigBaselineGuard({
-        getConfig,
-        setConfig,
-        warn: (message) => console.warn(message),
-      })
+      const { createBaselineGuards } = await import('./baseline_guard.js')
+      const baselines: Baseline<unknown>[] = [
+        {
+          name: 'multitenancy config',
+          capture: () => getConfig() as unknown,
+          // A correct restore re-installs the same frozen baseline object, so an
+          // identity difference is a real, un-restored swap.
+          equals: (a, b) => Object.is(a, b),
+          restore: (baseline) => setConfig(baseline as never),
+        },
+      ]
+      // Auto-load core's resolver-state baseline (registry chain + module caches)
+      // the same way the config baseline is loaded: best-effort, post-boot, via a
+      // core subpath. A non-core fixture without the export is simply skipped.
+      try {
+        const internal = (await import('@adonisjs-lasagna/saas-tenancy/internal')) as {
+          createResolverStateBaseline?: (app: unknown) => Promise<Baseline<unknown>>
+        }
+        if (typeof internal.createResolverStateBaseline === 'function') {
+          baselines.push(await internal.createResolverStateBaseline(app))
+        }
+      } catch {
+        // Fixture is not core / does not expose the resolver baseline; skip it.
+      }
+      const baselineGuard = createBaselineGuards(baselines, (message) => console.warn(message))
       const configBaselinePlugin = ({ emitter }: { emitter: any }): void => {
-        emitter.on('group:start', () => configGuard.onGroupStart())
+        emitter.on('group:start', () => baselineGuard.onGroupStart())
         emitter.on('group:end', (payload: { title?: string }) =>
-          configGuard.onGroupEnd(payload?.title ?? '(unknown group)')
+          baselineGuard.onGroupEnd(payload?.title ?? '(unknown group)')
         )
       }
 
@@ -128,9 +151,15 @@ export async function runIntegrationSuite(options: RunIntegrationSuiteOptions): 
       // where the same glob would point elsewhere. We mutate the suite
       // definition rather than adding a top-level `files` list so the
       // suite-level `configureSuite` hook still applies.
+      // Resolve the globs to a deterministically sorted file list (a `files`
+      // thunk), instead of letting japa fast-glob them in arbitrary order. Stable
+      // order makes the run reproducible and immune to directory-tree changes,
+      // which is what turns a cross-spec state leak from intermittent into
+      // catchable. The thunk form returns file URLs verbatim (see spec_order.ts).
+      const orderedFiles = (): Promise<URL[]> => resolveOrderedSpecFiles(suiteGlobs, process.cwd())
       const suites = (app.rcFile.tests.suites ?? []).map((s) => ({
         ...s,
-        files: suiteGlobs,
+        files: orderedFiles,
         directories: suiteDirectories,
       }))
       configure({

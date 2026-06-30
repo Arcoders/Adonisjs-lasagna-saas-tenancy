@@ -11,11 +11,17 @@
 import { configure, processCLIArgs, run } from '@japa/runner'
 import { assert } from '@japa/assert'
 import { guaranteeGlobs, type GuaranteeGlobsOptions } from './guarantees.js'
+import { resolveOrderedSpecFiles } from './spec_order.js'
 
 /**
  * Run a package's unit suite: the guarantee unit-leaf specs plus, when
  * `withArchitecture` is set, the architecture specs (globs from
  * {@link guaranteeGlobs}).
+ *
+ * Files are resolved through {@link resolveOrderedSpecFiles} so the run order is
+ * deterministic (sorted), matching the integration runner; passing a `files`
+ * thunk bypasses japa's unsorted fast-glob discovery while keeping its default
+ * file-URL contract.
  *
  * No `reporters` is passed on purpose. Japa's default is already the spec
  * reporter (spec locally, spec+github under GitHub Actions, dot under an AI
@@ -24,8 +30,9 @@ import { guaranteeGlobs, type GuaranteeGlobsOptions } from './guarantees.js'
  */
 export function runUnitSuite(options: GuaranteeGlobsOptions = {}): void {
   processCLIArgs(process.argv.splice(2))
+  const globs = guaranteeGlobs(options).unit
   configure({
-    files: guaranteeGlobs(options).unit,
+    files: () => resolveOrderedSpecFiles(globs, process.cwd()),
     plugins: [assert()],
   })
   run()

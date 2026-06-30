@@ -25,3 +25,8 @@ export { isProvisionableDriver } from './services/isolation/driver.js'
 export { splitSqlStatementsTagged } from './utils/sql_splitter.js'
 export { buildTestTenant } from './testing/builders.js'
 export type { BuildTestTenantOverrides } from './testing/builders.js'
+// Integration-isolation baseline for the resolver chain, consumed by the shared
+// test harness (satellite-test-kit) to restore the registry between groups. Pure
+// (imports only the registry class), so it does not break /internal boot-safety.
+export { createResolverStateBaseline } from './testing/resolver_baseline.js'
+export type { ResolverStateBaseline } from './testing/resolver_baseline.js'

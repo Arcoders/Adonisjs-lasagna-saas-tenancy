@@ -21,6 +21,9 @@
     "test": "tsx bin/test.ts",
     "test:coverage": "c8 --temp-directory=../../coverage/.v8/test-kit-unit tsx bin/test.ts"
   },
+  "dependencies": {
+    "fast-glob": "^3.3.3"
+  },
   "devDependencies": {
     "@adonisjs-lasagna/saas-tenancy": "*"
   }
