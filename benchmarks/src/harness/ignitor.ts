@@ -11,8 +11,18 @@
 import 'reflect-metadata'
 import { Ignitor } from '@adonisjs/core'
 import type { ApplicationService } from '@adonisjs/core/types'
+import { fileURLToPath } from 'node:url'
 
-const FIXTURE_ROOT = new URL('../../fixture/', import.meta.url)
+/** Root of the bench fixture app (the dir holding adonisrc + bin/). */
+export const FIXTURE_ROOT = new URL('../../fixture/', import.meta.url)
+
+/**
+ * Absolute path to the fixture's HTTP server entry. Single-sourced here, derived
+ * from FIXTURE_ROOT, so the tiers that spawn the server (http, isolation,
+ * resilience) never recompute a `../fixture` / `../../fixture` relative path that
+ * silently breaks when a tier moves between directory depths.
+ */
+export const FIXTURE_SERVER_ENTRY = fileURLToPath(new URL('bin/server.ts', FIXTURE_ROOT))
 
 const IMPORTER = (filePath: string) => {
   if (filePath.startsWith('./') || filePath.startsWith('../')) {

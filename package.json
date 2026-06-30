@@ -52,6 +52,7 @@
     "check:doc-paths": "node scripts/check-doc-paths.mjs",
     "check:positioning": "node scripts/check-positioning.mjs",
     "check:japa-thunk": "node scripts/check-japa-thunk-contract.mjs",
+    "check:bench-paths": "node scripts/check-bench-paths.mjs",
     "scaffold:tests": "tsx scripts/scaffold_test_tree.ts",
     "knip": "knip --no-exit-code",
     "knip:deps": "knip --include dependencies",

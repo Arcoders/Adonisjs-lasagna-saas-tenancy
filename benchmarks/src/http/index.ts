@@ -7,8 +7,12 @@
  *   BENCH_DRIVER=schema-pg npm run bench:http
  */
 import { spawn } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
-import { bootBenchApp, terminateBenchApp, getDb } from '../harness/ignitor.js'
+import {
+  bootBenchApp,
+  terminateBenchApp,
+  getDb,
+  FIXTURE_SERVER_ENTRY as SERVER_ENTRY,
+} from '../harness/ignitor.js'
 import { seedAll, pgVersion } from '../harness/provision.js'
 import { printResults } from '../harness/runner.js'
 import { writeResult } from '../harness/results.js'
@@ -18,7 +22,6 @@ import { runHttpLoad } from './load.bench.js'
 const HOST = '127.0.0.1'
 const PORT = Number(process.env.BENCH_HTTP_PORT ?? 3344)
 const BASE_URL = `http://${HOST}:${PORT}`
-const SERVER_ENTRY = fileURLToPath(new URL('../fixture/bin/server.ts', import.meta.url))
 
 async function waitForReady(timeoutMs = 30_000): Promise<void> {
   const deadline = Date.now() + timeoutMs

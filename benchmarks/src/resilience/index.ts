@@ -16,8 +16,12 @@
  *     BENCH_DRIVER=schema-pg npm run bench:resilience
  */
 import { spawn, execFileSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
-import { bootBenchApp, terminateBenchApp, getDb } from '../harness/ignitor.js'
+import {
+  bootBenchApp,
+  terminateBenchApp,
+  getDb,
+  FIXTURE_SERVER_ENTRY as SERVER_ENTRY,
+} from '../harness/ignitor.js'
 import { seedAll, pgVersion } from '../harness/provision.js'
 import { printMetricResults, zeroMetric, type BenchResult } from '../harness/runner.js'
 import { writeResult } from '../harness/results.js'
@@ -27,7 +31,6 @@ const HOST = '127.0.0.1'
 const PORT = Number(process.env.BENCH_RESILIENCE_PORT ?? 3366)
 const BASE_URL = `http://${HOST}:${PORT}`
 const HEADER = process.env.TENANT_HEADER_KEY ?? 'x-tenant-id'
-const SERVER_ENTRY = fileURLToPath(new URL('../../fixture/bin/server.ts', import.meta.url))
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
