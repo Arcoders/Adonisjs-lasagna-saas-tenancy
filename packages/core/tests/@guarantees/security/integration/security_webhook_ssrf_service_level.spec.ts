@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import { WebhookService } from '@adonisjs-lasagna/saas-tenancy/services'
+import type { SafeFetchOptions } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
 import { makeDelivery, makeHook } from '../../../helpers/webhook_doubles.js'
 
 process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
@@ -9,8 +10,10 @@ process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
  * URL guard classifies every encoding (tests/unit/utils/url.spec.ts); this
  * spec proves `WebhookService.send()` actually consults the guard for each
  * of those encodings — a persisted URL in ANY blocked notation must mark
- * the delivery permanently failed without a single fetch. Guards the
- * security.md/webhooks.md SSRF promise at the boundary attackers reach.
+ * the delivery permanently failed without delivering. The block lives inside
+ * the real transport (safeFetch), so these run against the production default,
+ * not an injected double. Guards the security.md/webhooks.md SSRF promise at the
+ * boundary attackers reach.
  */
 
 const BLOCKED_TARGETS: Array<[label: string, url: string]> = [
@@ -27,30 +30,16 @@ const BLOCKED_TARGETS: Array<[label: string, url: string]> = [
   ['non-https scheme', 'http://example.com/webhook'],
 ]
 
-test.group('WebhookService.send() — SSRF encoding matrix', (group) => {
-  let originalFetch: typeof globalThis.fetch
+test.group('WebhookService.send() — SSRF encoding matrix', () => {
+  // The real default transport (safeFetch) enforces the SSRF block, so each case
+  // runs against it. A blocked target must fail closed before any byte leaves.
   const svc = new WebhookService()
-
-  group.each.setup(() => {
-    originalFetch = globalThis.fetch
-  })
-
-  group.each.teardown(() => {
-    globalThis.fetch = originalFetch
-  })
 
   for (const [label, url] of BLOCKED_TARGETS) {
     test(`blocks ${label} — ${url}`, async ({ assert }) => {
-      let fetchCalled = false
-      globalThis.fetch = (async () => {
-        fetchCalled = true
-        return { ok: true, status: 200, text: async () => '{}' }
-      }) as unknown as typeof fetch
-
       const delivery = makeDelivery()
       await svc.send(makeHook({ url }) as any, delivery as any)
 
-      assert.isFalse(fetchCalled, `fetch must never run for ${url}`)
       assert.equal(delivery.status, 'failed')
       assert.match(String(delivery.responseBody), /blocked_unsafe_url/)
       // Permanently failed: no retry sweep may pick it up — retrying an
@@ -61,27 +50,22 @@ test.group('WebhookService.send() — SSRF encoding matrix', (group) => {
 
   // SECURITY (#8): the URL guard validated the front door, but a 3xx Location is
   // chosen by the (attacker-influenced) receiver and the guard never sees it.
-  // send() must pin redirect:'manual' and treat a 3xx as a permanent failure,
-  // never following it to an internal/metadata host.
+  // safeFetch never follows a redirect (the pinned transport surfaces the 3xx
+  // itself), and send() must treat a 3xx as a permanent failure, never following
+  // it to an internal/metadata host. The double returns a 302 to assert exactly
+  // that classification (a single attempt, no follow).
   test('does not follow a 3xx redirect from a validated target', async ({ assert }) => {
-    let fetchCount = 0
-    let usedManualRedirect = false
-    globalThis.fetch = (async (_url: unknown, init: any) => {
-      fetchCount++
-      if (init?.redirect === 'manual') usedManualRedirect = true
-      return {
-        ok: false,
-        status: 302,
-        headers: { get: () => 'http://169.254.169.254/' },
-        text: async () => '',
-      }
-    }) as unknown as typeof fetch
+    let calls = 0
+    const transport = async (_url: string, _opts: SafeFetchOptions): Promise<Response> => {
+      calls++
+      return new Response(null, { status: 302, headers: { location: 'http://169.254.169.254/' } })
+    }
+    const svc302 = new WebhookService({ transport })
 
     const delivery = makeDelivery()
-    await svc.send(makeHook({ url: 'https://example.com/webhook' }) as any, delivery as any)
+    await svc302.send(makeHook({ url: 'https://example.com/webhook' }) as any, delivery as any)
 
-    assert.isTrue(usedManualRedirect, "send() must request redirect:'manual'")
-    assert.equal(fetchCount, 1, 'the redirect must NOT be followed (single fetch)')
+    assert.equal(calls, 1, 'the redirect must NOT be followed (single delivery attempt)')
     assert.equal(delivery.status, 'failed')
     assert.match(String(delivery.responseBody), /blocked_redirect:302/)
     assert.isNull(delivery.nextRetryAt, 'a redirect is a permanent, non-retryable failure')
@@ -90,14 +74,12 @@ test.group('WebhookService.send() — SSRF encoding matrix', (group) => {
   test('the matrix is not fail-everything: a public https url still delivers', async ({
     assert,
   }) => {
-    globalThis.fetch = (async () => ({
-      ok: true,
-      status: 200,
-      text: async () => '{}',
-    })) as unknown as typeof fetch
+    const transport = async (_url: string, _opts: SafeFetchOptions): Promise<Response> =>
+      new Response('{}', { status: 200 })
+    const svcOk = new WebhookService({ transport })
 
     const delivery = makeDelivery()
-    await svc.send(makeHook({ url: 'https://example.com/webhook' }) as any, delivery as any)
+    await svcOk.send(makeHook({ url: 'https://example.com/webhook' }) as any, delivery as any)
 
     assert.equal(delivery.status, 'success')
   })

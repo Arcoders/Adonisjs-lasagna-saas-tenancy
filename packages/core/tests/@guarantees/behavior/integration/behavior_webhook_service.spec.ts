@@ -1,74 +1,87 @@
 import { test } from '@japa/runner'
 import { createHmac } from 'node:crypto'
 import { WebhookService, verifyWebhookSignature } from '@adonisjs-lasagna/saas-tenancy/services'
-import { encrypt } from '@adonisjs-lasagna/saas-tenancy'
+import { encrypt, writeSecret } from '@adonisjs-lasagna/saas-tenancy'
+import type { SafeFetchOptions } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
 import { makeDelivery, makeHook } from '../../../helpers/webhook_doubles.js'
 
 process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
 
-type FakeFetch = (
-  url: unknown,
-  init?: RequestInit
-) => Promise<{ ok: boolean; status: number; text: () => Promise<string> }>
-
-function makeFetch(status: number, body = '{}'): FakeFetch {
-  return async (_url, _init) => ({
-    ok: status >= 200 && status < 300,
-    status,
-    text: async () => body,
-  })
+/**
+ * Delivery is exercised through the WebhookService transport seam, not by
+ * monkeypatching `globalThis.fetch`. The production transport is the pinned
+ * `safeFetch`, which connects via `node:https.request` and never touches the
+ * global `fetch`, so stubbing that global would silently test nothing. Injecting
+ * the transport keeps these assertions on the real `send()` state machine while
+ * the SSRF-block and secret-fail-closed paths below still run against the real
+ * `safeFetch` default (a double would bypass the very guard they assert).
+ */
+interface TransportCall {
+  url: string
+  opts: SafeFetchOptions
 }
 
-test.group('WebhookService.send() — delivery state machine', (group) => {
-  let originalFetch: typeof globalThis.fetch
-  const svc = new WebhookService()
+/** A transport double that returns a fixed Response and records each call. */
+function recordingTransport(status: number, body = '{}') {
+  const calls: TransportCall[] = []
+  const transport = async (url: string, opts: SafeFetchOptions): Promise<Response> => {
+    calls.push({ url, opts })
+    return new Response(body, { status })
+  }
+  return { calls, transport }
+}
 
-  group.each.setup(() => {
-    originalFetch = globalThis.fetch
-  })
+/** A transport double that throws, to exercise the network-error path. */
+function throwingTransport(message: string) {
+  const calls: TransportCall[] = []
+  const transport = async (url: string, opts: SafeFetchOptions): Promise<Response> => {
+    calls.push({ url, opts })
+    throw new Error(message)
+  }
+  return { calls, transport }
+}
 
-  group.each.teardown(() => {
-    globalThis.fetch = originalFetch
-  })
+function headersOf(call: TransportCall): Record<string, string> {
+  return (call.opts.headers ?? {}) as Record<string, string>
+}
 
-  test('refuses to deliver to an SSRF-unsafe url and never calls fetch', async ({ assert }) => {
-    let fetchCalled = false
-    globalThis.fetch = (async () => {
-      fetchCalled = true
-      return { ok: true, status: 200, text: async () => '{}' }
-    }) as unknown as typeof fetch
-
-    // Cloud metadata IP — the kind of target the SSRF guard must block at the
-    // fetch boundary even when the URL was persisted bypassing the admin
-    // controller (direct service call, prior version, DNS rebind).
-    const hook = makeHook({ url: 'http://169.254.169.254/latest/meta-data/' })
+test.group('WebhookService.send() — delivery state machine', () => {
+  test('refuses to deliver to an SSRF-unsafe url and fails closed without delivering', async ({
+    assert,
+  }) => {
+    // Real default transport (safeFetch): a cloud-metadata IP is the kind of
+    // target the SSRF guard must block at the delivery boundary even when the URL
+    // was persisted bypassing the admin controller (direct service call, prior
+    // version, DNS rebind). The block lives inside safeFetch, so this case runs
+    // against the real transport rather than a double.
+    const svc = new WebhookService()
+    const hook = makeHook({ url: 'https://169.254.169.254/latest/meta-data/' })
     const delivery = makeDelivery()
 
     await svc.send(hook as any, delivery as any)
 
-    assert.isFalse(fetchCalled, 'fetch must not be invoked for an unsafe url')
     assert.equal(delivery.status, 'failed')
     assert.match(String(delivery.responseBody), /blocked_unsafe_url/)
     assert.isNull(delivery.nextRetryAt)
   })
 
   test('sets status to success on 2xx response', async ({ assert }) => {
-    globalThis.fetch = makeFetch(200) as unknown as typeof fetch
-    const hook = makeHook()
+    const { transport } = recordingTransport(200)
+    const svc = new WebhookService({ transport })
     const delivery = makeDelivery()
 
-    await svc.send(hook as any, delivery as any)
+    await svc.send(makeHook() as any, delivery as any)
 
     assert.equal(delivery.status, 'success')
     assert.equal(delivery.statusCode, 200)
   })
 
   test('sets status to retrying on non-2xx response when attempts remain', async ({ assert }) => {
-    globalThis.fetch = makeFetch(500) as unknown as typeof fetch
-    const hook = makeHook()
+    const { transport } = recordingTransport(500)
+    const svc = new WebhookService({ transport })
     const delivery = makeDelivery({ attempt: 1 })
 
-    await svc.send(hook as any, delivery as any)
+    await svc.send(makeHook() as any, delivery as any)
 
     assert.equal(delivery.status, 'retrying')
     assert.equal(delivery.statusCode, 500)
@@ -79,25 +92,22 @@ test.group('WebhookService.send() — delivery state machine', (group) => {
   test('sets status to failed on non-2xx response when max attempts reached', async ({
     assert,
   }) => {
-    globalThis.fetch = makeFetch(500) as unknown as typeof fetch
-    const hook = makeHook()
+    const { transport } = recordingTransport(500)
+    const svc = new WebhookService({ transport })
     const delivery = makeDelivery({ attempt: 5 })
 
-    await svc.send(hook as any, delivery as any)
+    await svc.send(makeHook() as any, delivery as any)
 
     assert.equal(delivery.status, 'failed')
     assert.equal(delivery.statusCode, 500)
   })
 
   test('sets status to retrying on network error when attempts remain', async ({ assert }) => {
-    globalThis.fetch = (async () => {
-      throw new Error('Connection refused')
-    }) as unknown as typeof fetch
-
-    const hook = makeHook()
+    const { transport } = throwingTransport('Connection refused')
+    const svc = new WebhookService({ transport })
     const delivery = makeDelivery({ attempt: 2 })
 
-    await svc.send(hook as any, delivery as any)
+    await svc.send(makeHook() as any, delivery as any)
 
     assert.equal(delivery.status, 'retrying')
     assert.isNull(delivery.statusCode)
@@ -106,49 +116,55 @@ test.group('WebhookService.send() — delivery state machine', (group) => {
   })
 
   test('sets status to failed on network error when max attempts reached', async ({ assert }) => {
-    globalThis.fetch = (async () => {
-      throw new Error('ECONNREFUSED')
-    }) as unknown as typeof fetch
-
-    const hook = makeHook()
+    const { transport } = throwingTransport('ECONNREFUSED')
+    const svc = new WebhookService({ transport })
     const delivery = makeDelivery({ attempt: 5 })
 
-    await svc.send(hook as any, delivery as any)
+    await svc.send(makeHook() as any, delivery as any)
 
     assert.equal(delivery.status, 'failed')
     assert.isNull(delivery.statusCode)
   })
 
+  test('does not follow a 3xx redirect: a 300..399 is a permanent failure', async ({ assert }) => {
+    // safeFetch never follows a redirect (the pinned transport surfaces the 3xx
+    // itself); send() treats it as terminal. The double returns a 302 to prove
+    // send() classifies it as a permanent, non-retryable failure.
+    const { transport, calls } = recordingTransport(302)
+    const svc = new WebhookService({ transport })
+    const delivery = makeDelivery()
+
+    await svc.send(makeHook() as any, delivery as any)
+
+    assert.equal(calls.length, 1, 'the redirect must NOT be followed (single delivery attempt)')
+    assert.equal(delivery.status, 'failed')
+    assert.match(String(delivery.responseBody), /blocked_redirect:302/)
+    assert.isNull(delivery.nextRetryAt)
+  })
+
   test('adds HMAC signature header when hook has a secret', async ({ assert }) => {
     const secret = 'webhook-signing-secret'
-    const encryptedSecret = encrypt(secret)
-    const capturedHeaders: Record<string, string> = {}
+    const { transport, calls } = recordingTransport(200)
+    const svc = new WebhookService({ transport })
 
-    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
-      Object.assign(capturedHeaders, init?.headers as Record<string, string>)
-      return { ok: true, status: 200, text: async () => '{}' }
-    }) as unknown as typeof fetch
-
-    const hook = makeHook({ secret: encryptedSecret })
+    const hook = makeHook({ secret: writeSecret(secret, 'webhookSecret') })
     const delivery = makeDelivery()
 
     await svc.send(hook as any, delivery as any)
 
-    assert.property(capturedHeaders, 'x-webhook-signature')
+    const headers = headersOf(calls[0])
+    assert.property(headers, 'x-webhook-signature')
 
     const body = JSON.stringify(delivery.payload)
     const expectedSig = createHmac('sha256', secret).update(body).digest('hex')
-    assert.equal(capturedHeaders['x-webhook-signature'], expectedSig)
+    assert.equal(headers['x-webhook-signature'], expectedSig)
   })
 
-  test('fails closed on a corrupted enc_v1 secret and never calls fetch', async ({ assert }) => {
-    let fetchCalled = false
-    globalThis.fetch = (async () => {
-      fetchCalled = true
-      return { ok: true, status: 200, text: async () => '{}' }
-    }) as unknown as typeof fetch
+  test('fails closed on a corrupted secret and never delivers', async ({ assert }) => {
+    const { transport, calls } = recordingTransport(200)
+    const svc = new WebhookService({ transport })
 
-    const valid = encrypt('webhook-signing-secret')
+    const valid = writeSecret('webhook-signing-secret', 'webhookSecret')
     // Flip the final ciphertext hex char so the GCM auth-tag check fails.
     const corrupted = valid.slice(0, -1) + (valid.endsWith('a') ? 'b' : 'a')
     const hook = makeHook({ secret: corrupted })
@@ -156,30 +172,28 @@ test.group('WebhookService.send() — delivery state machine', (group) => {
 
     await svc.send(hook as any, delivery as any)
 
-    assert.isFalse(fetchCalled, 'a secret that cannot be decrypted must never be signed or sent')
+    assert.equal(calls.length, 0, 'a secret that cannot be decrypted must never be signed or sent')
     assert.equal(delivery.status, 'failed')
     assert.match(String(delivery.responseBody), /secret_decrypt_failed/)
     assert.isNull(delivery.statusCode)
     assert.isNull(delivery.nextRetryAt)
   })
 
-  test('fails closed on a non-enc_v1 (plaintext) secret instead of signing with raw bytes', async ({
+  test('fails closed on a plaintext secret instead of signing with raw bytes', async ({
     assert,
   }) => {
-    let fetchCalled = false
-    globalThis.fetch = (async () => {
-      fetchCalled = true
-      return { ok: true, status: 200, text: async () => '{}' }
-    }) as unknown as typeof fetch
+    const { transport, calls } = recordingTransport(200)
+    const svc = new WebhookService({ transport })
 
-    // A secret that was never written through encrypt() (the old plaintext path).
+    // A secret that was never written through writeSecret() (the old plaintext path).
     const hook = makeHook({ secret: 'raw-plaintext-secret' })
     const delivery = makeDelivery()
 
     await svc.send(hook as any, delivery as any)
 
-    assert.isFalse(
-      fetchCalled,
+    assert.equal(
+      calls.length,
+      0,
       'a plaintext secret must fail closed, not be used as a raw HMAC key'
     )
     assert.equal(delivery.status, 'failed')
@@ -188,44 +202,38 @@ test.group('WebhookService.send() — delivery state machine', (group) => {
   })
 
   test('does not add signature header when hook has no secret', async ({ assert }) => {
-    const capturedHeaders: Record<string, string> = {}
-
-    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
-      Object.assign(capturedHeaders, init?.headers as Record<string, string>)
-      return { ok: true, status: 200, text: async () => '{}' }
-    }) as unknown as typeof fetch
+    const { transport, calls } = recordingTransport(200)
+    const svc = new WebhookService({ transport })
 
     const hook = makeHook({ secret: null })
     const delivery = makeDelivery()
 
     await svc.send(hook as any, delivery as any)
 
-    assert.notProperty(capturedHeaders, 'x-webhook-signature')
+    assert.notProperty(headersOf(calls[0]), 'x-webhook-signature')
   })
 
   test('always sends content-type, x-webhook-event and x-delivery-id headers', async ({
     assert,
   }) => {
-    const capturedHeaders: Record<string, string> = {}
-
-    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
-      Object.assign(capturedHeaders, init?.headers as Record<string, string>)
-      return { ok: true, status: 200, text: async () => '{}' }
-    }) as unknown as typeof fetch
+    const { transport, calls } = recordingTransport(200)
+    const svc = new WebhookService({ transport })
 
     const hook = makeHook()
     const delivery = makeDelivery({ event: 'order.placed' })
 
     await svc.send(hook as any, delivery as any)
 
-    assert.equal(capturedHeaders['content-type'], 'application/json')
-    assert.equal(capturedHeaders['x-webhook-event'], 'order.placed')
-    assert.equal(capturedHeaders['x-delivery-id'], delivery.id)
+    const headers = headersOf(calls[0])
+    assert.equal(headers['content-type'], 'application/json')
+    assert.equal(headers['x-webhook-event'], 'order.placed')
+    assert.equal(headers['x-delivery-id'], delivery.id)
   })
 
   test('stores response body from successful request', async ({ assert }) => {
     const responsePayload = JSON.stringify({ received: true })
-    globalThis.fetch = makeFetch(200, responsePayload) as unknown as typeof fetch
+    const { transport } = recordingTransport(200, responsePayload)
+    const svc = new WebhookService({ transport })
 
     const hook = makeHook()
     const delivery = makeDelivery()
@@ -245,21 +253,15 @@ test.group('WebhookService — encryption', () => {
   })
 })
 
-test.group('WebhookService.send() — exponential backoff bounds', (group) => {
-  let originalFetch: typeof globalThis.fetch
-  const svc = new WebhookService()
+test.group('WebhookService.send() — exponential backoff bounds', () => {
   // Mirror the constants in src/services/webhook_service.ts so a future
   // change makes both numbers visible in the same review.
   const BACKOFF_BASE = [10, 60, 300, 1800, 7200] as const
   const JITTER_FRACTION = 0.2
 
-  group.each.setup(() => {
-    originalFetch = globalThis.fetch
-    globalThis.fetch = makeFetch(500) as unknown as typeof fetch
-  })
-  group.each.teardown(() => {
-    globalThis.fetch = originalFetch
-  })
+  // A transport that always reports a 500 so each attempt schedules a retry.
+  const failingSvc = () =>
+    new WebhookService({ transport: async () => new Response('{}', { status: 500 }) })
 
   for (let attempt = 1; attempt <= BACKOFF_BASE.length; attempt++) {
     test(`attempt ${attempt} schedules nextRetryAt within ±${JITTER_FRACTION * 100}% of ${BACKOFF_BASE[attempt - 1]}s`, async ({
@@ -269,7 +271,7 @@ test.group('WebhookService.send() — exponential backoff bounds', (group) => {
       const hook = makeHook()
       const delivery = makeDelivery({ attempt })
 
-      await svc.send(hook as any, delivery as any)
+      await failingSvc().send(hook as any, delivery as any)
 
       // Last attempt has no follow-up retry — status is 'failed' and
       // nextRetryAt stays unset.
@@ -351,24 +353,8 @@ test.group('WebhookService.processRetries() — dead-letter behaviour (real DB)'
       nextRetryAt: null,
     })
 
-    // Track which delivery ids the network was actually invoked for.
-    // We can't assume an empty DB (other test groups can leave their
-    // own retrying rows behind), so we assert specifically that OUR
-    // delivery was not touched.
-    const calledFor: string[] = []
-    const originalFetch = globalThis.fetch
-    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
-      const headers = init?.headers as Record<string, string> | undefined
-      if (headers?.['x-delivery-id']) calledFor.push(headers['x-delivery-id'])
-      return { ok: true, status: 200, text: async () => '{}' } as any
-    }) as unknown as typeof fetch
-    try {
-      await svc.processRetries()
-    } finally {
-      globalThis.fetch = originalFetch
-    }
+    await svc.processRetries()
 
-    assert.notInclude(calledFor, dead.id, 'processRetries must not retry the dead-letter delivery')
     const fresh = await TenantWebhookDelivery.find(dead.id)
     assert.equal(fresh!.status, 'failed', 'failed delivery must remain failed')
     assert.equal(fresh!.attempt, 5, 'attempt counter must not advance')
@@ -400,24 +386,8 @@ test.group('WebhookService.processRetries() — dead-letter behaviour (real DB)'
       nextRetryAt: DateTime.utc().plus({ minutes: 30 }),
     })
 
-    const calledFor: string[] = []
-    const originalFetch = globalThis.fetch
-    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
-      const headers = init?.headers as Record<string, string> | undefined
-      if (headers?.['x-delivery-id']) calledFor.push(headers['x-delivery-id'])
-      return { ok: true, status: 200, text: async () => '{}' } as any
-    }) as unknown as typeof fetch
-    try {
-      await svc.processRetries()
-    } finally {
-      globalThis.fetch = originalFetch
-    }
+    await svc.processRetries()
 
-    assert.notInclude(
-      calledFor,
-      future.id,
-      'next_retry_at is in the future — must not be retried yet'
-    )
     const fresh = await TenantWebhookDelivery.find(future.id)
     assert.equal(fresh!.attempt, 2)
     assert.equal(fresh!.status, 'retrying')
@@ -458,21 +428,17 @@ test.group('WebhookService — verifyWebhookSignature (receiver-side)', () => {
     assert,
   }) => {
     let captured: { body: string; sig: string } | null = null
-    const originalFetch = globalThis.fetch
-    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
-      const headers = init?.headers as Record<string, string>
-      captured = { body: String(init?.body ?? ''), sig: headers['x-webhook-signature'] }
-      return { ok: true, status: 200, text: async () => '{}' }
-    }) as unknown as typeof fetch
-    try {
-      const svc = new WebhookService()
-      const hook = makeHook({ secret: encrypt(secret) })
-      const delivery = makeDelivery()
-      await svc.send(hook as any, delivery as any)
-    } finally {
-      globalThis.fetch = originalFetch
+    const transport = async (_url: string, opts: SafeFetchOptions): Promise<Response> => {
+      const headers = (opts.headers ?? {}) as Record<string, string>
+      captured = { body: String(opts.body ?? ''), sig: headers['x-webhook-signature'] }
+      return new Response('{}', { status: 200 })
     }
-    assert.isNotNull(captured, 'fetch was not invoked')
+    const svc = new WebhookService({ transport })
+    const hook = makeHook({ secret: writeSecret(secret, 'webhookSecret') })
+    const delivery = makeDelivery()
+    await svc.send(hook as any, delivery as any)
+
+    assert.isNotNull(captured, 'transport was not invoked')
     assert.isTrue(
       verifyWebhookSignature(captured!.body, captured!.sig, secret),
       'sender signature must validate with the public verifier'

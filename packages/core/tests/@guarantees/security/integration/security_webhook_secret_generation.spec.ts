@@ -2,6 +2,7 @@ import { test } from '@japa/runner'
 import { randomUUID } from 'node:crypto'
 import { WebhookService, verifyWebhookSignature } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantWebhook } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
+import type { SafeFetchOptions } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
 import { makeDelivery } from '../../../helpers/webhook_doubles.js'
 
 process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
@@ -9,20 +10,15 @@ process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
 /**
  * webhooks.md: "Generated when omitted; encrypted at rest". A webhook
  * registered without a secret must NOT silently produce unsigned
- * deliveries — the service generates one, stores it encrypted, and
- * returns the plaintext exactly once as `generatedSecret`.
+ * deliveries — the service generates one, stores it encrypted under the
+ * webhook secret class, and returns the plaintext exactly once as
+ * `generatedSecret`.
  */
 test.group('WebhookService.registerWebhook() — secret generation', (group) => {
   const svc = new WebhookService()
   const created: string[] = []
-  let originalFetch: typeof globalThis.fetch
-
-  group.each.setup(() => {
-    originalFetch = globalThis.fetch
-  })
 
   group.each.teardown(async () => {
-    globalThis.fetch = originalFetch
     while (created.length) {
       const id = created.pop()!
       await TenantWebhook.query().where('id', id).delete()
@@ -68,16 +64,22 @@ test.group('WebhookService.registerWebhook() — secret generation', (group) => 
     )
     created.push(hook.id)
 
+    // Inject a transport double: registerWebhook stored the secret under the
+    // webhook class, so send() decrypts it per-class and signs the body. We
+    // capture what the transport would have sent and verify the signature with
+    // the once-disclosed generated secret.
     let sentBody = ''
     let signature: string | null = null
-    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
-      sentBody = String(init?.body ?? '')
-      signature = (init?.headers as Record<string, string>)?.['x-webhook-signature'] ?? null
-      return { ok: true, status: 200, text: async () => '{}' }
-    }) as unknown as typeof fetch
+    const transport = async (_url: string, opts: SafeFetchOptions): Promise<Response> => {
+      const headers = (opts.headers ?? {}) as Record<string, string>
+      sentBody = String(opts.body ?? '')
+      signature = headers['x-webhook-signature'] ?? null
+      return new Response('{}', { status: 200 })
+    }
+    const sendSvc = new WebhookService({ transport })
 
     const delivery = makeDelivery({ payload: { hello: 'world' } })
-    await svc.send(hook as any, delivery as any)
+    await sendSvc.send(hook as any, delivery as any)
 
     assert.equal(delivery.status, 'success')
     assert.isString(signature, 'delivery must carry x-webhook-signature')

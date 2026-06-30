@@ -31,6 +31,13 @@ export default {
   tenantConnectionNamePrefix: 'tenant_',
   tenantSchemaPrefix: 'tenant_',
   resolverStrategy,
+  // The bench drives tenant routing from a client-controlled header on purpose:
+  // the isolation tier swaps the id per request to prove cross-tenant queries are
+  // contained. There is no authenticated principal in a benchmark, so the
+  // membership gate is intentionally absent. Acknowledge it so the production-mode
+  // run boots (the WS-3 resolution-safety check hard-fails an unacknowledged
+  // client-controlled strategy in production).
+  acknowledgeNoMembershipGate: true,
   tenantHeaderKey: env.get('TENANT_HEADER_KEY'),
   baseDomain: 'localhost',
   schemaCacheTtl: 300,

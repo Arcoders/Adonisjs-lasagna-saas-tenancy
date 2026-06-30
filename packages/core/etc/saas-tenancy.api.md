@@ -702,6 +702,7 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
     };
     health?: {
         tenantPoolsCheck?: boolean;
+        tenantPoolSaturationThreshold?: number;
         readReplicasCheck?: boolean;
     };
     // (undocumented)
@@ -898,6 +899,9 @@ export class ReadReplicaService {
 }
 
 // @public
+export function readSecret(value: string, cls: SecretClass): string;
+
+// @public
 export interface RequestDataResolverConfig {
     bodyKey?: string;
     queryKey?: string;
@@ -930,6 +934,41 @@ export interface RoutingConfig {
     tenantRoutesFile?: string;
     universalRoutesFile?: string;
 }
+
+// @public (undocumented)
+export function safeFetch(url: string, opts?: SafeFetchOptions): Promise<Response>;
+
+// @public
+export class SafeFetchError extends Error {
+    constructor(code: string, message: string, retryable?: boolean);
+    // (undocumented)
+    readonly code: string;
+    // (undocumented)
+    readonly retryable: boolean;
+}
+
+// @public (undocumented)
+export interface SafeFetchOptions {
+    allowLoopback?: boolean;
+    // (undocumented)
+    body?: string | URLSearchParams;
+    // (undocumented)
+    headers?: Record<string, string>;
+    // (undocumented)
+    method?: string;
+    signal?: AbortSignal;
+    timeoutMs?: number;
+    trustedHost?: boolean;
+}
+
+// @public
+export const SECRET_CLASS: {
+    readonly ssoClientSecret: "sso:client_secret:v2";
+    readonly webhookSecret: "webhook:secret:v2";
+};
+
+// @public (undocumented)
+export type SecretClass = keyof typeof SECRET_CLASS;
 
 // @public
 export const sessionBootstrapper: TenantBootstrapper;
@@ -1604,13 +1643,18 @@ export class TooManyRequestsException extends Exception {
 export const transmitBootstrapper: TenantBootstrapper;
 
 // @public
+export const TRUSTED_FETCH_HOSTS: ReadonlySet<string>;
+
+// @public
 export class UniversalMiddleware {
     // (undocumented)
     handle(input: HttpContext, next: NextFn): Promise<any>;
 }
 
 // @public
-export function unscoped<T>(fn: () => T | Promise<T>): Promise<T>;
+export function unscoped<T>(fn: () => T | Promise<T>, opts?: {
+    reason?: string;
+}): Promise<T>;
 
 // @public
 export function validateExternalHttpsUrl(value: unknown): string | null;
@@ -1620,6 +1664,8 @@ export function validateResolvedHostIsPublic(value: unknown): Promise<string | n
 
 // @public
 export class WebhookService {
+    // Warning: (ae-forgotten-export) The symbol "WebhookServiceDeps" needs to be exported by the entry point index.d.ts
+    constructor(deps?: WebhookServiceDeps);
     // (undocumented)
     deleteWebhook(id: string, tenantId: string): Promise<void>;
     // (undocumented)
@@ -1650,6 +1696,9 @@ export interface WithTenantRlsOptions {
 //
 // @public
 export function withTenantScope<TBase extends LucidBaseModelClass>(Base: TBase): TBase;
+
+// @public
+export function writeSecret(plain: string, cls: SecretClass): string;
 
 // Warnings were encountered during analysis:
 //

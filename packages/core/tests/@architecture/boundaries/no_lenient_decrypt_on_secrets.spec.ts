@@ -20,17 +20,24 @@ import { walkTsFiles } from '../../helpers/walk_ts_files.js'
  * key/context via it, and re-encrypt through `writeSecret`. `readSecret` /
  * `writeSecret` / `isEncrypted` are the safe paths and are never flagged.
  *
- * The walk covers EVERY `packages/<pkg>/src`, so a satellite that grows a secret
- * column is held to the same seam without editing this spec.
+ * The walk covers EVERY `packages/<pkg>/src` AND the reference app
+ * (`examples/api/app`), so a satellite that grows a secret column, OR the demo
+ * that hosts copy, is held to the same seam without editing this spec. (The demo
+ * once wrote a webhook secret with a bare `encrypt()`, which used the default
+ * context and silently failed the per-class read at delivery; scanning it keeps
+ * that footgun from coming back into the code people copy.)
  */
 
-const PACKAGES_DIR = fileURLToPath(new URL('../../../../', import.meta.url))
+const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url))
+const PACKAGES_DIR = join(REPO_ROOT, 'packages')
+// The reference app is held to the same secret seam as the packages.
+const EXAMPLE_APP_DIRS = [join(REPO_ROOT, 'examples', 'api', 'app')]
 
 // Files permitted to call the raw primitives, one entry per path with its reason.
 const ALLOWLIST: ReadonlyArray<{ path: string; why: string }> = [
-  { path: 'core/src/utils/crypto.ts', why: 'defines the primitives themselves' },
+  { path: 'packages/core/src/utils/crypto.ts', why: 'defines the primitives themselves' },
   {
-    path: 'core/src/utils/secret_at_rest.ts',
+    path: 'packages/core/src/utils/secret_at_rest.ts',
     why: 'the canonical accessor; the one place encrypt/decryptStrict are bound to a class context',
   },
 ]
@@ -50,6 +57,9 @@ function srcRoots(): string[] {
     const src = join(PACKAGES_DIR, entry, 'src')
     if (existsSync(src) && statSync(src).isDirectory()) roots.push(src)
   }
+  for (const dir of EXAMPLE_APP_DIRS) {
+    if (existsSync(dir) && statSync(dir).isDirectory()) roots.push(dir)
+  }
   return roots
 }
 
@@ -66,7 +76,7 @@ test.group('Architectural: secret crypto must route through the canonical access
 
     for (const root of srcRoots()) {
       for (const file of walkTsFiles(root)) {
-        const rel = relative(PACKAGES_DIR, file).replace(/\\/g, '/')
+        const rel = relative(REPO_ROOT, file).replace(/\\/g, '/')
         if (ALLOWED_PATHS.has(rel)) continue
 
         const src = readFileSync(file, 'utf8')
@@ -102,10 +112,7 @@ test.group('Architectural: secret crypto must route through the canonical access
     assert,
   }) => {
     for (const { path } of ALLOWLIST) {
-      assert.isTrue(
-        existsSync(join(PACKAGES_DIR, path)),
-        `allowlisted path no longer exists: ${path}`
-      )
+      assert.isTrue(existsSync(join(REPO_ROOT, path)), `allowlisted path no longer exists: ${path}`)
     }
   })
 

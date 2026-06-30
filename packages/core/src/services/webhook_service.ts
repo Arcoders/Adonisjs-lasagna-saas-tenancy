@@ -3,7 +3,7 @@ import TenantWebhookDelivery from '../models/satellites/tenant_webhook_delivery.
 import WebhookTransformerRegistry from './webhook_transformer_registry.js'
 import { readSecret, writeSecret } from '../utils/secret_at_rest.js'
 import { validateExternalHttpsUrl } from '../utils/url.js'
-import { safeFetch, SafeFetchError } from '../utils/safe_fetch.js'
+import { safeFetch, SafeFetchError, type SafeFetchOptions } from '../utils/safe_fetch.js'
 import { DateTime } from 'luxon'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 
@@ -82,6 +82,28 @@ export function verifyWebhookSignature(
   }
 }
 
+/**
+ * Outbound delivery transport. The single argument is the validated webhook URL;
+ * options mirror {@link SafeFetchOptions}. Production uses the pinned `safeFetch`
+ * seam (resolve + pin the address, never follow a redirect). Exposed as an
+ * injectable dependency purely so the delivery state machine is testable without
+ * a network; see {@link WebhookServiceDeps}.
+ */
+export type WebhookTransport = (url: string, opts: SafeFetchOptions) => Promise<Response>
+
+/**
+ * Constructor seam for {@link WebhookService}, mirroring `SsoServiceDeps`. The
+ * only dependency is the outbound transport, which defaults to `safeFetch`. A
+ * test injects a double to drive the success / retry / redirect / signature paths
+ * deterministically; the SSRF-block and secret-fail-closed paths keep running
+ * against the real `safeFetch` default (a double would bypass the very guard they
+ * assert). The public surface is unchanged: `container.make(WebhookService)` and
+ * `new WebhookService()` both construct it with the production transport.
+ */
+export interface WebhookServiceDeps {
+  transport?: WebhookTransport
+}
+
 const RETRY_CONCURRENCY = 10
 
 /**
@@ -124,6 +146,12 @@ async function mapConcurrent<T>(
  * (auto-generating a signing secret when omitted), lists, and deletes hooks.
  */
 export default class WebhookService {
+  readonly #transport: WebhookTransport
+
+  constructor(deps: WebhookServiceDeps = {}) {
+    this.#transport = deps.transport ?? safeFetch
+  }
+
   async dispatch(tenantId: string, event: string, payload: Record<string, unknown>): Promise<void> {
     const hooks = await TenantWebhook.query()
       .where('tenant_id', tenantId)
@@ -256,7 +284,7 @@ export default class WebhookService {
       // 3xx Location chosen by the (attacker-influenced) receiver can't pivot at
       // internals. A conformant receiver answers 2xx; a 3xx is treated as a
       // permanent failure below.
-      const res = await safeFetch(hook.url, {
+      const res = await this.#transport(hook.url, {
         method: 'POST',
         headers,
         body,
