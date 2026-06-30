@@ -19,6 +19,37 @@ export const GUARANTEES = [
 
 export type Guarantee = (typeof GUARANTEES)[number]
 
+/**
+ * The harness leaves that live inside every guarantee. `unit` runs against
+ * source with tsx and no database; `integration` boots the shared Ignitor and
+ * PostgreSQL. Nothing else is a valid child of a guarantee directory.
+ */
+export const HARNESS_LEAVES = ['unit', 'integration'] as const
+
+/** The sub-tiers under `tests/@architecture/` (static, unit-harness guards). */
+export const ARCHITECTURE_TIERS = ['boundaries', 'contracts', 'docs'] as const
+
+/**
+ * The sub-tiers under `tests/@integration/`. `drivers` is gated on every
+ * integration run; `fault_injection` is the slow chaos tier with its own
+ * runner. `e2e` is the demo-app full-scenario tier (only `examples/api`).
+ */
+export const INTEGRATION_TIERS = ['drivers', 'fault_injection', 'e2e'] as const
+
+/**
+ * The directories allowed at the top of a package's `tests/`. The `@`-prefixed
+ * ones are the guarantee tree; `helpers` and `fixtures` hold shared, non-spec
+ * support. This is the allow-list the anti-drift guard pins the layout against,
+ * so a stray legacy `unit/` or `e2e/` at the top level can never reappear.
+ */
+export const TOP_LEVEL_DIRS = [
+  '@guarantees',
+  '@architecture',
+  '@integration',
+  'helpers',
+  'fixtures',
+] as const
+
 /** Narrowing guard: is `value` one of the canonical guarantees? */
 export function isGuarantee(value: string): value is Guarantee {
   return (GUARANTEES as readonly string[]).includes(value)

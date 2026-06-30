@@ -1,7 +1,12 @@
 {
   "all": true,
   "src": ["src"],
-  "include": ["src/runner_logic.ts", "src/guarantees.ts", "src/repo_root.ts"],
+  "include": [
+    "src/runner_logic.ts",
+    "src/guarantees.ts",
+    "src/repo_root.ts",
+    "src/guarantee_tree.ts"
+  ],
   "exclude": ["src/**/*.d.ts"],
   "reporter": ["text-summary", "lcov"],
   "report-dir": "./coverage",

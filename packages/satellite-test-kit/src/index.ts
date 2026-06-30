@@ -20,11 +20,17 @@ export type { RunIntegrationSuiteOptions } from './run_integration_suite.js'
 // loop is preserved; integration runners and tooling get them from the build.
 export {
   GUARANTEES,
+  HARNESS_LEAVES,
+  ARCHITECTURE_TIERS,
+  INTEGRATION_TIERS,
+  TOP_LEVEL_DIRS,
   guaranteeGlobs,
   guaranteeTag,
   isGuarantee,
   resolveSuiteGlobs,
 } from './guarantees.js'
 export type { Guarantee, GuaranteeGlobs, GuaranteeGlobsOptions } from './guarantees.js'
+export { assertGuaranteeTree } from './guarantee_tree.js'
+export type { TreeAssert } from './guarantee_tree.js'
 export { repoRoot, resolveWorkspaceRoot, readPackageManifest } from './repo_root.js'
 export { runUnitSuite } from './runner_entries.js'
