@@ -6,6 +6,11 @@ performance baseline** that backs the numbers in
 [performance.md](../docs/guides/performance.md), and (2) provide a repeatable,
 CI-runnable **regression gate** over the hot paths.
 
+This workspace sits outside the per-package guarantee tree. It is not japa
+`*.spec.ts` under `tests/@guarantees`; it is a set of tsx entrypoints under
+`src/` (the tiers below), driven by the `bench:*` scripts. The `performance`
+guarantee lives here, by benchmark, rather than as guarantee specs in the packages.
+
 ## What it measures (tiers)
 
 | Tier | Where | What | Needs |
