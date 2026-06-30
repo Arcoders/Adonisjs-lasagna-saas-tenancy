@@ -92,8 +92,11 @@ export function verifyWebhookSignature(
 export type WebhookTransport = (url: string, opts: SafeFetchOptions) => Promise<Response>
 
 /**
- * Constructor seam for {@link WebhookService}, mirroring `SsoServiceDeps`. The
- * only dependency is the outbound transport, which defaults to `safeFetch`. A
+ * Constructor seam for {@link WebhookService}, following the same injectable-deps
+ * pattern as `SsoServiceDeps` (optional deps with a production default, so the
+ * container and a bare `new` both construct it argument-free). There is exactly
+ * one dependency, the outbound transport, so it defaults inline (`?? safeFetch`)
+ * rather than through a `defaultDeps()` factory. A
  * test injects a double to drive the success / retry / redirect / signature paths
  * deterministically; the SSRF-block and secret-fail-closed paths keep running
  * against the real `safeFetch` default (a double would bypass the very guard they

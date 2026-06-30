@@ -65,7 +65,7 @@ test.group('WebhookService.send() — SSRF encoding matrix', () => {
     const delivery = makeDelivery()
     await svc302.send(makeHook({ url: 'https://example.com/webhook' }) as any, delivery as any)
 
-    assert.equal(calls, 1, 'the redirect must NOT be followed (single delivery attempt)')
+    assert.equal(calls, 1, 'send() makes one transport call and classifies the 3xx itself')
     assert.equal(delivery.status, 'failed')
     assert.match(String(delivery.responseBody), /blocked_redirect:302/)
     assert.isNull(delivery.nextRetryAt, 'a redirect is a permanent, non-retryable failure')

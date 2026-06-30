@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import { createHmac } from 'node:crypto'
 import { WebhookService, verifyWebhookSignature } from '@adonisjs-lasagna/saas-tenancy/services'
 import { encrypt, writeSecret } from '@adonisjs-lasagna/saas-tenancy'
-import type { SafeFetchOptions } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
+import { SafeFetchError, type SafeFetchOptions } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
 import { makeDelivery, makeHook } from '../../../helpers/webhook_doubles.js'
 
 process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
@@ -31,12 +31,18 @@ function recordingTransport(status: number, body = '{}') {
   return { calls, transport }
 }
 
-/** A transport double that throws, to exercise the network-error path. */
-function throwingTransport(message: string) {
+/**
+ * A transport double that throws, to exercise the network-error path. The caller
+ * passes the exact error to throw so a test can reproduce the precise shape the
+ * production transport raises: `safeFetch` surfaces a transient connection
+ * failure as `SafeFetchError('network_error', ..., retryable=true)`, which must
+ * fall through to the retry branch just like a generic Error.
+ */
+function throwingTransport(error: Error) {
   const calls: TransportCall[] = []
   const transport = async (url: string, opts: SafeFetchOptions): Promise<Response> => {
     calls.push({ url, opts })
-    throw new Error(message)
+    throw error
   }
   return { calls, transport }
 }
@@ -103,7 +109,12 @@ test.group('WebhookService.send() — delivery state machine', () => {
   })
 
   test('sets status to retrying on network error when attempts remain', async ({ assert }) => {
-    const { transport } = throwingTransport('Connection refused')
+    // The exact shape safeFetch raises on a transient connection failure: a
+    // retryable SafeFetchError must fall through to the retry branch (send()
+    // only fails closed on a NON-retryable SafeFetchError).
+    const { transport } = throwingTransport(
+      new SafeFetchError('network_error', 'Connection refused', true)
+    )
     const svc = new WebhookService({ transport })
     const delivery = makeDelivery({ attempt: 2 })
 
@@ -116,7 +127,10 @@ test.group('WebhookService.send() — delivery state machine', () => {
   })
 
   test('sets status to failed on network error when max attempts reached', async ({ assert }) => {
-    const { transport } = throwingTransport('ECONNREFUSED')
+    // A generic (non-SafeFetchError) throw also falls through to the retry path,
+    // which at the attempt cap resolves to failed. Covers the generic branch
+    // alongside the typed-SafeFetchError case above.
+    const { transport } = throwingTransport(new Error('ECONNREFUSED'))
     const svc = new WebhookService({ transport })
     const delivery = makeDelivery({ attempt: 5 })
 
@@ -136,7 +150,10 @@ test.group('WebhookService.send() — delivery state machine', () => {
 
     await svc.send(makeHook() as any, delivery as any)
 
-    assert.equal(calls.length, 1, 'the redirect must NOT be followed (single delivery attempt)')
+    // The never-follow guarantee itself lives in safeFetch; here we assert send()
+    // makes exactly one transport call and classifies the 3xx itself, so it never
+    // grows a redirect-follow loop of its own.
+    assert.equal(calls.length, 1, 'send() makes one transport call and classifies the 3xx itself')
     assert.equal(delivery.status, 'failed')
     assert.match(String(delivery.responseBody), /blocked_redirect:302/)
     assert.isNull(delivery.nextRetryAt)
@@ -301,7 +318,6 @@ test.group('WebhookService.send() — exponential backoff bounds', () => {
 })
 
 test.group('WebhookService.processRetries() — dead-letter behaviour (real DB)', (group) => {
-  const svc = new WebhookService()
   const cleanup: { tenantId?: string; webhookId?: string }[] = []
 
   group.each.teardown(async () => {
@@ -353,8 +369,21 @@ test.group('WebhookService.processRetries() — dead-letter behaviour (real DB)'
       nextRetryAt: null,
     })
 
+    // Inject a recording transport so we can assert the dead row was never even
+    // SELECTED (not just "left unchanged"). The sweep is cross-tenant, so other
+    // rows may legitimately be delivered; we assert specifically that OUR delivery
+    // id never reached the transport.
+    const { transport, calls } = recordingTransport(200)
+    const svc = new WebhookService({ transport })
+
     await svc.processRetries()
 
+    const sentDeliveryIds = calls.map((c) => headersOf(c)['x-delivery-id'])
+    assert.notInclude(
+      sentDeliveryIds,
+      dead.id,
+      'processRetries must not retry the dead-letter delivery'
+    )
     const fresh = await TenantWebhookDelivery.find(dead.id)
     assert.equal(fresh!.status, 'failed', 'failed delivery must remain failed')
     assert.equal(fresh!.attempt, 5, 'attempt counter must not advance')
@@ -386,8 +415,15 @@ test.group('WebhookService.processRetries() — dead-letter behaviour (real DB)'
       nextRetryAt: DateTime.utc().plus({ minutes: 30 }),
     })
 
+    // Same seam assertion as the dead-letter case: a not-yet-due row must never
+    // reach the transport, independent of the row-state checks below.
+    const { transport, calls } = recordingTransport(200)
+    const svc = new WebhookService({ transport })
+
     await svc.processRetries()
 
+    const sentDeliveryIds = calls.map((c) => headersOf(c)['x-delivery-id'])
+    assert.notInclude(sentDeliveryIds, future.id, 'a not-yet-due delivery must not be retried')
     const fresh = await TenantWebhookDelivery.find(future.id)
     assert.equal(fresh!.attempt, 2)
     assert.equal(fresh!.status, 'retrying')
