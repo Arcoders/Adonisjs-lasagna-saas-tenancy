@@ -7,11 +7,7 @@ import {
   TenantSuspended,
   resolveTenantRepository,
 } from '@adonisjs-lasagna/saas-tenancy'
-import {
-  createTestTenant,
-  destroyTestTenant,
-  updateTenantStatus,
-} from '../../../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant, updateTenantStatus } from '../../../helpers/tenant.js'
 
 /**
  * Pins the resolution-cache lifecycle invalidation to the REAL provider wiring,

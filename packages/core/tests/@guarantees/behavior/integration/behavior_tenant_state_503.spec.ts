@@ -2,11 +2,7 @@ import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import db from '@adonisjs/lucid/services/db'
 import { CircuitBreakerService } from '@adonisjs-lasagna/saas-tenancy/services'
-import {
-  createTestTenant,
-  destroyTestTenant,
-  updateTenantStatus,
-} from '../../../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant, updateTenantStatus } from '../../../helpers/tenant.js'
 
 /**
  * TenantGuardMiddleware turns tenant lifecycle state into typed HTTP

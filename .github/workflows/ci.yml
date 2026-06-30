@@ -543,6 +543,15 @@ jobs:
       - name: Test (integration) + coverage
         run: npm run test:integration:coverage
 
+      # Fault-injection / chaos tier (@integration/fault_injection): slow,
+      # deliberately destructive specs. Non-gating by design — it runs only on a
+      # `[chaos]` commit/PR title, and continue-on-error so a chaos failure never
+      # blocks the merge. PG/Redis and the build are already up from the step above.
+      - name: Test (fault injection) — chaos tier
+        if: contains(github.event.head_commit.message, '[chaos]') || contains(github.event.pull_request.title, '[chaos]')
+        continue-on-error: true
+        run: npm run test:fault:run --workspace @adonisjs-lasagna/saas-tenancy
+
       # Satellite integration tiers boot through the shared satellite-test-kit,
       # proving the harness end to end on a real satellite. The step above ran
       # build:all, so the kit + every satellite build are already in place; this

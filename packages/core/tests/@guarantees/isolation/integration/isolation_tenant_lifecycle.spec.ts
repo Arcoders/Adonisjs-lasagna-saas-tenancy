@@ -6,11 +6,7 @@ import {
   IsolationDriverRegistry,
   type SchemaPgDriver,
 } from '@adonisjs-lasagna/saas-tenancy/services'
-import {
-  createTestTenant,
-  destroyTestTenant,
-  updateTenantStatus,
-} from '../../../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant, updateTenantStatus } from '../../../helpers/tenant.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**

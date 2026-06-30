@@ -1,10 +1,6 @@
 import { test } from '@japa/runner'
 import { randomUUID } from 'node:crypto'
-import {
-  createTestTenant,
-  destroyTestTenant,
-  updateTenantStatus,
-} from '../../../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant, updateTenantStatus } from '../../../helpers/tenant.js'
 
 test.group('TenantGuardMiddleware (integration)', (group) => {
   group.each.setup(async () => {})

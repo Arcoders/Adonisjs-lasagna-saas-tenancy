@@ -1,9 +1,5 @@
 import { test } from '@japa/runner'
-import {
-  createTestTenant,
-  destroyTestTenant,
-  updateTenantStatus,
-} from '../../../helpers/tenant.js'
+import { createTestTenant, destroyTestTenant, updateTenantStatus } from '../../../helpers/tenant.js'
 
 /**
  * P2-3: `request.tenant()` must be fail-closed on lifecycle by itself, not
