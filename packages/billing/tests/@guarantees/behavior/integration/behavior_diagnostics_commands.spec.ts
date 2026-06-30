@@ -6,7 +6,7 @@ import { MockStripe } from '@adonisjs-lasagna/billing'
 import { ProcessBillingEventJob } from '@adonisjs-lasagna/billing'
 import { BillingProcessedEvent } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { setupBillingConfig, clearBillingTables } from '../../../integration/helpers.js'
+import { setupBillingConfig, clearBillingTables } from '../../../helpers/helpers.js'
 
 // Execution coverage for the two billing diagnostics commands (doctor +
 // test-webhook). Stripe is MockStripe; ProcessBillingEventJob.dispatch is

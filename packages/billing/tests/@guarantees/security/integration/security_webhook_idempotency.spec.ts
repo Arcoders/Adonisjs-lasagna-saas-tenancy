@@ -19,7 +19,7 @@ import {
   buildSubscription,
   clearBillingTables,
   hydrateJob,
-} from '../../../integration/helpers.js'
+} from '../../../helpers/helpers.js'
 import type Stripe from 'stripe'
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 

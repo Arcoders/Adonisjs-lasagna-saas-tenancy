@@ -3,7 +3,7 @@ import { DateTime } from 'luxon'
 import ace from '@adonisjs/core/services/ace'
 import { BillingProcessedEvent } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { setupBillingConfig, clearBillingTables } from '../../../integration/helpers.js'
+import { setupBillingConfig, clearBillingTables } from '../../../helpers/helpers.js'
 
 /**
  * `tenant:billing:dlq:list` is the read-only read view over dead-lettered

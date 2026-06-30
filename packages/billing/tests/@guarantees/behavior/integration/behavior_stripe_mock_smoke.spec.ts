@@ -3,7 +3,7 @@ import app from '@adonisjs/core/services/app'
 import Stripe from 'stripe'
 import { BillingService, BillingException, getActiveBillingDriver } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { setupBillingConfig } from '../../../integration/helpers.js'
+import { setupBillingConfig } from '../../../helpers/helpers.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**

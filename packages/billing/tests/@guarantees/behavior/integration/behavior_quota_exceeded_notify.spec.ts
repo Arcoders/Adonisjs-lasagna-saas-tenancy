@@ -5,7 +5,7 @@ import { TenantQuotaExceeded } from '@adonisjs-lasagna/saas-tenancy/events'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import QuotaExceededBillingListener from '../../../../src/listeners/quota_exceeded_billing_listener.js'
-import { setupBillingConfig } from '../../../integration/helpers.js'
+import { setupBillingConfig } from '../../../helpers/helpers.js'
 
 /**
  * The quota-exceeded notification dedupe is advisory and must FAIL OPEN: a Redis

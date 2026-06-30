@@ -6,7 +6,7 @@ import { BillingProcessedEvent } from '@adonisjs-lasagna/billing'
 import { BillingUsageEvent } from '@adonisjs-lasagna/billing'
 import { runBillingCleanup } from '../../../../build/src/jobs/billing_cleanup_job.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { setupBillingConfig, clearBillingTables } from '../../../integration/helpers.js'
+import { setupBillingConfig, clearBillingTables } from '../../../helpers/helpers.js'
 
 /**
  * The cleanup logic is shared between the queue job and the

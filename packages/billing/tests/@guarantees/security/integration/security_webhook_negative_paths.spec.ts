@@ -4,7 +4,7 @@ import { BillingService } from '@adonisjs-lasagna/billing'
 import { VerifyBillingWebhookMiddleware } from '@adonisjs-lasagna/billing'
 import { MockStripe, signWebhookPayload } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { buildEvent, buildSubscription, clearBillingTables } from '../../../integration/helpers.js'
+import { buildEvent, buildSubscription, clearBillingTables } from '../../../helpers/helpers.js'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
 

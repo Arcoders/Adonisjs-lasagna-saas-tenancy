@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { isInfraError, StripeInfraUnavailable } from '../../../support/smoke_error.js'
+import { isInfraError, StripeInfraUnavailable } from '../../../helpers/smoke_error.js'
 
 /**
  * The skip-vs-fail decision for the real-API Stripe smokes is logic, so it is

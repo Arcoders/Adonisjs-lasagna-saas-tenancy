@@ -5,7 +5,7 @@ import ace from '@adonisjs/core/services/ace'
 import { BillingProcessedEvent } from '@adonisjs-lasagna/billing'
 import { ProcessBillingEventJob } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { setupBillingConfig, clearBillingTables } from '../../../integration/helpers.js'
+import { setupBillingConfig, clearBillingTables } from '../../../helpers/helpers.js'
 
 /**
  * `tenant:billing:replay` flips a `failed` row back to `pending` and

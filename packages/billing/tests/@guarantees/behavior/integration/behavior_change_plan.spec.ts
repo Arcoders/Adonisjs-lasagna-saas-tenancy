@@ -12,7 +12,7 @@ import { BillingCustomer, BillingSubscription } from '@adonisjs-lasagna/billing'
 import type { BillingCapability, BillingProviderContract } from '@adonisjs-lasagna/billing'
 import { resolveTenantRepository } from '@adonisjs-lasagna/saas-tenancy/services'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { setupBillingConfig, clearBillingTables } from '../../../integration/helpers.js'
+import { setupBillingConfig, clearBillingTables } from '../../../helpers/helpers.js'
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**

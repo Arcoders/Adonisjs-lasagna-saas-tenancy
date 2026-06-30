@@ -3,7 +3,7 @@ import { DateTime } from 'luxon'
 import ace from '@adonisjs/core/services/ace'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { setupBillingConfig, clearBillingTables } from '../../../integration/helpers.js'
+import { setupBillingConfig, clearBillingTables } from '../../../helpers/helpers.js'
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**

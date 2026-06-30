@@ -19,7 +19,7 @@ import {
   clearBillingTables,
   hydrateJob,
   assertNeutralSubscription,
-} from '../../../integration/helpers.js'
+} from '../../../helpers/helpers.js'
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import type Stripe from 'stripe'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'

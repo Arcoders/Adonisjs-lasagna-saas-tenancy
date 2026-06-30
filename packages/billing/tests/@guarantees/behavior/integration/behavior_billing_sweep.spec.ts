@@ -8,7 +8,7 @@ import { BillingCustomer, BillingSubscription, TrialEnding } from '@adonisjs-las
 import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
-import { setupBillingConfig, clearBillingTables } from '../../../integration/helpers.js'
+import { setupBillingConfig, clearBillingTables } from '../../../helpers/helpers.js'
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**

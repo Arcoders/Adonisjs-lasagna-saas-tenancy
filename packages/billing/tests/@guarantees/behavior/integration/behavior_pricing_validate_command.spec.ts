@@ -7,7 +7,7 @@ import { MockStripe } from '@adonisjs-lasagna/billing'
 import { TenantPlan } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
-import { setupBillingConfig, clearBillingTables } from '../../../integration/helpers.js'
+import { setupBillingConfig, clearBillingTables } from '../../../helpers/helpers.js'
 
 /**
  * `tenant:billing:pricing:validate` is a CI gate: exit 0 when the plan/price

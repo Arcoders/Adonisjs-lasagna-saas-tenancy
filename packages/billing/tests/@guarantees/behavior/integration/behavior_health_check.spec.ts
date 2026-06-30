@@ -13,7 +13,7 @@ import { billingHealthCheck } from '@adonisjs-lasagna/billing'
 import { SLOW_API_THRESHOLD_MS } from '../../../../build/src/health/billing_health_check.js'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '@adonisjs-lasagna/satellite-test-kit/testing'
-import { setupBillingConfig, clearBillingTables } from '../../../integration/helpers.js'
+import { setupBillingConfig, clearBillingTables } from '../../../helpers/helpers.js'
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**

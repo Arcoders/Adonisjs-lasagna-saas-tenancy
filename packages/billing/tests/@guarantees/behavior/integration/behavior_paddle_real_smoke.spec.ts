@@ -10,7 +10,7 @@ import {
 } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '@adonisjs-lasagna/satellite-test-kit/testing'
-import { clearBillingTables, assertNeutralSubscription } from '../../../integration/helpers.js'
+import { clearBillingTables, assertNeutralSubscription } from '../../../helpers/helpers.js'
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 

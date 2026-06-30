@@ -10,7 +10,7 @@ import {
   setupBillingConfig,
   buildNeutralSubscription,
   clearBillingTables,
-} from '../../../integration/helpers.js'
+} from '../../../helpers/helpers.js'
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**
