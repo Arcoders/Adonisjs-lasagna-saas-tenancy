@@ -684,6 +684,19 @@ store, the `TENANT_REPOSITORY` binding) use `Symbol.for(...)` registry keys so t
 and the `build/` copy resolve to the **same** singleton on `globalThis`, instead of each module
 realm getting its own state. Without that, config set in `build/` would read back `null` in `src/`.
 
+### Integration test isolation
+
+That shared-singleton design has a corollary the test harness has to defend. The integration suite
+boots one app, so every spec shares the process-level singletons (the config store, the tenant
+resolver registry, the resolution caches). A spec that mutates one and forgets to restore it would
+poison every later spec. The shared harness (`@adonisjs-lasagna/satellite-test-kit`) snapshots a set
+of named baselines at the first group and, after every group, restores any a spec left drifted,
+naming the offending group in a warning. The multitenancy config and the resolver chain are guarded
+today, so a leaked `setConfig` or a re-boot with a different resolver strategy cannot reach the next
+spec. Spec files also run in a deterministic sorted order, so a leak is reproducible rather than an
+intermittent failure that depends on the filesystem readdir order. A new baseline is added only for a
+demonstrated leak, never as a speculative snapshot of every singleton.
+
 ## The decision log
 
 These are the choices that would require a version bump or a rewrite to reverse. Commit SHAs are not
@@ -704,6 +717,7 @@ listed here because they drift; verify any decision against the history with
 | 2026-06 | Server-side fetches pin `redirect: 'manual'` | A 3xx is chosen by the receiver and bypasses the URL guard; for the OIDC token POST it would also exfiltrate the `client_secret`. | Hard: changes outbound-fetch behavior for webhooks and OIDC. |
 | 2026-06 | The webhook event ledger uses an atomic claim (`processing` status) | A read-then-check let two concurrent re-deliveries both fire the host-facing application event and double-grant. | Soft: the new status value is additive; the migration is shipped. |
 | 2026-06 | Usage idempotency key sealed per-flush at dispatch, not from wall-clock | A minute-bucket key collapsed same-minute flushes (under-reporting) and a retry across a minute boundary minted a new key (double-billing). | Soft: the job falls back to the legacy key only for in-flight payloads during a deploy. |
+| 2026-06 | Integration specs run in a deterministic order, guarded by state baselines | One booted app shares singletons, so an unordered run turned a cross-spec state leak into an intermittent, scattered failure. | Soft: the sort and the baseline list are additive. |
 
 ## The 3 AM debugging guide
 
@@ -712,6 +726,14 @@ listed here because they drift; verify any decision against the history with
 - Are you inside `tenancy.run()`? If not, the mixin does not inject `tenant_id`.
 - Using RLS? Check `SELECT current_setting('app.tenant_id', true);` in the same transaction.
 - Is the GUC `''`? The pooled connection was not set this transaction; verify `withTenantRls()` usage.
+
+### Every tenant request returns 400 in the integration test suite
+
+- A spec re-booted the provider or rewired the tenant resolver registry without restoring it, so
+  header resolution stopped extracting the tenant id and every request fell to a 400
+  `MissingTenantHeaderException`. The harness restores the resolver chain between groups and logs a
+  warning; search the run output for `[testkit] integration isolation:` naming the leaking group, and
+  fix that group's teardown. The order is deterministic, so the failure reproduces on a re-run.
 
 ### A user sees another tenant's data
 

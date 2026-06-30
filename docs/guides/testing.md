@@ -212,6 +212,14 @@ await runIntegrationSuite({
 })
 ```
 
+The integration runner boots one app, so every spec shares the process-level
+singletons. The kit runs an isolation backstop that snapshots a set of named
+baselines (the multitenancy config and the tenant resolver chain today) at the
+first group and restores any a spec left drifted, naming the offender, so one
+spec can never poison the next. It also discovers spec files in a deterministic
+sorted order, so the run does not depend on the filesystem and a leak is
+reproducible. Add a new baseline only for a demonstrated leak, not speculatively.
+
 The per-tenant lifecycle helpers live on the `/testing` subpath, so a spec can provision a
 real tenant schema and tear it down without reaching into the core:
 
