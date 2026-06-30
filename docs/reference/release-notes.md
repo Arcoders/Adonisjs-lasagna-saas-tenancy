@@ -86,15 +86,22 @@ for a copy-paste migration.
   middleware — forgetting the guard on a route group can no longer serve a
   suspended tenant. Admin/recovery flows that legitimately need an inactive
   tenant opt in with `request.tenant({ allowInactive: true })`.
-- **Webhook signing secrets fail closed.** Delivery now requires the stored
-  `tenant_webhooks.secret` to be `enc_v1` ciphertext. `WebhookService.send()`
-  decrypted leniently before, so a plaintext, corrupted, or wrong-key secret was
-  silently signed with the raw column bytes; it now uses `decryptStrict` and
-  marks the delivery failed (no retry) instead of signing with the wrong key.
-  Secrets created through `registerWebhook()` are already encrypted and need no
-  action. If you ever wrote `tenant_webhooks.secret` directly, run the one-time,
-  idempotent `node ace tenant:webhooks:encrypt-secrets` (`--dry-run` to preview)
-  before deliveries resume.
+- **Stored secrets fail closed and are domain-separated per class.** Webhook
+  signing secrets and SSO `client_secret`s are now read with a strict, per-class
+  decrypt (`readSecret`): the value must be ciphertext encrypted under its own
+  secret-class context (the data key is HKDF-derived with a per-class `info`, so
+  classes never share a key). `WebhookService.send()` and the SSO token exchange
+  decrypted leniently before, so a plaintext, corrupted, wrong-key, or wrong-class
+  value was silently used as the raw secret; they now fail closed (a webhook
+  delivery is marked failed with no retry, the SSO token exchange refuses to send
+  the credential) instead of signing or authenticating with the wrong bytes. This
+  is a breaking change for EVERY host that stores webhook or SSO secrets, not only
+  those that ever stored plaintext: a value still encrypted under the older shared
+  context also fails closed until it is re-encrypted. Run `node ace
+  tenant:secrets:reencrypt` BEFORE upgrading. It is the full, idempotent migration
+  and covers both plaintext-era values and legacy shared-context ciphertext, for
+  every registered secret class. The narrower `tenant:webhooks:encrypt-secrets`
+  only encrypts plaintext webhook rows and is superseded by it.
 - **Stripe SDK type re-exports removed from the core surface.** The
   `StripeEvent` / `StripeSubscription` / `StripeSubscriptionStatus` /
   `StripeCustomer` / `StripeInvoice` / `StripeCheckoutSession` / `StripePrice` /
@@ -149,13 +156,18 @@ for a copy-paste migration.
   rely on the TTL). The cached tenant is the same instance for every concurrent
   request in the pod: treat it as read-only and load a fresh instance for any
   mutate-then-save flow.
-- **`APP_KEY` rotation support.** Stored secrets (webhook signing secrets, SSO
-  client secrets) are encrypted under a key derived from `APP_KEY`, so rotating
-  it used to turn them all into permanent decryption failures. New
-  `tenant:secrets:reencrypt` command (previous key via the `OLD_APP_KEY` env
-  variable, idempotent, `--dry-run`) re-encrypts them under the new key; the
-  crypto utils gained `decryptWithAppKey` (rotation) and `decryptStrict`
-  (rejects a non-ciphertext value instead of passing it through).
+- **`APP_KEY` rotation and secret-class migration.** Stored secrets (webhook
+  signing secrets, SSO client secrets) are encrypted under a key derived from
+  `APP_KEY`, so rotating it used to turn them all into permanent decryption
+  failures. The `tenant:secrets:reencrypt` command brings every stored value to
+  the canonical `(current APP_KEY, per-class context)` form in one idempotent,
+  resumable pass (`--dry-run` to preview). It handles two axes at once: a key
+  rotation (set the previous key via the `OLD_APP_KEY` env variable, never a flag)
+  and the move from the older shared context to each secret's per-class context
+  (run with `OLD_APP_KEY` unset for a context-only migration). The crypto utils
+  gained `decryptWithAppKey` (decrypt under an explicit key and context, for
+  rotation) and `decryptStrict` (rejects a non-ciphertext value instead of
+  passing it through).
 - **`isolation.rowScopeRls` acknowledgment flag.** The provider logs a boot-time
   warning whenever `rowscope-pg` is the active driver without the RLS backstop
   (the mixin alone is convention, not enforcement); setting the flag after

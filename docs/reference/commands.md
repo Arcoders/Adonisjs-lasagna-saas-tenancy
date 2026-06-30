@@ -46,8 +46,8 @@ is installed and its provider + commands are wired in `adonisrc.ts`.
 | `tenant:import --tenant=<id> --file=<path>` | Import a `pg_dump` `.sql` file into a tenant schema. All-or-nothing by default (the first error aborts and rolls everything back); `--continue-on-error` opts into per-statement savepoints, which can leave a partial import. Warns when the schema rewrite touches a string literal. |
 | `tenant:clone --source=<id> --name=<name> --email=<email>` | Provision a new tenant by cloning an existing one. `--schema-only`, `--clear-sessions`. |
 | `tenant:queue:stats` | BullMQ queue statistics. |
-| `tenant:secrets:reencrypt` | Re-encrypt stored secrets (webhook signing secrets, SSO client secrets) after an `APP_KEY` rotation. Reads the previous key from `OLD_APP_KEY` (env only, never a flag); idempotent, supports `--dry-run`. Ships in core. See the [security guide](/guides/security). |
-| `tenant:webhooks:encrypt-secrets` | One-time upgrade step: encrypt any plaintext webhook signing secrets at rest. Webhook delivery now fails closed on a non-`enc_v1` secret, so run this once if you stored plaintext secrets before upgrading. Idempotent, supports `--dry-run`. |
+| `tenant:secrets:reencrypt` | The full secret migration. Brings every stored secret (webhook signing secrets, SSO client secrets) to the current `APP_KEY` and its per-class context, covering both plaintext-era values and values still under the older shared context. Two axes in one idempotent pass: set `OLD_APP_KEY` (env only, never a flag) to also rotate the key, or leave it unset for a context-only migration. Mandatory before upgrading for any host that stores these secrets, since a legacy-context value now fails closed. Supports `--dry-run`. Ships in core. See the [security guide](/guides/security). |
+| `tenant:webhooks:encrypt-secrets` | Narrower one-time helper: encrypt any PLAINTEXT webhook signing secrets at rest. It does not re-encrypt already-encrypted secrets under their per-class context, so it is superseded by `tenant:secrets:reencrypt` for the upgrade. Idempotent, supports `--dry-run`. |
 
 ## Doctor
 

@@ -13,6 +13,19 @@ The API is considered final; `release candidate` (not `stable`) reflects the two
 still-open items shared with the core, an independent security review and
 production mileage.
 
+- **Breaking: stored SSO client secrets fail closed and are domain-separated.**
+  The stored `client_secret` is now read through the core's strict, per-class
+  secret accessor: the value must be ciphertext encrypted under the SSO
+  client-secret class (its data key is HKDF-derived with a per-class context, so
+  it never overlaps another secret class). The login flow used a lenient decrypt
+  before, so a plaintext or wrong-context value was used as the raw secret; the
+  token exchange now fails closed and refuses to send the credential instead of
+  authenticating with the wrong bytes. This affects every host that stores SSO
+  secrets, not only those that ever stored plaintext: a value still encrypted
+  under the older shared context also fails closed until it is re-encrypted. Run
+  `node ace tenant:secrets:reencrypt` (ships in core) BEFORE upgrading. It is
+  idempotent and covers both plaintext-era values and legacy shared-context
+  ciphertext. Write new secrets through `upsertConfig`, never the column directly.
 - **Security-critical core unit-tested.** Added a unit suite over `SsoService`
   covering the atomic GETDEL state consumption (CSRF/replay), the SSRF guards on
   issuer / token_endpoint / jwks_uri, the discovery issuer-mismatch check, and the

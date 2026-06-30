@@ -38,17 +38,24 @@ The URL is validated against the SSRF guard at registration AND again
 at delivery time: loopback, private ranges, cloud-metadata IPs, and
 every numeric encoding of them are refused.
 
-::: warning Stored secrets must be `enc_v1` ciphertext
-`registerWebhook()` encrypts the signing secret for you. If you write
-`tenant_webhooks.secret` directly (your own admin UI, a seeder, raw SQL),
-you MUST store it encrypted — wrap the value in `encrypt()` from
-`@adonisjs-lasagna/saas-tenancy`. Delivery now **fails closed** on a
-non-`enc_v1` secret: a plaintext, corrupted, or wrong-key value marks the
-delivery failed (no retry) instead of signing with raw bytes.
+::: warning Stored secrets are read fail-closed and domain-separated
+`registerWebhook()` encrypts the signing secret for you, under the webhook
+secret class. Delivery reads it back with a strict, per-class decrypt, so a
+plaintext, corrupted, wrong-key, or wrong-class value marks the delivery failed
+(no retry) instead of signing with raw bytes. Do not write
+`tenant_webhooks.secret` directly with a raw value or a default-context
+`encrypt()` call: a value that is not ciphertext for the webhook secret class
+fails closed at delivery. Let `registerWebhook()` write it.
 
-Upgrading from a version that allowed plaintext secrets? Run the one-time
-`node ace tenant:webhooks:encrypt-secrets` (idempotent, `--dry-run` first)
-to encrypt any existing plaintext rows before deliveries resume.
+Upgrading? Run `node ace tenant:secrets:reencrypt` **before** deploying. This is
+the full, idempotent migration: it re-encrypts every stored webhook and SSO
+secret under its per-class context, covering both plaintext-era values and
+values already encrypted under the older shared context. It is mandatory for
+every host that stores webhook or SSO secrets, not only those that once stored
+plaintext, because a legacy shared-context value now also fails closed until it
+is migrated. Set `OLD_APP_KEY` if you are also rotating the key. The narrower
+`tenant:webhooks:encrypt-secrets` only encrypts plaintext rows and is superseded
+by `tenant:secrets:reencrypt`.
 :::
 
 ## Sending
