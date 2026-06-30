@@ -37,6 +37,12 @@ for (const rel of files) {
   const source = readFileSync(abs, 'utf8')
   for (const match of source.matchAll(pattern)) {
     const [, target, base] = match
+    // Only check file references (the bug class: a spawned/imported file path that
+    // drifts when a tier changes depth). Directory references (trailing slash) are
+    // skipped: some are runtime output dirs that are gitignored and absent on a
+    // clean clone (e.g. results/), and a committed dir's drift is caught anyway by
+    // the file refs resolved against it.
+    if (target.endsWith('/')) continue
     const baseUrl = base === 'FIXTURE_ROOT' ? fixtureRoot : pathToFileURL(abs)
     const resolved = fileURLToPath(new URL(target, baseUrl))
     checked++
