@@ -15,13 +15,13 @@ test needs real SQL round-trips.
 ## Test layout (organized by guarantee)
 
 Tests are organized by the **guarantee** they protect, not by the machinery that
-runs them. Each package's `tests/` looks like this:
+runs them. Every package's `tests/` shows the same skeleton:
 
 ```
 tests/@guarantees/<g>/{unit,integration}/   # <g> = isolation | security | behavior | resilience | performance
-tests/@architecture/{docs,contracts,boundaries}/   # static guards (no DB); docs/ holds the *_documented integrity specs
-tests/@integration/{drivers,fault_injection}/      # drivers gate on every run; fault_injection is the chaos tier
-tests/fixtures/  tests/helpers/                     # shared support, never moved
+tests/@architecture/{boundaries,contracts,docs}/   # static guards (no DB); docs/ holds the *_documented integrity specs
+tests/@integration/drivers/                 # driver specs gated on every integration run
+tests/helpers/                              # shared, non-spec support
 ```
 
 The harness (unit vs integration) is the **leaf** inside each guarantee, because
@@ -29,13 +29,25 @@ the two run in different worlds: unit specs run against source with `tsx` and no
 database, integration specs boot a real `Ignitor` + PostgreSQL against the
 compiled build. A runner therefore selects only the specs it can run with one
 recursive glob, while a maintainer still finds "everything about isolation" in
-one place. `examples/api` keeps the full-scenario suite under
-`tests/@integration/e2e/` (plus `hardening/`).
+one place.
+
+All five guarantees and both harness leaves are present in every package, so the
+tree reads the same everywhere. A slot with no specs yet carries a short
+`README.md` so the directory is tracked and self-documenting; run
+`npm run scaffold:tests` to materialize the skeleton for a new package. The chaos
+tier (`@integration/fault_injection`) and the fixture app (`tests/fixtures`) live
+only in core, because no satellite has its own fault runner or Ignitor fixture.
+`examples/api` keeps the full-scenario suite under `tests/@integration/e2e/`
+(plus `hardening/`) and is the demo's only tier.
 
 Naming follows `<guarantee>_<context>_<outcome>.spec.ts` for guarantee specs;
 architectural and integration-dimension specs keep their existing descriptive
-names. The `@architecture/boundaries/guarantee_tree_consistent` spec fails if a
-directory under `@guarantees/` is not one of the canonical guarantees.
+names. Every package ships a `@architecture/boundaries/<pkg>_guarantee_tree` spec
+that calls the kit's `assertGuaranteeTree`, which fails if a directory under
+`@guarantees/` is not a canonical guarantee, if a harness leaf is anything but
+`unit` or `integration`, or if a stray directory appears at the top level. The
+taxonomy is single-sourced in the kit, so adding a guarantee or tier is one edit
+there and nothing else can drift.
 
 ## The `/testing` subpath
 
@@ -190,7 +202,7 @@ package's runners collapse to a couple of lines:
 ```ts
 // bin/test.ts (unit harness: @guarantees/**/unit + @architecture, against source)
 import { runUnitSuite } from '@adonisjs-lasagna/satellite-test-kit'
-runUnitSuite() // pass { withArchitecture: true } if the package has @architecture specs
+runUnitSuite({ withArchitecture: true }) // every package runs its own @architecture tree guard
 
 // bin/test.integration.ts (stack harness: real Ignitor + PostgreSQL)
 import { runIntegrationSuite, guaranteeGlobs } from '@adonisjs-lasagna/satellite-test-kit'
