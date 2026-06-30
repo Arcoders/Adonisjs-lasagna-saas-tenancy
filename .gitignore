@@ -27,3 +27,8 @@ doc-graph.json
 
 # api-extractor scratch (the committed golden is etc/<pkg>.api.md; temp/ is not).
 packages/*/temp/
+
+# Private WIP: the lasagna-ai architecture doc stays local until it is ready to
+# publish. The rest of packages/ai/ is tracked normally; remove this line to
+# publish the doc.
+packages/ai/ARCHITECTURE.md
