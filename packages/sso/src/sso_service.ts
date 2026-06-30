@@ -90,8 +90,22 @@ function defaultDeps(): SsoServiceDeps {
         return (await redisLazy()).setex(key, ttlSeconds, value)
       },
     },
-    fetch: (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) =>
-      fetch(input, init),
+    fetch: async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      // Route the server-side IdP calls (discovery, token exchange) through the
+      // pinned safeFetch seam: it resolves and validates the host once and connects
+      // only to that address, closing the DNS-rebinding window. Loopback is allowed
+      // because in-process test IdPs use 127.0.0.1; the SsoController never accepts
+      // a loopback issuerUrl from admin input, and a non-loopback host is still
+      // pinned and range-checked.
+      const { safeFetch } = await import('@adonisjs-lasagna/saas-tenancy')
+      return safeFetch(String(input), {
+        method: init?.method,
+        headers: (init?.headers as Record<string, string>) ?? undefined,
+        body: init?.body as string | URLSearchParams | undefined,
+        signal: init?.signal ?? undefined,
+        allowLoopback: true,
+      })
+    },
     async cacheGetOrSet(opts) {
       const { getCache } = await import('@adonisjs-lasagna/saas-tenancy/services')
       return getCache().namespace('sso').getOrSet(opts) as Promise<ReturnType<typeof opts.factory>>
@@ -109,12 +123,17 @@ function defaultDeps(): SsoServiceDeps {
       return validateResolvedHostIsPublic(url)
     },
     async encryptSecret(value) {
-      const { encrypt } = await import('@adonisjs-lasagna/saas-tenancy')
-      return encrypt(value)
+      const { writeSecret } = await import('@adonisjs-lasagna/saas-tenancy')
+      return writeSecret(value, 'ssoClientSecret')
     },
     async decryptSecret(value) {
-      const { decrypt } = await import('@adonisjs-lasagna/saas-tenancy')
-      return decrypt(value)
+      // Fail closed and domain-separated: readSecret uses decryptStrict under the
+      // sso:client_secret context, so a plaintext, tampered, or wrong-context
+      // value throws instead of being used as a live token-exchange credential.
+      // Hosts upgrading from the lenient default-context scheme must run
+      // `tenant:secrets:reencrypt` first (see the SSO guide).
+      const { readSecret } = await import('@adonisjs-lasagna/saas-tenancy')
+      return readSecret(value, 'ssoClientSecret')
     },
     importJose() {
       return import('jose')
@@ -177,9 +196,10 @@ export default class SsoService {
     return this.#deps.persistConfig(tenantId, {
       provider: 'oidc',
       clientId: data.clientId,
-      // Encrypt the IdP client secret at rest (AES-256-GCM, same as webhook
-      // signing secrets). A backoffice DB/backup leak must not hand out every
-      // tenant's OIDC token-exchange credential in plaintext.
+      // Encrypt the IdP client secret at rest (AES-256-GCM) under its own secret
+      // class, so its key is domain-separated from webhook signing secrets. A
+      // backoffice DB/backup leak must not hand out every tenant's OIDC
+      // token-exchange credential in plaintext.
       clientSecret: await this.#deps.encryptSecret(data.clientSecret),
       issuerUrl: data.issuerUrl,
       redirectUri: data.redirectUri,
@@ -267,8 +287,10 @@ export default class SsoService {
         code,
         redirect_uri: config.redirectUri,
         client_id: config.clientId,
-        // `decrypt` returns the value unchanged when it lacks a known ciphertext
-        // prefix (enc_v1/enc_v2), so rows written before encryption keep working.
+        // Fail closed: decryptSecret reads strictly under the sso:client_secret
+        // class. A plaintext or wrong-context value throws here rather than being
+        // sent as the token-exchange credential, so a pre-upgrade row stops the
+        // exchange until `tenant:secrets:reencrypt` migrates it.
         client_secret: await this.#deps.decryptSecret(config.clientSecret),
       }),
       // Never follow a redirect on the token POST: the body carries the decrypted

@@ -2,8 +2,7 @@ import type { ApplicationService } from '@adonisjs/core/types'
 import { Database } from '@adonisjs/lucid/database'
 import { setConfig } from '../config.js'
 import { assertConfigBounds } from './assert_config_bounds.js'
-import { membershipGateRisk } from '../services/membership_gate.js'
-import { hostTrustWarning } from './assert_host_trust.js'
+import { resolutionSafetyAudit } from './resolution_safety.js'
 import { assertRowScopeRlsPresent, probeRlsCatalog } from '../services/isolation/rls_boot_probe.js'
 import type { MultitenancyConfig } from '../types/config.js'
 import { TenantAdapter } from '../models/adapters/index.js'
@@ -166,13 +165,15 @@ export default class MultitenancyProvider {
     if (choice === 'rowscope-pg' && config.isolation?.rowScopeRls === true) {
       const tables = config.isolation?.rowScopeTables ?? []
       if (tables.length > 0) {
+        const scopeColumn = config.isolation?.rowScopeColumn ?? 'tenant_id'
         const rows = await probeRlsCatalog(
           db as any,
           config.centralConnectionName,
           config.centralSchemaName,
-          tables
+          tables,
+          scopeColumn
         )
-        assertRowScopeRlsPresent(rows, tables)
+        assertRowScopeRlsPresent(rows, tables, scopeColumn)
       }
     }
     if (choice === 'sqlite-memory' && !drivers.has('sqlite-memory')) {
@@ -199,20 +200,19 @@ export default class MultitenancyProvider {
     // this one runs. See providers/resolver_chain.
     wireResolverChain(resolvers, config)
 
-    // Cross-tenant IDOR signal. A client-controlled resolver strategy
-    // (header/path/request-data) with no `authorizeTenantAccess` means the
-    // package serves whatever tenant id the caller supplies. Warn once at boot
-    // unless the host explicitly accepted the risk via acknowledgeNoMembershipGate.
-    // The same verdict backs the `membership_gate` doctor check. Logger comes
-    // from the container (the eager logger binding is undefined this early in boot).
-    const idorWarning = membershipGateRisk(config)
-    const hostTrust = hostTrustWarning(config)
-    if (idorWarning || hostTrust) {
+    // Resolution-safety signal. Both the cross-tenant IDOR posture (a
+    // client-controlled strategy with no `authorizeTenantAccess`) and the
+    // unbounded host-trust posture (a host strategy with no expectedHostSuffix)
+    // are derived from one audit, the same one the `membership_gate` doctor check
+    // and the production hard-fail in assertConfigBounds consume. Warn once at
+    // boot. Logger comes from the container (the eager logger binding is undefined
+    // this early in boot). assertConfigBounds already hard-failed any finding in
+    // production (boot line ~98), so reaching here with findings means a
+    // non-production boot.
+    const resolutionRisks = resolutionSafetyAudit(config)
+    if (resolutionRisks.length > 0) {
       const bootLogger = await this.app.container.make('logger').catch(() => undefined)
-      // assertConfigBounds already hard-failed the host-trust case in production,
-      // so reaching here with hostTrust set means a non-production boot.
-      if (idorWarning) bootLogger?.warn(idorWarning)
-      if (hostTrust) bootLogger?.warn(hostTrust)
+      for (const risk of resolutionRisks) bootLogger?.warn(risk.message)
     }
 
     // When the unified resolution path is enabled, seed the tenant log context
@@ -237,8 +237,6 @@ export default class MultitenancyProvider {
     const bootstrappers = await this.app.container.make(BootstrapperRegistry)
     if (!bootstrappers.has('cache')) bootstrappers.register(cacheBootstrapper)
     await this.#registerOptionalBootstrappers(bootstrappers)
-
-    this.#validateImpersonationConfig(config)
 
     await this.#registerQueueJobs()
   }
@@ -313,23 +311,6 @@ export default class MultitenancyProvider {
       if (!Array.isArray(config.resolverChain) || config.resolverChain.length === 0) {
         throw new Error('multitenancy.resolverChain must be a non-empty array when set.')
       }
-    }
-  }
-
-  /**
-   * If the host opted into impersonation by adding an `impersonation` block,
-   * the secret has to clear the same bar as ImpersonationService#secret().
-   * We check it here so a bad deploy fails on boot — not later, when the
-   * first admin tries to `start()` a session and the request stalls.
-   */
-  #validateImpersonationConfig(config: MultitenancyConfig): void {
-    if (!config.impersonation) return
-    const secret = config.impersonation.secret
-    if (!secret || secret.length < 32) {
-      throw new Error(
-        'multitenancy.impersonation.secret is missing or shorter than 32 characters. ' +
-          'Set it to a long random string (e.g. `openssl rand -hex 32`) before booting the app.'
-      )
     }
   }
 

@@ -63,22 +63,22 @@ document is cached for one hour and hardened before it is trusted:
 
 Per-tenant OIDC settings live in the `tenant_sso_configs` row (the
 migration stub ships with this package and is published by
-`node ace configure @adonisjs-lasagna/sso`):
+`node ace configure @adonisjs-lasagna/sso`). Write them through
+`SsoService.upsertConfig`, which encrypts the `client_secret` at rest
+and runs `issuerUrl` through the SSRF guard before persisting:
 
 ```ts
-import { TenantSsoConfig } from '@adonisjs-lasagna/sso'
+import { SsoService } from '@adonisjs-lasagna/sso'
 
-await TenantSsoConfig.updateOrCreate(
-  { tenantId: tenant.id },
-  {
-    issuerUrl: 'https://login.acme.com',
-    clientId: env.get('ACME_OIDC_CLIENT_ID'),
-    clientSecret: env.get('ACME_OIDC_CLIENT_SECRET'),
-    redirectUri: 'https://app.example.com/auth/callback',
-    scopes: ['openid', 'profile', 'email'],
-    enabled: true,
-  }
-)
+const sso = await app.container.make(SsoService)
+
+await sso.upsertConfig(tenant.id, {
+  issuerUrl: 'https://login.acme.com',
+  clientId: env.get('ACME_OIDC_CLIENT_ID'),
+  clientSecret: env.get('ACME_OIDC_CLIENT_SECRET'),
+  redirectUri: 'https://app.example.com/auth/callback',
+  scopes: ['openid', 'profile', 'email'],
+})
 ```
 
 The admin REST endpoint that wires this also runs `issuerUrl`
@@ -86,6 +86,19 @@ through the SSRF guard, and discovery re-checks the document's
 `token_endpoint` / `jwks_uri` with the resolving variant, so a
 mis-configured tenant cannot make the server reach a private
 network.
+
+<Callout type="warning">
+The `client_secret` is encrypted at rest under its own secret class, and the
+login flow reads it with a strict decrypt: a plaintext or wrong-context value
+fails closed (the token exchange refuses to send it) rather than leaking the
+credential. Always write through `upsertConfig` (or `writeSecret`); never write
+the column directly with a plaintext value.
+
+Upgrading from an earlier version: run `node ace tenant:secrets:reencrypt`
+**before** deploying. It re-encrypts every stored `client_secret` under the new
+per-class context (run with `OLD_APP_KEY` set if you are also rotating the key).
+Skip it and that tenant's SSO login stops working until the secret is migrated.
+</Callout>
 
 ## Login flow
 

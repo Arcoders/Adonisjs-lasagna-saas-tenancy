@@ -1,6 +1,7 @@
 import app from '@adonisjs/core/services/app'
 import CircuitBreakerService from '../services/circuit_breaker_service.js'
 import TenantQueueService from '../services/tenant_queue_service.js'
+import { collectTenantPoolStats } from '../services/doctor/checks/connection_pool_check.js'
 import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import type { TenantStatus, TenantModelContract } from '../types/contracts.js'
 import type { MetricsSnapshot } from './metrics_exporter.js'
@@ -75,11 +76,21 @@ export async function collectSnapshot(options: CollectOptions = {}): Promise<Met
     }
   }
 
+  // Tenant pool saturation is always exposed (observability by default), even
+  // though the readiness GATE on it is opt-in. Cheap in-memory read; best-effort.
+  let poolSaturation: MetricsSnapshot['poolSaturation'] = []
+  try {
+    poolSaturation = (await collectTenantPoolStats()) ?? []
+  } catch (err) {
+    await warn('pool_saturation_unavailable', err)
+  }
+
   return {
     tenantsTotal,
     tenantsByStatus,
     circuits,
     queues,
+    poolSaturation,
     uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
   }
 }

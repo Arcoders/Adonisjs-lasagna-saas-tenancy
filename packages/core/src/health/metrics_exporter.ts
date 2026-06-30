@@ -1,5 +1,6 @@
 import type { CircuitMetrics } from '../services/circuit_breaker_service.js'
 import type { TenantQueueStats } from '../services/tenant_queue_service.js'
+import type { TenantPoolStat } from '../services/doctor/checks/connection_pool_check.js'
 
 export interface MetricsSnapshot {
   tenantsTotal: number
@@ -7,6 +8,8 @@ export interface MetricsSnapshot {
   circuits: Record<string, CircuitMetrics>
   queues: TenantQueueStats[]
   uptimeSeconds: number
+  /** Per-connection tenant pool saturation. Optional so older snapshot literals stay valid. */
+  poolSaturation?: TenantPoolStat[]
 }
 
 const CIRCUIT_STATE_VALUE: Record<string, number> = { CLOSED: 0, HALF_OPEN: 1, OPEN: 2 }
@@ -72,6 +75,23 @@ export function renderPrometheus(snapshot: MetricsSnapshot): string {
     )
     lines.push(metricLine('multitenancy_queue_jobs', { ...labels, state: 'failed' }, q.failed))
     lines.push(metricLine('multitenancy_queue_jobs', { ...labels, state: 'delayed' }, q.delayed))
+  }
+
+  const pools = snapshot.poolSaturation ?? []
+  if (pools.length > 0) {
+    lines.push(
+      '# HELP multitenancy_pool_saturation_ratio Tenant connection pool saturation (numUsed/max, 0..1).'
+    )
+    lines.push('# TYPE multitenancy_pool_saturation_ratio gauge')
+    lines.push(
+      '# HELP multitenancy_pool_pending_acquires Connections queued waiting for a pool slot.'
+    )
+    lines.push('# TYPE multitenancy_pool_pending_acquires gauge')
+    for (const p of pools) {
+      const labels = { connection: p.connection, tenant_id: p.tenantId ?? '' }
+      lines.push(metricLine('multitenancy_pool_saturation_ratio', labels, p.ratio))
+      lines.push(metricLine('multitenancy_pool_pending_acquires', labels, p.numPending))
+    }
   }
 
   lines.push('# HELP multitenancy_uptime_seconds Process uptime in seconds.')

@@ -30,6 +30,11 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
  *     SUPERUSER still bypasses it — run your app's runtime role WITHOUT those.
  *   - `tenant_id::text = ...` compares as text, so it works for both `uuid` and
  *     `text` id columns.
+ *   - The tenant column is set NOT NULL: a NULL-scoped row is invisible to the
+ *     fail-closed policy, so it would be an unowned, unreachable row. The boot
+ *     probe refuses to start when `rowScopeRls` is true and the column is
+ *     nullable. SET NOT NULL fails if existing rows hold NULL here — backfill
+ *     them before running this migration.
  */
 const SCHEMA = 'public'
 const TABLES = ['posts', 'comments', 'invoices'] // TODO: your rowScopeTables
@@ -52,6 +57,9 @@ export default class extends BaseSchema {
       )
       this.schema.raw(`ALTER TABLE ${ref} ENABLE ROW LEVEL SECURITY`)
       this.schema.raw(`ALTER TABLE ${ref} FORCE ROW LEVEL SECURITY`)
+      // The scoped column must be NOT NULL so an unowned (NULL-scoped) row can
+      // never exist. The boot probe enforces this when rowScopeRls is true.
+      this.schema.raw(`ALTER TABLE ${ref} ALTER COLUMN "${TENANT_COLUMN}" SET NOT NULL`)
       this.schema.raw(`DROP POLICY IF EXISTS ${POLICY} ON ${ref}`)
       this.schema.raw(
         `CREATE POLICY ${POLICY} ON ${ref} ` +
@@ -67,6 +75,9 @@ export default class extends BaseSchema {
       this.schema.raw(`DROP POLICY IF EXISTS ${POLICY} ON ${ref}`)
       this.schema.raw(`ALTER TABLE ${ref} NO FORCE ROW LEVEL SECURITY`)
       this.schema.raw(`ALTER TABLE ${ref} DISABLE ROW LEVEL SECURITY`)
+      // Revert the NOT NULL added in up(). A NOT NULL tenant column is generally
+      // safe to keep, but down() mirrors up() so the migration is reversible.
+      this.schema.raw(`ALTER TABLE ${ref} ALTER COLUMN "${TENANT_COLUMN}" DROP NOT NULL`)
     }
   }
 }

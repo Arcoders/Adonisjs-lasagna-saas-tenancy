@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import { safeFetch } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import BillingException from '../../exceptions/billing_exception.js'
 import type { BillingErrorCode } from '../../exceptions/billing_exception.js'
@@ -80,7 +81,11 @@ export default class PaddleDriver implements BillingProviderContract {
     const cfg = this.#config()
     let res: Response
     try {
-      res = await fetch(`${this.#baseUrl()}${path}`, {
+      // Trusted-host mode: api.paddle.com / sandbox-api.paddle.com are first-party
+      // static hosts behind a CDN, so safeFetch asserts the host + https and shares
+      // the redirect/timeout handling but does NOT pin (edge IP rotation must keep
+      // working). The allowlist lives in safe_fetch.ts.
+      res = await safeFetch(`${this.#baseUrl()}${path}`, {
         method,
         headers: {
           'Authorization': `Bearer ${cfg.apiKey}`,
@@ -90,6 +95,7 @@ export default class PaddleDriver implements BillingProviderContract {
           ...(opts?.idempotencyKey ? { 'Idempotency-Key': opts.idempotencyKey } : {}),
         },
         body: body === undefined ? undefined : JSON.stringify(body),
+        trustedHost: true,
       })
     } catch (err) {
       throw new BillingException('network_error', 'Paddle API connection error', {
@@ -226,9 +232,13 @@ export default class PaddleDriver implements BillingProviderContract {
     const cfg = this.#config()
     let res: Response
     try {
-      res = await fetch(url, {
+      // The pagination `next` is an absolute URL from Paddle's response. Routing it
+      // through trusted-host mode also asserts it stays on the Paddle host, so a
+      // compromised response can't steer pagination at an arbitrary destination.
+      res = await safeFetch(url, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${cfg.apiKey}`, 'Content-Type': 'application/json' },
+        trustedHost: true,
       })
     } catch (err) {
       throw new BillingException('network_error', 'Paddle API connection error', {

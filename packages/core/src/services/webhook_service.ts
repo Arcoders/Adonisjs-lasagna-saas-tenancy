@@ -1,12 +1,9 @@
 import TenantWebhook from '../models/satellites/tenant_webhook.js'
 import TenantWebhookDelivery from '../models/satellites/tenant_webhook_delivery.js'
 import WebhookTransformerRegistry from './webhook_transformer_registry.js'
-import { encrypt, decryptStrict } from '../utils/crypto.js'
-import {
-  validateExternalHttpsUrl,
-  validateResolvedHostIsPublic,
-  isLoopbackUrl,
-} from '../utils/url.js'
+import { readSecret, writeSecret } from '../utils/secret_at_rest.js'
+import { validateExternalHttpsUrl } from '../utils/url.js'
+import { safeFetch, SafeFetchError } from '../utils/safe_fetch.js'
 import { DateTime } from 'luxon'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 
@@ -211,31 +208,18 @@ export default class WebhookService {
   }
 
   async send(hook: TenantWebhook, delivery: TenantWebhookDelivery): Promise<void> {
-    // SSRF guard at the fetch boundary. The admin controller validates URLs on
-    // create/update, but auto-dispatch (`dispatch`) and the retry sweep
-    // (`processRetries`) reach this method with a stored URL that may have been
-    // written via the service API, a prior package version, or a host that
-    // rebound its DNS to an internal address. Refuse here rather than trust the
-    // upstream check. This also resolves the hostname and rejects any address
-    // in a private/metadata range. A structurally-unsafe URL is permanent, so
-    // fail without scheduling a retry.
+    // Outbound delivery goes through the pinned safeFetch seam. It resolves and
+    // validates the host ONCE and connects only to that validated address, so a
+    // stored URL that rebinds its DNS to an internal/metadata host (the auto-
+    // dispatch and retry-sweep paths reach send() with a stored URL) can never be
+    // reached, closing the rebinding window the old validate-then-fetch left open.
     //
-    // Escape hatch: WEBHOOKS_ALLOW_LOOPBACK_TARGETS=true exempts *loopback*
-    // targets (localhost / 127.0.0.0/8 / ::1) only. Off by default — production
-    // stays locked down. Even when enabled, private (RFC 1918) and cloud-metadata
-    // ranges stay blocked, so the flag can't be turned into a metadata SSRF. Opt
-    // in for tests/dev that deliver to an in-process listener on 127.0.0.1.
-    const allowLoopback =
-      process.env.WEBHOOKS_ALLOW_LOOPBACK_TARGETS === 'true' && isLoopbackUrl(hook.url)
-    const urlError = allowLoopback ? null : await validateResolvedHostIsPublic(hook.url)
-    if (urlError) {
-      delivery.statusCode = null
-      delivery.responseBody = `blocked_unsafe_url:${urlError}`
-      delivery.status = 'failed'
-      delivery.nextRetryAt = null
-      await delivery.save()
-      return
-    }
+    // Escape hatch: WEBHOOKS_ALLOW_LOOPBACK_TARGETS=true lets safeFetch deliver to
+    // a *loopback* target (localhost / 127.0.0.0/8 / ::1) without pinning. Off by
+    // default. Even when enabled, a non-loopback host still goes through pinned
+    // validation, so private (RFC 1918) and cloud-metadata ranges stay blocked and
+    // the flag can't be turned into a metadata SSRF.
+    const allowLoopback = process.env.WEBHOOKS_ALLOW_LOOPBACK_TARGETS === 'true'
 
     const body = JSON.stringify(delivery.payload)
     const headers: Record<string, string> = {
@@ -245,15 +229,15 @@ export default class WebhookService {
     }
 
     if (hook.secret) {
-      // The stored secret MUST be enc_v1/enc_v2 ciphertext: we fail closed with
-      // decryptStrict, so a non-encrypted, corrupted, or wrong-key value is a
-      // PERMANENT failure rather than being signed with raw column bytes.
-      // Decrypting OUTSIDE this guard would throw straight out of send(),
+      // The stored secret MUST be ciphertext for the webhook class: readSecret
+      // fails closed, so a non-encrypted, corrupted, wrong-key, or wrong-class
+      // value is a PERMANENT failure rather than being signed with raw column
+      // bytes. Decrypting OUTSIDE this guard would throw straight out of send(),
       // leaving the delivery row stuck `pending` (the retry sweep only selects
-      // `retrying`) and — through the allSettled fan-out — surfacing as a
-      // rejection. Mark it failed with no retry and stop here instead.
+      // `retrying`) and through the allSettled fan-out surfacing as a rejection.
+      // Mark it failed with no retry and stop here instead.
       try {
-        const plainSecret = decryptStrict(hook.secret)
+        const plainSecret = readSecret(hook.secret, 'webhookSecret')
         headers['x-webhook-signature'] = createHmac('sha256', plainSecret)
           .update(body)
           .digest('hex')
@@ -268,22 +252,20 @@ export default class WebhookService {
     }
 
     try {
-      const res = await fetch(hook.url, {
+      // safeFetch pins the validated address and never follows a redirect, so a
+      // 3xx Location chosen by the (attacker-influenced) receiver can't pivot at
+      // internals. A conformant receiver answers 2xx; a 3xx is treated as a
+      // permanent failure below.
+      const res = await safeFetch(hook.url, {
         method: 'POST',
         headers,
         body,
-        // Do NOT follow redirects. The SSRF guard above validated `hook.url`, but
-        // a 3xx `Location` is chosen by the (attacker-influenced) receiver and the
-        // guard never sees it, so following it would reach an internal/metadata
-        // host behind the validated front door. A conformant webhook receiver
-        // answers 2xx, so treat a 3xx as a misconfiguration or an attack and fail.
-        redirect: 'manual',
-        signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS),
+        timeoutMs: DELIVERY_TIMEOUT_MS,
+        allowLoopback,
       })
 
-      // With `redirect: 'manual'`, undici surfaces the 3xx itself (status in
-      // 300..399). Treat it as a permanent, non-retryable failure. We never read
-      // or follow the Location, so a redirect can't be used to pivot at internals.
+      // safeFetch surfaces the 3xx itself (status in 300..399). Treat it as a
+      // permanent, non-retryable failure. We never read or follow the Location.
       if (res.status >= 300 && res.status < 400) {
         delivery.statusCode = res.status
         delivery.responseBody = `blocked_redirect:${res.status}`
@@ -303,6 +285,19 @@ export default class WebhookService {
         delivery.attempt += 1
       }
     } catch (err) {
+      // A structural/security rejection (blocked private/metadata range, non-https,
+      // a host that rebound) is permanent: fail with no retry. A transient
+      // SafeFetchError (DNS hiccup, timeout, connection error) and any other error
+      // fall through to the normal retry path, where the next attempt re-validates.
+      if (err instanceof SafeFetchError && !err.retryable) {
+        delivery.statusCode = null
+        delivery.responseBody = `blocked_unsafe_url:${err.code}`
+        delivery.status = 'failed'
+        delivery.nextRetryAt = null
+        await delivery.save()
+        return
+      }
+
       delivery.statusCode = null
       delivery.responseBody = truncateBody(String(err))
       delivery.status = delivery.attempt < MAX_ATTEMPTS ? 'retrying' : 'failed'
@@ -355,7 +350,7 @@ export default class WebhookService {
       tenantId,
       url,
       events,
-      secret: encrypt(plainSecret),
+      secret: writeSecret(plainSecret, 'webhookSecret'),
       enabled: true,
     })
     return provided ? { hook } : { hook, generatedSecret: plainSecret }

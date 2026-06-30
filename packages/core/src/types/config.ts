@@ -560,10 +560,20 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
   health?: {
     /**
      * Register a `tenant_pools` readiness check that fails when any tenant Lucid
-     * connection pool is saturated (numUsed >= max). Reuses the
-     * `connection_pool` doctor logic.
+     * connection pool is at or over the saturation threshold
+     * (`tenantPoolSaturationThreshold`), so the pod can shed load before pools are
+     * fully exhausted. Tenant-pool saturation is ALWAYS exposed as a Prometheus
+     * gauge (`multitenancy_pool_saturation_ratio`) regardless of this flag; this
+     * only controls whether saturation GATES readiness.
      */
     tenantPoolsCheck?: boolean
+    /**
+     * Saturation ratio (0..1) at which the `tenant_pools` readiness check fails.
+     * Defaults to `doctor.poolSaturationWarnRatio` (built-in 0.9) so there is ONE
+     * saturation number across the doctor warning, the readiness gate, and the
+     * metric. Set to `1` to fail only when a pool is fully exhausted.
+     */
+    tenantPoolSaturationThreshold?: number
     /**
      * Register a `read_replicas` readiness check that fails when a configured
      * read replica is unreachable or critically lagged. Reuses the `replica_lag`

@@ -23,6 +23,13 @@ test.group('architectural — rowscope RLS boot probe is wired', () => {
     assert.match(src, /rowScopeRls === true/, 'the probe must gate on rowScopeRls === true')
     assert.match(src, /probeRlsCatalog\(/, 'the provider must query the RLS catalog')
     assert.match(src, /assertRowScopeRlsPresent\(/, 'the provider must assert the probe result')
+    // WS-5: the scoped column must be threaded through so the probe can assert it
+    // is NOT NULL (a nullable scoped column is a latent isolation hole).
+    assert.match(
+      src,
+      /rowScopeColumn\s*\?\?\s*'tenant_id'/,
+      'the provider must resolve the scope column and pass it to the probe'
+    )
   })
 
   test('detector controls: the matcher is not vacuously true', ({ assert }) => {

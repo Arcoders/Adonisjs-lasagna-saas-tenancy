@@ -96,6 +96,39 @@ test.group('renderPrometheus — format', () => {
     const out = renderPrometheus({ ...emptySnapshot(), uptimeSeconds: 42 })
     assert.match(out, /multitenancy_uptime_seconds 42/)
   })
+
+  test('renders tenant pool saturation as a gauge with connection + tenant labels', ({
+    assert,
+  }) => {
+    const out = renderPrometheus({
+      ...emptySnapshot(),
+      poolSaturation: [
+        {
+          connection: 'tenant_abc',
+          tenantId: 'abc',
+          numUsed: 9,
+          numFree: 1,
+          numPending: 3,
+          max: 10,
+          ratio: 0.9,
+        },
+      ],
+    })
+    assert.include(out, '# TYPE multitenancy_pool_saturation_ratio gauge')
+    assert.match(
+      out,
+      /multitenancy_pool_saturation_ratio\{connection="tenant_abc",tenant_id="abc"\} 0\.9/
+    )
+    assert.match(
+      out,
+      /multitenancy_pool_pending_acquires\{connection="tenant_abc",tenant_id="abc"\} 3/
+    )
+  })
+
+  test('omits the pool family entirely when there is no saturation data', ({ assert }) => {
+    const out = renderPrometheus(emptySnapshot())
+    assert.notInclude(out, 'multitenancy_pool_saturation_ratio')
+  })
 })
 
 test.group('renderPrometheus — escaping', () => {

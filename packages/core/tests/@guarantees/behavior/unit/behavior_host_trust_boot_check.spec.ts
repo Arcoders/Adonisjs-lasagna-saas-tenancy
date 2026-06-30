@@ -76,9 +76,18 @@ test.group('host-trust — assertConfigBounds production gate', () => {
     })
   })
 
-  test('passes in production for a non-host strategy', ({ assert }) => {
+  test('passes in production for a non-host strategy (membership gate acknowledged)', ({
+    assert,
+  }) => {
+    // `header` is not a host strategy, so the host-trust gate stays clear. It IS
+    // client-controlled, so the resolution-safety audit would otherwise fail it on
+    // the membership gate (WS-3); acknowledge that to isolate the host-trust case.
     withNodeEnv('production', () => {
-      assert.doesNotThrow(() => assertConfigBounds(config({ resolverStrategy: 'header' })))
+      assert.doesNotThrow(() =>
+        assertConfigBounds(
+          config({ resolverStrategy: 'header', acknowledgeNoMembershipGate: true })
+        )
+      )
     })
   })
 

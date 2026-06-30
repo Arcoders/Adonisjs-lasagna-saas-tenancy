@@ -196,6 +196,28 @@ test.group('SsoService — OIDC flow with fake IdP', (group) => {
     assert.equal(result.claims.email, 'user@example.test')
   })
 
+  test('token exchange fails closed when the stored client_secret is not ciphertext for its class', async ({
+    assert,
+  }) => {
+    // WS-1: a pre-upgrade row whose client_secret is plaintext (or was encrypted
+    // under the legacy shared context) must fail the strict, class-bound read
+    // rather than be sent as the token-exchange credential. The happy-path test
+    // above is the positive control (a correctly-classed ciphertext succeeds).
+    const { tenantId, clientId } = await freshTenantWithSso()
+    await TenantSsoConfig.query()
+      .where('tenant_id', tenantId)
+      .update({ client_secret: 'plaintext-never-migrated' })
+
+    const cfg = (await svc.getConfig(tenantId))!
+    const url = await svc.buildAuthUrl(cfg)
+    const { state, nonce } = extractStateAndNonce(url)
+    idp.setIdToken(
+      await signIdToken({ privateKey: idp.privateKey, iss: idp.baseUrl, aud: clientId, nonce })
+    )
+
+    await assert.rejects(() => svc.handleCallback(state, 'fake-code'), /ciphertext/i)
+  })
+
   test('rejects token with wrong issuer', async ({ assert }) => {
     const { tenantId, clientId } = await freshTenantWithSso()
     const cfg = (await svc.getConfig(tenantId))!

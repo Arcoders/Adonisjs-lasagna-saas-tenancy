@@ -2,36 +2,37 @@ import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import db from '@adonisjs/lucid/services/db'
 import { getConfig } from '../config.js'
-import { encrypt } from '../utils/crypto.js'
+import { SECRET_AT_REST_COLUMNS, SECRET_CLASS, writeSecret } from '../utils/secret_at_rest.js'
 import { classifySecretRotation } from '../utils/secrets_rotation.js'
 
 /**
- * APP_KEY rotation tooling (audit P3-3). Stored secrets (webhook signing
- * secrets, SSO client secrets) are encrypted with `sha256(APP_KEY)`, so
- * rotating APP_KEY silently turns every one of them into a permanent
- * decryption failure. This command makes rotation a supported operation:
+ * Secret migration / rotation tooling. Stored secrets (webhook signing secrets,
+ * SSO client secrets) are encrypted at rest, and reads now fail closed and are
+ * domain-separated per class. This command brings every stored value to the
+ * canonical `(current APP_KEY, per-class context)` form. It covers two axes:
  *
- *   OLD_APP_KEY=<previous key> node ace tenant:secrets:reencrypt
+ *   - APP_KEY rotation. Set OLD_APP_KEY to the previous key:
+ *       OLD_APP_KEY=<previous key> node ace tenant:secrets:reencrypt
+ *     Each value that decrypts under the old key is re-encrypted under the
+ *     current key.
+ *   - Context migration / encrypt-at-rest. Run with OLD_APP_KEY unset:
+ *       node ace tenant:secrets:reencrypt
+ *     Values still encrypted under the legacy shared default context, and any
+ *     plaintext-era values, are (re-)encrypted under their per-class context.
  *
- * For every known encrypted column it decrypts each `enc_v1`/`enc_v2` value with
- * the OLD key and re-encrypts it with the CURRENT `APP_KEY` (always producing
- * `enc_v2`). Values that already decrypt with the current key are skipped (the
- * command is idempotent and resumable). The old key comes from the environment,
- * never argv, so it stays out of shell history and process listings.
+ * Both axes are handled in one idempotent, resumable pass: a value already at the
+ * target is skipped. The old key comes from the environment, never argv, so it
+ * stays out of shell history and process listings.
  *
- * Satellite tables are matched by name in the backoffice schema, so the
- * command covers `tenant_sso_configs` (the sso package's table) without core
- * importing the package; an uninstalled satellite is simply skipped.
+ * Satellite tables are matched by name in the backoffice schema (the work list is
+ * single-sourced from SECRET_AT_REST_COLUMNS), so the command covers
+ * `tenant_sso_configs` without core importing the sso package; an uninstalled
+ * satellite is simply skipped.
  */
-const ENCRYPTED_COLUMNS: Array<{ table: string; column: string }> = [
-  { table: 'tenant_webhooks', column: 'secret' },
-  { table: 'tenant_sso_configs', column: 'client_secret' },
-]
-
 export default class TenantSecretsReencrypt extends BaseCommand {
   static readonly commandName = 'tenant:secrets:reencrypt'
   static readonly description =
-    'Re-encrypt stored secrets after an APP_KEY rotation (reads the previous key from OLD_APP_KEY)'
+    'Migrate/rotate stored secrets to the current APP_KEY and per-class context (reads any previous key from OLD_APP_KEY)'
   static readonly options: CommandOptions = { startApp: true }
 
   @flags.boolean({
@@ -42,20 +43,21 @@ export default class TenantSecretsReencrypt extends BaseCommand {
   declare dryRun: boolean
 
   async run() {
-    const oldKey = process.env.OLD_APP_KEY
-    if (!oldKey) {
-      this.logger.error(
-        'Set OLD_APP_KEY to the previous APP_KEY (env only — never a flag). ' +
-          'Current APP_KEY must already hold the NEW key.'
-      )
+    const currentKey = process.env.APP_KEY
+    if (!currentKey) {
+      this.logger.error('APP_KEY is not set; cannot re-encrypt secrets.')
       this.exitCode = 1
       return
     }
-    if (oldKey === process.env.APP_KEY) {
-      this.logger.error('OLD_APP_KEY equals the current APP_KEY — nothing to rotate.')
-      this.exitCode = 1
-      return
-    }
+
+    const rawOldKey = process.env.OLD_APP_KEY
+    // OLD_APP_KEY is optional. Unset (or equal to the current key) means a
+    // context-only migration: there is no separate key to recover from, so the
+    // classifier uses the current key for the old-key attempts.
+    const oldKey = rawOldKey && rawOldKey !== currentKey ? rawOldKey : currentKey
+    const mode =
+      oldKey === currentKey ? 'context migration' : 'APP_KEY rotation + context migration'
+    this.logger.info(`Mode: ${mode}.`)
 
     const { backofficeConnectionName, backofficeSchemaName } = getConfig()
     const conn = db.connection(backofficeConnectionName)
@@ -64,7 +66,7 @@ export default class TenantSecretsReencrypt extends BaseCommand {
     let current = 0
     let failed = 0
 
-    for (const { table, column } of ENCRYPTED_COLUMNS) {
+    for (const { table, column, cls } of SECRET_AT_REST_COLUMNS) {
       const exists = await conn.rawQuery(
         `SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ?`,
         [backofficeSchemaName, table]
@@ -74,6 +76,7 @@ export default class TenantSecretsReencrypt extends BaseCommand {
         continue
       }
 
+      const targetContext = SECRET_CLASS[cls]
       const rows: Array<{ id: string; value: string }> = await conn
         .query()
         .from(table)
@@ -81,15 +84,16 @@ export default class TenantSecretsReencrypt extends BaseCommand {
         .whereNotNull(column)
 
       for (const row of rows) {
-        const decision = classifySecretRotation(row.value, oldKey, process.env.APP_KEY ?? '')
-        if (decision.action === 'skip') continue // plaintext-era row: nothing key-bound to rotate
+        const decision = classifySecretRotation(row.value, oldKey, currentKey, targetContext)
         if (decision.action === 'current') {
-          current++ // already under the current key (idempotent re-run / partial rotation)
+          current++ // already at (current key, target context): idempotent skip
           continue
         }
         if (decision.action === 'failed') {
           failed++
-          this.logger.error(`${table}.${column} id=${row.id}: decrypts with NEITHER key`)
+          this.logger.error(
+            `${table}.${column} id=${row.id}: not recoverable under the current or old APP_KEY`
+          )
           continue
         }
 
@@ -98,7 +102,7 @@ export default class TenantSecretsReencrypt extends BaseCommand {
             .query()
             .from(table)
             .where('id', row.id)
-            .update({ [column]: encrypt(decision.plaintext) })
+            .update({ [column]: writeSecret(decision.plaintext, cls) })
         }
         rotated++
       }
@@ -109,12 +113,13 @@ export default class TenantSecretsReencrypt extends BaseCommand {
     this.logger.info(`Summary: ${verb} ${rotated}, already current ${current}, failed ${failed}`)
     if (failed > 0) {
       this.logger.error(
-        'Some secrets decrypt with neither key — they were encrypted under a different ' +
-          'APP_KEY generation and must be re-entered by the tenant or restored from backup.'
+        'Some secrets are not recoverable under the current or old APP_KEY — they were ' +
+          'encrypted under a different APP_KEY generation and must be re-entered by the ' +
+          'tenant or restored from backup.'
       )
       this.exitCode = 1
       return
     }
-    this.logger.success(this.dryRun ? 'Dry run complete' : 'Secrets re-encrypted')
+    this.logger.success(this.dryRun ? 'Dry run complete' : 'Secrets migrated')
   }
 }

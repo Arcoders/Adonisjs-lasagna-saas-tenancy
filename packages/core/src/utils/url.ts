@@ -92,6 +92,60 @@ export async function validateResolvedHostIsPublic(value: unknown): Promise<stri
 }
 
 /**
+ * A validated, pinned HTTPS target: the parsed URL plus the single resolved
+ * address the caller must connect to. {@link safeFetch} pins this address for the
+ * connection (custom `lookup`) while keeping the Host header and TLS SNI on the
+ * original hostname, so a name that rebinds AFTER this check can never be
+ * reached. This closes the DNS-rebinding TOCTOU window that
+ * {@link validateResolvedHostIsPublic} only documents.
+ */
+export interface PinnedHttpsTarget {
+  url: URL
+  hostname: string
+  address: string
+  family: number
+}
+
+/**
+ * Resolve `value` to ONE validated public address for a pinned HTTPS fetch.
+ * Runs the syntactic guard, then (for a hostname) resolves DNS exactly once and
+ * rejects if ANY resolved address falls in a blocked range. Returns the first
+ * address to pin, or a stable error code string.
+ *
+ * Fail-closed by construction: a syntactic rejection, a blocked address, or a
+ * DNS-resolution failure all return an error code (no address), so the caller
+ * never connects on a name it could not fully validate. The single resolution is
+ * the one the connection pins, so there is no second lookup to rebind between.
+ */
+export async function resolvePinnedHttpsTarget(
+  value: unknown
+): Promise<PinnedHttpsTarget | string> {
+  const staticError = validateExternalHttpsUrl(value)
+  if (staticError) return staticError
+
+  const url = new URL(value as string)
+  const hostname = stripBrackets(url.hostname.toLowerCase())
+
+  // A literal IP already passed the robust syntactic classification above; pin it.
+  const fam = isIP(hostname)
+  if (fam !== 0) return { url, hostname: url.hostname, address: hostname, family: fam }
+
+  let addresses: Array<{ address: string; family: number }>
+  try {
+    addresses = await lookup(hostname, { all: true })
+  } catch {
+    return 'url_dns_failure' // cannot pin what we cannot resolve: fail closed
+  }
+  for (const a of addresses) {
+    const err = classifyIpLiteral(a.address.toLowerCase())
+    if (err !== 'not-an-ip' && err !== null) return err // a blocked address among the records
+  }
+  const target = addresses[0]
+  if (!target) return 'url_dns_failure'
+  return { url, hostname: url.hostname, address: target.address, family: target.family }
+}
+
+/**
  * True iff `value` is a syntactic loopback URL (localhost / 127.0.0.0/8 / ::1 /
  * an IPv4-mapped IPv6 loopback). Scopes the webhook delivery escape hatch: even
  * when an operator opts into delivering to otherwise-blocked targets, only

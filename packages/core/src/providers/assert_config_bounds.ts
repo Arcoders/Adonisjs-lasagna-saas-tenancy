@@ -1,7 +1,8 @@
 import type { MultitenancyConfig } from '../types/config.js'
 import { isProductionNodeEnv } from '../utils/env.js'
-import { hostTrustWarning } from './assert_host_trust.js'
+import { resolutionSafetyAudit } from './resolution_safety.js'
 import { assertResolverChain } from './resolver_chain.js'
+import { SECRET_CONFIG_FIELDS } from './secret_config_fields.js'
 
 /**
  * Range-check the numeric tunables at boot. The provider's `#assertConfigShape`
@@ -14,6 +15,16 @@ import { assertResolverChain } from './resolver_chain.js'
  * default and is skipped. Kept as a pure function (not a provider method) so it
  * can be unit-tested without booting an Ignitor, matching `validate_driver_choice`.
  */
+/** Read a dotted config path (e.g. `impersonation.secret`), null-safe at each hop. */
+function readConfigPath(config: MultitenancyConfig, path: string): unknown {
+  return path
+    .split('.')
+    .reduce<unknown>(
+      (acc, key) => (acc == null ? acc : (acc as Record<string, unknown>)[key]),
+      config
+    )
+}
+
 export function assertConfigBounds(config: MultitenancyConfig): void {
   const fail = (path: string, rule: string, value: unknown): never => {
     throw new Error(`multitenancy.${path} must be ${rule}, got ${String(value)}.`)
@@ -79,20 +90,41 @@ export function assertConfigBounds(config: MultitenancyConfig): void {
 
   atLeast(config.maintenance?.retryAfterSeconds, 'maintenance.retryAfterSeconds', 1)
 
-  // The maintenance bypass token is a standing shared secret that lets a request
-  // skip the maintenance gate on a tenant deliberately taken offline (mid-migration,
-  // etc.). A short token is brute-forceable, and the constant-time compare leaks
-  // length, so require real entropy (matches the impersonation.secret floor).
-  const bypassToken = config.maintenance?.bypassToken
-  if (bypassToken != null && bypassToken.length < 32) {
-    fail('maintenance.bypassToken', 'at least 32 characters', `${bypassToken.length} chars`)
+  // Secret-strength floors, single-sourced from SECRET_CONFIG_FIELDS so every
+  // standing secret (impersonation HMAC, maintenance bypass token, and any future
+  // one) clears the same bar at boot. A field is REQUIRED when its `requiredWhen`
+  // says so (the impersonation secret once the block is present); otherwise it is
+  // only length-checked when set. Exempt (infra-credential) fields are skipped.
+  for (const field of SECRET_CONFIG_FIELDS) {
+    if (!field.enforce) continue
+    const value = readConfigPath(config, field.path)
+    const min = field.minLength ?? 0
+    if (value == null) {
+      if (field.requiredWhen?.(config)) {
+        fail(field.path, `set and at least ${min} characters`, 'missing')
+      }
+      continue
+    }
+    if (typeof value !== 'string' || value.length < min) {
+      fail(
+        field.path,
+        `at least ${min} characters`,
+        typeof value === 'string' ? `${value.length} chars` : typeof value
+      )
+    }
   }
 
-  // Host-trust gate: a host-based strategy with no expectedHostSuffix is a
-  // spoofable tenant-hop. In production we fail closed at boot; in dev the
-  // provider logs the same message as a warning (it has the container logger).
+  // Resolution-safety gate. Two high-severity cross-tenant exposures are enforced
+  // through one audit: a client-controlled strategy with no membership gate
+  // (IDOR) and a host strategy with no expectedHostSuffix allowlist (spoofable
+  // tenant-hop). In production we fail closed at boot on any finding; in dev the
+  // provider logs the same messages as warnings (it has the container logger).
+  // Acknowledgement (authorizeTenantAccess / acknowledgeNoMembershipGate) is
+  // honored inside the audit, so an accepted posture produces no finding.
   if (isProductionNodeEnv()) {
-    const hostTrust = hostTrustWarning(config)
-    if (hostTrust) throw new Error(hostTrust)
+    const risks = resolutionSafetyAudit(config)
+    if (risks.length > 0) {
+      throw new Error(risks.map((r) => r.message).join('\n\n'))
+    }
   }
 }

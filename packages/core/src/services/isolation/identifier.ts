@@ -9,6 +9,21 @@ const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 const SAFE_IDENT = /^[a-zA-Z0-9_-]{1,63}$/
 
 /**
+ * Defense-in-depth: a safe identifier must ALSO be in canonical NFKC form.
+ *
+ * NFKC folds compatibility/homoglyph characters onto ASCII (`℀`→`a/c`, `𝔸`→`A`,
+ * fullwidth digits → ASCII digits). The correct posture for a tenant identifier
+ * is to REJECT a non-canonical input, never to fold it: folding `tenant_℀` to
+ * `tenant_A` would COLLIDE with a legitimate `tenant_A` schema, which is exactly
+ * the homoglyph-collision risk this guards against. The ASCII-only `SAFE_IDENT`
+ * already rejects every non-canonical character today, so this is belt-and-
+ * suspenders: a future loosening of the regex still cannot admit a homoglyph.
+ */
+function isCanonicalForm(value: string): boolean {
+  return value === value.normalize('NFKC')
+}
+
+/**
  * Reject anything that could escape a quoted identifier in PostgreSQL DDL.
  * We never want to interpolate an unsafe string into `CREATE SCHEMA "…"`,
  * `DROP DATABASE "…"`, or any other identifier slot, so this check is the
@@ -21,10 +36,10 @@ const SAFE_IDENT = /^[a-zA-Z0-9_-]{1,63}$/
  * we reject before reaching SQL.
  */
 export function assertSafeIdentifier(value: string, kind: string = 'identifier'): void {
-  if (typeof value !== 'string' || !SAFE_IDENT.test(value)) {
+  if (typeof value !== 'string' || !SAFE_IDENT.test(value) || !isCanonicalForm(value)) {
     throw new Error(
       `Refusing to use unsafe ${kind} "${value}" in DDL. ` +
-        `Tenant ids must match /^[a-zA-Z0-9_-]{1,63}$/ (UUID v4 satisfies this).`
+        `Tenant ids must match /^[a-zA-Z0-9_-]{1,63}$/ in canonical (NFKC) form (UUID v4 satisfies this).`
     )
   }
 }
@@ -42,7 +57,7 @@ export function isUuidV4(value: string): boolean {
  * alphanumeric host ids up to 63 chars; rejects the `:` used as a key separator.
  */
 export function isSafeIdentifier(value: unknown): value is string {
-  return typeof value === 'string' && SAFE_IDENT.test(value)
+  return typeof value === 'string' && SAFE_IDENT.test(value) && isCanonicalForm(value)
 }
 
 export { UUID_V4, SAFE_IDENT }

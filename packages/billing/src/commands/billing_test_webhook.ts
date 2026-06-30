@@ -2,6 +2,7 @@ import { BaseCommand, args, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import { signWebhookPayload } from '../testing/sign_webhook_payload.js'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import { safeFetch } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
 import { getActiveBillingDriver } from '../services/billing/active_billing_driver.js'
 import { DEFAULT_STRIPE_API_VERSION } from '../stripe_api_version.js'
 
@@ -112,10 +113,14 @@ export default class BillingTestWebhook extends BaseCommand {
     const body = JSON.stringify(event)
     const sig = signWebhookPayload(body, cfg.stripe.webhookSecret)
 
-    const res = await fetch(this.url, {
+    // The target is user-supplied (--url), so route it through pinned safeFetch:
+    // a non-loopback host is resolved, range-validated, and pinned. The default
+    // target is a loopback dev listener, which is allowed without pinning.
+    const res = await safeFetch(this.url, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'stripe-signature': sig },
       body,
+      allowLoopback: true,
     })
 
     const text = await res.text()

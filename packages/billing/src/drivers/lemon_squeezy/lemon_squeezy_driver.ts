@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import { safeFetch } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import BillingException from '../../exceptions/billing_exception.js'
 import type { BillingErrorCode } from '../../exceptions/billing_exception.js'
@@ -63,7 +64,10 @@ export default class LemonSqueezyDriver implements BillingProviderContract {
     const cfg = this.#config()
     let res: Response
     try {
-      res = await fetch(`${LS_API}${path}`, {
+      // Trusted-host mode: api.lemonsqueezy.com is a first-party static host behind
+      // a CDN. safeFetch asserts host + https and shares redirect/timeout handling
+      // without pinning (the allowlist lives in safe_fetch.ts).
+      res = await safeFetch(`${LS_API}${path}`, {
         method,
         headers: {
           'Authorization': `Bearer ${cfg.apiKey}`,
@@ -71,6 +75,7 @@ export default class LemonSqueezyDriver implements BillingProviderContract {
           'Content-Type': LS_MEDIA_TYPE,
         },
         body: body === undefined ? undefined : JSON.stringify(body),
+        trustedHost: true,
       })
     } catch (err) {
       throw new BillingException('network_error', 'Lemon Squeezy API connection error', {
@@ -254,9 +259,10 @@ export default class LemonSqueezyDriver implements BillingProviderContract {
     const cfg = this.#config()
     let res: Response
     try {
-      res = await fetch(`${LS_API}${path}`, {
+      res = await safeFetch(`${LS_API}${path}`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${cfg.apiKey}`, Accept: LS_MEDIA_TYPE },
+        trustedHost: true,
       })
     } catch (err) {
       throw new BillingException('network_error', 'Lemon Squeezy API connection error', {

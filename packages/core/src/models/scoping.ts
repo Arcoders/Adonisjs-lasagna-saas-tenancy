@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { tenancy } from '../tenancy.js'
 import { configuredScopeColumn } from '../services/isolation/rowscope_pg_driver.js'
 import { getConfig } from '../config.js'
+import { recordScopeBypass } from './scope_bypass_audit.js'
 
 /**
  * Lucid's `BaseModel` (typed loosely so this file doesn't have to import
@@ -14,7 +15,7 @@ type Bootable = LucidBaseModelClass & {
   before(event: string, handler: (...args: any[]) => any): void
 }
 
-const bypassStorage = new AsyncLocalStorage<{ bypass: true }>()
+const bypassStorage = new AsyncLocalStorage<{ bypass: true; audited: boolean }>()
 
 /**
  * Run `fn` with tenant scoping disabled. Inside `fn`, queries against
@@ -22,10 +23,22 @@ const bypassStorage = new AsyncLocalStorage<{ bypass: true }>()
  *
  * Use this for legitimate cross-tenant operations (admin reports, central
  * migrations, audit log emission). Always prefer scoped queries in user
- * code paths.
+ * code paths. Pass `{ reason }` to attribute the bypass in the audit trail:
+ * every OUTERMOST bypass emits one rate-limited `scope:bypass` audit event
+ * (best-effort, never blocks or breaks the operation), so a deliberate or
+ * accidental cross-tenant escape is never invisible. This is the
+ * escape-hatch-with-an-audit-trail pattern.
  */
-export function unscoped<T>(fn: () => T | Promise<T>): Promise<T> {
-  return Promise.resolve(bypassStorage.run({ bypass: true }, fn))
+export function unscoped<T>(fn: () => T | Promise<T>, opts?: { reason?: string }): Promise<T> {
+  const parent = bypassStorage.getStore()
+  const alreadyAudited = parent?.audited === true
+  return bypassStorage.run({ bypass: true, audited: true }, async () => {
+    // Emit exactly one attributed event per outermost bypass. Nested unscoped()
+    // calls (and the audit write's own bypass, if any) inherit audited:true and
+    // skip, so there is no recursion and no duplicate event.
+    if (!alreadyAudited) await recordScopeBypass(opts?.reason)
+    return fn()
+  })
 }
 
 /**

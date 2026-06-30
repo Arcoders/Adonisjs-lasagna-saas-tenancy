@@ -46,10 +46,12 @@ Tick each before you take production traffic. The right-hand link is where the
 setting and its trade-off are explained.
 
 - [ ] **Egress controls.** Route app egress through a proxy or security group
-      that denies private, loopback, link-local, and cloud-metadata ranges. The SSRF
-      guard validates URLs but does not pin the resolved IP, so network egress closes
-      the residual DNS-rebinding window for SSO and webhook fetches. See
-      [Troubleshooting](/reference/gotchas) and [Security](/guides/security).
+      that denies private, loopback, link-local, and cloud-metadata ranges. Outbound
+      SSO and webhook fetches go through the pinned `safeFetch` seam, which resolves
+      and validates the host once and connects only to that address, so the
+      DNS-rebinding window is closed in app code; network egress remains
+      defense-in-depth. See [Troubleshooting](/reference/gotchas) and
+      [Security](/guides/security).
 - [ ] **Connection budget.** Keep `maxTenantConnections × poolMax` (plus central,
       backoffice, and replica pools) under PostgreSQL `max_connections`. Decide on
       `enforceConnectionCap` (default `false` favours availability; `true` is a firm
@@ -63,6 +65,14 @@ setting and its trade-off are explained.
       migration to list your real `rowScopeTables` and column, and migrate under a DB
       role **without** `SUPERUSER` / `BYPASSRLS`. See
       [rowscope-pg](/guides/data-isolation/rowscope-pg).
+- [ ] **Resolution safety.** A production boot now fails closed on either unsafe
+      resolution posture: a client-controlled strategy (header/path/request-data) with
+      no `authorizeTenantAccess` (cross-tenant IDOR), or a host strategy
+      (subdomain/domain-or-subdomain) with no `resolver.expectedHostSuffix`. Wire
+      `authorizeTenantAccess`, set `expectedHostSuffix`, or, if an app-layer guard
+      already verifies tenant membership, set `acknowledgeNoMembershipGate: true`.
+      Both are derived from one audit, so the boot warning, the `membership_gate`
+      doctor check, and the hard-fail never disagree. See [Security](/guides/security).
 - [ ] **Admin API auth.** Pass `middleware` to `multitenancyAdminRoutes(...)` so
       the destructive routes are guarded; it is fail-closed and throws at boot if you
       omit it. Use `middleware: false` only behind a trusted network boundary. See

@@ -1,6 +1,9 @@
 import { test } from '@japa/runner'
 import HealthService from '../../../../src/health/health_service.js'
-import { registerDefaultChecks } from '../../../../src/health/default_checks.js'
+import {
+  registerDefaultChecks,
+  tenantPoolSaturationThreshold,
+} from '../../../../src/health/default_checks.js'
 import { setupTestConfig } from '../../../helpers/config.js'
 
 /**
@@ -39,5 +42,25 @@ test.group('default checks — tenant connectivity dimensions', () => {
     const svc = registerDefaultChecks(new HealthService())
     assert.isTrue(svc.hasCheck('tenant_pools'))
     assert.isFalse(svc.hasCheck('read_replicas'))
+  })
+})
+
+test.group('tenant pool saturation threshold — single sourced', () => {
+  test('defaults to the built-in 0.9 when nothing is configured', ({ assert }) => {
+    setupTestConfig()
+    assert.equal(tenantPoolSaturationThreshold(), 0.9)
+  })
+
+  test('falls back to the doctor warn ratio so there is one saturation number', ({ assert }) => {
+    setupTestConfig({ doctor: { poolSaturationWarnRatio: 0.75 } })
+    assert.equal(tenantPoolSaturationThreshold(), 0.75)
+  })
+
+  test('an explicit health threshold overrides the doctor ratio', ({ assert }) => {
+    setupTestConfig({
+      health: { tenantPoolSaturationThreshold: 0.6 },
+      doctor: { poolSaturationWarnRatio: 0.75 },
+    })
+    assert.equal(tenantPoolSaturationThreshold(), 0.6)
   })
 })

@@ -1,7 +1,7 @@
 import app from '@adonisjs/core/services/app'
 import { getConfig } from '../config.js'
 import CircuitBreakerService from '../services/circuit_breaker_service.js'
-import connectionPoolCheck from '../services/doctor/checks/connection_pool_check.js'
+import { collectTenantPoolStats } from '../services/doctor/checks/connection_pool_check.js'
 import replicaLagCheck from '../services/doctor/checks/replica_lag_check.js'
 import type { DoctorContext } from '../services/doctor/types.js'
 import type HealthService from './health_service.js'
@@ -44,23 +44,43 @@ export const redisCheck: HealthCheckFn = async (): Promise<CheckResult> => {
   }
 }
 
+/** The saturation ratio at which the readiness gate sheds load. Single-sourced:
+ *  defaults to the doctor warn ratio so there is one saturation number, with an
+ *  optional explicit override. */
+export function tenantPoolSaturationThreshold(): number {
+  const cfg = getConfig()
+  return cfg.health?.tenantPoolSaturationThreshold ?? cfg.doctor?.poolSaturationWarnRatio ?? 0.9
+}
+
 /**
- * Tenant-pool readiness: fails when any tenant Lucid pool is saturated
- * (numUsed >= max), reusing the `connection_pool` doctor check. Pool warnings
- * (near-saturation, pending acquires) keep the pod ready; only an actually-full
- * pool fails the dimension.
+ * Tenant-pool readiness: fails when any tenant Lucid pool is at or over the
+ * saturation threshold (default: the doctor warn ratio, 0.9), so the pod can shed
+ * load before pools are fully exhausted. The current max saturation is always
+ * reported in `meta` whether the check passes or fails, so operators see the
+ * number even while the pod stays ready.
  */
 export const tenantPoolsCheck: HealthCheckFn = async (): Promise<CheckResult> => {
-  const issues = await connectionPoolCheck.run(EMPTY_DOCTOR_CTX)
-  const errors = issues.filter((i) => i.severity === 'error')
-  if (errors.length === 0) {
-    return { status: 'pass', durationMs: 0, meta: { warnings: issues.length } }
+  const stats = await collectTenantPoolStats()
+  if (stats === null) {
+    return { status: 'fail', durationMs: 0, message: '@adonisjs/lucid not available' }
+  }
+  const threshold = tenantPoolSaturationThreshold()
+  const maxRatio = stats.reduce((m, s) => Math.max(m, s.ratio), 0)
+  const saturated = stats.filter((s) => s.max > 0 && s.ratio >= threshold)
+  const meta = {
+    threshold,
+    maxRatio: Math.round(maxRatio * 100) / 100,
+    pools: stats.length,
+    saturated: saturated.map((s) => s.connection),
+  }
+  if (saturated.length === 0) {
+    return { status: 'pass', durationMs: 0, meta }
   }
   return {
     status: 'fail',
     durationMs: 0,
-    message: `${errors.length} tenant connection pool(s) saturated`,
-    meta: { codes: errors.map((e) => e.code) },
+    message: `${saturated.length} tenant connection pool(s) at/over ${Math.round(threshold * 100)}% saturation`,
+    meta,
   }
 }
 

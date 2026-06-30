@@ -2,19 +2,24 @@ import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import db from '@adonisjs/lucid/services/db'
 import { getConfig } from '../config.js'
-import { encrypt, isEncrypted } from '../utils/crypto.js'
+import { isEncrypted } from '../utils/crypto.js'
+import { writeSecret } from '../utils/secret_at_rest.js'
 
 /**
- * One-time upgrade step. Webhook delivery now fails closed on a stored secret
- * that is not `enc_v1`/`enc_v2` ciphertext (it used to sign with raw column
- * bytes for a non-encrypted value). Hosts that wrote plaintext secrets — for
- * example by following the demo controller before it encrypted at the write
- * boundary — must run this once to encrypt them at rest, otherwise their
- * deliveries start failing after the upgrade.
+ * One-time upgrade step for PLAINTEXT webhook secrets. Webhook delivery fails
+ * closed on a stored secret that is not ciphertext (it used to sign with raw
+ * column bytes for a non-encrypted value). Hosts that wrote plaintext secrets,
+ * for example by following the demo controller before it encrypted at the write
+ * boundary, run this once to encrypt them at rest under the webhook secret class.
  *
- * Idempotent: a secret that is already encrypted (enc_v1 or enc_v2) is left
+ * Idempotent: a secret that already carries a ciphertext prefix is left
  * untouched, so the command is safe to re-run and to schedule defensively. Use
  * `--dry-run` to see the counts first.
+ *
+ * Scope note: this only encrypts PLAINTEXT values. For the full migration that
+ * also re-encrypts already-encrypted secrets under their per-class context (the
+ * domain-separation upgrade), run `tenant:secrets:reencrypt`, which supersedes
+ * this command.
  */
 export default class TenantWebhooksEncryptSecrets extends BaseCommand {
   static readonly commandName = 'tenant:webhooks:encrypt-secrets'
@@ -54,7 +59,7 @@ export default class TenantWebhooksEncryptSecrets extends BaseCommand {
     for (const row of rows) {
       if (row.secret === null) continue
       if (isEncrypted(row.secret)) {
-        alreadyEncrypted++ // already enc_v1: idempotent skip
+        alreadyEncrypted++ // already ciphertext: idempotent skip (see scope note)
         continue
       }
       if (!this.dryRun) {
@@ -62,7 +67,7 @@ export default class TenantWebhooksEncryptSecrets extends BaseCommand {
           .query()
           .from('tenant_webhooks')
           .where('id', row.id)
-          .update({ secret: encrypt(row.secret) })
+          .update({ secret: writeSecret(row.secret, 'webhookSecret') })
       }
       encrypted++
     }

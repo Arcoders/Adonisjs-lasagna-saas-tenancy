@@ -152,12 +152,18 @@ reused pooled connection), `nullif(...)` makes the predicate `NULL`, so it
 matches nothing and `WITH CHECK` blocks the insert. A forgotten scope returns
 zero rows instead of leaking, which is the point.
 
+The migration also sets the scoped column `NOT NULL`. A NULL-scoped row is
+invisible to the fail-closed policy, so it would be an unowned, unreachable row;
+`NOT NULL` keeps one from ever being written. `SET NOT NULL` fails if existing
+rows already hold a NULL in that column, so backfill them before migrating.
+
 Once the migration is shipped and your writes go through `withTenantRls()`, set
-`isolation.rowScopeRls: true` in `config/multitenancy.ts`. This acknowledges that
-the enforced backstop is in place and silences the boot-time warning the provider
-otherwise logs for `rowscope-pg` (which runs on the mixin, convention not
-enforcement, until RLS is present). The flag is an acknowledgment, not a runtime
-check: it records that you made the call deliberately.
+`isolation.rowScopeRls: true` in `config/multitenancy.ts`. This is verified at
+boot, not merely recorded: the provider probes the catalog for every
+`rowScopeTables` entry and refuses to start (a 500-level `IsolationConfigException`)
+unless RLS is ENABLED, FORCED, policied, and the scoped column is `NOT NULL`. A
+half-applied migration can no longer boot looking protected while the escapable
+mixin is the only real boundary.
 
 <Callout type="warning" title="Run your app without SUPERUSER / BYPASSRLS">
 <code>FORCE ROW LEVEL SECURITY</code> makes the policy apply to the table owner

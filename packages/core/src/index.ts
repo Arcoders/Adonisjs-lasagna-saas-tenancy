@@ -203,4 +203,8 @@ export type {
   WithTenantRlsOptions,
 } from './services/isolation/rls.js'
 export { encrypt, decrypt, decryptStrict, decryptWithAppKey, isEncrypted } from './utils/crypto.js'
+export { readSecret, writeSecret, SECRET_CLASS } from './utils/secret_at_rest.js'
+export type { SecretClass } from './utils/secret_at_rest.js'
 export { validateExternalHttpsUrl, validateResolvedHostIsPublic } from './utils/url.js'
+export { safeFetch, SafeFetchError, TRUSTED_FETCH_HOSTS } from './utils/safe_fetch.js'
+export type { SafeFetchOptions } from './utils/safe_fetch.js'

@@ -174,8 +174,18 @@ multitenancy_circuit_state{tenant_id="..."}     gauge   0=CLOSED 1=HALF_OPEN 2=O
 multitenancy_circuit_failures_total{...}        counter
 multitenancy_circuit_successes_total{...}       counter
 multitenancy_queue_jobs{tenant_id,queue,state}  gauge   state ∈ waiting,active,completed,failed,delayed
+multitenancy_pool_saturation_ratio{connection,tenant_id}  gauge   numUsed/max, 0..1
+multitenancy_pool_pending_acquires{connection,tenant_id}  gauge   connections queued for a slot
 multitenancy_uptime_seconds                     gauge
 ```
+
+Tenant connection-pool saturation is always exposed on `/metrics`, so you get
+observability by default. GATING readiness on it is opt-in: set
+`health.tenantPoolsCheck: true` to register the `tenant_pools` check, which fails
+(degraded, non-critical) once any pool reaches `health.tenantPoolSaturationThreshold`.
+That threshold defaults to `doctor.poolSaturationWarnRatio` (built-in `0.9`), so
+the doctor warning, the readiness gate, and the metric all speak with one number;
+set it to `1` to fail only when a pool is fully exhausted.
 
 A typical Prometheus scrape config:
 

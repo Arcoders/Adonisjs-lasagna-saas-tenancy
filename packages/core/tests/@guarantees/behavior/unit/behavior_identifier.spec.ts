@@ -68,6 +68,33 @@ test.group('assertSafeIdentifier', () => {
   })
 })
 
+// WS-8: homoglyph / non-canonical canary. The ASCII-only regex already rejects
+// these, and the NFKC-stability check is a second, independent line so a future
+// regex loosening still cannot admit a homoglyph that folds onto an ASCII id.
+test.group('assertSafeIdentifier — reject, never fold (homoglyph defense)', () => {
+  test('rejects compatibility/homoglyph characters that NFKC would fold onto ASCII', ({
+    assert,
+  }) => {
+    // U+2100 (℀) folds toward "a/c"; 𝔸 (U+1D538) folds to "A"; folding either
+    // into an identifier would collide with a real ASCII tenant schema.
+    assert.throws(() => assertSafeIdentifier('tenant_℀'))
+    assert.throws(() => assertSafeIdentifier('\u{1D538}')) // 𝔸
+  })
+
+  test('rejects fullwidth digits and combining-mark inputs', ({ assert }) => {
+    assert.throws(() => assertSafeIdentifier('１２３')) // fullwidth 123
+    assert.throws(() => assertSafeIdentifier('á')) // a + combining acute accent
+  })
+
+  test('a plain UUID v4 and an ASCII opaque id remain canonical and pass', ({ assert }) => {
+    assert.doesNotThrow(() => assertSafeIdentifier('11111111-1111-4111-8111-111111111111'))
+    assert.doesNotThrow(() => assertSafeIdentifier('acme_tenant-42'))
+    // And the non-throwing twin agrees.
+    assert.isFalse(isSafeIdentifier('tenant_℀'))
+    assert.isTrue(isSafeIdentifier('acme_tenant-42'))
+  })
+})
+
 test.group('isUuidV4', () => {
   test('accepts canonical v4 uuids', ({ assert }) => {
     assert.isTrue(isUuidV4('11111111-1111-4111-8111-111111111111'))
