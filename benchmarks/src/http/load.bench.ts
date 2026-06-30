@@ -1,6 +1,6 @@
 import autocannon from 'autocannon'
-import type { BenchResult } from '../src/harness/runner.js'
-import { sizes } from '../src/harness/config.js'
+import type { BenchResult } from '../harness/runner.js'
+import { sizes } from '../harness/config.js'
 
 const GROUP = 'http'
 

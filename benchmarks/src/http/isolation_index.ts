@@ -8,11 +8,11 @@
  */
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { bootBenchApp, terminateBenchApp, getDb } from '../src/harness/ignitor.js'
-import { provisionTenants, seedIdentifiableNotes, pgVersion } from '../src/harness/provision.js'
-import { printMetricResults } from '../src/harness/runner.js'
-import { writeResult } from '../src/harness/results.js'
-import { sizes, DRIVER, HTTP_NODE_ENV } from '../src/harness/config.js'
+import { bootBenchApp, terminateBenchApp, getDb } from '../harness/ignitor.js'
+import { provisionTenants, seedIdentifiableNotes, pgVersion } from '../harness/provision.js'
+import { printMetricResults } from '../harness/runner.js'
+import { writeResult } from '../harness/results.js'
+import { sizes, DRIVER, HTTP_NODE_ENV } from '../harness/config.js'
 import { runIsolationLoad } from './isolation.bench.js'
 
 const HOST = '127.0.0.1'

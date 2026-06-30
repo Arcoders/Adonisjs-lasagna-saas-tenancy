@@ -10,10 +10,10 @@
  * The seeded note titles encode their owner (`t:<id>:<i>`) so any row in the
  * `id desc limit 20` window proves ownership; see `seedIdentifiableNotes`.
  */
-import { runConcurrent, percentileNs } from '../src/harness/concurrent_client.js'
-import { zeroMetric, type BenchResult } from '../src/harness/runner.js'
-import { identifiableTitlePrefix } from '../src/harness/provision.js'
-import { sizes } from '../src/harness/config.js'
+import { runConcurrent, percentileNs } from '../harness/concurrent_client.js'
+import { zeroMetric, type BenchResult } from '../harness/runner.js'
+import { identifiableTitlePrefix } from '../harness/provision.js'
+import { sizes } from '../harness/config.js'
 
 const GROUP = 'isolation'
 const HEADER = process.env.TENANT_HEADER_KEY ?? 'x-tenant-id'

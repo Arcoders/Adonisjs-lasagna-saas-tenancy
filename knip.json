@@ -72,9 +72,9 @@
         "src/*/index.ts",
         "src/harness/*.ts",
         "src/**/*.bench.ts",
-        "http/*.ts"
+        "src/http/*.ts"
       ],
-      "project": ["src/**/*.ts", "http/**/*.ts"],
+      "project": ["src/**/*.ts"],
       "ignoreDependencies": ["pg"]
     },
     "packages/satellite-test-kit": {
