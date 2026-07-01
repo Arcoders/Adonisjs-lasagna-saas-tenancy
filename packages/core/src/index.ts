@@ -147,6 +147,7 @@ export type {
   TenantLogContextData,
   QuotaCheckResult,
   QuotaStateSnapshot,
+  QuotaReservation,
   QuotaMode,
 } from './services/index.js'
 export {
