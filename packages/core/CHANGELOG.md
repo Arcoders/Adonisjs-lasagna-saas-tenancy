@@ -138,6 +138,22 @@ for a copy-paste migration.
   (`TenantConnectionLimitException`) instead of exceeding the cap. The default
   still favours availability (never sever an in-flight request); the hard cap is
   the documented opt-in for deployments fronted by PgBouncer.
+- **Cost reservations for streaming work (`QuotaService.reserve` / `settle` /
+  `release`).** A quota can now be held worst-case BEFORE an operation whose true
+  cost is only known when it finishes (a streaming model response is the
+  motivating case) and reconciled as the cost arrives.
+  `reserve(tenant, quota, worstCase)` atomically holds the amount against both
+  the per-tenant daily budget and an optional operator-global ceiling
+  (`plans.operatorCeiling[quota]`, a tenant-independent denial-of-wallet cap);
+  both must fit or nothing is held, and over-budget is a hard stop.
+  `settle(reservation, cumulativeUsed)` commits the actual usage, clamped and
+  monotonic, and `release(reservation)` returns the remainder and is idempotent.
+  The hold is a Redis key scored by its expiry, so a process that crashes
+  mid-stream has its budget reclaimed automatically when the TTL elapses
+  (`plans.reservationTtlMs`, default 2 minutes); there is no reaper process.
+  Unlike `consume`, `reserve` is fail-closed: if Redis is unreachable it refuses
+  rather than let an unbudgeted call through. A quota name is metered by exactly
+  one of `consume` or `reserve`, never both. Targets standalone/Sentinel Redis.
 - **Opt-in tenant-resolution cache.** `resolver.cache.{enabled, ttlMs, maxEntries}`
   (default off / 10 s / 10 000) serves warm tenants from a bounded per-process
   LRU, cutting the steady-state backoffice round-trips per request from two to

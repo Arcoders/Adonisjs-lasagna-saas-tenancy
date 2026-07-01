@@ -272,6 +272,23 @@ export interface PlansConfig {
    * auto-bridge to Stripe — `BillingService` listens and reports usage.
    */
   emitTracked?: boolean
+  /**
+   * Operator-global cost ceiling per quota name, a tenant-independent cap that
+   * `QuotaService.reserve` checks in the SAME atomic step as the per-tenant
+   * budget (both must fit or nothing is held). It guards a shared managed
+   * provider account from one tenant exhausting it (denial of wallet). Absent for
+   * a quota means no ceiling. Only the reserve/settle/release path enforces it;
+   * `consume` and `track` ignore it. Applies to standalone/Sentinel Redis.
+   */
+  operatorCeiling?: Record<string, number>
+  /**
+   * Worst-case lifetime in milliseconds of a single `QuotaService.reserve` hold
+   * before Redis expiry reclaims an orphan left by a crashed process. Default
+   * `120000` (2 minutes). A live stream refreshes its hold on every `settle`, so
+   * this only bounds a CRASHED stream's stranded budget; set it comfortably above
+   * the longest expected single streamed response.
+   */
+  reservationTtlMs?: number
 }
 
 export type ReadReplicaStrategy = 'round-robin' | 'random' | 'sticky'

@@ -56,7 +56,12 @@ export type { BrandingData } from './branding_service.js'
 // `SsoService` moved to `@adonisjs-lasagna/sso`.
 export { default as MetricsService } from './metrics_service.js'
 export { default as QuotaService } from './quota_service.js'
-export type { QuotaCheckResult, QuotaStateSnapshot, QuotaMode } from './quota_service.js'
+export type {
+  QuotaCheckResult,
+  QuotaStateSnapshot,
+  QuotaReservation,
+  QuotaMode,
+} from './quota_service.js'
 // `BillingService` + `redactStripeEvent` moved to `@adonisjs-lasagna/billing`.
 export { default as ReadReplicaService } from './read_replica_service.js'
 // Shared extension-execution primitives: `consumeRateLimit` is the sliding-window
