@@ -1,7 +1,8 @@
 import { test } from '@japa/runner'
 import { createServer, type Server } from 'node:http'
+import { request as httpsRequest } from 'node:https'
 import { type AddressInfo } from 'node:net'
-import { safeFetch, SafeFetchError } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
+import { pinnedLookup, safeFetch, SafeFetchError } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
 
 /**
  * Fault injection (WS-4): the pinned outbound seam never reaches a private/
@@ -61,5 +62,43 @@ test.group('fault: safeFetch pinning + loopback boundary', (group) => {
     const json = (await res.json()) as { ok: boolean; method: string }
     assert.isTrue(json.ok)
     assert.equal(json.method, 'POST')
+  })
+
+  test('the pin survives a real https connect under Node Happy-Eyeballs', async ({ assert }) => {
+    // safeFetch cannot exercise the COMPLETING pinned path against a local server:
+    // pinned mode blocks every private/loopback range by design, so the httpsRequest
+    // + custom lookup only ever runs against a public address. We drive the exact
+    // pin helper through a real https.request against the in-process listener with
+    // autoSelectFamily left at its Node-24 default (true). The single-address lookup
+    // shape used before this fix throws ERR_INVALID_IP_ADDRESS here at connect (Node
+    // Happy-Eyeballs calls a custom lookup with { all:true } and requires an array);
+    // the { all }-aware pin reaches the TLS layer instead. The plain-HTTP listener
+    // then fails the handshake, which is the point: the connection was established.
+    const port = (server.address() as AddressInfo).port
+    const outcome = await new Promise<{ code?: string; phase: string }>((resolve) => {
+      const req = httpsRequest(
+        {
+          host: 'pinned.example', // a NAME, so Node invokes the custom lookup (the pin path)
+          servername: 'pinned.example',
+          port,
+          path: '/',
+          method: 'GET',
+          lookup: pinnedLookup('127.0.0.1', 4),
+        },
+        () => resolve({ phase: 'response' })
+      )
+      req.on('error', (err: NodeJS.ErrnoException) => resolve({ code: err.code, phase: 'error' }))
+      req.setTimeout(3000, () => {
+        req.destroy(new Error('timeout'))
+        resolve({ phase: 'timeout' })
+      })
+      req.end()
+    })
+    assert.notEqual(
+      outcome.code,
+      'ERR_INVALID_IP_ADDRESS',
+      'the pin lookup must not break the connect layer on Node 24'
+    )
+    assert.equal(outcome.phase, 'error', 'connect reached TLS against the plain-HTTP listener')
   })
 })
