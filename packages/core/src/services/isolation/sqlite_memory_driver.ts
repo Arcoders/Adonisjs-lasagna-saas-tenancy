@@ -11,6 +11,7 @@ import type {
   TableLocation,
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
+import { runTenantMigrations } from './tenant_migration_runner.js'
 
 /**
  * Lazily resolve `db` to keep the Lucid runtime out of unit tests that only
@@ -113,17 +114,8 @@ export default class SqliteMemoryDriver implements ProvisionableDriver {
   }
 
   async migrate(tenant: TenantModelContract, opts: MigrateOptions): Promise<MigrateResult> {
-    const { db, app, MigrationRunner } = await lucid()
     // Ensure the connection exists before the runner asks for it.
     await this.connect(tenant)
-    const runner = new MigrationRunner(db, app, {
-      ...opts,
-      connectionName: this.connectionName(tenant.id),
-    })
-    await runner.run()
-    if (runner.error) throw runner.error
-    return {
-      executed: runner.migratedFiles ? Object.keys(runner.migratedFiles).length : 0,
-    }
+    return runTenantMigrations(this.connectionName(tenant.id), opts)
   }
 }

@@ -39,6 +39,20 @@ export interface SatelliteManifest {
   migrations?: string
 
   /**
+   * Directory of PER-TENANT migration files, relative to the package root
+   * (SEAM-2). Unlike `migrations` (central/backoffice `.stub`s published into the
+   * host and run once via `migration:run`), these are RUNNABLE migration files
+   * that ship inside the package (e.g. `build/tenant_migrations`) and are
+   * discovered at `tenant:migrate` time and folded into the run via
+   * `MigrateOptions.extraMigrationPaths`, so they execute per tenant into the
+   * placement the active isolation driver reports, straight from `node_modules`
+   * with no host copy step. Same relative-path validation as `migrations`. A
+   * satellite that stores per-tenant rows (e.g. embeddings) ships them here,
+   * never as a shared `backoffice` table.
+   */
+  perTenantMigrations?: string
+
+  /**
    * Core satellite bundles this satellite needs published first (e.g. billing
    * needs `quotas` for `tenant_plans`). Auto-resolved on the core-orchestrated
    * `--with=` path; printed as a prerequisite by the package's own configure hook.
@@ -192,6 +206,20 @@ export function readSatelliteManifest(
       onWarn(
         `[lasagna] ${pkgName}: "lasagnaSatellite.migrations" must be a relative path inside ` +
           `the package — dropping it`
+      )
+    }
+  }
+
+  if (obj.perTenantMigrations !== undefined) {
+    if (
+      typeof obj.perTenantMigrations === 'string' &&
+      isSafeRelativePath(obj.perTenantMigrations)
+    ) {
+      manifest.perTenantMigrations = obj.perTenantMigrations
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: "lasagnaSatellite.perTenantMigrations" must be a relative path ` +
+          `inside the package — dropping it`
       )
     }
   }

@@ -155,6 +155,15 @@ for a copy-paste migration.
   (`TenantConnectionLimitException`) instead of exceeding the cap. The default
   still favours availability (never sever an in-flight request); the hard cap is
   the documented opt-in for deployments fronted by PgBouncer.
+- **Per-tenant satellite migrations (SEAM-2).** A satellite can now ship
+  migrations that run PER TENANT, not only once in the shared `backoffice`
+  schema. It declares a `perTenantMigrations` directory in its `lasagnaSatellite`
+  manifest; `tenant:migrate` discovers those directories and folds them into each
+  tenant's run through the new `MigrateOptions.extraMigrationPaths`, so the tables
+  land in whatever placement the active isolation driver reports for that tenant
+  (a schema on `schema-pg`, a database on `database-pg`). The directories resolve
+  relative to the app root, so a run behaves the same on every OS. Row-scoped
+  tenants keep a central migration (their per-tenant `migrate` stays a no-op).
 - **pgvector provisioning under a privileged role (`tenant:vector:provision`).**
   The PostgreSQL `vector` extension can now be installed as an operator step
   outside the app's request role, which stays least-privilege and never runs
