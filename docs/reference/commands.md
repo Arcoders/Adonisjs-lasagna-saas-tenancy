@@ -98,6 +98,14 @@ superuser and that the extension is present where embeddings live. Register it
 with `doctorService.register(pgvectorExtensionCheck)`, then it runs under
 `tenant:doctor --check=pgvector_extension`.
 
+The requirement is **ordering, not locking**: provision before you migrate a
+`vector(N)` column, and let the doctor check catch a missing extension. You do
+not need to serialise the two commands. `tenant:vector:provision` and
+`tenant:migrate` touch disjoint objects (the database-level `vector` extension
+versus a tenant's own schema and `adonis_schema` ledger), and `CREATE EXTENSION
+IF NOT EXISTS` is idempotent, so PostgreSQL's own catalog locks make a concurrent
+run safe without an application-level lock.
+
 ## Exec-under-tenant
 
 ```bash
