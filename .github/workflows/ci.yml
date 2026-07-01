@@ -2,12 +2,7 @@ name: CI
 
 on:
   push:
-    # LASAGNA-010726/seam-integration is temporary: ci.yml normally only runs on
-    # master|main, so the merged AI-seam work on this branch never reaches the
-    # real-PG/Redis integration, billing, and e2e tiers. Listing it here lets a
-    # plain push run the full suite for validation. Revert this line before
-    # merging the branch into isolation-hardening.
-    branches: [master, main, LASAGNA-010726/seam-integration]
+    branches: [master, main]
   pull_request:
     branches: [master, main]
 
