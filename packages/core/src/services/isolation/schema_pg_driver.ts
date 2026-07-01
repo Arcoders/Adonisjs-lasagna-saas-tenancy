@@ -11,6 +11,7 @@ import type {
   TableLocation,
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
+import { runTenantMigrations } from './tenant_migration_runner.js'
 import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
 import IsolationConfigException from '../../exceptions/isolation_config_exception.js'
 import ConnectionLru, {
@@ -196,19 +197,10 @@ export default class SchemaPgDriver implements ProvisionableDriver {
   }
 
   async migrate(tenant: TenantModelContract, opts: MigrateOptions): Promise<MigrateResult> {
-    const { db, app, MigrationRunner } = await lucid()
     // Self-connect (bypassing the hard cap) so migrate() works regardless of
     // whether the caller pre-connected — matching database-pg / sqlite. An
     // operational migration must never be refused by request-path backpressure.
     await this.connect(tenant, { bypassHardCap: true })
-    const runner = new MigrationRunner(db, app, {
-      ...opts,
-      connectionName: this.connectionName(tenant.id),
-    })
-    await runner.run()
-    if (runner.error) throw runner.error
-    return {
-      executed: runner.migratedFiles ? Object.keys(runner.migratedFiles).length : 0,
-    }
+    return runTenantMigrations(this.connectionName(tenant.id), opts)
   }
 }
