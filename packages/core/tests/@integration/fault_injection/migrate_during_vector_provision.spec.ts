@@ -3,7 +3,7 @@ import db from '@adonisjs/lucid/services/db'
 import app from '@adonisjs/core/services/app'
 import {
   IsolationDriverRegistry,
-  SchemaPgDriver,
+  type SchemaPgDriver,
   provisionVectorExtension,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy'
