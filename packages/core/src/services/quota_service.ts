@@ -7,6 +7,8 @@ import QuotaExceededException from '../exceptions/quota_exceeded_exception.js'
 import TenantQuotaExceeded from '../events/tenant_quota_exceeded.js'
 import { cacheFor } from '../utils/cache.js'
 import ResilienceService from './resilience_service.js'
+import TelemetryService from './telemetry_service.js'
+import { OBS_SPAN, OBS_EVENT, OBS_ATTR, RESERVE_OUTCOME } from './observability/names.js'
 import {
   ROLLING_TTL_SECONDS,
   QUOTA_CONSUME_LUA,
@@ -482,82 +484,119 @@ export default class QuotaService {
     quota: string,
     worstCase: number
   ): Promise<QuotaReservation> {
-    const worst = Math.floor(worstCase)
-    if (!(worst > 0)) {
-      throw new Error(
-        `QuotaService.reserve: worstCase must be a positive integer, got ${worstCase}`
-      )
-    }
+    // Once-per-stream: a full span. Wraps the whole body so the fail-closed throw
+    // (DependencyUnavailableException) and the refusal (QuotaExceededException)
+    // are both captured, with an `outcome` attribute disambiguating them.
+    return TelemetryService.withSpan(
+      OBS_SPAN.quotaReserve,
+      { [OBS_ATTR.tenantId]: tenant.id, [OBS_ATTR.quota]: quota },
+      async (span) => {
+        const worst = Math.floor(worstCase)
+        if (!(worst > 0)) {
+          throw new Error(
+            `QuotaService.reserve: worstCase must be a positive integer, got ${worstCase}`
+          )
+        }
+        span.setAttribute(OBS_ATTR.worstCase, worst)
 
-    const tLimit = await this.getLimit(tenant, quota)
-    const oLimit = getConfig().plans?.operatorCeiling?.[quota] ?? Number.POSITIVE_INFINITY
-    const tenantEnforced = Number.isFinite(tLimit)
-    const opEnforced = Number.isFinite(oLimit)
+        const tLimit = await this.getLimit(tenant, quota)
+        const oLimit = getConfig().plans?.operatorCeiling?.[quota] ?? Number.POSITIVE_INFINITY
+        const tenantEnforced = Number.isFinite(tLimit)
+        const opEnforced = Number.isFinite(oLimit)
 
-    // Nothing to enforce: no per-tenant limit and no operator ceiling. Mirrors
-    // consume()'s "unlimited plan" path — return an inert handle, touch no Redis.
-    if (!tenantEnforced && !opEnforced) {
-      return { id: '', tenantId: tenant.id, quota, day: '', worstCase: worst, ttl: 0, op: false }
-    }
+        // Nothing to enforce: no per-tenant limit and no operator ceiling. Mirrors
+        // consume()'s "unlimited plan" path — return an inert handle, touch no Redis.
+        if (!tenantEnforced && !opEnforced) {
+          span.setAttribute(OBS_ATTR.outcome, RESERVE_OUTCOME.ok)
+          return {
+            id: '',
+            tenantId: tenant.id,
+            quota,
+            day: '',
+            worstCase: worst,
+            ttl: 0,
+            op: false,
+          }
+        }
 
-    const day = periodToday()
-    const id = randomUUID()
-    const now = Date.now()
-    const resTtl = getConfig().plans?.reservationTtlMs ?? DEFAULT_RESERVATION_TTL_MS
+        const day = periodToday()
+        const id = randomUUID()
+        const now = Date.now()
+        const resTtl = getConfig().plans?.reservationTtlMs ?? DEFAULT_RESERVATION_TTL_MS
 
-    const result = await resilience.run<[number, number, number, string?]>({
-      dependency: 'redis',
-      operation: 'quota.reserve',
-      policy: 'fail-closed',
-      tenantId: tenant.id,
-      // fail-closed never invokes the fallback (ResilienceService rethrows the
-      // outage as DependencyUnavailableException); present to satisfy the type.
-      fallback: () => {
-        throw new Error('quota.reserve: fail-closed fallback must not be invoked')
-      },
-      run: async () =>
-        (await (
-          await this.requireRedis()
-        ).eval(
-          QUOTA_RESERVE_LUA,
-          6,
-          committedKey(tenant.id, day, quota),
-          holdsKey(tenant.id, day, quota),
-          amtKey(tenant.id, day, quota),
-          opCommittedKey(day, quota),
-          opHoldsKey(day, quota),
-          opAmtKey(day, quota),
-          String(tenantEnforced ? tLimit : -1),
-          String(opEnforced ? oLimit : -1),
-          String(worst),
+        const result = await resilience.run<[number, number, number, string?]>({
+          dependency: 'redis',
+          operation: 'quota.reserve',
+          policy: 'fail-closed',
+          tenantId: tenant.id,
+          // fail-closed never invokes the fallback (ResilienceService rethrows the
+          // outage as DependencyUnavailableException); present to satisfy the type.
+          fallback: () => {
+            throw new Error('quota.reserve: fail-closed fallback must not be invoked')
+          },
+          run: async () =>
+            (await (
+              await this.requireRedis()
+            ).eval(
+              QUOTA_RESERVE_LUA,
+              6,
+              committedKey(tenant.id, day, quota),
+              holdsKey(tenant.id, day, quota),
+              amtKey(tenant.id, day, quota),
+              opCommittedKey(day, quota),
+              opHoldsKey(day, quota),
+              opAmtKey(day, quota),
+              String(tenantEnforced ? tLimit : -1),
+              String(opEnforced ? oLimit : -1),
+              String(worst),
+              id,
+              String(now),
+              String(resTtl),
+              String(RESERVATION_CONTAINER_TTL_MS)
+            )) as [number, number, number, string?],
+        })
+
+        const [ok, tEff, oEff, scope] = result
+        if (ok === -1) {
+          // Duplicate hold id: cryptographically impossible from randomUUID, so this
+          // means a caller replayed a handle. Refuse rather than double-hold.
+          throw new Error('QuotaService.reserve: duplicate reservation id')
+        }
+        if (ok === 0) {
+          const overCeiling = scope === 'g'
+          const limit = overCeiling ? oLimit : tLimit
+          const current = overCeiling ? oEff : tEff
+          TelemetryService.addEvent(span, OBS_EVENT.refused, { [OBS_ATTR.scope]: scope ?? 't' })
+          span.setAttribute(
+            OBS_ATTR.outcome,
+            overCeiling ? RESERVE_OUTCOME.ceiling : RESERVE_OUTCOME.overBudget
+          )
+          await TenantQuotaExceeded.dispatch(tenant, quota, limit, current, worst)
+          throw new QuotaExceededException({
+            tenantId: tenant.id,
+            quota,
+            limit,
+            current,
+            attempted: worst,
+          })
+        }
+
+        TelemetryService.addEvent(span, OBS_EVENT.holdPlaced, {
+          [OBS_ATTR.effectiveTenant]: tEff,
+          [OBS_ATTR.effectiveCeiling]: oEff,
+        })
+        span.setAttribute(OBS_ATTR.outcome, RESERVE_OUTCOME.ok)
+        return {
           id,
-          String(now),
-          String(resTtl),
-          String(RESERVATION_CONTAINER_TTL_MS)
-        )) as [number, number, number, string?],
-    })
-
-    const [ok, tEff, oEff, scope] = result
-    if (ok === -1) {
-      // Duplicate hold id: cryptographically impossible from randomUUID, so this
-      // means a caller replayed a handle. Refuse rather than double-hold.
-      throw new Error('QuotaService.reserve: duplicate reservation id')
-    }
-    if (ok === 0) {
-      const overCeiling = scope === 'g'
-      const limit = overCeiling ? oLimit : tLimit
-      const current = overCeiling ? oEff : tEff
-      await TenantQuotaExceeded.dispatch(tenant, quota, limit, current, worst)
-      throw new QuotaExceededException({
-        tenantId: tenant.id,
-        quota,
-        limit,
-        current,
-        attempted: worst,
-      })
-    }
-
-    return { id, tenantId: tenant.id, quota, day, worstCase: worst, ttl: resTtl, op: opEnforced }
+          tenantId: tenant.id,
+          quota,
+          day,
+          worstCase: worst,
+          ttl: resTtl,
+          op: opEnforced,
+        }
+      }
+    )
   }
 
   /**
@@ -586,7 +625,8 @@ export default class QuotaService {
   async settle(reservation: QuotaReservation, cumulativeUsed: number): Promise<void> {
     if (!reservation.id) return
 
-    await resilience.run<unknown>({
+    const requested = Number.isFinite(cumulativeUsed) ? Math.max(0, Math.floor(cumulativeUsed)) : 0
+    const res = await resilience.run<unknown>({
       dependency: 'redis',
       operation: 'quota.settle',
       policy: 'fail-open',
@@ -606,7 +646,7 @@ export default class QuotaService {
           // which Lua's tonumber rejects, aborting the EVAL. Under fail-open that
           // would be swallowed as a phantom Redis outage and silently drop the
           // charge (a cost dodge). Treat garbage as 0 used.
-          String(Number.isFinite(cumulativeUsed) ? Math.max(0, Math.floor(cumulativeUsed)) : 0),
+          String(requested),
           String(Date.now()),
           String(reservation.ttl),
           String(ROLLING_TTL_SECONDS),
@@ -614,6 +654,18 @@ export default class QuotaService {
           reservation.id
         ),
     })
+
+    // Per-fragment: hot. Record the committed delta as an EVENT on whatever span
+    // is active (the caller's stream span, or none) — never a span per fragment,
+    // which would explode trace volume. `res` is [delta, newSettled, worst], or
+    // null when a fail-open Redis blip swallowed the settle.
+    if (Array.isArray(res)) {
+      const worst = Number(res[2])
+      TelemetryService.addEventOnActive(OBS_EVENT.settle, {
+        [OBS_ATTR.delta]: Number(res[0]) || 0,
+        [OBS_ATTR.clamped]: Number.isFinite(worst) && requested > worst,
+      })
+    }
   }
 
   /**
@@ -626,28 +678,38 @@ export default class QuotaService {
   async release(reservation: QuotaReservation): Promise<number> {
     if (!reservation.id) return 0
 
-    return await resilience.run<number>({
-      dependency: 'redis',
-      operation: 'quota.release',
-      policy: 'fail-open',
-      tenantId: reservation.tenantId,
-      fallback: () => 0,
-      run: async () => {
-        const arr = (await (
-          await this.requireRedis()
-        ).eval(
-          QUOTA_RELEASE_LUA,
-          4,
-          holdsKey(reservation.tenantId, reservation.day, reservation.quota),
-          amtKey(reservation.tenantId, reservation.day, reservation.quota),
-          opHoldsKey(reservation.day, reservation.quota),
-          opAmtKey(reservation.day, reservation.quota),
-          reservation.id,
-          reservation.op ? '1' : '0'
-        )) as [number]
-        return Number(arr?.[0]) || 0
-      },
-    })
+    // Once-per-stream (the streaming `finally`): a full span carrying the freed
+    // remainder.
+    return TelemetryService.withSpan(
+      OBS_SPAN.quotaRelease,
+      { [OBS_ATTR.tenantId]: reservation.tenantId, [OBS_ATTR.quota]: reservation.quota },
+      async (span) => {
+        const freed = await resilience.run<number>({
+          dependency: 'redis',
+          operation: 'quota.release',
+          policy: 'fail-open',
+          tenantId: reservation.tenantId,
+          fallback: () => 0,
+          run: async () => {
+            const arr = (await (
+              await this.requireRedis()
+            ).eval(
+              QUOTA_RELEASE_LUA,
+              4,
+              holdsKey(reservation.tenantId, reservation.day, reservation.quota),
+              amtKey(reservation.tenantId, reservation.day, reservation.quota),
+              opHoldsKey(reservation.day, reservation.quota),
+              opAmtKey(reservation.day, reservation.quota),
+              reservation.id,
+              reservation.op ? '1' : '0'
+            )) as [number]
+            return Number(arr?.[0]) || 0
+          },
+        })
+        TelemetryService.addEvent(span, OBS_EVENT.release, { [OBS_ATTR.freed]: freed })
+        return freed
+      }
+    )
   }
 
   /**

@@ -1,6 +1,21 @@
 import type { CircuitMetrics } from '../services/circuit_breaker_service.js'
 import type { TenantQueueStats } from '../services/tenant_queue_service.js'
 import type { TenantPoolStat } from '../services/doctor/checks/connection_pool_check.js'
+import { QUOTA_CEILING_GAUGE } from '../services/observability/names.js'
+
+/**
+ * Operator-global ceiling utilisation for one quota, derived at scrape from live
+ * Redis. Labelled by `quota` only — never `tenant_id` (a cardinality bomb);
+ * per-tenant budget detail lives in traces/logs, not the scrape.
+ */
+export interface QuotaCeilingStat {
+  quota: string
+  ceiling: number
+  committed: number
+  outstanding: number
+  /** (committed + outstanding) / ceiling, in [0, 1+]; 0 when no finite ceiling. */
+  utilization: number
+}
 
 export interface MetricsSnapshot {
   tenantsTotal: number
@@ -10,6 +25,8 @@ export interface MetricsSnapshot {
   uptimeSeconds: number
   /** Per-connection tenant pool saturation. Optional so older snapshot literals stay valid. */
   poolSaturation?: TenantPoolStat[]
+  /** Operator-global ceiling utilisation per quota. Optional for the same reason. */
+  quotaCeilings?: QuotaCeilingStat[]
 }
 
 const CIRCUIT_STATE_VALUE: Record<string, number> = { CLOSED: 0, HALF_OPEN: 1, OPEN: 2 }
@@ -91,6 +108,28 @@ export function renderPrometheus(snapshot: MetricsSnapshot): string {
       const labels = { connection: p.connection, tenant_id: p.tenantId ?? '' }
       lines.push(metricLine('multitenancy_pool_saturation_ratio', labels, p.ratio))
       lines.push(metricLine('multitenancy_pool_pending_acquires', labels, p.numPending))
+    }
+  }
+
+  const ceilings = snapshot.quotaCeilings ?? []
+  if (ceilings.length > 0) {
+    lines.push(
+      `# HELP ${QUOTA_CEILING_GAUGE.committed} Operator-global committed usage against a quota's ceiling.`
+    )
+    lines.push(`# TYPE ${QUOTA_CEILING_GAUGE.committed} gauge`)
+    lines.push(
+      `# HELP ${QUOTA_CEILING_GAUGE.outstanding} Operator-global reserved-but-unsettled amount held against a quota's ceiling.`
+    )
+    lines.push(`# TYPE ${QUOTA_CEILING_GAUGE.outstanding} gauge`)
+    lines.push(
+      `# HELP ${QUOTA_CEILING_GAUGE.utilization} Operator ceiling utilisation ((committed+outstanding)/ceiling).`
+    )
+    lines.push(`# TYPE ${QUOTA_CEILING_GAUGE.utilization} gauge`)
+    for (const c of ceilings) {
+      const labels = { quota: c.quota }
+      lines.push(metricLine(QUOTA_CEILING_GAUGE.committed, labels, c.committed))
+      lines.push(metricLine(QUOTA_CEILING_GAUGE.outstanding, labels, c.outstanding))
+      lines.push(metricLine(QUOTA_CEILING_GAUGE.utilization, labels, c.utilization))
     }
   }
 

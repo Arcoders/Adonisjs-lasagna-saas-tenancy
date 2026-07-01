@@ -176,8 +176,20 @@ multitenancy_circuit_successes_total{...}       counter
 multitenancy_queue_jobs{tenant_id,queue,state}  gauge   state ∈ waiting,active,completed,failed,delayed
 multitenancy_pool_saturation_ratio{connection,tenant_id}  gauge   numUsed/max, 0..1
 multitenancy_pool_pending_acquires{connection,tenant_id}  gauge   connections queued for a slot
+multitenancy_quota_ceiling_committed{quota}      gauge   operator-global committed usage
+multitenancy_quota_ceiling_outstanding{quota}    gauge   reserved-but-unsettled held against the ceiling
+multitenancy_quota_ceiling_utilization_ratio{quota}  gauge   (committed+outstanding)/ceiling
 multitenancy_uptime_seconds                     gauge
 ```
+
+The `multitenancy_quota_ceiling_*` series appear only for quotas that declare an
+`plans.operatorCeiling`. They are **operator-level**, labelled by `quota` and
+never by `tenant_id` — the per-tenant series would be a cardinality bomb, so
+per-tenant budget detail lives in traces and logs, not the scrape. Each is
+derived at collect time from the shared operator keys in Redis (bounded by the
+number of ceiling-enforced quotas, never a per-tenant scan). Alert on
+`multitenancy_quota_ceiling_utilization_ratio` nearing `1` to catch a saturating
+denial-of-wallet ceiling before it refuses reservations.
 
 Tenant connection-pool saturation is always exposed on `/metrics`, so you get
 observability by default. GATING readiness on it is opt-in: set
@@ -266,6 +278,17 @@ your app's choice: install and configure an OpenTelemetry SDK + exporter (OTLP, 
 etc.) at boot. Without an SDK registered, the calls are cheap no-ops, so it is safe to
 instrument code before you wire up a collector.
 </Callout>
+
+The kernel already instruments its cost seam with `addEvent`/`addLink` helpers on
+`TelemetryService`. A reservation opens a `quota.reserve` span (with a
+`hold_placed` or `refused` event and an `outcome` of `ok` / `over_budget` /
+`ceiling`); a `quota.release` span carries the freed remainder; an incremental
+`settle` records a `settle` event on the CURRENTLY ACTIVE span rather than a span
+per fragment, so a streaming loop does not explode trace volume. `executeExtension`
+opens an `extension.execute` span whose `outcome` classifies the terminal state
+(`completed` / `timeout` / `aborted` / `rate_limited` / `error`). Every span and
+event carries ids, counts, and outcomes only — never prompt or response content.
+The span names are a stable contract single-sourced in `services/observability/names.ts`.
 
 ## Related
 
