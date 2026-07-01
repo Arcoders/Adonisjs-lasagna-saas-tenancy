@@ -1,4 +1,5 @@
 import { request as httpsRequest } from 'node:https'
+import type { LookupFunction } from 'node:net'
 import { isLoopbackUrl, resolvePinnedHttpsTarget } from './url.js'
 
 /**
@@ -85,6 +86,34 @@ function normalizeBody(body: SafeFetchOptions['body']): string | undefined {
   if (body === undefined) return undefined
   if (body instanceof URLSearchParams) return body.toString()
   return body
+}
+
+/**
+ * A custom DNS `lookup` that pins every connection attempt to one
+ * already-validated address, so no second resolution can rebind the hostname to
+ * a private/metadata target (the DNS-rebinding TOCTOU guard). The hostname
+ * argument is ignored — there is no real lookup, only the pin.
+ *
+ * It must honour Node's Happy-Eyeballs contract: since Node 20, `autoSelectFamily`
+ * (default true) invokes a custom lookup with `{ all: true }` and REQUIRES an
+ * array result `[{ address, family }]`. A single-address callback there throws
+ * `ERR_INVALID_IP_ADDRESS` at connect time, which silently broke every pinned
+ * request on Node 24 (webhook delivery, OIDC token/discovery) — the failure was
+ * wrapped as a retryable `network_error`, so it read as flaky networking rather
+ * than a hard bug. We return the pinned address in whichever shape the caller
+ * asked for. Either way it is the same single validated address, so the pin holds.
+ */
+export function pinnedLookup(address: string, family: number): LookupFunction {
+  return ((_hostname, options, callback) => {
+    if (options && (options as { all?: boolean }).all) {
+      ;(callback as (err: null, addresses: Array<{ address: string; family: number }>) => void)(
+        null,
+        [{ address, family }]
+      )
+    } else {
+      ;(callback as (err: null, address: string, family: number) => void)(null, address, family)
+    }
+  }) as LookupFunction
 }
 
 function combinedSignal(opts: SafeFetchOptions): AbortSignal | undefined {
@@ -180,8 +209,9 @@ async function pinnedFetch(url: string, opts: SafeFetchOptions): Promise<Respons
         method: opts.method ?? 'GET',
         headers,
         // PIN: every connection resolves to the single validated address. The
-        // hostname argument is ignored, so there is no second DNS lookup to rebind.
-        lookup: (_hostname, _options, cb) => cb(null, address as never, family),
+        // hostname argument is ignored, so there is no second DNS lookup to
+        // rebind. Honours Node's Happy-Eyeballs `{ all }` contract (see pinnedLookup).
+        lookup: pinnedLookup(address, family),
         signal,
       },
       (res) => {
