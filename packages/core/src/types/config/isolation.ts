@@ -22,6 +22,16 @@ export interface IsolationConfig {
    */
   templateConnectionName?: string
   /**
+   * Lucid connection used for privileged provisioning DDL that the app's
+   * request-serving role must NOT be able to run, currently `CREATE EXTENSION`
+   * for pgvector (see `tenant:vector:provision` and the `pgvector_extension`
+   * doctor check). It should point at a role with the required privilege
+   * (superuser or a specifically granted role), kept separate from the app role
+   * so the request path stays least-privilege. Defaults to
+   * `centralConnectionName`; the app's normal query path never uses it.
+   */
+  provisionConnectionName?: string
+  /**
    * For `database-pg`: prefix used to name the per-tenant PostgreSQL
    * database (`<prefix><tenantId>`). Defaults to `tenant_`.
    */

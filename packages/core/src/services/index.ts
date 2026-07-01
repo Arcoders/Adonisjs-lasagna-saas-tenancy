@@ -88,6 +88,9 @@ export {
   DEFAULT_RLS_GUC,
   ISOLATION_CONTRACT_VERSION,
   isProvisionableDriver,
+  provisionVectorExtension,
+  provisionConnectionName,
+  PGVECTOR_EXTENSION,
 } from './isolation/index.js'
 // Custom isolation drivers interpolate tenant ids into DDL/paths and must
 // validate them the same way the shipped drivers do (see the
@@ -117,6 +120,10 @@ export type {
   RlsTransactor,
   SetTenantRlsGucOptions,
   WithTenantRlsOptions,
+  VectorProvisionOptions,
+  VectorProvisionSummary,
+  VectorProvisionDeps,
+  ProvisionLogger,
 } from './isolation/index.js'
 export {
   cacheBootstrapper,
@@ -158,6 +165,7 @@ export {
   connectionPoolCheck,
   membershipGateCheck,
   metricsFreshnessCheck,
+  pgvectorExtensionCheck,
 } from './doctor/index.js'
 export type {
   DiagnosisSeverity,

@@ -21,4 +21,5 @@ export {
   longRunningQueriesCheck,
   membershipGateCheck,
   metricsFreshnessCheck,
+  pgvectorExtensionCheck,
 } from './checks/index.js'

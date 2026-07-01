@@ -138,6 +138,17 @@ for a copy-paste migration.
   (`TenantConnectionLimitException`) instead of exceeding the cap. The default
   still favours availability (never sever an in-flight request); the hard cap is
   the documented opt-in for deployments fronted by PgBouncer.
+- **pgvector provisioning under a privileged role (`tenant:vector:provision`).**
+  The PostgreSQL `vector` extension can now be installed as an operator step
+  outside the app's request role, which stays least-privilege and never runs
+  `CREATE EXTENSION`. The command installs it idempotently under a separate
+  provisioning connection (`isolation.provisionConnectionName`, default
+  `centralConnectionName`), dispatched by driver: once on the shared database for
+  `schema-pg`/`rowscope-pg`, and per tenant database for `database-pg` (honouring
+  `--tenant`). It doubles as the backfill for existing databases and supports
+  `--dry-run`. An opt-in `pgvector_extension` doctor check verifies the app role
+  is not a superuser and that the extension is present where embeddings live. Run
+  it before any migration that declares a `vector(N)` column.
 - **Opt-in tenant-resolution cache.** `resolver.cache.{enabled, ttlMs, maxEntries}`
   (default off / 10 s / 10 000) serves warm tenants from a bounded per-process
   LRU, cutting the steady-state backoffice round-trips per request from two to
