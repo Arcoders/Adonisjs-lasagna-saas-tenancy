@@ -116,6 +116,7 @@ The isolation substrate. Everything here is **release candidate** unless noted.
 | `@adonisjs-lasagna/backup` | Release candidate | Backup / restore / clone / SQL import. |
 | `@adonisjs-lasagna/websockets` | Release candidate | Multi-tenant bidirectional WebSockets on socket.io. |
 | `@adonisjs-lasagna/reporting` | Release candidate | Cross-tenant analytics over the backoffice `tenant_metrics` table, custom named metrics, and host-defined report extensions. |
+| `@adonisjs-lasagna/ai` | Release candidate | Per-tenant AI streaming gateway: the streaming spine, a pluggable provider contract (Claude / DeepSeek / Kimi), and per-chunk cost metering over the kernel rails. |
 
 The version number says the same thing the label does: a `release candidate`
 satellite is published as `>=1.0.0`, so the version string a consumer reads off

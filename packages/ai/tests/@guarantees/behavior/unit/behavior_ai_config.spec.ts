@@ -1,0 +1,201 @@
+import { test } from '@japa/runner'
+import { assertAiConfig } from '../../../../src/validate_config.js'
+import { defineAiConfig, type AiConfig } from '../../../../src/define_config.js'
+
+/** A minimal, valid config: only claude allow-listed with its block present. */
+function validClaudeOnly(): AiConfig {
+  return {
+    allowedProviders: ['claude'],
+    defaultProvider: 'claude',
+    claude: { apiKey: 'sk-test', defaultModel: 'claude-opus-4-8' },
+  }
+}
+
+test.group('assertAiConfig', () => {
+  test('undefined block passes (optional)', ({ assert }) => {
+    assert.doesNotThrow(() => assertAiConfig(undefined))
+    assert.doesNotThrow(() => assertAiConfig(null as unknown as AiConfig))
+  })
+
+  test('a valid single-provider config passes', ({ assert }) => {
+    assert.doesNotThrow(() => assertAiConfig(validClaudeOnly()))
+  })
+
+  test('a valid multi-provider config with tunables passes', ({ assert }) => {
+    const cfg = defineAiConfig({
+      allowedProviders: ['claude', 'deepseek', 'kimi'],
+      defaultProvider: 'deepseek',
+      claude: { apiKey: 'k', defaultModel: 'claude-opus-4-8', apiVersion: '2023-06-01' },
+      deepseek: {
+        apiKey: 'k',
+        defaultModel: 'deepseek-chat',
+        baseUrl: 'https://api.deepseek.com',
+        allowedModels: ['deepseek-chat'],
+      },
+      kimi: { apiKey: 'k', defaultModel: 'kimi-latest' },
+      heartbeatMs: 15000,
+      timeoutMs: 60000,
+      maxTokens: 4096,
+    })
+    assert.doesNotThrow(() => assertAiConfig(cfg))
+  })
+
+  test('rejects a non-object block', ({ assert }) => {
+    assert.throws(
+      () => assertAiConfig('nope' as unknown as AiConfig),
+      /config\.ai must be an object/
+    )
+  })
+
+  test('rejects a missing or empty allow-list (default-deny)', ({ assert }) => {
+    assert.throws(
+      () => assertAiConfig({} as AiConfig),
+      /allowedProviders must be a non-empty array/
+    )
+    assert.throws(
+      () => assertAiConfig({ allowedProviders: [] }),
+      /allowedProviders must be a non-empty array/
+    )
+  })
+
+  test('rejects a non-string allow-list entry', ({ assert }) => {
+    assert.throws(
+      () => assertAiConfig({ allowedProviders: [123 as unknown as string] }),
+      /allowedProviders entries must be non-empty strings/
+    )
+  })
+
+  test('rejects a default provider outside the allow-list', ({ assert }) => {
+    assert.throws(
+      () =>
+        assertAiConfig({
+          allowedProviders: ['deepseek'],
+          defaultProvider: 'claude',
+          deepseek: { apiKey: 'k', defaultModel: 'deepseek-chat' },
+        }),
+      /defaultProvider "claude" is not in allowedProviders/
+    )
+  })
+
+  test('the effective default (claude) must itself be allow-listed', ({ assert }) => {
+    // defaultProvider omitted => 'claude', but only deepseek is allow-listed.
+    assert.throws(
+      () =>
+        assertAiConfig({
+          allowedProviders: ['deepseek'],
+          deepseek: { apiKey: 'k', defaultModel: 'deepseek-chat' },
+        }),
+      /defaultProvider "claude" is not in allowedProviders/
+    )
+  })
+
+  test('rejects an allow-listed built-in with a missing block', ({ assert }) => {
+    assert.throws(
+      () => assertAiConfig({ allowedProviders: ['claude'], defaultProvider: 'claude' }),
+      /provider "claude" is allow-listed but config\.ai\.claude is missing/
+    )
+  })
+
+  test('rejects a provider block missing the apiKey', ({ assert }) => {
+    assert.throws(
+      () =>
+        assertAiConfig({
+          allowedProviders: ['claude'],
+          claude: { apiKey: '', defaultModel: 'claude-opus-4-8' },
+        }),
+      /config\.ai\.claude\.apiKey must be a non-empty string/
+    )
+  })
+
+  test('rejects a provider block missing the defaultModel', ({ assert }) => {
+    assert.throws(
+      () =>
+        assertAiConfig({
+          allowedProviders: ['claude'],
+          claude: { apiKey: 'k', defaultModel: '' },
+        }),
+      /config\.ai\.claude\.defaultModel must be a non-empty string/
+    )
+  })
+
+  test('rejects a non-https baseUrl and an unparseable baseUrl', ({ assert }) => {
+    assert.throws(
+      () =>
+        assertAiConfig({
+          allowedProviders: ['deepseek'],
+          defaultProvider: 'deepseek',
+          deepseek: {
+            apiKey: 'k',
+            defaultModel: 'deepseek-chat',
+            baseUrl: 'http://api.deepseek.com',
+          },
+        }),
+      /baseUrl must be https/
+    )
+    assert.throws(
+      () =>
+        assertAiConfig({
+          allowedProviders: ['deepseek'],
+          defaultProvider: 'deepseek',
+          deepseek: { apiKey: 'k', defaultModel: 'deepseek-chat', baseUrl: 'not a url' },
+        }),
+      /baseUrl is not a valid URL/
+    )
+  })
+
+  test('rejects a non-string allowedModels list', ({ assert }) => {
+    assert.throws(
+      () =>
+        assertAiConfig({
+          allowedProviders: ['claude'],
+          claude: {
+            apiKey: 'k',
+            defaultModel: 'claude-opus-4-8',
+            allowedModels: [1 as unknown as string],
+          },
+        }),
+      /allowedModels must be an array of strings/
+    )
+  })
+
+  test('rejects a non-string apiVersion', ({ assert }) => {
+    assert.throws(
+      () =>
+        assertAiConfig({
+          allowedProviders: ['claude'],
+          claude: {
+            apiKey: 'k',
+            defaultModel: 'claude-opus-4-8',
+            apiVersion: 1 as unknown as string,
+          },
+        }),
+      /apiVersion must be a string/
+    )
+  })
+
+  test('rejects non-positive-integer tunables', ({ assert }) => {
+    for (const knob of ['heartbeatMs', 'timeoutMs', 'maxTokens'] as const) {
+      assert.throws(
+        () => assertAiConfig({ ...validClaudeOnly(), [knob]: 0 }),
+        new RegExp(`config\\.ai\\.${knob} must be a positive integer`)
+      )
+      assert.throws(
+        () => assertAiConfig({ ...validClaudeOnly(), [knob]: 1.5 }),
+        new RegExp(`config\\.ai\\.${knob} must be a positive integer`)
+      )
+    }
+  })
+
+  test('a custom (non-built-in) allow-listed provider needs no built-in block', ({ assert }) => {
+    // A host-registered BYOK provider is validated by its own registration, not
+    // by assertAiConfig, so allow-listing it without a claude/deepseek/kimi block
+    // is fine as long as the default resolves.
+    assert.doesNotThrow(() =>
+      assertAiConfig({
+        allowedProviders: ['my-byok', 'claude'],
+        defaultProvider: 'my-byok',
+        claude: { apiKey: 'k', defaultModel: 'claude-opus-4-8' },
+      })
+    )
+  })
+})

@@ -1,0 +1,53 @@
+{
+  "name": "@adonisjs-lasagna/ai",
+  "version": "1.0.0",
+  "description": "AI streaming gateway for Lasagna: a per-tenant, cost-metered, SSRF-pinned streaming spine with a pluggable provider contract (Claude, DeepSeek, Kimi).",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build"
+  ],
+  "exports": {
+    ".": "./build/src/index.js",
+    "./provider": "./build/providers/ai_provider.js"
+  },
+  "typesVersions": {
+    "*": {
+      "provider": [
+        "./build/providers/ai_provider.d.ts"
+      ]
+    }
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "adonisjs": {
+    "configure": "./build/configure.js"
+  },
+  "lasagnaSatellite": {
+    "name": "ai",
+    "satelliteApi": 1,
+    "minMergedCoverage": {
+      "lines": 60,
+      "functions": 60,
+      "branches": 60
+    },
+    "provider": "@adonisjs-lasagna/ai/provider",
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/ai"
+  },
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/ai-unit tsx bin/test.ts",
+    "test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/ai-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs-lasagna/saas-tenancy": "^1.0.0",
+    "@adonisjs/core": "^7.0.0"
+  }
+}

@@ -81,3 +81,4 @@ jobs:
           publish_pkg "packages/backup"
           publish_pkg "packages/reporting"
           publish_pkg "packages/websockets"
+          publish_pkg "packages/ai"
