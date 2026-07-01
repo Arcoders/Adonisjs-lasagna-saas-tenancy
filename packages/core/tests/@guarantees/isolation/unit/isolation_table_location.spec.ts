@@ -131,7 +131,7 @@ test.group('tableLocation — rowscope-pg', (group) => {
   })
 
   test('reports rls=true and the GUC when isolation.rowScopeRls is enabled', ({ assert }) => {
-    setupTestConfig({ isolation: { rowScopeRls: true } })
+    setupTestConfig({ isolation: { driver: 'rowscope-pg', rowScopeRls: true } })
     const loc = new RowScopePgDriver().tableLocation(fakeTenant('abc'))
     assert.deepEqual(loc, {
       kind: 'rowscope',
