@@ -34,6 +34,7 @@ import redis from '@adonisjs/redis/services/main';
 import { RedisService } from '@adonisjs/redis/types';
 import type { RouteGroup } from '@adonisjs/http-server';
 import { Span } from '@opentelemetry/api';
+import { SpanContext } from '@opentelemetry/api';
 import { Tracer } from '@opentelemetry/api';
 import type { WorkerOptions as WorkerOptions_2 } from 'bullmq';
 
@@ -1047,6 +1048,9 @@ export interface TableLocationSchema {
 
 // @public
 export class TelemetryService {
+    static addEvent(span: Span, name: string, attributes?: Record<string, string | number | boolean>): void;
+    static addEventOnActive(name: string, attributes?: Record<string, string | number | boolean>): void;
+    static addLink(span: Span, linked: SpanContext): void;
     // (undocumented)
     static setTenant(tenantId: string): void;
     // (undocumented)
@@ -1763,7 +1767,7 @@ export function writeSecret(plain: string, cls: SecretClass): string;
 
 // Warnings were encountered during analysis:
 //
-// src/services/quota_service.ts:151:74 - (ae-forgotten-export) The symbol "PlanDefinition" needs to be exported by the entry point index.d.ts
+// src/services/quota_service.ts:154:74 - (ae-forgotten-export) The symbol "PlanDefinition" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "run" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "runForRequest" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "currentId" needs to be exported by the entry point index.d.ts

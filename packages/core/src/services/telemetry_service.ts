@@ -7,9 +7,6 @@ import {
   type Tracer,
 } from '@opentelemetry/api'
 
-/** Attribute values a span/event may carry. Ids, counts, outcomes — never content. */
-export type SpanAttrs = Record<string, string | number | boolean>
-
 /**
  * Static helper that wraps OpenTelemetry tracing for the multitenancy package. It lazily
  * builds a named tracer, runs an async callback inside a span via withSpan (setting OK or
@@ -56,7 +53,11 @@ export default class TelemetryService {
    * the {@link withSpan} callback hides, so instrumentation reads uniformly and
    * every event flows through one seam. Attributes are ids/counts/outcomes only.
    */
-  static addEvent(span: Span, name: string, attributes?: SpanAttrs): void {
+  static addEvent(
+    span: Span,
+    name: string,
+    attributes?: Record<string, string | number | boolean>
+  ): void {
     span.addEvent(name, attributes)
   }
 
@@ -66,7 +67,10 @@ export default class TelemetryService {
    * their own span: the event lands on the caller's stream span if one is active,
    * and costs nothing otherwise.
    */
-  static addEventOnActive(name: string, attributes?: SpanAttrs): void {
+  static addEventOnActive(
+    name: string,
+    attributes?: Record<string, string | number | boolean>
+  ): void {
     trace.getActiveSpan()?.addEvent(name, attributes)
   }
 
