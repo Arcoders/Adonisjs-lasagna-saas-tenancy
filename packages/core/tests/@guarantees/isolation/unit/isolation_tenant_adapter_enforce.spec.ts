@@ -51,6 +51,10 @@ test.group('TenantAdapter — calls driver.enforce on the resolved client', (gro
       reset: async () => {},
       migrate: async () => ({ executed: 0, noop: true }),
       enforce: (client: unknown, tenantId: string) => calls.push({ client, tenantId }),
+      tableLocation: (t: { id: string }) => ({
+        kind: 'connection',
+        connectionName: `tenant_${t.id}`,
+      }),
     } as any
     const reg = new IsolationDriverRegistry()
     reg.register(driver, { activate: true })

@@ -29,6 +29,7 @@ function driver(name: string, contractVersion?: number) {
     reset: async () => {},
     migrate: async () => ({ executed: 0, noop: true }),
     enforce: () => {},
+    tableLocation: () => ({ kind: 'connection', connectionName: name }),
   } as any
 }
 function resolver(name: string, contractVersion?: number) {
@@ -48,8 +49,10 @@ function captureWarn(fn: () => void): string[] {
 }
 
 test.group('isolation/resolver contract versioning', () => {
-  test('the contract-version constants are exported and equal 1', ({ assert }) => {
-    assert.equal(ISOLATION_CONTRACT_VERSION, 1)
+  test('the contract-version constants are exported (isolation at v2 after tableLocation)', ({
+    assert,
+  }) => {
+    assert.equal(ISOLATION_CONTRACT_VERSION, 2)
     assert.equal(RESOLVER_CONTRACT_VERSION, 1)
   })
 

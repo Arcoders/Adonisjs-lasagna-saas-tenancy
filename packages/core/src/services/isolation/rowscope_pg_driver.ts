@@ -8,8 +8,10 @@ import type {
   IsolationDriverName,
   MigrateOptions,
   MigrateResult,
+  TableLocation,
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
+import { DEFAULT_RLS_GUC } from './rls.js'
 
 async function lucid() {
   const { default: db } = await import('@adonisjs/lucid/services/db')
@@ -67,6 +69,27 @@ export default class RowScopePgDriver implements IsolationDriver {
   connectionName(_tenantId: string): string {
     // All tenants share the same physical connection.
     return this.#centralConnectionName
+  }
+
+  tableLocation(tenant: TenantModelContract): TableLocation {
+    // rowscope-pg has NO per-tenant namespace: placement is the shared
+    // connection, the scope column, and the RLS predicate metadata. There is no
+    // schema/database to qualify, and reporting one would be the exact I1 leak
+    // this seam exists to prevent. connectionName() returns the shared central
+    // name WITHOUT asserting the id, so assert defensively here so a malformed
+    // id never travels inside a placement value (logs, DDL builders, hooks).
+    assertSafeIdentifier(tenant.id, 'tenant id')
+    const rls = getConfig().isolation?.rowScopeRls ?? false
+    const base = {
+      kind: 'rowscope' as const,
+      scopeColumn: this.#scopeColumn,
+      rls,
+      connectionName: this.connectionName(tenant.id),
+    }
+    // rlsGuc is present if and only if rls is on. The SEAM-2 rowscope central
+    // migration creates the policy keyed on this GUC; the accessor only reports
+    // which setting that policy reads.
+    return rls ? { ...base, rlsGuc: DEFAULT_RLS_GUC } : base
   }
 
   enforce(_client: QueryClientContract, _tenantId: string): void {

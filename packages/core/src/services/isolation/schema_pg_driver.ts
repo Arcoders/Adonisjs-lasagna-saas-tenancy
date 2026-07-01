@@ -8,6 +8,7 @@ import type {
   MigrateOptions,
   MigrateResult,
   ProvisionableDriver,
+  TableLocation,
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
 import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
@@ -73,6 +74,16 @@ export default class SchemaPgDriver implements ProvisionableDriver {
     const id = typeof tenant === 'string' ? tenant : tenant.id
     assertSafeIdentifier(id, 'tenant id')
     return `${getConfig().tenantSchemaPrefix}${id}`
+  }
+
+  tableLocation(tenant: TenantModelContract): TableLocation {
+    // schemaName() and connectionName() both assertSafeIdentifier the id, so a
+    // malformed tenant id throws here exactly as it would at the DDL seam.
+    return {
+      kind: 'schema',
+      schema: this.schemaName(tenant),
+      connectionName: this.connectionName(tenant.id),
+    }
   }
 
   enforce(_client: QueryClientContract, _tenantId: string): void {

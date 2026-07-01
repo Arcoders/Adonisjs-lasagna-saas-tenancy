@@ -561,6 +561,7 @@ export interface IsolationDriver {
     // (undocumented)
     readonly name: IsolationDriverName;
     reset(tenant: TenantModelContract): Promise<void>;
+    tableLocation(tenant: TenantModelContract): TableLocation;
 }
 
 // @public
@@ -634,7 +635,9 @@ export class MetricsService {
 }
 
 // @public
-export type MigrateOptions = Omit<MigratorOptions, 'connectionName'>;
+export type MigrateOptions = Omit<MigratorOptions, 'connectionName'> & {
+    extraMigrationPaths?: string[];
+};
 
 // @public (undocumented)
 export interface MigrateResult {
@@ -982,6 +985,42 @@ export function setTenantRlsGuc(runner: RlsQueryRunner, tenantId: string, option
 // @public (undocumented)
 export interface SetTenantRlsGucOptions {
     gucName?: string;
+}
+
+// @public
+export type TableLocation = TableLocationSchema | TableLocationDatabase | TableLocationRowscope | TableLocationConnection;
+
+// @public
+export interface TableLocationConnection {
+    readonly connectionName: string;
+    // (undocumented)
+    readonly kind: 'connection';
+}
+
+// @public
+export interface TableLocationDatabase {
+    readonly connectionName: string;
+    readonly database: string;
+    // (undocumented)
+    readonly kind: 'database';
+}
+
+// @public
+export interface TableLocationRowscope {
+    readonly connectionName: string;
+    // (undocumented)
+    readonly kind: 'rowscope';
+    readonly rls: boolean;
+    readonly rlsGuc?: string;
+    readonly scopeColumn: string;
+}
+
+// @public
+export interface TableLocationSchema {
+    readonly connectionName: string;
+    // (undocumented)
+    readonly kind: 'schema';
+    readonly schema: string;
 }
 
 // @public

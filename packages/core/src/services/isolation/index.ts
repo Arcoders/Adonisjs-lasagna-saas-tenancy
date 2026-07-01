@@ -6,6 +6,11 @@ export type {
   DestroyOptions,
   MigrateOptions,
   MigrateResult,
+  TableLocation,
+  TableLocationSchema,
+  TableLocationDatabase,
+  TableLocationRowscope,
+  TableLocationConnection,
 } from './driver.js'
 export { default as IsolationDriverRegistry } from './registry.js'
 export { default as SchemaPgDriver } from './schema_pg_driver.js'

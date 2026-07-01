@@ -8,6 +8,7 @@ import type {
   MigrateOptions,
   MigrateResult,
   ProvisionableDriver,
+  TableLocation,
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
 import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
@@ -82,6 +83,17 @@ export default class DatabasePgDriver implements ProvisionableDriver {
     assertSafeIdentifier(id, 'tenant id')
     const prefix = this.#databasePrefix ?? getConfig().tenantSchemaPrefix
     return `${prefix}${id}`
+  }
+
+  tableLocation(tenant: TenantModelContract): TableLocation {
+    // databaseName() honors #databasePrefix identically to connect(), so the
+    // placement can never disagree with where connect() actually routes; both
+    // helpers assertSafeIdentifier the id.
+    return {
+      kind: 'database',
+      database: this.databaseName(tenant),
+      connectionName: this.connectionName(tenant.id),
+    }
   }
 
   enforce(_client: QueryClientContract, _tenantId: string): void {
