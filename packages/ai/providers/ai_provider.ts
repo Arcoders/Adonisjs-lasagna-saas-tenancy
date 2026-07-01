@@ -4,9 +4,16 @@ import {
   type SatelliteProviderConstructor,
   type SatelliteProviderContract,
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
+import {
+  CircuitBreakerService,
+  ExtensionTimeoutError,
+  QuotaService,
+  executeExtension,
+} from '@adonisjs-lasagna/saas-tenancy/services'
 import { assertAiConfig } from '../src/validate_config.js'
 import type { MultitenancyConfigWithAi } from '../src/define_config.js'
 import AIProviderRegistry from '../src/services/ai_provider_registry.js'
+import StreamExtensionService from '../src/gateway/stream_extension.js'
 
 /**
  * Provider for `@adonisjs-lasagna/ai`. Register it in the host's `adonisrc.ts`
@@ -24,8 +31,19 @@ export default class AiProvider implements SatelliteProviderContract {
 
   register() {
     // Stateful, Map-backed: resolved via container.make, never new-ed ad hoc.
-    // The streaming service binds here in the commit that introduces it.
     this.app.container.singleton(AIProviderRegistry, () => new AIProviderRegistry())
+    // The streaming integrator resolves its quota + breaker seams from the
+    // container, never new-ing them (the platform rule).
+    this.app.container.singleton(StreamExtensionService, async (resolver) => {
+      const quota = await resolver.make(QuotaService)
+      const breaker = await resolver.make(CircuitBreakerService)
+      return new StreamExtensionService({
+        quota,
+        breaker,
+        runExtension: executeExtension,
+        isTimeoutError: (error) => error instanceof ExtensionTimeoutError,
+      })
+    })
   }
 
   boot() {
