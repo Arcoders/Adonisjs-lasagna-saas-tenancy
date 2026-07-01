@@ -58,6 +58,16 @@ export function snapshotKey(tenantId: string, quota: string): string {
   return `quota:${tenantId}:snap:${quota}`
 }
 
+/**
+ * Wildcard matching every quota key owned by one tenant (rolling counters,
+ * snapshots, reservation holds, amounts). `reset()` SCANs this to drop a tenant's
+ * state. Tenant-scoped by construction — it embeds `tenantId`, so it can never
+ * match the shared `quota:op:*` operator-ceiling keys.
+ */
+export function tenantKeyPattern(tenantId: string): string {
+  return `quota:${tenantId}:*`
+}
+
 // ---------------------------------------------------------------------------
 // Reservation holds (reserve/settle/release) — the AI-streaming cost seam.
 //

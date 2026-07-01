@@ -17,6 +17,7 @@ import {
   RESERVATION_CONTAINER_TTL_MS,
   rollingKey,
   snapshotKey,
+  tenantKeyPattern,
   committedKey,
   holdsKey,
   amtKey,
@@ -573,6 +574,14 @@ export default class QuotaService {
    * transient Redis blip must never break the streaming `finally`. A hold already
    * reclaimed by TTL (a crashed then resumed stream) settles nothing — a crashed
    * stream is never over-charged.
+   *
+   * Safe against a forged/tampered handle by construction: every key below is
+   * built from the handle's own (tenantId, day, quota) via the `*Key` builders,
+   * and the hold is a member named by `reservation.id`. A handle whose tenantId
+   * (or quota/day/id) was swapped addresses a different namespace, so the hold is
+   * not found and the Lua settles nothing — no cross-tenant charge is possible.
+   * `check-quota-key-tenant-scoped.mjs` + `security_quota_handle_tamper.spec.ts`
+   * pin this so a refactor cannot regress it.
    */
   async settle(reservation: QuotaReservation, cumulativeUsed: number): Promise<void> {
     if (!reservation.id) return
@@ -667,7 +676,7 @@ export default class QuotaService {
       return
     }
     // wildcard cleanup for the tenant
-    const pattern = `quota:${tenant.id}:*`
+    const pattern = tenantKeyPattern(tenant.id)
     const pending: string[] = []
     let cursor = '0'
     do {
