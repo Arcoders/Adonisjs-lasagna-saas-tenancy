@@ -132,6 +132,16 @@ for a copy-paste migration.
   the database regardless of query shape, so a hand-written top-level `orWhere`
   can no longer escape the tenant scope. See
   [rowscope-pg](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/guides/data-isolation/rowscope-pg.md#hard-boundary-postgresql-row-level-security).
+- **Isolation driver contract v2.** `IsolationDriver` gains a required
+  `tableLocation(tenant)` method that returns a closed, driver-agnostic tagged
+  union (`{ kind: 'schema' | 'database' | 'rowscope' | 'connection', … }`)
+  describing where a tenant's per-tenant tables physically live, so an extension
+  can place tables without hardcoding a `tenant_<id>` namespace or branching on
+  the concrete driver. The four shipped drivers implement it and the
+  `TableLocation` types are exported from the root, `/services`, and the
+  isolation barrel. A custom `IsolationDriver` implements `tableLocation()` and
+  sets `contractVersion: 2`; the registry throws at registration for any driver
+  that does not, so the requirement surfaces at boot rather than at first query.
 - **Optional hard connection cap.** `isolation.enforceConnectionCap` (default
   `false`) makes `maxTenantConnections` a firm ceiling: when it is full and
   nothing is evictable, a new tenant's `connect()` is refused with a 503

@@ -12,7 +12,13 @@ import TenantResolverRegistry from '../../../../src/services/resolvers/registry.
  * RED (pre-fix): an empty name and a duplicate were both accepted.
  */
 function fakeDriver(name: string) {
-  return { name, contractVersion: 1, connectionName: () => name, enforce: () => {} } as any
+  return {
+    name,
+    contractVersion: 1,
+    connectionName: () => name,
+    enforce: () => {},
+    tableLocation: () => ({ kind: 'connection', connectionName: name }),
+  } as any
 }
 function fakeResolver(name: string) {
   return { name, contractVersion: 1, resolve: () => undefined } as any

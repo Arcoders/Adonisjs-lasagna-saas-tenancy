@@ -14,12 +14,19 @@ and register it.
 ## The contract
 
 ```ts
-import type { IsolationDriver, DestroyOptions, MigrateOptions, MigrateResult } from '@adonisjs-lasagna/saas-tenancy/services'
+import { ISOLATION_CONTRACT_VERSION, assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/services'
+import type { IsolationDriver, DestroyOptions, MigrateOptions, MigrateResult, TableLocation } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { QueryClientContract } from '@adonisjs/lucid/types/database'
 
 export class MyDriver implements IsolationDriver {
   readonly name = 'my-driver'
+
+  // Declare the isolation contract version you built against. The registry
+  // compares it to the running core's and refuses a driver built for a NEWER
+  // contract (it would call methods this core does not provide). Contract v2
+  // added the required `tableLocation` method below.
+  readonly contractVersion = ISOLATION_CONTRACT_VERSION
 
   async provision(tenant: TenantModelContract): Promise<void> {
     // Create the tenant's storage. Idempotent: the package may retry.
@@ -54,6 +61,20 @@ export class MyDriver implements IsolationDriver {
     return `my-driver:${tenantId}`
   }
 
+  // Required (contract v2). Report WHERE this tenant's tables physically live,
+  // as a closed tagged union, so satellites (e.g. the AI vector store) place
+  // per-tenant tables without hardcoding a namespace or branching on the driver.
+  // Return the variant that matches your storage shape:
+  //   { kind: 'schema',   schema,   connectionName }                 a per-tenant schema
+  //   { kind: 'database', database, connectionName }                 a per-tenant database
+  //   { kind: 'rowscope', scopeColumn, rls, connectionName }         a shared table + tenant_id + RLS
+  //   { kind: 'connection', connectionName }                         the connection IS the namespace
+  // Keep it pure and synchronous, and assertSafeIdentifier any namespace string.
+  tableLocation(tenant: TenantModelContract): TableLocation {
+    assertSafeIdentifier(tenant.id)
+    return { kind: 'connection', connectionName: this.connectionName(tenant.id) }
+  }
+
   // Optional. Called on every query routing to refresh the in-use grace window
   // so a long request is not evicted mid-flight. Omit it if your driver has no
   // per-tenant connection pool.
@@ -68,6 +89,23 @@ export class MyDriver implements IsolationDriver {
   }
 }
 ```
+
+## Contract version and the `tableLocation` gate
+
+The `IsolationDriver` contract is versioned (`ISOLATION_CONTRACT_VERSION`,
+currently `2`). Declare the version you built against via `contractVersion`. At
+registration the registry:
+
+- **throws** if your driver declares a *newer* contract than the running core
+  (it would call methods the core does not provide),
+- **throws** if your driver does not implement `tableLocation()` (a required v2
+  member), regardless of the version you declare, including `1` or an omitted
+  version, so a driver written before v2 fails loudly at boot rather than at the
+  first satellite call,
+- **warns** but still registers if you declare an older-but-present contract.
+
+Upgrading a v1 driver is two lines: add `tableLocation()` returning the
+placement variant for your storage, and set `contractVersion` to `2`.
 
 ## Registering it
 

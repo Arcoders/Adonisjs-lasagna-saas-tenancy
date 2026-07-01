@@ -40,6 +40,24 @@ export default class IsolationDriverRegistry {
       ISOLATION_CONTRACT_VERSION,
       `isolation driver "${name}"`
     )
+    // Presence gate for the isolation contract v2 required member `tableLocation`.
+    // `assertContractCompat` only WARNS for a driver declaring an older version
+    // (v1 < v2) or no version at all, so the v1->v2 bump ALONE would let a driver
+    // missing `tableLocation` register and then crash the first time a satellite
+    // asks it where a tenant's data lives. Run the check UNCONDITIONALLY, never
+    // gated behind a version comparison, so v1, unversioned, and too-old-declared
+    // drivers are all caught here. Method presence is necessary but not
+    // sufficient: a wrong-shaped `tableLocation` still passes, which the
+    // per-driver conformance spec (placement.connectionName === connectionName)
+    // backstops.
+    if (typeof (driver as IsolationDriver).tableLocation !== 'function') {
+      throw new Error(
+        `IsolationDriverRegistry: driver "${name}" does not implement tableLocation() ` +
+          `(required by isolation contract v${ISOLATION_CONTRACT_VERSION}). Implement it to ` +
+          `return the placement variant for your storage shape (schema/database/rowscope/` +
+          `connection) and set contractVersion: ${ISOLATION_CONTRACT_VERSION}.`
+      )
+    }
     this.#drivers.set(name, driver)
     if (opts.activate || !this.#activeName) {
       this.#activeName = name

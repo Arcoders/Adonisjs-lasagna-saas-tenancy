@@ -8,6 +8,7 @@ import type {
   MigrateOptions,
   MigrateResult,
   ProvisionableDriver,
+  TableLocation,
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
 
@@ -50,6 +51,15 @@ export default class SqliteMemoryDriver implements ProvisionableDriver {
   connectionName(tenantId: string): string {
     assertSafeIdentifier(tenantId, 'tenant id')
     return `${getConfig().tenantConnectionNamePrefix}${tenantId}`
+  }
+
+  tableLocation(tenant: TenantModelContract): TableLocation {
+    // The in-memory database selected by the connection IS the namespace; there
+    // is no schema or database to qualify. connectionName() asserts the id.
+    return {
+      kind: 'connection',
+      connectionName: this.connectionName(tenant.id),
+    }
   }
 
   enforce(_client: QueryClientContract, _tenantId: string): void {
