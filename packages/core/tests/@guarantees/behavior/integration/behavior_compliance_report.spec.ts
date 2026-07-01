@@ -45,25 +45,35 @@ test.group('compliance — AuditLogService.exportStream (real PG)', (group) => {
 
   group.setup(async () => {
     const audit = await app.container.make(AuditLogService)
-    // Insert with explicit, ascending timestamps via the model, then backdate
-    // two rows so the range filter has something to exclude.
     for (const action of ['a', 'b', 'c']) {
       await audit.log({ tenantId: probe, actorType: 'system', action: `export.${action}` })
     }
     await audit.log({ tenantId: other, actorType: 'system', action: 'export.other' })
 
-    // Backdate the first probe row to 2020 so a 2026 lower-bound excludes it.
+    // Pin each probe row to a distinct, ascending created_at. The three inserts
+    // above can land in the same millisecond, and exportStream breaks a created_at
+    // tie by the primary key — a random UUID — so "oldest first" is only
+    // well-defined once created_at itself is distinct (relying on the UUID tie-break
+    // to reproduce insertion order is what made this flaky). export.a sits in 2020
+    // so a 2026 lower bound excludes it; b and c stay in 2026, ascending.
+    const backdate: Record<string, string> = {
+      'export.a': '2020-01-01T00:00:00Z',
+      'export.b': '2026-06-01T00:00:00Z',
+      'export.c': '2026-06-02T00:00:00Z',
+    }
     await db.rawQuery(
       'ALTER TABLE backoffice.tenant_audit_logs DISABLE TRIGGER tenant_audit_logs_no_update'
     )
     try {
-      await db
-        .connection('backoffice')
-        .query()
-        .from('tenant_audit_logs')
-        .where('tenant_id', probe)
-        .where('action', 'export.a')
-        .update({ created_at: '2020-01-01T00:00:00Z' })
+      for (const [action, createdAt] of Object.entries(backdate)) {
+        await db
+          .connection('backoffice')
+          .query()
+          .from('tenant_audit_logs')
+          .where('tenant_id', probe)
+          .where('action', action)
+          .update({ created_at: createdAt })
+      }
     } finally {
       await db.rawQuery(
         'ALTER TABLE backoffice.tenant_audit_logs ENABLE TRIGGER tenant_audit_logs_no_update'
