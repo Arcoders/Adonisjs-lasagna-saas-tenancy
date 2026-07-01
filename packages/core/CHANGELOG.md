@@ -119,6 +119,13 @@ for a copy-paste migration.
 - New lightweight subpaths: `@adonisjs-lasagna/saas-tenancy/config` (read config
   outside a booted app) and `/internal` (app.booted-safe building blocks the
   official satellites consume).
+- **Cancellable extension execution.** `executeExtension` takes an optional
+  `signal` that composes with its internal timeout on both paths (including the
+  no-timeout fast path), so an external abort (a caller timeout or a client
+  disconnect) reaches the running work rather than being silently dropped. A new
+  `/signals` subpath exposes `composeSignals` (the single `AbortSignal.any`
+  composition point, shared with `safeFetch`) and `onRequestDisconnect`, a
+  disposed bridge from a client hangup to an `AbortSignal`.
 - **Audit attribution on the lifecycle commands.** `tenant:create`,
   `tenant:activate`, `tenant:suspend`, `tenant:destroy`, and `tenant:maintenance`
   take an optional `--admin=<id>` flag that attributes the append-only audit row to

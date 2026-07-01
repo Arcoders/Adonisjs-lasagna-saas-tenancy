@@ -126,6 +126,84 @@ test.group('executeExtension — timeout', () => {
   })
 })
 
+test.group('executeExtension — caller signal', () => {
+  test('threads the caller signal on the NO-TIMEOUT fast path (the gating case)', async ({
+    assert,
+  }) => {
+    // The historical bug: with no timeoutMs, executeExtension returned a promise
+    // bound only to its internal controller, so an external abort (budget, tenant
+    // suspend, client disconnect) was silently lost. Composing the caller signal
+    // before the fast-path return fixes it.
+    const ext = new AbortController()
+    const result = executeExtension(
+      (signal) =>
+        new Promise<string>((resolve) => {
+          signal.addEventListener('abort', () =>
+            resolve(`aborted:${(signal.reason as Error).message}`)
+          )
+        }),
+      { label: 'stream', signal: ext.signal } // no timeoutMs -> the fast path
+    )
+    ext.abort(new Error('client_disconnect'))
+    assert.equal(await result, 'aborted:client_disconnect')
+  })
+
+  test('threads the caller signal with a timeout set too', async ({ assert }) => {
+    const ext = new AbortController()
+    const result = executeExtension(
+      (signal) =>
+        new Promise<string>((resolve) => {
+          signal.addEventListener('abort', () => resolve('aborted'))
+        }),
+      { label: 'stream', timeoutMs: 10_000, signal: ext.signal }
+    )
+    ext.abort(new Error('budget'))
+    assert.equal(await result, 'aborted')
+  })
+
+  test('no caller signal is byte-identical: fn gets a live, non-aborted signal', async ({
+    assert,
+  }) => {
+    let received: AbortSignal | undefined
+    await executeExtension(
+      async (signal) => {
+        received = signal
+        return 'ok'
+      },
+      { label: 'x' }
+    )
+    assert.instanceOf(received, AbortSignal)
+    assert.isFalse(received!.aborted)
+  })
+
+  test('an already-aborted caller signal is aborted from the first tick (fast path)', async ({
+    assert,
+  }) => {
+    const ext = new AbortController()
+    ext.abort(new Error('pre_aborted'))
+    const seen = await executeExtension(async (signal) => signal.aborted, {
+      label: 'stream',
+      signal: ext.signal, // no timeout: composed purely from the pre-aborted caller signal
+    })
+    assert.isTrue(seen, 'fn must observe the abort immediately, not after a tick')
+  })
+
+  test('the timeout still wins deterministically when a caller signal is also present', async ({
+    assert,
+  }) => {
+    const ext = new AbortController() // present but never fires
+    await assert.rejects(
+      () =>
+        executeExtension(() => delay(1000).then(() => 'late'), {
+          label: 'slow',
+          timeoutMs: 20,
+          signal: ext.signal,
+        }),
+      ExtensionTimeoutError
+    )
+  })
+})
+
 test.group('executeExtension — rate limit', () => {
   test('proceeds when the count is under the limit', async ({ assert }) => {
     const out = await executeExtension(async () => 'ran', {
