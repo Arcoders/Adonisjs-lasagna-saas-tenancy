@@ -1,4 +1,5 @@
 import { request as httpsRequest } from 'node:https'
+import { Readable } from 'node:stream'
 import type { LookupFunction } from 'node:net'
 import { isLoopbackUrl, resolvePinnedHttpsTarget } from './url.js'
 import { composeSignals } from './signals.js'
@@ -50,6 +51,15 @@ export interface SafeFetchOptions {
    * blocked because a non-loopback host still goes through the pinned validation.
    */
   allowLoopback?: boolean
+  /**
+   * Stream the response body incrementally instead of buffering it. Honored ONLY
+   * on the pinned path (the default mode); combining it with `trustedHost` or
+   * `allowLoopback` throws `streaming_unsupported_mode`, so it can never silently
+   * degrade to a buffered read. The IP-pin is a connect-time property, so the body
+   * streams off the same validated socket and the pin is preserved. Cancelling the
+   * returned `Response.body` destroys the socket.
+   */
+  streaming?: boolean
 }
 
 /**
@@ -127,6 +137,15 @@ function combinedSignal(opts: SafeFetchOptions): AbortSignal | undefined {
 }
 
 export async function safeFetch(url: string, opts: SafeFetchOptions = {}): Promise<Response> {
+  // Streaming is a pinned-path-only feature. The trusted/loopback modes use a
+  // buffered `fetch`, so honoring `streaming` there would silently no-op; reject
+  // the combination instead of degrading it.
+  if (opts.streaming && (opts.trustedHost || opts.allowLoopback)) {
+    throw new SafeFetchError(
+      'streaming_unsupported_mode',
+      'safeFetch: streaming is only supported on the pinned path, not with trustedHost/allowLoopback'
+    )
+  }
   if (opts.trustedHost) return trustedHostFetch(url, opts)
   if (opts.allowLoopback && isLoopbackUrl(url)) return loopbackFetch(url, opts)
   return pinnedFetch(url, opts)
@@ -216,15 +235,29 @@ async function pinnedFetch(url: string, opts: SafeFetchOptions): Promise<Respons
         signal,
       },
       (res) => {
+        const status = res.statusCode ?? 502
+        const outHeaders = new Headers()
+        for (const [k, v] of Object.entries(res.headers)) {
+          if (typeof v === 'string') outHeaders.set(k, v)
+          else if (Array.isArray(v)) outHeaders.set(k, v.join(', '))
+        }
+
+        // STREAMING (opt-in): hand the body to the Response as an incremental web
+        // stream instead of buffering it. The pin is a connect-time `lookup`
+        // property on the socket, so reading `res` chunk by chunk stays on the
+        // same validated address (no second lookup, no rebind). Cancelling the
+        // Response body destroys `res` (the socket). NULL_BODY statuses fall
+        // through to the buffered path, which yields a null body.
+        if (opts.streaming && !NULL_BODY_STATUS.has(status)) {
+          resolve(
+            new Response(Readable.toWeb(res) as ReadableStream, { status, headers: outHeaders })
+          )
+          return
+        }
+
         const chunks: Buffer[] = []
         res.on('data', (c: Buffer) => chunks.push(c))
         res.on('end', () => {
-          const status = res.statusCode ?? 502
-          const outHeaders = new Headers()
-          for (const [k, v] of Object.entries(res.headers)) {
-            if (typeof v === 'string') outHeaders.set(k, v)
-            else if (Array.isArray(v)) outHeaders.set(k, v.join(', '))
-          }
           const payload =
             NULL_BODY_STATUS.has(status) || chunks.length === 0 ? null : Buffer.concat(chunks)
           // A 3xx is returned as-is; pinned mode never follows a redirect, so the

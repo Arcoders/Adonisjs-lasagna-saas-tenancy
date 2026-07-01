@@ -983,6 +983,7 @@ export interface SafeFetchOptions {
     // (undocumented)
     method?: string;
     signal?: AbortSignal;
+    streaming?: boolean;
     timeoutMs?: number;
     trustedHost?: boolean;
 }

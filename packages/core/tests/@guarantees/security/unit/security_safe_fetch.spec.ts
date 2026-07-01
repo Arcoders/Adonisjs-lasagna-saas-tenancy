@@ -1,4 +1,5 @@
 import { test } from '@japa/runner'
+import { Readable } from 'node:stream'
 import { resolvePinnedHttpsTarget } from '../../../../src/utils/url.js'
 import { pinnedLookup, safeFetch, SafeFetchError } from '../../../../src/utils/safe_fetch.js'
 
@@ -88,6 +89,51 @@ test.group('safeFetch — mode selection + error classification', () => {
     const blocked = new SafeFetchError('url_blocks_private', 'y', false)
     assert.isTrue(dns.retryable)
     assert.isFalse(blocked.retryable)
+  })
+})
+
+test.group('safeFetch — streaming option', () => {
+  test('rejects streaming combined with trustedHost (no silent buffered no-op)', async ({
+    assert,
+  }) => {
+    await assert.rejects(
+      () => safeFetch('https://api.paddle.com/', { streaming: true, trustedHost: true }),
+      /streaming is only supported on the pinned path/
+    )
+  })
+
+  test('rejects streaming combined with allowLoopback', async ({ assert }) => {
+    try {
+      await safeFetch('https://example.com/', { streaming: true, allowLoopback: true })
+      assert.fail('should have thrown')
+    } catch (err) {
+      assert.instanceOf(err, SafeFetchError)
+      assert.equal((err as SafeFetchError).code, 'streaming_unsupported_mode')
+    }
+  })
+
+  test('the streaming Response delivers incrementally and cancel destroys the socket', async ({
+    assert,
+  }) => {
+    // The exact mechanism the pinned streaming branch uses: Readable.toWeb(res)
+    // handed to a Response. A chunk pushed to the source arrives at the reader
+    // before the source ends (incremental, not buffered), and cancelling the web
+    // stream destroys the underlying Readable (for a real socket, res.destroy()).
+    let destroyed = false
+    const source = new Readable({ read() {} })
+    source.on('close', () => {
+      destroyed = true
+    })
+    const res = new Response(Readable.toWeb(source) as ReadableStream)
+    const reader = res.body!.getReader()
+
+    source.push('chunk-1')
+    const first = await reader.read()
+    assert.equal(new TextDecoder().decode(first.value as Uint8Array), 'chunk-1')
+
+    await reader.cancel()
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.isTrue(destroyed, 'cancelling the stream destroys the underlying socket')
   })
 })
 
