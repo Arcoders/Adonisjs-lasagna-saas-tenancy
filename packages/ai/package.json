@@ -13,12 +13,16 @@
   ],
   "exports": {
     ".": "./build/src/index.js",
-    "./provider": "./build/providers/ai_provider.js"
+    "./provider": "./build/providers/ai_provider.js",
+    "./testing": "./build/src/testing/index.js"
   },
   "typesVersions": {
     "*": {
       "provider": [
         "./build/providers/ai_provider.d.ts"
+      ],
+      "testing": [
+        "./build/src/testing/index.d.ts"
       ]
     }
   },

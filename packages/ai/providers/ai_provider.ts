@@ -6,6 +6,7 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import { assertAiConfig } from '../src/validate_config.js'
 import type { MultitenancyConfigWithAi } from '../src/define_config.js'
+import AIProviderRegistry from '../src/services/ai_provider_registry.js'
 
 /**
  * Provider for `@adonisjs-lasagna/ai`. Register it in the host's `adonisrc.ts`
@@ -22,8 +23,9 @@ export default class AiProvider implements SatelliteProviderContract {
   constructor(protected app: ApplicationService) {}
 
   register() {
-    // Singletons (the provider registry and the streaming service) bind here in
-    // the commits that introduce them.
+    // Stateful, Map-backed: resolved via container.make, never new-ed ad hoc.
+    // The streaming service binds here in the commit that introduces it.
+    this.app.container.singleton(AIProviderRegistry, () => new AIProviderRegistry())
   }
 
   boot() {
