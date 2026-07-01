@@ -3,8 +3,13 @@ import CircuitBreakerService from '../services/circuit_breaker_service.js'
 import TenantQueueService from '../services/tenant_queue_service.js'
 import { collectTenantPoolStats } from '../services/doctor/checks/connection_pool_check.js'
 import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
+import { getConfig } from '../config.js'
+import { opCommittedKey, opHoldsKey, opAmtKey, periodToday } from '../services/quota/keys.js'
 import type { TenantStatus, TenantModelContract } from '../types/contracts.js'
-import type { MetricsSnapshot } from './metrics_exporter.js'
+import type { MetricsSnapshot, QuotaCeilingStat } from './metrics_exporter.js'
+
+const lazyRedis = () =>
+  import('@adonisjs/redis/services/main').then((m) => m.default).catch(() => null)
 
 const STATUSES: TenantStatus[] = ['provisioning', 'active', 'suspended', 'failed', 'deleted']
 
@@ -85,14 +90,70 @@ export async function collectSnapshot(options: CollectOptions = {}): Promise<Met
     await warn('pool_saturation_unavailable', err)
   }
 
+  // Operator-global ceiling utilisation, DERIVED at scrape from live Redis (never
+  // stored). Bounded O(#quotas): the enforced quotas come from config, and each
+  // reads only its shared operator keys — never a per-tenant scan.
+  let quotaCeilings: QuotaCeilingStat[] = []
+  try {
+    quotaCeilings = await collectQuotaCeilings()
+  } catch (err) {
+    await warn('quota_ceilings_unavailable', err)
+  }
+
   return {
     tenantsTotal,
     tenantsByStatus,
     circuits,
     queues,
     poolSaturation,
+    quotaCeilings,
     uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
   }
+}
+
+/**
+ * Read the operator ceiling utilisation for every quota that declares one. The
+ * set of quotas is enumerable from `plans.operatorCeiling` (a `Record`), so this
+ * is O(#quotas) — a handful of `GET`/`ZRANGE`/`HMGET` — with no tenant fan-out.
+ * Outstanding is recomputed from the live hold members (derive, never store),
+ * matching how `reserve()` itself computes the effective ceiling.
+ */
+async function collectQuotaCeilings(): Promise<QuotaCeilingStat[]> {
+  const ceilings = getConfig().plans?.operatorCeiling
+  if (!ceilings) return []
+  const quotas = Object.keys(ceilings)
+  if (quotas.length === 0) return []
+  const redis = await lazyRedis()
+  if (!redis) return []
+
+  const day = periodToday()
+  const out: QuotaCeilingStat[] = []
+  for (const quota of quotas) {
+    const ceiling = Number(ceilings[quota])
+    const committed = Number(await redis.get(opCommittedKey(day, quota))) || 0
+
+    let outstanding = 0
+    const members = await redis.zrange(opHoldsKey(day, quota), 0, -1)
+    if (members.length > 0) {
+      const amounts = await redis.hmget(opAmtKey(day, quota), ...members)
+      for (const amt of amounts) {
+        if (!amt) continue
+        const [worst, settled] = String(amt).split(':').map(Number)
+        outstanding += Math.max(0, (worst || 0) - (settled || 0))
+      }
+    }
+
+    const used = committed + outstanding
+    const utilization = Number.isFinite(ceiling) && ceiling > 0 ? used / ceiling : 0
+    out.push({
+      quota,
+      ceiling: Number.isFinite(ceiling) ? ceiling : 0,
+      committed,
+      outstanding,
+      utilization,
+    })
+  }
+  return out
 }
 
 async function warn(kind: string, err: unknown): Promise<void> {

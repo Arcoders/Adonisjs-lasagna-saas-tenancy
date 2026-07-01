@@ -8,8 +8,10 @@ import type {
   MigrateOptions,
   MigrateResult,
   ProvisionableDriver,
+  TableLocation,
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
+import { runTenantMigrations } from './tenant_migration_runner.js'
 import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
 import IsolationConfigException from '../../exceptions/isolation_config_exception.js'
 import ConnectionLru, {
@@ -73,6 +75,16 @@ export default class SchemaPgDriver implements ProvisionableDriver {
     const id = typeof tenant === 'string' ? tenant : tenant.id
     assertSafeIdentifier(id, 'tenant id')
     return `${getConfig().tenantSchemaPrefix}${id}`
+  }
+
+  tableLocation(tenant: TenantModelContract): TableLocation {
+    // schemaName() and connectionName() both assertSafeIdentifier the id, so a
+    // malformed tenant id throws here exactly as it would at the DDL seam.
+    return {
+      kind: 'schema',
+      schema: this.schemaName(tenant),
+      connectionName: this.connectionName(tenant.id),
+    }
   }
 
   enforce(_client: QueryClientContract, _tenantId: string): void {
@@ -185,19 +197,10 @@ export default class SchemaPgDriver implements ProvisionableDriver {
   }
 
   async migrate(tenant: TenantModelContract, opts: MigrateOptions): Promise<MigrateResult> {
-    const { db, app, MigrationRunner } = await lucid()
     // Self-connect (bypassing the hard cap) so migrate() works regardless of
     // whether the caller pre-connected — matching database-pg / sqlite. An
     // operational migration must never be refused by request-path backpressure.
     await this.connect(tenant, { bypassHardCap: true })
-    const runner = new MigrationRunner(db, app, {
-      ...opts,
-      connectionName: this.connectionName(tenant.id),
-    })
-    await runner.run()
-    if (runner.error) throw runner.error
-    return {
-      executed: runner.migratedFiles ? Object.keys(runner.migratedFiles).length : 0,
-    }
+    return runTenantMigrations(this.connectionName(tenant.id), opts)
   }
 }

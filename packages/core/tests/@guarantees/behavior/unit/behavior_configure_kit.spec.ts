@@ -12,6 +12,7 @@ import {
   printSatelliteManifest,
   filterAlreadyPublished,
   migrationSlug,
+  satelliteMigrationDirs,
 } from '../../../../src/sdk/configure_kit.js'
 
 /* ════════════════════════ Layer 1 — manifest parser ════════════════════════ */
@@ -37,6 +38,7 @@ test.group('satellite — readSatelliteManifest', () => {
         satelliteApi: 1,
         aliases: ['s'],
         migrations: 'stubs/migrations',
+        perTenantMigrations: 'build/tenant_migrations',
         requires: ['quotas'],
         provider: '@me/sat/provider',
         commands: '@me/sat/commands',
@@ -51,6 +53,7 @@ test.group('satellite — readSatelliteManifest', () => {
       satelliteApi: 1,
       aliases: ['s'],
       migrations: 'stubs/migrations',
+      perTenantMigrations: 'build/tenant_migrations',
       requires: ['quotas'],
       provider: '@me/sat/provider',
       commands: '@me/sat/commands',
@@ -110,6 +113,26 @@ test.group('satellite — readSatelliteManifest', () => {
       )
       assert.equal(m?.name, 'sat')
       assert.isUndefined(m?.migrations, `migrations="${bad}" should be dropped`)
+      assert.lengthOf(warnings, 1)
+    }
+  })
+
+  test('keeps a safe perTenantMigrations dir and drops an unsafe one (SEAM-2)', ({ assert }) => {
+    // A valid relative dir survives.
+    const ok = readSatelliteManifest({
+      name: '@me/sat',
+      lasagnaSatellite: { name: 'sat', perTenantMigrations: 'build/tenant_migrations' },
+    })
+    assert.equal(ok?.perTenantMigrations, 'build/tenant_migrations')
+    // The same path-traversal / absolute rejections as `migrations`.
+    for (const bad of ['../../../../etc', '..\\evil', 'a\\..\\b', '/abs', '', 'C:\\win']) {
+      const warnings: string[] = []
+      const m = readSatelliteManifest(
+        { name: '@me/sat', lasagnaSatellite: { name: 'sat', perTenantMigrations: bad } },
+        (w) => warnings.push(w)
+      )
+      assert.equal(m?.name, 'sat')
+      assert.isUndefined(m?.perTenantMigrations, `perTenantMigrations="${bad}" should be dropped`)
       assert.lengthOf(warnings, 1)
     }
   })
@@ -717,5 +740,35 @@ test.group('satellite — filterAlreadyPublished (idempotency guard)', () => {
     )
     assert.deepEqual(skipped, [])
     assert.deepEqual(toPublish, ['create_a_table'])
+  })
+})
+
+test.group('satellite — satelliteMigrationDirs (SEAM-2)', () => {
+  const sat = (root: string, perTenantMigrations?: string): DiscoveredSatellite => ({
+    packageName: '@x/s',
+    root,
+    manifest: { name: 's', ...(perTenantMigrations ? { perTenantMigrations } : {}) },
+  })
+
+  test('emits host-relative, forward-slashed per-tenant dirs (never absolute)', ({ assert }) => {
+    const hostRoot = join('/host', 'app')
+    const dirs = satelliteMigrationDirs(hostRoot, [
+      sat(join(hostRoot, 'node_modules', '@x', 'ai'), 'build/tenant_migrations'),
+    ])
+    assert.deepEqual(dirs, ['node_modules/@x/ai/build/tenant_migrations'])
+    // Lucid resolves each via new URL(dir, appRoot); an absolute path (or a
+    // Windows drive letter) would break that, so the result must stay relative.
+    assert.isFalse(dirs[0].startsWith('/'), 'not absolute')
+    assert.notMatch(dirs[0], /^[a-zA-Z]:/, 'no drive letter')
+    assert.notMatch(dirs[0], /\\/, 'forward slashes only')
+  })
+
+  test('skips satellites that declare no perTenantMigrations', ({ assert }) => {
+    const hostRoot = join('/host', 'app')
+    const dirs = satelliteMigrationDirs(hostRoot, [
+      sat(join(hostRoot, 'node_modules', 'a')),
+      sat(join(hostRoot, 'node_modules', 'b'), 'build/tenant'),
+    ])
+    assert.deepEqual(dirs, ['node_modules/b/build/tenant'])
   })
 })

@@ -42,6 +42,10 @@ function fakeDriver(): IsolationDriver {
     connect: async () => {},
     disconnect: async () => {},
     connectionName: (id: string) => `t_${id}`,
+    tableLocation: (t: { id: string }) => ({
+      kind: 'connection' as const,
+      connectionName: `t_${t.id}`,
+    }),
     migrate: async () => ({ executed: 0 }),
   } as unknown as IsolationDriver
 }

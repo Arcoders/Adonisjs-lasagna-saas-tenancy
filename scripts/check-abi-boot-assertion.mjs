@@ -20,6 +20,7 @@ const PROVIDERS = [
   { key: 'backup', provider: 'packages/backup/providers/backup_provider.ts', pkg: 'packages/backup/package.json' },
   { key: 'reporting', provider: 'packages/reporting/providers/reporting_provider.ts', pkg: 'packages/reporting/package.json' },
   { key: 'websockets', provider: 'packages/websockets/providers/websockets_provider.ts', pkg: 'packages/websockets/package.json' },
+  { key: 'ai', provider: 'packages/ai/providers/ai_provider.ts', pkg: 'packages/ai/package.json' },
 ]
 
 const CALL_RE = /assertSatelliteApiCompatAtBoot\(\s*\{\s*satelliteApi:\s*(\d+)\s*\}/

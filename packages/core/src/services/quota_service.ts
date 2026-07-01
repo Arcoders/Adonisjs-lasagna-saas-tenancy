@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { DateTime } from 'luxon'
 import { getConfig } from '../config.js'
 import type { TenantModelContract } from '../types/contracts.js'
@@ -6,7 +7,27 @@ import QuotaExceededException from '../exceptions/quota_exceeded_exception.js'
 import TenantQuotaExceeded from '../events/tenant_quota_exceeded.js'
 import { cacheFor } from '../utils/cache.js'
 import ResilienceService from './resilience_service.js'
-import { ROLLING_TTL_SECONDS, QUOTA_CONSUME_LUA, rollingKey, snapshotKey } from './quota/keys.js'
+import TelemetryService from './telemetry_service.js'
+import { OBS_SPAN, OBS_EVENT, OBS_ATTR, RESERVE_OUTCOME } from './observability/names.js'
+import {
+  ROLLING_TTL_SECONDS,
+  QUOTA_CONSUME_LUA,
+  QUOTA_RESERVE_LUA,
+  QUOTA_SETTLE_LUA,
+  QUOTA_RELEASE_LUA,
+  DEFAULT_RESERVATION_TTL_MS,
+  RESERVATION_CONTAINER_TTL_MS,
+  rollingKey,
+  snapshotKey,
+  tenantKeyPattern,
+  committedKey,
+  holdsKey,
+  amtKey,
+  opCommittedKey,
+  opHoldsKey,
+  opAmtKey,
+  periodToday,
+} from './quota/keys.js'
 import { resolveStorageMode } from './quota/plan_storage.js'
 
 // The storage probe moved to ./quota/plan_storage.js; re-export its test reset
@@ -63,6 +84,28 @@ export interface QuotaStateSnapshot {
   plan: string
   limits: Record<string, number>
   usage: Record<string, number>
+}
+
+/**
+ * Opaque handle returned by {@link QuotaService.reserve} and passed back to
+ * {@link QuotaService.settle} / {@link QuotaService.release}. It carries
+ * everything those calls need to address the hold without re-resolving the plan:
+ * the hold `id`, the `tenantId` and `quota` it belongs to, the reserve-time
+ * `day` (so a stream crossing 00:00 UTC settles the same bucket it reserved
+ * against), the held `worstCase`, the reservation `ttl` in milliseconds, and
+ * whether an operator ceiling was `op` in play. A handle whose `id` is the empty
+ * string is an inert no-op, returned when neither a per-tenant limit nor an
+ * operator ceiling applies to the quota (nothing to enforce); `settle` and
+ * `release` on it do nothing.
+ */
+export interface QuotaReservation {
+  readonly id: string
+  readonly tenantId: string
+  readonly quota: string
+  readonly day: string
+  readonly worstCase: number
+  readonly ttl: number
+  readonly op: boolean
 }
 
 const DEFAULT_FALLBACK: PlansConfig = {
@@ -342,6 +385,9 @@ export default class QuotaService {
    *   - When `getLimit` returns `Infinity` (no limit declared in the
    *     plan) the script is skipped and we fall back to a plain
    *     non-atomic `track`, matching the "unlimited" semantics.
+   *   - `consume` reads only the committed counter; it is blind to any
+   *     outstanding `reserve` holds on the same quota. Meter a quota by
+   *     `consume` XOR `reserve`, never both, or the two double-count.
    */
   async consume(tenant: TenantModelContract, quota: string, amount: number = 1): Promise<number> {
     const limit = await this.getLimit(tenant, quota)
@@ -400,6 +446,273 @@ export default class QuotaService {
   }
 
   /**
+   * Reserve a worst-case amount of a quota BEFORE an operation whose true cost is
+   * only known when it finishes (a streaming model response is the motivating
+   * case). The hold is committed atomically against BOTH the per-tenant daily
+   * budget AND the operator-global ceiling (`config.plans.operatorCeiling[quota]`,
+   * a tenant-independent denial-of-wallet cap); both must fit or nothing is held.
+   * Over-budget is a hard stop: it dispatches `TenantQuotaExceeded` and throws
+   * `QuotaExceededException`, having committed nothing.
+   *
+   * Reconcile the actual usage with {@link settle} as it becomes known, and
+   * return the remainder with {@link release} in a `finally`. The hold is a Redis
+   * key scored by its absolute expiry, so a process that crashes between reserve
+   * and settle/release has its budget reclaimed automatically when the TTL
+   * elapses — there is no reaper process and no scalar counter that could leak.
+   *
+   * FAIL-CLOSED BY CONSTRUCTION. Unlike {@link consume} (which honours
+   * `resilience.redis.quota`, defaulting fail-open to favour availability), a
+   * reservation gates an expensive provider call: if Redis is unreachable we
+   * cannot prove the budget, so we refuse with a 503
+   * (`DependencyUnavailableException`) rather than let the cost race through
+   * unheld. This is deliberately NOT configurable — a fail-open reservation would
+   * reintroduce the very cost-race the seam closes.
+   *
+   * When neither a per-tenant limit nor an operator ceiling applies to the quota,
+   * there is nothing to enforce and an inert no-op handle is returned (no Redis
+   * round-trip), mirroring `consume`'s unlimited-plan path.
+   *
+   * IMPORTANT: a quota name must be metered by exactly ONE mechanism, either
+   * `consume`/`track` (discrete counts) or `reserve`/`settle`/`release` (held
+   * cost). `reserve` sees `consume`'s committed counter, but `consume`/`check`/
+   * `getUsage` read only that counter and are blind to outstanding reservations,
+   * so metering the same quota through both double-counts. Use distinct quota
+   * names for the two.
+   */
+  async reserve(
+    tenant: TenantModelContract,
+    quota: string,
+    worstCase: number
+  ): Promise<QuotaReservation> {
+    // Once-per-stream: a full span. Wraps the whole body so the fail-closed throw
+    // (DependencyUnavailableException) and the refusal (QuotaExceededException)
+    // are both captured, with an `outcome` attribute disambiguating them.
+    return TelemetryService.withSpan(
+      OBS_SPAN.quotaReserve,
+      { [OBS_ATTR.tenantId]: tenant.id, [OBS_ATTR.quota]: quota },
+      async (span) => {
+        const worst = Math.floor(worstCase)
+        if (!(worst > 0)) {
+          throw new Error(
+            `QuotaService.reserve: worstCase must be a positive integer, got ${worstCase}`
+          )
+        }
+        span.setAttribute(OBS_ATTR.worstCase, worst)
+
+        const tLimit = await this.getLimit(tenant, quota)
+        const oLimit = getConfig().plans?.operatorCeiling?.[quota] ?? Number.POSITIVE_INFINITY
+        const tenantEnforced = Number.isFinite(tLimit)
+        const opEnforced = Number.isFinite(oLimit)
+
+        // Nothing to enforce: no per-tenant limit and no operator ceiling. Mirrors
+        // consume()'s "unlimited plan" path — return an inert handle, touch no Redis.
+        if (!tenantEnforced && !opEnforced) {
+          span.setAttribute(OBS_ATTR.outcome, RESERVE_OUTCOME.ok)
+          return {
+            id: '',
+            tenantId: tenant.id,
+            quota,
+            day: '',
+            worstCase: worst,
+            ttl: 0,
+            op: false,
+          }
+        }
+
+        const day = periodToday()
+        const id = randomUUID()
+        const now = Date.now()
+        const resTtl = getConfig().plans?.reservationTtlMs ?? DEFAULT_RESERVATION_TTL_MS
+
+        const result = await resilience.run<[number, number, number, string?]>({
+          dependency: 'redis',
+          operation: 'quota.reserve',
+          policy: 'fail-closed',
+          tenantId: tenant.id,
+          // fail-closed never invokes the fallback (ResilienceService rethrows the
+          // outage as DependencyUnavailableException); present to satisfy the type.
+          fallback: () => {
+            throw new Error('quota.reserve: fail-closed fallback must not be invoked')
+          },
+          run: async () =>
+            (await (
+              await this.requireRedis()
+            ).eval(
+              QUOTA_RESERVE_LUA,
+              6,
+              committedKey(tenant.id, day, quota),
+              holdsKey(tenant.id, day, quota),
+              amtKey(tenant.id, day, quota),
+              opCommittedKey(day, quota),
+              opHoldsKey(day, quota),
+              opAmtKey(day, quota),
+              String(tenantEnforced ? tLimit : -1),
+              String(opEnforced ? oLimit : -1),
+              String(worst),
+              id,
+              String(now),
+              String(resTtl),
+              String(RESERVATION_CONTAINER_TTL_MS)
+            )) as [number, number, number, string?],
+        })
+
+        const [ok, tEff, oEff, scope] = result
+        if (ok === -1) {
+          // Duplicate hold id: cryptographically impossible from randomUUID, so this
+          // means a caller replayed a handle. Refuse rather than double-hold.
+          throw new Error('QuotaService.reserve: duplicate reservation id')
+        }
+        if (ok === 0) {
+          const overCeiling = scope === 'g'
+          const limit = overCeiling ? oLimit : tLimit
+          const current = overCeiling ? oEff : tEff
+          TelemetryService.addEvent(span, OBS_EVENT.refused, { [OBS_ATTR.scope]: scope ?? 't' })
+          span.setAttribute(
+            OBS_ATTR.outcome,
+            overCeiling ? RESERVE_OUTCOME.ceiling : RESERVE_OUTCOME.overBudget
+          )
+          await TenantQuotaExceeded.dispatch(tenant, quota, limit, current, worst)
+          throw new QuotaExceededException({
+            tenantId: tenant.id,
+            quota,
+            limit,
+            current,
+            attempted: worst,
+          })
+        }
+
+        TelemetryService.addEvent(span, OBS_EVENT.holdPlaced, {
+          [OBS_ATTR.effectiveTenant]: tEff,
+          [OBS_ATTR.effectiveCeiling]: oEff,
+        })
+        span.setAttribute(OBS_ATTR.outcome, RESERVE_OUTCOME.ok)
+        return {
+          id,
+          tenantId: tenant.id,
+          quota,
+          day,
+          worstCase: worst,
+          ttl: resTtl,
+          op: opEnforced,
+        }
+      }
+    )
+  }
+
+  /**
+   * Reconcile the actual usage of a {@link reserve} hold. `cumulativeUsed` is the
+   * TOTAL used so far for the reservation (it only grows across a stream); the
+   * service commits the forward delta since the previous settle and clamps the
+   * total to `[0, worstCase]`, so a misreporting provider can never settle past
+   * the hold and a repeated or smaller total is a no-op. A live hold's expiry is
+   * refreshed (bounded, never accumulating) so a progressing stream is not
+   * reaped mid-flight.
+   *
+   * Best-effort (fail-open): the budget guarantee is the up-front `reserve` hold,
+   * and the hold's TTL reclaims anything a missed settle leaves behind, so a
+   * transient Redis blip must never break the streaming `finally`. A hold already
+   * reclaimed by TTL (a crashed then resumed stream) settles nothing — a crashed
+   * stream is never over-charged.
+   *
+   * Safe against a forged/tampered handle by construction: every key below is
+   * built from the handle's own (tenantId, day, quota) via the `*Key` builders,
+   * and the hold is a member named by `reservation.id`. A handle whose tenantId
+   * (or quota/day/id) was swapped addresses a different namespace, so the hold is
+   * not found and the Lua settles nothing — no cross-tenant charge is possible.
+   * `check-quota-key-tenant-scoped.mjs` + `security_quota_handle_tamper.spec.ts`
+   * pin this so a refactor cannot regress it.
+   */
+  async settle(reservation: QuotaReservation, cumulativeUsed: number): Promise<void> {
+    if (!reservation.id) return
+
+    const requested = Number.isFinite(cumulativeUsed) ? Math.max(0, Math.floor(cumulativeUsed)) : 0
+    const res = await resilience.run<unknown>({
+      dependency: 'redis',
+      operation: 'quota.settle',
+      policy: 'fail-open',
+      tenantId: reservation.tenantId,
+      fallback: () => null,
+      run: async () =>
+        (await this.requireRedis()).eval(
+          QUOTA_SETTLE_LUA,
+          6,
+          committedKey(reservation.tenantId, reservation.day, reservation.quota),
+          holdsKey(reservation.tenantId, reservation.day, reservation.quota),
+          amtKey(reservation.tenantId, reservation.day, reservation.quota),
+          opCommittedKey(reservation.day, reservation.quota),
+          opHoldsKey(reservation.day, reservation.quota),
+          opAmtKey(reservation.day, reservation.quota),
+          // Coerce defensively: a non-finite total would stringify to "NaN",
+          // which Lua's tonumber rejects, aborting the EVAL. Under fail-open that
+          // would be swallowed as a phantom Redis outage and silently drop the
+          // charge (a cost dodge). Treat garbage as 0 used.
+          String(requested),
+          String(Date.now()),
+          String(reservation.ttl),
+          String(ROLLING_TTL_SECONDS),
+          reservation.op ? '1' : '0',
+          reservation.id
+        ),
+    })
+
+    // Per-fragment: hot. Record the committed delta as an EVENT on whatever span
+    // is active (the caller's stream span, or none) — never a span per fragment,
+    // which would explode trace volume. `res` is [delta, newSettled, worst], or
+    // null when a fail-open Redis blip swallowed the settle.
+    if (Array.isArray(res)) {
+      const worst = Number(res[2])
+      TelemetryService.addEventOnActive(OBS_EVENT.settle, {
+        [OBS_ATTR.delta]: Number(res[0]) || 0,
+        [OBS_ATTR.clamped]: Number.isFinite(worst) && requested > worst,
+      })
+    }
+  }
+
+  /**
+   * Return the unused remainder of a {@link reserve} hold (`worstCase` minus what
+   * was settled) and drop the hold. Idempotent: a second call frees `0`, so the
+   * streaming seam's `finally` is safe under a double abort (a client disconnect
+   * and a timeout both firing). Best-effort (fail-open) for the same reason as
+   * {@link settle}. Returns the amount freed.
+   */
+  async release(reservation: QuotaReservation): Promise<number> {
+    if (!reservation.id) return 0
+
+    // Once-per-stream (the streaming `finally`): a full span carrying the freed
+    // remainder.
+    return TelemetryService.withSpan(
+      OBS_SPAN.quotaRelease,
+      { [OBS_ATTR.tenantId]: reservation.tenantId, [OBS_ATTR.quota]: reservation.quota },
+      async (span) => {
+        const freed = await resilience.run<number>({
+          dependency: 'redis',
+          operation: 'quota.release',
+          policy: 'fail-open',
+          tenantId: reservation.tenantId,
+          fallback: () => 0,
+          run: async () => {
+            const arr = (await (
+              await this.requireRedis()
+            ).eval(
+              QUOTA_RELEASE_LUA,
+              4,
+              holdsKey(reservation.tenantId, reservation.day, reservation.quota),
+              amtKey(reservation.tenantId, reservation.day, reservation.quota),
+              opHoldsKey(reservation.day, reservation.quota),
+              opAmtKey(reservation.day, reservation.quota),
+              reservation.id,
+              reservation.op ? '1' : '0'
+            )) as [number]
+            return Number(arr?.[0]) || 0
+          },
+        })
+        TelemetryService.addEvent(span, OBS_EVENT.release, { [OBS_ATTR.freed]: freed })
+        return freed
+      }
+    )
+  }
+
+  /**
    * Returns plan + limits + current usage for every limit declared in the
    * tenant's plan. Useful for a tenant-facing /usage endpoint.
    */
@@ -425,7 +738,7 @@ export default class QuotaService {
       return
     }
     // wildcard cleanup for the tenant
-    const pattern = `quota:${tenant.id}:*`
+    const pattern = tenantKeyPattern(tenant.id)
     const pending: string[] = []
     let cursor = '0'
     do {

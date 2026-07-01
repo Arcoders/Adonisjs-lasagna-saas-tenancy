@@ -56,7 +56,12 @@ export type { BrandingData } from './branding_service.js'
 // `SsoService` moved to `@adonisjs-lasagna/sso`.
 export { default as MetricsService } from './metrics_service.js'
 export { default as QuotaService } from './quota_service.js'
-export type { QuotaCheckResult, QuotaStateSnapshot, QuotaMode } from './quota_service.js'
+export type {
+  QuotaCheckResult,
+  QuotaStateSnapshot,
+  QuotaReservation,
+  QuotaMode,
+} from './quota_service.js'
 // `BillingService` + `redactStripeEvent` moved to `@adonisjs-lasagna/billing`.
 export { default as ReadReplicaService } from './read_replica_service.js'
 // Shared extension-execution primitives: `consumeRateLimit` is the sliding-window
@@ -88,6 +93,9 @@ export {
   DEFAULT_RLS_GUC,
   ISOLATION_CONTRACT_VERSION,
   isProvisionableDriver,
+  provisionVectorExtension,
+  provisionConnectionName,
+  PGVECTOR_EXTENSION,
 } from './isolation/index.js'
 // Custom isolation drivers interpolate tenant ids into DDL/paths and must
 // validate them the same way the shipped drivers do (see the
@@ -113,10 +121,19 @@ export type {
   DestroyOptions,
   MigrateOptions,
   MigrateResult,
+  TableLocation,
+  TableLocationSchema,
+  TableLocationDatabase,
+  TableLocationRowscope,
+  TableLocationConnection,
   RlsQueryRunner,
   RlsTransactor,
   SetTenantRlsGucOptions,
   WithTenantRlsOptions,
+  VectorProvisionOptions,
+  VectorProvisionSummary,
+  VectorProvisionDeps,
+  ProvisionLogger,
 } from './isolation/index.js'
 export {
   cacheBootstrapper,
@@ -158,6 +175,7 @@ export {
   connectionPoolCheck,
   membershipGateCheck,
   metricsFreshnessCheck,
+  pgvectorExtensionCheck,
 } from './doctor/index.js'
 export type {
   DiagnosisSeverity,

@@ -137,11 +137,17 @@ export type {
   DestroyOptions,
   MigrateOptions,
   MigrateResult,
+  TableLocation,
+  TableLocationSchema,
+  TableLocationDatabase,
+  TableLocationRowscope,
+  TableLocationConnection,
   TenantResolver,
   TenantResolveResult,
   TenantLogContextData,
   QuotaCheckResult,
   QuotaStateSnapshot,
+  QuotaReservation,
   QuotaMode,
 } from './services/index.js'
 export {

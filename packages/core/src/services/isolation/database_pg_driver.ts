@@ -8,8 +8,10 @@ import type {
   MigrateOptions,
   MigrateResult,
   ProvisionableDriver,
+  TableLocation,
 } from './driver.js'
 import { assertSafeIdentifier } from './identifier.js'
+import { runTenantMigrations } from './tenant_migration_runner.js'
 import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
 import IsolationConfigException from '../../exceptions/isolation_config_exception.js'
 import ConnectionLru, {
@@ -82,6 +84,17 @@ export default class DatabasePgDriver implements ProvisionableDriver {
     assertSafeIdentifier(id, 'tenant id')
     const prefix = this.#databasePrefix ?? getConfig().tenantSchemaPrefix
     return `${prefix}${id}`
+  }
+
+  tableLocation(tenant: TenantModelContract): TableLocation {
+    // databaseName() honors #databasePrefix identically to connect(), so the
+    // placement can never disagree with where connect() actually routes; both
+    // helpers assertSafeIdentifier the id.
+    return {
+      kind: 'database',
+      database: this.databaseName(tenant),
+      connectionName: this.connectionName(tenant.id),
+    }
   }
 
   enforce(_client: QueryClientContract, _tenantId: string): void {
@@ -183,18 +196,9 @@ export default class DatabasePgDriver implements ProvisionableDriver {
   }
 
   async migrate(tenant: TenantModelContract, opts: MigrateOptions): Promise<MigrateResult> {
-    const { db, app, MigrationRunner } = await lucid()
     // Make sure the connection is registered before the migrator looks it up.
     await this.connect(tenant, { bypassHardCap: true })
-    const runner = new MigrationRunner(db, app, {
-      ...opts,
-      connectionName: this.connectionName(tenant.id),
-    })
-    await runner.run()
-    if (runner.error) throw runner.error
-    return {
-      executed: runner.migratedFiles ? Object.keys(runner.migratedFiles).length : 0,
-    }
+    return runTenantMigrations(this.connectionName(tenant.id), opts)
   }
 
   /**

@@ -119,6 +119,13 @@ for a copy-paste migration.
 - New lightweight subpaths: `@adonisjs-lasagna/saas-tenancy/config` (read config
   outside a booted app) and `/internal` (app.booted-safe building blocks the
   official satellites consume).
+- **Cancellable extension execution.** `executeExtension` takes an optional
+  `signal` that composes with its internal timeout on both paths (including the
+  no-timeout fast path), so an external abort (a caller timeout or a client
+  disconnect) reaches the running work rather than being silently dropped. A new
+  `/signals` subpath exposes `composeSignals` (the single `AbortSignal.any`
+  composition point, shared with `safeFetch`) and `onRequestDisconnect`, a
+  disposed bridge from a client hangup to an `AbortSignal`.
 - **Audit attribution on the lifecycle commands.** `tenant:create`,
   `tenant:activate`, `tenant:suspend`, `tenant:destroy`, and `tenant:maintenance`
   take an optional `--admin=<id>` flag that attributes the append-only audit row to
@@ -132,12 +139,58 @@ for a copy-paste migration.
   the database regardless of query shape, so a hand-written top-level `orWhere`
   can no longer escape the tenant scope. See
   [rowscope-pg](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/guides/data-isolation/rowscope-pg.md#hard-boundary-postgresql-row-level-security).
+- **Isolation driver contract v2.** `IsolationDriver` gains a required
+  `tableLocation(tenant)` method that returns a closed, driver-agnostic tagged
+  union (`{ kind: 'schema' | 'database' | 'rowscope' | 'connection', … }`)
+  describing where a tenant's per-tenant tables physically live, so an extension
+  can place tables without hardcoding a `tenant_<id>` namespace or branching on
+  the concrete driver. The four shipped drivers implement it and the
+  `TableLocation` types are exported from the root, `/services`, and the
+  isolation barrel. A custom `IsolationDriver` implements `tableLocation()` and
+  sets `contractVersion: 2`; the registry throws at registration for any driver
+  that does not, so the requirement surfaces at boot rather than at first query.
 - **Optional hard connection cap.** `isolation.enforceConnectionCap` (default
   `false`) makes `maxTenantConnections` a firm ceiling: when it is full and
   nothing is evictable, a new tenant's `connect()` is refused with a 503
   (`TenantConnectionLimitException`) instead of exceeding the cap. The default
   still favours availability (never sever an in-flight request); the hard cap is
   the documented opt-in for deployments fronted by PgBouncer.
+- **Per-tenant satellite migrations (SEAM-2).** A satellite can now ship
+  migrations that run PER TENANT, not only once in the shared `backoffice`
+  schema. It declares a `perTenantMigrations` directory in its `lasagnaSatellite`
+  manifest; `tenant:migrate` discovers those directories and folds them into each
+  tenant's run through the new `MigrateOptions.extraMigrationPaths`, so the tables
+  land in whatever placement the active isolation driver reports for that tenant
+  (a schema on `schema-pg`, a database on `database-pg`). The directories resolve
+  relative to the app root, so a run behaves the same on every OS. Row-scoped
+  tenants keep a central migration (their per-tenant `migrate` stays a no-op).
+- **pgvector provisioning under a privileged role (`tenant:vector:provision`).**
+  The PostgreSQL `vector` extension can now be installed as an operator step
+  outside the app's request role, which stays least-privilege and never runs
+  `CREATE EXTENSION`. The command installs it idempotently under a separate
+  provisioning connection (`isolation.provisionConnectionName`, default
+  `centralConnectionName`), dispatched by driver: once on the shared database for
+  `schema-pg`/`rowscope-pg`, and per tenant database for `database-pg` (honouring
+  `--tenant`). It doubles as the backfill for existing databases and supports
+  `--dry-run`. An opt-in `pgvector_extension` doctor check verifies the app role
+  is not a superuser and that the extension is present where embeddings live. Run
+  it before any migration that declares a `vector(N)` column.
+- **Cost reservations for streaming work (`QuotaService.reserve` / `settle` /
+  `release`).** A quota can now be held worst-case BEFORE an operation whose true
+  cost is only known when it finishes (a streaming model response is the
+  motivating case) and reconciled as the cost arrives.
+  `reserve(tenant, quota, worstCase)` atomically holds the amount against both
+  the per-tenant daily budget and an optional operator-global ceiling
+  (`plans.operatorCeiling[quota]`, a tenant-independent denial-of-wallet cap);
+  both must fit or nothing is held, and over-budget is a hard stop.
+  `settle(reservation, cumulativeUsed)` commits the actual usage, clamped and
+  monotonic, and `release(reservation)` returns the remainder and is idempotent.
+  The hold is a Redis key scored by its expiry, so a process that crashes
+  mid-stream has its budget reclaimed automatically when the TTL elapses
+  (`plans.reservationTtlMs`, default 2 minutes); there is no reaper process.
+  Unlike `consume`, `reserve` is fail-closed: if Redis is unreachable it refuses
+  rather than let an unbudgeted call through. A quota name is metered by exactly
+  one of `consume` or `reserve`, never both. Targets standalone/Sentinel Redis.
 - **Opt-in tenant-resolution cache.** `resolver.cache.{enabled, ttlMs, maxEntries}`
   (default off / 10 s / 10 000) serves warm tenants from a bounded per-process
   LRU, cutting the steady-state backoffice round-trips per request from two to

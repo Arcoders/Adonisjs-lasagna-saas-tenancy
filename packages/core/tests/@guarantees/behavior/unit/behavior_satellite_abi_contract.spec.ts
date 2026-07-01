@@ -69,7 +69,11 @@ test.group('Satellite ABI — IsolationDriverRegistry', () => {
     for (const m of ['register', 'use', 'active', 'get', 'has', 'list', 'clear'] as const) {
       assert.isFunction((r as any)[m], `IsolationDriverRegistry.${m}`)
     }
-    const driver = { name: 'fake-driver', contractVersion: 1 } as unknown as IsolationDriver
+    const driver = {
+      name: 'fake-driver',
+      contractVersion: 2,
+      tableLocation: () => ({ kind: 'connection', connectionName: 'fake' }),
+    } as unknown as IsolationDriver
     r.register(driver, { activate: true })
     assert.equal(r.active().name, 'fake-driver')
     assert.isTrue(r.has('fake-driver'))

@@ -1,6 +1,7 @@
 import { test } from '@japa/runner'
+import { Readable } from 'node:stream'
 import { resolvePinnedHttpsTarget } from '../../../../src/utils/url.js'
-import { safeFetch, SafeFetchError } from '../../../../src/utils/safe_fetch.js'
+import { pinnedLookup, safeFetch, SafeFetchError } from '../../../../src/utils/safe_fetch.js'
 
 /**
  * WS-4: the outbound seam's security decisions, tested deterministically (no
@@ -88,5 +89,103 @@ test.group('safeFetch — mode selection + error classification', () => {
     const blocked = new SafeFetchError('url_blocks_private', 'y', false)
     assert.isTrue(dns.retryable)
     assert.isFalse(blocked.retryable)
+  })
+})
+
+test.group('safeFetch — streaming option', () => {
+  test('rejects streaming combined with trustedHost (no silent buffered no-op)', async ({
+    assert,
+  }) => {
+    await assert.rejects(
+      () => safeFetch('https://api.paddle.com/', { streaming: true, trustedHost: true }),
+      /streaming is only supported on the pinned path/
+    )
+  })
+
+  test('rejects streaming combined with allowLoopback', async ({ assert }) => {
+    try {
+      await safeFetch('https://example.com/', { streaming: true, allowLoopback: true })
+      assert.fail('should have thrown')
+    } catch (err) {
+      assert.instanceOf(err, SafeFetchError)
+      assert.equal((err as SafeFetchError).code, 'streaming_unsupported_mode')
+    }
+  })
+
+  test('the streaming Response delivers incrementally and cancel destroys the socket', async ({
+    assert,
+  }) => {
+    // The exact mechanism the pinned streaming branch uses: Readable.toWeb(res)
+    // handed to a Response. A chunk pushed to the source arrives at the reader
+    // before the source ends (incremental, not buffered), and cancelling the web
+    // stream destroys the underlying Readable (for a real socket, res.destroy()).
+    let destroyed = false
+    const source = new Readable({ read() {} })
+    source.on('close', () => {
+      destroyed = true
+    })
+    const res = new Response(Readable.toWeb(source) as ReadableStream)
+    const reader = res.body!.getReader()
+
+    source.push('chunk-1')
+    const first = await reader.read()
+    assert.equal(new TextDecoder().decode(first.value as Uint8Array), 'chunk-1')
+
+    await reader.cancel()
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.isTrue(destroyed, 'cancelling the stream destroys the underlying socket')
+  })
+})
+
+test.group('pinnedLookup — pins one validated address, honours Happy-Eyeballs', () => {
+  // Since Node 20, autoSelectFamily (default true) calls a custom `lookup` with
+  // `{ all: true }` and REQUIRES an array result `[{ address, family }]`. A
+  // single-address callback there throws ERR_INVALID_IP_ADDRESS at connect, which
+  // silently broke every pinned request on Node 24 (webhook/OIDC delivery). These
+  // are the regression guards for that path.
+  test('under { all: true } (Node Happy-Eyeballs) returns an address ARRAY', ({ assert }) => {
+    const lookup = pinnedLookup('203.0.113.7', 4)
+    let out: unknown
+    lookup(
+      'ignored.example',
+      { all: true } as never,
+      ((_e: null, a: unknown) => {
+        out = a
+      }) as never
+    )
+    assert.deepEqual(out, [{ address: '203.0.113.7', family: 4 }])
+  })
+
+  test('without { all } returns the single (address, family) form', ({ assert }) => {
+    const lookup = pinnedLookup('203.0.113.7', 4)
+    let addr: unknown
+    let fam: unknown
+    lookup(
+      'ignored.example',
+      {} as never,
+      ((_e: null, a: unknown, f: unknown) => {
+        addr = a
+        fam = f
+      }) as never
+    )
+    assert.equal(addr, '203.0.113.7')
+    assert.equal(fam, 4)
+  })
+
+  test('pins exactly the validated address, ignoring the hostname (no rebind)', ({ assert }) => {
+    // The pin must never re-resolve: whatever hostname Node passes, the connection
+    // goes to the one address resolvePinnedHttpsTarget already validated.
+    const lookup = pinnedLookup('198.51.100.9', 6)
+    for (const host of ['attacker.example', 'metadata.google.internal', '']) {
+      let out: unknown
+      lookup(
+        host,
+        { all: true } as never,
+        ((_e: null, a: unknown) => {
+          out = a
+        }) as never
+      )
+      assert.deepEqual(out, [{ address: '198.51.100.9', family: 6 }], `host=${host}`)
+    }
   })
 })

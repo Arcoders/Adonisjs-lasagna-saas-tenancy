@@ -206,6 +206,20 @@
       "filePath": "tenant_secrets_reencrypt.js"
     },
     {
+      "commandName": "tenant:vector:provision",
+      "description": "Install the pgvector extension under the privileged provisioning connection (per tenant database on database-pg, once on the shared database otherwise)",
+      "help": "Run before any embeddings migration: node ace tenant:vector:provision. Idempotent; use --dry-run first. Needs a privileged connection (isolation.provisionConnectionName).",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report what would be provisioned without running CREATE EXTENSION" },
+        { "name": "tenantIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant id(s) to provision (database-pg only). If omitted, all tenants" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_vector_provision.js"
+    },
+    {
       "commandName": "tenant:webhooks:encrypt-secrets",
       "description": "Encrypt any plaintext webhook signing secrets at rest (one-time upgrade; idempotent)",
       "help": "Run once after upgrading to fail-closed webhook signing: node ace tenant:webhooks:encrypt-secrets. Idempotent; use --dry-run first.",

@@ -34,6 +34,7 @@ import redis from '@adonisjs/redis/services/main';
 import { RedisService } from '@adonisjs/redis/types';
 import type { RouteGroup } from '@adonisjs/http-server';
 import { Span } from '@opentelemetry/api';
+import { SpanContext } from '@opentelemetry/api';
 import { Tracer } from '@opentelemetry/api';
 import type { WorkerOptions as WorkerOptions_2 } from 'bullmq';
 
@@ -538,6 +539,7 @@ export interface IsolationConfig {
     enforceConnectionCap?: boolean;
     evictionGracePeriodMs?: number;
     maxTenantConnections?: number;
+    provisionConnectionName?: string;
     rowScopeColumn?: string;
     rowScopeMode?: 'strict' | 'allowGlobal';
     rowScopeRls?: boolean;
@@ -561,6 +563,7 @@ export interface IsolationDriver {
     // (undocumented)
     readonly name: IsolationDriverName;
     reset(tenant: TenantModelContract): Promise<void>;
+    tableLocation(tenant: TenantModelContract): TableLocation;
 }
 
 // @public
@@ -634,7 +637,9 @@ export class MetricsService {
 }
 
 // @public
-export type MigrateOptions = Omit<MigratorOptions, 'connectionName'>;
+export type MigrateOptions = Omit<MigratorOptions, 'connectionName'> & {
+    extraMigrationPaths?: string[];
+};
 
 // @public (undocumented)
 export interface MigrateResult {
@@ -823,6 +828,24 @@ export class QuotaExceededException extends Exception {
 export type QuotaMode = 'rolling-day' | 'snapshot';
 
 // @public
+export interface QuotaReservation {
+    // (undocumented)
+    readonly day: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly op: boolean;
+    // (undocumented)
+    readonly quota: string;
+    // (undocumented)
+    readonly tenantId: string;
+    // (undocumented)
+    readonly ttl: number;
+    // (undocumented)
+    readonly worstCase: number;
+}
+
+// @public
 export class QuotaService {
     assignPlan(tenantId: string, planName: string, opts?: {
         source?: string;
@@ -838,9 +861,12 @@ export class QuotaService {
         plan: PlanDefinition;
     }>;
     getUsage(tenant: TenantModelContract, quota: string): Promise<number>;
+    release(reservation: QuotaReservation): Promise<number>;
     // Warning: (ae-forgotten-export) The symbol "lazyRedis" needs to be exported by the entry point index.d.ts
     protected requireRedis(): Promise<NonNullable<Awaited<ReturnType<typeof lazyRedis>>>>;
+    reserve(tenant: TenantModelContract, quota: string, worstCase: number): Promise<QuotaReservation>;
     reset(tenant: TenantModelContract, quota?: string): Promise<void>;
+    settle(reservation: QuotaReservation, cumulativeUsed: number): Promise<void>;
     setUsage(tenant: TenantModelContract, quota: string, value: number): Promise<void>;
     snapshot(tenant: TenantModelContract): Promise<QuotaStateSnapshot>;
     track(tenant: TenantModelContract, quota: string, amount?: number): Promise<number>;
@@ -957,6 +983,7 @@ export interface SafeFetchOptions {
     // (undocumented)
     method?: string;
     signal?: AbortSignal;
+    streaming?: boolean;
     timeoutMs?: number;
     trustedHost?: boolean;
 }
@@ -985,7 +1012,46 @@ export interface SetTenantRlsGucOptions {
 }
 
 // @public
+export type TableLocation = TableLocationSchema | TableLocationDatabase | TableLocationRowscope | TableLocationConnection;
+
+// @public
+export interface TableLocationConnection {
+    readonly connectionName: string;
+    // (undocumented)
+    readonly kind: 'connection';
+}
+
+// @public
+export interface TableLocationDatabase {
+    readonly connectionName: string;
+    readonly database: string;
+    // (undocumented)
+    readonly kind: 'database';
+}
+
+// @public
+export interface TableLocationRowscope {
+    readonly connectionName: string;
+    // (undocumented)
+    readonly kind: 'rowscope';
+    readonly rls: boolean;
+    readonly rlsGuc?: string;
+    readonly scopeColumn: string;
+}
+
+// @public
+export interface TableLocationSchema {
+    readonly connectionName: string;
+    // (undocumented)
+    readonly kind: 'schema';
+    readonly schema: string;
+}
+
+// @public
 export class TelemetryService {
+    static addEvent(span: Span, name: string, attributes?: Record<string, string | number | boolean>): void;
+    static addEventOnActive(name: string, attributes?: Record<string, string | number | boolean>): void;
+    static addLink(span: Span, linked: SpanContext): void;
     // (undocumented)
     static setTenant(tenantId: string): void;
     // (undocumented)
@@ -1702,12 +1768,12 @@ export function writeSecret(plain: string, cls: SecretClass): string;
 
 // Warnings were encountered during analysis:
 //
-// src/services/quota_service.ts:111:74 - (ae-forgotten-export) The symbol "PlanDefinition" needs to be exported by the entry point index.d.ts
+// src/services/quota_service.ts:154:74 - (ae-forgotten-export) The symbol "PlanDefinition" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "run" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "runForRequest" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "currentId" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "current" needs to be exported by the entry point index.d.ts
-// src/types/config.ts:550:5 - (ae-forgotten-export) The symbol "TenantAnonymizer" needs to be exported by the entry point index.d.ts
+// src/types/config.ts:567:5 - (ae-forgotten-export) The symbol "TenantAnonymizer" needs to be exported by the entry point index.d.ts
 
 // (No @packageDocumentation comment for this package)
 

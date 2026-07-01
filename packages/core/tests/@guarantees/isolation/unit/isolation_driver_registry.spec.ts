@@ -20,6 +20,9 @@ function fakeDriver(name: IsolationDriverName | string): IsolationDriver {
     connectionName() {
       return `conn:${name}`
     },
+    tableLocation() {
+      return { kind: 'connection', connectionName: `conn:${name}` }
+    },
     async migrate() {
       return { executed: 0 }
     },

@@ -4,6 +4,7 @@ import app from '@adonisjs/core/services/app'
 import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import HookRegistry from '../services/hook_registry.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
+import { discoverSatellites, satelliteMigrationDirs } from '../sdk/configure_kit.js'
 import TenantMigrated from '../events/tenant_migrated.js'
 import { migrationTaskError } from './migration_task_error.js'
 
@@ -52,6 +53,7 @@ export default class TenantMigrate extends BaseCommand {
 
     const hooks = await app.container.make(HookRegistry)
     const driver = await getActiveDriver()
+    const extraMigrationPaths = await this.#satellitePerTenantMigrationDirs()
     let succeeded = 0
     let failed = 0
 
@@ -73,6 +75,7 @@ export default class TenantMigrate extends BaseCommand {
               direction: 'up',
               disableLocks: this.disableLocks,
               dryRun: this.dryRun,
+              extraMigrationPaths,
             })
 
             if (!this.dryRun) {
@@ -91,5 +94,22 @@ export default class TenantMigrate extends BaseCommand {
     }
 
     this.logger.info(`Done: ${succeeded} succeeded, ${failed} failed`)
+  }
+
+  /**
+   * Per-tenant migration directories contributed by installed satellites
+   * (SEAM-2). Re-runs `discoverSatellites` (manifests read as JSON, no satellite
+   * code imported) and resolves each `perTenantMigrations` to an absolute dir, so
+   * the drivers fold them into every tenant's run via `extraMigrationPaths`. The
+   * dirs are the same for all tenants, so this resolves once before the loop.
+   */
+  async #satellitePerTenantMigrationDirs(): Promise<string[]> {
+    const hostRoot = this.app.makePath()
+    const satellites = await discoverSatellites(hostRoot, (m) => this.logger.warning(m))
+    const dirs = satelliteMigrationDirs(hostRoot, satellites)
+    if (dirs.length > 0) {
+      this.logger.info(`Folding ${dirs.length} satellite per-tenant migration dir(s) into the run.`)
+    }
+    return dirs
   }
 }

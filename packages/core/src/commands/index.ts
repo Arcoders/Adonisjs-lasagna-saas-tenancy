@@ -32,4 +32,5 @@ export { default as TenantSatelliteRemove } from './tenant_satellite_remove.js'
 export { default as TenantAuditExport } from './tenant_audit_export.js'
 export { default as TenantGdprAnonymize } from './tenant_gdpr_anonymize.js'
 export { default as TenantComplianceReport } from './tenant_compliance_report.js'
+export { default as TenantVectorProvision } from './tenant_vector_provision.js'
 // The `tenant:billing:*` commands moved to `@adonisjs-lasagna/billing`.

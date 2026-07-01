@@ -30,7 +30,18 @@ export interface DestroyOptions {
  * that don't actually own a connection (rowscope-pg) treat both as
  * no-ops and rely on the central migrations.
  */
-export type MigrateOptions = Omit<MigratorOptions, 'connectionName'>
+export type MigrateOptions = Omit<MigratorOptions, 'connectionName'> & {
+  /**
+   * Additional per-tenant migration source directories to fold into this run,
+   * on top of the connection's own configured `migrations.paths`. Reserved for
+   * the per-tenant satellite-migration wiring (SEAM-2): a satellite registers
+   * its per-tenant migration directory and `tenant:migrate` threads it here.
+   * The shipped drivers do not consume it yet; it is declared on the contract
+   * now, riding the v2 bump, so SEAM-2 can wire it later without a second
+   * breaking change against a moving shape.
+   */
+  extraMigrationPaths?: string[]
+}
 export type MigrateDirection = 'up' | 'down'
 
 export interface MigrateResult {
@@ -48,8 +59,91 @@ export interface MigrateResult {
  * registration instead of calling methods the running core does not provide.
  * Bump as a MAJOR for a backward-incompatible change. INDEPENDENT of the
  * satellite ABI and the published version.
+ *
+ * v2 (current): added the required {@link IsolationDriver.tableLocation} method
+ * and the optional {@link MigrateOptions.extraMigrationPaths} field. Because a
+ * required member was added, {@link IsolationDriverRegistry.register} pairs this
+ * bump with an unconditional presence check that throws for any driver missing
+ * `tableLocation()` (a bare version bump would only warn for a v1/unversioned
+ * driver and let it register, then crash at first call).
  */
-export const ISOLATION_CONTRACT_VERSION = 1
+export const ISOLATION_CONTRACT_VERSION = 2
+
+/**
+ * Where a tenant's per-tenant tables physically live, as a closed discriminated
+ * union on `kind`. A satellite that stores per-tenant rows (embeddings, memory,
+ * metering) asks the active driver via {@link IsolationDriver.tableLocation} and
+ * switches on `kind` with a `never`-exhaustive default, so it never hardcodes a
+ * `tenant_<id>` namespace and never branches on the concrete driver class. The
+ * union is a plain value (every field `readonly`); there is no `null`/`none`
+ * variant, so a caller never has to null-check a placement.
+ *
+ * Every namespace string a variant carries (`schema`, `database`, `scopeColumn`)
+ * has already passed `assertSafeIdentifier`, so it is safe to interpolate into
+ * DDL.
+ */
+export type TableLocation =
+  | TableLocationSchema
+  | TableLocationDatabase
+  | TableLocationRowscope
+  | TableLocationConnection
+
+/** schema-per-tenant (schema-pg): the tenant owns a dedicated PostgreSQL schema. */
+export interface TableLocationSchema {
+  readonly kind: 'schema'
+  /** The tenant's dedicated schema, e.g. `tenant_<id>`. `assertSafeIdentifier`-checked. */
+  readonly schema: string
+  /** The Lucid connection routed to that schema (equals `connectionName(tenant.id)`). */
+  readonly connectionName: string
+}
+
+/** database-per-tenant (database-pg): the tenant owns a dedicated PostgreSQL database. */
+export interface TableLocationDatabase {
+  readonly kind: 'database'
+  /** The tenant's dedicated database, e.g. `tenant_<id>`. `assertSafeIdentifier`-checked. */
+  readonly database: string
+  /** The Lucid connection routed to that database (equals `connectionName(tenant.id)`). */
+  readonly connectionName: string
+}
+
+/**
+ * shared schema + `tenant_id` predicate + RLS (rowscope-pg): the tenant has NO
+ * per-tenant namespace. Placement is the shared connection plus the scope column
+ * plus the RLS predicate metadata, never a schema/database to qualify.
+ */
+export interface TableLocationRowscope {
+  readonly kind: 'rowscope'
+  /**
+   * The tenant-discriminator column (config `rowScopeColumn`, default
+   * `tenant_id`). `assertSafeIdentifier`-checked.
+   */
+  readonly scopeColumn: string
+  /**
+   * Whether row-level security backstops the scope column. Reflects
+   * `isolation.rowScopeRls`, which the provider BOOT-VERIFIES against the RLS
+   * catalog when `true` (it refuses to start unless every scoped table has RLS
+   * enabled, forced, policied, and a NOT NULL scope column). This accessor does
+   * no IO; it reports that boot-verified configured intent.
+   */
+  readonly rls: boolean
+  /**
+   * The per-transaction setting the RLS policy reads (`DEFAULT_RLS_GUC`).
+   * Present if and only if `rls` is `true`.
+   */
+  readonly rlsGuc?: string
+  /** The shared/central Lucid connection every tenant uses (equals `connectionName(tenant.id)`). */
+  readonly connectionName: string
+}
+
+/**
+ * connection-IS-the-namespace (sqlite-memory test driver): no real schema or
+ * database, so the per-tenant connection wholly defines placement.
+ */
+export interface TableLocationConnection {
+  readonly kind: 'connection'
+  /** The per-tenant connection that is itself the namespace (equals `connectionName(tenant.id)`). */
+  readonly connectionName: string
+}
 
 /**
  * The core contract every isolation strategy must satisfy. A driver encapsulates
@@ -133,6 +227,19 @@ export interface IsolationDriver {
    * `TenantAdapter` can resolve the name without loading the model.
    */
   connectionName(tenantId: string): string
+
+  /**
+   * Resolve WHERE this tenant's per-tenant tables physically live, as a
+   * driver-agnostic {@link TableLocation} tagged union, so a satellite places
+   * its own per-tenant tables (e.g. AI embeddings/memory) with zero
+   * `tenant_<id>` hardcoding and zero branching on the concrete driver. Pure
+   * and synchronous: it derives placement from config plus the tenant id only
+   * (no Lucid, no IO), mirroring `connectionName()` / `schemaName()` /
+   * `databaseName()`. Fails closed on a malformed tenant id (throws via
+   * `assertSafeIdentifier`), so a caller can never receive an injectable
+   * namespace.
+   */
+  tableLocation(tenant: TenantModelContract): TableLocation
 
   /**
    * Synchronously mark this tenant's connection as just-used, refreshing the

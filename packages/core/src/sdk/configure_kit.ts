@@ -161,6 +161,29 @@ export async function discoverSatellites(
   return found
 }
 
+/**
+ * The per-tenant migration directories (SEAM-2) contributed by discovered
+ * satellites, as paths RELATIVE to the host root and forward-slashed.
+ *
+ * `tenant:migrate` folds these into `MigrateOptions.extraMigrationPaths`, and
+ * Lucid resolves each migration directory with `new URL(dir, app.appRoot)`. An
+ * ABSOLUTE path breaks that on Windows (the drive letter `C:` parses as a URL
+ * scheme, so `fileURLToPath` throws), so we always emit a root-relative,
+ * forward-slashed path: it resolves correctly on every OS and keeps the migration
+ * ledger name stable across platforms. A satellite that declares no
+ * `perTenantMigrations` contributes nothing.
+ */
+export function satelliteMigrationDirs(
+  hostRoot: string,
+  satellites: DiscoveredSatellite[]
+): string[] {
+  return satellites
+    .filter((s) => s.manifest.perTenantMigrations)
+    .map((s) =>
+      relative(hostRoot, join(s.root, s.manifest.perTenantMigrations as string)).replace(/\\/g, '/')
+    )
+}
+
 /** Build a lookup of `packageName` and every `alias` → DiscoveredSatellite. */
 export function indexSatellites(
   satellites: DiscoveredSatellite[]
