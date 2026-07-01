@@ -60,6 +60,12 @@ setting and its trade-off are explained.
 - [ ] **Grace window.** Set `evictionGracePeriodMs` at or above your p99 request
       latency so an in-flight request is never severed. See
       [Scaling limits](/guides/scaling-limits).
+- [ ] **AI streaming heartbeat (only with `@adonisjs-lasagna/ai`).** Keep
+      `config.ai.heartbeatMs` (default 15000) below any upstream proxy idle timeout
+      (nginx / ALB around 60s, Cloudflare around 100s). Otherwise a proxy closing an
+      idle connection looks like a client disconnect and settles the stream early.
+      A `ai_stream_disconnects` metric surfaces premature closes. See the
+      [AI satellite](/guides/satellites/ai).
 - [ ] **Row-Level Security (only for `rowscope-pg`).** Run
       `node ace configure @adonisjs-lasagna/saas-tenancy --with=rls`, edit the
       migration to list your real `rowScopeTables` and column, and migrate under a DB

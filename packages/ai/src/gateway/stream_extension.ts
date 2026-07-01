@@ -55,6 +55,16 @@ export type RunExtension = <T>(
   options: RunExtensionOptions
 ) => Promise<T>
 
+/** Records a per-tenant integer metric (satisfied by core's MetricsService.emitMetric). */
+export type EmitMetric = (tenantId: string, name: string, value: number) => void | Promise<void>
+
+/** Runs a callback inside a named span (satisfied by core's TelemetryService.withSpan). */
+export type WithSpan = <T>(
+  name: string,
+  attrs: Record<string, string | number | boolean>,
+  fn: () => Promise<T>
+) => Promise<T>
+
 export interface StreamExtensionServiceDeps {
   quota: StreamQuota
   breaker?: StreamBreaker
@@ -62,6 +72,10 @@ export interface StreamExtensionServiceDeps {
   runExtension: RunExtension
   /** Recognizes core's `ExtensionTimeoutError`. Defaults to never (a caught error is a provider error). */
   isTimeoutError?: (error: unknown) => boolean
+  /** Integer usage metrics. Defaults to a no-op. Best-effort: a failure is swallowed. */
+  emitMetric?: EmitMetric
+  /** Span wrapper. Defaults to a passthrough. */
+  withSpan?: WithSpan
 }
 
 export interface StreamExtensionOptions {
@@ -83,6 +97,10 @@ export interface StreamExtensionOptions {
   heartbeatMs?: number
   /** Resume cursor from the client's Last-Event-ID. */
   lastEventId?: string
+  /** Provider name, for the span attribute only (never content). */
+  provider?: string
+  /** Model name, for the span attribute only (never content). */
+  model?: string
 }
 
 /** Why a stream stopped after it committed (headers flushed). */
@@ -158,15 +176,63 @@ export default class StreamExtensionService {
   readonly #breaker: StreamBreaker | undefined
   readonly #runExtension: RunExtension
   readonly #isTimeoutError: (error: unknown) => boolean
+  readonly #emitMetric: EmitMetric
+  readonly #withSpan: WithSpan
 
   constructor(deps: StreamExtensionServiceDeps) {
     this.#quota = deps.quota
     this.#breaker = deps.breaker
     this.#runExtension = deps.runExtension
     this.#isTimeoutError = deps.isTimeoutError ?? (() => false)
+    this.#emitMetric = deps.emitMetric ?? (() => {})
+    this.#withSpan = deps.withSpan ?? ((_name, _attrs, fn) => fn())
   }
 
+  /**
+   * Wrap the streamed call in an `ai.stream` span (tenant/provider/model
+   * attributes only, never content) and emit integer usage metrics on the
+   * outcome. The span attributes and every metric value are integers or short
+   * identifiers; no prompt or response text ever reaches telemetry (G3).
+   */
   async stream(
+    target: StreamTarget,
+    produce: StreamProducer,
+    options: StreamExtensionOptions
+  ): Promise<StreamResult> {
+    const attrs: Record<string, string> = { 'tenant.id': options.tenant.id }
+    if (options.provider) attrs.provider = options.provider
+    if (options.model) attrs.model = options.model
+
+    const result = await this.#withSpan('ai.stream', attrs, () =>
+      this.#runStream(target, produce, options)
+    )
+    this.#emitOutcomeMetrics(options.tenant.id, result)
+    return result
+  }
+
+  /** Best-effort integer metrics. A metrics-backend failure is swallowed. */
+  #metric(tenantId: string, name: string, value: number): void {
+    try {
+      void Promise.resolve(this.#emitMetric(tenantId, name, value)).catch(() => {})
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  #emitOutcomeMetrics(tenantId: string, result: StreamResult): void {
+    this.#metric(tenantId, 'ai_requests', 1)
+    if (result.outcome === 'completed' || result.outcome === 'aborted') {
+      this.#metric(tenantId, 'ai_tokens_total', result.tokensSettled)
+    }
+    if (result.outcome === 'aborted') {
+      this.#metric(tenantId, 'ai_errors', 1)
+      if (result.reason === 'client_disconnect') {
+        this.#metric(tenantId, 'ai_stream_disconnects', 1)
+      }
+    }
+  }
+
+  async #runStream(
     target: StreamTarget,
     produce: StreamProducer,
     options: StreamExtensionOptions

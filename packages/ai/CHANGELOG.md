@@ -25,3 +25,7 @@ Added:
   reservation worst case.
 - **Three real providers** (Claude, DeepSeek, Kimi) that stream through the
   kernel's SSRF-pinned fetch with no vendor SDKs, selectable per tenant.
+- **Observability**: the streamed call is wrapped in an `ai.stream` span
+  (tenant / provider / model attributes only, never content) and emits integer
+  usage metrics (`ai_requests`, `ai_tokens_total`, `ai_errors`,
+  `ai_stream_disconnects`). No prompt or response text ever reaches telemetry.

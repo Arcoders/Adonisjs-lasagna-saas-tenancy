@@ -7,7 +7,9 @@ import {
 import {
   CircuitBreakerService,
   ExtensionTimeoutError,
+  MetricsService,
   QuotaService,
+  TelemetryService,
   executeExtension,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { assertAiConfig } from '../src/validate_config.js'
@@ -41,11 +43,14 @@ export default class AiProvider implements SatelliteProviderContract {
     this.app.container.singleton(StreamExtensionService, async (resolver) => {
       const quota = await resolver.make(QuotaService)
       const breaker = await resolver.make(CircuitBreakerService)
+      const metrics = await resolver.make(MetricsService)
       return new StreamExtensionService({
         quota,
         breaker,
         runExtension: executeExtension,
         isTimeoutError: (error) => error instanceof ExtensionTimeoutError,
+        emitMetric: (tenantId, name, value) => metrics.emitMetric(tenantId, name, value),
+        withSpan: (name, attrs, fn) => TelemetryService.withSpan(name, attrs, fn),
       })
     })
   }

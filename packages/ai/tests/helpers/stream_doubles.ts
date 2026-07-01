@@ -141,6 +141,34 @@ export function makeService(
   return { svc, quota, breaker }
 }
 
+/** Recorded telemetry, for asserting the observability contract. */
+export interface ObservabilityCapture {
+  metrics: { tenantId: string; name: string; value: number }[]
+  spans: { name: string; attrs: Record<string, string | number | boolean> }[]
+}
+
+/** A service wired with capturing telemetry doubles. */
+export function makeObservableService(
+  quota: FakeQuota = new FakeQuota(),
+  breaker: FakeBreaker = new FakeBreaker()
+): { svc: StreamExtensionService; quota: FakeQuota; capture: ObservabilityCapture } {
+  const capture: ObservabilityCapture = { metrics: [], spans: [] }
+  const svc = new StreamExtensionService({
+    quota,
+    breaker,
+    runExtension: fakeRunExtension,
+    isTimeoutError: isFakeTimeout,
+    emitMetric: (tenantId, name, value) => {
+      capture.metrics.push({ tenantId, name, value })
+    },
+    withSpan: (name, attrs, fn) => {
+      capture.spans.push({ name, attrs })
+      return fn()
+    },
+  })
+  return { svc, quota, capture }
+}
+
 /** A producer that yields the given fragments, honoring the abort signal. */
 export function fragmentsProducer(fragments: StreamFragment[]): StreamProducer {
   return async function* (signal: AbortSignal) {
