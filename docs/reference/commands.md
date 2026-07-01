@@ -81,6 +81,23 @@ node ace tenant:doctor --json
 node ace tenant:doctor --watch --interval=5000
 ```
 
+## pgvector provisioning
+
+For hosts using the vector store (embeddings), the PostgreSQL `vector`
+extension must exist before any migration declares a `vector(N)` column.
+`CREATE EXTENSION` needs a privileged role, so it runs under a separate
+provisioning connection (`isolation.provisionConnectionName`), never the app's
+request-serving role.
+
+| Command | What it does |
+|---|---|
+| `tenant:vector:provision` | Install the pgvector extension idempotently under the privileged provisioning connection. Dispatched by driver: once on the shared database for `schema-pg`/`rowscope-pg`, per tenant database for `database-pg` (honouring `--tenant`). Run it before any embeddings migration; it doubles as the backfill for existing databases. `--dry-run` previews. |
+
+The opt-in `pgvector_extension` doctor check verifies the app role is not a
+superuser and that the extension is present where embeddings live. Register it
+with `doctorService.register(pgvectorExtensionCheck)`, then it runs under
+`tenant:doctor --check=pgvector_extension`.
+
 ## Exec-under-tenant
 
 ```bash

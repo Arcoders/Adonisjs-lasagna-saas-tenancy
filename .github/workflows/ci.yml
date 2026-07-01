@@ -358,7 +358,10 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        # pgvector image (drop-in superset of postgres:16) so the pgvector
+        # provisioning tier (SEAM-5) exercises CREATE EXTENSION vector; specs
+        # self-skip when the extension is unavailable.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

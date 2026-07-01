@@ -13,6 +13,9 @@ export { default as membershipGateCheck } from './membership_gate_check.js'
 // Opt-in: NOT added to `builtInChecks` (a fresh/empty metrics table would always
 // warn). Hosts running the metrics pipeline register it explicitly.
 export { default as metricsFreshnessCheck } from './metrics_freshness_check.js'
+// Opt-in: NOT added to `builtInChecks` (a host without the pgvector satellite has
+// no vector extension and would always error). Hosts using pgvector register it.
+export { default as pgvectorExtensionCheck } from './pgvector_extension_check.js'
 
 import schemaDriftCheck from './schema_drift_check.js'
 import migrationStateCheck from './migration_state_check.js'

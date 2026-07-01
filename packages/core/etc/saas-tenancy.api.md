@@ -538,6 +538,7 @@ export interface IsolationConfig {
     enforceConnectionCap?: boolean;
     evictionGracePeriodMs?: number;
     maxTenantConnections?: number;
+    provisionConnectionName?: string;
     rowScopeColumn?: string;
     rowScopeMode?: 'strict' | 'allowGlobal';
     rowScopeRls?: boolean;
