@@ -107,14 +107,18 @@ test.group('assertAiConfig', () => {
     )
   })
 
-  test('rejects a provider block missing the defaultModel', ({ assert }) => {
+  test('rejects a present-but-empty defaultModel, allows an omitted one', ({ assert }) => {
     assert.throws(
       () =>
         assertAiConfig({
           allowedProviders: ['claude'],
           claude: { apiKey: 'k', defaultModel: '' },
         }),
-      /config\.ai\.claude\.defaultModel must be a non-empty string/
+      /config\.ai\.claude\.defaultModel, when set, must be a non-empty string/
+    )
+    // Omitted defaultModel is fine: the provider falls back to its built-in default.
+    assert.doesNotThrow(() =>
+      assertAiConfig({ allowedProviders: ['claude'], claude: { apiKey: 'k' } })
     )
   })
 

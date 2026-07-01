@@ -11,9 +11,13 @@ import {
   executeExtension,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { assertAiConfig } from '../src/validate_config.js'
-import type { MultitenancyConfigWithAi } from '../src/define_config.js'
+import type { AiConfig, MultitenancyConfigWithAi } from '../src/define_config.js'
+import { DEFAULT_AI_PROVIDER } from '../src/constants.js'
 import AIProviderRegistry from '../src/services/ai_provider_registry.js'
 import StreamExtensionService from '../src/gateway/stream_extension.js'
+import ClaudeProvider from '../src/providers/claude_provider.js'
+import { DeepSeekProvider, KimiProvider } from '../src/providers/openai_compatible_provider.js'
+import type { AIProviderContract } from '../src/types/ai_provider_contract.js'
 
 /**
  * Provider for `@adonisjs-lasagna/ai`. Register it in the host's `adonisrc.ts`
@@ -46,14 +50,38 @@ export default class AiProvider implements SatelliteProviderContract {
     })
   }
 
-  boot() {
+  async boot() {
     // Runtime ABI backstop (see scripts/check-abi-boot-assertion.mjs; satelliteApi
     // mirrors package.json#lasagnaSatellite). Fail fast on a core too old.
     assertSatelliteApiCompatAtBoot({ satelliteApi: 1 }, '@adonisjs-lasagna/ai')
 
     const config = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')
     assertAiConfig(config?.ai)
+    await this.#registerBuiltinProviders(config?.ai)
   }
+
+  /**
+   * Register the built-in providers that are allow-listed and configured. An
+   * unconfigured provider is simply not registered, so it can never be silently
+   * selected; a host registers custom / BYOK providers in its own provider.
+   */
+  async #registerBuiltinProviders(ai: AiConfig | undefined): Promise<void> {
+    if (!ai) return
+    const registry = await this.app.container.make(AIProviderRegistry)
+    const activeName = ai.defaultProvider ?? DEFAULT_AI_PROVIDER
+    for (const name of ai.allowedProviders) {
+      const provider = buildBuiltinProvider(name, ai)
+      if (provider) registry.register(provider, { activate: provider.name === activeName })
+    }
+  }
+}
+
+/** Construct a built-in provider from its config block; custom names are host-registered. */
+function buildBuiltinProvider(name: string, ai: AiConfig): AIProviderContract | undefined {
+  if (name === 'claude' && ai.claude) return new ClaudeProvider(ai.claude)
+  if (name === 'deepseek' && ai.deepseek) return new DeepSeekProvider(ai.deepseek)
+  if (name === 'kimi' && ai.kimi) return new KimiProvider(ai.kimi)
+  return undefined
 }
 
 // Compile-time ABI pin: fail the build if the provider drifts from the public

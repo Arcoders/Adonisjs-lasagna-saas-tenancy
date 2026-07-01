@@ -63,8 +63,11 @@ function assertProviderBlock(name: string, block: AIProviderConfig | undefined):
       `[ai] config.ai.${name}.apiKey must be a non-empty string (read it from the environment)`
     )
   }
-  if (typeof block.defaultModel !== 'string' || block.defaultModel.length === 0) {
-    throw new Error(`[ai] config.ai.${name}.defaultModel must be a non-empty string`)
+  if (
+    block.defaultModel !== undefined &&
+    (typeof block.defaultModel !== 'string' || block.defaultModel.length === 0)
+  ) {
+    throw new Error(`[ai] config.ai.${name}.defaultModel, when set, must be a non-empty string`)
   }
   if (block.baseUrl !== undefined) {
     assertHttpsUrl(`config.ai.${name}.baseUrl`, block.baseUrl)

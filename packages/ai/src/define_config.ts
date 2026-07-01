@@ -22,8 +22,8 @@ export interface AIProviderConfig {
   apiKey: string
   /** BYOK / self-host base URL. Defaults to the provider's public endpoint. Validated against the SSRF guard. */
   baseUrl?: string
-  /** Model used when a request does not specify one. */
-  defaultModel: string
+  /** Model used when a request does not specify one. Defaults to the provider's built-in recommended model. */
+  defaultModel?: string
   /** Per-provider model allow-list. When present, a requested model outside it is rejected (G12 model scope). */
   allowedModels?: string[]
   /** Claude only: the `anthropic-version` header value. Ignored by OpenAI-compatible providers. */

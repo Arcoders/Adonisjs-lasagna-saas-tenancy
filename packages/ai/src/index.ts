@@ -21,3 +21,13 @@ export type {
   AIStreamRequest,
   StreamFragment,
 } from './types/ai_provider_contract.js'
+
+export { default as ClaudeProvider } from './providers/claude_provider.js'
+export {
+  default as OpenAICompatibleProvider,
+  DeepSeekProvider,
+  KimiProvider,
+} from './providers/openai_compatible_provider.js'
+export type { OpenAICompatibleParams } from './providers/openai_compatible_provider.js'
+export { HttpAiProvider, defaultAiProviderDeps } from './providers/base_provider.js'
+export type { AIProviderDeps } from './providers/base_provider.js'
