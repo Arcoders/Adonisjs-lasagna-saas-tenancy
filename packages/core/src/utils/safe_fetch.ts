@@ -1,5 +1,6 @@
 import { request as httpsRequest } from 'node:https'
 import { isLoopbackUrl, resolvePinnedHttpsTarget } from './url.js'
+import { composeSignals } from './signals.js'
 
 /**
  * The single hardened seam for outbound HTTP the package makes to destinations it
@@ -88,12 +89,12 @@ function normalizeBody(body: SafeFetchOptions['body']): string | undefined {
 }
 
 function combinedSignal(opts: SafeFetchOptions): AbortSignal | undefined {
-  if (opts.signal && opts.timeoutMs) {
-    return AbortSignal.any([opts.signal, AbortSignal.timeout(opts.timeoutMs)])
-  }
-  if (opts.signal) return opts.signal
-  if (opts.timeoutMs) return AbortSignal.timeout(opts.timeoutMs)
-  return undefined
+  // Reuse the kernel's single composition point (utils/signals.ts) so safeFetch
+  // and executeExtension never drift in how they compose caller + timeout signals.
+  return composeSignals([
+    opts.signal,
+    opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined,
+  ])
 }
 
 export async function safeFetch(url: string, opts: SafeFetchOptions = {}): Promise<Response> {

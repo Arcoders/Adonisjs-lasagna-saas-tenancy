@@ -38,6 +38,7 @@
     ".": "./build/src/index.js",
     "./config": "./build/src/config.js",
     "./safe-fetch": "./build/src/utils/safe_fetch.js",
+    "./signals": "./build/src/utils/signals.js",
     "./internal": "./build/src/internal.js",
     "./adapters": "./build/src/models/adapters/index.js",
     "./base-models": "./build/src/models/base/index.js",
@@ -63,6 +64,9 @@
       ],
       "safe-fetch": [
         "./build/src/utils/safe_fetch.d.ts"
+      ],
+      "signals": [
+        "./build/src/utils/signals.d.ts"
       ],
       "internal": [
         "./build/src/internal.d.ts"

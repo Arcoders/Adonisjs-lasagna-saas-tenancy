@@ -1,5 +1,6 @@
 import { Exception } from '@adonisjs/core/exceptions'
 import { consumeRateLimit } from '../rate_limiter.js'
+import { composeSignals } from '../../utils/signals.js'
 import TooManyRequestsException from '../../exceptions/too_many_requests_exception.js'
 import RateLimitUnavailableException from '../../exceptions/rate_limit_unavailable_exception.js'
 
@@ -40,6 +41,14 @@ export interface ExecuteExtensionOptions {
    * matching the rate-limit middleware. Only relevant when `rateLimit` is set.
    */
   failOpen?: boolean
+  /**
+   * Caller-facing abort signal, composed with the internal timeout controller on
+   * BOTH paths — including the no-timeout fast path. An external abort (budget
+   * exhaustion, tenant suspension, client disconnect) then trips `fn`'s signal
+   * even when `timeoutMs` is unset. Defaults to none, byte-identical to the
+   * previous behavior for callers that pass no signal.
+   */
+  signal?: AbortSignal
 }
 
 /**
@@ -78,7 +87,11 @@ export async function executeExtension<T>(
   }
 
   const controller = new AbortController()
-  const run = fn(controller.signal)
+  // Compose the caller's signal with the internal timeout controller BEFORE the
+  // fast-path return, so an external abort reaches `fn` even when there is no
+  // timeout. controller.signal is always present, so the result is never undefined.
+  const signal = composeSignals([controller.signal, options.signal]) as AbortSignal
+  const run = fn(signal)
   if (!timeoutMs) return run
 
   let timer: ReturnType<typeof setTimeout> | undefined
