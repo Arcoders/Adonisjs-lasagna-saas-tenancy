@@ -4,6 +4,7 @@ import type { AIProviderContract } from '../types/ai_provider_contract.js'
 import type { AiConfig } from '../define_config.js'
 import { AI_CONTRACT_VERSION } from '../sdk/contract_version.js'
 import AIException from '../exceptions/ai_exception.js'
+import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import { resolveTenantProviderSelection } from './tenant_provider_selection.js'
 
 /**
@@ -33,6 +34,9 @@ export default class AIProviderRegistry {
     // A provider that does not declare streaming fail-closes at registration, so
     // it can never degrade a streaming call at runtime, regardless of version.
     if (provider.capabilities?.streaming !== true) {
+      emitAiGuardEvent('guard.ai_streaming_capability', {
+        metadata: { provider: String(provider.name).slice(0, 64) },
+      })
       throw new Error(
         `ai provider "${provider.name}" does not declare capabilities.streaming; ` +
           `a non-streaming provider cannot serve the streaming gateway`

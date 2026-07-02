@@ -14,6 +14,7 @@ export const AI_ERROR_CODES = [
   'rate_limit_unavailable',
   'config_missing',
   'byok_endpoint_blocked',
+  'invalid_request',
 ] as const
 
 export type AIErrorCode = (typeof AI_ERROR_CODES)[number]
@@ -32,6 +33,19 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   rate_limit_unavailable: 503,
   config_missing: 500,
   byok_endpoint_blocked: 400,
+  invalid_request: 400,
+}
+
+/**
+ * The pinned HTTP status for an AI error code. This is the single source of
+ * truth for status mapping: the gateway resolves a pre-flight failure to a
+ * status through here rather than a parallel hand-maintained table, so a fatal
+ * typed refusal thrown before the first byte (provider_not_allowed -> 403,
+ * byok_endpoint_blocked -> 400) keeps its own status instead of drifting into a
+ * retryable 503. Total over `AIErrorCode` by construction.
+ */
+export function httpStatusForAiCode(code: AIErrorCode): number {
+  return STATUS_BY_CODE[code]
 }
 
 /**
@@ -45,6 +59,7 @@ const FATAL_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
   'over_budget',
   'config_missing',
   'byok_endpoint_blocked',
+  'invalid_request',
 ])
 
 /**

@@ -2,6 +2,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { AIProviderConfig, AiConfig } from '../define_config.js'
 import { DEFAULT_AI_PROVIDER } from '../constants.js'
 import AIException from '../exceptions/ai_exception.js'
+import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 
 /** The provider (and optional model) resolved for a tenant. */
 export interface TenantProviderSelection {
@@ -32,14 +33,17 @@ export function resolveTenantProviderSelection(
 
   // WS-AI-2 reads a per-tenant provider / model override keyed by the tenant
   // here; until then every tenant resolves the configured default.
-  void tenant
   const provider = config.defaultProvider ?? DEFAULT_AI_PROVIDER
 
   // Default-deny: the resolved provider must be explicitly allow-listed.
   if (!config.allowedProviders.includes(provider)) {
+    emitAiGuardEvent('guard.ai_provider_allowlist', {
+      tenantId: tenant.id,
+      metadata: { provider: String(provider).slice(0, 64) },
+    })
     throw new AIException(
       'provider_not_allowed',
-      `provider "${provider}" is not allow-listed for this tenant`
+      `Refusing to stream: provider "${provider}" is not allow-listed for this tenant`
     )
   }
 

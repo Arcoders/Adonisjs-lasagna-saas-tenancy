@@ -6,10 +6,12 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import {
   CircuitBreakerService,
+  DoctorService,
   ExtensionTimeoutError,
   MetricsService,
   QuotaService,
   TelemetryService,
+  cacheFor,
   executeExtension,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { assertAiConfig } from '../src/validate_config.js'
@@ -17,6 +19,15 @@ import type { AiConfig, MultitenancyConfigWithAi } from '../src/define_config.js
 import { DEFAULT_AI_PROVIDER } from '../src/constants.js'
 import AIProviderRegistry from '../src/services/ai_provider_registry.js'
 import StreamExtensionService from '../src/gateway/stream_extension.js'
+import TenantLivenessWatcher, {
+  wireAiTenantLiveness,
+} from '../src/services/tenant_liveness_watcher.js'
+import AiIdempotencyService, {
+  deriveAiIdempotencyMacKey,
+  type AiIdempotencyStore,
+} from '../src/gateway/idempotency.js'
+import { aiMembershipGateCheck } from '../src/services/ai_membership_gate_check.js'
+import { setAiGuardMetricSink } from '../src/isthmus/ai_guard_audit.js'
 import ClaudeProvider from '../src/providers/claude_provider.js'
 import { DeepSeekProvider, KimiProvider } from '../src/providers/openai_compatible_provider.js'
 import type { AIProviderContract } from '../src/types/ai_provider_contract.js'
@@ -33,11 +44,35 @@ import type { AIProviderContract } from '../src/types/ai_provider_contract.js'
  * providers bind here as they land in later commits.
  */
 export default class AiProvider implements SatelliteProviderContract {
+  #teardownLiveness?: () => void
+
   constructor(protected app: ApplicationService) {}
 
   register() {
     // Stateful, Map-backed: resolved via container.make, never new-ed ad hoc.
     this.app.container.singleton(AIProviderRegistry, () => new AIProviderRegistry())
+    // Live stream abort handles per tenant (G11). Stateful and cross-request,
+    // so it is a container singleton like the registry.
+    this.app.container.singleton(TenantLivenessWatcher, () => new TenantLivenessWatcher())
+    // Idempotent replay over the kernel's per-tenant cache namespace. The
+    // /services value import stays in THIS file (the eager-redis rule); the
+    // gateway module only sees the narrow injected store seam.
+    this.app.container.singleton(AiIdempotencyService, () => {
+      const store: AiIdempotencyStore = {
+        async get(tenantId, key) {
+          return await cacheFor(tenantId).get<string>({ key })
+        },
+        async set(tenantId, key, value, ttlMs) {
+          await cacheFor(tenantId).set({ key, value, ttl: ttlMs })
+        },
+      }
+      const ai = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+      return new AiIdempotencyService({
+        store,
+        macKey: deriveAiIdempotencyMacKey(requireAppKey()),
+        ttlMs: ai?.idempotencyTtlMs,
+      })
+    })
     // The streaming integrator resolves its quota + breaker seams from the
     // container, never new-ing them (the platform rule).
     this.app.container.singleton(StreamExtensionService, async (resolver) => {
@@ -63,6 +98,33 @@ export default class AiProvider implements SatelliteProviderContract {
     const config = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')
     assertAiConfig(config?.ai)
     await this.#registerBuiltinProviders(config?.ai)
+
+    // Keep the AI authorization posture visible: the same wording as the
+    // mount-time warning, surfaced by `tenant:doctor` even before any route
+    // file runs (the backup satellite's boot-time registration pattern).
+    const doctor = await this.app.container.make(DoctorService)
+    doctor.register(
+      aiMembershipGateCheck(() => this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
+    )
+  }
+
+  async ready() {
+    // Emitter subscriptions belong in ready(), resolved via container.make:
+    // the emitter service module is unassigned until the booted hooks run
+    // (the kernel's documented wireResolutionCacheInvalidation regression).
+    const emitter = await this.app.container.make('emitter')
+    const watcher = await this.app.container.make(TenantLivenessWatcher)
+    this.#teardownLiveness = wireAiTenantLiveness(emitter, watcher)
+
+    // Bridge tenantful guard trips to the per-tenant integer-metric rail.
+    const metrics = await this.app.container.make(MetricsService)
+    setAiGuardMetricSink((tenantId, name, value) => metrics.emitMetric(tenantId, name, value))
+  }
+
+  async shutdown() {
+    this.#teardownLiveness?.()
+    this.#teardownLiveness = undefined
+    setAiGuardMetricSink(undefined)
   }
 
   /**
@@ -79,6 +141,15 @@ export default class AiProvider implements SatelliteProviderContract {
       if (provider) registry.register(provider, { activate: provider.name === activeName })
     }
   }
+}
+
+/** The kernel's own APP_KEY source (utils/crypto.ts requireAppKey pattern). */
+function requireAppKey(): string {
+  const appKey = process.env.APP_KEY
+  if (!appKey) {
+    throw new Error('[ai] APP_KEY is not set; the idempotency MAC key derives from it')
+  }
+  return appKey
 }
 
 /** Construct a built-in provider from its config block; custom names are host-registered. */

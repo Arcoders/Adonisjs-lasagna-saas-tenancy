@@ -1,0 +1,42 @@
+import { createHash } from 'node:crypto'
+
+/**
+ * The gateway's audit seam. TODO(WS-AI-7): the real append-only audit lands
+ * there (I5: non-PII metadata into the kernel audit rails, DB-trigger
+ * immutability, the fail-closed write placement). This seam exists NOW so the
+ * choke point has exactly one attribution point and WS-AI-7 inherits a frozen
+ * non-PII field contract instead of a habit; the default sink is a no-op.
+ *
+ * The field set is pinned by a spec (exact key set): adding a field is a
+ * reviewed decision, and neither prompt nor response content can ever slip in
+ * silently. `principalHash` is a one-way SHA-256 of the principal, so the
+ * event attributes without storing an identifier that GDPR erasure would have
+ * to chase into the immutable store (G1).
+ */
+export interface AiGatewayAuditEvent {
+  readonly tenantId: string
+  readonly principalHash: string | null
+  readonly provider: string | null
+  readonly model: string | null
+  readonly outcome: 'completed' | 'aborted' | 'failed_preflight'
+  readonly reason: string | null
+  readonly tokensSettled: number
+  readonly fragments: number
+  readonly idempotentReplay: boolean
+  readonly occurredAt: string
+}
+
+export interface AiGatewayAuditSink {
+  append(event: AiGatewayAuditEvent): Promise<void> | void
+}
+
+/** The default sink until WS-AI-7: attribution is wired, storage is not. */
+export const noopAuditSink: AiGatewayAuditSink = {
+  append: () => {},
+}
+
+/** One-way principal attribution: SHA-256 hex, never the raw identifier. */
+export function hashAuditPrincipal(principal: string | null): string | null {
+  if (principal === null) return null
+  return createHash('sha256').update(principal, 'utf8').digest('hex')
+}

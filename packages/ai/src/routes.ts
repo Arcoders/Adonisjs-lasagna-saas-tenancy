@@ -1,0 +1,64 @@
+import router from '@adonisjs/core/services/router'
+import app from '@adonisjs/core/services/app'
+import logger from '@adonisjs/core/services/logger'
+import { assertAiMountAllowed, type MultitenancyAiRoutesOptions } from './routes/mount_gate.js'
+import AiChatController from './gateway/ai_chat_controller.js'
+import StreamExtensionService from './gateway/stream_extension.js'
+import AiIdempotencyService from './gateway/idempotency.js'
+import AIProviderRegistry from './services/ai_provider_registry.js'
+import TenantLivenessWatcher from './services/tenant_liveness_watcher.js'
+import type { MultitenancyConfigWithAi } from './define_config.js'
+
+/**
+ * Mount the AI gateway routes. Call from `start/routes.ts`, AFTER the kernel
+ * middleware is defined, passing your chain with TenantGuard first and your
+ * auth middleware after it:
+ *
+ * @example
+ *   // start/routes.ts
+ *   import { multitenancyAiRoutes } from '@adonisjs-lasagna/ai'
+ *   import { middleware } from '#start/kernel'
+ *
+ *   multitenancyAiRoutes({ middleware: [middleware.tenantGuard(), middleware.auth()] })
+ *
+ * Fail-closed (G4): refuses to mount without a middleware chain, without
+ * `config.ai`, or without a membership gate (`config.ai.authorizeAIAccess`)
+ * unless the host explicitly sets `acknowledgeNoMembershipGate: true`, in
+ * which case the acknowledged posture is logged and kept visible by the
+ * `ai_membership_gate` doctor check. The controller re-runs the gate per
+ * request, so a mis-ordered chain still cannot stream unauthorized.
+ *
+ * Endpoints (relative to the prefix, default `/ai`):
+ *   POST /chat   SSE stream (`Idempotency-Key` and `Last-Event-ID` honoured)
+ *
+ * This module imports Adonis service singletons (router/app/logger), so it is
+ * boot-unsafe BY DESIGN: import it from route files only, never from unit
+ * specs (the pure mount logic lives in `routes/mount_gate.ts` for those).
+ */
+export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void {
+  const ai = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+  const { warning } = assertAiMountAllowed(options, ai)
+  if (warning) logger.warn(warning)
+
+  const prefix = options.prefix ?? '/ai'
+  const group = router.group(() => {
+    router.post('/chat', async (ctx) => {
+      const controller = new AiChatController({
+        stream: await app.container.make(StreamExtensionService),
+        registry: await app.container.make(AIProviderRegistry),
+        idempotency: await app.container.make(AiIdempotencyService),
+        liveness: await app.container.make(TenantLivenessWatcher),
+        config: app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai,
+      })
+      return controller.chat(ctx)
+    })
+  })
+  if (prefix) group.prefix(prefix)
+  ;(group as any).use(options.middleware)
+}
+
+export type {
+  AiMiddlewareEntry,
+  AiRouteMiddleware,
+  MultitenancyAiRoutesOptions,
+} from './routes/mount_gate.js'

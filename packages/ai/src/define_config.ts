@@ -1,4 +1,8 @@
-import type { MultitenancyConfig } from '@adonisjs-lasagna/saas-tenancy/types'
+import type { HttpContext } from '@adonisjs/core/http'
+import type {
+  MultitenancyConfig,
+  TenantAccessAuthorizer,
+} from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
  * The shipped AI provider names. `(string & {})` keeps autocomplete for the
@@ -61,6 +65,42 @@ export interface AiConfig {
   timeoutMs?: number
   /** Default per-request output token cap when a request omits `maxTokens`. Becomes the reservation worst case. */
   maxTokens?: number
+  /**
+   * The AI membership gate (G4), mirroring core's `authorizeTenantAccess`
+   * contract: called by the gateway after tenant resolution and the host's
+   * auth middleware, with the request context and the resolved tenant.
+   * Return `false` or throw to deny with a 403. Unlike the core hook, which
+   * only warns when unset, `multitenancyAiRoutes` REFUSES TO MOUNT without
+   * this hook unless {@link acknowledgeNoMembershipGate} is explicitly true:
+   * AI routes are tenant-scoped and cost-bearing, so default-deny.
+   */
+  authorizeAIAccess?: TenantAccessAuthorizer
+  /**
+   * Explicit acknowledgement that the host mounts AI routes WITHOUT a
+   * membership gate (its own middleware chain is the only access control).
+   * Mounting logs a warning and the `ai_membership_gate` doctor check keeps
+   * reporting the posture, so the opt-out stays visible to operators.
+   */
+  acknowledgeNoMembershipGate?: boolean
+  /**
+   * Resolve the authenticated principal an idempotent replay may be shared
+   * with. Defaults to the host's `@adonisjs/auth` user id when present. A
+   * request with no resolvable principal gets NO idempotency (a cached
+   * response must never be shareable across unknown callers).
+   */
+  resolvePrincipal?: (ctx: HttpContext) => string | number | null | undefined
+  /**
+   * How long a completed response stays replayable under its
+   * `Idempotency-Key`, in ms. Default 60000. Short on purpose: the cache
+   * exists to absorb client retries, not to be a response store.
+   */
+  idempotencyTtlMs?: number
+  /**
+   * Upper bound on the combined `messages[].content` length of one request,
+   * in characters. Default 32000. A request over the bound is rejected with
+   * a 400 before any reservation or provider call.
+   */
+  maxPromptChars?: number
 }
 
 /**
