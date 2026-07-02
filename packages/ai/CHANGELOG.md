@@ -91,6 +91,28 @@ Added:
   - Real-Redis integration specs prove the cap bites end to end through the
     gateway spine (over-budget -> 402 with no bytes, the operator ceiling
     both-or-neither, the per-key window -> 429).
+- **The vector store (WS-AI-3)**: per-tenant embeddings with structural isolation
+  (invariant I1) and a fail-closed ingest choke point.
+  - `AIEmbeddingProviderContract` + `MockEmbeddingProvider` + a generic
+    `OpenAICompatibleEmbeddingProvider` (BYOK `baseUrl`/model over the SSRF-pinned
+    fetch; no vendor SDK). The G12 model gate is shared with the chat providers.
+  - `VectorStoreService`: placement resolved via the kernel `tableLocation(tenant)`
+    seam (never a hardcoded `tenant_<id>`), a satellite ContextSeal that refuses a
+    query whose tenant differs from the active scope (raw SQL bypasses the kernel
+    seal), `rowscope-pg` refused outright, per-row `(model, dim)` binding, and
+    idempotent `insert` (`ON CONFLICT (source, content_hash) DO NOTHING`) under an
+    advisory-locked `embeddingCount` cap (threat #18).
+  - `EmbeddingIngestionService` + `POST /ai/embed`: authorize-first, an optional
+    `authorizeIngestion` write gate, `aiTokens` reserve/settle for the embed, an
+    optional `sourceUrl` fetched through the SSRF pin (#11), and a parallel non-PII
+    `AiEmbeddingAuditEvent`. New `config.ai.embedding` block (validated at boot),
+    a per-tenant embeddings migration (the first satellite `perTenantMigrations`),
+    and an opt-in `after:provision` hook that installs pgvector in a new
+    database-pg tenant's DB before its migration runs.
+  - Guards: `guard.ai_rowscope_refused`, `guard.ai_scope_mismatch`,
+    `guard.ai_dimension_mismatch`, `guard.ai_embedding_quota_exhausted`,
+    `guard.ai_ingestion_denied`; structural guards `check-ai-invariant-1` (I1
+    placement) and `check-satellite-migrations` (compilation drift).
 
 Documentation correction (per the ARCHITECTURE.md correction path): the design
 doc's living sections now record the Isthmus integration decision (satellite

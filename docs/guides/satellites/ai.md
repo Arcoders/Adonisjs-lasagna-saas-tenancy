@@ -225,6 +225,77 @@ not appear in the kernel's `multitenancy_isthmus_*` Prometheus counters, which
 render kernel guards only. See the [Isthmus reference](/reference/isthmus) for
 the taxonomy and budget semantics.
 
+## Vector store (embeddings)
+
+The AI satellite can also store per-tenant embeddings for retrieval (WS-AI-3).
+An embedding can be inverted back to its source text, so a vector index is
+sensitive tenant content, not a derived artifact. Isolation is structural
+(invariant **I1**): the store never hardcodes a location. It asks the active
+isolation driver `tableLocation(tenant)` where the tenant's embeddings physically
+live and runs its SQL on that connection, so the same code is correct on
+`schema-pg` and `database-pg`. Logical (`rowscope-pg`) isolation is the weakest
+placement for inversion-sensitive data and is **refused** outright: embeddings
+need a physically-isolated driver.
+
+Opt in with an `embedding` block. It configures a single generic
+OpenAI-compatible provider (point `baseUrl` at OpenAI, Voyage, Jina, or a
+self-hosted `/embeddings` endpoint; nothing is vendor-hardcoded):
+
+```ts
+// inside your ai block:
+embedding: {
+  apiKey: env.get('AI_EMBEDDING_API_KEY'),
+  baseUrl: 'https://api.openai.com/v1', // required: the /embeddings endpoint
+  defaultModel: 'text-embedding-3-small',
+  dimension: 1536,                       // baked into the vector(N) column; 1..2000
+  // maxEmbeddingTokens: 512,            // per-chunk worst case reserved against aiTokens
+  // authorizeIngestion: (ctx, tenant) => userMayWrite(ctx),  // the write gate (below)
+},
+```
+
+The `dimension` is fixed at deploy time: it is written into the `vector(N)`
+column by the per-tenant migration, and every row stores its `model` and `dim`
+so a later model swap that changes dimension is caught, not silently mis-ranked.
+Changing the dimension after data exists needs a new migration.
+
+**Provision pgvector.** The embeddings column needs the PostgreSQL `vector`
+extension where the tenant's data lives. Installing an extension is a privileged
+step, kept off the app's request role (G14):
+
+```bash
+node ace tenant:vector:provision   # installs `vector` under the privileged connection
+```
+
+On `database-pg` (one database per tenant) a new tenant's database is provisioned
+automatically before its migration runs, so you only run the command to backfill
+existing tenants. On `schema-pg` / `rowscope-pg` the extension is shared, so
+running it once is enough. The opt-in `pgvector_extension` doctor check reports
+where the extension is missing (and that the app role is not a superuser).
+
+**Ingest.** `POST /ai/embed` (mounted in the same fail-closed group as `/chat`)
+takes pre-chunked text and stores it under a `source` (the document key, and the
+unit of rollback):
+
+```bash
+curl -X POST https://app.example.com/ai/embed \
+  -H 'content-type: application/json' \
+  -d '{ "source": "handbook.md", "input": ["chunk one", "chunk two"] }'
+```
+
+The endpoint authorizes first (the membership gate, then an optional
+`authorizeIngestion` write gate, so a denied caller spends nothing), reserves
+`aiTokens` for the embed (a non-streaming call still costs money, so it is
+metered like a completion), embeds, and stores idempotently: a re-ingest of the
+same `(source, content)` is a no-op, never a double insert, so no
+`Idempotency-Key` header is needed. A per-plan `embeddingCount` limit caps how
+many rows a tenant may store (threat #18), enforced atomically before the write.
+An optional `sourceUrl` is fetched through the kernel's IP-pinned `safeFetch`, so
+a document URL can never reach an internal or metadata host (#11).
+
+Retrieval-time filtering by intra-tenant document ACL, and a similarity-search
+route, arrive with the RAG context integrity workstream; the store's search
+method exists now and is tenant-scoped by construction.
+
 ## Use the streaming service directly
 
 The gateway is the supported path, but the streaming service remains usable on
