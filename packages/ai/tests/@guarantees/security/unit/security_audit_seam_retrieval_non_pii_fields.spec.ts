@@ -51,7 +51,13 @@ function buildController(sink: AiRetrievalAuditSink) {
   return new AiRetrieveController({
     retrieval,
     liveness: new TenantLivenessWatcher(),
-    config: { allowedProviders: ['claude'], authorizeAIAccess: () => true } as AiConfig,
+    // This spec pins the audit event fields, not the fail-closed ACL posture, so
+    // acknowledge the unscoped default to let a retrieval complete and be audited.
+    config: {
+      allowedProviders: ['claude'],
+      authorizeAIAccess: () => true,
+      acknowledgeUnscopedRetrieval: true,
+    } as AiConfig,
     audit: sink,
   })
 }

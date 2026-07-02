@@ -212,15 +212,17 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
   'guard.ai_retrieval_denied': {
     trip: () =>
       resolveRetrievalScope({} as never, tenant, {
-        retrievalFilter: () => {
-          throw new Error('acl backend down')
+        retrieval: {
+          retrievalFilter: () => {
+            throw new Error('acl backend down')
+          },
         },
-      }),
+      } as never),
     expectThrow: /Refusing the retrieval/,
     happy: () =>
       resolveRetrievalScope({} as never, tenant, {
-        retrievalFilter: () => ({ kind: 'all' }),
-      }),
+        retrieval: { retrievalFilter: () => ({ kind: 'all' }) },
+      } as never),
   },
 }
 

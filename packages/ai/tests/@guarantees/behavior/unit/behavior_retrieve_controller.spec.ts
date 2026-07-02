@@ -39,7 +39,15 @@ function build(over: Partial<AiConfig>, service: RetrievalService) {
   return new AiRetrieveController({
     retrieval: service,
     liveness: new TenantLivenessWatcher(),
-    config: { allowedProviders: ['claude'], authorizeAIAccess: () => true, ...over } as AiConfig,
+    // These specs exercise controller behavior, not the fail-closed ACL posture
+    // (proven in security_retrieval_failclosed_default.spec.ts), so acknowledge
+    // the unscoped default here unless a case wires its own retrievalFilter.
+    config: {
+      allowedProviders: ['claude'],
+      authorizeAIAccess: () => true,
+      acknowledgeUnscopedRetrieval: true,
+      ...over,
+    } as AiConfig,
   })
 }
 

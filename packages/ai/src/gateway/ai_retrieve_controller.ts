@@ -51,7 +51,7 @@ export default class AiRetrieveController {
     // 1. Tenant + membership gate + the per-user document ACL (403s, before any cost).
     const tenant = await resolveRequestTenant(ctx)
     await authorizeAiAccess(ctx, tenant, ai)
-    const scope = await resolveRetrievalScope(ctx, tenant, ai?.retrieval)
+    const scope = await resolveRetrievalScope(ctx, tenant, ai)
 
     // 2. Request validation (400s, still before any cost).
     const body = parseRetrieveBody(ctx.request.body(), ai?.retrieval)

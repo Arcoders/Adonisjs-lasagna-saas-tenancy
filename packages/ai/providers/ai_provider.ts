@@ -44,7 +44,7 @@ import { aiMembershipGateCheck } from '../src/services/ai_membership_gate_check.
 import { aiBudgetCheck, aiTokensBudgetPosture } from '../src/services/ai_budget_check.js'
 import {
   aiRetrievalGateCheck,
-  aiRetrievalGateRisk,
+  aiRetrievalGatePosture,
 } from '../src/services/ai_retrieval_gate_check.js'
 import { setAiGuardMetricSink } from '../src/isthmus/ai_guard_audit.js'
 import ClaudeProvider from '../src/providers/claude_provider.js'
@@ -207,10 +207,10 @@ export default class AiProvider implements SatelliteProviderContract {
       aiBudgetCheck(() => this.app.config.get<MultitenancyConfigWithAi>('multitenancy'))
     )
     // Keep the retrieval authorization posture visible too (WS-AI-5, G2): with
-    // embeddings configured but no per-user document ACL wired, every tenant user
-    // can retrieve the whole tenant corpus. The check always reports the live
-    // posture; the boot warning fires only for the genuinely-unscoped,
-    // not-acknowledged case (see aiRetrievalGateRisk).
+    // embeddings configured but no per-user document ACL wired, retrieval is
+    // fail-closed (refused) until the host wires retrievalFilter or acknowledges
+    // the tenant-wide posture. The check always reports the live posture; the boot
+    // warning fires only for the refused case (see aiRetrievalGatePosture).
     doctor.register(
       aiRetrievalGateCheck(() => this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
     )
@@ -220,10 +220,10 @@ export default class AiProvider implements SatelliteProviderContract {
         const logger = await this.app.container.make('logger')
         logger.warn(`[ai] ${posture.message}`)
       }
-      const retrievalRisk = aiRetrievalGateRisk(config.ai)
-      if (retrievalRisk && config.ai.acknowledgeUnscopedRetrieval !== true) {
+      const retrievalPosture = aiRetrievalGatePosture(config.ai)
+      if (retrievalPosture?.severity === 'warn') {
         const logger = await this.app.container.make('logger')
-        logger.warn(`[ai] ${retrievalRisk}`)
+        logger.warn(`[ai] ${retrievalPosture.message}`)
       }
     }
 

@@ -1,12 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { TenantAccessForbiddenException } from '@adonisjs-lasagna/saas-tenancy/exceptions'
-import type {
-  AiConfig,
-  AIEmbeddingConfig,
-  AIRetrievalConfig,
-  RetrievalScope,
-} from '../define_config.js'
+import type { AiConfig, AIEmbeddingConfig, RetrievalScope } from '../define_config.js'
 import AIException from '../exceptions/ai_exception.js'
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 
@@ -137,22 +132,34 @@ export async function authorizeIngestion(
  * {@link RetrievalScope} rather than void, because a document ACL answers "WHICH
  * documents may this caller see", not a boolean "may they retrieve at all".
  *
- * Opt-in via `config.ai.retrieval.retrievalFilter`. When the hook is ABSENT the
- * scope is the whole tenant corpus (`{ kind: 'all' }`): tenant isolation still
- * holds, and the missing per-user ACL is a documented honest limit surfaced by
- * the `ai_retrieval_gate` doctor check. When the hook is present and it throws
- * or returns a shape that is not a valid scope, the retrieval is refused with a
- * 403 `retrieval_denied` and a `guard.ai_retrieval_denied` trip, before any
- * query embed or search: fail-closed, never a silent fallback to the whole
- * corpus.
+ * Opt-in via `config.ai.retrieval.retrievalFilter`. Fail-closed (G2), mirroring
+ * the G4 mount gate: when NO hook is wired the retrieval is refused with a 403
+ * `retrieval_denied` and a `guard.ai_retrieval_denied` trip, UNLESS the host sets
+ * `config.ai.acknowledgeUnscopedRetrieval`, which opts into tenant-wide retrieval
+ * (`{ kind: 'all' }`; tenant isolation still holds, and the missing per-user ACL
+ * is a documented honest limit surfaced by the `ai_retrieval_gate` doctor check).
+ * When a hook IS wired and it throws or returns a shape that is not a valid scope,
+ * the retrieval is likewise refused, before any query embed or search: never a
+ * silent fallback to the whole corpus.
  */
 export async function resolveRetrievalScope(
   ctx: HttpContext,
   tenant: TenantModelContract,
-  retrieval: AIRetrievalConfig | undefined
+  ai: AiConfig | undefined
 ): Promise<RetrievalScope> {
-  const hook = retrieval?.retrievalFilter
-  if (!hook) return { kind: 'all' }
+  const hook = ai?.retrieval?.retrievalFilter
+  if (!hook) {
+    if (ai?.acknowledgeUnscopedRetrieval === true) return { kind: 'all' }
+    emitAiGuardEvent('guard.ai_retrieval_denied', {
+      tenantId: tenant.id,
+      metadata: { reason: 'unscoped_unacknowledged' },
+    })
+    throw new AIException(
+      'retrieval_denied',
+      'Refusing the retrieval: no per-user document ACL (config.ai.retrieval.retrievalFilter) ' +
+        'is wired and config.ai.acknowledgeUnscopedRetrieval is not set'
+    )
+  }
 
   let scope: unknown
   try {

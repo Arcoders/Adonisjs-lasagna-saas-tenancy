@@ -331,9 +331,12 @@ The scope only NARROWS: the mandatory `(model, dim)` scope and the tenant
 placement always apply, and every scope value is a bound parameter, never
 interpolated SQL. The hook is fail-closed: a throw or an invalid return is a 403
 `retrieval_denied` (with a `guard.ai_retrieval_denied` trip), never a silent
-fallback to the whole corpus. When the hook is ABSENT, retrieval spans the whole
-tenant corpus, an honest limit surfaced by the `ai_retrieval_gate` doctor check
-and a boot warning; `acknowledgeUnscopedRetrieval: true` accepts that posture.
+fallback to the whole corpus. An ABSENT hook is fail-closed too, mirroring the
+membership mount gate (G4): every retrieval is refused with a 403 until you make
+the scoping decision explicit. Either wire `retrievalFilter` for per-user scoping,
+or set `acknowledgeUnscopedRetrieval: true` to opt into tenant-wide retrieval
+(every user of a tenant then sees the whole corpus, tenant isolation still holds).
+The `ai_retrieval_gate` doctor check and a boot warning keep that decision visible.
 
 **Search route.** `POST /ai/retrieve` (in the same fail-closed group as `/chat`)
 embeds the query, applies the document ACL, and returns the matches as JSON:

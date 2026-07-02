@@ -318,7 +318,7 @@ export default class AiChatController {
 
     const retrievalBase = { tenantId: tenant.id, actorHash: principalHash }
     try {
-      const scope = await resolveRetrievalScope(ctx, tenant, ai?.retrieval)
+      const scope = await resolveRetrievalScope(ctx, tenant, ai)
       const limit = resolveRetrieveLimit(body.retrieve.limit, ai?.retrieval)
       const result = await this.deps.retrieval.retrieve(
         tenant,

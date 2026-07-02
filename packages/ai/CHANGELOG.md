@@ -131,9 +131,11 @@ Added:
     the tenant placement always apply, and every scope value is a bound parameter.
     The hook is fail-closed (a throw or an invalid return is a 403
     `retrieval_denied` with a `guard.ai_retrieval_denied` trip, never a fallback
-    to the whole corpus). An absent hook is the documented whole-corpus posture,
-    surfaced by the `ai_retrieval_gate` doctor check and a boot warning and
-    accepted with `acknowledgeUnscopedRetrieval`.
+    to the whole corpus). An ABSENT hook is fail-closed too, mirroring the G4
+    mount gate: every retrieval is refused (403 `retrieval_denied`) until the host
+    either wires `retrievalFilter` or opts into tenant-wide retrieval with
+    `acknowledgeUnscopedRetrieval`. The `ai_retrieval_gate` doctor check and a boot
+    warning keep that decision visible.
   - `RetrievalService` + `POST /ai/retrieve`: authorize-first, resolve the
     document ACL, reserve `aiTokens` for the query embed (a metered read, G5),
     embed with the corpus's own provider, and search under the scope, filtering

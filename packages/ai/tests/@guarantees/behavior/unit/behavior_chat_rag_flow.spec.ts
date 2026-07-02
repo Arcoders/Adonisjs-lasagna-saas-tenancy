@@ -83,6 +83,10 @@ function build(opts: {
     config: {
       allowedProviders: ['claude'],
       authorizeAIAccess: () => true,
+      // These specs exercise the RAG flow, not the fail-closed ACL posture
+      // (proven in security_retrieval_failclosed_default.spec.ts); acknowledge the
+      // unscoped default so scope resolution reaches the retrieval service.
+      acknowledgeUnscopedRetrieval: true,
       ...opts.config,
     } as AiConfig,
   })

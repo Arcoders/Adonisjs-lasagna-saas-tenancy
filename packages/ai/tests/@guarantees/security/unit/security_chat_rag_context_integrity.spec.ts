@@ -62,7 +62,14 @@ function build(retrieval: RetrievalService, config: Partial<AiConfig> = {}) {
     }),
     liveness: new TenantLivenessWatcher(),
     retrieval,
-    config: { allowedProviders: ['claude'], authorizeAIAccess: () => true, ...config } as AiConfig,
+    // These specs exercise context integrity, not the fail-closed ACL posture; a
+    // case that wires its own retrievalFilter overrides the acknowledgement.
+    config: {
+      allowedProviders: ['claude'],
+      authorizeAIAccess: () => true,
+      acknowledgeUnscopedRetrieval: true,
+      ...config,
+    } as AiConfig,
   })
   return { controller, seen }
 }

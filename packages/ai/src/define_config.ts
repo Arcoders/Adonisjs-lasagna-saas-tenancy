@@ -97,10 +97,11 @@ export type RetrievalScope =
  * to. Distinct from {@link AiConfig.authorizeAIAccess} ("may this caller use AI
  * at all"): this answers "WHICH of the tenant's documents may this caller
  * retrieve". A throw or an invalid return is fail-closed (403
- * `retrieval_denied`). When the hook is ABSENT, retrieval spans the whole tenant
- * corpus (tenant isolation still holds); that posture is a documented honest
- * limit surfaced by the `ai_retrieval_gate` doctor check and a boot warning,
- * silenced with {@link AiConfig.acknowledgeUnscopedRetrieval}.
+ * `retrieval_denied`). When the hook is ABSENT, retrieval is fail-closed too
+ * (every request is refused) UNLESS the host opts into the whole tenant corpus
+ * with {@link AiConfig.acknowledgeUnscopedRetrieval} (tenant isolation still
+ * holds); the `ai_retrieval_gate` doctor check and a boot warning keep that
+ * decision visible.
  */
 export type RetrievalFilter = (
   ctx: HttpContext,
@@ -221,12 +222,15 @@ export interface AiConfig {
    */
   acknowledgeUnbudgetedAiTokens?: boolean
   /**
-   * Explicit acknowledgement that retrieval runs tenant-wide because no
-   * `config.ai.retrieval.retrievalFilter` (per-user document ACL, G2) is wired,
-   * so every user of a tenant can retrieve that tenant's ENTIRE corpus. Silences
-   * the boot warning; the `ai_retrieval_gate` doctor check still reports the
-   * accepted posture. Tenant isolation (I1/I4) is unaffected: this is about
-   * intra-tenant, per-user document authorization, which is the host's job.
+   * Opt into tenant-wide retrieval when no `config.ai.retrieval.retrievalFilter`
+   * (per-user document ACL, G2) is wired. Retrieval is fail-closed (mirrors the
+   * G4 mount gate): without a hook AND without this flag, every `/ai/retrieve` and
+   * RAG chat is refused with a 403 `retrieval_denied`. Setting this to `true`
+   * ENABLES retrieval and accepts that every user of a tenant can retrieve that
+   * tenant's ENTIRE corpus; the `ai_retrieval_gate` doctor check then reports the
+   * accepted posture (info) instead of the refused one (warn). Tenant isolation
+   * (I1/I4) is unaffected: this is about intra-tenant, per-user document
+   * authorization, which is the host's job.
    */
   acknowledgeUnscopedRetrieval?: boolean
 }

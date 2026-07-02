@@ -8,23 +8,27 @@ import {
   __resetAiGuardRateLimit,
   __setAiGuardDispatcherForTests,
 } from '../../../../src/isthmus/ai_guard_audit.js'
-import type { AIRetrievalConfig } from '../../../../src/define_config.js'
+import type { AiConfig, AIRetrievalConfig } from '../../../../src/define_config.js'
 
 /**
  * The retrieval scope gate (WS-AI-5, G2). The per-user document ACL is resolved
- * BEFORE any query embed or search. An absent hook is the documented honest
- * limit (the whole tenant corpus, `{ kind: 'all' }`); a wired hook is
- * authoritative and fail-closed: a throw or an invalid return is a 403
- * `retrieval_denied` plus a `guard.ai_retrieval_denied` trip, never a silent
- * fallback to the whole corpus.
+ * BEFORE any query embed or search. Retrieval is fail-closed, mirroring the G4
+ * mount gate: with NO `retrievalFilter` wired the retrieval is refused (403
+ * `retrieval_denied` + `guard.ai_retrieval_denied`) UNLESS the host sets
+ * `acknowledgeUnscopedRetrieval`, which opts into the whole tenant corpus
+ * (`{ kind: 'all' }`). A wired hook is authoritative: a throw or an invalid return
+ * is a 403, never a silent fallback to the whole corpus.
  */
 
 const tenant = { id: 'tenant-1' } as unknown as TenantModelContract
 const ctx = {} as never
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve))
 
-function retrieval(overrides: Partial<AIRetrievalConfig>): AIRetrievalConfig {
-  return { ...overrides }
+function config(overrides: Partial<AiConfig> = {}): AiConfig {
+  return { ...overrides } as AiConfig
+}
+function withFilter(retrievalFilter: AIRetrievalConfig['retrievalFilter']): AiConfig {
+  return config({ retrieval: { retrievalFilter } })
 }
 
 test.group('AI retrieval scope gate', (group) => {
@@ -45,18 +49,51 @@ test.group('AI retrieval scope gate', (group) => {
     __resetAiGuardRateLimit()
   })
 
-  test('an absent hook scopes to the whole tenant corpus without emitting', async ({ assert }) => {
-    assert.deepEqual(await resolveRetrievalScope(ctx, tenant, undefined), { kind: 'all' })
-    assert.deepEqual(await resolveRetrievalScope(ctx, tenant, retrieval({})), { kind: 'all' })
+  test('no hook + acknowledgeUnscopedRetrieval opts into the whole tenant corpus, no emit', async ({
+    assert,
+  }) => {
+    assert.deepEqual(
+      await resolveRetrievalScope(ctx, tenant, config({ acknowledgeUnscopedRetrieval: true })),
+      { kind: 'all' }
+    )
     await settle()
     assert.lengthOf(captured, 0)
+  })
+
+  test('no hook and NOT acknowledged is a fail-closed 403, reason "unscoped_unacknowledged"', async ({
+    assert,
+  }) => {
+    for (const ai of [
+      undefined,
+      config({}),
+      config({ retrieval: {} }),
+      config({ acknowledgeUnscopedRetrieval: false }),
+    ]) {
+      captured = []
+      let threw: unknown
+      try {
+        await resolveRetrievalScope(ctx, tenant, ai)
+      } catch (err) {
+        threw = err
+      }
+      await settle()
+
+      assert.instanceOf(threw, AIException)
+      assert.equal((threw as AIException).aiCode, 'retrieval_denied')
+      assert.equal((threw as AIException).httpStatus, 403)
+      assert.isFalse((threw as AIException).isRetryable())
+      assert.lengthOf(captured, 1)
+      assert.equal(captured[0].id, 'guard.ai_retrieval_denied')
+      assert.equal(captured[0].tenantId, 'tenant-1')
+      assert.equal(captured[0].metadata.reason, 'unscoped_unacknowledged')
+    }
   })
 
   test('a hook returning a sources allow-list passes through unchanged', async ({ assert }) => {
     const scope = await resolveRetrievalScope(
       ctx,
       tenant,
-      retrieval({ retrievalFilter: () => ({ kind: 'sources', sources: ['doc-a', 'doc-b'] }) })
+      withFilter(() => ({ kind: 'sources', sources: ['doc-a', 'doc-b'] }))
     )
     assert.deepEqual(scope, { kind: 'sources', sources: ['doc-a', 'doc-b'] })
     await settle()
@@ -69,7 +106,7 @@ test.group('AI retrieval scope gate', (group) => {
     const scope = await resolveRetrievalScope(
       ctx,
       tenant,
-      retrieval({ retrievalFilter: () => ({ kind: 'sources', sources: [] }) })
+      withFilter(() => ({ kind: 'sources', sources: [] }))
     )
     assert.deepEqual(scope, { kind: 'sources', sources: [] })
     await settle()
@@ -80,7 +117,7 @@ test.group('AI retrieval scope gate', (group) => {
     const scope = await resolveRetrievalScope(
       ctx,
       tenant,
-      retrieval({ retrievalFilter: async () => ({ kind: 'metadata', match: { team: 'eng' } }) })
+      withFilter(async () => ({ kind: 'metadata', match: { team: 'eng' } }))
     )
     assert.deepEqual(scope, { kind: 'metadata', match: { team: 'eng' } })
     await settle()
@@ -96,10 +133,8 @@ test.group('AI retrieval scope gate', (group) => {
       await resolveRetrievalScope(
         ctx,
         tenant,
-        retrieval({
-          retrievalFilter: () => {
-            throw aclDown
-          },
+        withFilter(() => {
+          throw aclDown
         })
       )
     } catch (err) {
@@ -133,7 +168,11 @@ test.group('AI retrieval scope gate', (group) => {
       captured = []
       let threw: unknown
       try {
-        await resolveRetrievalScope(ctx, tenant, retrieval({ retrievalFilter: () => bad as never }))
+        await resolveRetrievalScope(
+          ctx,
+          tenant,
+          withFilter(() => bad as never)
+        )
       } catch (err) {
         threw = err
       }
