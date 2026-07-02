@@ -128,6 +128,30 @@ spec, so a silent guard fails the unit suite before it ever reaches CI. The gate
 prints every entry past its `nextReview` date; the registry is reviewed every 6 months
 and the floor ratchets to `floor(measured) − 2`, never downward.
 
+## Satellite-emitted guards
+
+Satellites reuse the event channel, not the machinery. The AI satellite keeps its
+own guard registry (ids `guard.ai_*`, events `isthmus:guard:ai_*:rejected`, inside
+the same taxonomy) and dispatches this page's `IsthmusGuardTripped` class before
+each of its fail-closed throws, so one subscription observes both layers. The
+`ai_` class segment makes collision with kernel ids structurally impossible.
+
+Three boundaries keep the layers honest:
+
+- The kernel registry, the `check-isthmus` gate and the Index are kernel-only by
+  construction (the id union derives from the kernel's own literal array). The AI
+  satellite mirrors the discipline with its own `@architecture` scan and a
+  registry-driven emission matrix in its test suite.
+- Rate limiting is per layer: the satellite reuses the kernel's budget *values*
+  but keeps its own windows, so a burst on the AI surface can never starve the
+  kernel's critical-event budget or skew its dropped counters.
+- The `multitenancy_isthmus_*` Prometheus counters render kernel guards only. AI
+  trips surface through the event and through the per-tenant
+  `ai_guard_rejections` metric.
+
+See the [AI satellite guide](/guides/satellites/ai#guard-events) for the guard
+list and a subscription example.
+
 ## What was rejected, and why
 
 - **A proxy/interception layer over AdonisJS APIs.** Evaluated first, rejected on
