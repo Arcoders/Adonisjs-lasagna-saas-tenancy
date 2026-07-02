@@ -72,13 +72,53 @@ for an allow-listed provider fails config validation at boot.
 ### Budget the aiTokens quota
 
 The gateway reserves every stream's worst case against the `aiTokens` quota
-before the provider is called, and settles the actual per chunk. Budgets live
-where every other quota does: the per-plan limit in your plans configuration,
-and the fleet-wide `plans.operatorCeiling.aiTokens` for denial-of-wallet
-protection. With NEITHER configured, the kernel treats the quota as an
-unlimited plan (the reservation is an inert handle and no Redis is touched),
-which is convenient in development and an unmetered cost surface in
-production: budget it before exposing the endpoint.
+before the provider is called (the fail-closed reserve rail), and settles the
+actual per chunk. Budgets live where every other quota does:
+
+```ts
+// config/multitenancy.ts
+plans: {
+  defaultPlan: 'free',
+  definitions: {
+    free: { limits: { aiTokens: 50_000 } }, // per-tenant daily cap
+    pro: { limits: { aiTokens: 5_000_000 } },
+  },
+  // Fleet-wide cap across ALL tenants, checked in the same atomic reserve: the
+  // denial-of-wallet backstop for a shared managed provider account (G13).
+  operatorCeiling: { aiTokens: 20_000_000 },
+},
+```
+
+With NEITHER a per-plan `limits.aiTokens` nor `plans.operatorCeiling.aiTokens`
+configured, the kernel treats the quota as an unlimited plan: the reservation is
+an inert handle, no Redis is touched, and the endpoint runs unmetered. That is
+convenient in development and a denial-of-wallet exposure in production, so the
+`ai_budget` doctor check reports the posture and the provider logs a boot
+warning. Set `config.ai.acknowledgeUnbudgetedAiTokens: true` to accept the risk
+explicitly (the check keeps reporting it). A host that budgets `aiTokens` through
+a dynamic `plans.getPlan` is invisible to the static boot read, so the boot side
+never refuses to mount; the doctor check is the run-time-aware view.
+
+### Rate-limit the provider keys
+
+`config.ai.rateLimit` caps requests-per-window per tenant and per provider key,
+a different rail from the token budget: the reserve caps token spend, this caps
+request rate, and together they close the BYOK / denial-of-wallet vector.
+
+```ts
+ai: defineAiConfig({
+  // ...
+  rateLimit: { limit: 60, windowSeconds: 60 }, // 60 requests/min per tenant-key
+}),
+```
+
+Each streamed request consumes one hit against
+`ext:ai:<op>:<tenant>:<keyFingerprint>`, where the fingerprint is a one-way hash
+of the active provider key (never the key). Over the window is a fail-closed 429;
+a limiter-backend outage is a fail-closed 503, never a silent pass. A replay
+served from the idempotency cache does not consume it. Absent, the token reserve
+is the only cost cap. The trip rides the `IsthmusGuardTripped` channel as
+`guard.ai_rate_limited`.
 
 ### The allow-list and BYOK
 
@@ -165,9 +205,9 @@ resolution-cache caveat.
 
 Every fail-closed refusal in the satellite (the mount gate, the access gate,
 the provider and model allow-lists, config validation, the idempotency header
-bound) emits the kernel's public `IsthmusGuardTripped` event before it throws,
-with `guard.ai_*` ids inside the documented taxonomy. Subscribe once and both
-layers arrive on the same channel:
+bound, the per-key rate limit) emits the kernel's public `IsthmusGuardTripped`
+event before it throws, with `guard.ai_*` ids inside the documented taxonomy.
+Subscribe once and both layers arrive on the same channel:
 
 ```ts
 // start/events.ts

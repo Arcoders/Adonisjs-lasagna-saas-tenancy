@@ -70,6 +70,27 @@ Added:
   denied model or endpoint. The gateway resolves every pre-flight status through
   the exception's single `httpStatusForAiCode` table, so the streaming spine and
   the controller can never drift into two status maps.
+- **The cost governor bites (WS-AI-2)**: the `aiTokens` reserve rail is joined
+  by a per-key request rate limit and a fail-loud budget posture.
+  - `config.ai.rateLimit` `{ limit, windowSeconds }`: a per-tenant, per-provider-key
+    request rate limit (threat #4, denial of wallet), a different rail from the
+    token budget. Each request consumes one hit against
+    `ext:ai:<op>:<tenant>:<keyFingerprint>` (the fingerprint a one-way hash of
+    the active key, never the key); over the window is a fail-closed 429, a
+    limiter-backend outage a fail-closed 503, and a replay served from cache
+    consumes nothing. A denial rides the `IsthmusGuardTripped` channel as
+    `guard.ai_rate_limited`.
+  - The `ai_budget` doctor check surfaces the metering posture, and the provider
+    logs a boot warning, when `aiTokens` is unbudgeted (no per-plan limit and no
+    operator ceiling), so the endpoint never runs silently unmetered.
+    `config.ai.acknowledgeUnbudgetedAiTokens` accepts the risk explicitly. There
+    is no hard mount block: a dynamic per-tenant budget is invisible to the
+    static boot read, so the posture stays advisory.
+  - `AIProviderContract.keyFingerprint`: a one-way key fingerprint on the
+    provider surface, feeding the rate-limit bucket and later the audit seam.
+  - Real-Redis integration specs prove the cap bites end to end through the
+    gateway spine (over-budget -> 402 with no bytes, the operator ceiling
+    both-or-neither, the per-key window -> 429).
 
 Documentation correction (per the ARCHITECTURE.md correction path): the design
 doc's living sections now record the Isthmus integration decision (satellite
