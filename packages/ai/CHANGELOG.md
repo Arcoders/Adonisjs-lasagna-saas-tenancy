@@ -122,6 +122,34 @@ Added:
     same-dimension model stores a fresh vector instead of a swallowed no-op. The
     database-pg `after:provision` pgvector hook now logs a per-database install
     failure instead of swallowing it silently.
+- **Retrieval / RAG (WS-AI-5)**: the read half of the vector store, with a
+  per-user document ACL and context integrity.
+  - `config.ai.retrieval` block with `retrievalFilter(ctx, tenant)` (G2), the
+    per-user document ACL. It returns a discriminated `RetrievalScope`
+    (`{ kind: 'all' }` | `{ kind: 'sources', sources }` | `{ kind: 'metadata',
+    match }`) that only NARROWS a search: the mandatory `(model, dim)` scope and
+    the tenant placement always apply, and every scope value is a bound parameter.
+    The hook is fail-closed (a throw or an invalid return is a 403
+    `retrieval_denied` with a `guard.ai_retrieval_denied` trip, never a fallback
+    to the whole corpus). An absent hook is the documented whole-corpus posture,
+    surfaced by the `ai_retrieval_gate` doctor check and a boot warning and
+    accepted with `acknowledgeUnscopedRetrieval`.
+  - `RetrievalService` + `POST /ai/retrieve`: authorize-first, resolve the
+    document ACL, reserve `aiTokens` for the query embed (a metered read, G5),
+    embed with the corpus's own provider, and search under the scope, filtering
+    on the provider-reported effective model so a naming drift never returns zero
+    rows. A parallel non-PII `AiRetrievalAuditEvent` (a `matchCount`, never the
+    query or a document).
+  - RAG into `/ai/chat`: an opt-in `retrieve: { query, limit? }` body field folds
+    matches into the prompt on a cache miss. `buildRetrievalContext` (exported)
+    renders them as a role-separated, fenced `user` turn (never a system turn), so
+    retrieved content is untrusted data, not instructions (#10); the fence token
+    is neutralized inside each document so a hostile doc cannot break out; and the
+    block is bounded and trimmed so the assembled prompt never exceeds
+    `maxPromptChars` (#8).
+  - Structural guards: `check-ai-invariant-4` (the satellite never authors a
+    system-role message, I4) and `check-ai-invariant-8` (every streaming response
+    path applies an output bound, I8).
 
 Documentation correction (per the ARCHITECTURE.md correction path): the design
 doc's living sections now record the Isthmus integration decision (satellite

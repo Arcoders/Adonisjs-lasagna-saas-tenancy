@@ -175,8 +175,8 @@ only warns when unset, the AI mount requires this hook or an explicit
 at mount time and stays visible through the `ai_membership_gate` doctor check.
 
 Tenant isolation is not user authorization: the gate scopes WHICH principals
-may stream on a tenant's behalf. The `retrievalFilter` name is reserved for
-the retrieval workstream, where per-user document scoping becomes enforceable.
+may stream on a tenant's behalf. For WHICH documents a principal may retrieve,
+see the `retrievalFilter` document ACL in [Retrieval (RAG)](#retrieval-rag).
 
 ## Idempotent replays
 
@@ -205,8 +205,9 @@ resolution-cache caveat.
 
 Every fail-closed refusal in the satellite (the mount gate, the access gate,
 the provider and model allow-lists, config validation, the idempotency header
-bound, the per-key rate limit) emits the kernel's public `IsthmusGuardTripped`
-event before it throws, with `guard.ai_*` ids inside the documented taxonomy.
+bound, the per-key rate limit, the retrieval document ACL) emits the kernel's
+public `IsthmusGuardTripped` event before it throws, with `guard.ai_*` ids
+inside the documented taxonomy.
 Subscribe once and both layers arrive on the same channel:
 
 ```ts
@@ -298,9 +299,79 @@ streamed and aborted the moment it crosses `ingestionMaxBytes` (default 1 MiB, s
 a huge public body cannot exhaust memory) and time-bounded by `ingestionTimeoutMs`
 (default 10s, so a hung upstream cannot pin a worker).
 
-Retrieval-time filtering by intra-tenant document ACL, and a similarity-search
-route, arrive with the RAG context integrity workstream; the store's search
-method exists now and is tenant-scoped by construction.
+## Retrieval (RAG)
+
+Retrieval closes the read half of the vector store (WS-AI-5). Search is
+tenant-scoped by construction (it inherits I1 from the store), and adds a
+per-USER document ACL, because tenant isolation is not user authorization:
+without a document ACL, every user of a tenant can retrieve that tenant's ENTIRE
+corpus.
+
+**The document ACL (`retrievalFilter`, G2).** Opt in with a `retrieval` block.
+`retrievalFilter(ctx, tenant)` returns a `RetrievalScope` that narrows a search
+to what THIS user may see. It is a discriminated union, so the intent is
+explicit:
+
+```ts
+{ kind: 'all' }                                // the whole tenant corpus
+{ kind: 'sources', sources: ['handbook.md'] }  // an allow-list by provenance source ([] = sees nothing)
+{ kind: 'metadata', match: { team: 'eng' } }   // a jsonb containment match
+```
+
+```ts
+// inside your ai block:
+retrieval: {
+  retrievalFilter: (ctx, tenant) => ({ kind: 'sources', sources: sourcesFor(ctx.auth.user) }),
+  // defaultLimit: 8, maxLimit: 50, maxQueryChars: 4000,
+  // maxContextItems: 8, maxContextChars: 8000,   // bounds for RAG-into-chat (below)
+},
+```
+
+The scope only NARROWS: the mandatory `(model, dim)` scope and the tenant
+placement always apply, and every scope value is a bound parameter, never
+interpolated SQL. The hook is fail-closed: a throw or an invalid return is a 403
+`retrieval_denied` (with a `guard.ai_retrieval_denied` trip), never a silent
+fallback to the whole corpus. When the hook is ABSENT, retrieval spans the whole
+tenant corpus, an honest limit surfaced by the `ai_retrieval_gate` doctor check
+and a boot warning; `acknowledgeUnscopedRetrieval: true` accepts that posture.
+
+**Search route.** `POST /ai/retrieve` (in the same fail-closed group as `/chat`)
+embeds the query, applies the document ACL, and returns the matches as JSON:
+
+```bash
+curl -X POST https://app.example.com/ai/retrieve \
+  -H 'content-type: application/json' \
+  -d '{ "query": "what is our refund policy?", "limit": 5 }'
+# -> { "matches": [ { "id", "content", "metadata", "distance" }, ... ] }
+```
+
+It authorizes first, resolves the document ACL, then reserves `aiTokens` for the
+query embed (a retrieval read still costs an embedding call, so it is metered
+like a completion), embeds with the SAME provider the corpus used, and searches
+under the scope. A parallel non-PII `AiRetrievalAuditEvent` (a `matchCount`,
+never the query or a document) attributes the op.
+
+**RAG into chat.** Add a `retrieve` field to a `/ai/chat` body to fold matches
+into the prompt in one call:
+
+```json
+{ "messages": [ "..." ], "retrieve": { "query": "refund policy" } }
+```
+
+On a cache miss (a replay never re-retrieves), the gateway retrieves, then folds
+the matches into the messages as a role-separated, fenced `user` turn right
+before the question. Retrieved content is untrusted **data, not instructions**
+(#10): it is never placed in a system turn, and the fence token is neutralized
+inside each document so a hostile doc cannot forge a closing tag and "break out".
+The block is bounded by `maxContextItems` / `maxContextChars` and trimmed so the
+ASSEMBLED prompt never exceeds `maxPromptChars` (#8). Asking to retrieve without
+an `embedding` block configured is a 400. `buildRetrievalContext` is exported for
+hosts that assemble the context themselves.
+
+Two structural guards pin the context-integrity invariants: `check-ai-invariant-4`
+(the satellite never authors a system-role message, so retrieved or tenant data
+can never become a trusted instruction, I4) and `check-ai-invariant-8` (every
+streaming response path applies an output bound, I8).
 
 ## Use the streaming service directly
 
