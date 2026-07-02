@@ -12,12 +12,14 @@ import {
   QuotaService,
   TelemetryService,
   cacheFor,
+  consumeRateLimit,
   executeExtension,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { assertAiConfig } from '../src/validate_config.js'
 import type { AiConfig, MultitenancyConfigWithAi } from '../src/define_config.js'
 import { DEFAULT_AI_PROVIDER } from '../src/constants.js'
 import AIProviderRegistry from '../src/services/ai_provider_registry.js'
+import AiRateLimiter from '../src/services/ai_rate_limiter.js'
 import StreamExtensionService from '../src/gateway/stream_extension.js'
 import TenantLivenessWatcher, {
   wireAiTenantLiveness,
@@ -71,6 +73,20 @@ export default class AiProvider implements SatelliteProviderContract {
         store,
         macKey: deriveAiIdempotencyMacKey(requireAppKey()),
         ttlMs: ai?.idempotencyTtlMs,
+      })
+    })
+    // The per-key request rate limiter (threat #4). Its redis-backed consumer is
+    // built HERE (the one sanctioned toucher of the eager core barrel); the
+    // gateway sees only the injected AiRateLimiter. Redis is resolved through the
+    // app container's `'redis'` binding (the same RedisManager singleton
+    // `@adonisjs/redis/services/main` returns), so the satellite adds no direct
+    // redis dependency and shares the host's single connection manager.
+    this.app.container.singleton(AiRateLimiter, () => {
+      const ai = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+      const getRedis = () => this.app.container.make('redis')
+      return new AiRateLimiter({
+        consume: (args) => consumeRateLimit({ getRedis, ...args }),
+        policy: ai?.rateLimit,
       })
     })
     // The streaming integrator resolves its quota + breaker seams from the

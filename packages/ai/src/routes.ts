@@ -7,6 +7,7 @@ import StreamExtensionService from './gateway/stream_extension.js'
 import AiIdempotencyService from './gateway/idempotency.js'
 import AIProviderRegistry from './services/ai_provider_registry.js'
 import TenantLivenessWatcher from './services/tenant_liveness_watcher.js'
+import AiRateLimiter from './services/ai_rate_limiter.js'
 import type { MultitenancyConfigWithAi } from './define_config.js'
 
 /**
@@ -48,6 +49,7 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
         registry: await app.container.make(AIProviderRegistry),
         idempotency: await app.container.make(AiIdempotencyService),
         liveness: await app.container.make(TenantLivenessWatcher),
+        rateLimiter: await app.container.make(AiRateLimiter),
         config: app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai,
       })
       return controller.chat(ctx)

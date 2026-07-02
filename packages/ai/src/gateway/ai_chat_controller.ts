@@ -3,6 +3,8 @@ import type StreamExtensionService from './stream_extension.js'
 import { httpStreamTarget, type StreamResult } from './stream_extension.js'
 import type AIProviderRegistry from '../services/ai_provider_registry.js'
 import type TenantLivenessWatcher from '../services/tenant_liveness_watcher.js'
+import type AiRateLimiter from '../services/ai_rate_limiter.js'
+import { DISABLED_AI_RATE_LIMITER } from '../services/ai_rate_limiter.js'
 import type AiIdempotencyService from './idempotency.js'
 import {
   validateIdempotencyKeyHeader,
@@ -38,6 +40,8 @@ export interface AiChatControllerDeps {
   idempotency: AiIdempotencyService
   liveness: TenantLivenessWatcher
   config: AiConfig | undefined
+  /** The per-key request rate limiter (threat #4). Default: a disabled limiter. */
+  rateLimiter?: AiRateLimiter
   /** The WS-AI-7 attribution seam. Default: the no-op sink. */
   audit?: AiGatewayAuditSink
 }
@@ -115,6 +119,16 @@ export default class AiChatController {
     // 5. Provider selection (default-deny; AIException statuses propagate:
     //    403 provider_not_allowed / 503 provider_unavailable / 500 config_missing).
     const provider = this.deps.registry.forTenant(tenant, ai)
+
+    // 5b. Per-key request rate limit (threat #4), pre-flight so a 429/503 lands
+    //     before any reservation or byte. A replay already returned above, so a
+    //     cached response never consumes the provider key's rate budget.
+    await (this.deps.rateLimiter ?? DISABLED_AI_RATE_LIMITER).check({
+      op: 'chat',
+      tenantId: tenant.id,
+      fingerprint: provider.keyFingerprint ?? provider.name,
+    })
+
     const request: AIStreamRequest = {
       messages: body.messages,
       model: body.model,

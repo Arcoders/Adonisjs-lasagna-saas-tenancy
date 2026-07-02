@@ -63,6 +63,14 @@ export interface AIProviderContract {
   readonly capabilities: AICapabilities
 
   /**
+   * A stable, one-way fingerprint of the provider's active API key (never the
+   * key itself), for the per-key request rate limit
+   * (`ext:ai:<op>:<tenant>:<keyFingerprint>`, threat #4) and audit attribution.
+   * Optional: a provider that cannot expose one is keyed by its `name` instead.
+   */
+  readonly keyFingerprint?: string
+
+  /**
    * Boot-time validation of the provider's config slice (key presence, and for
    * a BYOK `baseUrl` the endpoint against the SSRF guard). Runs from
    * `AiProvider.boot()` so a missing key fails at boot, not at the first stream.

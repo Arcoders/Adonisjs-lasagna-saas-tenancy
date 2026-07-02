@@ -17,6 +17,7 @@ import { authorizeAiAccess } from '../../../../src/gateway/access_gate.js'
 import { validateIdempotencyKeyHeader } from '../../../../src/gateway/idempotency.js'
 import { assertAiMountAllowed } from '../../../../src/routes/mount_gate.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
+import AiRateLimiter from '../../../../src/services/ai_rate_limiter.js'
 import ClaudeProvider from '../../../../src/providers/claude_provider.js'
 import { assertAiConfig } from '../../../../src/validate_config.js'
 import MockAIProvider from '../../../../src/testing/mock_ai_provider.js'
@@ -132,6 +133,19 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
     trip: () => assertAiConfig({ allowedProviders: [] } as unknown as AiConfig),
     expectThrow: /allowedProviders must be a non-empty array/,
     happy: () => assertAiConfig({ allowedProviders: ['claude'], claude: { apiKey: 'k' } }),
+  },
+  'guard.ai_rate_limited': {
+    trip: () =>
+      new AiRateLimiter({
+        consume: async () => ({ count: 99 }),
+        policy: { limit: 1, windowSeconds: 60 },
+      }).check({ op: 'chat', tenantId: 'tenant-1', fingerprint: 'fp' }),
+    expectThrow: /rate limit was exceeded/,
+    happy: () =>
+      new AiRateLimiter({
+        consume: async () => ({ count: 1 }),
+        policy: { limit: 1, windowSeconds: 60 },
+      }).check({ op: 'chat', tenantId: 'tenant-1', fingerprint: 'fp' }),
   },
 }
 

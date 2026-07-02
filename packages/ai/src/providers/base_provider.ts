@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import {
   safeFetch,
   SafeFetchError,
@@ -56,6 +57,20 @@ export abstract class HttpAiProvider implements AIProviderContract {
   abstract readonly name: AIProviderName
   readonly contractVersion = AI_CONTRACT_VERSION
   readonly capabilities: AICapabilities = { streaming: true }
+
+  #keyFingerprint?: string
+
+  /**
+   * A one-way SHA-256 fingerprint of the configured API key, never the key
+   * itself (mirrors `hashAuditPrincipal`). Feeds the per-key rate-limit bucket
+   * (threat #4) and audit attribution. Memoized; safe to log.
+   */
+  get keyFingerprint(): string {
+    if (this.#keyFingerprint === undefined) {
+      this.#keyFingerprint = createHash('sha256').update(this.cfg.apiKey).digest('hex')
+    }
+    return this.#keyFingerprint
+  }
 
   protected constructor(
     protected readonly cfg: AIProviderConfig,

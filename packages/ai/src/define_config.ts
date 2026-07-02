@@ -101,6 +101,16 @@ export interface AiConfig {
    * a 400 before any reservation or provider call.
    */
   maxPromptChars?: number
+  /**
+   * Per-tenant, per-provider-key request rate limit (threat #4, denial of
+   * wallet). When set, each streamed request consumes one hit against
+   * `ext:ai:<op>:<tenant>:<keyFingerprint>`; over `limit` in `windowSeconds` is
+   * a 429, and a limiter-backend outage is a fail-closed 503. Absent leaves the
+   * `aiTokens` cost reserve as the only cap. This is a DIFFERENT rail from the
+   * per-plan `aiTokens` budget in `config.plans`: a request rate, not a token
+   * spend. A replay served from cache does not consume it.
+   */
+  rateLimit?: { limit: number; windowSeconds: number }
 }
 
 /**

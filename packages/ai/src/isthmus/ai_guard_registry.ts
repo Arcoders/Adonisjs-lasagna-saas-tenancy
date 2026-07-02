@@ -170,6 +170,22 @@ export const AI_GUARD_REGISTRY = [
     reviewed: '2026-07-02',
     nextReview: '2027-01-02',
   },
+  {
+    id: 'guard.ai_rate_limited',
+    pillar: 'guard',
+    bugClass: 'denial-of-wallet',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_rate_limit:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'inherent-risk',
+      ref: 'the per-key request rate limit (threat #4, BYOK exploitation / denial of wallet): a tenant flooding a shared or BYOK provider key is throttled before the reserve; severity warn because rate limits trip in normal operation and are monitored by rate, not per event',
+    },
+    guardFile: 'src/services/ai_rate_limiter.ts',
+    reviewed: '2026-07-02',
+    nextReview: '2027-01-02',
+  },
 ] as const satisfies readonly AiGuardRegistryEntryShape[]
 
 /** Compile-time union of all registered AI guard ids. */

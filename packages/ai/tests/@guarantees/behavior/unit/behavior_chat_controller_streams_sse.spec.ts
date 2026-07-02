@@ -2,6 +2,7 @@ import { test } from '@japa/runner'
 import AiChatController from '../../../../src/gateway/ai_chat_controller.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
 import TenantLivenessWatcher from '../../../../src/services/tenant_liveness_watcher.js'
+import AiRateLimiter from '../../../../src/services/ai_rate_limiter.js'
 import AiIdempotencyService, {
   deriveAiIdempotencyMacKey,
   type AiIdempotencyStore,
@@ -33,7 +34,9 @@ function mapStore(): { store: AiIdempotencyStore; data: Map<string, string> } {
   }
 }
 
-function buildDeps(overrides: { quota?: FakeQuota; store?: AiIdempotencyStore } = {}) {
+function buildDeps(
+  overrides: { quota?: FakeQuota; store?: AiIdempotencyStore; rateLimiter?: AiRateLimiter } = {}
+) {
   const quota = overrides.quota ?? new FakeQuota()
   const { svc } = makeService(quota)
   const provider = new MockAIProvider({
@@ -57,6 +60,7 @@ function buildDeps(overrides: { quota?: FakeQuota; store?: AiIdempotencyStore } 
     registry,
     idempotency,
     liveness,
+    rateLimiter: overrides.rateLimiter,
     config,
   })
   return { controller, provider, quota, liveness, config }
@@ -182,6 +186,35 @@ test.group('chat controller SSE happy path', () => {
     )
 
     assert.lengthOf(provider.calls, 2)
+  })
+
+  test('a replay does not consume the per-key rate limit', async ({ assert }) => {
+    const shared = mapStore()
+    let consumeCalls = 0
+    const rateLimiter = new AiRateLimiter({
+      consume: async () => {
+        consumeCalls++
+        return { count: 1 }
+      },
+      policy: { limit: 5, windowSeconds: 60 },
+    })
+    const { controller, provider } = buildDeps({ store: shared.store, rateLimiter })
+    const requestOptions = {
+      tenant: fakeTenant,
+      body: chatBody,
+      headers: { 'idempotency-key': 'retry-rl' },
+      auth: { user: { id: 'u1' } },
+    }
+
+    await controller.chat(fakeHttpContext(requestOptions).ctx) // fresh: consumes once
+    await controller.chat(fakeHttpContext(requestOptions).ctx) // replay: must not consume
+
+    assert.lengthOf(provider.calls, 1, 'the replay does not touch the provider')
+    assert.equal(
+      consumeCalls,
+      1,
+      'only the fresh call consumed the rate limit; the replay skipped it'
+    )
   })
 
   test('the request maxTokens is clamped by the config ceiling', async ({ assert }) => {

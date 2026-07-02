@@ -3,6 +3,7 @@ import { TenantAccessForbiddenException } from '@adonisjs-lasagna/saas-tenancy/e
 import AiChatController from '../../../../src/gateway/ai_chat_controller.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
 import TenantLivenessWatcher from '../../../../src/services/tenant_liveness_watcher.js'
+import AiRateLimiter from '../../../../src/services/ai_rate_limiter.js'
 import AiIdempotencyService, {
   deriveAiIdempotencyMacKey,
 } from '../../../../src/gateway/idempotency.js'
@@ -40,6 +41,7 @@ function buildController(deps: {
   quota?: FakeQuota
   breaker?: FakeBreaker
   provider?: AIProviderContract
+  rateLimiter?: AiRateLimiter
 }) {
   const { svc } = makeService(deps.quota ?? new FakeQuota(), deps.breaker ?? new FakeBreaker())
   const registry = new AIProviderRegistry()
@@ -54,6 +56,7 @@ function buildController(deps: {
       macKey: deriveAiIdempotencyMacKey('test-app-key'),
     }),
     liveness: new TenantLivenessWatcher(),
+    rateLimiter: deps.rateLimiter,
     config: { allowedProviders: ['claude'], authorizeAIAccess: () => true } as AiConfig,
   })
 }
@@ -164,6 +167,30 @@ test.group('chat controller pre-flight statuses', () => {
     assert.equal(responseFacade.sentStatus, 400)
     assert.deepEqual(responseFacade.sentBody, { error: 'byok_endpoint_blocked' })
     assert.isFalse(res.flushed)
+  })
+
+  test('a per-key rate-limit trip answers 429 before any reservation', async ({ assert }) => {
+    const quota = new FakeQuota()
+    quota.reserveError = new Error('reserve must not run when rate-limited')
+    const rateLimiter = new AiRateLimiter({
+      consume: async () => ({ count: 99 }),
+      policy: { limit: 1, windowSeconds: 60 },
+    })
+    const provider = new MockAIProvider({ name: 'claude', contractVersion: 1 })
+    const controller = buildController({ quota, rateLimiter, provider })
+    const { ctx } = fakeHttpContext({ tenant: fakeTenant, body: chatBody })
+
+    let threw: unknown
+    try {
+      await controller.chat(ctx)
+    } catch (err) {
+      threw = err
+    }
+
+    assert.instanceOf(threw, AIException)
+    assert.equal((threw as AIException).aiCode, 'rate_limited')
+    assert.equal((threw as AIException).httpStatus, 429)
+    assert.lengthOf(provider.calls, 0, 'the provider is never called when rate-limited')
   })
 
   test('a malformed body is a 400 invalid_request that never reaches reservation', async ({

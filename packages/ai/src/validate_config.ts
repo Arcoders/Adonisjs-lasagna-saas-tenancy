@@ -67,6 +67,21 @@ export function assertAiConfig(config: AiConfig | undefined): void {
   if (config.resolvePrincipal !== undefined && typeof config.resolvePrincipal !== 'function') {
     fail('[ai] config.ai.resolvePrincipal, when set, must be a function (ctx) => principal')
   }
+  assertRateLimit(config.rateLimit)
+}
+
+/** The per-key rate-limit block, when present, needs positive-integer limit + window. */
+function assertRateLimit(rateLimit: AiConfig['rateLimit']): void {
+  if (rateLimit === undefined) return
+  if (typeof rateLimit !== 'object' || rateLimit === null) {
+    fail('[ai] config.ai.rateLimit, when set, must be an object { limit, windowSeconds }')
+  }
+  for (const field of ['limit', 'windowSeconds'] as const) {
+    const value = rateLimit[field]
+    if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+      fail(`[ai] config.ai.rateLimit.${field} must be a positive integer`)
+    }
+  }
 }
 
 /** The allow-list must be a non-empty array of non-empty strings. */
