@@ -59,11 +59,13 @@ To build your own, see [Creating a satellite](/guides/cookbook/creating-a-satell
 | [Impersonation](/guides/satellites/impersonation) | Admin enters a tenant as a target user, time-boxed and audited. | Redis (no DB row) |
 
 <Callout type="note" title="Also documented in this section">
-[Backup](/guides/satellites/backup) and [Admin](/guides/satellites/admin) appear in
-this section's sidebar but aren't tenant-attached feature satellites like the ten
-above. Backup is an operational concern (`pg_dump` with retention tiers, shipped as
-`@adonisjs-lasagna/backup`); Admin is the shared REST surface the satellites expose,
-not a feature of its own. They live here because that's where you'll look for them.
+[Backup](/guides/satellites/backup), [Admin](/guides/satellites/admin) and
+[AI](/guides/satellites/ai) appear in this section's sidebar but aren't tenant-attached
+feature satellites like the ten above. Backup is an operational concern (`pg_dump` with
+retention tiers, shipped as `@adonisjs-lasagna/backup`); Admin is the shared REST
+surface the satellites expose, not a feature of its own; AI is the multi-provider
+streaming spine (`@adonisjs-lasagna/ai`) and ships no tenant table in this release.
+They live here because that's where you'll look for them.
 </Callout>
 
 ## Cross-satellite invariants
