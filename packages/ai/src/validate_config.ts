@@ -52,6 +52,21 @@ export function assertAiConfig(config: AiConfig | undefined): void {
   assertPositiveInteger('heartbeatMs', config.heartbeatMs)
   assertPositiveInteger('timeoutMs', config.timeoutMs)
   assertPositiveInteger('maxTokens', config.maxTokens)
+  assertPositiveInteger('idempotencyTtlMs', config.idempotencyTtlMs)
+  assertPositiveInteger('maxPromptChars', config.maxPromptChars)
+
+  if (config.authorizeAIAccess !== undefined && typeof config.authorizeAIAccess !== 'function') {
+    fail('[ai] config.ai.authorizeAIAccess, when set, must be a function (ctx, tenant) => boolean')
+  }
+  if (
+    config.acknowledgeNoMembershipGate !== undefined &&
+    typeof config.acknowledgeNoMembershipGate !== 'boolean'
+  ) {
+    fail('[ai] config.ai.acknowledgeNoMembershipGate, when set, must be a boolean')
+  }
+  if (config.resolvePrincipal !== undefined && typeof config.resolvePrincipal !== 'function') {
+    fail('[ai] config.ai.resolvePrincipal, when set, must be a function (ctx) => principal')
+  }
 }
 
 /** The allow-list must be a non-empty array of non-empty strings. */

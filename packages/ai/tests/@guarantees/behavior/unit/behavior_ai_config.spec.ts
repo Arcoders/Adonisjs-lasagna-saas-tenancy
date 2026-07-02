@@ -178,7 +178,14 @@ test.group('assertAiConfig', () => {
   })
 
   test('rejects non-positive-integer tunables', ({ assert }) => {
-    for (const knob of ['heartbeatMs', 'timeoutMs', 'maxTokens'] as const) {
+    const knobs = [
+      'heartbeatMs',
+      'timeoutMs',
+      'maxTokens',
+      'idempotencyTtlMs',
+      'maxPromptChars',
+    ] as const
+    for (const knob of knobs) {
       assert.throws(
         () => assertAiConfig({ ...validClaudeOnly(), [knob]: 0 }),
         new RegExp(`config\\.ai\\.${knob} must be a positive integer`)
@@ -188,6 +195,46 @@ test.group('assertAiConfig', () => {
         new RegExp(`config\\.ai\\.${knob} must be a positive integer`)
       )
     }
+  })
+
+  test('accepts the gateway hooks and gate acknowledgement when well-typed', ({ assert }) => {
+    assert.doesNotThrow(() =>
+      assertAiConfig({
+        ...validClaudeOnly(),
+        authorizeAIAccess: async () => true,
+        acknowledgeNoMembershipGate: false,
+        resolvePrincipal: () => 'user-1',
+        idempotencyTtlMs: 60000,
+        maxPromptChars: 32000,
+      })
+    )
+  })
+
+  test('rejects mistyped gateway hooks and acknowledgement', ({ assert }) => {
+    assert.throws(
+      () =>
+        assertAiConfig({
+          ...validClaudeOnly(),
+          authorizeAIAccess: true as unknown as AiConfig['authorizeAIAccess'],
+        }),
+      /authorizeAIAccess, when set, must be a function/
+    )
+    assert.throws(
+      () =>
+        assertAiConfig({
+          ...validClaudeOnly(),
+          acknowledgeNoMembershipGate: 'yes' as unknown as boolean,
+        }),
+      /acknowledgeNoMembershipGate, when set, must be a boolean/
+    )
+    assert.throws(
+      () =>
+        assertAiConfig({
+          ...validClaudeOnly(),
+          resolvePrincipal: 'user-1' as unknown as AiConfig['resolvePrincipal'],
+        }),
+      /resolvePrincipal, when set, must be a function/
+    )
   })
 
   test('a custom (non-built-in) allow-listed provider needs no built-in block', ({ assert }) => {
