@@ -78,6 +78,24 @@ test.group('StreamExtensionService: pre-flight failures (no bytes)', () => {
     const result = await svc.stream(new FakeStreamTarget(), producer, opts())
     assert.deepEqual(result, { outcome: 'failed_preflight', error: 'provider_unavailable' })
   })
+
+  test('a fatal producer refusal keeps its own code, not a retryable provider_unavailable', async ({
+    assert,
+  }) => {
+    // A model outside the allow-list (403) and a BYOK-endpoint block (400) are
+    // fatal: the classifier must preserve the code so the gateway maps the real
+    // status, never collapsing a permanent denial to a retryable 503.
+    for (const code of ['provider_not_allowed', 'byok_endpoint_blocked'] as const) {
+      const { svc } = service()
+      const producer = async function* (): AsyncIterable<StreamFragment> {
+        throw new AIException(code, `refusing: ${code}`)
+      }
+      const target = new FakeStreamTarget()
+      const result = await svc.stream(target, producer, opts())
+      assert.deepEqual(result, { outcome: 'failed_preflight', error: code })
+      assert.isFalse(target.flushed, 'a pre-commit refusal leaves headers unsent')
+    }
+  })
 })
 
 test.group('StreamExtensionService: mid-stream aborts', () => {

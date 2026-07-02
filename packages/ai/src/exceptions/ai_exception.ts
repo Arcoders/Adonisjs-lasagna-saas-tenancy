@@ -37,6 +37,18 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
 }
 
 /**
+ * The pinned HTTP status for an AI error code. This is the single source of
+ * truth for status mapping: the gateway resolves a pre-flight failure to a
+ * status through here rather than a parallel hand-maintained table, so a fatal
+ * typed refusal thrown before the first byte (provider_not_allowed -> 403,
+ * byok_endpoint_blocked -> 400) keeps its own status instead of drifting into a
+ * retryable 503. Total over `AIErrorCode` by construction.
+ */
+export function httpStatusForAiCode(code: AIErrorCode): number {
+  return STATUS_BY_CODE[code]
+}
+
+/**
  * Whether a code is a transient condition worth retrying (retryable) or a fatal
  * one where retrying wastes compute (fatal). Fatal: config / allow-list / budget
  * / BYOK-endpoint rejections. Retryable: provider-down, rate-limited, and a

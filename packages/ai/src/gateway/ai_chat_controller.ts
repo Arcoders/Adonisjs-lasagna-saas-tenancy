@@ -1,10 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type StreamExtensionService from './stream_extension.js'
-import {
-  httpStreamTarget,
-  type StreamPreflightError,
-  type StreamResult,
-} from './stream_extension.js'
+import { httpStreamTarget, type StreamResult } from './stream_extension.js'
 import type AIProviderRegistry from '../services/ai_provider_registry.js'
 import type TenantLivenessWatcher from '../services/tenant_liveness_watcher.js'
 import type AiIdempotencyService from './idempotency.js'
@@ -16,7 +12,7 @@ import {
 import { authorizeAiAccess, resolveRequestTenant } from './access_gate.js'
 import recordingStreamTarget from './recording_target.js'
 import { hashAuditPrincipal, noopAuditSink, type AiGatewayAuditSink } from './audit_seam.js'
-import AIException from '../exceptions/ai_exception.js'
+import AIException, { httpStatusForAiCode } from '../exceptions/ai_exception.js'
 import { assertNever } from '../internal/assert_never.js'
 import type { AiConfig } from '../define_config.js'
 import type { AIMessage, AIStreamRequest, StreamFragment } from '../types/ai_provider_contract.js'
@@ -167,7 +163,7 @@ export default class AiChatController {
     }
     switch (result.outcome) {
       case 'failed_preflight': {
-        ctx.response.status(preflightStatus(result.error)).send({ error: result.error })
+        ctx.response.status(httpStatusForAiCode(result.error)).send({ error: result.error })
         await this.#audit().append({
           ...auditBase,
           outcome: 'failed_preflight',
@@ -293,22 +289,6 @@ function parseFrameId(frame: string): number | null {
 function resolveWorstCase(requested: number | undefined, ai: AiConfig | undefined): number {
   const ceiling = ai?.maxTokens ?? DEFAULT_AI_MAX_TOKENS
   return requested === undefined ? ceiling : Math.min(requested, ceiling)
-}
-
-/** Map a pre-flight failure to its pinned HTTP status (never a 500). */
-function preflightStatus(error: StreamPreflightError): number {
-  switch (error) {
-    case 'over_budget':
-      return 402
-    case 'rate_limited':
-      return 429
-    case 'rate_limit_unavailable':
-      return 503
-    case 'provider_unavailable':
-      return 503
-    default:
-      return assertNever(error, 'preflight error')
-  }
 }
 
 /** The principal an idempotent replay may be shared with, or null for none. */

@@ -25,6 +25,13 @@ import type { AiConfig } from '../../../../src/define_config.js'
  * and NONE of them flush SSE headers (the spine's commit-point contract), so
  * a real status always reaches the client. Request-shape rejections are 400s
  * that never reach reservation.
+ *
+ * Fatal typed refusals the provider raises before the first byte keep their own
+ * pinned status rather than collapsing to a retryable 503: a model outside the
+ * per-provider allow-list is 403 (provider_not_allowed), a BYOK-endpoint block
+ * from the SSRF pin is 400 (byok_endpoint_blocked). Surfacing either as a 503
+ * would invert retryability and let a client retry loop hammer a permanently
+ * denied model or endpoint.
  */
 
 const chatBody = { messages: [{ role: 'user', content: 'hola' }] }
@@ -111,6 +118,51 @@ test.group('chat controller pre-flight statuses', () => {
 
     assert.equal(responseFacade.sentStatus, 429)
     assert.deepEqual(responseFacade.sentBody, { error: 'rate_limited' })
+    assert.isFalse(res.flushed)
+  })
+
+  test('a model outside the allow-list answers 403, not a retryable 503', async ({ assert }) => {
+    const notAllowed: AIProviderContract = {
+      name: 'claude',
+      contractVersion: 1,
+      capabilities: { streaming: true },
+      async verifyConfig() {},
+
+      async *stream(): AsyncIterable<never> {
+        throw new AIException(
+          'provider_not_allowed',
+          'Refusing to stream: model "gpt-9" is not allow-listed for claude'
+        )
+      },
+    }
+    const controller = buildController({ provider: notAllowed })
+    const { ctx, res, responseFacade } = fakeHttpContext({ tenant: fakeTenant, body: chatBody })
+
+    await controller.chat(ctx)
+
+    assert.equal(responseFacade.sentStatus, 403)
+    assert.deepEqual(responseFacade.sentBody, { error: 'provider_not_allowed' })
+    assert.isFalse(res.flushed, 'a fatal refusal is a pre-flight failure: headers unsent')
+  })
+
+  test('a BYOK endpoint block answers 400, not a retryable 503', async ({ assert }) => {
+    const blocked: AIProviderContract = {
+      name: 'claude',
+      contractVersion: 1,
+      capabilities: { streaming: true },
+      async verifyConfig() {},
+
+      async *stream(): AsyncIterable<never> {
+        throw new AIException('byok_endpoint_blocked', 'claude endpoint blocked')
+      },
+    }
+    const controller = buildController({ provider: blocked })
+    const { ctx, res, responseFacade } = fakeHttpContext({ tenant: fakeTenant, body: chatBody })
+
+    await controller.chat(ctx)
+
+    assert.equal(responseFacade.sentStatus, 400)
+    assert.deepEqual(responseFacade.sentBody, { error: 'byok_endpoint_blocked' })
     assert.isFalse(res.flushed)
   })
 

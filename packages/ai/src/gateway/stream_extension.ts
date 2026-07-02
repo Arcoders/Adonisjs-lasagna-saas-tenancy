@@ -9,7 +9,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import SseWriter, { type SseSink } from './sse_writer.js'
 import FragmentPipeline from './fragment_pipeline.js'
 import { DEFAULT_HEARTBEAT_MS } from '../constants.js'
-import AIException from '../exceptions/ai_exception.js'
+import AIException, { type AIErrorCode } from '../exceptions/ai_exception.js'
 import type { StreamFragment } from '../types/ai_provider_contract.js'
 
 /** Produces the model's fragments; threads the composed abort into its transport. */
@@ -112,12 +112,19 @@ export type StreamAbortReason =
   | 'fragment_rejected'
   | 'provider_error'
 
-/** Why a stream never committed (resolved before headers, so a caller can set a status). */
-export type StreamPreflightError =
-  | 'over_budget'
-  | 'rate_limited'
-  | 'rate_limit_unavailable'
-  | 'provider_unavailable'
+/**
+ * Why a stream never committed (resolved before headers, so a caller can set a
+ * status). It is the AI error-code space: the pinned HTTP status and
+ * retryability come from the exception's single-source-of-truth table
+ * (`httpStatusForAiCode` / `FATAL_CODES`), so a fatal typed refusal thrown
+ * pre-commit (provider_not_allowed 403, byok_endpoint_blocked 400) keeps its own
+ * status instead of collapsing to a retryable 503. The spine only ever produces
+ * the pre-flight-reachable subset (over_budget, rate_limited,
+ * rate_limit_unavailable, provider_unavailable, plus any AIException the
+ * producer raises before the first byte); typing it as the full code space keeps
+ * the status mapping from drifting into a second hand-maintained table.
+ */
+export type StreamPreflightError = AIErrorCode
 
 export type StreamResult =
   | {
@@ -383,13 +390,17 @@ function classifyReserveError(error: unknown): StreamPreflightError {
   return 'rate_limit_unavailable'
 }
 
-/** Map a pre-first-byte provider failure onto a pre-flight error. */
+/**
+ * Map a pre-first-byte provider failure onto a pre-flight error. A typed
+ * AIException keeps its own code (and thus its pinned status and retryability);
+ * an untyped failure is a provider outage (retryable 503). Preserving the code
+ * is load-bearing: a fatal refusal (model allow-list -> provider_not_allowed
+ * 403, BYOK-endpoint block -> byok_endpoint_blocked 400) must not surface as a
+ * retryable 503, or a client retry loop hammers a permanently-denied model or
+ * endpoint.
+ */
 function classifyProducerError(error: unknown): StreamPreflightError {
-  if (error instanceof AIException) {
-    if (error.aiCode === 'rate_limited') return 'rate_limited'
-    if (error.aiCode === 'over_budget') return 'over_budget'
-  }
-  return 'provider_unavailable'
+  return error instanceof AIException ? error.aiCode : 'provider_unavailable'
 }
 
 /** Attribute a post-commit abort to the signal that fired (priority order). */

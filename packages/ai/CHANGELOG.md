@@ -62,6 +62,14 @@ Added:
 - **The WS-AI-7 audit seam**: one attribution event per outcome at the choke
   point (non-PII field set pinned by an exact-keys spec; the principal is
   one-way hashed), with a no-op sink until the audit workstream lands storage.
+- **Faithful pre-flight statuses**: a fatal typed refusal the provider raises
+  before the first byte keeps its own pinned status instead of collapsing to a
+  retryable 503. A model outside the per-provider allow-list is a 403
+  (`provider_not_allowed`) and a BYOK endpoint the SSRF pin blocks is a 400
+  (`byok_endpoint_blocked`), so a client retry loop never hammers a permanently
+  denied model or endpoint. The gateway resolves every pre-flight status through
+  the exception's single `httpStatusForAiCode` table, so the streaming spine and
+  the controller can never drift into two status maps.
 
 Documentation correction (per the ARCHITECTURE.md correction path): the design
 doc's living sections now record the Isthmus integration decision (satellite
