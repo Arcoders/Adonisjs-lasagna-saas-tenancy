@@ -23,6 +23,8 @@ export const AI_ERROR_CODES = [
   // WS-AI-3 ingestion
   'doc_fetch_blocked',
   'ingestion_denied',
+  // WS-AI-5 retrieval
+  'retrieval_denied',
 ] as const
 
 export type AIErrorCode = (typeof AI_ERROR_CODES)[number]
@@ -53,6 +55,9 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   // ingestion authorizer is a 403, like the access gate.
   doc_fetch_blocked: 400,
   ingestion_denied: 403,
+  // A denied retrievalFilter (G2 per-user document ACL) is a 403, like the
+  // access and ingestion gates.
+  retrieval_denied: 403,
 }
 
 /**
@@ -89,6 +94,8 @@ const FATAL_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
   // A blocked/unfetchable document URL and a denied ingestion are both permanent.
   'doc_fetch_blocked',
   'ingestion_denied',
+  // A denied retrieval authorizer is permanent, not retryable.
+  'retrieval_denied',
 ])
 
 /**

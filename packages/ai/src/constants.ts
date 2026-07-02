@@ -125,3 +125,27 @@ export const DEFAULT_MAX_METADATA_BYTES = 4_096
 
 /** Hard bound on the `source` key length. Not host-tunable. */
 export const AI_SOURCE_MAX_CHARS = 512
+
+/** Default number of nearest matches a retrieval returns when a request omits one. Tunable via `config.ai.retrieval.defaultLimit`. */
+export const DEFAULT_RETRIEVAL_LIMIT = 8
+
+/** Hard cap on the matches one retrieval request may ask for. Tunable via `config.ai.retrieval.maxLimit`. */
+export const MAX_RETRIEVAL_LIMIT = 50
+
+/** Default max characters of a retrieval query. A longer query is a 400 before any cost. Tunable via `config.ai.retrieval.maxQueryChars`. */
+export const DEFAULT_MAX_QUERY_CHARS = 4_000
+
+/**
+ * Default max retrieved documents folded into one chat context block (#8 output
+ * bounds). Retrieved content is untrusted data, so the block is bounded before
+ * it enters a prompt. Tunable via `config.ai.retrieval.maxContextItems`.
+ */
+export const DEFAULT_MAX_CONTEXT_ITEMS = 8
+
+/**
+ * Default max characters of the fenced retrieved context block injected into a
+ * chat prompt (#8). The block is trimmed (lowest-ranked matches dropped first)
+ * so the ASSEMBLED prompt never exceeds `maxPromptChars`. Tunable via
+ * `config.ai.retrieval.maxContextChars`.
+ */
+export const DEFAULT_MAX_CONTEXT_CHARS = 8_000

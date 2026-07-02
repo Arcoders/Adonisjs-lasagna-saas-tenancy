@@ -2,6 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import type {
   MultitenancyConfig,
   TenantAccessAuthorizer,
+  TenantModelContract,
 } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
@@ -78,6 +79,58 @@ export interface AIEmbeddingConfig extends AIProviderConfig {
 }
 
 /**
+ * How a {@link RetrievalFilter} scopes a tenant's corpus to what THIS user may
+ * see (G2). A discriminated union so the intent is explicit and exhaustive:
+ * `all` is the whole tenant corpus, `sources` an allow-list over the provenance
+ * `source` key (an empty list is a valid "sees nothing"), `metadata` a jsonb
+ * containment match. Tenant isolation (I1/I4) is always enforced underneath this
+ * scope; it only narrows retrieval WITHIN the already tenant-scoped index.
+ */
+export type RetrievalScope =
+  | { readonly kind: 'all' }
+  | { readonly kind: 'sources'; readonly sources: readonly string[] }
+  | { readonly kind: 'metadata'; readonly match: Record<string, unknown> }
+
+/**
+ * The per-user document ACL hook (G2). Called with the request context and the
+ * resolved tenant, it returns the {@link RetrievalScope} a retrieval is narrowed
+ * to. Distinct from {@link AiConfig.authorizeAIAccess} ("may this caller use AI
+ * at all"): this answers "WHICH of the tenant's documents may this caller
+ * retrieve". A throw or an invalid return is fail-closed (403
+ * `retrieval_denied`). When the hook is ABSENT, retrieval spans the whole tenant
+ * corpus (tenant isolation still holds); that posture is a documented honest
+ * limit surfaced by the `ai_retrieval_gate` doctor check and a boot warning,
+ * silenced with {@link AiConfig.acknowledgeUnscopedRetrieval}.
+ */
+export type RetrievalFilter = (
+  ctx: HttpContext,
+  tenant: TenantModelContract
+) => RetrievalScope | Promise<RetrievalScope>
+
+/**
+ * The retrieval (RAG) block (WS-AI-5), present when a host opts into similarity
+ * search over the vector store. `retrievalFilter` is the per-user document ACL
+ * (G2); the bounds cap a retrieval request and the size of a retrieved context
+ * block folded into a chat prompt (#8, output bounds). Retrieval reuses the
+ * embedding provider from {@link AIEmbeddingConfig} to embed the query, so
+ * `config.ai.embedding` must be present for retrieval to work.
+ */
+export interface AIRetrievalConfig {
+  /** The per-user document ACL (G2). Absent => the whole tenant corpus (a documented honest limit). */
+  retrievalFilter?: RetrievalFilter
+  /** Default number of nearest matches when a request omits one. Default 8. */
+  defaultLimit?: number
+  /** Hard cap on the number of matches one request may ask for. Default 50. */
+  maxLimit?: number
+  /** Max characters of the query text. A longer query is a 400 before any cost. Default 4000. */
+  maxQueryChars?: number
+  /** Max retrieved documents folded into one chat context block (#8). Default 8. */
+  maxContextItems?: number
+  /** Max characters of the fenced retrieved context block injected into a chat prompt (#8). Default 8000. */
+  maxContextChars?: number
+}
+
+/**
  * AI satellite config. Opt-in via `--with=ai` and declaring `config.ai`.
  * Provider-agnostic: allow-list the providers a tenant may use, fill in the
  * matching per-provider block, and pick a default. Every value is optional with
@@ -104,6 +157,8 @@ export interface AiConfig {
   kimi?: AIProviderConfig
   /** The vector store / embedding block (WS-AI-3). Present when the host opts into embeddings. */
   embedding?: AIEmbeddingConfig
+  /** The retrieval / RAG block (WS-AI-5). Present when the host opts into similarity search over the vector store. */
+  retrieval?: AIRetrievalConfig
   /** SSE heartbeat interval in ms. Default 15000. Must stay below any upstream proxy idle timeout. */
   heartbeatMs?: number
   /** Response deadline in ms for a streamed call. The composed abort fires at the deadline. */
@@ -165,6 +220,15 @@ export interface AiConfig {
    * invisible to the static boot check and does not need this.
    */
   acknowledgeUnbudgetedAiTokens?: boolean
+  /**
+   * Explicit acknowledgement that retrieval runs tenant-wide because no
+   * `config.ai.retrieval.retrievalFilter` (per-user document ACL, G2) is wired,
+   * so every user of a tenant can retrieve that tenant's ENTIRE corpus. Silences
+   * the boot warning; the `ai_retrieval_gate` doctor check still reports the
+   * accepted posture. Tenant isolation (I1/I4) is unaffected: this is about
+   * intra-tenant, per-user document authorization, which is the host's job.
+   */
+  acknowledgeUnscopedRetrieval?: boolean
 }
 
 /**

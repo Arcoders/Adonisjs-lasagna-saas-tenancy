@@ -13,7 +13,11 @@ import {
 } from '../../../../src/isthmus/ai_guard_audit.js'
 import { AI_GUARD_REGISTRY, type AiGuardId } from '../../../../src/isthmus/ai_guard_registry.js'
 import { resolveTenantProviderSelection } from '../../../../src/services/tenant_provider_selection.js'
-import { authorizeAiAccess, authorizeIngestion } from '../../../../src/gateway/access_gate.js'
+import {
+  authorizeAiAccess,
+  authorizeIngestion,
+  resolveRetrievalScope,
+} from '../../../../src/gateway/access_gate.js'
 import { validateIdempotencyKeyHeader } from '../../../../src/gateway/idempotency.js'
 import { assertAiMountAllowed } from '../../../../src/routes/mount_gate.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
@@ -204,6 +208,19 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
     expectThrow: /Refusing the ingest/,
     happy: () =>
       authorizeIngestion({} as never, tenant, { authorizeIngestion: () => true } as never),
+  },
+  'guard.ai_retrieval_denied': {
+    trip: () =>
+      resolveRetrievalScope({} as never, tenant, {
+        retrievalFilter: () => {
+          throw new Error('acl backend down')
+        },
+      }),
+    expectThrow: /Refusing the retrieval/,
+    happy: () =>
+      resolveRetrievalScope({} as never, tenant, {
+        retrievalFilter: () => ({ kind: 'all' }),
+      }),
   },
 }
 

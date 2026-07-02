@@ -266,6 +266,22 @@ export const AI_GUARD_REGISTRY = [
     reviewed: '2026-07-02',
     nextReview: '2027-01-02',
   },
+  {
+    id: 'guard.ai_retrieval_denied',
+    pillar: 'guard',
+    bugClass: 'missing-authorization',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_retrieval:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'invariant',
+      ref: 'G2: tenant isolation is not user authorization; the retrievalFilter document ACL is resolved before any query embed or search, so a hook that throws or returns an invalid scope fails closed (nothing retrieved) rather than falling back to the whole tenant corpus; severity warn because retrieval denials are normal operations',
+    },
+    guardFile: 'src/gateway/access_gate.ts',
+    reviewed: '2026-07-02',
+    nextReview: '2027-01-02',
+  },
 ] as const satisfies readonly AiGuardRegistryEntryShape[]
 
 /** Compile-time union of all registered AI guard ids. */

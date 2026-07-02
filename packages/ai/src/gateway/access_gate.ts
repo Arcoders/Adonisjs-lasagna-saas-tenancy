@@ -1,7 +1,12 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { TenantAccessForbiddenException } from '@adonisjs-lasagna/saas-tenancy/exceptions'
-import type { AiConfig, AIEmbeddingConfig } from '../define_config.js'
+import type {
+  AiConfig,
+  AIEmbeddingConfig,
+  AIRetrievalConfig,
+  RetrievalScope,
+} from '../define_config.js'
 import AIException from '../exceptions/ai_exception.js'
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 
@@ -124,4 +129,69 @@ export async function authorizeIngestion(
       'Refusing the ingest: not authorized to write embeddings'
     )
   }
+}
+
+/**
+ * Resolve the retrieval scope (WS-AI-5, G2), the per-user document ACL applied
+ * to a similarity search. Mirrors {@link authorizeIngestion} but returns a
+ * {@link RetrievalScope} rather than void, because a document ACL answers "WHICH
+ * documents may this caller see", not a boolean "may they retrieve at all".
+ *
+ * Opt-in via `config.ai.retrieval.retrievalFilter`. When the hook is ABSENT the
+ * scope is the whole tenant corpus (`{ kind: 'all' }`): tenant isolation still
+ * holds, and the missing per-user ACL is a documented honest limit surfaced by
+ * the `ai_retrieval_gate` doctor check. When the hook is present and it throws
+ * or returns a shape that is not a valid scope, the retrieval is refused with a
+ * 403 `retrieval_denied` and a `guard.ai_retrieval_denied` trip, before any
+ * query embed or search: fail-closed, never a silent fallback to the whole
+ * corpus.
+ */
+export async function resolveRetrievalScope(
+  ctx: HttpContext,
+  tenant: TenantModelContract,
+  retrieval: AIRetrievalConfig | undefined
+): Promise<RetrievalScope> {
+  const hook = retrieval?.retrievalFilter
+  if (!hook) return { kind: 'all' }
+
+  let scope: unknown
+  try {
+    scope = await hook(ctx, tenant)
+  } catch (error) {
+    emitAiGuardEvent('guard.ai_retrieval_denied', {
+      tenantId: tenant.id,
+      metadata: { reason: 'hook_error' },
+    })
+    throw new AIException(
+      'retrieval_denied',
+      'Refusing the retrieval: the document ACL hook failed',
+      { cause: error }
+    )
+  }
+
+  if (!isRetrievalScope(scope)) {
+    emitAiGuardEvent('guard.ai_retrieval_denied', {
+      tenantId: tenant.id,
+      metadata: { reason: 'invalid_scope' },
+    })
+    throw new AIException(
+      'retrieval_denied',
+      'Refusing the retrieval: the document ACL hook returned an invalid scope'
+    )
+  }
+  return scope
+}
+
+/** Whether a value is a well-formed {@link RetrievalScope} (a wired hook must return one). */
+function isRetrievalScope(value: unknown): value is RetrievalScope {
+  if (typeof value !== 'object' || value === null) return false
+  const scope = value as { kind?: unknown; sources?: unknown; match?: unknown }
+  if (scope.kind === 'all') return true
+  if (scope.kind === 'sources') {
+    return Array.isArray(scope.sources) && scope.sources.every((s) => typeof s === 'string')
+  }
+  if (scope.kind === 'metadata') {
+    return typeof scope.match === 'object' && scope.match !== null && !Array.isArray(scope.match)
+  }
+  return false
 }

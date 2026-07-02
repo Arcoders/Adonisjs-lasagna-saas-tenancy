@@ -3,6 +3,7 @@ import type {
   AIEmbeddingConfig,
   AIProviderConfig,
   AIProviderName,
+  AIRetrievalConfig,
 } from './define_config.js'
 import { DEFAULT_AI_PROVIDER, MAX_EMBEDDING_DIM } from './constants.js'
 import { emitAiGuardEvent } from './isthmus/ai_guard_audit.js'
@@ -78,8 +79,37 @@ export function assertAiConfig(config: AiConfig | undefined): void {
   ) {
     fail('[ai] config.ai.acknowledgeUnbudgetedAiTokens, when set, must be a boolean')
   }
+  if (
+    config.acknowledgeUnscopedRetrieval !== undefined &&
+    typeof config.acknowledgeUnscopedRetrieval !== 'boolean'
+  ) {
+    fail('[ai] config.ai.acknowledgeUnscopedRetrieval, when set, must be a boolean')
+  }
   assertRateLimit(config.rateLimit)
   assertEmbeddingConfig(config.embedding)
+  assertRetrievalConfig(config.retrieval)
+}
+
+/**
+ * The retrieval / RAG block (WS-AI-5), when present: `retrievalFilter` is the
+ * per-user document ACL hook (G2), so it must be a function; the bounds are
+ * positive integers. The absent-hook posture (whole tenant corpus) is a
+ * documented honest limit, surfaced by the `ai_retrieval_gate` doctor check, not
+ * a config error.
+ */
+function assertRetrievalConfig(retrieval: AIRetrievalConfig | undefined): void {
+  if (retrieval === undefined) return
+  if (typeof retrieval !== 'object' || retrieval === null) {
+    fail('[ai] config.ai.retrieval, when set, must be an object')
+  }
+  if (retrieval.retrievalFilter !== undefined && typeof retrieval.retrievalFilter !== 'function') {
+    fail('[ai] config.ai.retrieval.retrievalFilter, when set, must be a function (ctx, tenant)')
+  }
+  assertPositiveInteger('retrieval.defaultLimit', retrieval.defaultLimit)
+  assertPositiveInteger('retrieval.maxLimit', retrieval.maxLimit)
+  assertPositiveInteger('retrieval.maxQueryChars', retrieval.maxQueryChars)
+  assertPositiveInteger('retrieval.maxContextItems', retrieval.maxContextItems)
+  assertPositiveInteger('retrieval.maxContextChars', retrieval.maxContextChars)
 }
 
 /**
