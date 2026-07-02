@@ -3,8 +3,10 @@ import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
 import { assertAiMountAllowed, type MultitenancyAiRoutesOptions } from './routes/mount_gate.js'
 import AiChatController from './gateway/ai_chat_controller.js'
+import AiEmbedController from './gateway/ai_embed_controller.js'
 import StreamExtensionService from './gateway/stream_extension.js'
 import AiIdempotencyService from './gateway/idempotency.js'
+import EmbeddingIngestionService from './services/embedding_ingestion_service.js'
 import AIProviderRegistry from './services/ai_provider_registry.js'
 import TenantLivenessWatcher from './services/tenant_liveness_watcher.js'
 import AiRateLimiter from './services/ai_rate_limiter.js'
@@ -30,7 +32,8 @@ import type { MultitenancyConfigWithAi } from './define_config.js'
  * request, so a mis-ordered chain still cannot stream unauthorized.
  *
  * Endpoints (relative to the prefix, default `/ai`):
- *   POST /chat   SSE stream (`Idempotency-Key` and `Last-Event-ID` honoured)
+ *   POST /chat    SSE stream (`Idempotency-Key` and `Last-Event-ID` honoured)
+ *   POST /embed   ingest embeddings into the tenant vector store (JSON, WS-AI-3)
  *
  * This module imports Adonis service singletons (router/app/logger), so it is
  * boot-unsafe BY DESIGN: import it from route files only, never from unit
@@ -53,6 +56,15 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
         config: app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai,
       })
       return controller.chat(ctx)
+    })
+    router.post('/embed', async (ctx) => {
+      const controller = new AiEmbedController({
+        ingestion: await app.container.make(EmbeddingIngestionService),
+        liveness: await app.container.make(TenantLivenessWatcher),
+        rateLimiter: await app.container.make(AiRateLimiter),
+        config: app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai,
+      })
+      return controller.embed(ctx)
     })
   })
   if (prefix) group.prefix(prefix)

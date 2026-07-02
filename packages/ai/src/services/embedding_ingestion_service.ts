@@ -47,6 +47,8 @@ export interface IngestionResult {
   readonly inserted: number
   readonly model: string
   readonly dimension: number
+  /** Provider-reported tokens settled (for the audit trail). */
+  readonly tokens: number
 }
 
 export interface EmbeddingIngestionDeps {
@@ -72,6 +74,11 @@ export interface EmbeddingIngestionDeps {
  */
 export default class EmbeddingIngestionService {
   constructor(private readonly deps: EmbeddingIngestionDeps) {}
+
+  /** The provider key fingerprint (or its name) for the per-key rate-limit bucket (threat #4). */
+  get providerFingerprint(): string {
+    return this.deps.provider.keyFingerprint ?? this.deps.provider.name
+  }
 
   async ingest(
     tenant: TenantModelContract,
@@ -127,6 +134,7 @@ export default class EmbeddingIngestionService {
         inserted: stored.inserted,
         model: result.model,
         dimension: result.dimension,
+        tokens: result.tokens,
       }
     } catch (error) {
       this.deps.emitMetric(tenant.id, 'ai_embedding_errors', 1)

@@ -103,3 +103,15 @@ export const MAX_EMBEDDING_DIM = 2000
  * huge-document ingest. Tunable via `config.ai.embedding.ingestionMaxBytes`.
  */
 export const DEFAULT_INGESTION_MAX_BYTES = 1_048_576
+
+/** Default max characters per input chunk. A longer chunk is a 400 before any cost. Tunable via `config.ai.embedding.maxChunkChars`. */
+export const DEFAULT_MAX_CHUNK_CHARS = 8_000
+
+/** Default max chunks per ingest request. Tunable via `config.ai.embedding.maxBatchChunks`. */
+export const DEFAULT_MAX_BATCH_CHUNKS = 64
+
+/** Default max serialized bytes of a chunk's `metadata`. Tunable via `config.ai.embedding.maxMetadataBytes`. */
+export const DEFAULT_MAX_METADATA_BYTES = 4_096
+
+/** Hard bound on the `source` key length. Not host-tunable. */
+export const AI_SOURCE_MAX_CHARS = 512

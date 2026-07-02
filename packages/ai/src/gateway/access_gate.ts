@@ -1,7 +1,8 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { TenantAccessForbiddenException } from '@adonisjs-lasagna/saas-tenancy/exceptions'
-import type { AiConfig } from '../define_config.js'
+import type { AiConfig, AIEmbeddingConfig } from '../define_config.js'
+import AIException from '../exceptions/ai_exception.js'
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 
 /**
@@ -76,5 +77,51 @@ export async function authorizeAiAccess(
       metadata: { reason: 'denied' },
     })
     throw new TenantAccessForbiddenException()
+  }
+}
+
+/**
+ * The ingestion WRITE gate (WS-AI-3), distinct from {@link authorizeAiAccess}
+ * ("may this caller use AI at all"): it decides "may this caller WRITE to the
+ * tenant's vector index". Opt-in via `config.ai.embedding.authorizeIngestion`;
+ * when the hook is absent the write is allowed (the access gate already ran).
+ * When present and it returns falsy or throws, the embed is refused with a 403
+ * `ingestion_denied` and a `guard.ai_ingestion_denied` trip, before any
+ * reservation or provider call.
+ */
+export async function authorizeIngestion(
+  ctx: HttpContext,
+  tenant: TenantModelContract,
+  embedding: AIEmbeddingConfig | undefined
+): Promise<void> {
+  const hook = embedding?.authorizeIngestion
+  if (!hook) return
+
+  let allowed: unknown
+  try {
+    allowed = await hook(ctx, tenant)
+  } catch (error) {
+    emitAiGuardEvent('guard.ai_ingestion_denied', {
+      tenantId: tenant.id,
+      metadata: { reason: 'hook_error' },
+    })
+    throw new AIException(
+      'ingestion_denied',
+      'Refusing the ingest: not authorized to write embeddings',
+      {
+        cause: error,
+      }
+    )
+  }
+
+  if (!allowed) {
+    emitAiGuardEvent('guard.ai_ingestion_denied', {
+      tenantId: tenant.id,
+      metadata: { reason: 'denied' },
+    })
+    throw new AIException(
+      'ingestion_denied',
+      'Refusing the ingest: not authorized to write embeddings'
+    )
   }
 }

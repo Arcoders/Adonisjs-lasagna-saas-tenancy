@@ -13,7 +13,7 @@ import {
 } from '../../../../src/isthmus/ai_guard_audit.js'
 import { AI_GUARD_REGISTRY, type AiGuardId } from '../../../../src/isthmus/ai_guard_registry.js'
 import { resolveTenantProviderSelection } from '../../../../src/services/tenant_provider_selection.js'
-import { authorizeAiAccess } from '../../../../src/gateway/access_gate.js'
+import { authorizeAiAccess, authorizeIngestion } from '../../../../src/gateway/access_gate.js'
 import { validateIdempotencyKeyHeader } from '../../../../src/gateway/idempotency.js'
 import { assertAiMountAllowed } from '../../../../src/routes/mount_gate.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
@@ -197,6 +197,13 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
       new VectorStoreService(
         fakeVectorEnv({ dimension: 3, count: 2, existing: [storedRow], insertedHashes: ['h'] }).deps
       ).insert(tenant, 'src', [embChunk([1, 2, 3])], { maxCount: 5 }),
+  },
+  'guard.ai_ingestion_denied': {
+    trip: () =>
+      authorizeIngestion({} as never, tenant, { authorizeIngestion: () => false } as never),
+    expectThrow: /Refusing the ingest/,
+    happy: () =>
+      authorizeIngestion({} as never, tenant, { authorizeIngestion: () => true } as never),
   },
 }
 

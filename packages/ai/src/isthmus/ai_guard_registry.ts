@@ -250,6 +250,22 @@ export const AI_GUARD_REGISTRY = [
     reviewed: '2026-07-02',
     nextReview: '2027-01-02',
   },
+  {
+    id: 'guard.ai_ingestion_denied',
+    pillar: 'guard',
+    bugClass: 'missing-authorization',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_ingestion:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'invariant',
+      ref: 'the ingestion write gate (distinct from the access gate): writing to the vector index is authorized before any reservation or embed, so a low-privilege caller cannot poison a tenant index; severity warn because ingestion denials are normal operations',
+    },
+    guardFile: 'src/gateway/access_gate.ts',
+    reviewed: '2026-07-02',
+    nextReview: '2027-01-02',
+  },
 ] as const satisfies readonly AiGuardRegistryEntryShape[]
 
 /** Compile-time union of all registered AI guard ids. */
