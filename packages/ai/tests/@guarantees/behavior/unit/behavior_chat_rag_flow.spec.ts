@@ -38,9 +38,10 @@ function capturingProvider(): { provider: AIProviderContract; seen: AIMessage[][
   return { provider, seen }
 }
 
-function fakeRetrieval(
-  result: RetrievalResult = { matches: [], model: 'text-embed', tokens: 3 }
-): { service: RetrievalService; box: { calls: number } } {
+function fakeRetrieval(result: RetrievalResult = { matches: [], model: 'text-embed', tokens: 3 }): {
+  service: RetrievalService
+  box: { calls: number }
+} {
   const box = { calls: 0 }
   const service = {
     providerFingerprint: 'fp',
@@ -52,7 +53,10 @@ function fakeRetrieval(
   return { service, box }
 }
 
-function capturingRetrievalAudit(): { sink: AiRetrievalAuditSink; events: AiRetrievalAuditEvent[] } {
+function capturingRetrievalAudit(): {
+  sink: AiRetrievalAuditSink
+  events: AiRetrievalAuditEvent[]
+} {
   const events: AiRetrievalAuditEvent[] = []
   return { sink: { append: (e) => void events.push(e) }, events }
 }

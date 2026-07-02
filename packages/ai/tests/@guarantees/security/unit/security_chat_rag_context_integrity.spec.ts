@@ -140,16 +140,13 @@ test.group('chat RAG context integrity', (group) => {
   test('a retrievalFilter denial fails the chat 403 before the stream (no provider call)', async ({
     assert,
   }) => {
-    const { controller, seen } = build(
-      retrievalReturning({ matches: [], model: 'm', tokens: 0 }),
-      {
-        retrieval: {
-          retrievalFilter: () => {
-            throw new Error('acl backend down')
-          },
+    const { controller, seen } = build(retrievalReturning({ matches: [], model: 'm', tokens: 0 }), {
+      retrieval: {
+        retrievalFilter: () => {
+          throw new Error('acl backend down')
         },
-      }
-    )
+      },
+    })
     const { ctx, responseFacade } = fakeHttpContext({
       tenant: fakeTenant,
       body: { messages: [{ role: 'user', content: 'q' }], retrieve: { query: 'x' } },

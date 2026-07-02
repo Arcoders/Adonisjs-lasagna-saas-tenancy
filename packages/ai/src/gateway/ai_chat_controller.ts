@@ -181,7 +181,14 @@ export default class AiChatController {
       //     BEFORE the stream commits, with the code's pinned status.
       let messages: AIMessage[]
       try {
-        messages = await this.#augmentMessages(ctx, tenant, body, ai, principalHash, liveness.signal)
+        messages = await this.#augmentMessages(
+          ctx,
+          tenant,
+          body,
+          ai,
+          principalHash,
+          liveness.signal
+        )
       } catch (error) {
         if (error instanceof AIException) {
           ctx.response.status(error.httpStatus).send({ error: error.aiCode })

@@ -11,7 +11,11 @@ import {
 } from './audit_seam.js'
 import AIException from '../exceptions/ai_exception.js'
 import type { AiConfig, AIRetrievalConfig } from '../define_config.js'
-import { DEFAULT_MAX_QUERY_CHARS, DEFAULT_RETRIEVAL_LIMIT, MAX_RETRIEVAL_LIMIT } from '../constants.js'
+import {
+  DEFAULT_MAX_QUERY_CHARS,
+  DEFAULT_RETRIEVAL_LIMIT,
+  MAX_RETRIEVAL_LIMIT,
+} from '../constants.js'
 
 /** The retrieve request body. Everything else is ignored. */
 interface RetrieveBody {

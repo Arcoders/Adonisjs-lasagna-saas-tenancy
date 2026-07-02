@@ -27,7 +27,9 @@ test.group('buildRetrievalContext — role separation (#10)', () => {
     assert.isNull(buildRetrievalContext([match('doc')], { maxItems: 0, maxChars: 100_000 }))
   })
 
-  test('retrieved content is ALWAYS a user turn, never a trusted instruction turn', ({ assert }) => {
+  test('retrieved content is ALWAYS a user turn, never a trusted instruction turn', ({
+    assert,
+  }) => {
     const msg = buildRetrievalContext([match('hello world')], BIG)
     assert.isNotNull(msg)
     assert.equal(msg!.role, 'user')
@@ -84,7 +86,9 @@ test.group('buildRetrievalContext — output bounds (#8)', () => {
     assert.equal(msg!.role, 'user')
   })
 
-  test('a budget too small to hold even the preamble yields null (inject nothing)', ({ assert }) => {
+  test('a budget too small to hold even the preamble yields null (inject nothing)', ({
+    assert,
+  }) => {
     assert.isNull(buildRetrievalContext([match('doc')], { maxItems: 5, maxChars: 10 }))
   })
 })

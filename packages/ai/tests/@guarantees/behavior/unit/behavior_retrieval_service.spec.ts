@@ -43,7 +43,12 @@ function harness(over: Partial<RetrievalServiceDeps> = {}): Harness {
       // The provider canonicalizes the model name: a request override 'req-model'
       // comes back as the effective 'eff-model', which is what the corpus rows
       // were stored under, so the search MUST filter on this, not the override.
-      return { embeddings: req.input.map(() => eightVec), model: 'eff-model', dimension: 8, tokens: 7 }
+      return {
+        embeddings: req.input.map(() => eightVec),
+        model: 'eff-model',
+        dimension: 8,
+        tokens: 7,
+      }
     },
   }
 
@@ -96,11 +101,7 @@ test.group('RetrievalService', () => {
     assert,
   }) => {
     const h = harness()
-    await new RetrievalService(h.deps).retrieve(
-      tenant,
-      request({ model: 'req-model' }),
-      signal()
-    )
+    await new RetrievalService(h.deps).retrieve(tenant, request({ model: 'req-model' }), signal())
     // The provider saw the override...
     assert.include(h.events, 'embed:find things:req-model')
     // ...but the search filtered on the provider's effective model (bind index 1).

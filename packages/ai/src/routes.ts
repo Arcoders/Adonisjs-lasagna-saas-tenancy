@@ -50,7 +50,7 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
   const prefix = options.prefix ?? '/ai'
   const group = router.group(() => {
     router.post('/chat', async (ctx) => {
-      const ai = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+      const aiConfig = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
       const controller = new AiChatController({
         stream: await app.container.make(StreamExtensionService),
         registry: await app.container.make(AIProviderRegistry),
@@ -60,8 +60,8 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
         // RAG is opt-in and only usable with embeddings configured; resolve the
         // retrieval service lazily so non-RAG chat is unaffected when they are off
         // (making RetrievalService unconditionally would throw config_missing).
-        retrieval: ai?.embedding ? await app.container.make(RetrievalService) : undefined,
-        config: ai,
+        retrieval: aiConfig?.embedding ? await app.container.make(RetrievalService) : undefined,
+        config: aiConfig,
       })
       return controller.chat(ctx)
     })

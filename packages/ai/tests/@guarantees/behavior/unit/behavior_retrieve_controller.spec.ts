@@ -2,7 +2,10 @@ import { test } from '@japa/runner'
 import AiRetrieveController from '../../../../src/gateway/ai_retrieve_controller.js'
 import TenantLivenessWatcher from '../../../../src/services/tenant_liveness_watcher.js'
 import type RetrievalService from '../../../../src/services/retrieval_service.js'
-import type { RetrievalRequest, RetrievalResult } from '../../../../src/services/retrieval_service.js'
+import type {
+  RetrievalRequest,
+  RetrievalResult,
+} from '../../../../src/services/retrieval_service.js'
 import AIException from '../../../../src/exceptions/ai_exception.js'
 import { fakeHttpContext } from '../../../helpers/fake_http_context.js'
 import { fakeTenant } from '../../../helpers/stream_doubles.js'

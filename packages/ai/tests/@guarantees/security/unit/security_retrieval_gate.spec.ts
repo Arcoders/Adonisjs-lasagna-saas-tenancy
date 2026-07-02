@@ -133,11 +133,7 @@ test.group('AI retrieval scope gate', (group) => {
       captured = []
       let threw: unknown
       try {
-        await resolveRetrievalScope(
-          ctx,
-          tenant,
-          retrieval({ retrievalFilter: () => bad as never })
-        )
+        await resolveRetrievalScope(ctx, tenant, retrieval({ retrievalFilter: () => bad as never }))
       } catch (err) {
         threw = err
       }

@@ -140,7 +140,9 @@ test.group('RAG retrieval two-tenant + filter isolation (real pgvector)', (group
     )
   }).skip(skip, 'pgvector not available (local postgres:16-alpine); runs in CI')
 
-  test('kind:all returns the whole tenant corpus and never the other tenant', async ({ assert }) => {
+  test('kind:all returns the whole tenant corpus and never the other tenant', async ({
+    assert,
+  }) => {
     const all = await storeAs('A').search(tenantA, query, { limit: 10, filter: { kind: 'all' } })
     assert.deepEqual(all.map((h) => h.content).sort(), ['A eng', 'A public'])
     assert.notInclude(

@@ -170,10 +170,7 @@ export default class AiProvider implements SatelliteProviderContract {
       const metrics = await resolver.make(MetricsService)
       const embedding = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai?.embedding
       if (!embedding) {
-        throw new AIException(
-          'config_missing',
-          'config.ai.embedding is required to use retrieval'
-        )
+        throw new AIException('config_missing', 'config.ai.embedding is required to use retrieval')
       }
       return new RetrievalService({
         store,

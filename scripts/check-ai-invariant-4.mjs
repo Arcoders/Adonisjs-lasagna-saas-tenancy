@@ -61,7 +61,10 @@ function run() {
     .map((line) => line.trim())
     .filter(Boolean)
 
-  const files = paths.map((rel) => ({ path: rel, source: readFileSync(join(repoRoot, rel), 'utf8') }))
+  const files = paths.map((rel) => ({
+    path: rel,
+    source: readFileSync(join(repoRoot, rel), 'utf8'),
+  }))
   const problems = auditSystemPromptPurity(files)
 
   if (problems.length > 0) {
