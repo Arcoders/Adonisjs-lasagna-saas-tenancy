@@ -223,7 +223,9 @@ export default withMermaid({
   // STYLE.md is a contributor guide for writing these docs, not a published page.
   // dev/ holds dev-facing design contracts (the doc-coverage RFC): they are living
   // engineering docs, kept out of the published site and the dead-link gate.
-  srcExclude: ['STYLE.md', 'dev/*.md'],
+  // Contributor-facing material, not user docs: excluded from the built site.
+  // testing/*.md holds internal working notes from past hardening briefs.
+  srcExclude: ['STYLE.md', 'dev/*.md', 'testing/*.md'],
 
   // After the static build, emit redirect stubs for every pre-restructure URL so
   // existing inbound links and bookmarks land on the new Start/Guides/Reference path.
