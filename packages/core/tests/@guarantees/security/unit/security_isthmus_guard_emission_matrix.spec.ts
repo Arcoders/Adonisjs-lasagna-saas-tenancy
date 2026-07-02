@@ -92,7 +92,16 @@ const isViaIntegration = (r: Recipe): r is ViaIntegration => 'viaIntegration' in
 
 const CORE_ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
 
-const TRIP_MATRIX: Record<IsthmusGuardId, Recipe> = {
+/**
+ * Audit-pillar entries observe rather than gate, so the matrix covers gating
+ * guards only. The exclusion is derived from the registry's literal types: a
+ * new non-audit guard is a COMPILE error here until it gets a recipe, and a
+ * new audit-pillar entry is excluded automatically.
+ */
+type AuditGuardId = Extract<(typeof ISTHMUS_REGISTRY)[number], { pillar: 'audit' }>['id']
+type GatingGuardId = Exclude<IsthmusGuardId, AuditGuardId>
+
+const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
   'guard.tenant_identifier': {
     // ASCII-only SAFE_IDENT fires before the NFKC clause; '℀' still trips it,
     // as input diversity — not as distinct NFKC-clause coverage.
@@ -233,8 +242,9 @@ const TRIP_MATRIX: Record<IsthmusGuardId, Recipe> = {
   },
 }
 
-function nonAuditIds(): IsthmusGuardId[] {
-  return ISTHMUS_REGISTRY.filter((e) => e.pillar !== 'audit').map((e) => e.id)
+function nonAuditIds(): GatingGuardId[] {
+  // The runtime filter mirrors the type-level Extract on pillar 'audit'.
+  return ISTHMUS_REGISTRY.filter((e) => e.pillar !== 'audit').map((e) => e.id) as GatingGuardId[]
 }
 
 test.group('Isthmus guard emission matrix — completeness', () => {
@@ -244,8 +254,8 @@ test.group('Isthmus guard emission matrix — completeness', () => {
   })
 
   test('every matrix key is a real (non-audit) registry id', ({ assert }) => {
-    const ids = new Set(nonAuditIds())
-    const stray = Object.keys(TRIP_MATRIX).filter((id) => !ids.has(id as IsthmusGuardId))
+    const ids = new Set<string>(nonAuditIds())
+    const stray = Object.keys(TRIP_MATRIX).filter((id) => !ids.has(id))
     assert.deepEqual(stray, [], `matrix keys not in the registry: ${stray.join(', ')}`)
   })
 
@@ -295,7 +305,7 @@ test.group('Isthmus guard emission matrix — trip + happy', (group) => {
     __configureTenancyForTests({})
   })
 
-  for (const id of Object.keys(TRIP_MATRIX) as IsthmusGuardId[]) {
+  for (const id of Object.keys(TRIP_MATRIX) as GatingGuardId[]) {
     const recipe = TRIP_MATRIX[id]
     if (isViaIntegration(recipe)) continue
     const entry = ISTHMUS_REGISTRY.find((e) => e.id === id)!

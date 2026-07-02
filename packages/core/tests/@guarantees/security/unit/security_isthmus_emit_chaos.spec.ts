@@ -126,7 +126,7 @@ test.group('Isthmus emit — chaos', (group) => {
     // so a refactor to returning internal references fails here, not in prod.
     emitIsthmusEvent('guard.metric_value')
     const first = snapshotIsthmusCounters()
-    ;(first.rejected as Array<{ value: number }>).push({ value: 999 })
+    ;(first.rejected as unknown as Array<{ value: number }>).push({ value: 999 })
     ;(first.rejected[0] as { value: number }).value = 999
 
     const second = snapshotIsthmusCounters()
