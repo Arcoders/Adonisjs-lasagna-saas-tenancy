@@ -13,6 +13,7 @@ import {
 } from '../../../../src/isthmus/ai_guard_audit.js'
 import { AI_GUARD_REGISTRY, type AiGuardId } from '../../../../src/isthmus/ai_guard_registry.js'
 import { resolveTenantProviderSelection } from '../../../../src/services/tenant_provider_selection.js'
+import { authorizeAiAccess } from '../../../../src/gateway/access_gate.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
 import ClaudeProvider from '../../../../src/providers/claude_provider.js'
 import { assertAiConfig } from '../../../../src/validate_config.js'
@@ -87,6 +88,19 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
           new AbortController().signal
         )
       ),
+  },
+  'guard.ai_access': {
+    trip: () =>
+      authorizeAiAccess({} as never, tenant, {
+        allowedProviders: ['claude'],
+        authorizeAIAccess: () => false,
+      } as AiConfig),
+    expectThrow: /Not authorized for this tenant/,
+    happy: () =>
+      authorizeAiAccess({} as never, tenant, {
+        allowedProviders: ['claude'],
+        authorizeAIAccess: () => true,
+      } as AiConfig),
   },
   'guard.ai_streaming_capability': {
     trip: () =>

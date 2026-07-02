@@ -91,6 +91,22 @@ export const AI_GUARD_REGISTRY = [
     nextReview: '2027-01-02',
   },
   {
+    id: 'guard.ai_access',
+    pillar: 'guard',
+    bugClass: 'missing-authorization',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_access:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'invariant',
+      ref: 'the gateway sequence authorizes FIRST so a denied caller spends nothing (G4); severity warn because membership denials are normal operations, not presumptive intrusion',
+    },
+    guardFile: 'src/gateway/access_gate.ts',
+    reviewed: '2026-07-02',
+    nextReview: '2027-01-02',
+  },
+  {
     id: 'guard.ai_streaming_capability',
     pillar: 'guard',
     bugClass: 'silent-degradation',
