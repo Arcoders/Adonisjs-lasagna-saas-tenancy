@@ -3,6 +3,7 @@ import app from '@adonisjs/core/services/app'
 import { TenantSuspended } from '@adonisjs-lasagna/saas-tenancy/events'
 import AiProvider from '../../../../providers/ai_provider.js'
 import StreamExtensionService from '../../../../src/gateway/stream_extension.js'
+import VectorStoreService from '../../../../src/services/vector_store_service.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
 import TenantLivenessWatcher, {
   wireAiTenantLiveness,
@@ -28,6 +29,17 @@ test.group('ai provider DI wiring (integration)', () => {
     const registry = await app.container.make(AIProviderRegistry)
     registry.register(new MockAIProvider({ name: 'claude', contractVersion: 1 }))
     assert.isTrue(registry.has('claude'))
+  })
+
+  test('registers a resolvable VectorStoreService (driver + lucid.db + tenancy scope seal)', async ({
+    assert,
+  }) => {
+    new AiProvider(app).register()
+    // Resolving proves getActiveDriver, the `lucid.db` container alias, and the
+    // tenancy scope accessor are all makeable from the real booted container (the
+    // DI a unit test with a fake db cannot cover).
+    const store = await app.container.make(VectorStoreService)
+    assert.instanceOf(store, VectorStoreService)
   })
 
   test('the liveness watcher resolves and a real TenantSuspended dispatch aborts its signals', async ({

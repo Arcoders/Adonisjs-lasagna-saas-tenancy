@@ -8,18 +8,29 @@ import {
   CircuitBreakerService,
   DoctorService,
   ExtensionTimeoutError,
+  HookRegistry,
   MetricsService,
   QuotaService,
   TelemetryService,
   cacheFor,
   consumeRateLimit,
   executeExtension,
+  getActiveDriver,
+  pgvectorExtensionCheck,
+  provisionVectorExtension,
 } from '@adonisjs-lasagna/saas-tenancy/services'
+import { safeFetch } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
+import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
 import { assertAiConfig } from '../src/validate_config.js'
-import type { AiConfig, MultitenancyConfigWithAi } from '../src/define_config.js'
-import { DEFAULT_AI_PROVIDER } from '../src/constants.js'
+import type { AiConfig, AIEmbeddingConfig, MultitenancyConfigWithAi } from '../src/define_config.js'
+import { DEFAULT_AI_PROVIDER, DEFAULT_EMBEDDING_DIM } from '../src/constants.js'
 import AIProviderRegistry from '../src/services/ai_provider_registry.js'
 import AiRateLimiter from '../src/services/ai_rate_limiter.js'
+import VectorStoreService, { type VectorDb } from '../src/services/vector_store_service.js'
+import EmbeddingIngestionService from '../src/services/embedding_ingestion_service.js'
+import OpenAICompatibleEmbeddingProvider from '../src/providers/openai_compatible_embedding_provider.js'
+import AIException from '../src/exceptions/ai_exception.js'
+import type { AIEmbeddingProviderContract } from '../src/types/ai_embedding_contract.js'
 import StreamExtensionService from '../src/gateway/stream_extension.js'
 import TenantLivenessWatcher, {
   wireAiTenantLiveness,
@@ -105,6 +116,44 @@ export default class AiProvider implements SatelliteProviderContract {
         withSpan: (name, attrs, fn) => TelemetryService.withSpan(name, attrs, fn),
       })
     })
+    // The per-tenant vector store (WS-AI-3). It resolves placement from the active
+    // driver and runs raw SQL on the tenant connection, so it takes the driver,
+    // the Lucid db (via the `'lucid.db'` container alias, like `'redis'`, so no
+    // direct lucid dependency), and the active tenancy scope id (the satellite
+    // ContextSeal that raw SQL bypasses). Stateful only through the db: a singleton.
+    this.app.container.singleton(VectorStoreService, () => {
+      const ai = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+      return new VectorStoreService({
+        getDriver: () => getActiveDriver(),
+        getDb: async () =>
+          (await this.app.container.make('lucid.db' as never)) as unknown as VectorDb,
+        activeScopeTenantId: () => tenancy.currentId(),
+        dimension: ai?.embedding?.dimension ?? DEFAULT_EMBEDDING_DIM,
+      })
+    })
+    // The ingestion orchestrator. It injects the store, the kernel quota
+    // (reserve/settle/release/getLimit), the SSRF-pinned fetch, and the integer
+    // metric sink; the embedding provider is built from `config.ai.embedding`.
+    this.app.container.singleton(EmbeddingIngestionService, async (resolver) => {
+      const store = await resolver.make(VectorStoreService)
+      const quota = await resolver.make(QuotaService)
+      const metrics = await resolver.make(MetricsService)
+      const embedding = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai?.embedding
+      if (!embedding) {
+        throw new AIException(
+          'config_missing',
+          'config.ai.embedding is required to use the vector store'
+        )
+      }
+      return new EmbeddingIngestionService({
+        store,
+        provider: buildEmbeddingProvider(embedding),
+        quota,
+        fetch: safeFetch,
+        emitMetric: (tenantId, name, value) => metrics.emitMetric(tenantId, name, value),
+        config: embedding,
+      })
+    })
   }
 
   async boot() {
@@ -137,6 +186,25 @@ export default class AiProvider implements SatelliteProviderContract {
         const logger = await this.app.container.make('logger')
         logger.warn(`[ai] ${posture.message}`)
       }
+    }
+
+    // The vector store (WS-AI-3) is opt-in: only a host that configures embeddings
+    // pays for the pgvector posture check and the per-tenant provisioning hook.
+    if (config?.ai?.embedding) {
+      // Surface where embeddings live + that the app role is not a superuser (G14).
+      doctor.register(pgvectorExtensionCheck)
+      // database-pg only: install pgvector in a NEW tenant's database at
+      // provision time, BEFORE its separate `tenant:migrate` runs the embeddings
+      // migration. Rides the existing after:provision hook (no core change); the
+      // extension is created under the privileged provision connection, never the
+      // app role. schema-pg / rowscope share one database, provisioned once via
+      // `tenant:vector:provision`, so the hook no-ops for them.
+      const hooks = await this.app.container.make(HookRegistry)
+      hooks.after('provision', async ({ tenant }) => {
+        const driver = await getActiveDriver()
+        if (driver.name !== 'database-pg') return
+        await provisionVectorExtension({ tenantIds: [tenant.id] })
+      })
     }
   }
 
@@ -190,6 +258,23 @@ function buildBuiltinProvider(name: string, ai: AiConfig): AIProviderContract | 
   if (name === 'deepseek' && ai.deepseek) return new DeepSeekProvider(ai.deepseek)
   if (name === 'kimi' && ai.kimi) return new KimiProvider(ai.kimi)
   return undefined
+}
+
+/**
+ * Build the single configured embedding provider (a generic OpenAI-compatible
+ * `/embeddings` backend). `baseUrl` is required and validated at boot, so a host
+ * points it at OpenAI, Voyage, Jina, or a self-hosted endpoint; nothing is
+ * vendor-hardcoded.
+ */
+function buildEmbeddingProvider(embedding: AIEmbeddingConfig): AIEmbeddingProviderContract {
+  return new OpenAICompatibleEmbeddingProvider(
+    {
+      name: embedding.provider ?? 'openai-compatible',
+      baseUrl: embedding.baseUrl ?? '',
+      defaultModel: embedding.defaultModel,
+    },
+    embedding
+  )
 }
 
 // Compile-time ABI pin: fail the build if the provider drifts from the public

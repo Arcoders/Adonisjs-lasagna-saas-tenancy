@@ -1,5 +1,10 @@
-import type { AiConfig, AIProviderConfig, AIProviderName } from './define_config.js'
-import { DEFAULT_AI_PROVIDER } from './constants.js'
+import type {
+  AiConfig,
+  AIEmbeddingConfig,
+  AIProviderConfig,
+  AIProviderName,
+} from './define_config.js'
+import { DEFAULT_AI_PROVIDER, MAX_EMBEDDING_DIM } from './constants.js'
 import { emitAiGuardEvent } from './isthmus/ai_guard_audit.js'
 
 /** The built-in providers that require a matching config block when allow-listed. */
@@ -74,6 +79,75 @@ export function assertAiConfig(config: AiConfig | undefined): void {
     fail('[ai] config.ai.acknowledgeUnbudgetedAiTokens, when set, must be a boolean')
   }
   assertRateLimit(config.rateLimit)
+  assertEmbeddingConfig(config.embedding)
+}
+
+/**
+ * The vector-store / embedding block (WS-AI-3), when present: a generic
+ * OpenAI-compatible provider needs a key and a base URL (there is no default
+ * public endpoint), the dimension is baked into the `vector(N)` column so it
+ * must be a pgvector-indexable integer (1..2000), and the bounds are positive
+ * integers.
+ */
+function assertEmbeddingConfig(embedding: AIEmbeddingConfig | undefined): void {
+  if (embedding === undefined) return
+  if (typeof embedding !== 'object' || embedding === null) {
+    fail('[ai] config.ai.embedding, when set, must be an object')
+  }
+  if (typeof embedding.apiKey !== 'string' || embedding.apiKey.length === 0) {
+    fail(
+      '[ai] config.ai.embedding.apiKey must be a non-empty string (read it from the environment)'
+    )
+  }
+  if (embedding.baseUrl === undefined) {
+    fail(
+      '[ai] config.ai.embedding.baseUrl is required (the OpenAI-compatible /embeddings endpoint)'
+    )
+  }
+  assertHttpsUrl('config.ai.embedding.baseUrl', embedding.baseUrl)
+  if (embedding.dimension !== undefined) {
+    if (
+      typeof embedding.dimension !== 'number' ||
+      !Number.isInteger(embedding.dimension) ||
+      embedding.dimension < 1 ||
+      embedding.dimension > MAX_EMBEDDING_DIM
+    ) {
+      fail(
+        `[ai] config.ai.embedding.dimension must be an integer in 1..${MAX_EMBEDDING_DIM} (pgvector index limit)`
+      )
+    }
+  }
+  assertPositiveInteger('embedding.maxEmbeddingTokens', embedding.maxEmbeddingTokens)
+  assertPositiveInteger('embedding.maxChunkChars', embedding.maxChunkChars)
+  assertPositiveInteger('embedding.maxBatchChunks', embedding.maxBatchChunks)
+  assertPositiveInteger('embedding.maxMetadataBytes', embedding.maxMetadataBytes)
+  assertPositiveInteger('embedding.ingestionMaxBytes', embedding.ingestionMaxBytes)
+  if (
+    embedding.defaultModel !== undefined &&
+    (typeof embedding.defaultModel !== 'string' || embedding.defaultModel.length === 0)
+  ) {
+    fail('[ai] config.ai.embedding.defaultModel, when set, must be a non-empty string')
+  }
+  if (
+    embedding.provider !== undefined &&
+    (typeof embedding.provider !== 'string' || embedding.provider.length === 0)
+  ) {
+    fail('[ai] config.ai.embedding.provider, when set, must be a non-empty string')
+  }
+  if (embedding.allowedModels !== undefined) {
+    if (
+      !Array.isArray(embedding.allowedModels) ||
+      embedding.allowedModels.some((m) => typeof m !== 'string')
+    ) {
+      fail('[ai] config.ai.embedding.allowedModels must be an array of strings')
+    }
+  }
+  if (
+    embedding.authorizeIngestion !== undefined &&
+    typeof embedding.authorizeIngestion !== 'function'
+  ) {
+    fail('[ai] config.ai.embedding.authorizeIngestion, when set, must be a function (ctx, tenant)')
+  }
 }
 
 /** The per-key rate-limit block, when present, needs positive-integer limit + window. */
