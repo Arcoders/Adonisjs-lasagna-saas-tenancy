@@ -15,6 +15,11 @@ export const AI_ERROR_CODES = [
   'config_missing',
   'byok_endpoint_blocked',
   'invalid_request',
+  // WS-AI-3 vector store
+  'rowscope_unsupported',
+  'dimension_mismatch',
+  'embedding_quota_exhausted',
+  'tenant_scope_mismatch',
 ] as const
 
 export type AIErrorCode = (typeof AI_ERROR_CODES)[number]
@@ -34,6 +39,13 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   config_missing: 500,
   byok_endpoint_blocked: 400,
   invalid_request: 400,
+  // WS-AI-3 vector store: a rowscope tenant / a dimension mismatch / a malformed
+  // request are permanent 4xx; over the storage cap is 402 (like over_budget); a
+  // tenant-scope-seal breach is a 500 (an internal invariant, never a client fault).
+  rowscope_unsupported: 400,
+  dimension_mismatch: 400,
+  embedding_quota_exhausted: 402,
+  tenant_scope_mismatch: 500,
 }
 
 /**
@@ -60,6 +72,13 @@ const FATAL_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
   'config_missing',
   'byok_endpoint_blocked',
   'invalid_request',
+  // WS-AI-3: none of these become correct on a retry — a rowscope host cannot use
+  // the vector store, a dimension mismatch is a config fault, the storage cap is a
+  // plan limit, and a scope-seal breach is a bug.
+  'rowscope_unsupported',
+  'dimension_mismatch',
+  'embedding_quota_exhausted',
+  'tenant_scope_mismatch',
 ])
 
 /**

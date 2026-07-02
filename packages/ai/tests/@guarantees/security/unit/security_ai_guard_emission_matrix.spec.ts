@@ -21,7 +21,20 @@ import AiRateLimiter from '../../../../src/services/ai_rate_limiter.js'
 import ClaudeProvider from '../../../../src/providers/claude_provider.js'
 import { assertAiConfig } from '../../../../src/validate_config.js'
 import MockAIProvider from '../../../../src/testing/mock_ai_provider.js'
+import VectorStoreService from '../../../../src/services/vector_store_service.js'
+import { fakeVectorEnv } from '../../../helpers/fake_vector_db.js'
 import type { AiConfig } from '../../../../src/define_config.js'
+
+/** A minimal embedding chunk for the vector-store guard recipes. */
+const embChunk = (embedding: number[], contentHash = 'h') => ({
+  content: 'c',
+  contentHash,
+  metadata: {},
+  model: 'm',
+  actor: null,
+  embedding,
+})
+const storedRow = { id: 'x', content_hash: 'h' }
 
 /**
  * The registry-driven AI guard emission matrix, mirroring the kernel's. Every
@@ -146,6 +159,44 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
         consume: async () => ({ count: 1 }),
         policy: { limit: 1, windowSeconds: 60 },
       }).check({ op: 'chat', tenantId: 'tenant-1', fingerprint: 'fp' }),
+  },
+  'guard.ai_rowscope_refused': {
+    trip: () => new VectorStoreService(fakeVectorEnv({ kind: 'rowscope' }).deps).count(tenant),
+    expectThrow: /rowscope isolation/,
+    happy: () =>
+      new VectorStoreService(fakeVectorEnv({ kind: 'schema', count: 0 }).deps).count(tenant),
+  },
+  'guard.ai_scope_mismatch': {
+    trip: () =>
+      new VectorStoreService(fakeVectorEnv({ activeScope: 'someone-else' }).deps).count(tenant),
+    expectThrow: /does not match the active tenancy scope/,
+    happy: () =>
+      new VectorStoreService(fakeVectorEnv({ activeScope: 'tenant-1' }).deps).count(tenant),
+  },
+  'guard.ai_dimension_mismatch': {
+    trip: () =>
+      new VectorStoreService(fakeVectorEnv({ dimension: 8 }).deps).insert(tenant, 'src', [
+        embChunk([1, 2, 3]),
+      ]),
+    expectThrow: /index dimension is 8/,
+    happy: () =>
+      new VectorStoreService(
+        fakeVectorEnv({ dimension: 3, existing: [storedRow], insertedHashes: ['h'] }).deps
+      ).insert(tenant, 'src', [embChunk([1, 2, 3])]),
+  },
+  'guard.ai_embedding_quota_exhausted': {
+    trip: () =>
+      new VectorStoreService(fakeVectorEnv({ dimension: 3, count: 5 }).deps).insert(
+        tenant,
+        'src',
+        [embChunk([1, 2, 3])],
+        { maxCount: 5 }
+      ),
+    expectThrow: /plan limit embeddingCount/,
+    happy: () =>
+      new VectorStoreService(
+        fakeVectorEnv({ dimension: 3, count: 2, existing: [storedRow], insertedHashes: ['h'] }).deps
+      ).insert(tenant, 'src', [embChunk([1, 2, 3])], { maxCount: 5 }),
   },
 }
 
