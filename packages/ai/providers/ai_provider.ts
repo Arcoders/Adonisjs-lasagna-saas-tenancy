@@ -6,6 +6,7 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import {
   CircuitBreakerService,
+  DoctorService,
   ExtensionTimeoutError,
   MetricsService,
   QuotaService,
@@ -25,6 +26,7 @@ import AiIdempotencyService, {
   deriveAiIdempotencyMacKey,
   type AiIdempotencyStore,
 } from '../src/gateway/idempotency.js'
+import { aiMembershipGateCheck } from '../src/services/ai_membership_gate_check.js'
 import { setAiGuardMetricSink } from '../src/isthmus/ai_guard_audit.js'
 import ClaudeProvider from '../src/providers/claude_provider.js'
 import { DeepSeekProvider, KimiProvider } from '../src/providers/openai_compatible_provider.js'
@@ -96,6 +98,14 @@ export default class AiProvider implements SatelliteProviderContract {
     const config = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')
     assertAiConfig(config?.ai)
     await this.#registerBuiltinProviders(config?.ai)
+
+    // Keep the AI authorization posture visible: the same wording as the
+    // mount-time warning, surfaced by `tenant:doctor` even before any route
+    // file runs (the backup satellite's boot-time registration pattern).
+    const doctor = await this.app.container.make(DoctorService)
+    doctor.register(
+      aiMembershipGateCheck(() => this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
+    )
   }
 
   async ready() {

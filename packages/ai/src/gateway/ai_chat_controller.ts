@@ -15,6 +15,7 @@ import {
 } from './idempotency.js'
 import { authorizeAiAccess, resolveRequestTenant } from './access_gate.js'
 import recordingStreamTarget from './recording_target.js'
+import { hashAuditPrincipal, noopAuditSink, type AiGatewayAuditSink } from './audit_seam.js'
 import AIException from '../exceptions/ai_exception.js'
 import { assertNever } from '../internal/assert_never.js'
 import type { AiConfig } from '../define_config.js'
@@ -41,6 +42,8 @@ export interface AiChatControllerDeps {
   idempotency: AiIdempotencyService
   liveness: TenantLivenessWatcher
   config: AiConfig | undefined
+  /** The WS-AI-7 attribution seam. Default: the no-op sink. */
+  audit?: AiGatewayAuditSink
 }
 
 /**
@@ -76,11 +79,12 @@ export default class AiChatController {
     // 3. Idempotency scope: only with a well-formed header AND a resolvable
     //    principal (a cached response must never be shareable across unknown
     //    callers, so principal-less requests get no idempotency at all).
+    const principal = resolvePrincipal(ctx, ai)
+    const principalHash = hashAuditPrincipal(principal)
     const headerKey = ctx.request.header('idempotency-key')
     let scope: AiIdempotencyScope | null = null
     if (headerKey !== undefined) {
       const validated = validateIdempotencyKeyHeader(headerKey, tenant.id)
-      const principal = resolvePrincipal(ctx, ai)
       if (principal !== null) {
         scope = {
           tenantId: tenant.id,
@@ -96,6 +100,18 @@ export default class AiChatController {
       const cached = await this.deps.idempotency.lookup(scope)
       if (cached) {
         this.#replay(ctx, cached)
+        await this.#audit().append({
+          tenantId: tenant.id,
+          principalHash,
+          provider: null,
+          model: body.model ?? null,
+          outcome: 'completed',
+          reason: null,
+          tokensSettled: cached.result.tokensSettled,
+          fragments: cached.result.fragments,
+          idempotentReplay: true,
+          occurredAt: new Date().toISOString(),
+        })
         return
       }
     }
@@ -140,10 +156,26 @@ export default class AiChatController {
 
     // 7. Resolution. Preflight failures left headers unsent (the spine's
     //    commit-point contract), so a real status still applies; committed
-    //    outcomes end the SSE stream with a terminal `done` frame.
+    //    outcomes end the SSE stream with a terminal `done` frame. Every path
+    //    lands one attribution event on the audit seam.
+    const auditBase = {
+      tenantId: tenant.id,
+      principalHash,
+      provider: provider.name as string | null,
+      model: body.model ?? null,
+      idempotentReplay: false,
+    }
     switch (result.outcome) {
       case 'failed_preflight': {
         ctx.response.status(preflightStatus(result.error)).send({ error: result.error })
+        await this.#audit().append({
+          ...auditBase,
+          outcome: 'failed_preflight',
+          reason: result.error,
+          tokensSettled: 0,
+          fragments: 0,
+          occurredAt: new Date().toISOString(),
+        })
         return
       }
       case 'completed': {
@@ -159,15 +191,35 @@ export default class AiChatController {
             },
           })
         }
+        await this.#audit().append({
+          ...auditBase,
+          outcome: 'completed',
+          reason: null,
+          tokensSettled: result.tokensSettled,
+          fragments: result.fragments,
+          occurredAt: new Date().toISOString(),
+        })
         return
       }
       case 'aborted': {
         this.#finishSse(ctx, { outcome: 'aborted', reason: result.reason })
+        await this.#audit().append({
+          ...auditBase,
+          outcome: 'aborted',
+          reason: result.reason,
+          tokensSettled: result.tokensSettled,
+          fragments: result.fragments,
+          occurredAt: new Date().toISOString(),
+        })
         return
       }
       default:
         assertNever(result, 'stream outcome')
     }
+  }
+
+  #audit(): AiGatewayAuditSink {
+    return this.deps.audit ?? noopAuditSink
   }
 
   /** Re-write a cached response verbatim: same frames, same ids, zero cost. */
