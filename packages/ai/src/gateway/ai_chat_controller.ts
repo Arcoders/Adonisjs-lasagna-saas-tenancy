@@ -25,7 +25,7 @@ import AIException, { httpStatusForAiCode } from '../exceptions/ai_exception.js'
 import { assertNever } from '../internal/assert_never.js'
 import type RetrievalService from '../services/retrieval_service.js'
 import type { VectorMatch } from '../services/vector_store_service.js'
-import type { AiConfig, AIRetrievalConfig } from '../define_config.js'
+import type { AiConfig, AIRetrievalConfig, RetrievalScope } from '../define_config.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { AIMessage, AIStreamRequest, StreamFragment } from '../types/ai_provider_contract.js'
 import {
@@ -145,16 +145,7 @@ export default class AiChatController {
     //    403 provider_not_allowed / 503 provider_unavailable / 500 config_missing).
     const provider = this.deps.registry.forTenant(tenant, ai)
 
-    // 5b. Per-key request rate limit (threat #4), pre-flight so a 429/503 lands
-    //     before any reservation or byte. A replay already returned above, so a
-    //     cached response never consumes the provider key's rate budget.
-    await (this.deps.rateLimiter ?? DISABLED_AI_RATE_LIMITER).check({
-      op: 'chat',
-      tenantId: tenant.id,
-      fingerprint: provider.keyFingerprint ?? provider.name,
-    })
-
-    // Attribution base, shared by the RAG-preflight failure path and the
+    // Attribution base, shared by the RAG-preflight failure paths and the
     // stream-resolution switch. Preflight failures leave headers unsent (the
     // spine's commit-point contract), so a real status still applies.
     const auditBase = {
@@ -165,6 +156,28 @@ export default class AiChatController {
       idempotentReplay: false,
     }
 
+    // 5a. Document-ACL preflight (WS-AI-5, G2), BEFORE the rate limiter so a RAG
+    //     request refused by the per-user ACL (or the C9 fail-closed default)
+    //     spends nothing, matching /ai/retrieve (a refused caller must not burn a
+    //     rate-limit hit). Only the cheap authorization resolves here; the metered
+    //     query embed stays after the limiter (6a).
+    let retrievalScope: RetrievalScope | undefined
+    try {
+      retrievalScope = await this.#retrievePreflight(ctx, tenant, body, ai, principalHash)
+    } catch (error) {
+      if (await this.#failChatPreflight(ctx, auditBase, error)) return
+      throw error
+    }
+
+    // 5b. Per-key request rate limit (threat #4), pre-flight so a 429/503 lands
+    //     before any reservation or byte. A replay already returned above, so a
+    //     cached response never consumes the provider key's rate budget.
+    await (this.deps.rateLimiter ?? DISABLED_AI_RATE_LIMITER).check({
+      op: 'chat',
+      tenantId: tenant.id,
+      fingerprint: provider.keyFingerprint ?? provider.name,
+    })
+
     // 6. The stream itself: liveness handle for G11 (also covering the RAG query
     //    embed), a recording tee for the idempotency cache, the spine for the rest.
     const liveness = this.deps.liveness.acquire(tenant.id)
@@ -173,35 +186,24 @@ export default class AiChatController {
     })
     let result: StreamResult
     try {
-      // 6a. RAG augmentation (WS-AI-5), on a cache MISS only: embed the query,
-      //     search under the document ACL, and fold the fenced matches into the
-      //     context as untrusted user-role DATA (#10), bounded so the ASSEMBLED
-      //     prompt stays within maxPromptChars (#8). A retrieval preflight failure
-      //     (denied ACL, over budget, embeddings unconfigured) fails the request
-      //     BEFORE the stream commits, with the code's pinned status.
+      // 6a. RAG augmentation (WS-AI-5), on a cache MISS only: run the metered
+      //     query embed + scoped search under the ALREADY-resolved document ACL
+      //     (5a), and fold the fenced matches into the context as untrusted
+      //     user-role DATA (#10), bounded so the ASSEMBLED prompt stays within
+      //     maxPromptChars (#8). A retrieval failure (over budget, embed error)
+      //     fails the request BEFORE the stream commits, with the pinned status.
       let messages: AIMessage[]
       try {
-        messages = await this.#augmentMessages(
-          ctx,
+        messages = await this.#applyRetrieval(
           tenant,
           body,
           ai,
           principalHash,
+          retrievalScope,
           liveness.signal
         )
       } catch (error) {
-        if (error instanceof AIException) {
-          ctx.response.status(error.httpStatus).send({ error: error.aiCode })
-          await this.#audit().append({
-            ...auditBase,
-            outcome: 'failed_preflight',
-            reason: error.aiCode,
-            tokensSettled: 0,
-            fragments: 0,
-            occurredAt: new Date().toISOString(),
-          })
-          return
-        }
+        if (await this.#failChatPreflight(ctx, auditBase, error)) return
         throw error
       }
 
@@ -291,36 +293,69 @@ export default class AiChatController {
   }
 
   /**
-   * The RAG augmentation step (WS-AI-5). Without a `retrieve` ask, the messages
-   * pass through unchanged. Otherwise it resolves the per-user document ACL (G2),
-   * runs the metered query embed + scoped search, folds the fenced matches into
-   * the messages as untrusted user-role DATA (#10) bounded to keep the assembled
-   * prompt within `maxPromptChars` (#8), and attributes the retrieval op (non-PII).
-   * A `retrieve` request with no retrieval service (embeddings unconfigured) is a
-   * 400. Any retrieval failure is audited `failed_preflight` and rethrown so the
-   * caller can fail the request before the stream commits.
+   * The document-ACL preflight (WS-AI-5, G2): resolve the per-user retrieval scope
+   * BEFORE the rate limiter and any cost, so a RAG request refused by the ACL (or
+   * the fail-closed default) spends nothing, matching /ai/retrieve. Returns
+   * `undefined` when there is no `retrieve` ask (plain chat). A `retrieve` ask with
+   * no retrieval service (embeddings unconfigured) is a 400; a denied ACL is a 403
+   * `retrieval_denied`, audited `failed_preflight` and rethrown so the caller can
+   * fail the request before the stream (and before the rate-limit hit) commits.
    */
-  async #augmentMessages(
+  async #retrievePreflight(
     ctx: HttpContext,
     tenant: TenantModelContract,
     body: ChatBody,
     ai: AiConfig | undefined,
-    principalHash: string | null,
-    signal: AbortSignal
-  ): Promise<AIMessage[]> {
-    if (!body.retrieve) return body.messages
+    principalHash: string | null
+  ): Promise<RetrievalScope | undefined> {
+    if (!body.retrieve) return undefined
     if (!this.deps.retrieval) {
       throw new AIException(
         'invalid_request',
         'retrieval requested but embeddings are not configured'
       )
     }
+    try {
+      return await resolveRetrievalScope(ctx, tenant, ai)
+    } catch (error) {
+      await this.#retrievalAudit().append({
+        tenantId: tenant.id,
+        actorHash: principalHash,
+        model: null,
+        matchCount: 0,
+        tokens: 0,
+        outcome: 'failed_preflight',
+        reason: error instanceof AIException ? error.aiCode : 'error',
+        occurredAt: new Date().toISOString(),
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Apply the retrieval to the messages (WS-AI-5), AFTER the rate limiter so the
+   * metered query embed is rate-gated. Runs the embed + scoped search under the
+   * ALREADY-resolved `scope`, folds the fenced matches into the messages as
+   * untrusted user-role DATA (#10) bounded to keep the assembled prompt within
+   * `maxPromptChars` (#8), and attributes the retrieval op (non-PII). Without a
+   * `retrieve` ask (scope `undefined`) the messages pass through unchanged. Any
+   * retrieval failure is audited `failed_preflight` and rethrown.
+   */
+  async #applyRetrieval(
+    tenant: TenantModelContract,
+    body: ChatBody,
+    ai: AiConfig | undefined,
+    principalHash: string | null,
+    scope: RetrievalScope | undefined,
+    signal: AbortSignal
+  ): Promise<AIMessage[]> {
+    if (!body.retrieve || scope === undefined || !this.deps.retrieval) return body.messages
+    const retrieval = this.deps.retrieval
 
     const retrievalBase = { tenantId: tenant.id, actorHash: principalHash }
     try {
-      const scope = await resolveRetrievalScope(ctx, tenant, ai)
       const limit = resolveRetrieveLimit(body.retrieve.limit, ai?.retrieval)
-      const result = await this.deps.retrieval.retrieve(
+      const result = await retrieval.retrieve(
         tenant,
         { query: body.retrieve.query, limit, scope },
         signal
@@ -336,18 +371,47 @@ export default class AiChatController {
       })
       return injectRetrievedContext(body.messages, result.matches, ai)
     } catch (error) {
-      const code = error instanceof AIException ? error.aiCode : null
       await this.#retrievalAudit().append({
         ...retrievalBase,
         model: null,
         matchCount: 0,
         tokens: 0,
         outcome: 'failed_preflight',
-        reason: code ?? 'error',
+        reason: error instanceof AIException ? error.aiCode : 'error',
         occurredAt: new Date().toISOString(),
       })
       throw error
     }
+  }
+
+  /**
+   * Map a chat pre-flight AIException to its pinned HTTP status + a
+   * `failed_preflight` chat audit event, returning true when handled (so the
+   * caller returns). A non-AIException returns false so the caller rethrows.
+   * Shared by the document-ACL preflight (5a) and the retrieval-apply step (6a).
+   */
+  async #failChatPreflight(
+    ctx: HttpContext,
+    auditBase: {
+      tenantId: string
+      principalHash: string | null
+      provider: string | null
+      model: string | null
+      idempotentReplay: boolean
+    },
+    error: unknown
+  ): Promise<boolean> {
+    if (!(error instanceof AIException)) return false
+    ctx.response.status(error.httpStatus).send({ error: error.aiCode })
+    await this.#audit().append({
+      ...auditBase,
+      outcome: 'failed_preflight',
+      reason: error.aiCode,
+      tokensSettled: 0,
+      fragments: 0,
+      occurredAt: new Date().toISOString(),
+    })
+    return true
   }
 
   /**

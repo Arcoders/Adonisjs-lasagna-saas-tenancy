@@ -7,6 +7,7 @@ import AiIdempotencyService, {
   deriveAiIdempotencyMacKey,
 } from '../../../../src/gateway/idempotency.js'
 import type RetrievalService from '../../../../src/services/retrieval_service.js'
+import type AiRateLimiter from '../../../../src/services/ai_rate_limiter.js'
 import AIException from '../../../../src/exceptions/ai_exception.js'
 import { FakeQuota, makeService, fakeTenant } from '../../../helpers/stream_doubles.js'
 import { fakeHttpContext } from '../../../helpers/fake_http_context.js'
@@ -40,6 +41,16 @@ function retrievalSpy(): { service: RetrievalService; state: { calls: number } }
     },
   } as unknown as RetrievalService
   return { service, state }
+}
+
+function countingRateLimiter(): { rateLimiter: AiRateLimiter; state: { calls: number } } {
+  const state = { calls: 0 }
+  const rateLimiter = {
+    async check() {
+      state.calls += 1
+    },
+  } as unknown as AiRateLimiter
+  return { rateLimiter, state }
 }
 
 function capturingProvider(): { provider: AIProviderContract; seen: AIMessage[][] } {
@@ -141,5 +152,49 @@ test.group('retrieval fail-closed default', (group) => {
     assert.lengthOf(captured, 1)
     assert.equal(captured[0].id, 'guard.ai_retrieval_denied')
     assert.equal(captured[0].metadata.reason, 'unscoped_unacknowledged')
+  })
+
+  test('the rate-limit hit is spent only AFTER the ACL passes (refused = 0, acknowledged = 1)', async ({
+    assert,
+  }) => {
+    const makeChat = (config: AiConfig, rateLimiter: AiRateLimiter) => {
+      const { svc } = makeService(new FakeQuota())
+      const { provider } = capturingProvider()
+      const registry = new AIProviderRegistry()
+      registry.register(provider, { activate: true })
+      const { service } = retrievalSpy()
+      return new AiChatController({
+        stream: svc,
+        registry,
+        idempotency: new AiIdempotencyService({
+          store: { async get() {}, async set() {} },
+          macKey: deriveAiIdempotencyMacKey('test-app-key'),
+        }),
+        liveness: new TenantLivenessWatcher(),
+        retrieval: service,
+        rateLimiter,
+        config,
+      })
+    }
+    const ragBody = { messages: [{ role: 'user', content: 'q' }], retrieve: { query: 'x' } }
+
+    // Refused by the fail-closed default: the limiter is never reached (the bug this
+    // guards against was the chat path consuming a hit before the ACL 403).
+    const refused = countingRateLimiter()
+    const denied = fakeHttpContext({ tenant: fakeTenant, body: ragBody })
+    await makeChat(UNSCOPED, refused.rateLimiter).chat(denied.ctx)
+    await settle()
+    assert.equal(denied.responseFacade.sentStatus, 403)
+    assert.equal(refused.state.calls, 0, 'a refused RAG-chat must not burn a rate-limit hit')
+
+    // Acknowledged: the ACL passes, so the limiter IS consulted (control).
+    const allowed = countingRateLimiter()
+    const ok = fakeHttpContext({ tenant: fakeTenant, body: ragBody })
+    await makeChat(
+      { ...UNSCOPED, acknowledgeUnscopedRetrieval: true } as AiConfig,
+      allowed.rateLimiter
+    ).chat(ok.ctx)
+    await settle()
+    assert.equal(allowed.state.calls, 1, 'once the ACL passes, the rate limiter is consulted')
   })
 })
