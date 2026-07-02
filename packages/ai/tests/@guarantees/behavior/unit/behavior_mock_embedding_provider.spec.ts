@@ -3,7 +3,9 @@ import MockEmbeddingProvider from '../../../../src/testing/mock_embedding_provid
 import { checkAIEmbeddingProviderConformance } from '../../../../src/testing/conformance.js'
 
 test.group('MockEmbeddingProvider', () => {
-  test('embeds each input into a vector of the declared dimension, in order', async ({ assert }) => {
+  test('embeds each input into a vector of the declared dimension, in order', async ({
+    assert,
+  }) => {
     const provider = new MockEmbeddingProvider({ dimension: 16 })
     const request = { input: ['alpha', 'beta', 'gamma'] }
     const result = await provider.embed(request, new AbortController().signal)
@@ -19,7 +21,9 @@ test.group('MockEmbeddingProvider', () => {
     assert.strictEqual(provider.calls[0].request, request)
   })
 
-  test('is deterministic: same text yields the same vector across instances', async ({ assert }) => {
+  test('is deterministic: same text yields the same vector across instances', async ({
+    assert,
+  }) => {
     const a = new MockEmbeddingProvider({ dimension: 8 })
     const b = new MockEmbeddingProvider({ dimension: 8 })
     const signal = new AbortController().signal
@@ -30,7 +34,10 @@ test.group('MockEmbeddingProvider', () => {
 
   test('distinct inputs yield distinct vectors, aligned to input order', async ({ assert }) => {
     const provider = new MockEmbeddingProvider({ dimension: 8 })
-    const result = await provider.embed({ input: ['first', 'second'] }, new AbortController().signal)
+    const result = await provider.embed(
+      { input: ['first', 'second'] },
+      new AbortController().signal
+    )
     assert.notDeepEqual(result.embeddings[0], result.embeddings[1])
   })
 
@@ -52,8 +59,12 @@ test.group('MockEmbeddingProvider', () => {
     assert.deepEqual(checkAIEmbeddingProviderConformance(new MockEmbeddingProvider()), [])
   })
 
-  test('a provider that does not declare the embedding capability fails conformance', ({ assert }) => {
-    const problems = checkAIEmbeddingProviderConformance(new MockEmbeddingProvider({ embedding: false }))
+  test('a provider that does not declare the embedding capability fails conformance', ({
+    assert,
+  }) => {
+    const problems = checkAIEmbeddingProviderConformance(
+      new MockEmbeddingProvider({ embedding: false })
+    )
     assert.isAbove(problems.length, 0)
   })
 })

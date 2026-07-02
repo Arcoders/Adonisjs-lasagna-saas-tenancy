@@ -17,7 +17,9 @@ test.group('architectural — per-tenant migration wiring guard', () => {
     assert.deepEqual(problems, [])
   })
 
-  test('trips when tsconfig include omits the migration dir (the silent-drift bug)', ({ assert }) => {
+  test('trips when tsconfig include omits the migration dir (the silent-drift bug)', ({
+    assert,
+  }) => {
     const dropped = { ...tsconfig, include: ['src/**/*.ts', 'providers/**/*.ts', 'configure.ts'] }
     const problems = auditManifestMigrations('ai', 'build/tenant_migrations', dropped, listOne)
     assert.lengthOf(problems, 1)

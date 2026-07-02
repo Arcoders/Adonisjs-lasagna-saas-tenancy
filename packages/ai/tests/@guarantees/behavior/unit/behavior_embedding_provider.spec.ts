@@ -3,7 +3,11 @@ import OpenAICompatibleEmbeddingProvider from '../../../../src/providers/openai_
 import AIException from '../../../../src/exceptions/ai_exception.js'
 import { fakeFetch, jsonResponse } from '../../../helpers/fake_fetch.js'
 
-const params = { name: 'openai-compatible', baseUrl: 'https://api.example.com/v1', defaultModel: 'embed-1' }
+const params = {
+  name: 'openai-compatible',
+  baseUrl: 'https://api.example.com/v1',
+  defaultModel: 'embed-1',
+}
 
 function embeddingsBody(vectors: number[][], model = 'embed-1', totalTokens = 12) {
   return {
@@ -15,8 +19,17 @@ function embeddingsBody(vectors: number[][], model = 'embed-1', totalTokens = 12
 }
 
 test.group('OpenAICompatibleEmbeddingProvider', () => {
-  test('posts input to /embeddings with Bearer auth and float encoding, parses vectors', async ({ assert }) => {
-    const { deps, calls } = fakeFetch(() => jsonResponse(embeddingsBody([[0.1, 0.2], [0.3, 0.4]])))
+  test('posts input to /embeddings with Bearer auth and float encoding, parses vectors', async ({
+    assert,
+  }) => {
+    const { deps, calls } = fakeFetch(() =>
+      jsonResponse(
+        embeddingsBody([
+          [0.1, 0.2],
+          [0.3, 0.4],
+        ])
+      )
+    )
     const provider = new OpenAICompatibleEmbeddingProvider(params, { apiKey: 'sk-key' }, deps)
 
     const result = await provider.embed({ input: ['a', 'b'] }, new AbortController().signal)
@@ -28,7 +41,10 @@ test.group('OpenAICompatibleEmbeddingProvider', () => {
     assert.equal(body.model, 'embed-1')
     assert.equal(body.encoding_format, 'float')
     assert.deepEqual(body.input, ['a', 'b'])
-    assert.deepEqual(result.embeddings, [[0.1, 0.2], [0.3, 0.4]])
+    assert.deepEqual(result.embeddings, [
+      [0.1, 0.2],
+      [0.3, 0.4],
+    ])
     assert.equal(result.dimension, 2)
     assert.equal(result.tokens, 12)
   })
@@ -44,18 +60,30 @@ test.group('OpenAICompatibleEmbeddingProvider', () => {
     }
     const { deps } = fakeFetch(() => jsonResponse(scrambled))
     const provider = new OpenAICompatibleEmbeddingProvider(params, { apiKey: 'k' }, deps)
-    const result = await provider.embed({ input: ['first', 'second'] }, new AbortController().signal)
-    assert.deepEqual(result.embeddings, [[1, 1], [9, 9]])
+    const result = await provider.embed(
+      { input: ['first', 'second'] },
+      new AbortController().signal
+    )
+    assert.deepEqual(result.embeddings, [
+      [1, 1],
+      [9, 9],
+    ])
   })
 
   test('a config baseUrl override is honored (BYOK / self-host)', async ({ assert }) => {
     const { deps, calls } = fakeFetch(() => jsonResponse(embeddingsBody([[0.1]])))
-    const provider = new OpenAICompatibleEmbeddingProvider(params, { apiKey: 'k', baseUrl: 'https://byok.example.com' }, deps)
+    const provider = new OpenAICompatibleEmbeddingProvider(
+      params,
+      { apiKey: 'k', baseUrl: 'https://byok.example.com' },
+      deps
+    )
     await provider.embed({ input: ['x'] }, new AbortController().signal)
     assert.equal(calls[0].url, 'https://byok.example.com/embeddings')
   })
 
-  test('a non-2xx maps to a typed AIException (429 -> rate_limited, else provider_unavailable)', async ({ assert }) => {
+  test('a non-2xx maps to a typed AIException (429 -> rate_limited, else provider_unavailable)', async ({
+    assert,
+  }) => {
     const rate = fakeFetch(() => jsonResponse({}, 429))
     const p1 = new OpenAICompatibleEmbeddingProvider(params, { apiKey: 'k' }, rate.deps)
     await assert.rejects(() => p1.embed({ input: ['x'] }, new AbortController().signal), /HTTP 429/)
@@ -84,10 +112,15 @@ test.group('OpenAICompatibleEmbeddingProvider', () => {
     })
   })
 
-  test('a malformed response body is a provider_unavailable fault, not a silent bad vector', async ({ assert }) => {
+  test('a malformed response body is a provider_unavailable fault, not a silent bad vector', async ({
+    assert,
+  }) => {
     const { deps } = fakeFetch(() => jsonResponse({ data: [] }))
     const provider = new OpenAICompatibleEmbeddingProvider(params, { apiKey: 'k' }, deps)
-    await assert.rejects(() => provider.embed({ input: ['x'] }, new AbortController().signal), /malformed embeddings/)
+    await assert.rejects(
+      () => provider.embed({ input: ['x'] }, new AbortController().signal),
+      /malformed embeddings/
+    )
   })
 
   test('a model outside the allow-list is refused (G12) before any call', async ({ assert }) => {
@@ -117,6 +150,9 @@ test.group('OpenAICompatibleEmbeddingProvider', () => {
       { apiKey: 'k' },
       deps
     )
-    await assert.rejects(() => provider.embed({ input: ['x'] }, new AbortController().signal), /require a model/)
+    await assert.rejects(
+      () => provider.embed({ input: ['x'] }, new AbortController().signal),
+      /require a model/
+    )
   })
 })

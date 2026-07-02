@@ -28,7 +28,10 @@ test.group('OpenAICompatibleEmbeddingProvider (real API)', (group) => {
       { name: 'openai-compatible', baseUrl: baseUrl!, defaultModel: model! },
       { apiKey: apiKey! }
     )
-    const result = await provider.embed({ input: ['the quick brown fox'] }, new AbortController().signal)
+    const result = await provider.embed(
+      { input: ['the quick brown fox'] },
+      new AbortController().signal
+    )
     assert.lengthOf(result.embeddings, 1)
     assert.isAbove(result.dimension, 0)
     assert.lengthOf(result.embeddings[0], result.dimension)
