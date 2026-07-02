@@ -69,7 +69,10 @@ export default class MockEmbeddingProvider implements AIEmbeddingProviderContrac
     const embeddings = request.input.map((text) => vectorFor(text, this.#dimension))
     // A deterministic, plausible usage count (~4 chars per token), so the
     // ingestion path has a real number to settle the reservation against.
-    const tokens = request.input.reduce((sum, text) => sum + Math.max(1, Math.ceil(text.length / 4)), 0)
+    const tokens = request.input.reduce(
+      (sum, text) => sum + Math.max(1, Math.ceil(text.length / 4)),
+      0
+    )
     return { embeddings, model: request.model ?? this.#model, dimension: this.#dimension, tokens }
   }
 }

@@ -99,10 +99,20 @@ export const MAX_EMBEDDING_DIM = 2000
 
 /**
  * Default cap on the bytes of a document fetched by `sourceUrl` through the
- * SSRF-pinned fetch, before it is embedded. Bounds a hostile or accidental
- * huge-document ingest. Tunable via `config.ai.embedding.ingestionMaxBytes`.
+ * SSRF-pinned fetch, before it is embedded. The transfer is streamed and aborted
+ * the moment the running byte total crosses this cap (it never buffers the whole
+ * body first), so a hostile public host that passes the IP-pin cannot OOM the
+ * worker with a multi-GB body. Tunable via `config.ai.embedding.ingestionMaxBytes`.
  */
 export const DEFAULT_INGESTION_MAX_BYTES = 1_048_576
+
+/**
+ * Default request deadline for a `sourceUrl` document fetch, in ms. A slow or
+ * hung upstream (one that passes the SSRF pin but trickles bytes) is aborted at
+ * this deadline instead of pinning an ingest worker for the whole client
+ * connection. Tunable via `config.ai.embedding.ingestionTimeoutMs`.
+ */
+export const DEFAULT_INGESTION_TIMEOUT_MS = 10_000
 
 /** Default max characters per input chunk. A longer chunk is a 400 before any cost. Tunable via `config.ai.embedding.maxChunkChars`. */
 export const DEFAULT_MAX_CHUNK_CHARS = 8_000

@@ -56,8 +56,18 @@ export interface AIEmbeddingConfig extends AIProviderConfig {
   maxBatchChunks?: number
   /** Max serialized bytes of a chunk's `metadata` object. */
   maxMetadataBytes?: number
-  /** Max bytes of a document fetched by `sourceUrl` (through the SSRF-pinned fetch). */
+  /**
+   * Max bytes of a document fetched by `sourceUrl` (through the SSRF-pinned
+   * fetch). The transfer is streamed and aborted the moment the running total
+   * crosses this cap, so the body is never fully buffered first. Default 1 MiB.
+   */
   ingestionMaxBytes?: number
+  /**
+   * Request deadline in ms for a `sourceUrl` document fetch. A slow or hung
+   * upstream (past the SSRF pin) is aborted at this deadline rather than pinning
+   * an ingest worker. Default 10000.
+   */
+  ingestionTimeoutMs?: number
   /**
    * The write authorization gate: called before an ingest reserves or embeds
    * anything. Return `false` or throw to deny with a 403 (`ingestion_denied`).

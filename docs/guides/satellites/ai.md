@@ -255,8 +255,11 @@ embedding: {
 
 The `dimension` is fixed at deploy time: it is written into the `vector(N)`
 column by the per-tenant migration, and every row stores its `model` and `dim`
-so a later model swap that changes dimension is caught, not silently mis-ranked.
-Changing the dimension after data exists needs a new migration.
+so a model swap that changes dimension is caught, not silently mis-ranked.
+Changing the dimension after data exists needs a new migration. The model is also
+folded into the row's dedup identity, so re-ingesting the same content under a
+different (same-dimension) model stores a fresh vector rather than being swallowed
+as a duplicate, and retrieval under the new model finds it.
 
 **Provision pgvector.** The embeddings column needs the PostgreSQL `vector`
 extension where the tenant's data lives. Installing an extension is a privileged
@@ -286,11 +289,14 @@ The endpoint authorizes first (the membership gate, then an optional
 `authorizeIngestion` write gate, so a denied caller spends nothing), reserves
 `aiTokens` for the embed (a non-streaming call still costs money, so it is
 metered like a completion), embeds, and stores idempotently: a re-ingest of the
-same `(source, content)` is a no-op, never a double insert, so no
+same `(source, content, model)` is a no-op, never a double insert, so no
 `Idempotency-Key` header is needed. A per-plan `embeddingCount` limit caps how
 many rows a tenant may store (threat #18), enforced atomically before the write.
 An optional `sourceUrl` is fetched through the kernel's IP-pinned `safeFetch`, so
-a document URL can never reach an internal or metadata host (#11).
+a document URL can never reach an internal or metadata host (#11). That fetch is
+streamed and aborted the moment it crosses `ingestionMaxBytes` (default 1 MiB, so
+a huge public body cannot exhaust memory) and time-bounded by `ingestionTimeoutMs`
+(default 10s, so a hung upstream cannot pin a worker).
 
 Retrieval-time filtering by intra-tenant document ACL, and a similarity-search
 route, arrive with the RAG context integrity workstream; the store's search

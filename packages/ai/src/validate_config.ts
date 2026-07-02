@@ -122,6 +122,7 @@ function assertEmbeddingConfig(embedding: AIEmbeddingConfig | undefined): void {
   assertPositiveInteger('embedding.maxBatchChunks', embedding.maxBatchChunks)
   assertPositiveInteger('embedding.maxMetadataBytes', embedding.maxMetadataBytes)
   assertPositiveInteger('embedding.ingestionMaxBytes', embedding.ingestionMaxBytes)
+  assertPositiveInteger('embedding.ingestionTimeoutMs', embedding.ingestionTimeoutMs)
   if (
     embedding.defaultModel !== undefined &&
     (typeof embedding.defaultModel !== 'string' || embedding.defaultModel.length === 0)

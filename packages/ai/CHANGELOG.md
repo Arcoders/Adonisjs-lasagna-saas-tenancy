@@ -113,6 +113,15 @@ Added:
     `guard.ai_dimension_mismatch`, `guard.ai_embedding_quota_exhausted`,
     `guard.ai_ingestion_denied`; structural guards `check-ai-invariant-1` (I1
     placement) and `check-satellite-migrations` (compilation drift).
+  - Adversarial-review hardening: the `sourceUrl` document fetch is streamed and
+    aborted the instant it crosses `ingestionMaxBytes` (never buffered whole, so a
+    huge public body that passes the SSRF pin cannot OOM the worker) and bounded by
+    a new `config.ai.embedding.ingestionTimeoutMs` (default 10s) so a hung upstream
+    cannot pin an ingest worker. The row dedup identity folds the `model` into
+    `content_hash`, so re-embedding the same content under a different
+    same-dimension model stores a fresh vector instead of a swallowed no-op. The
+    database-pg `after:provision` pgvector hook now logs a per-database install
+    failure instead of swallowing it silently.
 
 Documentation correction (per the ARCHITECTURE.md correction path): the design
 doc's living sections now record the Isthmus integration decision (satellite

@@ -7,6 +7,7 @@ import EmbeddingIngestionService, {
 } from '../../../../src/services/embedding_ingestion_service.js'
 import type VectorStoreService from '../../../../src/services/vector_store_service.js'
 import type { AIEmbeddingProviderContract } from '../../../../src/types/ai_embedding_contract.js'
+import type { SafeFetchOptions } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
 
 const tenant = { id: 'tenant-a' } as unknown as TenantModelContract
 const signal = () => new AbortController().signal
@@ -154,6 +155,103 @@ test.group('EmbeddingIngestionService', () => {
       signal()
     )
     assert.deepEqual([...embeddedInput], ['inline', 'DOC-BODY'])
+  })
+
+  test('streams the sourceUrl body under a byte cap and aborts before buffering it whole', async ({
+    assert,
+  }) => {
+    // A hostile public host (past the SSRF pin) returns an effectively unbounded
+    // body. The fetch must be streamed and aborted the moment the running total
+    // crosses ingestionMaxBytes, never buffered whole, so the worker cannot OOM.
+    let pulls = 0
+    let cancelled = false
+    const oneKib = new Uint8Array(1024)
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls++
+        controller.enqueue(oneKib)
+      },
+      cancel() {
+        cancelled = true
+      },
+    })
+    const h = harness({
+      fetch: async () => new Response(body, { status: 200 }),
+      config: { ingestionMaxBytes: 4096 } as never,
+    })
+    await assert.rejects(
+      () =>
+        new EmbeddingIngestionService(h.deps).ingest(
+          tenant,
+          req({ input: [], sourceUrl: 'https://public.example/huge' }),
+          signal()
+        ),
+      /ingestionMaxBytes/
+    )
+    assert.isTrue(cancelled, 'the stream was cancelled, freeing the socket')
+    assert.isBelow(pulls, 16, 'aborted near the cap, did not drain the unbounded body')
+    // Nothing was reserved or embedded: the refusal is before any spend.
+    assert.notInclude(h.events, 'reserve')
+    assert.notInclude(h.events, 'embed')
+  })
+
+  test('fetches the document streamed and time-bounded (no unbounded buffer, no hung upstream)', async ({
+    assert,
+  }) => {
+    let seen: SafeFetchOptions | undefined
+    const h = harness({
+      fetch: async (_url, opts) => {
+        seen = opts
+        return new Response('DOC', { status: 200 })
+      },
+      config: { ingestionTimeoutMs: 4321 } as never,
+    })
+    await new EmbeddingIngestionService(h.deps).ingest(
+      tenant,
+      req({ input: ['x'], sourceUrl: 'https://public.example/doc' }),
+      signal()
+    )
+    assert.equal(seen?.streaming, true, 'streamed, so the body is never buffered whole')
+    assert.equal(seen?.timeoutMs, 4321, 'time-bounded, so a hung upstream cannot pin a worker')
+  })
+
+  test('folds the model into the dedup hash: the same content under a different model is a distinct key', async ({
+    assert,
+  }) => {
+    const hashByModel: Record<string, string> = {}
+    const store = {
+      async insert(
+        _t: unknown,
+        _source: string,
+        chunks: Array<{ model: string; contentHash: string }>
+      ) {
+        hashByModel[chunks[0].model] = chunks[0].contentHash
+        return { ids: ['id'], inserted: 1 }
+      },
+    } as unknown as VectorStoreService
+    const providerFor = (model: string): AIEmbeddingProviderContract => ({
+      name: 'p',
+      capabilities: { embedding: true },
+      async verifyConfig() {},
+      async embed(r) {
+        return { embeddings: r.input.map(() => [1, 2, 3, 4]), model, dimension: 4, tokens: 1 }
+      },
+    })
+    const body = req({ input: ['identical content'] })
+    await new EmbeddingIngestionService(
+      harness({ store, provider: providerFor('model-a') }).deps
+    ).ingest(tenant, body, signal())
+    await new EmbeddingIngestionService(
+      harness({ store, provider: providerFor('model-b') }).deps
+    ).ingest(tenant, body, signal())
+    await new EmbeddingIngestionService(
+      harness({ store, provider: providerFor('model-a') }).deps
+    ).ingest(tenant, body, signal())
+
+    // A model swap re-embed is a distinct row key (not a swallowed no-op), while a
+    // re-embed under the SAME model keeps a stable key (idempotent).
+    assert.notEqual(hashByModel['model-a'], hashByModel['model-b'])
+    assert.match(hashByModel['model-a'], /^[0-9a-f]{64}$/)
   })
 
   test('releases the reservation even when embedding fails, and counts the error', async ({

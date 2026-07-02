@@ -203,7 +203,26 @@ export default class AiProvider implements SatelliteProviderContract {
       hooks.after('provision', async ({ tenant }) => {
         const driver = await getActiveDriver()
         if (driver.name !== 'database-pg') return
-        await provisionVectorExtension({ tenantIds: [tenant.id] })
+        // provisionVectorExtension swallows a per-database CREATE EXTENSION
+        // failure into a `failed` count (the install run continues), so pass a
+        // logger and inspect the summary: a provision-time failure must not be
+        // silent. It stays fail-closed downstream (the embeddings migration
+        // hard-fails on the missing `vector` type and the pgvector doctor check
+        // flags the tenant), but the operator should see it here, not only later.
+        const logger = await this.app.container.make('logger')
+        const summary = await provisionVectorExtension({
+          tenantIds: [tenant.id],
+          logger: {
+            info: (m) => logger.info(`[ai] ${m}`),
+            warning: (m) => logger.warn(`[ai] ${m}`),
+          },
+        })
+        if (summary.failed > 0) {
+          logger.error(
+            `[ai] pgvector provisioning failed for new tenant ${tenant.id}; its embeddings migration ` +
+              `will fail until the vector extension is installed (check the provision role's CREATE privilege).`
+          )
+        }
       })
     }
   }

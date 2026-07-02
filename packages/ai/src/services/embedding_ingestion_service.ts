@@ -5,6 +5,7 @@ import type { AIErrorCode } from '../exceptions/ai_exception.js'
 import {
   AI_TOKENS_QUOTA,
   DEFAULT_INGESTION_MAX_BYTES,
+  DEFAULT_INGESTION_TIMEOUT_MS,
   DEFAULT_MAX_EMBEDDING_TOKENS_PER_CHUNK,
   EMBEDDING_COUNT_QUOTA,
 } from '../constants.js'
@@ -112,7 +113,12 @@ export default class EmbeddingIngestionService {
       const result = await this.deps.provider.embed({ input: texts, model: request.model }, signal)
       const chunks = texts.map((content, i) => ({
         content,
-        contentHash: sha256(content),
+        // The dedup identity folds the model in (not just the content), so a
+        // re-ingest of the same content under a DIFFERENT same-dimension model is
+        // a fresh row, not a swallowed `ON CONFLICT DO NOTHING` no-op that would
+        // leave retrieval under the new model empty. A re-ingest under the SAME
+        // model stays idempotent.
+        contentHash: dedupHash(result.model, content),
         metadata: request.metadata,
         model: result.model,
         actor: request.actorHash,
@@ -150,11 +156,18 @@ export default class EmbeddingIngestionService {
    * metadata / loopback URL is refused by the pin (SafeFetchError) and surfaced
    * as `doc_fetch_blocked`; the kernel guard is the enforcer, so this site is on
    * the no-silent allowlist rather than emitting a duplicate satellite guard.
+   *
+   * The body is STREAMED (`streaming: true`) and drained under a running byte cap
+   * so the transfer is aborted the instant it crosses `ingestionMaxBytes`; it is
+   * never buffered whole first, so a hostile public host (one that passes the
+   * IP-pin, exactly threat #11's model) cannot OOM the worker with a multi-GB
+   * body. A separate `ingestionTimeoutMs` bounds a slow / hung upstream.
    */
   async #fetchDocument(url: string, signal: AbortSignal): Promise<string> {
+    const timeoutMs = this.deps.config?.ingestionTimeoutMs ?? DEFAULT_INGESTION_TIMEOUT_MS
     let response: Response
     try {
-      response = await this.deps.fetch(url, { signal })
+      response = await this.deps.fetch(url, { streaming: true, timeoutMs, signal })
     } catch (error) {
       if (error instanceof SafeFetchError) {
         // The kernel SSRF pin already counted this rejection; the satellite maps
@@ -176,21 +189,72 @@ export default class EmbeddingIngestionService {
         `the document fetch returned HTTP ${response.status}`
       )
     }
-    const text = await response.text()
     const maxBytes = this.deps.config?.ingestionMaxBytes ?? DEFAULT_INGESTION_MAX_BYTES
-    if (Buffer.byteLength(text, 'utf8') > maxBytes) {
+    return this.#drainBounded(response, maxBytes)
+  }
+
+  /**
+   * Drain a streamed response body, aborting the transfer (cancelling the reader
+   * destroys the pinned socket) the moment the accumulated bytes exceed
+   * `maxBytes`. Bounding DURING transfer, not after a full buffer, is what makes
+   * `ingestionMaxBytes` a real memory bound rather than a post-mortem rejection.
+   */
+  async #drainBounded(response: Response, maxBytes: number): Promise<string> {
+    const body = response.body
+    if (!body) return ''
+    const reader = body.getReader()
+    const chunks: Uint8Array[] = []
+    let total = 0
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (!value?.byteLength) continue
+        total += value.byteLength
+        if (total > maxBytes) {
+          throw new AIException(
+            'invalid_request',
+            `the fetched document exceeds ingestionMaxBytes (${maxBytes})`
+          )
+        }
+        chunks.push(value)
+      }
+    } catch (error) {
+      if (error instanceof AIException) throw error
+      // A mid-transfer read failure is a failed document fetch (fatal 400), same
+      // class as a non-2xx or a blocked URL; never a silent partial embed.
       throw new AIException(
-        'invalid_request',
-        `the fetched document exceeds ingestionMaxBytes (${maxBytes})`
+        'doc_fetch_blocked',
+        'the document fetch failed while reading the body',
+        {
+          cause: error,
+        }
       )
+    } finally {
+      // Cancel always: on the over-cap throw it stops the transfer and frees the
+      // socket; after a clean end it is a no-op on the drained stream.
+      await reader.cancel().catch(() => {})
     }
-    return text
+    return Buffer.concat(
+      chunks.map((c) => Buffer.from(c.buffer, c.byteOffset, c.byteLength))
+    ).toString('utf8')
   }
 }
 
-/** SHA-256 hex of `content`, for the `content_hash` dedup key and non-PII audit. */
-function sha256(content: string): string {
-  return createHash('sha256').update(content).digest('hex')
+/**
+ * The row dedup key: SHA-256 hex over `(model, content)`. The model is first
+ * hashed to a fixed 64-hex prefix, so the model/content boundary is unambiguous
+ * (no separator a model name or the content could forge a collision across).
+ * Folding the model in means the `UNIQUE(source, content_hash)` constraint keys
+ * on the embedding that actually produced the vector, so the same content
+ * re-embedded under a DIFFERENT model is a new row rather than a swallowed
+ * `ON CONFLICT DO NOTHING` no-op that would leave retrieval under the new model
+ * empty. `dim` is deterministic per deploy (the migrated `vector(N)`), so it
+ * needs no separate term.
+ */
+function dedupHash(model: string, content: string): string {
+  const modelKey = createHash('sha256').update(model).digest('hex')
+  return createHash('sha256').update(modelKey).update(content).digest('hex')
 }
 
 /** Map a reserve failure to a code, mirroring the streaming spine: quota exceeded -> 402, else fail-closed 503. */
