@@ -118,6 +118,51 @@ test.group('chat controller SSE happy path', () => {
     )
   })
 
+  test('a resuming replay honours Last-Event-ID: already-seen frames are skipped', async ({
+    assert,
+  }) => {
+    const shared = mapStore()
+    const { controller, provider } = buildDeps({ store: shared.store })
+    const base = {
+      tenant: fakeTenant,
+      body: chatBody,
+      auth: { user: { id: 'u1' } },
+    }
+
+    await controller.chat(
+      fakeHttpContext({ ...base, headers: { 'idempotency-key': 'retry-42' } }).ctx
+    )
+
+    // An SSE client that received frame 1 reconnects: same key, a resume cursor.
+    const resumed = fakeHttpContext({
+      ...base,
+      headers: { 'idempotency-key': 'retry-42', 'last-event-id': '1' },
+    })
+    await controller.chat(resumed.ctx)
+
+    assert.lengthOf(provider.calls, 1, 'still a replay, not a fresh stream')
+    assert.equal(resumed.res.headers['x-ai-idempotent-replay'], '1')
+    assert.notInclude(resumed.res.output, 'data: hola', 'frame 1 was already delivered')
+    assert.include(resumed.res.output, 'id: 2\nevent: token\ndata: mundo\n\n')
+    assert.isTrue(resumed.res.output.endsWith('event: done\ndata: {"outcome":"completed"}\n\n'))
+
+    // A cursor at the end replays only the done frame; a garbage cursor replays all.
+    const caughtUp = fakeHttpContext({
+      ...base,
+      headers: { 'idempotency-key': 'retry-42', 'last-event-id': '2' },
+    })
+    await controller.chat(caughtUp.ctx)
+    assert.notInclude(caughtUp.res.output, 'event: token')
+
+    const garbage = fakeHttpContext({
+      ...base,
+      headers: { 'idempotency-key': 'retry-42', 'last-event-id': 'not-a-number' },
+    })
+    await controller.chat(garbage.ctx)
+    assert.include(garbage.res.output, 'data: hola')
+    assert.include(garbage.res.output, 'data: mundo')
+  })
+
   test('a different Idempotency-Key streams fresh (a key is a scope, not a switch)', async ({
     assert,
   }) => {

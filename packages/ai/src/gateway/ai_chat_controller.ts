@@ -99,7 +99,7 @@ export default class AiChatController {
     if (scope) {
       const cached = await this.deps.idempotency.lookup(scope)
       if (cached) {
-        this.#replay(ctx, cached)
+        this.#replay(ctx, cached, ctx.request.header('last-event-id'))
         await this.#audit().append({
           tenantId: tenant.id,
           principalHash,
@@ -222,13 +222,24 @@ export default class AiChatController {
     return this.deps.audit ?? noopAuditSink
   }
 
-  /** Re-write a cached response verbatim: same frames, same ids, zero cost. */
-  #replay(ctx: HttpContext, cached: CachedAiResponse): void {
+  /**
+   * Re-write a cached response verbatim: same frames, same ids, zero cost.
+   * When the retry carries a `Last-Event-ID` (an SSE client reconnecting after
+   * a partial receipt, with its library re-sending the same Idempotency-Key),
+   * frames the client already processed are skipped, honoring the SSE resume
+   * contract instead of double-delivering them.
+   */
+  #replay(ctx: HttpContext, cached: CachedAiResponse, lastEventId: string | undefined): void {
     const res = ctx.response.response
     res.setHeader('X-Ai-Idempotent-Replay', '1')
     httpStreamTarget(ctx).flushHeaders()
+    const cursor = parseReplayCursor(lastEventId)
     try {
       for (const frame of cached.frames) {
+        if (cursor !== null) {
+          const id = parseFrameId(frame)
+          if (id !== null && id <= cursor) continue
+        }
         res.write(frame)
       }
     } catch {
@@ -261,6 +272,21 @@ export default class AiChatController {
 /** The interim I8 gate: a fragment over the byte bound aborts without writing it. */
 export function boundedFragmentGate(fragment: StreamFragment): StreamFragment | null {
   return fragment.data.length > AI_FRAGMENT_MAX_CHARS ? null : fragment
+}
+
+/** The client's resume cursor, or null when absent or non-numeric (replay everything). */
+function parseReplayCursor(lastEventId: string | undefined): number | null {
+  if (lastEventId === undefined) return null
+  const n = Number.parseInt(lastEventId, 10)
+  return Number.isInteger(n) && n >= 0 ? n : null
+}
+
+/** The numeric id a cached SSE frame was stamped with, or null (never skip it). */
+function parseFrameId(frame: string): number | null {
+  const match = /^id: (\d+)\n/.exec(frame)
+  if (!match) return null
+  const n = Number.parseInt(match[1], 10)
+  return Number.isInteger(n) ? n : null
 }
 
 /** The per-request output cap: the request's ask, clamped by the config ceiling. */
