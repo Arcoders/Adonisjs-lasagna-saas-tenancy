@@ -21,6 +21,12 @@ export type {
   AIStreamRequest,
   StreamFragment,
 } from './types/ai_provider_contract.js'
+export type {
+  AIEmbeddingCapabilities,
+  AIEmbeddingProviderContract,
+  AIEmbeddingRequest,
+  AIEmbeddingResult,
+} from './types/ai_embedding_contract.js'
 
 export { default as ClaudeProvider } from './providers/claude_provider.js'
 export {
