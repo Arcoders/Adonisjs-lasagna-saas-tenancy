@@ -35,6 +35,7 @@ const GUARDS = [
   'check-bench-paths.mjs',
   'check-isthmus.mjs',
   'check-satellite-migrations.mjs',
+  'check-ai-invariant-1.mjs',
 ]
 
 const failed = []
