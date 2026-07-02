@@ -41,6 +41,7 @@ export {
 export type { OpenAICompatibleParams } from './providers/openai_compatible_provider.js'
 export { HttpAiProvider, defaultAiProviderDeps } from './providers/base_provider.js'
 export type { AIProviderDeps } from './providers/base_provider.js'
+export { buildRetrievalContext } from './gateway/context_builder.js'
 export { default as OpenAICompatibleEmbeddingProvider } from './providers/openai_compatible_embedding_provider.js'
 export type { OpenAiEmbeddingParams } from './providers/openai_compatible_embedding_provider.js'
 

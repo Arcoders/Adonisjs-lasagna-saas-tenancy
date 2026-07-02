@@ -36,6 +36,8 @@ const GUARDS = [
   'check-isthmus.mjs',
   'check-satellite-migrations.mjs',
   'check-ai-invariant-1.mjs',
+  'check-ai-invariant-4.mjs',
+  'check-ai-invariant-8.mjs',
 ]
 
 const failed = []
