@@ -69,6 +69,17 @@ hardcoded at a call site. Keys are read from the environment; they are never
 logged and never placed in a prompt, an error, a metric or a span. A missing key
 for an allow-listed provider fails config validation at boot.
 
+### Budget the aiTokens quota
+
+The gateway reserves every stream's worst case against the `aiTokens` quota
+before the provider is called, and settles the actual per chunk. Budgets live
+where every other quota does: the per-plan limit in your plans configuration,
+and the fleet-wide `plans.operatorCeiling.aiTokens` for denial-of-wallet
+protection. With NEITHER configured, the kernel treats the quota as an
+unlimited plan (the reservation is an inert handle and no Redis is touched),
+which is convenient in development and an unmetered cost surface in
+production: budget it before exposing the endpoint.
+
 ### The allow-list and BYOK
 
 `allowedProviders` is a per-tenant default-deny list. Registering a new provider
