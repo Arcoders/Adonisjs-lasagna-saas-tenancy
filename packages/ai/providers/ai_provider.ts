@@ -10,6 +10,7 @@ import {
   MetricsService,
   QuotaService,
   TelemetryService,
+  cacheFor,
   executeExtension,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { assertAiConfig } from '../src/validate_config.js'
@@ -20,6 +21,10 @@ import StreamExtensionService from '../src/gateway/stream_extension.js'
 import TenantLivenessWatcher, {
   wireAiTenantLiveness,
 } from '../src/services/tenant_liveness_watcher.js'
+import AiIdempotencyService, {
+  deriveAiIdempotencyMacKey,
+  type AiIdempotencyStore,
+} from '../src/gateway/idempotency.js'
 import { setAiGuardMetricSink } from '../src/isthmus/ai_guard_audit.js'
 import ClaudeProvider from '../src/providers/claude_provider.js'
 import { DeepSeekProvider, KimiProvider } from '../src/providers/openai_compatible_provider.js'
@@ -47,6 +52,25 @@ export default class AiProvider implements SatelliteProviderContract {
     // Live stream abort handles per tenant (G11). Stateful and cross-request,
     // so it is a container singleton like the registry.
     this.app.container.singleton(TenantLivenessWatcher, () => new TenantLivenessWatcher())
+    // Idempotent replay over the kernel's per-tenant cache namespace. The
+    // /services value import stays in THIS file (the eager-redis rule); the
+    // gateway module only sees the narrow injected store seam.
+    this.app.container.singleton(AiIdempotencyService, () => {
+      const store: AiIdempotencyStore = {
+        async get(tenantId, key) {
+          return await cacheFor(tenantId).get<string>({ key })
+        },
+        async set(tenantId, key, value, ttlMs) {
+          await cacheFor(tenantId).set({ key, value, ttl: ttlMs })
+        },
+      }
+      const ai = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+      return new AiIdempotencyService({
+        store,
+        macKey: deriveAiIdempotencyMacKey(requireAppKey()),
+        ttlMs: ai?.idempotencyTtlMs,
+      })
+    })
     // The streaming integrator resolves its quota + breaker seams from the
     // container, never new-ing them (the platform rule).
     this.app.container.singleton(StreamExtensionService, async (resolver) => {
@@ -107,6 +131,15 @@ export default class AiProvider implements SatelliteProviderContract {
       if (provider) registry.register(provider, { activate: provider.name === activeName })
     }
   }
+}
+
+/** The kernel's own APP_KEY source (utils/crypto.ts requireAppKey pattern). */
+function requireAppKey(): string {
+  const appKey = process.env.APP_KEY
+  if (!appKey) {
+    throw new Error('[ai] APP_KEY is not set; the idempotency MAC key derives from it')
+  }
+  return appKey
 }
 
 /** Construct a built-in provider from its config block; custom names are host-registered. */

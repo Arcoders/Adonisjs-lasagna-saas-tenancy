@@ -14,6 +14,7 @@ import {
 import { AI_GUARD_REGISTRY, type AiGuardId } from '../../../../src/isthmus/ai_guard_registry.js'
 import { resolveTenantProviderSelection } from '../../../../src/services/tenant_provider_selection.js'
 import { authorizeAiAccess } from '../../../../src/gateway/access_gate.js'
+import { validateIdempotencyKeyHeader } from '../../../../src/gateway/idempotency.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
 import ClaudeProvider from '../../../../src/providers/claude_provider.js'
 import { assertAiConfig } from '../../../../src/validate_config.js'
@@ -101,6 +102,11 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
         allowedProviders: ['claude'],
         authorizeAIAccess: () => true,
       } as AiConfig),
+  },
+  'guard.ai_idempotency_key': {
+    trip: () => validateIdempotencyKeyHeader('', 'tenant-1'),
+    expectThrow: /malformed Idempotency-Key/,
+    happy: () => validateIdempotencyKeyHeader('retry-abc-123', 'tenant-1'),
   },
   'guard.ai_streaming_capability': {
     trip: () =>

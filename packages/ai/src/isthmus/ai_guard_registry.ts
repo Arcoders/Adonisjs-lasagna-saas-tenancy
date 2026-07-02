@@ -107,6 +107,22 @@ export const AI_GUARD_REGISTRY = [
     nextReview: '2027-01-02',
   },
   {
+    id: 'guard.ai_idempotency_key',
+    pillar: 'guard',
+    bugClass: 'cache-poisoning-surface',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_idempotency:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'inherent-risk',
+      ref: 'the Idempotency-Key header is the only client-supplied input to the replay-cache key derivation (G7); an unbounded or non-printable key must be a 400, never MAC input',
+    },
+    guardFile: 'src/gateway/idempotency.ts',
+    reviewed: '2026-07-02',
+    nextReview: '2027-01-02',
+  },
+  {
     id: 'guard.ai_streaming_capability',
     pillar: 'guard',
     bugClass: 'silent-degradation',

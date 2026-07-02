@@ -14,6 +14,7 @@ export const AI_ERROR_CODES = [
   'rate_limit_unavailable',
   'config_missing',
   'byok_endpoint_blocked',
+  'invalid_request',
 ] as const
 
 export type AIErrorCode = (typeof AI_ERROR_CODES)[number]
@@ -32,6 +33,7 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   rate_limit_unavailable: 503,
   config_missing: 500,
   byok_endpoint_blocked: 400,
+  invalid_request: 400,
 }
 
 /**
@@ -45,6 +47,7 @@ const FATAL_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
   'over_budget',
   'config_missing',
   'byok_endpoint_blocked',
+  'invalid_request',
 ])
 
 /**
