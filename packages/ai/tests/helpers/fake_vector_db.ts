@@ -16,6 +16,8 @@ export interface FakeVectorEnvOptions {
   activeScope?: string
   /** Rows the id-lookup SELECT returns ({ id, content_hash }). Default []. */
   existing?: Array<{ id: string; content_hash: string }>
+  /** Rows a similarity SEARCH returns ({ id, content, metadata, distance }), nearest first. Default []. */
+  searchHits?: Array<{ id: string; content: string; metadata: unknown; distance: number }>
   /** Rows the INSERT ... RETURNING returns (newly inserted). Default []. */
   insertedHashes?: string[]
   /** Affected rows a DELETE reports. Default 0. */
@@ -60,6 +62,10 @@ export function fakeVectorEnv(opts: FakeVectorEnvOptions = {}): FakeVectorEnv {
       if (s.includes('count(*)')) return { rows: [{ n: opts.count ?? 0 }] }
       if (s.includes('insert into'))
         return { rows: (opts.insertedHashes ?? []).map((content_hash) => ({ content_hash })) }
+      // The similarity search is the only query with an ORDER BY; match it before
+      // the id-lookup branch, which its `SELECT id, content, ...` prefix would
+      // otherwise shadow.
+      if (s.includes('order by embedding')) return { rows: opts.searchHits ?? [] }
       if (s.startsWith('select id')) return { rows: opts.existing ?? [] }
       if (s.startsWith('delete')) return { rowCount: opts.deleted ?? 0 }
       return { rows: [] }

@@ -28,6 +28,7 @@ import AIProviderRegistry from '../src/services/ai_provider_registry.js'
 import AiRateLimiter from '../src/services/ai_rate_limiter.js'
 import VectorStoreService, { type VectorDb } from '../src/services/vector_store_service.js'
 import EmbeddingIngestionService from '../src/services/embedding_ingestion_service.js'
+import RetrievalService from '../src/services/retrieval_service.js'
 import OpenAICompatibleEmbeddingProvider from '../src/providers/openai_compatible_embedding_provider.js'
 import AIException from '../src/exceptions/ai_exception.js'
 import type { AIEmbeddingProviderContract } from '../src/types/ai_embedding_contract.js'
@@ -41,6 +42,10 @@ import AiIdempotencyService, {
 } from '../src/gateway/idempotency.js'
 import { aiMembershipGateCheck } from '../src/services/ai_membership_gate_check.js'
 import { aiBudgetCheck, aiTokensBudgetPosture } from '../src/services/ai_budget_check.js'
+import {
+  aiRetrievalGateCheck,
+  aiRetrievalGateRisk,
+} from '../src/services/ai_retrieval_gate_check.js'
 import { setAiGuardMetricSink } from '../src/isthmus/ai_guard_audit.js'
 import ClaudeProvider from '../src/providers/claude_provider.js'
 import { DeepSeekProvider, KimiProvider } from '../src/providers/openai_compatible_provider.js'
@@ -154,6 +159,30 @@ export default class AiProvider implements SatelliteProviderContract {
         config: embedding,
       })
     })
+    // The retrieval (RAG read) orchestrator (WS-AI-5). Same store + quota +
+    // embedding provider as ingestion (so the query vector matches the corpus);
+    // a read writes no rows, so it takes no `getLimit`. Bound as a singleton
+    // like the ingestion service; the /retrieve and RAG-into-chat paths resolve
+    // it via container.make.
+    this.app.container.singleton(RetrievalService, async (resolver) => {
+      const store = await resolver.make(VectorStoreService)
+      const quota = await resolver.make(QuotaService)
+      const metrics = await resolver.make(MetricsService)
+      const embedding = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai?.embedding
+      if (!embedding) {
+        throw new AIException(
+          'config_missing',
+          'config.ai.embedding is required to use retrieval'
+        )
+      }
+      return new RetrievalService({
+        store,
+        provider: buildEmbeddingProvider(embedding),
+        quota,
+        emitMetric: (tenantId, name, value) => metrics.emitMetric(tenantId, name, value),
+        config: embedding,
+      })
+    })
   }
 
   async boot() {
@@ -180,11 +209,24 @@ export default class AiProvider implements SatelliteProviderContract {
     doctor.register(
       aiBudgetCheck(() => this.app.config.get<MultitenancyConfigWithAi>('multitenancy'))
     )
+    // Keep the retrieval authorization posture visible too (WS-AI-5, G2): with
+    // embeddings configured but no per-user document ACL wired, every tenant user
+    // can retrieve the whole tenant corpus. The check always reports the live
+    // posture; the boot warning fires only for the genuinely-unscoped,
+    // not-acknowledged case (see aiRetrievalGateRisk).
+    doctor.register(
+      aiRetrievalGateCheck(() => this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
+    )
     if (config?.ai) {
       const posture = aiTokensBudgetPosture(config)
       if (posture?.severity === 'warn') {
         const logger = await this.app.container.make('logger')
         logger.warn(`[ai] ${posture.message}`)
+      }
+      const retrievalRisk = aiRetrievalGateRisk(config.ai)
+      if (retrievalRisk && config.ai.acknowledgeUnscopedRetrieval !== true) {
+        const logger = await this.app.container.make('logger')
+        logger.warn(`[ai] ${retrievalRisk}`)
       }
     }
 

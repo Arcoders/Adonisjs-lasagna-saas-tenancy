@@ -2,6 +2,7 @@ import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import AIException from '../exceptions/ai_exception.js'
 import { assertNever } from '../internal/assert_never.js'
 import { AI_EMBEDDINGS_TABLE } from '../constants.js'
+import type { RetrievalScope } from '../define_config.js'
 import type { TableLocation } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
@@ -164,20 +165,33 @@ export default class VectorStoreService {
     })
   }
 
-  /** Nearest `limit` rows for `query`, scoped by (model, dim) so a model swap can never mis-rank. */
+  /**
+   * Nearest `limit` rows for `query`, scoped by (model, dim) so a model swap can
+   * never mis-rank, and NARROWED by an optional `filter` (WS-AI-5, G2): the
+   * per-user document ACL the retrievalFilter hook resolved. The (model, dim)
+   * scope and the tenant placement (I1) are mandatory and always applied; the
+   * filter only removes rows a user may not see, it can never widen the corpus.
+   * A `sources` allow-list with no entries authorizes zero documents, so the
+   * search returns without a query (an empty `IN ()` is not valid SQL, and a read
+   * that can match nothing costs nothing).
+   */
   async search(
     tenant: TenantModelContract,
     query: VectorSearchQuery,
-    opts: { limit: number }
+    opts: { limit: number; filter?: RetrievalScope }
   ): Promise<VectorMatch[]> {
+    const filter = opts.filter ?? { kind: 'all' }
+    if (filter.kind === 'sources' && filter.sources.length === 0) return []
+
     const { client, table } = await this.#target(tenant)
     this.#assertVector(tenant, query.vector)
     const vec = toPgVector(query.vector)
-    // safe-sql: `table` is a fixed module constant; every value (the query vector, model, dim, limit) is a ? bind.
+    const scope = scopeClause(filter)
+    // safe-sql: `table` is a fixed module constant; every value (the query vector, model, dim, the scope-predicate values, limit) is a ? bind and the scope placeholders carry no user data.
     const res = await client.rawQuery(
       `SELECT id, content, metadata, (embedding <=> ?::vector) AS distance FROM ${table} ` +
-        `WHERE model = ? AND dim = ? ORDER BY embedding <=> ?::vector LIMIT ?`,
-      [vec, query.model, this.deps.dimension, vec, opts.limit]
+        `WHERE model = ? AND dim = ?${scope.clause} ORDER BY embedding <=> ?::vector LIMIT ?`,
+      [vec, query.model, this.deps.dimension, ...scope.bindings, vec, opts.limit]
     )
     return rowsOf(res).map((row) => ({
       id: String(row.id),
@@ -270,6 +284,29 @@ export default class VectorStoreService {
 /** pgvector text form: `[a,b,c]`, bound as a string and cast `::vector` at the call site. */
 function toPgVector(vector: readonly number[]): string {
   return `[${Array.from(vector).join(',')}]`
+}
+
+/**
+ * Translate a {@link RetrievalScope} into a parameterized WHERE fragment (WS-AI-5).
+ * Every user value is a `?` bind, never interpolated (the no_unsafe_raw_sql
+ * guard, and correctness): `sources` is an explicit `IN (?, ?, …)` placeholder
+ * list (built like the id-lookup in `insert`), `metadata` a single jsonb
+ * containment bind. `all` adds nothing. An empty `sources` list never reaches
+ * here (the caller short-circuits it), so `IN ()` cannot be produced.
+ */
+function scopeClause(filter: RetrievalScope): { clause: string; bindings: unknown[] } {
+  switch (filter.kind) {
+    case 'all':
+      return { clause: '', bindings: [] }
+    case 'sources': {
+      const placeholders = filter.sources.map(() => '?').join(', ')
+      return { clause: ` AND source IN (${placeholders})`, bindings: [...filter.sources] }
+    }
+    case 'metadata':
+      return { clause: ' AND metadata @> ?::jsonb', bindings: [JSON.stringify(filter.match)] }
+    default:
+      return assertNever(filter, 'retrieval scope kind')
+  }
 }
 
 /** Rows out of a Lucid rawQuery result (pg returns `{ rows }`; a fake may return a bare array). */
