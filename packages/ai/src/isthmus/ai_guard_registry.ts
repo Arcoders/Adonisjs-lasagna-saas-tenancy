@@ -91,6 +91,22 @@ export const AI_GUARD_REGISTRY = [
     nextReview: '2027-01-02',
   },
   {
+    id: 'guard.ai_route_mount',
+    pillar: 'guard',
+    bugClass: 'unguarded-mount',
+    failMode: 'closed',
+    phase: 'config',
+    event: 'isthmus:guard:ai_route_mount:rejected',
+    severity: 'high',
+    evidence: {
+      kind: 'invariant',
+      ref: 'G4: an AI mount without a middleware chain or membership gate exposes tenant-scoped, cost-bearing routes; the kernel gate only warns, which is too weak for AI, so the mount is default-deny',
+    },
+    guardFile: 'src/routes/mount_gate.ts',
+    reviewed: '2026-07-02',
+    nextReview: '2027-01-02',
+  },
+  {
     id: 'guard.ai_access',
     pillar: 'guard',
     bugClass: 'missing-authorization',

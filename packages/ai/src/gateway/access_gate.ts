@@ -22,6 +22,25 @@ import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
  *   this configuration at mount time, so reaching it here means the route was
  *   mounted around the gate; the backstop still denies.
  */
+/**
+ * The tenant a mounted AI route runs for, via the kernel's `request.tenant()`
+ * macro (memoized, lifecycle-checked by TenantGuard earlier in the chain). A
+ * request that reaches the gateway with NO resolvable tenant means the route
+ * was mounted without TenantGuard; that is a mis-mount, and the backstop is a
+ * fail-closed 403 with a `guard.ai_access` emission, never a stream.
+ */
+export async function resolveRequestTenant(ctx: HttpContext): Promise<TenantModelContract> {
+  const request = ctx.request as HttpContext['request'] & {
+    tenant?: () => Promise<TenantModelContract | null>
+  }
+  const tenant = typeof request.tenant === 'function' ? await request.tenant() : null
+  if (!tenant) {
+    emitAiGuardEvent('guard.ai_access', { metadata: { reason: 'no_tenant' } })
+    throw new TenantAccessForbiddenException()
+  }
+  return tenant
+}
+
 export async function authorizeAiAccess(
   ctx: HttpContext,
   tenant: TenantModelContract,

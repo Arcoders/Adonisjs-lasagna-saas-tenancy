@@ -51,3 +51,17 @@ export const AI_IDEMPOTENCY_MAX_BYTES = 262_144
  * host-tunable: the bound protects the key-derivation input.
  */
 export const AI_IDEMPOTENCY_KEY_MAX_LENGTH = 200
+
+/**
+ * The quota key the chat gateway reserves against. Colon-free camelCase like
+ * the kernel's plan quota names (`apiCallsPerDay`); hosts wire the per-plan
+ * budget and the operator ceiling under this name in `config.plans`.
+ */
+export const AI_TOKENS_QUOTA = 'aiTokens'
+
+/**
+ * Hard per-fragment size bound for the interim output gate (I8's byte-cap
+ * slice; semantic output validation is WS-AI-5). A single fragment over the
+ * bound aborts the stream as `fragment_rejected` without writing the bytes.
+ */
+export const AI_FRAGMENT_MAX_CHARS = 16_384

@@ -15,6 +15,7 @@ import { AI_GUARD_REGISTRY, type AiGuardId } from '../../../../src/isthmus/ai_gu
 import { resolveTenantProviderSelection } from '../../../../src/services/tenant_provider_selection.js'
 import { authorizeAiAccess } from '../../../../src/gateway/access_gate.js'
 import { validateIdempotencyKeyHeader } from '../../../../src/gateway/idempotency.js'
+import { assertAiMountAllowed } from '../../../../src/routes/mount_gate.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
 import ClaudeProvider from '../../../../src/providers/claude_provider.js'
 import { assertAiConfig } from '../../../../src/validate_config.js'
@@ -89,6 +90,16 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
           new AbortController().signal
         )
       ),
+  },
+  'guard.ai_route_mount': {
+    trip: () =>
+      assertAiMountAllowed({ middleware: [] }, { allowedProviders: ['claude'] } as AiConfig),
+    expectThrow: /Refusing to mount AI routes/,
+    happy: () =>
+      assertAiMountAllowed({ middleware: 'auth' }, {
+        allowedProviders: ['claude'],
+        authorizeAIAccess: () => true,
+      } as AiConfig),
   },
   'guard.ai_access': {
     trip: () =>

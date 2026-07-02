@@ -31,3 +31,14 @@ export {
 export type { OpenAICompatibleParams } from './providers/openai_compatible_provider.js'
 export { HttpAiProvider, defaultAiProviderDeps } from './providers/base_provider.js'
 export type { AIProviderDeps } from './providers/base_provider.js'
+
+// The mount function itself lives on the './routes' subpath (it imports the
+// Adonis router/app/logger service singletons, and THIS barrel must stay safe
+// to import from config/multitenancy.ts, which loads before boot). Only the
+// erased type surface is re-exported here.
+export type {
+  AiMiddlewareEntry,
+  AiRouteMiddleware,
+  MultitenancyAiRoutesOptions,
+} from './routes/mount_gate.js'
+export { aiMembershipGateRisk, isAbsentAiMiddleware } from './routes/mount_gate.js'

@@ -1,0 +1,205 @@
+import { test } from '@japa/runner'
+import { TenantAccessForbiddenException } from '@adonisjs-lasagna/saas-tenancy/exceptions'
+import AiChatController from '../../../../src/gateway/ai_chat_controller.js'
+import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
+import TenantLivenessWatcher from '../../../../src/services/tenant_liveness_watcher.js'
+import AiIdempotencyService, {
+  deriveAiIdempotencyMacKey,
+} from '../../../../src/gateway/idempotency.js'
+import AIException from '../../../../src/exceptions/ai_exception.js'
+import MockAIProvider from '../../../../src/testing/mock_ai_provider.js'
+import type { AIProviderContract } from '../../../../src/types/ai_provider_contract.js'
+import {
+  FakeBreaker,
+  FakeQuota,
+  codedError,
+  fakeTenant,
+  makeService,
+} from '../../../helpers/stream_doubles.js'
+import { fakeHttpContext } from '../../../helpers/fake_http_context.js'
+import type { AiConfig } from '../../../../src/define_config.js'
+
+/**
+ * The pre-flight status map, pinned end to end at the controller: over_budget
+ * is 402, rate_limited 429, a reserve-backend outage and an open breaker 503,
+ * and NONE of them flush SSE headers (the spine's commit-point contract), so
+ * a real status always reaches the client. Request-shape rejections are 400s
+ * that never reach reservation.
+ */
+
+const chatBody = { messages: [{ role: 'user', content: 'hola' }] }
+
+function buildController(deps: {
+  quota?: FakeQuota
+  breaker?: FakeBreaker
+  provider?: AIProviderContract
+}) {
+  const { svc } = makeService(deps.quota ?? new FakeQuota(), deps.breaker ?? new FakeBreaker())
+  const registry = new AIProviderRegistry()
+  registry.register(deps.provider ?? new MockAIProvider({ name: 'claude', contractVersion: 1 }), {
+    activate: true,
+  })
+  return new AiChatController({
+    stream: svc,
+    registry,
+    idempotency: new AiIdempotencyService({
+      store: { get: async () => undefined, set: async () => {} },
+      macKey: deriveAiIdempotencyMacKey('test-app-key'),
+    }),
+    liveness: new TenantLivenessWatcher(),
+    config: { allowedProviders: ['claude'], authorizeAIAccess: () => true } as AiConfig,
+  })
+}
+
+test.group('chat controller pre-flight statuses', () => {
+  test('over budget answers 402 with headers unsent', async ({ assert }) => {
+    const quota = new FakeQuota()
+    quota.reserveError = codedError('E_TENANT_QUOTA_EXCEEDED')
+    const controller = buildController({ quota })
+    const { ctx, res, responseFacade } = fakeHttpContext({ tenant: fakeTenant, body: chatBody })
+
+    await controller.chat(ctx)
+
+    assert.equal(responseFacade.sentStatus, 402)
+    assert.deepEqual(responseFacade.sentBody, { error: 'over_budget' })
+    assert.isFalse(res.flushed, 'a pre-flight failure must leave headers unsent')
+  })
+
+  test('a reserve-backend outage answers 503 (fail-closed cost rail)', async ({ assert }) => {
+    const quota = new FakeQuota()
+    quota.reserveError = codedError('E_DEPENDENCY_UNAVAILABLE')
+    const controller = buildController({ quota })
+    const { ctx, res, responseFacade } = fakeHttpContext({ tenant: fakeTenant, body: chatBody })
+
+    await controller.chat(ctx)
+
+    assert.equal(responseFacade.sentStatus, 503)
+    assert.deepEqual(responseFacade.sentBody, { error: 'rate_limit_unavailable' })
+    assert.isFalse(res.flushed)
+  })
+
+  test('an open breaker answers 503, not 500 (provider outage is a dependency outage)', async ({
+    assert,
+  }) => {
+    const breaker = new FakeBreaker()
+    breaker.open = true
+    const controller = buildController({ breaker })
+    const { ctx, res, responseFacade } = fakeHttpContext({ tenant: fakeTenant, body: chatBody })
+
+    await controller.chat(ctx)
+
+    assert.equal(responseFacade.sentStatus, 503)
+    assert.deepEqual(responseFacade.sentBody, { error: 'provider_unavailable' })
+    assert.isFalse(res.flushed)
+  })
+
+  test('a provider 429 before the first byte answers 429', async ({ assert }) => {
+    const rateLimited: AIProviderContract = {
+      name: 'claude',
+      contractVersion: 1,
+      capabilities: { streaming: true },
+      async verifyConfig() {},
+
+      async *stream(): AsyncIterable<never> {
+        throw new AIException('rate_limited', 'claude returned HTTP 429')
+      },
+    }
+    const controller = buildController({ provider: rateLimited })
+    const { ctx, res, responseFacade } = fakeHttpContext({ tenant: fakeTenant, body: chatBody })
+
+    await controller.chat(ctx)
+
+    assert.equal(responseFacade.sentStatus, 429)
+    assert.deepEqual(responseFacade.sentBody, { error: 'rate_limited' })
+    assert.isFalse(res.flushed)
+  })
+
+  test('a malformed body is a 400 invalid_request that never reaches reservation', async ({
+    assert,
+  }) => {
+    const quota = new FakeQuota()
+    quota.reserveError = new Error('reserve must not be called')
+    const controller = buildController({ quota })
+
+    for (const body of [
+      undefined,
+      {},
+      { messages: [] },
+      { messages: [{ role: 'wizard', content: 'x' }] },
+      { messages: [{ role: 'user', content: '' }] },
+      { messages: [{ role: 'user', content: 'x' }], maxTokens: -1 },
+      { messages: [{ role: 'user', content: 'x' }], model: '' },
+      { messages: [{ role: 'user', content: 'x' }], sessionId: '' },
+    ]) {
+      const { ctx } = fakeHttpContext({ tenant: fakeTenant, body })
+      let threw: unknown
+      try {
+        await controller.chat(ctx)
+      } catch (err) {
+        threw = err
+      }
+      assert.instanceOf(threw, AIException, `should reject: ${JSON.stringify(body)}`)
+      assert.equal((threw as AIException).aiCode, 'invalid_request')
+      assert.equal((threw as AIException).httpStatus, 400)
+    }
+  })
+
+  test('an over-long prompt is a 400 naming the bound, not echoing content', async ({ assert }) => {
+    const controller = buildController({})
+    const { ctx } = fakeHttpContext({
+      tenant: fakeTenant,
+      body: { messages: [{ role: 'user', content: 'x'.repeat(33_000) }] },
+    })
+    let threw: unknown
+    try {
+      await controller.chat(ctx)
+    } catch (err) {
+      threw = err
+    }
+    assert.instanceOf(threw, AIException)
+    assert.match((threw as Error).message, /maxPromptChars \(32000\)/)
+    assert.notInclude((threw as Error).message, 'xxxx')
+  })
+
+  test('no resolvable tenant is a fail-closed 403 (mis-mounted route backstop)', async ({
+    assert,
+  }) => {
+    const controller = buildController({})
+    const { ctx } = fakeHttpContext({ tenant: null, body: chatBody })
+
+    let threw: unknown
+    try {
+      await controller.chat(ctx)
+    } catch (err) {
+      threw = err
+    }
+    assert.instanceOf(threw, TenantAccessForbiddenException)
+  })
+
+  test('an access-gate denial propagates as the 403 exception', async ({ assert }) => {
+    const { svc } = makeService()
+    const registry = new AIProviderRegistry()
+    registry.register(new MockAIProvider({ name: 'claude', contractVersion: 1 }), {
+      activate: true,
+    })
+    const controller = new AiChatController({
+      stream: svc,
+      registry,
+      idempotency: new AiIdempotencyService({
+        store: { get: async () => undefined, set: async () => {} },
+        macKey: deriveAiIdempotencyMacKey('test-app-key'),
+      }),
+      liveness: new TenantLivenessWatcher(),
+      config: { allowedProviders: ['claude'], authorizeAIAccess: () => false } as AiConfig,
+    })
+    const { ctx } = fakeHttpContext({ tenant: fakeTenant, body: chatBody })
+
+    let threw: unknown
+    try {
+      await controller.chat(ctx)
+    } catch (err) {
+      threw = err
+    }
+    assert.instanceOf(threw, TenantAccessForbiddenException)
+  })
+})
