@@ -37,6 +37,8 @@ export {
 export type { OpenAICompatibleParams } from './providers/openai_compatible_provider.js'
 export { HttpAiProvider, defaultAiProviderDeps } from './providers/base_provider.js'
 export type { AIProviderDeps } from './providers/base_provider.js'
+export { default as OpenAICompatibleEmbeddingProvider } from './providers/openai_compatible_embedding_provider.js'
+export type { OpenAiEmbeddingParams } from './providers/openai_compatible_embedding_provider.js'
 
 // The mount function itself lives on the './routes' subpath (it imports the
 // Adonis router/app/logger service singletons, and THIS barrel must stay safe

@@ -6,7 +6,7 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
 import { AI_CONTRACT_VERSION } from '../sdk/contract_version.js'
 import AIException from '../exceptions/ai_exception.js'
-import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
+import { assertModelAllowed } from './model_allowlist.js'
 import type { AIProviderConfig, AIProviderName } from '../define_config.js'
 import type {
   AICapabilities,
@@ -100,17 +100,7 @@ export abstract class HttpAiProvider implements AIProviderContract {
   /** The request model, defaulted from config then the built-in, checked against the allow-list (G12). */
   protected resolveModel(request: AIStreamRequest): string {
     const model = request.model ?? this.cfg.defaultModel ?? this.builtinDefaultModel
-    if (this.cfg.allowedModels && !this.cfg.allowedModels.includes(model)) {
-      // Providers are tenant-agnostic by design, so this trip carries no tenant
-      // id; the gateway's span/metrics already attribute the request.
-      emitAiGuardEvent('guard.ai_model_allowlist', {
-        metadata: { provider: this.name, model: String(model).slice(0, 64) },
-      })
-      throw new AIException(
-        'provider_not_allowed',
-        `Refusing to stream: model "${model}" is not allow-listed for ${this.name}`
-      )
-    }
+    assertModelAllowed(this.name, model, this.cfg.allowedModels, 'stream')
     return model
   }
 

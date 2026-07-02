@@ -86,7 +86,7 @@ export const AI_GUARD_REGISTRY = [
       kind: 'invariant',
       ref: 'G12 model scope: a request naming a model outside the per-provider allow-list is the same default-deny class as the provider gate, one level down',
     },
-    guardFile: 'src/providers/base_provider.ts',
+    guardFile: 'src/providers/model_allowlist.ts',
     reviewed: '2026-07-02',
     nextReview: '2027-01-02',
   },

@@ -11,6 +11,7 @@ export const DEFAULT_ANTHROPIC_VERSION = '2023-06-01'
 export const DEFAULT_CLAUDE_MODEL = 'claude-opus-4-8'
 
 export const OPENAI_CHAT_COMPLETIONS_PATH = '/chat/completions'
+export const OPENAI_EMBEDDINGS_PATH = '/embeddings'
 
 export const DEFAULT_DEEPSEEK_BASE_URL = 'https://api.deepseek.com'
 export const DEFAULT_DEEPSEEK_MODEL = 'deepseek-chat'
