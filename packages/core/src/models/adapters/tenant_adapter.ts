@@ -5,14 +5,19 @@ import type { LucidModel, ModelAdapterOptions } from '@adonisjs/lucid/types/mode
 import assert from 'node:assert'
 import { getConfig } from '../../config.js'
 import IsolationConfigException from '../../exceptions/isolation_config_exception.js'
+import IsthmusTenantMismatchException from '../../exceptions/isthmus_tenant_mismatch_exception.js'
 import MissingTenantHeaderException from '../../exceptions/missing_tenant_header_exception.js'
-import { resolveTenantId } from '../../extensions/request.js'
+import { memoizedTenantId, resolveTenantId } from '../../extensions/request.js'
+import { emitIsthmusEvent } from '../../isthmus/audit.js'
 import { isUuidV4 } from '../../services/isolation/identifier.js'
 import type IsolationDriverRegistry from '../../services/isolation/registry.js'
 import type TenantResolverRegistry from '../../services/resolvers/registry.js'
 import { resolveIsolationKind } from '../base/isolation_kind.js'
 import { tenancy } from '../../tenancy.js'
 import DefaultLucidAdapter from './default_lucid_adapter.js'
+
+/** Per-request memo for the ContextSeal's HTTP-side comparand (see #requestComparandId). */
+const HTTP_COMPARAND = Symbol('isthmus_http_comparand')
 
 /**
  * Routes Lucid model queries to the right per-tenant connection by asking
@@ -93,10 +98,32 @@ export default class TenantAdapter extends DefaultLucidAdapter {
   /**
    * Pulls the active tenant id from `tenancy.run()` first, then from the
    * HTTP request. Throws if neither yields a valid id.
+   *
+   * ContextSeal (Isthmus, invariant I1): on the guarded HTTP path BOTH sources
+   * are present — the guard wraps `next()` in `tenancy.runForRequest`, so
+   * `tenancy.currentId()` and the request resolve the same tenant and this
+   * check is a memoized string compare. When they DISAGREE (code inside a
+   * tenant-resolving request entered `tenancy.run(otherTenant)` — context
+   * confusion), fail closed instead of silently routing under the scope's
+   * tenant. Jobs and commands have no HttpContext, so the seal is inert there;
+   * an explicit `connection`/`client` option never reaches this method.
    */
   #resolveTenantId(): string {
     const fromTenancy = tenancy.currentId()
-    if (fromTenancy) return fromTenancy
+    if (fromTenancy) {
+      const context = HttpContext.get()
+      if (context) {
+        const fromRequest = this.#requestComparandId(context)
+        if (fromRequest && fromRequest !== fromTenancy) {
+          emitIsthmusEvent('seal.tenant_context', {
+            tenantId: fromTenancy,
+            metadata: { requestResolvedId: fromRequest },
+          })
+          throw new IsthmusTenantMismatchException(fromTenancy, fromRequest)
+        }
+      }
+      return fromTenancy
+    }
 
     const context = HttpContext.get()
     if (!context) {
@@ -106,6 +133,32 @@ export default class TenantAdapter extends DefaultLucidAdapter {
     const tenantId = this.#resolveIdFromRequest(context.request)
     assert(tenantId && isUuidV4(tenantId), new MissingTenantHeaderException())
     return tenantId
+  }
+
+  /**
+   * The HTTP side of the ContextSeal compare, computed once per request and
+   * memoized on the request object. Prefers the id the guard/macro already
+   * resolved (`request.tenant()` — covers async `domain` resolution), falling
+   * back to the synchronous resolver chain. A `null` result (a genuine central
+   * route) is NOT cached: the guard may memoize the tenant later in the same
+   * request, and the next query should see it.
+   */
+  #requestComparandId(context: HttpContext): string | null {
+    const request = context.request as HttpRequest & { [HTTP_COMPARAND]?: string }
+    const memoized = request[HTTP_COMPARAND]
+    if (memoized !== undefined) return memoized
+
+    const fromMacro = memoizedTenantId(context.request)
+    if (fromMacro) {
+      request[HTTP_COMPARAND] = fromMacro
+      return fromMacro
+    }
+    const fromSync = this.#resolveIdFromRequest(context.request)
+    if (fromSync) {
+      request[HTTP_COMPARAND] = fromSync
+      return fromSync
+    }
+    return null
   }
 
   /**

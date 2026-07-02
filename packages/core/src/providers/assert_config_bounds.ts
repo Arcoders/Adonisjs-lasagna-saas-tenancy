@@ -1,4 +1,5 @@
 import type { MultitenancyConfig } from '../types/config.js'
+import { emitIsthmusEvent } from '../isthmus/audit.js'
 import { isProductionNodeEnv } from '../utils/env.js'
 import { resolutionSafetyAudit } from './resolution_safety.js'
 import { assertResolverChain } from './resolver_chain.js'
@@ -27,6 +28,8 @@ function readConfigPath(config: MultitenancyConfig, path: string): unknown {
 
 export function assertConfigBounds(config: MultitenancyConfig): void {
   const fail = (path: string, rule: string, value: unknown): never => {
+    // Single chokepoint for every bounds violation, so one emit covers them all.
+    emitIsthmusEvent('guard.config_bounds', { metadata: { path, rule } })
     throw new Error(`multitenancy.${path} must be ${rule}, got ${String(value)}.`)
   }
   const atLeast = (value: number | undefined, path: string, min: number): void => {
@@ -124,6 +127,9 @@ export function assertConfigBounds(config: MultitenancyConfig): void {
   if (isProductionNodeEnv()) {
     const risks = resolutionSafetyAudit(config)
     if (risks.length > 0) {
+      emitIsthmusEvent('guard.resolution_safety', {
+        metadata: { codes: risks.map((r) => r.code).join(',') },
+      })
       throw new Error(risks.map((r) => r.message).join('\n\n'))
     }
   }

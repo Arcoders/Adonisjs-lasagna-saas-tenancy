@@ -1,10 +1,13 @@
 import router from '@adonisjs/core/services/router'
 import db from '@adonisjs/lucid/services/db'
 import { middleware } from './kernel.js'
+import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
 import { enforceRateLimit } from '@adonisjs-lasagna/saas-tenancy/middleware'
 import { multitenancyAdminRoutes } from '@adonisjs-lasagna/admin'
 import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
 import { multitenancyRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
+import Post from '../app/models/post.js'
+import Tenant from '../app/models/tenant.js'
 
 router.get('/health', async ({ response }) => {
   return response.ok({ status: 'ok' })
@@ -73,6 +76,30 @@ router
     })
   })
   .prefix('tenant')
+  .use(middleware.tenantGuard())
+
+// ContextSeal (Isthmus) integration. `/query` routes a model query on the
+// normal guarded path — the tenancy scope the guard opened agrees with the
+// request, so behavior must be exactly as before the seal. `/mismatch`
+// deliberately enters `tenancy.run()` for a DIFFERENT tenant before querying:
+// context confusion the seal refuses with the typed E_ISTHMUS_TENANT_MISMATCH
+// 500 instead of routing the guard-resolved tenant's request under the other
+// tenant's scope.
+router
+  .group(() => {
+    router.get('/query', async ({ request, response }) => {
+      const tenant = await request.tenant()
+      const posts = await Post.all()
+      return response.ok({ tenantId: tenant.id, posts: posts.length })
+    })
+    router.get('/mismatch', async ({ request, response }) => {
+      await request.tenant()
+      const other = await Tenant.findOrFail(String(request.header('x-other-tenant-id')))
+      const posts = await tenancy.run(other as any, () => Post.all())
+      return response.ok({ posts: posts.length })
+    })
+  })
+  .prefix('context-seal')
   .use(middleware.tenantGuard())
 
 // Deliberately UNGUARDED (P2-3): proves `request.tenant()` itself fails closed

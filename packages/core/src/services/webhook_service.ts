@@ -1,6 +1,7 @@
 import TenantWebhook from '../models/satellites/tenant_webhook.js'
 import TenantWebhookDelivery from '../models/satellites/tenant_webhook_delivery.js'
 import WebhookTransformerRegistry from './webhook_transformer_registry.js'
+import { emitIsthmusEvent } from '../isthmus/audit.js'
 import { readSecret, writeSecret } from '../utils/secret_at_rest.js'
 import { validateExternalHttpsUrl } from '../utils/url.js'
 import { safeFetch, SafeFetchError, type SafeFetchOptions } from '../utils/safe_fetch.js'
@@ -368,6 +369,7 @@ export default class WebhookService {
     // controller can't persist an SSRF-capable URL.
     const urlError = validateExternalHttpsUrl(url)
     if (urlError) {
+      emitIsthmusEvent('guard.webhook_url', { tenantId, metadata: { reason: urlError } })
       throw new Error(`WebhookService: refusing to register an unsafe webhook url (${urlError}).`)
     }
     // Every webhook gets a signing secret: when the caller doesn't provide

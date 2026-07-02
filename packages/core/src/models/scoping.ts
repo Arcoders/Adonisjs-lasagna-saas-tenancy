@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { tenancy } from '../tenancy.js'
 import { configuredScopeColumn } from '../services/isolation/rowscope_pg_driver.js'
 import { getConfig } from '../config.js'
+import { emitIsthmusEvent } from '../isthmus/audit.js'
 import { recordScopeBypass } from './scope_bypass_audit.js'
 
 /**
@@ -150,6 +151,7 @@ export function withTenantScope<TBase extends LucidBaseModelClass>(Base: TBase):
         // No active tenant context: fail closed unless config EXPLICITLY opts
         // out. An unreadable config no longer falls through to a global query.
         if (allowsGlobalScope()) return null
+        emitIsthmusEvent('seal.scope_required', { metadata: { action } })
         throw new MissingTenantScopeException(action)
       }
 
@@ -202,6 +204,10 @@ export function withTenantScope<TBase extends LucidBaseModelClass>(Base: TBase):
         // update/delete hooks below. Wrap the call in unscoped(...) for a
         // deliberate cross-tenant create.
         if (model[column] !== id) {
+          emitIsthmusEvent('seal.scope_owner_mismatch', {
+            tenantId: id,
+            metadata: { action: 'create', rowTenantId: String(model[column]).slice(0, 64) },
+          })
           throw new Error(
             `withTenantScope: refusing to create a row owned by tenant "${model[column]}" from tenant "${id}" context. ` +
               `Wrap the operation in unscoped(...) if this is intentional.`
@@ -214,6 +220,10 @@ export function withTenantScope<TBase extends LucidBaseModelClass>(Base: TBase):
         if (!id) return
         // Do not silently rewrite a different tenant's id; surface the bug.
         if (model[column] !== undefined && model[column] !== id) {
+          emitIsthmusEvent('seal.scope_owner_mismatch', {
+            tenantId: id,
+            metadata: { action: 'update', rowTenantId: String(model[column]).slice(0, 64) },
+          })
           throw new Error(
             `withTenantScope: refusing to update a row owned by tenant "${model[column]}" from tenant "${id}" context. ` +
               `Wrap the operation in unscoped(...) if this is intentional.`
@@ -225,6 +235,10 @@ export function withTenantScope<TBase extends LucidBaseModelClass>(Base: TBase):
         const id = requireScope('delete')
         if (!id) return
         if (model[column] !== undefined && model[column] !== id) {
+          emitIsthmusEvent('seal.scope_owner_mismatch', {
+            tenantId: id,
+            metadata: { action: 'delete', rowTenantId: String(model[column]).slice(0, 64) },
+          })
           throw new Error(
             `withTenantScope: refusing to delete a row owned by tenant "${model[column]}" from tenant "${id}" context. ` +
               `Wrap the operation in unscoped(...) if this is intentional.`

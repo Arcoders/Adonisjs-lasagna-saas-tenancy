@@ -39,6 +39,7 @@ when you want a custom response.
 | `TenantConnectionLimitException` | `503` | `E_TENANT_CONNECTION_LIMIT` | `isolation.enforceConnectionCap` is on, the connection budget is exhausted, and every open connection is inside the eviction grace window. |
 | `ImpersonationInvalidException` | `401` | `E_IMPERSONATION_TOKEN_INVALID` | An impersonation token failed verification, expired, was revoked, or was presented on a different tenant than it was issued for. |
 | `IsolationConfigException` | `500` | `E_ISOLATION_CONFIG` | The isolation configuration is unusable (for example `isolation.driver` names a driver that was never registered). |
+| `IsthmusTenantMismatchException` | `500` | `E_ISTHMUS_TENANT_MISMATCH` | The active `tenancy.run()` scope and the HTTP request resolve DIFFERENT tenants for the same model query (context confusion). The [ContextSeal](/reference/isthmus#contextseal-scope) refuses to route and emits the critical `isthmus:seal:tenant:mismatch` event. Deliberate cross-tenant work belongs in a job or an explicit `{ connection }` option. |
 | `BillingException` | `400` | `E_BILLING` | A Stripe/billing error. Imported from `@adonisjs-lasagna/billing`. Carries a `billingCode` (see [Billing](/guides/satellites/billing)) and `isRetryable()`. |
 
 ## Handling patterns

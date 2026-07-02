@@ -33,6 +33,7 @@ const GUARDS = [
   'check-community-health.mjs',
   'check-japa-thunk-contract.mjs',
   'check-bench-paths.mjs',
+  'check-isthmus.mjs',
 ]
 
 const failed = []

@@ -1,6 +1,7 @@
 import { request as httpsRequest } from 'node:https'
 import { Readable } from 'node:stream'
 import type { LookupFunction } from 'node:net'
+import { emitIsthmusEvent } from '../isthmus/audit.js'
 import { isLoopbackUrl, resolvePinnedHttpsTarget } from './url.js'
 import { composeSignals } from './signals.js'
 
@@ -165,6 +166,9 @@ async function trustedHostFetch(url: string, opts: SafeFetchOptions): Promise<Re
     )
   }
   if (!TRUSTED_FETCH_HOSTS.has(u.hostname.toLowerCase())) {
+    emitIsthmusEvent('guard.outbound_fetch', {
+      metadata: { reason: 'host_not_trusted', host: u.hostname.slice(0, 64) },
+    })
     throw new SafeFetchError(
       'host_not_trusted',
       `safeFetch: ${u.hostname} is not in the trusted-host allowlist`
@@ -199,8 +203,13 @@ async function pinnedFetch(url: string, opts: SafeFetchOptions): Promise<Respons
   const target = await resolvePinnedHttpsTarget(url)
   if (typeof target === 'string') {
     // url_dns_failure is transient (retry re-validates); everything else is a
-    // structural/security rejection that must not be retried.
+    // structural/security rejection that must not be retried. Only the
+    // security rejections trip the Isthmus — a flaky DNS is not an intrusion
+    // signal.
     const retryable = target === 'url_dns_failure'
+    if (!retryable) {
+      emitIsthmusEvent('guard.outbound_fetch', { metadata: { reason: target } })
+    }
     throw new SafeFetchError(
       target,
       `safeFetch: refusing to fetch ${redactUrl(url)} (${target})`,

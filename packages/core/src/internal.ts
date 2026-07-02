@@ -30,3 +30,17 @@ export type { BuildTestTenantOverrides } from './testing/builders.js'
 // (imports only the registry class), so it does not break /internal boot-safety.
 export { createResolverStateBaseline } from './testing/resolver_baseline.js'
 export type { ResolverStateBaseline } from './testing/resolver_baseline.js'
+// The Isthmus (guard registry + severity-graded audit emit). Internal on
+// purpose: the public surface is the IsthmusGuardTripped event on /events and
+// the vocabulary types on /types; the registry and emit machinery may evolve
+// with the guards. All boot-safe (pure data + lazily-imported dispatch).
+export { ISTHMUS_REGISTRY, isthmusEntry } from './isthmus/registry.js'
+export type { IsthmusGuardId, IsthmusRegistryEntry } from './isthmus/registry.js'
+export {
+  ISTHMUS_BUDGETS,
+  allowIsthmusEvent,
+  emitIsthmusEvent,
+  snapshotIsthmusCounters,
+} from './isthmus/audit.js'
+export type { IsthmusCountersSnapshot, IsthmusEmitOptions } from './isthmus/audit.js'
+export { NO_SILENT_GUARD_ALLOWLIST } from './isthmus/no_silent_guard_allowlist.js'

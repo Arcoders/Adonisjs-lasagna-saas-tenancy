@@ -122,6 +122,24 @@ fires once per flush run. Use the former to mirror individual values, the latter
 to invalidate read-side caches once a period's data has landed.
 :::
 
+## Security (Isthmus)
+
+Dispatched by the [Isthmus guard registry](/reference/isthmus) whenever a
+registered fail-closed guard rejects. One event class covers every guard; the
+payload names the guard and carries its severity, so a single subscription
+drives alerting.
+
+| Event | Payload | Dispatched by |
+|---|---|---|
+| `IsthmusGuardTripped` | `payload: { id, pillar, bugClass, severity, event, tenantId, metadata }` | The emit helper on the line before a registered guard's throw (a malformed tenant identifier, a CR/LF redirect path, a tenant-context mismatch, …). Best-effort, rate-limited per severity, and fire-and-forget: a listener can never block or mask the rejection. |
+
+<Callout type="tip" title="Page on critical severity">
+`payload.severity === 'critical'` means an isolation seal tripped
+(`isthmus:seal:tenant:mismatch`, `isthmus:seal:connection:mismatch`, a cross-tenant
+write refusal). The payload is alert-safe: registry fields, an optional tenant id, and
+short metadata values, never raw input beyond a truncated identifier.
+</Callout>
+
 ## Subscribing
 
 Register listeners during boot, usually inside a service provider's

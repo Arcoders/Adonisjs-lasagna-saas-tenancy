@@ -10,6 +10,7 @@ import type {
   ProvisionableDriver,
   TableLocation,
 } from './driver.js'
+import { emitIsthmusEvent } from '../../isthmus/audit.js'
 import { assertSafeIdentifier } from './identifier.js'
 import { runTenantMigrations } from './tenant_migration_runner.js'
 import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
@@ -142,6 +143,10 @@ export default class SchemaPgDriver implements ProvisionableDriver {
         ? existing.searchPath[0]
         : existing?.searchPath
       if (actual !== expected) {
+        emitIsthmusEvent('seal.connection_search_path', {
+          tenantId: tenant.id,
+          metadata: { connection: name, expected },
+        })
         throw new IsolationConfigException(
           `SchemaPgDriver: connection "${name}" is registered with searchPath ` +
             `${JSON.stringify(existing?.searchPath)} but tenant ${tenant.id} expects schema ` +

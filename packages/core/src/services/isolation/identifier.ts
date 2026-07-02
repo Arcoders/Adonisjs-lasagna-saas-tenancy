@@ -1,3 +1,5 @@
+import { emitIsthmusEvent } from '../../isthmus/audit.js'
+
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 /**
@@ -37,6 +39,9 @@ function isCanonicalForm(value: string): boolean {
  */
 export function assertSafeIdentifier(value: string, kind: string = 'identifier'): void {
   if (typeof value !== 'string' || !SAFE_IDENT.test(value) || !isCanonicalForm(value)) {
+    emitIsthmusEvent('guard.tenant_identifier', {
+      metadata: { kind, value: String(value).slice(0, 64) },
+    })
     throw new Error(
       `Refusing to use unsafe ${kind} "${value}" in DDL. ` +
         `Tenant ids must match /^[a-zA-Z0-9_-]{1,63}$/ in canonical (NFKC) form (UUID v4 satisfies this).`

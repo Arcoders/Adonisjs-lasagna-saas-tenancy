@@ -1,6 +1,9 @@
 import type { CircuitMetrics } from '../services/circuit_breaker_service.js'
 import type { TenantQueueStats } from '../services/tenant_queue_service.js'
 import type { TenantPoolStat } from '../services/doctor/checks/connection_pool_check.js'
+import type { IsthmusCountersSnapshot } from '../isthmus/audit.js'
+import { ISTHMUS_REGISTRY } from '../isthmus/registry.js'
+import { NO_SILENT_GUARD_ALLOWLIST } from '../isthmus/no_silent_guard_allowlist.js'
 import { QUOTA_CEILING_GAUGE } from '../services/observability/names.js'
 
 /**
@@ -27,6 +30,8 @@ export interface MetricsSnapshot {
   poolSaturation?: TenantPoolStat[]
   /** Operator-global ceiling utilisation per quota. Optional for the same reason. */
   quotaCeilings?: QuotaCeilingStat[]
+  /** Isthmus guard-trip counters (in-memory, per process). Optional for the same reason. */
+  isthmus?: IsthmusCountersSnapshot
 }
 
 const CIRCUIT_STATE_VALUE: Record<string, number> = { CLOSED: 0, HALF_OPEN: 1, OPEN: 2 }
@@ -131,6 +136,62 @@ export function renderPrometheus(snapshot: MetricsSnapshot): string {
       lines.push(metricLine(QUOTA_CEILING_GAUGE.outstanding, labels, c.outstanding))
       lines.push(metricLine(QUOTA_CEILING_GAUGE.utilization, labels, c.utilization))
     }
+  }
+
+  const isthmus = snapshot.isthmus
+  if (isthmus) {
+    lines.push(
+      '# HELP multitenancy_isthmus_guarded_total Isthmus guard trips by pillar and severity.'
+    )
+    lines.push('# TYPE multitenancy_isthmus_guarded_total counter')
+    for (const g of isthmus.guarded) {
+      lines.push(
+        metricLine(
+          'multitenancy_isthmus_guarded_total',
+          { pillar: g.pillar, severity: g.severity },
+          g.value
+        )
+      )
+    }
+    lines.push('# HELP multitenancy_isthmus_rejected_total Isthmus guard trips by guard id.')
+    lines.push('# TYPE multitenancy_isthmus_rejected_total counter')
+    for (const r of isthmus.rejected) {
+      lines.push(
+        metricLine(
+          'multitenancy_isthmus_rejected_total',
+          { pillar: r.pillar, severity: r.severity, id: r.id },
+          r.value
+        )
+      )
+    }
+    lines.push(
+      '# HELP multitenancy_isthmus_dropped_total Isthmus event dispatches suppressed (rate_limited) or failed (no_emitter). Counters above stay exact regardless.'
+    )
+    lines.push('# TYPE multitenancy_isthmus_dropped_total counter')
+    for (const d of isthmus.dropped) {
+      lines.push(
+        metricLine(
+          'multitenancy_isthmus_dropped_total',
+          { severity: d.severity, reason: d.reason },
+          d.value
+        )
+      )
+    }
+    // Entry-level coverage, derived from the two single-source modules. The CI
+    // gate (scripts/check-isthmus.mjs) measures the finer throw-site index; this
+    // gauge tracks the same variable a scrape can see: allowlist growth.
+    lines.push(
+      '# HELP multitenancy_isthmus_index Registered guard coverage: registered / (registered + allowlisted silent).'
+    )
+    lines.push('# TYPE multitenancy_isthmus_index gauge')
+    const registered = ISTHMUS_REGISTRY.filter((e) => e.pillar !== 'audit').length
+    lines.push(
+      metricLine(
+        'multitenancy_isthmus_index',
+        {},
+        registered / (registered + NO_SILENT_GUARD_ALLOWLIST.length)
+      )
+    )
   }
 
   lines.push('# HELP multitenancy_uptime_seconds Process uptime in seconds.')

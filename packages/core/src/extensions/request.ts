@@ -261,6 +261,17 @@ export function __setMemoizedTenant(request: HttpRequest, tenant: TenantModelCon
 }
 
 /**
+ * Internal read seam for the Isthmus ContextSeal: the canonical id of the
+ * tenant this request has already resolved (via `request.tenant()` / the
+ * guard), if any. Covers async `domain` resolution, which the synchronous
+ * resolver chain cannot see.
+ */
+export function memoizedTenantId(request: HttpRequest): string | undefined {
+  const tenant = (request as any)[TENANT_MEMO_KEY] as TenantModelContract | undefined
+  return tenant?.id
+}
+
+/**
  * Build a 503 for a tenant-backend outage, preserving the original error as
  * `cause` for logs. Used when the tenant registry (central DB) or the tenant's
  * own connection is unreachable: a raw 500 from Lucid is opaque and reads as

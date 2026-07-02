@@ -1,4 +1,5 @@
 import { getConfig } from '../config.js'
+import { emitIsthmusEvent } from '../isthmus/audit.js'
 import type { TenantModelContract } from '../types/contracts.js'
 import type { HttpRequest } from '@adonisjs/core/http'
 
@@ -117,18 +118,23 @@ const HOST_LABEL_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i
 
 function assertSafeHost(host: string): void {
   if (typeof host !== 'string' || host.length === 0 || host.length > 253 || !HOST_RE.test(host)) {
+    emitIsthmusEvent('guard.redirect_host', { metadata: { host: String(host).slice(0, 64) } })
     throw new Error(`Refusing to build URL with unsafe host "${host}".`)
   }
 }
 
 function assertSafeHostLabel(label: string, kind: string): void {
   if (typeof label !== 'string' || !HOST_LABEL_RE.test(label)) {
+    emitIsthmusEvent('guard.redirect_host_label', {
+      metadata: { kind, label: String(label).slice(0, 64) },
+    })
     throw new Error(`Refusing to build URL with unsafe ${kind} "${label}".`)
   }
 }
 
 function assertSafePort(port: number): number {
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    emitIsthmusEvent('guard.redirect_port', { metadata: { port: String(port).slice(0, 16) } })
     throw new Error(`Refusing to build URL with invalid port "${port}".`)
   }
   return port
@@ -140,13 +146,16 @@ function assertSafePort(port: number): number {
  */
 function normalizeRedirectPath(path: string): string {
   if (typeof path !== 'string') {
+    emitIsthmusEvent('guard.redirect_path', { metadata: { reason: 'non-string' } })
     throw new Error('Refusing to build URL with non-string path.')
   }
   if (/[\r\n]/.test(path)) {
+    emitIsthmusEvent('guard.redirect_path', { metadata: { reason: 'crlf' } })
     throw new Error('Refusing to build URL: path contains CR/LF.')
   }
   const withSlash = path.startsWith('/') ? path : `/${path}`
   if (withSlash.startsWith('//')) {
+    emitIsthmusEvent('guard.redirect_path', { metadata: { reason: 'protocol-relative' } })
     throw new Error('Refusing to build URL: protocol-relative path "//..." would bypass host.')
   }
   return withSlash

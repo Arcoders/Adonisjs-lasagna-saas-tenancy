@@ -116,6 +116,13 @@ tenant context without you threading it through manually. See
 [Contextual logging](/guides/contextual-logging) for how the propagation
 works.
 
+<Callout type="note" title="Jobs have no HTTP context">
+Jobs run inside a `tenancy.run()` scope but have no `HttpContext`, so request-only
+guards like the [ContextSeal](/reference/isthmus#contextseal-scope) never fire in a
+job. Tenant-id validation on this path is the dispatcher's payload check plus the
+job's own tenant load, which fails closed on an invalid id.
+</Callout>
+
 ## Lifecycle hooks
 
 `InstallTenant`, `UninstallTenant`, `BackupTenant`, `RestoreTenant`,

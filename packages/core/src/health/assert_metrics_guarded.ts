@@ -1,3 +1,4 @@
+import { emitIsthmusEvent } from '../isthmus/audit.js'
 import type { RouteMiddleware } from './routes.js'
 
 /**
@@ -37,6 +38,7 @@ export function assertMetricsGuarded(
   metricsMiddleware: RouteMiddleware | false | null | undefined
 ): void {
   if (metrics && isAbsentMiddleware(metricsMiddleware)) {
+    emitIsthmusEvent('guard.metrics_endpoint')
     throw new Error(
       'multitenancyRoutes: `metricsMiddleware` is required when `metrics` is enabled. The ' +
         '/metrics endpoint exposes per-tenant labels (circuit-breaker state, queue depths) and ' +

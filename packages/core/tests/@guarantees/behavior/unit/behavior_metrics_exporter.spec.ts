@@ -129,6 +129,37 @@ test.group('renderPrometheus — format', () => {
     const out = renderPrometheus(emptySnapshot())
     assert.notInclude(out, 'multitenancy_pool_saturation_ratio')
   })
+
+  test('renders the four Isthmus families from the counters snapshot', ({ assert }) => {
+    const out = renderPrometheus({
+      ...emptySnapshot(),
+      isthmus: {
+        guarded: [{ pillar: 'seal', severity: 'critical', value: 2 }],
+        rejected: [{ id: 'seal.tenant_context', pillar: 'seal', severity: 'critical', value: 2 }],
+        dropped: [{ severity: 'critical', reason: 'rate_limited', value: 1 }],
+      },
+    })
+    assert.include(out, '# TYPE multitenancy_isthmus_guarded_total counter')
+    assert.match(out, /multitenancy_isthmus_guarded_total\{pillar="seal",severity="critical"\} 2/)
+    assert.match(
+      out,
+      /multitenancy_isthmus_rejected_total\{pillar="seal",severity="critical",id="seal\.tenant_context"\} 2/
+    )
+    assert.match(
+      out,
+      /multitenancy_isthmus_dropped_total\{severity="critical",reason="rate_limited"\} 1/
+    )
+    // The gauge is derived from the registry + allowlist sizes and always in (0, 1].
+    const index = out.match(/^multitenancy_isthmus_index (.+)$/m)
+    assert.isNotNull(index, 'the index gauge must render')
+    const value = Number(index![1])
+    assert.isTrue(value > 0 && value <= 1, `index gauge out of range: ${value}`)
+  })
+
+  test('omits the Isthmus families when the snapshot carries no counters', ({ assert }) => {
+    const out = renderPrometheus(emptySnapshot())
+    assert.notInclude(out, 'multitenancy_isthmus_')
+  })
 })
 
 test.group('renderPrometheus — escaping', () => {

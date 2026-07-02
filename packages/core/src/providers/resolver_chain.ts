@@ -1,4 +1,5 @@
 import type { MultitenancyConfig } from '../types/config.js'
+import { emitIsthmusEvent } from '../isthmus/audit.js'
 import { builtInResolvers } from '../services/resolvers/index.js'
 import type TenantResolverRegistry from '../services/resolvers/registry.js'
 import type { TenantResolver } from '../services/resolvers/resolver.js'
@@ -38,6 +39,9 @@ export function assertResolverChain(config: MultitenancyConfig): void {
   for (const entry of chain) {
     if (isResolverInstance(entry)) continue
     if (typeof entry !== 'string' || !known.has(entry)) {
+      emitIsthmusEvent('guard.resolver_chain', {
+        metadata: { entry: String(entry).slice(0, 64) },
+      })
       throw new Error(
         `multitenancy.resolverChain references unknown resolver ${JSON.stringify(entry)}. ` +
           `Pass it as an inline TenantResolver (in resolverChain or config.resolvers), ` +

@@ -5,6 +5,7 @@ import { collectTenantPoolStats } from '../services/doctor/checks/connection_poo
 import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import { getConfig } from '../config.js'
 import { opCommittedKey, opHoldsKey, opAmtKey, periodToday } from '../services/quota/keys.js'
+import { snapshotIsthmusCounters } from '../isthmus/audit.js'
 import type { TenantStatus, TenantModelContract } from '../types/contracts.js'
 import type { MetricsSnapshot, QuotaCeilingStat } from './metrics_exporter.js'
 
@@ -107,6 +108,8 @@ export async function collectSnapshot(options: CollectOptions = {}): Promise<Met
     queues,
     poolSaturation,
     quotaCeilings,
+    // In-memory monotonic counters; synchronous and infallible by contract.
+    isthmus: snapshotIsthmusCounters(),
     uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
   }
 }

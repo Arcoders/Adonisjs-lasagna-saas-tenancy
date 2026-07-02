@@ -1,3 +1,4 @@
+import { emitIsthmusEvent } from '../isthmus/audit.js'
 import { assertSafeIdentifier } from './isolation/identifier.js'
 
 /**
@@ -28,6 +29,7 @@ export function assertMetricName(name: string): void {
  */
 export function assertMetricValue(value: number): void {
   if (typeof value !== 'number' || !Number.isInteger(value)) {
+    emitIsthmusEvent('guard.metric_value', { metadata: { value: String(value).slice(0, 32) } })
     throw new Error(
       `Refusing to record metric value ${JSON.stringify(value)}: expected a finite integer ` +
         `(use integer minor units — e.g. cents — for monetary metrics).`

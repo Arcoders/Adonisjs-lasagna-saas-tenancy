@@ -1,3 +1,4 @@
+import { emitIsthmusEvent } from '../../isthmus/audit.js'
 import { assertSafeIdentifier } from './identifier.js'
 
 /**
@@ -73,6 +74,10 @@ export async function setTenantRlsGuc(
   assertSafeIdentifier(tenantId, 'tenant id')
   const guc = options.gucName ?? DEFAULT_RLS_GUC
   if (!GUC_NAME.test(guc)) {
+    emitIsthmusEvent('guard.rls_guc_name', {
+      tenantId,
+      metadata: { guc: String(guc).slice(0, 64) },
+    })
     throw new Error(
       `Refusing to use unsafe RLS setting name "${guc}". ` +
         `Expected a "class.name" setting such as "app.tenant_id".`

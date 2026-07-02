@@ -13,6 +13,16 @@ export type { BackupMetadata, CloneResult } from './backup.js'
 // no longer couples its public surface to one payment provider. A host that
 // needs Stripe types imports them from `stripe` directly, or uses billing's own
 // event/payload types from `@adonisjs-lasagna/billing`.
+export type {
+  IsthmusPillar,
+  IsthmusSeverity,
+  IsthmusFailMode,
+  IsthmusPhase,
+  IsthmusEvidenceKind,
+  IsthmusDropReason,
+  IsthmusEvidence,
+  IsthmusGuardTrippedPayload,
+} from './isthmus.js'
 export { TENANT_REPOSITORY } from './contracts.js'
 export type {
   EachOptions,

@@ -17,3 +17,4 @@ export { default as DependencyUnavailableException } from './dependency_unavaila
 export type { DependencyUnavailableContext } from './dependency_unavailable_exception.js'
 export { default as IsolationConfigException } from './isolation_config_exception.js'
 export { default as InvalidTenantIdentifierException } from './invalid_tenant_identifier_exception.js'
+export { default as IsthmusTenantMismatchException } from './isthmus_tenant_mismatch_exception.js'

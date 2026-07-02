@@ -1,4 +1,5 @@
 import type { BootstrapperContext, TenantBootstrapper } from '../bootstrapper_registry.js'
+import { emitIsthmusEvent } from '../../isthmus/audit.js'
 import { tenancy } from '../../tenancy.js'
 import { assertSafeIdentifier } from '../isolation/identifier.js'
 
@@ -128,6 +129,9 @@ function normalizeChannel(channel: string): string {
   }
   const stripped = channel.startsWith('/') ? channel.slice(1) : channel
   if (!CHANNEL_SAFE.test(stripped)) {
+    emitIsthmusEvent('guard.broadcast_channel', {
+      metadata: { channel: String(channel).slice(0, 64), reason: 'unsafe-characters' },
+    })
     throw new Error(
       `Refusing unsafe broadcast channel "${channel}". Channels must match /^[a-zA-Z0-9._\\-/]+$/.`
     )
@@ -136,6 +140,9 @@ function normalizeChannel(channel: string): string {
   // treats `/` hierarchically. We reject it as a whole-segment match.
   for (const segment of stripped.split('/')) {
     if (segment === '..' || segment === '.') {
+      emitIsthmusEvent('guard.broadcast_channel', {
+        metadata: { channel: String(channel).slice(0, 64), reason: 'dot-segment' },
+      })
       throw new Error(
         `Refusing broadcast channel "${channel}" containing a "${segment}" segment ` +
           `(would escape the per-tenant namespace).`

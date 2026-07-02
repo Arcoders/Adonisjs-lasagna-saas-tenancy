@@ -369,6 +369,33 @@ for a copy-paste migration.
 
 ### Security
 
+- **The Isthmus: every fail-closed guard is now named, evidenced, and observable.**
+  The package's ~19 fail-closed guards (identifier policy, redirect host/path
+  validators, config bounds, resolver chain, `/metrics` mount guard, RLS setting
+  name, broadcast channels, SSRF fetch/webhook URL, connection `search_path` pin,
+  strict scope, cross-tenant write refusals, scope-bypass audit) are consolidated
+  into a single internal registry (`ISTHMUS_REGISTRY`) with required evidence and
+  6-month review dates. Each rejection now dispatches the new public
+  `IsthmusGuardTripped` event (`/events`) with a severity-graded payload
+  (`isthmus:<pillar>:<class>:<outcome>` taxonomy), rate-limited per severity with
+  independent finite budgets and exact drop accounting, and renders on `/metrics`
+  as `multitenancy_isthmus_{guarded,rejected,dropped}_total` +
+  `multitenancy_isthmus_index`. No guard changed its fail mode; the audit path is
+  fire-and-forget and can never block or mask a rejection. An architecture
+  contract spec plus the `check-isthmus` CI gate (audit-coverage Index, floor 90)
+  keep the registry and the guards from drifting. See the
+  [Isthmus guard registry](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/isthmus.md)
+  reference.
+- **ContextSeal: a tenant-context mismatch now fails closed (behavior change).**
+  Previously, when an active `tenancy.run()` scope and the HTTP request resolved
+  DIFFERENT tenants for the same model query, the scope silently won — tenant A's
+  request could route queries under tenant B's context (context confusion).
+  `TenantAdapter` now cross-checks the two sources (memoized, one string compare
+  per query on the hot path) and refuses to route: a typed
+  `IsthmusTenantMismatchException` (500, `E_ISTHMUS_TENANT_MISMATCH`) plus the
+  critical `isthmus:seal:tenant:mismatch` event. Jobs and commands have no HTTP
+  context, so the seal is inert there; deliberate cross-tenant work belongs in a
+  job or an explicit `{ connection }` query option (both unaffected).
 - **`rowscope-pg`: closed the `orWhere` scope escape.** The `withTenantScope`
   mixin injects the tenant predicate as a flat clause, so a hand-written
   top-level `orWhere` could compose a query that leaks another tenant's rows.

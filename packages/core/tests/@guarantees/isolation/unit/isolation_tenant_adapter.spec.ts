@@ -225,7 +225,7 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
     tenancyMod.__configureTenancyForTests({})
   })
 
-  test('prefers tenancy.currentId() over HTTP context when both are present', async ({
+  test('routes by tenancy.currentId() when it AGREES with the HTTP context (guarded-request path)', async ({
     assert,
   }) => {
     const tenancyMod = await import('../../../../src/tenancy.js')
@@ -238,9 +238,10 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
     const registry = new BootstrapperRegistry()
     tenancyMod.__configureTenancyForTests({ logCtx, registry })
 
-    // HTTP says one tenant, tenancy.run says another — tenancy wins.
+    // The normal guarded HTTP request: the guard resolved the SAME tenant the
+    // request names, so both sources are present and agree.
     ;(HttpContext as any).get = () => ({
-      request: makeRequest({ headers: { 'x-tenant-id': UUID1 } }),
+      request: makeRequest({ headers: { 'x-tenant-id': UUID2 } }),
     })
 
     const db = makeMockDb()
@@ -251,6 +252,84 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
       adapter.modelConstructorClient({} as any)
     })
 
+    assert.equal(db.lastCall, `tenant_${UUID2}`)
+  })
+
+  test('ContextSeal: fails closed when tenancy.currentId() and the HTTP context DISAGREE', async ({
+    assert,
+  }) => {
+    // Pre-Isthmus, tenancy silently won this disagreement and routed tenant A
+    // queries under tenant B's context — the exact context-confusion bug class
+    // the ContextSeal exists to stop (invariant I1).
+    const tenancyMod = await import('../../../../src/tenancy.js')
+    const TenantLogContext = (await import('../../../../src/services/tenant_log_context.js'))
+      .default
+    const BootstrapperRegistry = (await import('../../../../src/services/bootstrapper_registry.js'))
+      .default
+    const { default: IsthmusTenantMismatchException } =
+      await import('../../../../src/exceptions/isthmus_tenant_mismatch_exception.js')
+
+    tenancyMod.__configureTenancyForTests({
+      logCtx: new TenantLogContext(),
+      registry: new BootstrapperRegistry(),
+    })
+
+    // HTTP says one tenant, tenancy.run says another — refuse to route.
+    ;(HttpContext as any).get = () => ({
+      request: makeRequest({ headers: { 'x-tenant-id': UUID1 } }),
+    })
+
+    const db = makeMockDb()
+    const adapter = new TenantAdapter(db as any, makeRegistry())
+
+    const fakeTenant = { id: UUID2 } as any
+    await tenancyMod.tenancy.run(fakeTenant, async () => {
+      assert.throws(
+        () => adapter.modelConstructorClient({} as any),
+        IsthmusTenantMismatchException as any
+      )
+    })
+
+    assert.lengthOf(db.calls, 0, 'the mismatched query must never reach a connection')
+  })
+
+  test('ContextSeal: the HTTP comparand is resolved once per request (memoized)', async ({
+    assert,
+  }) => {
+    const tenancyMod = await import('../../../../src/tenancy.js')
+    const TenantLogContext = (await import('../../../../src/services/tenant_log_context.js'))
+      .default
+    const BootstrapperRegistry = (await import('../../../../src/services/bootstrapper_registry.js'))
+      .default
+
+    tenancyMod.__configureTenancyForTests({
+      logCtx: new TenantLogContext(),
+      registry: new BootstrapperRegistry(),
+    })
+
+    // One request object shared by every query in the request, counting reads.
+    let headerReads = 0
+    const request = {
+      hostname: () => '',
+      url: () => '/',
+      header: (key: string) => {
+        if (key.toLowerCase() === 'x-tenant-id') headerReads++
+        return key.toLowerCase() === 'x-tenant-id' ? UUID2 : null
+      },
+    }
+    ;(HttpContext as any).get = () => ({ request })
+
+    const db = makeMockDb()
+    const adapter = new TenantAdapter(db as any, makeRegistry())
+
+    const fakeTenant = { id: UUID2 } as any
+    await tenancyMod.tenancy.run(fakeTenant, async () => {
+      adapter.modelConstructorClient({} as any)
+      adapter.modelConstructorClient({} as any)
+      adapter.modelConstructorClient({} as any)
+    })
+
+    assert.equal(headerReads, 1, 'the seal must not re-resolve the request on every query')
     assert.equal(db.lastCall, `tenant_${UUID2}`)
   })
 
@@ -306,6 +385,188 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
       'backoffice',
       'explicit options.connection MUST override the active tenancy scope'
     )
+  })
+})
+
+test.group('TenantAdapter — ContextSeal (Isthmus) deep behavior', (group) => {
+  let originalGet: typeof HttpContext.get
+  let captured: any[] = []
+
+  group.each.setup(async () => {
+    setConfig({ ...testConfig, resolverStrategy: 'header' })
+    originalGet = HttpContext.get
+    ;(HttpContext as any).get = () => null
+
+    const audit = await import('../../../../src/isthmus/audit.js')
+    captured = []
+    audit.__resetIsthmusCounters()
+    audit.__resetIsthmusRateLimit()
+    audit.__setIsthmusDispatcherForTests(async (payload) => {
+      captured.push(payload)
+    })
+
+    const tenancyMod = await import('../../../../src/tenancy.js')
+    const TenantLogContext = (await import('../../../../src/services/tenant_log_context.js'))
+      .default
+    const BootstrapperRegistry = (await import('../../../../src/services/bootstrapper_registry.js'))
+      .default
+    tenancyMod.__configureTenancyForTests({
+      logCtx: new TenantLogContext(),
+      registry: new BootstrapperRegistry(),
+    })
+  })
+
+  group.each.teardown(async () => {
+    ;(HttpContext as any).get = originalGet
+    const audit = await import('../../../../src/isthmus/audit.js')
+    audit.__setIsthmusDispatcherForTests(undefined)
+    audit.__resetIsthmusCounters()
+    audit.__resetIsthmusRateLimit()
+    const tenancyMod = await import('../../../../src/tenancy.js')
+    tenancyMod.__configureTenancyForTests({})
+  })
+
+  const settle = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+  test('nested scopes: inner run(B) inside an agreeing run(A) trips, naming the INNER id', async ({
+    assert,
+  }) => {
+    const tenancyMod = await import('../../../../src/tenancy.js')
+    const { default: IsthmusTenantMismatchException } =
+      await import('../../../../src/exceptions/isthmus_tenant_mismatch_exception.js')
+    ;(HttpContext as any).get = () => ({
+      request: makeRequest({ headers: { 'x-tenant-id': UUID1 } }),
+    })
+    const db = makeMockDb()
+    const adapter = new TenantAdapter(db as any, makeRegistry())
+
+    await tenancyMod.tenancy.run({ id: UUID1 } as any, async () => {
+      adapter.modelConstructorClient({} as any) // agrees → routes
+      assert.equal(db.lastCall, `tenant_${UUID1}`)
+      await tenancyMod.tenancy.run({ id: UUID2 } as any, async () => {
+        // Inner scope disagrees with the request (still UUID1) → trips.
+        let threw: any
+        try {
+          adapter.modelConstructorClient({} as any)
+        } catch (err) {
+          threw = err
+        }
+        assert.instanceOf(threw, IsthmusTenantMismatchException as any)
+        // The exception's tenancy-scope id is the INNER scope (ALS nesting).
+        assert.match(threw.message, new RegExp(UUID2))
+        assert.match(threw.message, new RegExp(UUID1))
+      })
+    })
+    await settle()
+    // The emission names its registry id and event verbatim (this is also the
+    // in-file assertion the emission matrix's viaIntegration check verifies for
+    // 'seal.tenant_context').
+    assert.equal(captured.at(-1).id, 'seal.tenant_context')
+    assert.equal(captured.at(-1).event, 'isthmus:seal:tenant:mismatch')
+    assert.equal(captured.at(-1).severity, 'critical')
+    assert.equal(captured.at(-1).tenantId, UUID2)
+    assert.equal(captured.at(-1).metadata.requestResolvedId, UUID1)
+  })
+
+  test('null comparand is not cached: a late request.tenant() memo is picked up', async ({
+    assert,
+  }) => {
+    const tenancyMod = await import('../../../../src/tenancy.js')
+    const { __setMemoizedTenant } = await import('../../../../src/extensions/request.js')
+    const { default: IsthmusTenantMismatchException } =
+      await import('../../../../src/exceptions/isthmus_tenant_mismatch_exception.js')
+
+    // A central-style request: no header, so the sync comparand is absent.
+    const request: any = makeRequest({ headers: {} })
+    ;(HttpContext as any).get = () => ({ request })
+
+    const db = makeMockDb()
+    const adapter = new TenantAdapter(db as any, makeRegistry())
+
+    await tenancyMod.tenancy.run({ id: UUID2 } as any, async () => {
+      // Comparand null → seal inert, routes by the scope.
+      adapter.modelConstructorClient({} as any)
+      assert.equal(db.lastCall, `tenant_${UUID2}`)
+
+      // The guard memoizes a DIFFERENT tenant on the same request later.
+      __setMemoizedTenant(request, { id: UUID1 } as any)
+      assert.throws(
+        () => adapter.modelConstructorClient({} as any),
+        IsthmusTenantMismatchException as any
+      )
+    })
+    await settle()
+    assert.isAtLeast(captured.length, 1)
+  })
+
+  test('macro-first precedence: memoized tenant wins over the raw header', async ({ assert }) => {
+    const tenancyMod = await import('../../../../src/tenancy.js')
+    const { __setMemoizedTenant } = await import('../../../../src/extensions/request.js')
+
+    // Header says A, but request.tenant() (domain resolution) memoized B, and
+    // the scope is B → the comparand is B, so it AGREES and routes B.
+    const request: any = makeRequest({ headers: { 'x-tenant-id': UUID1 } })
+    __setMemoizedTenant(request, { id: UUID2 } as any)
+    ;(HttpContext as any).get = () => ({ request })
+
+    const db = makeMockDb()
+    const adapter = new TenantAdapter(db as any, makeRegistry())
+
+    await tenancyMod.tenancy.run({ id: UUID2 } as any, async () => {
+      adapter.modelConstructorClient({} as any)
+    })
+    await settle()
+
+    assert.equal(db.lastCall, `tenant_${UUID2}`)
+    assert.lengthOf(captured, 0, 'the memoized id agrees with the scope → no mismatch')
+  })
+
+  test('exactly-once per query: 3 mismatched queries → 3 throws and 3 events', async ({
+    assert,
+  }) => {
+    const tenancyMod = await import('../../../../src/tenancy.js')
+    ;(HttpContext as any).get = () => ({
+      request: makeRequest({ headers: { 'x-tenant-id': UUID1 } }),
+    })
+    const db = makeMockDb()
+    const adapter = new TenantAdapter(db as any, makeRegistry())
+
+    await tenancyMod.tenancy.run({ id: UUID2 } as any, async () => {
+      for (let i = 0; i < 3; i++) {
+        assert.throws(() => adapter.modelConstructorClient({} as any))
+      }
+    })
+    await settle()
+
+    // The memo caches the comparand, never the verdict — every query re-checks.
+    assert.lengthOf(captured, 3)
+    assert.lengthOf(db.calls, 0)
+  })
+
+  test('memo isolation: an agreeing request and a mismatching request do not cross-contaminate', async ({
+    assert,
+  }) => {
+    const tenancyMod = await import('../../../../src/tenancy.js')
+    const db = makeMockDb()
+    const adapter = new TenantAdapter(db as any, makeRegistry())
+
+    const agreeReq = makeRequest({ headers: { 'x-tenant-id': UUID2 } })
+    const mismatchReq = makeRequest({ headers: { 'x-tenant-id': UUID1 } })
+
+    await tenancyMod.tenancy.run({ id: UUID2 } as any, async () => {
+      ;(HttpContext as any).get = () => ({ request: agreeReq })
+      adapter.modelConstructorClient({} as any)
+      assert.equal(db.lastCall, `tenant_${UUID2}`)
+      ;(HttpContext as any).get = () => ({ request: mismatchReq })
+      assert.throws(() => adapter.modelConstructorClient({} as any))
+
+      // Back to the agreeing request: its memo is intact, still routes.
+      ;(HttpContext as any).get = () => ({ request: agreeReq })
+      adapter.modelConstructorClient({} as any)
+      assert.equal(db.lastCall, `tenant_${UUID2}`)
+    })
+    await settle()
+    assert.lengthOf(captured, 1, 'only the mismatching request emitted')
   })
 })
 
