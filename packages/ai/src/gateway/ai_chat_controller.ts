@@ -11,12 +11,22 @@ import {
   type AiIdempotencyScope,
   type CachedAiResponse,
 } from './idempotency.js'
-import { authorizeAiAccess, resolveRequestTenant } from './access_gate.js'
+import { authorizeAiAccess, resolveRequestTenant, resolveRetrievalScope } from './access_gate.js'
 import recordingStreamTarget from './recording_target.js'
-import { hashAuditPrincipal, noopAuditSink, type AiGatewayAuditSink } from './audit_seam.js'
+import { buildRetrievalContext } from './context_builder.js'
+import {
+  hashAuditPrincipal,
+  noopAuditSink,
+  noopRetrievalAuditSink,
+  type AiGatewayAuditSink,
+  type AiRetrievalAuditSink,
+} from './audit_seam.js'
 import AIException, { httpStatusForAiCode } from '../exceptions/ai_exception.js'
 import { assertNever } from '../internal/assert_never.js'
-import type { AiConfig } from '../define_config.js'
+import type RetrievalService from '../services/retrieval_service.js'
+import type { VectorMatch } from '../services/vector_store_service.js'
+import type { AiConfig, AIRetrievalConfig } from '../define_config.js'
+import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { AIMessage, AIStreamRequest, StreamFragment } from '../types/ai_provider_contract.js'
 import {
   AI_FRAGMENT_MAX_CHARS,
@@ -24,6 +34,11 @@ import {
   AI_TOKENS_QUOTA,
   DEFAULT_AI_MAX_PROMPT_CHARS,
   DEFAULT_AI_MAX_TOKENS,
+  DEFAULT_MAX_CONTEXT_CHARS,
+  DEFAULT_MAX_CONTEXT_ITEMS,
+  DEFAULT_MAX_QUERY_CHARS,
+  DEFAULT_RETRIEVAL_LIMIT,
+  MAX_RETRIEVAL_LIMIT,
 } from '../constants.js'
 
 /** The chat request body. Everything else in the body is ignored. */
@@ -32,6 +47,8 @@ interface ChatBody {
   model?: string
   maxTokens?: number
   sessionId?: string
+  /** Opt-in RAG (WS-AI-5): retrieve matches for `query` and fold them into the context as data. */
+  retrieve?: { query: string; limit?: number }
 }
 
 export interface AiChatControllerDeps {
@@ -42,8 +59,16 @@ export interface AiChatControllerDeps {
   config: AiConfig | undefined
   /** The per-key request rate limiter (threat #4). Default: a disabled limiter. */
   rateLimiter?: AiRateLimiter
+  /**
+   * The retrieval service (WS-AI-5), for opt-in RAG. Present only when the host
+   * configured embeddings; absent means a `retrieve` request is a 400. Resolved
+   * lazily by the route so non-RAG chat is unaffected when embeddings are off.
+   */
+  retrieval?: RetrievalService
   /** The WS-AI-7 attribution seam. Default: the no-op sink. */
   audit?: AiGatewayAuditSink
+  /** The WS-AI-7 retrieval attribution seam (for the RAG step). Default: the no-op sink. */
+  retrievalAudit?: AiRetrievalAuditSink
 }
 
 /**
@@ -129,20 +154,51 @@ export default class AiChatController {
       fingerprint: provider.keyFingerprint ?? provider.name,
     })
 
-    const request: AIStreamRequest = {
-      messages: body.messages,
-      model: body.model,
-      maxTokens: worstCase,
+    // Attribution base, shared by the RAG-preflight failure path and the
+    // stream-resolution switch. Preflight failures leave headers unsent (the
+    // spine's commit-point contract), so a real status still applies.
+    const auditBase = {
+      tenantId: tenant.id,
+      principalHash,
+      provider: provider.name as string | null,
+      model: body.model ?? null,
+      idempotentReplay: false,
     }
 
-    // 6. The stream itself: liveness handle for G11, a recording tee for the
-    //    idempotency cache, the spine for everything else.
+    // 6. The stream itself: liveness handle for G11 (also covering the RAG query
+    //    embed), a recording tee for the idempotency cache, the spine for the rest.
     const liveness = this.deps.liveness.acquire(tenant.id)
     const recorder = recordingStreamTarget(httpStreamTarget(ctx), {
       maxBytes: AI_IDEMPOTENCY_MAX_BYTES,
     })
     let result: StreamResult
     try {
+      // 6a. RAG augmentation (WS-AI-5), on a cache MISS only: embed the query,
+      //     search under the document ACL, and fold the fenced matches into the
+      //     context as untrusted user-role DATA (#10), bounded so the ASSEMBLED
+      //     prompt stays within maxPromptChars (#8). A retrieval preflight failure
+      //     (denied ACL, over budget, embeddings unconfigured) fails the request
+      //     BEFORE the stream commits, with the code's pinned status.
+      let messages: AIMessage[]
+      try {
+        messages = await this.#augmentMessages(ctx, tenant, body, ai, principalHash, liveness.signal)
+      } catch (error) {
+        if (error instanceof AIException) {
+          ctx.response.status(error.httpStatus).send({ error: error.aiCode })
+          await this.#audit().append({
+            ...auditBase,
+            outcome: 'failed_preflight',
+            reason: error.aiCode,
+            tokensSettled: 0,
+            fragments: 0,
+            occurredAt: new Date().toISOString(),
+          })
+          return
+        }
+        throw error
+      }
+
+      const request: AIStreamRequest = { messages, model: body.model, maxTokens: worstCase }
       result = await this.deps.stream.stream(
         recorder.target,
         (signal) => provider.stream(request, signal),
@@ -164,17 +220,8 @@ export default class AiChatController {
       liveness.dispose()
     }
 
-    // 7. Resolution. Preflight failures left headers unsent (the spine's
-    //    commit-point contract), so a real status still applies; committed
-    //    outcomes end the SSE stream with a terminal `done` frame. Every path
-    //    lands one attribution event on the audit seam.
-    const auditBase = {
-      tenantId: tenant.id,
-      principalHash,
-      provider: provider.name as string | null,
-      model: body.model ?? null,
-      idempotentReplay: false,
-    }
+    // 7. Resolution. Committed outcomes end the SSE stream with a terminal `done`
+    //    frame. Every path lands one attribution event on the audit seam.
     switch (result.outcome) {
       case 'failed_preflight': {
         ctx.response.status(httpStatusForAiCode(result.error)).send({ error: result.error })
@@ -230,6 +277,70 @@ export default class AiChatController {
 
   #audit(): AiGatewayAuditSink {
     return this.deps.audit ?? noopAuditSink
+  }
+
+  #retrievalAudit(): AiRetrievalAuditSink {
+    return this.deps.retrievalAudit ?? noopRetrievalAuditSink
+  }
+
+  /**
+   * The RAG augmentation step (WS-AI-5). Without a `retrieve` ask, the messages
+   * pass through unchanged. Otherwise it resolves the per-user document ACL (G2),
+   * runs the metered query embed + scoped search, folds the fenced matches into
+   * the messages as untrusted user-role DATA (#10) bounded to keep the assembled
+   * prompt within `maxPromptChars` (#8), and attributes the retrieval op (non-PII).
+   * A `retrieve` request with no retrieval service (embeddings unconfigured) is a
+   * 400. Any retrieval failure is audited `failed_preflight` and rethrown so the
+   * caller can fail the request before the stream commits.
+   */
+  async #augmentMessages(
+    ctx: HttpContext,
+    tenant: TenantModelContract,
+    body: ChatBody,
+    ai: AiConfig | undefined,
+    principalHash: string | null,
+    signal: AbortSignal
+  ): Promise<AIMessage[]> {
+    if (!body.retrieve) return body.messages
+    if (!this.deps.retrieval) {
+      throw new AIException(
+        'invalid_request',
+        'retrieval requested but embeddings are not configured'
+      )
+    }
+
+    const retrievalBase = { tenantId: tenant.id, actorHash: principalHash }
+    try {
+      const scope = await resolveRetrievalScope(ctx, tenant, ai?.retrieval)
+      const limit = resolveRetrieveLimit(body.retrieve.limit, ai?.retrieval)
+      const result = await this.deps.retrieval.retrieve(
+        tenant,
+        { query: body.retrieve.query, limit, scope },
+        signal
+      )
+      await this.#retrievalAudit().append({
+        ...retrievalBase,
+        model: result.model,
+        matchCount: result.matches.length,
+        tokens: result.tokens,
+        outcome: 'completed',
+        reason: null,
+        occurredAt: new Date().toISOString(),
+      })
+      return injectRetrievedContext(body.messages, result.matches, ai)
+    } catch (error) {
+      const code = error instanceof AIException ? error.aiCode : null
+      await this.#retrievalAudit().append({
+        ...retrievalBase,
+        model: null,
+        matchCount: 0,
+        tokens: 0,
+        outcome: 'failed_preflight',
+        reason: code ?? 'error',
+        occurredAt: new Date().toISOString(),
+      })
+      throw error
+    }
   }
 
   /**
@@ -305,6 +416,43 @@ function resolveWorstCase(requested: number | undefined, ai: AiConfig | undefine
   return requested === undefined ? ceiling : Math.min(requested, ceiling)
 }
 
+/** The RAG match count: the request's ask, clamped by maxLimit, defaulting to defaultLimit. */
+function resolveRetrieveLimit(
+  requested: number | undefined,
+  retrieval: AIRetrievalConfig | undefined
+): number {
+  const maxLimit = retrieval?.maxLimit ?? MAX_RETRIEVAL_LIMIT
+  const fallback = retrieval?.defaultLimit ?? DEFAULT_RETRIEVAL_LIMIT
+  return requested === undefined ? fallback : Math.min(requested, maxLimit)
+}
+
+/**
+ * Fold retrieved matches into the messages as a fenced, bounded, user-role DATA
+ * block (#10, #8), inserted right before the final message (the user's question)
+ * so the model reads the context adjacent to the ask. The block's character
+ * budget is what remains of `maxPromptChars` after the existing messages, capped
+ * by `maxContextChars`, so the ASSEMBLED prompt can never exceed `maxPromptChars`
+ * (the pre-retrieval bound was checked in parseChatBody). When nothing fits (no
+ * matches, or no budget), the messages pass through unchanged.
+ */
+function injectRetrievedContext(
+  messages: AIMessage[],
+  matches: readonly VectorMatch[],
+  ai: AiConfig | undefined
+): AIMessage[] {
+  const maxPromptChars = ai?.maxPromptChars ?? DEFAULT_AI_MAX_PROMPT_CHARS
+  const retrieval = ai?.retrieval
+  const maxItems = retrieval?.maxContextItems ?? DEFAULT_MAX_CONTEXT_ITEMS
+  const existingChars = messages.reduce((total, message) => total + message.content.length, 0)
+  const budget = Math.max(0, maxPromptChars - existingChars)
+  const maxChars = Math.min(retrieval?.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS, budget)
+
+  const block = buildRetrievalContext(matches, { maxItems, maxChars })
+  if (!block) return messages
+  if (messages.length === 0) return [block]
+  return [...messages.slice(0, -1), block, messages[messages.length - 1]]
+}
+
 /** The principal an idempotent replay may be shared with, or null for none. */
 function resolvePrincipal(ctx: HttpContext, ai: AiConfig | undefined): string | null {
   const raw = ai?.resolvePrincipal
@@ -376,10 +524,33 @@ function parseChatBody(raw: unknown, ai: AiConfig | undefined): ChatBody {
     invalid(`sessionId, when set, must be a string of 1 to ${SESSION_ID_MAX_LENGTH} chars`)
   }
 
+  let retrieve: ChatBody['retrieve']
+  if (body.retrieve !== undefined) {
+    if (typeof body.retrieve !== 'object' || body.retrieve === null) {
+      invalid('retrieve, when set, must be an object { query, limit? }')
+    }
+    const r = body.retrieve as Record<string, unknown>
+    if (typeof r.query !== 'string' || r.query.length === 0) {
+      invalid('retrieve.query must be a non-empty string')
+    }
+    const maxQueryChars = ai?.retrieval?.maxQueryChars ?? DEFAULT_MAX_QUERY_CHARS
+    if (r.query.length > maxQueryChars) {
+      invalid(`retrieve.query must be at most ${maxQueryChars} characters`)
+    }
+    if (
+      r.limit !== undefined &&
+      (typeof r.limit !== 'number' || !Number.isInteger(r.limit) || r.limit <= 0)
+    ) {
+      invalid('retrieve.limit, when set, must be a positive integer')
+    }
+    retrieve = { query: r.query, limit: r.limit as number | undefined }
+  }
+
   return {
     messages,
     model: body.model as string | undefined,
     maxTokens: body.maxTokens as number | undefined,
     sessionId: body.sessionId as string | undefined,
+    retrieve,
   }
 }
