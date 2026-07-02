@@ -96,3 +96,10 @@ export const DEFAULT_MAX_EMBEDDING_TOKENS_PER_CHUNK = 512
 
 /** Max pgvector-indexable dimension (hnsw / ivfflat hard limit). Config is validated against it. */
 export const MAX_EMBEDDING_DIM = 2000
+
+/**
+ * Default cap on the bytes of a document fetched by `sourceUrl` through the
+ * SSRF-pinned fetch, before it is embedded. Bounds a hostile or accidental
+ * huge-document ingest. Tunable via `config.ai.embedding.ingestionMaxBytes`.
+ */
+export const DEFAULT_INGESTION_MAX_BYTES = 1_048_576

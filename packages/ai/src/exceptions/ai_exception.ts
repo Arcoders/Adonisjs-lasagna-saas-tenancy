@@ -20,6 +20,9 @@ export const AI_ERROR_CODES = [
   'dimension_mismatch',
   'embedding_quota_exhausted',
   'tenant_scope_mismatch',
+  // WS-AI-3 ingestion
+  'doc_fetch_blocked',
+  'ingestion_denied',
 ] as const
 
 export type AIErrorCode = (typeof AI_ERROR_CODES)[number]
@@ -46,6 +49,10 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   dimension_mismatch: 400,
   embedding_quota_exhausted: 402,
   tenant_scope_mismatch: 500,
+  // A document URL the SSRF pin blocked (or could not fetch) is a 400; a denied
+  // ingestion authorizer is a 403, like the access gate.
+  doc_fetch_blocked: 400,
+  ingestion_denied: 403,
 }
 
 /**
@@ -79,6 +86,9 @@ const FATAL_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
   'dimension_mismatch',
   'embedding_quota_exhausted',
   'tenant_scope_mismatch',
+  // A blocked/unfetchable document URL and a denied ingestion are both permanent.
+  'doc_fetch_blocked',
+  'ingestion_denied',
 ])
 
 /**
