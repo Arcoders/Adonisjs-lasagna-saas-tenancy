@@ -1,6 +1,7 @@
 export { defineAiConfig } from './define_config.js'
 export type {
   AiConfig,
+  AIEmbeddingConfig,
   AIProviderConfig,
   AIProviderName,
   MultitenancyConfigWithAi,

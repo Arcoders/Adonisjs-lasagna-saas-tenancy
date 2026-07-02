@@ -34,6 +34,7 @@ const GUARDS = [
   'check-japa-thunk-contract.mjs',
   'check-bench-paths.mjs',
   'check-isthmus.mjs',
+  'check-satellite-migrations.mjs',
 ]
 
 const failed = []

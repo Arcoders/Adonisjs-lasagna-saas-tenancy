@@ -35,6 +35,39 @@ export interface AIProviderConfig {
 }
 
 /**
+ * The vector-store / embedding block (WS-AI-3). Present when a host opts into
+ * embeddings. It configures the single embedding provider (a generic
+ * OpenAI-compatible backend by default) plus the storage shape. `dimension` is
+ * baked into the `vector(N)` column at migrate time and validated to 1..2000 at
+ * boot. `maxEmbeddingTokens` is the per-chunk worst-case reserved against
+ * `aiTokens`. `authorizeIngestion` is the write gate (distinct from
+ * `authorizeAIAccess`), and the `*Max*` bounds cap one ingest request.
+ */
+export interface AIEmbeddingConfig extends AIProviderConfig {
+  /** The embedding provider name (a registered `AIEmbeddingProviderContract`). Default `'openai-compatible'`. */
+  provider?: AIProviderName
+  /** The vector dimension baked into the embeddings column. Default 1536; must be 1..2000. */
+  dimension?: number
+  /** Per-chunk worst-case token estimate reserved against `aiTokens`. Default 512. */
+  maxEmbeddingTokens?: number
+  /** Max characters per input chunk. A longer chunk is a 400 before any cost. */
+  maxChunkChars?: number
+  /** Max chunks in one ingest request. */
+  maxBatchChunks?: number
+  /** Max serialized bytes of a chunk's `metadata` object. */
+  maxMetadataBytes?: number
+  /** Max bytes of a document fetched by `sourceUrl` (through the SSRF-pinned fetch). */
+  ingestionMaxBytes?: number
+  /**
+   * The write authorization gate: called before an ingest reserves or embeds
+   * anything. Return `false` or throw to deny with a 403 (`ingestion_denied`).
+   * Distinct from {@link AiConfig.authorizeAIAccess} (which gates "may this
+   * caller use AI at all"); this gates "may this caller write to the index".
+   */
+  authorizeIngestion?: TenantAccessAuthorizer
+}
+
+/**
  * AI satellite config. Opt-in via `--with=ai` and declaring `config.ai`.
  * Provider-agnostic: allow-list the providers a tenant may use, fill in the
  * matching per-provider block, and pick a default. Every value is optional with
@@ -59,6 +92,8 @@ export interface AiConfig {
   deepseek?: AIProviderConfig
   /** Kimi / Moonshot (OpenAI-compatible) provider config. Required when `kimi` is allow-listed. */
   kimi?: AIProviderConfig
+  /** The vector store / embedding block (WS-AI-3). Present when the host opts into embeddings. */
+  embedding?: AIEmbeddingConfig
   /** SSE heartbeat interval in ms. Default 15000. Must stay below any upstream proxy idle timeout. */
   heartbeatMs?: number
   /** Response deadline in ms for a streamed call. The composed abort fires at the deadline. */

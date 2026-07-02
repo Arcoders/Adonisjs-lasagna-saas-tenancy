@@ -65,3 +65,34 @@ export const AI_TOKENS_QUOTA = 'aiTokens'
  * bound aborts the stream as `fragment_rejected` without writing the bytes.
  */
 export const AI_FRAGMENT_MAX_CHARS = 16_384
+
+/**
+ * The per-tenant embeddings table (WS-AI-3, I1). A fixed module constant, never
+ * a `tenant_<id>`-interpolated name: the row lives in whatever schema/database
+ * the active isolation driver reports via `tableLocation(tenant)`, and the bare
+ * table name resolves there through the tenant connection's search_path. Used in
+ * both the migration DDL and the vector store's parameterized raw SQL.
+ */
+export const AI_EMBEDDINGS_TABLE = 'ai_embeddings'
+
+/**
+ * Default embedding vector dimension when `config.ai.embedding.dimension` is
+ * unset. 1536 matches the common OpenAI-compatible small-embedding models. It is
+ * baked into the `vector(N)` column at migrate time, so changing it after data
+ * exists needs a new migration; pgvector's hnsw index caps N at 2000.
+ */
+export const DEFAULT_EMBEDDING_DIM = 1536
+
+/**
+ * The exhaustion quota (#18) bounding how many embedding rows a tenant may store,
+ * checked against the per-plan `limits.embeddingCount` (Infinity when unset). A
+ * durable gauge counted from the table itself, never a rolling-day `consume`
+ * counter (which resets at midnight).
+ */
+export const EMBEDDING_COUNT_QUOTA = 'embeddingCount'
+
+/** Default per-request worst-case output-token estimate per embedded chunk, reserved against `aiTokens`. */
+export const DEFAULT_MAX_EMBEDDING_TOKENS_PER_CHUNK = 512
+
+/** Max pgvector-indexable dimension (hnsw / ivfflat hard limit). Config is validated against it. */
+export const MAX_EMBEDDING_DIM = 2000
