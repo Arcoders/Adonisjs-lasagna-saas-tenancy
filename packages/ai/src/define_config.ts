@@ -111,6 +111,15 @@ export interface AiConfig {
    * spend. A replay served from cache does not consume it.
    */
   rateLimit?: { limit: number; windowSeconds: number }
+  /**
+   * Explicit acknowledgement that the AI endpoint runs WITHOUT an `aiTokens`
+   * budget (no per-plan `limits.aiTokens` and no `plans.operatorCeiling.aiTokens`),
+   * so the kernel's cost reserve is inert and the endpoint is unmetered. Silences
+   * the boot warning; the `ai_budget` doctor check still reports the accepted
+   * risk. A dynamic per-tenant budget (via `plans.getPlan` / `tenant_plans`) is
+   * invisible to the static boot check and does not need this.
+   */
+  acknowledgeUnbudgetedAiTokens?: boolean
 }
 
 /**

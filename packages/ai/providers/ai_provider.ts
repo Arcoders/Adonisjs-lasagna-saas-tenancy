@@ -29,6 +29,7 @@ import AiIdempotencyService, {
   type AiIdempotencyStore,
 } from '../src/gateway/idempotency.js'
 import { aiMembershipGateCheck } from '../src/services/ai_membership_gate_check.js'
+import { aiBudgetCheck, aiTokensBudgetPosture } from '../src/services/ai_budget_check.js'
 import { setAiGuardMetricSink } from '../src/isthmus/ai_guard_audit.js'
 import ClaudeProvider from '../src/providers/claude_provider.js'
 import { DeepSeekProvider, KimiProvider } from '../src/providers/openai_compatible_provider.js'
@@ -122,6 +123,21 @@ export default class AiProvider implements SatelliteProviderContract {
     doctor.register(
       aiMembershipGateCheck(() => this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
     )
+    // Keep the cost-metering posture visible too: an unbudgeted aiTokens quota
+    // leaves the endpoint unmetered (denial of wallet). The check reports the
+    // live posture; the boot warning fires only for the genuinely-unbudgeted,
+    // not-acknowledged, non-dynamic case (a static read cannot see a dynamic
+    // per-tenant budget, so it must not hard-fail).
+    doctor.register(
+      aiBudgetCheck(() => this.app.config.get<MultitenancyConfigWithAi>('multitenancy'))
+    )
+    if (config?.ai) {
+      const posture = aiTokensBudgetPosture(config)
+      if (posture?.severity === 'warn') {
+        const logger = await this.app.container.make('logger')
+        logger.warn(`[ai] ${posture.message}`)
+      }
+    }
   }
 
   async ready() {

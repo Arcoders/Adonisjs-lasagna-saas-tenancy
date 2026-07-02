@@ -67,6 +67,12 @@ export function assertAiConfig(config: AiConfig | undefined): void {
   if (config.resolvePrincipal !== undefined && typeof config.resolvePrincipal !== 'function') {
     fail('[ai] config.ai.resolvePrincipal, when set, must be a function (ctx) => principal')
   }
+  if (
+    config.acknowledgeUnbudgetedAiTokens !== undefined &&
+    typeof config.acknowledgeUnbudgetedAiTokens !== 'boolean'
+  ) {
+    fail('[ai] config.ai.acknowledgeUnbudgetedAiTokens, when set, must be a boolean')
+  }
   assertRateLimit(config.rateLimit)
 }
 
