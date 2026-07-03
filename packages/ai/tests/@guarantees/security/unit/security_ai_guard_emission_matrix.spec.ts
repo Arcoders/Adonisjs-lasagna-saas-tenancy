@@ -28,6 +28,8 @@ import MockAIProvider from '../../../../src/testing/mock_ai_provider.js'
 import VectorStoreService from '../../../../src/services/vector_store_service.js'
 import AiAuditWriter from '../../../../src/services/ai_audit_writer.js'
 import ConversationMemoryService from '../../../../src/services/conversation_memory_service.js'
+import { enforceChatResidency } from '../../../../src/services/residency_gate.js'
+import AiComplianceService from '../../../../src/services/ai_compliance_service.js'
 import { fakeVectorEnv } from '../../../helpers/fake_vector_db.js'
 import { fakeAuditEnv, sampleAuditRow } from '../../../helpers/fake_audit_db.js'
 import type { AiConfig } from '../../../../src/define_config.js'
@@ -69,12 +71,41 @@ const tenant = { id: 'tenant-1' } as unknown as TenantModelContract
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve))
 
 interface TripRecipe {
-  /** Trips the guard; sync or async. Must throw the guard's own exception. */
+  /** Trips the guard; sync or async. Throws the guard's own exception, unless `expectThrow` is null. */
   trip: () => unknown | Promise<unknown>
-  /** The original (unchanged) exception's message must match this. */
-  expectThrow: RegExp
+  /**
+   * The original (unchanged) exception's message must match this. `null` marks a
+   * SIGNAL guard that emits WITHOUT throwing (the auto-purge listener is
+   * non-throwing by design): the trip must NOT throw, but must still emit.
+   */
+  expectThrow: RegExp | null
   /** A happy input that must NOT emit. */
   happy: () => unknown | Promise<unknown>
+}
+
+/** A minimal AiComplianceService for the auto-purge signal recipe; only the epoch dep matters (a failed gate emits). */
+function complianceForMatrix(epochFails: boolean): AiComplianceService {
+  return new AiComplianceService({
+    memory: {
+      async purgeTenant() {
+        return 0
+      },
+    } as never,
+    vectorStore: {} as never,
+    idempotency: {
+      async bumpEpoch() {
+        if (epochFails) throw new Error('epoch store down')
+      },
+    } as never,
+    runScoped: (_t, fn) => fn(),
+    embeddingsEnabled: false,
+    getRedis: async () => ({
+      async set() {
+        return 'OK'
+      },
+      async del() {},
+    }),
+  })
 }
 
 /** Pull the first fragment (or completion) out of a provider stream. */
@@ -260,6 +291,26 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
       return mem.resolveSession(token, 'tenant-1', 'user-a')
     },
   },
+  'guard.ai_residency_denied': {
+    trip: () =>
+      enforceChatResidency(tenant, 'deepseek', {
+        allowedProviders: ['claude', 'deepseek'],
+        residency: () => ({ allowedProviders: ['claude'] }),
+      } as AiConfig),
+    expectThrow: /does not permit this egress/,
+    happy: () =>
+      enforceChatResidency(tenant, 'claude', {
+        allowedProviders: ['claude'],
+        residency: () => ({ allowedProviders: ['claude'] }),
+      } as AiConfig),
+  },
+  'guard.ai_auto_purge_failed': {
+    // A SIGNAL guard: the lifecycle auto-purge is non-throwing, so a failed gate
+    // emits the guard WITHOUT throwing (expectThrow: null).
+    trip: () => complianceForMatrix(true).autoPurge(tenant, 'tenant_deleted'),
+    expectThrow: null,
+    happy: () => complianceForMatrix(false).autoPurge(tenant, 'tenant_deleted'),
+  },
 }
 
 function registryIds(): AiGuardId[] {
@@ -313,8 +364,16 @@ test.group('AI guard emission matrix — trip + happy', (group) => {
       }
       await settle()
 
-      assert.isDefined(threw, `${id}: trip recipe did not throw`)
-      assert.match((threw as Error).message, recipe.expectThrow, `${id}: exception message changed`)
+      if (recipe.expectThrow === null) {
+        assert.isUndefined(threw, `${id}: a signal guard must emit WITHOUT throwing`)
+      } else {
+        assert.isDefined(threw, `${id}: trip recipe did not throw`)
+        assert.match(
+          (threw as Error).message,
+          recipe.expectThrow,
+          `${id}: exception message changed`
+        )
+      }
 
       assert.lengthOf(captured, 1, `${id}: expected exactly one dispatch`)
       assert.equal(captured[0].id, id)

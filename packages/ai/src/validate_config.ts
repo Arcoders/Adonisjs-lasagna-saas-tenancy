@@ -13,6 +13,11 @@ import { emitAiGuardEvent } from './isthmus/ai_guard_audit.js'
 /** The built-in providers that require a matching config block when allow-listed. */
 const BUILTIN_PROVIDERS = ['claude', 'deepseek', 'kimi'] as const
 
+/** Ceiling for the idempotency replay TTL (5 min): bounds the post-purge residual-PII window (WS-AI-9). */
+const MAX_IDEMPOTENCY_TTL_MS = 300_000
+/** Ceiling for a single purge batch's statement_timeout (10 min). */
+const MAX_PURGE_STATEMENT_TIMEOUT_MS = 600_000
+
 /**
  * The single reject choke for config validation: every branch routes through
  * here so the `guard.ai_config_invalid` emission cannot drift from the throw
@@ -60,8 +65,20 @@ export function assertAiConfig(config: AiConfig | undefined): void {
   assertPositiveInteger('heartbeatMs', config.heartbeatMs)
   assertPositiveInteger('timeoutMs', config.timeoutMs)
   assertPositiveInteger('maxTokens', config.maxTokens)
-  assertPositiveInteger('idempotencyTtlMs', config.idempotencyTtlMs)
+  // Cap the idempotency TTL (WS-AI-9 honest-limit #4): a completed response's raw
+  // frames are PII and only become UNREACHABLE (not deleted) on a purge, self-reaped
+  // at this TTL. Keeping it short bounds that post-purge residual window.
+  assertBoundedInteger('idempotencyTtlMs', config.idempotencyTtlMs, MAX_IDEMPOTENCY_TTL_MS)
   assertPositiveInteger('maxPromptChars', config.maxPromptChars)
+  // The per-batch purge statement timeout (E14): a positive integer, bounded so a
+  // fat-finger cannot make a batch effectively unbounded; `SET LOCAL 0` (no timeout)
+  // is rejected by the positive-integer floor.
+  assertBoundedInteger(
+    'purgeStatementTimeoutMs',
+    config.purgeStatementTimeoutMs,
+    MAX_PURGE_STATEMENT_TIMEOUT_MS
+  )
+  assertResidencyConfig(config.residency)
 
   if (config.authorizeAIAccess !== undefined && typeof config.authorizeAIAccess !== 'function') {
     fail('[ai] config.ai.authorizeAIAccess, when set, must be a function (ctx, tenant) => boolean')
@@ -294,5 +311,26 @@ function assertPositiveInteger(label: string, value: unknown): void {
   if (value === undefined) return
   if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
     fail(`[ai] config.ai.${label} must be a positive integer`)
+  }
+}
+
+/** A tunable numeric knob, when present, must be a positive integer no larger than `max`. */
+function assertBoundedInteger(label: string, value: unknown, max: number): void {
+  if (value === undefined) return
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0 || value > max) {
+    fail(`[ai] config.ai.${label} must be a positive integer <= ${max}`)
+  }
+}
+
+/**
+ * The per-tenant residency hook (WS-AI-9, #7 / #15), when present, must be a
+ * function. Its return shape (`{mode:'local-only'}` | `{allowedProviders}`) is
+ * resolved and validated at request time, fail-closed, by the residency gate; a
+ * malformed return there refuses remote egress rather than aborting the boot.
+ */
+function assertResidencyConfig(residency: AiConfig['residency']): void {
+  if (residency === undefined) return
+  if (typeof residency !== 'function') {
+    fail('[ai] config.ai.residency, when set, must be a function (tenant) => residency posture')
   }
 }

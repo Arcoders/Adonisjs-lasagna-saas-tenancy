@@ -173,6 +173,30 @@ export interface AIAuditConfig {
 }
 
 /**
+ * A tenant's data-residency posture (#7 / #15), resolved per tenant. Either
+ * `local-only` (no remote egress: every provider and embedding backend whose
+ * effective endpoint is not loopback is refused) or an explicit per-tenant
+ * provider allow-list that narrows the global {@link AiConfig.allowedProviders}.
+ * A discriminated union so the intent is explicit and exhaustive.
+ */
+export type ResidencyPosture =
+  | { readonly mode: 'local-only' }
+  | { readonly allowedProviders: readonly AIProviderName[] }
+
+/**
+ * The per-tenant residency hook (#7 / #15), enforced at request time BEFORE any
+ * cost: on chat provider selection AND on embedding egress (embed / retrieve,
+ * which have no other provider choke point). It is fail-closed (mirrors
+ * {@link RetrievalFilter}): a throw or a malformed return refuses remote egress
+ * with a 403 `residency_denied`. Absent ⇒ residency is unconstrained (the global
+ * allow-list still applies). Provider identity is checked, not endpoint
+ * geography — a documented honest limit (a BYOK `baseUrl` is the host's to place).
+ */
+export type ResidencyResolver = (
+  tenant: TenantModelContract
+) => ResidencyPosture | Promise<ResidencyPosture>
+
+/**
  * AI satellite config. Opt-in via `--with=ai` and declaring `config.ai`.
  * Provider-agnostic: allow-list the providers a tenant may use, fill in the
  * matching per-provider block, and pick a default. Every value is optional with
@@ -283,6 +307,21 @@ export interface AiConfig {
   acknowledgeUnscopedRetrieval?: boolean
   /** The append-only audit block (WS-AI-7, I5). On by default; set `enabled: false` to opt out. */
   audit?: AIAuditConfig
+  /**
+   * Per-tenant data residency / no-train posture (#7 / #15). When set, a request
+   * whose selected provider (chat) or embedding backend (embed / retrieve) is
+   * outside the tenant's posture is refused with a 403 `residency_denied` before
+   * any reservation. See {@link ResidencyResolver}.
+   */
+  residency?: ResidencyResolver
+  /**
+   * Per-BATCH `statement_timeout` (ms) for the WS-AI-9 batched purge. Bounds a
+   * single lock-blocked or runaway delete batch so it fails cleanly and the loop
+   * retries; it is NOT a wall clock on the whole erasure (an erasure must run to
+   * completion). Default: the connection default (no per-batch timeout). Must be
+   * a positive integer <= 600000.
+   */
+  purgeStatementTimeoutMs?: number
 }
 
 /**

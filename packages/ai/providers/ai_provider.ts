@@ -6,7 +6,9 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import {
   AuditLogDestinationRegistry,
+  AuditLogService,
   CircuitBreakerService,
+  ComplianceReportService,
   DoctorService,
   ExtensionTimeoutError,
   HookRegistry,
@@ -20,6 +22,7 @@ import {
   pgvectorExtensionCheck,
   provisionVectorExtension,
 } from '@adonisjs-lasagna/saas-tenancy/services'
+import { TenantDeleted, TenantAnonymized } from '@adonisjs-lasagna/saas-tenancy/events'
 import { safeFetch } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
 import {
   tenancy,
@@ -56,6 +59,13 @@ import AiIdempotencyService, {
 import ConversationMemoryService, {
   deriveMemoryMacKey,
 } from '../src/services/conversation_memory_service.js'
+import AiComplianceService from '../src/services/ai_compliance_service.js'
+import {
+  aiDataResidencyControl,
+  aiEmbeddingRetentionControl,
+  aiRightToErasureControl,
+} from '../src/services/ai_compliance_controls.js'
+import { aiComplianceCheck } from '../src/services/ai_compliance_check.js'
 import { aiMembershipGateCheck } from '../src/services/ai_membership_gate_check.js'
 import { aiBudgetCheck, aiTokensBudgetPosture } from '../src/services/ai_budget_check.js'
 import {
@@ -82,6 +92,8 @@ import type { AIProviderContract } from '../src/types/ai_provider_contract.js'
  */
 export default class AiProvider implements SatelliteProviderContract {
   #teardownLiveness?: () => void
+  #offTenantDeleted?: () => void
+  #offTenantAnonymized?: () => void
 
   constructor(protected app: ApplicationService) {}
 
@@ -179,6 +191,7 @@ export default class AiProvider implements SatelliteProviderContract {
           (await this.app.container.make('lucid.db' as never)) as unknown as VectorDb,
         activeScopeTenantId: () => tenancy.currentId(),
         dimension: ai?.embedding?.dimension ?? DEFAULT_EMBEDDING_DIM,
+        purgeStatementTimeoutMs: ai?.purgeStatementTimeoutMs,
       })
     })
     // The ingestion orchestrator. It injects the store, the kernel quota
@@ -260,6 +273,37 @@ export default class AiProvider implements SatelliteProviderContract {
         async (resolver) => new PgRetrievalAuditSink(await resolver.make(AiAuditWriter))
       )
     }
+    // The WS-AI-9 compliance orchestrator. Composes the purge seams (memory +
+    // vector + idempotency epoch) into GDPR-grade erasure, records the admin
+    // action via the KERNEL audit best-effort, and runs vector work inside
+    // `tenancy.run` so the raw-SQL ContextSeal actively protects. Stateful only
+    // through its injected seams: a container singleton.
+    this.app.container.singleton(AiComplianceService, async (resolver) => {
+      const ai = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+      const memory = await resolver.make(ConversationMemoryService)
+      const vectorStore = await resolver.make(VectorStoreService)
+      const idempotency = await resolver.make(AiIdempotencyService)
+      const metrics = await resolver.make(MetricsService)
+      const logger = await resolver.make('logger')
+      const auditEnabled = ai?.audit?.enabled !== false
+      return new AiComplianceService({
+        memory,
+        vectorStore,
+        idempotency,
+        // Bind the tenant as the active scope so the vector ContextSeal protects (E16).
+        runScoped: (tenant, fn) => tenancy.run(tenant, fn),
+        embeddingsEnabled: ai?.embedding !== undefined,
+        getRedis: () => this.app.container.make('redis'),
+        // Best-effort kernel audit of the purge, alongside gdpr.anonymize / destroy (E20).
+        auditLog: async (options) => (await this.app.container.make(AuditLogService)).log(options),
+        // Full AI-audit-chain verify only under --verify-chain (E10), and only when audit is on.
+        verifyAuditChain: auditEnabled
+          ? async (tenantId) => (await this.app.container.make(AiAuditWriter)).verify(tenantId)
+          : undefined,
+        metric: (tenantId, name, value) => metrics.emitMetric(tenantId, name, value),
+        warn: (message) => logger.warn(message),
+      })
+    })
   }
 
   async boot() {
@@ -313,6 +357,23 @@ export default class AiProvider implements SatelliteProviderContract {
     doctor.register(
       aiMemoryCheck(() => this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
     )
+    // Keep the WS-AI-9 purge posture visible (read-only): Redis reachability for
+    // memory/cache erasure + a keyPrefix note. It never bumps the epoch.
+    doctor.register(
+      aiComplianceCheck({
+        getAiConfig: () => this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai,
+        getRedis: () => this.app.container.make('redis'),
+      })
+    )
+    // Register the AI compliance posture controls (WS-AI-9) into the shared
+    // ComplianceReportService, so `tenant:compliance:report` surfaces AI residency,
+    // right-to-erasure, and the embeddings-survive-anonymize transparency (E24).
+    if (config?.ai) {
+      const compliance = await this.app.container.make(ComplianceReportService)
+      compliance.register(aiDataResidencyControl)
+      compliance.register(aiRightToErasureControl)
+      if (config.ai.embedding) compliance.register(aiEmbeddingRetentionControl)
+    }
     if (config?.ai) {
       const posture = aiTokensBudgetPosture(config)
       if (posture?.severity === 'warn') {
@@ -376,11 +437,32 @@ export default class AiProvider implements SatelliteProviderContract {
     // Bridge tenantful guard trips to the per-tenant integer-metric rail.
     const metrics = await this.app.container.make(MetricsService)
     setAiGuardMetricSink((tenantId, name, value) => metrics.emitMetric(tenantId, name, value))
+
+    // WS-AI-9 auto-purge: erase a tenant's Redis-resident AI data (cache epoch +
+    // conversation memory) when core destroys or anonymizes it, reusing core's
+    // own lifecycle events rather than a parallel flow. On destroy the schema is
+    // already dropped (so no vector call); on anonymize embeddings are kept by
+    // design (decision 1). The handlers are NON-throwing (the core command has
+    // already committed) and emit `guard.ai_auto_purge_failed` + a metric on
+    // failure, so a silent GDPR erasure is impossible (E6/E19/E24).
+    if (this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai) {
+      const compliance = await this.app.container.make(AiComplianceService)
+      this.#offTenantDeleted = emitter.on(TenantDeleted, async (event) => {
+        await compliance.autoPurge(event.tenant, 'tenant_deleted')
+      })
+      this.#offTenantAnonymized = emitter.on(TenantAnonymized, async (event) => {
+        await compliance.autoPurge(event.tenant, 'tenant_anonymized')
+      })
+    }
   }
 
   async shutdown() {
     this.#teardownLiveness?.()
     this.#teardownLiveness = undefined
+    this.#offTenantDeleted?.()
+    this.#offTenantDeleted = undefined
+    this.#offTenantAnonymized?.()
+    this.#offTenantAnonymized = undefined
     setAiGuardMetricSink(undefined)
   }
 

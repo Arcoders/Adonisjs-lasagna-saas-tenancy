@@ -314,6 +314,38 @@ export const AI_GUARD_REGISTRY = [
     reviewed: '2026-07-03',
     nextReview: '2027-01-03',
   },
+  {
+    id: 'guard.ai_residency_denied',
+    pillar: 'guard',
+    bugClass: 'data-residency-egress',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_residency:rejected',
+    severity: 'high',
+    evidence: {
+      kind: 'invariant',
+      ref: '#7/#15: a tenant residency posture pins where its prompts/documents may egress; a provider or embedding backend outside the tenant allow-list (or any remote host under local-only) is refused before the reserve, at BOTH chat provider selection and the embedding egress (embed/retrieve) that has no other choke point',
+    },
+    guardFile: 'src/services/residency_gate.ts',
+    reviewed: '2026-07-03',
+    nextReview: '2027-01-03',
+  },
+  {
+    id: 'guard.ai_auto_purge_failed',
+    pillar: 'guard',
+    bugClass: 'compliance-erasure-failure',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_auto_purge:rejected',
+    severity: 'high',
+    evidence: {
+      kind: 'invariant',
+      ref: 'WS-AI-9 E6: the tenant-lifecycle auto-purge (on TenantDeleted / TenantAnonymized) must not throw into the already-committed core command, but a swallowed failure would be a silent GDPR erasure that did nothing; the listener emits this guard + a metric so a failed auto-erasure is observable and alertable',
+    },
+    guardFile: 'src/services/ai_compliance_service.ts',
+    reviewed: '2026-07-03',
+    nextReview: '2027-01-03',
+  },
 ] as const satisfies readonly AiGuardRegistryEntryShape[]
 
 /** Compile-time union of all registered AI guard ids. */

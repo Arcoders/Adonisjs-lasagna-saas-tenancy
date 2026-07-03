@@ -4,6 +4,7 @@ import type TenantLivenessWatcher from '../services/tenant_liveness_watcher.js'
 import type AiRateLimiter from '../services/ai_rate_limiter.js'
 import { DISABLED_AI_RATE_LIMITER } from '../services/ai_rate_limiter.js'
 import { authorizeAiAccess, authorizeIngestion, resolveRequestTenant } from './access_gate.js'
+import { enforceEmbeddingResidency } from '../services/residency_gate.js'
 import {
   hashAuditPrincipal,
   noopEmbeddingAuditSink,
@@ -52,10 +53,14 @@ export default class AiEmbedController {
   async embed(ctx: HttpContext): Promise<void> {
     const ai = this.deps.config
 
-    // 1. Tenant + membership gate + the ingestion write gate (403s, before any cost).
+    // 1. Tenant + membership gate + the ingestion write gate + data residency
+    //    (403s, before any cost). Residency (#7/#15) refuses shipping documents
+    //    to a remote embedding backend when the tenant is `local-only`, before
+    //    the rate limiter, so a refused caller spends nothing.
     const tenant = await resolveRequestTenant(ctx)
     await authorizeAiAccess(ctx, tenant, ai)
     await authorizeIngestion(ctx, tenant, ai?.embedding)
+    await enforceEmbeddingResidency(tenant, ai)
 
     // 2. Request validation (400s, still before any cost).
     const body = parseEmbedBody(ctx.request.body(), ai?.embedding)

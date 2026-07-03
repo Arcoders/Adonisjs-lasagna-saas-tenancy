@@ -104,6 +104,11 @@ export interface ConversationMemoryDeps {
 export const AI_MEMORY_UNREADABLE_METRIC = 'ai_memory_unreadable'
 export const AI_MEMORY_PERSIST_FAILED_METRIC = 'ai_memory_persist_failed'
 export const AI_MEMORY_DECRYPT_PREVIOUS_METRIC = 'ai_memory_decrypt_previous_used'
+/** A turn dropped because a WS-AI-9 purge tombstone post-dates the request (E5, re-population guard). */
+export const AI_MEMORY_PURGED_DROP_METRIC = 'ai_memory_purged_drop'
+
+/** The tombstone key segment: `ai:mem:tomb:<tenant>[:<userMac>]`, a purge high-water mark (E5). */
+const AI_MEMORY_TOMBSTONE_INFIX = 'tomb'
 
 /**
  * Container singleton (registered by `AiProvider.register()`). Stateless itself;
@@ -229,9 +234,25 @@ export default class ConversationMemoryService {
   async append(
     tenantId: string,
     storageKey: string,
-    exchange: { user: string; assistant: string }
+    exchange: { user: string; assistant: string },
+    turnStartedAt?: number
   ): Promise<void> {
     try {
+      // Re-population guard (WS-AI-9 E5): SCAN has no snapshot isolation, so an
+      // in-flight turn can RPUSH after a purge already swept this session's
+      // bucket, resurrecting erased history for the full memory TTL. A purge
+      // stamps a tombstone (a high-water mark) FIRST; a turn whose request began
+      // before that mark is stale conversation being written late, so drop it.
+      // `turnStartedAt` is the request's memory-snapshot time; absent (a caller
+      // that opts out) skips the check. A tombstone read error falls through to
+      // the outer catch, which does NOT persist (privacy-safe).
+      if (
+        turnStartedAt !== undefined &&
+        (await this.#isTombstoned(tenantId, storageKey, turnStartedAt))
+      ) {
+        this.#metric(tenantId, AI_MEMORY_PURGED_DROP_METRIC)
+        return
+      }
       const cipher = this.#deps.encryptMemory(
         JSON.stringify({ v: 1, u: exchange.user, a: exchange.assistant })
       )
@@ -265,18 +286,26 @@ export default class ConversationMemoryService {
   }
 
   /**
-   * Erase every session of one principal (GDPR per-user erasure, WS-AI-9). Scans
-   * the user segment and deletes. Uses `SCAN` (never `KEYS`, which blocks Redis).
+   * Erase every session of one principal (GDPR per-user erasure, WS-AI-9). Stamps
+   * a per-user tombstone (E5) BEFORE scanning so an in-flight turn cannot
+   * re-populate, then SCAN-deletes the user segment (never `KEYS`, which blocks
+   * Redis). Returns the number of session keys removed so the operator can tell
+   * "erased N" from "no active data". Keyed off the RAW principal (E1): the
+   * embeddings `actor` column is a SHA-256 of the principal, so the caller hashes
+   * separately for the vector side; memory keys the raw value.
    */
-  async purgeUser(tenantId: string, principal: string): Promise<void> {
+  async purgeUser(tenantId: string, principal: string): Promise<number> {
+    assertSafeIdentifier(tenantId, 'tenant id')
     const userMac = this.#userMac(tenantId, principal)
-    await this.#scanDelete(`${AI_MEMORY_KEY_PREFIX}:${tenantId}:${userMac}:*`)
+    await this.#writeTombstone(tenantId, userMac)
+    return this.#scanDelete(`${AI_MEMORY_KEY_PREFIX}:${tenantId}:${userMac}:*`)
   }
 
-  /** Erase every session of one tenant (tenant purge, WS-AI-9). */
-  async purgeTenant(tenantId: string): Promise<void> {
+  /** Erase every session of one tenant (tenant purge, WS-AI-9). Tombstone first (E5); returns keys removed. */
+  async purgeTenant(tenantId: string): Promise<number> {
     assertSafeIdentifier(tenantId, 'tenant id')
-    await this.#scanDelete(`${AI_MEMORY_KEY_PREFIX}:${tenantId}:*`)
+    await this.#writeTombstone(tenantId)
+    return this.#scanDelete(`${AI_MEMORY_KEY_PREFIX}:${tenantId}:*`)
   }
 
   /**
@@ -314,19 +343,72 @@ export default class ConversationMemoryService {
     return null
   }
 
-  async #scanDelete(pattern: string): Promise<void> {
+  /**
+   * SCAN-delete every key matching `pattern` (an `ai:mem:...` glob), returning the
+   * count removed. Loops to cursor `'0'` so a live keyspace is fully swept.
+   *
+   * keyPrefix-correct (WS-AI-9 E2): ioredis applies a configured `keyPrefix` to
+   * writes and to `del`/`unlink` args, but NOT to a `SCAN MATCH`. So the MATCH is
+   * prefixed manually, and the prefix is stripped off each returned key before
+   * `unlink` (which re-applies it) — otherwise a prefixed deployment would match
+   * nothing and silently purge zero keys (a right-to-erasure that did nothing).
+   * A prefix we cannot resolve throws (fail-closed), never a false zero. On a
+   * mid-scan store error the partial count rides on the thrown error so the caller
+   * can still report "N deleted (partial)".
+   */
+  async #scanDelete(pattern: string): Promise<number> {
     const redis = await this.#deps.getRedis()
+    const prefix = resolveKeyPrefix(redis)
+    const match = prefix + pattern
     let cursor = '0'
-    do {
-      // NOTE (WS-AI-9): if the host configures a redis keyPrefix, the MATCH
-      // pattern must include it (ioredis applies the prefix to keys but not to a
-      // SCAN MATCH). The write paths above are prefix-consistent (ioredis prefixes
-      // them uniformly); purge hardening for a prefixed deployment lands with the
-      // WS-AI-9 command that calls this.
-      const [next, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 200)
-      cursor = next
-      if (keys.length > 0) await redis.del(...keys)
-    } while (cursor !== '0')
+    let deleted = 0
+    try {
+      do {
+        const [next, keys] = await redis.scan(cursor, 'MATCH', match, 'COUNT', 1000)
+        cursor = next
+        if (keys.length > 0) {
+          const bare = prefix ? keys.map((k: string) => stripPrefix(k, prefix)) : keys
+          deleted += await unlinkAll(redis, bare)
+        }
+      } while (cursor !== '0')
+    } catch (error) {
+      if (error && typeof error === 'object')
+        (error as { deletedCount?: number }).deletedCount = deleted
+      throw error
+    }
+    return deleted
+  }
+
+  /**
+   * Stamp a purge high-water mark (E5). `ai:mem:tomb:<tenant>[:<userMac>]` = the
+   * purge time in ms, TTL ≥ the memory TTL so it outlives any in-flight turn that
+   * could re-populate. A plain `SET` (ioredis prefixes it uniformly with reads),
+   * so it needs no keyPrefix handling. Fail-closed: a store error propagates, so a
+   * purge that could not arm the guard is reported as failed.
+   */
+  async #writeTombstone(tenantId: string, userMac?: string): Promise<void> {
+    const redis = await this.#deps.getRedis()
+    const key = userMac
+      ? `${AI_MEMORY_KEY_PREFIX}:${AI_MEMORY_TOMBSTONE_INFIX}:${tenantId}:${userMac}`
+      : `${AI_MEMORY_KEY_PREFIX}:${AI_MEMORY_TOMBSTONE_INFIX}:${tenantId}`
+    await redis.set(key, String(Date.now()), 'PX', this.#ttlMs())
+  }
+
+  /** True when a purge tombstone (tenant- or user-scoped) post-dates this request's snapshot (E5). */
+  async #isTombstoned(
+    tenantId: string,
+    storageKey: string,
+    turnStartedAt: number
+  ): Promise<boolean> {
+    const rest = storageKey.slice(`${AI_MEMORY_KEY_PREFIX}:${tenantId}:`.length)
+    const userMac = rest.split(':')[0]
+    const redis = await this.#deps.getRedis()
+    const [tenantTomb, userTomb] = await redis.mget(
+      `${AI_MEMORY_KEY_PREFIX}:${AI_MEMORY_TOMBSTONE_INFIX}:${tenantId}`,
+      `${AI_MEMORY_KEY_PREFIX}:${AI_MEMORY_TOMBSTONE_INFIX}:${tenantId}:${userMac}`
+    )
+    const stamp = Math.max(toMillis(tenantTomb), toMillis(userTomb))
+    return stamp > turnStartedAt
   }
 
   #metric(tenantId: string, name: string): void {
@@ -344,4 +426,51 @@ function timingSafeEqualHex(a: string, b: string): boolean {
   const bufB = Buffer.from(b, 'hex')
   if (bufA.length === 0 || bufA.length !== bufB.length) return false
   return timingSafeEqual(bufA, bufB)
+}
+
+/**
+ * The configured ioredis `keyPrefix`, so a `SCAN MATCH` can be prefixed manually
+ * (WS-AI-9 E2). A real ioredis always exposes `options.keyPrefix` (default `''`);
+ * a client with no `options` concept does not prefix, so `''`. Only a malformed
+ * (present but non-string) keyPrefix is unresolvable, and a purge that could
+ * silently miss prefixed keys must fail loudly, not return a false zero.
+ */
+function resolveKeyPrefix(redis: { options?: { keyPrefix?: unknown } }): string {
+  const prefix = redis?.options?.keyPrefix
+  if (prefix === undefined || prefix === null) return ''
+  if (typeof prefix !== 'string') {
+    throw new Error(
+      '[ai] refusing the memory purge: the Redis keyPrefix is set to a non-string value, so a ' +
+        'SCAN MATCH could silently miss prefixed keys (a right-to-erasure that erased nothing).'
+    )
+  }
+  return prefix
+}
+
+/** Strip a known prefix so a SCAN-returned (prefixed) key can be handed to `del`/`unlink` (which re-apply it). */
+function stripPrefix(key: string, prefix: string): string {
+  return key.startsWith(prefix) ? key.slice(prefix.length) : key
+}
+
+/** `UNLINK` a batch (non-blocking on the server), falling back to `DEL` on a pre-4.0 Redis. Returns the count. */
+async function unlinkAll(
+  redis: {
+    unlink?: (...keys: string[]) => Promise<number>
+    del: (...keys: string[]) => Promise<number>
+  },
+  keys: string[]
+): Promise<number> {
+  try {
+    if (typeof redis.unlink === 'function') return await redis.unlink(...keys)
+  } catch {
+    // UNLINK is Redis 4+; fall through to DEL.
+  }
+  return redis.del(...keys)
+}
+
+/** Parse a tombstone value (ms since epoch) to a number; 0 when absent or malformed. */
+function toMillis(value: unknown): number {
+  if (typeof value !== 'string') return 0
+  const n = Number(value)
+  return Number.isFinite(n) ? n : 0
 }

@@ -50,6 +50,11 @@ export default class extends BaseSchema {
     // The read filter is always scoped by (model, dim), the dimension-binding surface.
     // safe-sql: `table` is a fixed module constant; no user input.
     this.schema.raw(`CREATE INDEX ${table}_model_dim ON ${table} (model, dim)`)
+    // Per-user GDPR erasure (WS-AI-9 `deleteByActor`) filters by `actor` (a SHA-256
+    // of the principal). A partial index keeps the common actor-null rows out of it,
+    // so the erasure delete is an index scan, not a seq scan (E11).
+    // safe-sql: `table` is a fixed module constant; no user input.
+    this.schema.raw(`CREATE INDEX ${table}_actor ON ${table} (actor) WHERE actor IS NOT NULL`)
   }
 
   async down() {

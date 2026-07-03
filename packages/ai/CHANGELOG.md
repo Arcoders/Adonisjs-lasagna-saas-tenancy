@@ -205,6 +205,52 @@ Added:
     constructed `role: 'system'`, the write path encrypts (`encryptMemory`), and
     the session read validates (`timingSafeEqual`). The `ai_memory` doctor check
     surfaces an enabled-but-no-principal (inert) memory.
+- **Compliance (WS-AI-9)**: GDPR-grade erasure and data residency over the purge
+  seams the earlier workstreams shipped (#16, #15, #7, G1).
+  - `AiComplianceService` composes the seams into a tenant / principal / document
+    purge: the response-cache epoch rotates FIRST as a verifiably fail-closed gate
+    (a rotation that cannot be read back throws, so a purge never starts without
+    making pre-purge responses unreachable), then conversation memory, then
+    embeddings, each best-effort-continue with an honest per-step summary
+    (`ok` / `failed` / `skipped`) and a non-zero exit on any failure. Per-user
+    erasure keys memory off the raw principal and embeddings off its one-way
+    `actor` hash (the two are never conflated). Vector work runs inside
+    `tenancy.run` so the raw-SQL ContextSeal actively protects, and a per-tenant
+    Redis lock stops concurrent purges double-counting. The full-table and
+    per-actor deletes are batched (`ctid IN (SELECT … LIMIT N)` under the
+    per-tenant advisory lock), so a multi-million-row erasure runs in bounded,
+    resumable chunks with an optional per-batch `statement_timeout` rather than one
+    long lock or a wall-clock abort that would leave a partial purge.
+  - `tenant:ai:purge` (operator-privileged): `--tenant --force` (all),
+    `--principal` (one user, Art.17), `--source` (one document); `--dry-run`
+    previews the counts and writes nothing (no delete, no epoch bump);
+    `--verify-chain` folds a full audit-chain verify into the record. The admin
+    action is recorded best-effort in the kernel audit (`ai.purge`, alongside
+    `gdpr.anonymize`); the immutable, non-PII AI audit chain intentionally
+    survives (G1).
+  - Auto-purge: on the kernel `TenantDeleted` / `TenantAnonymized` events the AI
+    layer clears the Redis-resident data (memory + cache epoch) — the schema is
+    already dropped on destroy, and embeddings are kept on anonymize by design.
+    The handlers are non-throwing (the core command has committed) but emit
+    `guard.ai_auto_purge_failed` + `ai_auto_purge_failures`, so a silent failed
+    erasure is impossible.
+  - A memory re-population guard: a purge stamps a tombstone high-water mark, and
+    an in-flight turn whose request began before the purge is dropped, so a late
+    `RPUSH` cannot resurrect just-erased history past the memory TTL. The memory
+    purge is `keyPrefix`-correct (it prepends a configured ioredis prefix to its
+    `SCAN MATCH`, fail-closed if unresolvable) so a prefixed deployment is never a
+    silent no-op, and uses `UNLINK` with a `DEL` fallback.
+  - Data residency / no-train: `config.ai.residency` (a per-tenant resolver
+    returning `{mode:'local-only'}` or an allowed-provider list) is enforced at
+    request time on chat provider selection AND embedding egress (embed / retrieve
+    / RAG query embed) — the egress a chat allow-list never sees — refusing a
+    non-permitted provider or a remote endpoint under `local-only` with a 403
+    `residency_denied` and `guard.ai_residency_denied`, fail-closed on a bad
+    resolver. A structural guard, `check-ai-no-prompt-logging-for-training` (#15),
+    keeps prompts / responses / documents / memory out of application logs.
+  - `ai_compliance` doctor check (read-only Redis reachability + a `keyPrefix`
+    note) and three `tenant:compliance:report` controls (AI data residency, AI
+    right-to-erasure, and the transparency that embeddings survive anonymize).
 
 Documentation correction (per the ARCHITECTURE.md correction path): the design
 doc's living sections now record the Isthmus integration decision (satellite

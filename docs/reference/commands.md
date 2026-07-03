@@ -201,6 +201,7 @@ Available when `--with=ai` is configured. Full reference in the
 | Command | What it does |
 |---|---|
 | `tenant:ai:audit:verify` | Re-walk the append-only AI audit hash chain and report the first tamper (a broken checksum, a `seq` gap, or a broken prev-link) that got past the DB triggers. Exit 1 on the first break, so it gates a cron or a post-incident check. Flags: `--tenant=<id>` (omit for all), `--json`. |
+| `tenant:ai:purge` | Erase a tenant's AI data for GDPR: conversation memory, the response-cache epoch, and embeddings. Scopes: `--tenant=<uuid> --force` (all), `--tenant=<uuid> --principal=<id>` (one user, Art.17), `--tenant=<uuid> --source=<key>` (one document). `--dry-run` previews the counts and writes nothing; `--verify-chain` also re-walks the audit chain; `--actor=<id>` sets the audited operator. The immutable, non-PII audit chain intentionally survives. |
 
 ## REPL
 

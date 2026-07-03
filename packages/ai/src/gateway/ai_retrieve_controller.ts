@@ -4,6 +4,7 @@ import type TenantLivenessWatcher from '../services/tenant_liveness_watcher.js'
 import type AiRateLimiter from '../services/ai_rate_limiter.js'
 import { DISABLED_AI_RATE_LIMITER } from '../services/ai_rate_limiter.js'
 import { authorizeAiAccess, resolveRequestTenant, resolveRetrievalScope } from './access_gate.js'
+import { enforceEmbeddingResidency } from '../services/residency_gate.js'
 import {
   hashAuditPrincipal,
   noopRetrievalAuditSink,
@@ -48,10 +49,14 @@ export default class AiRetrieveController {
   async retrieve(ctx: HttpContext): Promise<void> {
     const ai = this.deps.config
 
-    // 1. Tenant + membership gate + the per-user document ACL (403s, before any cost).
+    // 1. Tenant + membership gate + the per-user document ACL + data residency
+    //    (403s, before any cost). Residency (#7/#15) refuses shipping the query
+    //    to a remote embedding backend when the tenant is `local-only`, before
+    //    the rate limiter, so a refused caller spends nothing.
     const tenant = await resolveRequestTenant(ctx)
     await authorizeAiAccess(ctx, tenant, ai)
     const scope = await resolveRetrievalScope(ctx, tenant, ai)
+    await enforceEmbeddingResidency(tenant, ai)
 
     // 2. Request validation (400s, still before any cost).
     const body = parseRetrieveBody(ctx.request.body(), ai?.retrieval)

@@ -29,6 +29,8 @@ export const AI_ERROR_CODES = [
   'audit_write_failed',
   // WS-AI-4 memory
   'memory_session_invalid',
+  // WS-AI-9 compliance / residency
+  'residency_denied',
 ] as const
 
 export type AIErrorCode = (typeof AI_ERROR_CODES)[number]
@@ -68,6 +70,9 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   // A conversation-memory session token that does not verify is a malformed /
   // forged request (like a malformed Idempotency-Key), a permanent 400.
   memory_session_invalid: 400,
+  // A request whose provider/embedding egress is not allowed by the tenant's
+  // residency posture (#7/#15) is a permanent 403, like the other authz gates.
+  residency_denied: 403,
 }
 
 /**
@@ -108,6 +113,11 @@ const FATAL_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
   'retrieval_denied',
   // A forged/malformed session token will not become valid on a retry.
   'memory_session_invalid',
+  // WS-AI-9 E9: FATAL_CODES is a plain Set (NOT compile-forced by the union), so
+  // this entry is added by hand — a residency denial is a permanent policy refusal,
+  // and a missing entry here would wrongly make it retryable (a client would retry
+  // the very egress residency exists to block).
+  'residency_denied',
 ])
 
 /**

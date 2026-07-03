@@ -42,7 +42,23 @@ export interface VectorStoreDeps {
   activeScopeTenantId: () => string | undefined
   /** The migrated `vector(N)` dimension every stored/queried vector must match. */
   dimension: number
+  /**
+   * Per-BATCH `statement_timeout` (ms) for the WS-AI-9 batched purge (E4/E21).
+   * Bounds a single lock-blocked or runaway batch so it fails cleanly and the
+   * loop retries; it is NOT a wall clock on the whole erasure (that must run to
+   * completion). Absent ⇒ the connection default applies (no per-batch timeout).
+   */
+  purgeStatementTimeoutMs?: number
 }
+
+/**
+ * Rows deleted per batch in the WS-AI-9 purge loop (E4/E12). A full-tenant or
+ * per-actor erasure of a multi-million-row HNSW table cannot be one `DELETE`
+ * (a long lock, and a `statement_timeout` would roll it back and delete
+ * nothing), so it runs as a `ctid IN (SELECT … LIMIT N)` loop, each batch a
+ * short advisory-locked transaction — resumable and uncapped overall.
+ */
+const PURGE_BATCH_SIZE = 1000
 
 /** One embedding row to store. All rows in a call share a `source` (the document / batch key). */
 export interface EmbeddingInput {
@@ -209,6 +225,26 @@ export default class VectorStoreService {
     return Number(rowsOf(res)[0]?.n ?? 0)
   }
 
+  /** How many embeddings a principal ingested — the read-only preview for a per-user purge --dry-run (WS-AI-9). */
+  async countByActor(tenant: TenantModelContract, actorHash: string): Promise<number> {
+    const { client, table } = await this.#target(tenant)
+    // safe-sql: `table` is a fixed module constant; `actor` is a ? bind.
+    const res = await client.rawQuery(`SELECT count(*)::int AS n FROM ${table} WHERE actor = ?`, [
+      actorHash,
+    ])
+    return Number(rowsOf(res)[0]?.n ?? 0)
+  }
+
+  /** How many embeddings a document holds — the read-only preview for a per-source purge --dry-run (WS-AI-9). */
+  async countBySource(tenant: TenantModelContract, source: string): Promise<number> {
+    const { client, table } = await this.#target(tenant)
+    // safe-sql: `table` is a fixed module constant; `source` is a ? bind.
+    const res = await client.rawQuery(`SELECT count(*)::int AS n FROM ${table} WHERE source = ?`, [
+      source,
+    ])
+    return Number(rowsOf(res)[0]?.n ?? 0)
+  }
+
   /** Delete every row under `source` (poisoning rollback, #3). Returns the row count removed. */
   async deleteBySource(tenant: TenantModelContract, source: string): Promise<number> {
     const { client, table } = await this.#target(tenant)
@@ -217,12 +253,60 @@ export default class VectorStoreService {
     return rowCount(res)
   }
 
-  /** Delete every embedding for the tenant (the purge seam WS-AI-9 calls). Returns the row count removed. */
+  /**
+   * Delete every embedding for the tenant (the WS-AI-9 tenant-purge seam). Runs
+   * as a batched, advisory-locked loop (E4/E12/E15) so a huge index erases in
+   * bounded chunks without one long lock or a timeout that would roll the whole
+   * thing back. Returns the total rows removed; idempotent, so a retry converges.
+   */
   async purgeTenant(tenant: TenantModelContract): Promise<number> {
+    return this.#batchedDelete(tenant, { clause: '', bindings: [] })
+  }
+
+  /**
+   * Delete every embedding a principal ingested (per-user GDPR erasure, WS-AI-9).
+   * `actor` is the SHA-256 of the principal (the same one-way hash stored at
+   * ingest); the caller hashes the raw principal before calling (E1). Exact `?`
+   * equality, batched like {@link purgeTenant}. Returns the total rows removed.
+   */
+  async deleteByActor(tenant: TenantModelContract, actorHash: string): Promise<number> {
+    return this.#batchedDelete(tenant, { clause: ' WHERE actor = ?', bindings: [actorHash] })
+  }
+
+  /**
+   * The batched-delete engine shared by {@link purgeTenant} and
+   * {@link deleteByActor} (E4/E12/E15/E21). Each iteration is one short
+   * transaction: take the per-tenant advisory lock (the same key ingestion uses,
+   * so a batch never races an insert's cap check), optionally bound the batch
+   * with `SET LOCAL statement_timeout`, then delete up to {@link PURGE_BATCH_SIZE}
+   * rows by `ctid`. Loops until a batch removes fewer than the limit (the tail).
+   */
+  async #batchedDelete(
+    tenant: TenantModelContract,
+    where: { clause: string; bindings: readonly unknown[] }
+  ): Promise<number> {
     const { client, table } = await this.#target(tenant)
-    // safe-sql: `table` is a fixed module constant; no user input.
-    const res = await client.rawQuery(`DELETE FROM ${table}`)
-    return rowCount(res)
+    const lockArg = `ai_embeddings_cap:${tenant.id}`
+    const timeoutMs = this.deps.purgeStatementTimeoutMs
+    let total = 0
+    for (;;) {
+      const removed = await client.transaction(async (trx) => {
+        await trx.rawQuery('SELECT pg_advisory_xact_lock(hashtext(?))', [lockArg])
+        if (timeoutMs !== undefined && Number.isFinite(timeoutMs) && timeoutMs > 0) {
+          // safe-sql: SET LOCAL takes a literal (not a bind); the value is a config integer coerced + clamped at boot.
+          await trx.rawQuery(`SET LOCAL statement_timeout = ${Math.trunc(timeoutMs)}`)
+        }
+        // safe-sql: `table` is a fixed constant, the WHERE fragment a fixed literal, LIMIT a numeric constant; values are ? binds.
+        const res = await trx.rawQuery(
+          `DELETE FROM ${table} WHERE ctid IN (SELECT ctid FROM ${table}${where.clause} LIMIT ${PURGE_BATCH_SIZE})`,
+          [...where.bindings]
+        )
+        return rowCount(res)
+      })
+      total += removed
+      if (removed < PURGE_BATCH_SIZE) break
+    }
+    return total
   }
 
   /**

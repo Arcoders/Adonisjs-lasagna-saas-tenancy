@@ -11,6 +11,7 @@ import {
   PgRetrievalAuditSink,
 } from '../../../../src/gateway/audit_sinks.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
+import AiComplianceService from '../../../../src/services/ai_compliance_service.js'
 import TenantLivenessWatcher, {
   wireAiTenantLiveness,
 } from '../../../../src/services/tenant_liveness_watcher.js'
@@ -60,6 +61,17 @@ test.group('ai provider DI wiring (integration)', () => {
     assert.instanceOf(await app.container.make(PgChatAuditSink), PgChatAuditSink)
     assert.instanceOf(await app.container.make(PgEmbeddingAuditSink), PgEmbeddingAuditSink)
     assert.instanceOf(await app.container.make(PgRetrievalAuditSink), PgRetrievalAuditSink)
+  })
+
+  test('registers a resolvable AiComplianceService (WS-AI-9 purge orchestrator)', async ({
+    assert,
+  }) => {
+    new AiProvider(app).register()
+    // Resolving proves its memory + vector + idempotency seams, the kernel audit
+    // logger, tenancy.run and the redis lock are all makeable from the real
+    // container (the DI a unit test with fakes cannot cover).
+    const compliance = await app.container.make(AiComplianceService)
+    assert.instanceOf(compliance, AiComplianceService)
   })
 
   test('the liveness watcher resolves and a real TenantSuspended dispatch aborts its signals', async ({

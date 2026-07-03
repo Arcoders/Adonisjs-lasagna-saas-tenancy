@@ -12,6 +12,7 @@ import {
   type CachedAiResponse,
 } from './idempotency.js'
 import { authorizeAiAccess, resolveRequestTenant, resolveRetrievalScope } from './access_gate.js'
+import { enforceChatResidency, enforceEmbeddingResidency } from '../services/residency_gate.js'
 import recordingStreamTarget from './recording_target.js'
 import {
   buildRetrievalContext,
@@ -163,6 +164,11 @@ export default class AiChatController {
     //    403 provider_not_allowed / 503 provider_unavailable / 500 config_missing).
     const provider = this.deps.registry.forTenant(tenant, ai)
 
+    // 5-residency. Data residency / no-train (#7/#15): the tenant posture may
+    //    refuse this provider (a 403 `residency_denied`), before any reservation
+    //    or rate-limit hit — like the access gate, it propagates.
+    await enforceChatResidency(tenant, provider.name, ai)
+
     // Attribution base, shared by the RAG-preflight failure paths and the
     // stream-resolution switch. Preflight failures leave headers unsent (the
     // spine's commit-point contract), so a real status still applies.
@@ -184,7 +190,12 @@ export default class AiChatController {
     const memory = this.deps.memory
     let memorySession: ResolvedMemorySession | undefined
     let mintedSessionToken: string | undefined
+    // The memory-view snapshot time (WS-AI-9 E5): a purge that lands after this
+    // instant tombstones the session, and the late `append` below is dropped so
+    // an in-flight turn cannot resurrect just-erased history.
+    let memorySnapshotAt: number | undefined
     if (memory?.enabled && principal !== null) {
+      memorySnapshotAt = Date.now()
       try {
         if (body.sessionId !== undefined) {
           memorySession = memory.resolveSession(body.sessionId, tenant.id, principal)
@@ -320,7 +331,13 @@ export default class AiChatController {
         // frames are complete; best-effort inside `append`, so it never fails an
         // already-sent response.
         if (memory && memorySession && !recorder.overflowed) {
-          await this.#persistMemory(tenant.id, memorySession.storageKey, body, recorder.frames())
+          await this.#persistMemory(
+            tenant.id,
+            memorySession.storageKey,
+            body,
+            recorder.frames(),
+            memorySnapshotAt
+          )
         }
         await this.#auditSafe({
           ...auditBase,
@@ -407,6 +424,9 @@ export default class AiChatController {
       )
     }
     try {
+      // The RAG query embed is a remote egress too: enforce residency before it,
+      // audited as a preflight failure if refused (E7).
+      await enforceEmbeddingResidency(tenant, ai)
       return await resolveRetrievalScope(ctx, tenant, ai)
     } catch (error) {
       await this.#retrievalAuditSafe({
@@ -545,7 +565,8 @@ export default class AiChatController {
     tenantId: string,
     storageKey: string,
     body: ChatBody,
-    frames: readonly string[]
+    frames: readonly string[],
+    snapshotAt?: number
   ): Promise<void> {
     const memory = this.deps.memory
     if (!memory) return
@@ -553,7 +574,7 @@ export default class AiChatController {
     if (user === null) return
     const assistant = reconstructAssistantText(frames)
     if (assistant.length === 0) return
-    await memory.append(tenantId, storageKey, { user, assistant })
+    await memory.append(tenantId, storageKey, { user, assistant }, snapshotAt)
   }
 
   /**
