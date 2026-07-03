@@ -46,7 +46,11 @@ test.group('AI e2e — two-tenant embed/retrieve isolation (3A)', (group) => {
       .post('/ai/embed')
       .headers(H(a.id, 'user-a'))
       .json({ source: 'kb', input: ['secret-of-A: the refund window is 30 days'] })
-    embedA.assertStatus(200)
+    assert.equal(
+      embedA.status(),
+      200,
+      `POST /ai/embed (tenant A) should succeed; got ${embedA.status()}: ${JSON.stringify(embedA.body())}`
+    )
     // Demo-layer check (review #2): the write succeeded, so SEAM-2 discovery + the AI
     // per-tenant migration created the tenant's ai_embeddings table.
     assert.equal(embedA.body().inserted, 1, 'the ai_embeddings table exists and took the row')
