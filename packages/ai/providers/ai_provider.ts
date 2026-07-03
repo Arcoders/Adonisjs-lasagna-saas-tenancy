@@ -5,6 +5,7 @@ import {
   type SatelliteProviderContract,
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import {
+  AuditLogDestinationRegistry,
   CircuitBreakerService,
   DoctorService,
   ExtensionTimeoutError,
@@ -202,6 +203,11 @@ export default class AiProvider implements SatelliteProviderContract {
               (await this.app.container.make('lucid.db' as never)) as unknown as AuditDb,
             connectionName: 'backoffice',
             activeScopeTenantId: () => tenancy.currentId(),
+            // External anchoring (#6): reuse the kernel audit destination registry
+            // the operator already configures, so kernel + AI audit share one
+            // SIEM/WORM stream. Best-effort, after the canonical commit.
+            getDestinations: () => this.app.container.make(AuditLogDestinationRegistry),
+            runExtension: executeExtension,
           })
       )
       this.app.container.singleton(

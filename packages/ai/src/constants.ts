@@ -166,3 +166,12 @@ export const AI_AUDIT_TABLE = 'ai_audit_logs'
  * never contend. Mirrors the embeddings-cap lock idiom.
  */
 export const AI_AUDIT_LOCK_PREFIX = 'ai_audit:'
+
+/**
+ * Per-destination deadline for external audit anchoring (WS-AI-7, #6). After the
+ * canonical row commits, each row is fanned out best-effort to the host's audit
+ * destinations (the kernel `AuditLogDestinationRegistry`); a slow or throwing
+ * destination is bounded and isolated, never affecting the committed row or the
+ * request. Matches the kernel's `DESTINATION_TIMEOUT_MS`.
+ */
+export const AI_AUDIT_ANCHOR_TIMEOUT_MS = 2_000

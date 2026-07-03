@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto'
 import { randomUUID } from 'node:crypto'
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import AIException from '../exceptions/ai_exception.js'
-import { AI_AUDIT_TABLE, AI_AUDIT_LOCK_PREFIX } from '../constants.js'
+import { AI_AUDIT_TABLE, AI_AUDIT_LOCK_PREFIX, AI_AUDIT_ANCHOR_TIMEOUT_MS } from '../constants.js'
+import type { AuditLogEntry } from '@adonisjs-lasagna/saas-tenancy/services'
 
 /**
  * The append-only AI audit writer (WS-AI-7, I5). Every chat / embedding /
@@ -28,6 +29,17 @@ export interface AuditDb {
   connection(name: string): AuditQueryClient
 }
 
+/** One host audit destination (the kernel `AuditLogDestination` surface, narrowed). */
+export interface AuditAnchorDestination {
+  readonly name: string
+  write(entry: AuditLogEntry): Promise<void> | void
+}
+
+/** The host audit destination registry (the kernel `AuditLogDestinationRegistry`, narrowed). */
+export interface AuditAnchorRegistry {
+  list(): readonly AuditAnchorDestination[]
+}
+
 export interface AiAuditWriterDeps {
   /** Resolve the Lucid db manager, for the backoffice connection + raw queries. */
   getDb: () => Promise<AuditDb>
@@ -40,6 +52,19 @@ export interface AiAuditWriterDeps {
    * which case the caller-supplied tenant is trusted.
    */
   activeScopeTenantId: () => string | undefined
+  /**
+   * External anchoring (WS-AI-7, #6): resolve the host's audit destination
+   * registry so each committed row is fanned out to the operator's SIEM/WORM the
+   * same way kernel audit is. Optional and injected (kept barrel-free), so a host
+   * with no destinations pays nothing. Absent => no anchoring.
+   */
+  getDestinations?: () => Promise<AuditAnchorRegistry | undefined>
+  /**
+   * The bounded extension runner (the kernel `executeExtension`), injected so this
+   * module never value-imports the eager core barrel. Used to time-bound each
+   * destination write. Absent => no anchoring.
+   */
+  runExtension?: <T>(fn: () => Promise<T>, opts: { label: string; timeoutMs: number }) => Promise<T>
 }
 
 /**
@@ -207,8 +232,9 @@ export default class AiAuditWriter {
 
     const db = await this.deps.getDb()
     const client = db.connection(this.deps.connectionName)
+    let entry: AiAuditEntry
     try {
-      return await this.#appendChained(client, row)
+      entry = await this.#appendChained(client, row)
     } catch (error) {
       if (error instanceof AIException) throw error
       emitAiGuardEvent('guard.ai_audit_write_failed', {
@@ -221,6 +247,10 @@ export default class AiAuditWriter {
         { cause: error }
       )
     }
+    // The canonical row is committed. External anchoring is best-effort and MUST
+    // NOT fail the request or re-trip the fail-closed guard (the row is durable).
+    await this.#anchorSafe(entry)
+    return entry
   }
 
   /**
@@ -312,6 +342,78 @@ export default class AiAuditWriter {
       }
     }
     throw lastError
+  }
+
+  /** Anchor a committed row, never letting a broken destination touch the request. */
+  async #anchorSafe(entry: AiAuditEntry): Promise<void> {
+    try {
+      await this.#anchor(entry)
+    } catch {
+      /* anchoring is best-effort: the canonical row already committed, so a
+         resolution error or a throwing destination must never fail the request */
+    }
+  }
+
+  /**
+   * Fan the committed row out to every host audit destination (WS-AI-7, #6),
+   * mapped onto the kernel `AuditLogEntry` shape so AI audit and kernel audit share
+   * one SIEM/WORM stream. Each write is time-bounded and isolated (`allSettled`),
+   * so a slow or throwing destination is contained. No destinations, or no
+   * anchoring deps, costs nothing.
+   */
+  async #anchor(entry: AiAuditEntry): Promise<void> {
+    const getDestinations = this.deps.getDestinations
+    const run = this.deps.runExtension
+    if (!getDestinations || !run) return
+    const registry = await getDestinations()
+    if (!registry) return
+    const destinations = registry.list()
+    if (destinations.length === 0) return
+
+    const logEntry = toAuditLogEntry(entry)
+    await Promise.allSettled(
+      destinations.map((dest) =>
+        run(() => Promise.resolve(dest.write(logEntry)), {
+          label: `ai-audit:${dest.name}`,
+          timeoutMs: AI_AUDIT_ANCHOR_TIMEOUT_MS,
+        })
+      )
+    )
+  }
+}
+
+/**
+ * Map a persisted AI audit entry onto the kernel `AuditLogEntry` a destination
+ * receives. The action namespaces the op (`ai:chat` / `ai:embedding` /
+ * `ai:retrieval`); the AI-typed non-PII fields ride in `metadata`; `actorId` is
+ * the one-way principal hash; `ipAddress` is null. No prompt/response/query/doc
+ * content is ever present (it is not on the entry).
+ */
+function toAuditLogEntry(entry: AiAuditEntry): AuditLogEntry {
+  return {
+    id: entry.id,
+    tenantId: entry.tenantId,
+    actorType: 'system',
+    actorId: entry.principalHash,
+    action: `ai:${entry.op}`,
+    metadata: {
+      op: entry.op,
+      outcome: entry.outcome,
+      reason: entry.reason,
+      provider: entry.provider,
+      model: entry.model,
+      tokens: entry.tokens,
+      fragments: entry.fragments,
+      embeddingsCount: entry.embeddingsCount,
+      dimension: entry.dimension,
+      matchCount: entry.matchCount,
+      idempotentReplay: entry.idempotentReplay,
+      sourceHash: entry.sourceHash,
+      seq: entry.seq,
+      checksum: entry.checksum,
+    },
+    ipAddress: null,
+    createdAt: entry.occurredAt,
   }
 }
 
