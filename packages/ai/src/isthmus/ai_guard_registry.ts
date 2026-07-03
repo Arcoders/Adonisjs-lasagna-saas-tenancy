@@ -282,6 +282,22 @@ export const AI_GUARD_REGISTRY = [
     reviewed: '2026-07-02',
     nextReview: '2027-01-02',
   },
+  {
+    id: 'guard.ai_audit_write_failed',
+    pillar: 'guard',
+    bugClass: 'audit-integrity',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_audit_write_failed:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'invariant',
+      ref: 'I5 fail-closed matrix: an attributable action whose append-only audit row cannot be written is a failure, not a silent success; the writer emits before it rethrows so an audit outage is observable, and a post-stream chat failure leaves a detectable seq gap',
+    },
+    guardFile: 'src/services/ai_audit_writer.ts',
+    reviewed: '2026-07-03',
+    nextReview: '2027-01-03',
+  },
 ] as const satisfies readonly AiGuardRegistryEntryShape[]
 
 /** Compile-time union of all registered AI guard ids. */

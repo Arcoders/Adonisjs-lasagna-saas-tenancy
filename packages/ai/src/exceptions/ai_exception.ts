@@ -25,6 +25,8 @@ export const AI_ERROR_CODES = [
   'ingestion_denied',
   // WS-AI-5 retrieval
   'retrieval_denied',
+  // WS-AI-7 audit
+  'audit_write_failed',
 ] as const
 
 export type AIErrorCode = (typeof AI_ERROR_CODES)[number]
@@ -58,6 +60,9 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   // A denied retrievalFilter (G2 per-user document ACL) is a 403, like the
   // access and ingestion gates.
   retrieval_denied: 403,
+  // An audit row that cannot be written is a fail-closed 503 (the action must
+  // be attributable, and the failure is usually a transient audit-DB outage).
+  audit_write_failed: 503,
 }
 
 /**

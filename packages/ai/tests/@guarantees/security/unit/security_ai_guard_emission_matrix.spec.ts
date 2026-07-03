@@ -26,7 +26,9 @@ import ClaudeProvider from '../../../../src/providers/claude_provider.js'
 import { assertAiConfig } from '../../../../src/validate_config.js'
 import MockAIProvider from '../../../../src/testing/mock_ai_provider.js'
 import VectorStoreService from '../../../../src/services/vector_store_service.js'
+import AiAuditWriter from '../../../../src/services/ai_audit_writer.js'
 import { fakeVectorEnv } from '../../../helpers/fake_vector_db.js'
+import { fakeAuditEnv, sampleAuditRow } from '../../../helpers/fake_audit_db.js'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /** A minimal embedding chunk for the vector-store guard recipes. */
@@ -223,6 +225,12 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
       resolveRetrievalScope({} as never, tenant, {
         retrieval: { retrievalFilter: () => ({ kind: 'all' }) },
       } as never),
+  },
+  'guard.ai_audit_write_failed': {
+    trip: () =>
+      new AiAuditWriter(fakeAuditEnv({ failInsert: 'always' }).deps).append(sampleAuditRow()),
+    expectThrow: /audit row could not be written/,
+    happy: () => new AiAuditWriter(fakeAuditEnv().deps).append(sampleAuditRow()),
   },
 }
 
