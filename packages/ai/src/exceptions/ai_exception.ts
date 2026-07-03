@@ -27,6 +27,8 @@ export const AI_ERROR_CODES = [
   'retrieval_denied',
   // WS-AI-7 audit
   'audit_write_failed',
+  // WS-AI-4 memory
+  'memory_session_invalid',
 ] as const
 
 export type AIErrorCode = (typeof AI_ERROR_CODES)[number]
@@ -63,6 +65,9 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   // An audit row that cannot be written is a fail-closed 503 (the action must
   // be attributable, and the failure is usually a transient audit-DB outage).
   audit_write_failed: 503,
+  // A conversation-memory session token that does not verify is a malformed /
+  // forged request (like a malformed Idempotency-Key), a permanent 400.
+  memory_session_invalid: 400,
 }
 
 /**
@@ -101,6 +106,8 @@ const FATAL_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
   'ingestion_denied',
   // A denied retrieval authorizer is permanent, not retryable.
   'retrieval_denied',
+  // A forged/malformed session token will not become valid on a retry.
+  'memory_session_invalid',
 ])
 
 /**

@@ -298,6 +298,22 @@ export const AI_GUARD_REGISTRY = [
     reviewed: '2026-07-03',
     nextReview: '2027-01-03',
   },
+  {
+    id: 'guard.ai_memory_session_invalid',
+    pillar: 'guard',
+    bugClass: 'memory-hijack',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_memory_session:rejected',
+    severity: 'high',
+    evidence: {
+      kind: 'invariant',
+      ref: 'I2 / G6: conversation-memory sessions are server-minted and HMAC-bound to the (tenant, principal) pair; a supplied sessionId whose MAC does not verify against the CURRENT principal is a hijack or pre-seed attempt on another principal memory, refused with a 400 before any load or persist',
+    },
+    guardFile: 'src/services/conversation_memory_service.ts',
+    reviewed: '2026-07-03',
+    nextReview: '2027-01-03',
+  },
 ] as const satisfies readonly AiGuardRegistryEntryShape[]
 
 /** Compile-time union of all registered AI guard ids. */

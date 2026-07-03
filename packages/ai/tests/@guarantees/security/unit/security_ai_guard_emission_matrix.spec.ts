@@ -27,6 +27,7 @@ import { assertAiConfig } from '../../../../src/validate_config.js'
 import MockAIProvider from '../../../../src/testing/mock_ai_provider.js'
 import VectorStoreService from '../../../../src/services/vector_store_service.js'
 import AiAuditWriter from '../../../../src/services/ai_audit_writer.js'
+import ConversationMemoryService from '../../../../src/services/conversation_memory_service.js'
 import { fakeVectorEnv } from '../../../helpers/fake_vector_db.js'
 import { fakeAuditEnv, sampleAuditRow } from '../../../helpers/fake_audit_db.js'
 import type { AiConfig } from '../../../../src/define_config.js'
@@ -41,6 +42,18 @@ const embChunk = (embedding: number[], contentHash = 'h') => ({
   embedding,
 })
 const storedRow = { id: 'x', content_hash: 'h' }
+
+/** A memory service for the session-guard recipe; mint/resolve never touch Redis, so the store throws if reached. */
+const memoryForMatrix = () =>
+  new ConversationMemoryService({
+    getRedis: async () => {
+      throw new Error('the session guard must not reach Redis')
+    },
+    macKey: Buffer.alloc(32, 7),
+    encryptMemory: (p) => p,
+    decryptMemory: (c) => c,
+    config: { maxTurns: 10 },
+  })
 
 /**
  * The registry-driven AI guard emission matrix, mirroring the kernel's. Every
@@ -231,6 +244,21 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
       new AiAuditWriter(fakeAuditEnv({ failInsert: 'always' }).deps).append(sampleAuditRow()),
     expectThrow: /audit row could not be written/,
     happy: () => new AiAuditWriter(fakeAuditEnv().deps).append(sampleAuditRow()),
+  },
+  'guard.ai_memory_session_invalid': {
+    // mintSession/resolveSession are pure crypto (no Redis), so the fake store is never touched.
+    trip: () => {
+      const mem = memoryForMatrix()
+      const { token } = mem.mintSession('tenant-1', 'user-a')
+      // Same token, DIFFERENT principal: the session MAC cannot verify (G6).
+      return mem.resolveSession(token, 'tenant-1', 'user-b')
+    },
+    expectThrow: /session token does not verify/,
+    happy: () => {
+      const mem = memoryForMatrix()
+      const { token } = mem.mintSession('tenant-1', 'user-a')
+      return mem.resolveSession(token, 'tenant-1', 'user-a')
+    },
   },
 }
 

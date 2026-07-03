@@ -21,7 +21,13 @@ import {
   provisionVectorExtension,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { safeFetch } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
-import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
+import {
+  tenancy,
+  writeSecret,
+  readSecret,
+  decryptWithAppKey,
+  SECRET_CLASS,
+} from '@adonisjs-lasagna/saas-tenancy'
 import { assertAiConfig } from '../src/validate_config.js'
 import type { AiConfig, AIEmbeddingConfig, MultitenancyConfigWithAi } from '../src/define_config.js'
 import { DEFAULT_AI_PROVIDER, DEFAULT_EMBEDDING_DIM } from '../src/constants.js'
@@ -47,6 +53,9 @@ import AiIdempotencyService, {
   deriveAiIdempotencyMacKey,
   type AiIdempotencyStore,
 } from '../src/gateway/idempotency.js'
+import ConversationMemoryService, {
+  deriveMemoryMacKey,
+} from '../src/services/conversation_memory_service.js'
 import { aiMembershipGateCheck } from '../src/services/ai_membership_gate_check.js'
 import { aiBudgetCheck, aiTokensBudgetPosture } from '../src/services/ai_budget_check.js'
 import {
@@ -54,6 +63,7 @@ import {
   aiRetrievalGatePosture,
 } from '../src/services/ai_retrieval_gate_check.js'
 import { aiAuditCheck } from '../src/services/ai_audit_check.js'
+import { aiMemoryCheck } from '../src/services/ai_memory_check.js'
 import { setAiGuardMetricSink } from '../src/isthmus/ai_guard_audit.js'
 import ClaudeProvider from '../src/providers/claude_provider.js'
 import { DeepSeekProvider, KimiProvider } from '../src/providers/openai_compatible_provider.js'
@@ -112,6 +122,33 @@ export default class AiProvider implements SatelliteProviderContract {
       return new AiRateLimiter({
         consume: (args) => consumeRateLimit({ getRedis, ...args }),
         policy: ai?.rateLimit,
+      })
+    })
+    // Conversation memory (WS-AI-4, I2). Encrypted at rest through the kernel's
+    // fail-closed, domain-separated secret seam (writeSecret/readSecret bound to
+    // the 'aiConversationMemory' class), stored as an atomic Redis LIST via the
+    // same `'redis'` binding the rate limiter uses. The enc_v2 write/read pass in
+    // as narrow injected deps so the gateway module never value-imports core; the
+    // OLD_APP_KEY grace read (dual-key rotation) is wired only when that env is
+    // set. Metrics + a metadata-only warn make a persist/decrypt failure observable.
+    this.app.container.singleton(ConversationMemoryService, async (resolver) => {
+      const ai = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+      const metrics = await resolver.make(MetricsService)
+      const logger = await resolver.make('logger')
+      const currentAppKey = requireAppKey()
+      const oldAppKey = process.env.OLD_APP_KEY
+      return new ConversationMemoryService({
+        getRedis: () => this.app.container.make('redis'),
+        macKey: deriveMemoryMacKey(currentAppKey),
+        encryptMemory: (plain) => writeSecret(plain, 'aiConversationMemory'),
+        decryptMemory: (cipher) => readSecret(cipher, 'aiConversationMemory'),
+        decryptMemoryPrevious:
+          oldAppKey && oldAppKey !== currentAppKey
+            ? (cipher) => decryptWithAppKey(cipher, oldAppKey, SECRET_CLASS.aiConversationMemory)
+            : undefined,
+        config: ai?.memory,
+        metric: (tenantId, name, value) => metrics.emitMetric(tenantId, name, value),
+        warn: (message) => logger.warn(message),
       })
     })
     // The streaming integrator resolves its quota + breaker seams from the
@@ -268,6 +305,13 @@ export default class AiProvider implements SatelliteProviderContract {
           (await this.app.container.make('lucid.db' as never)) as unknown as AuditDb,
         connectionName: 'backoffice',
       })
+    )
+    // Keep the conversation-memory posture visible (WS-AI-4, I2): memory binds a
+    // session to the resolved principal, so an enabled-but-no-principal memory is
+    // inert (stateless). The check reports the live posture; it is info-only, so
+    // there is no boot warning.
+    doctor.register(
+      aiMemoryCheck(() => this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
     )
     if (config?.ai) {
       const posture = aiTokensBudgetPosture(config)
