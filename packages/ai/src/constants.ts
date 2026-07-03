@@ -149,3 +149,20 @@ export const DEFAULT_MAX_CONTEXT_ITEMS = 8
  * `config.ai.retrieval.maxContextChars`.
  */
 export const DEFAULT_MAX_CONTEXT_CHARS = 8_000
+
+/**
+ * The append-only AI audit table (WS-AI-7, I5). A fixed module constant living in
+ * the shared `backoffice` schema, so it survives `tenant:purge-expired` (which
+ * drops the tenant schema) and the tenant request role cannot DROP it. Used both
+ * in the published migration DDL and the writer's schema-qualified raw SQL, always
+ * as `backoffice.ai_audit_logs`.
+ */
+export const AI_AUDIT_TABLE = 'ai_audit_logs'
+
+/**
+ * Advisory-lock key prefix for the per-tenant audit hash chain. Each `append`
+ * takes `pg_advisory_xact_lock(hashtext('ai_audit:'||tenant_id))` so a tenant's
+ * `seq`+`checksum` links are serialized (released at commit); different tenants
+ * never contend. Mirrors the embeddings-cap lock idiom.
+ */
+export const AI_AUDIT_LOCK_PREFIX = 'ai_audit:'

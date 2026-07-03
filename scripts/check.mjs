@@ -37,6 +37,7 @@ const GUARDS = [
   'check-satellite-migrations.mjs',
   'check-ai-invariant-1.mjs',
   'check-ai-invariant-4.mjs',
+  'check-ai-invariant-5.mjs',
   'check-ai-invariant-8.mjs',
 ]
 

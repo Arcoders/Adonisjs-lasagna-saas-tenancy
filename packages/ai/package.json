@@ -9,7 +9,8 @@
     "node": ">=24.0.0"
   },
   "files": [
-    "build"
+    "build",
+    "stubs"
   ],
   "exports": {
     ".": "./build/src/index.js",
@@ -38,6 +39,7 @@
   "lasagnaSatellite": {
     "name": "ai",
     "satelliteApi": 1,
+    "migrations": "stubs/migrations",
     "perTenantMigrations": "build/tenant_migrations",
     "minMergedCoverage": {
       "lines": 60,
