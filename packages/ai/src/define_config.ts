@@ -132,6 +132,28 @@ export interface AIRetrievalConfig {
 }
 
 /**
+ * The conversation memory block (WS-AI-4, I2), present when a host opts into
+ * per-(tenant,user,session) chat history. Memory is encrypted at rest (enc_v2,
+ * its own secret class), TTL-bounded in Redis, and replayed into the context as
+ * `user`/`assistant` turns (never `system`, so a poisoned turn cannot rewrite
+ * the instructions: #1/#10). Sessions are server-minted and HMAC-bound to the
+ * (tenant, {@link AiConfig.resolvePrincipal | principal}) pair, so a client
+ * cannot supply or guess one to reach another principal's memory (G6); the
+ * `X-Ai-Session` response header hands the token back on the first turn. Absent
+ * block ⇒ chat stays stateless and `sessionId` keeps its opaque idempotency-scope
+ * meaning. Requires a resolvable principal; without one the `ai_memory` doctor
+ * check warns and memory is inert.
+ */
+export interface AIMemoryConfig {
+  /** Prior exchanges (user+assistant pairs) replayed into a chat context; older ones are dropped. Default 20. Must be >= 1. */
+  maxTurns?: number
+  /** Character budget for the replayed memory block, folded within `maxPromptChars` (#8). Default 8000. */
+  maxChars?: number
+  /** Sliding TTL for a session's memory in ms, refreshed each turn. Default 86400000 (24h). */
+  ttlMs?: number
+}
+
+/**
  * The append-only audit block (WS-AI-7, I5). Audit is ON by default when
  * `config.ai` is present (attribution is a security control, so fail-closed):
  * every chat / embedding / retrieval choke point writes a non-PII, hash-chained
@@ -179,6 +201,8 @@ export interface AiConfig {
   embedding?: AIEmbeddingConfig
   /** The retrieval / RAG block (WS-AI-5). Present when the host opts into similarity search over the vector store. */
   retrieval?: AIRetrievalConfig
+  /** The conversation memory block (WS-AI-4). Present when the host opts into per-(tenant,user,session) chat history. */
+  memory?: AIMemoryConfig
   /** SSE heartbeat interval in ms. Default 15000. Must stay below any upstream proxy idle timeout. */
   heartbeatMs?: number
   /** Response deadline in ms for a streamed call. The composed abort fires at the deadline. */
@@ -207,6 +231,11 @@ export interface AiConfig {
    * with. Defaults to the host's `@adonisjs/auth` user id when present. A
    * request with no resolvable principal gets NO idempotency (a cached
    * response must never be shareable across unknown callers).
+   *
+   * MUST return a STABLE, immutable per-user id (a primary key, not a mutable
+   * email): idempotency, audit attribution AND conversation memory (WS-AI-4)
+   * all bind to it. A change correctly orphans that principal's memory (G6),
+   * bounded by the memory TTL, so a mutable value silently loses history.
    */
   resolvePrincipal?: (ctx: HttpContext) => string | number | null | undefined
   /**

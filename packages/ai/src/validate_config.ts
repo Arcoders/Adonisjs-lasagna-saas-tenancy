@@ -2,6 +2,7 @@ import type {
   AiConfig,
   AIAuditConfig,
   AIEmbeddingConfig,
+  AIMemoryConfig,
   AIProviderConfig,
   AIProviderName,
   AIRetrievalConfig,
@@ -89,7 +90,25 @@ export function assertAiConfig(config: AiConfig | undefined): void {
   assertRateLimit(config.rateLimit)
   assertEmbeddingConfig(config.embedding)
   assertRetrievalConfig(config.retrieval)
+  assertMemoryConfig(config.memory)
   assertAuditConfig(config.audit)
+}
+
+/**
+ * The conversation memory block (WS-AI-4, I2), when present: the bounds are
+ * positive integers, with `maxTurns` at least 1 (a zero-turn memory would store
+ * but never replay). Presence of the block enables memory; the require-a-principal
+ * posture is a runtime concern reported by the `ai_memory` doctor check, not a
+ * config error.
+ */
+function assertMemoryConfig(memory: AIMemoryConfig | undefined): void {
+  if (memory === undefined) return
+  if (typeof memory !== 'object' || memory === null) {
+    fail('[ai] config.ai.memory, when set, must be an object')
+  }
+  assertPositiveInteger('memory.maxTurns', memory.maxTurns)
+  assertPositiveInteger('memory.maxChars', memory.maxChars)
+  assertPositiveInteger('memory.ttlMs', memory.ttlMs)
 }
 
 /**

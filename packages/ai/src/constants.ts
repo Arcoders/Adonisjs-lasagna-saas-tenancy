@@ -151,6 +151,44 @@ export const DEFAULT_MAX_CONTEXT_ITEMS = 8
 export const DEFAULT_MAX_CONTEXT_CHARS = 8_000
 
 /**
+ * Conversation memory (WS-AI-4, I2). The Redis key prefix for a session's turn
+ * list. The full key is `ai:mem:<tenantId>:<userMac>:<sessionMac>`: the tenant
+ * segment scopes a purge, the userMac segment scopes a per-user (GDPR) erasure,
+ * and the sessionMac addresses one conversation. Fixed constant, never inlined.
+ */
+export const AI_MEMORY_KEY_PREFIX = 'ai:mem'
+
+/**
+ * The enc_v2 secret class for conversation memory. Maps to its own HKDF context
+ * (`ai:conversation-memory:v1`) in the kernel's `SECRET_CLASS`, so a memory blob
+ * cannot be decrypted as any other secret class (confused-deputy resistance).
+ */
+export const AI_MEMORY_SECRET_CLASS = 'aiConversationMemory'
+
+/**
+ * Default number of prior exchanges (one user+assistant pair each) replayed into
+ * a chat context. Older exchanges are dropped (LTRIM) so the list stays bounded.
+ * Tunable via `config.ai.memory.maxTurns`.
+ */
+export const DEFAULT_MEMORY_MAX_TURNS = 20
+
+/**
+ * Default character budget for the replayed memory block. Memory is injected
+ * AFTER retrieval with `min(this, maxPromptChars - assembledChars)`, so the
+ * assembled prompt never exceeds `maxPromptChars` (#2/#8). Tunable via
+ * `config.ai.memory.maxChars`.
+ */
+export const DEFAULT_MEMORY_MAX_CHARS = 8_000
+
+/**
+ * Default sliding TTL for a session's memory, in ms (24h). Refreshed (PEXPIRE)
+ * on every append, so an active conversation persists and an abandoned one
+ * expires. An APP_KEY rotation bounds unreadable memory to this window. Tunable
+ * via `config.ai.memory.ttlMs`.
+ */
+export const DEFAULT_MEMORY_TTL_MS = 86_400_000
+
+/**
  * The append-only AI audit table (WS-AI-7, I5). A fixed module constant living in
  * the shared `backoffice` schema, so it survives `tenant:purge-expired` (which
  * drops the tenant schema) and the tenant request role cannot DROP it. Used both
