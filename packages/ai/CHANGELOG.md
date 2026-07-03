@@ -152,6 +152,30 @@ Added:
   - Structural guards: `check-ai-invariant-4` (the satellite never authors a
     system-role message, I4) and `check-ai-invariant-8` (every streaming response
     path applies an output bound, I8).
+- **Audit (WS-AI-7)**: the three attribution seams (chat / embedding / retrieval)
+  that shipped no-op now write append-only, non-PII, hash-chained rows (I5).
+  - A dedicated backoffice `ai_audit_logs` table, published on `configure`, that
+    replicates the kernel audit trigger set in full: a `no_mutate` function plus
+    `BEFORE UPDATE`/`BEFORE DELETE` (row-level) and a statement-level `BEFORE
+    TRUNCATE`, each raising regardless of role (#6). It survives
+    `tenant:purge-expired` (it lives in the shared backoffice schema, not a tenant
+    schema) and stores only non-PII metadata (counts, ids, model, one-way hashes),
+    so GDPR erasure never has to chase content into the immutable log (#14, G1).
+  - `AiAuditWriter`: a per-tenant `seq`+`checksum` hash chain, serialized by a
+    transaction-scoped `pg_advisory_xact_lock` and backstopped by
+    `UNIQUE(tenant_id, seq)` with a bounded retry, so a rewrite, deletion, or
+    reorder that gets past the triggers (a superuser who disabled them) breaks the
+    chain. Writes are fail-closed: a write outage is a 503 `audit_write_failed`
+    with a `guard.ai_audit_write_failed` trip, and a completed SSE stream (which
+    cannot be un-sent) instead trips the guard and leaves a detectable `seq` gap.
+  - `tenant:ai:audit:verify` re-walks the chain and reports the first break
+    (checksum / gap / prev-link), exiting non-zero for a cron or a post-incident
+    gate. The `ai_audit` doctor check surfaces an un-provisioned table early.
+  - External WORM/SIEM anchoring reuses the kernel `AuditLogDestinationRegistry`:
+    each committed row is fanned out best-effort (time-bounded, isolated) so kernel
+    audit and AI audit share one operator stream, without a duplicate admin-table
+    row. A guard, `check-ai-invariant-5`, pins the trigger set and the fixed
+    non-PII column allowlist.
 
 Documentation correction (per the ARCHITECTURE.md correction path): the design
 doc's living sections now record the Isthmus integration decision (satellite

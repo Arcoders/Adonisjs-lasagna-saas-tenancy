@@ -18,8 +18,8 @@ gateway: the `StreamExtensionService`, the `AIProviderContract` with a
 per-tenant default-deny allow-list and a streaming-presence gate, three real
 providers (Claude, DeepSeek, Kimi), and the fail-closed `POST /ai/chat` SSE
 endpoint with a membership gate, idempotent replays and mid-stream suspension
-handling. The vector store, conversation memory, retrieval filtering and the AI
-audit table are later workstreams that build on this choke point.
+handling. The vector store, retrieval (RAG) and an append-only audit of every op
+build on this choke point too; conversation memory is a later workstream.
 
 ## Install
 
@@ -375,6 +375,56 @@ Two structural guards pin the context-integrity invariants: `check-ai-invariant-
 (the satellite never authors a system-role message, so retrieved or tenant data
 can never become a trusted instruction, I4) and `check-ai-invariant-8` (every
 streaming response path applies an output bound, I8).
+
+## Audit
+
+Every chat, embedding and retrieval op is append-only audited with attribution
+(WS-AI-7, I5). The three attribution seams the earlier workstreams emitted now
+persist a non-PII, hash-chained row. Audit is **on by default** and
+**fail-closed**, because attribution is a security control.
+
+**Where it lives.** A dedicated `ai_audit_logs` table in the shared **backoffice**
+schema, published by `node ace configure @adonisjs-lasagna/ai` and created by
+`node ace migration:run`. Backoffice placement is deliberate: the table survives
+`tenant:purge-expired` (which drops a tenant's own schema), and the tenant request
+role cannot DROP it. It replicates the kernel audit trigger set in full, so the
+database rejects `UPDATE` / `DELETE` / `TRUNCATE` regardless of role (#6).
+
+**Non-PII only (#14, G1).** A row carries counts, ids, the model, an outcome, and
+one-way SHA-256 hashes of the principal and the source, never a prompt, response,
+query, or document. There is no PII for GDPR erasure to chase into the immutable
+log, so `tenant:purge-expired` deletes embeddings, memory and content while the
+audit survives, and `tenant:gdpr:anonymize` is a no-op on this table.
+
+**Tamper-evidence.** On top of the triggers, each row is linked into a per-tenant
+`seq`+`checksum` hash chain. A rewrite, deletion, or reorder that gets past the
+triggers (a superuser who disabled them) breaks the chain. Verify it any time:
+
+```bash
+node ace tenant:ai:audit:verify              # every tenant; exit 1 on the first break
+node ace tenant:ai:audit:verify --tenant=<id> --json
+```
+
+**Fail-closed writes.** A write outage fails the request with a 503
+`audit_write_failed` and a `guard.ai_audit_write_failed` trip: an attributable
+action is never a silent success. A completed SSE stream is the one thing that
+cannot be un-sent, so a chat-completion audit outage instead trips the guard and
+leaves a detectable `seq` gap that `verify` reports. The `ai_audit` doctor check
+flags an un-provisioned table before it 503s a live request. Set
+`audit: { enabled: false }` to opt out (a host with its own audit rail).
+
+**External anchoring.** Register a destination on the kernel
+`AuditLogDestinationRegistry` and AI audit rows fan out to your SIEM/WORM alongside
+kernel audit, best-effort and time-bounded, so a slow or throwing destination never
+affects the committed row or the request.
+
+<Callout type="warning" title="Honest limit">
+The DB triggers stop UPDATE/DELETE/TRUNCATE for every role, but a **superuser** can
+still `DROP` the triggers or the table. The hash chain and the external anchor bound
+that residual (the tampering stays detectable off-box and through `verify`); they do
+not eliminate it. Serve requests under a least-privilege role, and the `ai_audit`
+doctor check warns when the app role is a superuser.
+</Callout>
 
 ## Use the streaming service directly
 
