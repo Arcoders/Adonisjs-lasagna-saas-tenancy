@@ -288,6 +288,25 @@ Added:
   memory, audit and compliance all shipped, no longer "a later workstream"), and the
   retrieval-outage operations note (a store outage returns a non-2xx; operators
   monitor `ai_retrieval_errors`) is documented. Docs-only, no production-code change.
+- **AI security hardening (WS-AI-10, follow-up)**: an OWASP LLM Top 10 (2025)
+  coverage crosswalk on the security page (each category mapped to its covering
+  vectors, invariants, and control), plus an optional host output-redaction seam.
+  - `config.ai.redactOutput` `(ctx, tenant, chunk) => string | null`: a host DLP /
+    PII-redaction hook applied per streamed chat fragment AFTER the mandatory I8
+    output bound, so the bound always holds. It composes at the single fragment
+    choke point, so the redacted bytes are what the client receives AND what the
+    idempotency cache and conversation memory store: a replay serves the redacted
+    bytes and the model never re-sees the raw output on the next turn. `tokens` are
+    unchanged (cost is unaffected), and a redactor that throws or returns a
+    non-string fails closed (the stream aborts, no un-redacted bytes). It is
+    host-owned defense-in-depth, never the isolation control (I4/I8 remain the
+    guarantee); a new content-free `ai_output_redacted` metric counts changes and
+    aborts.
+  - A validation of an external OWASP LLM 2025 report corrected the record: the
+    vector store isolates via `tableLocation` + ContextSeal (not RLS), the SSRF
+    guard both pins the validated IP and refuses redirects (the DNS-rebind /
+    302-bypass classes are closed on the AI path), and injection / incident handling
+    is deliberately harmless-by-isolation (I4), not regex detection.
 
 Documentation correction (per the ARCHITECTURE.md correction path): the design
 doc's living sections now record the Isthmus integration decision (satellite

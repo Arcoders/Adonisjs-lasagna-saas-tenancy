@@ -193,7 +193,9 @@ The principal comes from `config.ai.resolvePrincipal` (default: the
 idempotency at all, because a cached response must never be shareable across
 unknown callers. Only completed streams are cached; aborted and failed calls
 always retry fresh. Two genuinely concurrent identical requests both run and
-both charge (the cache absorbs retries, it does not coordinate racers).
+both charge (the cache absorbs retries, it does not coordinate racers). When
+`redactOutput` (below) is configured, the cached bytes are the redacted ones, so
+a replay never reveals content the redactor stripped.
 
 ## Suspension mid-stream
 
@@ -203,6 +205,43 @@ streams immediately: the stream ends with a `done` frame carrying
 abort is same-pod (the pod where the lifecycle change ran); on other pods the
 next request is rejected by TenantGuard, the same posture as the kernel's
 resolution-cache caveat.
+
+## Redact model output
+
+`config.ai.redactOutput` is an optional hook to redact or transform the model's
+streamed output before it reaches the client, for a host DLP or PII-redaction
+policy. It runs per streamed chat fragment, after the mandatory output bound, and
+returns the (possibly redacted) text or `null` to abort the stream.
+
+```ts
+// config/multitenancy.ts
+import { defineAiConfig } from '@adonisjs-lasagna/ai'
+
+ai: defineAiConfig({
+  // ...
+  redactOutput: (ctx, tenant, chunk) =>
+    chunk.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[redacted]'), // strip SSN-shaped tokens
+}),
+```
+
+Because it runs at the single fragment choke point, the redacted bytes are what
+the client receives, what is cached for an idempotent replay, and what is
+persisted to conversation memory. A redacted answer is never stored un-redacted,
+so a replay serves the same redacted bytes and the model never re-sees the raw
+output on the next turn. The provider `tokens` are unchanged, so redaction never
+alters the metered cost, and each redaction is counted on the content-free
+`ai_output_redacted` metric.
+
+<Callout type="warning" title="Defense-in-depth, never the isolation control">
+`redactOutput` is host-owned defense-in-depth, not a security boundary. Tenant
+isolation is structural (I4/I8): a redactor cannot detect a leak that isolation
+already makes impossible, and it is not a substitute for it. It is sync and
+per-fragment on purpose (an async per-token DLP call would kill streaming
+latency), so a pattern split across two fragments can be missed. A redactor that
+throws or returns a non-string fails closed: the stream aborts rather than
+emitting un-redacted bytes. See the
+[AI security page](/guides/satellites/ai-security#owasp-llm-top-10-2025-coverage).
+</Callout>
 
 ## Guard events
 
@@ -428,7 +467,10 @@ request. Persist and rotation failures are surfaced as the `ai_memory_persist_fa
 `ai_memory_unreadable` and `ai_memory_decrypt_previous_used` tenant metrics (never
 content). The `ai_memory` doctor check flags an enabled-but-no-principal (inert)
 memory. `check-ai-invariant-2` pins the invariant structurally (encryption on every
-write, HMAC on every session read, never a system-role memory turn).
+write, HMAC on every session read, never a system-role memory turn). A configured
+`redactOutput` (see [Redact model output](#redact-model-output)) applies before
+persistence, so the assistant turn stored in memory is the redacted text: the
+model never re-sees output the host redacted.
 
 > Erasing a user's memory (`ai:mem:<tenant>:<userMac>:*`) or a whole tenant's is a
 > per-user / per-tenant `SCAN`+`DEL`, wired into the compliance purge in WS-AI-9.

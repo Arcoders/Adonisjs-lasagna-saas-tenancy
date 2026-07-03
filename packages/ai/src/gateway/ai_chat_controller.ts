@@ -1,6 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type StreamExtensionService from './stream_extension.js'
-import { httpStreamTarget, type StreamResult } from './stream_extension.js'
+import { httpStreamTarget, type StreamResult, type EmitMetric } from './stream_extension.js'
 import type AIProviderRegistry from '../services/ai_provider_registry.js'
 import type TenantLivenessWatcher from '../services/tenant_liveness_watcher.js'
 import type AiRateLimiter from '../services/ai_rate_limiter.js'
@@ -34,12 +34,13 @@ import AIException, { httpStatusForAiCode } from '../exceptions/ai_exception.js'
 import { assertNever } from '../internal/assert_never.js'
 import type RetrievalService from '../services/retrieval_service.js'
 import type { VectorMatch } from '../services/vector_store_service.js'
-import type { AiConfig, AIRetrievalConfig, RetrievalScope } from '../define_config.js'
+import type { AiConfig, AIRetrievalConfig, RetrievalScope, RedactOutput } from '../define_config.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { AIMessage, AIStreamRequest, StreamFragment } from '../types/ai_provider_contract.js'
 import {
   AI_FRAGMENT_MAX_CHARS,
   AI_IDEMPOTENCY_MAX_BYTES,
+  AI_OUTPUT_REDACTED_METRIC,
   AI_TOKENS_QUOTA,
   DEFAULT_AI_MAX_PROMPT_CHARS,
   DEFAULT_AI_MAX_TOKENS,
@@ -68,6 +69,12 @@ export interface AiChatControllerDeps {
   idempotency: AiIdempotencyService
   liveness: TenantLivenessWatcher
   config: AiConfig | undefined
+  /**
+   * Per-tenant integer metrics (satisfied by core's `MetricsService.emitMetric`).
+   * Optional and best-effort; used to surface `ai_output_redacted` when a host
+   * `config.ai.redactOutput` hook changed or aborted output. Defaults to a no-op.
+   */
+  emitMetric?: EmitMetric
   /** The per-key request rate limiter (threat #4). Default: a disabled limiter. */
   rateLimiter?: AiRateLimiter
   /**
@@ -238,6 +245,18 @@ export default class AiChatController {
     const recorder = recordingStreamTarget(httpStreamTarget(ctx), {
       maxBytes: AI_IDEMPOTENCY_MAX_BYTES,
     })
+    // The optional host output-redaction hook composes with the mandatory I8
+    // bound; because it runs at the single fragment choke point (upstream of the
+    // recording tee), the redacted bytes are what the client, the idempotency
+    // cache, and conversation memory all see.
+    const redactionStats: RedactionStats = { redactions: 0 }
+    const fragmentGate = composeRedactionGate(
+      boundedFragmentGate,
+      ai?.redactOutput,
+      ctx,
+      tenant,
+      redactionStats
+    )
     let result: StreamResult
     try {
       // 6a. RAG augmentation (WS-AI-5), on a cache MISS only: run the metered
@@ -288,13 +307,24 @@ export default class AiChatController {
           heartbeatMs: ai?.heartbeatMs,
           lastEventId: ctx.request.header('last-event-id'),
           livenessSignal: liveness.signal,
-          validateFragment: boundedFragmentGate,
+          validateFragment: fragmentGate,
           provider: provider.name,
           model: body.model,
         }
       )
     } finally {
       liveness.dispose()
+    }
+
+    // Best-effort, content-free: how many fragments the host redactor changed or
+    // aborted. The hook is host policy (defense-in-depth), never the isolation
+    // control, so this is observability, not a guard trip.
+    if (redactionStats.redactions > 0) {
+      try {
+        this.deps.emitMetric?.(tenant.id, AI_OUTPUT_REDACTED_METRIC, redactionStats.redactions)
+      } catch {
+        /* metrics are best-effort */
+      }
     }
 
     // 7. Resolution. Committed outcomes end the SSE stream with a terminal `done`
@@ -601,6 +631,55 @@ export default class AiChatController {
 /** The interim I8 gate: a fragment over the byte bound aborts without writing it. */
 export function boundedFragmentGate(fragment: StreamFragment): StreamFragment | null {
   return fragment.data.length > AI_FRAGMENT_MAX_CHARS ? null : fragment
+}
+
+/** A mutable per-stream redaction counter the composed gate bumps; read once to emit the metric. */
+export interface RedactionStats {
+  redactions: number
+}
+
+/**
+ * Compose the mandatory I8 output bound with an optional host `redactOutput`
+ * hook. The bound always applies FIRST and LAST, so I8 holds even against a
+ * misbehaving host hook (one that expands a chunk past the bound); the redactor
+ * sits between as host-owned defense-in-depth, NEVER the isolation control (I4/I8
+ * are the guarantee). Fail-closed: a redactor that throws, or returns a
+ * non-string, aborts the stream (returns null) rather than emitting unredacted
+ * bytes. A `null` return is a deliberate host abort. `tokens` is preserved (the
+ * provider generated them; redacting the display does not refund provider cost).
+ * The redacted fragment is what the writer emits, so the recording tee captures
+ * it and the idempotency cache + conversation memory store the redacted bytes.
+ */
+export function composeRedactionGate(
+  bound: (fragment: StreamFragment) => StreamFragment | null,
+  redactOutput: RedactOutput | undefined,
+  ctx: HttpContext,
+  tenant: TenantModelContract,
+  stats: RedactionStats
+): (fragment: StreamFragment) => StreamFragment | null {
+  if (!redactOutput) return bound
+  return (fragment) => {
+    const bounded = bound(fragment)
+    if (bounded === null) return null
+    let out: string | null
+    try {
+      out = redactOutput(ctx, tenant, bounded.data)
+    } catch {
+      // Fail-closed: a throwing redactor aborts, never emits unredacted bytes.
+      stats.redactions += 1
+      return null
+    }
+    if (out === null || typeof out !== 'string') {
+      // A deliberate abort, or a defensive treat-non-string-as-abort.
+      stats.redactions += 1
+      return null
+    }
+    if (out === bounded.data) return bounded // unchanged: not a redaction
+    stats.redactions += 1
+    // Re-apply the mandatory bound to the redacted text so I8 holds even if the
+    // hook expanded the chunk. Keep tokens (provider cost is unchanged).
+    return bound({ ...bounded, data: out })
+  }
 }
 
 /** The client's resume cursor, or null when absent or non-numeric (replay everything). */

@@ -92,6 +92,11 @@ export function assertAiConfig(config: AiConfig | undefined): void {
   if (config.resolvePrincipal !== undefined && typeof config.resolvePrincipal !== 'function') {
     fail('[ai] config.ai.resolvePrincipal, when set, must be a function (ctx) => principal')
   }
+  if (config.redactOutput !== undefined && typeof config.redactOutput !== 'function') {
+    fail(
+      '[ai] config.ai.redactOutput, when set, must be a function (ctx, tenant, chunk) => string | null'
+    )
+  }
   if (
     config.acknowledgeUnbudgetedAiTokens !== undefined &&
     typeof config.acknowledgeUnbudgetedAiTokens !== 'boolean'

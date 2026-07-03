@@ -38,10 +38,10 @@ mitigation holds.
 | 5 | Token / response replay | Response cache namespaced by tenant + user + session + short TTL; idempotency scope is an HMAC, so no component appears in a cache key | I3 | [idempotency scope](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/security/unit/security_idempotency_key_hmac_scoped.spec.ts) |
 | 6 | Audit tampering | DB triggers reject `UPDATE`/`DELETE`/`TRUNCATE` for every role + a per-tenant `seq`+`checksum` hash chain + optional external WORM/SIEM anchoring | I5 | [chain checksum](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/security/unit/security_ai_audit_chain_checksum.spec.ts) |
 | 7 | Cross-provider context poisoning | Context built per (tenant, user, session), never shared across providers; audit records which provider saw which data; per-tenant residency allow-list | I4 | [residency gate](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/security/unit/security_residency_gate.spec.ts) |
-| 8 | Streaming exfiltration | Bounded output + per-chunk validation, abort via `AbortSignal`; by I4 nothing cross-tenant is in context, so this guards prompt-leak and bounds, not isolation | I4, I8 | [output bound](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@architecture/boundaries/ai_invariant_8_output_bound.spec.ts) |
+| 8 | Streaming exfiltration | Bounded output + per-chunk validation, abort via `AbortSignal`, plus an optional host `redactOutput` DLP seam (defense-in-depth); by I4 nothing cross-tenant is in context, so this guards prompt-leak and bounds, not isolation | I4, I8 | [output bound](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@architecture/boundaries/ai_invariant_8_output_bound.spec.ts) |
 | 9 | Hallucination "exfiltration" | Grounding in retrieved sources; a quality control, not isolation. Cross-tenant leakage is 0 by construction (see [Honest limits](#honest-limits)) | — | [RAG context integrity](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/security/unit/security_chat_rag_context_integrity.spec.ts) |
 | 10 | Indirect prompt injection via RAG content | Retrieved content is untrusted **data, not instructions** (role + fenced delimiter); harmless because foreign data is never in context (I4) | I4 | [RAG context integrity](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/security/unit/security_chat_rag_context_integrity.spec.ts) |
-| 11 | SSRF via AI-initiated fetch or BYOK endpoint | Every AI-initiated URL and the BYOK endpoint pass the kernel's IP-pinned `safeFetch` (blocks loopback / RFC-1918 / CGN / metadata / IPv6 transition) | — | [ingestion SSRF](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/behavior/unit/behavior_embedding_ingestion.spec.ts) |
+| 11 | SSRF via AI-initiated fetch or BYOK endpoint | Every AI-initiated URL and the BYOK endpoint pass the kernel's `safeFetch`, which pins the validated IP for the connection (no DNS rebind) and refuses redirects (no 302 bypass), and blocks loopback / RFC-1918 / CGN / metadata / IPv6 transition | — | [ingestion SSRF](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/behavior/unit/behavior_embedding_ingestion.spec.ts) |
 | 12 | Tool / agent confused-deputy | Tools run inside `tenancy.run()` behind a default-deny allow-list, every call audited. **Tools ship post-1.0 (WS-AI-11)**; I7 is fixed but unimplemented, so there is no tool-call path to attack in 1.0 | I7 | — (post-1.0) |
 | 13 | Cost amplification / denial-of-wallet | Reserve/settle across the whole run + a per-request token cap + an operator-global ceiling so one tenant cannot bankrupt a shared managed account | I3 | [budget posture](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/behavior/unit/behavior_ai_budget_posture.spec.ts) |
 | 14 | Audit log as a sensitive-data store | Audit stores only non-PII metadata (counts, ids, model, one-way hashes); GDPR erasure never has to chase content into the immutable log | I5, G1 | [non-PII row](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/security/unit/security_ai_audit_persisted_row_non_pii.spec.ts) |
@@ -72,6 +72,43 @@ satellite holds structurally, and where one can be pinned by a source scan, a
 | **I6** | Provider credentials are per-tenant, encrypted, never logged | BYOK keys live encrypted; the key never appears in a prompt, error, metric or span; rotation reuses `tenant:secrets:reencrypt` | Secret-crypto discipline (no AI-specific guard) |
 | **I7** | Tool / function calling is tenant-scoped and least-privilege | An agent tool runs inside the active `tenancy.run()` scope behind a default-deny allow-list. A forward invariant: tools ship post-1.0 (WS-AI-11) | Post-1.0 (unimplemented) |
 | **I8** | Output is bounded and the system prompt never leaks | Every streamed response path applies an output bound; the system prompt is never disclosed in an error or log | [`check-ai-invariant-8`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/scripts/check-ai-invariant-8.mjs) |
+
+## OWASP LLM Top 10 (2025) coverage
+
+The 18 vectors above are Lasagna's own taxonomy. This table crosswalks them to the
+industry-standard [OWASP Top 10 for LLM Applications (2025)](https://genai.owasp.org/),
+so a security review can map its checklist onto what the satellite enforces. The
+posture is stated honestly per row: some categories are closed by construction, one
+(LLM06) is a forward contract for post-1.0 tools, and a couple carry documented
+residuals in [Honest limits](#honest-limits).
+
+| OWASP (2025) | Vectors | Invariant(s) | How the satellite addresses it |
+|---|---|---|---|
+| **LLM01** Prompt Injection | #1, #10 | I4, I2 | Retrieved and memory content is fenced `user`-role data, never a system directive; injection is harmless by isolation, not "detected". |
+| **LLM02** Sensitive Information Disclosure | #14, #15, #17 | I5, I6 | Non-PII hash-chained audit; a `residency` egress allow-list plus a no-prompt-logging guard; uniform errors; the optional `redactOutput` output DLP seam. |
+| **LLM03** Supply Chain | provider trust | I6 | No model artifacts are loaded (providers are remote APIs); per-tenant encrypted BYOK keys; SSRF-pinned egress. Provider-SDK trust is a stated residual. |
+| **LLM04** Data & Model Poisoning | #3 | I1 | Ingestion is authorized with per-row provenance (source, actor) and rollback-by-source; physical tenant isolation bounds the blast radius. |
+| **LLM05** Improper Output Handling | #8 | I8 | A mandatory per-fragment output bound on every response path, plus the optional host `redactOutput` DLP seam (below). |
+| **LLM06** Excessive Agency | #12 | I7 | Tools/agents ship post-1.0 (WS-AI-11); the I7 contract (tenant-scoped, default-deny, audited) is fixed but unimplemented, so there is no agent-action surface in 1.0. |
+| **LLM07** System Prompt Leakage | #8 | I4, I8 | The system prompt carries no secret, key, or tenant data (authorization lives in code, not the prompt); output handling never discloses it. |
+| **LLM08** Vector & Embedding Weaknesses | #3, #16, #18 | I1 | Physically tenant-scoped vectors via `tableLocation` + ContextSeal + `guard.ai_scope_mismatch`; `rowscope-pg` refused; a per-plan `embeddingCount` quota. |
+| **LLM09** Misinformation | #9 | — | Cross-tenant leakage is 0 by construction (I4); the residual is model hallucination, a quality risk, not isolation. Documented as an honest limit. |
+| **LLM10** Unbounded Consumption | #2, #13 | I3 | Fail-closed `aiTokens` reserve/settle, an operator ceiling, a per-key request rate limit, and prompt/context bounds. |
+
+### LLM05: improper output handling
+
+Every streamed response passes a mandatory per-fragment output bound (I8), so no
+single fragment can exceed the byte cap. On that floor, a host may wire
+`config.ai.redactOutput` to redact or transform the model's output as a DLP policy
+(strip PII, enforce a channel's content rules). It composes AFTER the mandatory
+bound, so the bound always holds, and it is host-owned defense-in-depth, **never the
+isolation control** (I4 is what makes cross-tenant leakage impossible, not a regex
+over the output). A redactor that throws or returns a non-string fails closed (the
+stream aborts, no un-redacted bytes), and because it runs at the single fragment
+choke point, the redacted bytes are also what the idempotency cache and conversation
+memory store. It is sync and per-fragment, so a pattern split across two fragments
+can be missed. See [Redact model output](/guides/satellites/ai#redact-model-output)
+for the how-to.
 
 ## Fail-closed postures and acknowledgements
 
@@ -117,9 +154,12 @@ mitigated but not eliminated, so decide how you bound each one.
 - **The first-token streaming window.** Per-chunk validation reduces but cannot
   fully eliminate the window before the first fragment is validated. The real
   guarantee is I4 plus a secret-free system prompt, not the fragment check.
-- **DNS rebinding (TOCTOU) on the SSRF guard.** Inherited from the kernel: the
-  guard resolves and classifies the host but does not pin the IP for the
-  subsequent connection. Pair it with network-level egress controls.
+- **`redactOutput` is defense-in-depth, not a boundary.** The optional host
+  output-redaction hook (LLM05) is sync and per-fragment, so it can miss a pattern
+  split across two fragments, and it is never the isolation control: I4 (tenant-pure
+  context) and the mandatory I8 output bound are the guarantee. A redactor that
+  throws or returns a non-string fails closed (the stream aborts, no un-redacted
+  bytes reach the client, cache, or memory).
 - **Provider SDKs and endpoints are in the trust boundary.** A compromised
   provider sees all content sent through it. Pinning and auditing reduce, but do
   not remove, that trust; the residency allow-list is how you bound where content
@@ -202,8 +242,9 @@ document text ever reaches telemetry. The stream emits `ai_requests`,
 `ai_retrieval_tokens_total`, `ai_retrieval_matches`, `ai_retrieval_errors`;
 memory adds `ai_memory_unreadable`, `ai_memory_persist_failed`,
 `ai_memory_decrypt_previous_used`, `ai_memory_undecryptable`; compliance adds the
-`ai_purge_*` family and `ai_auto_purge_failures`; and guard trips roll up on
-`ai_guard_rejections`.
+`ai_purge_*` family and `ai_auto_purge_failures`; an optional `redactOutput` hook
+adds `ai_output_redacted` (how many output fragments it changed or aborted); and
+guard trips roll up on `ai_guard_rejections`.
 
 <Callout type="tip" title="The two metrics that mean 'act now'">
 `ai_memory_undecryptable` climbing usually means an `APP_KEY` rotation went past
@@ -255,6 +296,7 @@ closed until you make the call.
 - [ ] The app database role is **not** a superuser or `BYPASSRLS` (so it cannot drop the audit table), verified by the `ai_audit` and `pgvector_extension` doctor checks.
 - [ ] `node ace tenant:vector:provision` run so the `vector` extension exists where each tenant's data lives, if you use embeddings.
 - [ ] `config.ai.residency` set if a tenant's prompts or documents must stay on an allow-listed provider or local-only.
+- [ ] `config.ai.redactOutput` wired if a channel needs output redaction / DLP (host-owned defense-in-depth, never the isolation control; alert on the `ai_output_redacted` metric).
 - [ ] `node ace tenant:ai:audit:verify` on a cron, paging on a non-zero exit.
 - [ ] `Access-Control-Expose-Headers: X-Ai-Session` set for browser clients, if you use conversation memory.
 - [ ] `OLD_APP_KEY` kept in the environment across an `APP_KEY` rotation so memory decrypts through the grace window.

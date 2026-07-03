@@ -39,7 +39,21 @@ export default class AppProvider {
    */
   private async registerAiMockProviders() {
     const chat = await this.app.container.make(AIProviderRegistry)
-    if (!chat.has('mock')) chat.register(new MockAIProvider({ name: 'mock' }), { activate: true })
+    if (!chat.has('mock'))
+      chat.register(
+        // Emit a fake PII token in the streamed output so the demo
+        // `config.ai.redactOutput` DLP hook has something to strip end to end
+        // (proven by the ai_output_redaction e2e). Normal prose is preserved; only
+        // the SSN-shaped token is redacted.
+        new MockAIProvider({
+          name: 'mock',
+          fragments: [
+            { data: 'The record is ', tokens: 1 },
+            { data: 'SSN-000-00-0000', tokens: 1 },
+          ],
+        }),
+        { activate: true }
+      )
 
     const embedding = await this.app.container.make(EmbeddingProviderRegistry)
     if (!embedding.has()) embedding.register(new MockEmbeddingProvider({ dimension: 8 }))

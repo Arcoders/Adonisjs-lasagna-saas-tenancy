@@ -242,5 +242,11 @@ export default {
       authorizeIngestion: () => true,
     },
     retrieval: { retrievalFilter: () => ({ kind: 'all' as const }) },
+    // A demo output-redaction (DLP) hook: strip anything shaped like an SSN from
+    // the model's streamed output. Host-owned defense-in-depth, NEVER the isolation
+    // control (I4/I8 remain the guarantee); the mandatory output bound still runs.
+    // Proven end to end by the ai_output_redaction e2e.
+    redactOutput: (_ctx: any, _tenant: any, chunk: string) =>
+      chunk.replace(/SSN-\d{3}-\d{2}-\d{4}/g, '[redacted]'),
   },
 } as const

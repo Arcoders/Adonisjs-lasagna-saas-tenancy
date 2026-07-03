@@ -197,6 +197,28 @@ export type ResidencyResolver = (
 ) => ResidencyPosture | Promise<ResidencyPosture>
 
 /**
+ * An optional host hook to redact or transform the model's streamed output, as
+ * host-owned defense-in-depth (a corporate DLP / PII-redaction policy, say).
+ * Called per streamed chat fragment AFTER the mandatory I8 size bound, with the
+ * request context, the resolved tenant, and the fragment's text; return the
+ * (possibly redacted) text, or `null` to abort the stream.
+ *
+ * It is **never the isolation control**: I4 (tenant-pure context) and I8 (output
+ * bound) are the guarantee. A redactor cannot detect a leak that I4 already makes
+ * impossible, and it does not substitute for tenant isolation. It is sync and
+ * per-fragment on purpose (async per-token DLP would kill streaming latency), so
+ * a pattern split across two fragments can be missed. A throwing or
+ * non-string-returning redactor fails closed (aborts the stream), so unredacted
+ * bytes are never emitted. The redacted bytes are what the client receives AND
+ * what is cached for idempotent replay and persisted to conversation memory.
+ */
+export type RedactOutput = (
+  ctx: HttpContext,
+  tenant: TenantModelContract,
+  chunk: string
+) => string | null
+
+/**
  * AI satellite config. Opt-in via `--with=ai` and declaring `config.ai`.
  * Provider-agnostic: allow-list the providers a tenant may use, fill in the
  * matching per-provider block, and pick a default. Every value is optional with
@@ -314,6 +336,14 @@ export interface AiConfig {
    * any reservation. See {@link ResidencyResolver}.
    */
   residency?: ResidencyResolver
+  /**
+   * Optional host output-redaction hook (defense-in-depth, NEVER the isolation
+   * control). Redacts or aborts each streamed chat fragment after the mandatory
+   * output bound; the redacted bytes are what the client receives AND what is
+   * cached for idempotent replay and persisted to conversation memory. See
+   * {@link RedactOutput}.
+   */
+  redactOutput?: RedactOutput
   /**
    * Per-BATCH `statement_timeout` (ms) for the WS-AI-9 batched purge. Bounds a
    * single lock-blocked or runaway delete batch so it fails cleanly and the loop

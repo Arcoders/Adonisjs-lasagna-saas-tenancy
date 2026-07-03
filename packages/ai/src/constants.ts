@@ -67,6 +67,14 @@ export const AI_TOKENS_QUOTA = 'aiTokens'
 export const AI_FRAGMENT_MAX_CHARS = 16_384
 
 /**
+ * Per-tenant counter of chat output fragments a host `config.ai.redactOutput`
+ * hook changed or aborted. Content-free (a count, never the text): it makes the
+ * host's optional output-redaction policy observable. Redaction is host-owned
+ * defense-in-depth, never the isolation control (I4/I8 remain the guarantee).
+ */
+export const AI_OUTPUT_REDACTED_METRIC = 'ai_output_redacted'
+
+/**
  * The per-tenant embeddings table (WS-AI-3, I1). A fixed module constant, never
  * a `tenant_<id>`-interpolated name: the row lives in whatever schema/database
  * the active isolation driver reports via `tableLocation(tenant)`, and the bare

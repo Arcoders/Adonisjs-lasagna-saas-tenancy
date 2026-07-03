@@ -1,6 +1,7 @@
 import router from '@adonisjs/core/services/router'
 import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
+import { MetricsService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { assertAiMountAllowed, type MultitenancyAiRoutesOptions } from './routes/mount_gate.js'
 import AiChatController from './gateway/ai_chat_controller.js'
 import AiEmbedController from './gateway/ai_embed_controller.js'
@@ -57,6 +58,7 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
   const group = router.group(() => {
     router.post('/chat', async (ctx) => {
       const aiConfig = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+      const metrics = await app.container.make(MetricsService)
       const controller = new AiChatController({
         stream: await app.container.make(StreamExtensionService),
         registry: await app.container.make(AIProviderRegistry),
@@ -81,6 +83,8 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
         // host that configured config.ai.memory pays for it (the service itself
         // no-ops via `.enabled` if a stale reference is ever passed).
         memory: aiConfig?.memory ? await app.container.make(ConversationMemoryService) : undefined,
+        // Per-tenant metrics sink for `ai_output_redacted` (the optional redactOutput hook).
+        emitMetric: (tenantId, name, value) => metrics.emitMetric(tenantId, name, value),
         config: aiConfig,
       })
       return controller.chat(ctx)
