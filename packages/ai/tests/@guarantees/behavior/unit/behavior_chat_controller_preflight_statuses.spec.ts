@@ -178,18 +178,15 @@ test.group('chat controller pre-flight statuses', () => {
     })
     const provider = new MockAIProvider({ name: 'claude', contractVersion: 1 })
     const controller = buildController({ quota, rateLimiter, provider })
-    const { ctx } = fakeHttpContext({ tenant: fakeTenant, body: chatBody })
+    const { ctx, res, responseFacade } = fakeHttpContext({ tenant: fakeTenant, body: chatBody })
 
-    let threw: unknown
-    try {
-      await controller.chat(ctx)
-    } catch (err) {
-      threw = err
-    }
+    await controller.chat(ctx)
 
-    assert.instanceOf(threw, AIException)
-    assert.equal((threw as AIException).aiCode, 'rate_limited')
-    assert.equal((threw as AIException).httpStatus, 429)
+    // The refusal is a HANDLED pre-flight 429 `{ error: 'rate_limited' }` (like the
+    // reserve/retrieval refusals), never an uncaught throw, and never streams.
+    assert.equal(responseFacade.sentStatus, 429)
+    assert.deepEqual(responseFacade.sentBody, { error: 'rate_limited' })
+    assert.isFalse(res.flushed)
     assert.lengthOf(provider.calls, 0, 'the provider is never called when rate-limited')
   })
 

@@ -232,12 +232,20 @@ export default class AiChatController {
 
     // 5c. Per-key request rate limit (threat #4), pre-flight so a 429/503 lands
     //     before any reservation or byte. A replay already returned above, so a
-    //     cached response never consumes the provider key's rate budget.
-    await (this.deps.rateLimiter ?? DISABLED_AI_RATE_LIMITER).check({
-      op: 'chat',
-      tenantId: tenant.id,
-      fingerprint: provider.keyFingerprint ?? provider.name,
-    })
+    //     cached response never consumes the provider key's rate budget. Wrapped
+    //     like the reserve/retrieval preflights so a refusal returns the pinned
+    //     `{ error: <code> }` body (e.g. `rate_limited`) and is audited, instead of
+    //     escaping to the framework's default exception renderer.
+    try {
+      await (this.deps.rateLimiter ?? DISABLED_AI_RATE_LIMITER).check({
+        op: 'chat',
+        tenantId: tenant.id,
+        fingerprint: provider.keyFingerprint ?? provider.name,
+      })
+    } catch (error) {
+      if (await this.#failChatPreflight(ctx, auditBase, error)) return
+      throw error
+    }
 
     // 6. The stream itself: liveness handle for G11 (also covering the RAG query
     //    embed), a recording tee for the idempotency cache, the spine for the rest.
