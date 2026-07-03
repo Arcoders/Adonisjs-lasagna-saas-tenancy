@@ -12,6 +12,11 @@ import RetrievalService from './services/retrieval_service.js'
 import AIProviderRegistry from './services/ai_provider_registry.js'
 import TenantLivenessWatcher from './services/tenant_liveness_watcher.js'
 import AiRateLimiter from './services/ai_rate_limiter.js'
+import {
+  PgChatAuditSink,
+  PgEmbeddingAuditSink,
+  PgRetrievalAuditSink,
+} from './gateway/audit_sinks.js'
 import type { MultitenancyConfigWithAi } from './define_config.js'
 
 /**
@@ -61,25 +66,45 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
         // retrieval service lazily so non-RAG chat is unaffected when they are off
         // (making RetrievalService unconditionally would throw config_missing).
         retrieval: aiConfig?.embedding ? await app.container.make(RetrievalService) : undefined,
+        // The DB-backed audit sinks (WS-AI-7), on unless the host opted out; the
+        // retrieval-audit sink follows the same lazy-embedding rule as `retrieval`.
+        audit:
+          aiConfig?.audit?.enabled !== false
+            ? await app.container.make(PgChatAuditSink)
+            : undefined,
+        retrievalAudit:
+          aiConfig?.embedding && aiConfig?.audit?.enabled !== false
+            ? await app.container.make(PgRetrievalAuditSink)
+            : undefined,
         config: aiConfig,
       })
       return controller.chat(ctx)
     })
     router.post('/embed', async (ctx) => {
+      const aiConfig = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
       const controller = new AiEmbedController({
         ingestion: await app.container.make(EmbeddingIngestionService),
         liveness: await app.container.make(TenantLivenessWatcher),
         rateLimiter: await app.container.make(AiRateLimiter),
-        config: app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai,
+        audit:
+          aiConfig?.audit?.enabled !== false
+            ? await app.container.make(PgEmbeddingAuditSink)
+            : undefined,
+        config: aiConfig,
       })
       return controller.embed(ctx)
     })
     router.post('/retrieve', async (ctx) => {
+      const aiConfig = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
       const controller = new AiRetrieveController({
         retrieval: await app.container.make(RetrievalService),
         liveness: await app.container.make(TenantLivenessWatcher),
         rateLimiter: await app.container.make(AiRateLimiter),
-        config: app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai,
+        audit:
+          aiConfig?.audit?.enabled !== false
+            ? await app.container.make(PgRetrievalAuditSink)
+            : undefined,
+        config: aiConfig,
       })
       return controller.retrieve(ctx)
     })

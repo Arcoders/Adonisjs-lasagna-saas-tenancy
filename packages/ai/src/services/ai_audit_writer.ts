@@ -283,12 +283,11 @@ export default class AiAuditWriter {
             `${AI_AUDIT_LOCK_PREFIX}${row.tenantId}`,
           ])
           // safe-sql: the table is a fixed module constant; tenant_id is a ? bind.
-          const tail = rowsOf(
-            await trx.rawQuery(
-              `SELECT seq, checksum FROM backoffice.${AI_AUDIT_TABLE} WHERE tenant_id = ? ORDER BY seq DESC LIMIT 1`,
-              [row.tenantId]
-            )
-          )[0]
+          const tailRes = await trx.rawQuery(
+            `SELECT seq, checksum FROM backoffice.${AI_AUDIT_TABLE} WHERE tenant_id = ? ORDER BY seq DESC LIMIT 1`,
+            [row.tenantId]
+          )
+          const tail = rowsOf(tailRes)[0]
           const seq = Number(tail?.seq ?? 0) + 1
           const prevChecksum = (tail?.checksum ?? null) as string | null
           const checksum = auditChecksum(row, seq, prevChecksum)

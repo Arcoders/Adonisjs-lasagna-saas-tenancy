@@ -108,17 +108,7 @@ export default class AiEmbedController {
         dimension: result.dimension,
       })
     } catch (error) {
-      const code = error instanceof AIException ? error.aiCode : null
-      await this.#audit().append({
-        ...auditBase,
-        model: body.model ?? null,
-        dimension: 0,
-        embeddingsCount: 0,
-        tokens: 0,
-        outcome: 'failed_preflight',
-        reason: code ?? 'error',
-        occurredAt: new Date().toISOString(),
-      })
+      await this.#auditFailure(auditBase, body.model ?? null, error)
       if (error instanceof AIException) {
         ctx.response.status(error.httpStatus).send({ error: error.aiCode })
         return
@@ -131,6 +121,38 @@ export default class AiEmbedController {
 
   #audit(): AiEmbeddingAuditSink {
     return this.deps.audit ?? noopEmbeddingAuditSink
+  }
+
+  /**
+   * Best-effort failure attribution. The SUCCESS audit above is strict fail-closed
+   * (it runs before the 200, so a write outage becomes a 503, never a silent 200).
+   * A failure has no completed action to attribute, so a failing audit here must
+   * not mask the real error status; and when the audit ITSELF is what failed (the
+   * success append threw `audit_write_failed`), re-auditing only fails again and
+   * double-trips the guard, so it is skipped. The writer already tripped
+   * `guard.ai_audit_write_failed` on the outage.
+   */
+  async #auditFailure(
+    base: { tenantId: string; actorHash: string | null; sourceHash: string | null },
+    model: string | null,
+    error: unknown
+  ): Promise<void> {
+    const code = error instanceof AIException ? error.aiCode : null
+    if (code === 'audit_write_failed') return
+    try {
+      await this.#audit().append({
+        ...base,
+        model,
+        dimension: 0,
+        embeddingsCount: 0,
+        tokens: 0,
+        outcome: 'failed_preflight',
+        reason: code ?? 'error',
+        occurredAt: new Date().toISOString(),
+      })
+    } catch {
+      /* best-effort: never let a failed failure-audit mask the original error */
+    }
   }
 }
 

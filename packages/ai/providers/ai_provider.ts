@@ -29,6 +29,12 @@ import AiRateLimiter from '../src/services/ai_rate_limiter.js'
 import VectorStoreService, { type VectorDb } from '../src/services/vector_store_service.js'
 import EmbeddingIngestionService from '../src/services/embedding_ingestion_service.js'
 import RetrievalService from '../src/services/retrieval_service.js'
+import AiAuditWriter, { type AuditDb } from '../src/services/ai_audit_writer.js'
+import {
+  PgChatAuditSink,
+  PgEmbeddingAuditSink,
+  PgRetrievalAuditSink,
+} from '../src/gateway/audit_sinks.js'
 import OpenAICompatibleEmbeddingProvider from '../src/providers/openai_compatible_embedding_provider.js'
 import AIException from '../src/exceptions/ai_exception.js'
 import type { AIEmbeddingProviderContract } from '../src/types/ai_embedding_contract.js'
@@ -46,6 +52,7 @@ import {
   aiRetrievalGateCheck,
   aiRetrievalGatePosture,
 } from '../src/services/ai_retrieval_gate_check.js'
+import { aiAuditCheck } from '../src/services/ai_audit_check.js'
 import { setAiGuardMetricSink } from '../src/isthmus/ai_guard_audit.js'
 import ClaudeProvider from '../src/providers/claude_provider.js'
 import { DeepSeekProvider, KimiProvider } from '../src/providers/openai_compatible_provider.js'
@@ -180,6 +187,36 @@ export default class AiProvider implements SatelliteProviderContract {
         config: embedding,
       })
     })
+    // The append-only AI audit (WS-AI-7, I5). On by default; a host opts out with
+    // config.ai.audit.enabled = false. The writer resolves the shared backoffice
+    // connection (via the `'lucid.db'` alias, like the vector store) + the active
+    // tenancy scope (the ContextSeal raw SQL bypasses); the three sinks map the
+    // frozen choke-point events onto it. Singletons, stateful only through the db.
+    const audit = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai?.audit
+    if (audit?.enabled !== false) {
+      this.app.container.singleton(
+        AiAuditWriter,
+        () =>
+          new AiAuditWriter({
+            getDb: async () =>
+              (await this.app.container.make('lucid.db' as never)) as unknown as AuditDb,
+            connectionName: 'backoffice',
+            activeScopeTenantId: () => tenancy.currentId(),
+          })
+      )
+      this.app.container.singleton(
+        PgChatAuditSink,
+        async (resolver) => new PgChatAuditSink(await resolver.make(AiAuditWriter))
+      )
+      this.app.container.singleton(
+        PgEmbeddingAuditSink,
+        async (resolver) => new PgEmbeddingAuditSink(await resolver.make(AiAuditWriter))
+      )
+      this.app.container.singleton(
+        PgRetrievalAuditSink,
+        async (resolver) => new PgRetrievalAuditSink(await resolver.make(AiAuditWriter))
+      )
+    }
   }
 
   async boot() {
@@ -213,6 +250,18 @@ export default class AiProvider implements SatelliteProviderContract {
     // warning fires only for the refused case (see aiRetrievalGatePosture).
     doctor.register(
       aiRetrievalGateCheck(() => this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
+    )
+    // Keep the audit posture visible (WS-AI-7): audit is fail-closed and on by
+    // default, so an un-provisioned backoffice.ai_audit_logs table would 503 every
+    // AI request at runtime. The ai_audit check probes the table (and the app
+    // role) at diagnosis time; a config-only boot warning could not see the table.
+    doctor.register(
+      aiAuditCheck({
+        getAiConfig: () => this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai,
+        getDb: async () =>
+          (await this.app.container.make('lucid.db' as never)) as unknown as AuditDb,
+        connectionName: 'backoffice',
+      })
     )
     if (config?.ai) {
       const posture = aiTokensBudgetPosture(config)

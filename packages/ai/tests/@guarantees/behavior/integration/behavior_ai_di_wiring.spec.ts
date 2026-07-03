@@ -4,6 +4,12 @@ import { TenantSuspended } from '@adonisjs-lasagna/saas-tenancy/events'
 import AiProvider from '../../../../providers/ai_provider.js'
 import StreamExtensionService from '../../../../src/gateway/stream_extension.js'
 import VectorStoreService from '../../../../src/services/vector_store_service.js'
+import AiAuditWriter from '../../../../src/services/ai_audit_writer.js'
+import {
+  PgChatAuditSink,
+  PgEmbeddingAuditSink,
+  PgRetrievalAuditSink,
+} from '../../../../src/gateway/audit_sinks.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
 import TenantLivenessWatcher, {
   wireAiTenantLiveness,
@@ -40,6 +46,20 @@ test.group('ai provider DI wiring (integration)', () => {
     // DI a unit test with a fake db cannot cover).
     const store = await app.container.make(VectorStoreService)
     assert.instanceOf(store, VectorStoreService)
+  })
+
+  test('registers a resolvable AiAuditWriter and the three audit sinks (WS-AI-7)', async ({
+    assert,
+  }) => {
+    new AiProvider(app).register()
+    // Audit is on by default, so the writer + the three sinks bind and resolve
+    // against the real container (the writer's backoffice connection + tenancy
+    // scope seam are makeable; the sinks resolve the writer).
+    const writer = await app.container.make(AiAuditWriter)
+    assert.instanceOf(writer, AiAuditWriter)
+    assert.instanceOf(await app.container.make(PgChatAuditSink), PgChatAuditSink)
+    assert.instanceOf(await app.container.make(PgEmbeddingAuditSink), PgEmbeddingAuditSink)
+    assert.instanceOf(await app.container.make(PgRetrievalAuditSink), PgRetrievalAuditSink)
   })
 
   test('the liveness watcher resolves and a real TenantSuspended dispatch aborts its signals', async ({

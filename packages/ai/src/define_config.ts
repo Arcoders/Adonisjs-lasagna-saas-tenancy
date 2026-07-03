@@ -132,6 +132,25 @@ export interface AIRetrievalConfig {
 }
 
 /**
+ * The append-only audit block (WS-AI-7, I5). Audit is ON by default when
+ * `config.ai` is present (attribution is a security control, so fail-closed):
+ * every chat / embedding / retrieval choke point writes a non-PII, hash-chained
+ * row into the append-only `backoffice.ai_audit_logs` table, and a write outage
+ * fails the request (503). A completed SSE stream cannot be un-sent, so a chat
+ * audit outage instead trips `guard.ai_audit_write_failed` and leaves a seq gap
+ * that `tenant:ai:audit:verify` reports. External WORM/SIEM anchoring reuses the
+ * kernel `AuditLogDestinationRegistry`, so it is wired the host way, not here.
+ */
+export interface AIAuditConfig {
+  /**
+   * Persist AI audit rows. Default true when `config.ai` is present. Setting it
+   * false disables the DB-backed audit entirely (the choke-point events fall back
+   * to the no-op sinks) and silences the `ai_audit` doctor check.
+   */
+  enabled?: boolean
+}
+
+/**
  * AI satellite config. Opt-in via `--with=ai` and declaring `config.ai`.
  * Provider-agnostic: allow-list the providers a tenant may use, fill in the
  * matching per-provider block, and pick a default. Every value is optional with
@@ -233,6 +252,8 @@ export interface AiConfig {
    * authorization, which is the host's job.
    */
   acknowledgeUnscopedRetrieval?: boolean
+  /** The append-only audit block (WS-AI-7, I5). On by default; set `enabled: false` to opt out. */
+  audit?: AIAuditConfig
 }
 
 /**

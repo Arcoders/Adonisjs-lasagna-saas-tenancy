@@ -18,7 +18,9 @@ import {
   hashAuditPrincipal,
   noopAuditSink,
   noopRetrievalAuditSink,
+  type AiGatewayAuditEvent,
   type AiGatewayAuditSink,
+  type AiRetrievalAuditEvent,
   type AiRetrievalAuditSink,
 } from './audit_seam.js'
 import AIException, { httpStatusForAiCode } from '../exceptions/ai_exception.js'
@@ -125,7 +127,7 @@ export default class AiChatController {
       const cached = await this.deps.idempotency.lookup(scope)
       if (cached) {
         this.#replay(ctx, cached, ctx.request.header('last-event-id'))
-        await this.#audit().append({
+        await this.#auditSafe({
           tenantId: tenant.id,
           principalHash,
           provider: null,
@@ -234,7 +236,7 @@ export default class AiChatController {
     switch (result.outcome) {
       case 'failed_preflight': {
         ctx.response.status(httpStatusForAiCode(result.error)).send({ error: result.error })
-        await this.#audit().append({
+        await this.#auditSafe({
           ...auditBase,
           outcome: 'failed_preflight',
           reason: result.error,
@@ -257,7 +259,7 @@ export default class AiChatController {
             },
           })
         }
-        await this.#audit().append({
+        await this.#auditSafe({
           ...auditBase,
           outcome: 'completed',
           reason: null,
@@ -269,7 +271,7 @@ export default class AiChatController {
       }
       case 'aborted': {
         this.#finishSse(ctx, { outcome: 'aborted', reason: result.reason })
-        await this.#audit().append({
+        await this.#auditSafe({
           ...auditBase,
           outcome: 'aborted',
           reason: result.reason,
@@ -290,6 +292,32 @@ export default class AiChatController {
 
   #retrievalAudit(): AiRetrievalAuditSink {
     return this.deps.retrievalAudit ?? noopRetrievalAuditSink
+  }
+
+  /**
+   * Chat attribution is best-effort by physical necessity: every chat audit fires
+   * after the stream is committed (completed / aborted / replay) or on a failure
+   * whose status is already sent (failed_preflight). A completed SSE stream cannot
+   * be un-sent, so a fail-closed throw here would only be noise on an ended
+   * response. Fail-closed is preserved another way: on a write outage the writer
+   * trips `guard.ai_audit_write_failed` (observable) and the row it could not write
+   * is a detectable `seq` gap that `tenant:ai:audit:verify` reports. So the sink's
+   * throw is swallowed, never the guard.
+   */
+  async #auditSafe(event: AiGatewayAuditEvent): Promise<void> {
+    try {
+      await this.#audit().append(event)
+    } catch {
+      /* guard.ai_audit_write_failed tripped by the writer; the seq gap remains */
+    }
+  }
+
+  async #retrievalAuditSafe(event: AiRetrievalAuditEvent): Promise<void> {
+    try {
+      await this.#retrievalAudit().append(event)
+    } catch {
+      /* guard.ai_audit_write_failed tripped by the writer; the seq gap remains */
+    }
   }
 
   /**
@@ -318,7 +346,7 @@ export default class AiChatController {
     try {
       return await resolveRetrievalScope(ctx, tenant, ai)
     } catch (error) {
-      await this.#retrievalAudit().append({
+      await this.#retrievalAuditSafe({
         tenantId: tenant.id,
         actorHash: principalHash,
         model: null,
@@ -360,7 +388,7 @@ export default class AiChatController {
         { query: body.retrieve.query, limit, scope },
         signal
       )
-      await this.#retrievalAudit().append({
+      await this.#retrievalAuditSafe({
         ...retrievalBase,
         model: result.model,
         matchCount: result.matches.length,
@@ -371,7 +399,7 @@ export default class AiChatController {
       })
       return injectRetrievedContext(body.messages, result.matches, ai)
     } catch (error) {
-      await this.#retrievalAudit().append({
+      await this.#retrievalAuditSafe({
         ...retrievalBase,
         model: null,
         matchCount: 0,
@@ -403,7 +431,7 @@ export default class AiChatController {
   ): Promise<boolean> {
     if (!(error instanceof AIException)) return false
     ctx.response.status(error.httpStatus).send({ error: error.aiCode })
-    await this.#audit().append({
+    await this.#auditSafe({
       ...auditBase,
       outcome: 'failed_preflight',
       reason: error.aiCode,

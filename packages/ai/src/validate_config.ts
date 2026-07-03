@@ -1,5 +1,6 @@
 import type {
   AiConfig,
+  AIAuditConfig,
   AIEmbeddingConfig,
   AIProviderConfig,
   AIProviderName,
@@ -88,6 +89,22 @@ export function assertAiConfig(config: AiConfig | undefined): void {
   assertRateLimit(config.rateLimit)
   assertEmbeddingConfig(config.embedding)
   assertRetrievalConfig(config.retrieval)
+  assertAuditConfig(config.audit)
+}
+
+/**
+ * The append-only audit block (WS-AI-7), when present: `enabled` is the only knob
+ * and must be a boolean. Audit is on by default (attribution is fail-closed), so a
+ * host only sets this to opt out with `{ enabled: false }`.
+ */
+function assertAuditConfig(audit: AIAuditConfig | undefined): void {
+  if (audit === undefined) return
+  if (typeof audit !== 'object' || audit === null) {
+    fail('[ai] config.ai.audit, when set, must be an object')
+  }
+  if (audit.enabled !== undefined && typeof audit.enabled !== 'boolean') {
+    fail('[ai] config.ai.audit.enabled, when set, must be a boolean')
+  }
 }
 
 /**
