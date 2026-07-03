@@ -251,6 +251,33 @@ Added:
   - `ai_compliance` doctor check (read-only Redis reachability + a `keyPrefix`
     note) and three `tenant:compliance:report` controls (AI data residency, AI
     right-to-erasure, and the transparency that embeddings survive anonymize).
+- **Verification hardening (WS-AI-8)**: the chaos / resilience / enterprise test
+  tier that exercises every earlier workstream under fault, plus the small hardenings
+  an adversarial gap-hunt surfaced (the hunt found no production leak; the committed
+  isolation, purge, and fail-closed guarantees all held).
+  - New real-infrastructure specs: a vector-store outage during retrieval fails
+    closed with the cost reservation released; the BYOK rate limiter fails closed
+    (503 `rate_limit_unavailable`) under an injected Redis outage; concurrent audit
+    writers for one tenant keep a contiguous, gap-free `(tenant_id, seq)` chain;
+    APP_KEY rotation reads memory through the grace key then drops it fail-safe; a
+    cross-principal idempotency collision stays in disjoint cache slots; two tenants
+    sharing a provider fingerprint keep independent rate buckets; a many-tenant
+    interleaved fuzz proves embeddings and memory never cross a tenant boundary; and
+    a purge-completeness scan confirms every PII store is empty after `purgeTenant`
+    while the immutable audit chain survives (G1).
+  - `EmbeddingProviderRegistry`: a host override for the single embedding provider,
+    mirroring `AIProviderRegistry` on the chat side. With no override the configured
+    OpenAI-compatible backend is built exactly as before; a host (or an offline e2e)
+    registers its own, resolved at make-time so a boot-time registration always wins.
+  - Memory now emits `ai_memory_undecryptable` when a stored turn cannot be decrypted
+    under any key (a botched APP_KEY rotation, corruption, or tampering), so a silent
+    memory degradation is visible to operators instead of only warn-logged.
+  - `check-ai-no-provider-prompt-cache`: an anti-drift guard pinning that no provider
+    request builder emits a prompt-cache directive without a tenant-namespaced key.
+  - A per-vector coverage matrix (all 18 threat vectors mapped to their covering spec
+    with an on-disk existence check) and an end-to-end AI suite in the demo app
+    (two-tenant isolation, the rate cap, a harmless injection, a poisoned RAG document
+    that stays tenant-scoped).
 
 Documentation correction (per the ARCHITECTURE.md correction path): the design
 doc's living sections now record the Isthmus integration decision (satellite

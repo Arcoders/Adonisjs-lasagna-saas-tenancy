@@ -32,9 +32,10 @@ import {
   SECRET_CLASS,
 } from '@adonisjs-lasagna/saas-tenancy'
 import { assertAiConfig } from '../src/validate_config.js'
-import type { AiConfig, AIEmbeddingConfig, MultitenancyConfigWithAi } from '../src/define_config.js'
+import type { AiConfig, MultitenancyConfigWithAi } from '../src/define_config.js'
 import { DEFAULT_AI_PROVIDER, DEFAULT_EMBEDDING_DIM } from '../src/constants.js'
 import AIProviderRegistry from '../src/services/ai_provider_registry.js'
+import EmbeddingProviderRegistry from '../src/services/embedding_provider_registry.js'
 import AiRateLimiter from '../src/services/ai_rate_limiter.js'
 import VectorStoreService, { type VectorDb } from '../src/services/vector_store_service.js'
 import EmbeddingIngestionService from '../src/services/embedding_ingestion_service.js'
@@ -45,9 +46,7 @@ import {
   PgEmbeddingAuditSink,
   PgRetrievalAuditSink,
 } from '../src/gateway/audit_sinks.js'
-import OpenAICompatibleEmbeddingProvider from '../src/providers/openai_compatible_embedding_provider.js'
 import AIException from '../src/exceptions/ai_exception.js'
-import type { AIEmbeddingProviderContract } from '../src/types/ai_embedding_contract.js'
 import StreamExtensionService from '../src/gateway/stream_extension.js'
 import TenantLivenessWatcher, {
   wireAiTenantLiveness,
@@ -100,6 +99,11 @@ export default class AiProvider implements SatelliteProviderContract {
   register() {
     // Stateful, Map-backed: resolved via container.make, never new-ed ad hoc.
     this.app.container.singleton(AIProviderRegistry, () => new AIProviderRegistry())
+    // The embedding-provider override registry (WS-AI-8, 2A): a host registers its
+    // own embedding provider (offline mock / local dev) and it supersedes the
+    // configured default. Resolved at make-time by the ingestion/retrieval
+    // singletons, so a late (boot-time) host registration always wins.
+    this.app.container.singleton(EmbeddingProviderRegistry, () => new EmbeddingProviderRegistry())
     // Live stream abort handles per tenant (G11). Stateful and cross-request,
     // so it is a container singleton like the registry.
     this.app.container.singleton(TenantLivenessWatcher, () => new TenantLivenessWatcher())
@@ -210,7 +214,7 @@ export default class AiProvider implements SatelliteProviderContract {
       }
       return new EmbeddingIngestionService({
         store,
-        provider: buildEmbeddingProvider(embedding),
+        provider: (await resolver.make(EmbeddingProviderRegistry)).resolve(embedding),
         quota,
         fetch: safeFetch,
         emitMetric: (tenantId, name, value) => metrics.emitMetric(tenantId, name, value),
@@ -232,7 +236,7 @@ export default class AiProvider implements SatelliteProviderContract {
       }
       return new RetrievalService({
         store,
-        provider: buildEmbeddingProvider(embedding),
+        provider: (await resolver.make(EmbeddingProviderRegistry)).resolve(embedding),
         quota,
         emitMetric: (tenantId, name, value) => metrics.emitMetric(tenantId, name, value),
         config: embedding,
@@ -497,23 +501,6 @@ function buildBuiltinProvider(name: string, ai: AiConfig): AIProviderContract | 
   if (name === 'deepseek' && ai.deepseek) return new DeepSeekProvider(ai.deepseek)
   if (name === 'kimi' && ai.kimi) return new KimiProvider(ai.kimi)
   return undefined
-}
-
-/**
- * Build the single configured embedding provider (a generic OpenAI-compatible
- * `/embeddings` backend). `baseUrl` is required and validated at boot, so a host
- * points it at OpenAI, Voyage, Jina, or a self-hosted endpoint; nothing is
- * vendor-hardcoded.
- */
-function buildEmbeddingProvider(embedding: AIEmbeddingConfig): AIEmbeddingProviderContract {
-  return new OpenAICompatibleEmbeddingProvider(
-    {
-      name: embedding.provider ?? 'openai-compatible',
-      baseUrl: embedding.baseUrl ?? '',
-      defaultModel: embedding.defaultModel,
-    },
-    embedding
-  )
 }
 
 // Compile-time ABI pin: fail the build if the provider drifts from the public

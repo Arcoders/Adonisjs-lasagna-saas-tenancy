@@ -706,7 +706,10 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        # pgvector image (drop-in superset of postgres:16) so the AI e2e that need
+        # the `vector` extension run here; the non-AI demo e2e are unaffected, and
+        # the AI e2e self-skip on any plain-postgres runner (WS-AI-8).
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: app
           POSTGRES_PASSWORD: app

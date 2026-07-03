@@ -106,6 +106,14 @@ export const AI_MEMORY_PERSIST_FAILED_METRIC = 'ai_memory_persist_failed'
 export const AI_MEMORY_DECRYPT_PREVIOUS_METRIC = 'ai_memory_decrypt_previous_used'
 /** A turn dropped because a WS-AI-9 purge tombstone post-dates the request (E5, re-population guard). */
 export const AI_MEMORY_PURGED_DROP_METRIC = 'ai_memory_purged_drop'
+/**
+ * A stored turn dropped during load because it could not be decrypted or parsed:
+ * the APP_KEY rotation grace expired, the blob is corrupt, or it was tampered with.
+ * `load` fails SAFE (it drops the turn and continues), so without this counter the
+ * degradation is only WARN-logged and invisible to a metrics dashboard. Emitting it
+ * makes a botched key rotation observable, not silent (WS-AI-8, H1).
+ */
+export const AI_MEMORY_UNDECRYPTABLE_METRIC = 'ai_memory_undecryptable'
 
 /** The tombstone key segment: `ai:mem:tomb:<tenant>[:<userMac>]`, a purge high-water mark (E5). */
 const AI_MEMORY_TOMBSTONE_INFIX = 'tomb'
@@ -217,6 +225,9 @@ export default class ConversationMemoryService {
       turns.push({ role: 'assistant', content: decoded.a })
     }
     if (degraded) {
+      // H1: a metric, not just a warn, so a silent memory degradation (a botched
+      // APP_KEY rotation dropping every historical turn) is visible to operators.
+      this.#metric(tenantId, AI_MEMORY_UNDECRYPTABLE_METRIC)
       this.#deps.warn?.(
         `[ai] conversation memory partially unreadable for a session (rotation/corruption)`
       )

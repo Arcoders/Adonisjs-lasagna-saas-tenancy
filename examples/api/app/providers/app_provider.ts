@@ -15,6 +15,8 @@ import {
 } from '@adonisjs-lasagna/reporting'
 import type { ReportExtensionFilters } from '@adonisjs-lasagna/reporting'
 import { adminActionRegistry, ADMIN_CONTRACT_VERSION } from '@adonisjs-lasagna/admin'
+import { AIProviderRegistry, EmbeddingProviderRegistry } from '@adonisjs-lasagna/ai'
+import { MockAIProvider, MockEmbeddingProvider } from '@adonisjs-lasagna/ai/testing'
 import TenantRepository from '#app/repositories/tenant_repository'
 
 export default class AppProvider {
@@ -24,6 +26,23 @@ export default class AppProvider {
     this.bindContainerServices()
     await this.registerReportExtensions()
     this.registerAdminActions()
+    await this.registerAiMockProviders()
+  }
+
+  /**
+   * Register the offline mock AI providers so the demo (and the AI e2e suite) run
+   * with no network. `AiProvider.register()` runs before this provider's `boot()`
+   * (it is listed earlier in adonisrc), so both registries are bound and makeable
+   * here. The chat mock activates as the `mock` provider named in `config.ai`; the
+   * embedding mock overrides the configured default via the WS-AI-8 registry so
+   * `/ai/embed` and `/ai/retrieve` never dial a real embeddings endpoint.
+   */
+  private async registerAiMockProviders() {
+    const chat = await this.app.container.make(AIProviderRegistry)
+    if (!chat.has('mock')) chat.register(new MockAIProvider({ name: 'mock' }), { activate: true })
+
+    const embedding = await this.app.container.make(EmbeddingProviderRegistry)
+    if (!embedding.has()) embedding.register(new MockEmbeddingProvider({ dimension: 8 }))
   }
 
   /**

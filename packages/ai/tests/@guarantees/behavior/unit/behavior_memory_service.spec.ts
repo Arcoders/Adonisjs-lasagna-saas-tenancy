@@ -2,6 +2,7 @@ import { test } from '@japa/runner'
 import ConversationMemoryService, {
   AI_MEMORY_DECRYPT_PREVIOUS_METRIC,
   AI_MEMORY_PERSIST_FAILED_METRIC,
+  AI_MEMORY_UNDECRYPTABLE_METRIC,
   AI_MEMORY_UNREADABLE_METRIC,
   type ConversationMemoryDeps,
 } from '../../../../src/services/conversation_memory_service.js'
@@ -172,12 +173,32 @@ test.group('behavior — conversation memory service', () => {
     assert.deepEqual(metrics, [{ tenantId: TENANT, name: AI_MEMORY_DECRYPT_PREVIOUS_METRIC }])
   })
 
-  test('without a grace key, an unreadable blob is dropped, not thrown', async ({ assert }) => {
+  test('without a grace key, an unreadable blob is dropped (not thrown) and records the undecryptable metric (H1)', async ({
+    assert,
+  }) => {
     const redis = new FakeRedisLists()
-    const { svc } = serviceWith(redis) // no decryptMemoryPrevious
+    const { svc, metrics } = serviceWith(redis) // no decryptMemoryPrevious
     const { storageKey } = svc.mintSession(TENANT, 'user-a')
     redis.data.set(storageKey, ['corrupt-not-ciphertext'])
 
     assert.deepEqual(await svc.load(TENANT, storageKey), [])
+    // H1: the silent drop must surface as a counter, not only a warn, so a botched
+    // APP_KEY rotation dropping historical turns is visible on a metrics dashboard.
+    assert.deepEqual(metrics, [{ tenantId: TENANT, name: AI_MEMORY_UNDECRYPTABLE_METRIC }])
+  })
+
+  test('both keys failing drops the turn and records the undecryptable metric once (H1)', async ({
+    assert,
+  }) => {
+    const redis = new FakeRedisLists()
+    const decPrevAlsoFails = (): string => {
+      throw new Error('previous key cannot read it either (grace expired / corruption)')
+    }
+    const { svc, metrics } = serviceWith(redis, { decryptMemoryPrevious: decPrevAlsoFails })
+    const { storageKey } = svc.mintSession(TENANT, 'user-a')
+    redis.data.set(storageKey, ['neither-key-can-read', 'nor-this-one'])
+
+    assert.deepEqual(await svc.load(TENANT, storageKey), [])
+    assert.deepEqual(metrics, [{ tenantId: TENANT, name: AI_MEMORY_UNDECRYPTABLE_METRIC }])
   })
 })

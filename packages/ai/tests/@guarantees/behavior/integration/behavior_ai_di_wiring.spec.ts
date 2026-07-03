@@ -16,6 +16,9 @@ import TenantLivenessWatcher, {
   wireAiTenantLiveness,
 } from '../../../../src/services/tenant_liveness_watcher.js'
 import MockAIProvider from '../../../../src/testing/mock_ai_provider.js'
+import EmbeddingProviderRegistry from '../../../../src/services/embedding_provider_registry.js'
+import MockEmbeddingProvider from '../../../../src/testing/mock_embedding_provider.js'
+import OpenAICompatibleEmbeddingProvider from '../../../../src/providers/openai_compatible_embedding_provider.js'
 
 /**
  * Integration: the AI provider's container wiring resolves against the real,
@@ -36,6 +39,40 @@ test.group('ai provider DI wiring (integration)', () => {
     const registry = await app.container.make(AIProviderRegistry)
     registry.register(new MockAIProvider({ name: 'claude', contractVersion: 1 }))
     assert.isTrue(registry.has('claude'))
+  })
+
+  test('the embedding-provider registry binds as a singleton, defaults to the configured provider, and honours a host override (2A)', async ({
+    assert,
+  }) => {
+    new AiProvider(app).register()
+    const reg = await app.container.make(EmbeddingProviderRegistry)
+    assert.instanceOf(reg, EmbeddingProviderRegistry)
+
+    const cfg = {
+      provider: 'openai-compatible',
+      baseUrl: 'https://embeddings.example',
+      dimension: 8,
+    } as never
+    try {
+      // Default: no host override -> the configured OpenAI-compatible backend,
+      // byte-identical to the pre-seam inline construction.
+      assert.isFalse(reg.has())
+      assert.instanceOf(reg.resolve(cfg), OpenAICompatibleEmbeddingProvider)
+
+      // Override: a host registers its own (e.g. the offline mock for e2e) and it
+      // supersedes the default. The ingestion/retrieval singletons resolve this
+      // registry at make-time, so a boot-time host registration is always in force.
+      const mock = new MockEmbeddingProvider({ dimension: 8 })
+      reg.register(mock)
+      assert.isTrue(reg.has())
+      assert.strictEqual(
+        reg.resolve(cfg),
+        mock,
+        'the host override supersedes the configured default'
+      )
+    } finally {
+      reg.clear()
+    }
   })
 
   test('registers a resolvable VectorStoreService (driver + lucid.db + tenancy scope seal)', async ({
