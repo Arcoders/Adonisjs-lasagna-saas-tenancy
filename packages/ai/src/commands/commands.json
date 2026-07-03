@@ -1,0 +1,30 @@
+{
+  "commands": [
+    {
+      "commandName": "tenant:ai:audit:verify",
+      "description": "Verify the append-only AI audit hash chain and report the first tamper (checksum / gap / prev-link)",
+      "help": "Suggested: run in a cron or a post-incident gate. `node ace tenant:ai:audit:verify --json || alert`",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "tenant",
+          "flagName": "tenant",
+          "required": false,
+          "type": "string",
+          "description": "Verify a single tenant (uuid); omit to verify every tenant"
+        },
+        {
+          "name": "json",
+          "flagName": "json",
+          "required": false,
+          "type": "boolean",
+          "description": "Emit a JSON result"
+        }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "ai_audit_verify.js"
+    }
+  ]
+}

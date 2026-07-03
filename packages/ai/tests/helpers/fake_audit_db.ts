@@ -49,7 +49,9 @@ export function fakeAuditEnv(opts: FakeAuditOptions = {}): FakeAuditEnv {
       const s = sql.toLowerCase()
       if (s.includes('pg_advisory_xact_lock')) return { rows: [] }
       if (s.includes('order by tenant_id')) {
-        return { rows: opts.verifyRows ?? inserts }
+        const all = opts.verifyRows ?? inserts
+        const tid = bindings[0]
+        return { rows: tid ? all.filter((r) => String(r.tenant_id) === String(tid)) : all }
       }
       if (s.includes('order by seq desc')) {
         const tid = String(bindings[0])

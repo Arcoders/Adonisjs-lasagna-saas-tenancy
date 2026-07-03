@@ -16,6 +16,7 @@
     ".": "./build/src/index.js",
     "./provider": "./build/providers/ai_provider.js",
     "./routes": "./build/src/routes.js",
+    "./commands": "./build/src/commands/main.js",
     "./testing": "./build/src/testing/index.js"
   },
   "typesVersions": {
@@ -26,6 +27,9 @@
       "routes": [
         "./build/src/routes.d.ts"
       ],
+      "commands": [
+        "./build/src/commands/main.d.ts"
+      ],
       "testing": [
         "./build/src/testing/index.d.ts"
       ]
@@ -34,7 +38,10 @@
   "main": "./build/src/index.js",
   "types": "./build/src/index.d.ts",
   "adonisjs": {
-    "configure": "./build/configure.js"
+    "configure": "./build/configure.js",
+    "commands": [
+      "./build/src/commands/main.js"
+    ]
   },
   "lasagnaSatellite": {
     "name": "ai",
@@ -47,10 +54,11 @@
       "branches": 60
     },
     "provider": "@adonisjs-lasagna/ai/provider",
+    "commands": "@adonisjs-lasagna/ai/commands",
     "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/ai"
   },
   "scripts": {
-    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
     "typecheck": "tsc --noEmit",
     "test": "tsx bin/test.ts",
     "test:coverage": "c8 --temp-directory=../../coverage/.v8/ai-unit tsx bin/test.ts",

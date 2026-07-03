@@ -193,6 +193,15 @@ Available when `--with=reporting` is configured. Full reference in the
 |---|---|
 | `tenant:report:generate` | Generate and print a cross-tenant usage report. Flags: `--period=day\|week\|month`, `--since=<iso>`, `--until=<iso>`, `--top=<n>`, `--format=table\|json\|csv`, `--out=<file>`, `--extension=<name>` (run a registered report extension instead of the built-in). |
 
+## AI
+
+Available when `--with=ai` is configured. Full reference in the
+[AI satellite](/guides/satellites/ai#audit).
+
+| Command | What it does |
+|---|---|
+| `tenant:ai:audit:verify` | Re-walk the append-only AI audit hash chain and report the first tamper (a broken checksum, a `seq` gap, or a broken prev-link) that got past the DB triggers. Exit 1 on the first break, so it gates a cron or a post-incident check. Flags: `--tenant=<id>` (omit for all), `--json`. |
+
 ## REPL
 
 ```bash
