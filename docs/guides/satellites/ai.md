@@ -376,6 +376,60 @@ Two structural guards pin the context-integrity invariants: `check-ai-invariant-
 can never become a trusted instruction, I4) and `check-ai-invariant-8` (every
 streaming response path applies an output bound, I8).
 
+## Conversation memory
+
+Memory lets `/ai/chat` replay a conversation's prior turns into the model context,
+so a user can ask a follow-up without re-sending the history (WS-AI-4, I2). It is
+**opt-in**: without a `config.ai.memory` block, chat stays stateless and
+`sessionId` keeps its opaque idempotency-scope meaning.
+
+```ts
+// config/multitenancy.ts
+ai: {
+  // ...
+  memory: {
+    maxTurns: 20, // prior exchanges (user+assistant) replayed; older ones drop
+    maxChars: 8000, // char budget for the replayed block, folded under maxPromptChars
+    ttlMs: 86_400_000, // sliding TTL, refreshed each turn (default 24h)
+  },
+}
+```
+
+**Sessions are server-owned and HMAC-bound (G6).** On the first `/ai/chat`, the
+gateway mints a session and returns its token on the `X-Ai-Session` response
+header. Send that value back as the `sessionId` body field on the next turn. The
+token is HMAC-bound to the tenant **and** the resolved principal
+(`config.ai.resolvePrincipal`, default the `@adonisjs/auth` user id): a supplied,
+forged, cross-user or cross-tenant token that does not verify against the *current*
+principal is a 400 `memory_session_invalid`, before any load or persist, so a
+client cannot supply or guess a session to reach another principal's history. The
+token is a bearer credential for that session — treat it like one: a browser client
+must expose it with `Access-Control-Expose-Headers: X-Ai-Session`, and pairing the
+turn with an `Idempotency-Key` lets a dropped connection replay (and re-learn the
+token) instead of duplicating a turn.
+
+**Memory is data, not instructions.** Prior turns are replayed with their original
+`user` / `assistant` roles, after any leading system prompt, never as a system
+directive — so a poisoned memory turn cannot rewrite the model's instructions
+(#1, #10). The block is bounded to `maxTurns` exchanges and the char budget left
+under `maxPromptChars` (memory is injected after retrieval, which keeps priority),
+so the assembled prompt never overflows (#2, #8). The oldest exchanges drop first.
+
+**Encrypted at rest, fail-safe on read.** Each exchange is stored as an enc_v2 blob
+(its own secret class, so a memory blob is never decryptable as another secret) in
+a per-session Redis list, atomically appended so concurrent turns never lose each
+other. A read that cannot decrypt (a store outage, corruption, or an `APP_KEY`
+rotation past the `OLD_APP_KEY` dual-key grace window) degrades to *no* memory and
+the chat proceeds, bounded by the TTL — it never fails an otherwise-serviceable
+request. Persist and rotation failures are surfaced as the `ai_memory_persist_failed`,
+`ai_memory_unreadable` and `ai_memory_decrypt_previous_used` tenant metrics (never
+content). The `ai_memory` doctor check flags an enabled-but-no-principal (inert)
+memory. `check-ai-invariant-2` pins the invariant structurally (encryption on every
+write, HMAC on every session read, never a system-role memory turn).
+
+> Erasing a user's memory (`ai:mem:<tenant>:<userMac>:*`) or a whole tenant's is a
+> per-user / per-tenant `SCAN`+`DEL`, wired into the compliance purge in WS-AI-9.
+
 ## Audit
 
 Every chat, embedding and retrieval op is append-only audited with attribution

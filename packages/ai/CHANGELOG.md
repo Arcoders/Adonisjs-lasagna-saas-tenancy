@@ -176,6 +176,35 @@ Added:
     audit and AI audit share one operator stream, without a duplicate admin-table
     row. A guard, `check-ai-invariant-5`, pins the trigger set and the fixed
     non-PII column allowlist.
+- **Memory (WS-AI-4)**: per-(tenant, user, session) conversation history, encrypted
+  at rest and replayed into the chat context as data (I2, #1).
+  - `config.ai.memory` block (`maxTurns` / `maxChars` / `ttlMs`), opt-in: absent
+    leaves `/ai/chat` stateless and `sessionId` its opaque idempotency-scope
+    meaning. `ConversationMemoryService` stores each completed exchange as an
+    enc_v2 blob (a new `SECRET_CLASS.aiConversationMemory`, its own HKDF context)
+    in a per-session Redis LIST: an atomic `RPUSH` (so concurrent turns never lose
+    each other), an `LTRIM` to the turn cap, and a sliding `PEXPIRE`.
+  - Server-minted, HMAC-bound sessions (G6): the token is `<sid>.<sessionMac>`,
+    bound to a `userMac = HMAC(tenant, principal)`; a supplied, forged, cross-user
+    or cross-tenant token that does not verify against the CURRENT principal is a
+    400 `memory_session_invalid` with a `guard.ai_memory_session_invalid` trip,
+    before any load or persist. The two-segment storage key
+    `ai:mem:<tenant>:<userMac>:<sessionMac>` gives WS-AI-9 a per-user and
+    per-tenant `SCAN`+`DEL` purge (`purgeUser` / `purgeTenant`).
+  - Gateway wiring: the first `/ai/chat` mints a session and returns it on the
+    `X-Ai-Session` header (re-emitted on an idempotent replay, so a dropped turn-1
+    is not lost); a supplied token replays the prior turns via `injectMemoryTurns`
+    (exported) as user/assistant DATA after any leading system prompt, bounded to
+    the budget left under `maxPromptChars`; the completed exchange is persisted from
+    the reconstructed assistant text. A read fails SAFE (a store/decrypt failure, or
+    an APP_KEY rotation past the `OLD_APP_KEY` dual-key grace, degrades to empty
+    memory, bounded by the TTL); a persist failure is best-effort with a metric
+    (`ai_memory_persist_failed` / `ai_memory_unreadable` /
+    `ai_memory_decrypt_previous_used`) and a content-free warn.
+  - Structural guard `check-ai-invariant-2` (I2): memory turns are never
+    constructed `role: 'system'`, the write path encrypts (`encryptMemory`), and
+    the session read validates (`timingSafeEqual`). The `ai_memory` doctor check
+    surfaces an enabled-but-no-principal (inert) memory.
 
 Documentation correction (per the ARCHITECTURE.md correction path): the design
 doc's living sections now record the Isthmus integration decision (satellite
