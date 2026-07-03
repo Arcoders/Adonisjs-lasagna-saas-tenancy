@@ -153,6 +153,9 @@ test.group('vector store two-tenant isolation (real pgvector)', (group) => {
 
   test('the embeddingCount cap bites atomically at the plan limit (#18)', async ({ assert }) => {
     const store = storeAs('A')
+    // Earlier tests in this group seeded tenant A's shared table, and the cap counts
+    // existing rows — reset to a known-empty table so the 2/2 bite is exact.
+    await db.connection(connA).rawQuery('TRUNCATE ai_embeddings')
     await store.insert(tenantA, 'capdoc', [chunk('a', 'caphash1', [1, 1, 0, 0])], { maxCount: 2 })
     await store.insert(tenantA, 'capdoc', [chunk('b', 'caphash2', [0, 0, 1, 1])], { maxCount: 2 })
     // Now at 2/2; a third must be refused before the write.

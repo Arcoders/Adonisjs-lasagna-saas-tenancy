@@ -4,6 +4,7 @@ import app from '@adonisjs/core/services/app'
 import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import HookRegistry from '../services/hook_registry.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
+import { discoverSatellites, satelliteMigrationDirs } from '../sdk/configure_kit.js'
 import TenantMigrated from '../events/tenant_migrated.js'
 import { migrationTaskError } from './migration_task_error.js'
 
@@ -47,6 +48,11 @@ export default class TenantMigrateRollback extends BaseCommand {
 
     const hooks = await app.container.make(HookRegistry)
     const driver = await getActiveDriver()
+    // Fold in the satellite per-tenant migration dirs exactly as `tenant:migrate`
+    // does — otherwise a rollback cannot find a satellite migration's `down()`
+    // (e.g. the AI `ai_embeddings` migration recorded in the ledger) and chokes on
+    // a "migration source is missing" for the whole batch.
+    const extraMigrationPaths = await this.#satellitePerTenantMigrationDirs()
     let succeeded = 0
     let failed = 0
 
@@ -68,6 +74,7 @@ export default class TenantMigrateRollback extends BaseCommand {
               direction: 'down',
               disableLocks: this.disableLocks,
               dryRun: this.dryRun,
+              extraMigrationPaths,
             })
 
             if (!this.dryRun) {
@@ -86,5 +93,21 @@ export default class TenantMigrateRollback extends BaseCommand {
     }
 
     this.logger.info(`Done: ${succeeded} succeeded, ${failed} failed`)
+  }
+
+  /**
+   * Per-tenant migration directories contributed by installed satellites (SEAM-2),
+   * mirroring `tenant:migrate` so a rollback folds the SAME dirs and can find every
+   * satellite migration's `down()`. Manifests are read as JSON (no satellite code
+   * imported); the dirs are identical for all tenants, so this resolves once.
+   */
+  async #satellitePerTenantMigrationDirs(): Promise<string[]> {
+    const hostRoot = this.app.makePath()
+    const satellites = await discoverSatellites(hostRoot, (m) => this.logger.warning(m))
+    const dirs = satelliteMigrationDirs(hostRoot, satellites)
+    if (dirs.length > 0) {
+      this.logger.info(`Folding ${dirs.length} satellite per-tenant migration dir(s) into the run.`)
+    }
+    return dirs
   }
 }

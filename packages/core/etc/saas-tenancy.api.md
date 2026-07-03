@@ -992,6 +992,7 @@ export interface SafeFetchOptions {
 export const SECRET_CLASS: {
     readonly ssoClientSecret: "sso:client_secret:v2";
     readonly webhookSecret: "webhook:secret:v2";
+    readonly aiConversationMemory: "ai:conversation-memory:v1";
 };
 
 // @public (undocumented)
