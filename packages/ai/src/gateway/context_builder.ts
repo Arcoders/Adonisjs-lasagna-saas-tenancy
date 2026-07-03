@@ -1,5 +1,6 @@
 import type { AIMessage } from '../types/ai_provider_contract.js'
 import type { VectorMatch } from '../services/vector_store_service.js'
+import type { ConversationTurn } from '../services/conversation_memory_service.js'
 
 /**
  * The fence tag that wraps each retrieved document. A retrieved doc is
@@ -73,4 +74,97 @@ export function buildRetrievalContext(
  */
 function neutralizeFence(text: string): string {
   return text.replace(new RegExp(FENCE_TAG, 'gi'), 'retrieved-context')
+}
+
+/**
+ * Prepend a session's prior turns (WS-AI-4, I2) to the messages, bounded so the
+ * ASSEMBLED prompt cannot exceed the caller's budget (#2/#8). Prior turns keep
+ * their ORIGINAL `user`/`assistant` roles (never `system`), so replayed memory is
+ * DATA the model reads, not instructions it obeys (#1/#10) — the same structural
+ * defense as retrieval's role separation.
+ *
+ * `prior` is a flat, oldest-first list of user/assistant turns (one exchange is a
+ * user turn followed by its assistant turn). Bounding is exchange-granular:
+ *
+ * - keep at most the newest `maxTurns` EXCHANGES, then
+ * - drop whole exchanges from the FRONT (oldest) until the block fits `maxChars`,
+ * - and if a single surviving exchange still overflows, truncate its turns as a
+ *   last resort so one huge turn cannot blank all of memory.
+ *
+ * The turns are inserted AFTER any leading `system` messages (a client-provided
+ * system prompt still leads; I4: the satellite never authors one) and before the
+ * first conversational turn. Pure: no store, no crypto, so it unit-tests alone.
+ */
+export function injectMemoryTurns(
+  messages: AIMessage[],
+  prior: readonly ConversationTurn[],
+  opts: { maxTurns: number; maxChars: number }
+): AIMessage[] {
+  if (prior.length === 0 || opts.maxChars <= 0) return messages
+
+  // Keep the newest `maxTurns` exchanges (each exchange is 2 flat turns).
+  const maxTurnMessages = Math.max(0, Math.floor(opts.maxTurns)) * 2
+  let kept: ConversationTurn[] =
+    maxTurnMessages > 0 && prior.length > maxTurnMessages
+      ? prior.slice(prior.length - maxTurnMessages)
+      : [...prior]
+
+  const totalChars = (turns: readonly ConversationTurn[]): number =>
+    turns.reduce((sum, turn) => sum + turn.content.length, 0)
+
+  // Drop whole exchanges from the front (oldest) until it fits.
+  while (kept.length > 2 && totalChars(kept) > opts.maxChars) {
+    kept = kept.slice(2)
+  }
+
+  // A single surviving exchange still over budget: truncate its turns, sharing the
+  // budget. If the budget cannot hold even one char per turn, skip memory entirely.
+  if (totalChars(kept) > opts.maxChars) {
+    const share = Math.floor(opts.maxChars / kept.length)
+    if (share < 1) return messages
+    kept = kept.map((turn) =>
+      turn.content.length > share
+        ? { role: turn.role, content: turn.content.slice(0, share) }
+        : turn
+    )
+  }
+
+  if (kept.length === 0) return messages
+  const memoryMessages: AIMessage[] = kept.map((turn) => ({
+    role: turn.role,
+    content: turn.content,
+  }))
+  const splitAt = leadingSystemCount(messages)
+  return [...messages.slice(0, splitAt), ...memoryMessages, ...messages.slice(splitAt)]
+}
+
+/** How many messages at the head are `system` turns (a client system prompt keeps the lead). */
+function leadingSystemCount(messages: readonly AIMessage[]): number {
+  let count = 0
+  while (count < messages.length && messages[count].role === 'system') count += 1
+  return count
+}
+
+/**
+ * Reconstruct the assistant's full text from the recorded SSE frames of a
+ * completed stream (WS-AI-4 persist). Content frames are concatenated verbatim
+ * (a fragment's own newlines are one `data:` line each, per the SSE writer, so
+ * they rejoin with `\n`); the control frames (`event: error`, `event: done`) are
+ * skipped, and heartbeats are already excluded by the recorder. Deterministic
+ * inverse of `SseWriter.formatFrame`, pinned by a writer→reconstruct round-trip
+ * spec, so the persisted turn is exactly what the client received.
+ */
+export function reconstructAssistantText(frames: readonly string[]): string {
+  let text = ''
+  for (const frame of frames) {
+    const lines = frame.split('\n')
+    const eventLine = lines.find((line) => line.startsWith('event: '))
+    const event = eventLine ? eventLine.slice('event: '.length) : ''
+    if (event === 'error' || event === 'done') continue
+    const dataLines = lines
+      .filter((line) => line.startsWith('data: '))
+      .map((line) => line.slice('data: '.length))
+    if (dataLines.length > 0) text += dataLines.join('\n')
+  }
+  return text
 }

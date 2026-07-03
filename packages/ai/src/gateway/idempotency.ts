@@ -90,6 +90,13 @@ export interface CachedAiResponse {
     readonly fragments: number
     readonly lastEventId: string | undefined
   }
+  /**
+   * The conversation-memory session token minted on this turn (WS-AI-4), if any.
+   * Re-emitted as `X-Ai-Session` on replay so a client whose turn-1 connection
+   * dropped after the mint still learns its session on retry (instead of
+   * re-minting an empty one and losing the persisted turn).
+   */
+  readonly sessionToken?: string
 }
 
 /**
@@ -219,6 +226,7 @@ function parseCachedResponse(raw: string): CachedAiResponse | null {
       return null
     }
     if (result.lastEventId !== undefined && typeof result.lastEventId !== 'string') return null
+    if (parsed.sessionToken !== undefined && typeof parsed.sessionToken !== 'string') return null
     return parsed as CachedAiResponse
   } catch {
     return null

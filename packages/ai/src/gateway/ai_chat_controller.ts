@@ -13,7 +13,13 @@ import {
 } from './idempotency.js'
 import { authorizeAiAccess, resolveRequestTenant, resolveRetrievalScope } from './access_gate.js'
 import recordingStreamTarget from './recording_target.js'
-import { buildRetrievalContext } from './context_builder.js'
+import {
+  buildRetrievalContext,
+  injectMemoryTurns,
+  reconstructAssistantText,
+} from './context_builder.js'
+import type ConversationMemoryService from '../services/conversation_memory_service.js'
+import type { ResolvedMemorySession } from '../services/conversation_memory_service.js'
 import {
   hashAuditPrincipal,
   noopAuditSink,
@@ -39,6 +45,8 @@ import {
   DEFAULT_MAX_CONTEXT_CHARS,
   DEFAULT_MAX_CONTEXT_ITEMS,
   DEFAULT_MAX_QUERY_CHARS,
+  DEFAULT_MEMORY_MAX_CHARS,
+  DEFAULT_MEMORY_MAX_TURNS,
   DEFAULT_RETRIEVAL_LIMIT,
   MAX_RETRIEVAL_LIMIT,
 } from '../constants.js'
@@ -71,6 +79,14 @@ export interface AiChatControllerDeps {
   audit?: AiGatewayAuditSink
   /** The WS-AI-7 retrieval attribution seam (for the RAG step). Default: the no-op sink. */
   retrievalAudit?: AiRetrievalAuditSink
+  /**
+   * Conversation memory (WS-AI-4). Present only when the host configured
+   * `config.ai.memory`; absent (or `.enabled` false) leaves chat stateless and
+   * `sessionId` its opaque idempotency-scope meaning. When active, the gateway
+   * mints/validates the HMAC-bound session, replays prior turns, and persists the
+   * completed exchange.
+   */
+  memory?: ConversationMemoryService
 }
 
 /**
@@ -158,7 +174,32 @@ export default class AiChatController {
       idempotentReplay: false,
     }
 
-    // 5a. Document-ACL preflight (WS-AI-5, G2), BEFORE the rate limiter so a RAG
+    // 5a. Conversation memory session (WS-AI-4, I2), pre-cost. When memory is
+    //     enabled AND a principal is resolvable, a supplied sessionId is validated
+    //     (a forged token 400s HERE, before any reservation, via the shared
+    //     preflight path) and an absent one mints a new server-owned session whose
+    //     token is handed back on X-Ai-Session. Without a principal memory is inert
+    //     (the ai_memory doctor check warns), and a mint writes nothing until a
+    //     turn completes, so a never-finished request leaves zero Redis state.
+    const memory = this.deps.memory
+    let memorySession: ResolvedMemorySession | undefined
+    let mintedSessionToken: string | undefined
+    if (memory?.enabled && principal !== null) {
+      try {
+        if (body.sessionId !== undefined) {
+          memorySession = memory.resolveSession(body.sessionId, tenant.id, principal)
+        } else {
+          const minted = memory.mintSession(tenant.id, principal)
+          memorySession = { storageKey: minted.storageKey }
+          mintedSessionToken = minted.token
+        }
+      } catch (error) {
+        if (await this.#failChatPreflight(ctx, auditBase, error)) return
+        throw error
+      }
+    }
+
+    // 5b. Document-ACL preflight (WS-AI-5, G2), BEFORE the rate limiter so a RAG
     //     request refused by the per-user ACL (or the C9 fail-closed default)
     //     spends nothing, matching /ai/retrieve (a refused caller must not burn a
     //     rate-limit hit). Only the cheap authorization resolves here; the metered
@@ -171,7 +212,7 @@ export default class AiChatController {
       throw error
     }
 
-    // 5b. Per-key request rate limit (threat #4), pre-flight so a 429/503 lands
+    // 5c. Per-key request rate limit (threat #4), pre-flight so a 429/503 lands
     //     before any reservation or byte. A replay already returned above, so a
     //     cached response never consumes the provider key's rate budget.
     await (this.deps.rateLimiter ?? DISABLED_AI_RATE_LIMITER).check({
@@ -208,6 +249,20 @@ export default class AiChatController {
         if (await this.#failChatPreflight(ctx, auditBase, error)) return
         throw error
       }
+
+      // 6b. Conversation memory replay (WS-AI-4, I2). Load the session's prior
+      //     turns (a store/decrypt failure degrades to none, never fails the chat)
+      //     and prepend them AFTER retrieval, bounded to the budget left under
+      //     maxPromptChars so the assembled prompt stays within it (#2/#8).
+      if (memory && memorySession) {
+        const prior = await memory.load(tenant.id, memorySession.storageKey)
+        messages = injectMemoryTurns(messages, prior, resolveMemoryBudget(messages, ai))
+      }
+
+      // Hand the freshly minted session token back only once the request is about
+      // to stream: a preflight failure above never emits it, so the token maps
+      // solely to a session a turn actually reached.
+      if (mintedSessionToken) ctx.response.response.setHeader('X-Ai-Session', mintedSessionToken)
 
       const request: AIStreamRequest = { messages, model: body.model, maxTokens: worstCase }
       result = await this.deps.stream.stream(
@@ -257,7 +312,15 @@ export default class AiChatController {
               fragments: result.fragments,
               lastEventId: result.lastEventId,
             },
+            // Carry the minted token so a turn-1 replay re-emits X-Ai-Session (gap A).
+            sessionToken: mintedSessionToken,
           })
+        }
+        // Persist the completed exchange (WS-AI-4). Gated on !overflowed so the
+        // frames are complete; best-effort inside `append`, so it never fails an
+        // already-sent response.
+        if (memory && memorySession && !recorder.overflowed) {
+          await this.#persistMemory(tenant.id, memorySession.storageKey, body, recorder.frames())
         }
         await this.#auditSafe({
           ...auditBase,
@@ -452,6 +515,9 @@ export default class AiChatController {
   #replay(ctx: HttpContext, cached: CachedAiResponse, lastEventId: string | undefined): void {
     const res = ctx.response.response
     res.setHeader('X-Ai-Idempotent-Replay', '1')
+    // Re-emit the minted session (WS-AI-4, gap A): a client whose turn-1 dropped
+    // after the mint learns its session on replay instead of re-minting an empty one.
+    if (cached.sessionToken) res.setHeader('X-Ai-Session', cached.sessionToken)
     httpStreamTarget(ctx).flushHeaders()
     const cursor = parseReplayCursor(lastEventId)
     try {
@@ -466,6 +532,28 @@ export default class AiChatController {
       // The client vanished mid-replay; there is nothing to settle or undo.
     }
     this.#finishSse(ctx, { outcome: 'completed' })
+  }
+
+  /**
+   * Persist the completed exchange to conversation memory (WS-AI-4). Stores the
+   * request's last `user` turn (its actual question, not an injected memory or
+   * retrieval block) paired with the reconstructed assistant answer. Skips when
+   * there is no user turn or the answer is empty; `append` itself is best-effort,
+   * so this never throws into an already-sent response.
+   */
+  async #persistMemory(
+    tenantId: string,
+    storageKey: string,
+    body: ChatBody,
+    frames: readonly string[]
+  ): Promise<void> {
+    const memory = this.deps.memory
+    if (!memory) return
+    const user = lastUserContent(body.messages)
+    if (user === null) return
+    const assistant = reconstructAssistantText(frames)
+    if (assistant.length === 0) return
+    await memory.append(tenantId, storageKey, { user, assistant })
   }
 
   /**
@@ -513,6 +601,35 @@ function parseFrameId(frame: string): number | null {
 function resolveWorstCase(requested: number | undefined, ai: AiConfig | undefined): number {
   const ceiling = ai?.maxTokens ?? DEFAULT_AI_MAX_TOKENS
   return requested === undefined ? ceiling : Math.min(requested, ceiling)
+}
+
+/**
+ * The memory block's effective budget: its configured turn cap, and a char cap
+ * that is the smaller of `config.ai.memory.maxChars` and what remains of
+ * `maxPromptChars` after the ALREADY-assembled messages (the current turn plus
+ * any retrieval block). Injecting memory last, within this remainder, keeps the
+ * assembled prompt inside `maxPromptChars` (#2/#8); retrieval keeps priority.
+ */
+function resolveMemoryBudget(
+  messages: AIMessage[],
+  ai: AiConfig | undefined
+): { maxTurns: number; maxChars: number } {
+  const maxPromptChars = ai?.maxPromptChars ?? DEFAULT_AI_MAX_PROMPT_CHARS
+  const assembled = messages.reduce((total, message) => total + message.content.length, 0)
+  const remaining = Math.max(0, maxPromptChars - assembled)
+  const configured = ai?.memory?.maxChars ?? DEFAULT_MEMORY_MAX_CHARS
+  return {
+    maxTurns: ai?.memory?.maxTurns ?? DEFAULT_MEMORY_MAX_TURNS,
+    maxChars: Math.min(configured, remaining),
+  }
+}
+
+/** The content of the last `user`-role message, or null when there is none to remember. */
+function lastUserContent(messages: AIMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'user') return messages[i].content
+  }
+  return null
 }
 
 /** The RAG match count: the request's ask, clamped by maxLimit, defaulting to defaultLimit. */

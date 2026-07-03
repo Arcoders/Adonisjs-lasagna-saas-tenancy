@@ -12,6 +12,7 @@ import RetrievalService from './services/retrieval_service.js'
 import AIProviderRegistry from './services/ai_provider_registry.js'
 import TenantLivenessWatcher from './services/tenant_liveness_watcher.js'
 import AiRateLimiter from './services/ai_rate_limiter.js'
+import ConversationMemoryService from './services/conversation_memory_service.js'
 import {
   PgChatAuditSink,
   PgEmbeddingAuditSink,
@@ -76,6 +77,10 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
           aiConfig?.embedding && aiConfig?.audit?.enabled !== false
             ? await app.container.make(PgRetrievalAuditSink)
             : undefined,
+        // Conversation memory (WS-AI-4), resolved lazily like retrieval: only a
+        // host that configured config.ai.memory pays for it (the service itself
+        // no-ops via `.enabled` if a stale reference is ever passed).
+        memory: aiConfig?.memory ? await app.container.make(ConversationMemoryService) : undefined,
         config: aiConfig,
       })
       return controller.chat(ctx)
