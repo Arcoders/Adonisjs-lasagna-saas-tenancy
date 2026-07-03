@@ -1,0 +1,143 @@
+import { test } from '@japa/runner'
+import {
+  injectMemoryTurns,
+  reconstructAssistantText,
+} from '../../../../src/gateway/context_builder.js'
+import SseWriter from '../../../../src/gateway/sse_writer.js'
+import type { AIMessage } from '../../../../src/types/ai_provider_contract.js'
+import type { ConversationTurn } from '../../../../src/services/conversation_memory_service.js'
+import { FakeSseSink } from '../../../helpers/fake_sse_sink.js'
+
+/**
+ * The pure memory-context helpers (WS-AI-4): `injectMemoryTurns` prepends prior
+ * turns as bounded DATA after any leading system prompt, and
+ * `reconstructAssistantText` inverts the SSE writer to recover the assistant's
+ * text for persistence.
+ */
+
+const u = (content: string): ConversationTurn => ({ role: 'user', content })
+const a = (content: string): ConversationTurn => ({ role: 'assistant', content })
+const big = { maxTurns: 50, maxChars: 100_000 }
+
+test.group('behavior — injectMemoryTurns', () => {
+  test('prepends prior turns before the current turn, keeping roles (never system)', ({
+    assert,
+  }) => {
+    const out = injectMemoryTurns([{ role: 'user', content: 'now' }], [u('q1'), a('a1')], big)
+    assert.deepEqual(out, [
+      { role: 'user', content: 'q1' },
+      { role: 'assistant', content: 'a1' },
+      { role: 'user', content: 'now' },
+    ])
+    assert.isFalse(out.some((m) => m.role === 'system'))
+  })
+
+  test('inserts AFTER a leading client system prompt (I4: a system turn keeps the lead)', ({
+    assert,
+  }) => {
+    const messages: AIMessage[] = [
+      { role: 'system', content: 'you are helpful' },
+      { role: 'user', content: 'now' },
+    ]
+    const out = injectMemoryTurns(messages, [u('q1'), a('a1')], big)
+    assert.deepEqual(out, [
+      { role: 'system', content: 'you are helpful' },
+      { role: 'user', content: 'q1' },
+      { role: 'assistant', content: 'a1' },
+      { role: 'user', content: 'now' },
+    ])
+  })
+
+  test('drops the oldest exchanges to fit maxChars', ({ assert }) => {
+    // Three exchanges, 20 chars each (2 turns x 10). Budget 25 holds only the newest.
+    const prior = [
+      u('x'.repeat(10)),
+      a('y'.repeat(10)),
+      u('z'.repeat(10)),
+      a('w'.repeat(10)),
+      u('p'.repeat(10)),
+      a('q'.repeat(10)),
+    ]
+    const out = injectMemoryTurns([{ role: 'user', content: 'now' }], prior, {
+      maxTurns: 50,
+      maxChars: 25,
+    })
+    assert.deepEqual(out, [
+      { role: 'user', content: 'p'.repeat(10) },
+      { role: 'assistant', content: 'q'.repeat(10) },
+      { role: 'user', content: 'now' },
+    ])
+  })
+
+  test('keeps only the newest maxTurns exchanges', ({ assert }) => {
+    const prior = [u('q1'), a('a1'), u('q2'), a('a2'), u('q3'), a('a3')]
+    const out = injectMemoryTurns([{ role: 'user', content: 'now' }], prior, {
+      maxTurns: 1,
+      maxChars: 100_000,
+    })
+    assert.deepEqual(out, [
+      { role: 'user', content: 'q3' },
+      { role: 'assistant', content: 'a3' },
+      { role: 'user', content: 'now' },
+    ])
+  })
+
+  test('truncates a single oversized exchange rather than blanking memory', ({ assert }) => {
+    const out = injectMemoryTurns(
+      [{ role: 'user', content: 'now' }],
+      [u('x'.repeat(100)), a('y'.repeat(100))],
+      {
+        maxTurns: 50,
+        maxChars: 10,
+      }
+    )
+    // Share = floor(10 / 2) = 5 chars per turn.
+    assert.deepEqual(out, [
+      { role: 'user', content: 'x'.repeat(5) },
+      { role: 'assistant', content: 'y'.repeat(5) },
+      { role: 'user', content: 'now' },
+    ])
+  })
+
+  test('a non-positive budget injects nothing', ({ assert }) => {
+    const messages: AIMessage[] = [{ role: 'user', content: 'now' }]
+    assert.deepEqual(
+      injectMemoryTurns(messages, [u('q'), a('a')], { maxTurns: 5, maxChars: 0 }),
+      messages
+    )
+  })
+
+  test('no prior turns leaves the messages unchanged', ({ assert }) => {
+    const messages: AIMessage[] = [{ role: 'user', content: 'now' }]
+    assert.deepEqual(injectMemoryTurns(messages, [], big), messages)
+  })
+})
+
+test.group('behavior — reconstructAssistantText', () => {
+  async function framesFor(fragments: Array<{ data: string; event?: string }>): Promise<string[]> {
+    const sink = new FakeSseSink()
+    const writer = new SseWriter(sink)
+    for (const fragment of fragments) await writer.writeFragment(fragment)
+    return sink.writes
+  }
+
+  test('round-trips the concatenated token stream, including multi-line fragments', async ({
+    assert,
+  }) => {
+    const frames = await framesFor([{ data: 'Hello' }, { data: ' world' }, { data: 'multi\nline' }])
+    assert.equal(reconstructAssistantText(frames), 'Hello worldmulti\nline')
+  })
+
+  test('skips control frames (error / done)', async ({ assert }) => {
+    const sink = new FakeSseSink()
+    const writer = new SseWriter(sink)
+    await writer.writeFragment({ data: 'answer' })
+    await writer.writeErrorEvent('over_budget')
+    sink.write('event: done\ndata: {"outcome":"completed"}\n\n')
+    assert.equal(reconstructAssistantText(sink.writes), 'answer')
+  })
+
+  test('no content frames yields an empty string', ({ assert }) => {
+    assert.equal(reconstructAssistantText(['event: done\ndata: x\n\n']), '')
+  })
+})
