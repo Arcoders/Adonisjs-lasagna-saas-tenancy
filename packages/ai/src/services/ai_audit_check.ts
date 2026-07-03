@@ -60,7 +60,9 @@ export function aiAuditCheck(deps: AiAuditCheckDeps): DoctorCheck {
 
       const issues: DiagnosisIssue[] = []
 
-      const reg = rowsOf(await conn.rawQuery('SELECT to_regclass(?) AS reg', [`backoffice.${AI_AUDIT_TABLE}`]))
+      const reg = rowsOf(
+        await conn.rawQuery('SELECT to_regclass(?) AS reg', [`backoffice.${AI_AUDIT_TABLE}`])
+      )
       if (!reg[0]?.reg) {
         issues.push({
           code: 'ai_audit_table_missing',
@@ -72,7 +74,9 @@ export function aiAuditCheck(deps: AiAuditCheckDeps): DoctorCheck {
         })
       }
 
-      const su = rowsOf(await conn.rawQuery('SELECT rolsuper FROM pg_roles WHERE rolname = current_user'))
+      const su = rowsOf(
+        await conn.rawQuery('SELECT rolsuper FROM pg_roles WHERE rolname = current_user')
+      )
       if (su[0]?.rolsuper === true) {
         issues.push({
           code: 'app_role_superuser',

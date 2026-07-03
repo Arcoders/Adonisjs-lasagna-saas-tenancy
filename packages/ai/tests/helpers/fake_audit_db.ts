@@ -98,7 +98,9 @@ export function fakeAuditEnv(opts: FakeAuditOptions = {}): FakeAuditEnv {
 }
 
 /** A sample non-PII audit row for writer specs. */
-export function sampleAuditRow(over: Partial<import('../../src/services/ai_audit_writer.js').AiAuditRow> = {}) {
+export function sampleAuditRow(
+  over: Partial<import('../../src/services/ai_audit_writer.js').AiAuditRow> = {}
+) {
   return {
     tenantId: 'tenant-1',
     op: 'chat' as const,

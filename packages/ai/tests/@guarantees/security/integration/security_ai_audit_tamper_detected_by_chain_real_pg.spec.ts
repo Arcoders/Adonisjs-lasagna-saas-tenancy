@@ -1,6 +1,11 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
-import { setupRealAudit, realWriter, auditRow, centralConn } from '../../../helpers/real_audit_pg.js'
+import {
+  setupRealAudit,
+  realWriter,
+  auditRow,
+  centralConn,
+} from '../../../helpers/real_audit_pg.js'
 
 /**
  * The tamper-evidence proof on REAL Postgres: the triggers stop UPDATE/DELETE, but

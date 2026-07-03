@@ -1,7 +1,12 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import AIException from '../../../../src/exceptions/ai_exception.js'
-import { setupRealAudit, realWriter, auditRow, centralConn } from '../../../helpers/real_audit_pg.js'
+import {
+  setupRealAudit,
+  realWriter,
+  auditRow,
+  centralConn,
+} from '../../../helpers/real_audit_pg.js'
 
 /**
  * Fail-closed on a real audit-write outage: with the audit table gone from under

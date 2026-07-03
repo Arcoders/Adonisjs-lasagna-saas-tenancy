@@ -276,9 +276,9 @@ export default class AiAuditWriter {
     let prevSeq = 0
     let prevChecksum: string | null = null
     let checked = 0
-    for (const db of rows) {
-      const tid = String(db.tenant_id)
-      const seq = Number(db.seq)
+    for (const dbRow of rows) {
+      const tid = String(dbRow.tenant_id)
+      const seq = Number(dbRow.seq)
       if (tid !== prevTenant) {
         prevTenant = tid
         prevSeq = 0
@@ -287,16 +287,16 @@ export default class AiAuditWriter {
       if (seq !== prevSeq + 1) {
         return { ok: false, checked, break: { tenantId: tid, seq, reason: 'gap' } }
       }
-      const storedPrev = (db.prev_checksum ?? null) as string | null
+      const storedPrev = (dbRow.prev_checksum ?? null) as string | null
       if (storedPrev !== prevChecksum) {
         return { ok: false, checked, break: { tenantId: tid, seq, reason: 'prev_link' } }
       }
-      const recomputed = auditChecksum(rowFromDb(db), seq, storedPrev)
-      if (recomputed !== String(db.checksum)) {
+      const recomputed = auditChecksum(rowFromDb(dbRow), seq, storedPrev)
+      if (recomputed !== String(dbRow.checksum)) {
         return { ok: false, checked, break: { tenantId: tid, seq, reason: 'checksum' } }
       }
       prevSeq = seq
-      prevChecksum = String(db.checksum)
+      prevChecksum = String(dbRow.checksum)
       checked++
     }
     return { ok: true, checked }

@@ -8,7 +8,10 @@ import { fakeTenant } from '../../../helpers/stream_doubles.js'
 import type { AiConfig } from '../../../../src/define_config.js'
 import type EmbeddingIngestionService from '../../../../src/services/embedding_ingestion_service.js'
 import type RetrievalService from '../../../../src/services/retrieval_service.js'
-import type { AiEmbeddingAuditSink, AiRetrievalAuditSink } from '../../../../src/gateway/audit_seam.js'
+import type {
+  AiEmbeddingAuditSink,
+  AiRetrievalAuditSink,
+} from '../../../../src/gateway/audit_seam.js'
 
 /** A sink standing in for the DB-backed writer during an audit-DB outage. */
 function downAudit<T>(): T {
