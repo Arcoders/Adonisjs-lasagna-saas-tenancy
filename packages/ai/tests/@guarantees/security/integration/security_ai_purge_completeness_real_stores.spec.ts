@@ -22,6 +22,7 @@ import {
   centralConn,
   rowsOfResult,
 } from '../../../helpers/real_audit_pg.js'
+import { ensureVectorExtension, tenantSearchPath } from '../../../helpers/pgvector.js'
 
 /**
  * WS-AI-8 / 1E — purge-completeness on the REAL stores. After
@@ -104,12 +105,16 @@ test.group('AI purge-completeness across real stores (1E)', (group) => {
   group.setup(async () => {
     const primary = getConfig().centralConnectionName
     const client = db.connection(primary)
+    const template = db.manager.get(primary)?.config
     try {
       await client.rawQuery('SELECT 1')
-      await client.rawQuery('CREATE EXTENSION IF NOT EXISTS vector')
-      await client.rawQuery(`CREATE SCHEMA IF NOT EXISTS "${schema}"`)
-      await client.rawQuery(tableDdl())
+      await ensureVectorExtension(client)
       await app.container.make('redis').then((r) => (r as { ping: () => Promise<unknown> }).ping())
+      // Register the tenant connection (extensions schema appended) and create the
+      // table ON it so the bare `vector(N)` resolves exactly like the migration.
+      db.manager.add(conn, { ...template, searchPath: tenantSearchPath(schema) } as never)
+      await client.rawQuery(`CREATE SCHEMA IF NOT EXISTS "${schema}"`)
+      await db.connection(conn).rawQuery(tableDdl())
     } catch {
       ready = false
       return
@@ -117,11 +122,6 @@ test.group('AI purge-completeness across real stores (1E)', (group) => {
     const audit = await setupRealAudit()
     ready = audit.ready
     if (!ready) return
-
-    const template = db.manager.get(primary)?.config
-    // Include `public` so the pgvector `vector` TYPE resolves on the tenant
-    // connection; `ai_embeddings` still resolves from the tenant schema first.
-    db.manager.add(conn, { ...template, searchPath: [schema, 'public'] } as never)
 
     new AiProvider(app).register()
     idempotency = await app.container.make(AiIdempotencyService)

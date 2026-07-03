@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
+import { randomUUID } from 'node:crypto'
 import {
   setupRealAudit,
   realWriter,
@@ -27,8 +28,10 @@ test.group('AI audit append-only enforcement (real pg)', (group) => {
   test('INSERT is allowed; UPDATE, DELETE and TRUNCATE are rejected at the database', async ({
     assert,
   }) => {
-    const writer = realWriter('t-imm')
-    const entry = await writer.append(auditRow('t-imm'))
+    // tenant_id is a `uuid` column, so the id must be a real UUID.
+    const tenant = randomUUID()
+    const writer = realWriter(tenant)
+    const entry = await writer.append(auditRow(tenant))
     assert.equal(entry.seq, 1)
 
     const client = db.connection(centralConn())

@@ -1,5 +1,8 @@
 import { BackofficeBaseModel } from '@adonisjs-lasagna/saas-tenancy/base-models'
-import { ReadReplicaService } from '@adonisjs-lasagna/saas-tenancy/services'
+import {
+  ReadReplicaService,
+  PGVECTOR_EXTENSION_SCHEMA,
+} from '@adonisjs-lasagna/saas-tenancy/services'
 import { column, scope } from '@adonisjs/lucid/orm'
 import db from '@adonisjs/lucid/services/db'
 import app from '@adonisjs/core/services/app'
@@ -153,7 +156,11 @@ export default class Tenant extends BackofficeBaseModel {
 
     db.manager.add(this.connectionName, {
       ...config,
-      searchPath: [this.schemaName],
+      // The tenant schema stays FIRST (all tenant objects resolve there); the shared
+      // pgvector `extensions` schema is appended so the `ai_embeddings vector(N)`
+      // column + operators resolve, exactly like core's SchemaPgDriver. `public`
+      // (central data) is deliberately kept off the tenant path.
+      searchPath: [this.schemaName, PGVECTOR_EXTENSION_SCHEMA],
     } as PostgreConfig)
 
     connectionLru.set(this.connectionName, Date.now())

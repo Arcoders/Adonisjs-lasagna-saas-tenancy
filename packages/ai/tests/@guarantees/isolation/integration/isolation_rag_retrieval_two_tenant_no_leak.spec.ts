@@ -7,6 +7,7 @@ import VectorStoreService, {
   type VectorDb,
   type VectorStoreDeps,
 } from '../../../../src/services/vector_store_service.js'
+import { ensureVectorExtension, tenantSearchPath } from '../../../helpers/pgvector.js'
 
 /**
  * The WS-AI-5 retrieval proof on REAL pgvector: the retrievalFilter document ACL
@@ -77,20 +78,27 @@ test.group('RAG retrieval two-tenant + filter isolation (real pgvector)', (group
     const primary = getConfig().centralConnectionName
     const client = db.connection(primary)
     try {
-      await client.rawQuery('CREATE EXTENSION IF NOT EXISTS vector')
+      await ensureVectorExtension(client)
     } catch {
       pgvectorReady = false
       return
     }
     pgvectorReady = true
 
-    for (const schema of [schemaA, schemaB]) {
-      await client.rawQuery(`CREATE SCHEMA IF NOT EXISTS "${schema}"`)
-      await client.rawQuery(tableDdl(schema))
-    }
     const template = db.manager.get(primary)?.config
-    db.manager.add(connA, { ...template, searchPath: [schemaA] } as never)
-    db.manager.add(connB, { ...template, searchPath: [schemaB] } as never)
+    db.manager.add(connA, { ...template, searchPath: tenantSearchPath(schemaA) } as never)
+    db.manager.add(connB, { ...template, searchPath: tenantSearchPath(schemaB) } as never)
+
+    // Create each tenant's ai_embeddings ON that tenant's connection, whose
+    // search_path appends the extensions schema — so the bare `vector(N)` type
+    // resolves exactly as the production per-tenant migration does.
+    for (const [schema, conn] of [
+      [schemaA, connA],
+      [schemaB, connB],
+    ] as const) {
+      await client.rawQuery(`CREATE SCHEMA IF NOT EXISTS "${schema}"`)
+      await db.connection(conn).rawQuery(tableDdl(schema))
+    }
 
     // Tenant A: a public (sales) doc and an eng doc, both near the query vector.
     await storeAs('A').insert(tenantA, 'kb-public', [chunk('A public', 'ha1', { team: 'sales' })])

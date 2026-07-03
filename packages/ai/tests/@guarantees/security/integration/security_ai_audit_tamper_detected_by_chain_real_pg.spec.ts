@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
+import { randomUUID } from 'node:crypto'
 import {
   setupRealAudit,
   realWriter,
@@ -24,12 +25,14 @@ test.group('AI audit tamper is caught by the hash chain (real pg)', (group) => {
   })
 
   test('a row rewritten past a disabled trigger breaks verify() at its seq', async ({ assert }) => {
-    const writer = realWriter('t-tamper')
-    await writer.append(auditRow('t-tamper'))
-    const middle = await writer.append(auditRow('t-tamper'))
-    await writer.append(auditRow('t-tamper'))
+    // tenant_id is a `uuid` column, so the id must be a real UUID.
+    const tenant = randomUUID()
+    const writer = realWriter(tenant)
+    await writer.append(auditRow(tenant))
+    const middle = await writer.append(auditRow(tenant))
+    await writer.append(auditRow(tenant))
 
-    assert.isTrue((await writer.verify('t-tamper')).ok, 'the untampered chain must verify clean')
+    assert.isTrue((await writer.verify(tenant)).ok, 'the untampered chain must verify clean')
 
     // A superuser disables the trigger, rewrites the MIDDLE row's payload without
     // re-signing it, and re-enables the trigger.
@@ -47,9 +50,9 @@ test.group('AI audit tamper is caught by the hash chain (real pg)', (group) => {
       )
     }
 
-    const result = await writer.verify('t-tamper')
+    const result = await writer.verify(tenant)
     assert.isFalse(result.ok)
-    assert.equal(result.break?.tenantId, 't-tamper')
+    assert.equal(result.break?.tenantId, tenant)
     assert.equal(result.break?.seq, 2)
     assert.equal(result.break?.reason, 'checksum')
   }).skip(() => !ready, 'postgres not available; runs in CI')

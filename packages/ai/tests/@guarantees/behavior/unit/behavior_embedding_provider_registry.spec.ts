@@ -18,7 +18,9 @@ const cfg = {
 } as unknown as AIEmbeddingConfig
 
 test.group('behavior — embedding provider registry (2A)', () => {
-  test('with no override, resolve builds the configured OpenAI-compatible provider', ({ assert }) => {
+  test('with no override, resolve builds the configured OpenAI-compatible provider', ({
+    assert,
+  }) => {
     const reg = new EmbeddingProviderRegistry()
     assert.isFalse(reg.has())
     assert.instanceOf(reg.resolve(cfg), OpenAICompatibleEmbeddingProvider)

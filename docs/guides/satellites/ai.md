@@ -309,14 +309,18 @@ extension where the tenant's data lives. Installing an extension is a privileged
 step, kept off the app's request role (G14):
 
 ```bash
-node ace tenant:vector:provision   # installs `vector` under the privileged connection
+node ace tenant:vector:provision   # installs `vector` into the `extensions` schema, under the privileged connection
 ```
 
-On `database-pg` (one database per tenant) a new tenant's database is provisioned
+The extension lands in a dedicated `extensions` schema, which `schema-pg` tenant
+connections append to their `search_path` (after the tenant's own schema) so the
+bare `vector(N)` column resolves without putting `public` on the tenant path. On
+`database-pg` (one database per tenant) a new tenant's database is provisioned
 automatically before its migration runs, so you only run the command to backfill
 existing tenants. On `schema-pg` / `rowscope-pg` the extension is shared, so
 running it once is enough. The opt-in `pgvector_extension` doctor check reports
-where the extension is missing (and that the app role is not a superuser).
+where the extension is missing or mis-located (and that the app role is not a
+superuser).
 
 **Ingest.** `POST /ai/embed` (mounted in the same fail-closed group as `/chat`)
 takes pre-chunked text and stores it under a `source` (the document key, and the

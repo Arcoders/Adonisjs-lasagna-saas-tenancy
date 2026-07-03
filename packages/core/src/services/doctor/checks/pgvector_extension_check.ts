@@ -1,14 +1,23 @@
 import { getConfig } from '../../../config.js'
 import type { DoctorCheck, DiagnosisIssue } from '../types.js'
 import { getActiveDriver } from '../../isolation/active_driver.js'
-import { PGVECTOR_EXTENSION } from '../../isolation/vector_provisioning.js'
+import { PGVECTOR_EXTENSION, PGVECTOR_EXTENSION_SCHEMA } from '../../isolation/pgvector.js'
 
 const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default).catch(() => null)
 
-async function extensionPresent(conn: any): Promise<boolean> {
-  const r = await conn.rawQuery(`SELECT 1 FROM pg_extension WHERE extname = ?`, [
-    PGVECTOR_EXTENSION,
-  ])
+/**
+ * True only when the extension exists AND lives in the dedicated
+ * `PGVECTOR_EXTENSION_SCHEMA`. A `vector` extension installed elsewhere (e.g. a
+ * legacy install in `public`) does NOT resolve from a schema-pg tenant
+ * connection whose search_path is `[tenant, extensions]`, so it must be flagged
+ * as unresolvable rather than passing on mere existence.
+ */
+async function extensionInExpectedSchema(conn: any): Promise<boolean> {
+  const r = await conn.rawQuery(
+    `SELECT 1 FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace
+     WHERE e.extname = ? AND n.nspname = ?`,
+    [PGVECTOR_EXTENSION, PGVECTOR_EXTENSION_SCHEMA]
+  )
   return (r.rows ?? r ?? []).length > 0
 }
 
@@ -19,10 +28,12 @@ async function extensionPresent(conn: any): Promise<boolean> {
  *   1. The app's database role is NOT a superuser. `CREATE EXTENSION` should run
  *      under a separate privileged provisioning connection, not the role that
  *      serves tenant requests, so a superuser app role is flagged as a warning.
- *   2. The `vector` extension exists where embeddings will live: on the shared
+ *   2. The `vector` extension exists — installed into the dedicated
+ *      `PGVECTOR_EXTENSION_SCHEMA` — where embeddings will live: on the shared
  *      database for `schema-pg`/`rowscope-pg`, or in EACH tenant database for
- *      `database-pg`. A missing extension is an error, since an embeddings
- *      migration declaring a `vector(N)` column would then fail.
+ *      `database-pg`. A missing (or mis-located) extension is an error, since an
+ *      embeddings migration declaring a bare `vector(N)` column would then fail
+ *      to resolve the type from the tenant connection's search_path.
  *
  * NOT in `builtInChecks` (a host without the AI/vector satellite never needs
  * pgvector, and would always error). Hosts using pgvector register it with
@@ -88,11 +99,11 @@ const pgvectorExtensionCheck: DoctorCheck = {
         if (tenant.isDeleted || tenant.status !== 'active') continue
         try {
           const conn = await connect.call(driver, tenant, { bypassHardCap: true })
-          if (!(await extensionPresent(conn))) {
+          if (!(await extensionInExpectedSchema(conn))) {
             issues.push({
               code: 'vector_extension_missing',
               severity: 'error',
-              message: `pgvector extension is missing in tenant "${tenant.name}"'s database`,
+              message: `pgvector extension is missing (or not in the "${PGVECTOR_EXTENSION_SCHEMA}" schema) in tenant "${tenant.name}"'s database; run tenant:vector:provision`,
               tenantId: tenant.id,
             })
           }
@@ -109,11 +120,11 @@ const pgvectorExtensionCheck: DoctorCheck = {
     }
 
     if (driver.name === 'schema-pg' || driver.name === 'rowscope-pg') {
-      if (!(await extensionPresent(central))) {
+      if (!(await extensionInExpectedSchema(central))) {
         issues.push({
           code: 'vector_extension_missing',
           severity: 'error',
-          message: `pgvector extension is missing on the "${cfg.centralConnectionName}" connection`,
+          message: `pgvector extension is missing (or not in the "${PGVECTOR_EXTENSION_SCHEMA}" schema) on the "${cfg.centralConnectionName}" connection; run tenant:vector:provision`,
         })
       }
       return issues

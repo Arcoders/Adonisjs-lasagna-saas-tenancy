@@ -96,6 +96,7 @@ export {
   provisionVectorExtension,
   provisionConnectionName,
   PGVECTOR_EXTENSION,
+  PGVECTOR_EXTENSION_SCHEMA,
 } from './isolation/index.js'
 // Custom isolation drivers interpolate tenant ids into DDL/paths and must
 // validate them the same way the shipped drivers do (see the

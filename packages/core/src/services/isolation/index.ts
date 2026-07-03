@@ -22,6 +22,7 @@ export {
   provisionVectorExtension,
   provisionConnectionName,
   PGVECTOR_EXTENSION,
+  PGVECTOR_EXTENSION_SCHEMA,
 } from './vector_provisioning.js'
 export type {
   VectorProvisionOptions,

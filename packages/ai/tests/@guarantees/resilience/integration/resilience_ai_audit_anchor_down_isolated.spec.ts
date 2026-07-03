@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
+import { randomUUID } from 'node:crypto'
 import AiAuditWriter, { type AuditDb } from '../../../../src/services/ai_audit_writer.js'
 import {
   setupRealAudit,
@@ -27,10 +28,12 @@ test.group('AI audit anchoring is isolated from the canonical write (real pg)', 
   test('a down anchor destination never fails the request; the canonical row still commits', async ({
     assert,
   }) => {
+    // tenant_id is a `uuid` column, so the id must be a real UUID.
+    const tenant = randomUUID()
     const writer = new AiAuditWriter({
       getDb: async () => db as unknown as AuditDb,
       connectionName: centralConn(),
-      activeScopeTenantId: () => 't-anchor',
+      activeScopeTenantId: () => tenant,
       getDestinations: async () => ({
         list: () => [
           {
@@ -44,13 +47,13 @@ test.group('AI audit anchoring is isolated from the canonical write (real pg)', 
       runExtension: (fn) => fn(),
     })
 
-    const entry = await writer.append(auditRow('t-anchor'))
+    const entry = await writer.append(auditRow(tenant))
     assert.equal(entry.seq, 1)
 
     const res = await db
       .connection(centralConn())
       .rawQuery('SELECT count(*)::int AS n FROM backoffice.ai_audit_logs WHERE tenant_id = ?', [
-        't-anchor',
+        tenant,
       ])
     assert.equal(Number(rowsOfResult(res)[0].n), 1)
   }).skip(() => !ready, 'postgres not available; runs in CI')

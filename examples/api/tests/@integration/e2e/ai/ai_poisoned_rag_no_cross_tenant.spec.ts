@@ -15,8 +15,11 @@ let ready = false
 
 async function pgvectorReady(): Promise<boolean> {
   try {
-    await db.connection('public').rawQuery('CREATE EXTENSION IF NOT EXISTS vector')
-    return true
+    // The suite bootstrap installs pgvector into its dedicated schema; just probe.
+    const r = await db
+      .connection('public')
+      .rawQuery(`SELECT 1 FROM pg_extension WHERE extname = 'vector'`)
+    return (r.rows ?? []).length > 0
   } catch {
     return false
   }

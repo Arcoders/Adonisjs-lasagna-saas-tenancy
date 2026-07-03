@@ -232,7 +232,7 @@ taxonomy and budget semantics.
 | `ai_audit` | That `backoffice.ai_audit_logs` exists and the app role is not a superuser |
 | `ai_memory` | The conversation-memory principal posture (enabled-but-no-principal memory is inert) |
 | `ai_compliance` | Redis reachability for the memory and cache-epoch purge, plus a `keyPrefix` confirmation (read-only, never bumps the epoch) |
-| `pgvector_extension` | That the `vector` extension is installed where the tenant's data lives and the app role is not a superuser (G14) |
+| `pgvector_extension` | That the `vector` extension is installed in the dedicated `extensions` schema (which schema-pg tenant connections append to their `search_path`) where the tenant's data resolves it, and the app role is not a superuser (G14) |
 
 ### Metrics
 

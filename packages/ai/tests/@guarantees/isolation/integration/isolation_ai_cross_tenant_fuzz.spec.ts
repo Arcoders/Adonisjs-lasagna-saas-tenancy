@@ -9,6 +9,7 @@ import VectorStoreService, {
   type VectorStoreDeps,
 } from '../../../../src/services/vector_store_service.js'
 import ConversationMemoryService from '../../../../src/services/conversation_memory_service.js'
+import { ensureVectorExtension, tenantSearchPath } from '../../../helpers/pgvector.js'
 
 /**
  * WS-AI-8 / 1D — a property-based cross-tenant fuzz over the AI stores, mirroring
@@ -128,7 +129,7 @@ test.group(
       const client = db.connection(primary)
       try {
         await client.rawQuery('SELECT 1')
-        await client.rawQuery('CREATE EXTENSION IF NOT EXISTS vector')
+        await ensureVectorExtension(client)
         await app.container
           .make('redis')
           .then((r) => (r as { ping: () => Promise<unknown> }).ping())
@@ -140,12 +141,13 @@ test.group(
 
       const template = db.manager.get(primary)?.config
       for (const t of tenants) {
+        // Append the extensions schema (never `public`) so the bare pgvector
+        // `vector` TYPE resolves while `ai_embeddings` still resolves tenant-first
+        // — matching the production per-tenant connection. Create the table ON that
+        // connection so its `vector(N)` column resolves the same way the migration does.
+        db.manager.add(t.conn, { ...template, searchPath: tenantSearchPath(t.schema) } as never)
         await client.rawQuery(`CREATE SCHEMA IF NOT EXISTS "${t.schema}"`)
-        await client.rawQuery(tableDdl(t.schema))
-        // Include `public` in the path so the pgvector `vector` TYPE (created there by
-        // CREATE EXTENSION) resolves; isolation still holds because `ai_embeddings`
-        // resolves from the tenant schema first and `public` never holds one.
-        db.manager.add(t.conn, { ...template, searchPath: [t.schema, 'public'] } as never)
+        await db.connection(t.conn).rawQuery(tableDdl(t.schema))
         memKeys.set(t.i, memory.mintSession(t.tenant.id, 'user-a').storageKey)
       }
 
