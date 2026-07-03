@@ -105,6 +105,7 @@ guarantee table above is a good reference). We will acknowledge within
 ## Related
 
 - [Compliance (SOC2 & GDPR)](/guides/compliance); how these guarantees map to SOC2/GDPR/ISO/HIPAA controls, plus audit export, anonymization, and the posture report.
+- [AI security & threat model](/guides/satellites/ai-security); the AI satellite's 18 threat vectors, invariants, fail-closed postures, and hardening checklist.
 - [Concepts](/start/concepts); connection routing, schema model, the boundary the guarantees sit on.
 - [Audit logs](/guides/satellites/audit); append-only enforcement details.
 - [Quotas](/guides/satellites/quotas); atomic enforcement details.

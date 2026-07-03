@@ -13,13 +13,16 @@ IP-pinned fetch so an AI-initiated request can never be turned into an SSRF. It
 composes the existing rails (isolation, quotas, resilience, secrets) rather than
 building a parallel stack.
 
-This release ships the streaming spine, the provider abstraction and the HTTP
-gateway: the `StreamExtensionService`, the `AIProviderContract` with a
-per-tenant default-deny allow-list and a streaming-presence gate, three real
-providers (Claude, DeepSeek, Kimi), and the fail-closed `POST /ai/chat` SSE
-endpoint with a membership gate, idempotent replays and mid-stream suspension
-handling. The vector store, retrieval (RAG) and an append-only audit of every op
-build on this choke point too; conversation memory is a later workstream.
+This release ships the full satellite on top of that choke point: the
+`StreamExtensionService`, the `AIProviderContract` with a per-tenant default-deny
+allow-list and a streaming-presence gate, three real providers (Claude, DeepSeek,
+Kimi), and the fail-closed `POST /ai/chat` SSE endpoint with a membership gate,
+idempotent replays and mid-stream suspension handling. Building on the same
+choke point: the per-tenant vector store, retrieval (RAG), encrypted conversation
+memory, an append-only audit of every op, and GDPR-grade erasure with data
+residency. For the consolidated threat model behind all of it (the 18 vectors,
+the invariants, and a production hardening checklist), see
+[AI security & threat model](/guides/satellites/ai-security).
 
 ## Install
 
@@ -503,6 +506,8 @@ and IP-pinned like the built-ins.
 
 ## Read next
 
+- [AI security & threat model](/guides/satellites/ai-security) for the 18 threat
+  vectors, the invariants, the fail-closed postures, and the hardening checklist.
 - [Production checklist](/reference/production-checklist) for the heartbeat and
   proxy idle-timeout note.
 - [Stability matrix](/reference/stability) for what the release-candidate label

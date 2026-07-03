@@ -278,6 +278,16 @@ Added:
     with an on-disk existence check) and an end-to-end AI suite in the demo app
     (two-tenant isolation, the rate cap, a harmless injection, a poisoned RAG document
     that stays tenant-scoped).
+- **Security documentation (WS-AI-10)**: a public AI security & threat-model page
+  (`docs/guides/satellites/ai-security.md`) that publishes the 18-vector coverage
+  matrix (each vector linked to its covering spec on GitHub), the eight invariants
+  and their `check-ai-invariant-*` guards, the fail-closed postures and the three
+  `acknowledge*` opt-outs (what risk each accepts), the honest residual limits, the
+  guard / doctor / metric observability surface, and a production hardening
+  checklist. The AI guide's lead is corrected (the vector store, RAG, conversation
+  memory, audit and compliance all shipped, no longer "a later workstream"), and the
+  retrieval-outage operations note (a store outage returns a non-2xx; operators
+  monitor `ai_retrieval_errors`) is documented. Docs-only, no production-code change.
 
 Documentation correction (per the ARCHITECTURE.md correction path): the design
 doc's living sections now record the Isthmus integration decision (satellite
