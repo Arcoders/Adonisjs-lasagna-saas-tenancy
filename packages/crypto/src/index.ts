@@ -14,6 +14,9 @@ export { CRYPTO_WRAPPED_DEKS_TABLE, DEFAULT_KEY_PROVIDER, DEK_BYTES } from './co
 // The frozen key-hierarchy types (crypto §6.2; vault + governance reference these).
 export type { CategoryKey, KeyProvider, SubjectId, WrappedDek } from './types/key_provider.js'
 
+// Blind-index (deterministic search HMAC) options (crypto §6.5, I5).
+export type { BlindIndexOptions } from './internal/blind_index.js'
+
 // Shred seams (crypto §6.6): governance's erasability gate + the fail-closed WORM ledger.
 export type { ErasabilityResolver, ErasabilityVerdict } from './types/erasability.js'
 export type { PendingShredEntry, ShredLedger, ShredLedgerEntry } from './types/shred_ledger.js'

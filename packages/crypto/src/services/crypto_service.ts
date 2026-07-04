@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto'
 import { sealV2WithKey, openV2WithKey } from '@adonisjs-lasagna/saas-tenancy/crypto'
-import { DEK_BYTES } from '../constants.js'
+import { DEK_BYTES, INDEX_KEY_BYTES } from '../constants.js'
 import CryptoException from '../exceptions/crypto_exception.js'
+import { computeBlindIndex, type BlindIndexOptions } from '../internal/blind_index.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { CategoryKey, KeyProvider, SubjectId } from '../types/key_provider.js'
 import type { ErasabilityResolver } from '../types/erasability.js'
@@ -53,9 +54,11 @@ export interface ShredResult {
  * under one category's DEK cannot open under another. Stateful only through the
  * injected store, so it is a container singleton (never `new`-ed per request).
  *
- * The shred (§6.6), the blind-index search HMAC (§6.5), the per-tenant operation
- * lock around provision (§6.6, I10), and the KEK-rotation walker (§6.7) land in
- * later phases; this is the encrypt/decrypt spine they build on.
+ * It also builds the deterministic search HMAC (`blindIndex`, §6.5, I5): a keyed
+ * HMAC over a low-entropy field so equality search survives encryption, keyed by a
+ * KeyProvider index key that is distinct from the DEK and survives a shred. The
+ * per-tenant operation lock around provision (§6.6, I10) and the KEK-rotation
+ * walker (§6.7) land in later phases.
  */
 export default class CryptoService {
   readonly #keyProvider: KeyProvider
@@ -111,6 +114,59 @@ export default class CryptoService {
       )
     }
     return openV2WithKey(ciphertext, live.dek)
+  }
+
+  /**
+   * Build the deterministic blind index (a keyed HMAC) for equality search on a
+   * low-entropy field (§6.5, I5). The host stores this value in its own index
+   * column on write and queries `WHERE <col> = :index` on read; crypto owns the
+   * keyed HMAC, the host owns the column. The index key is a KeyProvider capability
+   * DISTINCT from the DEK: it is stable across rows (so equal plaintexts index
+   * equally), and it SURVIVES a crypto-shred (equality stays computable for
+   * surviving rows, T14). So this method does NOT resolve or touch the `(subject ×
+   * category)` DEK at all, and does not need a subject.
+   *
+   * Fail-closed (§9): if the KeyProvider does not support blind indexing, or cannot
+   * yield an index key, or yields one that is too short, this THROWS
+   * `index_key_unavailable` rather than writing a brute-forceable unkeyed hash in
+   * its place (T3).
+   *
+   * DOCUMENTED residual leak (I5, T4): a DB reader sees which rows share a value
+   * and how often each occurs, and this persists across a shred until the host
+   * nulls the index column. This is the standard searchable-encryption trade-off;
+   * a host that cannot accept it must not mark the field searchable.
+   */
+  async blindIndex(
+    tenant: TenantModelContract,
+    category: CategoryKey,
+    value: string,
+    options: BlindIndexOptions = {}
+  ): Promise<string> {
+    // The index key is a KeyProvider capability distinct from wrap/unwrap. A
+    // provider that cannot yield one (or is not wired for indexing) fails closed:
+    // crypto never substitutes a brute-forceable unkeyed hash (T3).
+    if (!this.#keyProvider.deriveIndexKey) {
+      throw new CryptoException(
+        'index_key_unavailable',
+        `[crypto] the '${this.#keyProvider.name}' KeyProvider does not support blind indexing (no deriveIndexKey). Bind a provider that yields an index key, or do not mark the field searchable.`
+      )
+    }
+    let indexKey: Buffer
+    try {
+      indexKey = await this.#keyProvider.deriveIndexKey(tenant.id, category)
+    } catch (error) {
+      throw new CryptoException(
+        'index_key_unavailable',
+        `[crypto] cannot build a blind index for category '${category}': the KeyProvider yielded no index key, so a brute-forceable unkeyed hash is never written in its place. Cause: ${errorMessage(error)}`
+      )
+    }
+    if (indexKey.length < INDEX_KEY_BYTES) {
+      throw new CryptoException(
+        'index_key_unavailable',
+        `[crypto] the KeyProvider returned a ${indexKey.length}-byte blind-index key for category '${category}'; it must be at least ${INDEX_KEY_BYTES} bytes.`
+      )
+    }
+    return computeBlindIndex(indexKey, value, options)
   }
 
   /**

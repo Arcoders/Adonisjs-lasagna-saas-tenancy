@@ -4,6 +4,7 @@ export const CRYPTO_ERROR_CODES = [
   'dek_invalid', // an unwrapped DEK is not 32 bytes (a corrupt / wrong-provider wrap)
   'dek_conflict', // two live DEKs for one (subject, category) were attempted (partial UNIQUE, I10, T12)
   'keyprovider_missing', // no KeyProvider is registered for the configured name
+  'index_key_unavailable', // the KeyProvider yields no blind-index key: fail closed, never a bare unkeyed hash (I5, T3)
   'tenant_scope_mismatch', // a raw-SQL query's tenant differs from the active tenancy scope (ContextSeal)
   'rowscope_unsupported', // the wrapped-DEK table under rowscope needs a scope column (a follow-up placement)
   'config_invalid', // a malformed `config.crypto` block

@@ -524,8 +524,12 @@ attacker who dumps the DB cannot brute-force without the HMAC key, which lives i
 KMS. The `indexKey` is a distinct KeyProvider-held key (per-tenant, ideally
 per-category), NOT a DEK: it must survive a data shred (the value's DEK is destroyed,
 but equality must still be computable for surviving rows), and it must be constant
-across rows for equality to hold. Normalization (NFKC + case-fold where the field
-semantics allow) is fixed so two spellings of one value collide correctly.
+across rows for equality to hold. Normalization is fixed so two spellings of one
+value collide correctly: NFKC (which folds compatibility encodings) plus a
+surrounding-whitespace trim, then an opt-in locale-independent case-fold where the
+field semantics allow (a passport number folds case, a case-sensitive token does
+not). This exact sequence is frozen: changing it re-derives every host index column,
+an `enc_v3`-grade break.
 
 **The documented residual leak (I5, an honest invariant, never silent).** Equality
 and frequency patterns are visible to a DB reader: equal plaintexts share an HMAC, so

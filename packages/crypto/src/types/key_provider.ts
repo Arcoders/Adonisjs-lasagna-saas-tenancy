@@ -36,4 +36,17 @@ export interface KeyProvider {
   wrapDek(tenantId: string, dek: Buffer): Promise<WrappedDek>
   /** Unwrap a stored {@link WrappedDek} back to the 32-byte DEK. Fail-closed: throws on tamper / wrong KEK. */
   unwrapDek(tenantId: string, wrapped: WrappedDek): Promise<Buffer>
+  /**
+   * Derive the deterministic blind-index key for a `(tenant × category)` (§6.5,
+   * I5). OPTIONAL: a provider that only wraps/unwraps DEKs may omit it, in which
+   * case blind indexing is unavailable and `CryptoService.blindIndex` fails closed
+   * (a brute-forceable unkeyed hash is never written in its place, §9). This key is
+   * emphatically NOT a DEK: it is stable across rows (so equal plaintexts index
+   * equally), it SURVIVES a crypto-shred (the DEK is destroyed, but equality must
+   * still be computable for surviving rows, T14), and it is held in the KeyProvider
+   * so a DB dump alone cannot brute-force the HMAC (T3). It must be at least
+   * 32 bytes. The env provider derives it from `APP_KEY`; a KMS/Vault provider
+   * returns a KMS-held key.
+   */
+  deriveIndexKey?(tenantId: string, category: CategoryKey): Promise<Buffer>
 }

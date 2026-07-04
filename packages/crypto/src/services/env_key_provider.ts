@@ -1,8 +1,8 @@
 import { hkdfSync } from 'node:crypto'
 import { sealV2WithKey, openV2WithKey } from '@adonisjs-lasagna/saas-tenancy/crypto'
-import { DEK_BYTES } from '../constants.js'
+import { DEK_BYTES, INDEX_KEY_BYTES } from '../constants.js'
 import CryptoException from '../exceptions/crypto_exception.js'
-import type { KeyProvider, WrappedDek } from '../types/key_provider.js'
+import type { CategoryKey, KeyProvider, WrappedDek } from '../types/key_provider.js'
 
 // Domain-separation salts for the env KEK derivation. Distinct from core's
 // secret-at-rest salts so the KEK is never the same bytes as an APP_KEY-derived
@@ -11,6 +11,12 @@ const KEK_SALT = Buffer.from('lasagna:crypto:kek:v1')
 const KEK_ID_SALT = Buffer.from('lasagna:crypto:kek-id:v1')
 const KEK_ID_INFO = Buffer.from('kek-id')
 const KEK_ID_BYTES = 8
+
+// Domain-separation salt for the env blind-index key. Distinct from KEK_SALT so a
+// blind-index key can never be the same bytes as a KEK or a DEK (a different HKDF
+// salt with the same APP_KEY yields an independent key). Frozen: changing it
+// re-derives every index key and breaks equality against stored index columns.
+const INDEX_KEY_SALT = Buffer.from('lasagna:crypto:blind-index:v1')
 
 function requireAppKey(): string {
   const appKey = process.env.APP_KEY
@@ -90,6 +96,39 @@ export default class EnvKeyProvider implements KeyProvider {
     assertDek(dek)
     return dek
   }
+
+  /**
+   * Derive the per-`(tenant × category)` blind-index key (§6.5, I5). It is a pure
+   * function of `APP_KEY` (not the wrapped-DEK row), so it SURVIVES a crypto-shred
+   * (T14): destroying a subject's DEK makes the field ciphertext inert while
+   * equality stays computable for surviving rows. Per-`(tenant × category)` so two
+   * categories never share an index keyspace and one tenant's key is independent
+   * of another's. Honest limit (§10): as with the env KEK, the key is recoverable
+   * by anyone who already holds `APP_KEY`; a prod KMS provider holds it out of the
+   * app process.
+   */
+  async deriveIndexKey(tenantId: string, category: CategoryKey): Promise<Buffer> {
+    const appKey = requireAppKey()
+    return Buffer.from(
+      hkdfSync(
+        'sha256',
+        Buffer.from(appKey, 'utf8'),
+        INDEX_KEY_SALT,
+        indexKeyInfo(tenantId, category),
+        INDEX_KEY_BYTES
+      )
+    )
+  }
+}
+
+/**
+ * Unambiguous HKDF `info` for the per-`(tenant × category)` index key. JSON-encoding
+ * the pair length-delimits it, so `(tenant 'a:b', category 'c')` and `(tenant 'a',
+ * category 'b:c')` never derive the same key (a naive `${tenant}:${category}`
+ * would collide them).
+ */
+function indexKeyInfo(tenantId: string, category: string): Buffer {
+  return Buffer.from(JSON.stringify([tenantId, category]), 'utf8')
 }
 
 function assertDek(dek: Buffer): void {

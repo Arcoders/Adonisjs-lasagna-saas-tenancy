@@ -16,3 +16,12 @@ export const DEFAULT_KEY_PROVIDER = 'env'
 
 /** A DEK is a raw AES-256 key: exactly 32 bytes. */
 export const DEK_BYTES = 32
+
+/**
+ * A blind-index key is an HMAC-SHA256 key: 32 bytes (§6.5, I5). It is a distinct
+ * KeyProvider capability, NOT a DEK: it survives a crypto-shred (equality must
+ * stay computable for surviving rows) and is stable across rows (equal plaintexts
+ * index equally). The `blindIndex` seam refuses an index key shorter than this
+ * rather than write a weakly-keyed HMAC.
+ */
+export const INDEX_KEY_BYTES = 32
