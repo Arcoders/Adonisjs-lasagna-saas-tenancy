@@ -181,9 +181,13 @@ for a copy-paste migration.
   `centralConnectionName`), dispatched by driver: once on the shared database for
   `schema-pg`/`rowscope-pg`, and per tenant database for `database-pg` (honouring
   `--tenant`). It doubles as the backfill for existing databases and supports
-  `--dry-run`. An opt-in `pgvector_extension` doctor check verifies the app role
-  is not a superuser and that the extension is present where embeddings live. Run
-  it before any migration that declares a `vector(N)` column.
+  `--dry-run`. The extension is installed into a dedicated `extensions` schema,
+  which `schema-pg` tenant connections append to their `search_path` after the
+  tenant's own schema — so a bare `vector(N)` column and its operators resolve
+  while `public` (central-connection data) stays off the tenant path, keeping
+  physical tenant isolation (I1) intact. An opt-in `pgvector_extension` doctor
+  check verifies the app role is not a superuser and that the extension is present
+  in that schema. Run it before any migration that declares a `vector(N)` column.
 - **Cost reservations for streaming work (`QuotaService.reserve` / `settle` /
   `release`).** A quota can now be held worst-case BEFORE an operation whose true
   cost is only known when it finishes (a streaming model response is the
