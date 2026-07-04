@@ -6,7 +6,7 @@
   "license": "MIT",
   "author": "Ismael Haytam Tanane",
   "private": true,
-  "//private": "In active build (encrypt/decrypt + shred done; blind index, KEK rotation, shared WORM ledger, and integration tests pending). Kept unpublishable until it graduates to RC, exactly as the design requires (nothing ships until 1.0). Graduating flips this off and adds the stability.md row + publish.yml entry.",
+  "//private": "In active build (encrypt/decrypt + shred + shared WORM ledger + blind-index HMAC + EncryptedRepository done; @encrypted/@searchable decorators, KEK rotation, and integration tests pending). Kept unpublishable until it graduates to RC, exactly as the design requires (nothing ships until 1.0). Graduating flips this off and adds the stability.md row + publish.yml entry.",
   "engines": {
     "node": ">=24.0.0"
   },

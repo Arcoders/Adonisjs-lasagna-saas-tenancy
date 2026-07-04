@@ -13,6 +13,7 @@ import { DEFAULT_KEY_PROVIDER } from '../src/constants.js'
 import KeyProviderRegistry from '../src/services/key_provider_registry.js'
 import EnvKeyProvider from '../src/services/env_key_provider.js'
 import CryptoService from '../src/services/crypto_service.js'
+import EncryptedRepository from '../src/services/encrypted_repository.js'
 import WormShredLedger from '../src/services/worm_shred_ledger.js'
 import PgWrappedDekStore, {
   type CryptoDb,
@@ -73,6 +74,18 @@ export default class CryptoProvider implements SatelliteProviderContract {
         store,
         erasabilityResolver: crypto?.erasabilityResolver,
         ledger,
+      })
+    })
+
+    // The explicit field-encryption surface (§6.4, Option B): a context-aware
+    // facade over CryptoService that resolves the CURRENT tenant per call, so the
+    // caller passes only `(subject, category)` and the value. Resolved via
+    // `container.make(EncryptedRepository)` (the typed equivalent of the design's
+    // illustrative `'crypto.repository'` string). Fail-closed with no tenant scope.
+    this.app.container.singleton(EncryptedRepository, async (resolver) => {
+      return new EncryptedRepository({
+        crypto: await resolver.make(CryptoService),
+        resolveCurrentTenant: () => tenancy.current(),
       })
     })
   }
