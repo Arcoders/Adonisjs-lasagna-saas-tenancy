@@ -6,9 +6,16 @@ import {
   decryptStrict,
   decryptWithAppKey,
   isEncrypted,
+  sealV2WithKey,
+  openV2WithKey,
 } from '../../../../src/utils/crypto.js'
 
 const TEST_KEY = 'test-app-key-for-unit-tests-only!!'
+
+/** A deterministic 32-byte DEK for the seam tests (never derived from APP_KEY). */
+function dek(seed = 1): Buffer {
+  return Buffer.alloc(32, seed)
+}
 
 /**
  * Build a genuine LEGACY `enc_v1` ciphertext the way the pre-v2 code did
@@ -255,5 +262,88 @@ test.group('crypto — enc_v2 envelope', (group) => {
     process.env.APP_KEY = 'the-new-rotated-application-key!!!'
     assert.throws(() => decrypt(ciphertext)) // current key no longer matches
     assert.equal(decryptWithAppKey(ciphertext, TEST_KEY), 'rotate me')
+  })
+})
+
+// The @adonisjs-lasagna/crypto seam: seal/open the SAME enc_v2 envelope under a
+// caller-supplied 32-byte DEK instead of the APP_KEY-derived key. Reuses the GCM
+// primitive, the `enc_v2:<keyId>:<iv>:<tag>:<cipher>` framing, and header-as-AAD;
+// the AES key is the DEK and `keyId` is a non-secret caller tag. This is the one
+// core change per-(subject × category) field encryption needs.
+test.group('crypto — sealV2WithKey / openV2WithKey (DEK path)', () => {
+  test('round-trips a value sealed under a DEK', ({ assert }) => {
+    const sealed = sealV2WithKey('passport-number', dek(), 'dek-tag-1')
+    assert.equal(openV2WithKey(sealed, dek()), 'passport-number')
+  })
+
+  test('produces the enc_v2 envelope (4 hex segments after the prefix, isEncrypted true)', ({
+    assert,
+  }) => {
+    const sealed = sealV2WithKey('x', dek(), 'dek-tag-1')
+    assert.isTrue(sealed.startsWith('enc_v2:'))
+    const [prefix, keyId, iv, tag, cipher] = sealed.split(':')
+    assert.equal(prefix, 'enc_v2')
+    assert.equal(keyId, 'dek-tag-1', 'keyId is the caller-supplied tag, verbatim')
+    for (const seg of [iv, tag, cipher]) assert.match(seg, /^[0-9a-f]+$/)
+    assert.isTrue(isEncrypted(sealed))
+  })
+
+  test('two seals of the same plaintext differ (random IV)', ({ assert }) => {
+    assert.notEqual(sealV2WithKey('same', dek(), 't'), sealV2WithKey('same', dek(), 't'))
+  })
+
+  test('the DEK path never touches APP_KEY (works with APP_KEY unset)', ({ assert }) => {
+    delete process.env.APP_KEY
+    const sealed = sealV2WithKey('no-app-key-needed', dek(7), 'tag')
+    assert.equal(openV2WithKey(sealed, dek(7)), 'no-app-key-needed')
+  })
+
+  test('a wrong DEK fails the GCM auth tag (confused-deputy resistance, I4/T7)', ({ assert }) => {
+    const sealed = sealV2WithKey('identity-docs value', dek(1), 'tag')
+    assert.throws(() => openV2WithKey(sealed, dek(2)))
+  })
+
+  test('a DEK-sealed value does NOT open on the APP_KEY decrypt path, and vice-versa', ({
+    assert,
+  }) => {
+    process.env.APP_KEY = TEST_KEY
+    const sealed = sealV2WithKey('secret', dek(), 'tag')
+    // Wrong keyId + a DEK the APP_KEY path never has: it must not decrypt.
+    assert.throws(() => decrypt(sealed))
+    // And an APP_KEY-encrypted value must not open under a DEK.
+    const appKeyCiphertext = encrypt('secret')
+    assert.throws(() => openV2WithKey(appKeyCiphertext, dek()))
+    delete process.env.APP_KEY
+  })
+
+  test('openV2WithKey is strict: a non-enc_v2 value throws (no plaintext passthrough)', ({
+    assert,
+  }) => {
+    assert.throws(() => openV2WithKey('not ciphertext', dek()), /not enc_v2 ciphertext/)
+    assert.throws(() => openV2WithKey('enc_v1:aa:bb:cc', dek()), /not enc_v2 ciphertext/)
+  })
+
+  test('openV2WithKey rejects a tampered iv / tag / body via the auth tag', ({ assert }) => {
+    const [prefix, keyId, iv, tag, cipher] = sealV2WithKey('immutable', dek(), 'tag').split(':')
+    const flip = (s: string) => s.slice(0, -1) + (s.at(-1) === '0' ? '1' : '0')
+    assert.throws(() => openV2WithKey([prefix, keyId, flip(iv), tag, cipher].join(':'), dek()))
+    assert.throws(() => openV2WithKey([prefix, keyId, iv, flip(tag), cipher].join(':'), dek()))
+    assert.throws(() => openV2WithKey([prefix, keyId, iv, tag, flip(cipher)].join(':'), dek()))
+  })
+
+  test('sealV2WithKey rejects a keyId containing a colon (it would corrupt the envelope)', ({
+    assert,
+  }) => {
+    assert.throws(() => sealV2WithKey('x', dek(), 'env:abc'), /keyId must not contain a colon/)
+    // A hyphenated tag (the env KeyProvider form) is fine and round-trips.
+    const sealed = sealV2WithKey('x', dek(), 'env-abc')
+    assert.equal(openV2WithKey(sealed, dek()), 'x')
+  })
+
+  test('both entry points reject a DEK that is not 32 bytes', ({ assert }) => {
+    assert.throws(() => sealV2WithKey('x', Buffer.alloc(16, 1), 'tag'), /must be 32 bytes/)
+    assert.throws(() => sealV2WithKey('x', Buffer.alloc(48, 1), 'tag'), /must be 32 bytes/)
+    const sealed = sealV2WithKey('x', dek(), 'tag')
+    assert.throws(() => openV2WithKey(sealed, Buffer.alloc(16, 1)), /must be 32 bytes/)
   })
 })

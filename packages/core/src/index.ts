@@ -208,7 +208,15 @@ export type {
   SetTenantRlsGucOptions,
   WithTenantRlsOptions,
 } from './services/isolation/rls.js'
-export { encrypt, decrypt, decryptStrict, decryptWithAppKey, isEncrypted } from './utils/crypto.js'
+export {
+  encrypt,
+  decrypt,
+  decryptStrict,
+  decryptWithAppKey,
+  isEncrypted,
+  sealV2WithKey,
+  openV2WithKey,
+} from './utils/crypto.js'
 export { readSecret, writeSecret, SECRET_CLASS } from './utils/secret_at_rest.js'
 export type { SecretClass } from './utils/secret_at_rest.js'
 export { validateExternalHttpsUrl, validateResolvedHostIsPublic } from './utils/url.js'

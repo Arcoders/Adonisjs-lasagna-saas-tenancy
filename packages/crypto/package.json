@@ -1,0 +1,53 @@
+{
+  "name": "@adonisjs-lasagna/crypto",
+  "version": "1.0.0",
+  "description": "Field-level encryption mechanism for Lasagna: per-(subject x category) DEKs under a pluggable KeyProvider (env, AWS KMS, HashiCorp Vault), deterministic search HMAC, and O(1) crypto-shredding. The keystone of the data-protection satellites.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build"
+  ],
+  "exports": {
+    ".": "./build/src/index.js",
+    "./provider": "./build/providers/crypto_provider.js",
+    "./testing": "./build/src/testing/index.js"
+  },
+  "typesVersions": {
+    "*": {
+      "provider": [
+        "./build/providers/crypto_provider.d.ts"
+      ],
+      "testing": [
+        "./build/src/testing/index.d.ts"
+      ]
+    }
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "lasagnaSatellite": {
+    "name": "crypto",
+    "satelliteApi": 1,
+    "perTenantMigrations": "build/tenant_migrations",
+    "minMergedCoverage": {
+      "lines": 60,
+      "functions": 60,
+      "branches": 60
+    },
+    "provider": "@adonisjs-lasagna/crypto/provider",
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/crypto"
+  },
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/crypto-unit tsx bin/test.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs-lasagna/saas-tenancy": "^1.0.0",
+    "@adonisjs/core": "^7.0.0"
+  }
+}

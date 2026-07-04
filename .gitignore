@@ -33,3 +33,6 @@ packages/*/temp/
 # publish the docs.
 packages/ai/ARCHITECTURE.md
 packages/ai/SEAMS.md
+
+# Data-protection satellite ARCHITECTURE docs are kept local (the design bundle in design/ is the tracked source).
+packages/crypto/ARCHITECTURE.md
