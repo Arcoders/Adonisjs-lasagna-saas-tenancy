@@ -32,12 +32,6 @@ const ALLOWED_UNDOCUMENTED = new Set<string>([
   // documented as a pattern in the creating-a-satellite guide, not as a real
   // operator command on the CLI reference.
   'example:widget:list',
-  // The crypto satellite is private / in-build (package.json `private: true`, not
-  // in CI): its docs page and CLI reference rows land at graduation, together with
-  // flipping private off, wiring CI, and the stability.md row. Remove these (and add
-  // the real rows) when crypto graduates.
-  'tenant:crypto:rekek',
-  'tenant:crypto:shred',
 ])
 
 interface CommandManifest {

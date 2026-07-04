@@ -55,8 +55,8 @@ jobs:
       - name: Build (core)
         run: npm run build
 
-      - name: Build satellite packages (sso, billing, admin, backup, websockets, reporting, ai)
-        run: npm run build:sso && npm run build:billing && npm run build:admin && npm run build:backup && npm run build:websockets && npm run build:reporting && npm run build:ai
+      - name: Build satellite packages (sso, billing, admin, backup, websockets, reporting, ai, crypto)
+        run: npm run build:sso && npm run build:billing && npm run build:admin && npm run build:backup && npm run build:websockets && npm run build:reporting && npm run build:ai && npm run build:crypto
 
       # The dev-only satellite-test-kit is imported by core's bin/test.integration.ts
       # (and each satellite's), which core's tsconfig typechecks. Build it before the
@@ -203,6 +203,7 @@ jobs:
           npm run test:coverage --workspace @adonisjs-lasagna/websockets
           npm run test:coverage --workspace @adonisjs-lasagna/reporting
           npm run test:coverage --workspace @adonisjs-lasagna/ai
+          npm run test:coverage --workspace @adonisjs-lasagna/crypto
 
       # Satellite ABI compatibility (B5): the reference third-party satellite
       # is built + tested against the freshly-built core above. Its typecheck
@@ -294,6 +295,14 @@ jobs:
           path: coverage/.v8/ai-unit
           if-no-files-found: warn
 
+      - name: Upload raw satellite unit coverage (V8) — crypto
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-crypto-unit
+          path: coverage/.v8/crypto-unit
+          if-no-files-found: warn
+
       # Full report (unused exports / orphaned files / deps) stays informational.
       - name: Knip (unused-code report)
         run: npm run knip
@@ -322,7 +331,7 @@ jobs:
       - name: Package contracts (publint + types resolution)
         run: |
           set -e
-          for pkg in core sso billing admin backup websockets reporting ai; do
+          for pkg in core sso billing admin backup websockets reporting ai crypto; do
             echo "== @adonisjs-lasagna/$pkg =="
             ( cd "packages/$pkg" \
               && npx -y publint@0.3.21 \
@@ -612,6 +621,14 @@ jobs:
       # observability + performance specs, against real PG/Redis via the kit.
       - name: Test (satellite integration) + coverage — ai
         run: npm run test:integration:coverage --workspace @adonisjs-lasagna/ai
+
+      # crypto's integration tier: the wrapped-DEK store + shred + WORM ledger + the
+      # @encrypted/@searchable decorators against real Postgres via the kit, across
+      # every placement (schema-pg, a real second database for database-pg, and the
+      # shared rowscope table with its RLS stub). The database-pg + rowscope specs
+      # self-skip if the CI role cannot CREATEDB / set the RLS GUC.
+      - name: Test (satellite integration) + coverage — crypto
+        run: npm run test:integration:coverage --workspace @adonisjs-lasagna/crypto
 
       # Consumer canary: boot the shared harness from a fresh satellite (the
       # reference template) against core's fixture. A kit change that breaks a

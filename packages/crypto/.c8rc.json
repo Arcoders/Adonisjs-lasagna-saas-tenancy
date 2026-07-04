@@ -1,0 +1,28 @@
+{
+  "all": true,
+  "src": ["src"],
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "src/**/*.d.ts",
+    "src/define_config.ts",
+    "src/types/**",
+    "src/services/wrapped_dek_store.ts",
+    "src/index.ts",
+    "src/events/**",
+    "src/sdk/**",
+    "src/commands/**",
+    "src/internal/operation_lock.ts",
+    "src/services/worm_shred_ledger.ts",
+    "build/**",
+    "bin/**",
+    "tests/**"
+  ],
+  "reporter": ["text-summary", "lcov"],
+  "report-dir": "./coverage",
+  "clean": true,
+  "check-coverage": true,
+  "statements": 84,
+  "branches": 80,
+  "functions": 84,
+  "lines": 84
+}
