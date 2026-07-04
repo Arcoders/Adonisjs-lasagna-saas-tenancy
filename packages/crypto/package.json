@@ -6,7 +6,7 @@
   "license": "MIT",
   "author": "Ismael Haytam Tanane",
   "private": true,
-  "//private": "In active build (encrypt/decrypt + shred + shared WORM ledger + blind-index HMAC + EncryptedRepository + real-PG integration suite done; @encrypted/@searchable decorators and KEK rotation pending). Kept unpublishable until it graduates to RC, exactly as the design requires (nothing ships until 1.0). Graduating flips this off, wires crypto into CI (unit + integration coverage), and adds the stability.md row + publish.yml entry.",
+  "//private": "In active build (encrypt/decrypt + shred + shared WORM ledger + blind-index HMAC + EncryptedRepository + @encrypted/@searchable decorators + real-PG integration suite done; KEK rotation + isthmus guard registry pending). Kept unpublishable until it graduates to RC, exactly as the design requires (nothing ships until 1.0). Graduating flips this off, wires crypto into CI (unit + integration coverage), and adds the stability.md row + publish.yml entry.",
   "engines": {
     "node": ">=24.0.0"
   },

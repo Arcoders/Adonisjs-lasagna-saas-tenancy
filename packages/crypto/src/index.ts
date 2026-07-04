@@ -17,6 +17,18 @@ export type { CategoryKey, KeyProvider, SubjectId, WrappedDek } from './types/ke
 // Blind-index (deterministic search HMAC) options (crypto §6.5, I5).
 export type { BlindIndexOptions } from './internal/blind_index.js'
 
+// Transparent field-encryption decorators (crypto §6.4 Option A).
+export { encrypted, searchable } from './models/encrypted_columns.js'
+export type {
+  EncryptedColumnMeta,
+  EncryptedFieldsRepo,
+  EncryptedOptions,
+  ModelEncryptionMeta,
+  SearchableColumnMeta,
+  SearchableOptions,
+} from './models/encrypted_columns.js'
+export { withEncryptedFields } from './models/with_encrypted_fields.js'
+
 // Shred seams (crypto §6.6): governance's erasability gate + the fail-closed WORM ledger.
 export type { ErasabilityResolver, ErasabilityVerdict } from './types/erasability.js'
 export type { PendingShredEntry, ShredLedger, ShredLedgerEntry } from './types/shred_ledger.js'
