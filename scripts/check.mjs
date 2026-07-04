@@ -42,6 +42,10 @@ const GUARDS = [
   'check-ai-invariant-8.mjs',
   'check-ai-no-prompt-logging-for-training.mjs',
   'check-ai-no-provider-prompt-cache.mjs',
+  'check-crypto-invariant-2.mjs',
+  'check-crypto-invariant-6.mjs',
+  'check-crypto-invariant-7.mjs',
+  'check-crypto-invariant-10.mjs',
 ]
 
 const failed = []
