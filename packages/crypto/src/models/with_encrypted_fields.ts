@@ -33,12 +33,33 @@ type BootableModel = LucidBaseModelClass & {
  *
  * It registers ASYNC Lucid lifecycle hooks (the DEK unwrap is async, which the SYNC
  * `prepare`/`consume` column hooks cannot do): `before('create'|'update')` encrypts
- * + (re)indexes fail-closed (a failure aborts the save, so cleartext is never
- * written, I3/T5), and `after('create'|'update'|'find'|'fetch'|'paginate')` decrypts
- * back to plaintext in memory (fail-closed on a shredded/tampered value, I3/T6). The
- * engine is the container `EncryptedRepository`, resolved at hook time, which
- * resolves the current tenant fail-closed. A model with no encrypted/searchable
- * columns wires no hooks.
+ * + (re)indexes fail-closed (a failure aborts the save), and
+ * `after('create'|'update'|'find'|'fetch')` decrypts back to plaintext in memory
+ * (fail-closed on a shredded/tampered value, I3/T6). The engine is the container
+ * `EncryptedRepository`, resolved at hook time, which resolves the current tenant
+ * fail-closed. A model with no encrypted/searchable columns wires no hooks.
+ *
+ * SCOPE OF THE GUARANTEE (honest limits, I3/T5). These hooks fire only on the model
+ * *instance* write/read path: `model.save()`, `Model.create()` / `createMany()`, and
+ * loads via `find`/`fetch`/`paginate`. They DO NOT fire for:
+ *   - query-builder writes (`Model.query().insert()/.update()`) or raw SQL
+ *     (`db.rawQuery('UPDATE ...')`), which store PLAINTEXT in the encrypted column
+ *     and skip the blind index (a T5 bypass; the DB-level fail-closed guard the
+ *     design promises, `guard.crypto_plaintext_write` / invariant-3, is not built
+ *     yet). Route every write to an `@encrypted` column through a model instance.
+ *   - the `*Quietly` family (`saveQuietly` / `createQuietly` / `createManyQuietly`),
+ *     which Lucid defines as "same as X without invoking hooks": the same plaintext
+ *     bypass. Do not use them for encrypted models.
+ *   - a preload of a RELATED encrypted model that does not itself compose this mixin
+ *     (its ciphertext would surface undecrypted). Compose the mixin on every model
+ *     with `@encrypted` columns.
+ * After a crypto-shred, the inert ciphertext stays physically present, so a BULK read
+ * (`Model.all()` / `.paginate()` / `findMany`) that includes the shredded row throws
+ * fail-closed and aborts the whole batch (I3/I6, no per-row isolation by design). The
+ * host must null/soft-delete the encrypted column (or filter the row out) on
+ * `SubjectShredded`. Each `@encrypted`/`@searchable` field resolves the current tenant
+ * per row (no per-batch memo), so a wide list amplifies tenant lookups; back the
+ * host `TenantRepository.findById` with a cache. See design §10 (honest bounds).
  */
 export function withEncryptedFields<T extends LucidBaseModelClass>(Base: T): T {
   const Bootable = Base as T & BootableModel
@@ -51,6 +72,16 @@ export function withEncryptedFields<T extends LucidBaseModelClass>(Base: T): T {
       // parent's $hooks Map is registered before we add ours (as scoping.ts does).
       if ((this as any).booted === true) return
       super.boot?.()
+
+      // Dedup across mixin LAYERS. Composing `withEncryptedFields` twice (directly,
+      // or via a subclass whose ancestor already composed it) produces two boot()
+      // closures that both run in a single boot cascade with the same `this`. Without
+      // this guard each hook would register twice, so every row would encrypt/decrypt
+      // twice, and the second decrypt pass throws (it re-opens already-plaintext).
+      // Keyed on the concrete constructor so registration happens at most once per
+      // model, no matter how many layers appear in the chain.
+      if (HOOKED.has(this)) return
+      HOOKED.add(this)
 
       const repo = (): Promise<EncryptedRepository> => app.container.make(EncryptedRepository)
 
@@ -80,15 +111,21 @@ export function withEncryptedFields<T extends LucidBaseModelClass>(Base: T): T {
       this.after('create', decryptHook)
       this.after('update', decryptHook)
       this.after('find', decryptHook)
+      // No `after('paginate')`: Lucid's `paginate()` fires `after:fetch` on the same
+      // row instances immediately after `after:paginate` (query_builder exec order),
+      // so registering both would decrypt every paginated row twice, and the second
+      // pass re-opens now-plaintext values and throws. `after('fetch')` alone covers
+      // paginated rows exactly once.
       this.after('fetch', decryptEach)
-      this.after('paginate', async (paginator: any) => {
-        await decryptEach(typeof paginator?.all === 'function' ? paginator.all() : [])
-      })
     }
   }
 
   return WithEncryptedFields as unknown as T
 }
+
+// Concrete model constructors whose encrypt/decrypt hooks are already registered, so
+// composing the mixin more than once in a chain cannot double-register (see boot()).
+const HOOKED = new WeakSet<Function>()
 
 // Per-constructor metadata, resolved lazily at first hook invocation (by then every
 // decorator on the class has run) and cached.

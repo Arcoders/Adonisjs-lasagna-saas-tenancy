@@ -10,8 +10,10 @@ import type { CategoryKey, SubjectId } from '../types/key_provider.js'
  * DEK unwrap is async, which Lucid's SYNC `prepare`/`consume` column hooks cannot
  * do), wired by the {@link withEncryptedFields} mixin. Both surfaces are backstopped
  * by the same invariants as the {@link EncryptedRepository} (I3 fail-closed, I5
- * keyed blind index); the decorator only makes forgetting to encrypt impossible for
- * a declared column.
+ * keyed blind index). The decorator removes the "forgot to call encrypt" mistake for
+ * writes that go through a model instance, but it is NOT an unbypassable seam: Lucid
+ * query-builder/raw writes and the `*Quietly` family skip the hooks and store
+ * plaintext (see {@link withEncryptedFields} for the full honest-limits list).
  *
  * The decorators only RECORD metadata here; nothing touches the container or a DEK
  * at decoration time, so this module is import-safe in a bare unit runner. The pure
@@ -150,6 +152,12 @@ export function collectModelEncryptionMeta(ctor: Function): ModelEncryptionMeta 
 /** A minimal Lucid row surface the hooks read/write (so the pure functions are testable). */
 export interface EncryptableRow {
   readonly $attributes: Record<string, unknown>
+  /**
+   * Whether the row is already persisted. Distinguishes a partial/projected load
+   * (persisted, an unselected source column reads `undefined`) from a genuinely empty
+   * value on a new record, so a partial load never clobbers a stored blind index.
+   */
+  readonly $isPersisted?: boolean
   $setAttribute(key: string, value: unknown): void
   $hydrateOriginals(): void
 }
@@ -164,8 +172,14 @@ function isCiphertext(value: unknown): boolean {
  * IN PLACE, before an INSERT/UPDATE. Fail-closed (I3/T5): if any field cannot be
  * encrypted (no tenant scope, KeyProvider down) this THROWS, and because it runs in
  * a `before('create'|'update')` hook the whole save aborts, so cleartext is never
- * written. The searchable indexes are computed FIRST, from the still-plaintext
- * source, before the source column is replaced with ciphertext.
+ * written through this path. The searchable indexes are computed FIRST, from the
+ * still-plaintext source, before the source column is replaced with ciphertext.
+ *
+ * A partial/projected load that did not select the encrypted source column leaves it
+ * `undefined`; on a persisted row that means "not loaded", NOT "empty", so the index
+ * recompute is SKIPPED (recomputing from an absent source would null a valid stored
+ * HMAC and silently break equality search). An explicit `null` source still nulls the
+ * index; a new (unpersisted) record still maps an absent source to a null index.
  */
 export async function encryptModelFields(
   repo: EncryptedFieldsRepo,
@@ -174,6 +188,8 @@ export async function encryptModelFields(
 ): Promise<void> {
   for (const s of meta.searchable) {
     const source = s.from(model)
+    // Persisted row + unselected source column ⇒ preserve the stored index.
+    if (source === undefined && model.$isPersisted === true) continue
     model.$setAttribute(
       s.column,
       source === null || source === undefined

@@ -21,7 +21,10 @@ class FakeRepo implements EncryptedFieldsRepo {
   async decrypt(subject: string, category: string, ciphertext: string): Promise<string> {
     this.calls.push(['decrypt', subject, category, ciphertext])
     const m = /^enc_v2:[^:]+:[^:]+:(.*)$/.exec(ciphertext)
-    return m ? m[1] : ciphertext
+    // Match the real engine's strictness (openV2WithKey throws on a non-enc_v2 value)
+    // so a double-decrypt of an already-plaintext value fails loudly here too.
+    if (!m) throw new Error(`decrypt: value is not enc_v2 ciphertext: '${ciphertext}'`)
+    return m[1]
   }
   async blindIndex(
     category: string,
@@ -34,10 +37,14 @@ class FakeRepo implements EncryptedFieldsRepo {
 }
 
 /** A minimal Lucid-row double: `$attributes` + the two sanctioned mutators. */
-function rowDouble(attrs: Record<string, unknown>): EncryptableRow & { hydrated: number } {
+function rowDouble(
+  attrs: Record<string, unknown>,
+  opts: { persisted?: boolean } = {}
+): EncryptableRow & { hydrated: number } {
   const $attributes = { ...attrs }
   return {
     $attributes,
+    $isPersisted: opts.persisted ?? false,
     hydrated: 0,
     $setAttribute(key: string, value: unknown) {
       $attributes[key] = value
@@ -135,6 +142,40 @@ test.group('crypto @encrypted/@searchable — pure hook logic', () => {
     }
     const model = rowDouble({ id: 'renter-1', passportNumber: 'AB1234567', passportIndex: null })
     await assert.rejects(() => encryptModelFields(repo, META, model), /KeyProvider down/)
+  })
+
+  test('a partial load (persisted row, source column not selected) does NOT clobber the stored index', async ({
+    assert,
+  }) => {
+    const repo = new FakeRepo()
+    // Projected load: `passportNumber` was not selected, so it is absent; the row
+    // carries the real stored HMAC in `passportIndex`. A save must preserve it.
+    const model = rowDouble(
+      { id: 'renter-1', passportIndex: 'idx:identity-docs:AB1234567' },
+      { persisted: true }
+    )
+    await encryptModelFields(repo, META, model)
+    assert.equal(
+      model.$attributes.passportIndex,
+      'idx:identity-docs:AB1234567',
+      'stored blind index survives a partial-load save'
+    )
+    assert.isUndefined(
+      repo.calls.find((c) => c[0] === 'blindIndex'),
+      'no recompute from an absent source'
+    )
+  })
+
+  test('an EXPLICIT null source on a persisted row still nulls the index (a real clear)', async ({
+    assert,
+  }) => {
+    const repo = new FakeRepo()
+    const model = rowDouble(
+      { id: 'renter-1', passportNumber: null, passportIndex: 'idx:identity-docs:AB1234567' },
+      { persisted: true }
+    )
+    await encryptModelFields(repo, META, model)
+    assert.isNull(model.$attributes.passportIndex, 'clearing the source clears the index')
   })
 })
 

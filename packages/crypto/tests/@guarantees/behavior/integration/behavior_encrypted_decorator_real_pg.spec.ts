@@ -147,6 +147,55 @@ test.group('crypto @encrypted/@searchable decorators (real pg)', (group) => {
     assert.isTrue(String(raw[0].passport_number).startsWith('enc_v2:'))
   }).skip(() => !ready, 'postgres not available; runs in CI')
 
+  test('paginate() decrypts every row (no double-decrypt throw on a mainline read)', async ({
+    assert,
+  }) => {
+    const ids = [randomUUID(), randomUUID(), randomUUID()]
+    for (const id of ids) {
+      const renter = new Renter()
+      renter.id = id
+      renter.passportNumber = `passport-PAGE-${id.slice(0, 4)}`
+      await renter.save()
+    }
+
+    // paginate() fires after:paginate THEN after:fetch on the SAME instances; a
+    // regression that decrypts twice would throw here (re-opening plaintext).
+    const page = await Renter.query({ connection: conn }).whereIn('id', ids).paginate(1, 10)
+    const rows = page.all()
+    assert.isAtLeast(rows.length, 3)
+    for (const row of rows) {
+      assert.isTrue(String(row.passportNumber).startsWith('passport-PAGE-'), 'decrypted plaintext')
+      assert.notInclude(String(row.passportNumber), 'enc_v2:')
+    }
+  }).skip(() => !ready, 'postgres not available; runs in CI')
+
+  test('load, modify, save re-encrypts + re-indexes; the stored index tracks the new value', async ({
+    assert,
+  }) => {
+    const id = randomUUID()
+    const first = new Renter()
+    first.id = id
+    first.passportNumber = 'passport-OLD-1'
+    await first.save()
+
+    const repo = await app.container.make(EncryptedRepository)
+    const oldIndex = await repo.blindIndex(CAT, 'passport-OLD-1')
+
+    const loaded = await Renter.find(id)
+    loaded!.passportNumber = 'passport-NEW-2'
+    await loaded!.save()
+
+    // Round-trips to the NEW plaintext, and the on-disk index moves with it.
+    const reloaded = await Renter.find(id)
+    assert.equal(reloaded?.passportNumber, 'passport-NEW-2')
+    const raw = rowsOfResult(
+      await db.connection(conn).rawQuery(`SELECT passport_index FROM renters WHERE id = ?`, [id])
+    )
+    const newIndex = await repo.blindIndex(CAT, 'passport-NEW-2')
+    assert.equal(String(raw[0].passport_index), newIndex, 'index recomputed from the new value')
+    assert.notEqual(String(raw[0].passport_index), oldIndex, 'the old index is gone')
+  }).skip(() => !ready, 'postgres not available; runs in CI')
+
   test('fail-closed: with no active tenant scope, a save aborts and writes nothing (T5)', async ({
     assert,
   }) => {

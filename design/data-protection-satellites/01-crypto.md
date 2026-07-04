@@ -832,6 +832,30 @@ crypto's slice of the shared crosswalk (foundation §8).
   `APP_KEY`) can unwrap DEKs. The KEK/DEK split still gives key-DESTRUCTION
   granularity (crypto-shred works), but root-of-trust SEPARATION (I2's T2 mitigation)
   requires a real KMS/HSM. Prod must use a KMS/Vault provider.
+- **The `@encrypted`/`@searchable` decorator surface protects the model-instance path
+  only, until the DB-level write guard (§5, `guard.crypto_plaintext_write` /
+  invariant-3) ships.** The `withEncryptedFields` hooks fire on `model.save()`,
+  `Model.create()`/`createMany()`, and reads via `find`/`fetch`/`paginate`. They do
+  NOT fire for: query-builder writes (`Model.query().insert()/.update()`) or raw SQL,
+  which store PLAINTEXT in the encrypted column and skip the blind index (a T5 bypass);
+  the `*Quietly` family (`saveQuietly`/`createQuietly`/`createManyQuietly`), which Lucid
+  defines as "without invoking hooks"; and a preload of a RELATED encrypted model that
+  does not itself compose the mixin (its ciphertext surfaces undecrypted). Route every
+  write to an `@encrypted` column through a model instance, and compose the mixin on
+  every model that carries `@encrypted` columns. The `EncryptedRepository` (§6.4 Option
+  B) keeps the boundary a visible call for the same reason. This is a surface limit, not
+  a mechanism weakness: the underlying encrypt/shred guarantees are unchanged.
+- **A crypto-shred makes a bulk read of the un-nulled row fail closed for the whole
+  batch.** After a shred the inert `enc_v2` ciphertext stays physically present. Because
+  reads are fail-closed (I3/I6), any load of that row, including a BULK read
+  (`Model.all()` / `.paginate()` / `findMany`), throws; and a single shredded row
+  aborts the entire list decrypt (no per-row isolation, by design: a shredded row cannot
+  be silently skipped without surfacing inert ciphertext or dropping rows). This is the
+  encrypted-column companion to the blind-index post-shred write path (T14): on
+  `SubjectShredded` the host MUST null/soft-delete the encrypted column or filter the
+  shredded row out of list queries, or every bulk read that would include it fails. A
+  partial/projected load that omits the encrypted source column preserves the stored
+  blind index (the recompute is skipped, not clobbered).
 - **crypto does not decide lawfulness.** It provides the pieces to build compliance.
   It never claims "GDPR compliant" or "Ley 09-08 compliant". Whether destroying a
   given DEK, or retaining a given category, is lawful is the operator's judgment,
