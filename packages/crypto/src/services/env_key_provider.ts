@@ -89,9 +89,43 @@ export default class EnvKeyProvider implements KeyProvider {
 
   async unwrapDek(tenantId: string, wrapped: WrappedDek): Promise<Buffer> {
     const appKey = requireAppKey()
-    const kek = deriveKek(appKey, tenantId)
-    // Strict: a tampered wrap, or one made under a different APP_KEY-derived KEK,
-    // fails the GCM auth tag and throws (never returns a usable key).
+    // The rotation read window (§6.7). Try the CURRENT APP_KEY-derived KEK first;
+    // if that fails and OLD_APP_KEY is set (a KEK/APP_KEY rotation is in flight),
+    // try the previous generation so a not-yet-re-wrapped DEK keeps unwrapping
+    // until `tenant:crypto:rekek` re-wraps it. This is the SAME shape as core's
+    // dual-key decrypt window (`classifySecretRotation` tries multiple keys); each
+    // attempt is a STRICT open of a DEK ENVELOPE, and both-fail throws (never a
+    // lenient field-value read, I3). Removing OLD_APP_KEY after the rekek completes
+    // closes the window.
+    try {
+      return this.#open(wrapped, deriveKek(appKey, tenantId))
+    } catch (currentError) {
+      const oldAppKey = process.env.OLD_APP_KEY
+      if (oldAppKey && oldAppKey !== appKey) {
+        try {
+          return this.#open(wrapped, deriveKek(oldAppKey, tenantId))
+        } catch {
+          // The old key did not open it either: surface the current-key error,
+          // which is the generation the caller is rotating toward.
+        }
+      }
+      throw currentError
+    }
+  }
+
+  /**
+   * The current KEK-generation cursor (§6.7): the `kek_id` every fresh {@link wrapDek}
+   * stamps under the current `APP_KEY`. `tenant:crypto:rekek` compares each stored
+   * row's `kek_id` against this to skip already-current rows without unwrapping.
+   * Tenant-independent for the env provider (the id is a tag of `APP_KEY`, not the
+   * per-tenant KEK), but kept per-tenant in the signature for KMS providers.
+   */
+  async currentKekId(_tenantId: string): Promise<string> {
+    return envKekId(requireAppKey())
+  }
+
+  /** Strict open of a wrapped-DEK envelope under one KEK; throws on tamper / wrong KEK. */
+  #open(wrapped: WrappedDek, kek: Buffer): Buffer {
     const dek = Buffer.from(openV2WithKey(wrapped.ciphertext, kek), 'base64')
     assertDek(dek)
     return dek

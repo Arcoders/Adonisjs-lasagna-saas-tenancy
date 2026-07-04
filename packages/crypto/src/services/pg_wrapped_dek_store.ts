@@ -4,7 +4,12 @@ import CryptoException from '../exceptions/crypto_exception.js'
 import type { TableLocation } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { CategoryKey, SubjectId } from '../types/key_provider.js'
-import type { NewWrappedDekRow, WrappedDekRow, WrappedDekStore } from './wrapped_dek_store.js'
+import type {
+  ListLiveOptions,
+  NewWrappedDekRow,
+  WrappedDekRow,
+  WrappedDekStore,
+} from './wrapped_dek_store.js'
 
 /**
  * The minimal Lucid query surface the store uses, injected (via
@@ -71,6 +76,46 @@ export default class PgWrappedDekStore implements WrappedDekStore {
     )
     const row = rowsOf(res)[0]
     return row ? toRow(row) : null
+  }
+
+  async listLive(
+    tenant: TenantModelContract,
+    options: ListLiveOptions = {}
+  ): Promise<WrappedDekRow[]> {
+    const { client, table } = await this.#target(tenant)
+    const limit = normalizeLimit(options.limit)
+    // safe-sql: `table` is a fixed module constant; the cursor + limit are ? binds.
+    // Keyset on the uuid PK (id > ?), ordered by id, so the walk is bounded-memory
+    // and stable under a concurrent re-wrap (a re-wrap keeps the row's id).
+    const where =
+      options.afterId !== undefined
+        ? `WHERE shredded_at IS NULL AND id > ?`
+        : `WHERE shredded_at IS NULL`
+    const bindings = options.afterId !== undefined ? [options.afterId, limit] : [limit]
+    const res = await client.rawQuery(
+      `SELECT id, subject_id, category, wrapped_dek, kek_id, shredded_at FROM ${table} ` +
+        `${where} ORDER BY id ASC LIMIT ?`,
+      bindings
+    )
+    return rowsOf(res).map(toRow)
+  }
+
+  async rewrap(
+    tenant: TenantModelContract,
+    id: string,
+    wrappedDek: string,
+    kekId: string
+  ): Promise<boolean> {
+    const { client, table } = await this.#target(tenant)
+    // Only a LIVE row is re-wrapped (WHERE shredded_at IS NULL): a row shredded
+    // between the scan and here is a no-op, never resurrecting destroyed key
+    // material (I6). The DEK value is unchanged; only its KEK wrapping rotates (I8).
+    // safe-sql: `table` is a fixed module constant; every value is a ? bind.
+    const res = await client.rawQuery(
+      `UPDATE ${table} SET wrapped_dek = ?, kek_id = ? WHERE id = ? AND shredded_at IS NULL`,
+      [wrappedDek, kekId, id]
+    )
+    return rowCount(res) > 0
   }
 
   async insert(tenant: TenantModelContract, row: NewWrappedDekRow): Promise<WrappedDekRow> {
@@ -187,4 +232,10 @@ function toRow(row: Record<string, unknown>): WrappedDekRow {
 function isUniqueViolation(error: unknown): boolean {
   const code = (error as { code?: unknown })?.code
   return code === '23505'
+}
+
+/** Clamp the rekek page size to a sane bounded range (default 500). */
+function normalizeLimit(limit: number | undefined): number {
+  if (limit === undefined || !Number.isFinite(limit) || limit <= 0) return 500
+  return Math.min(Math.floor(limit), 1000)
 }

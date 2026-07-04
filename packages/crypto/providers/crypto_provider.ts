@@ -13,8 +13,10 @@ import { DEFAULT_KEY_PROVIDER } from '../src/constants.js'
 import KeyProviderRegistry from '../src/services/key_provider_registry.js'
 import EnvKeyProvider from '../src/services/env_key_provider.js'
 import CryptoService from '../src/services/crypto_service.js'
+import RekekService from '../src/services/rekek_service.js'
 import EncryptedRepository from '../src/services/encrypted_repository.js'
 import WormShredLedger from '../src/services/worm_shred_ledger.js'
+import { withCryptoOperationLock } from '../src/internal/operation_lock.js'
 import PgWrappedDekStore, {
   type CryptoDb,
   type CryptoStoreDriver,
@@ -74,7 +76,30 @@ export default class CryptoProvider implements SatelliteProviderContract {
         store,
         erasabilityResolver: crypto?.erasabilityResolver,
         ledger,
+        // The per-tenant operation lock (I10): provision + shred serialize on it so
+        // two concurrent writers to one (subject × category) DEK cannot interleave.
+        // Redis-backed, fail-open on a Redis outage (the partial UNIQUE is the real
+        // singularity guarantee).
+        withLock: withCryptoOperationLock,
       })
+    })
+
+    // The KEK-rotation walker (I8, §6.7), driving `tenant:crypto:rekek`. It shares
+    // the same KeyProvider + Pg store wiring as CryptoService (a fresh store: the
+    // store is stateless behind its injected deps), and re-wraps DEKs under the
+    // current KEK generation without ever decrypting a field value. Resolved via
+    // `container.make(RekekService)` by the ace command.
+    this.app.container.singleton(RekekService, async (resolver) => {
+      const crypto = this.app.config.get<MultitenancyConfigWithCrypto>('multitenancy')?.crypto
+      const registry = await resolver.make(KeyProviderRegistry)
+      const keyProvider = registry.resolve(crypto?.keyProvider ?? DEFAULT_KEY_PROVIDER)
+      const makeDb = () => this.app.container.make('lucid.db' as never)
+      const store = new PgWrappedDekStore({
+        getDriver: () => getActiveDriver() as Promise<CryptoStoreDriver>,
+        getDb: async () => (await makeDb()) as unknown as CryptoDb,
+        activeScopeTenantId: () => tenancy.currentId(),
+      })
+      return new RekekService({ keyProvider, store })
     })
 
     // The explicit field-encryption surface (§6.4, Option B): a context-aware

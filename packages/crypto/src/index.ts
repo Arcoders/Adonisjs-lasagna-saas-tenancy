@@ -36,7 +36,15 @@ export type { SubjectShreddedEvent } from './events/subject_shredded.js'
 
 // Services.
 export { default as CryptoService } from './services/crypto_service.js'
-export type { CryptoServiceDeps, ShredResult } from './services/crypto_service.js'
+export type { CryptoServiceDeps, ShredOptions, ShredResult } from './services/crypto_service.js'
+export type { CryptoOperationLock } from './types/operation_lock.js'
+export { default as RekekService } from './services/rekek_service.js'
+export type {
+  RekekFailure,
+  RekekOptions,
+  RekekServiceDeps,
+  RekekTenantSummary,
+} from './services/rekek_service.js'
 export { default as EncryptedRepository } from './services/encrypted_repository.js'
 export type { EncryptedRepositoryDeps } from './services/encrypted_repository.js'
 export { default as KeyProviderRegistry } from './services/key_provider_registry.js'
@@ -50,6 +58,7 @@ export type {
   PgWrappedDekStoreDeps,
 } from './services/pg_wrapped_dek_store.js'
 export type {
+  ListLiveOptions,
   NewWrappedDekRow,
   WrappedDekRow,
   WrappedDekStore,

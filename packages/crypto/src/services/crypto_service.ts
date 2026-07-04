@@ -7,6 +7,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { CategoryKey, KeyProvider, SubjectId } from '../types/key_provider.js'
 import type { ErasabilityResolver } from '../types/erasability.js'
 import type { ShredLedger } from '../types/shred_ledger.js'
+import type { CryptoOperationLock } from '../types/operation_lock.js'
 import type { SubjectShreddedEvent } from '../events/subject_shredded.js'
 import type { WrappedDekStore } from './wrapped_dek_store.js'
 
@@ -31,6 +32,14 @@ export interface CryptoServiceDeps {
   readonly ledger?: ShredLedger
   /** Optional host notification after a COMMITTED shred (the `SubjectShredded` event). */
   readonly emitShredded?: (event: SubjectShreddedEvent) => void
+  /**
+   * The per-tenant operation lock (I10, §6.6). Provision and shred serialize on it
+   * so two concurrent writes to one `(subject × category)` DEK cannot interleave.
+   * ABSENT ⇒ the critical sections run without cross-process serialization (a safe
+   * degraded mode: the partial UNIQUE is the real singularity guarantee). See
+   * {@link CryptoOperationLock}.
+   */
+  readonly withLock?: CryptoOperationLock
 }
 
 /** The outcome of a {@link CryptoService.shred} call. */
@@ -39,8 +48,32 @@ export interface ShredResult {
   readonly shredded: boolean
   /** True if there was no live DEK to shred (already shredded / never provisioned). */
   readonly alreadyShredded: boolean
-  /** The event emitted on a real shred (absent when alreadyShredded). */
+  /**
+   * True when the call was a dry run: the governance gate + fail-closed
+   * preconditions were checked but nothing was destroyed or audited. A
+   * `{ shredded: false, alreadyShredded: false, dryRun: true }` result means a live
+   * DEK exists and IS erasable, so a real run WOULD shred it.
+   */
+  readonly dryRun?: boolean
+  /** The event emitted on a real shred (absent when alreadyShredded / dryRun). */
   readonly event?: SubjectShreddedEvent
+}
+
+/** A resolved DEK: the 32-byte key plus the non-secret `keyId` tag (the wrapped-DEK row id). */
+interface ResolvedDek {
+  readonly dek: Buffer
+  readonly keyId: string
+}
+
+/** Options for {@link CryptoService.shred}. */
+export interface ShredOptions {
+  /**
+   * Run the governance gate (I7) and the fail-closed preconditions, but destroy and
+   * audit NOTHING — for `tenant:crypto:shred --dry-run`. A refused category still
+   * throws (so the operator sees the legal hold); an erasable live DEK returns
+   * `{ shredded: false, alreadyShredded: false, dryRun: true }`.
+   */
+  readonly dryRun?: boolean
 }
 
 /**
@@ -67,6 +100,7 @@ export default class CryptoService {
   readonly #erasabilityResolver?: ErasabilityResolver
   readonly #ledger?: ShredLedger
   readonly #emitShredded?: (event: SubjectShreddedEvent) => void
+  readonly #withLock?: CryptoOperationLock
 
   constructor(deps: CryptoServiceDeps) {
     this.#keyProvider = deps.keyProvider
@@ -75,6 +109,17 @@ export default class CryptoService {
     this.#erasabilityResolver = deps.erasabilityResolver
     this.#ledger = deps.ledger
     this.#emitShredded = deps.emitShredded
+    this.#withLock = deps.withLock
+  }
+
+  /**
+   * Run `fn` under the per-tenant operation lock (I10) when one is wired, else
+   * directly. The lock serializes provision + shred so two concurrent writers to one
+   * `(subject × category)` DEK cannot interleave (T12); absent, the partial UNIQUE
+   * is the fail-closed backstop (a safe degraded mode, §6.6).
+   */
+  #locked<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
+    return this.#withLock ? this.#withLock(tenantId, fn) : fn()
   }
 
   /**
@@ -88,9 +133,10 @@ export default class CryptoService {
     category: CategoryKey,
     plaintext: string
   ): Promise<string> {
+    // Fast path: an already-provisioned DEK needs no lock (it is only read).
     const { dek, keyId } =
       (await this.#liveDek(tenant, subjectId, category)) ??
-      (await this.#provisionDek(tenant, subjectId, category))
+      (await this.#provisionUnderLock(tenant, subjectId, category))
     return sealV2WithKey(plaintext, dek, keyId)
   }
 
@@ -192,7 +238,8 @@ export default class CryptoService {
   async shred(
     tenant: TenantModelContract,
     subjectId: SubjectId,
-    category: CategoryKey
+    category: CategoryKey,
+    options?: ShredOptions
   ): Promise<ShredResult> {
     // 1. Governance gate (I7). The FIRST awaited call. Absent resolver ⇒ refuse.
     if (!this.#erasabilityResolver) {
@@ -212,56 +259,76 @@ export default class CryptoService {
       )
     }
 
-    // Nothing to erase ⇒ idempotent no-op (no ledger row, no event).
-    const live = await this.#store.findLive(tenant, subjectId, category)
-    if (!live) return { shredded: false, alreadyShredded: true }
-
-    // 2. Two-phase audit. No ledger ⇒ refuse (never erase unaudited).
-    if (!this.#ledger) {
-      throw new CryptoException(
-        'shred_unaudited',
-        `[crypto] refusing to shred subject '${subjectId}' / category '${category}': no WORM ledger is wired, and an irreversible erasure is never run unaudited.`
-      )
+    // Dry run: the gate passed; verify the fail-closed preconditions (a live DEK
+    // exists, a WORM ledger is wired) but destroy and audit NOTHING, no lock.
+    if (options?.dryRun) {
+      const liveDry = await this.#store.findLive(tenant, subjectId, category)
+      if (!liveDry) return { shredded: false, alreadyShredded: true, dryRun: true }
+      if (!this.#ledger) {
+        throw new CryptoException(
+          'shred_unaudited',
+          `[crypto] cannot shred subject '${subjectId}' / category '${category}': no WORM ledger is wired, and an irreversible erasure is never run unaudited.`
+        )
+      }
+      return { shredded: false, alreadyShredded: false, dryRun: true }
     }
 
-    // 2a. PENDING before the delete. A throw here aborts with nothing destroyed.
-    let pending
-    try {
-      pending = await this.#ledger.appendPending({
+    // 2. The destructive two-phase erasure, serialized under the per-tenant
+    // operation lock (I10, §6.6) so a concurrent shred/provision cannot interleave.
+    return this.#locked(tenant.id, async () => {
+      // Re-check under the lock: a concurrent shred may have completed between the
+      // gate and acquiring the lock (idempotent no-op, no double audit).
+      const live = await this.#store.findLive(tenant, subjectId, category)
+      if (!live) return { shredded: false, alreadyShredded: true }
+
+      // No ledger ⇒ refuse (never erase unaudited).
+      const ledger = this.#ledger
+      if (!ledger) {
+        throw new CryptoException(
+          'shred_unaudited',
+          `[crypto] refusing to shred subject '${subjectId}' / category '${category}': no WORM ledger is wired, and an irreversible erasure is never run unaudited.`
+        )
+      }
+
+      // 2a. PENDING before the delete. A throw here aborts with nothing destroyed.
+      let pending
+      try {
+        pending = await ledger.appendPending({
+          tenantId: tenant.id,
+          subjectId,
+          category,
+          reason: verdict.reason,
+        })
+      } catch (error) {
+        throw new CryptoException(
+          'shred_unaudited',
+          `[crypto] aborting shred of subject '${subjectId}' / category '${category}': the WORM PENDING append failed, so nothing was destroyed. Cause: ${errorMessage(error)}`
+        )
+      }
+
+      // 2b. The irreversible tombstone (destroy the DEK).
+      await this.#store.shredLive(tenant, subjectId, category)
+
+      // 2c. COMMITTED after the delete. A failure here does NOT undo the erasure
+      // (the DEK is gone, correctly); it leaves a detectable PENDING row, reported.
+      try {
+        await ledger.markCommitted(pending)
+      } catch (error) {
+        throw new CryptoException(
+          'shred_audit_unfinalized',
+          `[crypto] shred of subject '${subjectId}' / category '${category}' COMPLETED (the DEK is destroyed), but marking the WORM row COMMITTED failed; a detectable PENDING row remains for reconciliation. Cause: ${errorMessage(error)}`
+        )
+      }
+
+      const event: SubjectShreddedEvent = {
         tenantId: tenant.id,
         subjectId,
         category,
-        reason: verdict.reason,
-      })
-    } catch (error) {
-      throw new CryptoException(
-        'shred_unaudited',
-        `[crypto] aborting shred of subject '${subjectId}' / category '${category}': the WORM PENDING append failed, so nothing was destroyed. Cause: ${errorMessage(error)}`
-      )
-    }
-
-    // 2b. The irreversible tombstone (destroy the DEK).
-    await this.#store.shredLive(tenant, subjectId, category)
-
-    // 2c. COMMITTED after the delete. A failure here does NOT undo the erasure
-    // (the DEK is gone, correctly); it leaves a detectable PENDING row, reported.
-    try {
-      await this.#ledger.markCommitted(pending)
-    } catch (error) {
-      throw new CryptoException(
-        'shred_audit_unfinalized',
-        `[crypto] shred of subject '${subjectId}' / category '${category}' COMPLETED (the DEK is destroyed), but marking the WORM row COMMITTED failed; a detectable PENDING row remains for reconciliation. Cause: ${errorMessage(error)}`
-      )
-    }
-
-    const event: SubjectShreddedEvent = {
-      tenantId: tenant.id,
-      subjectId,
-      category,
-      occurredAt: new Date(),
-    }
-    this.#emitShredded?.(event)
-    return { shredded: true, alreadyShredded: false, event }
+        occurredAt: new Date(),
+      }
+      this.#emitShredded?.(event)
+      return { shredded: true, alreadyShredded: false, event }
+    })
   }
 
   /** Resolve the live DEK for (subject, category), or null if none is provisioned. */
@@ -269,7 +336,7 @@ export default class CryptoService {
     tenant: TenantModelContract,
     subjectId: SubjectId,
     category: CategoryKey
-  ): Promise<{ dek: Buffer; keyId: string } | null> {
+  ): Promise<ResolvedDek | null> {
     const row = await this.#store.findLive(tenant, subjectId, category)
     if (!row) return null
     const dek = await this.#keyProvider.unwrapDek(tenant.id, {
@@ -282,12 +349,32 @@ export default class CryptoService {
     return { dek, keyId: row.id }
   }
 
+  /**
+   * Provision a DEK under the per-tenant operation lock (I10), re-checking for a
+   * live DEK inside the lock so two concurrent first-writers to one `(subject ×
+   * category)` resolve to ONE DEK (the loser reuses the winner's) instead of racing
+   * on the partial UNIQUE. Absent lock ⇒ the partial UNIQUE is the fail-closed
+   * backstop (a racing second insert is refused `dek_conflict`).
+   */
+  async #provisionUnderLock(
+    tenant: TenantModelContract,
+    subjectId: SubjectId,
+    category: CategoryKey
+  ): Promise<ResolvedDek> {
+    return this.#locked(tenant.id, async () => {
+      return (
+        (await this.#liveDek(tenant, subjectId, category)) ??
+        (await this.#provisionDek(tenant, subjectId, category))
+      )
+    })
+  }
+
   /** Generate + wrap a fresh DEK and persist it as the live row for (subject, category). */
   async #provisionDek(
     tenant: TenantModelContract,
     subjectId: SubjectId,
     category: CategoryKey
-  ): Promise<{ dek: Buffer; keyId: string }> {
+  ): Promise<ResolvedDek> {
     const dek = this.#generateDek()
     this.#assertDek(dek)
     const wrapped = await this.#keyProvider.wrapDek(tenant.id, dek)

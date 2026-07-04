@@ -46,6 +46,7 @@ const GUARDS = [
   'check-crypto-invariant-5.mjs',
   'check-crypto-invariant-6.mjs',
   'check-crypto-invariant-7.mjs',
+  'check-crypto-invariant-8.mjs',
   'check-crypto-invariant-10.mjs',
 ]
 

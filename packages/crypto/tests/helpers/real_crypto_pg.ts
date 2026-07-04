@@ -3,6 +3,7 @@ import { getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import WormLedgerWriter, { type WormDb } from '@adonisjs-lasagna/saas-tenancy/worm-ledger'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import CryptoService from '../../src/services/crypto_service.js'
+import RekekService from '../../src/services/rekek_service.js'
 import EnvKeyProvider from '../../src/services/env_key_provider.js'
 import PgWrappedDekStore, {
   type CryptoDb,
@@ -179,16 +180,8 @@ export interface RealServiceOpts {
  * store spec's `storeAs(activeId)`: one service per active scope.
  */
 export function serviceAs(activeScope: string, opts: RealServiceOpts): CryptoService {
-  const driver: CryptoStoreDriver = {
-    name: 'schema-pg',
-    tableLocation: (t) => {
-      const placement = opts.routes[t.id]
-      if (!placement) throw new Error(`real_crypto_pg: no route configured for tenant '${t.id}'`)
-      return { kind: 'schema', schema: placement.schema, connectionName: placement.conn }
-    },
-  }
   const store = new PgWrappedDekStore({
-    getDriver: async () => driver,
+    getDriver: async () => schemaDriver(opts.routes),
     getDb: async () => db as unknown as CryptoDb,
     activeScopeTenantId: () => activeScope,
   })
@@ -199,4 +192,43 @@ export function serviceAs(activeScope: string, opts: RealServiceOpts): CryptoSer
     erasabilityResolver: opts.erasabilityResolver,
     ledger,
   })
+}
+
+/** A schema-pg driver fake that routes `tableLocation` by `tenant.id` → placement. */
+function schemaDriver(routes: Record<string, TenantSchema>): CryptoStoreDriver {
+  return {
+    name: 'schema-pg',
+    tableLocation: (t) => {
+      const placement = routes[t.id]
+      if (!placement) throw new Error(`real_crypto_pg: no route configured for tenant '${t.id}'`)
+      return { kind: 'schema', schema: placement.schema, connectionName: placement.conn }
+    },
+  }
+}
+
+/** The store + services (a real CryptoService AND RekekService) sharing one driver + scope. */
+export interface CryptoHarness {
+  readonly store: PgWrappedDekStore
+  readonly keyProvider: EnvKeyProvider
+  readonly crypto: CryptoService
+  readonly rekek: RekekService
+}
+
+/** Build a full crypto harness over the real Pg store, for the KEK-rotation specs. */
+export function harnessAs(
+  activeScope: string,
+  opts: { routes: Record<string, TenantSchema> }
+): CryptoHarness {
+  const store = new PgWrappedDekStore({
+    getDriver: async () => schemaDriver(opts.routes),
+    getDb: async () => db as unknown as CryptoDb,
+    activeScopeTenantId: () => activeScope,
+  })
+  const keyProvider = new EnvKeyProvider()
+  return {
+    store,
+    keyProvider,
+    crypto: new CryptoService({ keyProvider, store }),
+    rekek: new RekekService({ keyProvider, store }),
+  }
 }

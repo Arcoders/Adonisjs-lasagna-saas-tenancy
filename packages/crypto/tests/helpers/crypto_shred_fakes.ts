@@ -8,6 +8,7 @@ import type {
   ShredLedger,
   ShredLedgerEntry,
 } from '../../src/types/shred_ledger.js'
+import type { CryptoOperationLock } from '../../src/types/operation_lock.js'
 import type { SubjectShreddedEvent } from '../../src/events/subject_shredded.js'
 
 /** A fake tenant: CryptoService + the in-memory store only ever read `.id`. */
@@ -53,12 +54,31 @@ export const byCategory =
       ? { erasable: true, reason: 'consent' }
       : { erasable: false, reason: 'legal-obligation' }
 
+/**
+ * A recording per-tenant operation lock that serializes calls (a real mutex) and
+ * counts acquisitions, so a test can assert the provision/shred path ran under it.
+ */
+export class RecordingLock {
+  acquisitions = 0
+  #chain: Promise<unknown> = Promise.resolve()
+
+  readonly lock: CryptoOperationLock = <T>(_tenantId: string, fn: () => Promise<T>): Promise<T> => {
+    this.acquisitions++
+    // Serialize: each call waits for the previous to finish (models Redis mutual
+    // exclusion within the process), so a race resolves deterministically.
+    const run = this.#chain.then(() => fn())
+    this.#chain = run.catch(() => {})
+    return run as Promise<T>
+  }
+}
+
 /** Wire a CryptoService to the env provider + an in-memory store, plus optional shred seams. */
 export function makeService(
   opts: {
     erasabilityResolver?: ErasabilityResolver
     ledger?: ShredLedger
     emitShredded?: (event: SubjectShreddedEvent) => void
+    withLock?: CryptoOperationLock
   } = {}
 ) {
   const store = new InMemoryWrappedDekStore()
@@ -68,6 +88,7 @@ export function makeService(
     erasabilityResolver: opts.erasabilityResolver,
     ledger: opts.ledger,
     emitShredded: opts.emitShredded,
+    withLock: opts.withLock,
   })
   return { service, store }
 }

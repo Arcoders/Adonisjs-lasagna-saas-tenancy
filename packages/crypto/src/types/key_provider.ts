@@ -32,10 +32,29 @@ export interface WrappedDek {
 export interface KeyProvider {
   /** 'env' | 'aws-kms' | 'hashicorp-vault' | a host-registered custom name. */
   readonly name: string
-  /** Wrap (KEK-encrypt) a freshly generated 32-byte DEK for storage. */
+  /** Wrap (KEK-encrypt) a freshly generated 32-byte DEK for storage under the CURRENT KEK generation. */
   wrapDek(tenantId: string, dek: Buffer): Promise<WrappedDek>
-  /** Unwrap a stored {@link WrappedDek} back to the 32-byte DEK. Fail-closed: throws on tamper / wrong KEK. */
+  /**
+   * Unwrap a stored {@link WrappedDek} back to the 32-byte DEK. Fail-closed:
+   * throws on tamper / wrong KEK. During a KEK rotation window a provider may
+   * unwrap under either the current OR a previous KEK generation it still holds
+   * (the env provider reads `OLD_APP_KEY`, a KMS retains prior key versions), so a
+   * value wrapped under an old generation keeps decrypting until it is re-wrapped
+   * (I8, §6.7). This is unwrapping a DEK ENVELOPE, not a lenient field-value read:
+   * each attempt is a strict open, and both-fail throws.
+   */
   unwrapDek(tenantId: string, wrapped: WrappedDek): Promise<Buffer>
+  /**
+   * The `kekId` of the CURRENT KEK generation for this tenant (§6.7). It is the
+   * rotation cursor `tenant:crypto:rekek` compares each wrapped-DEK row against to
+   * classify it `current` (skip) vs `rewrap` WITHOUT unwrapping, so a re-run is an
+   * O(rows) idempotent cursor skip. OPTIONAL: a provider that cannot cheaply report
+   * its current generation may omit it, in which case the rekek walker classifies
+   * post-hoc (re-wrap, then compare the fresh `kekId` to the row's — an unchanged
+   * one was already current). A non-secret value: it is the same tag stamped into
+   * every fresh {@link wrapDek} result.
+   */
+  currentKekId?(tenantId: string): Promise<string>
   /**
    * Derive the deterministic blind-index key for a `(tenant × category)` (§6.5,
    * I5). OPTIONAL: a provider that only wraps/unwraps DEKs may omit it, in which
