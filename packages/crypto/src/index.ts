@@ -11,6 +11,17 @@ export { assertCryptoConfig } from './validate_config.js'
 export { CRYPTO_CONTRACT_VERSION } from './sdk/contract_version.js'
 export { CRYPTO_WRAPPED_DEKS_TABLE, DEFAULT_KEY_PROVIDER, DEK_BYTES } from './constants.js'
 
+// Migration helper: the DB-level ciphertext CHECK that closes T5 for a host's
+// encrypted field columns (crypto §4 I3, §5 invariant-3), catching the raw-SQL /
+// query-builder / `*Quietly` write paths the model hooks cannot.
+export {
+  CIPHERTEXT_PREFIXES,
+  encryptedColumnCheckName,
+  encryptedColumnCheckPredicate,
+  encryptedColumnCheckSql,
+} from './schema/encrypted_column.js'
+export type { EncryptedColumnCheckOptions } from './schema/encrypted_column.js'
+
 // The frozen key-hierarchy types (crypto §6.2; vault + governance reference these).
 export type { CategoryKey, KeyProvider, SubjectId, WrappedDek } from './types/key_provider.js'
 
