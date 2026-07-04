@@ -7,6 +7,9 @@ export const CRYPTO_ERROR_CODES = [
   'tenant_scope_mismatch', // a raw-SQL query's tenant differs from the active tenancy scope (ContextSeal)
   'rowscope_unsupported', // the wrapped-DEK table under rowscope needs a scope column (a follow-up placement)
   'config_invalid', // a malformed `config.crypto` block
+  'shred_refused', // governance absent, or the category is not erasable (legal hold): I7 fail-closed
+  'shred_unaudited', // no WORM ledger, or the PENDING append failed before the delete: abort, nothing destroyed
+  'shred_audit_unfinalized', // the COMMITTED mark failed after the delete: erasure done, a PENDING row remains (reported)
 ] as const
 
 export type CryptoErrorCode = (typeof CRYPTO_ERROR_CODES)[number]

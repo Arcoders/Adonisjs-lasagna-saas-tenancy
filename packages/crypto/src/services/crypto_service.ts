@@ -4,6 +4,9 @@ import { DEK_BYTES } from '../constants.js'
 import CryptoException from '../exceptions/crypto_exception.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { CategoryKey, KeyProvider, SubjectId } from '../types/key_provider.js'
+import type { ErasabilityResolver } from '../types/erasability.js'
+import type { ShredLedger } from '../types/shred_ledger.js'
+import type { SubjectShreddedEvent } from '../events/subject_shredded.js'
 import type { WrappedDekStore } from './wrapped_dek_store.js'
 
 export interface CryptoServiceDeps {
@@ -13,6 +16,30 @@ export interface CryptoServiceDeps {
   readonly store: WrappedDekStore
   /** DEK generator; defaults to `randomBytes(32)`. Injectable for deterministic tests. */
   readonly generateDek?: () => Buffer
+  /**
+   * Governance's erasability gate (I7). ABSENT ⇒ every shred is refused
+   * (fail-closed: crypto never erases on its own initiative). Wired from
+   * `config.crypto.erasabilityResolver` when governance is installed.
+   */
+  readonly erasabilityResolver?: ErasabilityResolver
+  /**
+   * The fail-closed WORM-ledger append seam (the shared core `WormLedgerWriter`).
+   * ABSENT ⇒ every shred is refused (an irreversible erasure is never run
+   * unaudited).
+   */
+  readonly ledger?: ShredLedger
+  /** Optional host notification after a COMMITTED shred (the `SubjectShredded` event). */
+  readonly emitShredded?: (event: SubjectShreddedEvent) => void
+}
+
+/** The outcome of a {@link CryptoService.shred} call. */
+export interface ShredResult {
+  /** True if a live DEK was destroyed by this call. */
+  readonly shredded: boolean
+  /** True if there was no live DEK to shred (already shredded / never provisioned). */
+  readonly alreadyShredded: boolean
+  /** The event emitted on a real shred (absent when alreadyShredded). */
+  readonly event?: SubjectShreddedEvent
 }
 
 /**
@@ -34,11 +61,17 @@ export default class CryptoService {
   readonly #keyProvider: KeyProvider
   readonly #store: WrappedDekStore
   readonly #generateDek: () => Buffer
+  readonly #erasabilityResolver?: ErasabilityResolver
+  readonly #ledger?: ShredLedger
+  readonly #emitShredded?: (event: SubjectShreddedEvent) => void
 
   constructor(deps: CryptoServiceDeps) {
     this.#keyProvider = deps.keyProvider
     this.#store = deps.store
     this.#generateDek = deps.generateDek ?? (() => randomBytes(DEK_BYTES))
+    this.#erasabilityResolver = deps.erasabilityResolver
+    this.#ledger = deps.ledger
+    this.#emitShredded = deps.emitShredded
   }
 
   /**
@@ -78,6 +111,101 @@ export default class CryptoService {
       )
     }
     return openV2WithKey(ciphertext, live.dek)
+  }
+
+  /**
+   * Crypto-shred a `(subject × category)`: the O(1) erasure (I6, §6.6). It
+   * destroys the ONLY copy of the DEK, so every field ciphertext and every vault
+   * blob under it (and their backups, which are ciphertext) becomes irrecoverable
+   * at once. Fail-closed and gated:
+   *
+   *  1. Governance gate FIRST (I7): if no erasability resolver is wired
+   *     (governance absent), or governance says the category is not erasable (a
+   *     `legal-obligation` category in retention), the shred is REFUSED. crypto
+   *     never erases on its own initiative; under-erasing is recoverable,
+   *     over-erasing is not.
+   *  2. Two-phase audit (§6.6): a PENDING WORM row is appended BEFORE the
+   *     irreversible tombstone; if that append fails (or no ledger is wired) the
+   *     shred ABORTS with nothing destroyed. After the tombstone the row is marked
+   *     COMMITTED; a failure there leaves a detectable PENDING row (reported via
+   *     `shred_audit_unfinalized`, never a silent success).
+   *
+   * Idempotent: re-shredding an already-shredded `(subject × category)` is a
+   * no-op success (no ledger write, no event).
+   */
+  async shred(
+    tenant: TenantModelContract,
+    subjectId: SubjectId,
+    category: CategoryKey
+  ): Promise<ShredResult> {
+    // 1. Governance gate (I7). The FIRST awaited call. Absent resolver ⇒ refuse.
+    if (!this.#erasabilityResolver) {
+      throw new CryptoException(
+        'shred_refused',
+        `[crypto] refusing to shred subject '${subjectId}' / category '${category}': no erasability resolver is wired (governance absent). crypto never erases on its own initiative.`
+      )
+    }
+    const verdict = await this.#erasabilityResolver(tenant, subjectId, category)
+    if (!verdict.erasable) {
+      const until = verdict.retentionUntil
+        ? `, retained until ${verdict.retentionUntil.toISOString()}`
+        : ''
+      throw new CryptoException(
+        'shred_refused',
+        `[crypto] refusing to shred subject '${subjectId}' / category '${category}': not erasable (${verdict.reason ?? 'legal hold'}${until}).`
+      )
+    }
+
+    // Nothing to erase ⇒ idempotent no-op (no ledger row, no event).
+    const live = await this.#store.findLive(tenant, subjectId, category)
+    if (!live) return { shredded: false, alreadyShredded: true }
+
+    // 2. Two-phase audit. No ledger ⇒ refuse (never erase unaudited).
+    if (!this.#ledger) {
+      throw new CryptoException(
+        'shred_unaudited',
+        `[crypto] refusing to shred subject '${subjectId}' / category '${category}': no WORM ledger is wired, and an irreversible erasure is never run unaudited.`
+      )
+    }
+
+    // 2a. PENDING before the delete. A throw here aborts with nothing destroyed.
+    let pending
+    try {
+      pending = await this.#ledger.appendPending({
+        tenantId: tenant.id,
+        subjectId,
+        category,
+        reason: verdict.reason,
+      })
+    } catch (error) {
+      throw new CryptoException(
+        'shred_unaudited',
+        `[crypto] aborting shred of subject '${subjectId}' / category '${category}': the WORM PENDING append failed, so nothing was destroyed. Cause: ${errorMessage(error)}`
+      )
+    }
+
+    // 2b. The irreversible tombstone (destroy the DEK).
+    await this.#store.shredLive(tenant, subjectId, category)
+
+    // 2c. COMMITTED after the delete. A failure here does NOT undo the erasure
+    // (the DEK is gone, correctly); it leaves a detectable PENDING row, reported.
+    try {
+      await this.#ledger.markCommitted(pending)
+    } catch (error) {
+      throw new CryptoException(
+        'shred_audit_unfinalized',
+        `[crypto] shred of subject '${subjectId}' / category '${category}' COMPLETED (the DEK is destroyed), but marking the WORM row COMMITTED failed; a detectable PENDING row remains for reconciliation. Cause: ${errorMessage(error)}`
+      )
+    }
+
+    const event: SubjectShreddedEvent = {
+      tenantId: tenant.id,
+      subjectId,
+      category,
+      occurredAt: new Date(),
+    }
+    this.#emitShredded?.(event)
+    return { shredded: true, alreadyShredded: false, event }
   }
 
   /** Resolve the live DEK for (subject, category), or null if none is provisioned. */
@@ -124,4 +252,9 @@ export default class CryptoService {
       )
     }
   }
+}
+
+/** The message of an unknown thrown value, for a ledger-failure cause string. */
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

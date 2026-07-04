@@ -47,4 +47,18 @@ export interface WrappedDekStore {
    * than splitting the ciphertext across two DEKs.
    */
   insert(tenant: TenantModelContract, row: NewWrappedDekRow): Promise<WrappedDekRow>
+
+  /**
+   * Shred the live DEK for (subject, category): tombstone the row (set
+   * `shredded_at` and null the `wrapped_dek`, destroying the ONLY copy of the
+   * key). Returns true if a live row was shredded, false if there was none
+   * (already shredded / never provisioned). Because the partial UNIQUE excludes
+   * tombstones, a later legitimate re-provision can insert a fresh live row
+   * (§6.3, decision 6).
+   */
+  shredLive(
+    tenant: TenantModelContract,
+    subjectId: SubjectId,
+    category: CategoryKey
+  ): Promise<boolean>
 }

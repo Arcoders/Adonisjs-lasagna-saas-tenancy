@@ -14,9 +14,14 @@ export { CRYPTO_WRAPPED_DEKS_TABLE, DEFAULT_KEY_PROVIDER, DEK_BYTES } from './co
 // The frozen key-hierarchy types (crypto §6.2; vault + governance reference these).
 export type { CategoryKey, KeyProvider, SubjectId, WrappedDek } from './types/key_provider.js'
 
+// Shred seams (crypto §6.6): governance's erasability gate + the fail-closed WORM ledger.
+export type { ErasabilityResolver, ErasabilityVerdict } from './types/erasability.js'
+export type { PendingShredEntry, ShredLedger, ShredLedgerEntry } from './types/shred_ledger.js'
+export type { SubjectShreddedEvent } from './events/subject_shredded.js'
+
 // Services.
 export { default as CryptoService } from './services/crypto_service.js'
-export type { CryptoServiceDeps } from './services/crypto_service.js'
+export type { CryptoServiceDeps, ShredResult } from './services/crypto_service.js'
 export { default as KeyProviderRegistry } from './services/key_provider_registry.js'
 export { default as EnvKeyProvider } from './services/env_key_provider.js'
 export { default as PgWrappedDekStore } from './services/pg_wrapped_dek_store.js'

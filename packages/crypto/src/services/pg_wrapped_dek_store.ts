@@ -97,6 +97,24 @@ export default class PgWrappedDekStore implements WrappedDekStore {
     }
   }
 
+  async shredLive(
+    tenant: TenantModelContract,
+    subjectId: SubjectId,
+    category: CategoryKey
+  ): Promise<boolean> {
+    const { client, table } = await this.#target(tenant)
+    // Tombstone the live row: set shredded_at and null the wrapped DEK, destroying
+    // the only copy of the key (I6). Only the live row is touched (WHERE
+    // shredded_at IS NULL), so a re-shred is a no-op.
+    // safe-sql: `table` is a fixed module constant; subject/category are ? binds.
+    const res = await client.rawQuery(
+      `UPDATE ${table} SET shredded_at = now(), wrapped_dek = NULL ` +
+        `WHERE subject_id = ? AND category = ? AND shredded_at IS NULL`,
+      [subjectId, category]
+    )
+    return rowCount(res) > 0
+  }
+
   /**
    * Resolve the (sealed) tenant connection + table. The satellite ContextSeal
    * comes first (raw SQL bypasses the kernel one), then the driver picks
@@ -142,6 +160,14 @@ function rowsOf(result: unknown): Array<Record<string, unknown>> {
   }
   if (Array.isArray(r)) return r as Array<Record<string, unknown>>
   return []
+}
+
+/** Affected-row count out of a Lucid rawQuery result. */
+function rowCount(result: unknown): number {
+  const r = result as { rowCount?: number; rows?: unknown[] }
+  if (r && typeof r.rowCount === 'number') return r.rowCount
+  if (r && Array.isArray(r.rows)) return r.rows.length
+  return 0
 }
 
 /** Map a DB row onto the typed {@link WrappedDekRow}. */

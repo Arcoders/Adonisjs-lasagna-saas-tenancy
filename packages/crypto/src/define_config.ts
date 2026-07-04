@@ -1,5 +1,6 @@
 import type { MultitenancyConfig } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { CategoryKey } from './types/key_provider.js'
+import type { ErasabilityResolver } from './types/erasability.js'
 
 /**
  * An encrypted-field declaration: which governance {@link CategoryKey} a field's
@@ -35,6 +36,12 @@ export interface CryptoConfig {
    * field label (e.g. `'renter.passportNumber'`).
    */
   fields?: Record<string, CryptoFieldConfig>
+  /**
+   * The governance erasability gate crypto CONSULTS before a shred (I7). Present
+   * when governance is installed. ABSENT ⇒ every shred is refused (fail-closed):
+   * crypto never decides erasability itself. See {@link ErasabilityResolver}.
+   */
+  erasabilityResolver?: ErasabilityResolver
 }
 
 /**

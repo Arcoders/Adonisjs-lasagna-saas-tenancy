@@ -54,7 +54,16 @@ export default class CryptoProvider implements SatelliteProviderContract {
           (await this.app.container.make('lucid.db' as never)) as unknown as CryptoDb,
         activeScopeTenantId: () => tenancy.currentId(),
       })
-      return new CryptoService({ keyProvider, store })
+      // The erasability gate is wired from governance's config seam (absent ⇒
+      // shred is fail-closed refused, I7). The WORM `ledger` seam is intentionally
+      // left unwired here until the shared core `WormLedgerWriter` lands; until
+      // then `shred()` refuses (never erases unaudited), which is the correct
+      // fail-closed posture. encrypt/decrypt do not depend on either.
+      return new CryptoService({
+        keyProvider,
+        store,
+        erasabilityResolver: crypto?.erasabilityResolver,
+      })
     })
   }
 
