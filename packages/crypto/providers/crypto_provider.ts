@@ -6,12 +6,14 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import { getActiveDriver } from '@adonisjs-lasagna/saas-tenancy/services'
 import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
+import WormLedgerWriter, { type WormDb } from '@adonisjs-lasagna/saas-tenancy/worm-ledger'
 import { assertCryptoConfig } from '../src/validate_config.js'
 import type { MultitenancyConfigWithCrypto } from '../src/define_config.js'
 import { DEFAULT_KEY_PROVIDER } from '../src/constants.js'
 import KeyProviderRegistry from '../src/services/key_provider_registry.js'
 import EnvKeyProvider from '../src/services/env_key_provider.js'
 import CryptoService from '../src/services/crypto_service.js'
+import WormShredLedger from '../src/services/worm_shred_ledger.js'
 import PgWrappedDekStore, {
   type CryptoDb,
   type CryptoStoreDriver,
@@ -48,21 +50,29 @@ export default class CryptoProvider implements SatelliteProviderContract {
       const crypto = this.app.config.get<MultitenancyConfigWithCrypto>('multitenancy')?.crypto
       const registry = await resolver.make(KeyProviderRegistry)
       const keyProvider = registry.resolve(crypto?.keyProvider ?? DEFAULT_KEY_PROVIDER)
+      const makeDb = () => this.app.container.make('lucid.db' as never)
+      const activeScopeTenantId = () => tenancy.currentId()
       const store = new PgWrappedDekStore({
         getDriver: () => getActiveDriver() as Promise<CryptoStoreDriver>,
-        getDb: async () =>
-          (await this.app.container.make('lucid.db' as never)) as unknown as CryptoDb,
-        activeScopeTenantId: () => tenancy.currentId(),
+        getDb: async () => (await makeDb()) as unknown as CryptoDb,
+        activeScopeTenantId,
       })
-      // The erasability gate is wired from governance's config seam (absent ⇒
-      // shred is fail-closed refused, I7). The WORM `ledger` seam is intentionally
-      // left unwired here until the shared core `WormLedgerWriter` lands; until
-      // then `shred()` refuses (never erases unaudited), which is the correct
-      // fail-closed posture. encrypt/decrypt do not depend on either.
+      // The two-phase shred audit: the shared core WORM ledger (per-tenant hash
+      // chain in backoffice, append-only), wrapped as a ShredLedger. The
+      // erasability gate is wired from governance's config seam (absent ⇒ shred is
+      // fail-closed refused, I7). encrypt/decrypt do not depend on either.
+      const ledger = new WormShredLedger(
+        new WormLedgerWriter({
+          getDb: async () => (await makeDb()) as unknown as WormDb,
+          connectionName: 'backoffice',
+          activeScopeTenantId,
+        })
+      )
       return new CryptoService({
         keyProvider,
         store,
         erasabilityResolver: crypto?.erasabilityResolver,
+        ledger,
       })
     })
   }

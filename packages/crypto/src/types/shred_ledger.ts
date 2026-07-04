@@ -11,7 +11,10 @@ export interface ShredLedgerEntry {
 
 /** A handle to a PENDING shred row, returned by {@link ShredLedger.appendPending}. */
 export interface PendingShredEntry {
+  /** An opaque handle to the PENDING row (e.g. its WORM seq) the COMMITTED marker references. */
   readonly id: string
+  /** The tenant the PENDING row belongs to (the WORM chain is per-tenant). */
+  readonly tenantId: string
 }
 
 /**

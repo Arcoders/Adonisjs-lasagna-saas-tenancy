@@ -26,7 +26,7 @@ export class RecordingLedger implements ShredLedger {
   async appendPending(entry: ShredLedgerEntry): Promise<PendingShredEntry> {
     if (this.opts.failAppend) throw new Error('WORM PENDING append failed')
     this.pending.push(entry)
-    return { id: `pending-${++this.#seq}` }
+    return { id: `pending-${++this.#seq}`, tenantId: entry.tenantId }
   }
 
   async markCommitted(pending: PendingShredEntry): Promise<void> {

@@ -62,8 +62,13 @@ test.group('Docs integrity: public API surface', () => {
     for (const dir of packageDirs()) {
       const pkgJsonPath = join(PACKAGES_DIR, dir, 'package.json')
       if (!existsSync(pkgJsonPath)) continue
-      const name: string = JSON.parse(readFileSync(pkgJsonPath, 'utf8')).name
+      const pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf8'))
+      const name: string = pkg.name
       if (!name) continue
+      // Private, in-build packages are not published; they enter the docs when
+      // they graduate to public (mirrors the stability + publish-coverage guards,
+      // which also key off `private`). The spec's scope is published packages.
+      if (pkg.private === true) continue
 
       // 1) The npm name must appear somewhere on the site.
       if (!corpus.includes(name)) {

@@ -38,6 +38,7 @@
     ".": "./build/src/index.js",
     "./config": "./build/src/config.js",
     "./crypto": "./build/src/utils/crypto.js",
+    "./worm-ledger": "./build/src/services/worm_ledger_writer.js",
     "./safe-fetch": "./build/src/utils/safe_fetch.js",
     "./signals": "./build/src/utils/signals.js",
     "./internal": "./build/src/internal.js",
@@ -65,6 +66,9 @@
       ],
       "crypto": [
         "./build/src/utils/crypto.d.ts"
+      ],
+      "worm-ledger": [
+        "./build/src/services/worm_ledger_writer.d.ts"
       ],
       "safe-fetch": [
         "./build/src/utils/safe_fetch.d.ts"

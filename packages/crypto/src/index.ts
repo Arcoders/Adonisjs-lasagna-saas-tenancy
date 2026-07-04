@@ -24,6 +24,7 @@ export { default as CryptoService } from './services/crypto_service.js'
 export type { CryptoServiceDeps, ShredResult } from './services/crypto_service.js'
 export { default as KeyProviderRegistry } from './services/key_provider_registry.js'
 export { default as EnvKeyProvider } from './services/env_key_provider.js'
+export { default as WormShredLedger } from './services/worm_shred_ledger.js'
 export { default as PgWrappedDekStore } from './services/pg_wrapped_dek_store.js'
 export type {
   CryptoDb,
