@@ -428,13 +428,17 @@ seam over it.
 
 ### 6.3 The wrapped-DEK table
 
-Per-tenant, placed by `driver.tableLocation(tenant)`
+Placed by `driver.tableLocation(tenant)`
 ([`packages/core/src/services/isolation/driver.ts`](../../packages/core/src/services/isolation/driver.ts)),
-NEVER a hardcoded `tenant_<id>` schema. It ships as a per-tenant satellite migration
-(`perTenantMigrations`, foundation SEAM-2 in the manifest), so it lands in whatever
-placement the active driver reports (`schema` / `database` / `rowscope` /
-`connection`). (This is the ONE crypto table that uses `tableLocation`; the shared
-WORM ledger crypto's shred appends to is NOT placed by `tableLocation`, see §6.6.)
+NEVER a hardcoded `tenant_<id>` schema. For the connection-isolated placements
+(`schema` / `database` / `connection`) it ships as a per-tenant satellite migration
+(`perTenantMigrations`, foundation SEAM-2 in the manifest): each tenant gets its own
+table and the connection IS the tenant boundary, so there is no `tenant_id` column.
+Under `rowscope` — where per-tenant migrations are a no-op and every tenant shares one
+schema — the same logical table is instead a single SHARED one, created by a central
+migration and separated by a `tenant_id` scope column (see "Rowscope placement"
+below). (This is the ONE crypto table that uses `tableLocation`; the shared WORM
+ledger crypto's shred appends to is NOT placed by `tableLocation`, see §6.6.)
 
 | Column | Type | Meaning |
 |---|---|---|
@@ -455,6 +459,29 @@ partial index is the pinned choice; `check-crypto-invariant-10` asserts the part
 form. There is no plaintext DEK column and no plaintext data key anywhere at rest
 (I2). `check-crypto-invariant-2` pins this column set as the reviewed allowlist,
 exactly as `check-ai-invariant-5` pins the AI audit table's.
+
+**Rowscope placement.** Because the DEK is stored only wrapped under a per-tenant KEK,
+confidentiality does not depend on the physical placement — reading another tenant's
+`wrapped_dek` bytes yields nothing without that tenant's KEK. So unlike the AI vector
+store (which refuses rowscope because an embedding is invertible to its plaintext), the
+wrapped-DEK table CAN live in a shared rowscope table. Under `rowscope-pg` the
+per-tenant migration is a no-op (central migrations are the source), so the shared table
+ships as a central migration stub
+(`packages/crypto/stubs/migrations/create_crypto_wrapped_deks_rowscope.stub`) that a
+host publishes. It adds one column, `tenant_id` (the reviewed rowscope allowlist entry
+in `check-crypto-invariant-2`), and keys the partial UNIQUE on
+`(tenant_id, subject_id, category)` so the live DEK is singular WITHIN a tenant (a global
+`(subject, category)` unique would let one tenant block another's provisioning;
+`check-crypto-invariant-10` pins the rowscope form too). `PgWrappedDekStore` appends
+`AND tenant_id = ?` to every query and stamps it on INSERT (the primary, always-on
+isolation), and when the driver reports `rls: true` it sets the transaction-local RLS
+GUC on its own raw SQL so it passes a FORCED policy. The scope column + RLS protect
+INTEGRITY and query correctness (a tenant cannot shred or overwrite another's row), the
+KEK-wrapping protects confidentiality. The host wires it by publishing the stub, adding
+`'crypto_wrapped_deks'` to `isolation.rowScopeTables` (crypto cannot self-register into
+that boot RLS probe — it is host config), and running the app's runtime role without
+`BYPASSRLS`. The satellite ContextSeal (§6.2) still re-asserts the request tenant equals
+the active scope before every query, unchanged across placements.
 
 ### 6.4 The public field surface: `@encrypted` decorator vs `EncryptedRepository` (both, with a recommendation)
 

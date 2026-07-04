@@ -7,7 +7,6 @@ export const CRYPTO_ERROR_CODES = [
   'index_key_unavailable', // the KeyProvider yields no blind-index key: fail closed, never a bare unkeyed hash (I5, T3)
   'no_tenant_scope', // EncryptedRepository was called with no active tenant scope: fail closed, never a cross-tenant DEK
   'tenant_scope_mismatch', // a raw-SQL query's tenant differs from the active tenancy scope (ContextSeal)
-  'rowscope_unsupported', // the wrapped-DEK table under rowscope needs a scope column (a follow-up placement)
   'config_invalid', // a malformed `config.crypto` block
   'shred_refused', // governance absent, or the category is not erasable (legal hold): I7 fail-closed
   'shred_unaudited', // no WORM ledger, or the PENDING append failed before the delete: abort, nothing destroyed

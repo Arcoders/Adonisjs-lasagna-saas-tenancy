@@ -28,9 +28,11 @@ import type {
  *   (invariant-3, src/schema/encrypted_column.ts), the only enforcement that catches
  *   the raw-SQL / query-builder bypass. crypto never sees that write to emit on it, so
  *   there is no app-level entry (the DB constraint IS the guard).
- * - `dek_missing` / `no_tenant_scope` / `rowscope_unsupported` / `dek_conflict`: real
- *   fail-closed throws, but availability / not-yet-supported / API-shape errors, not
- *   refusals of a security decision with a distinct isthmus event.
+ * - `dek_missing` / `no_tenant_scope` / `dek_conflict`: real fail-closed throws, but
+ *   availability / API-shape errors, not refusals of a security decision with a
+ *   distinct isthmus event. (`guard.crypto_scope_mismatch` IS an entry: the store's
+ *   raw SQL bypasses the kernel ContextSeal, so its re-assertion is a real security
+ *   refusal, under every placement including the shared rowscope table.)
  */
 
 /** ISO calendar date, e.g. '2026-07-04'. */

@@ -17,8 +17,18 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
-const MIGRATIONS_DIR = 'packages/crypto/tenant_migrations'
-const MIGRATION_MATCH = 'create_crypto_wrapped_deks_table'
+// The per-tenant wrapped-DEK migration (schema-pg / database-pg) is a runnable
+// `.ts`; the SHARED rowscope table (rowscope-pg, where per-tenant migrations are a
+// no-op) ships as a publishable `.stub`. The guard scans BOTH.
+const PER_TENANT_DIR = 'packages/crypto/tenant_migrations'
+const ROWSCOPE_DIR = 'packages/crypto/stubs/migrations'
+const PER_TENANT_MATCH = 'create_crypto_wrapped_deks_table'
+const ROWSCOPE_MATCH = 'create_crypto_wrapped_deks_rowscope'
+
+/** A wrapped-DEK migration is the rowscope (shared-table) variant when its path says so. */
+function isRowscope(path) {
+  return path.includes('rowscope')
+}
 
 /**
  * The fixed non-plaintext column allowlist for the wrapped-DEK table (crypto
@@ -36,8 +46,26 @@ export const ALLOWED_COLUMNS = [
   'shredded_at',
 ]
 
+/**
+ * The rowscope (shared-table) variant carries ONE extra reviewed column: `tenant_id`,
+ * the scope discriminator (the store stamps + filters it; the partial UNIQUE and RLS
+ * policy key on it). Still no plaintext-DEK column.
+ */
+export const ROWSCOPE_ALLOWED_COLUMNS = [...ALLOWED_COLUMNS, 'tenant_id']
+
+/** The reviewed allowlist for one migration, by placement. */
+function allowedFor(path) {
+  return isRowscope(path) ? ROWSCOPE_ALLOWED_COLUMNS : ALLOWED_COLUMNS
+}
+
+// The type families a column line may declare. This MUST include the byte/blob and
+// variable-length string families (`bytea`, `varchar`, `character varying`, `bit`,
+// `varbinary`, `blob`): `bytea` is the natural Postgres type for raw key bytes, so a
+// parser blind to it would let a plaintext-DEK column (`raw_key bytea`) slip past the
+// allowlist — the exact I2 hole this guard closes. A new legitimate type is a reviewed
+// addition here (an UNLISTED type makes its column invisible, so keep this generous).
 const SQL_TYPE =
-  /^\s*([a-z_]+)\s+(uuid|text|timestamptz|integer|bigint|boolean|jsonb|char|smallint|numeric|date)\b/
+  /^\s*([a-z_]+)\s+(uuid|text|varchar|character\s+varying|bytea|varbinary|blob|bit|timestamptz|integer|bigint|boolean|jsonb|char|smallint|numeric|date)\b/
 
 /** Column names declared by the raw `CREATE TABLE` body, one per line. */
 function sqlColumns(source) {
@@ -50,44 +78,84 @@ function sqlColumns(source) {
 }
 
 /**
- * Audit the wrapped-DEK migration. `files` is a list of `{ path, source }`.
- * Returns a list of problem strings (empty = ok). Pure, so a unit test drives it
- * without a filesystem.
+ * Audit every wrapped-DEK migration (per-tenant AND the shared rowscope variant).
+ * `files` is a list of `{ path, source }`. Each file is checked against the
+ * allowlist for its placement (rowscope adds `tenant_id`). Returns a list of problem
+ * strings (empty = ok). Pure, so a unit test drives it without a filesystem.
  */
 export function auditWrappedDekTable(files) {
   const problems = []
-  const migration = files.find((f) => f.path.includes(MIGRATION_MATCH))
-  if (!migration) return problems
-
-  const cols = sqlColumns(migration.source)
-  const allowed = new Set(ALLOWED_COLUMNS)
-  for (const col of cols) {
-    if (!allowed.has(col)) {
-      problems.push(
-        `${migration.path}: column '${col}' is not in the reviewed non-plaintext allowlist (I2); a DEK is stored only wrapped in 'wrapped_dek'. Add it to ALLOWED_COLUMNS with review, or drop it.`
-      )
+  const migrations = files.filter(
+    (f) => f.path.includes(PER_TENANT_MATCH) || f.path.includes(ROWSCOPE_MATCH)
+  )
+  for (const migration of migrations) {
+    const cols = sqlColumns(migration.source)
+    const allowedList = allowedFor(migration.path)
+    const allowed = new Set(allowedList)
+    for (const col of cols) {
+      if (!allowed.has(col)) {
+        problems.push(
+          `${migration.path}: column '${col}' is not in the reviewed non-plaintext allowlist (I2); a DEK is stored only wrapped in 'wrapped_dek'. Add it to the allowlist with review, or drop it.`
+        )
+      }
     }
-  }
-  for (const want of ALLOWED_COLUMNS) {
-    if (!cols.includes(want)) {
-      problems.push(
-        `${migration.path}: allowlisted column '${want}' is missing from the wrapped-DEK table (I2).`
-      )
+    for (const want of allowedList) {
+      if (!cols.includes(want)) {
+        problems.push(
+          `${migration.path}: allowlisted column '${want}' is missing from the wrapped-DEK table (I2).`
+        )
+      }
     }
   }
   return problems
 }
 
-function run() {
+/**
+ * The wrapped-DEK migration markers that MUST each resolve to a real file. A rename,
+ * a moved dir, or a typo in a marker would make the glob match zero files and the
+ * guard pass SILENTLY — the repo's documented "dead guard" failure mode (inv-4 once
+ * shipped false-green because its runner read zero files). The floor turns that into
+ * a loud failure.
+ */
+export const REQUIRED_MIGRATION_MARKERS = [PER_TENANT_MATCH, ROWSCOPE_MATCH]
+
+/** Markers with NO matching file among `files` (empty = all present). Pure. */
+export function missingMigrationMarkers(files) {
+  return REQUIRED_MIGRATION_MARKERS.filter((m) => !files.some((f) => f.path.includes(m)))
+}
+
+/** Read wrapped-DEK migration sources from a dir, filtered by name marker + extension. */
+function readMigrations(dirRel, match, ext) {
   const files = []
-  const dirAbs = join(repoRoot, MIGRATIONS_DIR)
+  const dirAbs = join(repoRoot, dirRel)
   if (existsSync(dirAbs)) {
     for (const name of readdirSync(dirAbs)) {
-      if (name.includes(MIGRATION_MATCH) && name.endsWith('.ts')) {
-        const rel = `${MIGRATIONS_DIR}/${name}`
-        files.push({ path: rel, source: readFileSync(join(dirAbs, name), 'utf8') })
+      if (name.includes(match) && name.endsWith(ext)) {
+        files.push({ path: `${dirRel}/${name}`, source: readFileSync(join(dirAbs, name), 'utf8') })
       }
     }
+  }
+  return files
+}
+
+/** Discover every wrapped-DEK migration on disk (per-tenant .ts + rowscope .stub). */
+export function discoverMigrations() {
+  return [
+    ...readMigrations(PER_TENANT_DIR, PER_TENANT_MATCH, '.ts'),
+    ...readMigrations(ROWSCOPE_DIR, ROWSCOPE_MATCH, '.stub'),
+  ]
+}
+
+function run() {
+  const files = discoverMigrations()
+
+  const missing = missingMigrationMarkers(files)
+  if (missing.length > 0) {
+    console.error(
+      `check-crypto-invariant-2: FATAL — no migration file found for marker(s): ${missing.join(', ')}. ` +
+        `The wrapped-DEK table(s) must be present for I2 review; a rename/move would otherwise silently drop the guard.`
+    )
+    process.exit(1)
   }
 
   const problems = auditWrappedDekTable(files)
