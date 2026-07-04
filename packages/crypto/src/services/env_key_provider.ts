@@ -2,6 +2,7 @@ import { hkdfSync } from 'node:crypto'
 import { sealV2WithKey, openV2WithKey } from '@adonisjs-lasagna/saas-tenancy/crypto'
 import { DEK_BYTES, INDEX_KEY_BYTES } from '../constants.js'
 import CryptoException from '../exceptions/crypto_exception.js'
+import { emitCryptoGuardEvent } from '../isthmus/crypto_guard_audit.js'
 import type { CategoryKey, KeyProvider, WrappedDek } from '../types/key_provider.js'
 
 // Domain-separation salts for the env KEK derivation. Distinct from core's
@@ -21,6 +22,13 @@ const INDEX_KEY_SALT = Buffer.from('lasagna:crypto:blind-index:v1')
 function requireAppKey(): string {
   const appKey = process.env.APP_KEY
   if (!appKey) {
+    // The key backend is unavailable: with no APP_KEY the env KeyProvider cannot
+    // derive the KEK, so a wrap/unwrap fails closed rather than proceeding weakly. The
+    // emit is intentionally TENANT-LESS: APP_KEY is a process-global secret, so a
+    // missing one is a deployment/config fault affecting every tenant, not one tenant's
+    // fault (a read that fails as a consequence is separately attributed per-tenant via
+    // guard.crypto_dek_unwrap_failed in CryptoService.#liveDek).
+    emitCryptoGuardEvent('guard.crypto_keyprovider_unavailable')
     throw new CryptoException(
       'keyprovider_missing',
       '[crypto] APP_KEY is not set; the env KeyProvider derives the KEK from it. Set APP_KEY, or bind a KMS/Vault provider.'

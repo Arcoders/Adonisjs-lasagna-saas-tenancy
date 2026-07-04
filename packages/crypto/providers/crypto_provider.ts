@@ -4,8 +4,9 @@ import {
   type SatelliteProviderConstructor,
   type SatelliteProviderContract,
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
-import { getActiveDriver } from '@adonisjs-lasagna/saas-tenancy/services'
+import { getActiveDriver, MetricsService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
+import { setCryptoGuardMetricSink } from '../src/isthmus/crypto_guard_audit.js'
 import WormLedgerWriter, { type WormDb } from '@adonisjs-lasagna/saas-tenancy/worm-ledger'
 import { assertCryptoConfig } from '../src/validate_config.js'
 import type { MultitenancyConfigWithCrypto } from '../src/define_config.js'
@@ -122,6 +123,19 @@ export default class CryptoProvider implements SatelliteProviderContract {
 
     const config = this.app.config.get<MultitenancyConfigWithCrypto>('multitenancy')
     assertCryptoConfig(config?.crypto)
+  }
+
+  async ready() {
+    // Bridge tenantful crypto guard trips to the per-tenant integer-metric rail
+    // (`crypto_guard_rejections`), mirroring the AI provider. Resolved in ready(),
+    // when the core singletons are wired. Fire-and-forget inside the audit module, so
+    // a slow metric write never touches a reject path.
+    const metrics = await this.app.container.make(MetricsService)
+    setCryptoGuardMetricSink((tenantId, name, value) => metrics.emitMetric(tenantId, name, value))
+  }
+
+  async disconnect() {
+    setCryptoGuardMetricSink(undefined)
   }
 }
 

@@ -1,6 +1,7 @@
 import { CRYPTO_WRAPPED_DEKS_TABLE } from '../constants.js'
 import { assertNever } from '../internal/assert_never.js'
 import CryptoException from '../exceptions/crypto_exception.js'
+import { emitCryptoGuardEvent } from '../isthmus/crypto_guard_audit.js'
 import type { TableLocation } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { CategoryKey, SubjectId } from '../types/key_provider.js'
@@ -171,6 +172,9 @@ export default class PgWrappedDekStore implements WrappedDekStore {
   ): Promise<{ client: CryptoQueryClient; table: string }> {
     const active = this.deps.activeScopeTenantId()
     if (active !== undefined && active !== tenant.id) {
+      // The satellite ContextSeal: raw SQL bypasses the kernel one, so re-assert the
+      // request tenant equals the active scope before any query (I4, cross-tenant).
+      emitCryptoGuardEvent('guard.crypto_scope_mismatch', { tenantId: tenant.id })
       throw new CryptoException(
         'tenant_scope_mismatch',
         '[crypto] refusing a wrapped-DEK query: the request tenant does not match the active tenancy scope.'

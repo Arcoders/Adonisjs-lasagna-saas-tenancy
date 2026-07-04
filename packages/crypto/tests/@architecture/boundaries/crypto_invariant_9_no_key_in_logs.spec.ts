@@ -73,4 +73,44 @@ test.group('architectural — I9 no key material in logs/errors', () => {
     ].join('\n')
     assert.deepEqual(auditNoKeyMaterialInSinks([{ path: P, source }]), [])
   })
+
+  test('a raw key written to process.stdout is a violation', ({ assert }) => {
+    const source = ['process.stdout.write(`${dek.toString("hex")}\\n`)'].join('\n')
+    const problems = auditNoKeyMaterialInSinks([{ path: P, source }])
+    assert.lengthOf(problems, 1)
+    assert.match(problems[0], /raw key material 'dek'/)
+  })
+
+  test('a raw key in a bare thrown template string is a violation', ({ assert }) => {
+    const source = ['throw `cannot open ${dek} for the row`'].join('\n')
+    const problems = auditNoKeyMaterialInSinks([{ path: P, source }])
+    assert.lengthOf(problems, 1)
+    assert.match(problems[0], /thrown template string references raw key material 'dek'/)
+  })
+
+  test('a hardcoded key literal (the config-literal clause) is a violation', ({ assert }) => {
+    for (const decl of [
+      `const dek = Buffer.from('00112233445566778899aabbccddeeff', 'hex')`,
+      `const appKey = 'super-secret-app-key-value'`,
+      `export const indexKey = Buffer.from('deadbeefdeadbeef')`,
+      `const kek = process.env.KEK ?? 'hardcoded-fallback-kek'`,
+    ]) {
+      const problems = auditNoKeyMaterialInSinks([{ path: P, source: decl }])
+      assert.lengthOf(problems, 1, `should flag: ${decl}`)
+      assert.match(problems[0], /hardcoded key literal/)
+    }
+  })
+
+  test('legitimate key derivation / env reads / public salts are not hardcoded-key violations', ({
+    assert,
+  }) => {
+    const source = [
+      `const appKey = process.env.APP_KEY`,
+      `const kek = deriveKek(appKey, tenantId)`,
+      `const dek = Buffer.from(openV2WithKey(wrapped.ciphertext, kek), 'base64')`,
+      `const KEK_SALT = Buffer.from('lasagna:crypto:kek:v1')`,
+      `const INDEX_KEY_SALT = Buffer.from('lasagna:crypto:blind-index:v1')`,
+    ].join('\n')
+    assert.deepEqual(auditNoKeyMaterialInSinks([{ path: P, source }]), [])
+  })
 })

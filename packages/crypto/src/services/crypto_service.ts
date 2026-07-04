@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { sealV2WithKey, openV2WithKey } from '@adonisjs-lasagna/saas-tenancy/crypto'
 import { DEK_BYTES, INDEX_KEY_BYTES } from '../constants.js'
 import CryptoException from '../exceptions/crypto_exception.js'
+import { emitCryptoGuardEvent } from '../isthmus/crypto_guard_audit.js'
 import { computeBlindIndex, type BlindIndexOptions } from '../internal/blind_index.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { CategoryKey, KeyProvider, SubjectId } from '../types/key_provider.js'
@@ -243,6 +244,7 @@ export default class CryptoService {
   ): Promise<ShredResult> {
     // 1. Governance gate (I7). The FIRST awaited call. Absent resolver ⇒ refuse.
     if (!this.#erasabilityResolver) {
+      emitCryptoGuardEvent('guard.crypto_shred_legal_hold', { tenantId: tenant.id })
       throw new CryptoException(
         'shred_refused',
         `[crypto] refusing to shred subject '${subjectId}' / category '${category}': no erasability resolver is wired (governance absent). crypto never erases on its own initiative.`
@@ -253,6 +255,7 @@ export default class CryptoService {
       const until = verdict.retentionUntil
         ? `, retained until ${verdict.retentionUntil.toISOString()}`
         : ''
+      emitCryptoGuardEvent('guard.crypto_shred_legal_hold', { tenantId: tenant.id })
       throw new CryptoException(
         'shred_refused',
         `[crypto] refusing to shred subject '${subjectId}' / category '${category}': not erasable (${verdict.reason ?? 'legal hold'}${until}).`
@@ -265,6 +268,7 @@ export default class CryptoService {
       const liveDry = await this.#store.findLive(tenant, subjectId, category)
       if (!liveDry) return { shredded: false, alreadyShredded: true, dryRun: true }
       if (!this.#ledger) {
+        emitCryptoGuardEvent('guard.crypto_shred_unaudited', { tenantId: tenant.id })
         throw new CryptoException(
           'shred_unaudited',
           `[crypto] cannot shred subject '${subjectId}' / category '${category}': no WORM ledger is wired, and an irreversible erasure is never run unaudited.`
@@ -284,6 +288,7 @@ export default class CryptoService {
       // No ledger ⇒ refuse (never erase unaudited).
       const ledger = this.#ledger
       if (!ledger) {
+        emitCryptoGuardEvent('guard.crypto_shred_unaudited', { tenantId: tenant.id })
         throw new CryptoException(
           'shred_unaudited',
           `[crypto] refusing to shred subject '${subjectId}' / category '${category}': no WORM ledger is wired, and an irreversible erasure is never run unaudited.`
@@ -300,6 +305,7 @@ export default class CryptoService {
           reason: verdict.reason,
         })
       } catch (error) {
+        emitCryptoGuardEvent('guard.crypto_shred_unaudited', { tenantId: tenant.id })
         throw new CryptoException(
           'shred_unaudited',
           `[crypto] aborting shred of subject '${subjectId}' / category '${category}': the WORM PENDING append failed, so nothing was destroyed. Cause: ${errorMessage(error)}`
@@ -339,10 +345,18 @@ export default class CryptoService {
   ): Promise<ResolvedDek | null> {
     const row = await this.#store.findLive(tenant, subjectId, category)
     if (!row) return null
-    const dek = await this.#keyProvider.unwrapDek(tenant.id, {
-      kekId: row.kekId,
-      ciphertext: row.wrappedDek,
-    })
+    let dek: Buffer
+    try {
+      dek = await this.#keyProvider.unwrapDek(tenant.id, {
+        kekId: row.kekId,
+        ciphertext: row.wrappedDek,
+      })
+    } catch (error) {
+      // A DEK that cannot be unwrapped (KMS down, wrong KEK, tamper) fails the read
+      // closed (I3/T6); surface it, never fall back to a shared or plaintext key.
+      emitCryptoGuardEvent('guard.crypto_dek_unwrap_failed', { tenantId: tenant.id })
+      throw error
+    }
     this.#assertDek(dek)
     // The row id is the non-secret `keyId` tag stamped into the envelope, so a
     // read/rotation can tell which DEK sealed a value.
