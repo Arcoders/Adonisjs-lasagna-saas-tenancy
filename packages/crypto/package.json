@@ -6,7 +6,7 @@
   "license": "MIT",
   "author": "Ismael Haytam Tanane",
   "private": true,
-  "//private": "In active build (encrypt/decrypt + shred + shared WORM ledger + blind-index HMAC + EncryptedRepository done; @encrypted/@searchable decorators, KEK rotation, and integration tests pending). Kept unpublishable until it graduates to RC, exactly as the design requires (nothing ships until 1.0). Graduating flips this off and adds the stability.md row + publish.yml entry.",
+  "//private": "In active build (encrypt/decrypt + shred + shared WORM ledger + blind-index HMAC + EncryptedRepository + real-PG integration suite done; @encrypted/@searchable decorators and KEK rotation pending). Kept unpublishable until it graduates to RC, exactly as the design requires (nothing ships until 1.0). Graduating flips this off, wires crypto into CI (unit + integration coverage), and adds the stability.md row + publish.yml entry.",
   "engines": {
     "node": ">=24.0.0"
   },
@@ -46,7 +46,9 @@
     "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "test": "tsx bin/test.ts",
-    "test:coverage": "c8 --temp-directory=../../coverage/.v8/crypto-unit tsx bin/test.ts"
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/crypto-unit tsx bin/test.ts",
+    "test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/crypto-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
   },
   "peerDependencies": {
     "@adonisjs-lasagna/saas-tenancy": "^1.0.0",
