@@ -45,10 +45,12 @@ const GUARDS = [
   'check-crypto-invariant-1.mjs',
   'check-crypto-invariant-2.mjs',
   'check-crypto-invariant-3.mjs',
+  'check-crypto-invariant-4.mjs',
   'check-crypto-invariant-5.mjs',
   'check-crypto-invariant-6.mjs',
   'check-crypto-invariant-7.mjs',
   'check-crypto-invariant-8.mjs',
+  'check-crypto-invariant-9.mjs',
   'check-crypto-invariant-10.mjs',
 ]
 
