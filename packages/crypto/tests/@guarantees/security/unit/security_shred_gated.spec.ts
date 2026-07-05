@@ -3,17 +3,18 @@ import {
   RecordingLedger,
   erasable,
   makeService,
-  notErasable,
   tenant,
 } from '../../../helpers/crypto_shred_fakes.js'
 
 const TEST_KEY = 'test-app-key-for-crypto-shred-only!!'
 
-// I7 (§6.6, foundation §3): a shred is gated by governance's legalBasis and by a
-// fail-closed WORM audit. A legal-obligation category in retention, an absent
-// governance resolver, or an unauditable erasure are all REFUSED, and the DEK
-// survives. Over-erasing is irreversible; under-erasing is recoverable.
-test.group('crypto shred — governance + audit gate (I7)', (group) => {
+// I7 (§6.6), the two-phase WORM-audit half of the interlock (the legal-hold and
+// governance-absent halves live in their own design-named specs,
+// security_shred_legal_hold_refused / security_shred_governance_absent_refused). An
+// irreversible erasure is NEVER run unaudited: a missing ledger or a failed PENDING
+// append aborts before the delete, and a failed COMMITTED mark leaves a detectable
+// PENDING row for reconciliation (never a silent success).
+test.group('crypto shred — fail-closed two-phase audit (I7)', (group) => {
   group.each.setup(() => {
     process.env.APP_KEY = TEST_KEY
   })
@@ -23,39 +24,6 @@ test.group('crypto shred — governance + audit gate (I7)', (group) => {
 
   const T = tenant('tenant-1')
   const S = 'renter-42'
-
-  test('governance absent (no resolver wired) refuses the shred and keeps the DEK', async ({
-    assert,
-  }) => {
-    const { service } = makeService({ ledger: new RecordingLedger() })
-    const ciphertext = await service.encryptField(T, S, 'marketing', 'x')
-    await assert.rejects(() => service.shred(T, S, 'marketing'), /governance absent/)
-    // The DEK survived: the value still decrypts.
-    assert.equal(await service.decryptField(T, S, 'marketing', ciphertext), 'x')
-  })
-
-  test('a legal-obligation category in retention is refused and kept', async ({ assert }) => {
-    const retentionUntil = new Date('2035-01-01T00:00:00.000Z')
-    const { service } = makeService({
-      erasabilityResolver: notErasable('legal-obligation', retentionUntil),
-      ledger: new RecordingLedger(),
-    })
-    const contract = await service.encryptField(T, S, 'rental-contract', 'signed')
-    await assert.rejects(() => service.shred(T, S, 'rental-contract'), /not erasable/)
-    assert.equal(await service.decryptField(T, S, 'rental-contract', contract), 'signed')
-  })
-
-  test('the governance gate is the FIRST awaited call: a refused shred writes NO ledger row', async ({
-    assert,
-  }) => {
-    const ledger = new RecordingLedger()
-    const { service } = makeService({ erasabilityResolver: notErasable(), ledger })
-    await service.encryptField(T, S, 'rental-contract', 'signed')
-    await assert.rejects(() => service.shred(T, S, 'rental-contract'))
-    // Refused before any audit row is written.
-    assert.lengthOf(ledger.pending, 0)
-    assert.lengthOf(ledger.committed, 0)
-  })
 
   test('no WORM ledger wired refuses the shred (never erase unaudited) and keeps the DEK', async ({
     assert,

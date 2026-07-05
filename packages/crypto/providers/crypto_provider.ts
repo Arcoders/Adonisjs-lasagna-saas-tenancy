@@ -5,6 +5,7 @@ import {
   type SatelliteProviderContract,
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import { getActiveDriver, MetricsService } from '@adonisjs-lasagna/saas-tenancy/services'
+import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
 import { setCryptoGuardMetricSink } from '../src/isthmus/crypto_guard_audit.js'
 import WormLedgerWriter, { type WormDb } from '@adonisjs-lasagna/saas-tenancy/worm-ledger'
@@ -62,13 +63,16 @@ export default class CryptoProvider implements SatelliteProviderContract {
         activeScopeTenantId,
       })
       // The two-phase shred audit: the shared core WORM ledger (per-tenant hash
-      // chain in backoffice, append-only), wrapped as a ShredLedger. The
+      // chain in the backoffice schema, append-only), wrapped as a ShredLedger. The
       // erasability gate is wired from governance's config seam (absent ⇒ shred is
-      // fail-closed refused, I7). encrypt/decrypt do not depend on either.
+      // fail-closed refused, I7). encrypt/decrypt do not depend on either. The
+      // connection name is resolved from config (never a hardcoded literal): the
+      // ledger's SQL is schema-qualified `backoffice.worm_ledger` but runs on the
+      // host's central connection, exactly as the real integration harness wires it.
       const ledger = new WormShredLedger(
         new WormLedgerWriter({
           getDb: async () => (await makeDb()) as unknown as WormDb,
-          connectionName: 'backoffice',
+          connectionName: getConfig().centralConnectionName,
           activeScopeTenantId,
         })
       )

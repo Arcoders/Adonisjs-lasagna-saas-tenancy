@@ -1,3 +1,5 @@
+import { assertContractCompat } from '@adonisjs-lasagna/saas-tenancy/sdk'
+import { CRYPTO_CONTRACT_VERSION } from '../sdk/contract_version.js'
 import CryptoException from '../exceptions/crypto_exception.js'
 import type { KeyProvider } from '../types/key_provider.js'
 
@@ -14,6 +16,14 @@ export default class KeyProviderRegistry {
 
   /** Register a provider under its `name`. A later registration for the same name wins (a host override). */
   register(provider: KeyProvider): this {
+    // Reject a provider built against a NEWER crypto contract than this build (throws);
+    // an OLDER or ABSENT contractVersion registers with a one-time "unversioned" warning.
+    // Version-only, at registration time, exactly as AI / billing gate their extensions.
+    assertContractCompat(
+      provider.contractVersion,
+      CRYPTO_CONTRACT_VERSION,
+      `crypto key provider "${provider.name}"`
+    )
     this.#providers.set(provider.name, provider)
     return this
   }

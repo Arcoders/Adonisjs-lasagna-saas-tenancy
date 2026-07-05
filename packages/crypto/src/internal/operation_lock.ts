@@ -1,4 +1,5 @@
-import type { CryptoOperationLock } from '../types/operation_lock.js'
+import CryptoException from '../exceptions/crypto_exception.js'
+import type { CryptoLockOptions, CryptoOperationLock } from '../types/operation_lock.js'
 
 /**
  * The per-tenant operation lock for crypto (I10, §6.6), the same discipline as
@@ -30,6 +31,12 @@ const lazyLogger = () =>
 const LOCK_TTL_MS = 60_000
 /** Extend the TTL well before it lapses so a slow shred keeps the lock. */
 const RENEW_EVERY_MS = LOCK_TTL_MS / 3
+/** Max time a `serialize` caller waits for a contended lock before refusing `shred_in_progress`. */
+const SERIALIZE_MAX_WAIT_MS = 5_000
+/** Base backoff between `serialize` acquire attempts; grows and is jittered, capped below. */
+const SERIALIZE_BACKOFF_BASE_MS = 25
+/** Cap on a single backoff sleep so the wait stays responsive. */
+const SERIALIZE_BACKOFF_CAP_MS = 250
 
 /** Release only if we still own the lock (compare-and-delete). */
 const RELEASE_LUA =
@@ -44,19 +51,30 @@ export function cryptoOperationLockKey(tenantId: string): string {
 }
 
 /**
- * Run `fn` while holding the per-tenant crypto operation lock. A concurrent holder
- * makes this WAIT-FREE-degrade: rather than block, a second caller whose `SET NX`
- * fails proceeds without the lock (fail-open) — the partial UNIQUE serialises the
- * actual DEK mutation regardless. On Redis-down it also proceeds and logs. The lock
- * is released in a `finally`.
+ * Run `fn` while holding the per-tenant crypto operation lock. Contention behaviour
+ * is chosen per call via `options.onContention` (default `'fail-open'`):
+ *
+ * - `'fail-open'` (provision/encrypt): a second caller whose `SET NX` fails proceeds
+ *   WITHOUT the lock — the partial UNIQUE serialises the only mutation (the racing
+ *   INSERT) regardless.
+ * - `'serialize'` (shred): a second caller WAITS (bounded, jittered backoff) for the
+ *   holder to release, then proceeds; if it cannot acquire within the window it is
+ *   REFUSED `shred_in_progress` (retriable), so the two-phase WORM audit never runs
+ *   concurrently with itself.
+ *
+ * Redis-down degrades BOTH modes to fail-open (logged): the DB partial UNIQUE and,
+ * on the shred path, the authoritative `shredLive()` return are the backstops there.
+ * The lock is released in a `finally`.
  */
-export const withCryptoOperationLock: CryptoOperationLock = async (tenantId, fn) => {
+export const withCryptoOperationLock: CryptoOperationLock = async (tenantId, fn, options) => {
+  const serialize = options?.onContention === 'serialize'
+
   const redis = await lazyRedis()
   if (!redis) {
     const log = await lazyLogger()
     log?.warn(
       { tenantId },
-      'crypto operation lock: Redis unavailable — proceeding WITHOUT cross-process serialization (the partial UNIQUE is the fail-closed backstop)'
+      'crypto operation lock: Redis unavailable — proceeding WITHOUT cross-process serialization (the partial UNIQUE / authoritative shredLive is the fail-closed backstop)'
     )
     return fn()
   }
@@ -64,16 +82,13 @@ export const withCryptoOperationLock: CryptoOperationLock = async (tenantId, fn)
   const key = cryptoOperationLockKey(tenantId)
   const token = `${process.pid}:${Date.now()}:${Math.random().toString(36).slice(2)}`
 
-  let acquired = false
-  try {
-    acquired = (await redis.set(key, token, 'PX', LOCK_TTL_MS, 'NX')) === 'OK'
-  } catch {
-    // Redis reachable-but-erroring: degrade to no lock (fail-open, DB constraint holds).
-  }
+  const acquired = serialize
+    ? await acquireSerialize(redis, key, token)
+    : await acquireFailOpen(redis, key, token)
 
   if (!acquired) {
-    // Another holder (or a transient Redis error): proceed without the lock. The
-    // partial UNIQUE + idempotent shred make an unserialised overlap safe.
+    // fail-open (or a Redis error degraded serialize to fail-open): proceed without
+    // the lock. The partial UNIQUE + authoritative shredLive make an overlap safe.
     return fn()
   }
 
@@ -89,3 +104,52 @@ export const withCryptoOperationLock: CryptoOperationLock = async (tenantId, fn)
     await redis.eval(RELEASE_LUA, 1, key, token).catch(() => {})
   }
 }
+
+/** The minimal Redis surface the lock uses (a `set`/`eval` client, lazily resolved). */
+type RedisLike = {
+  set(key: string, value: string, ...args: unknown[]): Promise<unknown>
+  eval(script: string, numKeys: number, ...args: unknown[]): Promise<unknown>
+}
+
+/** One `SET NX` attempt. On contention or a Redis error, return false (caller proceeds unlocked). */
+async function acquireFailOpen(redis: RedisLike, key: string, token: string): Promise<boolean> {
+  try {
+    return (await redis.set(key, token, 'PX', LOCK_TTL_MS, 'NX')) === 'OK'
+  } catch {
+    // Redis reachable-but-erroring: degrade to no lock (fail-open, DB constraint holds).
+    return false
+  }
+}
+
+/**
+ * Retry `SET NX` with jittered backoff until acquired or the wait window lapses; on a
+ * timeout, REFUSE `shred_in_progress` (retriable). A Redis error degrades to fail-open
+ * (return false) rather than blocking, matching the Redis-down policy.
+ */
+async function acquireSerialize(redis: RedisLike, key: string, token: string): Promise<boolean> {
+  const deadline = Date.now() + SERIALIZE_MAX_WAIT_MS
+  for (let attempt = 0; ; attempt++) {
+    let res: unknown
+    try {
+      res = await redis.set(key, token, 'PX', LOCK_TTL_MS, 'NX')
+    } catch {
+      return false // Redis error: degrade fail-open (shredLive is the backstop).
+    }
+    if (res === 'OK') return true
+    if (Date.now() >= deadline) {
+      throw new CryptoException(
+        'shred_in_progress',
+        '[crypto] another shred/provision for this tenant is in progress; the operation lock could not be acquired within the wait window. Retry shortly (the operation is idempotent).'
+      )
+    }
+    await sleep(backoffWithJitter(attempt))
+  }
+}
+
+/** Exponential backoff, capped, with full jitter, so retriers do not thunder. */
+function backoffWithJitter(attempt: number): number {
+  const ceiling = Math.min(SERIALIZE_BACKOFF_BASE_MS * 2 ** attempt, SERIALIZE_BACKOFF_CAP_MS)
+  return Math.floor(Math.random() * ceiling)
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))

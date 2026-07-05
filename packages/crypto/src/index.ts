@@ -28,6 +28,21 @@ export type { CategoryKey, KeyProvider, SubjectId, WrappedDek } from './types/ke
 // Blind-index (deterministic search HMAC) options (crypto §6.5, I5).
 export type { BlindIndexOptions } from './internal/blind_index.js'
 
+// Framed enc_v2 stream envelope (crypto §6.8): the composition vault consumes to seal
+// large blobs before upload. One AEAD (core's), applied per frame with reorder/
+// truncation binding — NOT a new cipher (I1).
+export {
+  sealFramedV2,
+  openFramedV2,
+  sealFramedV2Stream,
+  openFramedV2Stream,
+} from './internal/framed_stream.js'
+export {
+  DEFAULT_FRAME_SIZE,
+  FRAMED_STREAM_PREFIX,
+  type FramedSealOptions,
+} from './types/framed_envelope.js'
+
 // Transparent field-encryption decorators (crypto §6.4 Option A).
 export { encrypted, searchable } from './models/encrypted_columns.js'
 export type {
@@ -60,6 +75,13 @@ export { default as EncryptedRepository } from './services/encrypted_repository.
 export type { EncryptedRepositoryDeps } from './services/encrypted_repository.js'
 export { default as KeyProviderRegistry } from './services/key_provider_registry.js'
 export { default as EnvKeyProvider } from './services/env_key_provider.js'
+// The SSRF-pinned base for HTTP-backed KeyProviders (KMS/Vault) + a Vault reference
+// (crypto §6.2, §8; T13). A host binds one of these (or a custom subclass) and names it
+// in `config.crypto.keyProvider`. Every outbound is routed through core safeFetch.
+export { default as HttpKeyProvider } from './services/http_key_provider.js'
+export type { HttpKeyProviderOptions, HttpKeyRequest } from './services/http_key_provider.js'
+export { default as VaultKeyProvider } from './services/vault_key_provider.js'
+export type { VaultKeyProviderOptions } from './services/vault_key_provider.js'
 export { default as WormShredLedger } from './services/worm_shred_ledger.js'
 export { default as PgWrappedDekStore } from './services/pg_wrapped_dek_store.js'
 export type {

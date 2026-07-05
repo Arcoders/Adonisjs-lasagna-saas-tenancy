@@ -71,11 +71,11 @@ function slot(ctor: Function) {
   return entry
 }
 
-export interface EncryptedOptions {
+export interface EncryptedOptions<TRow = any> {
   /** The governance category whose per-`(subject × category)` DEK seals this field. */
   category: CategoryKey
   /** Resolve the data-subject id from the row (e.g. `(row) => row.id`). */
-  subject: (row: any) => SubjectId
+  subject: (row: TRow) => SubjectId
 }
 
 /**
@@ -83,8 +83,12 @@ export interface EncryptedOptions {
  * category)` DEK (I1). It IS the column (there is no sibling plaintext column, I1):
  * the value on disk is `enc_v2` ciphertext, decrypted on read and encrypted on
  * write by the {@link withEncryptedFields} hooks. Use INSTEAD of `@column()`.
+ *
+ * Type the row for a fully-checked resolver: `@encrypted<Renter>({ subject: (r) => r.id })`
+ * (or annotate the arrow param). The `TRow` default is the irreducible Lucid-decorator
+ * boundary (the model type is not known where the decorator is defined).
  */
-export function encrypted(options: EncryptedOptions): PropertyDecorator {
+export function encrypted<TRow = any>(options: EncryptedOptions<TRow>): PropertyDecorator {
   return (target, propertyKey) => {
     lucidColumn()(target, propertyKey)
     slot(target.constructor).encrypted.push({
@@ -95,11 +99,11 @@ export function encrypted(options: EncryptedOptions): PropertyDecorator {
   }
 }
 
-export interface SearchableOptions {
+export interface SearchableOptions<TRow = any> {
   /** The category whose KeyProvider index key keys this column's HMAC. */
   category: CategoryKey
   /** Resolve the PLAINTEXT value to index from the row (e.g. `(row) => row.passportNumber`). */
-  from: (row: any) => string | null | undefined
+  from: (row: TRow) => string | null | undefined
   /** Case-fold before hashing (opt-in; see {@link BlindIndexOptions}). */
   caseInsensitive?: boolean
 }
@@ -111,8 +115,18 @@ export interface SearchableOptions {
  * column is hidden from serialization by default (`serializeAs: null`): the HMAC
  * reveals equality/frequency (the documented I5 leak), so it should not land in an
  * API response unless the host opts in. Use INSTEAD of `@column()`.
+ *
+ * POST-SHRED RESPONSIBILITY (T14, §6.5): the index key is a KeyProvider capability that
+ * SURVIVES a crypto-shred (so equality stays computable for surviving rows). A shred
+ * therefore makes the field ciphertext inert but does NOT null this index column, so a
+ * DB reader can still see the erased value's equality/frequency against surviving rows.
+ * Closing that is the host's write path: null the index column (or delete the owning
+ * row) on `SubjectShredded`. crypto owns the HMAC; the host owns the column.
+ *
+ * Type the row for a fully-checked resolver: `@searchable<Renter>({ from: (r) => r.passportNumber })`.
+ * The `TRow` default is the irreducible Lucid-decorator boundary.
  */
-export function searchable(options: SearchableOptions): PropertyDecorator {
+export function searchable<TRow = any>(options: SearchableOptions<TRow>): PropertyDecorator {
   return (target, propertyKey) => {
     lucidColumn({ serializeAs: null })(target, propertyKey)
     slot(target.constructor).searchable.push({

@@ -32,6 +32,16 @@ export interface WrappedDek {
 export interface KeyProvider {
   /** 'env' | 'aws-kms' | 'hashicorp-vault' | a host-registered custom name. */
   readonly name: string
+  /**
+   * The crypto extension-contract generation this provider was built against
+   * ({@link CRYPTO_CONTRACT_VERSION}). Checked at registration time by
+   * `KeyProviderRegistry.register()` via `assertContractCompat`: a provider built for
+   * a NEWER contract than this crypto build throws (fail-closed); an OLDER or ABSENT
+   * one registers with a one-time "unversioned" warning. OPTIONAL for source
+   * compatibility, but every shipped/host provider SHOULD declare
+   * `contractVersion = CRYPTO_CONTRACT_VERSION`. Mirrors `AIProviderContract`.
+   */
+  readonly contractVersion?: number
   /** Wrap (KEK-encrypt) a freshly generated 32-byte DEK for storage under the CURRENT KEK generation. */
   wrapDek(tenantId: string, dek: Buffer): Promise<WrappedDek>
   /**

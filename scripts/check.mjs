@@ -52,6 +52,7 @@ const GUARDS = [
   'check-crypto-invariant-8.mjs',
   'check-crypto-invariant-9.mjs',
   'check-crypto-invariant-10.mjs',
+  'check-crypto-invariant-11.mjs',
 ]
 
 const failed = []

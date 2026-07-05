@@ -196,7 +196,17 @@ export default class PgWrappedDekStore implements WrappedDekStore {
           `RETURNING id, subject_id, category, wrapped_dek, kek_id, shredded_at`,
         bindings
       )
-      return toRow(rowsOf(res)[0]!)
+      // Fail-closed rather than crash on undefined: a successful INSERT ... RETURNING
+      // always yields the row, but a driver quirk / trigger could return none, and a
+      // silent `undefined` deref would violate the fail-closed contract (I3).
+      const inserted = rowsOf(res)[0]
+      if (!inserted) {
+        throw new CryptoException(
+          'insert_failed',
+          `[crypto] wrapped-DEK INSERT for subject '${row.subjectId}' / category '${row.category}' returned no row.`
+        )
+      }
+      return toRow(inserted)
     } catch (error) {
       // The partial UNIQUE (subject_id, category) WHERE shredded_at IS NULL (or
       // (tenant_id, subject_id, category) under rowscope) makes the live DEK singular

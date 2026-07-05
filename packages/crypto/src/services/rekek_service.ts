@@ -25,12 +25,19 @@ export interface RekekFailure {
 
 /** The honest per-tenant outcome of a {@link RekekService.rekekTenant} pass. */
 export interface RekekTenantSummary {
-  /** Live wrapped-DEK rows scanned. `scanned === current + rotated + failed`. */
+  /** Live wrapped-DEK rows scanned. `scanned === current + rotated + shreddedDuringRewrap + failed`. */
   readonly scanned: number
   /** Rows already at the current KEK generation (skipped, no write). */
   readonly current: number
   /** Rows re-wrapped under the current KEK (or that WOULD be, under `dryRun`). */
   readonly rotated: number
+  /**
+   * Rows whose re-wrap unwrap+wrap succeeded but whose UPDATE tombstoned nothing
+   * because the row was crypto-shredded between the scan and the write (a benign
+   * race: its key material is already destroyed, nothing live to re-wrap). Counted
+   * on its own axis so `current` keeps meaning "already at the target KEK, skipped".
+   */
+  readonly shreddedDuringRewrap: number
   /** Rows that unwrap under no known KEK generation (reported for operator attention). */
   readonly failed: number
   /** The detail for each failed row. */
@@ -90,6 +97,7 @@ export default class RekekService {
     let scanned = 0
     let current = 0
     let rotated = 0
+    let shreddedDuringRewrap = 0
     let failed = 0
     const failures: RekekFailure[] = []
     let afterId: string | undefined
@@ -142,14 +150,15 @@ export default class RekekService {
         const updated = await this.#store.rewrap(tenant, row.id, wrapped.ciphertext, wrapped.kekId)
         if (updated) rotated++
         // A row shredded between the scan and here is a benign race: nothing live to
-        // re-wrap, and its key material is already destroyed. Count it as current.
-        else current++
+        // re-wrap, and its key material is already destroyed. Counted on its own axis
+        // (not `current`) so the accounting invariant stays exact.
+        else shreddedDuringRewrap++
       }
 
       if (rows.length < this.#batchSize) break
     }
 
-    return { scanned, current, rotated, failed, failures }
+    return { scanned, current, rotated, shreddedDuringRewrap, failed, failures }
   }
 }
 

@@ -4,8 +4,9 @@
 // I7 (packages/crypto/ARCHITECTURE.md): "A shred is gated by governance's
 // legalBasis; a legal-obligation category in retention, or an unresolvable basis,
 // is REFUSED." The interlock itself is proved by the RED behavioral tests
-// (security_shred_gated.spec.ts); this guard is the STRUCTURAL scaffold that keeps
-// the gate first:
+// (security_shred_legal_hold_refused.spec.ts + security_shred_governance_absent_refused.spec.ts,
+// plus the two-phase-audit half in security_shred_gated.spec.ts); this guard is the
+// STRUCTURAL scaffold that keeps the gate first:
 //
 //   - the shred carries a fail-closed absent-governance refusal,
 //   - the FIRST awaited call in shred() is the erasability resolver,

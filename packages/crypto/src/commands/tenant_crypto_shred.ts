@@ -73,8 +73,10 @@ export default class TenantCryptoShred extends BaseCommand {
     let tenant: TenantModelContract
     try {
       tenant = await repo.findByIdOrFail(this.tenant)
-    } catch (error: any) {
-      this.logger.error(`Tenant not found: ${error.message}`)
+    } catch (error: unknown) {
+      this.logger.error(
+        `Tenant not found: ${error instanceof Error ? error.message : String(error)}`
+      )
       this.exitCode = 1
       return
     }

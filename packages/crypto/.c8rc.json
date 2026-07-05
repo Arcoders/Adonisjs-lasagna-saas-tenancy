@@ -12,7 +12,6 @@
     "src/sdk/**",
     "src/commands/**",
     "src/internal/operation_lock.ts",
-    "src/services/worm_shred_ledger.ts",
     "build/**",
     "bin/**",
     "tests/**"
@@ -21,8 +20,8 @@
   "report-dir": "./coverage",
   "clean": true,
   "check-coverage": true,
-  "statements": 84,
-  "branches": 80,
-  "functions": 84,
-  "lines": 84
+  "statements": 91,
+  "branches": 85,
+  "functions": 90,
+  "lines": 91
 }

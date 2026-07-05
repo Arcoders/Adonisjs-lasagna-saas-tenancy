@@ -35,6 +35,19 @@ Three layers, so erasure stays cheap and blast radius stays small:
   envelope. The ciphertext carries a non-secret `keyId` tag pointing at the
   wrapped-DEK row, never the key itself.
 
+```mermaid
+flowchart TB
+  KP["KeyProvider (pluggable)<br/>env · AWS KMS · HashiCorp Vault"]
+  KEK["KEK — per-tenant Key-Encryption-Key<br/>wraps DEKs only, never encrypts data"]
+  DEK["DEK — per-(subject × category) Data-Encryption-Key<br/>stored ONLY wrapped, in crypto_wrapped_deks · the sole copy"]
+  FLD["encrypted field value<br/>enc_v2 sealed under the DEK"]
+  IDX["blind index (search HMAC)<br/>keyed by a KeyProvider index key, NOT a DEK"]
+  KP -->|derives| KEK
+  KEK -->|wraps| DEK
+  DEK -->|seals| FLD
+  KP -.->|index key survives a shred| IDX
+```
+
 Erasing a subject's data is then just tombstoning its wrapped-DEK row: null the
 `wrapped_dek`, and every value sealed under that DEK is permanently unrecoverable
 (**I6**). This is crypto-shredding, and it is what makes per-subject erasure a
@@ -170,6 +183,22 @@ const plain = await repo.decrypt(renterId, 'identity', sealed)
 const index = await repo.blindIndex('identity', passportNumber) // for a WHERE lookup
 ```
 
+In a controller the tenant comes from the active request scope, so you never pass it:
+
+```ts
+export default class RentersController {
+  async store({ request }: HttpContext) {
+    const repo = await app.container.make(EncryptedRepository)
+    const { id, passportNumber } = request.body()
+    // Resolved under the current tenant's (subject × category) DEK; fail-closed if
+    // there is no active tenant scope (never a cross-tenant DEK).
+    const sealed = await repo.encrypt(id, 'identity', passportNumber)
+    const index = await repo.blindIndex('identity', passportNumber)
+    await Renter.create({ id, passportNumber: sealed, passportNumberIndex: index })
+  }
+}
+```
+
 Use the decorators for fields that live on a tenant model, and the repository when
 the value is not a model column or when you want the encryption call to be
 explicit in the code path.
@@ -210,7 +239,12 @@ import { encryptedColumnCheckSql } from '@adonisjs-lasagna/crypto'
 
 export default class extends BaseSchema {
   async up() {
-    this.schema.raw(encryptedColumnCheckSql({ table: 'renters', column: 'passport_number' }))
+    // Signature is positional: encryptedColumnCheckSql(table, column, options?).
+    // Run this AFTER the column exists (in the same migration, after createTable, or a
+    // later one). The constraint name is derived per table+column (`<table>_<column>_is_ciphertext`),
+    // so it is unique; pass `{ constraintName }` only if the derived name would exceed
+    // Postgres' 63-char identifier limit.
+    this.schema.raw(encryptedColumnCheckSql('renters', 'passport_number'))
   }
 }
 ```
@@ -267,32 +301,78 @@ drop `OLD_APP_KEY` once no DEK is still wrapped under the old generation. Each
 unwrap attempt is a strict open of a DEK envelope, so the read window never
 weakens the fail-closed decrypt posture.
 
+```bash
+# .env during the rotation window (env provider only)
+APP_KEY=<the new key>
+OLD_APP_KEY=<the previous key>   # remove this once `rekek` reports 0 rows on the old generation
+```
+
+The `rekek` summary reports each row as `re-wrapped`, `already current`, or `failed`
+(a DEK wrapped under a generation the provider no longer holds — restore it from backup
+or re-enter the data). A KMS/Vault provider retains its prior key versions itself, so no
+`OLD_APP_KEY` is needed there.
+
 ## Custom KeyProvider
 
 The `env` provider is dev-grade: the KEK is a pure function of `APP_KEY`, which
 gives destruction granularity but no root-of-trust separation. Production binds a
-real KMS. Implement the `KeyProvider` contract, then register it on the
-`KeyProviderRegistry` in your own provider and name it in `config.crypto.keyProvider`:
+real KMS. The `KeyProvider` contract is small:
+
+```ts
+interface KeyProvider {
+  readonly name: string                 // the name you put in config.crypto.keyProvider
+  readonly contractVersion?: number     // set = CRYPTO_CONTRACT_VERSION; checked at register time
+  wrapDek(tenantId, dek): Promise<WrappedDek>       // KEK-encrypt a 32-byte DEK
+  unwrapDek(tenantId, wrapped): Promise<Buffer>     // strict; throws on tamper/wrong KEK
+  currentKekId?(tenantId): Promise<string>          // optional rotation cursor for rekek
+  deriveIndexKey?(tenantId, category): Promise<Buffer>  // optional blind-index key (≥32 bytes)
+}
+```
+
+### HTTP-backed providers (AWS KMS, Vault): extend `HttpKeyProvider`
+
+Any provider that talks to a KMS over HTTP MUST route its outbound through core's
+`safeFetch` so a mis-set backend address can never reach loopback / RFC-1918 /
+cloud-metadata (T13). Do not call `fetch` yourself — extend `HttpKeyProvider`, whose
+`request` / `requestJson` are the pinned egress path. `check-crypto-invariant-11`
+enforces that no other crypto code opens a second, unpinned egress.
+
+crypto ships a reference `VaultKeyProvider` (HashiCorp Vault transit engine) built this
+way; bind it (or your own subclass) in your provider:
 
 ```ts
 // providers/kms_provider.ts
-import { KeyProviderRegistry } from '@adonisjs-lasagna/crypto'
+import { KeyProviderRegistry, VaultKeyProvider } from '@adonisjs-lasagna/crypto'
 
 export default class KmsProvider {
   async boot() {
     const registry = await this.app.container.make(KeyProviderRegistry)
-    registry.register(new MyKmsKeyProvider()) // name: 'aws-kms'
+    // Per-tenant transit key `lasagna-crypto-<tenantId>`; every call is SSRF-pinned.
+    registry.register(
+      new VaultKeyProvider({ address: env.get('VAULT_ADDR'), token: env.get('VAULT_TOKEN') })
+    )
   }
 }
 ```
 
 ```ts
 // config/multitenancy.ts
-crypto: defineCryptoConfig({ keyProvider: 'aws-kms', /* ... */ }),
+crypto: defineCryptoConfig({ keyProvider: 'hashicorp-vault', /* ... */ }),
 ```
 
-An unregistered provider name is fail-closed at resolve time: the platform never
-falls back to a weaker or shared key.
+A custom provider declares `contractVersion = CRYPTO_CONTRACT_VERSION` so
+`KeyProviderRegistry.register()` can reject a provider built against an incompatible
+crypto contract (a newer contract throws; an older/absent one warns once), exactly as
+the AI and billing satellites gate their extensions. An unregistered provider name is
+fail-closed at resolve time: the platform never falls back to a weaker or shared key.
+
+<Callout type="info" title="Encrypting large blobs">
+For blobs too large for a single GCM tag (vault's job), crypto exposes a framed
+enc_v2 stream envelope (`sealFramedV2` / `sealFramedV2Stream`): the payload is split
+into fixed-size frames, each an enc_v2 seal under the same DEK with the frame counter
+bound into the authenticated header, so a reordered / dropped / truncated frame fails
+closed. It is composition of the one core cipher, not a second construction.
+</Callout>
 
 ## Rowscope placement
 
@@ -301,6 +381,16 @@ single shared table rather than one per tenant. Because a DEK is stored only
 wrapped under a per-tenant KEK, reading another tenant's `wrapped_dek` bytes is
 useless without that tenant's KEK, so crypto **can** live in a shared table (unlike
 the AI vector store, whose embeddings are invertible and which refuses rowscope).
+
+<Callout type="warning" title="Only under rowscope-pg, and mind the RLS flag">
+Run the `create_crypto_wrapped_deks_rowscope` stub ONLY under the `rowscope-pg` driver
+(schema-pg / database-pg get the per-tenant table from `tenant:migrate` instead). The
+RLS block is conditional on `isolation.rowScopeRls: true`: the store only sets the
+per-transaction GUC when the driver reports RLS is on, so if you keep the FORCE RLS
+policy but leave `rowScopeRls: false`, the policy matches no rows and every crypto
+read/write fails closed. Either set `rowScopeRls: true`, or drop the ENABLE/FORCE/policy
+block from the stub and rely on the store's always-on `tenant_id` predicate.
+</Callout>
 
 `node ace configure` publishes the central
 `create_crypto_wrapped_deks_rowscope` migration stub. It creates the shared table

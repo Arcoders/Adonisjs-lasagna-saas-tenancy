@@ -8,7 +8,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { CategoryKey, KeyProvider, SubjectId } from '../types/key_provider.js'
 import type { ErasabilityResolver } from '../types/erasability.js'
 import type { ShredLedger } from '../types/shred_ledger.js'
-import type { CryptoOperationLock } from '../types/operation_lock.js'
+import type { CryptoLockOptions, CryptoOperationLock } from '../types/operation_lock.js'
 import type { SubjectShreddedEvent } from '../events/subject_shredded.js'
 import type { WrappedDekStore } from './wrapped_dek_store.js'
 
@@ -119,8 +119,8 @@ export default class CryptoService {
    * `(subject × category)` DEK cannot interleave (T12); absent, the partial UNIQUE
    * is the fail-closed backstop (a safe degraded mode, §6.6).
    */
-  #locked<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
-    return this.#withLock ? this.#withLock(tenantId, fn) : fn()
+  #locked<T>(tenantId: string, fn: () => Promise<T>, options?: CryptoLockOptions): Promise<T> {
+    return this.#withLock ? this.#withLock(tenantId, fn, options) : fn()
   }
 
   /**
@@ -277,64 +277,78 @@ export default class CryptoService {
       return { shredded: false, alreadyShredded: false, dryRun: true }
     }
 
-    // 2. The destructive two-phase erasure, serialized under the per-tenant
-    // operation lock (I10, §6.6) so a concurrent shred/provision cannot interleave.
-    return this.#locked(tenant.id, async () => {
-      // Re-check under the lock: a concurrent shred may have completed between the
-      // gate and acquiring the lock (idempotent no-op, no double audit).
-      const live = await this.#store.findLive(tenant, subjectId, category)
-      if (!live) return { shredded: false, alreadyShredded: true }
+    // Ledger precondition, checked ONCE before acquiring the lock (an irreversible
+    // erasure is never run unaudited). Capturing it in a local narrows it non-null
+    // for the closure below, so the check never runs inside (or after acquiring) the lock.
+    const ledger = this.#ledger
+    if (!ledger) {
+      emitCryptoGuardEvent('guard.crypto_shred_unaudited', { tenantId: tenant.id })
+      throw new CryptoException(
+        'shred_unaudited',
+        `[crypto] refusing to shred subject '${subjectId}' / category '${category}': no WORM ledger is wired, and an irreversible erasure is never run unaudited.`
+      )
+    }
 
-      // No ledger ⇒ refuse (never erase unaudited).
-      const ledger = this.#ledger
-      if (!ledger) {
-        emitCryptoGuardEvent('guard.crypto_shred_unaudited', { tenantId: tenant.id })
-        throw new CryptoException(
-          'shred_unaudited',
-          `[crypto] refusing to shred subject '${subjectId}' / category '${category}': no WORM ledger is wired, and an irreversible erasure is never run unaudited.`
-        )
-      }
+    // 2. The destructive two-phase erasure, serialized under the per-tenant operation
+    // lock in `serialize` mode (I10, §6.6): a concurrent shred WAITS rather than
+    // running unserialised, so the two-phase audit never double-appends. Redis-down
+    // degrades to fail-open, where the authoritative delete-count return in step 2b is
+    // the backstop that prevents a double COMMITTED/emit.
+    return this.#locked(
+      tenant.id,
+      async () => {
+        // Re-check under the lock: a concurrent shred may have completed between the
+        // gate and acquiring the lock (idempotent no-op, no double audit).
+        const live = await this.#store.findLive(tenant, subjectId, category)
+        if (!live) return { shredded: false, alreadyShredded: true }
 
-      // 2a. PENDING before the delete. A throw here aborts with nothing destroyed.
-      let pending
-      try {
-        pending = await ledger.appendPending({
+        // 2a. PENDING before the delete. A throw here aborts with nothing destroyed.
+        let pending
+        try {
+          pending = await ledger.appendPending({
+            tenantId: tenant.id,
+            subjectId,
+            category,
+            reason: verdict.reason,
+          })
+        } catch (error) {
+          emitCryptoGuardEvent('guard.crypto_shred_unaudited', { tenantId: tenant.id })
+          throw new CryptoException(
+            'shred_unaudited',
+            `[crypto] aborting shred of subject '${subjectId}' / category '${category}': the WORM PENDING append failed, so nothing was destroyed. Cause: ${errorMessage(error)}`
+          )
+        }
+
+        // 2b. The irreversible tombstone (destroy the DEK). Authoritative: only the
+        // caller that actually tombstoned the live row proceeds to COMMITTED + emit.
+        // If it returns false we lost a concurrent race (only reachable in the
+        // Redis-down degraded mode) — our PENDING row is a detectable orphan, resolved
+        // exactly like a crash between PENDING and COMMITTED, never a double audit.
+        const didShred = await this.#store.shredLive(tenant, subjectId, category)
+        if (!didShred) return { shredded: false, alreadyShredded: true }
+
+        // 2c. COMMITTED after the delete. A failure here does NOT undo the erasure
+        // (the DEK is gone, correctly); it leaves a detectable PENDING row, reported.
+        try {
+          await ledger.markCommitted(pending)
+        } catch (error) {
+          throw new CryptoException(
+            'shred_audit_unfinalized',
+            `[crypto] shred of subject '${subjectId}' / category '${category}' COMPLETED (the DEK is destroyed), but marking the WORM row COMMITTED failed; a detectable PENDING row remains for reconciliation. Cause: ${errorMessage(error)}`
+          )
+        }
+
+        const event: SubjectShreddedEvent = {
           tenantId: tenant.id,
           subjectId,
           category,
-          reason: verdict.reason,
-        })
-      } catch (error) {
-        emitCryptoGuardEvent('guard.crypto_shred_unaudited', { tenantId: tenant.id })
-        throw new CryptoException(
-          'shred_unaudited',
-          `[crypto] aborting shred of subject '${subjectId}' / category '${category}': the WORM PENDING append failed, so nothing was destroyed. Cause: ${errorMessage(error)}`
-        )
-      }
-
-      // 2b. The irreversible tombstone (destroy the DEK).
-      await this.#store.shredLive(tenant, subjectId, category)
-
-      // 2c. COMMITTED after the delete. A failure here does NOT undo the erasure
-      // (the DEK is gone, correctly); it leaves a detectable PENDING row, reported.
-      try {
-        await ledger.markCommitted(pending)
-      } catch (error) {
-        throw new CryptoException(
-          'shred_audit_unfinalized',
-          `[crypto] shred of subject '${subjectId}' / category '${category}' COMPLETED (the DEK is destroyed), but marking the WORM row COMMITTED failed; a detectable PENDING row remains for reconciliation. Cause: ${errorMessage(error)}`
-        )
-      }
-
-      const event: SubjectShreddedEvent = {
-        tenantId: tenant.id,
-        subjectId,
-        category,
-        occurredAt: new Date(),
-      }
-      this.#emitShredded?.(event)
-      return { shredded: true, alreadyShredded: false, event }
-    })
+          occurredAt: new Date(),
+        }
+        this.#emitShredded?.(event)
+        return { shredded: true, alreadyShredded: false, event }
+      },
+      { onContention: 'serialize' }
+    )
   }
 
   /** Resolve the live DEK for (subject, category), or null if none is provisioned. */

@@ -64,8 +64,10 @@ export default class TenantCryptoRekek extends BaseCommand {
       let tenant: TenantModelContract
       try {
         tenant = await repo.findByIdOrFail(this.tenant)
-      } catch (error: any) {
-        this.logger.error(`Tenant not found: ${error.message}`)
+      } catch (error: unknown) {
+        this.logger.error(
+          `Tenant not found: ${error instanceof Error ? error.message : String(error)}`
+        )
         this.exitCode = 1
         return
       }
@@ -92,9 +94,10 @@ export default class TenantCryptoRekek extends BaseCommand {
         scanned: acc.scanned + summary.scanned,
         current: acc.current + summary.current,
         rotated: acc.rotated + summary.rotated,
+        shreddedDuringRewrap: acc.shreddedDuringRewrap + summary.shreddedDuringRewrap,
         failed: acc.failed + summary.failed,
       }),
-      { scanned: 0, current: 0, rotated: 0, failed: 0 }
+      { scanned: 0, current: 0, rotated: 0, shreddedDuringRewrap: 0, failed: 0 }
     )
 
     if (this.json) {
@@ -102,10 +105,15 @@ export default class TenantCryptoRekek extends BaseCommand {
     } else {
       for (const { tenantId, summary } of results) {
         if (summary.scanned === 0) continue // quietly skip tenants with no DEKs
+        // A row shredded mid-rotation is a benign race; surface it only when it happened.
+        const shredNote =
+          summary.shreddedDuringRewrap > 0
+            ? `, shredded mid-rotate ${summary.shreddedDuringRewrap}`
+            : ''
         const line =
           `${tenantId}: scanned ${summary.scanned}, ` +
           `${this.dryRun ? 'would re-wrap' : 're-wrapped'} ${summary.rotated}, ` +
-          `already current ${summary.current}, failed ${summary.failed}`
+          `already current ${summary.current}${shredNote}, failed ${summary.failed}`
         this.logger.log(summary.failed > 0 ? this.colors.red(line) : this.colors.dim(line))
         for (const f of summary.failures) {
           this.logger.log(

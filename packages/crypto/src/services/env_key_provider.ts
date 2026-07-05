@@ -1,6 +1,7 @@
 import { hkdfSync } from 'node:crypto'
 import { sealV2WithKey, openV2WithKey } from '@adonisjs-lasagna/saas-tenancy/crypto'
 import { DEK_BYTES, INDEX_KEY_BYTES } from '../constants.js'
+import { CRYPTO_CONTRACT_VERSION } from '../sdk/contract_version.js'
 import CryptoException from '../exceptions/crypto_exception.js'
 import { emitCryptoGuardEvent } from '../isthmus/crypto_guard_audit.js'
 import type { CategoryKey, KeyProvider, WrappedDek } from '../types/key_provider.js'
@@ -84,6 +85,7 @@ function envKekId(appKey: string): string {
  */
 export default class EnvKeyProvider implements KeyProvider {
   readonly name = 'env'
+  readonly contractVersion = CRYPTO_CONTRACT_VERSION
 
   async wrapDek(tenantId: string, dek: Buffer): Promise<WrappedDek> {
     assertDek(dek)

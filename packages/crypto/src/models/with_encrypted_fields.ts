@@ -4,8 +4,15 @@ import {
   collectModelEncryptionMeta,
   decryptModelFields,
   encryptModelFields,
+  type EncryptableRow,
   type ModelEncryptionMeta,
 } from './encrypted_columns.js'
+
+// The Lucid model instance a lifecycle hook receives: the minimal encryptable-row
+// surface plus its constructor (the key the per-model metadata is memoized under).
+// Typing the closures to this (instead of `any`) catches an accidental misuse at
+// compile time while staying honest about the dynamic Lucid boundary.
+type EncryptableModel = EncryptableRow & { readonly constructor: Function }
 
 // Lucid's model class, typed loosely so this mixin does not import the full ORM
 // type (mirrors `withTenantScope` in core's scoping.ts).
@@ -92,17 +99,17 @@ export function withEncryptedFields<T extends LucidBaseModelClass>(Base: T): T {
       // registered. Reading the metadata inside the hook (which fires at save/load,
       // long after all decorators) avoids that race; a model with no encrypted
       // columns simply returns early.
-      const encryptHook = async (model: any): Promise<void> => {
+      const encryptHook = async (model: EncryptableModel): Promise<void> => {
         const meta = resolveMeta(model.constructor)
         if (meta.encrypted.length === 0 && meta.searchable.length === 0) return
         await encryptModelFields(await repo(), meta, model)
       }
-      const decryptHook = async (model: any): Promise<void> => {
+      const decryptHook = async (model: EncryptableModel): Promise<void> => {
         const meta = resolveMeta(model.constructor)
         if (meta.encrypted.length === 0) return
         await decryptModelFields(await repo(), meta, model)
       }
-      const decryptEach = async (models: any[]): Promise<void> => {
+      const decryptEach = async (models: EncryptableModel[]): Promise<void> => {
         for (const model of models ?? []) await decryptHook(model)
       }
 
