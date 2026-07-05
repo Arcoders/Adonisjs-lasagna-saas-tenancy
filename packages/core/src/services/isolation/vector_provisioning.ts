@@ -1,6 +1,7 @@
 import { getConfig } from '../../config.js'
 import { getActiveDriver } from './active_driver.js'
 import { resolveTenantRepository } from '../resolve_tenant_repository.js'
+import { PGVECTOR_EXTENSION, PGVECTOR_EXTENSION_SCHEMA } from './pgvector.js'
 import type { IsolationDriver } from './driver.js'
 import type { TenantRepositoryContract } from '../../types/contracts.js'
 
@@ -26,9 +27,26 @@ import type { TenantRepositoryContract } from '../../types/contracts.js'
  * command.
  */
 
-export const PGVECTOR_EXTENSION = 'vector'
+export { PGVECTOR_EXTENSION, PGVECTOR_EXTENSION_SCHEMA }
 
 const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default)
+
+/**
+ * Install pgvector into its dedicated schema (idempotent). The schema is created
+ * first so `WITH SCHEMA` can land the `vector` type + operator classes where a
+ * schema-pg tenant connection's search_path (which appends this schema) can
+ * resolve them, without putting `public` on the tenant path.
+ */
+async function installVectorExtension(conn: {
+  rawQuery: (sql: string) => Promise<unknown>
+}): Promise<void> {
+  // safe-sql: PGVECTOR_EXTENSION_SCHEMA is a fixed module constant, never user input (a schema name cannot be a bind parameter).
+  await conn.rawQuery(`CREATE SCHEMA IF NOT EXISTS ${PGVECTOR_EXTENSION_SCHEMA}`)
+  // safe-sql: both identifiers are fixed module constants, never user input (a DDL schema/extension name cannot be a bind parameter).
+  await conn.rawQuery(
+    `CREATE EXTENSION IF NOT EXISTS ${PGVECTOR_EXTENSION} WITH SCHEMA ${PGVECTOR_EXTENSION_SCHEMA}`
+  )
+}
 
 // Monotonic per-process suffix so two concurrent provision runs never share a
 // throwaway connection name (which would let one run's release close the other's
@@ -130,16 +148,17 @@ export async function provisionVectorExtension(
     for (const tenant of tenants) {
       const dbName = databaseName.call(driver, tenant)
       if (dryRun) {
-        log?.info(`would CREATE EXTENSION ${PGVECTOR_EXTENSION} in database "${dbName}"`)
+        log?.info(
+          `would CREATE EXTENSION ${PGVECTOR_EXTENSION} WITH SCHEMA ${PGVECTOR_EXTENSION_SCHEMA} in database "${dbName}"`
+        )
         provisioned++
         continue
       }
       try {
-        await withProvisionConnection(db, connName, dbName, async (conn) => {
-          // safe-sql: PGVECTOR_EXTENSION is a fixed module constant, never user input (a DDL extension name cannot be a bind parameter)
-          await conn.rawQuery(`CREATE EXTENSION IF NOT EXISTS ${PGVECTOR_EXTENSION}`)
-        })
-        log?.info(`CREATE EXTENSION ${PGVECTOR_EXTENSION} in database "${dbName}"`)
+        await withProvisionConnection(db, connName, dbName, (conn) => installVectorExtension(conn))
+        log?.info(
+          `CREATE EXTENSION ${PGVECTOR_EXTENSION} WITH SCHEMA ${PGVECTOR_EXTENSION_SCHEMA} in database "${dbName}"`
+        )
         provisioned++
       } catch (error) {
         failed++
@@ -152,12 +171,15 @@ export async function provisionVectorExtension(
   // schema-pg / rowscope-pg: one shared database, provision it once.
   if (driver.name === 'schema-pg' || driver.name === 'rowscope-pg') {
     if (dryRun) {
-      log?.info(`would CREATE EXTENSION ${PGVECTOR_EXTENSION} on connection "${connName}"`)
+      log?.info(
+        `would CREATE EXTENSION ${PGVECTOR_EXTENSION} WITH SCHEMA ${PGVECTOR_EXTENSION_SCHEMA} on connection "${connName}"`
+      )
       return { driver: driver.name, scope: 'central', provisioned: 1, failed: 0, dryRun }
     }
-    // safe-sql: PGVECTOR_EXTENSION is a fixed module constant, never user input (a DDL extension name cannot be a bind parameter)
-    await db.connection(connName).rawQuery(`CREATE EXTENSION IF NOT EXISTS ${PGVECTOR_EXTENSION}`)
-    log?.info(`CREATE EXTENSION ${PGVECTOR_EXTENSION} on connection "${connName}"`)
+    await installVectorExtension(db.connection(connName))
+    log?.info(
+      `CREATE EXTENSION ${PGVECTOR_EXTENSION} WITH SCHEMA ${PGVECTOR_EXTENSION_SCHEMA} on connection "${connName}"`
+    )
     return { driver: driver.name, scope: 'central', provisioned: 1, failed: 0, dryRun }
   }
 

@@ -15,6 +15,22 @@ export const AI_ERROR_CODES = [
   'config_missing',
   'byok_endpoint_blocked',
   'invalid_request',
+  // WS-AI-3 vector store
+  'rowscope_unsupported',
+  'dimension_mismatch',
+  'embedding_quota_exhausted',
+  'tenant_scope_mismatch',
+  // WS-AI-3 ingestion
+  'doc_fetch_blocked',
+  'ingestion_denied',
+  // WS-AI-5 retrieval
+  'retrieval_denied',
+  // WS-AI-7 audit
+  'audit_write_failed',
+  // WS-AI-4 memory
+  'memory_session_invalid',
+  // WS-AI-9 compliance / residency
+  'residency_denied',
 ] as const
 
 export type AIErrorCode = (typeof AI_ERROR_CODES)[number]
@@ -34,6 +50,29 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   config_missing: 500,
   byok_endpoint_blocked: 400,
   invalid_request: 400,
+  // WS-AI-3 vector store: a rowscope tenant / a dimension mismatch / a malformed
+  // request are permanent 4xx; over the storage cap is 402 (like over_budget); a
+  // tenant-scope-seal breach is a 500 (an internal invariant, never a client fault).
+  rowscope_unsupported: 400,
+  dimension_mismatch: 400,
+  embedding_quota_exhausted: 402,
+  tenant_scope_mismatch: 500,
+  // A document URL the SSRF pin blocked (or could not fetch) is a 400; a denied
+  // ingestion authorizer is a 403, like the access gate.
+  doc_fetch_blocked: 400,
+  ingestion_denied: 403,
+  // A denied retrievalFilter (G2 per-user document ACL) is a 403, like the
+  // access and ingestion gates.
+  retrieval_denied: 403,
+  // An audit row that cannot be written is a fail-closed 503 (the action must
+  // be attributable, and the failure is usually a transient audit-DB outage).
+  audit_write_failed: 503,
+  // A conversation-memory session token that does not verify is a malformed /
+  // forged request (like a malformed Idempotency-Key), a permanent 400.
+  memory_session_invalid: 400,
+  // A request whose provider/embedding egress is not allowed by the tenant's
+  // residency posture (#7/#15) is a permanent 403, like the other authz gates.
+  residency_denied: 403,
 }
 
 /**
@@ -60,6 +99,25 @@ const FATAL_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
   'config_missing',
   'byok_endpoint_blocked',
   'invalid_request',
+  // WS-AI-3: none of these become correct on a retry — a rowscope host cannot use
+  // the vector store, a dimension mismatch is a config fault, the storage cap is a
+  // plan limit, and a scope-seal breach is a bug.
+  'rowscope_unsupported',
+  'dimension_mismatch',
+  'embedding_quota_exhausted',
+  'tenant_scope_mismatch',
+  // A blocked/unfetchable document URL and a denied ingestion are both permanent.
+  'doc_fetch_blocked',
+  'ingestion_denied',
+  // A denied retrieval authorizer is permanent, not retryable.
+  'retrieval_denied',
+  // A forged/malformed session token will not become valid on a retry.
+  'memory_session_invalid',
+  // WS-AI-9 E9: FATAL_CODES is a plain Set (NOT compile-forced by the union), so
+  // this entry is added by hand — a residency denial is a permanent policy refusal,
+  // and a missing entry here would wrongly make it retryable (a client would retry
+  // the very egress residency exists to block).
+  'residency_denied',
 ])
 
 /**

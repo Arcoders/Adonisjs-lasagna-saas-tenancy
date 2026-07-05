@@ -35,6 +35,65 @@ export const noopAuditSink: AiGatewayAuditSink = {
   append: () => {},
 }
 
+/**
+ * The embed choke point's attribution event (WS-AI-3). A PARALLEL event, not an
+ * extension of {@link AiGatewayAuditEvent}, whose field set is frozen by its own
+ * spec: an embed has no stream fragments, and it carries a `dimension` and an
+ * `embeddingsCount` the chat event does not. Every field is non-PII (I5, G1):
+ * `actorHash` and `sourceHash` are one-way SHA-256, never the raw principal or
+ * document key, and neither the embedded text nor a vector ever appears.
+ */
+export interface AiEmbeddingAuditEvent {
+  readonly tenantId: string
+  readonly actorHash: string | null
+  readonly model: string | null
+  readonly dimension: number
+  readonly embeddingsCount: number
+  readonly tokens: number
+  readonly sourceHash: string | null
+  readonly outcome: 'completed' | 'failed_preflight'
+  readonly reason: string | null
+  readonly occurredAt: string
+}
+
+export interface AiEmbeddingAuditSink {
+  append(event: AiEmbeddingAuditEvent): Promise<void> | void
+}
+
+/** The default embed sink until WS-AI-7. */
+export const noopEmbeddingAuditSink: AiEmbeddingAuditSink = {
+  append: () => {},
+}
+
+/**
+ * The retrieval choke point's attribution event (WS-AI-5). A PARALLEL event, not
+ * an extension of the chat/embed ones, frozen by its own spec: a retrieval has no
+ * stream fragments and no stored rows, but it carries a `matchCount` the others
+ * do not. Every field is non-PII (I5, G1): `actorHash` is a one-way SHA-256, and
+ * neither the query text, a returned document, nor a vector ever appears.
+ */
+export interface AiRetrievalAuditEvent {
+  readonly tenantId: string
+  readonly actorHash: string | null
+  readonly model: string | null
+  /** How many matches the search returned (never the matches themselves). */
+  readonly matchCount: number
+  /** Provider-reported tokens settled for the query embed. */
+  readonly tokens: number
+  readonly outcome: 'completed' | 'failed_preflight'
+  readonly reason: string | null
+  readonly occurredAt: string
+}
+
+export interface AiRetrievalAuditSink {
+  append(event: AiRetrievalAuditEvent): Promise<void> | void
+}
+
+/** The default retrieval sink until WS-AI-7. */
+export const noopRetrievalAuditSink: AiRetrievalAuditSink = {
+  append: () => {},
+}
+
 /** One-way principal attribution: SHA-256 hex, never the raw identifier. */
 export function hashAuditPrincipal(principal: string | null): string | null {
   if (principal === null) return null

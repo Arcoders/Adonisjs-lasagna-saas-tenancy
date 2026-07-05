@@ -30,3 +30,11 @@ export function fakeFetch(respond: (call: FetchCall) => Response | Promise<Respo
 export function sseResponse(body: string, status = 200): Response {
   return new Response(body, { status })
 }
+
+/** A JSON Response from a value (for the non-streaming embeddings endpoint). */
+export function jsonResponse(value: unknown, status = 200): Response {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  })
+}

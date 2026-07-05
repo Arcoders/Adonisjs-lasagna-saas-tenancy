@@ -5,6 +5,7 @@ import { multitenancyRoutes } from '@adonisjs-lasagna/saas-tenancy/health'
 import { multitenancyAdminRoutes } from '@adonisjs-lasagna/admin'
 import { multitenancyBillingRoutes } from '@adonisjs-lasagna/billing'
 import { multitenancyReportingRoutes } from '@adonisjs-lasagna/reporting'
+import { multitenancyAiRoutes } from '@adonisjs-lasagna/ai/routes'
 
 /**
  * Lazy controller imports — keeps the route file small and lets the
@@ -58,6 +59,12 @@ multitenancyReportingRoutes({
   // them on every tenant:metrics:flush so the view stays fresh.
   cacheTtlMs: 60_000,
 })
+
+/* ─── AI gateway (@adonisjs-lasagna/ai) — tenant-scoped, fail-closed mount ── */
+// POST /ai/chat (SSE), /ai/embed, /ai/retrieve. TenantGuard FIRST per the mount
+// contract; config.ai.authorizeAIAccess is the per-request membership gate. The
+// demo runs fully offline through the mock providers registered in AppProvider.
+multitenancyAiRoutes({ middleware: [middleware.tenantGuard()] })
 
 /* ─── Impersonation verify probe ─────────────────────────────────────────── */
 // Echoes the verified impersonation context attached by ImpersonationMiddleware,

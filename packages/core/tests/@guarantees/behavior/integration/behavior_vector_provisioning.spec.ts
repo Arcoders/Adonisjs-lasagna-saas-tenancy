@@ -4,6 +4,7 @@ import { getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import {
   provisionVectorExtension,
   pgvectorExtensionCheck,
+  PGVECTOR_EXTENSION_SCHEMA,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 
 /**
@@ -21,6 +22,14 @@ async function vectorAvailable(): Promise<boolean> {
 }
 async function vectorInstalled(): Promise<boolean> {
   const r = await central().rawQuery(`SELECT 1 FROM pg_extension WHERE extname = 'vector'`)
+  return (r.rows ?? []).length > 0
+}
+async function vectorInExpectedSchema(): Promise<boolean> {
+  const r = await central().rawQuery(
+    `SELECT 1 FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace
+     WHERE e.extname = 'vector' AND n.nspname = ?`,
+    [PGVECTOR_EXTENSION_SCHEMA]
+  )
   return (r.rows ?? []).length > 0
 }
 const doctorCtx = () => ({ tenants: [], repo: {} as never, attemptFix: false })
@@ -49,6 +58,10 @@ test.group('pgvector provisioning (integration, real Postgres)', (group) => {
     const summary = await provisionVectorExtension()
     assert.equal(summary.scope, 'central')
     assert.isTrue(await vectorInstalled(), 'extension installed on the shared database')
+    assert.isTrue(
+      await vectorInExpectedSchema(),
+      `extension installed INTO the "${PGVECTOR_EXTENSION_SCHEMA}" schema so a bare vector(N) column resolves from the tenant search_path`
+    )
 
     // idempotent: a second run does not error
     await provisionVectorExtension()

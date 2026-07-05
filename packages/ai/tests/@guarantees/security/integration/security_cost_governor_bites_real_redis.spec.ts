@@ -178,4 +178,36 @@ test.group('AI per-key rate limit bites on real Redis (integration)', (group) =>
     assert.equal((threw as AIException).httpStatus, 429)
     assert.isAbove(await redis.zcard(key), 0, 'the ext:ai bucket recorded the hits')
   })
+
+  test('two tenants sharing a provider fingerprint get independent buckets (T2)', async ({
+    assert,
+  }) => {
+    const fp = 'shared-fp-t2'
+    const t1 = randomUUID()
+    const t2 = randomUUID()
+    const k1 = aiRateLimitKey('chat', t1, fp)
+    const k2 = aiRateLimitKey('chat', t2, fp)
+    const limiter = new AiRateLimiter({
+      consume: (args) => consumeRateLimit({ getRedis: async () => redis, ...args }),
+      policy: { limit: 1, windowSeconds: 60 },
+    })
+    try {
+      await limiter.check({ op: 'chat', tenantId: t1, fingerprint: fp }) // t1 count 1, allowed
+      let t1Threw: unknown
+      try {
+        await limiter.check({ op: 'chat', tenantId: t1, fingerprint: fp }) // t1 count 2 > limit
+      } catch (err) {
+        t1Threw = err
+      }
+      assert.instanceOf(t1Threw, AIException)
+      assert.equal((t1Threw as AIException).aiCode, 'rate_limited')
+
+      // Tenant 2 shares the fingerprint but its bucket is tenant-scoped: a fresh window.
+      await limiter.check({ op: 'chat', tenantId: t2, fingerprint: fp }) // must NOT throw
+      assert.notEqual(k1, k2, 'the two tenants key different buckets')
+      assert.isAbove(await redis.zcard(k2), 0, 'tenant 2 has its own bucket')
+    } finally {
+      await redis.del(k1, k2).catch(() => {})
+    }
+  })
 })

@@ -41,6 +41,17 @@ export const configureSuite: Config['configureSuite'] = (suite) => {
     suite.setup(async () => {
       await testUtils.httpServer().start()
       await installStubIfNeeded()
+      // pgvector (in its dedicated `extensions` schema) must exist BEFORE any tenant
+      // is provisioned: config.ai.embedding folds the `ai_embeddings vector(N)`
+      // migration into every tenant's `tenant:migrate`. Best-effort — on a plain
+      // Postgres box without pgvector this throws and the AI e2e self-skip; in CI
+      // (pgvector/pgvector:pg16) it installs the extension the tenant path resolves.
+      try {
+        const { provisionVectorExtension } = await import('@adonisjs-lasagna/saas-tenancy/services')
+        await provisionVectorExtension()
+      } catch {
+        // pgvector unavailable locally; the AI e2e gate on it and self-skip.
+      }
     })
   }
 }

@@ -90,6 +90,13 @@ export interface CachedAiResponse {
     readonly fragments: number
     readonly lastEventId: string | undefined
   }
+  /**
+   * The conversation-memory session token minted on this turn (WS-AI-4), if any.
+   * Re-emitted as `X-Ai-Session` on replay so a client whose turn-1 connection
+   * dropped after the mint still learns its session on retry (instead of
+   * re-minting an empty one and losing the persisted turn).
+   */
+  readonly sessionToken?: string
 }
 
 /**
@@ -178,14 +185,29 @@ export default class AiIdempotencyService {
   /**
    * The WS-AI-9 purge seam: rotate the tenant's epoch so every cached response
    * becomes unreachable immediately (their TTLs reap the bytes). Unlike the
-   * cache ops this THROWS on failure: a GDPR purge that silently did nothing
-   * would be a compliance bug, so the caller must see it.
+   * cache ops this is FAIL-CLOSED: a GDPR purge that silently did nothing would
+   * be a compliance bug, so the caller must see it.
+   *
+   * Fail-closed VERIFIABLY (WS-AI-9 E3): a `set` that a misbehaving store
+   * silently no-ops resolves without throwing, leaving the old epoch resolving
+   * and pre-purge responses replayable. So we read the epoch back and confirm
+   * the new value landed; a store outage (the `set` or the read-back throws) or
+   * an unconfirmed value both throw, never a false success.
    */
   async bumpEpoch(tenantId: string): Promise<void> {
     // Epoch lives well past any entry so a mid-window expiry cannot resurrect
     // pre-purge entries under the default epoch.
     const epochTtl = Math.max(24 * 60 * 60 * 1000, this.#ttlMs * 10)
-    await this.#store.set(tenantId, EPOCH_KEY, this.#newEpoch(), epochTtl)
+    const epoch = this.#newEpoch()
+    await this.#store.set(tenantId, EPOCH_KEY, epoch, epochTtl)
+    const confirmed = await this.#store.get(tenantId, EPOCH_KEY)
+    if (confirmed !== epoch) {
+      throw new AIException(
+        'provider_unavailable',
+        'Refusing to confirm the AI response-cache purge: the idempotency epoch did not rotate ' +
+          'verifiably (the store did not read back the new value). Retry the purge.'
+      )
+    }
   }
 
   /**
@@ -219,6 +241,7 @@ function parseCachedResponse(raw: string): CachedAiResponse | null {
       return null
     }
     if (result.lastEventId !== undefined && typeof result.lastEventId !== 'string') return null
+    if (parsed.sessionToken !== undefined && typeof parsed.sessionToken !== 'string') return null
     return parsed as CachedAiResponse
   } catch {
     return null

@@ -34,6 +34,14 @@ const GUARDS = [
   'check-japa-thunk-contract.mjs',
   'check-bench-paths.mjs',
   'check-isthmus.mjs',
+  'check-satellite-migrations.mjs',
+  'check-ai-invariant-1.mjs',
+  'check-ai-invariant-2.mjs',
+  'check-ai-invariant-4.mjs',
+  'check-ai-invariant-5.mjs',
+  'check-ai-invariant-8.mjs',
+  'check-ai-no-prompt-logging-for-training.mjs',
+  'check-ai-no-provider-prompt-cache.mjs',
 ]
 
 const failed = []
