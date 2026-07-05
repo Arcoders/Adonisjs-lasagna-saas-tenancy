@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    # TEMP (WS-AI 1.0 branch review): run the full CI matrix on this feature
+    # branch so the whole suite is exercised on the branch before the single 1.0
+    # PR is opened. REVERT this extra branch entry before merging to master.
+    branches: [master, main, LASAGNA-020726/ws-ai-3-vector-store]
   pull_request:
     branches: [master, main]
 
@@ -706,7 +709,10 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        # pgvector image (drop-in superset of postgres:16) so the AI e2e that need
+        # the `vector` extension run here; the non-AI demo e2e are unaffected, and
+        # the AI e2e self-skip on any plain-postgres runner (WS-AI-8).
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: app
           POSTGRES_PASSWORD: app

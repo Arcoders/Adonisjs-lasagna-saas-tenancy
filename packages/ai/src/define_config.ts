@@ -2,6 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import type {
   MultitenancyConfig,
   TenantAccessAuthorizer,
+  TenantModelContract,
 } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
@@ -35,6 +36,189 @@ export interface AIProviderConfig {
 }
 
 /**
+ * The vector-store / embedding block (WS-AI-3). Present when a host opts into
+ * embeddings. It configures the single embedding provider (a generic
+ * OpenAI-compatible backend by default) plus the storage shape. `dimension` is
+ * baked into the `vector(N)` column at migrate time and validated to 1..2000 at
+ * boot. `maxEmbeddingTokens` is the per-chunk worst-case reserved against
+ * `aiTokens`. `authorizeIngestion` is the write gate (distinct from
+ * `authorizeAIAccess`), and the `*Max*` bounds cap one ingest request.
+ */
+export interface AIEmbeddingConfig extends AIProviderConfig {
+  /** The embedding provider name (a registered `AIEmbeddingProviderContract`). Default `'openai-compatible'`. */
+  provider?: AIProviderName
+  /** The vector dimension baked into the embeddings column. Default 1536; must be 1..2000. */
+  dimension?: number
+  /** Per-chunk worst-case token estimate reserved against `aiTokens`. Default 512. */
+  maxEmbeddingTokens?: number
+  /** Max characters per input chunk. A longer chunk is a 400 before any cost. */
+  maxChunkChars?: number
+  /** Max chunks in one ingest request. */
+  maxBatchChunks?: number
+  /** Max serialized bytes of a chunk's `metadata` object. */
+  maxMetadataBytes?: number
+  /**
+   * Max bytes of a document fetched by `sourceUrl` (through the SSRF-pinned
+   * fetch). The transfer is streamed and aborted the moment the running total
+   * crosses this cap, so the body is never fully buffered first. Default 1 MiB.
+   */
+  ingestionMaxBytes?: number
+  /**
+   * Request deadline in ms for a `sourceUrl` document fetch. A slow or hung
+   * upstream (past the SSRF pin) is aborted at this deadline rather than pinning
+   * an ingest worker. Default 10000.
+   */
+  ingestionTimeoutMs?: number
+  /**
+   * The write authorization gate: called before an ingest reserves or embeds
+   * anything. Return `false` or throw to deny with a 403 (`ingestion_denied`).
+   * Distinct from {@link AiConfig.authorizeAIAccess} (which gates "may this
+   * caller use AI at all"); this gates "may this caller write to the index".
+   */
+  authorizeIngestion?: TenantAccessAuthorizer
+}
+
+/**
+ * How a {@link RetrievalFilter} scopes a tenant's corpus to what THIS user may
+ * see (G2). A discriminated union so the intent is explicit and exhaustive:
+ * `all` is the whole tenant corpus, `sources` an allow-list over the provenance
+ * `source` key (an empty list is a valid "sees nothing"), `metadata` a jsonb
+ * containment match. Tenant isolation (I1/I4) is always enforced underneath this
+ * scope; it only narrows retrieval WITHIN the already tenant-scoped index.
+ */
+export type RetrievalScope =
+  | { readonly kind: 'all' }
+  | { readonly kind: 'sources'; readonly sources: readonly string[] }
+  | { readonly kind: 'metadata'; readonly match: Record<string, unknown> }
+
+/**
+ * The per-user document ACL hook (G2). Called with the request context and the
+ * resolved tenant, it returns the {@link RetrievalScope} a retrieval is narrowed
+ * to. Distinct from {@link AiConfig.authorizeAIAccess} ("may this caller use AI
+ * at all"): this answers "WHICH of the tenant's documents may this caller
+ * retrieve". A throw or an invalid return is fail-closed (403
+ * `retrieval_denied`). When the hook is ABSENT, retrieval is fail-closed too
+ * (every request is refused) UNLESS the host opts into the whole tenant corpus
+ * with {@link AiConfig.acknowledgeUnscopedRetrieval} (tenant isolation still
+ * holds); the `ai_retrieval_gate` doctor check and a boot warning keep that
+ * decision visible.
+ */
+export type RetrievalFilter = (
+  ctx: HttpContext,
+  tenant: TenantModelContract
+) => RetrievalScope | Promise<RetrievalScope>
+
+/**
+ * The retrieval (RAG) block (WS-AI-5), present when a host opts into similarity
+ * search over the vector store. `retrievalFilter` is the per-user document ACL
+ * (G2); the bounds cap a retrieval request and the size of a retrieved context
+ * block folded into a chat prompt (#8, output bounds). Retrieval reuses the
+ * embedding provider from {@link AIEmbeddingConfig} to embed the query, so
+ * `config.ai.embedding` must be present for retrieval to work.
+ */
+export interface AIRetrievalConfig {
+  /** The per-user document ACL (G2). Absent => the whole tenant corpus (a documented honest limit). */
+  retrievalFilter?: RetrievalFilter
+  /** Default number of nearest matches when a request omits one. Default 8. */
+  defaultLimit?: number
+  /** Hard cap on the number of matches one request may ask for. Default 50. */
+  maxLimit?: number
+  /** Max characters of the query text. A longer query is a 400 before any cost. Default 4000. */
+  maxQueryChars?: number
+  /** Max retrieved documents folded into one chat context block (#8). Default 8. */
+  maxContextItems?: number
+  /** Max characters of the fenced retrieved context block injected into a chat prompt (#8). Default 8000. */
+  maxContextChars?: number
+}
+
+/**
+ * The conversation memory block (WS-AI-4, I2), present when a host opts into
+ * per-(tenant,user,session) chat history. Memory is encrypted at rest (enc_v2,
+ * its own secret class), TTL-bounded in Redis, and replayed into the context as
+ * `user`/`assistant` turns (never `system`, so a poisoned turn cannot rewrite
+ * the instructions: #1/#10). Sessions are server-minted and HMAC-bound to the
+ * (tenant, {@link AiConfig.resolvePrincipal | principal}) pair, so a client
+ * cannot supply or guess one to reach another principal's memory (G6); the
+ * `X-Ai-Session` response header hands the token back on the first turn. Absent
+ * block ⇒ chat stays stateless and `sessionId` keeps its opaque idempotency-scope
+ * meaning. Requires a resolvable principal; without one the `ai_memory` doctor
+ * check warns and memory is inert.
+ */
+export interface AIMemoryConfig {
+  /** Prior exchanges (user+assistant pairs) replayed into a chat context; older ones are dropped. Default 20. Must be >= 1. */
+  maxTurns?: number
+  /** Character budget for the replayed memory block, folded within `maxPromptChars` (#8). Default 8000. */
+  maxChars?: number
+  /** Sliding TTL for a session's memory in ms, refreshed each turn. Default 86400000 (24h). */
+  ttlMs?: number
+}
+
+/**
+ * The append-only audit block (WS-AI-7, I5). Audit is ON by default when
+ * `config.ai` is present (attribution is a security control, so fail-closed):
+ * every chat / embedding / retrieval choke point writes a non-PII, hash-chained
+ * row into the append-only `backoffice.ai_audit_logs` table, and a write outage
+ * fails the request (503). A completed SSE stream cannot be un-sent, so a chat
+ * audit outage instead trips `guard.ai_audit_write_failed` and leaves a seq gap
+ * that `tenant:ai:audit:verify` reports. External WORM/SIEM anchoring reuses the
+ * kernel `AuditLogDestinationRegistry`, so it is wired the host way, not here.
+ */
+export interface AIAuditConfig {
+  /**
+   * Persist AI audit rows. Default true when `config.ai` is present. Setting it
+   * false disables the DB-backed audit entirely (the choke-point events fall back
+   * to the no-op sinks) and silences the `ai_audit` doctor check.
+   */
+  enabled?: boolean
+}
+
+/**
+ * A tenant's data-residency posture (#7 / #15), resolved per tenant. Either
+ * `local-only` (no remote egress: every provider and embedding backend whose
+ * effective endpoint is not loopback is refused) or an explicit per-tenant
+ * provider allow-list that narrows the global {@link AiConfig.allowedProviders}.
+ * A discriminated union so the intent is explicit and exhaustive.
+ */
+export type ResidencyPosture =
+  | { readonly mode: 'local-only' }
+  | { readonly allowedProviders: readonly AIProviderName[] }
+
+/**
+ * The per-tenant residency hook (#7 / #15), enforced at request time BEFORE any
+ * cost: on chat provider selection AND on embedding egress (embed / retrieve,
+ * which have no other provider choke point). It is fail-closed (mirrors
+ * {@link RetrievalFilter}): a throw or a malformed return refuses remote egress
+ * with a 403 `residency_denied`. Absent ⇒ residency is unconstrained (the global
+ * allow-list still applies). Provider identity is checked, not endpoint
+ * geography — a documented honest limit (a BYOK `baseUrl` is the host's to place).
+ */
+export type ResidencyResolver = (
+  tenant: TenantModelContract
+) => ResidencyPosture | Promise<ResidencyPosture>
+
+/**
+ * An optional host hook to redact or transform the model's streamed output, as
+ * host-owned defense-in-depth (a corporate DLP / PII-redaction policy, say).
+ * Called per streamed chat fragment AFTER the mandatory I8 size bound, with the
+ * request context, the resolved tenant, and the fragment's text; return the
+ * (possibly redacted) text, or `null` to abort the stream.
+ *
+ * It is **never the isolation control**: I4 (tenant-pure context) and I8 (output
+ * bound) are the guarantee. A redactor cannot detect a leak that I4 already makes
+ * impossible, and it does not substitute for tenant isolation. It is sync and
+ * per-fragment on purpose (async per-token DLP would kill streaming latency), so
+ * a pattern split across two fragments can be missed. A throwing or
+ * non-string-returning redactor fails closed (aborts the stream), so unredacted
+ * bytes are never emitted. The redacted bytes are what the client receives AND
+ * what is cached for idempotent replay and persisted to conversation memory.
+ */
+export type RedactOutput = (
+  ctx: HttpContext,
+  tenant: TenantModelContract,
+  chunk: string
+) => string | null
+
+/**
  * AI satellite config. Opt-in via `--with=ai` and declaring `config.ai`.
  * Provider-agnostic: allow-list the providers a tenant may use, fill in the
  * matching per-provider block, and pick a default. Every value is optional with
@@ -59,6 +243,12 @@ export interface AiConfig {
   deepseek?: AIProviderConfig
   /** Kimi / Moonshot (OpenAI-compatible) provider config. Required when `kimi` is allow-listed. */
   kimi?: AIProviderConfig
+  /** The vector store / embedding block (WS-AI-3). Present when the host opts into embeddings. */
+  embedding?: AIEmbeddingConfig
+  /** The retrieval / RAG block (WS-AI-5). Present when the host opts into similarity search over the vector store. */
+  retrieval?: AIRetrievalConfig
+  /** The conversation memory block (WS-AI-4). Present when the host opts into per-(tenant,user,session) chat history. */
+  memory?: AIMemoryConfig
   /** SSE heartbeat interval in ms. Default 15000. Must stay below any upstream proxy idle timeout. */
   heartbeatMs?: number
   /** Response deadline in ms for a streamed call. The composed abort fires at the deadline. */
@@ -87,6 +277,11 @@ export interface AiConfig {
    * with. Defaults to the host's `@adonisjs/auth` user id when present. A
    * request with no resolvable principal gets NO idempotency (a cached
    * response must never be shareable across unknown callers).
+   *
+   * MUST return a STABLE, immutable per-user id (a primary key, not a mutable
+   * email): idempotency, audit attribution AND conversation memory (WS-AI-4)
+   * all bind to it. A change correctly orphans that principal's memory (G6),
+   * bounded by the memory TTL, so a mutable value silently loses history.
    */
   resolvePrincipal?: (ctx: HttpContext) => string | number | null | undefined
   /**
@@ -101,6 +296,62 @@ export interface AiConfig {
    * a 400 before any reservation or provider call.
    */
   maxPromptChars?: number
+  /**
+   * Per-tenant, per-provider-key request rate limit (threat #4, denial of
+   * wallet). When set, each streamed request consumes one hit against
+   * `ext:ai:<op>:<tenant>:<keyFingerprint>`; over `limit` in `windowSeconds` is
+   * a 429, and a limiter-backend outage is a fail-closed 503. Absent leaves the
+   * `aiTokens` cost reserve as the only cap. This is a DIFFERENT rail from the
+   * per-plan `aiTokens` budget in `config.plans`: a request rate, not a token
+   * spend. A replay served from cache does not consume it.
+   */
+  rateLimit?: { limit: number; windowSeconds: number }
+  /**
+   * Explicit acknowledgement that the AI endpoint runs WITHOUT an `aiTokens`
+   * budget (no per-plan `limits.aiTokens` and no `plans.operatorCeiling.aiTokens`),
+   * so the kernel's cost reserve is inert and the endpoint is unmetered. Silences
+   * the boot warning; the `ai_budget` doctor check still reports the accepted
+   * risk. A dynamic per-tenant budget (via `plans.getPlan` / `tenant_plans`) is
+   * invisible to the static boot check and does not need this.
+   */
+  acknowledgeUnbudgetedAiTokens?: boolean
+  /**
+   * Opt into tenant-wide retrieval when no `config.ai.retrieval.retrievalFilter`
+   * (per-user document ACL, G2) is wired. Retrieval is fail-closed (mirrors the
+   * G4 mount gate): without a hook AND without this flag, every `/ai/retrieve` and
+   * RAG chat is refused with a 403 `retrieval_denied`. Setting this to `true`
+   * ENABLES retrieval and accepts that every user of a tenant can retrieve that
+   * tenant's ENTIRE corpus; the `ai_retrieval_gate` doctor check then reports the
+   * accepted posture (info) instead of the refused one (warn). Tenant isolation
+   * (I1/I4) is unaffected: this is about intra-tenant, per-user document
+   * authorization, which is the host's job.
+   */
+  acknowledgeUnscopedRetrieval?: boolean
+  /** The append-only audit block (WS-AI-7, I5). On by default; set `enabled: false` to opt out. */
+  audit?: AIAuditConfig
+  /**
+   * Per-tenant data residency / no-train posture (#7 / #15). When set, a request
+   * whose selected provider (chat) or embedding backend (embed / retrieve) is
+   * outside the tenant's posture is refused with a 403 `residency_denied` before
+   * any reservation. See {@link ResidencyResolver}.
+   */
+  residency?: ResidencyResolver
+  /**
+   * Optional host output-redaction hook (defense-in-depth, NEVER the isolation
+   * control). Redacts or aborts each streamed chat fragment after the mandatory
+   * output bound; the redacted bytes are what the client receives AND what is
+   * cached for idempotent replay and persisted to conversation memory. See
+   * {@link RedactOutput}.
+   */
+  redactOutput?: RedactOutput
+  /**
+   * Per-BATCH `statement_timeout` (ms) for the WS-AI-9 batched purge. Bounds a
+   * single lock-blocked or runaway delete batch so it fails cleanly and the loop
+   * retries; it is NOT a wall clock on the whole erasure (an erasure must run to
+   * completion). Default: the connection default (no per-batch timeout). Must be
+   * a positive integer <= 600000.
+   */
+  purgeStatementTimeoutMs?: number
 }
 
 /**

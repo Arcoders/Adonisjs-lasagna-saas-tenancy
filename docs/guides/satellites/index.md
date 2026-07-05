@@ -60,14 +60,16 @@ To build your own, see [Creating a satellite](/guides/cookbook/creating-a-satell
 
 <Callout type="note" title="Also documented in this section">
 [Backup](/guides/satellites/backup), [Admin](/guides/satellites/admin),
-[Reporting](/guides/satellites/reporting) and [AI](/guides/satellites/ai) appear in
+[Reporting](/guides/satellites/reporting), [AI](/guides/satellites/ai) and
+[AI security](/guides/satellites/ai-security) appear in
 this section's sidebar but aren't tenant-attached feature satellites like the ten
 above. Backup is an operational concern (`pg_dump` with retention tiers, shipped as
 `@adonisjs-lasagna/backup`); Admin is the shared REST surface the satellites expose,
 not a feature of its own; Reporting is the cross-tenant analytics layer that
 aggregates what the metrics pipeline writes into the backoffice schema; AI is the
 multi-provider streaming spine (`@adonisjs-lasagna/ai`) and ships no tenant table in
-this release. They live here because that's where you'll look for them.
+this release; AI security is that satellite's consolidated threat model and hardening
+checklist. They live here because that's where you'll look for them.
 </Callout>
 
 ## Cross-satellite invariants

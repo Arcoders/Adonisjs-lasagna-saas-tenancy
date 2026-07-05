@@ -216,4 +216,37 @@ export default {
     rollups: { enabled: true },
     cache: { invalidateOnFlush: true },
   },
+
+  // ─── AI satellite (@adonisjs-lasagna/ai) ─────────────────────────
+  // Fully offline in the demo: AppProvider registers a MockAIProvider (chat) and a
+  // MockEmbeddingProvider (embed/retrieve) so the AI e2e run with no network. The
+  // `dimension: 8` here is baked into the per-tenant `ai_embeddings vector(8)` column
+  // by the satellite migration and matches the mock's vectors. `retrievalFilter`
+  // returns the tenant-wide scope (isolation stays structural, per-tenant schema);
+  // `authorizeAIAccess` is open for the demo; `resolvePrincipal` reads `x-ai-user`.
+  // The AI routes are mounted under TenantGuard in start/routes.ts. `baseUrl` is an
+  // unreachable https placeholder: the mock override means it is never dialed. The
+  // AI e2e self-skip unless Postgres has the pgvector extension.
+  ai: {
+    allowedProviders: ['mock'],
+    defaultProvider: 'mock',
+    authorizeAIAccess: () => true,
+    resolvePrincipal: (ctx: any) => ctx.request.header('x-ai-user') ?? null,
+    rateLimit: { limit: 5, windowSeconds: 60 },
+    audit: { enabled: true },
+    embedding: {
+      provider: 'mock-embedding',
+      apiKey: 'demo-embeddings-key',
+      baseUrl: 'https://embeddings.invalid',
+      dimension: 8,
+      authorizeIngestion: () => true,
+    },
+    retrieval: { retrievalFilter: () => ({ kind: 'all' as const }) },
+    // A demo output-redaction (DLP) hook: strip anything shaped like an SSN from
+    // the model's streamed output. Host-owned defense-in-depth, NEVER the isolation
+    // control (I4/I8 remain the guarantee); the mandatory output bound still runs.
+    // Proven end to end by the ai_output_redaction e2e.
+    redactOutput: (_ctx: any, _tenant: any, chunk: string) =>
+      chunk.replace(/SSN-\d{3}-\d{2}-\d{4}/g, '[redacted]'),
+  },
 } as const

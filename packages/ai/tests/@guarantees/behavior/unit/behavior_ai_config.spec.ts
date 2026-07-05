@@ -250,3 +250,75 @@ test.group('assertAiConfig', () => {
     )
   })
 })
+
+test.group('assertAiConfig — the embedding block (WS-AI-3)', () => {
+  const withEmbedding = (embedding: Record<string, unknown>): AiConfig =>
+    ({ ...validClaudeOnly(), embedding }) as unknown as AiConfig
+
+  test('a valid embedding block passes', ({ assert }) => {
+    assert.doesNotThrow(() =>
+      assertAiConfig(
+        withEmbedding({
+          apiKey: 'sk-embed',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'text-embedding-3-small',
+          dimension: 1536,
+          maxEmbeddingTokens: 256,
+        })
+      )
+    )
+  })
+
+  test('an omitted embedding block still passes', ({ assert }) => {
+    assert.doesNotThrow(() => assertAiConfig(validClaudeOnly()))
+  })
+
+  test('requires an apiKey and a baseUrl', ({ assert }) => {
+    assert.throws(
+      () => assertAiConfig(withEmbedding({ baseUrl: 'https://api.openai.com/v1' })),
+      /config\.ai\.embedding\.apiKey must be a non-empty string/
+    )
+    assert.throws(
+      () => assertAiConfig(withEmbedding({ apiKey: 'k' })),
+      /config\.ai\.embedding\.baseUrl is required/
+    )
+  })
+
+  test('rejects a non-https baseUrl', ({ assert }) => {
+    assert.throws(
+      () => assertAiConfig(withEmbedding({ apiKey: 'k', baseUrl: 'http://api.openai.com/v1' })),
+      /config\.ai\.embedding\.baseUrl must be https/
+    )
+  })
+
+  test('rejects a dimension outside pgvector 1..2000', ({ assert }) => {
+    for (const dimension of [0, 2001, 1.5]) {
+      assert.throws(
+        () =>
+          assertAiConfig(
+            withEmbedding({ apiKey: 'k', baseUrl: 'https://x.example.com', dimension })
+          ),
+        /dimension must be an integer in 1\.\.2000/
+      )
+    }
+    assert.doesNotThrow(() =>
+      assertAiConfig(
+        withEmbedding({ apiKey: 'k', baseUrl: 'https://x.example.com', dimension: 2000 })
+      )
+    )
+  })
+
+  test('rejects a mistyped authorizeIngestion hook', ({ assert }) => {
+    assert.throws(
+      () =>
+        assertAiConfig(
+          withEmbedding({
+            apiKey: 'k',
+            baseUrl: 'https://x.example.com',
+            authorizeIngestion: 'yes',
+          })
+        ),
+      /authorizeIngestion, when set, must be a function/
+    )
+  })
+})

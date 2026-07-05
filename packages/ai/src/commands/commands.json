@@ -1,0 +1,92 @@
+{
+  "commands": [
+    {
+      "commandName": "tenant:ai:audit:verify",
+      "description": "Verify the append-only AI audit hash chain and report the first tamper (checksum / gap / prev-link)",
+      "help": "Suggested: run in a cron or a post-incident gate. `node ace tenant:ai:audit:verify --json || alert`",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "tenant",
+          "flagName": "tenant",
+          "required": false,
+          "type": "string",
+          "description": "Verify a single tenant (uuid); omit to verify every tenant"
+        },
+        {
+          "name": "json",
+          "flagName": "json",
+          "required": false,
+          "type": "boolean",
+          "description": "Emit a JSON result"
+        }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "ai_audit_verify.js"
+    },
+    {
+      "commandName": "tenant:ai:purge",
+      "description": "Erase a tenant, principal, or document AI data (memory + response cache + embeddings) for GDPR",
+      "help": "Scopes: --tenant <uuid> --force (all); --tenant <uuid> --principal <id> (one user); --tenant <uuid> --source <key> (one document). --dry-run previews and writes nothing.",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "tenant",
+          "flagName": "tenant",
+          "required": false,
+          "type": "string",
+          "description": "Tenant id (uuid) to purge (required)"
+        },
+        {
+          "name": "principal",
+          "flagName": "principal",
+          "required": false,
+          "type": "string",
+          "description": "Purge only this principal (per-user GDPR erasure: memory + their embeddings)"
+        },
+        {
+          "name": "source",
+          "flagName": "source",
+          "required": false,
+          "type": "string",
+          "description": "Purge only this document source key"
+        },
+        {
+          "name": "dryRun",
+          "flagName": "dry-run",
+          "required": false,
+          "type": "boolean",
+          "description": "Preview the counts and write nothing (no delete, no epoch bump)"
+        },
+        {
+          "name": "force",
+          "flagName": "force",
+          "required": false,
+          "type": "boolean",
+          "alias": "y",
+          "description": "Required for a full-tenant purge (skips the confirmation)"
+        },
+        {
+          "name": "verifyChain",
+          "flagName": "verify-chain",
+          "required": false,
+          "type": "boolean",
+          "description": "Also re-walk the full AI audit chain and record the result (O(n))"
+        },
+        {
+          "name": "actor",
+          "flagName": "actor",
+          "required": false,
+          "type": "string",
+          "description": "Operator identity recorded in the audit row (defaults to the OS user)"
+        }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_ai_purge.js"
+    }
+  ]
+}

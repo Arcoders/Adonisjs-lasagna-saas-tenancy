@@ -87,15 +87,22 @@ For hosts using the vector store (embeddings), the PostgreSQL `vector`
 extension must exist before any migration declares a `vector(N)` column.
 `CREATE EXTENSION` needs a privileged role, so it runs under a separate
 provisioning connection (`isolation.provisionConnectionName`), never the app's
-request-serving role.
+request-serving role. The extension is installed into a dedicated `extensions`
+schema, which `schema-pg` tenant connections append to their `search_path` after
+the tenant's own schema — so a bare `vector(N)` column and its operators resolve
+while `public` (which holds central-connection data) stays off the tenant path,
+keeping physical tenant isolation (I1) intact. A hand-rolled tenant model that
+registers its own connection must append that schema too (see the demo's
+`app/models/backoffice/tenant.ts`).
 
 | Command | What it does |
 |---|---|
-| `tenant:vector:provision` | Install the pgvector extension idempotently under the privileged provisioning connection. Dispatched by driver: once on the shared database for `schema-pg`/`rowscope-pg`, per tenant database for `database-pg` (honouring `--tenant`). Run it before any embeddings migration; it doubles as the backfill for existing databases. `--dry-run` previews. |
+| `tenant:vector:provision` | Install the pgvector extension idempotently, into the dedicated `extensions` schema, under the privileged provisioning connection. Dispatched by driver: once on the shared database for `schema-pg`/`rowscope-pg`, per tenant database for `database-pg` (honouring `--tenant`). Run it before any embeddings migration; it doubles as the backfill for existing databases. `--dry-run` previews. |
 
 The opt-in `pgvector_extension` doctor check verifies the app role is not a
-superuser and that the extension is present where embeddings live. Register it
-with `doctorService.register(pgvectorExtensionCheck)`, then it runs under
+superuser and that the extension is present in the `extensions` schema where
+embeddings resolve it. Register it with
+`doctorService.register(pgvectorExtensionCheck)`, then it runs under
 `tenant:doctor --check=pgvector_extension`.
 
 The requirement is **ordering, not locking**: provision before you migrate a
@@ -192,6 +199,16 @@ Available when `--with=reporting` is configured. Full reference in the
 | Command | What it does |
 |---|---|
 | `tenant:report:generate` | Generate and print a cross-tenant usage report. Flags: `--period=day\|week\|month`, `--since=<iso>`, `--until=<iso>`, `--top=<n>`, `--format=table\|json\|csv`, `--out=<file>`, `--extension=<name>` (run a registered report extension instead of the built-in). |
+
+## AI
+
+Available when `--with=ai` is configured. Full reference in the
+[AI satellite](/guides/satellites/ai#audit).
+
+| Command | What it does |
+|---|---|
+| `tenant:ai:audit:verify` | Re-walk the append-only AI audit hash chain and report the first tamper (a broken checksum, a `seq` gap, or a broken prev-link) that got past the DB triggers. Exit 1 on the first break, so it gates a cron or a post-incident check. Flags: `--tenant=<id>` (omit for all), `--json`. |
+| `tenant:ai:purge` | Erase a tenant's AI data for GDPR: conversation memory, the response-cache epoch, and embeddings. Scopes: `--tenant=<uuid> --force` (all), `--tenant=<uuid> --principal=<id>` (one user, Art.17), `--tenant=<uuid> --source=<key>` (one document). `--dry-run` previews the counts and writes nothing; `--verify-chain` also re-walks the audit chain; `--actor=<id>` sets the audited operator. The immutable, non-PII audit chain intentionally survives. |
 
 ## REPL
 

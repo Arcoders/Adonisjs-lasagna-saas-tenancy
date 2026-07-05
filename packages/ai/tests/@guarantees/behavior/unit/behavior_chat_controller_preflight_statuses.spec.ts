@@ -3,6 +3,7 @@ import { TenantAccessForbiddenException } from '@adonisjs-lasagna/saas-tenancy/e
 import AiChatController from '../../../../src/gateway/ai_chat_controller.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
 import TenantLivenessWatcher from '../../../../src/services/tenant_liveness_watcher.js'
+import AiRateLimiter from '../../../../src/services/ai_rate_limiter.js'
 import AiIdempotencyService, {
   deriveAiIdempotencyMacKey,
 } from '../../../../src/gateway/idempotency.js'
@@ -40,6 +41,7 @@ function buildController(deps: {
   quota?: FakeQuota
   breaker?: FakeBreaker
   provider?: AIProviderContract
+  rateLimiter?: AiRateLimiter
 }) {
   const { svc } = makeService(deps.quota ?? new FakeQuota(), deps.breaker ?? new FakeBreaker())
   const registry = new AIProviderRegistry()
@@ -54,6 +56,7 @@ function buildController(deps: {
       macKey: deriveAiIdempotencyMacKey('test-app-key'),
     }),
     liveness: new TenantLivenessWatcher(),
+    rateLimiter: deps.rateLimiter,
     config: { allowedProviders: ['claude'], authorizeAIAccess: () => true } as AiConfig,
   })
 }
@@ -164,6 +167,27 @@ test.group('chat controller pre-flight statuses', () => {
     assert.equal(responseFacade.sentStatus, 400)
     assert.deepEqual(responseFacade.sentBody, { error: 'byok_endpoint_blocked' })
     assert.isFalse(res.flushed)
+  })
+
+  test('a per-key rate-limit trip answers 429 before any reservation', async ({ assert }) => {
+    const quota = new FakeQuota()
+    quota.reserveError = new Error('reserve must not run when rate-limited')
+    const rateLimiter = new AiRateLimiter({
+      consume: async () => ({ count: 99 }),
+      policy: { limit: 1, windowSeconds: 60 },
+    })
+    const provider = new MockAIProvider({ name: 'claude', contractVersion: 1 })
+    const controller = buildController({ quota, rateLimiter, provider })
+    const { ctx, res, responseFacade } = fakeHttpContext({ tenant: fakeTenant, body: chatBody })
+
+    await controller.chat(ctx)
+
+    // The refusal is a HANDLED pre-flight 429 `{ error: 'rate_limited' }` (like the
+    // reserve/retrieval refusals), never an uncaught throw, and never streams.
+    assert.equal(responseFacade.sentStatus, 429)
+    assert.deepEqual(responseFacade.sentBody, { error: 'rate_limited' })
+    assert.isFalse(res.flushed)
+    assert.lengthOf(provider.calls, 0, 'the provider is never called when rate-limited')
   })
 
   test('a malformed body is a 400 invalid_request that never reaches reservation', async ({

@@ -27,6 +27,7 @@
   "dependencies": {
     "@adonisjs-lasagna/saas-tenancy": "*",
     "@adonisjs-lasagna/admin": "*",
+    "@adonisjs-lasagna/ai": "*",
     "@adonisjs-lasagna/billing": "*",
     "@adonisjs-lasagna/sso": "*",
     "@adonisjs-lasagna/backup": "*",

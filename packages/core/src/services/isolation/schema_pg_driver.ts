@@ -12,6 +12,7 @@ import type {
 } from './driver.js'
 import { emitIsthmusEvent } from '../../isthmus/audit.js'
 import { assertSafeIdentifier } from './identifier.js'
+import { PGVECTOR_EXTENSION_SCHEMA } from './pgvector.js'
 import { runTenantMigrations } from './tenant_migration_runner.js'
 import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
 import IsolationConfigException from '../../exceptions/isolation_config_exception.js'
@@ -174,9 +175,14 @@ export default class SchemaPgDriver implements ProvisionableDriver {
       )
     }
 
+    // The tenant's own schema stays FIRST (all tenant objects resolve there), with
+    // the shared pgvector `extensions` schema appended so a bare `vector(N)` column
+    // and operator class resolve without putting `public` (which holds central data)
+    // on the tenant path. The schema is absent for non-pgvector hosts; PostgreSQL
+    // silently ignores a non-existent schema in search_path, so this is a no-op there.
     db.manager.add(name, {
       ...template,
-      searchPath: [this.schemaName(tenant)],
+      searchPath: [this.schemaName(tenant), PGVECTOR_EXTENSION_SCHEMA],
     } as any)
 
     this.#lru.touch(name)

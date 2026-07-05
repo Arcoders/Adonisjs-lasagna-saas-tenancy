@@ -1,7 +1,8 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { TenantAccessForbiddenException } from '@adonisjs-lasagna/saas-tenancy/exceptions'
-import type { AiConfig } from '../define_config.js'
+import type { AiConfig, AIEmbeddingConfig, RetrievalScope } from '../define_config.js'
+import AIException from '../exceptions/ai_exception.js'
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 
 /**
@@ -77,4 +78,127 @@ export async function authorizeAiAccess(
     })
     throw new TenantAccessForbiddenException()
   }
+}
+
+/**
+ * The ingestion WRITE gate (WS-AI-3), distinct from {@link authorizeAiAccess}
+ * ("may this caller use AI at all"): it decides "may this caller WRITE to the
+ * tenant's vector index". Opt-in via `config.ai.embedding.authorizeIngestion`;
+ * when the hook is absent the write is allowed (the access gate already ran).
+ * When present and it returns falsy or throws, the embed is refused with a 403
+ * `ingestion_denied` and a `guard.ai_ingestion_denied` trip, before any
+ * reservation or provider call.
+ */
+export async function authorizeIngestion(
+  ctx: HttpContext,
+  tenant: TenantModelContract,
+  embedding: AIEmbeddingConfig | undefined
+): Promise<void> {
+  const hook = embedding?.authorizeIngestion
+  if (!hook) return
+
+  let allowed: unknown
+  try {
+    allowed = await hook(ctx, tenant)
+  } catch (error) {
+    emitAiGuardEvent('guard.ai_ingestion_denied', {
+      tenantId: tenant.id,
+      metadata: { reason: 'hook_error' },
+    })
+    throw new AIException(
+      'ingestion_denied',
+      'Refusing the ingest: not authorized to write embeddings',
+      {
+        cause: error,
+      }
+    )
+  }
+
+  if (!allowed) {
+    emitAiGuardEvent('guard.ai_ingestion_denied', {
+      tenantId: tenant.id,
+      metadata: { reason: 'denied' },
+    })
+    throw new AIException(
+      'ingestion_denied',
+      'Refusing the ingest: not authorized to write embeddings'
+    )
+  }
+}
+
+/**
+ * Resolve the retrieval scope (WS-AI-5, G2), the per-user document ACL applied
+ * to a similarity search. Mirrors {@link authorizeIngestion} but returns a
+ * {@link RetrievalScope} rather than void, because a document ACL answers "WHICH
+ * documents may this caller see", not a boolean "may they retrieve at all".
+ *
+ * Opt-in via `config.ai.retrieval.retrievalFilter`. Fail-closed (G2), mirroring
+ * the G4 mount gate: when NO hook is wired the retrieval is refused with a 403
+ * `retrieval_denied` and a `guard.ai_retrieval_denied` trip, UNLESS the host sets
+ * `config.ai.acknowledgeUnscopedRetrieval`, which opts into tenant-wide retrieval
+ * (`{ kind: 'all' }`; tenant isolation still holds, and the missing per-user ACL
+ * is a documented honest limit surfaced by the `ai_retrieval_gate` doctor check).
+ * When a hook IS wired and it throws or returns a shape that is not a valid scope,
+ * the retrieval is likewise refused, before any query embed or search: never a
+ * silent fallback to the whole corpus.
+ */
+export async function resolveRetrievalScope(
+  ctx: HttpContext,
+  tenant: TenantModelContract,
+  ai: AiConfig | undefined
+): Promise<RetrievalScope> {
+  const hook = ai?.retrieval?.retrievalFilter
+  if (!hook) {
+    if (ai?.acknowledgeUnscopedRetrieval === true) return { kind: 'all' }
+    emitAiGuardEvent('guard.ai_retrieval_denied', {
+      tenantId: tenant.id,
+      metadata: { reason: 'unscoped_unacknowledged' },
+    })
+    throw new AIException(
+      'retrieval_denied',
+      'Refusing the retrieval: no per-user document ACL (config.ai.retrieval.retrievalFilter) ' +
+        'is wired and config.ai.acknowledgeUnscopedRetrieval is not set'
+    )
+  }
+
+  let scope: unknown
+  try {
+    scope = await hook(ctx, tenant)
+  } catch (error) {
+    emitAiGuardEvent('guard.ai_retrieval_denied', {
+      tenantId: tenant.id,
+      metadata: { reason: 'hook_error' },
+    })
+    throw new AIException(
+      'retrieval_denied',
+      'Refusing the retrieval: the document ACL hook failed',
+      { cause: error }
+    )
+  }
+
+  if (!isRetrievalScope(scope)) {
+    emitAiGuardEvent('guard.ai_retrieval_denied', {
+      tenantId: tenant.id,
+      metadata: { reason: 'invalid_scope' },
+    })
+    throw new AIException(
+      'retrieval_denied',
+      'Refusing the retrieval: the document ACL hook returned an invalid scope'
+    )
+  }
+  return scope
+}
+
+/** Whether a value is a well-formed {@link RetrievalScope} (a wired hook must return one). */
+function isRetrievalScope(value: unknown): value is RetrievalScope {
+  if (typeof value !== 'object' || value === null) return false
+  const scope = value as { kind?: unknown; sources?: unknown; match?: unknown }
+  if (scope.kind === 'all') return true
+  if (scope.kind === 'sources') {
+    return Array.isArray(scope.sources) && scope.sources.every((s) => typeof s === 'string')
+  }
+  if (scope.kind === 'metadata') {
+    return typeof scope.match === 'object' && scope.match !== null && !Array.isArray(scope.match)
+  }
+  return false
 }

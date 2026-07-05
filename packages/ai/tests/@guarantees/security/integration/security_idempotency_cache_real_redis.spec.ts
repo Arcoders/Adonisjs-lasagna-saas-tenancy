@@ -41,6 +41,32 @@ test.group('idempotency cache on real Redis (integration)', (group) => {
     assert.isNull(await service.lookup(b), 'tenant B must never see tenant A entries')
   })
 
+  test('two principals in the same tenant with an identical key land in disjoint slots (T1)', async ({
+    assert,
+  }) => {
+    const tenantId = '11111111-1111-4111-8111-11111111e001'
+    const userA: AiIdempotencyScope = {
+      tenantId,
+      principal: 'user-A',
+      sessionId: 's1',
+      headerKey: 'retry-int-1',
+    }
+    const userB: AiIdempotencyScope = {
+      tenantId,
+      principal: 'user-B',
+      sessionId: 's1',
+      headerKey: 'retry-int-1',
+    }
+
+    await service.save(userA, completed)
+
+    assert.deepEqual(await service.lookup(userA), completed)
+    assert.isNull(
+      await service.lookup(userB),
+      "principal B must never read principal A's cached completion within the same tenant"
+    )
+  })
+
   test('the epoch bump invalidates on the real stack', async ({ assert }) => {
     const scope = scopeFor('11111111-1111-4111-8111-11111111c001')
     await service.save(scope, completed)

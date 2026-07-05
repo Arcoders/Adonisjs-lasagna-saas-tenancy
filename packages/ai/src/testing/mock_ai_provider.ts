@@ -18,6 +18,8 @@ export interface MockAIProviderOptions {
   streaming?: boolean
   /** When set, `verifyConfig()` rejects with this error. */
   verifyConfigError?: Error
+  /** A canned key fingerprint for the per-key rate limit. Default undefined (keyed by name). */
+  keyFingerprint?: string
 }
 
 /**
@@ -30,6 +32,7 @@ export default class MockAIProvider implements AIProviderContract {
   readonly name: AIProviderName
   readonly contractVersion?: number
   readonly capabilities: AICapabilities
+  readonly keyFingerprint?: string
 
   /** Every `stream()` call, in order, for assertions. */
   readonly calls: { request: AIStreamRequest }[] = []
@@ -41,6 +44,7 @@ export default class MockAIProvider implements AIProviderContract {
     this.name = opts.name ?? 'mock'
     this.contractVersion = opts.contractVersion
     this.capabilities = { streaming: opts.streaming ?? true }
+    this.keyFingerprint = opts.keyFingerprint
     this.#fragments = opts.fragments ?? [{ data: 'hello', tokens: 1 }]
     this.#verifyConfigError = opts.verifyConfigError
   }

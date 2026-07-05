@@ -25,4 +25,18 @@ test.group('ai doctor check registration (integration)', () => {
     assert.isUndefined(report!.error)
     assert.deepEqual(report!.issues, [], 'no config.ai means a healthy posture')
   })
+
+  test('boot registers ai_budget and a filtered doctor run executes it', async ({ assert }) => {
+    const provider = new AiProvider(app)
+    provider.register()
+    await provider.boot()
+
+    const doctor = await app.container.make(DoctorService)
+    const result = await doctor.run({ checks: ['ai_budget'], tenants: [] })
+
+    const report = result.reports.find((r) => r.check === 'ai_budget')
+    assert.isDefined(report, 'the budget check must be registered and runnable')
+    assert.isUndefined(report!.error)
+    assert.deepEqual(report!.issues, [], 'no config.ai means nothing to meter, a healthy posture')
+  })
 })

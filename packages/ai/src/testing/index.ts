@@ -1,3 +1,5 @@
 export { default as MockAIProvider } from './mock_ai_provider.js'
 export type { MockAIProviderOptions } from './mock_ai_provider.js'
-export { checkAIProviderConformance } from './conformance.js'
+export { default as MockEmbeddingProvider } from './mock_embedding_provider.js'
+export type { MockEmbeddingProviderOptions } from './mock_embedding_provider.js'
+export { checkAIProviderConformance, checkAIEmbeddingProviderConformance } from './conformance.js'

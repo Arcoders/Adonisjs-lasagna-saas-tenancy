@@ -2,6 +2,7 @@ import { test } from '@japa/runner'
 import {
   provisionVectorExtension,
   PGVECTOR_EXTENSION,
+  PGVECTOR_EXTENSION_SCHEMA,
 } from '../../../../src/services/isolation/vector_provisioning.js'
 import { setupTestConfig } from '../../../helpers/config.js'
 
@@ -75,9 +76,14 @@ test.group('provisionVectorExtension — dispatch by driver', (group) => {
     )
     assert.equal(summary.scope, 'central')
     assert.equal(summary.provisioned, 1)
-    assert.lengthOf(calls.rawQuery, 1)
-    assert.include(calls.rawQuery[0], `CREATE EXTENSION IF NOT EXISTS ${PGVECTOR_EXTENSION}`)
-    assert.include(calls.rawQuery[0], 'central:', 'runs on the provision (central) connection')
+    // Two statements: create the dedicated schema, then install the extension INTO it.
+    assert.lengthOf(calls.rawQuery, 2)
+    assert.include(calls.rawQuery[0], `CREATE SCHEMA IF NOT EXISTS ${PGVECTOR_EXTENSION_SCHEMA}`)
+    assert.include(
+      calls.rawQuery[1],
+      `CREATE EXTENSION IF NOT EXISTS ${PGVECTOR_EXTENSION} WITH SCHEMA ${PGVECTOR_EXTENSION_SCHEMA}`
+    )
+    assert.include(calls.rawQuery[1], 'central:', 'runs on the provision (central) connection')
   })
 
   test('rowscope-pg is also a single shared-database provision', async ({ assert }) => {
@@ -87,7 +93,7 @@ test.group('provisionVectorExtension — dispatch by driver', (group) => {
       { getDriver: driverOf('rowscope-pg'), getDb: async () => db }
     )
     assert.equal(summary.scope, 'central')
-    assert.lengthOf(calls.rawQuery, 1)
+    assert.lengthOf(calls.rawQuery, 2)
   })
 
   test('a dry run issues no DDL', async ({ assert }) => {
@@ -123,8 +129,13 @@ test.group('provisionVectorExtension — dispatch by driver', (group) => {
         calls.added.some((n) => n.includes('tenant_b'))
     )
     assert.deepEqual(calls.released, calls.added, 'every throwaway connection is released')
-    assert.lengthOf(calls.rawQuery, 2)
-    assert.include(calls.rawQuery[0], `CREATE EXTENSION IF NOT EXISTS ${PGVECTOR_EXTENSION}`)
+    // Two statements per tenant database: create the schema, then the extension.
+    assert.lengthOf(calls.rawQuery, 4)
+    assert.include(calls.rawQuery[0], `CREATE SCHEMA IF NOT EXISTS ${PGVECTOR_EXTENSION_SCHEMA}`)
+    assert.include(
+      calls.rawQuery[1],
+      `CREATE EXTENSION IF NOT EXISTS ${PGVECTOR_EXTENSION} WITH SCHEMA ${PGVECTOR_EXTENSION_SCHEMA}`
+    )
   })
 
   test('database-pg honours --tenant filtering', async ({ assert }) => {
