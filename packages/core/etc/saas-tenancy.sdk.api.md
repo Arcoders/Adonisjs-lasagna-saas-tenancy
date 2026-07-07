@@ -145,6 +145,8 @@ export interface SatelliteManifest {
     install?: string[];
     migrations?: string;
     name: string;
+    nativeAddons?: boolean;
+    permissions?: string[];
     perTenantMigrations?: string;
     provider?: string;
     requires?: string[];

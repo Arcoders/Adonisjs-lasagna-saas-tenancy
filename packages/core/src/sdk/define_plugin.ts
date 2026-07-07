@@ -5,6 +5,7 @@ import type { TenantMiddlewareEntry } from '../services/tenant_middleware_regist
 import type { CapabilityProvision } from '../services/capability_registry.js'
 import type { TenantRequestMacroSpec } from '../extensions/request.js'
 import { pluginName, type PluginName } from './brands.js'
+import type { PluginPermission } from './plugin_permissions.js'
 import { assertNever } from './assert_never.js'
 import { assertSatelliteApiCompatAtBoot } from './api_version.js'
 import { assertPluginApiCompatAtBoot } from './plugin_api_version.js'
@@ -53,6 +54,15 @@ export interface PluginSpec {
   readonly pluginApiVersion?: number
   /** npm package name, used only in human-facing ABI messages. Defaults to `name`. */
   readonly packageName?: string
+
+  /**
+   * Sensitive capabilities this plugin declares it needs, populated ONLY through
+   * the `permission.*` builders. Surfaced at install for operator consent (S1)
+   * and cross-checked against `package.json#lasagnaSatellite.permissions` by the
+   * `check-plugin-permissions` guard. Declaration is disclosure, not enforcement
+   * (see {@link PluginPermission}); it must stay coherent with the manifest.
+   */
+  readonly permissions?: readonly PluginPermission[]
 
   // --- Lote A seams (request-path) ---
   /** Tenant-access authorizers, appended to the fail-closed authorizer chain (SEAM-3). */

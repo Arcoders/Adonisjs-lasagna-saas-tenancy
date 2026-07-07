@@ -1,3 +1,5 @@
+import { parsePluginPermissions, serializePluginPermissions } from './plugin_permissions.js'
+
 /**
  * The declarative manifest a packaged satellite publishes under the
  * `"lasagnaSatellite"` key of its `package.json`. It is read at configure time
@@ -87,6 +89,23 @@ export interface SatelliteManifest {
 
   /** Docs URL printed alongside the install reminder. */
   docs?: string
+
+  /**
+   * Sensitive capabilities this satellite requests, in canonical wire form
+   * (`scheduler` · `data_change:users,orders` · `network:external` · `db:write`).
+   * `configure` shows these to the operator for explicit consent before wiring
+   * the satellite (S1). Must match the `definePlugin({ permissions })` the
+   * provider declares — the `check-plugin-permissions` guard fails on drift.
+   */
+  permissions?: string[]
+
+  /**
+   * Set by `configure`'s package-lock scan (or declared by the author) when the
+   * satellite pulls in native (`.node`) addons. A native addon evades the worker
+   * Permission Model, so such a satellite is treated as fully-trusted and must be
+   * installed with an explicit acknowledgement (S4b).
+   */
+  nativeAddons?: boolean
 }
 
 /** A declared dependency on another satellite package. */
@@ -267,6 +286,33 @@ export function readSatelliteManifest(
 
   if (typeof obj.configSnippet === 'string') manifest.configSnippet = obj.configSnippet
   if (typeof obj.docs === 'string') manifest.docs = obj.docs
+
+  if (obj.permissions !== undefined) {
+    if (Array.isArray(obj.permissions)) {
+      const wire = obj.permissions.filter((v): v is string => typeof v === 'string')
+      const parsed = parsePluginPermissions(wire, (dropped) =>
+        onWarn(
+          `[lasagna] ${pkgName}: "lasagnaSatellite.permissions" entry ${JSON.stringify(dropped)} ` +
+            `is not a recognized permission — dropping it`
+        )
+      )
+      // Store the CANONICAL wire form so a satellite that declares an equivalent
+      // but non-canonical string still matches the guard's spec-side comparison.
+      if (parsed.length > 0) manifest.permissions = serializePluginPermissions(parsed)
+    } else {
+      onWarn(`[lasagna] ${pkgName}: "lasagnaSatellite.permissions" must be an array — dropping it`)
+    }
+  }
+
+  if (obj.nativeAddons !== undefined) {
+    if (typeof obj.nativeAddons === 'boolean') {
+      manifest.nativeAddons = obj.nativeAddons
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: "lasagnaSatellite.nativeAddons" must be a boolean — dropping it`
+      )
+    }
+  }
 
   // Drop the explicit-undefined keys so the returned object is clean.
   for (const k of ['aliases', 'requires', 'env', 'install'] as const) {

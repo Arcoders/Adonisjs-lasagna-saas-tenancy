@@ -24,6 +24,7 @@ const PLUGIN_SURFACE_FILES = [
   'src/sdk/define_plugin.ts',
   'src/sdk/builders.ts',
   'src/sdk/brands.ts',
+  'src/sdk/plugin_permissions.ts',
   'src/sdk/assert_never.ts',
   'src/sdk/capabilities.ts',
   'src/sdk/plugin_api_version.ts',

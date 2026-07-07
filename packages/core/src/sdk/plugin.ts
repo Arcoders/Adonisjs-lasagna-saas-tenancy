@@ -50,14 +50,31 @@ export { assertNever } from './assert_never.js'
  * benign `ae-forgotten-export` note for it — do NOT "fix" it by exporting the
  * `unique symbol`, which would only widen the surface with an unusable primitive.
  */
-export { pluginName, authorizerName, middlewareName, macroName, capabilityKey } from './brands.js'
+export {
+  pluginName,
+  authorizerName,
+  middlewareName,
+  macroName,
+  capabilityKey,
+  modelName,
+} from './brands.js'
 export type {
   PluginName,
   AuthorizerName,
   MiddlewareName,
   MacroName,
   CapabilityKey,
+  ModelName,
 } from './brands.js'
+
+/**
+ * Declared plugin permissions (S1 install consent). Populate `definePlugin({
+ * permissions })` ONLY through the `permission.*` builders so the declared set
+ * stays well-formed and coherent with the manifest wire form the operator
+ * consents to. Declaration is disclosure, not enforcement (see the guide).
+ */
+export { permission } from './plugin_permissions.js'
+export type { PluginPermission } from './plugin_permissions.js'
 
 /** SEAM-3 — the tenant-access authorizer chain (fail-closed). */
 export { AUTHORIZER_CONTRACT_VERSION } from '../services/authorizer_registry.js'

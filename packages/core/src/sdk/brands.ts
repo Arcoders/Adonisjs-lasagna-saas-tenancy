@@ -32,6 +32,8 @@ export type MiddlewareName = Branded<'MiddlewareName'>
 export type MacroName = Branded<'MacroName'>
 /** A capability key in the `LasagnaCapabilities` registry (e.g. `email`, `search`). */
 export type CapabilityKey = Branded<'CapabilityKey'>
+/** A Lucid model / table identifier a plugin declares it observes (a `data_change` permission). */
+export type ModelName = Branded<'ModelName'>
 
 /**
  * The one sanctioned assertion site. Runs the identifier guard (which THROWS on
@@ -58,4 +60,7 @@ export function macroName(raw: string): MacroName {
 }
 export function capabilityKey(raw: string): CapabilityKey {
   return mint<'CapabilityKey'>(raw, 'capability key')
+}
+export function modelName(raw: string): ModelName {
+  return mint<'ModelName'>(raw, 'model name')
 }

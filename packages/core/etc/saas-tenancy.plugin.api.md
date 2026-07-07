@@ -110,6 +110,20 @@ export type MiddlewareName = Branded<'MiddlewareName'>;
 export function middlewareName(raw: string): MiddlewareName;
 
 // @public
+export type ModelName = Branded<'ModelName'>;
+
+// @public (undocumented)
+export function modelName(raw: string): ModelName;
+
+// @public
+export const permission: {
+    readonly scheduler: () => PluginPermission;
+    readonly dataChange: (...models: string[]) => PluginPermission;
+    readonly networkExternal: () => PluginPermission;
+    readonly dbWrite: () => PluginPermission;
+};
+
+// @public
 export const PLUGIN_API_CONTRACT_VERSION = 1;
 
 // @public
@@ -117,6 +131,18 @@ export type PluginName = Branded<'PluginName'>;
 
 // @public (undocumented)
 export function pluginName(raw: string): PluginName;
+
+// @public
+export type PluginPermission = {
+    readonly kind: 'scheduler';
+} | {
+    readonly kind: 'data_change';
+    readonly models: readonly ModelName[];
+} | {
+    readonly kind: 'network_external';
+} | {
+    readonly kind: 'db_write';
+};
 
 // @public
 export type PluginSection<T> = (app: ApplicationService) => T | Promise<T>;
@@ -131,6 +157,7 @@ export interface PluginSpec {
     readonly middleware?: PluginSection<readonly TenantMiddlewareEntry[]>;
     readonly name: string;
     readonly packageName?: string;
+    readonly permissions?: readonly PluginPermission[];
     readonly pluginApiVersion?: number;
     readonly provides?: PluginSection<readonly CapabilityProvision[]>;
     // (undocumented)
