@@ -15,6 +15,14 @@ export { definePlugin } from './define_plugin.js'
 export type { PluginSpec, PluginSection } from './define_plugin.js'
 
 /**
+ * The raw provider contract the facade compiles down to. `definePlugin` returns a
+ * `SatelliteProviderConstructor`, so both are re-exported here: an author can name
+ * the facade's return type, or hand-write the raw route as an escape hatch when a
+ * plugin needs more than the declarative surface.
+ */
+export type { SatelliteProviderContract, SatelliteProviderConstructor } from './contract.js'
+
+/**
  * Typed section builders (E8). The ergonomic way to author a seam entry: pass a
  * plain `name` + callback and the builder mints the branded name, stamps `kind`,
  * and defaults `contractVersion`. `authorizer()` / `middleware()` /
@@ -35,6 +43,12 @@ export { assertNever } from './assert_never.js'
  * Branded identifier types + their smart constructors. A branded value is proof
  * it passed `assertSafeIdentifier`; mint every name/key through these so a raw
  * string can never reach a Redis key, a `Symbol`, or DDL.
+ *
+ * The underlying `Branded<B>` helper stays deliberately un-exported: it is opaque
+ * (its brand is a private `unique symbol`), so consumers only ever name the
+ * concrete aliases below, never the helper. The api-extractor golden carries one
+ * benign `ae-forgotten-export` note for it — do NOT "fix" it by exporting the
+ * `unique symbol`, which would only widen the surface with an unusable primitive.
  */
 export { pluginName, authorizerName, middlewareName, macroName, capabilityKey } from './brands.js'
 export type {
@@ -52,6 +66,10 @@ export type {
   TenantAuthorizer,
   TenantAuthorizerEntry,
 } from '../services/authorizer_registry.js'
+/** The tenant a `TenantAuthorizer` receives (plus its status/metadata shapes) —
+ *  re-exported so an author can type a stand-alone authorize function outside the
+ *  inline builder. These are the same public tenant types the root barrel exports. */
+export type { TenantModelContract, TenantStatus, TenantMetadata } from '../types/contracts.js'
 
 /** SEAM-2 — route middleware injected into tenant/central/universal groups. */
 export { TENANT_MIDDLEWARE_CONTRACT_VERSION } from '../services/tenant_middleware_registry.js'

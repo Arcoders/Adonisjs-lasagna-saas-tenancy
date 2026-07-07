@@ -526,9 +526,10 @@ export interface ImpersonationStartResult {
 }
 
 // Warning: (ae-forgotten-export) The symbol "RouterLike" needs to be exported by the entry point index.d.ts
+// Warning: (ae-forgotten-export) The symbol "TenantMiddlewareRegistry" needs to be exported by the entry point index.d.ts
 //
 // @public
-export function installRouterMacros(routerInstance?: RouterLike): Promise<void>;
+export function installRouterMacros(routerInstance?: RouterLike, middlewareRegistry?: TenantMiddlewareRegistry): Promise<void>;
 
 // @public (undocumented)
 export function isEncrypted(value: string): boolean;
@@ -743,6 +744,7 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
     //
     // (undocumented)
     plans?: PlansConfig;
+    plugins?: PluginPlatformConfig;
     // (undocumented)
     queue: {
         tenantQueuePrefix: string;
@@ -784,6 +786,22 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
     tenantReadReplicas?: ReadReplicasConfig;
     // (undocumented)
     tenantSchemaPrefix: string;
+}
+
+// @public
+export function openV2WithKey(value: string, dek: Buffer): string;
+
+// @public
+export interface PluginLimitsConfig {
+    authorizerDeadlineMs?: number;
+    maxAuthorizers?: number;
+    maxCapabilities?: number;
+    maxMiddleware?: number;
+}
+
+// @public
+export interface PluginPlatformConfig {
+    limits?: PluginLimitsConfig;
 }
 
 // @public
@@ -987,6 +1005,9 @@ export interface SafeFetchOptions {
     timeoutMs?: number;
     trustedHost?: boolean;
 }
+
+// @public
+export function sealV2WithKey(plaintext: string, dek: Buffer, keyId: string): string;
 
 // @public
 export const SECRET_CLASS: {
@@ -1774,7 +1795,7 @@ export function writeSecret(plain: string, cls: SecretClass): string;
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "runForRequest" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "currentId" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "current" needs to be exported by the entry point index.d.ts
-// src/types/config.ts:567:5 - (ae-forgotten-export) The symbol "TenantAnonymizer" needs to be exported by the entry point index.d.ts
+// src/types/config.ts:608:5 - (ae-forgotten-export) The symbol "TenantAnonymizer" needs to be exported by the entry point index.d.ts
 
 // (No @packageDocumentation comment for this package)
 

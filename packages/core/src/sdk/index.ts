@@ -9,7 +9,7 @@
  *    `registerSatelliteInRcFile`, `printSatelliteManifest`, …) used by both
  *    core's `configure` and a satellite's own `adonisjs.configure` hook.
  */
-export type { SatelliteManifest, DiscoveredSatellite } from './manifest.js'
+export type { SatelliteManifest, SatelliteDependency, DiscoveredSatellite } from './manifest.js'
 export { readSatelliteManifest, isSafeRelativePath } from './manifest.js'
 
 export type { SatelliteProviderContract, SatelliteProviderConstructor } from './contract.js'

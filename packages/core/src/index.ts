@@ -33,6 +33,8 @@ export type {
   IsolationDriverChoice,
   RequestDataResolverConfig,
   RoutingConfig,
+  PluginPlatformConfig,
+  PluginLimitsConfig,
 } from './types/config.js'
 export { TENANT_REPOSITORY } from './types/contracts.js'
 export type {
