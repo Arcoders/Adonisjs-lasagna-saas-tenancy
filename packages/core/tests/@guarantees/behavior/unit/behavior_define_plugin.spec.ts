@@ -146,6 +146,42 @@ test.group('definePlugin — section wiring', () => {
       assert.equal(err.phase, 'boot')
     }
   })
+
+  // The whole lifecycle shares #runHook, but each phase must attribute its OWN
+  // phase so a deploy failure points at the right hook. A throwing hook is
+  // fail-closed: it aborts (never swallowed), wrapped in a PluginBootException
+  // carrying {plugin, phase}. Note register() runs the `bind` spec field but
+  // reports phase "register".
+  const LIFECYCLE = [
+    { field: 'bind', method: 'register', phase: 'register' },
+    { field: 'start', method: 'start', phase: 'start' },
+    { field: 'ready', method: 'ready', phase: 'ready' },
+    { field: 'shutdown', method: 'shutdown', phase: 'shutdown' },
+  ] as const
+
+  for (const { field, method, phase } of LIFECYCLE) {
+    test(`a throwing ${method}() hook → PluginBootException attributed to {plugin, "${phase}"}`, async ({
+      assert,
+    }) => {
+      const Plugin = definePlugin({
+        name: 'demo',
+        ...okApi,
+        [field]: () => {
+          throw new Error(`${phase} boom`)
+        },
+      })
+      const instance = new Plugin(makeApp(new AuthorizerRegistry())) as Lifecycle
+      try {
+        await instance[method]()
+        assert.fail(`${method}() should have thrown`)
+      } catch (err: any) {
+        assert.equal(err.code, 'E_PLUGIN_BOOT')
+        assert.equal(err.plugin, 'demo')
+        assert.equal(err.phase, phase)
+        assert.match(String(err.cause?.message), new RegExp(`${phase} boom`))
+      }
+    })
+  }
 })
 
 test.group('definePlugin — multi-seam dispatch', (group) => {
