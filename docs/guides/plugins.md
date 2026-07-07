@@ -143,6 +143,13 @@ full model.
 These are the four sections that attach code to the request path. A plugin uses
 only the ones it needs.
 
+Each seam has a typed **builder** — `authorizer()`, `middleware()`, `requestMacro()`,
+`defineCapability()` — and it is the recommended way to author an entry. The builder
+mints the branded name (rejecting an unsafe one at authoring time), stamps the `kind`
+discriminant, and defaults `contractVersion` to the SDK's current constant, so you
+write the fields that matter and nothing else. The raw discriminated object still
+works when you want full control.
+
 ### Authorizers (fail-closed)
 
 An authorizer appends to the tenant-access decision chain. It runs on every
@@ -153,8 +160,7 @@ tenant-scoped request after the tenant resolves, and it is **fail-closed**: any
 // providers/seat_limit_plugin.ts
 import {
   definePlugin,
-  authorizerName,
-  AUTHORIZER_CONTRACT_VERSION,
+  authorizer,
   LASAGNA_PLUGIN_API_VERSION,
 } from '@adonisjs-lasagna/saas-tenancy/plugin'
 import { withinSeatLimit } from '../src/seats.js'
@@ -165,22 +171,21 @@ export default definePlugin({
   pluginApiVersion: LASAGNA_PLUGIN_API_VERSION,
 
   authorizers: () => [
-    {
-      kind: 'authorizer',
-      name: authorizerName('seat_limit'),
-      contractVersion: AUTHORIZER_CONTRACT_VERSION,
+    authorizer({
+      name: 'seat_limit',
       order: 0, // ascending; ties break by registration order
       authorize: async (ctx, tenant) => {
         return (await withinSeatLimit(tenant))
           ? { allow: true }
           : { allow: false, reason: 'seat limit reached' }
       },
-    },
+    }),
   ],
 })
 ```
 
-`throw` is not part of the contract: the chain converts a thrown authorizer to a
+The `authorizer()` builder mints the branded `seat_limit` name and stamps the
+current `AUTHORIZER_CONTRACT_VERSION` for you. `throw` is not part of the contract: the chain converts a thrown authorizer to a
 deny internally, so an author's bug fails safe. A hung authorizer denies on a
 deadline (default one second, tunable via `plugins.limits.authorizerDeadlineMs`);
 it is a response deadline, not cancellation. Every fail-closed deny trips the
@@ -202,22 +207,20 @@ own `.use()` chain.
 
 ```ts
   middleware: () => [
-    {
-      kind: 'middleware',
-      name: middlewareName('request_id'),
+    middleware({
+      name: 'request_id',
       scope: 'tenant', // 'tenant' (default) | 'central' | 'universal'
-      contractVersion: TENANT_MIDDLEWARE_CONTRACT_VERSION,
       middleware: async (ctx, next) => {
         ctx.response.header('x-request-id', ctx.request.id())
         return next()
       },
-    },
+    }),
   ],
 ```
 
-`middlewareName` and `TENANT_MIDDLEWARE_CONTRACT_VERSION` come from the same
-`/plugin` import. The `middleware` value is either a bare `(ctx, next)` function or
-an object with a `handle(ctx, next)` method, matching the Adonis router's `.use()`.
+The `middleware()` builder comes from the same `/plugin` import. Its `middleware`
+value is either a bare `(ctx, next)` function or an object with a `handle(ctx, next)`
+method, matching the Adonis router's `.use()`.
 
 ### Request macros
 
@@ -227,12 +230,11 @@ symbol.
 
 ```ts
   requestMacros: () => [
-    {
-      kind: 'requestMacro',
-      name: macroName('locale'),
+    requestMacro({
+      name: 'locale',
       requireTenant: true, // fail closed if no tenant resolves
       resolve: (request) => request.header('accept-language') ?? 'en',
-    },
+    }),
   ],
 ```
 
@@ -249,15 +251,15 @@ if present" wiring; keep direct-import + `dependsOn` for hard dependencies.
 
 ```ts
   provides: () => [
-    {
-      kind: 'capability',
-      name: capabilityKey('email'),
-      contractVersion: CAPABILITY_CONTRACT_VERSION,
+    defineCapability({
+      name: 'email',
       api: { send: async (msg: EmailMessage) => { /* ... */ } },
-    },
+    }),
   ],
 ```
 
+`defineCapability({ name: 'email', api })` type-checks `api` against your augmented
+`email` capability when you augment `LasagnaCapabilities` (below).
 Providing is single-writer: two plugins providing the same key is a deploy-time
 `CapabilityCollisionException`, never last-writer-wins. A consumer resolves the
 registry and reads the key, degrading gracefully when it is absent:
@@ -321,8 +323,9 @@ One import path carries everything a plugin author needs:
 |---|---|---|
 | `definePlugin` | function | Build the provider from a spec. |
 | `PluginSpec`, `PluginSection` | types | The spec shape and its section signature. |
+| `authorizer`, `middleware`, `requestMacro`, `defineCapability` | functions | Typed section builders (the recommended way to author an entry). |
 | `LASAGNA_PLUGIN_API_VERSION` | const | The facade contract version to declare. |
-| `pluginName`, `authorizerName`, `middlewareName`, `macroName`, `capabilityKey` | functions | Mint a branded, identifier-safe name. |
+| `pluginName`, `authorizerName`, `middlewareName`, `macroName`, `capabilityKey` | functions | Mint a branded, identifier-safe name (the builders call these for you). |
 | `AUTHORIZER_CONTRACT_VERSION`, `TenantAuthorizerEntry`, `AuthorizerDecision` | const + types | The authorizer seam. |
 | `TENANT_MIDDLEWARE_CONTRACT_VERSION`, `TenantMiddlewareEntry`, `TenantMiddlewareScope` | const + types | The middleware seam. |
 | `TenantRequestMacroSpec` | type | The request-macro seam. |

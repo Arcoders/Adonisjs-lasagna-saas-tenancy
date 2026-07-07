@@ -14,6 +14,15 @@
 export { definePlugin } from './define_plugin.js'
 export type { PluginSpec, PluginSection } from './define_plugin.js'
 
+/**
+ * Typed section builders (E8). The ergonomic way to author a seam entry: pass a
+ * plain `name` + callback and the builder mints the branded name, stamps `kind`,
+ * and defaults `contractVersion`. `authorizer()` / `middleware()` /
+ * `requestMacro()` / `defineCapability()` replace hand-writing the raw
+ * discriminated object.
+ */
+export { authorizer, middleware, requestMacro, defineCapability } from './builders.js'
+
 export {
   PLUGIN_API_CONTRACT_VERSION,
   LASAGNA_PLUGIN_API_VERSION,

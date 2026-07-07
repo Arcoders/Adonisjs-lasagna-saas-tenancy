@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url'
 const PLUGIN_SURFACE_FILES = [
   'src/sdk/plugin.ts',
   'src/sdk/define_plugin.ts',
+  'src/sdk/builders.ts',
   'src/sdk/brands.ts',
   'src/sdk/assert_never.ts',
   'src/sdk/capabilities.ts',

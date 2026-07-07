@@ -47,6 +47,7 @@ export default [
     files: [
       'packages/core/src/sdk/plugin.ts',
       'packages/core/src/sdk/define_plugin.ts',
+      'packages/core/src/sdk/builders.ts',
       'packages/core/src/sdk/brands.ts',
       'packages/core/src/sdk/assert_never.ts',
       'packages/core/src/sdk/capabilities.ts',
