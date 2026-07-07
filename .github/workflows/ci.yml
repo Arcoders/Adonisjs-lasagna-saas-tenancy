@@ -471,6 +471,11 @@ jobs:
       # fixture's `rls_probe` connection picks these up.
       RLS_DB_USER: rls_ci
       RLS_DB_PASSWORD: rls_ci
+      # Least-privilege SELECT-only role for the S3 plugin read-only proof. The
+      # fixture's `plugin_ro` connection picks these up; the role is created below
+      # with `default_transaction_read_only = on` so a write is denied by Postgres.
+      PLUGIN_RO_DB_USER: plugin_ro
+      PLUGIN_RO_DB_PASSWORD: plugin_ro
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -562,6 +567,27 @@ jobs:
           END $$;
           GRANT CONNECT ON DATABASE multitenancy_test TO rls_ci;
           GRANT USAGE ON SCHEMA public TO rls_ci;
+          SQL
+
+      # Least-privilege SELECT-only role for the S3 read-only firewall proof. It
+      # is NOSUPERUSER NOBYPASSRLS and — the point — `default_transaction_read_only
+      # = on`, so a write is denied by Postgres even when the role is granted
+      # INSERT. The fixture's `plugin_ro` connection authenticates as it (via
+      # PLUGIN_RO_DB_USER/PLUGIN_RO_DB_PASSWORD); the proof self-skips when the
+      # connection resolves to a writable role (the local default).
+      - name: Create least-privilege plugin read-only role
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d multitenancy_test -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'plugin_ro') THEN
+              CREATE ROLE plugin_ro LOGIN PASSWORD 'plugin_ro' NOSUPERUSER NOBYPASSRLS;
+            END IF;
+          END $$;
+          GRANT CONNECT ON DATABASE multitenancy_test TO plugin_ro;
+          GRANT USAGE ON SCHEMA public TO plugin_ro;
+          ALTER ROLE plugin_ro SET default_transaction_read_only = on;
           SQL
 
       - name: Test (integration) + coverage

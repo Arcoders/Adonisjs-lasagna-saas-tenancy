@@ -76,5 +76,22 @@ export default defineConfig({
       pool: { min: 1, max: 1, idleTimeoutMillis: 10_000 },
       searchPath: ['public'],
     },
+    // SELECT-only role used ONLY by the S3 read-only firewall proof
+    // (security_plugin_read_only_role.spec.ts). Defaults to the main DB user (a
+    // writable superuser locally → the spec self-skips). CI sets PLUGIN_RO_DB_USER
+    // to a role with `default_transaction_read_only = on`, so a write is denied.
+    // Lazy pool (min: 0) so the role only connects when that spec runs.
+    plugin_ro: {
+      client: 'pg',
+      connection: {
+        host: env.get('DB_HOST'),
+        port: env.get('DB_PORT'),
+        user: process.env.PLUGIN_RO_DB_USER ?? env.get('DB_USER'),
+        password: process.env.PLUGIN_RO_DB_PASSWORD ?? env.get('DB_PASSWORD'),
+        database: env.get('DB_DATABASE'),
+      },
+      ...sharedPool,
+      searchPath: ['public'],
+    },
   },
 })
