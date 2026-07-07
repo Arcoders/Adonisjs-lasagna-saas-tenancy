@@ -78,6 +78,12 @@ export {
   DEFAULT_RESOLUTION_CACHE_MAX,
 } from './tenant_resolution_cache.js'
 export { default as HookRegistry } from './hook_registry.js'
+// The capability registry (plugin provide/consume seam). A plugin PROVIDES via a
+// `definePlugin({ provides })` section; a host or another plugin CONSUMES by
+// resolving this singleton and calling `.consume(key)`, typed through the
+// augmentable `LasagnaCapabilities` interface. The author-facing types + the
+// provide-side `CAPABILITY_CONTRACT_VERSION` live on the `/plugin` surface.
+export { default as CapabilityRegistry } from './capability_registry.js'
 export { default as BootstrapperRegistry } from './bootstrapper_registry.js'
 export type { BootstrapperContext, TenantBootstrapper } from './bootstrapper_registry.js'
 export {

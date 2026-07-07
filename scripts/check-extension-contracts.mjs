@@ -60,6 +60,23 @@ const SURFACES = [
     constant: 'RESOLVER_CONTRACT_VERSION',
     file: 'packages/core/src/services/resolvers/resolver.ts',
   },
+  // Plugin-platform request-path seams (Lote A): each hosts host/third-party code
+  // and versions independently of satelliteApi and the definePlugin facade.
+  {
+    key: 'authorizer',
+    constant: 'AUTHORIZER_CONTRACT_VERSION',
+    file: 'packages/core/src/services/authorizer_registry.ts',
+  },
+  {
+    key: 'tenant-middleware',
+    constant: 'TENANT_MIDDLEWARE_CONTRACT_VERSION',
+    file: 'packages/core/src/services/tenant_middleware_registry.ts',
+  },
+  {
+    key: 'capability',
+    constant: 'CAPABILITY_CONTRACT_VERSION',
+    file: 'packages/core/src/services/capability_registry.ts',
+  },
 ]
 
 const DOCS = 'docs/guides/extensibility.md'

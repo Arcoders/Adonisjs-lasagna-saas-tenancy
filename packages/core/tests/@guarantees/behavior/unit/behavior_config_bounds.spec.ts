@@ -103,6 +103,46 @@ test.group('assertConfigBounds()', () => {
     )
   })
 
+  test('rejects a zero/negative plugin surface cap', ({ assert }) => {
+    assert.throws(
+      () => assertConfigBounds(config({ plugins: { limits: { maxAuthorizers: 0 } } })),
+      /plugins\.limits\.maxAuthorizers must be >= 1, got 0/
+    )
+    assert.throws(
+      () => assertConfigBounds(config({ plugins: { limits: { maxMiddleware: -1 } } })),
+      /plugins\.limits\.maxMiddleware must be >= 1/
+    )
+    assert.throws(
+      () => assertConfigBounds(config({ plugins: { limits: { maxCapabilities: 0 } } })),
+      /plugins\.limits\.maxCapabilities must be >= 1/
+    )
+  })
+
+  test('rejects a plugin authorizer deadline below 1ms', ({ assert }) => {
+    assert.throws(
+      () => assertConfigBounds(config({ plugins: { limits: { authorizerDeadlineMs: 0 } } })),
+      /plugins\.limits\.authorizerDeadlineMs must be >= 1/
+    )
+  })
+
+  test('allows a valid plugins.limits block and an omitted one', ({ assert }) => {
+    assert.doesNotThrow(() =>
+      assertConfigBounds(
+        config({
+          plugins: {
+            limits: {
+              maxAuthorizers: 16,
+              maxMiddleware: 16,
+              maxCapabilities: 64,
+              authorizerDeadlineMs: 1000,
+            },
+          },
+        })
+      )
+    )
+    assert.doesNotThrow(() => assertConfigBounds(config({ plugins: {} })))
+  })
+
   test('rejects impersonation durations below the 60s floor', ({ assert }) => {
     assert.throws(
       () =>

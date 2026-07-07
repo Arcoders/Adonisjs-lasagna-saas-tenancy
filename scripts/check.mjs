@@ -34,6 +34,7 @@ const GUARDS = [
   'check-japa-thunk-contract.mjs',
   'check-bench-paths.mjs',
   'check-isthmus.mjs',
+  'check-no-silent-catch.mjs',
   'check-satellite-migrations.mjs',
   'check-ai-invariant-1.mjs',
   'check-ai-invariant-2.mjs',

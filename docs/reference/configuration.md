@@ -183,6 +183,37 @@ trusted local CLI diagnosis.
 | `onboarding.wizardTtl` / `onboarding.wizardKeyPrefix` | `number` / `string` |  | Cache TTL and key prefix for an onboarding-wizard flow, if your app uses one. |
 | `hooks` | `DeclarativeHooks` |  | Lifecycle callbacks (`beforeProvision`, `afterMigrate`, …). See [Hooks](/reference/hooks). |
 
+## Plugin platform
+
+Caps and tuning for the [plugin platform](/guides/plugins) (the `definePlugin`
+facade and its request-path seams). The whole block is optional; omit it to run
+the plugin surfaces uncapped with the default authorizer deadline.
+
+```ts
+plugins: {
+  limits: {
+    maxAuthorizers: 16,
+    maxMiddleware: 16,
+    maxCapabilities: 64,
+    authorizerDeadlineMs: 1000,
+  },
+}
+```
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `plugins.limits.maxAuthorizers` | `number` | unlimited | Cap on registered tenant-access authorizers. |
+| `plugins.limits.maxMiddleware` | `number` | unlimited | Cap on registered plugin route middleware. |
+| `plugins.limits.maxCapabilities` | `number` | unlimited | Cap on provided capabilities. |
+| `plugins.limits.authorizerDeadlineMs` | `number` | `1000` | Response deadline (ms) for a single plugin authorizer before it is treated as a DENY (fail-closed). A deadline, not cancellation. |
+
+The `max*` caps are **fail-closed and enforced once at boot**: after every plugin
+has registered, a surface whose count exceeds its cap aborts the deploy with a
+`PluginBootException`, so a runaway or hostile plugin can't quietly bloat the
+per-request chain. An omitted cap means unlimited (byte-identical to the pre-cap
+behavior). A cap of `0` (or a negative / non-finite value) is a config mistake and
+fails boot via the bounds check.
+
 ## Read replicas
 
 ```ts

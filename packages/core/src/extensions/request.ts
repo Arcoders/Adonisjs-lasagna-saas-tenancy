@@ -6,6 +6,8 @@ import type {
 } from '../types/contracts.js'
 import MissingTenantHeaderException from '../exceptions/missing_tenant_header_exception.js'
 import TenantNotFoundException from '../exceptions/tenant_not_found_exception.js'
+import RequestMacroCollisionException from '../exceptions/request_macro_collision_exception.js'
+import { macroName, type MacroName } from '../sdk/brands.js'
 import TenantSuspendedException from '../exceptions/tenant_suspended_exception.js'
 import DependencyUnavailableException from '../exceptions/dependency_unavailable_exception.js'
 import InvalidTenantIdentifierException from '../exceptions/invalid_tenant_identifier_exception.js'
@@ -420,4 +422,63 @@ function assertTenantActive(
   if (tenant.isDeleted || tenant.isSuspended) {
     throw new TenantSuspendedException()
   }
+}
+
+/**
+ * SEAM-4 — a plugin-registered `request.<name>()` macro. Discriminated by `kind`
+ * (E1). `name` is branded (minted via `macroName()`). `resolve` computes the
+ * value from the request; `requireTenant` fails closed if no tenant is resolved.
+ * Versioned under the umbrella ABI (no per-surface contract constant).
+ */
+export interface TenantRequestMacroSpec<T = unknown> {
+  readonly kind: 'requestMacro'
+  readonly name: MacroName
+  readonly resolve: (request: HttpRequest) => T | Promise<T>
+  readonly requireTenant?: boolean
+}
+
+/** Names a plugin macro has claimed, to detect collisions across plugins. */
+const registeredRequestMacros = new Map<string, symbol>()
+
+/**
+ * Install a `request.<name>()` macro that mirrors the built-in `tenant()` macro:
+ * memoized per-request under a private `Symbol` (so repeated reads don't
+ * recompute), fail-closed when `requireTenant` and no tenant resolves, and
+ * COLLISION-checked — a name already taken by `tenant()`, another plugin's macro,
+ * or an existing request property throws a {@link RequestMacroCollisionException}
+ * rather than silently shadowing. Called by the `definePlugin` facade for each
+ * `requestMacros` entry; also usable directly.
+ */
+export function registerTenantRequestMacro(spec: TenantRequestMacroSpec): void {
+  // Re-validate the slug (idempotent — a definePlugin entry already minted it, a
+  // direct caller may not have): it becomes a prototype property and a Symbol tag.
+  const name = macroName(spec.name)
+  const proto = HttpRequest.prototype as unknown as Record<string, unknown>
+  if (registeredRequestMacros.has(name) || typeof proto[name] === 'function') {
+    throw new RequestMacroCollisionException(
+      `request.${name}() is already defined; choose a unique macro name.`,
+      { plugin: name }
+    )
+  }
+
+  const memoKey = Symbol(`request_macro_${name}`)
+  registeredRequestMacros.set(name, memoKey)
+  ;(HttpRequest as any).macro(name, async function (this: HttpRequest) {
+    const self = this as unknown as Record<symbol, unknown>
+    // Presence check (not truthiness) so a macro legitimately resolving to a
+    // falsy/undefined value memoizes once instead of recomputing every read.
+    if (memoKey in self) return self[memoKey]
+    if (spec.requireTenant) await this.tenant()
+    const value = await spec.resolve(this)
+    self[memoKey] = value
+    return value
+  })
+}
+
+/** Test-only: remove every plugin-registered request macro so a suite does not
+ *  leak macros (or a collision) into the next. */
+export function __resetRequestMacrosForTests(): void {
+  const proto = HttpRequest.prototype as unknown as Record<string, unknown>
+  for (const [name] of registeredRequestMacros) delete proto[name]
+  registeredRequestMacros.clear()
 }

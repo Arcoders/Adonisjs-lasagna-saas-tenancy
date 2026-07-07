@@ -2,6 +2,7 @@ import type { ApplicationService } from '@adonisjs/core/types'
 import { Database } from '@adonisjs/lucid/database'
 import { setConfig } from '../config.js'
 import { assertConfigBounds } from './assert_config_bounds.js'
+import { assertPluginLimits } from './assert_plugin_limits.js'
 import { resolutionSafetyAudit } from './resolution_safety.js'
 import { assertRowScopeRlsPresent, probeRlsCatalog } from '../services/isolation/rls_boot_probe.js'
 import type { MultitenancyConfig } from '../types/config.js'
@@ -43,6 +44,9 @@ import AuditLogService from '../services/audit_log_service.js'
 import AuditLogDestinationRegistry from '../services/audit_log_destination_registry.js'
 import EvaluationStrategyRegistry from '../services/evaluation_strategy_registry.js'
 import WebhookTransformerRegistry from '../services/webhook_transformer_registry.js'
+import AuthorizerRegistry from '../services/authorizer_registry.js'
+import TenantMiddlewareRegistry from '../services/tenant_middleware_registry.js'
+import CapabilityRegistry from '../services/capability_registry.js'
 // Billing (service, listeners, jobs, webhook route, drain) moved to
 // `@adonisjs-lasagna/billing`; its own provider wires those against core
 // events/hooks. The core provider no longer references billing.
@@ -85,6 +89,14 @@ export default class MultitenancyProvider {
     )
     this.app.container.singleton(EvaluationStrategyRegistry, () => new EvaluationStrategyRegistry())
     this.app.container.singleton(WebhookTransformerRegistry, () => new WebhookTransformerRegistry())
+    // Plugin-platform registries (host/plugin-populated, Map-backed). Singletons
+    // so a plugin's boot-time registrations are visible where core consumes them:
+    // the authorizer chain in TenantGuardMiddleware, the middleware registry when
+    // installRouterMacros pre-resolves each scope, the capability registry at
+    // consume time.
+    this.app.container.singleton(AuthorizerRegistry, () => new AuthorizerRegistry())
+    this.app.container.singleton(TenantMiddlewareRegistry, () => new TenantMiddlewareRegistry())
+    this.app.container.singleton(CapabilityRegistry, () => new CapabilityRegistry())
     this.app.container.singleton(ImpersonationService, async (resolver) => {
       const auditLog = await resolver.make(AuditLogService)
       return new ImpersonationService({ auditLog })
@@ -362,6 +374,23 @@ export default class MultitenancyProvider {
     // letting the first tenant query fail with a generic "no active driver".
     const drivers = await this.app.container.make(IsolationDriverRegistry)
     assertConfiguredDriverRegistered(drivers, config.isolation?.driver ?? 'schema-pg')
+
+    // Fail-closed cap enforcement for the plugin request-path surfaces. Runs here,
+    // in start(), because every provider's boot() has completed — so a plugin's
+    // authorizer/middleware/capability registrations are final and countable. A
+    // surface over its configured cap aborts the deploy (PluginBootException); an
+    // omitted cap is unlimited. No-op unless a host sets `plugins.limits`.
+    const [authorizers, middleware, capabilities] = await Promise.all([
+      this.app.container.make(AuthorizerRegistry),
+      this.app.container.make(TenantMiddlewareRegistry),
+      this.app.container.make(CapabilityRegistry),
+    ])
+    assertPluginLimits(config.plugins?.limits, {
+      authorizers: authorizers.list().length,
+      middleware: middleware.list().length,
+      capabilities: capabilities.list().length,
+    })
+
     if (config.routing?.autoLoad !== false) {
       await autoLoadScopedRouteFiles(this.app, {
         tenantRoutesFile: config.routing?.tenantRoutesFile,

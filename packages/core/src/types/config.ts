@@ -376,6 +376,41 @@ export interface ResilienceConfig {
   observe?: boolean
 }
 
+/**
+ * Static, fail-closed caps on the plugin request-path surfaces, plus the
+ * authorizer response deadline. The caps are enforced once at boot (in the
+ * provider's `start()`, after every plugin has registered): a surface whose
+ * registered count exceeds its cap aborts the deploy, so a runaway or hostile
+ * plugin cannot exhaust the request path. Every field is optional; an omitted
+ * cap means UNLIMITED — byte-identical to the pre-cap behavior.
+ */
+export interface PluginLimitsConfig {
+  /** Max tenant-access authorizers the chain may register. Omitted → unlimited. */
+  maxAuthorizers?: number
+  /** Max plugin-injected route middleware entries. Omitted → unlimited. */
+  maxMiddleware?: number
+  /** Max capabilities provided into the capability registry. Omitted → unlimited. */
+  maxCapabilities?: number
+  /**
+   * Response deadline (ms) for a SINGLE plugin authorizer before it is treated as
+   * a DENY (fail-closed) — a hung authorizer must not hang the request. This is a
+   * DEADLINE, not cancellation: a non-cooperative authorizer keeps running in the
+   * background while the caller is unblocked with a 403. Default `1000`.
+   */
+  authorizerDeadlineMs?: number
+}
+
+/**
+ * Optional configuration for the plugin platform (the `definePlugin` facade and
+ * its request-path seams). Omit the whole block to run uncapped with the default
+ * authorizer deadline. Grows additively as later lotes land their seams (the
+ * scheduler and data-change tunables attach here under their own sub-blocks).
+ */
+export interface PluginPlatformConfig {
+  /** Fail-closed caps + authorizer deadline for the request-path surfaces. */
+  limits?: PluginLimitsConfig
+}
+
 export interface MultitenancyConfig extends SatelliteConfigRegistry {
   backofficeSchemaName: string
   backofficeConnectionName: string
@@ -552,6 +587,12 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
     wizardKeyPrefix: string
   }
   hooks?: DeclarativeHooks
+  /**
+   * Optional caps and tuning for the plugin platform (the `definePlugin` facade
+   * and its request-path seams). See {@link PluginPlatformConfig}. Omit entirely
+   * to run the plugin surfaces uncapped with the default authorizer deadline.
+   */
+  plugins?: PluginPlatformConfig
   softDelete?: {
     /**
      * Days a soft-deleted tenant's schema is preserved before

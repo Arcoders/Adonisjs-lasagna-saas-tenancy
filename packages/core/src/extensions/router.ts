@@ -5,6 +5,7 @@ import type { Router, RouteGroup } from '@adonisjs/http-server'
 import TenantGuardMiddleware from '../middleware/tenant_guard_middleware.js'
 import CentralOnlyMiddleware from '../middleware/central_only_middleware.js'
 import UniversalMiddleware from '../middleware/universal_middleware.js'
+import TenantMiddlewareRegistry from '../services/tenant_middleware_registry.js'
 
 /**
  * Callback handed to `router.tenant() / router.central() / router.universal()`.
@@ -54,11 +55,23 @@ interface RouterLike {
  * appropriate middleware. They return the underlying RouteGroup so callers
  * can chain `.prefix()`, `.use()`, `.where()`, etc.
  *
+ * SEAM-2: plugin middleware registered in a satellite's `boot()` is stacked onto
+ * each scope group AFTER the core scope middleware (so `request.tenant()` is
+ * already resolved when it runs) and BEFORE the host's own `.use()` chain. The
+ * registry is pre-resolved ONCE here (start() runs after every boot(), so it is
+ * complete) and the closures capture the ordered instances per scope.
+ *
  * @param routerInstance - Override for the router (test seam). Defaults to
  *   the global `@adonisjs/core/services/router` singleton, which requires
  *   the Adonis app to be booted.
+ * @param middlewareRegistry - Override for the plugin middleware registry (test
+ *   seam). Defaults to the container singleton; if unavailable, no plugin
+ *   middleware is stacked (byte-identical to the pre-seam behavior).
  */
-export async function installRouterMacros(routerInstance?: RouterLike): Promise<void> {
+export async function installRouterMacros(
+  routerInstance?: RouterLike,
+  middlewareRegistry?: TenantMiddlewareRegistry
+): Promise<void> {
   if (installed) return
   installed = true
 
@@ -66,22 +79,42 @@ export async function installRouterMacros(routerInstance?: RouterLike): Promise<
     routerInstance ??
     ((await import('@adonisjs/core/services/router')).default as unknown as RouterLike)
 
+  const registry = middlewareRegistry ?? (await resolveMiddlewareRegistry())
+  const tenantMw = registry?.resolve('tenant') ?? []
+  const centralMw = registry?.resolve('central') ?? []
+  const universalMw = registry?.resolve('universal') ?? []
+
   if (typeof r.tenant !== 'function') {
     r.tenant = function (callback: RouteScopeCallback) {
-      return r.group(callback).use([new TenantGuardMiddleware()] as any)
+      return r.group(callback).use([new TenantGuardMiddleware(), ...tenantMw] as any)
     }
   }
 
   if (typeof r.central !== 'function') {
     r.central = function (callback: RouteScopeCallback) {
-      return r.group(callback).use([new CentralOnlyMiddleware()] as any)
+      return r.group(callback).use([new CentralOnlyMiddleware(), ...centralMw] as any)
     }
   }
 
   if (typeof r.universal !== 'function') {
     r.universal = function (callback: RouteScopeCallback) {
-      return r.group(callback).use([new UniversalMiddleware()] as any)
+      return r.group(callback).use([new UniversalMiddleware(), ...universalMw] as any)
     }
+  }
+}
+
+/**
+ * Best-effort resolve of the plugin middleware registry from the container.
+ * Returns undefined if the app is not booted / the binding is missing, so the
+ * router macros still install (with no plugin middleware). The app import is lazy
+ * because this runs at start() (booted), never at module load.
+ */
+async function resolveMiddlewareRegistry(): Promise<TenantMiddlewareRegistry | undefined> {
+  try {
+    const app = (await import('@adonisjs/core/services/app')).default
+    return await app.container.make(TenantMiddlewareRegistry)
+  } catch {
+    return undefined
   }
 }
 

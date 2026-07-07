@@ -34,4 +34,36 @@ export default [
       '@unicorn/no-await-expression-member': 'off',
     },
   },
+  {
+    // E1 rigor, scoped to the `/plugin` public surface (the plan's "superficie
+    // /plugin a prueba de balas"). A repo-wide ban would break existing code, so
+    // it is LOCAL to these files and enforced like every other invariant. The
+    // compiler-flag leg (a scoped tsconfig with exactOptionalPropertyTypes /
+    // noImplicitOverride) is deliberately NOT used: those flags leak into
+    // transitively-imported shared files and conflict with the repo's exception
+    // conventions. no-explicit-any + no-non-null-assertion scope cleanly per-file;
+    // the closed `switch (entry.kind)` + assertNever already gives compile-time
+    // exhaustiveness, and plugin_type_safety.spec.ts is the lexical backstop.
+    files: [
+      'packages/core/src/sdk/plugin.ts',
+      'packages/core/src/sdk/define_plugin.ts',
+      'packages/core/src/sdk/brands.ts',
+      'packages/core/src/sdk/assert_never.ts',
+      'packages/core/src/sdk/capabilities.ts',
+      'packages/core/src/sdk/plugin_api_version.ts',
+      'packages/core/src/services/authorizer_registry.ts',
+      'packages/core/src/services/tenant_middleware_registry.ts',
+      'packages/core/src/services/capability_registry.ts',
+      'packages/core/src/exceptions/plugin_exception.ts',
+      'packages/core/src/exceptions/plugin_authorizer_exception.ts',
+      'packages/core/src/exceptions/plugin_boot_exception.ts',
+      'packages/core/src/exceptions/plugin_middleware_exception.ts',
+      'packages/core/src/exceptions/request_macro_collision_exception.ts',
+      'packages/core/src/exceptions/capability_collision_exception.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-non-null-assertion': 'error',
+    },
+  },
 ]

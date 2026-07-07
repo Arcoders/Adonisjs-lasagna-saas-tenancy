@@ -57,7 +57,8 @@
     "./commands": "./build/src/commands/main.js",
     "./testing": "./build/src/testing/index.js",
     "./health": "./build/src/health/index.js",
-    "./sdk": "./build/src/sdk/index.js"
+    "./sdk": "./build/src/sdk/index.js",
+    "./plugin": "./build/src/sdk/plugin.js"
   },
   "typesVersions": {
     "*": {
@@ -126,6 +127,9 @@
       ],
       "sdk": [
         "./build/src/sdk/index.d.ts"
+      ],
+      "plugin": [
+        "./build/src/sdk/plugin.d.ts"
       ]
     }
   },

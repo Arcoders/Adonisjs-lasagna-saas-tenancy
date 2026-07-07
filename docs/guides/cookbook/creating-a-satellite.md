@@ -126,38 +126,50 @@ surface, and versioned independently of core's published version.
 - you **omit** it: it warns that compatibility is unverified.
 
 Set it to the value of `SATELLITE_API_VERSION` you developed against (today, `1`).
-You can also assert it at runtime in your provider's `boot()` via
-`checkSatelliteApiCompat(...)` from `/sdk`.
+The `definePlugin` facade asserts it at runtime for you from the `satelliteApi`
+field; a hand-written provider calls `assertSatelliteApiCompatAtBoot(...)` from
+`/sdk` itself in `boot()`.
 
 ## The provider
 
+Author the provider with the [`definePlugin` facade](/guides/plugins): declare what
+the satellite adds and the facade wires the ABI backstops and the request-path
+seams for you. This is the shape the reference template ships.
+
 ```ts
 // providers/my_provider.ts
-import type { ApplicationService } from '@adonisjs/core/types'
+import { definePlugin, LASAGNA_PLUGIN_API_VERSION } from '@adonisjs-lasagna/saas-tenancy/plugin'
 import { HookRegistry } from '@adonisjs-lasagna/saas-tenancy/services'
-import type { SatelliteProviderContract } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import MyService from '../src/my_service.js'
 
-export default class MyProvider implements SatelliteProviderContract {
-  constructor(protected app: ApplicationService) {}
+export default definePlugin({
+  name: 'my-feature',
+  satelliteApi: 1,
+  pluginApiVersion: LASAGNA_PLUGIN_API_VERSION,
 
-  register() {
-    this.app.container.singleton(MyService, () => new MyService())
-  }
+  bind(app) {
+    app.container.singleton(MyService, () => new MyService())
+  },
 
-  async start() {
-    const hooks = await this.app.container.make(HookRegistry)
+  async start(app) {
+    const hooks = await app.container.make(HookRegistry)
     hooks.before('destroy', async (ctx) => {
-      const service = await this.app.container.make(MyService)
+      const service = await app.container.make(MyService)
       await service.deleteForTenant(ctx.tenant.id)
     })
-  }
-}
+  },
+})
 ```
 
-Every lifecycle method (`register`, `boot`, `start`, `ready`, `shutdown`) is
-optional. Resolve core services with `app.container.make(...)`; never `new` a
-core service yourself.
+Every hook (`bind`, `boot`, `start`, `ready`, `shutdown`) is optional. Resolve core
+services with `app.container.make(...)`; never `new` a core service yourself. The
+facade runs the `satelliteApi` boot-time assert for you (the ABI declared above),
+so a satellite gets the runtime compatibility backstop with no boilerplate.
+
+Reach for a raw `implements SatelliteProviderContract` class only when you need
+lifecycle control the spec does not model. See
+[Building a plugin](/guides/plugins) for the full facade reference, including the
+authorizer, middleware, request-macro, and capability seams.
 
 ## Migrations
 

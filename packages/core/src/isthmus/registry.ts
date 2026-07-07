@@ -76,6 +76,22 @@ export const ISTHMUS_REGISTRY = [
     nextReview: '2027-01-02',
   },
   {
+    id: 'guard.plugin_authorizer',
+    pillar: 'guard',
+    bugClass: 'authorizer-fail-open',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:plugin_authorizer:denied',
+    severity: 'high',
+    evidence: {
+      kind: 'inherent-risk',
+      ref: 'a plugin authorizer that THROWS must be treated as a DENY (fail-closed); a swallowed throw would open tenant access to a caller the chain meant to reject',
+    },
+    guardFile: 'src/services/authorizer_registry.ts',
+    reviewed: '2026-07-07',
+    nextReview: '2027-01-07',
+  },
+  {
     id: 'guard.redirect_host',
     pillar: 'guard',
     bugClass: 'open-redirect',

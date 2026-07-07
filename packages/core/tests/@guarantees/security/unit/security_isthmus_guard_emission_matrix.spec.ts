@@ -213,6 +213,12 @@ const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
     trip: () => new WebhookService().registerWebhook(UUID, 'http://insecure.example/hook', ['e']),
     expectThrow: /refusing to register an unsafe webhook url/i,
   },
+  // Emits on a fail-closed DENY (a `return`, not a throw), so the in-file
+  // trip-then-throw model does not apply; the authorizer spec captures the emit
+  // via snapshotIsthmusCounters on the throw/timeout path.
+  'guard.plugin_authorizer': {
+    viaIntegration: 'tests/@guarantees/security/unit/security_authorizer_chain_fail_closed.spec.ts',
+  },
   'seal.scope_required': {
     trip: () => {
       const hooks = makeScopedModel()
