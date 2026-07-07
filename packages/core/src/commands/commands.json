@@ -521,6 +521,17 @@
       "args": [],
       "options": { "startApp": true },
       "filePath": "tenant_compliance_report.js"
+    },
+    {
+      "commandName": "lasagna:health-check",
+      "description": "Supply-chain health check: npm audit of the dependency tree plus install-script and native-addon risk flags for installed satellites",
+      "help": "",
+      "namespace": "lasagna",
+      "aliases": [],
+      "flags": [],
+      "args": [],
+      "options": { "startApp": false },
+      "filePath": "health_check.js"
     }
   ],
   "version": 1

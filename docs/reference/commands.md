@@ -49,6 +49,18 @@ is installed and its provider + commands are wired in `adonisrc.ts`.
 | `tenant:secrets:reencrypt` | The full secret migration. Brings every stored secret (webhook signing secrets, SSO client secrets) to the current `APP_KEY` and its per-class context, covering both plaintext-era values and values still under the older shared context. Two axes in one idempotent pass: set `OLD_APP_KEY` (env only, never a flag) to also rotate the key, or leave it unset for a context-only migration. Mandatory before upgrading for any host that stores these secrets, since a legacy-context value now fails closed. Supports `--dry-run`. Ships in core. See the [security guide](/guides/security). |
 | `tenant:webhooks:encrypt-secrets` | Narrower one-time helper: encrypt any PLAINTEXT webhook signing secrets at rest. It does not re-encrypt already-encrypted secrets under their per-class context, so it is superseded by `tenant:secrets:reencrypt` for the upgrade. Idempotent, supports `--dry-run`. |
 
+## Supply chain
+
+`lasagna:health-check` audits the app's supply chain: it runs `npm audit` over the
+dependency tree and flags each installed satellite that ships a native addon (not
+sandboxable by the worker Permission Model) or an install lifecycle script (the
+vector `--ignore-scripts` blocks). It exits non-zero on a high or critical
+advisory, so it doubles as a CI gate.
+
+```bash
+node ace lasagna:health-check
+```
+
 ## Doctor
 
 `tenant:doctor` is the operational health command. Nine built-in
