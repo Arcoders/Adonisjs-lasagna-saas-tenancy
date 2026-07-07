@@ -35,6 +35,7 @@ export type {
   RoutingConfig,
   PluginPlatformConfig,
   PluginLimitsConfig,
+  PluginReadOnlyConfig,
 } from './types/config.js'
 export { TENANT_REPOSITORY } from './types/contracts.js'
 export type {

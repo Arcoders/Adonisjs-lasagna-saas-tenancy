@@ -14,6 +14,11 @@ import type IsolationDriverRegistry from '../../services/isolation/registry.js'
 import type TenantResolverRegistry from '../../services/resolvers/registry.js'
 import { resolveIsolationKind } from '../base/isolation_kind.js'
 import { tenancy } from '../../tenancy.js'
+import { pluginScope } from '../../services/plugin_execution_scope.js'
+import {
+  buildReadOnlyConnectionConfig,
+  READ_ONLY_CONNECTION_SUFFIX,
+} from '../../services/plugin_read_only_connection.js'
 import DefaultLucidAdapter from './default_lucid_adapter.js'
 
 /** Per-request memo for the ContextSeal's HTTP-side comparand (see #requestComparandId). */
@@ -87,6 +92,28 @@ export default class TenantAdapter extends DefaultLucidAdapter {
           `tenancy.run(tenant, fn) in jobs, scripts, and custom commands.`
       )
     }
+    // Untrusted-plugin read-only routing (S3, the Postgres-enforced firewall):
+    // when UNTRUSTED plugin code is on the stack and a read-only role is
+    // configured, route this query to a connection cloned from the tenant's own
+    // (same database/schema) but authenticated as the SELECT-only role, so a write
+    // is denied by Postgres — not a JS proxy. The clone is synchronous: the
+    // primary is registered (asserted above), so its config is available now.
+    const readOnly = getConfig().plugins?.readOnly
+    if (readOnly && pluginScope.untrustedActive() && manager && typeof manager.has === 'function') {
+      const roName = `${name}${READ_ONLY_CONNECTION_SUFFIX}`
+      if (typeof manager.add === 'function' && !manager.has(roName)) {
+        const primaryConfig = manager.get?.(name)?.config
+        if (primaryConfig) {
+          manager.add(roName, buildReadOnlyConnectionConfig(primaryConfig, readOnly))
+        }
+      }
+      if (manager.has(roName)) {
+        const roClient = this.db.connection(roName)
+        driver.enforce(roClient, tenantId)
+        return roClient
+      }
+    }
+
     // Give the driver a chance to apply its tenant boundary to the resolved
     // client (a no-op for connection-isolated drivers; the explicit contract
     // point for row-scoping ones). See IsolationDriver.enforce.

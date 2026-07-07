@@ -409,6 +409,28 @@ export interface PluginLimitsConfig {
 export interface PluginPlatformConfig {
   /** Fail-closed caps + authorizer deadline for the request-path surfaces. */
   limits?: PluginLimitsConfig
+  /** Opt-in read-only DB connection untrusted plugin code is routed to (S3). */
+  readOnly?: PluginReadOnlyConfig
+}
+
+/**
+ * Credentials for the least-privilege, SELECT-only Postgres role that UNTRUSTED
+ * plugin code runs under (S3, the real firewall). When set, the tenant adapter
+ * routes every query made inside an untrusted plugin execution scope to a
+ * connection cloned from the tenant's own (same database/schema/search_path) but
+ * authenticated as this role, so Postgres — not a JS proxy — denies a write.
+ *
+ * The role MUST be provisioned `NOSUPERUSER NOBYPASSRLS` with no write grants (or
+ * `ALTER ROLE ... SET default_transaction_read_only = on`); otherwise the denial
+ * the adapter relies on does not fire. A plugin is "untrusted" unless it is on the
+ * `TRUSTED_SATELLITES` allowlist (S5). Omit the block to disable the read-only
+ * route (all plugins then share the app role — in-process friction only).
+ */
+export interface PluginReadOnlyConfig {
+  /** The read-only role's database user. */
+  user: string
+  /** The read-only role's password. Falls back to the tenant connection's password. */
+  password?: string
 }
 
 export interface MultitenancyConfig extends SatelliteConfigRegistry {

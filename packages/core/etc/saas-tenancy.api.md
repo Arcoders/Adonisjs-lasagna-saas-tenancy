@@ -802,6 +802,13 @@ export interface PluginLimitsConfig {
 // @public
 export interface PluginPlatformConfig {
     limits?: PluginLimitsConfig;
+    readOnly?: PluginReadOnlyConfig;
+}
+
+// @public
+export interface PluginReadOnlyConfig {
+    password?: string;
+    user: string;
 }
 
 // @public
@@ -1795,7 +1802,7 @@ export function writeSecret(plain: string, cls: SecretClass): string;
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "runForRequest" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "currentId" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "current" needs to be exported by the entry point index.d.ts
-// src/types/config.ts:608:5 - (ae-forgotten-export) The symbol "TenantAnonymizer" needs to be exported by the entry point index.d.ts
+// src/types/config.ts:630:5 - (ae-forgotten-export) The symbol "TenantAnonymizer" needs to be exported by the entry point index.d.ts
 
 // (No @packageDocumentation comment for this package)
 
