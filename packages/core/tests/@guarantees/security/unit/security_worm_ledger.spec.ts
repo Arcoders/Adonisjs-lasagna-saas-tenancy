@@ -36,10 +36,11 @@ class FakeWormLedger {
           return { rows: tail ? [{ seq: tail.seq, checksum: tail.checksum }] : [] }
         }
         if (sql.includes('INSERT INTO')) {
-          const row: Record<string, unknown> = {}
-          WORM_LEDGER_COLUMNS.forEach((col, i) => (row[col] = bindings[i]))
-          if (typeof row.metadata === 'string') row.metadata = JSON.parse(row.metadata as string)
-          self.rows.push(row)
+          const insertedRow: Record<string, unknown> = {}
+          WORM_LEDGER_COLUMNS.forEach((col, i) => (insertedRow[col] = bindings[i]))
+          if (typeof insertedRow.metadata === 'string')
+            insertedRow.metadata = JSON.parse(insertedRow.metadata as string)
+          self.rows.push(insertedRow)
           return { rows: [] }
         }
         if (sql.includes('ORDER BY tenant_id')) {
