@@ -26,6 +26,7 @@ const GUARDS = [
   'check-billing-provider-neutral.mjs',
   'check-billing-driver-name-canonical.mjs',
   'check-abi-boot-assertion.mjs',
+  'check-plugin-permissions.mjs',
   'check-satellite-config-wiring.mjs',
   'check-peer-ranges.mjs',
   'check-publish-coverage.mjs',

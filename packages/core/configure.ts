@@ -10,6 +10,7 @@ import {
   publishSatellite,
   registerSatelliteInRcFile,
   printSatelliteManifest,
+  describePluginPermissions,
 } from './src/sdk/configure_kit.js'
 import { SATELLITE_API_VERSION, checkSatelliteApiCompat } from './src/sdk/api_version.js'
 import { resolveSatelliteDependencies } from './src/sdk/dependencies.js'
@@ -197,6 +198,31 @@ export function partitionSatellitesByApiCompat(
   }
 
   return { accepted, refused, warnings }
+}
+
+/**
+ * Fail-closed install consent (S1): a satellite that declares permissions is only
+ * published if the operator grants them. `--accept-permissions` (or
+ * `LASAGNA_ACCEPT_PERMISSIONS=1`) grants non-interactively for CI; otherwise, on a
+ * TTY, the operator is shown the concrete capabilities and prompted. A
+ * non-interactive run WITHOUT the flag is a refusal, so a piped install can never
+ * silently accept a plugin's sensitive capabilities.
+ */
+async function permissionsGranted(
+  command: Configure,
+  satellite: DiscoveredSatellite,
+  permissions: readonly string[],
+  flags: Record<string, unknown>
+): Promise<boolean> {
+  if (flags['accept-permissions'] === true || process.env.LASAGNA_ACCEPT_PERMISSIONS === '1') {
+    return true
+  }
+  if (!process.stdout.isTTY) return false
+  command.logger.warning(`${satellite.manifest.name} requests these permissions:`)
+  for (const line of describePluginPermissions(permissions)) command.logger.log(`  - ${line}`)
+  return command.prompt.confirm(`Grant ${satellite.manifest.name} the permissions above?`, {
+    default: false,
+  })
 }
 
 export default async function configure(command: Configure) {
@@ -412,6 +438,17 @@ export default async function configure(command: Configure) {
   // itself, so a satellite always sees the files an earlier one in this loop
   // just wrote (and namespaces its own).
   for (const sat of selectedExternal) {
+    const permissions = sat.manifest.permissions
+    if (permissions && permissions.length > 0) {
+      if (!(await permissionsGranted(command, sat, permissions, flags))) {
+        command.logger.warning(
+          `skipping ${sat.packageName}: it requests permissions that were not granted. ` +
+            `Re-run with --accept-permissions (or set LASAGNA_ACCEPT_PERMISSIONS=1 in CI) to accept.`
+        )
+        ;(command as any).exitCode = 1
+        continue
+      }
+    }
     const { published, skipped } = await publishSatellite(codemods, sat, migrationsDir)
     if (skipped.length > 0) {
       command.logger.info(

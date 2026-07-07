@@ -9,6 +9,7 @@ import {
   type PluginPermission,
 } from '../../../../src/sdk/plugin_permissions.js'
 import { readSatelliteManifest } from '../../../../src/sdk/manifest.js'
+import { describePluginPermissions } from '../../../../src/sdk/configure_kit.js'
 
 /**
  * The plugin permission model is the S1 install-consent contract: what a plugin
@@ -151,5 +152,24 @@ test.group('plugin permissions — manifest integration', () => {
     )
     assert.isUndefined(manifest?.nativeAddons)
     assert.isTrue(warnings.some((w) => w.includes('must be a boolean')))
+  })
+})
+
+test.group('plugin permissions — install-consent display', () => {
+  test('describePluginPermissions turns wire strings into concrete human lines', ({ assert }) => {
+    const lines = describePluginPermissions([
+      'scheduler',
+      'db:write',
+      'network:external',
+      'data_change:users,orders',
+    ])
+    assert.isTrue(lines[0].startsWith('scheduler —'))
+    assert.isTrue(lines[1].includes('writes to the tenant database'))
+    assert.isTrue(lines[2].includes('outbound calls'))
+    assert.isTrue(lines[3].includes('users, orders'))
+  })
+
+  test('an unrecognized wire string passes through verbatim (forward-compatible)', ({ assert }) => {
+    assert.deepEqual(describePluginPermissions(['future:capability']), ['future:capability'])
   })
 })
