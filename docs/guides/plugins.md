@@ -315,6 +315,60 @@ is optional and defaults to unlimited, so a host that omits the block is
 unaffected. See the [configuration reference](/reference/configuration#plugin-platform)
 for the full table.
 
+## Declaring permissions
+
+A plugin declares the sensitive capabilities it needs so the operator consents to
+them at install. Populate `permissions` through the `permission.*` builders:
+
+```ts
+import { definePlugin, permission, LASAGNA_PLUGIN_API_VERSION } from '@adonisjs-lasagna/saas-tenancy/plugin'
+
+export default definePlugin({
+  name: 'search',
+  satelliteApi: 1,
+  pluginApiVersion: LASAGNA_PLUGIN_API_VERSION,
+  permissions: [
+    permission.dataChange('User', 'Order'), // reindex on writes to these models
+    permission.networkExternal(),           // ship documents to a search cluster
+  ],
+})
+```
+
+The same set must appear in the package manifest, in canonical wire form, so
+`configure` can read it without importing the plugin:
+
+```json
+// package.json
+"lasagnaSatellite": {
+  "name": "search",
+  "permissions": ["data_change:User,Order", "network:external"]
+}
+```
+
+The `check-plugin-permissions` gate fails the build if the two drift, so the set
+the operator consents to always matches the code.
+
+At install, `configure` shows the requested capabilities and asks for consent.
+Consent is fail-closed: on a non-interactive install (CI, a piped command) the
+satellite is SKIPPED unless you pass `--accept-permissions` (or set
+`LASAGNA_ACCEPT_PERMISSIONS=1`), so a scripted install can never silently accept a
+plugin's sensitive capabilities.
+
+| Builder | Wire form | Capability |
+|---|---|---|
+| `permission.scheduler()` | `scheduler` | Registers background scheduled jobs. |
+| `permission.dataChange(...models)` | `data_change:User,Order` | Observes writes on the named models. |
+| `permission.networkExternal()` | `network:external` | Outbound calls to hosts outside the cluster. |
+| `permission.dbWrite()` | `db:write` | Writes to the tenant database (only effective for a trusted plugin). |
+
+<Callout type="warning" title="Declaration is disclosure, not a sandbox">
+Declaring `db:write` does not grant a write, and declaring nothing does not block
+one. Permissions make the install honest so the operator sees what a plugin
+intends to do. The real containment is enforced elsewhere: an untrusted plugin is
+routed to a read-only database connection regardless of what it declares, and
+outbound traffic is bounded by the worker network policy.
+</Callout>
+
 ## The `/plugin` import surface
 
 One import path carries everything a plugin author needs:
@@ -324,6 +378,8 @@ One import path carries everything a plugin author needs:
 | `definePlugin` | function | Build the provider from a spec. |
 | `PluginSpec`, `PluginSection` | types | The spec shape and its section signature. |
 | `authorizer`, `middleware`, `requestMacro`, `defineCapability` | functions | Typed section builders (the recommended way to author an entry). |
+| `permission` | object | The permission builders (`permission.scheduler()`, `.dataChange(...)`, `.networkExternal()`, `.dbWrite()`). |
+| `PluginPermission`, `ModelName`, `modelName` | types + function | The permission union and the model-name brand. |
 | `LASAGNA_PLUGIN_API_VERSION` | const | The facade contract version to declare. |
 | `pluginName`, `authorizerName`, `middlewareName`, `macroName`, `capabilityKey` | functions | Mint a branded, identifier-safe name (the builders call these for you). |
 | `AUTHORIZER_CONTRACT_VERSION`, `TenantAuthorizerEntry`, `AuthorizerDecision` | const + types | The authorizer seam. |
