@@ -2,10 +2,11 @@ name: CI
 
 on:
   push:
-    # TEMP (WS-AI 1.0 branch review): run the full CI matrix on this feature
-    # branch so the whole suite is exercised on the branch before the single 1.0
-    # PR is opened. REVERT this extra branch entry before merging to master.
-    branches: [master, main, LASAGNA-020726/ws-ai-3-vector-store]
+    # TEMP (plugin-platform A→S→B→C branch review): run the full CI matrix on the
+    # crypto-satellite branch so the whole plugin-platform stack is exercised on the
+    # branch before merging. REVERT this extra branch entry (crypto-satellite) before
+    # merging to master. (The ws-ai-3 entry is a stale leftover from an earlier review.)
+    branches: [master, main, LASAGNA-020726/ws-ai-3-vector-store, LASAGNA-040726/crypto-satellite]
   pull_request:
     branches: [master, main]
 
