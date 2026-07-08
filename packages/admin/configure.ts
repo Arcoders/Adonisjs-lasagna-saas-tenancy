@@ -2,19 +2,28 @@ import type Configure from '@adonisjs/core/commands/configure'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readFile } from 'node:fs/promises'
-import { printSatelliteManifest, readSatelliteManifest } from '@adonisjs-lasagna/saas-tenancy/sdk'
+import {
+  printSatelliteManifest,
+  readSatelliteManifest,
+  registerSatelliteInRcFile,
+} from '@adonisjs-lasagna/saas-tenancy/sdk'
 
 /**
- * `node ace configure @adonisjs-lasagna/admin` is guidance-only by design.
+ * `node ace configure @adonisjs-lasagna/admin` registers the backstop provider and
+ * is otherwise guidance-only by design.
  *
- * Admin ships no provider, no commands and no migrations. It is mounted by
- * calling `multitenancyAdminRoutes()` inside the host's `start/routes.ts`, and
- * that call carries a required auth middleware and an optional actor resolver
- * whose correct values only the host knows. A codemod cannot safely edit a
- * routes file or guess the host's auth middleware, so this hook never mutates
- * the host. It reads its own manifest, prints the install reminder, and prints
- * the exact mount snippet plus the fail-closed and CSRF reminders for the host
- * to paste. Same honest pattern as `tenant:satellite:remove`.
+ * Admin ships a minimal `definePlugin` provider whose only job is the runtime ABI +
+ * plugin-API backstop (it binds no seams). Registering a provider in `adonisrc.ts`
+ * is a safe, idempotent codemod, so this hook wires it — that is what makes every
+ * satellite in the fleet assert the plugin contract uniformly at boot.
+ *
+ * Everything else stays guidance-only: the admin API is mounted by calling
+ * `multitenancyAdminRoutes()` inside the host's `start/routes.ts`, and that call
+ * carries a required auth middleware and an optional actor resolver whose correct
+ * values only the host knows. A codemod cannot safely edit a routes file or guess
+ * the host's auth middleware, so this hook never mutates the routes. It prints the
+ * exact mount snippet plus the fail-closed and CSRF reminders for the host to
+ * paste. Same honest pattern as `tenant:satellite:remove`.
  */
 export default async function configure(command: Configure) {
   // build/configure.js -> package root is one level up from build/.
@@ -26,6 +35,11 @@ export default async function configure(command: Configure) {
     command.exitCode = 1
     return
   }
+
+  // Register the backstop provider in adonisrc.ts (idempotent). This is the only
+  // host file this hook mutates — the routes stay a printed reminder below.
+  const codemods = await command.createCodemods()
+  await registerSatelliteInRcFile(codemods, manifest)
 
   printSatelliteManifest(command.logger, manifest)
 

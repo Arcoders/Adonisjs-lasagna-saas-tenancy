@@ -44,8 +44,11 @@ test.group('satellite — real package manifests round-trip', () => {
     assert.isNotNull(manifest)
     assert.equal(manifest!.name, 'sso')
     assert.include(manifest!.aliases ?? [], 'sso')
-    // sso ships no provider/commands.
-    assert.isUndefined(manifest!.provider)
+    // sso now ships a minimal definePlugin backstop provider (asserts ABI +
+    // plugin-API at boot); it still ships no commands.
+    assert.equal(manifest!.provider, '@adonisjs-lasagna/sso/provider')
+    assert.equal(manifest!.pluginApiVersion, 1)
+    assert.isUndefined(manifest!.commands)
     const files = await readdir(join(root, manifest!.migrations!))
     assert.include(files, 'create_tenant_sso_configs_table.stub')
   })

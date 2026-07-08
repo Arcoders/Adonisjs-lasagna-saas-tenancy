@@ -252,6 +252,21 @@ test.group('BillingProvider.boot — billing.verify wiring', (group) => {
     const billing = await app.container.make(BillingService)
     await billing.__resetForTests()
 
-    await assert.rejects(() => provider.boot(), /test key but NODE_ENV=production/)
+    // The definePlugin facade wraps a boot-hook throw in a PluginBootException
+    // attributed to { plugin, phase } (fail-closed, aborting the deploy); the
+    // original verify() reason is carried as its `cause`.
+    let bootError: unknown
+    try {
+      await provider.boot()
+    } catch (error) {
+      bootError = error
+    }
+    assert.exists(
+      bootError,
+      'boot() must reject when a test key is paired with NODE_ENV=production'
+    )
+    const reason =
+      ((bootError as { cause?: Error })?.cause?.message ?? (bootError as Error)?.message) || ''
+    assert.match(reason, /test key but NODE_ENV=production/)
   })
 })

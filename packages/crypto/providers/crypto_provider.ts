@@ -1,10 +1,5 @@
-import type { ApplicationService } from '@adonisjs/core/types'
-import {
-  assertSatelliteApiCompatAtBoot,
-  resolveLucidDb,
-  type SatelliteProviderConstructor,
-  type SatelliteProviderContract,
-} from '@adonisjs-lasagna/saas-tenancy/sdk'
+import { definePlugin, LASAGNA_PLUGIN_API_VERSION } from '@adonisjs-lasagna/saas-tenancy/plugin'
+import { resolveLucidDb } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import { getActiveDriver, MetricsService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
@@ -26,22 +21,40 @@ import PgWrappedDekStore, {
 } from '../src/services/pg_wrapped_dek_store.js'
 
 /**
- * Provider for `@adonisjs-lasagna/crypto`. Register it in the host's
- * `adonisrc.ts` alongside the core `MultitenancyProvider` (the configure hook
- * does this for you). It obeys the platform rules: core is resolved through
- * `app.container.make`, never `new`-ed, and the dependency only goes satellite to
- * core. `boot()` validates the `crypto` config block eagerly so a bad shape fails
- * at startup rather than at the first encrypted write.
+ * Provider for `@adonisjs-lasagna/crypto`, built with the {@link definePlugin}
+ * facade. Register it in the host's `adonisrc.ts` alongside the core
+ * `MultitenancyProvider` (the configure hook does this for you). It obeys the
+ * platform rules: core is resolved through `app.container.make`, never `new`-ed,
+ * and the dependency only goes satellite to core.
+ *
+ * The facade wires the ABI backstops (the Satellite ABI + the plugin-API contract)
+ * inside its own `boot()`, so this file declares only what crypto actually does:
+ *  - `bind` binds the KeyProvider registry, the field-encryption core, the
+ *    KEK-rotation walker, and the explicit encrypt/decrypt facade (this is
+ *    `register()`).
+ *  - `boot` validates the `crypto` config block eagerly so a bad shape fails at
+ *    startup rather than at the first encrypted write.
+ *  - `ready` bridges tenantful crypto guard trips to the per-tenant metric rail,
+ *    resolved once the core singletons are wired.
+ *  - `shutdown` tears that metric sink back down. (Under the raw provider this was
+ *    a stray `disconnect()` that AdonisJS never calls, so the sink leaked; the
+ *    facade's `shutdown` maps onto the real lifecycle hook.)
  */
-export default class CryptoProvider implements SatelliteProviderContract {
-  constructor(protected app: ApplicationService) {}
+export default definePlugin({
+  name: 'crypto',
+  packageName: '@adonisjs-lasagna/crypto',
+  // Mirrors package.json#lasagnaSatellite.satelliteApi (check-abi-boot-assertion
+  // pins these against each other so the literal can't drift).
+  satelliteApi: 1,
+  // The definePlugin facade contract this satellite was built against.
+  pluginApiVersion: LASAGNA_PLUGIN_API_VERSION,
 
-  register() {
+  bind(app) {
     // The KeyProvider registry, with the built-in env provider registered by
     // default (§12.1). A host binds its own aws-kms / hashicorp-vault / custom
     // provider by resolving this registry and calling `register(...)` in its own
     // provider. Stateful (Map-backed): a container singleton, never new-ed ad hoc.
-    this.app.container.singleton(KeyProviderRegistry, () => {
+    app.container.singleton(KeyProviderRegistry, () => {
       return new KeyProviderRegistry().register(new EnvKeyProvider())
     })
 
@@ -52,11 +65,11 @@ export default class CryptoProvider implements SatelliteProviderContract {
     // re-asserts the active tenancy scope on every raw query (the satellite
     // ContextSeal). The `'lucid.db'` alias is resolved like the AI vector store,
     // so the satellite adds no direct lucid dependency.
-    this.app.container.singleton(CryptoService, async (resolver) => {
-      const crypto = this.app.config.get<MultitenancyConfigWithCrypto>('multitenancy')?.crypto
+    app.container.singleton(CryptoService, async (resolver) => {
+      const crypto = app.config.get<MultitenancyConfigWithCrypto>('multitenancy')?.crypto
       const registry = await resolver.make(KeyProviderRegistry)
       const keyProvider = registry.resolve(crypto?.keyProvider ?? DEFAULT_KEY_PROVIDER)
-      const makeDb = () => resolveLucidDb(this.app)
+      const makeDb = () => resolveLucidDb(app)
       const activeScopeTenantId = () => tenancy.currentId()
       const store = new PgWrappedDekStore({
         getDriver: () => getActiveDriver() as Promise<CryptoStoreDriver>,
@@ -98,11 +111,11 @@ export default class CryptoProvider implements SatelliteProviderContract {
     // store is stateless behind its injected deps), and re-wraps DEKs under the
     // current KEK generation without ever decrypting a field value. Resolved via
     // `container.make(RekekService)` by the ace command.
-    this.app.container.singleton(RekekService, async (resolver) => {
-      const crypto = this.app.config.get<MultitenancyConfigWithCrypto>('multitenancy')?.crypto
+    app.container.singleton(RekekService, async (resolver) => {
+      const crypto = app.config.get<MultitenancyConfigWithCrypto>('multitenancy')?.crypto
       const registry = await resolver.make(KeyProviderRegistry)
       const keyProvider = registry.resolve(crypto?.keyProvider ?? DEFAULT_KEY_PROVIDER)
-      const makeDb = () => resolveLucidDb(this.app)
+      const makeDb = () => resolveLucidDb(app)
       const store = new PgWrappedDekStore({
         getDriver: () => getActiveDriver() as Promise<CryptoStoreDriver>,
         getDb: async () => (await makeDb()) as unknown as CryptoDb,
@@ -116,38 +129,29 @@ export default class CryptoProvider implements SatelliteProviderContract {
     // caller passes only `(subject, category)` and the value. Resolved via
     // `container.make(EncryptedRepository)` (the typed equivalent of the design's
     // illustrative `'crypto.repository'` string). Fail-closed with no tenant scope.
-    this.app.container.singleton(EncryptedRepository, async (resolver) => {
+    app.container.singleton(EncryptedRepository, async (resolver) => {
       return new EncryptedRepository({
         crypto: await resolver.make(CryptoService),
         resolveCurrentTenant: () => tenancy.current(),
       })
     })
-  }
+  },
 
-  async boot() {
-    // Runtime ABI backstop (satelliteApi mirrors package.json#lasagnaSatellite).
-    // Fail fast on a core too old.
-    assertSatelliteApiCompatAtBoot({ satelliteApi: 1 }, '@adonisjs-lasagna/crypto')
-
-    const config = this.app.config.get<MultitenancyConfigWithCrypto>('multitenancy')
+  boot(app) {
+    const config = app.config.get<MultitenancyConfigWithCrypto>('multitenancy')
     assertCryptoConfig(config?.crypto)
-  }
+  },
 
-  async ready() {
+  async ready(app) {
     // Bridge tenantful crypto guard trips to the per-tenant integer-metric rail
     // (`crypto_guard_rejections`), mirroring the AI provider. Resolved in ready(),
     // when the core singletons are wired. Fire-and-forget inside the audit module, so
     // a slow metric write never touches a reject path.
-    const metrics = await this.app.container.make(MetricsService)
+    const metrics = await app.container.make(MetricsService)
     setCryptoGuardMetricSink((tenantId, name, value) => metrics.emitMetric(tenantId, name, value))
-  }
+  },
 
-  async disconnect() {
+  shutdown() {
     setCryptoGuardMetricSink(undefined)
-  }
-}
-
-// Compile-time ABI pin: fail the build if the provider drifts from the public
-// satellite constructor contract (same guard the AI / billing providers use).
-const _satelliteAbiPin: SatelliteProviderConstructor = CryptoProvider
-void _satelliteAbiPin
+  },
+})

@@ -67,8 +67,7 @@ function lint(providerSrc, declaredApi, manifestPav, currentPav) {
   }
   // Plugin-API (facade) mirror: a definePlugin facade that declares pluginApiVersion
   // MUST have the same value declared in package.json#lasagnaSatellite.pluginApiVersion,
-  // killing the phantom field. A raw provider (no facade pluginApiVersion) is not
-  // required to declare it yet.
+  // killing the phantom field.
   const pav = providerSrc.match(DEFINE_PLUGIN_PAV_RE)
   if (pav) {
     const expected = pav[1] === 'LASAGNA_PLUGIN_API_VERSION' ? currentPav : Number.parseInt(pav[1], 10)
@@ -79,15 +78,33 @@ function lint(providerSrc, declaredApi, manifestPav, currentPav) {
       )
     }
   }
+  // Plugin-API (facade) backstop REQUIRED in EVERY provider (plugin-platform Wave 3,
+  // enforceable now the fleet is fully on definePlugin): a provider must assert the
+  // plugin-API contract at boot, not only the Satellite ABI. Two shapes satisfy it —
+  // a definePlugin facade declaring `pluginApiVersion` (the facade runs
+  // assertPluginApiCompatAtBoot for it), or a hand-written provider calling
+  // assertPluginApiCompatAtBoot(...) in boot() itself.
+  const hasPluginApiBackstop = Boolean(pav) || /\bassertPluginApiCompatAtBoot\s*\(/.test(providerSrc)
+  if (!hasPluginApiBackstop) {
+    problems.push(
+      'boot() does not assert the plugin-API contract: declare `pluginApiVersion` in the ' +
+        'definePlugin({ … }) facade, or call assertPluginApiCompatAtBoot(<n>, …) in a raw boot()'
+    )
+  }
   return problems
 }
 
 if (process.argv.includes('--self-test')) {
   const failures = []
-  const good = 'async boot(){ assertSatelliteApiCompatAtBoot({ satelliteApi: 1 }, "@x/y") }'
+  // A raw provider now needs BOTH backstops: the Satellite ABI and the plugin-API.
+  const good =
+    'async boot(){ assertSatelliteApiCompatAtBoot({ satelliteApi: 1 }, "@x/y"); assertPluginApiCompatAtBoot(1, "@x/y") }'
   if (lint(good, 1).length !== 0) failures.push('good fixture flagged')
   if (lint('async boot(){ /* nothing */ }', 1).length === 0) failures.push('missing-call fixture passed')
   if (lint(good, 2).length === 0) failures.push('mismatched-version fixture passed')
+  // A raw provider with the ABI backstop but NO plugin-API backstop now fails.
+  const rawNoPluginApi = 'async boot(){ assertSatelliteApiCompatAtBoot({ satelliteApi: 1 }, "@x/y") }'
+  if (lint(rawNoPluginApi, 1).length === 0) failures.push('raw provider without plugin-API backstop passed')
   // definePlugin facade form: the spec's satelliteApi literal is what gets pinned.
   const facade = "export default definePlugin({ name: 'x', satelliteApi: 1, pluginApiVersion: 1 })"
   if (lint(facade, 1, 1, 1).length !== 0) failures.push('definePlugin good fixture flagged')

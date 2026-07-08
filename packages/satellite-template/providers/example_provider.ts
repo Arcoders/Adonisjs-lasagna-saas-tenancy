@@ -1,4 +1,13 @@
-import { definePlugin, LASAGNA_PLUGIN_API_VERSION } from '@adonisjs-lasagna/saas-tenancy/plugin'
+import {
+  definePlugin,
+  LASAGNA_PLUGIN_API_VERSION,
+  permission,
+  authorizer,
+  middleware,
+  requestMacro,
+  defineCapability,
+  schedule,
+} from '@adonisjs-lasagna/saas-tenancy/plugin'
 import { HookRegistry } from '@adonisjs-lasagna/saas-tenancy/services'
 import ExampleWidgetService from '../src/example_widget_service.js'
 
@@ -14,24 +23,19 @@ const lazyLogger = () => import('@adonisjs/core/services/logger').then((m) => m.
  * `adonisrc.ts` alongside the core `MultitenancyProvider` (the configure hook does
  * this for you via `registerSatelliteInRcFile`).
  *
- * It demonstrates the platform rules:
- *  - the facade wires the ABI backstops (Satellite ABI + facade contract) for you,
- *    so you declare `satelliteApi` / `pluginApiVersion` once and the boot-time
- *    assertions run inside the facade.
- *  - `bind` binds the satellite's own singleton (this is `register()`).
- *  - `start` self-registers a tenant-lifecycle hook against the core
- *    `HookRegistry` — core never imports this package; the dependency only goes
- *    satellite → core.
- *  - core services are resolved through `app.container.make`, never `new`-ed.
+ * This is the CANONICAL MIRROR: it exercises every declarative seam the platform
+ * ships, so a satellite author can copy the one they need and delete the rest. A
+ * real satellite would wire only the seams it uses — none of these examples is
+ * mandatory, and the template stays dependency-free (each handler is a no-op /
+ * logs) so it compiles and boots against a fresh consumer in CI.
  *
- * It also demonstrates a worker/event seam: `onDataChange` (SEAM-5). A search or
- * analytics satellite would REINDEX or count on each committed write; here it just
- * logs, to keep the template dependency-free while proving the facade wires the
- * seam. A satellite that needs a request-path seam adds one of the declarative
- * sections (`authorizers` / `middleware` / `requestMacros` / `provides`); one that
- * needs a periodic tick adds `schedules`. Authors who want the raw provider
- * lifecycle instead of the facade can still `implements SatelliteProviderContract`
- * directly — `definePlugin` is sugar over exactly that contract.
+ * The facade wires the ABI backstops (Satellite ABI + plugin-API contract) for you,
+ * so you declare `satelliteApi` / `pluginApiVersion` once and the boot-time
+ * assertions run inside the facade. Core services are resolved through
+ * `app.container.make`, never `new`-ed; the dependency only ever goes satellite →
+ * core. Authors who want the raw provider lifecycle instead of the facade can still
+ * `implements SatelliteProviderContract` directly — `definePlugin` is sugar over
+ * exactly that contract.
  */
 export default definePlugin({
   name: 'example-widgets',
@@ -40,10 +44,20 @@ export default definePlugin({
   satelliteApi: 1,
   pluginApiVersion: LASAGNA_PLUGIN_API_VERSION,
 
+  // Declared, sensitive capabilities shown to the operator at install for consent
+  // (S1). Kept coherent with package.json#lasagnaSatellite.permissions by the
+  // check-plugin-permissions guard. Declaration is DISCLOSURE, not enforcement:
+  // this satellite registers a schedule (→ scheduler) and subscribes to writes on
+  // the ExampleWidget model (→ data_change).
+  permissions: [permission.scheduler(), permission.dataChange('ExampleWidget')],
+
+  // register(): bind the satellite's own singleton.
   bind(app) {
     app.container.singleton(ExampleWidgetService, () => new ExampleWidgetService())
   },
 
+  // start(): self-register a tenant-lifecycle hook against the core HookRegistry —
+  // core never imports this package; the dependency only goes satellite → core.
   async start(app) {
     const hooks = await app.container.make(HookRegistry)
     // Clean up this satellite's rows when a tenant is hard-deleted.
@@ -53,10 +67,74 @@ export default definePlugin({
     })
   },
 
-  // React to committed tenant-model writes (SEAM-5). Runs decoupled from the write
-  // (after-commit, fail-open), so this never blocks or breaks a tenant's write.
+  // --- Request-path seams (Lote A) ---
+
+  // SEAM-3: a fail-closed tenant-access authorizer, appended to the chain. A real
+  // one checks membership / a claim; this reference always allows.
+  authorizers: () => [
+    authorizer({
+      name: 'example-widgets-access',
+      authorize: () => ({ allow: true }),
+    }),
+  ],
+
+  // SEAM-2: route middleware stacked onto the tenant scope (runs after core's
+  // guard/central/universal middleware, so `request.tenant()` is resolved). A
+  // pass-through reference.
+  middleware: () => [
+    middleware({
+      name: 'example-widgets-touch',
+      scope: 'tenant',
+      middleware: (_ctx, next) => next(),
+    }),
+  ],
+
+  // SEAM-4: a `request.<name>()` macro mirrored on the request. The reference
+  // returns a static marker; a real one would resolve per-request state.
+  requestMacros: () => [
+    requestMacro({
+      name: 'exampleWidgets',
+      resolve: () => ({ enabled: true }),
+    }),
+  ],
+
+  // Capability provided for optional cross-plugin composition. Another plugin can
+  // `consume('example-widgets')` and degrade gracefully when it is absent.
+  provides: () => [
+    defineCapability({
+      name: 'example-widgets',
+      api: { describe: () => 'the example-widgets reference capability' },
+    }),
+  ],
+
+  // --- Worker seams (Lote B) ---
+
+  // SEAM-1: a periodic tick that fans out over active tenants, dispatching the
+  // per-tenant `example_widgets_sweep` BullMQ job to each. A real satellite defines
+  // that job (a TenantJob); the tick only enqueues.
+  schedules: () => [
+    schedule({
+      name: 'example-widgets-sweep',
+      job: 'example_widgets_sweep',
+      everyMs: 60 * 60 * 1000,
+      deliveryGuarantee: 'reconciling',
+    }),
+  ],
+
+  // SEAM-7: a Postgres extension installed into each tenant's storage at provision
+  // time. Identifiers are validated at boot, so a typo fails the deploy, not the
+  // first provision. `pg_trgm` is a common, dependency-free example.
+  provisionExtensions: () => [{ name: 'pg_trgm' }],
+
+  // --- Event seam (Lote C) ---
+
+  // SEAM-5: react to committed writes on the ExampleWidget model, decoupled from
+  // the write (after-commit, fail-open), so this never blocks or breaks a tenant's
+  // write. A search or analytics satellite would REINDEX or count here; the
+  // reference just logs.
   onDataChange: () => [
     {
+      models: ['ExampleWidget'],
       handle: async (change) => {
         const logger = await lazyLogger()
         logger.debug(

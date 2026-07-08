@@ -40,9 +40,11 @@
     "name": "example-widgets",
     "satelliteApi": 1,
     "pluginApiVersion": 1,
+    "minMergedCoverage": { "lines": 60, "functions": 60, "branches": 60 },
     "migrations": "stubs/migrations",
     "provider": "@adonisjs-lasagna/satellite-template/provider",
     "commands": "@adonisjs-lasagna/satellite-template/commands",
+    "permissions": ["scheduler", "data_change:ExampleWidget"],
     "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/cookbook/creating-a-satellite"
   },
   "scripts": {

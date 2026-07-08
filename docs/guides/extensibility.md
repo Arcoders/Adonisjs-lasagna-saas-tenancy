@@ -85,8 +85,10 @@ because that is what it is.
 | [crypto](/guides/satellites/crypto) | key providers | `KeyProviderRegistry` | `CRYPTO_CONTRACT_VERSION` |
 
 `reporting`, `audit`, `feature-flags`, and `webhooks` registries are container
-singletons (resolve via `container.make`). `admin` and `sso` ship no provider, so
-their registries are module-level singletons you import directly. `billing`
+singletons (resolve via `container.make`). `admin` and `sso` ship only a minimal
+backstop provider (it asserts the Satellite ABI and the plugin-API contract at
+boot and binds nothing), so their registries stay module-level singletons you
+import directly. `billing`
 selects its active driver from `config.billing.driver`; `websockets` reads its
 hook from config. The `isolation` and `resolution` registries live in core and
 are also container singletons — a custom `IsolationDriver` or `TenantResolver`

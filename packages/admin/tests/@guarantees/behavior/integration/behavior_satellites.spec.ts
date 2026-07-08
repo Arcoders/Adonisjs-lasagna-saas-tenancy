@@ -40,10 +40,40 @@ test.group('Admin REST — satellite endpoints', (group) => {
     assert.isAbove(Object.keys(body.paths).length, 10)
   })
 
-  test('GET /docs returns the Swagger HTML shell', async ({ client }) => {
-    const res = await client.get(`${PREFIX}/docs`)
-    res.assertStatus(200)
-    res.assertTextIncludes('SwaggerUIBundle')
+  test('GET /docs returns the Swagger HTML shell when an asset base is configured', async ({
+    client,
+  }) => {
+    // The package ships no default CDN: without an asset base the docs route
+    // renders a placeholder (never third-party JS by default). Point it at a
+    // self-hosted path so the real Swagger shell renders, then assert its
+    // SwaggerUIBundle bootstrap. The route reads the env at request time.
+    const prev = process.env.LASAGNA_ADMIN_SWAGGER_CDN
+    process.env.LASAGNA_ADMIN_SWAGGER_CDN = '/swagger/'
+    try {
+      const res = await client.get(`${PREFIX}/docs`)
+      res.assertStatus(200)
+      res.assertTextIncludes('SwaggerUIBundle')
+    } finally {
+      if (prev === undefined) delete process.env.LASAGNA_ADMIN_SWAGGER_CDN
+      else process.env.LASAGNA_ADMIN_SWAGGER_CDN = prev
+    }
+  })
+
+  test('GET /docs renders the no-CDN placeholder by default (no third-party JS)', async ({
+    client,
+  }) => {
+    // Default posture: no asset base configured → a short placeholder that points
+    // the operator at the raw OpenAPI doc, never a silent remote fetch.
+    const prev = process.env.LASAGNA_ADMIN_SWAGGER_CDN
+    delete process.env.LASAGNA_ADMIN_SWAGGER_CDN
+    try {
+      const res = await client.get(`${PREFIX}/docs`)
+      res.assertStatus(200)
+      res.assertTextIncludes('openapi.json')
+      res.assertTextIncludes('LASAGNA_ADMIN_SWAGGER_CDN')
+    } finally {
+      if (prev !== undefined) process.env.LASAGNA_ADMIN_SWAGGER_CDN = prev
+    }
   })
 
   // Audit logs (read-only) -----------------------------------------------

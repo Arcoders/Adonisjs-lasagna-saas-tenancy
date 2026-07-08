@@ -32,7 +32,13 @@
     "stubs"
   ],
   "exports": {
-    ".": "./build/src/index.js"
+    ".": "./build/src/index.js",
+    "./provider": "./build/providers/sso_provider.js"
+  },
+  "typesVersions": {
+    "*": {
+      "provider": ["./build/providers/sso_provider.d.ts"]
+    }
   },
   "main": "./build/src/index.js",
   "types": "./build/src/index.d.ts",
@@ -42,9 +48,11 @@
   "lasagnaSatellite": {
     "name": "sso",
     "satelliteApi": 1,
+    "pluginApiVersion": 1,
     "minMergedCoverage": { "lines": 98, "functions": 73, "branches": 97 },
     "aliases": ["sso"],
     "migrations": "stubs/migrations",
+    "provider": "@adonisjs-lasagna/sso/provider",
     "install": [
       "npm install @adonisjs-lasagna/sso",
       "npm install jose   # optional: only for JWKS id-token verification"

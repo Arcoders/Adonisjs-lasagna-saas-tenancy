@@ -42,6 +42,7 @@
   "lasagnaSatellite": {
     "name": "crypto",
     "satelliteApi": 1,
+    "pluginApiVersion": 1,
     "migrations": "stubs/migrations",
     "perTenantMigrations": "build/tenant_migrations",
     "minMergedCoverage": {

@@ -56,6 +56,7 @@
   "lasagnaSatellite": {
     "name": "billing",
     "satelliteApi": 1,
+    "pluginApiVersion": 1,
     "minMergedCoverage": { "lines": 86, "functions": 88, "branches": 80 },
     "aliases": ["billing"],
     "migrations": "stubs/migrations",
