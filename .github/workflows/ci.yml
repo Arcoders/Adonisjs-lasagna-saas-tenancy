@@ -747,6 +747,18 @@ jobs:
           path: coverage/.v8/ai-integration
           if-no-files-found: warn
 
+      # crypto integration V8 (written by test:integration:coverage to
+      # coverage/.v8/crypto-integration in the "— crypto" step above). The
+      # coverage-report job merges this with crypto's unit V8 so
+      # check-satellite-coverage.mjs gates a real per-satellite MERGED number.
+      - name: Upload raw satellite integration coverage (V8) — crypto
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-crypto-integration
+          path: coverage/.v8/crypto-integration
+          if-no-files-found: warn
+
   test-e2e-demo:
     name: E2E (demo app)
     runs-on: ubuntu-latest
@@ -1162,6 +1174,12 @@ jobs:
           name: c8-raw-ai-integration
           path: coverage/.v8/all
 
+      - name: Download raw satellite integration coverage (V8) — crypto
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-crypto-integration
+          path: coverage/.v8/all
+
       # websockets integration V8 is produced by the test-e2e-websockets job (a
       # different job than test-integration above), now run under c8. This is why
       # test-e2e-websockets is in this job's needs:.
@@ -1215,6 +1233,12 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: c8-raw-ai-unit
+          path: coverage/.v8/all
+
+      - name: Download raw satellite unit coverage (V8) — crypto
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-crypto-unit
           path: coverage/.v8/all
 
       - name: Aggregate coverage report (unit + integration, remapped to src)
