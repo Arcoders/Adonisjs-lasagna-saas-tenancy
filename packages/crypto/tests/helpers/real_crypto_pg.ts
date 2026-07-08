@@ -57,7 +57,9 @@ export async function probePg(): Promise<boolean> {
 /**
  * The wrapped-DEK table DDL, mirroring the per-tenant migration. Created on a
  * connection whose search_path is the tenant schema, so the bare name lands there
- * exactly as the production migration does through the tenant search_path.
+ * exactly as the production migration does through the tenant search_path. Pinned
+ * to the shipped migration by the DDL-drift guard
+ * (tests/@architecture/contracts/contracts_testkit_ddl_matches_stubs.spec.ts).
  */
 function wrappedDeksDdl(): string {
   const t = CRYPTO_WRAPPED_DEKS_TABLE

@@ -19,10 +19,15 @@ export const plugins: Config['plugins'] = [assert(), apiClient(), pluginAdonisJS
  * exercised by the branding/feature_flag/sso/metrics/webhook/billing specs).
  * Idempotent: running it twice is a no-op.
  *
- * This is the single owner of the integration DDL. Core and every satellite
- * boot through it, so a stub that gains a column is mirrored here once. The unit
- * spec `tests/unit/stubs/bootstrap_ddl_drift.spec.ts` (in core) fails when a stub
- * drifts from this mirror.
+ * This is the single owner of the integration DDL for the shared backoffice
+ * tables. Core and every satellite boot through it, so a stub that gains a column
+ * is mirrored here once. The unit spec
+ * `tests/@guarantees/behavior/unit/behavior_bootstrap_ddl_drift.spec.ts` (in core)
+ * fails when a stub drifts from this mirror. A satellite whose tables are NOT part
+ * of this shared schema (crypto's per-tenant wrapped-DEK + WORM ledger, AI's audit
+ * table) provisions them from its own test helper and pins them with its own
+ * DDL-drift guard; a satellite can also register extra shared DDL at boot via
+ * `runIntegrationSuite`'s `extraSchemaSetup` hook.
  */
 export async function ensureBackofficeSchema(): Promise<void> {
   const { default: db } = await import('@adonisjs/lucid/services/db')
