@@ -78,7 +78,7 @@ test.group('plugin minters — hostile identifier fuzz (a brand is proof of safe
   for (const { kind, mint } of MINTERS) {
     test(`${kind}: rejects every hostile identifier`, ({ assert }) => {
       for (const bad of HOSTILE) {
-        // Each throws the assertSafeIdentifier "unsafe" error before minting.
+        // Each throws the "unsafe" mint error before minting the brand.
         let threw = false
         try {
           mint(bad)
@@ -96,13 +96,15 @@ test.group('plugin minters — hostile identifier fuzz (a brand is proof of safe
     })
   }
 
-  test('a rejected mint trips the guard.tenant_identifier isthmus counter (observable)', ({
+  test('a rejected mint trips the guard.plugin_extension_identifier counter (observable)', ({
     assert,
   }) => {
     __resetIsthmusCounters()
     assert.throws(() => authorizerName('a:b'))
+    // The plugin surface emits its OWN guard, distinct from guard.tenant_identifier
+    // (a hostile plugin name is a different signal from a bad tenant id).
     const rejected = snapshotIsthmusCounters().rejected.find(
-      (r) => r.id === 'guard.tenant_identifier'
+      (r) => r.id === 'guard.plugin_extension_identifier'
     )
     assert.isDefined(rejected)
     assert.isAbove(rejected?.value ?? 0, 0)

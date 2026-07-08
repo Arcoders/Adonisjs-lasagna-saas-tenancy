@@ -35,7 +35,8 @@ function parse(raw: string): readonly PluginName[] {
       // Drop a malformed entry rather than fail the process: an operator typo in
       // the allowlist must not brick the deploy, and the fail-closed default
       // (absence ⇒ untrusted) means a dropped entry can only REMOVE reach, never
-      // grant it. assertSafeIdentifier already emitted its own guard on the reject.
+      // grant it. The minter already emitted `guard.plugin_extension_identifier` on
+      // the reject, so the drop is observable, not silent.
     }
   }
   return names

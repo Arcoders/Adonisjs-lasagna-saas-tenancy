@@ -34,4 +34,5 @@ export { default as TenantGdprAnonymize } from './tenant_gdpr_anonymize.js'
 export { default as TenantComplianceReport } from './tenant_compliance_report.js'
 export { default as TenantVectorProvision } from './tenant_vector_provision.js'
 export { default as HealthCheck } from './health_check.js'
+export { default as PluginDoctor } from './plugin_doctor.js'
 // The `tenant:billing:*` commands moved to `@adonisjs-lasagna/billing`.

@@ -250,6 +250,13 @@ const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
         pluginName('sketchy')
       ),
   },
+  'guard.plugin_extension_identifier': {
+    // A hostile plugin identifier is rejected at the mint (the plugin surface),
+    // emitting the dedicated guard rather than folding onto an existing id.
+    trip: () => pluginName('bad:name'),
+    expectThrow: /Refusing to mint unsafe plugin/,
+    happy: () => pluginName('ok_name'),
+  },
   'seal.scope_required': {
     trip: () => {
       const hooks = makeScopedModel()

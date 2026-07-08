@@ -61,6 +61,18 @@ advisory, so it doubles as a CI gate.
 node ace lasagna:health-check
 ```
 
+`plugin:doctor` diagnoses the installed plugin/satellite platform posture: Satellite
+ABI compatibility of each installed satellite, native-addon sandbox risk, a stale or
+typo'd `TRUSTED_SATELLITES` allowlist, whether the read-only firewall (`plugins.readOnly`)
+is configured while untrusted plugins are installed, and which plugins hold declared
+(consent-gated) permissions. It exits non-zero on any error, so it doubles as a CI gate. It does not
+re-check manifest↔spec coherence — that is the `check-plugin-permissions` build guard.
+
+```bash
+node ace plugin:doctor
+node ace plugin:doctor --json
+```
+
 ## Doctor
 
 `tenant:doctor` is the operational health command. Nine built-in

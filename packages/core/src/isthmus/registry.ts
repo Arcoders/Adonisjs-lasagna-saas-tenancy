@@ -124,6 +124,22 @@ export const ISTHMUS_REGISTRY = [
     nextReview: '2027-01-08',
   },
   {
+    id: 'guard.plugin_extension_identifier',
+    pillar: 'guard',
+    bugClass: 'plugin-identifier-injection',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:plugin_extension_identifier:rejected',
+    severity: 'high',
+    evidence: {
+      kind: 'inherent-risk',
+      ref: 'a plugin name, authorizer, capability key, or model name is minted from author input and interpolated into a Redis key, a Symbol, or DDL; a homoglyph or a colon must be rejected at the plugin surface, not folded onto an existing id',
+    },
+    guardFile: 'src/sdk/brands.ts',
+    reviewed: '2026-07-08',
+    nextReview: '2027-01-08',
+  },
+  {
     id: 'guard.redirect_host',
     pillar: 'guard',
     bugClass: 'open-redirect',

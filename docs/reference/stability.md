@@ -98,6 +98,7 @@ The isolation substrate. Everything here is **release candidate** unless noted.
 | Health probes (`/livez`, `/readyz`, `/healthz`) | Release candidate | |
 | Doctor (base checks) | Release candidate | |
 | Plans and quotas (`enforceQuota`) | Experimental | Opt-in feature, not part of the isolation guarantee. |
+| Plugin platform (`definePlugin`, request-path seams, capability registry, trust controls) | Experimental | Opt-in extension surface for third-party satellites. The in-process trust controls are friction, not a sandbox; the read-only role is the boundary. See [plugins](/guides/plugins) and the [security guide](/guides/security). |
 | Read-replica routing | Experimental | No automatic failover by design; use the retry-on-primary pattern in [read replicas](/guides/read-replicas). |
 | Audit logs | Experimental | Satellite (in core). |
 | Webhooks | Experimental | Satellite (in core). |

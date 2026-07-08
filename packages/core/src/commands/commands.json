@@ -532,6 +532,19 @@
       "args": [],
       "options": { "startApp": false },
       "filePath": "health_check.js"
+    },
+    {
+      "commandName": "plugin:doctor",
+      "description": "Diagnose the installed plugin/satellite platform posture — ABI compatibility, native-addon sandbox risk, the TRUSTED_SATELLITES allowlist, and the read-only firewall",
+      "help": "",
+      "namespace": "plugin",
+      "aliases": [],
+      "flags": [
+        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit a JSON report on stdout instead of the table" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "plugin_doctor.js"
     }
   ],
   "version": 1
