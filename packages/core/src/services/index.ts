@@ -89,6 +89,13 @@ export { default as HookRegistry } from './hook_registry.js'
 // augmentable `LasagnaCapabilities` interface. The author-facing types + the
 // provide-side `CAPABILITY_CONTRACT_VERSION` live on the `/plugin` surface.
 export { default as CapabilityRegistry } from './capability_registry.js'
+// The tenant scheduler (SEAM-1). A plugin registers ticks via a
+// `definePlugin({ schedules })` section; a host resolves this singleton to
+// inspect (`list()`) or drive a tick (`runTick`). The author-facing `TenantSchedule`
+// type + the `schedule()` builder live on the `/plugin` surface.
+export { default as TenantSchedulerService } from './tenant_scheduler_service.js'
+export type { TenantSchedule, SchedulerTickResult } from './tenant_scheduler_service.js'
+export { SCHEDULER_ACTIVE_STATUSES } from './tenant_scheduler_service.js'
 export { default as BootstrapperRegistry } from './bootstrapper_registry.js'
 export type { BootstrapperContext, TenantBootstrapper } from './bootstrapper_registry.js'
 export {

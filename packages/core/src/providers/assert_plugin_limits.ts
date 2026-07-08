@@ -9,6 +9,7 @@ export interface PluginSurfaceCounts {
   readonly authorizers: number
   readonly middleware: number
   readonly capabilities: number
+  readonly schedules: number
 }
 
 /**
@@ -65,4 +66,5 @@ export function assertPluginLimits(
     'provided capabilities',
     'plugins.limits.maxCapabilities'
   )
+  check(counts.schedules, limits.maxSchedules, 'tenant schedules', 'plugins.limits.maxSchedules')
 }

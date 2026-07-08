@@ -14,19 +14,16 @@ import type { PluginLimitsConfig } from '../../../../src/types/config.js'
  * assertConfigBounds).
  */
 
-const zero: PluginSurfaceCounts = { authorizers: 0, middleware: 0, capabilities: 0 }
+const zero: PluginSurfaceCounts = { authorizers: 0, middleware: 0, capabilities: 0, schedules: 0 }
+const many = { authorizers: 999, middleware: 999, capabilities: 999, schedules: 999 }
 
 test.group('assertPluginLimits()', () => {
   test('no limits block → never throws, whatever the counts', ({ assert }) => {
-    assert.doesNotThrow(() =>
-      assertPluginLimits(undefined, { authorizers: 999, middleware: 999, capabilities: 999 })
-    )
+    assert.doesNotThrow(() => assertPluginLimits(undefined, many))
   })
 
   test('a block with every cap omitted → unlimited', ({ assert }) => {
-    assert.doesNotThrow(() =>
-      assertPluginLimits({}, { authorizers: 999, middleware: 999, capabilities: 999 })
-    )
+    assert.doesNotThrow(() => assertPluginLimits({}, many))
   })
 
   test('a count AT the cap passes; one OVER throws', ({ assert }) => {
@@ -47,6 +44,11 @@ test.group('assertPluginLimits()', () => {
       () => assertPluginLimits({ maxCapabilities: 0 }, { ...zero, capabilities: 1 }),
       /provided capabilities are registered but multitenancy\.plugins\.limits\.maxCapabilities caps it at 0/
     )
+    assert.throws(
+      () => assertPluginLimits({ maxSchedules: 2 }, { ...zero, schedules: 3 }),
+      /3 tenant schedules are registered but multitenancy\.plugins\.limits\.maxSchedules caps it at 2/
+    )
+    assert.doesNotThrow(() => assertPluginLimits({ maxSchedules: 2 }, { ...zero, schedules: 2 }))
   })
 
   test('the abort is a typed PluginBootException (E_PLUGIN_BOOT / 500 / phase=limits)', ({

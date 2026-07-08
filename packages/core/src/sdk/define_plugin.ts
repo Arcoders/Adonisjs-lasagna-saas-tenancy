@@ -3,6 +3,7 @@ import type { SatelliteProviderConstructor, SatelliteProviderContract } from './
 import type { TenantAuthorizerEntry } from '../services/authorizer_registry.js'
 import type { TenantMiddlewareEntry } from '../services/tenant_middleware_registry.js'
 import type { CapabilityProvision } from '../services/capability_registry.js'
+import type { TenantSchedule } from '../services/tenant_scheduler_service.js'
 import type { TenantRequestMacroSpec } from '../extensions/request.js'
 import { pluginName, type PluginName } from './brands.js'
 import type { PluginPermission } from './plugin_permissions.js'
@@ -15,14 +16,15 @@ import PluginBootException from '../exceptions/plugin_boot_exception.js'
  * The union of every entry a boot-phase section can yield. The `boot()`
  * dispatcher `switch`es over `kind` exhaustively (`default: assertNever`), so
  * ADDING a seam whose entry is not handled is a COMPILE error — the E1 closed-union
- * guarantee. Grows additively per lote (Lote A: the four request-path kinds; B/C
- * add schedule / provisionExtension / data-change).
+ * guarantee. Grows additively per lote (Lote A: the four request-path kinds; Lote B
+ * adds schedule; C adds data-change).
  */
 type PluginBootEntry =
   | TenantAuthorizerEntry
   | TenantMiddlewareEntry
   | TenantRequestMacroSpec
   | CapabilityProvision
+  | TenantSchedule
 
 /**
  * A declarative section of a {@link PluginSpec}. ALWAYS a function of the app
@@ -81,6 +83,10 @@ export interface PluginSpec {
   readonly requestMacros?: PluginSection<readonly TenantRequestMacroSpec[]>
   /** Capabilities this plugin provides for optional cross-plugin composition. */
   readonly provides?: PluginSection<readonly CapabilityProvision[]>
+
+  // --- Lote B seams (workers) ---
+  /** Periodic ticks that fan out over active tenants (SEAM-1). */
+  readonly schedules?: PluginSection<readonly TenantSchedule[]>
 
   // --- lifecycle escape hatches (map onto the provider phases) ---
   readonly bind?: (app: ApplicationService) => void | Promise<void>
@@ -171,6 +177,9 @@ export function definePlugin(spec: PluginSpec): SatelliteProviderConstructor {
       if (spec.provides) {
         entries.push(...(await this.#resolveSection('provides', spec.provides)))
       }
+      if (spec.schedules) {
+        entries.push(...(await this.#resolveSection('schedules', spec.schedules)))
+      }
       return entries
     }
 
@@ -204,6 +213,12 @@ export function definePlugin(spec: PluginSpec): SatelliteProviderConstructor {
         case 'requestMacro': {
           const { registerTenantRequestMacro } = await import('../extensions/request.js')
           registerTenantRequestMacro(entry)
+          return
+        }
+        case 'schedule': {
+          const { default: TenantSchedulerService } =
+            await import('../services/tenant_scheduler_service.js')
+          ;(await this.app.container.make(TenantSchedulerService)).register(entry)
           return
         }
         default:

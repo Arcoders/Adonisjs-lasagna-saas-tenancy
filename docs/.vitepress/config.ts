@@ -86,6 +86,7 @@ const sidebar = [
           { text: 'Contextual logging', link: '/guides/contextual-logging' },
           { text: 'Testing', link: '/guides/testing' },
           { text: 'Building a plugin', link: '/guides/plugins' },
+          { text: 'Scheduler', link: '/guides/scheduler' },
           {
             text: 'Recipes',
             link: '/guides/cookbook/',

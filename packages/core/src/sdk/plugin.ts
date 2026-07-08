@@ -29,7 +29,7 @@ export type { SatelliteProviderContract, SatelliteProviderConstructor } from './
  * `requestMacro()` / `defineCapability()` replace hand-writing the raw
  * discriminated object.
  */
-export { authorizer, middleware, requestMacro, defineCapability } from './builders.js'
+export { authorizer, middleware, requestMacro, defineCapability, schedule } from './builders.js'
 
 export {
   PLUGIN_API_CONTRACT_VERSION,
@@ -57,6 +57,7 @@ export {
   macroName,
   capabilityKey,
   modelName,
+  scheduleName,
 } from './brands.js'
 export type {
   PluginName,
@@ -65,6 +66,7 @@ export type {
   MacroName,
   CapabilityKey,
   ModelName,
+  ScheduleName,
 } from './brands.js'
 
 /**
@@ -99,6 +101,9 @@ export type {
 
 /** SEAM-4 — `request.<name>()` macros (umbrella ABI; no per-surface constant). */
 export type { TenantRequestMacroSpec } from '../extensions/request.js'
+
+/** SEAM-1 — periodic ticks fanned out over active tenants (umbrella ABI). */
+export type { TenantSchedule } from '../services/tenant_scheduler_service.js'
 
 /** Capability registry — optional, degradable cross-plugin composition. Augment
  *  `LasagnaCapabilities` from your plugin to type `consume(key)`. */

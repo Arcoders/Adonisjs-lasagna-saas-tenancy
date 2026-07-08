@@ -1,6 +1,8 @@
 import type { HttpRequest } from '@adonisjs/core/http'
-import { authorizerName, middlewareName, macroName, capabilityKey } from './brands.js'
+import { authorizerName, middlewareName, macroName, capabilityKey, scheduleName } from './brands.js'
 import type { LasagnaCapabilities } from './capabilities.js'
+import type { TenantStatus } from '../types/contracts.js'
+import type { TenantSchedule } from '../services/tenant_scheduler_service.js'
 import {
   AUTHORIZER_CONTRACT_VERSION,
   type TenantAuthorizer,
@@ -66,6 +68,37 @@ export function middleware(spec: {
     contractVersion: spec.contractVersion ?? TENANT_MIDDLEWARE_CONTRACT_VERSION,
     ...(spec.scope !== undefined ? { scope: spec.scope } : {}),
     ...(spec.order !== undefined ? { order: spec.order } : {}),
+  }
+}
+
+/**
+ * Build a tenant schedule (SEAM-1). Exactly one of `cron` / `everyMs` must be set
+ * (the registry fails closed otherwise). `job` is the per-tenant BullMQ job name
+ * fanned out to each active tenant. The scheduler is on the umbrella ABI, so there
+ * is no `contractVersion` to default.
+ */
+export function schedule(spec: {
+  readonly name: string
+  readonly job: string
+  readonly cron?: string
+  readonly everyMs?: number
+  readonly timezone?: string
+  readonly statuses?: readonly TenantStatus[]
+  readonly jitterMs?: number
+  readonly payload?: Record<string, unknown>
+  readonly deliveryGuarantee?: 'reconciling' | 'fire-once'
+}): TenantSchedule {
+  return {
+    kind: 'schedule',
+    name: scheduleName(spec.name),
+    job: spec.job,
+    ...(spec.cron !== undefined ? { cron: spec.cron } : {}),
+    ...(spec.everyMs !== undefined ? { everyMs: spec.everyMs } : {}),
+    ...(spec.timezone !== undefined ? { timezone: spec.timezone } : {}),
+    ...(spec.statuses !== undefined ? { statuses: spec.statuses } : {}),
+    ...(spec.jitterMs !== undefined ? { jitterMs: spec.jitterMs } : {}),
+    ...(spec.payload !== undefined ? { payload: spec.payload } : {}),
+    ...(spec.deliveryGuarantee !== undefined ? { deliveryGuarantee: spec.deliveryGuarantee } : {}),
   }
 }
 

@@ -60,6 +60,9 @@ const STATEFUL_SINGLETONS = [
   'AuthorizerRegistry',
   'TenantMiddlewareRegistry',
   'CapabilityRegistry',
+  // Holds the Map of plugin-registered schedules that ready() arms as native
+  // @adonisjs/queue schedules; a fresh `new` gets an empty set and arms nothing.
+  'TenantSchedulerService',
 ] as const
 const NEW_STATEFUL = new RegExp(`\\bnew\\s+(${STATEFUL_SINGLETONS.join('|')})\\s*\\(`)
 
@@ -69,7 +72,7 @@ const NEW_STATEFUL = new RegExp(`\\bnew\\s+(${STATEFUL_SINGLETONS.join('|')})\\s
 // `registry.ts` is not silently exempted. Paths are normalized to forward
 // slashes before matching so this is cross-platform.
 const NEW_ALLOWED =
-  /(multitenancy_provider|billing_provider|tenant_queue_service|circuit_breaker_service|billing_driver_registry|tenant_resolution_cache|tenant_log_context|hook_registry|read_replica_service|bootstrapper_registry|doctor_service|compliance_report_service|audit_log_destination_registry|evaluation_strategy_registry|webhook_transformer_registry|authorizer_registry|tenant_middleware_registry|capability_registry|isolation\/registry|resolvers\/registry)\.ts$/
+  /(multitenancy_provider|billing_provider|tenant_queue_service|circuit_breaker_service|billing_driver_registry|tenant_resolution_cache|tenant_log_context|hook_registry|read_replica_service|bootstrapper_registry|doctor_service|compliance_report_service|audit_log_destination_registry|evaluation_strategy_registry|webhook_transformer_registry|authorizer_registry|tenant_middleware_registry|capability_registry|tenant_scheduler_service|isolation\/registry|resolvers\/registry)\.ts$/
 
 const HTTP_CONTEXT_IMPORT =
   /import\s+(?:type\s+)?\{[^}]*\bHttpContext\b[^}]*\}\s+from\s+['"]@adonisjs\/core\/http['"]/

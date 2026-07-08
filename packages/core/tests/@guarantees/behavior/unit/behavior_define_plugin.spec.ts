@@ -7,7 +7,13 @@ import AuthorizerRegistry, {
 } from '../../../../src/services/authorizer_registry.js'
 import TenantMiddlewareRegistry from '../../../../src/services/tenant_middleware_registry.js'
 import CapabilityRegistry from '../../../../src/services/capability_registry.js'
-import { middlewareName, capabilityKey, macroName } from '../../../../src/sdk/brands.js'
+import TenantSchedulerService from '../../../../src/services/tenant_scheduler_service.js'
+import {
+  middlewareName,
+  capabilityKey,
+  macroName,
+  scheduleName,
+} from '../../../../src/sdk/brands.js'
 import { __resetRequestMacrosForTests } from '../../../../src/extensions/request.js'
 import { HttpRequest } from '@adonisjs/core/http'
 import type { SatelliteProviderContract } from '../../../../src/sdk/contract.js'
@@ -34,16 +40,19 @@ function makeMultiApp(regs: {
   authorizer?: AuthorizerRegistry
   middleware?: TenantMiddlewareRegistry
   capability?: CapabilityRegistry
+  scheduler?: TenantSchedulerService
 }): ApplicationService {
   const authorizer = regs.authorizer ?? new AuthorizerRegistry()
   const middleware = regs.middleware ?? new TenantMiddlewareRegistry()
   const capability = regs.capability ?? new CapabilityRegistry()
+  const scheduler = regs.scheduler ?? new TenantSchedulerService()
   return {
     container: {
       make: async (cls: unknown) => {
         if (cls === AuthorizerRegistry) return authorizer
         if (cls === TenantMiddlewareRegistry) return middleware
         if (cls === CapabilityRegistry) return capability
+        if (cls === TenantSchedulerService) return scheduler
         throw new Error('unexpected container.make in test')
       },
     },
@@ -191,6 +200,7 @@ test.group('definePlugin — multi-seam dispatch', (group) => {
     const authorizer = new AuthorizerRegistry()
     const middleware = new TenantMiddlewareRegistry()
     const capability = new CapabilityRegistry()
+    const scheduler = new TenantSchedulerService()
     const Plugin = definePlugin({
       name: 'omni',
       ...okApi,
@@ -200,13 +210,19 @@ test.group('definePlugin — multi-seam dispatch', (group) => {
       ],
       provides: () => [{ kind: 'capability', name: capabilityKey('cap1'), api: { ok: true } }],
       requestMacros: () => [{ kind: 'requestMacro', name: macroName('macro1'), resolve: () => 7 }],
+      schedules: () => [
+        { kind: 'schedule', name: scheduleName('s1'), job: 'app.S1', everyMs: 60_000 },
+      ],
     })
 
-    await (new Plugin(makeMultiApp({ authorizer, middleware, capability })) as Lifecycle).boot()
+    await (
+      new Plugin(makeMultiApp({ authorizer, middleware, capability, scheduler })) as Lifecycle
+    ).boot()
 
     assert.deepEqual(authorizer.list(), ['a1'])
     assert.deepEqual(middleware.list(), ['m1'])
     assert.deepEqual(capability.list(), ['cap1'])
+    assert.deepEqual(scheduler.list(), ['s1'])
     assert.isFunction((HttpRequest.prototype as unknown as Record<string, unknown>).macro1)
   })
 })

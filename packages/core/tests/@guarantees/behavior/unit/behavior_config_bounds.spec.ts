@@ -116,6 +116,10 @@ test.group('assertConfigBounds()', () => {
       () => assertConfigBounds(config({ plugins: { limits: { maxCapabilities: 0 } } })),
       /plugins\.limits\.maxCapabilities must be >= 1/
     )
+    assert.throws(
+      () => assertConfigBounds(config({ plugins: { limits: { maxSchedules: 0 } } })),
+      /plugins\.limits\.maxSchedules must be >= 1/
+    )
   })
 
   test('rejects a plugin authorizer deadline below 1ms', ({ assert }) => {
@@ -134,6 +138,7 @@ test.group('assertConfigBounds()', () => {
               maxAuthorizers: 16,
               maxMiddleware: 16,
               maxCapabilities: 64,
+              maxSchedules: 8,
               authorizerDeadlineMs: 1000,
             },
           },

@@ -4,6 +4,7 @@ import {
   middleware,
   requestMacro,
   defineCapability,
+  schedule,
 } from '../../../../src/sdk/builders.js'
 import {
   AUTHORIZER_CONTRACT_VERSION,
@@ -115,5 +116,43 @@ test.group('plugin builders — defineCapability()', () => {
     // Omitted or false → NOT sensitive-by-accident (an ordinary cap stays composable).
     assert.isUndefined(defineCapability({ name: 'email', api: {} }).sensitive)
     assert.isUndefined(defineCapability({ name: 'email', api: {}, sensitive: false }).sensitive)
+  })
+})
+
+test.group('plugin builders — schedule()', () => {
+  test('stamps kind, mints the name, keeps the interval', ({ assert }) => {
+    const entry = schedule({ name: 'sync', job: 'app.Sync', everyMs: 60_000 })
+    assert.equal(entry.kind, 'schedule')
+    assert.equal(entry.name, 'sync')
+    assert.equal(entry.job, 'app.Sync')
+    assert.equal(entry.everyMs, 60_000)
+    // Optional fields stay ABSENT (not `undefined`) so exactOptional stays happy.
+    assert.isUndefined(entry.cron)
+    assert.isFalse('cron' in entry)
+    assert.isFalse('timezone' in entry)
+    assert.isFalse('statuses' in entry)
+  })
+
+  test('passes cron/timezone/statuses/jitter/payload/deliveryGuarantee through', ({ assert }) => {
+    const entry = schedule({
+      name: 'digest',
+      job: 'app.Digest',
+      cron: '0 2 * * *',
+      timezone: 'Europe/Madrid',
+      statuses: ['active', 'suspended'],
+      jitterMs: 5000,
+      payload: { scope: 'daily' },
+      deliveryGuarantee: 'fire-once',
+    })
+    assert.equal(entry.cron, '0 2 * * *')
+    assert.equal(entry.timezone, 'Europe/Madrid')
+    assert.deepEqual(entry.statuses, ['active', 'suspended'])
+    assert.equal(entry.jitterMs, 5000)
+    assert.deepEqual(entry.payload, { scope: 'daily' })
+    assert.equal(entry.deliveryGuarantee, 'fire-once')
+  })
+
+  test('rejects a hostile name at build time', ({ assert }) => {
+    assert.throws(() => schedule({ name: 'bad name', job: 'j', everyMs: 1000 }), /unsafe/)
   })
 })

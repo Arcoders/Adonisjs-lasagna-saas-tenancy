@@ -83,6 +83,7 @@ export function assertConfigBounds(config: MultitenancyConfig): void {
     atLeast(pl.maxAuthorizers, 'plugins.limits.maxAuthorizers', 1)
     atLeast(pl.maxMiddleware, 'plugins.limits.maxMiddleware', 1)
     atLeast(pl.maxCapabilities, 'plugins.limits.maxCapabilities', 1)
+    atLeast(pl.maxSchedules, 'plugins.limits.maxSchedules', 1)
     atLeast(pl.authorizerDeadlineMs, 'plugins.limits.authorizerDeadlineMs', 1)
   }
 

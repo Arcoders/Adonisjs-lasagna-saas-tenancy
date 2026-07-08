@@ -26,12 +26,14 @@ const PLUGIN_SURFACE_FILES = [
   'src/sdk/brands.ts',
   'src/sdk/plugin_permissions.ts',
   'src/sdk/plugin_env.ts',
+  'src/sdk/plugin_keys.ts',
   'src/sdk/assert_never.ts',
   'src/sdk/capabilities.ts',
   'src/sdk/plugin_api_version.ts',
   'src/services/authorizer_registry.ts',
   'src/services/tenant_middleware_registry.ts',
   'src/services/capability_registry.ts',
+  'src/services/tenant_scheduler_service.ts',
   'src/exceptions/plugin_exception.ts',
   'src/exceptions/plugin_authorizer_exception.ts',
   'src/exceptions/plugin_boot_exception.ts',
@@ -40,6 +42,7 @@ const PLUGIN_SURFACE_FILES = [
   'src/exceptions/capability_collision_exception.ts',
   'src/exceptions/capability_trust_exception.ts',
   'src/exceptions/unauthorized_core_access_exception.ts',
+  'src/exceptions/scheduler_tick_exception.ts',
 ] as const
 
 const CORE_ROOT = fileURLToPath(new URL('../../../', import.meta.url))

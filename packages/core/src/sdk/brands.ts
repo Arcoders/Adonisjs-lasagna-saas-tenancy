@@ -35,6 +35,9 @@ export type MacroName = Branded<'MacroName'>
 export type CapabilityKey = Branded<'CapabilityKey'>
 /** A Lucid model / table identifier a plugin declares it observes (a `data_change` permission). */
 export type ModelName = Branded<'ModelName'>
+/** A registered tenant schedule's name (SEAM-1). Interpolated into the native
+ *  schedule id and the per-tenant dispatch `jobId`, so it must be a safe slug. */
+export type ScheduleName = Branded<'ScheduleName'>
 
 /**
  * The one sanctioned assertion site. Validates the raw string with the shared
@@ -74,4 +77,7 @@ export function capabilityKey(raw: string): CapabilityKey {
 }
 export function modelName(raw: string): ModelName {
   return mint<'ModelName'>(raw, 'model name')
+}
+export function scheduleName(raw: string): ScheduleName {
+  return mint<'ScheduleName'>(raw, 'schedule name')
 }

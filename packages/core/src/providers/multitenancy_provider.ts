@@ -47,6 +47,7 @@ import WebhookTransformerRegistry from '../services/webhook_transformer_registry
 import AuthorizerRegistry from '../services/authorizer_registry.js'
 import TenantMiddlewareRegistry from '../services/tenant_middleware_registry.js'
 import CapabilityRegistry from '../services/capability_registry.js'
+import TenantSchedulerService from '../services/tenant_scheduler_service.js'
 // Billing (service, listeners, jobs, webhook route, drain) moved to
 // `@adonisjs-lasagna/billing`; its own provider wires those against core
 // events/hooks. The core provider no longer references billing.
@@ -97,6 +98,10 @@ export default class MultitenancyProvider {
     this.app.container.singleton(AuthorizerRegistry, () => new AuthorizerRegistry())
     this.app.container.singleton(TenantMiddlewareRegistry, () => new TenantMiddlewareRegistry())
     this.app.container.singleton(CapabilityRegistry, () => new CapabilityRegistry())
+    // Fans a periodic tick out over active tenants. Singleton so a plugin's
+    // boot-time schedule registrations are the ones ready() arms as native
+    // @adonisjs/queue schedules.
+    this.app.container.singleton(TenantSchedulerService, () => new TenantSchedulerService())
     this.app.container.singleton(ImpersonationService, async (resolver) => {
       const auditLog = await resolver.make(AuditLogService)
       return new ImpersonationService({ auditLog })
@@ -380,15 +385,17 @@ export default class MultitenancyProvider {
     // authorizer/middleware/capability registrations are final and countable. A
     // surface over its configured cap aborts the deploy (PluginBootException); an
     // omitted cap is unlimited. No-op unless a host sets `plugins.limits`.
-    const [authorizers, middleware, capabilities] = await Promise.all([
+    const [authorizers, middleware, capabilities, scheduler] = await Promise.all([
       this.app.container.make(AuthorizerRegistry),
       this.app.container.make(TenantMiddlewareRegistry),
       this.app.container.make(CapabilityRegistry),
+      this.app.container.make(TenantSchedulerService),
     ])
     assertPluginLimits(config.plugins?.limits, {
       authorizers: authorizers.list().length,
       middleware: middleware.list().length,
       capabilities: capabilities.list().length,
+      schedules: scheduler.list().length,
     })
 
     if (config.routing?.autoLoad !== false) {
@@ -415,6 +422,21 @@ export default class MultitenancyProvider {
    * stripped-down container without an emitter can't break startup.
    */
   async ready() {
+    // Arm plugin schedules as native @adonisjs/queue schedules. Runs in ready()
+    // (after every provider boot(), so all schedule registrations are final AND
+    // the queue backend is initialized) and BEFORE the cache-invalidation early
+    // return below, so a host without the resolution cache still gets its
+    // schedules armed. No-op unless a plugin registered a schedule. Fail-closed in
+    // the worker/console process (a declared schedule that can't be armed aborts
+    // the deploy); fail-open in the web process (the worker arms the shared
+    // schedule anyway, so a queue-backend blip must not fail web readiness).
+    const env = this.app.getEnvironment()
+    await (
+      await this.app.container.make(TenantSchedulerService)
+    ).start({
+      failClosed: env !== 'web',
+    })
+
     const config = this.app.config.get<MultitenancyConfig>('multitenancy')
     if (!config.resolver?.cache?.enabled) return
     const emitter = await this.app.container.make('emitter').catch(() => null)

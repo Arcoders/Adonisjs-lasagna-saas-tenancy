@@ -396,6 +396,35 @@ routed to a read-only database connection regardless of what it declares, and
 outbound traffic is bounded by the worker network policy.
 </Callout>
 
+## Schedules
+
+A plugin can register a periodic **tick** that fans out over active tenants. Each
+tick dispatches a per-tenant job to every tenant matching a status filter, so a
+"reindex nightly" or "sync every 5 minutes" feature is one declarative entry
+rather than N per-tenant repeatables you have to tear down on suspend/delete.
+
+```ts
+import { definePlugin, schedule } from '@adonisjs-lasagna/saas-tenancy/plugin'
+
+export default definePlugin({
+  name: 'search',
+  satelliteApi: 1,
+  permissions: [permission.scheduler()], // consent-gated at install (S1)
+  schedules: () => [
+    schedule({ name: 'reindex', job: 'search.ReindexTenant', everyMs: 300_000 }),
+    schedule({ name: 'digest', job: 'app.SendDigest', cron: '0 2 * * *', jitterMs: 30_000 }),
+  ],
+})
+```
+
+Set exactly one of `cron` or `everyMs`. `job` is the per-tenant job name dispatched
+to each active tenant's queue. The tick runs on the host's `queue:work` worker, so
+the `schedules` seam needs `@adonisjs/queue` configured; declare
+`permission.scheduler()` so the operator consents to it at install (disclosure, not
+enforcement). The full model — the native scheduler backend, the status filter,
+reconciling vs fire-once delivery, and idempotency — is in
+[Scheduler](/guides/scheduler).
+
 ## The `/plugin` import surface
 
 One import path carries everything a plugin author needs:
@@ -404,7 +433,7 @@ One import path carries everything a plugin author needs:
 |---|---|---|
 | `definePlugin` | function | Build the provider from a spec. |
 | `PluginSpec`, `PluginSection` | types | The spec shape and its section signature. |
-| `authorizer`, `middleware`, `requestMacro`, `defineCapability` | functions | Typed section builders (the recommended way to author an entry). |
+| `authorizer`, `middleware`, `requestMacro`, `defineCapability`, `schedule` | functions | Typed section builders (the recommended way to author an entry). |
 | `permission` | object | The permission builders (`permission.scheduler()`, `.dataChange(...)`, `.networkExternal()`, `.dbWrite()`). |
 | `PluginPermission`, `ModelName`, `modelName` | types + function | The permission union and the model-name brand. |
 | `LASAGNA_PLUGIN_API_VERSION` | const | The facade contract version to declare. |
@@ -413,6 +442,7 @@ One import path carries everything a plugin author needs:
 | `TENANT_MIDDLEWARE_CONTRACT_VERSION`, `TenantMiddlewareEntry`, `TenantMiddlewareScope` | const + types | The middleware seam. |
 | `TenantRequestMacroSpec` | type | The request-macro seam. |
 | `CAPABILITY_CONTRACT_VERSION`, `CapabilityProvision`, `LasagnaCapabilities` | const + types | The capability seam. |
+| `TenantSchedule`, `scheduleName`, `ScheduleName` | type + function + type | The scheduler seam (see [Scheduler](/guides/scheduler)). |
 
 The barrel is app.booted-safe: importing it never drags in a service that needs a
 booted app, so a plugin module loads under any tooling.
@@ -432,6 +462,7 @@ the contract, so both paths stay exercised.
   around this provider (manifest, configure hook, migrations, publishing).
 - [Extensibility](/guides/extensibility); the version-compatibility standard every
   extension surface shares.
+- [Scheduler](/guides/scheduler); the full model behind the `schedules` seam.
 - [Isthmus guard registry](/reference/isthmus); where the fail-closed authorizer
   deny is counted.
 - [Hooks](/reference/hooks); the tenant-lifecycle phases a `start` hook attaches to.

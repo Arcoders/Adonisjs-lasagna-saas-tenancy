@@ -377,12 +377,13 @@ export interface ResilienceConfig {
 }
 
 /**
- * Static, fail-closed caps on the plugin request-path surfaces, plus the
- * authorizer response deadline. The caps are enforced once at boot (in the
- * provider's `start()`, after every plugin has registered): a surface whose
- * registered count exceeds its cap aborts the deploy, so a runaway or hostile
- * plugin cannot exhaust the request path. Every field is optional; an omitted
- * cap means UNLIMITED — byte-identical to the pre-cap behavior.
+ * Static, fail-closed caps on the plugin surfaces, plus the authorizer response
+ * deadline. The caps are enforced once at boot (in the provider's `start()`,
+ * after every plugin has registered): a surface whose registered count exceeds
+ * its cap aborts the deploy, so a runaway or hostile plugin cannot exhaust the
+ * request path or fan a tick out over more schedules than the operator allows.
+ * Every field is optional; an omitted cap means UNLIMITED — byte-identical to the
+ * pre-cap behavior.
  */
 export interface PluginLimitsConfig {
   /** Max tenant-access authorizers the chain may register. Omitted → unlimited. */
@@ -391,6 +392,8 @@ export interface PluginLimitsConfig {
   maxMiddleware?: number
   /** Max capabilities provided into the capability registry. Omitted → unlimited. */
   maxCapabilities?: number
+  /** Max tenant schedules registered across all plugins (SEAM-1). Omitted → unlimited. */
+  maxSchedules?: number
   /**
    * Response deadline (ms) for a SINGLE plugin authorizer before it is treated as
    * a DENY (fail-closed) — a hung authorizer must not hang the request. This is a

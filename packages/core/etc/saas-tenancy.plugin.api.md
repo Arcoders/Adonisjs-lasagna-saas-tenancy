@@ -168,6 +168,7 @@ export interface PluginSpec {
     readonly ready?: (app: ApplicationService) => void | Promise<void>;
     readonly requestMacros?: PluginSection<readonly TenantRequestMacroSpec[]>;
     readonly satelliteApi: number;
+    readonly schedules?: PluginSection<readonly TenantSchedule[]>;
     // (undocumented)
     readonly shutdown?: (app: ApplicationService) => void | Promise<void>;
     // (undocumented)
@@ -198,6 +199,25 @@ export interface SatelliteProviderContract {
     // (undocumented)
     start?(): void | Promise<void>;
 }
+
+// @public
+export function schedule(spec: {
+    readonly name: string;
+    readonly job: string;
+    readonly cron?: string;
+    readonly everyMs?: number;
+    readonly timezone?: string;
+    readonly statuses?: readonly TenantStatus[];
+    readonly jitterMs?: number;
+    readonly payload?: Record<string, unknown>;
+    readonly deliveryGuarantee?: 'reconciling' | 'fire-once';
+}): TenantSchedule;
+
+// @public
+export type ScheduleName = Branded<'ScheduleName'>;
+
+// @public (undocumented)
+export function scheduleName(raw: string): ScheduleName;
 
 // @public
 export const TENANT_MIDDLEWARE_CONTRACT_VERSION = 1;
@@ -299,6 +319,22 @@ export interface TenantRequestMacroSpec<T = unknown> {
     readonly requireTenant?: boolean;
     // (undocumented)
     readonly resolve: (request: HttpRequest) => T | Promise<T>;
+}
+
+// @public
+export interface TenantSchedule {
+    readonly cron?: string;
+    readonly deliveryGuarantee?: 'reconciling' | 'fire-once';
+    readonly everyMs?: number;
+    readonly jitterMs?: number;
+    readonly job: string;
+    // (undocumented)
+    readonly kind: 'schedule';
+    // (undocumented)
+    readonly name: ScheduleName;
+    readonly payload?: Record<string, unknown>;
+    readonly statuses?: readonly TenantStatus[];
+    readonly timezone?: string;
 }
 
 // @public (undocumented)
