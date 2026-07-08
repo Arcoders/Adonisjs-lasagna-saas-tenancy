@@ -156,6 +156,7 @@ export interface PluginSpec {
     readonly boot?: (app: ApplicationService) => void | Promise<void>;
     readonly middleware?: PluginSection<readonly TenantMiddlewareEntry[]>;
     readonly name: string;
+    readonly nativeAddons?: boolean;
     readonly packageName?: string;
     readonly permissions?: readonly PluginPermission[];
     readonly pluginApiVersion?: number;

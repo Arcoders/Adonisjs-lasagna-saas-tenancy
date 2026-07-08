@@ -64,6 +64,14 @@ export interface PluginSpec {
    */
   readonly permissions?: readonly PluginPermission[]
 
+  /**
+   * Set when the plugin ships native (`.node`) addons. A native addon evades the
+   * worker's Node Permission Model, so `boot()` fails closed if this plugin runs
+   * in a sandboxed worker (`--permission`) without `--allow-addons` (S4b). Keep it
+   * in sync with `package.json#lasagnaSatellite.nativeAddons`.
+   */
+  readonly nativeAddons?: boolean
+
   // --- Lote A seams (request-path) ---
   /** Tenant-access authorizers, appended to the fail-closed authorizer chain (SEAM-3). */
   readonly authorizers?: PluginSection<readonly TenantAuthorizerEntry[]>
@@ -120,6 +128,14 @@ export function definePlugin(spec: PluginSpec): SatelliteProviderConstructor {
       // at install; these are the runtime backstop for a later core downgrade.
       assertSatelliteApiCompatAtBoot({ satelliteApi: spec.satelliteApi }, label)
       assertPluginApiCompatAtBoot(spec.pluginApiVersion, label)
+
+      // S4b: a native-addon plugin cannot run in a Permission-Model worker without
+      // --allow-addons. Inert in the API process (no --permission); aborts a
+      // sandboxed worker deploy. No-op unless the plugin declares native addons.
+      if (spec.nativeAddons) {
+        const { assertNativeAddonsSandboxable } = await import('../services/worker_sandbox.js')
+        assertNativeAddonsSandboxable(name)
+      }
 
       for (const entry of await this.#collectBootEntries()) {
         await this.#registerEntry(entry)
