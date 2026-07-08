@@ -31,7 +31,9 @@ test.group('qualifyBackofficeTable', () => {
 test.group('readBooleanEnvFlag', () => {
   const VAR = 'LASAGNA_TEST_FLAG_XYZ'
   test('true for affirmative values (case/space-insensitive)', ({ assert, cleanup }) => {
-    cleanup(() => delete process.env[VAR])
+    cleanup(() => {
+      delete process.env[VAR]
+    })
     for (const v of ['true', 'TRUE', ' true ', '1', 'yes', 'on']) {
       process.env[VAR] = v
       assert.isTrue(readBooleanEnvFlag(VAR), `expected true for ${JSON.stringify(v)}`)
@@ -39,7 +41,9 @@ test.group('readBooleanEnvFlag', () => {
   })
 
   test('false for absent, empty, negative, or typo values', ({ assert, cleanup }) => {
-    cleanup(() => delete process.env[VAR])
+    cleanup(() => {
+      delete process.env[VAR]
+    })
     delete process.env[VAR]
     assert.isFalse(readBooleanEnvFlag(VAR))
     for (const v of ['', 'false', 'no', 'off', '0', 'ture', 'enabled']) {

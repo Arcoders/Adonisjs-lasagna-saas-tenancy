@@ -25,6 +25,26 @@ export interface SatelliteManifest {
   satelliteApi?: number
 
   /**
+   * The Plugin API (facade) contract version this package's provider was built
+   * against (a positive integer; see `PLUGIN_API_CONTRACT_VERSION`). INDEPENDENT of
+   * `satelliteApi`: a `definePlugin()` provider declares it via
+   * `definePlugin({ pluginApiVersion })`, and this manifest field MIRRORS that code
+   * literal so a reader (and the `check-abi-boot-assertion` guard) can verify the two
+   * agree. Previously referenced by JSDoc but never modeled here — declaring it makes
+   * the mirror real instead of phantom. Omitted by a raw (non-facade) provider.
+   */
+  pluginApiVersion?: number
+
+  /**
+   * The satellite's per-package merged-coverage floors, enforced by the merged
+   * coverage gate (`check-publish-coverage` / the per-satellite CI job). An object of
+   * percentage numbers; any subset of `lines` / `functions` / `branches` /
+   * `statements`. Modeled here so a reader/guard can inspect it as part of the typed
+   * manifest rather than only as raw `package.json` JSON.
+   */
+  minMergedCoverage?: SatelliteCoverageFloors
+
+  /**
    * Legacy / short names accepted by `configure --with=<alias>` in addition to
    * the full package name. Lets `--with=billing` keep resolving to
    * `@adonisjs-lasagna/billing` after the migrations move out of core.
@@ -108,6 +128,14 @@ export interface SatelliteManifest {
   nativeAddons?: boolean
 }
 
+/** Per-package merged-coverage floors (percentages), any subset of the four metrics. */
+export interface SatelliteCoverageFloors {
+  lines?: number
+  functions?: number
+  branches?: number
+  statements?: number
+}
+
 /** A declared dependency on another satellite package. */
 export interface SatelliteDependency {
   /** The npm package name of the satellite this one depends on. */
@@ -166,6 +194,22 @@ function parseDependsOn(
     }
   }
   return out.length > 0 ? out : undefined
+}
+
+/**
+ * Parse `minMergedCoverage`: an object whose known keys (`lines`, `functions`,
+ * `branches`, `statements`) are percentage numbers in [0, 100]. Unknown keys and
+ * non-numeric values are ignored; an object with no usable key yields `undefined`.
+ */
+function parseCoverageFloors(value: unknown): SatelliteCoverageFloors | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const obj = value as Record<string, unknown>
+  const out: SatelliteCoverageFloors = {}
+  for (const key of ['lines', 'functions', 'branches', 'statements'] as const) {
+    const v = obj[key]
+    if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100) out[key] = v
+  }
+  return Object.keys(out).length > 0 ? out : undefined
 }
 
 function cleanStringArray(value: unknown): string[] | undefined {
@@ -262,6 +306,33 @@ export function readSatelliteManifest(
       onWarn(
         `[lasagna] ${pkgName}: "lasagnaSatellite.satelliteApi" must be a positive integer — ` +
           `dropping it`
+      )
+    }
+  }
+
+  if (obj.pluginApiVersion !== undefined) {
+    if (
+      typeof obj.pluginApiVersion === 'number' &&
+      Number.isInteger(obj.pluginApiVersion) &&
+      obj.pluginApiVersion > 0
+    ) {
+      manifest.pluginApiVersion = obj.pluginApiVersion
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: "lasagnaSatellite.pluginApiVersion" must be a positive integer — ` +
+          `dropping it`
+      )
+    }
+  }
+
+  if (obj.minMergedCoverage !== undefined) {
+    const floors = parseCoverageFloors(obj.minMergedCoverage)
+    if (floors) {
+      manifest.minMergedCoverage = floors
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: "lasagnaSatellite.minMergedCoverage" must be an object of ` +
+          `percentage numbers (lines/functions/branches/statements) — dropping it`
       )
     }
   }

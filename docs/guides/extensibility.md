@@ -81,6 +81,8 @@ because that is what it is.
 | [plugin](/guides/plugins) | tenant-access authorizers | `AuthorizerRegistry` | `AUTHORIZER_CONTRACT_VERSION` |
 | [plugin](/guides/plugins) | route middleware | `TenantMiddlewareRegistry` | `TENANT_MIDDLEWARE_CONTRACT_VERSION` |
 | [plugin](/guides/plugins) | cross-plugin capabilities | `CapabilityRegistry` | `CAPABILITY_CONTRACT_VERSION` |
+| [ai](/guides/satellites/ai) | AI providers | `AIProviderRegistry` | `AI_CONTRACT_VERSION` |
+| [crypto](/guides/satellites/crypto) | key providers | `KeyProviderRegistry` | `CRYPTO_CONTRACT_VERSION` |
 
 `reporting`, `audit`, `feature-flags`, and `webhooks` registries are container
 singletons (resolve via `container.make`). `admin` and `sso` ship no provider, so

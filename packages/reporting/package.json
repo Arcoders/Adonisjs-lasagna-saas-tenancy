@@ -61,6 +61,7 @@
   "lasagnaSatellite": {
     "name": "reporting",
     "satelliteApi": 1,
+    "pluginApiVersion": 1,
     "minMergedCoverage": {
       "lines": 96,
       "functions": 97,

@@ -16,18 +16,13 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { discoverSatelliteProviders } from './lib/discover-satellites.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const r = (p) => join(ROOT, p)
 
-/** Satellites that ship a provider (same set as check-abi-boot-assertion). */
-const PROVIDERS = [
-  { key: 'billing', provider: 'packages/billing/providers/billing_provider.ts', pkg: 'packages/billing/package.json' },
-  { key: 'backup', provider: 'packages/backup/providers/backup_provider.ts', pkg: 'packages/backup/package.json' },
-  { key: 'reporting', provider: 'packages/reporting/providers/reporting_provider.ts', pkg: 'packages/reporting/package.json' },
-  { key: 'websockets', provider: 'packages/websockets/providers/websockets_provider.ts', pkg: 'packages/websockets/package.json' },
-  { key: 'ai', provider: 'packages/ai/providers/ai_provider.ts', pkg: 'packages/ai/package.json' },
-]
+/** Satellites that ship a provider, discovered from source (same set as check-abi-boot-assertion). */
+const PROVIDERS = discoverSatelliteProviders(ROOT)
 
 // `permission.<kind>(<args>)` — `\b` before `permission` so `somePermission.x()`
 // does not match. Args are simple string literals for `dataChange`.

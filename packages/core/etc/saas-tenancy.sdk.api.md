@@ -5,6 +5,7 @@
 ```ts
 
 import type { ApplicationService } from '@adonisjs/core/types';
+import type { Database } from '@adonisjs/lucid/database';
 
 // @public
 export function assertContractCompat(declared: number | undefined, current: number, label: string, onWarn?: (message: string) => void): void;
@@ -75,6 +76,9 @@ export function filterAlreadyPublished(stubs: string[], existing: string[]): {
 export function indexSatellites(satellites: DiscoveredSatellite[]): Map<string, DiscoveredSatellite>;
 
 // @public
+export function isProductionNodeEnv(): boolean;
+
+// @public
 export function isSafeRelativePath(p: string): boolean;
 
 // @public (undocumented)
@@ -106,10 +110,19 @@ export function publishSatellite(codemods: CodemodsLike, satellite: DiscoveredSa
 }>;
 
 // @public
+export function qualifyBackofficeTable(schema: string, table: string): string;
+
+// @public
+export function readBooleanEnvFlag(name: string): boolean;
+
+// @public
 export function readSatelliteManifest(pkgJson: unknown, onWarn?: (message: string) => void): SatelliteManifest | null;
 
 // @public
 export function registerSatelliteInRcFile(codemods: CodemodsLike, manifest: SatelliteManifest): Promise<void>;
+
+// @public
+export function resolveLucidDb(app: ApplicationService): Promise<Database>;
 
 // @public
 export function resolveSatelliteDependencies(selected: DiscoveredSatellite[], index: Map<string, DiscoveredSatellite>): DependencyResolution;
@@ -144,10 +157,13 @@ export interface SatelliteManifest {
     env?: string[];
     install?: string[];
     migrations?: string;
+    // Warning: (ae-forgotten-export) The symbol "SatelliteCoverageFloors" needs to be exported by the entry point index.d.ts
+    minMergedCoverage?: SatelliteCoverageFloors;
     name: string;
     nativeAddons?: boolean;
     permissions?: string[];
     perTenantMigrations?: string;
+    pluginApiVersion?: number;
     provider?: string;
     requires?: string[];
     satelliteApi?: number;
