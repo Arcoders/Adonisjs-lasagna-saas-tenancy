@@ -1,5 +1,6 @@
 import { getConfig } from '../../config.js'
 import { getActiveDriver } from './active_driver.js'
+import { assertSafeIdentifier } from './identifier.js'
 import { resolveTenantRepository } from '../resolve_tenant_repository.js'
 import { PGVECTOR_EXTENSION, PGVECTOR_EXTENSION_SCHEMA } from './pgvector.js'
 import type { IsolationDriver } from './driver.js'
@@ -32,26 +33,50 @@ export { PGVECTOR_EXTENSION, PGVECTOR_EXTENSION_SCHEMA }
 const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default)
 
 /**
- * Install pgvector into its dedicated schema (idempotent). The schema is created
- * first so `WITH SCHEMA` can land the `vector` type + operator classes where a
- * schema-pg tenant connection's search_path (which appends this schema) can
- * resolve them, without putting `public` on the tenant path.
+ * Install a PostgreSQL extension (idempotent). When `schema` is set the schema is
+ * created first and the extension lands in it (`WITH SCHEMA`), so a tenant
+ * connection whose search_path appends that schema resolves the extension's types
+ * without putting `public` on the tenant path (this is exactly how pgvector is
+ * installed). Without a schema, the extension installs into the connection's
+ * default location.
+ *
+ * Both identifiers are interpolated into DDL (they cannot be bind parameters), so
+ * the caller MUST have run {@link assertSafeIdentifier} on them first —
+ * {@link provisionExtension} does.
  */
-async function installVectorExtension(conn: {
-  rawQuery: (sql: string) => Promise<unknown>
-}): Promise<void> {
-  // safe-sql: PGVECTOR_EXTENSION_SCHEMA is a fixed module constant, never user input (a schema name cannot be a bind parameter).
-  await conn.rawQuery(`CREATE SCHEMA IF NOT EXISTS ${PGVECTOR_EXTENSION_SCHEMA}`)
-  // safe-sql: both identifiers are fixed module constants, never user input (a DDL schema/extension name cannot be a bind parameter).
-  await conn.rawQuery(
-    `CREATE EXTENSION IF NOT EXISTS ${PGVECTOR_EXTENSION} WITH SCHEMA ${PGVECTOR_EXTENSION_SCHEMA}`
-  )
+export async function installExtension(
+  conn: { rawQuery: (sql: string) => Promise<unknown> },
+  name: string,
+  schema?: string
+): Promise<void> {
+  if (schema) {
+    // safe-sql: schema is assertSafeIdentifier-validated by provisionExtension (a schema name cannot be a bind parameter).
+    await conn.rawQuery(`CREATE SCHEMA IF NOT EXISTS ${schema}`)
+    // safe-sql: both identifiers are assertSafeIdentifier-validated by provisionExtension (a DDL schema/extension name cannot be a bind parameter).
+    await conn.rawQuery(`CREATE EXTENSION IF NOT EXISTS ${name} WITH SCHEMA ${schema}`)
+    return
+  }
+  // safe-sql: name is assertSafeIdentifier-validated by provisionExtension (an extension name cannot be a bind parameter).
+  await conn.rawQuery(`CREATE EXTENSION IF NOT EXISTS ${name}`)
 }
 
 // Monotonic per-process suffix so two concurrent provision runs never share a
 // throwaway connection name (which would let one run's release close the other's
 // pool mid-DDL).
 let provisionSeq = 0
+
+/**
+ * A PostgreSQL extension a plugin declares its tenants need (SEAM-7). Wired via
+ * `definePlugin({ provisionExtensions })`, which registers an `after('provision')`
+ * hook that installs it into each newly-provisioned tenant's storage. The name and
+ * optional schema are validated as safe DDL identifiers before any `CREATE`.
+ */
+export interface ProvisionExtensionSpec {
+  /** The extension name, e.g. `vector`, `postgis`, `pg_trgm`. */
+  readonly name: string
+  /** Optional dedicated schema to install it into (created if absent). */
+  readonly schema?: string
+}
 
 /** Minimal logger shape (satisfied by an ace command's `this.logger`). */
 export interface ProvisionLogger {
@@ -91,15 +116,37 @@ export function provisionConnectionName(): string {
   return cfg.isolation?.provisionConnectionName ?? cfg.centralConnectionName
 }
 
+/** Summary of a {@link provisionExtension} run — the vector summary plus the
+ *  extension name (so a multi-extension caller can tell runs apart). */
+export interface ExtensionProvisionSummary extends VectorProvisionSummary {
+  /** The extension this summary is for. */
+  extension: string
+}
+
 /**
- * Install the pgvector extension where the active driver stores tenant data.
+ * Install a PostgreSQL extension where the active driver stores tenant data
+ * (SEAM-7). The generic engine behind {@link provisionVectorExtension}: it
+ * validates the identifiers, then dispatches by driver — per tenant database for
+ * `database-pg`, once on the shared database for `schema-pg`/`rowscope-pg`, and
+ * skipped for `sqlite-memory` / unknown drivers.
+ *
  * Fail-closed by nature: `CREATE EXTENSION` under a role without the privilege
- * raises a clear PostgreSQL error rather than silently continuing.
+ * raises a clear PostgreSQL error. Per-database it is fail-open across tenants (one
+ * unreachable database is counted in `failed` and the run continues).
  */
-export async function provisionVectorExtension(
+export async function provisionExtension(
+  spec: ProvisionExtensionSpec,
   opts: VectorProvisionOptions = {},
   deps: VectorProvisionDeps = {}
-): Promise<VectorProvisionSummary> {
+): Promise<ExtensionProvisionSummary> {
+  // Both go into raw DDL (they cannot be bind parameters), so validate BEFORE any
+  // connection work — a hostile/typo'd name fails fast, not mid-DDL.
+  assertSafeIdentifier(spec.name, 'extension name')
+  if (spec.schema !== undefined) assertSafeIdentifier(spec.schema, 'extension schema')
+  const name = spec.name
+  const schema = spec.schema
+  const ddl = schema ? `CREATE EXTENSION ${name} WITH SCHEMA ${schema}` : `CREATE EXTENSION ${name}`
+
   const dryRun = opts.dryRun ?? false
   const log = opts.logger
   const driver = await (deps.getDriver ?? getActiveDriver)()
@@ -107,8 +154,15 @@ export async function provisionVectorExtension(
   const connName = provisionConnectionName()
 
   if (driver.name === 'sqlite-memory') {
-    log?.info('sqlite-memory driver: pgvector is not applicable, skipping.')
-    return { driver: driver.name, scope: 'skipped', provisioned: 0, failed: 0, dryRun }
+    log?.info(`sqlite-memory driver: extension "${name}" is not applicable, skipping.`)
+    return {
+      extension: name,
+      driver: driver.name,
+      scope: 'skipped',
+      provisioned: 0,
+      failed: 0,
+      dryRun,
+    }
   }
 
   // Privilege-separation caveat: the DDL should run under a role distinct from
@@ -117,9 +171,9 @@ export async function provisionVectorExtension(
   // operator to configure a privileged connection for production.
   if (getConfig().isolation?.provisionConnectionName === undefined) {
     log?.warning?.(
-      `pgvector: provisioning on the central connection "${connName}", which the app also uses. ` +
-        `Set isolation.provisionConnectionName to a dedicated privileged role so the app role ` +
-        `stays least-privilege.`
+      `extension "${name}": provisioning on the central connection "${connName}", which the app ` +
+        `also uses. Set isolation.provisionConnectionName to a dedicated privileged role so the ` +
+        `app role stays least-privilege.`
     )
   }
 
@@ -133,7 +187,7 @@ export async function provisionVectorExtension(
       .databaseName
     if (typeof databaseName !== 'function') {
       throw new Error(
-        `pgvector provisioning: the active "database-pg" driver does not expose ` +
+        `extension provisioning: the active "database-pg" driver does not expose ` +
           `databaseName(tenant); a custom driver must implement it to be provisioned per database.`
       )
     }
@@ -148,48 +202,96 @@ export async function provisionVectorExtension(
     for (const tenant of tenants) {
       const dbName = databaseName.call(driver, tenant)
       if (dryRun) {
-        log?.info(
-          `would CREATE EXTENSION ${PGVECTOR_EXTENSION} WITH SCHEMA ${PGVECTOR_EXTENSION_SCHEMA} in database "${dbName}"`
-        )
+        log?.info(`would ${ddl} in database "${dbName}"`)
         provisioned++
         continue
       }
       try {
-        await withProvisionConnection(db, connName, dbName, (conn) => installVectorExtension(conn))
-        log?.info(
-          `CREATE EXTENSION ${PGVECTOR_EXTENSION} WITH SCHEMA ${PGVECTOR_EXTENSION_SCHEMA} in database "${dbName}"`
+        await withProvisionConnection(db, connName, dbName, (conn) =>
+          installExtension(conn, name, schema)
         )
+        log?.info(`${ddl} in database "${dbName}"`)
         provisioned++
       } catch (error) {
         failed++
-        log?.warning?.(`pgvector: FAILED on database "${dbName}": ${(error as Error).message}`)
+        log?.warning?.(
+          `extension "${name}": FAILED on database "${dbName}": ${(error as Error).message}`
+        )
       }
     }
-    return { driver: driver.name, scope: 'per-database', provisioned, failed, dryRun }
+    return {
+      extension: name,
+      driver: driver.name,
+      scope: 'per-database',
+      provisioned,
+      failed,
+      dryRun,
+    }
   }
 
   // schema-pg / rowscope-pg: one shared database, provision it once.
   if (driver.name === 'schema-pg' || driver.name === 'rowscope-pg') {
     if (dryRun) {
-      log?.info(
-        `would CREATE EXTENSION ${PGVECTOR_EXTENSION} WITH SCHEMA ${PGVECTOR_EXTENSION_SCHEMA} on connection "${connName}"`
-      )
-      return { driver: driver.name, scope: 'central', provisioned: 1, failed: 0, dryRun }
+      log?.info(`would ${ddl} on connection "${connName}"`)
+      return {
+        extension: name,
+        driver: driver.name,
+        scope: 'central',
+        provisioned: 1,
+        failed: 0,
+        dryRun,
+      }
     }
-    await installVectorExtension(db.connection(connName))
-    log?.info(
-      `CREATE EXTENSION ${PGVECTOR_EXTENSION} WITH SCHEMA ${PGVECTOR_EXTENSION_SCHEMA} on connection "${connName}"`
-    )
-    return { driver: driver.name, scope: 'central', provisioned: 1, failed: 0, dryRun }
+    await installExtension(db.connection(connName), name, schema)
+    log?.info(`${ddl} on connection "${connName}"`)
+    return {
+      extension: name,
+      driver: driver.name,
+      scope: 'central',
+      provisioned: 1,
+      failed: 0,
+      dryRun,
+    }
   }
 
   // Unknown/custom driver: its storage shape is unknown, so do nothing rather
   // than guess a central install that might target the wrong place.
   log?.warning?.(
-    `pgvector: unknown isolation driver "${driver.name}"; provision the vector extension ` +
-      `manually where this driver stores tenant data.`
+    `extension "${name}": unknown isolation driver "${driver.name}"; provision it manually where ` +
+      `this driver stores tenant data.`
   )
-  return { driver: driver.name, scope: 'skipped', provisioned: 0, failed: 0, dryRun }
+  return {
+    extension: name,
+    driver: driver.name,
+    scope: 'skipped',
+    provisioned: 0,
+    failed: 0,
+    dryRun,
+  }
+}
+
+/**
+ * Install the pgvector extension where the active driver stores tenant data.
+ * A thin adapter over {@link provisionExtension} pinned to the `vector` extension
+ * in its dedicated schema; kept for the `tenant:vector:provision` command and the
+ * AI satellite, with its original summary shape (no `extension` field).
+ */
+export async function provisionVectorExtension(
+  opts: VectorProvisionOptions = {},
+  deps: VectorProvisionDeps = {}
+): Promise<VectorProvisionSummary> {
+  const s = await provisionExtension(
+    { name: PGVECTOR_EXTENSION, schema: PGVECTOR_EXTENSION_SCHEMA },
+    opts,
+    deps
+  )
+  return {
+    driver: s.driver,
+    scope: s.scope,
+    provisioned: s.provisioned,
+    failed: s.failed,
+    dryRun: s.dryRun,
+  }
 }
 
 /**
@@ -197,8 +299,10 @@ export async function provisionVectorExtension(
  * Clones the connection config, overrides the database (dropping any
  * schema-only `searchPath`), registers a throwaway Lucid connection, and
  * releases it afterwards, mirroring how `DatabasePgDriver` targets a tenant db.
+ * Exported so a plugin's own provisioning path can reuse the privileged-clone
+ * machinery (SEAM-7).
  */
-async function withProvisionConnection(
+export async function withProvisionConnection(
   db: any,
   provisionConn: string,
   dbName: string,
@@ -207,12 +311,12 @@ async function withProvisionConnection(
   const template = db.manager.get(provisionConn)?.config
   if (!template) {
     throw new Error(
-      `pgvector provisioning: connection "${provisionConn}" is not registered in the Lucid ` +
+      `extension provisioning: connection "${provisionConn}" is not registered in the Lucid ` +
         `manager. Configure a privileged provisioning connection and set ` +
         `isolation.provisionConnectionName (or centralConnectionName).`
     )
   }
-  const tempName = `__vector_provision_${dbName}_${provisionSeq++}`
+  const tempName = `__ext_provision_${dbName}_${provisionSeq++}`
   const cloned = { ...template, connection: { ...(template.connection ?? {}) } }
   cloned.connection.database = dbName
   delete cloned.searchPath

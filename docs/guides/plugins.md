@@ -425,6 +425,31 @@ enforcement). The full model — the native scheduler backend, the status filter
 reconciling vs fire-once delivery, and idempotency — is in
 [Scheduler](/guides/scheduler).
 
+## Provisioning Postgres extensions
+
+A plugin whose tables need a Postgres extension (pgvector, PostGIS, `pg_trgm`)
+declares it with `provisionExtensions`. The facade registers an `after('provision')`
+hook that installs each extension into every newly-provisioned tenant's storage —
+per tenant database on `database-pg`, once on the shared database for
+`schema-pg`/`rowscope-pg` — under the privileged provisioning connection
+(`isolation.provisionConnectionName`), so the app's least-privilege request role
+never runs `CREATE EXTENSION`.
+
+```ts
+export default definePlugin({
+  name: 'search',
+  satelliteApi: 1,
+  provisionExtensions: () => [{ name: 'pg_trgm' }, { name: 'vector', schema: 'extensions' }],
+})
+```
+
+The extension name and optional schema are validated as safe DDL identifiers at
+boot, so a typo fails the deploy rather than the first tenant provision. Installing
+into an extension's own `schema` (as pgvector does) keeps `public` off the tenant
+search path. Need to backfill existing tenants, or run it by hand? Call the exported
+`provisionExtension({ name, schema })` from `@adonisjs-lasagna/saas-tenancy/services`
+directly.
+
 ## The `/plugin` import surface
 
 One import path carries everything a plugin author needs:
@@ -443,6 +468,7 @@ One import path carries everything a plugin author needs:
 | `TenantRequestMacroSpec` | type | The request-macro seam. |
 | `CAPABILITY_CONTRACT_VERSION`, `CapabilityProvision`, `LasagnaCapabilities` | const + types | The capability seam. |
 | `TenantSchedule`, `scheduleName`, `ScheduleName` | type + function + type | The scheduler seam (see [Scheduler](/guides/scheduler)). |
+| `ProvisionExtensionSpec` | type | The extension-provisioning seam (SEAM-7). |
 
 The barrel is app.booted-safe: importing it never drags in a service that needs a
 booted app, so a plugin module loads under any tooling.

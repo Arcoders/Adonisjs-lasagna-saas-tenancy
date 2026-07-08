@@ -123,7 +123,7 @@ test.group('provisionVectorExtension — dispatch by driver', (group) => {
     assert.equal(summary.failed, 0)
     // one throwaway connection registered + released per tenant database
     assert.lengthOf(calls.added, 2)
-    assert.isTrue(calls.added.every((n) => n.startsWith('__vector_provision_')))
+    assert.isTrue(calls.added.every((n) => n.startsWith('__ext_provision_')))
     assert.isTrue(
       calls.added.some((n) => n.includes('tenant_a')) &&
         calls.added.some((n) => n.includes('tenant_b'))
@@ -192,7 +192,7 @@ test.group('provisionVectorExtension — dispatch by driver', (group) => {
     assert.isUndefined(capturedConfig.searchPath, 'schema-only searchPath dropped')
     // and the throwaway connection is cleaned up
     assert.isFalse(
-      [...registered.keys()].some((k) => k.startsWith('__vector_provision_')),
+      [...registered.keys()].some((k) => k.startsWith('__ext_provision_')),
       'throwaway connection released'
     )
   })

@@ -112,6 +112,9 @@ export {
   ISOLATION_CONTRACT_VERSION,
   isProvisionableDriver,
   provisionVectorExtension,
+  provisionExtension,
+  installExtension,
+  withProvisionConnection,
   provisionConnectionName,
   PGVECTOR_EXTENSION,
   PGVECTOR_EXTENSION_SCHEMA,
@@ -152,6 +155,8 @@ export type {
   VectorProvisionOptions,
   VectorProvisionSummary,
   VectorProvisionDeps,
+  ExtensionProvisionSummary,
+  ProvisionExtensionSpec,
   ProvisionLogger,
 } from './isolation/index.js'
 export {

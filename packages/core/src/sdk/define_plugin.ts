@@ -4,6 +4,7 @@ import type { TenantAuthorizerEntry } from '../services/authorizer_registry.js'
 import type { TenantMiddlewareEntry } from '../services/tenant_middleware_registry.js'
 import type { CapabilityProvision } from '../services/capability_registry.js'
 import type { TenantSchedule } from '../services/tenant_scheduler_service.js'
+import type { ProvisionExtensionSpec } from '../services/isolation/vector_provisioning.js'
 import type { TenantRequestMacroSpec } from '../extensions/request.js'
 import { pluginName, type PluginName } from './brands.js'
 import type { PluginPermission } from './plugin_permissions.js'
@@ -87,6 +88,8 @@ export interface PluginSpec {
   // --- Lote B seams (workers) ---
   /** Periodic ticks that fan out over active tenants (SEAM-1). */
   readonly schedules?: PluginSection<readonly TenantSchedule[]>
+  /** Postgres extensions installed into each tenant's storage on provision (SEAM-7). */
+  readonly provisionExtensions?: PluginSection<readonly ProvisionExtensionSpec[]>
 
   // --- lifecycle escape hatches (map onto the provider phases) ---
   readonly bind?: (app: ApplicationService) => void | Promise<void>
@@ -146,6 +149,8 @@ export function definePlugin(spec: PluginSpec): SatelliteProviderConstructor {
       for (const entry of await this.#collectBootEntries()) {
         await this.#registerEntry(entry)
       }
+
+      await this.#registerProvisionExtensions()
 
       await this.#runHook('boot', spec.boot)
     }
@@ -223,6 +228,48 @@ export function definePlugin(spec: PluginSpec): SatelliteProviderConstructor {
         }
         default:
           return assertNever(entry, 'plugin entry kind')
+      }
+    }
+
+    /**
+     * Register an `after('provision')` hook that installs each declared Postgres
+     * extension into a newly-provisioned tenant's storage (SEAM-7). Identifiers are
+     * validated HERE, at boot, so a typo'd / hostile extension name fails the deploy
+     * rather than the first tenant provision. The hook is fail-open by the
+     * HookRegistry after-hook contract (a throw is logged, not propagated), so a
+     * per-tenant install failure surfaces without aborting the tenant's own
+     * provisioning; the throw makes that failure visible in the logs.
+     */
+    async #registerProvisionExtensions(): Promise<void> {
+      if (!spec.provisionExtensions) return
+      const specs = await this.#resolveSection('provisionExtensions', spec.provisionExtensions)
+      if (specs.length === 0) return
+      try {
+        const { assertSafeIdentifier } = await import('../services/isolation/identifier.js')
+        for (const ext of specs) {
+          assertSafeIdentifier(ext.name, 'extension name')
+          if (ext.schema !== undefined) assertSafeIdentifier(ext.schema, 'extension schema')
+        }
+        const { provisionExtension } = await import('../services/isolation/vector_provisioning.js')
+        const { default: HookRegistry } = await import('../services/hook_registry.js')
+        const hooks = await this.app.container.make(HookRegistry)
+        hooks.after('provision', async (ctx) => {
+          for (const ext of specs) {
+            const summary = await provisionExtension(ext, { tenantIds: [ctx.tenant.id] })
+            if (summary.failed > 0) {
+              throw new Error(
+                `plugin "${name}": extension "${ext.name}" failed to provision for tenant ` +
+                  `${ctx.tenant.id}`
+              )
+            }
+          }
+        })
+      } catch (error) {
+        throw new PluginBootException(`plugin "${name}" failed to register provisionExtensions`, {
+          plugin: name,
+          phase: 'provisionExtensions',
+          cause: error,
+        })
       }
     }
 

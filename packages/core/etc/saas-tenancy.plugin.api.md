@@ -164,6 +164,7 @@ export interface PluginSpec {
     readonly permissions?: readonly PluginPermission[];
     readonly pluginApiVersion?: number;
     readonly provides?: PluginSection<readonly CapabilityProvision[]>;
+    readonly provisionExtensions?: PluginSection<readonly ProvisionExtensionSpec[]>;
     // (undocumented)
     readonly ready?: (app: ApplicationService) => void | Promise<void>;
     readonly requestMacros?: PluginSection<readonly TenantRequestMacroSpec[]>;
@@ -174,6 +175,12 @@ export interface PluginSpec {
     // (undocumented)
     readonly start?: (app: ApplicationService) => void | Promise<void>;
     readonly version?: string;
+}
+
+// @public
+export interface ProvisionExtensionSpec {
+    readonly name: string;
+    readonly schema?: string;
 }
 
 // @public

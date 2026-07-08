@@ -8,6 +8,7 @@ import AuthorizerRegistry, {
 import TenantMiddlewareRegistry from '../../../../src/services/tenant_middleware_registry.js'
 import CapabilityRegistry from '../../../../src/services/capability_registry.js'
 import TenantSchedulerService from '../../../../src/services/tenant_scheduler_service.js'
+import HookRegistry from '../../../../src/services/hook_registry.js'
 import {
   middlewareName,
   capabilityKey,
@@ -41,11 +42,13 @@ function makeMultiApp(regs: {
   middleware?: TenantMiddlewareRegistry
   capability?: CapabilityRegistry
   scheduler?: TenantSchedulerService
+  hooks?: HookRegistry
 }): ApplicationService {
   const authorizer = regs.authorizer ?? new AuthorizerRegistry()
   const middleware = regs.middleware ?? new TenantMiddlewareRegistry()
   const capability = regs.capability ?? new CapabilityRegistry()
   const scheduler = regs.scheduler ?? new TenantSchedulerService()
+  const hooks = regs.hooks ?? new HookRegistry()
   return {
     container: {
       make: async (cls: unknown) => {
@@ -53,6 +56,7 @@ function makeMultiApp(regs: {
         if (cls === TenantMiddlewareRegistry) return middleware
         if (cls === CapabilityRegistry) return capability
         if (cls === TenantSchedulerService) return scheduler
+        if (cls === HookRegistry) return hooks
         throw new Error('unexpected container.make in test')
       },
     },
@@ -224,6 +228,45 @@ test.group('definePlugin — multi-seam dispatch', (group) => {
     assert.deepEqual(capability.list(), ['cap1'])
     assert.deepEqual(scheduler.list(), ['s1'])
     assert.isFunction((HttpRequest.prototype as unknown as Record<string, unknown>).macro1)
+  })
+
+  test('provisionExtensions registers a single after("provision") hook', async ({ assert }) => {
+    // Record hook registrations without executing them (executing would resolve the
+    // active driver / db, which need a booted app).
+    class RecordingHooks extends HookRegistry {
+      afterEvents: string[] = []
+      after(event: any, hook: any): this {
+        this.afterEvents.push(event)
+        return super.after(event, hook)
+      }
+    }
+    const hooks = new RecordingHooks()
+    const Plugin = definePlugin({
+      name: 'search',
+      ...okApi,
+      provisionExtensions: () => [{ name: 'vector', schema: 'extensions' }, { name: 'pg_trgm' }],
+    })
+    await (new Plugin(makeMultiApp({ hooks })) as Lifecycle).boot()
+    // One hook for the whole section (it loops the specs internally), on provision.
+    assert.deepEqual(hooks.afterEvents, ['provision'])
+  })
+
+  test('a hostile extension identifier fails the deploy closed (phase provisionExtensions)', async ({
+    assert,
+  }) => {
+    const Plugin = definePlugin({
+      name: 'search',
+      ...okApi,
+      provisionExtensions: () => [{ name: 'vector; DROP DATABASE app' }],
+    })
+    try {
+      await (new Plugin(makeMultiApp({})) as Lifecycle).boot()
+      assert.fail('boot() should have thrown on the unsafe extension name')
+    } catch (err: any) {
+      assert.equal(err.code, 'E_PLUGIN_BOOT')
+      assert.equal(err.plugin, 'search')
+      assert.equal(err.phase, 'provisionExtensions')
+    }
   })
 })
 

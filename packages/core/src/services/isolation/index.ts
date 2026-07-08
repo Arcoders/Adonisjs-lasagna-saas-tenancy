@@ -20,6 +20,9 @@ export { default as SqliteMemoryDriver } from './sqlite_memory_driver.js'
 export { getActiveDriver } from './active_driver.js'
 export {
   provisionVectorExtension,
+  provisionExtension,
+  installExtension,
+  withProvisionConnection,
   provisionConnectionName,
   PGVECTOR_EXTENSION,
   PGVECTOR_EXTENSION_SCHEMA,
@@ -28,6 +31,8 @@ export type {
   VectorProvisionOptions,
   VectorProvisionSummary,
   VectorProvisionDeps,
+  ExtensionProvisionSummary,
+  ProvisionExtensionSpec,
   ProvisionLogger,
 } from './vector_provisioning.js'
 export { setTenantRlsGuc, withTenantRls, DEFAULT_RLS_GUC } from './rls.js'
