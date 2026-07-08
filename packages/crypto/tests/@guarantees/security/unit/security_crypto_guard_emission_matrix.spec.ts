@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import type { IsthmusGuardTrippedPayload } from '@adonisjs-lasagna/saas-tenancy/types'
-import { ISTHMUS_BUDGETS } from '@adonisjs-lasagna/saas-tenancy/internal'
+import { ISTHMUS_BUDGETS } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import {
   CRYPTO_GUARD_REJECTIONS_METRIC,
   emitCryptoGuardEvent,

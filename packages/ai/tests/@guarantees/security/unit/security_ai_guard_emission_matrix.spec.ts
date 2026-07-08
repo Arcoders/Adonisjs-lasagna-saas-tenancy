@@ -1,7 +1,7 @@
 import { test } from '@japa/runner'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { IsthmusGuardTrippedPayload } from '@adonisjs-lasagna/saas-tenancy/types'
-import { ISTHMUS_BUDGETS } from '@adonisjs-lasagna/saas-tenancy/internal'
+import { ISTHMUS_BUDGETS } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import {
   AI_GUARD_REJECTIONS_METRIC,
   emitAiGuardEvent,

@@ -2,11 +2,13 @@ import db from '@adonisjs/lucid/services/db'
 import logger from '@adonisjs/core/services/logger'
 import type { QueryClientContract, TransactionClientContract } from '@adonisjs/lucid/types/database'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
-import {
-  getActiveDriver,
-  assertSafeIdentifier,
-  isProvisionableDriver,
-} from '@adonisjs-lasagna/saas-tenancy/internal'
+import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/sdk'
+// `getActiveDriver` + `isProvisionableDriver` stay on the app.booted-safe
+// `/internal` surface: sibling backup service modules are loaded by a bare unit
+// runner, so they must not pull the `/services` barrel (it top-level-awaits
+// `app.booted` via redis). `isProvisionableDriver` is a genuinely-internal
+// driver-capability probe with no third-party need (see core/src/internal.ts).
+import { getActiveDriver, isProvisionableDriver } from '@adonisjs-lasagna/saas-tenancy/internal'
 import type { CloneResult, TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { withTenantOperationLock } from './tenant_operation_lock.js'
 import { destructiveLockFailClosed } from '../config.js'

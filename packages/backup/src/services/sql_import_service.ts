@@ -5,11 +5,13 @@ import { spawn } from 'node:child_process'
 import type { TransactionClientContract } from '@adonisjs/lucid/types/database'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
-import {
-  getActiveDriver,
-  assertSafeIdentifier,
-  splitSqlStatementsTagged,
-} from '@adonisjs-lasagna/saas-tenancy/internal'
+import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/sdk'
+// `getActiveDriver` + `splitSqlStatementsTagged` stay on the app.booted-safe
+// `/internal` surface: this module is loaded by a bare unit runner (no Ignitor),
+// so it must NOT import the `/services` barrel, which transitively top-level-awaits
+// `app.booted` via redis. `splitSqlStatementsTagged` is also a genuinely-internal
+// helper with no third-party need (see core/src/internal.ts).
+import { getActiveDriver, splitSqlStatementsTagged } from '@adonisjs-lasagna/saas-tenancy/internal'
 import { withTenantOperationLock } from './tenant_operation_lock.js'
 import { destructiveLockFailClosed } from '../config.js'
 import { assertRegularFile } from './fs_guards.js'

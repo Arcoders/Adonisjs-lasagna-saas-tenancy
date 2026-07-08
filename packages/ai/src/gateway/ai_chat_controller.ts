@@ -31,7 +31,7 @@ import {
   type AiRetrievalAuditSink,
 } from './audit_seam.js'
 import AIException, { httpStatusForAiCode } from '../exceptions/ai_exception.js'
-import { assertNever } from '../internal/assert_never.js'
+import { assertNever } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import type RetrievalService from '../services/retrieval_service.js'
 import type { VectorMatch } from '../services/vector_store_service.js'
 import type { AiConfig, AIRetrievalConfig, RetrievalScope, RedactOutput } from '../define_config.js'

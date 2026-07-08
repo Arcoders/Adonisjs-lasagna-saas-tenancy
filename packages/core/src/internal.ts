@@ -10,14 +10,23 @@
  * should import from the documented surfaces (`/services`, `/types`, the root).
  * The contents here may change between minors to follow the satellites' needs.
  *
- * Stability policy: anything a third-party satellite legitimately needs
- * must ALSO live on a stable surface, so no one is forced onto this unstable
- * subpath. The pure tenant-id validators (`isUuidV4`, `assertSafeIdentifier`)
- * are now on the bare-safe `/sdk`, and `buildTestTenant` is on `/testing`. The
- * re-exports below are kept for first-party back-compat. `getActiveDriver`
- * (booted; resolves the active driver — third parties can use the public
- * `IsolationDriverRegistry` on `/services`) and `splitSqlStatementsTagged` (a
- * niche SQL-import helper) remain genuinely internal.
+ * Stability policy (the keep-vs-hide decision): `/internal` REMAINS a
+ * published-but-unstable subpath, and the rule that keeps it honest is —
+ * anything a third-party satellite legitimately needs must ALSO live on a
+ * stable surface, so no one is forced onto this subpath. As of the W4 dedup,
+ * every stable-need helper has a stable home and first-party satellites import
+ * from it: the tenant-id validators (`isUuidV4`, `assertSafeIdentifier`), the
+ * backoffice-table qualifier, and the Isthmus guard-audit (`createGuardAudit` +
+ * `ISTHMUS_BUDGETS`) are on the bare-safe `/sdk`; `buildTestTenant` is on
+ * `/testing`. What stays here, imported by first-party code only, has no
+ * third-party need OR no bare-safe public home: `getActiveDriver` (the public
+ * `IsolationDriverRegistry` on `/services` is the third-party route, but the
+ * `/services` barrel top-level-awaits `app.booted` via redis, so a satellite
+ * module loaded by a BARE unit runner must reach it through this app.booted-safe
+ * subpath instead), `isProvisionableDriver` (a driver-capability probe),
+ * `splitSqlStatementsTagged` (a niche SQL-import helper), the resolver-baseline
+ * seam for the shared test harness, and the Isthmus emit/registry re-exports
+ * that core's own integration specs consume.
  */
 export { assertSafeIdentifier, isUuidV4 } from './services/isolation/identifier.js'
 export { getActiveDriver } from './services/isolation/active_driver.js'
@@ -31,9 +40,14 @@ export type { BuildTestTenantOverrides } from './testing/builders.js'
 export { createResolverStateBaseline } from './testing/resolver_baseline.js'
 export type { ResolverStateBaseline } from './testing/resolver_baseline.js'
 // The Isthmus (guard registry + severity-graded audit emit). Internal on
-// purpose: the public surface is the IsthmusGuardTripped event on /events and
-// the vocabulary types on /types; the registry and emit machinery may evolve
-// with the guards. All boot-safe (pure data + lazily-imported dispatch).
+// purpose: the public surface is the IsthmusGuardTripped event on /events, the
+// vocabulary types on /types, and — for a satellite that ships its own guards —
+// the `createGuardAudit` factory + `ISTHMUS_BUDGETS` on /sdk. The kernel
+// registry and its bound emit helpers may evolve with the guards, so they stay
+// here for core's own integration specs (which import emitIsthmusEvent /
+// snapshotIsthmusCounters from this subpath). `ISTHMUS_BUDGETS` is re-exported
+// for back-compat; its single source now lives in sdk/guard_audit.ts. All
+// boot-safe (pure data + lazily-imported dispatch).
 export { ISTHMUS_REGISTRY, isthmusEntry } from './isthmus/registry.js'
 export type { IsthmusGuardId, IsthmusRegistryEntry } from './isthmus/registry.js'
 export {

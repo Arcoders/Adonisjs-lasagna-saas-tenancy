@@ -11,6 +11,9 @@ import type { Database } from '@adonisjs/lucid/database';
 export function assertContractCompat(declared: number | undefined, current: number, label: string, onWarn?: (message: string) => void): void;
 
 // @public
+export function assertNever(value: never, context?: string): never;
+
+// @public
 export function assertSafeIdentifier(value: string, kind?: string): void;
 
 // @public
@@ -38,6 +41,15 @@ export function compareContractVersion(declared: number | undefined, current: nu
 
 // @public
 export type ContractCompatLevel = 'ok' | 'warn' | 'fail';
+
+// @public
+export function createGuardAudit<TId extends string>(options: CreateGuardAuditOptions<TId>): GuardAuditInstance<TId>;
+
+// @public (undocumented)
+export interface CreateGuardAuditOptions<TId extends string> {
+    readonly lookup: (id: TId) => GuardAuditEntry;
+    readonly metricName?: string;
+}
 
 // @public (undocumented)
 export interface DependencyResolution {
@@ -73,6 +85,68 @@ export function filterAlreadyPublished(stubs: string[], existing: string[]): {
 };
 
 // @public
+export interface GuardAuditEntry {
+    // (undocumented)
+    readonly bugClass: string;
+    // (undocumented)
+    readonly event: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly pillar: IsthmusPillar;
+    // (undocumented)
+    readonly severity: IsthmusSeverity;
+}
+
+// @public
+export interface GuardAuditInstance<TId extends string> {
+    allow(severity: IsthmusSeverity, now: number): boolean;
+    emit(id: TId, options?: GuardEmitOptions): void;
+    resetCounters(): void;
+    resetRateLimit(): void;
+    setDispatcher(fn: GuardDispatcher | undefined): void;
+    setMetricSink(sink: GuardMetricSink | undefined): void;
+    snapshot(): GuardCountersSnapshot<TId>;
+}
+
+// @public
+export interface GuardCountersSnapshot<TId extends string = string> {
+    // (undocumented)
+    readonly dropped: ReadonlyArray<{
+        severity: IsthmusSeverity;
+        reason: IsthmusDropReason;
+        value: number;
+    }>;
+    // (undocumented)
+    readonly guarded: ReadonlyArray<{
+        pillar: IsthmusPillar;
+        severity: IsthmusSeverity;
+        value: number;
+    }>;
+    // (undocumented)
+    readonly rejected: ReadonlyArray<{
+        id: TId;
+        pillar: IsthmusPillar;
+        severity: IsthmusSeverity;
+        value: number;
+    }>;
+}
+
+// @public (undocumented)
+export type GuardDispatcher = (payload: IsthmusGuardTrippedPayload) => Promise<void>;
+
+// @public (undocumented)
+export interface GuardEmitOptions {
+    // (undocumented)
+    readonly metadata?: Readonly<Record<string, string | number | boolean | null>>;
+    // (undocumented)
+    readonly tenantId?: string | null;
+}
+
+// @public
+export type GuardMetricSink = (tenantId: string, name: string, value: number) => void | Promise<void>;
+
+// @public
 export function indexSatellites(satellites: DiscoveredSatellite[]): Map<string, DiscoveredSatellite>;
 
 // @public
@@ -80,6 +154,41 @@ export function isProductionNodeEnv(): boolean;
 
 // @public
 export function isSafeRelativePath(p: string): boolean;
+
+// @public
+export const ISTHMUS_BUDGETS: {
+    readonly critical: 200;
+    readonly high: 100;
+    readonly warn: 50;
+    readonly info: 20;
+};
+
+// @public
+export type IsthmusDropReason = 'rate_limited' | 'no_emitter';
+
+// @public
+export interface IsthmusGuardTrippedPayload {
+    // (undocumented)
+    readonly bugClass: string;
+    // (undocumented)
+    readonly event: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly metadata: Readonly<Record<string, string | number | boolean | null>>;
+    // (undocumented)
+    readonly pillar: IsthmusPillar;
+    // (undocumented)
+    readonly severity: IsthmusSeverity;
+    // (undocumented)
+    readonly tenantId: string | null;
+}
+
+// @public
+export type IsthmusPillar = 'guard' | 'seal' | 'audit';
+
+// @public
+export type IsthmusSeverity = 'critical' | 'high' | 'warn' | 'info';
 
 // @public (undocumented)
 export function isUuidV4(value: string): boolean;

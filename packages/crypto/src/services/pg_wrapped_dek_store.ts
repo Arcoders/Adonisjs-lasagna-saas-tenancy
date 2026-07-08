@@ -1,5 +1,5 @@
 import { CRYPTO_WRAPPED_DEKS_TABLE } from '../constants.js'
-import { assertNever } from '../internal/assert_never.js'
+import { assertNever } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import CryptoException from '../exceptions/crypto_exception.js'
 import { emitCryptoGuardEvent } from '../isthmus/crypto_guard_audit.js'
 import type { TableLocation } from '@adonisjs-lasagna/saas-tenancy/services'

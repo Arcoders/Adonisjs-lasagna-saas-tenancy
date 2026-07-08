@@ -82,3 +82,45 @@ export {
   printSatelliteManifest,
   migrationSlug,
 } from './configure_kit.js'
+
+/**
+ * The shared Isthmus guard-audit. A satellite that ships fail-closed guards
+ * builds ONE `createGuardAudit(...)` from its own registry, inheriting the
+ * kernel's limiter/dispatcher/counter discipline and the shared `ISTHMUS_BUDGETS`
+ * (so the whole fleet stays tuned together on a kernel retune). This is the
+ * stable home for the machinery — a satellite never needs the unstable
+ * `/internal` re-exports for it. Bare-safe (the default dispatcher resolves the
+ * public event lazily). The public event stays `IsthmusGuardTripped` on
+ * `/events`; the vocabulary types stay on `/types`.
+ */
+export { createGuardAudit, ISTHMUS_BUDGETS } from './guard_audit.js'
+export type {
+  GuardAuditEntry,
+  GuardAuditInstance,
+  GuardCountersSnapshot,
+  GuardDispatcher,
+  GuardEmitOptions,
+  GuardMetricSink,
+  CreateGuardAuditOptions,
+} from './guard_audit.js'
+
+/**
+ * The Isthmus vocabulary types the guard-audit surface refers to (a satellite's
+ * registry entries are typed against them, and the shared event payload flows
+ * through the dispatcher). Re-exported so `/sdk` is self-contained for a
+ * satellite author; they also live on the public `/types` barrel.
+ */
+export type {
+  IsthmusPillar,
+  IsthmusSeverity,
+  IsthmusDropReason,
+  IsthmusGuardTrippedPayload,
+} from '../types/isthmus.js'
+
+/**
+ * Exhaustiveness helper for closed discriminated unions. A satellite calls it in
+ * the `default:` arm of a `switch` so a new, unhandled variant is a COMPILE error
+ * (the argument stops being assignable to `never`); at runtime it throws. This is
+ * the one shared copy — satellites no longer ship their own.
+ */
+export { assertNever } from './assert_never.js'

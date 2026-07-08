@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { mkdir, unlink, stat, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/internal'
+import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import { backupConfig, destructiveLockFailClosed } from '../config.js'
 import { withTenantOperationLock } from './tenant_operation_lock.js'
 import { assertRegularFile } from './fs_guards.js'
