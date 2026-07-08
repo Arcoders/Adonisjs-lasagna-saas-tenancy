@@ -93,17 +93,25 @@ function defaultDeps(): SsoServiceDeps {
     fetch: async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
       // Route the server-side IdP calls (discovery, token exchange) through the
       // pinned safeFetch seam: it resolves and validates the host once and connects
-      // only to that address, closing the DNS-rebinding window. Loopback is allowed
-      // because in-process test IdPs use 127.0.0.1; the SsoController never accepts
-      // a loopback issuerUrl from admin input, and a non-loopback host is still
-      // pinned and range-checked.
+      // only to that address, closing the DNS-rebinding window.
+      //
+      // allowLoopback is derived from the TARGET, not hardcoded true. It is enabled
+      // only when the target hostname is ITSELF loopback (an in-process test IdP on
+      // 127.0.0.1). A public hostname that resolves to loopback via DNS rebinding is
+      // then rejected by safeFetch's own pin instead of being trusted — the previous
+      // unconditional `allowLoopback: true` disabled that pin for the token POST,
+      // which carries the decrypted OIDC client_secret. Production issuers are never
+      // loopback (the SsoController rejects a loopback issuerUrl from admin input),
+      // and discovery already range-checks token_endpoint/jwks_uri via
+      // validateResolvedHostIsPublic, so this only affects the rebind edge.
+      const target = String(input)
       const { safeFetch } = await import('@adonisjs-lasagna/saas-tenancy')
-      return safeFetch(String(input), {
+      return safeFetch(target, {
         method: init?.method,
         headers: (init?.headers as Record<string, string>) ?? undefined,
         body: init?.body as string | URLSearchParams | undefined,
         signal: init?.signal ?? undefined,
-        allowLoopback: true,
+        allowLoopback: isLoopbackIssuer(target),
       })
     },
     async cacheGetOrSet(opts) {

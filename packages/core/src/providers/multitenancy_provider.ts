@@ -4,7 +4,11 @@ import { setConfig } from '../config.js'
 import { assertConfigBounds } from './assert_config_bounds.js'
 import { assertPluginLimits } from './assert_plugin_limits.js'
 import { resolutionSafetyAudit } from './resolution_safety.js'
-import { assertRowScopeRlsPresent, probeRlsCatalog } from '../services/isolation/rls_boot_probe.js'
+import {
+  assertRowScopeRlsPresent,
+  assertRowScopeTablesDeclared,
+  probeRlsCatalog,
+} from '../services/isolation/rls_boot_probe.js'
 import type { MultitenancyConfig } from '../types/config.js'
 import { TenantAdapter } from '../models/adapters/index.js'
 import { BackofficeBaseModel, TenantBaseModel, CentralBaseModel } from '../models/base/index.js'
@@ -181,17 +185,18 @@ export default class MultitenancyProvider {
     // looking protected while the mixin is the only real boundary.
     if (choice === 'rowscope-pg' && config.isolation?.rowScopeRls === true) {
       const tables = config.isolation?.rowScopeTables ?? []
-      if (tables.length > 0) {
-        const scopeColumn = config.isolation?.rowScopeColumn ?? 'tenant_id'
-        const rows = await probeRlsCatalog(
-          db as any,
-          config.centralConnectionName,
-          config.centralSchemaName,
-          tables,
-          scopeColumn
-        )
-        assertRowScopeRlsPresent(rows, tables, scopeColumn)
-      }
+      // Fail closed on the empty-list false-green: rowScopeRls=true with no tables
+      // used to skip the probe and report protected while nothing was verified.
+      assertRowScopeTablesDeclared(tables)
+      const scopeColumn = config.isolation?.rowScopeColumn ?? 'tenant_id'
+      const rows = await probeRlsCatalog(
+        db as any,
+        config.centralConnectionName,
+        config.centralSchemaName,
+        tables,
+        scopeColumn
+      )
+      assertRowScopeRlsPresent(rows, tables, scopeColumn)
     }
     if (choice === 'sqlite-memory' && !drivers.has('sqlite-memory')) {
       drivers.register(new SqliteMemoryDriver(), { activate: true })

@@ -1,5 +1,8 @@
 import { test } from '@japa/runner'
-import { subscribeDataChange } from '../../../../src/services/plugin_data_change.js'
+import {
+  subscribeDataChange,
+  __setDataChangeScopeRunnerForTests,
+} from '../../../../src/services/plugin_data_change.js'
 import type {
   TenantDataChangePayload,
   TenantDataChangeSubscription,
@@ -8,10 +11,12 @@ import type { ApplicationService } from '@adonisjs/core/types'
 
 /**
  * The onDataChange subscription wiring (SEAM-5). It applies the declared
- * model/operation filters and runs each handler FAIL-OPEN: a throwing subscriber is
- * caught (never propagated back through the emitter to the write path), so one bad
- * plugin can't break another's handler or the write. Tested with a fake emitter, so
- * no booted app / Redis is needed.
+ * model/operation filters, RE-ESTABLISHES the tenant scope, and runs each handler
+ * FAIL-OPEN: a throwing subscriber is caught (never propagated back through the
+ * emitter to the write path), so one bad plugin can't break another's handler or the
+ * write. Tested with a fake emitter and a pass-through scope runner, so no booted
+ * app / repo / Redis is needed; the real cross-tenant scope guarantee is proven in a
+ * real-PG integration spec.
  */
 
 /** A fake app whose container.make('emitter') returns a recording emitter. */
@@ -40,7 +45,17 @@ const change = (over: Partial<TenantDataChangePayload> = {}): TenantDataChangePa
   ...over,
 })
 
-test.group('subscribeDataChange', () => {
+test.group('subscribeDataChange', (group) => {
+  // Stub the tenant-scope runner with a pass-through: this suite unit-tests the
+  // filter / fail-open wiring, not the (repo-backed) scope re-establishment, which a
+  // real-PG integration spec covers. Without this, every handler-run would depend on
+  // a booted tenant repository.
+  group.each.setup(() =>
+    __setDataChangeScopeRunnerForTests((_tenantId, run) =>
+      Promise.resolve(run()).then(() => undefined)
+    )
+  )
+
   test('registers one listener per subscription', async ({ assert }) => {
     const { app, listeners } = fakeApp()
     await subscribeDataChange(app, 'search', [{ handle: () => {} }, { handle: () => {} }])

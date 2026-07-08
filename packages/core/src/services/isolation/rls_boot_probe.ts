@@ -69,6 +69,27 @@ export function assertRowScopeRlsPresent(
 }
 
 /**
+ * Config-consistency half of the RLS claim. Setting `isolation.rowScopeRls: true`
+ * asserts RLS is the isolation backstop, so there MUST be at least one scoped table
+ * to verify. An empty `rowScopeTables` used to skip {@link probeRlsCatalog} /
+ * {@link assertRowScopeRlsPresent} entirely (`if (tables.length > 0)`), so the claim
+ * reported protected while NOTHING was checked — a false-green that leaves the
+ * escapable `withTenantScope` mixin as the only real boundary. Fail closed instead,
+ * naming the fix. Pure (no db/app) so the provider boot path stays unit-testable.
+ */
+export function assertRowScopeTablesDeclared(tables: readonly string[]): void {
+  if (tables.length === 0) {
+    throw new IsolationConfigException(
+      'isolation.rowScopeRls is true but isolation.rowScopeTables is empty. The RLS ' +
+        'backstop cannot be verified with no tables to probe, so the claim would pass ' +
+        'unchecked while the escapable withTenantScope mixin is the only real boundary. ' +
+        'List every tenant-scoped table in isolation.rowScopeTables, or set ' +
+        'rowScopeRls=false to drop the claim.'
+    )
+  }
+}
+
+/**
  * Impure companion: read the RLS catalog state for `tables` in `schema` from the
  * given Lucid connection. Kept separate from {@link assertRowScopeRlsPresent} so
  * the decision stays unit-testable; the provider boot probe pairs them.

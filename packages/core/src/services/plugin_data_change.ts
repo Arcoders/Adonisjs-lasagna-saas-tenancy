@@ -4,11 +4,37 @@ import type {
   TenantDataChangePayload,
   TenantDataChangeSubscription,
 } from '../events/tenant_data_changed.js'
+import { tenancy } from '../tenancy.js'
+import { resolveTenantRepository } from './resolve_tenant_repository.js'
 
 // Lazy logger so importing this module never triggers `@adonisjs/core`'s
 // top-level `await app.booted(...)` outside an Ignitor.
 const lazyLogger = () =>
   import('@adonisjs/core/services/logger').then((m) => m.default).catch(() => null)
+
+/**
+ * The scope runner, swappable for tests (mirrors {@link __setDataChangeDispatcherForTests}
+ * on the emit side). Defaults to resolving the tenant and running the subscriber inside
+ * `tenancy.run` so its queries route to the right schema; a unit test focused on the
+ * filter / fail-open wiring injects a pass-through so it needs no booted repo. The real
+ * cross-tenant scope guarantee is proven by a real-PG integration spec.
+ */
+let runInScope: (tenantId: string, fn: () => unknown | Promise<unknown>) => Promise<void> =
+  runSubscriberInScope
+
+/**
+ * Test seam: override the tenant-scope runner. Returns a restore function.
+ * @internal — not re-exported from any barrel.
+ */
+export function __setDataChangeScopeRunnerForTests(
+  fn: (tenantId: string, run: () => unknown | Promise<unknown>) => Promise<void>
+): () => void {
+  const previous = runInScope
+  runInScope = fn
+  return () => {
+    runInScope = previous
+  }
+}
 
 /**
  * Wire a plugin's `onDataChange` subscriptions to the {@link TenantDataChanged}
@@ -37,14 +63,45 @@ export async function subscribeDataChange(
       if (sub.models && !sub.models.includes(change.model)) return
       if (sub.operations && !sub.operations.includes(change.operation)) return
       try {
-        await sub.handle(change)
+        // Re-establish the tenant scope before invoking the subscriber. The emit is
+        // decoupled (after-commit, fire-and-forget), so by the time it runs the
+        // ambient tenancy scope from the originating request/job may be gone — or,
+        // worse, be a DIFFERENT tenant's scope. Running handle() inside
+        // tenancy.run(change.tenantId) makes the subscriber's own tenant-model
+        // queries route to the correct schema and carry the right log context,
+        // closing a cross-tenant leak where a subscriber for tenant A executed under
+        // whatever scope happened to be active.
+        await runInScope(change.tenantId, () => sub.handle(change))
       } catch (error) {
         // silent-catch-ok: delegates to reportSubscriberFailure, which logs the
-        // failure and increments the per-tenant metric (fail-open by design).
+        // failure and increments the per-tenant metric (fail-open by design). A
+        // tenant that cannot be resolved to re-establish scope is reported here too,
+        // never run under the wrong (or no) scope.
         await reportSubscriberFailure(plugin, change, error)
       }
     })
   }
+}
+
+/**
+ * Resolve the tenant for `tenantId` and run `fn` inside its tenancy scope. Includes
+ * soft-deleted tenants (a subscriber may need to react to a change on a tenant that
+ * was just removed). A tenant that cannot be resolved throws, which the caller
+ * treats as a fail-open subscriber failure rather than a silent run under the wrong
+ * scope.
+ */
+async function runSubscriberInScope(
+  tenantId: string,
+  fn: () => unknown | Promise<unknown>
+): Promise<void> {
+  const repo = await resolveTenantRepository()
+  const tenant = await repo.findById(tenantId, true)
+  if (!tenant) {
+    throw new Error(
+      `onDataChange: tenant "${tenantId}" could not be resolved to re-establish its scope`
+    )
+  }
+  await tenancy.run(tenant, fn)
 }
 
 /** Log + count a subscriber failure. The write already committed and the emit is

@@ -99,7 +99,20 @@ export default class TenantAdapter extends DefaultLucidAdapter {
     // is denied by Postgres — not a JS proxy. The clone is synchronous: the
     // primary is registered (asserted above), so its config is available now.
     const readOnly = getConfig().plugins?.readOnly
-    if (readOnly && pluginScope.untrustedActive() && manager && typeof manager.has === 'function') {
+    if (readOnly && pluginScope.untrustedActive()) {
+      // Fail CLOSED, not open: once untrusted plugin code is on the stack and a
+      // read-only role is configured, this query MUST route to the SELECT-only
+      // clone. If the clone cannot be established, DENY — never fall through to the
+      // writable primary, which would hand write access to exactly the code the
+      // firewall exists to contain. A bare unit-test double without a manager
+      // reaching here under an untrusted scope is itself a misconfiguration.
+      if (!manager || typeof manager.has !== 'function') {
+        throw new IsolationConfigException(
+          `Untrusted plugin code requires the read-only connection firewall, but the ` +
+            `database manager is unavailable for tenant ${tenantId}. Refusing to route ` +
+            `untrusted code to the writable primary (fail-closed).`
+        )
+      }
       const roName = `${name}${READ_ONLY_CONNECTION_SUFFIX}`
       if (typeof manager.add === 'function' && !manager.has(roName)) {
         const primaryConfig = manager.get?.(name)?.config
@@ -107,11 +120,16 @@ export default class TenantAdapter extends DefaultLucidAdapter {
           manager.add(roName, buildReadOnlyConnectionConfig(primaryConfig, readOnly))
         }
       }
-      if (manager.has(roName)) {
-        const roClient = this.db.connection(roName)
-        driver.enforce(roClient, tenantId)
-        return roClient
+      if (!manager.has(roName)) {
+        throw new IsolationConfigException(
+          `Untrusted plugin code requires the read-only connection "${roName}", but it ` +
+            `could not be established for tenant ${tenantId}. Refusing to route untrusted ` +
+            `code to the writable primary (fail-closed).`
+        )
       }
+      const roClient = this.db.connection(roName)
+      driver.enforce(roClient, tenantId)
+      return roClient
     }
 
     // Give the driver a chance to apply its tenant boundary to the resolved

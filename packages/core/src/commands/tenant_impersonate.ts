@@ -31,6 +31,14 @@ export default class TenantImpersonate extends BaseCommand {
   })
   declare path: string
 
+  @flags.boolean({
+    description:
+      'Also print the raw impersonation token (a live credential). Off by default so ' +
+      'it does not linger in terminal scrollback / CI logs; the redirect URL already ' +
+      'carries it for the operator to use.',
+  })
+  declare showToken: boolean
+
   async run() {
     const repo = await resolveTenantRepository()
 
@@ -52,7 +60,18 @@ export default class TenantImpersonate extends BaseCommand {
       const url = redirect.toTenant(tenant, `${path}${sep}__impersonate=${result.token}`)
 
       this.logger.success(`Impersonation token issued for tenant "${tenant.name}".`)
-      this.logger.info(`token:      ${result.token}`)
+      // A live impersonation token is a bearer credential. Do not splatter the raw
+      // value across the terminal by default (scrollback, CI job logs, screen shares);
+      // print a short fingerprint for audit correlation and reveal the full token only
+      // when the operator explicitly opts in with --show-token. The redirect URL below
+      // still carries it because that is the artifact the operator uses to sign in.
+      if (this.showToken) {
+        this.logger.info(`token:      ${result.token}`)
+      } else {
+        this.logger.info(
+          `token:      ${maskToken(result.token)} (pass --show-token to reveal the raw token)`
+        )
+      }
       this.logger.info(`session id: ${result.sessionId}`)
       this.logger.info(`expires:    ${new Date(result.expiresAt).toISOString()}`)
       this.logger.info(`url:        ${url}`)
@@ -61,4 +80,14 @@ export default class TenantImpersonate extends BaseCommand {
       this.exitCode = 1
     }
   }
+}
+
+/**
+ * Reduce a live token to a short, non-reversible fingerprint for logs: the leading
+ * session-id segment plus a length hint, never the HMAC signature. Enough to
+ * correlate with the audit trail without leaving a usable credential on screen.
+ */
+function maskToken(token: string): string {
+  const head = token.slice(0, 8)
+  return `${head}…(${token.length} chars)`
 }
