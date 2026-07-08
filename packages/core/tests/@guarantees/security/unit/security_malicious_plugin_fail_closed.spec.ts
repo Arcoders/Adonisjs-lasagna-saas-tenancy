@@ -1,14 +1,31 @@
 import { test } from '@japa/runner'
 import { definePlugin } from '../../../../src/sdk/define_plugin.js'
 import { PLUGIN_API_CONTRACT_VERSION } from '../../../../src/sdk/plugin_api_version.js'
-import { authorizerName, capabilityKey } from '../../../../src/sdk/brands.js'
+import { authorizerName, capabilityKey, pluginName } from '../../../../src/sdk/brands.js'
 import AuthorizerRegistry from '../../../../src/services/authorizer_registry.js'
 import TenantMiddlewareRegistry from '../../../../src/services/tenant_middleware_registry.js'
 import CapabilityRegistry from '../../../../src/services/capability_registry.js'
+import { resolveTenantRepository } from '../../../../src/services/resolve_tenant_repository.js'
+import { pluginScope } from '../../../../src/services/plugin_execution_scope.js'
 import type { SatelliteProviderContract } from '../../../../src/sdk/contract.js'
 import type { ApplicationService } from '@adonisjs/core/types'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { TenantModelContract } from '../../../../src/types/contracts.js'
+
+// Async-aware: the S5 tests set the allowlist and then `await boot()`, so the
+// restore MUST wait for the promise (a sync try/finally would restore the env
+// before the awaited body runs, and the trusted provider would read a cleared list).
+async function withEnv<T>(value: string | undefined, fn: () => Promise<T>): Promise<T> {
+  const prev = process.env.TRUSTED_SATELLITES
+  if (value === undefined) delete process.env.TRUSTED_SATELLITES
+  else process.env.TRUSTED_SATELLITES = value
+  try {
+    return await fn()
+  } finally {
+    if (prev === undefined) delete process.env.TRUSTED_SATELLITES
+    else process.env.TRUSTED_SATELLITES = prev
+  }
+}
 
 /**
  * E6 red-team — a HOSTILE plugin authored through `definePlugin` must not subvert
@@ -140,5 +157,76 @@ test.group('malicious plugin — request-path boundaries stay fail-closed', () =
     const decision = await authorizer.authorizeAll(ctx, tenant)
     // The throw became a DENY, not a bypass — a hostile authorizer fails closed.
     assert.isFalse(decision.allow)
+  })
+})
+
+/**
+ * S5 — in-process friction (labeled: NOT a hard boundary). These pin the friction
+ * an untrusted plugin hits when it reaches for core singletons or sensitive
+ * capabilities. Read honestly: an installed plugin runs with full privilege, so a
+ * direct `import` of the db service evades the repo/db funnels — the Postgres
+ * read-only role (S3) is the wall that actually denies a write. What is pinned here
+ * is that the SANCTIONED paths deny an untrusted plugin, and that the trust
+ * allowlist is real (a trusted plugin is NOT blanket-denied).
+ */
+test.group('malicious plugin — S5 in-process friction', () => {
+  const untrusted = { plugin: pluginName('sketchy'), trusted: false }
+
+  test('an untrusted plugin cannot resolve the host tenant repository', async ({ assert }) => {
+    // A fake resolver proves the guard denies BEFORE the container is consulted.
+    const resolver = {
+      async make() {
+        return {}
+      },
+    }
+    await assert.rejects(
+      () => pluginScope.run(untrusted, () => resolveTenantRepository(resolver as any)),
+      /refusing untrusted plugin/
+    )
+  })
+
+  test('an untrusted plugin cannot provide a sensitive capability (boot aborts)', async ({
+    assert,
+  }) => {
+    await withEnv(undefined, async () => {
+      const capability = new CapabilityRegistry()
+      const Evil = definePlugin({
+        name: 'evil',
+        ...okApi,
+        provides: () => [
+          { kind: 'capability', name: capabilityKey('secret_keys'), api: {}, sensitive: true },
+        ],
+      })
+      try {
+        await (new Evil(makeApp({ capability })) as Lifecycle).boot()
+        assert.fail('boot() should have aborted on the sensitive-capability trust gate')
+      } catch (err: any) {
+        assert.equal(err.code, 'E_CAPABILITY_TRUST')
+        assert.equal(err.status, 403)
+      }
+      assert.isFalse(capability.has(capabilityKey('secret_keys')))
+    })
+  })
+
+  test('a TRUSTED plugin CAN provide the same sensitive capability (allowlist is real)', async ({
+    assert,
+  }) => {
+    await withEnv('good_reporter', async () => {
+      const capability = new CapabilityRegistry()
+      const Good = definePlugin({
+        name: 'good_reporter',
+        ...okApi,
+        provides: () => [
+          {
+            kind: 'capability',
+            name: capabilityKey('secret_keys'),
+            api: { ok: true },
+            sensitive: true,
+          },
+        ],
+      })
+      await (new Good(makeApp({ capability })) as Lifecycle).boot()
+      assert.isTrue(capability.has(capabilityKey('secret_keys')))
+    })
   })
 })

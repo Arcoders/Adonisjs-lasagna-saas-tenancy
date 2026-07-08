@@ -1,4 +1,9 @@
 export { resolveTenantRepository } from './resolve_tenant_repository.js'
+// The S5 core-access funnel + its guarded db accessor (labeled in-process friction;
+// see resolve_database.ts / .github/SECURITY.md — the Postgres read-only role is the
+// real boundary). `assertCoreAccessAllowed` is the single throw site for both.
+export { resolveDatabase } from './resolve_database.js'
+export { assertCoreAccessAllowed } from './plugin_core_access.js'
 export { mapTenants } from './map_tenants.js'
 export type { MapTenantsOptions, MapTenantsResult } from './map_tenants.js'
 export { mapDataAsOf, isStale, staleDays } from '../freshness.js'

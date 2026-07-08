@@ -45,7 +45,7 @@ export type AuthorizerName = Branded<'AuthorizerName'>;
 export function authorizerName(raw: string): AuthorizerName;
 
 // @public
-export const CAPABILITY_CONTRACT_VERSION = 1;
+export const CAPABILITY_CONTRACT_VERSION = 2;
 
 // @public
 export type CapabilityKey = Branded<'CapabilityKey'>;
@@ -62,12 +62,14 @@ export interface CapabilityProvision {
     readonly kind: 'capability';
     // (undocumented)
     readonly name: CapabilityKey;
+    readonly sensitive?: boolean;
 }
 
 // @public
 export function defineCapability<K extends keyof LasagnaCapabilities & string>(spec: {
     readonly name: K;
     readonly api: LasagnaCapabilities[K];
+    readonly sensitive?: boolean;
     readonly contractVersion?: number;
 }): CapabilityProvision;
 
@@ -75,6 +77,7 @@ export function defineCapability<K extends keyof LasagnaCapabilities & string>(s
 export function defineCapability(spec: {
     readonly name: string;
     readonly api: unknown;
+    readonly sensitive?: boolean;
     readonly contractVersion?: number;
 }): CapabilityProvision;
 

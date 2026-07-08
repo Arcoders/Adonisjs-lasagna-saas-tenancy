@@ -290,6 +290,33 @@ declare module '@adonisjs-lasagna/saas-tenancy/plugin' {
 A compilation that never imports your plugin sees no `email` key, so the type only
 appears where the capability actually can.
 
+### Sensitive capabilities and the trust allowlist
+
+A capability that hands out privileged reach (raw tenant data, key material) marks
+itself `sensitive`:
+
+```ts
+defineCapability({ name: 'secret_keys', api, sensitive: true })
+```
+
+A sensitive capability crosses a trust gate. Only a plugin on the operator's
+`TRUSTED_SATELLITES` allowlist (a comma- or space-separated list of plugin names in
+the environment) may **provide** one, and only trusted code may **consume** one — an
+untrusted attempt throws `CapabilityTrustException` (403) rather than degrading to
+`undefined`. Ordinary (non-sensitive) capabilities ignore the allowlist and stay
+freely composable. The bump to `CAPABILITY_CONTRACT_VERSION` 2 records this: a plugin
+built for v1 still boots (its provisions are unversioned or older, so the registry
+warns rather than fails).
+
+<Callout type="warning" title="The trust allowlist is friction, not a sandbox">
+`TRUSTED_SATELLITES` also gates the in-process core-access funnels: an untrusted
+plugin that resolves the host tenant repository or the shared db handle through the
+sanctioned accessors is denied. This raises the cost of a careless reach, but an
+installed plugin runs with full in-process privilege — a direct `import` of the db
+service evades the db funnel. The wall that actually denies an untrusted write is the
+read-only Postgres role (below), enforced by the database, not by JavaScript.
+</Callout>
+
 ## Limits and the authorizer deadline
 
 The request-path surfaces are cappable. A host sets `plugins.limits` to bound how

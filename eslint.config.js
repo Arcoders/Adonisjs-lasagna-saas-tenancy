@@ -50,6 +50,7 @@ export default [
       'packages/core/src/sdk/builders.ts',
       'packages/core/src/sdk/brands.ts',
       'packages/core/src/sdk/plugin_permissions.ts',
+      'packages/core/src/sdk/plugin_env.ts',
       'packages/core/src/sdk/assert_never.ts',
       'packages/core/src/sdk/capabilities.ts',
       'packages/core/src/sdk/plugin_api_version.ts',
@@ -62,6 +63,8 @@ export default [
       'packages/core/src/exceptions/plugin_middleware_exception.ts',
       'packages/core/src/exceptions/request_macro_collision_exception.ts',
       'packages/core/src/exceptions/capability_collision_exception.ts',
+      'packages/core/src/exceptions/capability_trust_exception.ts',
+      'packages/core/src/exceptions/unauthorized_core_access_exception.ts',
     ],
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',

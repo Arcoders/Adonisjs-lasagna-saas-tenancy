@@ -94,22 +94,27 @@ export function requestMacro<T>(spec: {
 export function defineCapability<K extends keyof LasagnaCapabilities & string>(spec: {
   readonly name: K
   readonly api: LasagnaCapabilities[K]
+  readonly sensitive?: boolean
   readonly contractVersion?: number
 }): CapabilityProvision
 export function defineCapability(spec: {
   readonly name: string
   readonly api: unknown
+  readonly sensitive?: boolean
   readonly contractVersion?: number
 }): CapabilityProvision
 export function defineCapability(spec: {
   readonly name: string
   readonly api: unknown
+  readonly sensitive?: boolean
   readonly contractVersion?: number
 }): CapabilityProvision {
   return {
     kind: 'capability',
     name: capabilityKey(spec.name),
     api: spec.api,
+    // Only set when opted in, so an ordinary provision stays `{ sensitive: undefined }`-free.
+    ...(spec.sensitive === true ? { sensitive: true } : {}),
     contractVersion: spec.contractVersion ?? CAPABILITY_CONTRACT_VERSION,
   }
 }

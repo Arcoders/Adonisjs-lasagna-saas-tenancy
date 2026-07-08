@@ -107,4 +107,13 @@ test.group('plugin builders — defineCapability()', () => {
   test('rejects a hostile key at build time', ({ assert }) => {
     assert.throws(() => defineCapability({ name: 'a/b', api: {} }), /unsafe/)
   })
+
+  test('threads the sensitive flag ONLY when opted in (S5 trust gate)', ({ assert }) => {
+    // The builder is the sanctioned way to mark a capability sensitive; if this
+    // flag is dropped the whole S5 allowlist silently no-ops for the cap.
+    assert.isTrue(defineCapability({ name: 'secret_keys', api: {}, sensitive: true }).sensitive)
+    // Omitted or false → NOT sensitive-by-accident (an ordinary cap stays composable).
+    assert.isUndefined(defineCapability({ name: 'email', api: {} }).sensitive)
+    assert.isUndefined(defineCapability({ name: 'email', api: {}, sensitive: false }).sensitive)
+  })
 })

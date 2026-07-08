@@ -195,7 +195,10 @@ export function definePlugin(spec: PluginSpec): SatelliteProviderConstructor {
         }
         case 'capability': {
           const { default: CapabilityRegistry } = await import('../services/capability_registry.js')
-          ;(await this.app.container.make(CapabilityRegistry)).register(entry)
+          // Thread the plugin's own name so the registry can allowlist-gate a
+          // `sensitive` provision against TRUSTED_SATELLITES (S5). Ordinary
+          // provisions ignore it.
+          ;(await this.app.container.make(CapabilityRegistry)).register(entry, name)
           return
         }
         case 'requestMacro': {

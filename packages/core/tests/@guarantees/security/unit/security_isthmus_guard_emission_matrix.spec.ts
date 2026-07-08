@@ -20,6 +20,10 @@ import { tenantChannel } from '../../../../src/services/bootstrappers/transmit_b
 import { safeFetch } from '../../../../src/utils/safe_fetch.js'
 import WebhookService from '../../../../src/services/webhook_service.js'
 import { withTenantScope } from '../../../../src/models/scoping.js'
+import CapabilityRegistry from '../../../../src/services/capability_registry.js'
+import { assertCoreAccessAllowed } from '../../../../src/services/plugin_core_access.js'
+import { pluginScope } from '../../../../src/services/plugin_execution_scope.js'
+import { capabilityKey, pluginName } from '../../../../src/sdk/brands.js'
 import { tenancy, __configureTenancyForTests } from '../../../../src/tenancy.js'
 import BootstrapperRegistry from '../../../../src/services/bootstrapper_registry.js'
 import TenantLogContext from '../../../../src/services/tenant_log_context.js'
@@ -218,6 +222,33 @@ const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
   // via snapshotIsthmusCounters on the throw/timeout path.
   'guard.plugin_authorizer': {
     viaIntegration: 'tests/@guarantees/security/unit/security_authorizer_chain_fail_closed.spec.ts',
+  },
+  'guard.plugin_core_access': {
+    // Untrusted plugin code on the stack reaching a core singleton funnel is
+    // denied (S5 in-process friction). No scope → core's own code → no denial,
+    // so the happy path is a plain no-op.
+    trip: () =>
+      pluginScope.run({ plugin: pluginName('sketchy'), trusted: false }, () =>
+        assertCoreAccessAllowed('tenant-repository')
+      ),
+    expectThrow: /refusing untrusted plugin/,
+    happy: () => assertCoreAccessAllowed('tenant-repository'),
+  },
+  'guard.plugin_capability_trust': {
+    // An untrusted plugin providing a SENSITIVE capability is refused; an ordinary
+    // (non-sensitive) provision from the same plugin is unaffected. 'sketchy' is
+    // never on TRUSTED_SATELLITES, so the trip is deterministic without env setup.
+    trip: () =>
+      new CapabilityRegistry().register(
+        { kind: 'capability', name: capabilityKey('secret_keys'), api: {}, sensitive: true },
+        pluginName('sketchy')
+      ),
+    expectThrow: /refusing to provide sensitive capability/,
+    happy: () =>
+      new CapabilityRegistry().register(
+        { kind: 'capability', name: capabilityKey('mailer'), api: {} },
+        pluginName('sketchy')
+      ),
   },
   'seal.scope_required': {
     trip: () => {
