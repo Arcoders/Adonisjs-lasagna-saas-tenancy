@@ -2,8 +2,12 @@
 # Single Postgres + single Redis is plenty — the package handles 3 schemas
 # inside one PG instance, and Redis uses logical DBs 0/1/2 for default/queue/cache.
 services:
+  # pgvector image (Postgres 16 + the `vector` extension binaries) so the AI
+  # satellite's per-tenant embedding store works locally. The extension itself is
+  # created into a dedicated `extensions` schema at provision time (never `public`),
+  # and each tenant connection appends that schema to its search_path.
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: lasagna_demo_postgres
     environment:
       POSTGRES_USER: app
