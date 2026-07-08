@@ -59,6 +59,7 @@ export default [
       'packages/core/src/services/tenant_middleware_registry.ts',
       'packages/core/src/services/capability_registry.ts',
       'packages/core/src/services/tenant_scheduler_service.ts',
+      'packages/core/src/events/tenant_data_changed.ts',
       'packages/core/src/exceptions/plugin_exception.ts',
       'packages/core/src/exceptions/plugin_authorizer_exception.ts',
       'packages/core/src/exceptions/plugin_boot_exception.ts',

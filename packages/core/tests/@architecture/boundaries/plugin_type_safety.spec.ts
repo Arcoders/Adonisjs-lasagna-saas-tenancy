@@ -34,6 +34,7 @@ const PLUGIN_SURFACE_FILES = [
   'src/services/tenant_middleware_registry.ts',
   'src/services/capability_registry.ts',
   'src/services/tenant_scheduler_service.ts',
+  'src/events/tenant_data_changed.ts',
   'src/exceptions/plugin_exception.ts',
   'src/exceptions/plugin_authorizer_exception.ts',
   'src/exceptions/plugin_boot_exception.ts',

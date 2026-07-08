@@ -43,6 +43,7 @@ function makeMultiApp(regs: {
   capability?: CapabilityRegistry
   scheduler?: TenantSchedulerService
   hooks?: HookRegistry
+  emitter?: { on: (event: unknown, listener: (e: unknown) => unknown) => void }
 }): ApplicationService {
   const authorizer = regs.authorizer ?? new AuthorizerRegistry()
   const middleware = regs.middleware ?? new TenantMiddlewareRegistry()
@@ -57,6 +58,7 @@ function makeMultiApp(regs: {
         if (cls === CapabilityRegistry) return capability
         if (cls === TenantSchedulerService) return scheduler
         if (cls === HookRegistry) return hooks
+        if (cls === 'emitter') return regs.emitter ?? null
         throw new Error('unexpected container.make in test')
       },
     },
@@ -266,6 +268,38 @@ test.group('definePlugin — multi-seam dispatch', (group) => {
       assert.equal(err.code, 'E_PLUGIN_BOOT')
       assert.equal(err.plugin, 'search')
       assert.equal(err.phase, 'provisionExtensions')
+    }
+  })
+
+  test('onDataChange subscribes to the emitter in ready()', async ({ assert }) => {
+    const registered: unknown[] = []
+    const emitter = { on: (event: unknown) => registered.push(event) }
+    const Plugin = definePlugin({
+      name: 'search',
+      ...okApi,
+      onDataChange: () => [{ models: ['Order'], handle: () => {} }],
+    })
+    await (new Plugin(makeMultiApp({ emitter })) as Lifecycle).ready()
+    assert.lengthOf(registered, 1)
+  })
+
+  test('a throwing onDataChange section fails ready() closed (phase onDataChange)', async ({
+    assert,
+  }) => {
+    const emitter = { on: () => {} }
+    const Plugin = definePlugin({
+      name: 'search',
+      ...okApi,
+      onDataChange: () => {
+        throw new Error('bad subscription config')
+      },
+    })
+    try {
+      await (new Plugin(makeMultiApp({ emitter })) as Lifecycle).ready()
+      assert.fail('ready() should have thrown')
+    } catch (err: any) {
+      assert.equal(err.code, 'E_PLUGIN_BOOT')
+      assert.equal(err.phase, 'onDataChange')
     }
   })
 })

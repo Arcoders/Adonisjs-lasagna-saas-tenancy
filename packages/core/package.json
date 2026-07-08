@@ -58,7 +58,8 @@
     "./testing": "./build/src/testing/index.js",
     "./health": "./build/src/health/index.js",
     "./sdk": "./build/src/sdk/index.js",
-    "./plugin": "./build/src/sdk/plugin.js"
+    "./plugin": "./build/src/sdk/plugin.js",
+    "./mixins": "./build/src/models/mixins/index.js"
   },
   "typesVersions": {
     "*": {
@@ -130,6 +131,9 @@
       ],
       "plugin": [
         "./build/src/sdk/plugin.d.ts"
+      ],
+      "mixins": [
+        "./build/src/models/mixins/index.d.ts"
       ]
     }
   },

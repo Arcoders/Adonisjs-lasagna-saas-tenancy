@@ -30,12 +30,19 @@ const SCOPED_FILES = [
   'src/services/authorizer_registry.ts',
   'src/services/tenant_middleware_registry.ts',
   'src/services/capability_registry.ts',
+  'src/services/tenant_scheduler_service.ts',
+  'src/services/plugin_data_change.ts',
 ]
 
 // A catch body is "handled" if it logs, emits an isthmus event / metric, warns,
-// or rethrows. Comments mentioning `throw` can only make this MORE lenient
-// (never a false positive), which is the safe direction.
-const HANDLED = /logger\.|console\.|emitIsthmusEvent\(|emitMetric\(|warnMetrics\(|\bthrow\b/
+// or rethrows. `\blogger\b` covers `logger.` / `logger?.` / lazy `lazyLogger()`
+// idioms, and `\?\.(?:error|warn|…)\(` covers the optional-chained log call this
+// package uses everywhere — `(await lazyLogger())?.error(`. Both are anchored to a
+// logger reference or an optional-chained log call, so a bare non-logger method
+// like `result.error(e)` is NOT mistaken for handling. Comments mentioning `throw`
+// can only make this MORE lenient (never a false positive), the safe direction.
+const HANDLED =
+  /\blogger\b|console\.|emitIsthmusEvent\(|emitMetric\(|warnMetrics\(|\bthrow\b|\?\.(?:error|warn|info|critical|fatal|debug)\(/
 // ≥20 chars of reason after the marker.
 const OK_ANNOTATION = /silent-catch-ok:\s*\S.{19,}/
 
@@ -83,6 +90,9 @@ if (process.argv.includes('--self-test')) {
   const rethrown = 'try { x() } catch (e) { throw new PluginBootException("x") }'
   const isthmus = 'try { x() } catch (e) { emitIsthmusEvent("guard.x") ; return d }'
   const promiseCatch = 'foo().catch(() => undefined)'
+  const optChainLog = 'try { x() } catch (e) { (await lazyLogger())?.error(e) }'
+  // A non-logger method named `error` must NOT count as handling (false-negative guard).
+  const nonLoggerError = 'try { x() } catch (e) { result.error(e) ; return d }'
   const annotated =
     '// silent-catch-ok: best-effort registry resolve in unbooted ctx\ntry{x()}catch{ }'
   if (silentCatchLines(silent).length !== 1) fails.push('silent not flagged')
@@ -90,6 +100,8 @@ if (process.argv.includes('--self-test')) {
   if (silentCatchLines(rethrown).length !== 0) fails.push('rethrow flagged')
   if (silentCatchLines(isthmus).length !== 0) fails.push('isthmus-emit flagged')
   if (silentCatchLines(promiseCatch).length !== 0) fails.push('.catch() flagged')
+  if (silentCatchLines(optChainLog).length !== 0) fails.push('optional-chained logger flagged')
+  if (silentCatchLines(nonLoggerError).length !== 1) fails.push('non-logger .error() not flagged')
   if (silentCatchLines(annotated).length !== 0) fails.push('annotated flagged')
   if (fails.length) {
     console.error('check-no-silent-catch --self-test: FAIL')

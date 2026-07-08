@@ -140,6 +140,17 @@ write refusal). The payload is alert-safe: registry fields, an optional tenant i
 short metadata values, never raw input beyond a truncated identifier.
 </Callout>
 
+## Data change (plugin platform)
+
+Emitted after a model wrapped in the [`TracksDataChanges`](/guides/data-change-hooks)
+mixin commits a write, so plugins (search, analytics, realtime) can react to writes.
+The payload is deliberately PII-free — it names WHAT changed, never the values — and
+a rolled-back write emits nothing.
+
+| Event | Payload | Dispatched by |
+|---|---|---|
+| `TenantDataChanged` | `change: { tenantId, model, table, operation, keys, columns? }` | A `TracksDataChanges` model, after-commit. `operation` is `create` / `update` / `delete`; `columns` (update only) lists the changed column NAMES. Subscribe declaratively with `definePlugin({ onDataChange })` or directly via `emitter.on`. See [Data-change hooks](/guides/data-change-hooks). |
+
 ## Subscribing
 
 Register listeners during boot, usually inside a service provider's

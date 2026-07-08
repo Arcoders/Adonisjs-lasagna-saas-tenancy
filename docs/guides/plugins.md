@@ -450,6 +450,30 @@ search path. Need to backfill existing tenants, or run it by hand? Call the expo
 `provisionExtension({ name, schema })` from `@adonisjs-lasagna/saas-tenancy/services`
 directly.
 
+## Reacting to writes
+
+A plugin reacts to committed tenant-model writes with `onDataChange`. A model opts
+in with the `TracksDataChanges` mixin (from `@adonisjs-lasagna/saas-tenancy/mixins`);
+each committed write then emits an after-commit, PII-free `TenantDataChanged`, and
+the plugin subscribes with model/operation filters:
+
+```ts
+export default definePlugin({
+  name: 'search',
+  satelliteApi: 1,
+  onDataChange: () => [
+    { models: ['Order'], operations: ['create', 'update'], handle: async (c) => reindex(c) },
+  ],
+})
+```
+
+Handlers run decoupled from the write (after-commit, fail-open), so a slow or failing
+subscriber never blocks or rolls back the write. It fires for instance writes
+(`save`/`create`/`delete`) only — a query-builder bulk `update`/`delete` emits
+nothing. The full model — the mixin, the names-only payload, the bulk-write and
+minification caveats, the re-read pattern for values — is in
+[Data-change hooks](/guides/data-change-hooks).
+
 ## The `/plugin` import surface
 
 One import path carries everything a plugin author needs:
@@ -469,6 +493,7 @@ One import path carries everything a plugin author needs:
 | `CAPABILITY_CONTRACT_VERSION`, `CapabilityProvision`, `LasagnaCapabilities` | const + types | The capability seam. |
 | `TenantSchedule`, `scheduleName`, `ScheduleName` | type + function + type | The scheduler seam (see [Scheduler](/guides/scheduler)). |
 | `ProvisionExtensionSpec` | type | The extension-provisioning seam (SEAM-7). |
+| `TenantDataChangeSubscription`, `TenantDataChangePayload`, `TenantDataChangeOperation` | types | The data-change seam ([Data-change hooks](/guides/data-change-hooks)). The `TracksDataChanges` mixin lives at `/mixins`. |
 
 The barrel is app.booted-safe: importing it never drags in a service that needs a
 booted app, so a plugin module loads under any tooling.

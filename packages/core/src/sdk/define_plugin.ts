@@ -5,6 +5,7 @@ import type { TenantMiddlewareEntry } from '../services/tenant_middleware_regist
 import type { CapabilityProvision } from '../services/capability_registry.js'
 import type { TenantSchedule } from '../services/tenant_scheduler_service.js'
 import type { ProvisionExtensionSpec } from '../services/isolation/vector_provisioning.js'
+import type { TenantDataChangeSubscription } from '../events/tenant_data_changed.js'
 import type { TenantRequestMacroSpec } from '../extensions/request.js'
 import { pluginName, type PluginName } from './brands.js'
 import type { PluginPermission } from './plugin_permissions.js'
@@ -91,6 +92,10 @@ export interface PluginSpec {
   /** Postgres extensions installed into each tenant's storage on provision (SEAM-7). */
   readonly provisionExtensions?: PluginSection<readonly ProvisionExtensionSpec[]>
 
+  // --- Lote C seam (events) ---
+  /** React to committed tenant-model writes, isolated from the write (SEAM-5). */
+  readonly onDataChange?: PluginSection<readonly TenantDataChangeSubscription[]>
+
   // --- lifecycle escape hatches (map onto the provider phases) ---
   readonly bind?: (app: ApplicationService) => void | Promise<void>
   readonly boot?: (app: ApplicationService) => void | Promise<void>
@@ -160,6 +165,7 @@ export function definePlugin(spec: PluginSpec): SatelliteProviderConstructor {
     }
 
     async ready(): Promise<void> {
+      await this.#subscribeDataChange()
       await this.#runHook('ready', spec.ready)
     }
 
@@ -271,6 +277,19 @@ export function definePlugin(spec: PluginSpec): SatelliteProviderConstructor {
           cause: error,
         })
       }
+    }
+
+    /**
+     * Subscribe the plugin's `onDataChange` handlers to the TenantDataChanged event
+     * (SEAM-5). Runs in `ready()` (the emitter is fully constructed only then). The
+     * subscription wiring — filters + fail-open + per-tenant failure metric — lives
+     * in `plugin_data_change.ts` so this E1 no-any surface stays a typed call.
+     */
+    async #subscribeDataChange(): Promise<void> {
+      if (!spec.onDataChange) return
+      const subs = await this.#resolveSection('onDataChange', spec.onDataChange)
+      const { subscribeDataChange } = await import('../services/plugin_data_change.js')
+      await subscribeDataChange(this.app, name, subs)
     }
 
     /** Run a declarative section's factory, wrapping any throw as a boot failure. */

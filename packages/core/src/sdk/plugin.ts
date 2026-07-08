@@ -108,6 +108,14 @@ export type { TenantSchedule } from '../services/tenant_scheduler_service.js'
 /** SEAM-7 — Postgres extensions provisioned into each tenant's storage (umbrella ABI). */
 export type { ProvisionExtensionSpec } from '../services/isolation/vector_provisioning.js'
 
+/** SEAM-5 — react to committed tenant-model writes (umbrella ABI). The mixin that
+ *  EMITS these lives at `@adonisjs-lasagna/saas-tenancy/mixins`. */
+export type {
+  TenantDataChangeSubscription,
+  TenantDataChangePayload,
+  TenantDataChangeOperation,
+} from '../events/tenant_data_changed.js'
+
 /** Capability registry — optional, degradable cross-plugin composition. Augment
  *  `LasagnaCapabilities` from your plugin to type `consume(key)`. */
 export { CAPABILITY_CONTRACT_VERSION } from '../services/capability_registry.js'

@@ -160,6 +160,7 @@ export interface PluginSpec {
     readonly middleware?: PluginSection<readonly TenantMiddlewareEntry[]>;
     readonly name: string;
     readonly nativeAddons?: boolean;
+    readonly onDataChange?: PluginSection<readonly TenantDataChangeSubscription[]>;
     readonly packageName?: string;
     readonly permissions?: readonly PluginPermission[];
     readonly pluginApiVersion?: number;
@@ -242,6 +243,26 @@ export interface TenantAuthorizerEntry {
     // (undocumented)
     readonly name: AuthorizerName;
     readonly order?: number;
+}
+
+// @public
+export type TenantDataChangeOperation = 'create' | 'update' | 'delete';
+
+// @public
+export interface TenantDataChangePayload {
+    readonly columns?: readonly string[];
+    readonly keys: Readonly<Record<string, unknown>>;
+    readonly model: string;
+    readonly operation: TenantDataChangeOperation;
+    readonly table: string;
+    readonly tenantId: string;
+}
+
+// @public
+export interface TenantDataChangeSubscription {
+    readonly handle: (change: TenantDataChangePayload) => void | Promise<void>;
+    readonly models?: readonly string[];
+    readonly operations?: readonly TenantDataChangeOperation[];
 }
 
 // @public
