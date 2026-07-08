@@ -46,6 +46,31 @@ export type { DependencyResolution } from './dependencies.js'
  */
 export { isUuidV4, assertSafeIdentifier } from '../services/isolation/identifier.js'
 
+/**
+ * Build a SQL-safe `"schema"."table"` reference for a table in the shared backoffice
+ * schema, honoring `config.backofficeSchemaName`. A satellite that writes raw SQL to
+ * a backoffice table (a hash-chain ledger, an audit trail) uses this instead of a
+ * hardcoded `backoffice.` prefix, so a host that renames the schema is honored. Pure
+ * + bare-safe.
+ */
+export { qualifyBackofficeTable } from '../utils/backoffice_table.js'
+
+/**
+ * Bootstrap-time environment helpers a satellite provider needs before the app is
+ * fully booted. `isProductionNodeEnv` matches the framework's prod/production
+ * normalization (a security gate must not diverge from `app.inProduction`), and
+ * `readBooleanEnvFlag` is the single normalized parse for a boolean toggle (so a
+ * value typo/case never silently picks the safe branch). Both are bare-safe.
+ */
+export { isProductionNodeEnv, readBooleanEnvFlag } from '../utils/env.js'
+
+/**
+ * Resolve the Lucid `Database` from the container without repeating the
+ * `'lucid.db' as never` cast at every satellite provider. A caller narrows the result
+ * to the query surface it uses (a raw-SQL writer, a store).
+ */
+export { resolveLucidDb } from '../utils/lucid_db.js'
+
 export type { CodemodsLike, LoggerLike } from './configure_kit.js'
 export {
   filterAlreadyPublished,

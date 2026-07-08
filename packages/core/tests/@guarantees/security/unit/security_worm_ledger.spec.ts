@@ -81,6 +81,7 @@ function writer(fake: FakeWormLedger, activeScopeTenantId?: () => string | undef
   return new WormLedgerWriter({
     getDb: async () => fake.db(),
     connectionName: 'backoffice',
+    schemaName: 'backoffice',
     activeScopeTenantId,
   })
 }
@@ -171,6 +172,7 @@ test.group('WORM ledger — fail-closed', () => {
         throw new Error('db down')
       },
       connectionName: 'backoffice',
+      schemaName: 'backoffice',
     })
     await assert.rejects(() => w.append(row()), /could not be written/)
     try {

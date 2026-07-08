@@ -1,6 +1,7 @@
 import type { ApplicationService } from '@adonisjs/core/types'
 import {
   assertSatelliteApiCompatAtBoot,
+  resolveLucidDb,
   type SatelliteProviderConstructor,
   type SatelliteProviderContract,
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
@@ -55,7 +56,7 @@ export default class CryptoProvider implements SatelliteProviderContract {
       const crypto = this.app.config.get<MultitenancyConfigWithCrypto>('multitenancy')?.crypto
       const registry = await resolver.make(KeyProviderRegistry)
       const keyProvider = registry.resolve(crypto?.keyProvider ?? DEFAULT_KEY_PROVIDER)
-      const makeDb = () => this.app.container.make('lucid.db' as never)
+      const makeDb = () => resolveLucidDb(this.app)
       const activeScopeTenantId = () => tenancy.currentId()
       const store = new PgWrappedDekStore({
         getDriver: () => getActiveDriver() as Promise<CryptoStoreDriver>,
@@ -65,14 +66,17 @@ export default class CryptoProvider implements SatelliteProviderContract {
       // The two-phase shred audit: the shared core WORM ledger (per-tenant hash
       // chain in the backoffice schema, append-only), wrapped as a ShredLedger. The
       // erasability gate is wired from governance's config seam (absent ⇒ shred is
-      // fail-closed refused, I7). encrypt/decrypt do not depend on either. The
-      // connection name is resolved from config (never a hardcoded literal): the
-      // ledger's SQL is schema-qualified `backoffice.worm_ledger` but runs on the
-      // host's central connection, exactly as the real integration harness wires it.
+      // fail-closed refused, I7). encrypt/decrypt do not depend on either. Both the
+      // schema and the connection are resolved from config (never a hardcoded
+      // literal): the ledger's SQL is qualified through qualifyBackofficeTable with
+      // `backofficeSchemaName`, and it runs on `backofficeConnectionName` — the
+      // convention core uses for every backoffice-schema table — so a host that
+      // separates or renames its backoffice schema/connection is honored.
       const ledger = new WormShredLedger(
         new WormLedgerWriter({
           getDb: async () => (await makeDb()) as unknown as WormDb,
-          connectionName: getConfig().centralConnectionName,
+          connectionName: getConfig().backofficeConnectionName,
+          schemaName: getConfig().backofficeSchemaName,
           activeScopeTenantId,
         })
       )
@@ -98,7 +102,7 @@ export default class CryptoProvider implements SatelliteProviderContract {
       const crypto = this.app.config.get<MultitenancyConfigWithCrypto>('multitenancy')?.crypto
       const registry = await resolver.make(KeyProviderRegistry)
       const keyProvider = registry.resolve(crypto?.keyProvider ?? DEFAULT_KEY_PROVIDER)
-      const makeDb = () => this.app.container.make('lucid.db' as never)
+      const makeDb = () => resolveLucidDb(this.app)
       const store = new PgWrappedDekStore({
         getDriver: () => getActiveDriver() as Promise<CryptoStoreDriver>,
         getDb: async () => (await makeDb()) as unknown as CryptoDb,

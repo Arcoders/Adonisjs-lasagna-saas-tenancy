@@ -1,5 +1,6 @@
 import type Stripe from 'stripe'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+import { isProductionNodeEnv, readBooleanEnvFlag } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import BillingException from '../../exceptions/billing_exception.js'
 import { DEFAULT_STRIPE_API_VERSION } from '../../stripe_api_version.js'
@@ -63,7 +64,10 @@ export default class StripeDriver implements BillingProviderContract {
     await this.#getStripe() // throws peer_missing if the SDK isn't installed
 
     const apiKey = cfg.stripe.apiKey ?? ''
-    const isProduction = process.env.NODE_ENV === 'production'
+    // Use the framework's prod/production normalization, not a raw NODE_ENV compare:
+    // on NODE_ENV=prod (which AdonisJS treats as production) a bare === 'production'
+    // would wrongly ALLOW a test key and REJECT a live key.
+    const isProduction = isProductionNodeEnv()
     const isTestKey = apiKey.startsWith('sk_test_')
     const isLiveKey = apiKey.startsWith('sk_live_')
 
@@ -73,7 +77,7 @@ export default class StripeDriver implements BillingProviderContract {
         'STRIPE_API_KEY is a test key but NODE_ENV=production. Refusing to boot — set a live key or revert NODE_ENV.'
       )
     }
-    if (!isProduction && isLiveKey && process.env.STRIPE_ALLOW_LIVE_IN_DEV !== 'true') {
+    if (!isProduction && isLiveKey && !readBooleanEnvFlag('STRIPE_ALLOW_LIVE_IN_DEV')) {
       throw new BillingException(
         'live_key_outside_production',
         '[billing] STRIPE_API_KEY is a LIVE key but NODE_ENV is not "production". Refusing to boot — set NODE_ENV=production or STRIPE_ALLOW_LIVE_IN_DEV=true to opt in.'

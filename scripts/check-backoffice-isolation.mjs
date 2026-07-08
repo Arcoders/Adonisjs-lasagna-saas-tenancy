@@ -23,20 +23,14 @@ import { readFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { discoverBackofficeModels } from './lib/discover-backoffice-models.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
-const BACKOFFICE_MODELS = [
-  'TenantAuditLog',
-  'TenantBranding',
-  'TenantCustomMetric',
-  'TenantFeatureFlag',
-  'TenantMetric',
-  'TenantMetricMonthly',
-  'TenantPlan',
-  'TenantWebhook',
-  'TenantWebhookDelivery',
-]
+// Discovered from source (every `class X extends BackofficeBaseModel`), never a
+// hand-list: a satellite's new backoffice model is guarded automatically instead of
+// silently escaping the cross-tenant sweep. Falls back gracefully in --self-test.
+const BACKOFFICE_MODELS = discoverBackofficeModels(ROOT)
 
 const QUERY_RE = new RegExp(`\\b(${BACKOFFICE_MODELS.join('|')})\\.query\\(`)
 const SCOPE_RE = /tenant_?id/i

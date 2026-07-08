@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
+import { qualifyBackofficeTable } from '../utils/backoffice_table.js'
 
 /**
  * The shared append-only WORM ledger writer. A per-tenant sha256 hash chain in the
@@ -117,6 +118,13 @@ export interface WormLedgerWriterDeps {
   /** The backoffice connection name (the shared ledger schema lives there). */
   connectionName: string
   /**
+   * The backoffice SCHEMA name (`config.backofficeSchemaName`). The ledger's raw SQL
+   * is qualified through {@link qualifyBackofficeTable} with this schema instead of a
+   * hardcoded `backoffice.` literal, so a host that renames the schema is honored and
+   * the fail-closed writer does not 503 on a renamed-backoffice deployment.
+   */
+  schemaName: string
+  /**
    * The active tenancy scope id (the satellite ContextSeal). Raw queries bypass
    * the kernel ContextSeal, so the writer re-asserts the row tenant equals the
    * active scope. Absent, or returning undefined (a background job), trusts the
@@ -192,7 +200,12 @@ function rowFromDb(db: Record<string, unknown>): WormLedgerRow {
 }
 
 export default class WormLedgerWriter {
-  constructor(private readonly deps: WormLedgerWriterDeps) {}
+  /** The `"schema"."worm_ledger"` reference, derived once from the configured schema. */
+  readonly #table: string
+
+  constructor(private readonly deps: WormLedgerWriterDeps) {
+    this.#table = qualifyBackofficeTable(deps.schemaName, WORM_LEDGER_TABLE)
+  }
 
   /**
    * Append one row to the tenant's chain, fail-closed. Resolves to the persisted
@@ -228,9 +241,9 @@ export default class WormLedgerWriter {
     const client = db.connection(this.deps.connectionName)
     const where = tenantId ? 'WHERE tenant_id = ?' : ''
     const bindings = tenantId ? [tenantId] : []
-    // safe-sql: the column list is a fixed module constant; the optional tenant filter is a ? bind.
+    // safe-sql: column list is a module constant; #table is qualified via qualifyBackofficeTable (validates the schema); tenant filter is a ? bind.
     const res = await client.rawQuery(
-      `SELECT ${WORM_LEDGER_COLUMNS.join(', ')} FROM backoffice.${WORM_LEDGER_TABLE} ${where} ORDER BY tenant_id ASC, seq ASC`,
+      `SELECT ${WORM_LEDGER_COLUMNS.join(', ')} FROM ${this.#table} ${where} ORDER BY tenant_id ASC, seq ASC`,
       bindings
     )
     const rows = rowsOf(res)
@@ -275,9 +288,9 @@ export default class WormLedgerWriter {
           await trx.rawQuery('SELECT pg_advisory_xact_lock(hashtext(?))', [
             `${WORM_LEDGER_LOCK_PREFIX}${row.tenantId}`,
           ])
-          // safe-sql: the table is a fixed module constant; tenant_id is a ? bind.
+          // safe-sql: the schema-qualified table is validated by qualifyBackofficeTable; tenant_id is a ? bind.
           const tailRes = await trx.rawQuery(
-            `SELECT seq, checksum FROM backoffice.${WORM_LEDGER_TABLE} WHERE tenant_id = ? ORDER BY seq DESC LIMIT 1`,
+            `SELECT seq, checksum FROM ${this.#table} WHERE tenant_id = ? ORDER BY seq DESC LIMIT 1`,
             [row.tenantId]
           )
           const tail = rowsOf(tailRes)[0]
@@ -290,9 +303,9 @@ export default class WormLedgerWriter {
           const placeholders = WORM_LEDGER_COLUMNS.map((c) =>
             c === 'metadata' ? '?::jsonb' : '?'
           ).join(', ')
-          // safe-sql: the column list is a fixed module constant; every value is a ? bind (metadata cast ::jsonb).
+          // safe-sql: column list is a module constant; #table is qualified via qualifyBackofficeTable (validates the schema); every value is a ? bind (metadata cast ::jsonb).
           await trx.rawQuery(
-            `INSERT INTO backoffice.${WORM_LEDGER_TABLE} (${WORM_LEDGER_COLUMNS.join(', ')}) VALUES (${placeholders})`,
+            `INSERT INTO ${this.#table} (${WORM_LEDGER_COLUMNS.join(', ')}) VALUES (${placeholders})`,
             WORM_LEDGER_COLUMNS.map((col) => values[col])
           )
           return entry

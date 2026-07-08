@@ -1,6 +1,7 @@
 import type { ApplicationService } from '@adonisjs/core/types'
 import {
   assertSatelliteApiCompatAtBoot,
+  resolveLucidDb,
   type SatelliteProviderConstructor,
   type SatelliteProviderContract,
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
@@ -191,8 +192,7 @@ export default class AiProvider implements SatelliteProviderContract {
       const ai = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
       return new VectorStoreService({
         getDriver: () => getActiveDriver(),
-        getDb: async () =>
-          (await this.app.container.make('lucid.db' as never)) as unknown as VectorDb,
+        getDb: async () => (await resolveLucidDb(this.app)) as unknown as VectorDb,
         activeScopeTenantId: () => tenancy.currentId(),
         dimension: ai?.embedding?.dimension ?? DEFAULT_EMBEDDING_DIM,
         purgeStatementTimeoutMs: ai?.purgeStatementTimeoutMs,
@@ -249,21 +249,20 @@ export default class AiProvider implements SatelliteProviderContract {
     // frozen choke-point events onto it. Singletons, stateful only through the db.
     const audit = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai?.audit
     if (audit?.enabled !== false) {
-      this.app.container.singleton(
-        AiAuditWriter,
-        () =>
-          new AiAuditWriter({
-            getDb: async () =>
-              (await this.app.container.make('lucid.db' as never)) as unknown as AuditDb,
-            connectionName: 'backoffice',
-            activeScopeTenantId: () => tenancy.currentId(),
-            // External anchoring (#6): reuse the kernel audit destination registry
-            // the operator already configures, so kernel + AI audit share one
-            // SIEM/WORM stream. Best-effort, after the canonical commit.
-            getDestinations: () => this.app.container.make(AuditLogDestinationRegistry),
-            runExtension: executeExtension,
-          })
-      )
+      this.app.container.singleton(AiAuditWriter, () => {
+        const { connectionName, schemaName } = this.#backofficeWiring()
+        return new AiAuditWriter({
+          getDb: async () => (await resolveLucidDb(this.app)) as unknown as AuditDb,
+          connectionName,
+          schemaName,
+          activeScopeTenantId: () => tenancy.currentId(),
+          // External anchoring (#6): reuse the kernel audit destination registry
+          // the operator already configures, so kernel + AI audit share one
+          // SIEM/WORM stream. Best-effort, after the canonical commit.
+          getDestinations: () => this.app.container.make(AuditLogDestinationRegistry),
+          runExtension: executeExtension,
+        })
+      })
       this.app.container.singleton(
         PgChatAuditSink,
         async (resolver) => new PgChatAuditSink(await resolver.make(AiAuditWriter))
@@ -349,9 +348,8 @@ export default class AiProvider implements SatelliteProviderContract {
     doctor.register(
       aiAuditCheck({
         getAiConfig: () => this.app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai,
-        getDb: async () =>
-          (await this.app.container.make('lucid.db' as never)) as unknown as AuditDb,
-        connectionName: 'backoffice',
+        getDb: async () => (await resolveLucidDb(this.app)) as unknown as AuditDb,
+        ...this.#backofficeWiring(),
       })
     )
     // Keep the conversation-memory posture visible (WS-AI-4, I2): memory binds a
@@ -483,6 +481,29 @@ export default class AiProvider implements SatelliteProviderContract {
       const provider = buildBuiltinProvider(name, ai)
       if (provider) registry.register(provider, { activate: provider.name === activeName })
     }
+  }
+
+  /**
+   * The shared backoffice connection + schema the AI audit writer and the ai_audit
+   * doctor probe target. Read from the multitenancy config (never a hardcoded
+   * 'backoffice' literal) so a host that renames the backoffice schema/connection is
+   * honored and the fail-closed audit writer does not 503 every AI request. Reads the
+   * config repository, which is populated for both register() and boot() — unlike
+   * core's getConfig() singleton, seeded only in core's boot(), which runs after AI's
+   * register().
+   */
+  #backofficeWiring(): { connectionName: string; schemaName: string } {
+    const mt = this.app.config.get<MultitenancyConfigWithAi>('multitenancy')
+    const connectionName = mt?.backofficeConnectionName
+    const schemaName = mt?.backofficeSchemaName
+    if (!connectionName || !schemaName) {
+      throw new AIException(
+        'config_missing',
+        'multitenancy.backofficeConnectionName and multitenancy.backofficeSchemaName are ' +
+          'required to wire the AI audit trail.'
+      )
+    }
+    return { connectionName, schemaName }
   }
 }
 

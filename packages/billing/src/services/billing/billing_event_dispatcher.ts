@@ -123,6 +123,7 @@ async function handleTrialWillEnd(
 ): Promise<DispatchResult> {
   const sub = event.data
   if (!sub.customerId) return { outcome: 'noop' }
+  // backoffice-scope-exempt: a provider webhook resolves the OWNING tenant by its provider customer id (no tenant_id exists to scope by until this returns).
   const customer = await BillingCustomer.query().where('providerCustomerId', sub.customerId).first()
   if (!customer) return { outcome: 'noop' }
 
@@ -162,6 +163,7 @@ async function handlePaymentSucceeded(
 ): Promise<DispatchResult> {
   const invoice = event.data
   if (!invoice.customerId) return { outcome: 'noop' }
+  // backoffice-scope-exempt: a provider webhook resolves the OWNING tenant by its provider customer id (no tenant_id exists to scope by until this returns).
   const customer = await BillingCustomer.query()
     .where('providerCustomerId', invoice.customerId)
     .first()
@@ -273,6 +275,7 @@ async function handlePaymentFailed(
 ): Promise<DispatchResult> {
   const invoice = event.data
   if (!invoice.customerId) return { outcome: 'noop' }
+  // backoffice-scope-exempt: a provider webhook resolves the OWNING tenant by its provider customer id (no tenant_id exists to scope by until this returns).
   const customer = await BillingCustomer.query()
     .where('providerCustomerId', invoice.customerId)
     .first()
@@ -362,6 +365,7 @@ async function handleCustomerDeleted(
   event: EventOf<'customer.deleted'>,
   _ctx: DispatchContext
 ): Promise<DispatchResult> {
+  // backoffice-scope-exempt: a provider webhook resolves the OWNING tenant by its provider customer id (no tenant_id exists to scope by until this returns).
   const row = await BillingCustomer.query()
     .where('providerCustomerId', event.data.providerCustomerId)
     .first()

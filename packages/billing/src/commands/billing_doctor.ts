@@ -125,6 +125,7 @@ export default class BillingDoctor extends BaseCommand {
     // 5. No old failed events (>24h).
     try {
       const cutoff = DateTime.utc().minus({ hours: 24 })
+      // backoffice-scope-exempt: doctor reconciliation counts stale failed events across ALL tenants (a fleet-wide health check, not a tenant-scoped read).
       const stale = await BillingProcessedEvent.query()
         .where('status', 'failed')
         .where('processedAt', '<', cutoff.toSQL()!)

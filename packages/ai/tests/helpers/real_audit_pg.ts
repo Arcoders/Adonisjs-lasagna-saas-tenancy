@@ -104,6 +104,7 @@ export function realWriter(activeScope?: string): AiAuditWriter {
   return new AiAuditWriter({
     getDb: async () => db as unknown as AuditDb,
     connectionName: centralConn(),
+    schemaName: getConfig().backofficeSchemaName,
     activeScopeTenantId: () => activeScope,
   })
 }

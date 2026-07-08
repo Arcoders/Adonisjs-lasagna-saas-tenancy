@@ -4,6 +4,7 @@ import WebhookTransformerRegistry from './webhook_transformer_registry.js'
 import { emitIsthmusEvent } from '../isthmus/audit.js'
 import { readSecret, writeSecret } from '../utils/secret_at_rest.js'
 import { validateExternalHttpsUrl } from '../utils/url.js'
+import { readBooleanEnvFlag } from '../utils/env.js'
 import { safeFetch, SafeFetchError, type SafeFetchOptions } from '../utils/safe_fetch.js'
 import { DateTime } from 'luxon'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
@@ -251,7 +252,7 @@ export default class WebhookService {
     // default. Even when enabled, a non-loopback host still goes through pinned
     // validation, so private (RFC 1918) and cloud-metadata ranges stay blocked and
     // the flag can't be turned into a metadata SSRF.
-    const allowLoopback = process.env.WEBHOOKS_ALLOW_LOOPBACK_TARGETS === 'true'
+    const allowLoopback = readBooleanEnvFlag('WEBHOOKS_ALLOW_LOOPBACK_TARGETS')
 
     const body = JSON.stringify(delivery.payload)
     const headers: Record<string, string> = {

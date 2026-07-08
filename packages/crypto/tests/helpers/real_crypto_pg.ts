@@ -161,6 +161,7 @@ export function realWormWriter(activeScope?: string): WormLedgerWriter {
   return new WormLedgerWriter({
     getDb: async () => db as unknown as WormDb,
     connectionName: centralConn(),
+    schemaName: getConfig().backofficeSchemaName,
     activeScopeTenantId: () => activeScope,
   })
 }

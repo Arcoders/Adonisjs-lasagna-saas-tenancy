@@ -60,6 +60,7 @@ export const billingHealthCheck: HealthCheckFn = async (): Promise<CheckResult> 
   }
 
   // Webhook freshness — only relevant when there's something to process.
+  // backoffice-scope-exempt: a fleet-wide health probe counting active subscriptions across ALL tenants to decide whether webhook staleness is worth reporting.
   const activeSubsCount = await BillingSubscription.query()
     .whereIn('status', ['active', 'past_due', 'trialing'])
     .count('* as total')
@@ -72,6 +73,7 @@ export const billingHealthCheck: HealthCheckFn = async (): Promise<CheckResult> 
   let stalenessNote: string | undefined
   let degraded = false
   if (total > 0) {
+    // backoffice-scope-exempt: fleet-wide freshness probe for the most recent processed webhook across ALL tenants, to detect a stalled delivery pipeline.
     const latest = await BillingProcessedEvent.query()
       .whereNotNull('completedAt')
       .orderBy('completedAt', 'desc')

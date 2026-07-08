@@ -21,6 +21,7 @@ const GUARDS = [
   'check-satellite-graduation.mjs',
   'check-extension-contracts.mjs',
   'check-backoffice-isolation.mjs',
+  'check-no-hardcoded-backoffice.mjs',
   'check-quota-key-tenant-scoped.mjs',
   'check-routes-options-naming.mjs',
   'check-billing-provider-neutral.mjs',
