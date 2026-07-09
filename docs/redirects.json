@@ -75,5 +75,7 @@
   "/docs/satellites/webhooks": "/guides/satellites/webhooks",
   "/docs/satellites/websockets": "/guides/satellites/websockets",
   "/testing/TESTING": "/guides/testing",
-  "/testing/COVERAGE_MATRIX": "/guides/testing"
+  "/testing/COVERAGE_MATRIX": "/guides/testing",
+  "/guides/satellites/crypto": "/guides/satellites/",
+  "/docs/satellites/crypto": "/guides/satellites/"
 }

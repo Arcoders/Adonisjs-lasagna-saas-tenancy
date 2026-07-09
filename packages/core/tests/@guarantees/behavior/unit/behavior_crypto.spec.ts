@@ -265,11 +265,12 @@ test.group('crypto — enc_v2 envelope', (group) => {
   })
 })
 
-// The @adonisjs-lasagna/crypto seam: seal/open the SAME enc_v2 envelope under a
+// The caller-supplied-DEK seam: seal/open the SAME enc_v2 envelope under a
 // caller-supplied 32-byte DEK instead of the APP_KEY-derived key. Reuses the GCM
 // primitive, the `enc_v2:<keyId>:<iv>:<tag>:<cipher>` framing, and header-as-AAD;
-// the AES key is the DEK and `keyId` is a non-secret caller tag. This is the one
-// core change per-(subject × category) field encryption needs.
+// the AES key is the DEK and `keyId` is a non-secret caller tag. It is what a
+// per-(subject × category) field-encryption layer would build on. No package in
+// this repo consumes it today.
 test.group('crypto — sealV2WithKey / openV2WithKey (DEK path)', () => {
   test('round-trips a value sealed under a DEK', ({ assert }) => {
     const sealed = sealV2WithKey('passport-number', dek(), 'dek-tag-1')

@@ -32,7 +32,7 @@ export default {
   // of the demo. With the header present, the caller's tenant MUST match the resolved
   // tenant or TenantGuardMiddleware returns 403 — closing the cross-tenant IDOR that
   // header-based resolution otherwise opens. A real app derives the principal tenant
-  // from `auth.user`. Exercised by the crypto IDOR e2e.
+  // from `auth.user`. Exercised by the membership_gate e2e.
   authorizeTenantAccess: ((ctx, tenant) => {
     const principalTenant = ctx.request.header('x-test-principal-tenant')
     if (!principalTenant) return true
@@ -264,26 +264,5 @@ export default {
     // Proven end to end by the ai_output_redaction e2e.
     redactOutput: (_ctx: any, _tenant: any, chunk: string) =>
       chunk.replace(/SSN-\d{3}-\d{2}-\d{4}/g, '[redacted]'),
-  },
-
-  // ─── crypto satellite (@adonisjs-lasagna/crypto) ─────────────────
-  // Field-level encryption with per-(subject × category) DEKs. The demo runs the
-  // dev-grade `env` KeyProvider (KEK derived from APP_KEY); prod binds Vault/KMS.
-  // `secureNote.secret` is the one demo encrypted field, blind-index searchable.
-  // The erasabilityResolver is the governance gate crypto CONSULTS before a shred
-  // (I7): crypto NEVER decides erasability itself. This demo policy marks the
-  // `demo-secret` category consent-based (erasable on request) and refuses every
-  // other category fail-closed — the shape a real rental fills in from its lawyer's
-  // retention table (see packages/crypto/PRODUCTION_READINESS.md §5.1). The crypto
-  // e2e drives encrypt/decrypt, blind-index search, and crypto-shred over HTTP.
-  crypto: {
-    keyProvider: 'env',
-    fields: {
-      'secureNote.secret': { category: 'demo-secret', searchable: true },
-    },
-    erasabilityResolver: (_tenant: any, _subject: string, category: string) =>
-      category === 'demo-secret'
-        ? { erasable: true, reason: 'consent' }
-        : { erasable: false, reason: `category '${category}' is not erasable on request` },
   },
 } as const

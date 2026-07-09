@@ -83,8 +83,8 @@ wanting the whole barrel. The decision for each, so the surface does not drift:
 
 | Subpath | Decision | Why |
 |---|---|---|
-| `/crypto` | **Keep** (low-level) | The AEAD envelope + key-id primitives. Frozen as a compat obligation; a satellite that composes them must not have the module move under it. Prefer the `@adonisjs-lasagna/crypto` satellite for field encryption. |
-| `/worm-ledger` | **Keep** (low-level) | The append-only hash-chain writer the crypto shred audit depends on. Kept because that dependency is real and cross-package; not a general-purpose logging API. |
+| `/crypto` | **Keep** (low-level) | The AEAD envelope + key-id primitives. Core's own secret-at-rest path (webhook signing secrets, SSO client secrets) composes them, so the module must not move under it. Not a field-encryption API. |
+| `/worm-ledger` | **Keep** (low-level) | An append-only hash-chain writer. No shipped package consumes it today; it is not a general-purpose logging API. |
 | `/signals` | **Keep** (low-level) | The provisioning-signal helpers a satellite `after:provision` hook uses. Kept for satellite authors. |
 | `/adapters`, `/base-models` | **Keep** (low-level) | The model routing primitives (`TenantAdapter`, the three base models). A host wiring a custom model needs them; the root barrel also re-exports the base models for the common case. |
 | `/safe-fetch` | **Keep** | The DNS-pinned egress helper — a first-class security primitive a host or satellite SHOULD use for any attacker-influenced fetch. Documented, not merely low-level. |
@@ -139,7 +139,6 @@ The isolation substrate. Everything here is **release candidate** unless noted.
 | `@adonisjs-lasagna/websockets` | Release candidate | Multi-tenant bidirectional WebSockets on socket.io. |
 | `@adonisjs-lasagna/reporting` | Release candidate | Cross-tenant analytics over the backoffice `tenant_metrics` table, custom named metrics, and host-defined report extensions. |
 | `@adonisjs-lasagna/ai` | Release candidate | Per-tenant AI streaming gateway: the streaming spine, a pluggable provider contract (Claude / DeepSeek / Kimi), and per-chunk cost metering over the kernel rails. |
-| `@adonisjs-lasagna/crypto` | Release candidate | Field-level encryption: per-(subject × category) DEKs wrapped under a pluggable KeyProvider (env / AWS KMS / HashiCorp Vault), a deterministic search HMAC, and O(1) crypto-shredding gated on governance and audited to the WORM ledger. |
 
 The version number says the same thing the label does: a `release candidate`
 satellite is published as `>=1.0.0`, so the version string a consumer reads off
