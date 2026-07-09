@@ -95,4 +95,27 @@ test.group('crypto — hostile cross-tenant IDOR (real HTTP)', (group) => {
       .header('x-tenant-id', b.id)
       .then((r) => assert.equal(r.body().secret, 'same-value'))
   })
+
+  test('the authorizeTenantAccess seam closes the IDOR when the principal-tenant mismatches (403)', async ({
+    client,
+  }) => {
+    const a = await createInstalledTenant(client, { plan: 'pro' })
+    const b = await createInstalledTenant(client, { plan: 'pro' })
+
+    // A caller whose authenticated principal belongs to B, but who resolves tenant A
+    // by swapping the x-tenant-id header, is REFUSED by the membership gate before the
+    // crypto controller ever runs — a real-HTTP proof of the IDOR firewall.
+    const denied = await client
+      .get('/demo/secure-notes/anything')
+      .header('x-tenant-id', a.id)
+      .header('x-test-principal-tenant', b.id)
+    denied.assertStatus(403)
+
+    // The matching principal passes the gate (404 = reached the controller, no such note).
+    const allowed = await client
+      .get('/demo/secure-notes/anything')
+      .header('x-tenant-id', a.id)
+      .header('x-test-principal-tenant', a.id)
+    allowed.assertStatus(404)
+  })
 })
