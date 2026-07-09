@@ -33,6 +33,37 @@ export const CORE_SCAFFOLD: { path: string; stub: string }[] = [
 ]
 
 /**
+ * Every environment variable the published `config/multitenancy.ts` reads.
+ * AdonisJS types `env.get()` off the host's `start/env.ts`, so a key that is not
+ * declared there is a compile error in the very file `configure` just wrote.
+ *
+ * All optional: the config stub supplies a default for each. `defineEnvValidations`
+ * skips keys the host already declares, so re-running is safe and a host that
+ * already validates `DB_HOST` as required keeps its stricter rule.
+ *
+ * Any `env.get('X', …)` added to config/multitenancy.stub must be added here too;
+ * `check-stub-render.mjs` does not see this, but the clean-app CI gate does.
+ */
+export const ENV_VALIDATIONS: Record<string, string> = {
+  TENANT_RESOLVER: 'Env.schema.string.optional()',
+  TENANT_HEADER_KEY: 'Env.schema.string.optional()',
+  TENANT_SCHEMA_PREFIX: 'Env.schema.string.optional()',
+  APP_DOMAIN: 'Env.schema.string.optional()',
+  DB_HOST: 'Env.schema.string.optional()',
+  DB_PORT: 'Env.schema.number.optional()',
+  DB_USER: 'Env.schema.string.optional()',
+  DB_PASSWORD: 'Env.schema.string.optional()',
+  DB_DATABASE: 'Env.schema.string.optional()',
+  QUEUE_REDIS_HOST: 'Env.schema.string.optional()',
+  QUEUE_REDIS_PORT: 'Env.schema.number.optional()',
+  QUEUE_REDIS_DB: 'Env.schema.number.optional()',
+  CACHE_REDIS_HOST: 'Env.schema.string.optional()',
+  CACHE_REDIS_PORT: 'Env.schema.number.optional()',
+  CACHE_REDIS_DB: 'Env.schema.number.optional()',
+  BACKUP_STORAGE_PATH: 'Env.schema.string.optional()',
+}
+
+/**
  * Each entry maps a core satellite feature name to the migration stubs that
  * implement it. The key is what the user passes via `--with=<feature>` (CSV)
  * or selects from the interactive prompt.
@@ -288,6 +319,23 @@ export default async function configure(command: Configure) {
     rcFile.addProvider('@adonisjs-lasagna/saas-tenancy/providers/multitenancy_provider')
     rcFile.addCommand('@adonisjs-lasagna/saas-tenancy/commands')
   })
+
+  // Declare the env vars the config below reads, BEFORE publishing it: `env.get()`
+  // is typed off start/env.ts, so an undeclared key is a compile error in the file
+  // we are about to write. Best-effort — a host with a non-standard env.ts should
+  // get a hint, not a failed install.
+  try {
+    await (codemods as any).defineEnvValidations({
+      variables: ENV_VALIDATIONS,
+      leadingComment: 'Multitenancy (@adonisjs-lasagna/saas-tenancy)',
+    })
+  } catch (error) {
+    command.logger.warning(
+      `could not add env validations to start/env.ts (${error.message}). ` +
+        `Declare these keys yourself or config/multitenancy.ts will not typecheck: ` +
+        Object.keys(ENV_VALIDATIONS).join(', ')
+    )
+  }
 
   // Publish config file
   await codemods.makeUsingStub(stubsRoot, 'config/multitenancy.stub', {})

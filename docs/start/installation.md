@@ -69,24 +69,41 @@ Three connection contexts live side by side. Add them to
 ```ts
 // config/database.ts
 export default defineConfig({
+  connection: 'public',
   connections: {
     public: {
       client: 'pg',
-      connection: { ...baseConn, searchPath: 'public' },
+      connection: baseConn,
+      searchPath: ['public'],
     },
     backoffice: {
       client: 'pg',
-      connection: { ...baseConn, searchPath: 'backoffice' },
+      connection: baseConn,
+      searchPath: ['backoffice'],
     },
-    // Tenant connections are created at runtime, no entry needed here.
+    // The template the isolation driver clones for each tenant. Per-tenant
+    // connections are created at runtime from this one, but the template itself
+    // must exist or provisioning fails with "template connection not found".
+    tenant: {
+      client: 'pg',
+      connection: baseConn,
+      searchPath: ['public'],
+    },
   },
 })
 ```
+
+Two things bite here. `searchPath` sits beside `connection`, not inside it: Lucid
+reads it off the connection node, so nesting it fails to typecheck and leaves you
+on `public`. And the connection **names** must match the ones in
+`config/multitenancy.ts` (`centralConnectionName`, `backofficeConnectionName`,
+and the isolation driver's `templateConnectionName`, which defaults to `tenant`).
 
 | Connection      | Schema           | Purpose                                  |
 | --------------- | ---------------- | ---------------------------------------- |
 | `public`        | `public`         | Shared global data                       |
 | `backoffice`    | `backoffice`     | Tenant registry + satellite features     |
+| `tenant`        | —                | Template cloned per tenant; never queried directly |
 | `tenant_<uuid>` | `tenant_<uuid>`  | Per-tenant data, created on demand       |
 
 ::: tip Why three connections?

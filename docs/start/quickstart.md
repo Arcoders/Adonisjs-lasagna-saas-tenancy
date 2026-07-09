@@ -39,13 +39,19 @@ per feature you passed to `--with`.
 
 ## 2. Database connections
 
+`searchPath` is a sibling of `connection`, not a key inside it. Nesting it
+typechecks nowhere and silently leaves you on the `public` schema.
+
 ```ts
 // config/database.ts
 export default defineConfig({
+  connection: 'public',
   connections: {
-    public: { client: 'pg', connection: { ...baseConn, searchPath: 'public' } },
-    backoffice: { client: 'pg', connection: { ...baseConn, searchPath: 'backoffice' } },
-    // tenant_<uuid> connections register at runtime.
+    public: { client: 'pg', connection: baseConn, searchPath: ['public'] },
+    backoffice: { client: 'pg', connection: baseConn, searchPath: ['backoffice'] },
+    // The template the isolation driver clones for each tenant_<uuid> connection.
+    // Without it, provisioning fails. The names must match config/multitenancy.ts.
+    tenant: { client: 'pg', connection: baseConn, searchPath: ['public'] },
   },
 })
 ```

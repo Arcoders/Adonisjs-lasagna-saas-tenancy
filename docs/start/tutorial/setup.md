@@ -35,16 +35,25 @@ three connection contexts:
 ```ts
 // config/database.ts
 export default defineConfig({
+  connection: 'public',
   connections: {
     public: {
       client: 'pg',
-      connection: { ...baseConn, searchPath: 'public' },
+      connection: baseConn,
+      searchPath: ['public'],
     },
     backoffice: {
       client: 'pg',
-      connection: { ...baseConn, searchPath: 'backoffice' },
+      connection: baseConn,
+      searchPath: ['backoffice'],
     },
-    // tenant_<uuid> connections register themselves at runtime — no entry here.
+    // tenant_<uuid> connections register themselves at runtime, cloned from this
+    // template. The template must exist, even though you never query it.
+    tenant: {
+      client: 'pg',
+      connection: baseConn,
+      searchPath: ['public'],
+    },
   },
 })
 ```

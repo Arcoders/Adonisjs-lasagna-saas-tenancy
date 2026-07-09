@@ -1,6 +1,7 @@
 import { test } from '@japa/runner'
 import { DateTime } from 'luxon'
 import { buildTestTenant } from '../../../../src/testing/builders.js'
+import SchemaPgDriver from '../../../../src/services/isolation/schema_pg_driver.js'
 import { setupTestConfig } from '../../../helpers/config.js'
 
 test.group('buildTestTenant', (group) => {
@@ -39,10 +40,17 @@ test.group('buildTestTenant', (group) => {
     assert.isFalse(tenant.isActive)
   })
 
-  test('schemaName follows config prefix and replaces hyphens with underscores', ({ assert }) => {
+  test('schemaName is the config prefix plus the raw uuid, exactly as the driver builds it', ({
+    assert,
+  }) => {
+    // This spec used to pin the opposite ("replaces hyphens with underscores"),
+    // which named a schema no driver ever creates. Assert against SchemaPgDriver
+    // itself so the double and the real thing cannot drift again.
     setupTestConfig({ tenantSchemaPrefix: 'tnt_' })
     const tenant = buildTestTenant({ id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee' })
-    assert.equal(tenant.schemaName, 'tnt_aaaaaaaa_bbbb_4ccc_8ddd_eeeeeeeeeeee')
+
+    assert.equal(tenant.schemaName, 'tnt_aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee')
+    assert.equal(tenant.schemaName, new SchemaPgDriver().schemaName(tenant))
   })
 
   test('suspend() and activate() mutate status in-memory', async ({ assert }) => {

@@ -13,6 +13,7 @@ import { BentoCache } from 'bentocache';
 import { BentoStore } from 'bentocache';
 import { CamelCaseNamingStrategy } from '@adonisjs/lucid/orm';
 import CircuitBreaker from 'opossum';
+import type Configure from '@adonisjs/core/commands/configure';
 import type { Database } from '@adonisjs/lucid/database';
 import { DateTime } from 'luxon';
 import { Exception } from '@adonisjs/core/exceptions';
@@ -250,6 +251,9 @@ export interface CloneResult {
     // (undocumented)
     tablesCopied: number;
 }
+
+// @public (undocumented)
+export function configure(command: Configure): Promise<void>;
 
 // @public
 export function configuredScopeColumn(): string;

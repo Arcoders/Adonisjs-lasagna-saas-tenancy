@@ -29,7 +29,9 @@ export function buildTestTenant<TMeta extends object = TenantMetadata>(
     deletedAt: overrides.deletedAt ?? null,
     metadata: overrides.metadata,
     get schemaName() {
-      return `${getConfig().tenantSchemaPrefix}${this.id.replace(/-/g, '_')}`
+      // Must match SchemaPgDriver, which appends the raw uuid. A double that
+      // rewrites the dashes names a schema no driver ever creates.
+      return `${getConfig().tenantSchemaPrefix}${this.id}`
     },
     get isActive() {
       return this.status === 'active'

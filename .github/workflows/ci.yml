@@ -1024,6 +1024,69 @@ jobs:
           path: coverage/.v8/websockets-integration
           if-no-files-found: warn
 
+  # The only job that installs this package the way a stranger does: from the
+  # packed tarball, into an app scaffolded by `npm init adonisjs`. Every other
+  # gate resolves @adonisjs-lasagna/saas-tenancy through the workspace symlink,
+  # which hides a whole class of defect — a configure hook the root entry never
+  # exports, a stub that ships but cannot render, a stub calling an Application
+  # method that does not exist, a missing migration. All four shipped at once,
+  # with the other 46 gates green.
+  clean-install:
+    name: Clean install (packed tarball into a fresh app)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7.0.5-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      # The generated app runs `npm install` from the public registry, so this job
+      # needs network. It builds core, packs it, and drives the golden path from
+      # `configure` to a provisioned tenant schema.
+      - name: Clean-install smoke
+        env:
+          PG_HOST: 127.0.0.1
+          PG_PORT: 5432
+          PG_USER: postgres
+          PG_PASSWORD: postgres
+          PG_DATABASE: lasagna_clean_install
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+        run: bash scripts/clean-install-smoke.sh
+
   deploy-validate:
     name: Deploy assets (static validation)
     runs-on: ubuntu-latest

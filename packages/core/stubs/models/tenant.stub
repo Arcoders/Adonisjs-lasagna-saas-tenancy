@@ -43,7 +43,10 @@ export default class Tenant extends BackofficeBaseModel {
 
   @computed()
   get schemaName(): string {
-    return \`\${getConfig().tenantSchemaPrefix}\${this.id.replace(/-/g, '_')}\`
+    // Must match SchemaPgDriver, which appends the raw uuid. Rewriting the dashes
+    // to underscores here would name a schema that does not exist, so uninstall()
+    // would DROP the wrong one and leave this tenant's data behind.
+    return \`\${getConfig().tenantSchemaPrefix}\${this.id}\`
   }
 
   @computed()
@@ -82,15 +85,22 @@ export default class Tenant extends BackofficeBaseModel {
   }
 
   async getConnection() {
-    const { tenantConnectionNamePrefix } = getConfig()
+    const { tenantConnectionNamePrefix, centralConnectionName } = getConfig()
     const connName = \`\${tenantConnectionNamePrefix}\${this.id}\`
     if (!db.manager.has(connName)) {
+      // The central connection is the template; only the schema changes. Narrow
+      // on the client first: Lucid types a connection's config as the union over
+      // every driver, and the pg branch is the only one we can clone. Note that
+      // searchPath is a sibling of the connection object, not a member of it.
+      // Lucid reads it off the connection NODE; nesting it silently does nothing.
+      const central = db.getRawConnection(centralConnectionName)?.config
+      if (central?.client !== 'pg') {
+        throw new Error('Tenant schemas need a pg central connection, got: ' + central?.client)
+      }
       db.manager.add(connName, {
         client: 'pg',
-        connection: {
-          ...db.getRawConnection('pg')?.config?.connection,
-          searchPath: this.schemaName,
-        },
+        connection: central.connection,
+        searchPath: [this.schemaName],
       })
     }
     return db.connection(connName)
