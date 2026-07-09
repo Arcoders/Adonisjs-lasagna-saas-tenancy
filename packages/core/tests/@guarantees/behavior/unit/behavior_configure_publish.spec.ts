@@ -11,7 +11,7 @@ import {
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import configure from '../../../../configure.js'
+import configure, { CORE_SCAFFOLD } from '../../../../configure.js'
 
 /**
  * File-level test of `configure()`'s orchestration: selection → resolve → dedup
@@ -30,17 +30,34 @@ async function exists(p: string): Promise<boolean> {
     .catch(() => false)
 }
 
-// Maps a stub path to the destination the real stub writes to.
+// Maps a stub path to the destination the real stub writes to. Every branch here
+// mirrors an `exports({ to: … })` line in the matching `.stub`; the
+// `stub_destinations_match_mock` spec below pins the two together.
 function destinationFor(stubPath: string, root: string, nextId: () => string): string | null {
   if (stubPath === 'config/multitenancy.stub') return join(root, 'config', 'multitenancy.ts')
   if (stubPath === 'models/tenant.stub')
     return join(root, 'app', 'models', 'backoffice', 'tenant.ts')
+  if (stubPath === 'repositories/tenant_repository.stub')
+    return join(root, 'app', 'repositories', 'tenant_repository.ts')
+  if (stubPath === 'providers/tenancy_provider.stub')
+    return join(root, 'providers', 'tenancy_provider.ts')
+  // The tenants table carries a fixed zero timestamp so it always sorts first.
+  if (stubPath === 'migrations/create_tenants_table.stub')
+    return join(
+      root,
+      'database',
+      'migrations',
+      `${TENANTS_MIGRATION_PREFIX}_create_tenants_table.ts`
+    )
   // Core stubs are `migrations/<name>.stub`; external satellites publish via the
   // toolkit as `<migrationsDir>/<name>.stub` (e.g. `stubs/migrations/<name>.stub`).
   const m = stubPath.match(/(?:^|[\\/])migrations[\\/](.+)\.stub$/)
   if (m) return join(root, 'database', 'migrations', `${nextId()}_${m[1]}.ts`)
   return null
 }
+
+const TENANTS_MIGRATION_PREFIX = '0000000000000'
+const STUBS_ROOT = new URL('../../../../stubs/', import.meta.url)
 
 interface Captured {
   providers: string[]
@@ -124,6 +141,16 @@ async function listMigrations(root: string): Promise<string[]> {
   return readdir(join(root, 'database', 'migrations')).catch(() => [] as string[])
 }
 
+/**
+ * The migrations a run published *because of a feature selection*. `configure`
+ * always publishes the `tenants` table (it is the table the package pivots on,
+ * not a feature), so the specs that assert "this selection published nothing"
+ * mean nothing beyond that one.
+ */
+async function featureMigrations(root: string): Promise<string[]> {
+  return (await listMigrations(root)).filter((f) => !/_create_tenants_table\.ts$/.test(f))
+}
+
 function matching(files: string[], stub: string): string[] {
   // Tolerate the per-package namespace prefix external satellites now get
   // (`<ts>_<slug>__<stub>.ts`) as well as the plain core form (`<ts>_<stub>.ts`).
@@ -149,10 +176,11 @@ test.group('configure() publish orchestration — core bundles', (group) => {
     assert.isTrue(await exists(join(root, 'app', 'models', 'backoffice', 'tenant.ts')))
 
     const migrations = await listMigrations(root)
+    assert.lengthOf(matching(migrations, 'create_tenants_table'), 1)
     assert.lengthOf(matching(migrations, 'create_tenant_audit_logs_table'), 1)
     assert.lengthOf(matching(migrations, 'create_tenant_webhooks_table'), 1)
     assert.lengthOf(matching(migrations, 'create_tenant_webhook_deliveries_table'), 1)
-    assert.lengthOf(migrations, 3)
+    assert.lengthOf(migrations, 4)
   })
 
   test('a later --with adds new satellites without touching the first ones', async ({ assert }) => {
@@ -182,22 +210,78 @@ test.group('configure() publish orchestration — core bundles', (group) => {
     assert.deepEqual(after2, after1, 'no new migration files on a second identical run')
   })
 
-  test('a bare run publishes ONLY core config + tenant model — no experimental satellites (B7)', async ({
+  test('a bare run publishes the working scaffold — no experimental satellites (B7)', async ({
     assert,
   }) => {
     const cmd = fakeCommand(root, {})
     await configure(cmd)
 
-    // Core scaffolding is always published…
+    // Core scaffolding is always published: the three files and the one migration
+    // a working install needs. Anything less and `tenant:create` fails on a clean app.
     assert.isTrue(await exists(join(root, 'config', 'multitenancy.ts')))
     assert.isTrue(await exists(join(root, 'app', 'models', 'backoffice', 'tenant.ts')))
+    assert.isTrue(await exists(join(root, 'app', 'repositories', 'tenant_repository.ts')))
+    assert.isTrue(await exists(join(root, 'providers', 'tenancy_provider.ts')))
+    assert.lengthOf(matching(await listMigrations(root), 'create_tenants_table'), 1)
 
     // …but NONE of the experimental satellite migrations are auto-published.
-    assert.lengthOf(await listMigrations(root), 0)
+    assert.lengthOf(await featureMigrations(root), 0)
     assert.isTrue(
       cmd.captured.logs.some((l: string) => /no features selected/i.test(l)),
-      'tells the operator nothing beyond core config + model was published'
+      'tells the operator nothing beyond the core scaffold was published'
     )
+  })
+
+  test('the tenants migration is stamped with a fixed zero prefix, so it always sorts first', async ({
+    assert,
+  }) => {
+    // `add_maintenance_to_tenants_table` ALTERs the table this one CREATEs. Both
+    // land in one directory and Lucid runs them in filename order, so a same-
+    // millisecond `Date.now()` tie between two stubs would run the ALTER first.
+    // The guarantee lives in the stub's own `exports({ to: … })` line, so assert
+    // on the source rather than on the mock that imitates it.
+    const stub = await readFile(new URL('migrations/create_tenants_table.stub', STUBS_ROOT), 'utf8')
+    const frontmatter = stub.match(/\{\{\{([\s\S]*?)\}\}\}/)?.[1] ?? ''
+    assert.include(
+      frontmatter,
+      `app.migrationsPath('${TENANTS_MIGRATION_PREFIX}_create_tenants_table.ts')`
+    )
+    assert.notInclude(frontmatter, 'Date.now()')
+
+    // And it really is smaller than a live timestamp.
+    assert.isBelow(Number(TENANTS_MIGRATION_PREFIX), Date.now())
+  })
+
+  test('every scaffold stub writes where CORE_SCAFFOLD says it does', async ({ assert }) => {
+    // `configure` decides "already published?" from CORE_SCAFFOLD[].path, but the
+    // file actually lands wherever the stub's `exports({ to: … })` points. Drift
+    // between the two silently breaks the re-run-safety guarantee.
+    // AdonisJS exposes `modelsPath`/`providersPath` for the conventional dirs and
+    // `makePath` for everything else. There is no `appPath` and no
+    // `repositoriesPath`; calling one that does not exist throws only when a real
+    // `configure` renders the stub, which is why the clean-app CI gate exists.
+    const destination = (path: string) =>
+      path.startsWith('app/models/')
+        ? `app.modelsPath('${path.slice('app/models/'.length)}')`
+        : path.startsWith('providers/')
+          ? `app.providersPath('${path.slice('providers/'.length)}')`
+          : `app.makePath('${path}')`
+
+    for (const { path, stub } of CORE_SCAFFOLD) {
+      const source = await readFile(new URL(stub, STUBS_ROOT), 'utf8')
+      assert.include(source, destination(path), `${stub} does not publish to ${path}`)
+    }
+  })
+
+  test('a re-run never clobbers a host-edited repository or provider', async ({ assert }) => {
+    await configure(fakeCommand(root, {}))
+    const repo = join(root, 'app', 'repositories', 'tenant_repository.ts')
+    await appendFile(repo, '// host edit — keep me\n')
+
+    await configure(fakeCommand(root, {}))
+
+    assert.include(await readFile(repo, 'utf8'), 'host edit — keep me')
+    assert.lengthOf(matching(await listMigrations(root), 'create_tenants_table'), 1)
   })
 
   test('an uninstalled official satellite (billing) prints an install hint, publishes nothing', async ({
@@ -205,7 +289,7 @@ test.group('configure() publish orchestration — core bundles', (group) => {
   }) => {
     const cmd = fakeCommand(root, { with: 'billing' })
     await configure(cmd)
-    assert.lengthOf(await listMigrations(root), 0)
+    assert.lengthOf(await featureMigrations(root), 0)
     assert.isTrue(
       cmd.captured.warnings.some((w: string) => w.includes('@adonisjs-lasagna/billing')),
       'warns that billing must be installed'
@@ -327,7 +411,7 @@ test.group('configure() publish orchestration — external satellites', (group) 
     const cmd = fakeCommand(root, { with: '@acme/nomig' })
     await configure(cmd)
 
-    assert.lengthOf(await listMigrations(root), 0)
+    assert.lengthOf(await featureMigrations(root), 0)
     assert.include(cmd.captured.providers, '@acme/nomig/provider')
     assert.include(cmd.captured.commands, '@acme/nomig/commands')
   })
@@ -407,7 +491,7 @@ test.group('configure() publish orchestration — external satellites', (group) 
     assert.deepEqual(after2, after1, 'no duplicate on a second run')
   })
 
-  test('an unknown token warns (listing core + installed) and publishes config but no migrations', async ({
+  test('an unknown token warns (listing core + installed) and publishes config but no feature migrations', async ({
     assert,
   }) => {
     await scaffoldSatellite(root, '@acme/widgets', manifest, stubs)
@@ -415,7 +499,7 @@ test.group('configure() publish orchestration — external satellites', (group) 
     await configure(cmd)
 
     assert.isTrue(await exists(join(root, 'config', 'multitenancy.ts')))
-    assert.lengthOf(await listMigrations(root), 0)
+    assert.lengthOf(await featureMigrations(root), 0)
     const warned = cmd.captured.warnings.join('\n')
     assert.include(warned, 'totally_bogus')
     assert.include(warned, '@acme/widgets') // installed satellites listed in the hint

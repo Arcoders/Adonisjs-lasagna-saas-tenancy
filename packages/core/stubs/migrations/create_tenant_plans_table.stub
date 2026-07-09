@@ -4,15 +4,15 @@
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
 /**
- * Source-of-truth for `tenant → plan` assignments. Read by
- * `QuotaService.getAssignedPlan` (with BentoCache 60s) when
- * `config.plans.getPlan` is undefined.
+ * Source-of-truth for \`tenant → plan\` assignments. Read by
+ * \`QuotaService.getAssignedPlan\` (with BentoCache 60s) when
+ * \`config.plans.getPlan\` is undefined.
  *
- * `expires_at` enables grace periods on downgrade (e.g. "pro until X,
+ * \`expires_at\` enables grace periods on downgrade (e.g. "pro until X,
  * then defaultPlan") — the resolver treats expired rows as missing.
  *
- * Note: this table is *populated* by the package (`assignPlan`) but the
- * source of plan **definitions** (limits) lives in `config.plans.definitions`.
+ * Note: this table is *populated* by the package (\`assignPlan\`) but the
+ * source of plan **definitions** (limits) lives in \`config.plans.definitions\`.
  */
 export default class extends BaseSchema {
   protected tableName = 'tenant_plans'

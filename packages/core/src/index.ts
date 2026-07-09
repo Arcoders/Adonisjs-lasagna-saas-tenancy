@@ -225,3 +225,15 @@ export type { SecretClass } from './utils/secret_at_rest.js'
 export { validateExternalHttpsUrl, validateResolvedHostIsPublic } from './utils/url.js'
 export { safeFetch, SafeFetchError, TRUSTED_FETCH_HOSTS } from './utils/safe_fetch.js'
 export type { SafeFetchOptions } from './utils/safe_fetch.js'
+
+/**
+ * `node ace configure @adonisjs-lasagna/saas-tenancy` imports THIS module and calls its
+ * `configure` named export: @adonisjs/core's configure command does `app.import(pkg)`
+ * and then reads `packageExports.configure`. Without this line the command warns
+ * "the module does not export the configure hook" and publishes nothing — the very
+ * first command in the quickstart, a silent no-op.
+ *
+ * `@adonisjs/lucid` re-exports its hook from its root entry the same way. Keep it on
+ * the root barrel however far the barrel is trimmed.
+ */
+export { default as configure } from '../configure.js'

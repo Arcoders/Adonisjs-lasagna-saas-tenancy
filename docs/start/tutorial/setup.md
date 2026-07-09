@@ -64,42 +64,38 @@ backup, or a `DROP SCHEMA` affect exactly one customer and nothing else.
 node ace backoffice:setup
 ```
 
-This creates the `backoffice` schema and runs every satellite migration you published
-(here, `tenant_plans`) in one shot. It's idempotent, so re-run it any time you add a
-satellite.
+This creates the `backoffice` schema and runs its migrations in one shot: the `tenants`
+table, then every satellite migration you published (here, `tenant_plans`). It's
+idempotent, so re-run it any time you add a satellite.
 
-## 4. Bind the tenant repository
+## 4. Meet the tenant repository
 
 The package never imports your `Tenant` model. Instead it asks the container for a
-`TenantRepositoryContract`, and you bind one in your app provider. This is the single
-required piece of glue:
+`TenantRepositoryContract`. `configure` already wrote both halves of that glue, so open
+them and read:
 
 ```ts
-// providers/app_provider.ts
-import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy'
-
-export default class AppProvider {
-  async boot() {
-    this.app.container.singleton(TENANT_REPOSITORY, async () => {
-      const { default: Tenant } = await import('#models/backoffice/tenant')
-      return {
-        findById: (id) => Tenant.query().whereNull('deleted_at').where('id', id).first(),
-        findByDomain: (host) =>
-          Tenant.query().whereNull('deleted_at').where('custom_domain', host).first(),
-        all: (filters = {}) => {
-          const q = Tenant.query().whereNull('deleted_at')
-          if (filters.status) q.where('status', filters.status)
-          return q
-        },
-      }
-    })
+// app/repositories/tenant_repository.ts
+export default class TenantRepository implements TenantRepositoryContract {
+  async findById(id: string, includeDeleted = false) {
+    const query = Tenant.query().where('id', id)
+    if (!includeDeleted) query.whereNull('deleted_at')
+    return query.first()
   }
+  // …findByIdOrFail, findByDomain, all, whereIn, each, create, countByStatus
+}
+```
+
+```ts
+// providers/tenancy_provider.ts
+register() {
+  this.app.container.bind(TENANT_REPOSITORY as any, () => new TenantRepository())
 }
 ```
 
 The scaffolded `Tenant` model extends `BackofficeBaseModel`, so it always reads the shared
 `backoffice` schema regardless of which tenant is active. You own this model and can add
-columns to it freely; the package only ever touches it through the three methods above.
+columns to it freely; the package only ever touches it through the repository.
 
 ## 5. Register the tenant guard
 

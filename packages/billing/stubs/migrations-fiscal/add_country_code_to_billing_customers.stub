@@ -6,12 +6,12 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
 /**
  * Fiscal feature (opt-in). Adds an ISO 3166-1 alpha-2 country code to the
  * customer mirror, populated from the provider's customer / checkout data and
- * used for tax-jurisdiction reporting alongside `currency`. Published only when
+ * used for tax-jurisdiction reporting alongside \`currency\`. Published only when
  * you enable billing fiscal features at configure time (answer yes to the
- * prompt, or set `LASAGNA_BILLING_FISCAL=1`). Reversible.
+ * prompt, or set \`LASAGNA_BILLING_FISCAL=1\`). Reversible.
  *
  * Additive ALTER: existing installs run this migration to gain the column
- * without touching the original `create_billing_customers_table` migration.
+ * without touching the original \`create_billing_customers_table\` migration.
  */
 export default class extends BaseSchema {
   protected tableName = 'billing_customers'

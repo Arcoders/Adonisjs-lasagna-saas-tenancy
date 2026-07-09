@@ -7,11 +7,11 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
  * Fiscal feature (opt-in). An append-only read model of provider invoices for
  * reporting and reconciliation only — the provider stays the system of record.
  * There is NO local invoice numbering and NO tax calculation: rows record what
- * the provider charged (`subtotal`, `tax`, `total` in integer minor units),
- * populated from `invoice.finalized` / `invoice.payment_succeeded` webhooks when
- * `config.billing.fiscal.enabled` is set.
+ * the provider charged (\`subtotal\`, \`tax\`, \`total\` in integer minor units),
+ * populated from \`invoice.finalized\` / \`invoice.payment_succeeded\` webhooks when
+ * \`config.billing.fiscal.enabled\` is set.
  *
- * `UNIQUE (provider, provider_invoice_id)` makes the populate idempotent: a
+ * \`UNIQUE (provider, provider_invoice_id)\` makes the populate idempotent: a
  * webhook redelivery trips the constraint and the dispatcher swallows the
  * unique-violation, so the row is written at most once. Published only when you
  * enable billing fiscal features at configure time. Reversible.

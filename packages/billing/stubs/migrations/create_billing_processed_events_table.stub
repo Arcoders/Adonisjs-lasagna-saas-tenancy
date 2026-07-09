@@ -5,15 +5,15 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
 
 /**
  * Webhook idempotency ledger. The webhook controller does
- * `INSERT ... ON CONFLICT (event_id) DO NOTHING`; if rowCount === 0 the event
+ * \`INSERT ... ON CONFLICT (event_id) DO NOTHING\`; if rowCount === 0 the event
  * is a duplicate and is acked without dispatching the job.
  *
- * `provider` records the source driver. `payload` jsonb holds a PII-stripped,
- * replayable copy of the neutral event so `tenant:billing:replay` can re-run
+ * \`provider\` records the source driver. \`payload\` jsonb holds a PII-stripped,
+ * replayable copy of the neutral event so \`tenant:billing:replay\` can re-run
  * events the provider can no longer return.
  *
- * `tenant:billing:cleanup` purges `status='completed'` rows older than
- * `idempotencyTtlDays` (default 90).
+ * \`tenant:billing:cleanup\` purges \`status='completed'\` rows older than
+ * \`idempotencyTtlDays\` (default 90).
  */
 export default class extends BaseSchema {
   protected tableName = 'billing_processed_events'

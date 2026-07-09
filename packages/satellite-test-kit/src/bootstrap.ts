@@ -44,6 +44,7 @@ export async function ensureBackofficeSchema(): Promise<void> {
        email               varchar(255) NOT NULL,
        status              varchar(255) NOT NULL,
        custom_domain       varchar(255),
+       metadata            jsonb,
        maintenance         boolean NOT NULL DEFAULT false,
        maintenance_message text,
        created_at          timestamptz NOT NULL DEFAULT now(),
@@ -54,6 +55,9 @@ export async function ensureBackofficeSchema(): Promise<void> {
     // stub); patch pre-existing local databases the CREATE above skipped.
     `ALTER TABLE backoffice.tenants ADD COLUMN IF NOT EXISTS maintenance boolean NOT NULL DEFAULT false`,
     `ALTER TABLE backoffice.tenants ADD COLUMN IF NOT EXISTS maintenance_message text`,
+    // `metadata` arrived with create_tenants_table.stub, which core now publishes
+    // unconditionally; same treatment for databases created before it existed.
+    `ALTER TABLE backoffice.tenants ADD COLUMN IF NOT EXISTS metadata jsonb`,
     `CREATE TABLE IF NOT EXISTS backoffice.tenant_brandings (
        id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        tenant_id      uuid NOT NULL UNIQUE,

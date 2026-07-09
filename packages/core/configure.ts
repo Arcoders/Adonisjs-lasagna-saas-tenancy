@@ -19,6 +19,20 @@ import type { DiscoveredSatellite } from './src/sdk/manifest.js'
 const stubsRoot = join(dirname(fileURLToPath(import.meta.url)), '..', 'stubs')
 
 /**
+ * The files every install needs, whatever features it opts into. Each is written
+ * only when absent, so `configure` stays re-run safe: a host that has edited its
+ * repository keeps its edits.
+ *
+ * `path` is relative to the app root and must agree with the `exports({ to: … })`
+ * line inside the matching stub — `behavior_configure_publish.spec.ts` pins that.
+ */
+export const CORE_SCAFFOLD: { path: string; stub: string }[] = [
+  { path: 'app/models/backoffice/tenant.ts', stub: 'models/tenant.stub' },
+  { path: 'app/repositories/tenant_repository.ts', stub: 'repositories/tenant_repository.stub' },
+  { path: 'providers/tenancy_provider.ts', stub: 'providers/tenancy_provider.stub' },
+]
+
+/**
  * Each entry maps a core satellite feature name to the migration stubs that
  * implement it. The key is what the user passes via `--with=<feature>` (CSV)
  * or selects from the interactive prompt.
@@ -266,8 +280,11 @@ export default async function configure(command: Configure) {
 
   const codemods = await command.createCodemods()
 
-  // Register the core provider and commands in adonisrc.ts
+  // Register the core provider and commands in adonisrc.ts. `tenancy_provider`
+  // (published below) binds TENANT_REPOSITORY and is registered first, so the
+  // symbol is bound before the core provider boots.
   await codemods.updateRcFile((rcFile: any) => {
+    rcFile.addProvider('#providers/tenancy_provider')
     rcFile.addProvider('@adonisjs-lasagna/saas-tenancy/providers/multitenancy_provider')
     rcFile.addCommand('@adonisjs-lasagna/saas-tenancy/commands')
   })
@@ -275,12 +292,31 @@ export default async function configure(command: Configure) {
   // Publish config file
   await codemods.makeUsingStub(stubsRoot, 'config/multitenancy.stub', {})
 
-  // Publish tenant model stub only if it doesn't already exist
-  const modelPath = command.app.makePath('app/models/backoffice/tenant.ts')
-  if (!(await fileExists(modelPath))) {
-    await codemods.makeUsingStub(stubsRoot, 'models/tenant.stub', {})
+  // The three files a working install needs, each published only if absent so a
+  // re-run never clobbers the host's edits: the tenant model, the repository the
+  // package resolves through TENANT_REPOSITORY, and the provider that binds it.
+  for (const scaffold of CORE_SCAFFOLD) {
+    const target = command.app.makePath(scaffold.path)
+    if (await fileExists(target)) {
+      command.logger.info(`skipping ${scaffold.path} — already exists`)
+      continue
+    }
+    await codemods.makeUsingStub(stubsRoot, scaffold.stub, {})
+  }
+
+  // The `tenants` table is not a feature — it is the table every command and
+  // `request.tenant()` pivot on, so its migration is published unconditionally,
+  // before the "no features selected" early return below.
+  const migrationsDir = resolveMigrationsDir(command)
+  const { toPublish: tenantsTable } = filterAlreadyPublished(
+    ['create_tenants_table'],
+    await listExistingMigrations(migrationsDir)
+  )
+  if (tenantsTable.length > 0) {
+    await codemods.makeUsingStub(stubsRoot, 'migrations/create_tenants_table.stub', {})
+    command.logger.info('published core migration: create_tenants_table')
   } else {
-    command.logger.info('skipping app/models/backoffice/tenant.ts — already exists')
+    command.logger.info('skipped already-published migration: create_tenants_table')
   }
 
   // Discover installed external satellites once (reads package.json only — never
@@ -436,12 +472,12 @@ export default async function configure(command: Configure) {
     if (externalBatchFailed) {
       command.logger.error('no external satellites were configured (see the errors above)')
     } else {
-      command.logger.info('no features selected — only core config + tenant model published')
+      command.logger.info(
+        'no features selected — only the core config, scaffold and tenants migration published'
+      )
     }
     return
   }
-
-  const migrationsDir = resolveMigrationsDir(command)
 
   // Publish the selected core migration stubs, skipping any already present.
   if (selectedCore.length > 0) {

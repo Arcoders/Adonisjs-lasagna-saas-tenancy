@@ -1,0 +1,40 @@
+{{{
+  exports({ to: app.migrationsPath('0000000000000_create_tenants_table.ts') })
+}}}
+import { BaseSchema } from '@adonisjs/lucid/schema'
+
+/**
+ * The tenants registry: the table the whole package pivots on. \`tenant:create\`,
+ * \`request.tenant()\` and every command look tenants up here, so this migration
+ * is published unconditionally by \`configure\` — it is not a satellite feature.
+ *
+ * The filename carries a zero timestamp on purpose. Every other migration (the
+ * host's own, and the opt-in \`--with=maintenance\` bundle that ALTERs this table)
+ * is stamped with a live timestamp, so a fixed \`0\` prefix sorts this one first
+ * no matter what order the files were written in.
+ *
+ * \`metadata\` is a free-form JSONB column. The package never reads it directly;
+ * it is yours, and the resolvers in \`config/multitenancy.ts\` (\`plans.getPlan\`,
+ * \`backup.retention.getTier\`) are where you give it meaning.
+ */
+export default class extends BaseSchema {
+  protected tableName = 'tenants'
+
+  async up() {
+    this.schema.withSchema('backoffice').createTable(this.tableName, (table) => {
+      table.uuid('id').primary().defaultTo(this.db.rawQuery('gen_random_uuid()').knexQuery)
+      table.string('name').notNullable()
+      table.string('email').notNullable().unique()
+      table.string('status').notNullable().defaultTo('provisioning')
+      table.string('custom_domain').nullable().unique()
+      table.jsonb('metadata').nullable()
+      table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(this.now())
+      table.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(this.now())
+      table.timestamp('deleted_at', { useTz: true }).nullable().index()
+    })
+  }
+
+  async down() {
+    this.schema.withSchema('backoffice').dropTable(this.tableName)
+  }
+}

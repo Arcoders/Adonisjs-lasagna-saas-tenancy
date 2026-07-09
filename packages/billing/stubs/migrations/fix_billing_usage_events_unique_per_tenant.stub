@@ -6,11 +6,11 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
 /**
  * Re-scope the usage-event idempotency uniqueness from GLOBAL to PER TENANT.
  *
- * The table originally shipped `idempotency_key UNIQUE` (global). A host that
+ * The table originally shipped \`idempotency_key UNIQUE\` (global). A host that
  * supplies its own idempotencyKey (instead of the tenant-prefixed default) could
  * then have one tenant's usage report collide with a different tenant's row,
  * silently losing the second billable event. This migration drops the global
- * constraint and adds `UNIQUE(tenant_id, idempotency_key)` in its place.
+ * constraint and adds \`UNIQUE(tenant_id, idempotency_key)\` in its place.
  *
  * Idempotent and order-independent. It is safe on a fresh install (the
  * create-table migration already ships the composite, so the drop is a no-op and
@@ -26,9 +26,9 @@ export default class extends BaseSchema {
     // Single guarded block so the migration is order-independent: if the table
     // does not exist yet (the fix sorted before the create on a fresh install),
     // it no-ops and the create migration ships the composite directly. The
-    // `DROP CONSTRAINT IF EXISTS` would otherwise ERROR on a missing table (the
+    // \`DROP CONSTRAINT IF EXISTS\` would otherwise ERROR on a missing table (the
     // IF EXISTS guards the constraint, not the table).
-    this.schema.raw(`
+    this.schema.raw(\`
       DO $$
       BEGIN
         IF to_regclass('backoffice.billing_usage_events') IS NULL THEN
@@ -49,11 +49,11 @@ export default class extends BaseSchema {
             UNIQUE (tenant_id, idempotency_key);
         END IF;
       END $$;
-    `)
+    \`)
   }
 
   async down() {
-    this.schema.raw(`
+    this.schema.raw(\`
       DO $$
       BEGIN
         IF to_regclass('backoffice.billing_usage_events') IS NULL THEN
@@ -74,6 +74,6 @@ export default class extends BaseSchema {
             UNIQUE (idempotency_key);
         END IF;
       END $$;
-    `)
+    \`)
   }
 }

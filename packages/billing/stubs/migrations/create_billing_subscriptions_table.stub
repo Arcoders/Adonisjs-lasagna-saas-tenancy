@@ -4,16 +4,16 @@
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
 /**
- * Provider-agnostic mirror of subscriptions. Reconciled by `tenant:billing:sync`.
+ * Provider-agnostic mirror of subscriptions. Reconciled by \`tenant:billing:sync\`.
  *
- * The natural key is `provider_subscription_id`; `provider` records which driver
+ * The natural key is \`provider_subscription_id\`; \`provider\` records which driver
  * owns it (a single active driver per deployment, so ids don't collide).
  *
- * `last_event_at` is the ordering guard: handlers reject events older than
- * `last_event_at - 5s`. Providers don't guarantee delivery order; without it a
- * stale `subscription.updated` could revive a canceled subscription.
+ * \`last_event_at\` is the ordering guard: handlers reject events older than
+ * \`last_event_at - 5s\`. Providers don't guarantee delivery order; without it a
+ * stale \`subscription.updated\` could revive a canceled subscription.
  *
- * `raw` jsonb preserves the full provider payload for re-derivation.
+ * \`raw\` jsonb preserves the full provider payload for re-derivation.
  */
 export default class extends BaseSchema {
   protected tableName = 'billing_subscriptions'
@@ -22,8 +22,8 @@ export default class extends BaseSchema {
     this.schema.withSchema('backoffice').createTable(this.tableName, (table) => {
       table.string('provider_subscription_id').primary()
       table.string('provider').notNullable()
-      // tenant_id is nullable + ON DELETE SET NULL so the `tenant_destroy`
-      // listener can drop a `billing_customers` row without violating the FK
+      // tenant_id is nullable + ON DELETE SET NULL so the \`tenant_destroy\`
+      // listener can drop a \`billing_customers\` row without violating the FK
       // while keeping the subscription audit row intact (status='canceled').
       table
         .uuid('tenant_id')
@@ -49,16 +49,16 @@ export default class extends BaseSchema {
       table.timestamp('cancel_at', { useTz: true }).nullable()
       table.timestamp('canceled_at', { useTz: true }).nullable()
       table.timestamp('trial_end', { useTz: true }).nullable()
-      // Provider-independent dunning state. `dunning_attempts` is incremented
+      // Provider-independent dunning state. \`dunning_attempts\` is incremented
       // once per distinct payment.failed event (guarded by
-      // `dunning_last_event_id` against job retries); the dispatcher escalates
+      // \`dunning_last_event_id\` against job retries); the dispatcher escalates
       // on max(provider attempt count, this) so dunning works even for providers
-      // that under-report. `dunning_downgrade_at` schedules a grace-period
-      // downgrade for `tenant:billing:sweep`.
+      // that under-report. \`dunning_downgrade_at\` schedules a grace-period
+      // downgrade for \`tenant:billing:sweep\`.
       table.integer('dunning_attempts').notNullable().defaultTo(0)
       table.string('dunning_last_event_id').nullable()
       table.timestamp('dunning_downgrade_at', { useTz: true }).nullable()
-      // Stamped once `TrialEnding` has been emitted (native Stripe webhook or
+      // Stamped once \`TrialEnding\` has been emitted (native Stripe webhook or
       // the sweep fallback) so each subscription is notified exactly once.
       table.timestamp('trial_ending_notified_at', { useTz: true }).nullable()
       table.string('plan_name').notNullable()

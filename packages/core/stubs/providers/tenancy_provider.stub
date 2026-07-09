@@ -1,0 +1,25 @@
+{{{
+  exports({ to: app.providersPath('tenancy_provider.ts') })
+}}}
+import type { ApplicationService } from '@adonisjs/core/types'
+import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
+import TenantRepository from '../app/repositories/tenant_repository.js'
+
+/**
+ * Binds your tenant repository to the symbol the package resolves it by. Without
+ * this binding \`request.tenant()\` and every tenant command fail at runtime, so
+ * \`configure\` registers this provider for you.
+ *
+ * A relative import rather than a \`#\`-alias: fresh AdonisJS apps ship no
+ * \`#repositories/*\` subpath, and \`configure\` cannot add one.
+ */
+export default class TenancyProvider {
+  constructor(protected app: ApplicationService) {}
+
+  register() {
+    // TENANT_REPOSITORY is a \`unique symbol\`; the container's typed overloads
+    // don't accept it, its untyped one does. The cast belongs at the binding
+    // site and nowhere else.
+    this.app.container.bind(TENANT_REPOSITORY as any, () => new TenantRepository())
+  }
+}

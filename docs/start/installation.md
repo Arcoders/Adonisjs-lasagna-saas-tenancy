@@ -35,26 +35,31 @@ npm install @adonisjs-lasagna/saas-tenancy
 node ace configure @adonisjs-lasagna/saas-tenancy
 ```
 
-The configure command does three things:
+A bare `configure` publishes everything a working install needs, and nothing else:
 
-1. Registers `MultitenancyProvider` in `adonisrc.ts`.
+1. Registers `TenancyProvider` and `MultitenancyProvider` in `adonisrc.ts`.
 2. Publishes `config/multitenancy.ts` from a typed `defineConfig({...})` stub.
-3. Scaffolds `app/models/backoffice/tenant.ts`.
+3. Scaffolds `app/models/backoffice/tenant.ts`,
+   `app/repositories/tenant_repository.ts` and `providers/tenancy_provider.ts`.
+4. Publishes the migration that creates the central `tenants` table.
 
-By default it also publishes migration stubs for **every satellite**
-(audit, feature_flags, webhooks, branding, sso, metrics). You usually
-want to be selective:
+Satellite features are **opt-in**. Nothing beyond the list above is published
+unless you ask for it, because each feature adds a table you would then have to
+maintain:
 
 ```bash
 # Only audit logs and webhooks
 node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,webhooks
 
-# Interactive (prompts you with a checkbox list)
+# In a terminal, a bare run prompts you with a checkbox list (nothing preselected)
 node ace configure @adonisjs-lasagna/saas-tenancy
 
-# CI-friendly: explicit list, no prompt
-node ace configure @adonisjs-lasagna/saas-tenancy --no-interaction --with=audit,branding,feature_flags
+# Piped or in CI there is no prompt, so name what you want explicitly
+node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,branding,feature_flags
 ```
+
+Every step is idempotent. Re-running `configure` skips files that already exist
+and migrations already published, so your edits survive.
 
 ## 2. Set up your database connections
 
@@ -98,40 +103,47 @@ migrations target the wrong schema.
 node ace backoffice:setup
 ```
 
-Creates the `backoffice` schema and runs all satellite-table
-migrations in one shot. Idempotent; re-run any time.
+Creates the `backoffice` schema, then runs its migrations: the `tenants` table
+first, then any satellite tables you opted into. Idempotent; re-run any time.
 
-## 4. Bind the tenant repository
+## 4. The tenant repository
 
-The package never imports your `Tenant` model; it asks the IoC
-container for a `TenantRepositoryContract`. Wire it once in your app
-provider:
+The package never imports your `Tenant` model; it asks the IoC container for a
+`TenantRepositoryContract`. `configure` writes both halves of that wiring, so
+this step is a read, not a task.
+
+`providers/tenancy_provider.ts` binds it:
 
 ```ts
-// providers/app_provider.ts
-import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy'
+import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy/types'
+import TenantRepository from '../app/repositories/tenant_repository.js'
 
-export default class AppProvider {
-  async boot() {
-    this.app.container.singleton(TENANT_REPOSITORY, async () => {
-      const { default: Tenant } = await import('#models/backoffice/tenant')
-      return {
-        findById: (id) =>
-          Tenant.query().whereNull('deleted_at').where('id', id).first(),
+export default class TenancyProvider {
+  constructor(protected app: ApplicationService) {}
 
-        findByDomain: (host) =>
-          Tenant.query().whereNull('deleted_at').where('custom_domain', host).first(),
-
-        all: (filters = {}) => {
-          const q = Tenant.query().whereNull('deleted_at')
-          if (filters.status) q.where('status', filters.status)
-          return q
-        },
-      }
-    })
+  register() {
+    this.app.container.bind(TENANT_REPOSITORY as any, () => new TenantRepository())
   }
 }
 ```
+
+`app/repositories/tenant_repository.ts` implements it. Seven methods are
+required, one is optional:
+
+| Method | Used by |
+| --- | --- |
+| `findById(id, includeDeleted?)` | `request.tenant()`, every tenant command |
+| `findByIdOrFail(id, includeDeleted?)` | Paths that must not silently no-op |
+| `findByDomain(domain)` | The `domain` and `domain-or-subdomain` resolvers |
+| `all({ includeDeleted?, statuses? })` | `tenant:list`, admin listings |
+| `whereIn(ids, includeDeleted?)` | Bulk operations |
+| `each(callback, options?)` | Cross-tenant sweeps, memory-safe on large registries |
+| `create({ name, email, status })` | `tenant:create` |
+| `countByStatus({ includeDeleted? })` *(optional)* | `/metrics`. Omit it and the collector falls back to `all()` |
+
+Rewrite the queries to match your tenants table if it differs from the one the
+migration created. Keep the method names: the package calls them by name, and
+the contract is enforced at compile time by `implements TenantRepositoryContract`.
 
 ## 5. Register middleware
 

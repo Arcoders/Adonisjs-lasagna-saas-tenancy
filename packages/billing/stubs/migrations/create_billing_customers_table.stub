@@ -4,13 +4,13 @@
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
 /**
- * One row per tenant. The mapping `tenant_id ↔ provider_customer_id` is the
+ * One row per tenant. The mapping \`tenant_id ↔ provider_customer_id\` is the
  * keystone of every webhook lookup: the package never stores the provider
  * customer id on the host's Tenant model — that would force schema coupling.
  * Webhook handlers resolve the tenant via this table.
  *
- * `provider` records which billing driver owns `provider_customer_id` (Stripe
- * `cus_…`, a Paddle `ctm_…`, a Lemon Squeezy numeric id, ...).
+ * \`provider\` records which billing driver owns \`provider_customer_id\` (Stripe
+ * \`cus_…\`, a Paddle \`ctm_…\`, a Lemon Squeezy numeric id, ...).
  */
 export default class extends BaseSchema {
   protected tableName = 'billing_customers'
