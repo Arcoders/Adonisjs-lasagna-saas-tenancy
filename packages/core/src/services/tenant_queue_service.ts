@@ -191,7 +191,7 @@ export default class TenantQueueService {
     for (let i = 0; i < tenantIds.length; i += width) {
       const batch = tenantIds.slice(i, i + width)
       const stats = await Promise.all(batch.map((id) => this.getStats(id)))
-      for (let j = 0; j < batch.length; j++) results[i + j] = stats[j]
+      for (let j = 0; j < batch.length; j++) results[i + j] = stats[j]!
     }
     return results
   }

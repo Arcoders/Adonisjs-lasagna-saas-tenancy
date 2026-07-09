@@ -18,8 +18,8 @@ export interface RedactedBillingEvent {
   provider: string
   native_type: string
   created: number
-  customer_id?: string
-  subscription_id?: string
+  customer_id?: string | undefined
+  subscription_id?: string | undefined
   amount?: number
   currency?: string
   status?: string

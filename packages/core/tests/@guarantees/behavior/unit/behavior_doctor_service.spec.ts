@@ -127,10 +127,10 @@ test.group('DoctorService — run() orchestration', (group) => {
     })
     svc.register(passing('after'))
     const r = await svc.run({}, mockTenantRepository())
-    assert.equal(r.reports[0].check, 'kaboom')
-    assert.match(r.reports[0].error ?? '', /oops/)
-    assert.lengthOf(r.reports[0].issues, 0)
-    assert.equal(r.reports[1].check, 'after')
+    assert.equal(r.reports[0]!.check, 'kaboom')
+    assert.match(r.reports[0]!.error ?? '', /oops/)
+    assert.lengthOf(r.reports[0]!.issues, 0)
+    assert.equal(r.reports[1]!.check, 'after')
   })
 
   test('passes attemptFix flag to ctx', async ({ assert }) => {

@@ -80,7 +80,7 @@ test.group('TrackMetricsMiddleware', (group) => {
       fake.increments.map((i) => i.metric),
       ['requests']
     )
-    assert.equal(fake.increments[0].tenantId, TID)
+    assert.equal(fake.increments[0]!.tenantId, TID)
   })
 
   test('records request + error on a 500 response', async ({ assert }) => {

@@ -22,8 +22,10 @@ map:
 
 - the root export ships the feature itself: `ExampleWidgetService`, the `ExampleWidget`
   model, the `InMemoryWidgetStore` test double, and the `Widget` / `WidgetStore` types.
-- `./provider` ships `ExampleSatelliteProvider` (the default export), which implements
-  `SatelliteProviderContract` and self-registers the satellite against core's registries.
+- `./provider` ships the provider as its default export, authored with the `definePlugin`
+  facade (`export default definePlugin({ ... })`). The facade produces a
+  `SatelliteProviderContract` and self-registers the satellite against core's registries;
+  you declare what the satellite adds instead of hand-writing the lifecycle class.
 - `./commands` ships the ace command entry points `getMetaData()` and `getCommand()`, plus
   the `example:widget:list` command (a teaching example, not an operator command).
 
@@ -126,38 +128,50 @@ surface, and versioned independently of core's published version.
 - you **omit** it: it warns that compatibility is unverified.
 
 Set it to the value of `SATELLITE_API_VERSION` you developed against (today, `1`).
-You can also assert it at runtime in your provider's `boot()` via
-`checkSatelliteApiCompat(...)` from `/sdk`.
+The `definePlugin` facade asserts it at runtime for you from the `satelliteApi`
+field; a hand-written provider calls `assertSatelliteApiCompatAtBoot(...)` from
+`/sdk` itself in `boot()`.
 
 ## The provider
 
+Author the provider with the [`definePlugin` facade](/guides/plugins): declare what
+the satellite adds and the facade wires the ABI backstops and the request-path
+seams for you. This is the shape the reference template ships.
+
 ```ts
 // providers/my_provider.ts
-import type { ApplicationService } from '@adonisjs/core/types'
+import { definePlugin, LASAGNA_PLUGIN_API_VERSION } from '@adonisjs-lasagna/saas-tenancy/plugin'
 import { HookRegistry } from '@adonisjs-lasagna/saas-tenancy/services'
-import type { SatelliteProviderContract } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import MyService from '../src/my_service.js'
 
-export default class MyProvider implements SatelliteProviderContract {
-  constructor(protected app: ApplicationService) {}
+export default definePlugin({
+  name: 'my-feature',
+  satelliteApi: 1,
+  pluginApiVersion: LASAGNA_PLUGIN_API_VERSION,
 
-  register() {
-    this.app.container.singleton(MyService, () => new MyService())
-  }
+  bind(app) {
+    app.container.singleton(MyService, () => new MyService())
+  },
 
-  async start() {
-    const hooks = await this.app.container.make(HookRegistry)
+  async start(app) {
+    const hooks = await app.container.make(HookRegistry)
     hooks.before('destroy', async (ctx) => {
-      const service = await this.app.container.make(MyService)
+      const service = await app.container.make(MyService)
       await service.deleteForTenant(ctx.tenant.id)
     })
-  }
-}
+  },
+})
 ```
 
-Every lifecycle method (`register`, `boot`, `start`, `ready`, `shutdown`) is
-optional. Resolve core services with `app.container.make(...)`; never `new` a
-core service yourself.
+Every hook (`bind`, `boot`, `start`, `ready`, `shutdown`) is optional. Resolve core
+services with `app.container.make(...)`; never `new` a core service yourself. The
+facade runs the `satelliteApi` boot-time assert for you (the ABI declared above),
+so a satellite gets the runtime compatibility backstop with no boilerplate.
+
+Reach for a raw `implements SatelliteProviderContract` class only when you need
+lifecycle control the spec does not model. See
+[Building a plugin](/guides/plugins) for the full facade reference, including the
+authorizer, middleware, request-macro, and capability seams.
 
 ## Migrations
 
@@ -225,8 +239,14 @@ export default async function configure(command: Configure) {
   const manifest = readSatelliteManifest(pkgJson, (m) => command.logger.warning(m))
   if (!manifest) return
 
-  const app = command.app as any
-  const migrationsDir = app.migrationsPath?.() ?? app.makePath('database', 'migrations')
+  const app = command.app as unknown as {
+    migrationsPath?: (...p: string[]) => string
+    makePath: (...p: string[]) => string
+  }
+  const migrationsDir =
+    typeof app.migrationsPath === 'function'
+      ? app.migrationsPath()
+      : app.makePath('database', 'migrations')
 
   const codemods = await command.createCodemods()
   // Publishes this package's migrations into the host's migrations dir,

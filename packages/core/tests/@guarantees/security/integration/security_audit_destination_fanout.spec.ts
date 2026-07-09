@@ -88,8 +88,8 @@ test.group('AuditLogService — destination fan-out (integration)', (group) => {
 
     // The healthy destination still received the persisted entry.
     assert.lengthOf(received, 1)
-    assert.equal(received[0].id, row.id)
-    assert.equal(received[0].action, 'thing.done')
-    assert.equal(received[0].tenantId, t.id)
+    assert.equal(received[0]!.id, row.id)
+    assert.equal(received[0]!.action, 'thing.done')
+    assert.equal(received[0]!.tenantId, t.id)
   })
 })

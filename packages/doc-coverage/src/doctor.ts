@@ -21,7 +21,7 @@ import type { DocGraph } from './types.js'
 import type { FreshnessCheckpoint } from './freshness.js'
 
 export interface DoctorOptions {
-  since?: string
+  since?: string | undefined
   /** Committed contract-hash checkpoint for D3; absent means timestamp fallback. */
   freshness?: FreshnessCheckpoint | null
 }

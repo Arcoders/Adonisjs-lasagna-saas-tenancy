@@ -34,14 +34,14 @@ test.group('assertSatelliteApiCompatAtBoot', () => {
       )
     )
     assert.lengthOf(warns, 1)
-    assert.match(warns[0], /was built for Satellite ABI v/)
+    assert.match(warns[0]!, /was built for Satellite ABI v/)
   })
 
   test('warns when satelliteApi is absent', ({ assert }) => {
     const warns: string[] = []
     assertSatelliteApiCompatAtBoot({}, '@x/unversioned', (m) => warns.push(m))
     assert.lengthOf(warns, 1)
-    assert.match(warns[0], /does not declare/)
+    assert.match(warns[0]!, /does not declare/)
   })
 
   test('is a no-op on an exact match', ({ assert }) => {

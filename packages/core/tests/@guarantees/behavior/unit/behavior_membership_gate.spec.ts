@@ -43,9 +43,8 @@ test.group('membership_gate — strategy classification', () => {
 
 test.group('membership_gate — risk verdict', () => {
   test('client-controlled + no hook + not acknowledged => IDOR message', ({ assert }) => {
-    const reason = membershipGateRisk(
-      cfg({ resolverStrategy: 'header', authorizeTenantAccess: undefined })
-    )
+    // No hook set: omitting authorizeTenantAccess is runtime-equivalent to undefined.
+    const reason = membershipGateRisk(cfg({ resolverStrategy: 'header' }))
     assert.isNotNull(reason)
     assert.match(reason ?? '', /IDOR|membership|authorizeTenantAccess/)
   })

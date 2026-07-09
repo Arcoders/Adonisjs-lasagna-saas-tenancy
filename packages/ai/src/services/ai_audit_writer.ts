@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import AIException from '../exceptions/ai_exception.js'
 import { AI_AUDIT_TABLE, AI_AUDIT_LOCK_PREFIX, AI_AUDIT_ANCHOR_TIMEOUT_MS } from '../constants.js'
+import { qualifyBackofficeTable } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import type { AuditLogEntry } from '@adonisjs-lasagna/saas-tenancy/services'
 
 /**
@@ -45,6 +46,13 @@ export interface AiAuditWriterDeps {
   getDb: () => Promise<AuditDb>
   /** The backoffice connection name (the shared audit schema lives there). */
   connectionName: string
+  /**
+   * The backoffice SCHEMA name (`config.backofficeSchemaName`). The audit table's raw
+   * SQL is qualified through {@link qualifyBackofficeTable} with this schema instead of
+   * a hardcoded `backoffice.` literal, so a host that renames the schema is honored and
+   * the fail-closed writer does not 503 every AI request on a renamed-backoffice host.
+   */
+  schemaName: string
   /**
    * The active tenancy scope id (the satellite ContextSeal). Raw queries bypass
    * the kernel ContextSeal, so the writer re-asserts the row tenant equals the
@@ -209,7 +217,12 @@ function rowFromDb(db: Record<string, unknown>): AiAuditRow {
 }
 
 export default class AiAuditWriter {
-  constructor(private readonly deps: AiAuditWriterDeps) {}
+  /** The `"schema"."ai_audit_logs"` reference, derived once from the configured schema. */
+  readonly #table: string
+
+  constructor(private readonly deps: AiAuditWriterDeps) {
+    this.#table = qualifyBackofficeTable(deps.schemaName, AI_AUDIT_TABLE)
+  }
 
   /**
    * Append one attributed row to the tenant's chain, fail-closed. Resolves to the
@@ -265,9 +278,9 @@ export default class AiAuditWriter {
     const client = db.connection(this.deps.connectionName)
     const where = tenantId ? 'WHERE tenant_id = ?' : ''
     const bindings = tenantId ? [tenantId] : []
-    // safe-sql: the column list is a fixed module constant; the optional tenant filter is a ? bind.
+    // safe-sql: column list is a module constant; #table is qualified via qualifyBackofficeTable (validates the schema); tenant filter is a ? bind.
     const res = await client.rawQuery(
-      `SELECT ${AI_AUDIT_COLUMNS.join(', ')} FROM backoffice.${AI_AUDIT_TABLE} ${where} ORDER BY tenant_id ASC, seq ASC`,
+      `SELECT ${AI_AUDIT_COLUMNS.join(', ')} FROM ${this.#table} ${where} ORDER BY tenant_id ASC, seq ASC`,
       bindings
     )
     const rows = rowsOf(res)
@@ -312,9 +325,9 @@ export default class AiAuditWriter {
           await trx.rawQuery('SELECT pg_advisory_xact_lock(hashtext(?))', [
             `${AI_AUDIT_LOCK_PREFIX}${row.tenantId}`,
           ])
-          // safe-sql: the table is a fixed module constant; tenant_id is a ? bind.
+          // safe-sql: the schema-qualified table is validated by qualifyBackofficeTable; tenant_id is a ? bind.
           const tailRes = await trx.rawQuery(
-            `SELECT seq, checksum FROM backoffice.${AI_AUDIT_TABLE} WHERE tenant_id = ? ORDER BY seq DESC LIMIT 1`,
+            `SELECT seq, checksum FROM ${this.#table} WHERE tenant_id = ? ORDER BY seq DESC LIMIT 1`,
             [row.tenantId]
           )
           const tail = rowsOf(tailRes)[0]
@@ -325,9 +338,9 @@ export default class AiAuditWriter {
 
           const values = entryColumns(entry)
           const placeholders = AI_AUDIT_COLUMNS.map(() => '?').join(', ')
-          // safe-sql: the column list is a fixed module constant; every value is a ? bind.
+          // safe-sql: column list is a module constant; #table is qualified via qualifyBackofficeTable (validates the schema); every value is a ? bind.
           await trx.rawQuery(
-            `INSERT INTO backoffice.${AI_AUDIT_TABLE} (${AI_AUDIT_COLUMNS.join(', ')}) VALUES (${placeholders})`,
+            `INSERT INTO ${this.#table} (${AI_AUDIT_COLUMNS.join(', ')}) VALUES (${placeholders})`,
             AI_AUDIT_COLUMNS.map((col) => values[col])
           )
           return entry

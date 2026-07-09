@@ -37,7 +37,9 @@ export default class SsoController {
       clientSecret: payload.clientSecret,
       issuerUrl: payload.issuerUrl,
       redirectUri: payload.redirectUri,
-      scopes: payload.scopes,
+      // `scopes` is an optional field on the satellite's own config type; omit
+      // the key entirely when absent rather than passing `undefined`.
+      ...(payload.scopes !== undefined ? { scopes: payload.scopes } : {}),
     })
     return response.ok({
       tenantId: tenant.id,

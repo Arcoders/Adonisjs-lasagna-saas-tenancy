@@ -74,6 +74,19 @@ export function assertConfigBounds(config: MultitenancyConfig): void {
   atLeast(config.resolver?.cache?.ttlMs, 'resolver.cache.ttlMs', 1)
   atLeast(config.resolver?.cache?.maxEntries, 'resolver.cache.maxEntries', 1)
 
+  // Plugin-platform request-path caps. These validate the CONFIGURED numbers are
+  // sane (a 0/negative cap is a deploy mistake). The actual count enforcement —
+  // registered entries vs cap — happens in the provider's start(), once every
+  // plugin has registered (see assert_plugin_limits.ts).
+  const pl = config.plugins?.limits
+  if (pl) {
+    atLeast(pl.maxAuthorizers, 'plugins.limits.maxAuthorizers', 1)
+    atLeast(pl.maxMiddleware, 'plugins.limits.maxMiddleware', 1)
+    atLeast(pl.maxCapabilities, 'plugins.limits.maxCapabilities', 1)
+    atLeast(pl.maxSchedules, 'plugins.limits.maxSchedules', 1)
+    atLeast(pl.authorizerDeadlineMs, 'plugins.limits.authorizerDeadlineMs', 1)
+  }
+
   const imp = config.impersonation
   if (imp) {
     atLeast(imp.defaultDuration, 'impersonation.defaultDuration', 60)

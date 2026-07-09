@@ -131,7 +131,7 @@ test.group('Isthmus emit — chaos', (group) => {
 
     const second = snapshotIsthmusCounters()
     assert.lengthOf(second.rejected, 1)
-    assert.equal(second.rejected[0].value, 1)
+    assert.equal(second.rejected[0]!.value, 1)
   })
 
   test('conservation law: dispatched + rate-limited drops === guard trips, per severity', async ({
@@ -149,7 +149,7 @@ test.group('Isthmus emit — chaos', (group) => {
     // Fixed interleaved permutation (no randomness): rotate severities each step.
     const severities = Object.keys(BY_SEVERITY) as IsthmusSeverity[]
     for (let i = 0; i < TRIPS_PER_SEVERITY * severities.length; i++) {
-      emitIsthmusEvent(BY_SEVERITY[severities[i % severities.length]])
+      emitIsthmusEvent(BY_SEVERITY[severities[i % severities.length]!])
     }
     await settle()
 

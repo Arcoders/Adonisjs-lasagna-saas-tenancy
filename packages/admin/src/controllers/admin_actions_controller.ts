@@ -38,8 +38,8 @@ export default class AdminActionsController {
       (signal) => Promise.resolve(action.execute(ctx, signal)),
       {
         label: `admin:${name}`,
-        timeoutMs: this.options.timeoutMs,
-        rateLimit: this.options.rateLimit,
+        ...(this.options.timeoutMs !== undefined ? { timeoutMs: this.options.timeoutMs } : {}),
+        ...(this.options.rateLimit !== undefined ? { rateLimit: this.options.rateLimit } : {}),
         rateLimitKey: `ext:admin:${name}${ip ? `:${ip}` : ''}`,
       }
     )

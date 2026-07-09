@@ -31,7 +31,7 @@ import {
   type AiRetrievalAuditSink,
 } from './audit_seam.js'
 import AIException, { httpStatusForAiCode } from '../exceptions/ai_exception.js'
-import { assertNever } from '../internal/assert_never.js'
+import { assertNever } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import type RetrievalService from '../services/retrieval_service.js'
 import type { VectorMatch } from '../services/vector_store_service.js'
 import type { AiConfig, AIRetrievalConfig, RetrievalScope, RedactOutput } from '../define_config.js'
@@ -56,11 +56,11 @@ import {
 /** The chat request body. Everything else in the body is ignored. */
 interface ChatBody {
   messages: AIMessage[]
-  model?: string
-  maxTokens?: number
-  sessionId?: string
+  model?: string | undefined
+  maxTokens?: number | undefined
+  sessionId?: string | undefined
   /** Opt-in RAG (WS-AI-5): retrieve matches for `query` and fold them into the context as data. */
-  retrieve?: { query: string; limit?: number }
+  retrieve?: { query: string; limit?: number | undefined } | undefined
 }
 
 export interface AiChatControllerDeps {
@@ -82,11 +82,11 @@ export interface AiChatControllerDeps {
    * configured embeddings; absent means a `retrieve` request is a 400. Resolved
    * lazily by the route so non-RAG chat is unaffected when embeddings are off.
    */
-  retrieval?: RetrievalService
+  retrieval?: RetrievalService | undefined
   /** The WS-AI-7 attribution seam. Default: the no-op sink. */
-  audit?: AiGatewayAuditSink
+  audit?: AiGatewayAuditSink | undefined
   /** The WS-AI-7 retrieval attribution seam (for the RAG step). Default: the no-op sink. */
-  retrievalAudit?: AiRetrievalAuditSink
+  retrievalAudit?: AiRetrievalAuditSink | undefined
   /**
    * Conversation memory (WS-AI-4). Present only when the host configured
    * `config.ai.memory`; absent (or `.enabled` false) leaves chat stateless and
@@ -94,7 +94,7 @@ export interface AiChatControllerDeps {
    * mints/validates the HMAC-bound session, replays prior turns, and persists the
    * completed exchange.
    */
-  memory?: ConversationMemoryService
+  memory?: ConversationMemoryService | undefined
 }
 
 /**
@@ -701,7 +701,7 @@ function parseReplayCursor(lastEventId: string | undefined): number | null {
 function parseFrameId(frame: string): number | null {
   const match = /^id: (\d+)\n/.exec(frame)
   if (!match) return null
-  const n = Number.parseInt(match[1], 10)
+  const n = Number.parseInt(match[1]!, 10)
   return Number.isInteger(n) ? n : null
 }
 
@@ -735,7 +735,8 @@ function resolveMemoryBudget(
 /** The content of the last `user`-role message, or null when there is none to remember. */
 function lastUserContent(messages: AIMessage[]): string | null {
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === 'user') return messages[i].content
+    const message = messages[i]!
+    if (message.role === 'user') return message.content
   }
   return null
 }
@@ -774,7 +775,7 @@ function injectRetrievedContext(
   const block = buildRetrievalContext(matches, { maxItems, maxChars })
   if (!block) return messages
   if (messages.length === 0) return [block]
-  return [...messages.slice(0, -1), block, messages[messages.length - 1]]
+  return [...messages.slice(0, -1), block, messages[messages.length - 1]!]
 }
 
 /** The principal an idempotent replay may be shared with, or null for none. */

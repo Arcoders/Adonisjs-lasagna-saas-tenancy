@@ -85,7 +85,7 @@ test.group('Cross-tenant HTTP isolation under concurrency', (group) => {
     }
     for (let i = writes.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
-      ;[writes[i], writes[j]] = [writes[j], writes[i]]
+      ;[writes[i], writes[j]] = [writes[j]!, writes[i]!]
     }
 
     // Fire every write concurrently. Each row carries a tag that

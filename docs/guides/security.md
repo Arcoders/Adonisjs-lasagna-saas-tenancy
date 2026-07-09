@@ -69,6 +69,30 @@ PostgreSQL and Redis (no mocks) under contention.
 | Cache namespace collision | [`tests/@guarantees/behavior/integration/behavior_cache_for.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/tests/@guarantees/behavior/integration/behavior_cache_for.spec.ts) — per-tenant BentoCache namespaces never share keys. |
 | Cross-tenant IDOR via tenant-id swap | [`tests/@guarantees/security/integration/security_tenant_guard_authorize.spec.ts`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/tests/@guarantees/security/integration/security_tenant_guard_authorize.spec.ts): with `authorizeTenantAccess` wired, a caller whose principal belongs to tenant A gets 403 when resolving to tenant B. |
 
+## Plugin platform trust boundary
+
+A satellite installed as a provider runs **in-process with full privilege**. The
+plugin platform does not pretend otherwise: an installed plugin can `import` any
+module and reach any singleton, so nothing implemented in JavaScript is a sandbox.
+The controls below raise the cost of a careless or opportunistic plugin and give an
+operator an honest, consented install, but only two of them are hard boundaries, and
+both are enforced outside the JavaScript VM.
+
+| Layer | Control | Enforced by | Verdict |
+|---|---|---|---|
+| **S1 — Install consent** | The plugin declares its sensitive `permissions`; `configure` shows them and refuses a non-interactive install without `--accept-permissions`. | A human at install time | Real gate (human) |
+| **S2 — Supply chain** | Native-addon install gate (`--allow-native`), plus `lasagna:health-check` (`npm audit` over the tree, install-script and native-addon flags). | Install / CI | Real (raises the bar; not runtime) |
+| **S3 — Read-only DB role** | Untrusted plugin code is routed to a per-tenant connection authenticated as a `NOSUPERUSER NOBYPASSRLS` role with `default_transaction_read_only = on`. | PostgreSQL | **Hard boundary** (Postgres denies the write) |
+| **S4 — Out-of-process worker** | Background plugin code (scheduler / data-change, once Lote B/C land) runs in a dedicated worker under the Node Permission Model (`--permission`, fs/child_process narrowed). A native-addon plugin fails boot without `--allow-addons`. | Node runtime + orchestrator | Real when configured (native addons opt out — treat as trusted) |
+| **S5 — In-process friction** | Trusted-list proxies over the tenant repository and the db handle; an allowlist over sensitive capability provide/consume. | JavaScript | **Friction, not a boundary** (a direct import reaches around it) |
+| In-process sandbox escape | — | — | **Non-goal** — an installed plugin has full in-process reach by design |
+
+The one control that actually denies an untrusted plugin's write is **S3, the
+read-only Postgres role**. Configure it (`plugins.readOnly`) and put untrusted
+third-party plugins outside `TRUSTED_SATELLITES`. `plugin:doctor` reports the standing
+posture: ABI drift, native-addon risk, a stale trust allowlist, and a missing read-only
+firewall. See the [plugins guide](/guides/plugins) for authoring against these controls.
+
 ## Hardening checklist for production
 
 Before going live, work through this list; every item is a host
@@ -87,6 +111,7 @@ responsibility (the package gives you the primitives).
 - [ ] OIDC `client_secret`, encryption keys, and S3 credentials live in a secrets manager, not `.env` checked into git.
 - [ ] `tenant:secrets:reencrypt` has been run **before upgrading** (it brings every stored webhook/SSO secret to the current `APP_KEY` and its per-class context). Reads now fail closed, so any secret left under the legacy shared context or in plaintext stops working until migrated. Run with `OLD_APP_KEY` set for a key rotation, or unset for a context-only migration; it is idempotent and resumable.
 - [ ] `tenant:doctor` runs on a cron in production (the [doctor command](/reference/commands#tenant-doctor)) and pages on `error`-level findings.
+- [ ] If you install third-party satellites: `plugins.readOnly` is configured (the S3 Postgres read-only role), untrusted plugins are kept off `TRUSTED_SATELLITES`, and `plugin:doctor` runs alongside `tenant:doctor` (see the [plugin platform trust boundary](#plugin-platform-trust-boundary)). Native-addon plugins are treated as fully trusted — they cannot be sandboxed by the worker Permission Model.
 - [ ] Health probes wired (`/livez`, `/readyz`, `/healthz`, `/metrics`); see [Health & metrics](/guides/health).
 
 ## Reporting vulnerabilities

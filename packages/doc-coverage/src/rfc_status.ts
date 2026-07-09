@@ -45,9 +45,10 @@ export function parseRfcChecklist(rfcText: string): ChecklistLine[] {
   if (start === -1) return []
   const out: ChecklistLine[] = []
   for (let i = start + 1; i < lines.length; i++) {
-    if (/^##\s/.test(lines[i])) break
-    const m = lines[i].match(/^- \[([ x])\]\s+(.*)$/)
-    if (m) out.push({ checked: m[1] === 'x', text: m[2] })
+    const line = lines[i]!
+    if (/^##\s/.test(line)) break
+    const m = line.match(/^- \[([ x])\]\s+(.*)$/)
+    if (m) out.push({ checked: m[1] === 'x', text: m[2]! })
   }
   return out
 }

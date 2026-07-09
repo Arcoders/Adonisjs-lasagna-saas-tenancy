@@ -94,8 +94,8 @@ export async function runConcurrent(opts: ConcurrentOptions): Promise<Concurrent
       try {
         const res = await fetch(`${baseUrl}${req.path}`, {
           method: req.method ?? 'GET',
-          headers: req.headers,
-          body: req.body,
+          ...(req.headers !== undefined ? { headers: req.headers } : {}),
+          ...(req.body !== undefined ? { body: req.body } : {}),
           signal: controller.signal,
         })
         result.latencyNs.push(Number(process.hrtime.bigint() - t0))
@@ -132,5 +132,6 @@ export function percentileNs(samples: number[], p: number): number {
   if (samples.length === 0) return 0
   const sorted = [...samples].sort((a, b) => a - b)
   const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1))
-  return sorted[idx]
+  // `idx` is clamped to [0, length-1] and `sorted` is non-empty (guarded above).
+  return sorted[idx]!
 }

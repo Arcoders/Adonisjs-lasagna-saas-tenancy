@@ -1,3 +1,5 @@
+import { parsePluginPermissions, serializePluginPermissions } from './plugin_permissions.js'
+
 /**
  * The declarative manifest a packaged satellite publishes under the
  * `"lasagnaSatellite"` key of its `package.json`. It is read at configure time
@@ -21,6 +23,26 @@ export interface SatelliteManifest {
    * a satellite that omits it is treated as "unverified" (warn, not fail).
    */
   satelliteApi?: number
+
+  /**
+   * The Plugin API (facade) contract version this package's provider was built
+   * against (a positive integer; see `PLUGIN_API_CONTRACT_VERSION`). INDEPENDENT of
+   * `satelliteApi`: a `definePlugin()` provider declares it via
+   * `definePlugin({ pluginApiVersion })`, and this manifest field MIRRORS that code
+   * literal so a reader (and the `check-abi-boot-assertion` guard) can verify the two
+   * agree. Previously referenced by JSDoc but never modeled here — declaring it makes
+   * the mirror real instead of phantom. Omitted by a raw (non-facade) provider.
+   */
+  pluginApiVersion?: number
+
+  /**
+   * The satellite's per-package merged-coverage floors, enforced by the merged
+   * coverage gate (`check-publish-coverage` / the per-satellite CI job). An object of
+   * percentage numbers; any subset of `lines` / `functions` / `branches` /
+   * `statements`. Modeled here so a reader/guard can inspect it as part of the typed
+   * manifest rather than only as raw `package.json` JSON.
+   */
+  minMergedCoverage?: SatelliteCoverageFloors
 
   /**
    * Legacy / short names accepted by `configure --with=<alias>` in addition to
@@ -87,6 +109,31 @@ export interface SatelliteManifest {
 
   /** Docs URL printed alongside the install reminder. */
   docs?: string
+
+  /**
+   * Sensitive capabilities this satellite requests, in canonical wire form
+   * (`scheduler` · `data_change:users,orders` · `network:external` · `db:write`).
+   * `configure` shows these to the operator for explicit consent before wiring
+   * the satellite (S1). Must match the `definePlugin({ permissions })` the
+   * provider declares — the `check-plugin-permissions` guard fails on drift.
+   */
+  permissions?: string[]
+
+  /**
+   * Set by `configure`'s package-lock scan (or declared by the author) when the
+   * satellite pulls in native (`.node`) addons. A native addon evades the worker
+   * Permission Model, so such a satellite is treated as fully-trusted and must be
+   * installed with an explicit acknowledgement (S4b).
+   */
+  nativeAddons?: boolean
+}
+
+/** Per-package merged-coverage floors (percentages), any subset of the four metrics. */
+export interface SatelliteCoverageFloors {
+  lines?: number
+  functions?: number
+  branches?: number
+  statements?: number
 }
 
 /** A declared dependency on another satellite package. */
@@ -104,7 +151,7 @@ export interface DiscoveredSatellite {
   /** Absolute path to the package root (the dir containing its package.json). */
   root: string
   /** The installed package version (from its package.json), if readable. */
-  version?: string
+  version?: string | undefined
   /** The parsed, validated manifest. */
   manifest: SatelliteManifest
 }
@@ -147,6 +194,22 @@ function parseDependsOn(
     }
   }
   return out.length > 0 ? out : undefined
+}
+
+/**
+ * Parse `minMergedCoverage`: an object whose known keys (`lines`, `functions`,
+ * `branches`, `statements`) are percentage numbers in [0, 100]. Unknown keys and
+ * non-numeric values are ignored; an object with no usable key yields `undefined`.
+ */
+function parseCoverageFloors(value: unknown): SatelliteCoverageFloors | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const obj = value as Record<string, unknown>
+  const out: SatelliteCoverageFloors = {}
+  for (const key of ['lines', 'functions', 'branches', 'statements'] as const) {
+    const v = obj[key]
+    if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100) out[key] = v
+  }
+  return Object.keys(out).length > 0 ? out : undefined
 }
 
 function cleanStringArray(value: unknown): string[] | undefined {
@@ -224,10 +287,14 @@ export function readSatelliteManifest(
     }
   }
 
-  manifest.aliases = cleanStringArray(obj.aliases)
-  manifest.requires = cleanStringArray(obj.requires)
-  manifest.env = cleanStringArray(obj.env)
-  manifest.install = cleanStringArray(obj.install)
+  const aliases = cleanStringArray(obj.aliases)
+  if (aliases) manifest.aliases = aliases
+  const requires = cleanStringArray(obj.requires)
+  if (requires) manifest.requires = requires
+  const env = cleanStringArray(obj.env)
+  if (env) manifest.env = env
+  const install = cleanStringArray(obj.install)
+  if (install) manifest.install = install
 
   const dependsOn = parseDependsOn(obj.dependsOn, pkgName, onWarn)
   if (dependsOn) manifest.dependsOn = dependsOn
@@ -243,6 +310,33 @@ export function readSatelliteManifest(
       onWarn(
         `[lasagna] ${pkgName}: "lasagnaSatellite.satelliteApi" must be a positive integer — ` +
           `dropping it`
+      )
+    }
+  }
+
+  if (obj.pluginApiVersion !== undefined) {
+    if (
+      typeof obj.pluginApiVersion === 'number' &&
+      Number.isInteger(obj.pluginApiVersion) &&
+      obj.pluginApiVersion > 0
+    ) {
+      manifest.pluginApiVersion = obj.pluginApiVersion
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: "lasagnaSatellite.pluginApiVersion" must be a positive integer — ` +
+          `dropping it`
+      )
+    }
+  }
+
+  if (obj.minMergedCoverage !== undefined) {
+    const floors = parseCoverageFloors(obj.minMergedCoverage)
+    if (floors) {
+      manifest.minMergedCoverage = floors
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: "lasagnaSatellite.minMergedCoverage" must be an object of ` +
+          `percentage numbers (lines/functions/branches/statements) — dropping it`
       )
     }
   }
@@ -267,6 +361,33 @@ export function readSatelliteManifest(
 
   if (typeof obj.configSnippet === 'string') manifest.configSnippet = obj.configSnippet
   if (typeof obj.docs === 'string') manifest.docs = obj.docs
+
+  if (obj.permissions !== undefined) {
+    if (Array.isArray(obj.permissions)) {
+      const wire = obj.permissions.filter((v): v is string => typeof v === 'string')
+      const parsed = parsePluginPermissions(wire, (dropped) =>
+        onWarn(
+          `[lasagna] ${pkgName}: "lasagnaSatellite.permissions" entry ${JSON.stringify(dropped)} ` +
+            `is not a recognized permission — dropping it`
+        )
+      )
+      // Store the CANONICAL wire form so a satellite that declares an equivalent
+      // but non-canonical string still matches the guard's spec-side comparison.
+      if (parsed.length > 0) manifest.permissions = serializePluginPermissions(parsed)
+    } else {
+      onWarn(`[lasagna] ${pkgName}: "lasagnaSatellite.permissions" must be an array — dropping it`)
+    }
+  }
+
+  if (obj.nativeAddons !== undefined) {
+    if (typeof obj.nativeAddons === 'boolean') {
+      manifest.nativeAddons = obj.nativeAddons
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: "lasagnaSatellite.nativeAddons" must be a boolean — dropping it`
+      )
+    }
+  }
 
   // Drop the explicit-undefined keys so the returned object is clean.
   for (const k of ['aliases', 'requires', 'env', 'install'] as const) {

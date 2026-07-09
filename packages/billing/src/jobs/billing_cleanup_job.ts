@@ -35,6 +35,7 @@ export async function runBillingCleanup(opts: { batchSize?: number } = {}): Prom
 
   let totalDeleted = 0
   while (true) {
+    // backoffice-scope-exempt: a global maintenance sweep reclaiming expired idempotency rows across ALL tenants by TTL, never a per-tenant read.
     const ids = await BillingProcessedEvent.query()
       .where('status', 'completed')
       .where('processedAt', '<', cutoff.toSQL()!)
@@ -43,6 +44,7 @@ export async function runBillingCleanup(opts: { batchSize?: number } = {}): Prom
 
     if (ids.length === 0) break
 
+    // backoffice-scope-exempt: deletes the just-selected expired rows (batched by id).
     await BillingProcessedEvent.query()
       .whereIn(
         'eventId',
@@ -55,6 +57,7 @@ export async function runBillingCleanup(opts: { batchSize?: number } = {}): Prom
 
   let totalMeterDeleted = 0
   while (true) {
+    // backoffice-scope-exempt: a global maintenance sweep reclaiming expired usage rows across ALL tenants by TTL, never a per-tenant read.
     const meterIds = await BillingUsageEvent.query()
       .where('status', 'sent')
       .where('reportedAt', '<', cutoff.toSQL()!)
@@ -63,6 +66,7 @@ export async function runBillingCleanup(opts: { batchSize?: number } = {}): Prom
 
     if (meterIds.length === 0) break
 
+    // backoffice-scope-exempt: deletes the just-selected expired rows (batched by id).
     await BillingUsageEvent.query()
       .whereIn(
         'id',

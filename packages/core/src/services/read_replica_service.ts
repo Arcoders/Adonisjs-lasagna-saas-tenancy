@@ -95,7 +95,7 @@ export default class ReadReplicaService {
   pickHost(tenantId: string): ReadReplicaHost | null {
     const idx = this.pickIndex(tenantId)
     if (idx === null) return null
-    return getConfig().tenantReadReplicas!.hosts[idx]
+    return getConfig().tenantReadReplicas!.hosts[idx]!
   }
 
   /**
@@ -126,7 +126,7 @@ export default class ReadReplicaService {
     if (!db) return null
 
     const cfg = getConfig().tenantReadReplicas!
-    const host = cfg.hosts[idx]
+    const host = cfg.hosts[idx]!
     const connName = this.connectionName(tenant.id, idx)
 
     if (!db.manager.has(connName)) {

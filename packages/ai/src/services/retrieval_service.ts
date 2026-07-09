@@ -24,7 +24,7 @@ export interface RetrievalRequest {
   /** The natural-language query to embed and search for. */
   readonly query: string
   /** Per-request embedding model override (validated against the provider allow-list). */
-  readonly model?: string
+  readonly model?: string | undefined
   /** How many nearest matches to return (already clamped to `maxLimit` by the caller). */
   readonly limit: number
   /** The per-user document ACL the retrievalFilter hook resolved (G2). */

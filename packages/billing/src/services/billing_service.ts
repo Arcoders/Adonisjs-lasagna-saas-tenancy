@@ -343,6 +343,7 @@ export default class BillingService {
     }
 
     const driver = await getActiveBillingDriver()
+    // backoffice-scope-exempt: resolves the OWNING tenant by its provider customer id during a subscription sync (no tenant_id exists to scope by until it returns).
     const customer = await BillingCustomer.query()
       .where('providerCustomerId', sub.customerId)
       .first()

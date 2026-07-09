@@ -1,4 +1,5 @@
 import db from '@adonisjs/lucid/services/db'
+import { failLoudIfRealPgRequired } from '@adonisjs-lasagna/satellite-test-kit'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import AiAuditWriter, {
   auditChecksum,
@@ -93,7 +94,13 @@ export async function setupRealAudit(): Promise<{ ready: boolean; cleanup: () =>
   try {
     await client.rawQuery('SELECT 1')
     await createAiAuditTable(client)
-  } catch {
+  } catch (error) {
+    // Self-skip locally; hard-fail under REQUIRE_REAL_PG so a hardened runner
+    // cannot ship the AI audit real-PG proofs green by skipping them.
+    failLoudIfRealPgRequired(
+      `the AI audit table could not be provisioned on the "${centralConn()}" connection ` +
+        `(${(error as Error)?.message ?? String(error)})`
+    )
     return { ready: false, cleanup: async () => {} }
   }
   return { ready: true, cleanup: async () => dropAiAuditTable(client) }
@@ -104,6 +111,7 @@ export function realWriter(activeScope?: string): AiAuditWriter {
   return new AiAuditWriter({
     getDb: async () => db as unknown as AuditDb,
     connectionName: centralConn(),
+    schemaName: getConfig().backofficeSchemaName,
     activeScopeTenantId: () => activeScope,
   })
 }

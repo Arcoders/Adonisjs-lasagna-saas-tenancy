@@ -87,7 +87,7 @@ node ace backoffice:setup
 | Branding | `branding` | core | — | — | — |
 | Metrics | `metrics` | core | — | optional `observability` | `/metrics` is served by `multitenancyRoutes({ metricsMiddleware })` (fail-closed) |
 | Quotas | `quotas` | core | — | `plans` | `enforceQuota()` middleware on routes |
-| SSO | `sso` | package | `@adonisjs-lasagna/sso` (+ optional `jose`) | — | import `SsoService` / `TenantSsoConfig` (no provider) |
+| SSO | `sso` | package | `@adonisjs-lasagna/sso` (+ optional `jose`) | — | import `SsoService` / `TenantSsoConfig`; configure adds a boot backstop provider |
 | Billing | `billing` | package | `@adonisjs-lasagna/billing` + `stripe@^22` | `billing` + `plans` | provider + commands + `multitenancyBillingRoutes()` + env vars |
 | RLS hardening | `rls` (opt-in) | core | — | `isolation.driver: 'rowscope-pg'` | edit the published migration, run under a non-BYPASSRLS role |
 | Maintenance mode | `maintenance` (opt-in) | core | — | optional `maintenance` | migration alters the central `tenants` table |

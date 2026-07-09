@@ -62,7 +62,7 @@ test.group('Doctor: long_running_queries — real PG state', (group) => {
       1,
       `expected at least one long_running_query issue, got ${issues.length}: ${JSON.stringify(issues)}`
     )
-    const sample = slow[0]
+    const sample = slow[0]!
     assert.equal(
       sample.severity,
       'warn',

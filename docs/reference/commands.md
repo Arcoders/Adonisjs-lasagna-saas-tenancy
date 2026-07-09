@@ -49,6 +49,30 @@ is installed and its provider + commands are wired in `adonisrc.ts`.
 | `tenant:secrets:reencrypt` | The full secret migration. Brings every stored secret (webhook signing secrets, SSO client secrets) to the current `APP_KEY` and its per-class context, covering both plaintext-era values and values still under the older shared context. Two axes in one idempotent pass: set `OLD_APP_KEY` (env only, never a flag) to also rotate the key, or leave it unset for a context-only migration. Mandatory before upgrading for any host that stores these secrets, since a legacy-context value now fails closed. Supports `--dry-run`. Ships in core. See the [security guide](/guides/security). |
 | `tenant:webhooks:encrypt-secrets` | Narrower one-time helper: encrypt any PLAINTEXT webhook signing secrets at rest. It does not re-encrypt already-encrypted secrets under their per-class context, so it is superseded by `tenant:secrets:reencrypt` for the upgrade. Idempotent, supports `--dry-run`. |
 
+## Supply chain
+
+`lasagna:health-check` audits the app's supply chain: it runs `npm audit` over the
+dependency tree and flags each installed satellite that ships a native addon (not
+sandboxable by the worker Permission Model) or an install lifecycle script (the
+vector `--ignore-scripts` blocks). It exits non-zero on a high or critical
+advisory, so it doubles as a CI gate.
+
+```bash
+node ace lasagna:health-check
+```
+
+`plugin:doctor` diagnoses the installed plugin/satellite platform posture: Satellite
+ABI compatibility of each installed satellite, native-addon sandbox risk, a stale or
+typo'd `TRUSTED_SATELLITES` allowlist, whether the read-only firewall (`plugins.readOnly`)
+is configured while untrusted plugins are installed, and which plugins hold declared
+(consent-gated) permissions. It exits non-zero on any error, so it doubles as a CI gate. It does not
+re-check manifest↔spec coherence — that is the `check-plugin-permissions` build guard.
+
+```bash
+node ace plugin:doctor
+node ace plugin:doctor --json
+```
+
 ## Doctor
 
 `tenant:doctor` is the operational health command. Nine built-in
@@ -209,6 +233,16 @@ Available when `--with=ai` is configured. Full reference in the
 |---|---|
 | `tenant:ai:audit:verify` | Re-walk the append-only AI audit hash chain and report the first tamper (a broken checksum, a `seq` gap, or a broken prev-link) that got past the DB triggers. Exit 1 on the first break, so it gates a cron or a post-incident check. Flags: `--tenant=<id>` (omit for all), `--json`. |
 | `tenant:ai:purge` | Erase a tenant's AI data for GDPR: conversation memory, the response-cache epoch, and embeddings. Scopes: `--tenant=<uuid> --force` (all), `--tenant=<uuid> --principal=<id>` (one user, Art.17), `--tenant=<uuid> --source=<key>` (one document). `--dry-run` previews the counts and writes nothing; `--verify-chain` also re-walks the audit chain; `--actor=<id>` sets the audited operator. The immutable, non-PII audit chain intentionally survives. |
+
+## Crypto
+
+Available when `--with=crypto` is configured. Full reference in the
+[Crypto satellite](/guides/satellites/crypto#crypto-shredding-erasure).
+
+| Command | What it does |
+|---|---|
+| `tenant:crypto:shred` | Crypto-shred a subject's data for a category: tombstone its wrapped-DEK row so every value sealed under that DEK becomes unrecoverable (O(1) erasure, I6). Gated on governance (a legal hold or absent `erasabilityResolver` refuses, I7) and audited to the WORM ledger (PENDING before, COMMITTED after). Flags: `--tenant=<id> --subject=<id> --category=<key>`, `--dry-run` (runs the gate + preconditions, destroys nothing), `--force` (gates the irreversible run), `--json`. A refusal exits non-zero with the reason. |
+| `tenant:crypto:rekek` | Rotate the KEK: re-wrap every live DEK under the current KEK generation, without re-encrypting any field data (the DEK bytes and `keyId` are unchanged, so sealed values keep decrypting; cost is O(number of DEKs)). Idempotent and resumable; a failed row is reported, not silently skipped. For the `env` provider, set `OLD_APP_KEY` (env only) alongside the new `APP_KEY` for the dual-key read window. Flags: `--tenant=<id>`, `--dry-run`, `--json`. Exit 1 if any DEK failed to re-wrap. |
 
 ## REPL
 

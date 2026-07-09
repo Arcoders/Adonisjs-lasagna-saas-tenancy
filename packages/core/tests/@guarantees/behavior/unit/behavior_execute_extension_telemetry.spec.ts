@@ -97,8 +97,8 @@ test.group('executeExtension observability (WS2)', (group) => {
   test('a clean run records outcome=completed on an extension.execute span', async ({ assert }) => {
     const out = await executeExtension(async () => 'ok', { label: 'x' })
     assert.equal(out, 'ok')
-    assert.equal(cap.spans[0].name, OBS_SPAN.extensionExecute)
-    assert.equal(cap.spans[0].outcome, EXTENSION_OUTCOME.completed)
+    assert.equal(cap.spans[0]!.name, OBS_SPAN.extensionExecute)
+    assert.equal(cap.spans[0]!.outcome, EXTENSION_OUTCOME.completed)
   })
 
   test('a timeout records outcome=timeout', async ({ assert }) => {
@@ -107,7 +107,7 @@ test.group('executeExtension observability (WS2)', (group) => {
         executeExtension(() => delay(1000).then(() => 'late'), { label: 'slow', timeoutMs: 20 }),
       ExtensionTimeoutError
     )
-    assert.equal(cap.spans[0].outcome, EXTENSION_OUTCOME.timeout)
+    assert.equal(cap.spans[0]!.outcome, EXTENSION_OUTCOME.timeout)
   })
 
   test('a rate-limit rejection records outcome=rate_limited', async ({ assert }) => {
@@ -118,7 +118,7 @@ test.group('executeExtension observability (WS2)', (group) => {
         getRedis: redisWith(new CountingPipeline(11)),
       })
     )
-    assert.equal(cap.spans[0].outcome, EXTENSION_OUTCOME.rateLimited)
+    assert.equal(cap.spans[0]!.outcome, EXTENSION_OUTCOME.rateLimited)
   })
 
   test('a rate-limit backend outage records outcome=rate_limit_unavailable', async ({ assert }) => {
@@ -129,7 +129,7 @@ test.group('executeExtension observability (WS2)', (group) => {
         getRedis: redisWith(new FailingPipeline()),
       })
     )
-    assert.equal(cap.spans[0].outcome, EXTENSION_OUTCOME.rateLimitUnavailable)
+    assert.equal(cap.spans[0]!.outcome, EXTENSION_OUTCOME.rateLimitUnavailable)
   })
 
   test('a thrown function records outcome=error', async ({ assert }) => {
@@ -143,6 +143,6 @@ test.group('executeExtension observability (WS2)', (group) => {
         ),
       /boom/
     )
-    assert.equal(cap.spans[0].outcome, EXTENSION_OUTCOME.error)
+    assert.equal(cap.spans[0]!.outcome, EXTENSION_OUTCOME.error)
   })
 })

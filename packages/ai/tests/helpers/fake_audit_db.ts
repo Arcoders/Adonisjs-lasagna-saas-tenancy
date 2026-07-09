@@ -91,6 +91,7 @@ export function fakeAuditEnv(opts: FakeAuditOptions = {}): FakeAuditEnv {
   const deps: AiAuditWriterDeps = {
     getDb: async () => db,
     connectionName: 'backoffice',
+    schemaName: 'backoffice',
     activeScopeTenantId: () => opts.activeScope,
   }
 

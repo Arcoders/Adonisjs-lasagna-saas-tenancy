@@ -12,7 +12,7 @@ export default class TenantMetricsFlush extends BaseCommand {
     description: 'Period to flush (YYYY-MM-DD). Defaults to today (UTC)',
     required: false,
   })
-  declare period: string | undefined
+  declare period?: string
 
   async run() {
     const service = new MetricsService()

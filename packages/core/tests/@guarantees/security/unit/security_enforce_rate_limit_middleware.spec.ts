@@ -68,7 +68,7 @@ test.group('enforceRateLimit middleware', (group) => {
     })
 
     assert.lengthOf(calls, 1)
-    assert.deepEqual(calls[0].options, {
+    assert.deepEqual(calls[0]!.options, {
       limit: 100,
       windowSeconds: 1,
       prefix: 'rl',
@@ -87,8 +87,8 @@ test.group('enforceRateLimit middleware', (group) => {
 
     await enforceRateLimit({ windowSeconds: 300 })(makeCtx(buildTestTenant()), async () => {})
 
-    assert.equal(calls[0].options.limit, 10)
-    assert.equal(calls[0].options.windowSeconds, 300)
+    assert.equal(calls[0]!.options.limit, 10)
+    assert.equal(calls[0]!.options.windowSeconds, 300)
   })
 
   test('per-route prefix and failOpen are forwarded', async ({ assert }) => {
@@ -103,8 +103,8 @@ test.group('enforceRateLimit middleware', (group) => {
       async () => {}
     )
 
-    assert.equal(calls[0].options.prefix, 'rl-api')
-    assert.equal(calls[0].options.failOpen, true)
+    assert.equal(calls[0]!.options.prefix, 'rl-api')
+    assert.equal(calls[0]!.options.failOpen, true)
   })
 
   test('throws a clear error when the plan declares no rateLimit, and does NOT call next', async ({

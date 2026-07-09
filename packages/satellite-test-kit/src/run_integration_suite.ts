@@ -42,6 +42,18 @@ export interface RunIntegrationSuiteOptions {
    * specs). See {@link resolveSuiteGlobs}.
    */
   guaranteeFilter?: string[]
+  /**
+   * Extra DDL a satellite needs its shared backoffice schema to carry before any
+   * spec runs, provisioned once at boot right after `ensureBackofficeSchema`. This
+   * is the sanctioned "satellite DDL registration" seam: a satellite whose SHARED
+   * backoffice table is not part of the kit's core mirror (e.g. a satellite-owned
+   * `backoffice.*` table) registers it here instead of hand-provisioning it in
+   * every spec. Must be idempotent (the suite boots one app; the hook runs once).
+   * Append-only per-spec tables that need a clean slate between groups (crypto's
+   * WORM ledger, AI's audit log) still provision + drop themselves per group and do
+   * NOT use this hook.
+   */
+  extraSchemaSetup?: () => Promise<void>
 }
 
 /**
@@ -164,7 +176,7 @@ export async function runIntegrationSuite(options: RunIntegrationSuiteOptions): 
       }))
       configure({
         ...app.rcFile.tests,
-        configureSuite,
+        ...(configureSuite !== undefined ? { configureSuite } : {}),
         // The fixture's adonisrc may set `forceExit: true`. That makes
         // @japa/runner call `process.exit()` from inside run() the instant it
         // computes an exit code, before the `.finally` below runs, making the
@@ -175,7 +187,10 @@ export async function runIntegrationSuite(options: RunIntegrationSuiteOptions): 
         forceExit: false,
         plugins: [...(plugins ?? []), captureRunner, configBaselinePlugin],
         suites,
-        setup: runnerHooks.setup,
+        // ensureBackofficeSchema first, then any satellite-registered shared DDL.
+        setup: options.extraSchemaSetup
+          ? runnerHooks.setup.concat([options.extraSchemaSetup])
+          : runnerHooks.setup,
         teardown: runnerHooks.teardown.concat([
           async () => {
             await app.terminate()

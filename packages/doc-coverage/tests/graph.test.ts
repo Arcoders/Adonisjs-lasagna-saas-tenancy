@@ -30,8 +30,8 @@ function fixtureConfig(): DocCoverageConfig {
 test('discovers the fixture package and its /services barrel', () => {
   const pkgs = discoverPackages(repoRoot)
   assert.equal(pkgs.length, 1)
-  assert.equal(pkgs[0].name, '@mini/widgets')
-  assert.ok(pkgs[0].barrels.some((b) => b.subpath === 'services'))
+  assert.equal(pkgs[0]!.name, '@mini/widgets')
+  assert.ok(pkgs[0]!.barrels.some((b) => b.subpath === 'services'))
 })
 
 test('barrel resolution: WidgetService resolves to its internal file with a contract hash', () => {
@@ -73,7 +73,7 @@ test('D2-hard: the dead WidgetService.frobnicate() prose call is flagged', () =>
   const result = runDoctor(fixtureConfig())
   const dead = result.d2hard.filter((f) => f.member === 'frobnicate')
   assert.equal(dead.length, 1)
-  assert.ok(dead[0].symbol.endsWith('#WidgetService'))
+  assert.ok(dead[0]!.symbol.endsWith('#WidgetService'))
 })
 
 test('graph output is deterministic (stable across two builds)', () => {

@@ -98,7 +98,7 @@ export interface BackupMetadata {
 // @public
 export interface BootstrapperContext {
     // (undocumented)
-    request?: HttpContext['request'];
+    request?: HttpContext['request'] | undefined;
     // (undocumented)
     tenant: TenantModelContract;
 }
@@ -526,9 +526,10 @@ export interface ImpersonationStartResult {
 }
 
 // Warning: (ae-forgotten-export) The symbol "RouterLike" needs to be exported by the entry point index.d.ts
+// Warning: (ae-forgotten-export) The symbol "TenantMiddlewareRegistry" needs to be exported by the entry point index.d.ts
 //
 // @public
-export function installRouterMacros(routerInstance?: RouterLike): Promise<void>;
+export function installRouterMacros(routerInstance?: RouterLike, middlewareRegistry?: TenantMiddlewareRegistry): Promise<void>;
 
 // @public (undocumented)
 export function isEncrypted(value: string): boolean;
@@ -606,11 +607,11 @@ export interface LogOptions {
     // (undocumented)
     actorId?: string | null;
     // (undocumented)
-    actorType?: AuditActorType;
+    actorType?: AuditActorType | undefined;
     // (undocumented)
     ipAddress?: string | null;
     // (undocumented)
-    metadata?: Record<string, unknown>;
+    metadata?: Record<string, unknown> | undefined;
     // (undocumented)
     tenantId?: string | null;
 }
@@ -629,8 +630,8 @@ export class MetricsService {
     // (undocumented)
     increment(tenantId: string, metric: 'requests' | 'errors', amount?: number): Promise<void>;
     recomputeMonthlyRollup(options?: {
-        since?: string;
-        until?: string;
+        since?: string | undefined;
+        until?: string | undefined;
     }): Promise<void>;
     // (undocumented)
     trackBandwidth(tenantId: string, bytes: number): Promise<void>;
@@ -743,6 +744,7 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
     //
     // (undocumented)
     plans?: PlansConfig;
+    plugins?: PluginPlatformConfig;
     // (undocumented)
     queue: {
         tenantQueuePrefix: string;
@@ -784,6 +786,30 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
     tenantReadReplicas?: ReadReplicasConfig;
     // (undocumented)
     tenantSchemaPrefix: string;
+}
+
+// @public
+export function openV2WithKey(value: string, dek: Buffer): string;
+
+// @public
+export interface PluginLimitsConfig {
+    authorizerDeadlineMs?: number;
+    maxAuthorizers?: number;
+    maxCapabilities?: number;
+    maxMiddleware?: number;
+    maxSchedules?: number;
+}
+
+// @public
+export interface PluginPlatformConfig {
+    limits?: PluginLimitsConfig;
+    readOnly?: PluginReadOnlyConfig;
+}
+
+// @public
+export interface PluginReadOnlyConfig {
+    password?: string;
+    user: string;
 }
 
 // @public
@@ -894,8 +920,8 @@ export class RateLimitMiddleware {
 
 // @public
 export interface RateLimitOptions {
-    bypassInTestEnv?: boolean;
-    failOpen?: boolean;
+    bypassInTestEnv?: boolean | undefined;
+    failOpen?: boolean | undefined;
     // (undocumented)
     limit: number;
     // (undocumented)
@@ -989,6 +1015,9 @@ export interface SafeFetchOptions {
 }
 
 // @public
+export function sealV2WithKey(plaintext: string, dek: Buffer, keyId: string): string;
+
+// @public
 export const SECRET_CLASS: {
     readonly ssoClientSecret: "sso:client_secret:v2";
     readonly webhookSecret: "webhook:secret:v2";
@@ -1009,7 +1038,7 @@ export function setTenantRlsGuc(runner: RlsQueryRunner, tenantId: string, option
 
 // @public (undocumented)
 export interface SetTenantRlsGucOptions {
-    gucName?: string;
+    gucName?: string | undefined;
 }
 
 // @public
@@ -1774,7 +1803,7 @@ export function writeSecret(plain: string, cls: SecretClass): string;
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "runForRequest" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "currentId" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "current" needs to be exported by the entry point index.d.ts
-// src/types/config.ts:567:5 - (ae-forgotten-export) The symbol "TenantAnonymizer" needs to be exported by the entry point index.d.ts
+// src/types/config.ts:633:5 - (ae-forgotten-export) The symbol "TenantAnonymizer" needs to be exported by the entry point index.d.ts
 
 // (No @packageDocumentation comment for this package)
 

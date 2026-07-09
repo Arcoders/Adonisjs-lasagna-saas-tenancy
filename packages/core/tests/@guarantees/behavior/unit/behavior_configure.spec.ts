@@ -177,7 +177,11 @@ test.group('configure — partitionSatellitesByApiCompat (ABI gate enforcement)'
     return {
       packageName,
       root: `/fake/${packageName}`,
-      manifest: { name: packageName, satelliteApi, dependsOn },
+      manifest: {
+        name: packageName,
+        ...(satelliteApi !== undefined ? { satelliteApi } : {}),
+        ...(dependsOn !== undefined ? { dependsOn } : {}),
+      },
     }
   }
 
@@ -206,8 +210,8 @@ test.group('configure — partitionSatellitesByApiCompat (ABI gate enforcement)'
     const result = partitionSatellitesByApiCompat([tooNew], indexOf(tooNew), CORE)
     assert.lengthOf(result.accepted, 0)
     assert.lengthOf(result.refused, 1)
-    assert.equal(result.refused[0].packageName, '@x/too-new')
-    assert.match(result.refused[0].reason, /requires Satellite ABI v6/)
+    assert.equal(result.refused[0]!.packageName, '@x/too-new')
+    assert.match(result.refused[0]!.reason, /requires Satellite ABI v6/)
   })
 
   test('accepts an OLDER-ABI satellite but surfaces a warning', ({ assert }) => {
@@ -219,7 +223,7 @@ test.group('configure — partitionSatellitesByApiCompat (ABI gate enforcement)'
     )
     assert.lengthOf(result.refused, 0)
     assert.lengthOf(result.warnings, 1)
-    assert.match(result.warnings[0], /built for Satellite ABI v4/)
+    assert.match(result.warnings[0]!, /built for Satellite ABI v4/)
   })
 
   test('accepts an undeclared-ABI satellite with an "unverified" warning', ({ assert }) => {
@@ -229,7 +233,7 @@ test.group('configure — partitionSatellitesByApiCompat (ABI gate enforcement)'
       result.accepted.map((s) => s.packageName),
       ['@x/legacy']
     )
-    assert.match(result.warnings[0], /does not declare/)
+    assert.match(result.warnings[0]!, /does not declare/)
   })
 
   test('cascades the refusal: a dependent of a refused satellite is refused too', ({ assert }) => {

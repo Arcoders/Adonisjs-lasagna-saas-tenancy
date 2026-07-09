@@ -16,7 +16,8 @@ const COLD = CI_MODE ? 10 : 25
 export async function runDriverQuery(app: ApplicationService, db: any): Promise<BenchResult[]> {
   const driver = await activeDriver(app)
   const { refs } = await seedAll(app, db, { tenants: sizes.db.tenants, rows: sizes.db.rows })
-  const ref = refs[0]
+  // `sizes.db.tenants >= 1`, so `seedAll` returns at least one ref.
+  const ref = refs[0]!
   const conn = await clientFor(driver, db, ref)
 
   const seed = await firstId(conn, driver, ref)

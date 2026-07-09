@@ -80,7 +80,7 @@ function declarativeKey(
   phase: TenantLifecyclePhase,
   event: TenantLifecycleEvent
 ): keyof DeclarativeHooks {
-  const cap = event[0].toUpperCase() + event.slice(1)
+  const cap = event[0]!.toUpperCase() + event.slice(1)
   return `${phase}${cap}` as keyof DeclarativeHooks
 }
 

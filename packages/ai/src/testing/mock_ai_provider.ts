@@ -30,15 +30,15 @@ export interface MockAIProviderOptions {
  */
 export default class MockAIProvider implements AIProviderContract {
   readonly name: AIProviderName
-  readonly contractVersion?: number
+  readonly contractVersion?: number | undefined
   readonly capabilities: AICapabilities
-  readonly keyFingerprint?: string
+  readonly keyFingerprint?: string | undefined
 
   /** Every `stream()` call, in order, for assertions. */
   readonly calls: { request: AIStreamRequest }[] = []
 
   readonly #fragments: StreamFragment[]
-  readonly #verifyConfigError?: Error
+  readonly #verifyConfigError?: Error | undefined
 
   constructor(opts: MockAIProviderOptions = {}) {
     this.name = opts.name ?? 'mock'

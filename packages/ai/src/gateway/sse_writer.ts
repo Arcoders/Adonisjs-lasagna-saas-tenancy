@@ -19,7 +19,7 @@ export interface SseWriterOptions {
    * Resume cursor from the client's `Last-Event-ID`. The writer continues
    * stamping monotonic ids from here, so a reconnected stream never reuses an id.
    */
-  lastEventId?: string
+  lastEventId?: string | undefined
 }
 
 /**

@@ -7,6 +7,7 @@ import TenantSuspendedException from '../exceptions/tenant_suspended_exception.j
 import TenantAccessForbiddenException from '../exceptions/tenant_access_forbidden_exception.js'
 import TenantMaintenanceException from '../exceptions/tenant_maintenance_exception.js'
 import CircuitBreakerService from '../services/circuit_breaker_service.js'
+import AuthorizerRegistry from '../services/authorizer_registry.js'
 import { mapTenantQueryError } from '../extensions/request.js'
 import { tenancy } from '../tenancy.js'
 import app from '@adonisjs/core/services/app'
@@ -28,7 +29,7 @@ import type { NextFn } from '@adonisjs/core/types/http'
 export default class TenantGuardMiddleware {
   async handle(ctx: HttpContext, next: NextFn) {
     const { request } = ctx
-    const path = request.url(false).split('?')[0]
+    const path = request.url(false).split('?')[0]!
     const ignored = getConfig().ignorePaths.some((p) => path === p || path.startsWith(`${p}/`))
     if (ignored) return next()
 
@@ -38,15 +39,43 @@ export default class TenantGuardMiddleware {
       throw new TenantSuspendedException()
     }
 
-    // Membership gate (opt-in). The package routes by tenant id and verifies the
-    // tenant exists and is active, but it never checks that the authenticated
-    // caller belongs to this tenant; that is the host's job. Run it before the
-    // operational checks below so a non-member is rejected with a 403 without
-    // probing the tenant's provisioning/maintenance/circuit state. (Suspended and
-    // soft-deleted tenants are already rejected above by the lifecycle floor, so
-    // their 403 is observable independently of this gate.)
-    const authorize = getConfig().authorizeTenantAccess
-    if (authorize && !(await authorize(ctx, tenant))) {
+    // Membership + authorization chain (opt-in). The package routes by tenant id
+    // and verifies the tenant exists and is active, but it never checks that the
+    // authenticated caller belongs to this tenant; that is the host's job. Run it
+    // before the operational checks below so a non-member is rejected with a 403
+    // without probing the tenant's provisioning/maintenance/circuit state.
+    // (Suspended and soft-deleted tenants are already rejected above by the
+    // lifecycle floor, so their 403 is observable independently of this gate.)
+    //
+    // The AuthorizerRegistry runs config.authorizeTenantAccess FIRST, then every
+    // registered plugin authorizer; ANY false-or-throw denies (fail-closed). A
+    // plugin authorizer is ADDITIVE and does NOT satisfy the membership-gate
+    // signal, which stays bound to config.authorizeTenantAccess. The registry is
+    // resolved defensively so a stripped-down container without it falls back to
+    // the config callback alone — byte-identical to the pre-seam behavior.
+    const configAuthorizer = getConfig().authorizeTenantAccess
+    // try/catch (not `.catch`): resolving the registry can throw SYNCHRONOUSLY
+    // in an unbooted container (a Promise `.catch` would miss that), so guard the
+    // whole resolve. A miss falls back to the config callback alone.
+    let authorizerRegistry: AuthorizerRegistry | undefined
+    try {
+      authorizerRegistry = await app.container.make(AuthorizerRegistry)
+    } catch {
+      authorizerRegistry = undefined
+    }
+    if (authorizerRegistry) {
+      // Per-authorizer response deadline: the configured knob, or the registry's
+      // built-in default (AUTHORIZER_DEADLINE_MS) when unset (passing `undefined`
+      // lets the default parameter apply).
+      const deadlineMs = getConfig().plugins?.limits?.authorizerDeadlineMs
+      const decision = await authorizerRegistry.authorizeAll(
+        ctx,
+        tenant,
+        configAuthorizer,
+        deadlineMs
+      )
+      if (!decision.allow) throw new TenantAccessForbiddenException()
+    } else if (configAuthorizer && !(await configAuthorizer(ctx, tenant))) {
       throw new TenantAccessForbiddenException()
     }
 

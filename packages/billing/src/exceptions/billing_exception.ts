@@ -95,7 +95,10 @@ export default class BillingException extends Exception {
     message: string,
     opts?: { status?: number; cause?: unknown }
   ) {
-    super(message, { status: opts?.status, code: 'E_BILLING' })
+    super(message, {
+      ...(opts?.status !== undefined ? { status: opts.status } : {}),
+      code: 'E_BILLING',
+    })
     this.billingCode = billingCode
     this.originalError = opts?.cause
   }

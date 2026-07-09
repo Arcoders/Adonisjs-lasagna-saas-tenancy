@@ -36,11 +36,12 @@ export async function runIsolationLoad(
       workers: concurrency,
       totalRequests: requests,
       pickRequest: (i) => {
-        const sent = tenantIds[i % tenantIds.length]
+        // Modulo indexing of the non-empty seeded `tenantIds` is always in range.
+        const sent = tenantIds[i % tenantIds.length]!
         // Self-test: claim a DIFFERENT tenant than the one we send, so the
         // content check is guaranteed to fail. Proves the assertion detects a
         // leak rather than rubber-stamping every run.
-        const expected = selftest ? tenantIds[(i + 1) % tenantIds.length] : sent
+        const expected = selftest ? tenantIds[(i + 1) % tenantIds.length]! : sent
         return { path, headers: { [HEADER]: sent }, meta: { expected } }
       },
       check: (req, status, body) => {

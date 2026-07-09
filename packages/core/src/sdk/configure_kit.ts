@@ -256,7 +256,7 @@ async function namespaceNewMigrations(
     if (before.has(file)) continue
     const m = file.match(/^(\d+)_(.+)\.ts$/)
     if (!m) continue
-    if (m[2].startsWith(`${slug}__`)) continue // already namespaced
+    if (m[2]!.startsWith(`${slug}__`)) continue // already namespaced
     const target = `${m[1]}_${slug}__${m[2]}.ts`
     if (present.has(target)) continue // never clobber an existing file
     await rename(join(dir, file), join(dir, target))
@@ -347,13 +347,40 @@ export async function registerSatelliteInRcFile(
 }
 
 /**
- * Print the install reminder for a satellite: peer installs, required env, the
- * `requires` prerequisite, and the config snippet to paste. The generalization
- * of core's old `postPublishBilling` / `postPublishConfigReminders`.
+ * Human-readable one-liners for the wire permissions a satellite declares, so the
+ * operator consents to concrete capabilities at install rather than opaque wire
+ * strings (S1). Unknown strings pass through verbatim (forward-compatible with a
+ * future permission kind an older core does not recognize).
+ */
+export function describePluginPermissions(permissions: readonly string[]): string[] {
+  return permissions.map((wire) => {
+    if (wire === 'scheduler') return 'scheduler — registers background scheduled jobs'
+    if (wire === 'network:external')
+      return 'network:external — makes outbound calls to hosts outside the cluster'
+    if (wire === 'db:write')
+      return 'db:write — writes to the tenant database (only effective for a trusted plugin)'
+    if (wire.startsWith('data_change:')) {
+      const models = wire.slice('data_change:'.length).split(',').join(', ')
+      return `data_change — observes writes on: ${models}`
+    }
+    return wire
+  })
+}
+
+/**
+ * Print the install reminder for a satellite: the permissions it requests, peer
+ * installs, required env, the `requires` prerequisite, and the config snippet to
+ * paste. The generalization of core's old `postPublishBilling` /
+ * `postPublishConfigReminders`.
  */
 export function printSatelliteManifest(logger: LoggerLike, manifest: SatelliteManifest): void {
   logger.log('')
   logger.log(`— ${manifest.name} satellite — additional setup —`)
+
+  if (manifest.permissions && manifest.permissions.length > 0) {
+    logger.log('Requested permissions (granted at install):')
+    for (const line of describePluginPermissions(manifest.permissions)) logger.log(`  - ${line}`)
+  }
 
   if (manifest.requires && manifest.requires.length > 0) {
     logger.log(

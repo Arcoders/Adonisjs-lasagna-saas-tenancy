@@ -37,6 +37,8 @@
   "exports": {
     ".": "./build/src/index.js",
     "./config": "./build/src/config.js",
+    "./crypto": "./build/src/utils/crypto.js",
+    "./worm-ledger": "./build/src/services/worm_ledger_writer.js",
     "./safe-fetch": "./build/src/utils/safe_fetch.js",
     "./signals": "./build/src/utils/signals.js",
     "./internal": "./build/src/internal.js",
@@ -55,12 +57,20 @@
     "./commands": "./build/src/commands/main.js",
     "./testing": "./build/src/testing/index.js",
     "./health": "./build/src/health/index.js",
-    "./sdk": "./build/src/sdk/index.js"
+    "./sdk": "./build/src/sdk/index.js",
+    "./plugin": "./build/src/sdk/plugin.js",
+    "./mixins": "./build/src/models/mixins/index.js"
   },
   "typesVersions": {
     "*": {
       "config": [
         "./build/src/config.d.ts"
+      ],
+      "crypto": [
+        "./build/src/utils/crypto.d.ts"
+      ],
+      "worm-ledger": [
+        "./build/src/services/worm_ledger_writer.d.ts"
       ],
       "safe-fetch": [
         "./build/src/utils/safe_fetch.d.ts"
@@ -118,6 +128,12 @@
       ],
       "sdk": [
         "./build/src/sdk/index.d.ts"
+      ],
+      "plugin": [
+        "./build/src/sdk/plugin.d.ts"
+      ],
+      "mixins": [
+        "./build/src/models/mixins/index.d.ts"
       ]
     }
   },

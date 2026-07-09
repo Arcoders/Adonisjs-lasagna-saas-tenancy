@@ -40,7 +40,7 @@ async function opOutstanding(): Promise<number> {
     const amt = await redis.hget(opAmt(), m)
     if (!amt) continue
     const [worst, settled] = amt.split(':').map(Number)
-    total += Math.max(0, worst - (settled || 0))
+    total += Math.max(0, worst! - (settled || 0))
   }
   return total
 }
@@ -106,7 +106,7 @@ test.group('operator ceiling under a concurrent flood (fault injection, real Red
     configure(200) // short reservation TTL
     // Saturate the ceiling with five winners that then "crash" (never settle/release).
     const winners = tenants.slice(0, 5)
-    const latecomer = tenants[5]
+    const latecomer = tenants[5]!
     const placed = await Promise.allSettled(winners.map((t) => svc.reserve(t, QUOTA, 200)))
     assert.lengthOf(
       placed.filter((r) => r.status === 'fulfilled'),

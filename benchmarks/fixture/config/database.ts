@@ -2,13 +2,17 @@ import env from '../start/env.js'
 import multitenancyConfig from './multitenancy.js'
 import { defineConfig } from '@adonisjs/lucid'
 
+// `DB_PASSWORD` is optional in the env schema; Lucid's connection type (with
+// exactOptionalPropertyTypes) rejects `password: undefined`, so omit the key
+// entirely when it is unset rather than passing an explicit `undefined`.
+const dbPassword = env.get('DB_PASSWORD')
 const defaultConnectionOptions = {
   client: 'pg',
   connection: {
     host: env.get('DB_HOST'),
     port: env.get('DB_PORT'),
     user: env.get('DB_USER'),
-    password: env.get('DB_PASSWORD'),
+    ...(dbPassword !== undefined ? { password: dbPassword } : {}),
     database: env.get('DB_DATABASE'),
   },
 } as const

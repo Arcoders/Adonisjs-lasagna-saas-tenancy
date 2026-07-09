@@ -102,7 +102,7 @@ test.group('AuditLogDestinationRegistry', () => {
     const { warnings } = captureWarn(() => reg.register({ name: 'legacy', write: () => {} }))
     assert.isTrue(reg.has('legacy'))
     assert.lengthOf(warnings, 1)
-    assert.match(warnings[0], /does not declare a contractVersion/)
+    assert.match(warnings[0]!, /does not declare a contractVersion/)
   })
 
   test('rejects a destination built for a NEWER contract', ({ assert }) => {

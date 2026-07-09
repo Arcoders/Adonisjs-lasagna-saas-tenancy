@@ -521,6 +521,30 @@
       "args": [],
       "options": { "startApp": true },
       "filePath": "tenant_compliance_report.js"
+    },
+    {
+      "commandName": "lasagna:health-check",
+      "description": "Supply-chain health check: npm audit of the dependency tree plus install-script and native-addon risk flags for installed satellites",
+      "help": "",
+      "namespace": "lasagna",
+      "aliases": [],
+      "flags": [],
+      "args": [],
+      "options": { "startApp": false },
+      "filePath": "health_check.js"
+    },
+    {
+      "commandName": "plugin:doctor",
+      "description": "Diagnose the installed plugin/satellite platform posture — ABI compatibility, native-addon sandbox risk, the TRUSTED_SATELLITES allowlist, and the read-only firewall",
+      "help": "",
+      "namespace": "plugin",
+      "aliases": [],
+      "flags": [
+        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit a JSON report on stdout instead of the table" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "plugin_doctor.js"
     }
   ],
   "version": 1

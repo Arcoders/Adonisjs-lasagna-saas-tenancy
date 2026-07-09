@@ -5,13 +5,18 @@ import { defineConfig } from '@adonisjs/lucid'
 // No `as const` here: it would freeze `migrations.paths` into a readonly
 // tuple, which Lucid's config type rejects (it wants a mutable string[]).
 // The client literal is pinned individually instead.
+// DB_PASSWORD is optional (local Postgres often trusts the socket). Omit the
+// key when unset rather than passing `undefined`, which exactOptionalPropertyTypes
+// rejects against Lucid's `password?: string`.
+const dbPassword = env.get('DB_PASSWORD')
+
 const baseConnection = {
   client: 'pg' as const,
   connection: {
     host: env.get('DB_HOST'),
     port: env.get('DB_PORT'),
     user: env.get('DB_USER'),
-    password: env.get('DB_PASSWORD'),
+    ...(dbPassword !== undefined ? { password: dbPassword } : {}),
     database: env.get('DB_DATABASE'),
   },
   migrations: {

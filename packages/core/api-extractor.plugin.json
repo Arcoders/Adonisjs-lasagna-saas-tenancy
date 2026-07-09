@@ -1,0 +1,14 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/api-extractor/v7/api-extractor.schema.json",
+
+  // Per-entry golden for the `./plugin` subpath (the definePlugin facade). The
+  // base config only snapshots the MAIN entry point, so the plugin surface was
+  // invisible to the golden-diff gate; this pins it independently. Inherits the
+  // report folder, message-silencing and disabled doc-model/rollup from the base;
+  // only the entry point and the report file name differ.
+  "extends": "./api-extractor.json",
+  "mainEntryPointFilePath": "<projectFolder>/build/src/sdk/plugin.d.ts",
+  "apiReport": {
+    "reportFileName": "saas-tenancy.plugin.api.md"
+  }
+}

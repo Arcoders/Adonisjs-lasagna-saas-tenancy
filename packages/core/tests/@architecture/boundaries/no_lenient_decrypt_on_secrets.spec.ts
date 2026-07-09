@@ -20,6 +20,15 @@ import { walkTsFiles } from '../../helpers/walk_ts_files.js'
  * key/context via it, and re-encrypt through `writeSecret`. `readSecret` /
  * `writeSecret` / `isEncrypted` are the safe paths and are never flagged.
  *
+ * The detector targets a BARE call to the core primitive (`encrypt(value, ctx)`)
+ * — a value-passing call from a module that imported it. It does NOT flag a
+ * receiver-qualified method call (`repo.encrypt(...)`) or a method DEFINITION
+ * with a first typed param (`encrypt(subject: SubjectId, …)`): those are a
+ * satellite's OWN field-encryption seam (the crypto satellite's
+ * `EncryptedRepository`, a per-(subject,category) DEK abstraction that is NOT the
+ * core app-key secret seam), a different `encrypt`/`decrypt` the core guard has
+ * no business policing.
+ *
  * The walk covers EVERY `packages/<pkg>/src` AND the reference app
  * (`examples/api/app`), so a satellite that grows a secret column, OR the demo
  * that hosts copy, is held to the same seam without editing this spec. (The demo
@@ -46,10 +55,17 @@ const ALLOWED_PATHS = new Set(ALLOWLIST.map((e) => e.path))
 // Per-line escape hatch, used sparingly with a justification.
 const ALLOWED_OPT_OUT = /\/\/\s*secret-crypto-ok:/i
 
-// Matches a call to encrypt(, decrypt(, or decryptStrict(, but not
-// decryptWithAppKey( (its next char after "decrypt" is "W", so the `decrypt`
-// alternative can't reach a `(`), nor readSecret/writeSecret/isEncrypted.
-const PRIMITIVE_CALL = /\b(?:encrypt|decrypt|decryptStrict)\s*\(/
+// Matches a BARE call to the core secret primitives encrypt(, decrypt(, or
+// decryptStrict(, but NOT:
+//   - decryptWithAppKey( (its next char after "decrypt" is "W", so the `decrypt`
+//     alternative can't reach a `(`), nor readSecret/writeSecret/isEncrypted;
+//   - a receiver-qualified member call `X.encrypt(` — the `(?<![.\w])` lookbehind
+//     rejects a preceding `.` (or word char), so a satellite's own
+//     `repo.encrypt(...)` field-crypto seam is not a false positive;
+//   - a method DEFINITION `encrypt(subject: SubjectId, …)` — the
+//     `(?!\s*\w+\s*:)` lookahead rejects a first TYPED param, which only a
+//     declaration has (a value-passing call to the core primitive never does).
+const PRIMITIVE_CALL = /(?<![.\w])(?:encrypt|decrypt|decryptStrict)\s*\((?!\s*\w+\s*:)/
 
 function srcRoots(): string[] {
   const roots: string[] = []
@@ -129,6 +145,14 @@ test.group('Architectural: secret crypto must route through the canonical access
       `const v = readSecret(stored, 'ssoClientSecret')`,
       `decryptWithAppKey(value, oldKey, ctx)`,
       `if (isEncrypted(value)) {`,
+      // A satellite's own field-crypto seam: receiver-qualified member calls and
+      // typed-param method definitions are a different encrypt/decrypt, not the
+      // core secret primitive. (crypto's EncryptedRepository — the false positives
+      // this tightening removes.)
+      `model.$setAttribute(f.column, await repo.encrypt(f.subject(model), f.category, value))`,
+      `const plain = await repo.decrypt(subject, category, ciphertext)`,
+      `async encrypt(subject: SubjectId, category: CategoryKey, value: string): Promise<string> {`,
+      `async decrypt(subject: SubjectId, category: CategoryKey, ciphertext: string): Promise<string> {`,
     ]
     for (const s of flagged) assert.isTrue(PRIMITIVE_CALL.test(s), `should flag: ${s}`)
     for (const s of clean) assert.isFalse(PRIMITIVE_CALL.test(s), `should NOT flag: ${s}`)

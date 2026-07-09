@@ -1,4 +1,9 @@
 export { resolveTenantRepository } from './resolve_tenant_repository.js'
+// The S5 core-access funnel + its guarded db accessor (labeled in-process friction;
+// see resolve_database.ts / .github/SECURITY.md — the Postgres read-only role is the
+// real boundary). `assertCoreAccessAllowed` is the single throw site for both.
+export { resolveDatabase } from './resolve_database.js'
+export { assertCoreAccessAllowed } from './plugin_core_access.js'
 export { mapTenants } from './map_tenants.js'
 export type { MapTenantsOptions, MapTenantsResult } from './map_tenants.js'
 export { mapDataAsOf, isStale, staleDays } from '../freshness.js'
@@ -78,6 +83,19 @@ export {
   DEFAULT_RESOLUTION_CACHE_MAX,
 } from './tenant_resolution_cache.js'
 export { default as HookRegistry } from './hook_registry.js'
+// The capability registry (plugin provide/consume seam). A plugin PROVIDES via a
+// `definePlugin({ provides })` section; a host or another plugin CONSUMES by
+// resolving this singleton and calling `.consume(key)`, typed through the
+// augmentable `LasagnaCapabilities` interface. The author-facing types + the
+// provide-side `CAPABILITY_CONTRACT_VERSION` live on the `/plugin` surface.
+export { default as CapabilityRegistry } from './capability_registry.js'
+// The tenant scheduler (SEAM-1). A plugin registers ticks via a
+// `definePlugin({ schedules })` section; a host resolves this singleton to
+// inspect (`list()`) or drive a tick (`runTick`). The author-facing `TenantSchedule`
+// type + the `schedule()` builder live on the `/plugin` surface.
+export { default as TenantSchedulerService } from './tenant_scheduler_service.js'
+export type { TenantSchedule, SchedulerTickResult } from './tenant_scheduler_service.js'
+export { SCHEDULER_ACTIVE_STATUSES } from './tenant_scheduler_service.js'
 export { default as BootstrapperRegistry } from './bootstrapper_registry.js'
 export type { BootstrapperContext, TenantBootstrapper } from './bootstrapper_registry.js'
 export {
@@ -94,6 +112,9 @@ export {
   ISOLATION_CONTRACT_VERSION,
   isProvisionableDriver,
   provisionVectorExtension,
+  provisionExtension,
+  installExtension,
+  withProvisionConnection,
   provisionConnectionName,
   PGVECTOR_EXTENSION,
   PGVECTOR_EXTENSION_SCHEMA,
@@ -134,6 +155,8 @@ export type {
   VectorProvisionOptions,
   VectorProvisionSummary,
   VectorProvisionDeps,
+  ExtensionProvisionSummary,
+  ProvisionExtensionSpec,
   ProvisionLogger,
 } from './isolation/index.js'
 export {

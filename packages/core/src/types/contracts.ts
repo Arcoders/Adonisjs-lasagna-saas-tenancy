@@ -79,11 +79,11 @@ export interface TenantModelContract<TMeta extends object = TenantMetadata> {
 
 export interface EachOptions {
   /** Page size for the cursor. Default: 100. */
-  batchSize?: number
+  batchSize?: number | undefined
   /** Filter by status. Defaults to all statuses. */
-  statuses?: TenantStatus[]
+  statuses?: TenantStatus[] | undefined
   /** Include soft-deleted tenants. Default: false. */
-  includeDeleted?: boolean
+  includeDeleted?: boolean | undefined
 }
 
 export interface TenantRepositoryContract<TMeta extends object = TenantMetadata> {

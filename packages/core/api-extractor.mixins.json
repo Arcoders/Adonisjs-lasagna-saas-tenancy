@@ -1,0 +1,14 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/api-extractor/v7/api-extractor.schema.json",
+
+  // Per-entry golden for the `./mixins` subpath (the TracksDataChanges data-change
+  // mixin + its change-payload types, SEAM-5). The base config only snapshots the
+  // MAIN entry point, so this pins the mixins surface independently. Inherits the
+  // report folder, message-silencing and disabled doc-model/rollup from the base;
+  // only the entry point and the report file name differ.
+  "extends": "./api-extractor.json",
+  "mainEntryPointFilePath": "<projectFolder>/build/src/models/mixins/index.d.ts",
+  "apiReport": {
+    "reportFileName": "saas-tenancy.mixins.api.md"
+  }
+}

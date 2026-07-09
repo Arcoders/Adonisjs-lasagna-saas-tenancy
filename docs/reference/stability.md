@@ -73,6 +73,27 @@ bump, and `checkSatelliteApiCompat` fails loudly when a satellite expects a newe
 ABI than the installed core provides. This is what lets the satellites below sit
 on `release candidate` ground rather than on a contract that could move under them.
 
+## Public subpath surface (keep vs. hide)
+
+The core publishes a set of `exports` subpaths. Most (`/services`, `/types`,
+`/events`, `/testing`, `/health`, `/sdk`, `/plugin`, `/middleware`, …) are the
+documented, high-level surfaces. A handful are **low-level entry points**: they
+exist because a satellite or an advanced host reached for one primitive without
+wanting the whole barrel. The decision for each, so the surface does not drift:
+
+| Subpath | Decision | Why |
+|---|---|---|
+| `/crypto` | **Keep** (low-level) | The AEAD envelope + key-id primitives. Frozen as a compat obligation; a satellite that composes them must not have the module move under it. Prefer the `@adonisjs-lasagna/crypto` satellite for field encryption. |
+| `/worm-ledger` | **Keep** (low-level) | The append-only hash-chain writer the crypto shred audit depends on. Kept because that dependency is real and cross-package; not a general-purpose logging API. |
+| `/signals` | **Keep** (low-level) | The provisioning-signal helpers a satellite `after:provision` hook uses. Kept for satellite authors. |
+| `/adapters`, `/base-models` | **Keep** (low-level) | The model routing primitives (`TenantAdapter`, the three base models). A host wiring a custom model needs them; the root barrel also re-exports the base models for the common case. |
+| `/safe-fetch` | **Keep** | The DNS-pinned egress helper — a first-class security primitive a host or satellite SHOULD use for any attacker-influenced fetch. Documented, not merely low-level. |
+| `/internal` | **Hide** (unstable) | Not part of the stable API. Published only so first-party satellites can import app.booted-safe helpers from a bare unit runner; see the stability policy in `src/internal.ts`. Anything a third party legitimately needs also lives on a stable surface (`/sdk`, `/services`, `/testing`). |
+
+Keep-labelled subpaths are covered by the 1.x promise at the stability of the
+symbols they expose (all `release candidate` today) and are removed only through
+the deprecation path below. `/internal` is the sole excluded subpath.
+
 ## Feature stability matrix
 
 ### Core (`@adonisjs-lasagna/saas-tenancy`)
@@ -98,6 +119,7 @@ The isolation substrate. Everything here is **release candidate** unless noted.
 | Health probes (`/livez`, `/readyz`, `/healthz`) | Release candidate | |
 | Doctor (base checks) | Release candidate | |
 | Plans and quotas (`enforceQuota`) | Experimental | Opt-in feature, not part of the isolation guarantee. |
+| Plugin platform (`definePlugin`, request-path seams, capability registry, trust controls) | Experimental | Opt-in extension surface for third-party satellites. The in-process trust controls are friction, not a sandbox; the read-only role is the boundary. See [plugins](/guides/plugins) and the [security guide](/guides/security). |
 | Read-replica routing | Experimental | No automatic failover by design; use the retry-on-primary pattern in [read replicas](/guides/read-replicas). |
 | Audit logs | Experimental | Satellite (in core). |
 | Webhooks | Experimental | Satellite (in core). |
@@ -117,6 +139,7 @@ The isolation substrate. Everything here is **release candidate** unless noted.
 | `@adonisjs-lasagna/websockets` | Release candidate | Multi-tenant bidirectional WebSockets on socket.io. |
 | `@adonisjs-lasagna/reporting` | Release candidate | Cross-tenant analytics over the backoffice `tenant_metrics` table, custom named metrics, and host-defined report extensions. |
 | `@adonisjs-lasagna/ai` | Release candidate | Per-tenant AI streaming gateway: the streaming spine, a pluggable provider contract (Claude / DeepSeek / Kimi), and per-chunk cost metering over the kernel rails. |
+| `@adonisjs-lasagna/crypto` | Release candidate | Field-level encryption: per-(subject × category) DEKs wrapped under a pluggable KeyProvider (env / AWS KMS / HashiCorp Vault), a deterministic search HMAC, and O(1) crypto-shredding gated on governance and audited to the WORM ledger. |
 
 The version number says the same thing the label does: a `release candidate`
 satellite is published as `>=1.0.0`, so the version string a consumer reads off

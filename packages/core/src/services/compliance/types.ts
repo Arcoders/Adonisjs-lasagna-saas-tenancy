@@ -85,7 +85,7 @@ export interface ComplianceReport {
  */
 export interface ComplianceRunOptions {
   /** `soc2` | `gdpr` | `iso` | `hipaa` | `all` (default). Matches the token prefix. */
-  framework?: string
+  framework?: string | undefined
   /** Run only the named control id(s). */
-  controls?: string[]
+  controls?: string[] | undefined
 }

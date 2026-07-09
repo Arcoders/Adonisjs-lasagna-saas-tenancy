@@ -100,7 +100,7 @@ test('D2-soft fires on a documents edge but ignores an exemplifies-only edge', (
 
     const onDocuments = d2soft(fixtureGraph(repoRoot, 'documents'), config)
     assert.equal(onDocuments.length, 1, 'a documents edge is checked')
-    assert.deepEqual(onDocuments[0].missing, ['meter'], 'only the domain token is missing')
+    assert.deepEqual(onDocuments[0]!.missing, ['meter'], 'only the domain token is missing')
 
     const onExemplifies = d2soft(fixtureGraph(repoRoot, 'exemplifies'), config)
     assert.equal(onExemplifies.length, 0, 'an exemplifies-only edge is not checked')

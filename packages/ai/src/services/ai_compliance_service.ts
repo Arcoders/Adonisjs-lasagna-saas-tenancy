@@ -50,7 +50,7 @@ export interface PurgeStep {
   readonly step: PurgeStepName
   readonly status: PurgeStepStatus
   /** Rows/keys removed (present on an `ok` delete). */
-  readonly count?: number
+  readonly count?: number | undefined
   /** A short reason code on `failed`/`skipped` (never content). */
   readonly code?: string
 }
@@ -89,7 +89,9 @@ export interface AiComplianceDeps {
     metadata: Record<string, unknown>
   }) => Promise<unknown>
   /** Full AI-audit-chain verify (AiAuditWriter.verify), used only under `verifyChain` (E10). */
-  readonly verifyAuditChain?: (tenantId: string) => Promise<{ ok: boolean; checked: number }>
+  readonly verifyAuditChain?:
+    | ((tenantId: string) => Promise<{ ok: boolean; checked: number }>)
+    | undefined
   /** Per-tenant integer metric sink (MetricsService.emitMetric). */
   readonly metric?: (tenantId: string, name: string, value: number) => void
   /** Metadata-only warn log (never content). */

@@ -8,7 +8,7 @@ export interface ResultFile {
   suite: string
   env: BenchEnv
   results: BenchResult[]
-  meta?: Record<string, unknown>
+  meta?: Record<string, unknown> | undefined
 }
 
 /**
@@ -74,14 +74,17 @@ export function median(values: number[]): number {
   if (values.length === 0) return 0
   const s = [...values].sort((a, b) => a - b)
   const mid = Math.floor(s.length / 2)
-  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2
+  // `s` is non-empty (guarded above); for even length `mid >= 1`, so both
+  // `s[mid]` and `s[mid - 1]` are in range.
+  return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2
 }
 
 /** Inter-quartile range (p75 - p25) of a numeric sample. */
 export function iqr(values: number[]): number {
   if (values.length < 2) return 0
   const s = [...values].sort((a, b) => a - b)
+  // `s.length >= 2` (guarded above) and the index is clamped to [0, length-1].
   const at = (p: number) =>
-    s[Math.min(s.length - 1, Math.max(0, Math.ceil((p / 100) * s.length) - 1))]
+    s[Math.min(s.length - 1, Math.max(0, Math.ceil((p / 100) * s.length) - 1))]!
   return at(75) - at(25)
 }

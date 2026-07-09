@@ -29,11 +29,11 @@ function parseArgs(argv: string[]): ParsedArgs {
   const flags = new Set<string>()
   const values = new Map<string, string>()
   for (let i = 0; i < argv.length; i++) {
-    const a = argv[i]
+    const a = argv[i]!
     if (VALUE_FLAGS.has(a)) {
       values.set(a, argv[++i] ?? '')
     } else if (a.startsWith('--') && a.includes('=')) {
-      const [k, v] = a.split(/=(.*)/s)
+      const [k, v] = a.split(/=(.*)/s) as [string, string]
       values.set(k, v)
     } else {
       flags.add(a)

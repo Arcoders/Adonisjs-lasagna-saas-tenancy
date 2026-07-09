@@ -123,7 +123,8 @@ try {
 } finally {
   await terminateBenchApp(seedApp)
 }
-const tenant = tenantIds[0]
+// Reaching here means the seed above succeeded, so `tenantIds` has 5 entries.
+const tenant = tenantIds[0]!
 
 // 2) Spawn the serving fixture (development → rate-limit middleware runs).
 const server = spawn(process.execPath, ['--import', 'tsx', SERVER_ENTRY], {

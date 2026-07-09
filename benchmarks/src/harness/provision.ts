@@ -26,7 +26,7 @@ type TenantRef = { id: string; name: string }
 /** A valid UUID v4 derived deterministically from an index. */
 export function deterministicTenantId(index: number): string {
   const h = createHash('sha256').update(`lasagna-bench-tenant-${index}`).digest('hex')
-  const variant = ((Number.parseInt(h[16], 16) & 0x3) | 0x8).toString(16)
+  const variant = ((Number.parseInt(h[16]!, 16) & 0x3) | 0x8).toString(16)
   return (
     `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-` +
     `${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`

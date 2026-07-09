@@ -169,7 +169,7 @@ test.group('WebhookService.send() — delivery state machine', () => {
 
     await svc.send(hook as any, delivery as any)
 
-    const headers = headersOf(calls[0])
+    const headers = headersOf(calls[0]!)
     assert.property(headers, 'x-webhook-signature')
 
     const body = JSON.stringify(delivery.payload)
@@ -227,7 +227,7 @@ test.group('WebhookService.send() — delivery state machine', () => {
 
     await svc.send(hook as any, delivery as any)
 
-    assert.notProperty(headersOf(calls[0]), 'x-webhook-signature')
+    assert.notProperty(headersOf(calls[0]!), 'x-webhook-signature')
   })
 
   test('always sends content-type, x-webhook-event and x-delivery-id headers', async ({
@@ -241,7 +241,7 @@ test.group('WebhookService.send() — delivery state machine', () => {
 
     await svc.send(hook as any, delivery as any)
 
-    const headers = headersOf(calls[0])
+    const headers = headersOf(calls[0]!)
     assert.equal(headers['content-type'], 'application/json')
     assert.equal(headers['x-webhook-event'], 'order.placed')
     assert.equal(headers['x-delivery-id'], delivery.id)
@@ -300,7 +300,7 @@ test.group('WebhookService.send() — exponential backoff bounds', () => {
       assert.equal(delivery.attempt, attempt + 1, 'attempt counter must advance by 1')
 
       const nextRetryAt = (delivery.nextRetryAt as any).toMillis()
-      const expectedMs = BACKOFF_BASE[attempt - 1] * 1000
+      const expectedMs = BACKOFF_BASE[attempt - 1]! * 1000
       const window = expectedMs * JITTER_FRACTION
       const elapsed = nextRetryAt - before
       assert.isAtLeast(
@@ -466,7 +466,7 @@ test.group('WebhookService — verifyWebhookSignature (receiver-side)', () => {
     let captured: { body: string; sig: string } | null = null
     const transport = async (_url: string, opts: SafeFetchOptions): Promise<Response> => {
       const headers = (opts.headers ?? {}) as Record<string, string>
-      captured = { body: String(opts.body ?? ''), sig: headers['x-webhook-signature'] }
+      captured = { body: String(opts.body ?? ''), sig: headers['x-webhook-signature']! }
       return new Response('{}', { status: 200 })
     }
     const svc = new WebhookService({ transport })

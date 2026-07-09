@@ -78,7 +78,7 @@ export function aiMembershipGateRisk(ai: AiConfig | undefined): string | null {
 export function assertAiMountAllowed(
   options: MultitenancyAiRoutesOptions,
   ai: AiConfig | undefined
-): { warning?: string } {
+): { warning?: string | undefined } {
   if (isAbsentAiMiddleware(options.middleware)) {
     emitAiGuardEvent('guard.ai_route_mount', { metadata: { reason: 'middleware_missing' } })
     throw new Error(

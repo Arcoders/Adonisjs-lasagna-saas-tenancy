@@ -42,9 +42,9 @@ test.group('TelemetryService — span export with real OTel SDK', (group) => {
 
     const finished = exporter.getFinishedSpans()
     assert.lengthOf(finished, 1, 'exactly one span must be exported')
-    assert.equal(finished[0].name, 'db.query')
-    assert.equal(finished[0].attributes['table'], 'users')
-    assert.equal(finished[0].status.code, 1, 'status.code must be OK (1)')
+    assert.equal(finished[0]!.name, 'db.query')
+    assert.equal(finished[0]!.attributes['table'], 'users')
+    assert.equal(finished[0]!.status.code, 1, 'status.code must be OK (1)')
   })
 
   test('setTenant adds tenant.id to the currently active span', async ({ assert }) => {
@@ -71,7 +71,7 @@ test.group('TelemetryService — span export with real OTel SDK', (group) => {
 
     const finished = exporter.getFinishedSpans()
     assert.lengthOf(finished, 1)
-    const span: ReadableSpan = finished[0]
+    const span: ReadableSpan = finished[0]!
     assert.equal(span.status.code, 2, 'status.code must be ERROR (2)')
     assert.match(String(span.status.message ?? ''), /boom/)
     const exEvent = span.events.find((e) => e.name === 'exception')

@@ -10,8 +10,10 @@ import {
 const TENANT = '11111111-1111-4111-8111-111111111111'
 
 /** Records every rawQuery call so the test can assert the emitted SQL/bindings. */
-function recordingRunner(): RlsQueryRunner & { calls: Array<{ sql: string; bindings?: any[] }> } {
-  const calls: Array<{ sql: string; bindings?: any[] }> = []
+function recordingRunner(): RlsQueryRunner & {
+  calls: Array<{ sql: string; bindings?: any[] | undefined }>
+} {
+  const calls: Array<{ sql: string; bindings?: any[] | undefined }> = []
   return {
     calls,
     async rawQuery(sql: string, bindings?: any[]) {
@@ -27,8 +29,8 @@ test.group('setTenantRlsGuc', () => {
     await setTenantRlsGuc(runner, TENANT)
 
     assert.lengthOf(runner.calls, 1)
-    assert.equal(runner.calls[0].sql, 'select set_config(?, ?, ?)')
-    assert.deepEqual(runner.calls[0].bindings, [DEFAULT_RLS_GUC, TENANT, true])
+    assert.equal(runner.calls[0]!.sql, 'select set_config(?, ?, ?)')
+    assert.deepEqual(runner.calls[0]!.bindings, [DEFAULT_RLS_GUC, TENANT, true])
   })
 
   test('honours a custom setting name and is always transaction-local', async ({ assert }) => {
@@ -36,7 +38,7 @@ test.group('setTenantRlsGuc', () => {
     await setTenantRlsGuc(runner, TENANT, { gucName: 'tenancy.id' })
 
     // Third arg (is_local) is always true — there is no session-level mode.
-    assert.deepEqual(runner.calls[0].bindings, ['tenancy.id', TENANT, true])
+    assert.deepEqual(runner.calls[0]!.bindings, ['tenancy.id', TENANT, true])
   })
 
   test('rejects an unsafe tenant id before touching the DB', async ({ assert }) => {

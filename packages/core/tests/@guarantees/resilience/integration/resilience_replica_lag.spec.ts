@@ -57,14 +57,14 @@ test.group('Doctor: replica_lag — error paths (real PG, fake replica)', (group
       1,
       `expected 1 replica_unreachable issue, got ${JSON.stringify(issues)}`
     )
-    assert.equal(unreachable[0].severity, 'error')
-    assert.equal((unreachable[0].meta as any).host, 'fake-replica-1')
+    assert.equal(unreachable[0]!.severity, 'error')
+    assert.equal((unreachable[0]!.meta as any).host, 'fake-replica-1')
     assert.match(
-      unreachable[0].message,
+      unreachable[0]!.message,
       /pg code: [A-Z0-9_]{1,32}/,
       'message must include a redacted pg code, not raw error text (no credential leak)'
     )
     // Critically: no DSN-shaped substring in the message.
-    assert.notMatch(unreachable[0].message, /password=|postgres:\/\//i)
+    assert.notMatch(unreachable[0]!.message, /password=|postgres:\/\//i)
   })
 })

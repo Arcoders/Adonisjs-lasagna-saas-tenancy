@@ -69,7 +69,7 @@ test.group('MetricsService (integration)', (group) => {
       const parts = key.split(':')
       assert.equal(parts[0], 'metrics')
       assert.equal(parts[1], tenantId)
-      assert.match(parts[2], /^\d{4}-\d{2}-\d{2}$/, 'period must be YYYY-MM-DD')
+      assert.match(parts[2]!, /^\d{4}-\d{2}-\d{2}$/, 'period must be YYYY-MM-DD')
     }
   })
 })
@@ -198,7 +198,7 @@ test.group('MetricsService.flush — reads through the getRedis() seam', (group)
       `metrics:${tenantId}:${period}:errors`,
       `metrics:${tenantId}:${period}:bandwidth`,
     ]
-    const values: Record<string, string> = { [keys[0]]: '42', [keys[1]]: '3', [keys[2]]: '1024' }
+    const values: Record<string, string> = { [keys[0]!]: '42', [keys[1]!]: '3', [keys[2]!]: '1024' }
     let scanCalled = false
     let mgetCalled = false
 

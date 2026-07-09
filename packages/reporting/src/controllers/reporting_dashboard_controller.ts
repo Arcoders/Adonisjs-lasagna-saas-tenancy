@@ -18,9 +18,9 @@ import type { ReportPeriod } from '../types.js'
 export interface ReportingControllerOptions {
   /** When > 0, dashboard responses are cached in the global `reporting`
    *  namespace for this many ms. Off by default. */
-  cacheTtlMs?: number
+  cacheTtlMs?: number | undefined
   /** Max allowed since→until span in days (default 366). Over-wide/inverted → 400. */
-  maxRangeDays?: number
+  maxRangeDays?: number | undefined
 }
 
 /**
@@ -110,7 +110,12 @@ export default class ReportingDashboardController {
     return ctx.response.ok({ version: REPORTING_CONTRACT_VERSION })
   }
 
-  #load(params: { period: ReportPeriod; since?: string; until?: string; limit?: number }) {
+  #load(params: {
+    period: ReportPeriod
+    since?: string | undefined
+    until?: string | undefined
+    limit?: number | undefined
+  }) {
     const ttl = this.options.cacheTtlMs ?? 0
     if (ttl > 0) {
       // Global (backoffice) namespace — reporting data is cross-tenant by design,
@@ -126,7 +131,12 @@ export default class ReportingDashboardController {
     return this.#compute(params)
   }
 
-  async #compute(params: { period: ReportPeriod; since?: string; until?: string; limit?: number }) {
+  async #compute(params: {
+    period: ReportPeriod
+    since?: string | undefined
+    until?: string | undefined
+    limit?: number | undefined
+  }) {
     const svc = await app.container.make(ReportingService)
     const [aggregate, topTenants, customMetrics, dataAsOf] = await Promise.all([
       svc.getAggregate({ period: params.period, since: params.since, until: params.until }),

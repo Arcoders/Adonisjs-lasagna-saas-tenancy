@@ -102,8 +102,8 @@ test.group('withTenantScope — query hooks', (group) => {
     await tenancy.run(fakeTenant('xyz'), async () => {
       const q1 = new FakeQuery()
       const q2 = new FakeQuery()
-      hooks.find[0](q1)
-      hooks.fetch[0](q2)
+      hooks.find![0]!(q1)
+      hooks.fetch![0]!(q2)
       assert.deepEqual(q1.predicates, [['tenant_id', 'xyz']])
       assert.deepEqual(q2.predicates, [['tenant_id', 'xyz']])
     })
@@ -118,7 +118,7 @@ test.group('withTenantScope — query hooks', (group) => {
     await tenancy.run(fakeTenant('abc'), async () => {
       await unscoped(async () => {
         const q = new FakeQuery()
-        hooks.find[0](q)
+        hooks.find![0]!(q)
         assert.deepEqual(q.predicates, [])
       })
     })
@@ -132,7 +132,7 @@ test.group('withTenantScope — query hooks', (group) => {
 
     await tenancy.run(fakeTenant('1'), async () => {
       const model: any = {}
-      hooks.create[0](model)
+      hooks.create![0]!(model)
       assert.equal(model.tenant_id, '1')
     })
   })
@@ -147,7 +147,7 @@ test.group('withTenantScope — query hooks', (group) => {
 
     await tenancy.run(fakeTenant('current'), async () => {
       const model: any = { tenant_id: 'current' }
-      assert.doesNotThrow(() => hooks.create[0](model))
+      assert.doesNotThrow(() => hooks.create![0]!(model))
       assert.equal(model.tenant_id, 'current')
     })
   })
@@ -165,7 +165,7 @@ test.group('withTenantScope — query hooks', (group) => {
     // the update/delete hooks.
     await tenancy.run(fakeTenant('current'), async () => {
       const model: any = { tenant_id: 'other' }
-      assert.throws(() => hooks.create[0](model), /refusing to create/)
+      assert.throws(() => hooks.create![0]!(model), /refusing to create/)
     })
   })
 
@@ -177,7 +177,7 @@ test.group('withTenantScope — query hooks', (group) => {
 
     await tenancy.run(fakeTenant('current'), async () => {
       const model: any = { tenant_id: 'other' }
-      assert.throws(() => hooks.update[0](model), /refusing to update/)
+      assert.throws(() => hooks.update![0]!(model), /refusing to update/)
     })
   })
 
@@ -192,7 +192,7 @@ test.group('withTenantScope — query hooks', (group) => {
     Scoped.boot()
     Scoped.boot()
     Scoped.boot()
-    assert.lengthOf(hooks.find, 1)
+    assert.lengthOf(hooks.find!, 1)
   })
 })
 
@@ -205,10 +205,10 @@ test.group('withTenantScope — strict mode (default)', (group) => {
     const Scoped = withTenantScope(FakeBaseModel as any) as any
     Scoped.boot()
 
-    assert.throws(() => hooks.find[0](new FakeQuery()), MissingTenantScopeException as any)
-    assert.throws(() => hooks.fetch[0](new FakeQuery()), MissingTenantScopeException as any)
+    assert.throws(() => hooks.find![0]!(new FakeQuery()), MissingTenantScopeException as any)
+    assert.throws(() => hooks.fetch![0]!(new FakeQuery()), MissingTenantScopeException as any)
     assert.throws(
-      () => hooks.paginate[0]([new FakeQuery(), new FakeQuery()]),
+      () => hooks.paginate![0]!([new FakeQuery(), new FakeQuery()]),
       MissingTenantScopeException as any
     )
   })
@@ -218,9 +218,9 @@ test.group('withTenantScope — strict mode (default)', (group) => {
     const Scoped = withTenantScope(FakeBaseModel as any) as any
     Scoped.boot()
 
-    assert.throws(() => hooks.create[0]({}), MissingTenantScopeException as any)
-    assert.throws(() => hooks.update[0]({ tenant_id: 'x' }), MissingTenantScopeException as any)
-    assert.throws(() => hooks.delete[0]({ tenant_id: 'x' }), MissingTenantScopeException as any)
+    assert.throws(() => hooks.create![0]!({}), MissingTenantScopeException as any)
+    assert.throws(() => hooks.update![0]!({ tenant_id: 'x' }), MissingTenantScopeException as any)
+    assert.throws(() => hooks.delete![0]!({ tenant_id: 'x' }), MissingTenantScopeException as any)
   })
 
   test('unscoped(fn) suppresses the throw — explicit cross-tenant operation', async ({
@@ -231,7 +231,7 @@ test.group('withTenantScope — strict mode (default)', (group) => {
     Scoped.boot()
 
     await unscoped(async () => {
-      assert.doesNotThrow(() => hooks.find[0](new FakeQuery()))
+      assert.doesNotThrow(() => hooks.find![0]!(new FakeQuery()))
     })
   })
 
@@ -239,8 +239,8 @@ test.group('withTenantScope — strict mode (default)', (group) => {
     const { FakeBaseModel, hooks } = makeFakeBase()
     const Scoped = withTenantScope(FakeBaseModel as any) as any
     Scoped.boot()
-    assert.throws(() => hooks.find[0](new FakeQuery()), /find/)
-    assert.throws(() => hooks.delete[0]({}), /delete/)
+    assert.throws(() => hooks.find![0]!(new FakeQuery()), /find/)
+    assert.throws(() => hooks.delete![0]!({}), /delete/)
   })
 })
 
@@ -256,7 +256,7 @@ test.group('withTenantScope — allowGlobal mode', (group) => {
     Scoped.boot()
 
     const q = new FakeQuery()
-    assert.doesNotThrow(() => hooks.find[0](q))
+    assert.doesNotThrow(() => hooks.find![0]!(q))
     assert.deepEqual(q.predicates, [])
   })
 })
@@ -284,7 +284,7 @@ test.group('withTenantScope — fail-closed on unreadable config (WS-5)', (group
 
     __resetConfigForTests() // config now unreadable at query time
     // No active tenant context AND no readable config → fail closed, never global.
-    assert.throws(() => hooks.find[0](new FakeQuery()), MissingTenantScopeException as any)
+    assert.throws(() => hooks.find![0]!(new FakeQuery()), MissingTenantScopeException as any)
   })
 
   test('unscoped(fn) still suppresses the throw even with an unreadable config', async ({
@@ -296,7 +296,7 @@ test.group('withTenantScope — fail-closed on unreadable config (WS-5)', (group
 
     __resetConfigForTests()
     await unscoped(async () => {
-      assert.doesNotThrow(() => hooks.find[0](new FakeQuery()))
+      assert.doesNotThrow(() => hooks.find![0]!(new FakeQuery()))
     })
   })
 })
@@ -319,7 +319,7 @@ test.group('withTenantScope — fetch-hook defense-in-depth (C2 fix)', (group) =
       // case pins the hook itself as defense-in-depth.
       const q = new FakeQuery()
       q.where('status', 'active')
-      hooks.fetch[0](q)
+      hooks.fetch![0]!(q)
       assert.deepEqual(q.predicates, [
         ['status', 'active'],
         ['tenant_id', 't-1'],
@@ -337,6 +337,6 @@ test.group('withTenantScope — fetch-hook defense-in-depth (C2 fix)', (group) =
     // No tenancy.run scope, no unscoped() — under strict mode (default),
     // Model.query().delete() in this state must throw rather than wipe
     // every tenant's rows.
-    assert.throws(() => hooks.fetch[0](new FakeQuery()), MissingTenantScopeException as any)
+    assert.throws(() => hooks.fetch![0]!(new FakeQuery()), MissingTenantScopeException as any)
   })
 })

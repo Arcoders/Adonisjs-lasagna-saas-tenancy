@@ -1,0 +1,13 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/api-extractor/v7/api-extractor.schema.json",
+
+  // Per-entry golden for the `./sdk` subpath (the satellite ABI surface used by
+  // both first-party and community satellites). Same rationale as the plugin
+  // config: the base only snapshots the main entry point, so `/sdk` was invisible
+  // to the golden-diff gate. Inherits everything but the entry and report name.
+  "extends": "./api-extractor.json",
+  "mainEntryPointFilePath": "<projectFolder>/build/src/sdk/index.d.ts",
+  "apiReport": {
+    "reportFileName": "saas-tenancy.sdk.api.md"
+  }
+}

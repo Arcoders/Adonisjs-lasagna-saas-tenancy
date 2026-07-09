@@ -34,7 +34,7 @@ test.group('architectural — documented job names resolve to real exports', () 
     assert,
   }) => {
     assert.match(readFileSync(BILLING_INDEX, 'utf8'), /export\s+\{[^}]*ProcessBillingEventJob/)
-    assert.match(readFileSync(DOC_PAGES[0], 'utf8'), /ProcessBillingEventJob/)
+    assert.match(readFileSync(DOC_PAGES[0]!, 'utf8'), /ProcessBillingEventJob/)
   })
 
   test('detector control: the matcher would catch the dead name', ({ assert }) => {

@@ -37,7 +37,8 @@ async function churnLoad(
     for (;;) {
       const i = next++
       if (i >= totalOps) return
-      const ref = refs[i % refs.length]
+      // Modulo of a non-empty `refs` (seeded with M = cap*2 tenants) is always in range.
+      const ref = refs[i % refs.length]!
       const t0 = process.hrtime.bigint()
       const conn = await clientFor(driver, db, ref)
       // Mix writes into the churn so the insert path (connect + search_path +
@@ -113,8 +114,8 @@ export async function runConnectionChurn(app: ApplicationService, db: any): Prom
       `cap=${cap} single-tenant SELECT (baseline)`,
       300,
       async () => {
-        const conn = await clientFor(driver, db, refs[0])
-        await selectMarker(conn, driver, refs[0])
+        const conn = await clientFor(driver, db, refs[0]!)
+        await selectMarker(conn, driver, refs[0]!)
       },
       { group: GROUP, meta: { cap } }
     )

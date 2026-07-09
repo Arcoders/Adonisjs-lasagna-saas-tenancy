@@ -49,8 +49,8 @@ export async function flushBuiltInCounters(redis: FlushRedis, target: string): P
     const values = await redis.mget(...slice)
     for (const [j, key] of slice.entries()) {
       const parts = key.split(':')
-      const tenantId = parts[1]
-      const metric = parts[3]
+      const tenantId = parts[1]!
+      const metric = parts[3]!
       const value = Number(values[j]) || 0
 
       let entry = tenantPeriods.get(tenantId)
@@ -121,8 +121,8 @@ export async function flushCustomCounters(redis: FlushRedis, target: string): Pr
     const values = await redis.mget(...slice)
     for (const [j, key] of slice.entries()) {
       const parts = key.split(':')
-      const tenantId = parts[1]
-      const name = parts[3]
+      const tenantId = parts[1]!
+      const name = parts[3]!
       const value = Number(values[j]) || 0
       byTenantName.set(`${tenantId}|${name}`, { tenant_id: tenantId, name, value })
     }

@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { mkdir, unlink, stat, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/internal'
+import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import { backupConfig, destructiveLockFailClosed } from '../config.js'
 import { withTenantOperationLock } from './tenant_operation_lock.js'
 import { assertRegularFile } from './fs_guards.js'
@@ -259,7 +259,7 @@ export default class BackupService {
 
     const client = new S3Client({
       region: s3cfg.region,
-      endpoint: s3cfg.endpoint || undefined,
+      ...(s3cfg.endpoint ? { endpoint: s3cfg.endpoint } : {}),
       credentials: { accessKeyId: s3cfg.accessKeyId, secretAccessKey: s3cfg.secretAccessKey },
     })
 
@@ -280,7 +280,7 @@ export default class BackupService {
     const { S3Client, DeleteObjectCommand } = await import('@aws-sdk/client-s3')
     const client = new S3Client({
       region: s3cfg.region,
-      endpoint: s3cfg.endpoint || undefined,
+      ...(s3cfg.endpoint ? { endpoint: s3cfg.endpoint } : {}),
       credentials: { accessKeyId: s3cfg.accessKeyId, secretAccessKey: s3cfg.secretAccessKey },
     })
     await client.send(
@@ -305,7 +305,7 @@ export default class BackupService {
 
     const client = new S3Client({
       region: s3cfg.region,
-      endpoint: s3cfg.endpoint || undefined,
+      ...(s3cfg.endpoint ? { endpoint: s3cfg.endpoint } : {}),
       credentials: { accessKeyId: s3cfg.accessKeyId, secretAccessKey: s3cfg.secretAccessKey },
     })
 

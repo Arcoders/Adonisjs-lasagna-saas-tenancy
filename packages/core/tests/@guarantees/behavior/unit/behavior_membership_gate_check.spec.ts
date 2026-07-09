@@ -15,11 +15,12 @@ test.group('doctor — membership_gate check', () => {
   })
 
   test('warns when the strategy is client-controlled and no hook is set', async ({ assert }) => {
-    setupTestConfig({ resolverStrategy: 'header', authorizeTenantAccess: undefined })
+    // No hook set: omitting authorizeTenantAccess is runtime-equivalent to undefined.
+    setupTestConfig({ resolverStrategy: 'header' })
     const issues = await membershipGateCheck.run(emptyCtx)
     assert.lengthOf(issues, 1)
-    assert.equal(issues[0].code, 'membership_gate_missing')
-    assert.equal(issues[0].severity, 'warn')
+    assert.equal(issues[0]!.code, 'membership_gate_missing')
+    assert.equal(issues[0]!.severity, 'warn')
   })
 
   test('clean when authorizeTenantAccess is wired', async ({ assert }) => {
@@ -33,7 +34,7 @@ test.group('doctor — membership_gate check', () => {
   })
 
   test('clean when the strategy is server-controlled (subdomain)', async ({ assert }) => {
-    setupTestConfig({ resolverStrategy: 'subdomain', authorizeTenantAccess: undefined })
+    setupTestConfig({ resolverStrategy: 'subdomain' })
     assert.lengthOf(await membershipGateCheck.run(emptyCtx), 0)
   })
 })

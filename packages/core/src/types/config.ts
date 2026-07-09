@@ -376,6 +376,66 @@ export interface ResilienceConfig {
   observe?: boolean
 }
 
+/**
+ * Static, fail-closed caps on the plugin surfaces, plus the authorizer response
+ * deadline. The caps are enforced once at boot (in the provider's `start()`,
+ * after every plugin has registered): a surface whose registered count exceeds
+ * its cap aborts the deploy, so a runaway or hostile plugin cannot exhaust the
+ * request path or fan a tick out over more schedules than the operator allows.
+ * Every field is optional; an omitted cap means UNLIMITED — byte-identical to the
+ * pre-cap behavior.
+ */
+export interface PluginLimitsConfig {
+  /** Max tenant-access authorizers the chain may register. Omitted → unlimited. */
+  maxAuthorizers?: number
+  /** Max plugin-injected route middleware entries. Omitted → unlimited. */
+  maxMiddleware?: number
+  /** Max capabilities provided into the capability registry. Omitted → unlimited. */
+  maxCapabilities?: number
+  /** Max tenant schedules registered across all plugins (SEAM-1). Omitted → unlimited. */
+  maxSchedules?: number
+  /**
+   * Response deadline (ms) for a SINGLE plugin authorizer before it is treated as
+   * a DENY (fail-closed) — a hung authorizer must not hang the request. This is a
+   * DEADLINE, not cancellation: a non-cooperative authorizer keeps running in the
+   * background while the caller is unblocked with a 403. Default `1000`.
+   */
+  authorizerDeadlineMs?: number
+}
+
+/**
+ * Optional configuration for the plugin platform (the `definePlugin` facade and
+ * its request-path seams). Omit the whole block to run uncapped with the default
+ * authorizer deadline. Grows additively as later lotes land their seams (the
+ * scheduler and data-change tunables attach here under their own sub-blocks).
+ */
+export interface PluginPlatformConfig {
+  /** Fail-closed caps + authorizer deadline for the request-path surfaces. */
+  limits?: PluginLimitsConfig
+  /** Opt-in read-only DB connection untrusted plugin code is routed to (S3). */
+  readOnly?: PluginReadOnlyConfig
+}
+
+/**
+ * Credentials for the least-privilege, SELECT-only Postgres role that UNTRUSTED
+ * plugin code runs under (S3, the real firewall). When set, the tenant adapter
+ * routes every query made inside an untrusted plugin execution scope to a
+ * connection cloned from the tenant's own (same database/schema/search_path) but
+ * authenticated as this role, so Postgres — not a JS proxy — denies a write.
+ *
+ * The role MUST be provisioned `NOSUPERUSER NOBYPASSRLS` with no write grants (or
+ * `ALTER ROLE ... SET default_transaction_read_only = on`); otherwise the denial
+ * the adapter relies on does not fire. A plugin is "untrusted" unless it is on the
+ * `TRUSTED_SATELLITES` allowlist (S5). Omit the block to disable the read-only
+ * route (all plugins then share the app role — in-process friction only).
+ */
+export interface PluginReadOnlyConfig {
+  /** The read-only role's database user. */
+  user: string
+  /** The read-only role's password. Falls back to the tenant connection's password. */
+  password?: string
+}
+
 export interface MultitenancyConfig extends SatelliteConfigRegistry {
   backofficeSchemaName: string
   backofficeConnectionName: string
@@ -552,6 +612,12 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
     wizardKeyPrefix: string
   }
   hooks?: DeclarativeHooks
+  /**
+   * Optional caps and tuning for the plugin platform (the `definePlugin` facade
+   * and its request-path seams). See {@link PluginPlatformConfig}. Omit entirely
+   * to run the plugin surfaces uncapped with the default authorizer deadline.
+   */
+  plugins?: PluginPlatformConfig
   softDelete?: {
     /**
      * Days a soft-deleted tenant's schema is preserved before

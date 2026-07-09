@@ -38,25 +38,35 @@ export default class BrandingController {
     const body = ctx.request.body()
     let data: BrandingData
     try {
+      // `pickIfDefined` returns `undefined` for an absent key and `null` to
+      // clear the column. Under exactOptionalPropertyTypes an absent key must be
+      // omitted (not set to `undefined`), so each field is spread in only when it
+      // was provided; a `null` still flows through to clear the stored value.
+      const fromName = pickIfDefined<string>(body, 'fromName', (v) => typeof v === 'string')
+      const fromEmail = pickIfDefined<string>(
+        body,
+        'fromEmail',
+        (v) => typeof v === 'string' && /@/.test(v)
+      )
+      const logoUrl = pickIfDefined<string>(body, 'logoUrl', looksLikeUrl)
+      const primaryColor = pickIfDefined<string>(
+        body,
+        'primaryColor',
+        (v) => typeof v === 'string' && HEX_COLOR.test(v)
+      )
+      const supportUrl = pickIfDefined<string>(body, 'supportUrl', looksLikeUrl)
+      const emailFooter = pickIfDefined<Record<string, unknown>>(
+        body,
+        'emailFooter',
+        (v) => typeof v === 'object' && v !== null && !Array.isArray(v)
+      )
       data = {
-        fromName: pickIfDefined<string>(body, 'fromName', (v) => typeof v === 'string'),
-        fromEmail: pickIfDefined<string>(
-          body,
-          'fromEmail',
-          (v) => typeof v === 'string' && /@/.test(v)
-        ),
-        logoUrl: pickIfDefined<string>(body, 'logoUrl', looksLikeUrl),
-        primaryColor: pickIfDefined<string>(
-          body,
-          'primaryColor',
-          (v) => typeof v === 'string' && HEX_COLOR.test(v)
-        ),
-        supportUrl: pickIfDefined<string>(body, 'supportUrl', looksLikeUrl),
-        emailFooter: pickIfDefined<Record<string, unknown>>(
-          body,
-          'emailFooter',
-          (v) => typeof v === 'object' && v !== null && !Array.isArray(v)
-        ),
+        ...(fromName !== undefined ? { fromName } : {}),
+        ...(fromEmail !== undefined ? { fromEmail } : {}),
+        ...(logoUrl !== undefined ? { logoUrl } : {}),
+        ...(primaryColor !== undefined ? { primaryColor } : {}),
+        ...(supportUrl !== undefined ? { supportUrl } : {}),
+        ...(emailFooter !== undefined ? { emailFooter } : {}),
       }
     } catch (err: any) {
       // Stable error codes only — error message is `invalid_<key>` from

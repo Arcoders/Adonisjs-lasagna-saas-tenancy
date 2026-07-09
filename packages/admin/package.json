@@ -31,7 +31,13 @@
     "build"
   ],
   "exports": {
-    ".": "./build/src/index.js"
+    ".": "./build/src/index.js",
+    "./provider": "./build/providers/admin_provider.js"
+  },
+  "typesVersions": {
+    "*": {
+      "provider": ["./build/providers/admin_provider.d.ts"]
+    }
   },
   "main": "./build/src/index.js",
   "types": "./build/src/index.d.ts",
@@ -41,8 +47,10 @@
   "lasagnaSatellite": {
     "name": "admin",
     "satelliteApi": 1,
+    "pluginApiVersion": 1,
     "minMergedCoverage": { "lines": 91, "functions": 87, "branches": 75 },
     "aliases": ["admin"],
+    "provider": "@adonisjs-lasagna/admin/provider",
     "install": [
       "npm install @adonisjs-lasagna/admin"
     ],

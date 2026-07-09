@@ -21,7 +21,7 @@ import {
 /** The retrieve request body. Everything else is ignored. */
 interface RetrieveBody {
   query: string
-  model?: string
+  model?: string | undefined
   limit: number
 }
 
@@ -32,7 +32,7 @@ export interface AiRetrieveControllerDeps {
   /** The per-key request rate limiter (threat #4). Default: a disabled limiter. */
   rateLimiter?: AiRateLimiter
   /** The WS-AI-7 attribution seam. Default: the no-op sink. */
-  audit?: AiRetrievalAuditSink
+  audit?: AiRetrievalAuditSink | undefined
 }
 
 /**

@@ -55,7 +55,7 @@ function topLevelKeys(body: string): string[] {
   for (const line of body.split('\n')) {
     if (depth === 0) {
       const m = line.match(/^\s*([a-zA-Z_]\w*)\??:/)
-      if (m) keys.push(m[1])
+      if (m) keys.push(m[1]!)
     }
     for (const ch of line) {
       if (ch === '{') depth++

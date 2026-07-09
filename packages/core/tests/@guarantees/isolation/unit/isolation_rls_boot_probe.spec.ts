@@ -1,6 +1,7 @@
 import { test } from '@japa/runner'
 import {
   assertRowScopeRlsPresent,
+  assertRowScopeTablesDeclared,
   type RlsCatalogRow,
 } from '../../../../src/services/isolation/rls_boot_probe.js'
 import IsolationConfigException from '../../../../src/exceptions/isolation_config_exception.js'
@@ -86,5 +87,28 @@ test.group('assertRowScopeRlsPresent', () => {
     } catch (err) {
       assert.instanceOf(err, IsolationConfigException)
     }
+  })
+})
+
+/**
+ * Wave 0 / RLS false-green: `rowScopeRls: true` with an EMPTY `rowScopeTables` used
+ * to skip the catalog probe entirely (`if (tables.length > 0)`) — the claim reported
+ * protected while nothing was verified. `assertRowScopeTablesDeclared` fails closed
+ * on that empty list so the escapable mixin can never be the silent-only boundary.
+ */
+test.group('assertRowScopeTablesDeclared (empty-list false-green guard)', () => {
+  test('throws IsolationConfigException when rowScopeTables is empty', ({ assert }) => {
+    assert.throws(() => assertRowScopeTablesDeclared([]), /rowScopeTables is empty/)
+    try {
+      assertRowScopeTablesDeclared([])
+      assert.fail('expected a throw')
+    } catch (err) {
+      assert.instanceOf(err, IsolationConfigException)
+    }
+  })
+
+  test('passes when at least one scoped table is declared', ({ assert }) => {
+    assert.doesNotThrow(() => assertRowScopeTablesDeclared(['posts']))
+    assert.doesNotThrow(() => assertRowScopeTablesDeclared(['posts', 'comments']))
   })
 })

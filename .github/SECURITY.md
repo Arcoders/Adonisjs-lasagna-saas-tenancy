@@ -31,3 +31,9 @@ Reports against the core isolation guarantees (cross-tenant read or write
 leakage, resolver hijack, fail-open under dependency outage) are highest
 priority. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability)
 for the per-feature labels.
+
+An installed plugin/satellite runs in-process with full privilege by design, so an
+**in-process plugin sandbox escape is not a goal** — the in-process trust controls are
+friction, and the hard boundary for an untrusted plugin's write is the read-only
+Postgres role (S3). The [plugin platform trust boundary](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/security#plugin-platform-trust-boundary)
+in the security guide states the five-layer model and what each layer does and does not contain.

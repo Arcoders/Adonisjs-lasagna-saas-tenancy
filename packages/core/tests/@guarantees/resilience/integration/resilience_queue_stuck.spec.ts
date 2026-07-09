@@ -79,7 +79,7 @@ test.group('Doctor: queue_health — real BullMQ state', (group) => {
     // Even with a polluted queue from earlier in this group's run, an
     // inactive tenant must not produce any output.
     assert.lengthOf(
-      issues.filter((i: { tenantId?: string }) => i.tenantId === tenantId),
+      issues.filter((i: { tenantId?: string | undefined }) => i.tenantId === tenantId),
       0,
       'inactive tenants must be skipped by the queue check'
     )

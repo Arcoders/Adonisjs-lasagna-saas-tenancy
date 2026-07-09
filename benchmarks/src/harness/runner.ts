@@ -23,12 +23,12 @@ export interface BenchStats {
 
 export interface BenchResult {
   name: string
-  group?: string
+  group?: string | undefined
   samples: number
   opsPerSec: number
   /** Per-operation timing, nanoseconds. */
   ns: BenchStats
-  meta?: Record<string, unknown>
+  meta?: Record<string, unknown> | undefined
 }
 
 export interface MicroOptions {
@@ -48,13 +48,14 @@ function percentile(sortedAsc: number[], p: number): number {
     sortedAsc.length - 1,
     Math.max(0, Math.ceil((p / 100) * sortedAsc.length) - 1)
   )
-  return sortedAsc[idx]
+  // `idx` is clamped to [0, length-1] and the array is non-empty (guarded above).
+  return sortedAsc[idx]!
 }
 
 export function summarize(
   name: string,
   nsPerOpSamples: number[],
-  opts: { group?: string; meta?: Record<string, unknown> } = {}
+  opts: { group?: string | undefined; meta?: Record<string, unknown> | undefined } = {}
 ): BenchResult {
   const sorted = [...nsPerOpSamples].sort((a, b) => a - b)
   const n = sorted.length

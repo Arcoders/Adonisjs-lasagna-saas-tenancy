@@ -371,8 +371,8 @@ test.group('satellite — discoverSatellites', (group) => {
 
       const found = await discoverSatellites(root)
       assert.lengthOf(found, 1)
-      assert.equal(found[0].packageName, '@fake/exported')
-      assert.equal(found[0].manifest.name, 'exported')
+      assert.equal(found[0]!.packageName, '@fake/exported')
+      assert.equal(found[0]!.manifest.name, 'exported')
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -396,7 +396,11 @@ test.group('satellite — discoverSatellites', (group) => {
 
 test.group('satellite — indexSatellites', () => {
   function sat(packageName: string, aliases?: string[]): DiscoveredSatellite {
-    return { packageName, root: '/tmp', manifest: { name: packageName, aliases } }
+    return {
+      packageName,
+      root: '/tmp',
+      manifest: { name: packageName, ...(aliases !== undefined ? { aliases } : {}) },
+    }
   }
 
   test('keys by package name and alias', ({ assert }) => {
@@ -457,8 +461,8 @@ test.group('satellite — publishSatellite', (group) => {
     assert.deepEqual(first.published.sort(), ['create_fake_one_table', 'create_fake_two_table'])
     assert.lengthOf(first.skipped, 0)
     assert.lengthOf(codemods.stubCalls, 2)
-    assert.equal(codemods.stubCalls[0].stubsRoot, sat.root)
-    assert.match(codemods.stubCalls[0].stubPath, /^stubs[\\/]migrations[\\/]create_fake_/)
+    assert.equal(codemods.stubCalls[0]!.stubsRoot, sat.root)
+    assert.match(codemods.stubCalls[0]!.stubPath, /^stubs[\\/]migrations[\\/]create_fake_/)
     // Emitted files are namespaced by the satellite's package slug.
     const files1 = (await readdir(migrationsDir)).sort()
     assert.lengthOf(files1, 2)
@@ -570,7 +574,7 @@ test.group('satellite — publishSatellite namespacing (B2)', () => {
       assert.deepEqual(first.published, ['create_shared_table'])
       const files = await readdir(migrationsDir)
       assert.lengthOf(files, 1)
-      assert.match(files[0], /^\d+_acme_widgets__create_shared_table\.ts$/)
+      assert.match(files[0]!, /^\d+_acme_widgets__create_shared_table\.ts$/)
 
       const second = await publishSatellite(cm, sat, migrationsDir)
       assert.deepEqual(second.skipped, ['create_shared_table'])
@@ -758,7 +762,7 @@ test.group('satellite — satelliteMigrationDirs (SEAM-2)', () => {
     assert.deepEqual(dirs, ['node_modules/@x/ai/build/tenant_migrations'])
     // Lucid resolves each via new URL(dir, appRoot); an absolute path (or a
     // Windows drive letter) would break that, so the result must stay relative.
-    assert.isFalse(dirs[0].startsWith('/'), 'not absolute')
+    assert.isFalse(dirs[0]!.startsWith('/'), 'not absolute')
     assert.notMatch(dirs[0], /^[a-zA-Z]:/, 'no drive letter')
     assert.notMatch(dirs[0], /\\/, 'forward slashes only')
   })

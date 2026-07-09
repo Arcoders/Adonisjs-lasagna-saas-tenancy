@@ -8,7 +8,7 @@ import type { AIProviderName } from '../define_config.js'
  */
 export interface AIEmbeddingRequest {
   readonly input: readonly string[]
-  readonly model?: string
+  readonly model?: string | undefined
 }
 
 /**
@@ -50,7 +50,7 @@ export interface AIEmbeddingProviderContract {
    * `AI_CONTRACT_VERSION`). Absent registers with a one-time "unversioned"
    * warning, never a failure; declare it to opt into the compatibility check.
    */
-  readonly contractVersion?: number
+  readonly contractVersion?: number | undefined
 
   /** What the provider can do. `embedding` MUST be `true`. */
   readonly capabilities: AIEmbeddingCapabilities
@@ -61,7 +61,7 @@ export interface AIEmbeddingProviderContract {
    * (`ext:ai:<op>:<tenant>:<keyFingerprint>`) and audit attribution. Optional:
    * a provider that cannot expose one is keyed by its `name` instead.
    */
-  readonly keyFingerprint?: string
+  readonly keyFingerprint?: string | undefined
 
   /**
    * Boot-time validation of the provider's config slice (key presence, and for

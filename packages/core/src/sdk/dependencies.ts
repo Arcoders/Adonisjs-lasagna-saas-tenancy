@@ -24,7 +24,7 @@ type Triple = [number, number, number]
 
 function parseVersion(v: string): Triple | null {
   if (typeof v !== 'string') return null
-  const core = v.trim().replace(/^v/, '').split(/[-+]/)[0]
+  const core = v.trim().replace(/^v/, '').split(/[-+]/)[0]!
   const parts = core.split('.')
   if (parts.length === 0 || parts[0] === '') return null
   const nums = parts.map((p) => Number(p))
@@ -34,7 +34,9 @@ function parseVersion(v: string): Triple | null {
 
 function cmp(a: Triple, b: Triple): number {
   for (let i = 0; i < 3; i++) {
-    if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1
+    const av = a[i]!
+    const bv = b[i]!
+    if (av !== bv) return av < bv ? -1 : 1
   }
   return 0
 }

@@ -23,7 +23,7 @@ export interface DiagnosisIssue {
   /** Human-readable message. */
   message: string
   /** Tenant the issue is about, if applicable. */
-  tenantId?: string
+  tenantId?: string | undefined
   /** True when the parent check declares it can auto-fix this issue. */
   fixable?: boolean
   /** Extra structured detail (rendered in --json mode). */
@@ -80,8 +80,8 @@ export interface DiagnosisReport {
  * All fields are optional, and omitting them runs every registered check across every tenant in report-only mode.
  */
 export interface DoctorRunOptions {
-  tenants?: string[]
-  checks?: string[]
+  tenants?: string[] | undefined
+  checks?: string[] | undefined
   fix?: boolean
 }
 

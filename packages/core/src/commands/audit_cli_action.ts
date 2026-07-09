@@ -14,8 +14,8 @@ export interface AuditCliActionOptions {
    * row is attributed to that admin; when absent the action is recorded as
    * `system` (it ran from a privileged terminal with no admin attribution).
    */
-  adminId?: string
-  metadata?: Record<string, unknown>
+  adminId?: string | undefined
+  metadata?: Record<string, unknown> | undefined
 }
 
 /**

@@ -21,18 +21,23 @@ import { walkTsFiles } from '../../helpers/walk_ts_files.js'
 
 const SRC = fileURLToPath(new URL('../../../src', import.meta.url))
 
-// Models that live in the shared backoffice schema (extend BackofficeBaseModel).
-const BACKOFFICE_MODELS = [
-  'TenantAuditLog',
-  'TenantBranding',
-  'TenantCustomMetric',
-  'TenantFeatureFlag',
-  'TenantMetric',
-  'TenantMetricMonthly',
-  'TenantPlan',
-  'TenantWebhook',
-  'TenantWebhookDelivery',
-]
+// Models that live in the shared backoffice schema, DISCOVERED from source (every
+// `class X extends BackofficeBaseModel` under core src) rather than a hand-list: a
+// new core backoffice model is guarded automatically instead of silently escaping
+// the sweep. The standalone `check-backoffice-isolation.mjs` guard applies the same
+// discovery across every package (satellites included).
+const EXTENDS_BACKOFFICE = /\bclass\s+([A-Za-z0-9_]+)\s+extends\s+BackofficeBaseModel\b/g
+function discoverBackofficeModels(): string[] {
+  const names = new Set<string>()
+  for (const file of walkTsFiles(SRC)) {
+    const text = readFileSync(file, 'utf8')
+    let m: RegExpExecArray | null
+    const re = new RegExp(EXTENDS_BACKOFFICE.source, 'g')
+    while ((m = re.exec(text)) !== null) names.add(m[1]!)
+  }
+  return [...names].sort()
+}
+const BACKOFFICE_MODELS = discoverBackofficeModels()
 
 const QUERY_RE = new RegExp(`\\b(${BACKOFFICE_MODELS.join('|')})\\.query\\(`)
 const SCOPE_RE = /tenant_?id/i // tenant_id (column) or tenantId (camel)
@@ -53,13 +58,13 @@ function scanFile(path: string): Violation[] {
   const lines = readFileSync(path, 'utf8').split('\n')
   const violations: Violation[] = []
   for (let i = 0; i < lines.length; i++) {
-    const m = QUERY_RE.exec(lines[i])
+    const m = QUERY_RE.exec(lines[i]!)
     if (!m) continue
     const windowEnd = Math.min(lines.length, i + 6)
     const stmt = lines.slice(i, windowEnd).join('\n')
     const marker = lines.slice(Math.max(0, i - 1), windowEnd).join('\n')
     if (SCOPE_RE.test(stmt) || EXEMPT_RE.test(marker)) continue
-    violations.push({ file: path, line: i + 1, model: m[1] })
+    violations.push({ file: path, line: i + 1, model: m[1]! })
   }
   return violations
 }
@@ -95,7 +100,7 @@ test.group('architectural — backoffice models are tenant-scoped or marked exem
     const scan = (text: string) => {
       const lines = text.split('\n')
       for (let i = 0; i < lines.length; i++) {
-        if (!QUERY_RE.test(lines[i])) continue
+        if (!QUERY_RE.test(lines[i]!)) continue
         const windowEnd = Math.min(lines.length, i + 6)
         const stmt = lines.slice(i, windowEnd).join('\n')
         const marker = lines.slice(Math.max(0, i - 1), windowEnd).join('\n')

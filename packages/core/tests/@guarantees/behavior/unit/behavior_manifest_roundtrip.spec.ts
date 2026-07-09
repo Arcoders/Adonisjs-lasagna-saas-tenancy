@@ -44,8 +44,11 @@ test.group('satellite — real package manifests round-trip', () => {
     assert.isNotNull(manifest)
     assert.equal(manifest!.name, 'sso')
     assert.include(manifest!.aliases ?? [], 'sso')
-    // sso ships no provider/commands.
-    assert.isUndefined(manifest!.provider)
+    // sso now ships a minimal definePlugin backstop provider (asserts ABI +
+    // plugin-API at boot); it still ships no commands.
+    assert.equal(manifest!.provider, '@adonisjs-lasagna/sso/provider')
+    assert.equal(manifest!.pluginApiVersion, 1)
+    assert.isUndefined(manifest!.commands)
     const files = await readdir(join(root, manifest!.migrations!))
     assert.include(files, 'create_tenant_sso_configs_table.stub')
   })
@@ -55,7 +58,44 @@ test.group('satellite — real package manifests round-trip', () => {
     assert.isNotNull(manifest)
     assert.equal(manifest!.name, 'example-widgets')
     assert.equal(manifest!.satelliteApi, 1)
+    // The template is a definePlugin facade, so it mirrors pluginApiVersion (no longer a
+    // phantom field): the manifest declares it and check-abi-boot-assertion pins it.
+    assert.equal(manifest!.pluginApiVersion, 1)
     const files = await readdir(join(root, manifest!.migrations!))
     assert.include(files, 'create_example_widgets_table.stub')
+  })
+
+  test('reporting mirrors pluginApiVersion + models minMergedCoverage', async ({ assert }) => {
+    const { manifest } = await manifestOf('reporting')
+    assert.isNotNull(manifest)
+    assert.equal(manifest!.pluginApiVersion, 1)
+    // minMergedCoverage is now modeled on the typed manifest, not only raw JSON.
+    assert.isObject(manifest!.minMergedCoverage)
+    assert.isAbove(manifest!.minMergedCoverage!.lines!, 0)
+  })
+})
+
+test.group('readSatelliteManifest — pluginApiVersion + minMergedCoverage parsing', () => {
+  const parse = (extra: Record<string, unknown>) =>
+    readSatelliteManifest({ name: 'x', lasagnaSatellite: { name: 'x', ...extra } })
+
+  test('accepts a positive-integer pluginApiVersion', ({ assert }) => {
+    assert.equal(parse({ pluginApiVersion: 2 })!.pluginApiVersion, 2)
+  })
+
+  test('drops a non-positive / non-integer pluginApiVersion', ({ assert }) => {
+    assert.isUndefined(parse({ pluginApiVersion: 0 })!.pluginApiVersion)
+    assert.isUndefined(parse({ pluginApiVersion: 1.5 })!.pluginApiVersion)
+    assert.isUndefined(parse({ pluginApiVersion: 'nope' })!.pluginApiVersion)
+  })
+
+  test('parses minMergedCoverage keeping only valid percentage metrics', ({ assert }) => {
+    const m = parse({ minMergedCoverage: { lines: 90, functions: 88, branches: 200, bogus: 5 } })!
+    assert.deepEqual(m.minMergedCoverage, { lines: 90, functions: 88 })
+  })
+
+  test('drops minMergedCoverage that is not an object of numbers', ({ assert }) => {
+    assert.isUndefined(parse({ minMergedCoverage: [] })!.minMergedCoverage)
+    assert.isUndefined(parse({ minMergedCoverage: { lines: 'x' } })!.minMergedCoverage)
   })
 })

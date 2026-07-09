@@ -4,11 +4,11 @@ export interface AggregationOptions {
   /** Bucket granularity. Default `'day'`. */
   period?: ReportPeriod
   /** Inclusive ISO date (`YYYY-MM-DD`) lower bound. Default: 30 days ago. */
-  since?: string
+  since?: string | undefined
   /** Inclusive ISO date (`YYYY-MM-DD`) upper bound. Default: today. */
-  until?: string
+  until?: string | undefined
   /** Top-N cap for `getTopTenants`. Default 50, hard-capped at 1000. */
-  limit?: number
+  limit?: number | undefined
 }
 
 export interface ReportAggregate {

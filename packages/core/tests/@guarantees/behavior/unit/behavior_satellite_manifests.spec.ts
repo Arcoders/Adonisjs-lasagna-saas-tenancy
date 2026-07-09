@@ -57,9 +57,15 @@ test.group('satellite manifests — auto-describable + ABI-versioned', () => {
     assert.equal(manifest!.commands, '@adonisjs-lasagna/backup/commands')
   })
 
-  test('admin is guidance-only: no provider/commands to wire into adonisrc', ({ assert }) => {
+  test('admin ships a minimal backstop provider (no commands) that configure wires into adonisrc', ({
+    assert,
+  }) => {
     const { manifest } = manifestFor('admin')
-    assert.isUndefined(manifest!.provider)
+    // Admin's routes stay guidance-only (host-mounted), but it now ships a
+    // definePlugin backstop provider so every satellite asserts the plugin-API
+    // contract at boot uniformly; its configure hook registers it in adonisrc.
+    assert.equal(manifest!.provider, '@adonisjs-lasagna/admin/provider')
+    assert.equal(manifest!.pluginApiVersion, 1)
     assert.isUndefined(manifest!.commands)
   })
 })

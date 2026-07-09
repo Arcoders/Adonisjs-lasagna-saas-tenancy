@@ -78,7 +78,11 @@ export default class TenantGdprAnonymize extends BaseCommand {
     if (this.dryRun) {
       try {
         const result = await tenancy.run(tenant, () =>
-          anonymize({ tenant, reason: this.reason, dryRun: true })
+          anonymize({
+            tenant,
+            ...(this.reason !== undefined ? { reason: this.reason } : {}),
+            dryRun: true,
+          })
         )
         const suffix = typeof result?.affected === 'number' ? ` (${result.affected} record(s))` : ''
         this.logger.info(
@@ -95,7 +99,11 @@ export default class TenantGdprAnonymize extends BaseCommand {
     const audit = await app.container.make(AuditLogService)
     try {
       const result = await tenancy.run(tenant, () =>
-        anonymize({ tenant, reason: this.reason, dryRun: false })
+        anonymize({
+          tenant,
+          ...(this.reason !== undefined ? { reason: this.reason } : {}),
+          dryRun: false,
+        })
       )
       const affected = result?.affected
 
@@ -104,7 +112,10 @@ export default class TenantGdprAnonymize extends BaseCommand {
         affected: affected ?? null,
         outcome: 'ok',
       })
-      await TenantAnonymized.dispatch(tenant, { reason: this.reason, affected })
+      await TenantAnonymized.dispatch(tenant, {
+        ...(this.reason !== undefined ? { reason: this.reason } : {}),
+        ...(affected !== undefined ? { affected } : {}),
+      })
 
       const suffix = typeof affected === 'number' ? ` (${affected} record(s))` : ''
       this.logger.success(`Anonymized PII for "${tenant.name}"${suffix}.`)

@@ -87,7 +87,7 @@ test.group('ImpersonationMiddleware (integration, HTTP + real Redis)', (group) =
   test('tampered signature: 401 IMPERSONATION_INVALID', async ({ client, assert }) => {
     const svc = await getSvc()
     const { token } = await svc.start(baseStart)
-    const [sid, sig] = token.split('.')
+    const [sid, sig] = token.split('.') as [string, string]
     const flipped = (sig[0] === '0' ? '1' : '0') + sig.slice(1)
     const tampered = `${sid}.${flipped}`
 

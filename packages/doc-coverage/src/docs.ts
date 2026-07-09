@@ -51,18 +51,18 @@ export function slugify(heading: string): string {
 function parseFrontMatter(content: string): { code: string[]; raw: string } {
   const m = content.match(/^---\n([\s\S]*?)\n---/)
   if (!m) return { code: [], raw: '' }
-  const raw = m[1]
+  const raw = m[1]!
   const code: string[] = []
   // `code:` may be a single value or a YAML list of `- item` lines.
   const single = raw.match(/^code:\s*(.+)$/m)
-  if (single && !/^\s*$/.test(single[1])) {
-    code.push(single[1].trim().replace(/^['"]|['"]$/g, ''))
+  if (single && !/^\s*$/.test(single[1]!)) {
+    code.push(single[1]!.trim().replace(/^['"]|['"]$/g, ''))
   }
   const listBlock = raw.match(/^code:\s*\n((?:\s*-\s*.+\n?)+)/m)
   if (listBlock) {
-    for (const line of listBlock[1].split('\n')) {
+    for (const line of listBlock[1]!.split('\n')) {
       const item = line.match(/^\s*-\s*(.+)$/)
-      if (item) code.push(item[1].trim().replace(/^['"]|['"]$/g, ''))
+      if (item) code.push(item[1]!.trim().replace(/^['"]|['"]$/g, ''))
     }
   }
   return { code, raw }
@@ -79,11 +79,11 @@ function extractFences(content: string): { startLine: number; code: string }[] {
   const blocks: { startLine: number; code: string }[] = []
   let i = 0
   while (i < lines.length) {
-    if (/^```(ts|typescript)\b/.test(lines[i])) {
+    if (/^```(ts|typescript)\b/.test(lines[i]!)) {
       const startLine = i + 1
       const body: string[] = []
       i++
-      while (i < lines.length && !/^```\s*$/.test(lines[i])) body.push(lines[i++])
+      while (i < lines.length && !/^```\s*$/.test(lines[i]!)) body.push(lines[i++]!)
       blocks.push({ startLine, code: body.join('\n') })
     }
     i++
@@ -102,20 +102,20 @@ function fenceImports(code: string): FenceImport[] {
   const re = /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"]([^'"]+)['"]/g
   let m: RegExpExecArray | null
   while ((m = re.exec(code)) !== null) {
-    const names = m[1]
+    const names = m[1]!
       .split(',')
       .map((n) =>
         n
           .trim()
-          .split(/\s+as\s+/)[0]
+          .split(/\s+as\s+/)[0]!
           .trim()
       )
       .filter(Boolean)
-    if (names.length) out.push({ module: m[2], names })
+    if (names.length) out.push({ module: m[2]!, names })
   }
   // default import: `import Foo from '<module>'`
   const reDefault = /import\s+([A-Za-z_$][\w$]*)\s+from\s+['"]([^'"]+)['"]/g
-  while ((m = reDefault.exec(code)) !== null) out.push({ module: m[2], names: [m[1]] })
+  while ((m = reDefault.exec(code)) !== null) out.push({ module: m[2]!, names: [m[1]!] })
   return out
 }
 
@@ -183,7 +183,7 @@ export function buildDocNodes(opts: DocsOptions): DocsResult {
     lines.forEach((ln, idx) => {
       const h = ln.match(/^(#{2,4})\s+(.+?)\s*$/)
       if (h) {
-        const slug = slugify(h[2])
+        const slug = slugify(h[2]!)
         const sectionId = `${rel}#${slug}`
         nodes.push(docNode(sectionId, 'doc-section', rel, idx + 1))
         addEdge({
@@ -215,7 +215,7 @@ export function buildDocNodes(opts: DocsOptions): DocsResult {
     const refRe = /<!--\s*doc:ref\s+([^\s]+)\s*-->/g
     let rm: RegExpExecArray | null
     while ((rm = refRe.exec(content)) !== null) {
-      const target = rm[1]
+      const target = rm[1]!
       if (knownPublicPaths.has(target)) {
         const line = content.slice(0, rm.index).split('\n').length
         addEdge({
@@ -258,7 +258,7 @@ export function buildDocNodes(opts: DocsOptions): DocsResult {
     const urlRe = /github\.com\/[^/]+\/[^/]+\/blob\/[^/]+\/(packages\/[^\s#)"']+)/g
     let um: RegExpExecArray | null
     const urlPaths = new Set<string>()
-    while ((um = urlRe.exec(content)) !== null) urlPaths.add(um[1].replace(/#.*$/, ''))
+    while ((um = urlRe.exec(content)) !== null) urlPaths.add(um[1]!.replace(/#.*$/, ''))
     for (const path of urlPaths) {
       for (const target of fileIndex.get(path) ?? []) {
         addEdge({
@@ -276,13 +276,13 @@ export function buildDocNodes(opts: DocsOptions): DocsResult {
     const mentionRe = /`([A-Z][A-Za-z0-9_]{3,})`/g
     let mm: RegExpExecArray | null
     const mentioned = new Set<string>()
-    while ((mm = mentionRe.exec(content)) !== null) mentioned.add(mm[1])
+    while ((mm = mentionRe.exec(content)) !== null) mentioned.add(mm[1]!)
     for (const name of mentioned) {
       const targets = nameIndex.get(name)
       if (!targets || targets.length !== 1) continue
       addEdge({
         from: pageId,
-        to: targets[0],
+        to: targets[0]!,
         type: 'references',
         provenance: 'inferred',
         confidence: 'low',

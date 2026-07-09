@@ -1,4 +1,4 @@
-import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/internal'
+import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/sdk'
 
 /**
  * Per-tenant mutual exclusion for backup-family operations (backup, restore,

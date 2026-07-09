@@ -33,6 +33,7 @@ test.group('AI audit anchoring is isolated from the canonical write (real pg)', 
     const writer = new AiAuditWriter({
       getDb: async () => db as unknown as AuditDb,
       connectionName: centralConn(),
+      schemaName: 'backoffice',
       activeScopeTenantId: () => tenant,
       getDestinations: async () => ({
         list: () => [

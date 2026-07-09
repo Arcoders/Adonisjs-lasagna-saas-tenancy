@@ -74,7 +74,7 @@ export default class LemonSqueezyDriver implements BillingProviderContract {
           'Accept': LS_MEDIA_TYPE,
           'Content-Type': LS_MEDIA_TYPE,
         },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         trustedHost: true,
       })
     } catch (err) {

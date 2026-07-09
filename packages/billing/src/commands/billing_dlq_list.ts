@@ -34,6 +34,7 @@ export default class BillingDlqList extends BaseCommand {
   declare limit: number
 
   async run() {
+    // backoffice-scope-exempt: an operator command listing the dead-letter queue across ALL tenants (a fleet-wide maintenance view, not a tenant-scoped read).
     const rows = await BillingProcessedEvent.query()
       .where('status', 'failed')
       .orderBy('processedAt', 'asc')

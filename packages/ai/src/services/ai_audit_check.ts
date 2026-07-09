@@ -1,4 +1,5 @@
 import type { DoctorCheck, DiagnosisIssue } from '@adonisjs-lasagna/saas-tenancy/services'
+import { qualifyBackofficeTable } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import type { AiConfig } from '../define_config.js'
 import type { AuditDb } from './ai_audit_writer.js'
 import { AI_AUDIT_TABLE } from '../constants.js'
@@ -10,6 +11,8 @@ export interface AiAuditCheckDeps {
   getDb: () => Promise<AuditDb>
   /** The backoffice connection name the audit table lives on. */
   connectionName: string
+  /** The backoffice SCHEMA name (`config.backofficeSchemaName`), so the probe honors a renamed schema. */
+  schemaName: string
 }
 
 function rowsOf(res: unknown): Array<Record<string, unknown>> {
@@ -60,15 +63,14 @@ export function aiAuditCheck(deps: AiAuditCheckDeps): DoctorCheck {
 
       const issues: DiagnosisIssue[] = []
 
-      const reg = rowsOf(
-        await conn.rawQuery('SELECT to_regclass(?) AS reg', [`backoffice.${AI_AUDIT_TABLE}`])
-      )
+      const auditTable = qualifyBackofficeTable(deps.schemaName, AI_AUDIT_TABLE)
+      const reg = rowsOf(await conn.rawQuery('SELECT to_regclass(?) AS reg', [auditTable]))
       if (!reg[0]?.reg) {
         issues.push({
           code: 'ai_audit_table_missing',
           severity: 'error',
           message:
-            `the append-only AI audit table backoffice.${AI_AUDIT_TABLE} is missing. AI audit is ` +
+            `the append-only AI audit table ${auditTable} is missing. AI audit is ` +
             'fail-closed, so AI requests will 503 until it is created: run `node ace migration:run` ' +
             '(the satellite publishes the migration on configure).',
         })

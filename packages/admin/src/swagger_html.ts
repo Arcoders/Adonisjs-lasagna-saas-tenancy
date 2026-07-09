@@ -1,15 +1,21 @@
 /**
- * Tiny Swagger UI shell. Loads `swagger-ui-dist` from a public CDN — keeping
- * `swagger-ui-dist` out of the package's peer dependencies (zero footprint).
+ * Tiny Swagger UI shell for the admin API docs. `swagger-ui-dist` is intentionally
+ * NOT a dependency (zero footprint), so the assets are loaded from a base the
+ * operator provides — never a public CDN the package ships by default.
  *
- * Operators who want to self-host the assets can override `cdnBase` to point
- * at their own copy (e.g. served from `public/`). For air-gapped deploys,
- * vendor `swagger-ui.css`, `swagger-ui-bundle.js` and `swagger-ui-standalone-preset.js`.
+ * Enable the rendered docs by pointing `cdnBase` (or the `LASAGNA_ADMIN_SWAGGER_CDN`
+ * env var) at a Swagger UI dist:
+ *   - self-hosted: `/swagger/` (assets you serve from `public/`), or
+ *   - a CDN you explicitly trust and pin: `https://cdn.example.com/swagger-ui-dist@5/`.
+ * With neither set, the docs route renders a short placeholder explaining this rather
+ * than silently fetching third-party JavaScript. This keeps a shipped package from
+ * carrying a remote-asset supply-chain surface no operator opted into.
  */
 
-const DEFAULT_CDN = 'https://unpkg.com/swagger-ui-dist@5/'
+const CDN_ENV_VAR = 'LASAGNA_ADMIN_SWAGGER_CDN'
 
 export interface SwaggerOptions {
+  /** Base URL/path for the Swagger UI dist assets (absolute https URL or a `/`-rooted path). */
   cdnBase?: string
   title?: string
 }
@@ -24,21 +30,50 @@ function htmlEscape(value: string): string {
 }
 
 /**
- * `cdnBase` ends up as the `src` of `<script>`/`<link>` tags. Restrict it
- * to absolute https URLs (or a path that starts with `/`) so an operator
- * cannot accidentally — or maliciously — inject a `javascript:` URL into
- * a docs HTML page that may be served over the admin auth gate.
+ * The asset base ends up as the `src` of `<script>`/`<link>` tags. Accept only an
+ * absolute https URL or a `/`-rooted path so an operator cannot inject a
+ * `javascript:` URL into a docs page served behind the admin auth gate. Returns null
+ * when no base is configured (param nor env) or the value is unsafe — the caller then
+ * renders the placeholder instead of a remote fetch.
  */
-function safeCdnBase(value: string | undefined): string {
-  const v = value ?? DEFAULT_CDN
+function resolveCdnBase(value: string | undefined): string | null {
+  const v = value ?? process.env[CDN_ENV_VAR] ?? ''
+  if (!v) return null
   if (v.startsWith('/')) return v
   if (/^https:\/\/[a-zA-Z0-9.-]+\//.test(v)) return v
-  return DEFAULT_CDN
+  return null
+}
+
+/** The placeholder shown when no Swagger UI asset base is configured. */
+function renderDocsPlaceholder(specUrl: string, title: string): string {
+  const safeSpec = htmlEscape(specUrl)
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title}</title>
+<style>body{font-family:system-ui,sans-serif;max-width:42rem;margin:3rem auto;padding:0 1rem;line-height:1.5}code{background:#f4f4f5;padding:.1rem .3rem;border-radius:.25rem}</style>
+</head>
+<body>
+<h1>${title}</h1>
+<p>The interactive API docs need a Swagger UI asset base, which this package does not
+ship (no bundled or default third-party CDN). Set it once, then reload:</p>
+<ul>
+<li>self-host the <code>swagger-ui-dist</code> assets and set <code>${CDN_ENV_VAR}=/swagger/</code>, or</li>
+<li>point <code>${CDN_ENV_VAR}</code> at a CDN you explicitly trust and pin.</li>
+</ul>
+<p>The raw OpenAPI document is always available at <a href="${safeSpec}">${safeSpec}</a>.</p>
+</body>
+</html>`
 }
 
 export function renderSwaggerHtml(specUrl: string, options: SwaggerOptions = {}): string {
-  const cdn = htmlEscape(safeCdnBase(options.cdnBase))
   const title = htmlEscape(options.title ?? 'Lasagna Multitenancy Admin API')
+  const base = resolveCdnBase(options.cdnBase)
+  if (base === null) return renderDocsPlaceholder(specUrl, title)
+
+  const cdn = htmlEscape(base)
   // `specUrl` ends up both in HTML attribute context and inside a JS
   // string literal. HTML-escape covers both — single quotes become
   // `&#39;` which JS parsers tolerate.

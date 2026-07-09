@@ -20,6 +20,10 @@ import { tenantChannel } from '../../../../src/services/bootstrappers/transmit_b
 import { safeFetch } from '../../../../src/utils/safe_fetch.js'
 import WebhookService from '../../../../src/services/webhook_service.js'
 import { withTenantScope } from '../../../../src/models/scoping.js'
+import CapabilityRegistry from '../../../../src/services/capability_registry.js'
+import { assertCoreAccessAllowed } from '../../../../src/services/plugin_core_access.js'
+import { pluginScope } from '../../../../src/services/plugin_execution_scope.js'
+import { capabilityKey, pluginName } from '../../../../src/sdk/brands.js'
 import { tenancy, __configureTenancyForTests } from '../../../../src/tenancy.js'
 import BootstrapperRegistry from '../../../../src/services/bootstrapper_registry.js'
 import TenantLogContext from '../../../../src/services/tenant_log_context.js'
@@ -213,11 +217,51 @@ const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
     trip: () => new WebhookService().registerWebhook(UUID, 'http://insecure.example/hook', ['e']),
     expectThrow: /refusing to register an unsafe webhook url/i,
   },
+  // Emits on a fail-closed DENY (a `return`, not a throw), so the in-file
+  // trip-then-throw model does not apply; the authorizer spec captures the emit
+  // via snapshotIsthmusCounters on the throw/timeout path.
+  'guard.plugin_authorizer': {
+    viaIntegration: 'tests/@guarantees/security/unit/security_authorizer_chain_fail_closed.spec.ts',
+  },
+  'guard.plugin_core_access': {
+    // Untrusted plugin code on the stack reaching a core singleton funnel is
+    // denied (S5 in-process friction). No scope → core's own code → no denial,
+    // so the happy path is a plain no-op.
+    trip: () =>
+      pluginScope.run({ plugin: pluginName('sketchy'), trusted: false }, () =>
+        assertCoreAccessAllowed('tenant-repository')
+      ),
+    expectThrow: /refusing untrusted plugin/,
+    happy: () => assertCoreAccessAllowed('tenant-repository'),
+  },
+  'guard.plugin_capability_trust': {
+    // An untrusted plugin providing a SENSITIVE capability is refused; an ordinary
+    // (non-sensitive) provision from the same plugin is unaffected. 'sketchy' is
+    // never on TRUSTED_SATELLITES, so the trip is deterministic without env setup.
+    trip: () =>
+      new CapabilityRegistry().register(
+        { kind: 'capability', name: capabilityKey('secret_keys'), api: {}, sensitive: true },
+        pluginName('sketchy')
+      ),
+    expectThrow: /refusing to provide sensitive capability/,
+    happy: () =>
+      new CapabilityRegistry().register(
+        { kind: 'capability', name: capabilityKey('mailer'), api: {} },
+        pluginName('sketchy')
+      ),
+  },
+  'guard.plugin_extension_identifier': {
+    // A hostile plugin identifier is rejected at the mint (the plugin surface),
+    // emitting the dedicated guard rather than folding onto an existing id.
+    trip: () => pluginName('bad:name'),
+    expectThrow: /Refusing to mint unsafe plugin/,
+    happy: () => pluginName('ok_name'),
+  },
   'seal.scope_required': {
     trip: () => {
       const hooks = makeScopedModel()
       // No active tenancy scope and no unscoped() → strict mode refuses.
-      hooks.find[0]({ where() {} })
+      hooks.find![0]!({ where() {} })
     },
     expectThrow: /outside both tenancy\.run\(\) and unscoped/,
   },
@@ -226,7 +270,7 @@ const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
       const hooks = makeScopedModel()
       await tenancy.run({ id: UUID } as any, async () => {
         // Create a row explicitly owned by a DIFFERENT tenant.
-        hooks.create[0]({ tenant_id: '22222222-2222-4222-8222-222222222222' })
+        hooks.create![0]!({ tenant_id: '22222222-2222-4222-8222-222222222222' })
       })
     },
     expectThrow: /refusing to create a row owned by tenant/,
@@ -325,13 +369,13 @@ test.group('Isthmus guard emission matrix — trip + happy', (group) => {
       assert.match((threw as Error).message, recipe.expectThrow, `${id}: exception message changed`)
 
       assert.lengthOf(captured, 1, `${id}: expected exactly one dispatch`)
-      assert.equal(captured[0].id, id)
-      assert.equal(captured[0].severity, entry.severity)
-      assert.equal(captured[0].event, entry.event)
-      assert.equal(captured[0].pillar, entry.pillar)
+      assert.equal(captured[0]!.id, id)
+      assert.equal(captured[0]!.severity, entry.severity)
+      assert.equal(captured[0]!.event, entry.event)
+      assert.equal(captured[0]!.pillar, entry.pillar)
 
       // Metadata values are short (truncated by the guards to <= 64 chars).
-      for (const value of Object.values(captured[0].metadata)) {
+      for (const value of Object.values(captured[0]!.metadata)) {
         if (typeof value === 'string') assert.isAtMost(value.length, 64, `${id}: metadata too long`)
       }
 

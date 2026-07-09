@@ -200,7 +200,10 @@ function classifyIpv4(host: string): string | null {
 // Only the first two octets decide every range we block; the full quad is
 // passed so future ranges (e.g. a /24) can extend this without a signature
 // change.
-function classifyIpv4Octets(octets: readonly number[]): string | null {
+type Ipv4Octets = readonly [number, number, number, number]
+type Ipv6Hextets = readonly [number, number, number, number, number, number, number, number]
+
+function classifyIpv4Octets(octets: Ipv4Octets): string | null {
   const [a, b] = octets
   if (a === 127) return 'url_blocks_loopback'
   if (a === 10) return 'url_blocks_private'
@@ -246,7 +249,7 @@ function classifyIpv6(host: string): string | null {
  * True for an IPv6 transition-address prefix that tunnels an IPv4 destination:
  * NAT64 well-known `64:ff9b::/96`, 6to4 `2002::/16`, or Teredo `2001:0000::/32`.
  */
-function isTransitionV6(h: readonly number[]): boolean {
+function isTransitionV6(h: Ipv6Hextets): boolean {
   // NAT64 well-known prefix 64:ff9b::/96 (last 32 bits carry the IPv4).
   if (h[0] === 0x0064 && h[1] === 0xff9b && h[2] === 0 && h[3] === 0 && h[4] === 0 && h[5] === 0) {
     return true
@@ -267,13 +270,18 @@ function classifyEmbeddedV4(h6: number, h7: number): string | null {
  * trailing dotted-v4 tail (`::ffff:1.2.3.4`) into two hextets. Returns null on
  * anything malformed, but callers only invoke this after `net.isIP === 6`.
  */
-function ipv6Hextets(host: string): number[] | null {
+function ipv6Hextets(host: string): Ipv6Hextets | null {
   let s = host
   const lastColon = s.lastIndexOf(':')
   const tail = s.slice(lastColon + 1)
   const v4 = tail.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
   if (v4) {
-    const o = [Number(v4[1]), Number(v4[2]), Number(v4[3]), Number(v4[4])]
+    const o = [Number(v4[1]), Number(v4[2]), Number(v4[3]), Number(v4[4])] as [
+      number,
+      number,
+      number,
+      number,
+    ]
     if (o.some((n) => n > 255)) return null
     const h7 = ((o[0] << 8) | o[1]).toString(16)
     const h8 = ((o[2] << 8) | o[3]).toString(16)
@@ -294,7 +302,7 @@ function ipv6Hextets(host: string): number[] | null {
   if (hextets.length !== 8) return null
   const nums = hextets.map((x) => (x === '' ? 0 : Number.parseInt(x, 16)))
   if (nums.some((n) => Number.isNaN(n) || n < 0 || n > 0xffff)) return null
-  return nums
+  return nums as unknown as Ipv6Hextets
 }
 
 /**

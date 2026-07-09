@@ -5,6 +5,11 @@ driver, an audit sink, a feature-flag strategy. This page is the one contract
 they all follow, so once you have written one extension you know how to write
 any of them.
 
+If you are packaging a whole satellite, the [`definePlugin` facade](/guides/plugins)
+wires several of these seams (tenant-access authorizers, route middleware, request
+macros, capabilities) into one declarative spec. This page is the contract those
+seams sit on.
+
 ## The two version numbers
 
 Lasagna has two independent version integers. Keep them straight:
@@ -17,7 +22,8 @@ Lasagna has two independent version integers. Keep them straight:
 | Helper | `checkSatelliteApiCompat` | `checkContractCompat` / `assertContractCompat` |
 
 Both are independent of the package's published (npm) version, and both use the
-same asymmetric rule.
+same asymmetric rule. For the full index of every version integer in the fleet and
+its current value, see [Contract versions](/reference/contract-versions).
 
 ## The compatibility rule
 
@@ -73,10 +79,17 @@ because that is what it is.
 | [webhooks](/guides/satellites/webhooks) | payload transformers | `WebhookTransformerRegistry` | `WEBHOOKS_CONTRACT_VERSION` |
 | [isolation](/guides/cookbook/custom-isolation-driver) | custom isolation drivers | `IsolationDriverRegistry` | `ISOLATION_CONTRACT_VERSION` |
 | resolution | custom tenant resolvers | `TenantResolverRegistry` | `RESOLVER_CONTRACT_VERSION` |
+| [plugin](/guides/plugins) | tenant-access authorizers | `AuthorizerRegistry` | `AUTHORIZER_CONTRACT_VERSION` |
+| [plugin](/guides/plugins) | route middleware | `TenantMiddlewareRegistry` | `TENANT_MIDDLEWARE_CONTRACT_VERSION` |
+| [plugin](/guides/plugins) | cross-plugin capabilities | `CapabilityRegistry` | `CAPABILITY_CONTRACT_VERSION` |
+| [ai](/guides/satellites/ai) | AI providers | `AIProviderRegistry` | `AI_CONTRACT_VERSION` |
+| [crypto](/guides/satellites/crypto) | key providers | `KeyProviderRegistry` | `CRYPTO_CONTRACT_VERSION` |
 
 `reporting`, `audit`, `feature-flags`, and `webhooks` registries are container
-singletons (resolve via `container.make`). `admin` and `sso` ship no provider, so
-their registries are module-level singletons you import directly. `billing`
+singletons (resolve via `container.make`). `admin` and `sso` ship only a minimal
+backstop provider (it asserts the Satellite ABI and the plugin-API contract at
+boot and binds nothing), so their registries stay module-level singletons you
+import directly. `billing`
 selects its active driver from `config.billing.driver`; `websockets` reads its
 hook from config. The `isolation` and `resolution` registries live in core and
 are also container singletons — a custom `IsolationDriver` or `TenantResolver`

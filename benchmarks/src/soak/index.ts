@@ -46,8 +46,9 @@ function slope(xs: number[], ys: number[]): number {
   let num = 0
   let den = 0
   for (let i = 0; i < n; i++) {
-    num += (xs[i] - mx) * (ys[i] - my)
-    den += (xs[i] - mx) ** 2
+    // `i < n = xs.length`; callers pass `ys` of equal length.
+    num += (xs[i]! - mx) * (ys[i]! - my)
+    den += (xs[i]! - mx) ** 2
   }
   return den === 0 ? 0 : num / den
 }
@@ -59,7 +60,7 @@ try {
   const pg = await pgVersion(db)
   const driver = await activeDriver(app)
 
-  const tenants = Math.max(20, sizes.churn.caps[sizes.churn.caps.length - 1] * 2)
+  const tenants = Math.max(20, sizes.churn.caps[sizes.churn.caps.length - 1]! * 2)
 
   console.log(`Soak: provisioning ${tenants} tenants (${DRIVER})…`)
   const { refs } = await seedAll(app, db, { tenants, rows: 50 })
@@ -80,7 +81,7 @@ try {
   const worker = async () => {
     let i = Math.floor(Math.random() * refs.length)
     while (!stop && Date.now() < deadline) {
-      const ref = refs[i++ % refs.length]
+      const ref = refs[i++ % refs.length]! // modulo of the non-empty seeded `refs`
       const conn = await clientFor(driver, db, ref)
       if (i % 5 === 0) await insertIdentifiableNote(conn, driver, ref, ops)
       else await selectMarker(conn, driver, ref)
@@ -101,7 +102,7 @@ try {
         fds: openFds(),
       })
 
-      console.log(`  t=${series[series.length - 1].tSec}s rss=${mem.rssMB}MB ops=${ops}`)
+      console.log(`  t=${series[series.length - 1]!.tSec}s rss=${mem.rssMB}MB ops=${ops}`)
     }
   }
 

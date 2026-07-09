@@ -83,7 +83,7 @@ test.group('QuotaService.reserve — orchestration', () => {
     const r = await svc.reserve(buildTestTenant(), 'aiTokens', 12.9)
     assert.equal(r.worstCase, 12)
     // eval args: [script, numKeys, k1..k6, tLimit, oLimit, worst, ...]
-    assert.equal(svc.evalCalls[0][10], '12', 'worstCase passed to Lua is the floored integer')
+    assert.equal(svc.evalCalls[0]![10], '12', 'worstCase passed to Lua is the floored integer')
   })
 
   test('passes op-limit -1 without a ceiling, and the ceiling value when configured', async ({
@@ -93,14 +93,14 @@ test.group('QuotaService.reserve — orchestration', () => {
     let svc = new StubQuotaService()
     svc.evalResult = [1, 0, 0]
     await svc.reserve(buildTestTenant(), 'aiTokens', 10)
-    assert.equal(svc.evalCalls[0][8], '1000', 'tenant limit at ARGV[1]')
-    assert.equal(svc.evalCalls[0][9], '-1', 'operator ceiling disabled at ARGV[2]')
+    assert.equal(svc.evalCalls[0]![8], '1000', 'tenant limit at ARGV[1]')
+    assert.equal(svc.evalCalls[0]![9], '-1', 'operator ceiling disabled at ARGV[2]')
 
     setupPlans({ aiTokens: 1000 }, { operatorCeiling: { aiTokens: 5000 } })
     svc = new StubQuotaService()
     svc.evalResult = [1, 0, 0]
     const r = await svc.reserve(buildTestTenant(), 'aiTokens', 10)
-    assert.equal(svc.evalCalls[0][9], '5000', 'operator ceiling passed through at ARGV[2]')
+    assert.equal(svc.evalCalls[0]![9], '5000', 'operator ceiling passed through at ARGV[2]')
     assert.isTrue(r.op, 'handle records that an operator ceiling was in play')
   })
 
@@ -111,8 +111,8 @@ test.group('QuotaService.reserve — orchestration', () => {
     const svc = new StubQuotaService()
     svc.evalResult = [1, 0, 0]
     const r = await svc.reserve(buildTestTenant(), 'aiTokens', 10)
-    assert.equal(svc.evalCalls[0][8], '-1', 'tenant limit disabled')
-    assert.equal(svc.evalCalls[0][9], '5000', 'ceiling still enforced')
+    assert.equal(svc.evalCalls[0]![8], '-1', 'tenant limit disabled')
+    assert.equal(svc.evalCalls[0]![9], '5000', 'ceiling still enforced')
     assert.isTrue(r.op)
   })
 
@@ -146,7 +146,7 @@ test.group('QuotaService.settle / release — orchestration', () => {
     svc.evalResult = [3, 3, 10]
     await svc.settle(handle(), 3.9)
     assert.lengthOf(svc.evalCalls, 1)
-    assert.equal(svc.evalCalls[0][8], '3', 'cumulativeUsed floored to an integer at ARGV[1]')
+    assert.equal(svc.evalCalls[0]![8], '3', 'cumulativeUsed floored to an integer at ARGV[1]')
   })
 
   test('settle coerces a non-finite cumulativeUsed to 0 rather than passing "NaN"', async ({
@@ -158,7 +158,7 @@ test.group('QuotaService.settle / release — orchestration', () => {
     await svc.settle(handle(), Number.NaN)
     // "NaN" would abort the Lua (tonumber rejects it) and, under fail-open, drop
     // the charge silently. It must reach Lua as a clean 0.
-    assert.equal(svc.evalCalls[0][8], '0', 'NaN coerced to 0')
+    assert.equal(svc.evalCalls[0]![8], '0', 'NaN coerced to 0')
   })
 
   test('release returns the freed remainder and no-ops on an inert handle', async ({ assert }) => {
@@ -180,6 +180,6 @@ test.group('QuotaService.settle / release — orchestration', () => {
     svc.evalResult = [0]
     await svc.release(handle({ op: true }))
     // eval args: [script, numKeys(4), k1..k4, holdId, opEnabled]
-    assert.equal(svc.evalCalls[0][7], '1', 'opEnabled flag reflects the handle')
+    assert.equal(svc.evalCalls[0]![7], '1', 'opEnabled flag reflects the handle')
   })
 })

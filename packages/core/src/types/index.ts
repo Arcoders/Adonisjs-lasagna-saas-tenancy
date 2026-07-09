@@ -6,6 +6,9 @@ export type {
   TenantAnonymizer,
   BackupRetentionConfig,
   BackupRetentionTier,
+  PluginPlatformConfig,
+  PluginLimitsConfig,
+  PluginReadOnlyConfig,
 } from './config.js'
 export type { BackupMetadata, CloneResult } from './backup.js'
 // Stripe SDK type re-exports were removed from core: billing is a separate,

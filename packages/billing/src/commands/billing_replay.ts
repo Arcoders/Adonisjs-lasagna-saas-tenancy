@@ -34,7 +34,8 @@ export default class BillingReplay extends BaseCommand {
 
     const targets = this.eventId
       ? [await BillingProcessedEvent.find(this.eventId)].filter((r) => r !== null)
-      : await BillingProcessedEvent.query().where('status', 'failed')
+      : // backoffice-scope-exempt: an operator command replaying failed webhooks across ALL tenants (a fleet-wide maintenance action, not a tenant-scoped read).
+        await BillingProcessedEvent.query().where('status', 'failed')
 
     if (targets.length === 0) {
       this.logger.info('No matching events to replay.')

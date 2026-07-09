@@ -53,6 +53,7 @@
   "lasagnaSatellite": {
     "name": "backup",
     "satelliteApi": 1,
+    "pluginApiVersion": 1,
     "minMergedCoverage": { "lines": 70, "functions": 69, "branches": 81 },
     "aliases": ["backup"],
     "provider": "@adonisjs-lasagna/backup/provider",

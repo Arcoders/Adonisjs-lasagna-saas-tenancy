@@ -88,19 +88,19 @@ export interface StreamExtensionOptions {
   /** The per-request output cap = the reservation worst case (from request.maxTokens, config-bounded). */
   worstCase: number
   /** Response deadline in ms. The composed abort fires at the deadline (executeExtension's timer). */
-  timeoutMs?: number
+  timeoutMs?: number | undefined
   /** The I8 fragment guard; returning null aborts without writing the leaking bytes. */
   validateFragment: (fragment: StreamFragment) => StreamFragment | null
   /** G11: aborts the stream when the tenant is suspended or deleted mid-flight. */
-  livenessSignal?: AbortSignal
+  livenessSignal?: AbortSignal | undefined
   /** SSE heartbeat interval. Default {@link DEFAULT_HEARTBEAT_MS}. */
-  heartbeatMs?: number
+  heartbeatMs?: number | undefined
   /** Resume cursor from the client's Last-Event-ID. */
-  lastEventId?: string
+  lastEventId?: string | undefined
   /** Provider name, for the span attribute only (never content). */
-  provider?: string
+  provider?: string | undefined
   /** Model name, for the span attribute only (never content). */
-  model?: string
+  model?: string | undefined
 }
 
 /** Why a stream stopped after it committed (headers flushed). */
@@ -324,7 +324,11 @@ export default class StreamExtensionService {
           // resolves completed, not failed_preflight.
           commit()
         },
-        { label: options.label, timeoutMs: options.timeoutMs, signal: composed }
+        {
+          label: options.label,
+          ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+          ...(composed !== undefined ? { signal: composed } : {}),
+        }
       )
       if (reason === undefined && composed?.aborted) {
         reason = attributeAbort(options.livenessSignal, disconnect.signal, budget.signal)

@@ -507,6 +507,21 @@ for a copy-paste migration.
   re-boot in the same process (hot reload, or a test reusing the container) can't
   serve a stale resolver or cached tenant.
 - `engines.node` stays `>=24` (required by AdonisJS 7 / Lucid 22).
+- **Backoffice writers resolve the configured connection.** The shared WORM ledger
+  writer and the AI audit writer/verifier now qualify their table through
+  `backofficeConnectionName` and `backofficeSchemaName` (via the config-derived
+  `qualifyBackofficeTable` helper) instead of a hardcoded `backoffice.` literal or
+  `centralConnectionName`. This only changes behavior for a host that points its
+  backoffice schema at a physical connection separate from the central one; the
+  common single-connection setup is unaffected. A `check-no-hardcoded-backoffice`
+  guard keeps new raw SQL on the helper.
+- **Repo-wide TypeScript strictness.** The root `tsconfig` now enables
+  `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` across every package.
+  It is an internal correctness pass with no runtime change, but it hardens the
+  shipped `.d.ts`: a few public option/context types now spell an optional field as
+  `?: T | undefined` (a non-breaking widening; you can still omit the field), and
+  array / regex index access is now presence-checked. `useUnknownInCatchVariables`
+  stays `false`, so the `catch (error)` sites keep reading `error.message` directly.
 
 ### Fixed
 

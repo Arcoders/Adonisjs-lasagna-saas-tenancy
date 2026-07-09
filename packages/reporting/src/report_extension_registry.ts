@@ -26,7 +26,7 @@ import type { ReportExtension } from './contracts/report_extension.js'
 export default class ReportExtensionRegistry {
   readonly #extensions = new Map<string, ReportExtension>()
   readonly #contractVersion: number
-  readonly #onWarn?: (message: string) => void
+  readonly #onWarn?: ((message: string) => void) | undefined
 
   constructor(contractVersion: number = REPORTING_CONTRACT_VERSION, onWarn?: (m: string) => void) {
     this.#contractVersion = contractVersion

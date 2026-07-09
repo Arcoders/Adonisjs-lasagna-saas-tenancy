@@ -237,7 +237,7 @@ export default class TenantDoctor extends BaseCommand {
     this.logger.log(this.colors.dim(`Last run took ${runMs}ms — ${result.reports.length} check(s)`))
     this.logger.log('')
 
-    const rows: string[][] = []
+    const rows: Array<[string, string, string, string, string]> = []
     for (const report of result.reports) {
       if (report.error) {
         rows.push([
@@ -275,14 +275,14 @@ export default class TenantDoctor extends BaseCommand {
           .filter(Boolean)
           .join(' ') || '0'
 
-      const firstIssue = report.issues[0]
+      const firstIssue = report.issues[0]!
       const idTag = firstIssue.tenantId ? `${firstIssue.tenantId.slice(0, 8)}… ` : ''
       const sample = `${idTag}${firstIssue.message}`.slice(0, 80)
 
       rows.push([tag, report.check, counts, `${report.durationMs}ms`, sample])
     }
 
-    const widths = [
+    const widths: [number, number, number, number] = [
       Math.max(...rows.map((r) => stripAnsi(r[0]).length), 6),
       Math.max(...rows.map((r) => r[1].length), 12),
       Math.max(...rows.map((r) => stripAnsi(r[2]).length), 6),

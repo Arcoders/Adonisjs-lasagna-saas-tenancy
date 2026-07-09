@@ -82,9 +82,9 @@ test.group('ContextSeal — tenant-context mismatch fails closed', (group) => {
       await new Promise<void>((resolve) => setImmediate(resolve))
       const mismatches = tripped.filter((e) => e.payload.event === 'isthmus:seal:tenant:mismatch')
       assert.isAtLeast(mismatches.length, 1, 'the mismatch must be observable')
-      assert.equal(mismatches[0].payload.severity, 'critical')
-      assert.equal(mismatches[0].payload.tenantId, tenantB.id)
-      assert.equal(mismatches[0].payload.metadata.requestResolvedId, tenantA.id)
+      assert.equal(mismatches[0]!.payload.severity, 'critical')
+      assert.equal(mismatches[0]!.payload.tenantId, tenantB.id)
+      assert.equal(mismatches[0]!.payload.metadata.requestResolvedId, tenantA.id)
     } finally {
       emitter.off(IsthmusGuardTripped, listener)
     }

@@ -1,6 +1,6 @@
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import AIException from '../exceptions/ai_exception.js'
-import { assertNever } from '../internal/assert_never.js'
+import { assertNever } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import { AI_EMBEDDINGS_TABLE } from '../constants.js'
 import type { RetrievalScope } from '../define_config.js'
 import type { TableLocation } from '@adonisjs-lasagna/saas-tenancy/services'
@@ -48,7 +48,7 @@ export interface VectorStoreDeps {
    * loop retries; it is NOT a wall clock on the whole erasure (that must run to
    * completion). Absent ⇒ the connection default applies (no per-batch timeout).
    */
-  purgeStatementTimeoutMs?: number
+  purgeStatementTimeoutMs?: number | undefined
 }
 
 /**

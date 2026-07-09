@@ -181,9 +181,13 @@ for a copy-paste migration.
   `centralConnectionName`), dispatched by driver: once on the shared database for
   `schema-pg`/`rowscope-pg`, and per tenant database for `database-pg` (honouring
   `--tenant`). It doubles as the backfill for existing databases and supports
-  `--dry-run`. An opt-in `pgvector_extension` doctor check verifies the app role
-  is not a superuser and that the extension is present where embeddings live. Run
-  it before any migration that declares a `vector(N)` column.
+  `--dry-run`. The extension is installed into a dedicated `extensions` schema,
+  which `schema-pg` tenant connections append to their `search_path` after the
+  tenant's own schema — so a bare `vector(N)` column and its operators resolve
+  while `public` (central-connection data) stays off the tenant path, keeping
+  physical tenant isolation (I1) intact. An opt-in `pgvector_extension` doctor
+  check verifies the app role is not a superuser and that the extension is present
+  in that schema. Run it before any migration that declares a `vector(N)` column.
 - **Cost reservations for streaming work (`QuotaService.reserve` / `settle` /
   `release`).** A quota can now be held worst-case BEFORE an operation whose true
   cost is only known when it finishes (a streaming model response is the
@@ -512,6 +516,21 @@ for a copy-paste migration.
   re-boot in the same process (hot reload, or a test reusing the container) can't
   serve a stale resolver or cached tenant.
 - `engines.node` stays `>=24` (required by AdonisJS 7 / Lucid 22).
+- **Backoffice writers resolve the configured connection.** The shared WORM ledger
+  writer and the AI audit writer/verifier now qualify their table through
+  `backofficeConnectionName` and `backofficeSchemaName` (via the config-derived
+  `qualifyBackofficeTable` helper) instead of a hardcoded `backoffice.` literal or
+  `centralConnectionName`. This only changes behavior for a host that points its
+  backoffice schema at a physical connection separate from the central one; the
+  common single-connection setup is unaffected. A `check-no-hardcoded-backoffice`
+  guard keeps new raw SQL on the helper.
+- **Repo-wide TypeScript strictness.** The root `tsconfig` now enables
+  `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` across every package.
+  It is an internal correctness pass with no runtime change, but it hardens the
+  shipped `.d.ts`: a few public option/context types now spell an optional field as
+  `?: T | undefined` (a non-breaking widening; you can still omit the field), and
+  array / regex index access is now presence-checked. `useUnknownInCatchVariables`
+  stays `false`, so the `catch (error)` sites keep reading `error.message` directly.
 
 ### Fixed
 

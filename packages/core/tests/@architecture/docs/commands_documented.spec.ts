@@ -52,7 +52,7 @@ function manifestPaths(): string[] {
 function registeredCommands(): { name: string; pkg: string }[] {
   const out: { name: string; pkg: string }[] = []
   for (const path of manifestPaths()) {
-    const pkg = path.split(/[\\/]/).slice(-4)[0] // packages/<pkg>/src/commands/commands.json
+    const pkg = path.split(/[\\/]/).slice(-4)[0]! // packages/<pkg>/src/commands/commands.json
     const manifest = JSON.parse(readFileSync(path, 'utf8')) as CommandManifest
     for (const cmd of manifest.commands ?? []) {
       if (cmd.commandName) out.push({ name: cmd.commandName, pkg })

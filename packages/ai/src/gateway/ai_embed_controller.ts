@@ -23,9 +23,9 @@ import {
 interface EmbedBody {
   source: string
   input: string[]
-  sourceUrl?: string
+  sourceUrl?: string | undefined
   metadata: Record<string, unknown>
-  model?: string
+  model?: string | undefined
 }
 
 export interface AiEmbedControllerDeps {
@@ -35,7 +35,7 @@ export interface AiEmbedControllerDeps {
   /** The per-key request rate limiter (threat #4). Default: a disabled limiter. */
   rateLimiter?: AiRateLimiter
   /** The WS-AI-7 attribution seam. Default: the no-op sink. */
-  audit?: AiEmbeddingAuditSink
+  audit?: AiEmbeddingAuditSink | undefined
 }
 
 /**

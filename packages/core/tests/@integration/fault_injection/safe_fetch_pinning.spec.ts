@@ -75,7 +75,7 @@ test.group('fault: safeFetch pinning + loopback boundary', (group) => {
     // the { all }-aware pin reaches the TLS layer instead. The plain-HTTP listener
     // then fails the handshake, which is the point: the connection was established.
     const port = (server.address() as AddressInfo).port
-    const outcome = await new Promise<{ code?: string; phase: string }>((resolve) => {
+    const outcome = await new Promise<{ code?: string | undefined; phase: string }>((resolve) => {
       const req = httpsRequest(
         {
           host: 'pinned.example', // a NAME, so Node invokes the custom lookup (the pin path)

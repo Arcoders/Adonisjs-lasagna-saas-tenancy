@@ -36,7 +36,7 @@ function trackedDocsPages(): string[] {
 /** All internal `link: '...'` targets from the sidebar + nav in config.ts. */
 function navLinks(configSource: string): string[] {
   return [...configSource.matchAll(/link:\s*'([^']+)'/g)]
-    .map((m) => m[1])
+    .map((m) => m[1]!)
     .filter((link) => link.startsWith('/'))
 }
 
@@ -44,7 +44,7 @@ function navLinks(configSource: string): string[] {
 function srcExcludePatterns(configSource: string): string[] {
   const block = configSource.match(/srcExclude:\s*\[([^\]]*)\]/)
   if (!block) return []
-  return [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1])
+  return [...block[1]!.matchAll(/'([^']+)'/g)].map((m) => m[1]!)
 }
 
 /** Minimal matcher for the two shapes used: exact 'X.md' and prefix 'dir/*.md'. */
@@ -58,7 +58,7 @@ function isExcluded(pageRelToDocs: string, patterns: string[]): boolean {
 
 /** Resolve a nav link to its markdown file (VitePress cleanUrls semantics). */
 function linkToPage(link: string): string {
-  const clean = link.split('#')[0]
+  const clean = link.split('#')[0]!
   if (clean.endsWith('/')) return `docs${clean}index.md`
   const direct = `docs${clean}.md`
   return existsSync(join(REPO_ROOT, direct)) ? direct : `docs${clean}/index.md`

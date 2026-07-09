@@ -15,4 +15,8 @@ export const NO_SILENT_GUARD_ALLOWLIST: ReadonlyArray<{ path: string; why: strin
     path: 'src/sdk/configure_kit.ts',
     why: 'configure-time CLI guard (migrations dir escaping the package root): trips in the host developer shell during `node ace configure`, where the loud error IS the signal — there is no booted app, no listener, and no ops channel to alert',
   },
+  {
+    path: 'src/services/worm_ledger_writer.ts',
+    why: 'shared low-level WORM append primitive: its fail-closed throws (write failure, tenant-scope mismatch) are surfaced by the CALLER, which owns the domain guard — crypto shred maps a write failure to guard.crypto_shred_unaudited and aborts, and every future caller (governance, AI) emits its own guard. The writer has no listener or ops channel of its own; observability lives at the call site, so a guard here would be duplicate noise',
+  },
 ]

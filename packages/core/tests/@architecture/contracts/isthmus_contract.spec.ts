@@ -58,7 +58,7 @@ test.group('architectural — the Isthmus contract', () => {
     for (const file of walkTsFiles(SRC_ROOT)) {
       const src = readFileSync(file, 'utf8')
       for (const match of src.matchAll(EMIT_CALL)) {
-        if (!known.has(match[1])) {
+        if (!known.has(match[1]!)) {
           violations.push(`${file}: emitIsthmusEvent('${match[1]}') has no registry entry`)
         }
       }
@@ -114,7 +114,7 @@ test.group('architectural — the Isthmus contract', () => {
     const src = readFileSync(join(SRC_ROOT, 'isthmus/registry.ts'), 'utf8')
     const parsedIds: string[] = []
     for (const m of src.matchAll(entryRe)) {
-      parsedIds.push(m[1])
+      parsedIds.push(m[1]!)
       const block = m[0]
       const ev = block.match(evidenceRe)
       assert.isNotNull(ev, `${m[1]}: check-isthmus evidence regex failed to parse evidence`)
@@ -136,7 +136,7 @@ test.group('architectural — the Isthmus contract', () => {
   test('detector controls: the matchers are not vacuously true', ({ assert }) => {
     const hits = [...`emitIsthmusEvent('guard.tenant_identifier', {})`.matchAll(EMIT_CALL)]
     assert.lengthOf(hits, 1)
-    assert.equal(hits[0][1], 'guard.tenant_identifier')
+    assert.equal(hits[0]![1], 'guard.tenant_identifier')
     assert.lengthOf([...`someOtherEmit('guard.x')`.matchAll(EMIT_CALL)], 0)
     assert.isTrue(TAXONOMY.test('isthmus:guard:identifier:rejected'))
     assert.isFalse(TAXONOMY.test('scope:bypass'))

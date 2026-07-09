@@ -10,6 +10,7 @@
 // their own — the "one surface per package" assumption does not hold.
 
 import { readFileSync, existsSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -60,7 +61,38 @@ const SURFACES = [
     constant: 'RESOLVER_CONTRACT_VERSION',
     file: 'packages/core/src/services/resolvers/resolver.ts',
   },
+  // Plugin-platform request-path seams (Lote A): each hosts host/third-party code
+  // and versions independently of satelliteApi and the definePlugin facade.
+  {
+    key: 'authorizer',
+    constant: 'AUTHORIZER_CONTRACT_VERSION',
+    file: 'packages/core/src/services/authorizer_registry.ts',
+  },
+  {
+    key: 'tenant-middleware',
+    constant: 'TENANT_MIDDLEWARE_CONTRACT_VERSION',
+    file: 'packages/core/src/services/tenant_middleware_registry.ts',
+  },
+  {
+    key: 'capability',
+    constant: 'CAPABILITY_CONTRACT_VERSION',
+    file: 'packages/core/src/services/capability_registry.ts',
+  },
+  { key: 'ai', constant: 'AI_CONTRACT_VERSION', file: 'packages/ai/src/sdk/contract_version.ts' },
+  {
+    key: 'crypto',
+    constant: 'CRYPTO_CONTRACT_VERSION',
+    file: 'packages/crypto/src/sdk/contract_version.ts',
+  },
 ]
+
+/**
+ * `*_CONTRACT_VERSION` constants that are NOT per-surface extension registries and so
+ * are exempt from the "every contract version is a documented surface" meta-check.
+ * PLUGIN_API_CONTRACT_VERSION versions the definePlugin FACADE (guarded by
+ * check-abi-boot-assertion's pluginApiVersion mirror), not an extension registry.
+ */
+const NON_SURFACE_CONTRACT_VERSIONS = new Set(['PLUGIN_API_CONTRACT_VERSION'])
 
 const DOCS = 'docs/guides/extensibility.md'
 const EXAMPLE = 'examples/api/app/providers/app_provider.ts'
@@ -80,6 +112,30 @@ for (const s of SURFACES) {
   }
   if (!(Number.parseInt(match[1], 10) > 0)) {
     errors.push(`${s.key}: ${s.constant} must be a positive integer (got ${match[1]})`)
+  }
+}
+
+// Meta-check: every `export const *_CONTRACT_VERSION` under a package's src MUST be a
+// registered surface (or an allowlisted non-surface), so a NEW extension surface can't
+// ship unguarded/undocumented — the exact gap that left AI + crypto out of this table.
+const known = new Set([...SURFACES.map((s) => s.constant), ...NON_SURFACE_CONTRACT_VERSIONS])
+const tracked = execSync('git ls-files -z -- "packages/**/src/**/*.ts"', {
+  cwd: ROOT,
+  maxBuffer: 64 * 1024 * 1024,
+})
+  .toString('utf8')
+  .split('\0')
+  .filter(Boolean)
+for (const rel of tracked) {
+  const src = readFileSync(r(rel), 'utf8')
+  for (const m of src.matchAll(/export const (\w+_CONTRACT_VERSION)\s*=/g)) {
+    if (!known.has(m[1])) {
+      errors.push(
+        `${rel}: exports ${m[1]} but it is not a registered extension surface. Add it to ` +
+          `SURFACES (and document it in ${'docs/guides/extensibility.md'}), or to ` +
+          `NON_SURFACE_CONTRACT_VERSIONS if it is not an extension registry.`
+      )
+    }
   }
 }
 

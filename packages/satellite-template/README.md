@@ -13,12 +13,12 @@ See the full guide: **[Creating a satellite](https://arcoders.github.io/Adonisjs
 |---|---|
 | The `lasagnaSatellite` manifest | `package.json` |
 | The configure hook (publishes its own migration) | `configure.ts` |
-| A provider implementing `SatelliteProviderContract` + self-registering a hook | `providers/example_provider.ts` |
+| A provider built with the `definePlugin` facade + self-registering a hook | `providers/example_provider.ts` |
 | A backoffice migration stub | `stubs/migrations/create_example_widgets_table.stub` |
 | The service contract + Lucid-backed implementation | `src/types.ts`, `src/example_widget.ts`, `src/example_widget_service.ts` |
 | A copyable `InMemoryStore` + an in-memory test double | `src/testing/in_memory_store.ts`, `src/testing/in_memory_widget_store.ts` |
 | An ace command + loader | `src/commands/` |
-| A hermetic unit test (no DB) | `tests/unit/` |
+| A hermetic unit test (no DB) | `tests/@guarantees/behavior/unit/` |
 
 ## The rule
 

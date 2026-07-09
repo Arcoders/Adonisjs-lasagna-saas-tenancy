@@ -48,6 +48,7 @@
   "lasagnaSatellite": {
     "name": "websockets",
     "satelliteApi": 1,
+    "pluginApiVersion": 1,
     "minMergedCoverage": { "lines": 97, "functions": 95, "branches": 88 },
     "aliases": ["ws"],
     "provider": "@adonisjs-lasagna/websockets/provider",

@@ -56,7 +56,7 @@ test.group('sdk — assertContractCompat', () => {
     const warnings: string[] = []
     assert.doesNotThrow(() => assertContractCompat(1, 2, 'x', (m) => warnings.push(m)))
     assert.lengthOf(warnings, 1)
-    assert.match(warnings[0], /built for extension contract v1/)
+    assert.match(warnings[0]!, /built for extension contract v1/)
   })
 
   test('absent → warns, does not throw', ({ assert }) => {

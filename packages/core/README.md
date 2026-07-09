@@ -50,7 +50,7 @@ and runs the full e2e suite against it.
 | **Schema isolation** | Each tenant gets its own `tenant_<uuid>` PostgreSQL schema, provisioned and routed automatically. |
 | **Circuit breaker** | Opossum wraps every tenant DB call; OPEN state is restored from Redis on restart so a known-down tenant DB fails fast across deploys. One bad schema can't take down the others. |
 | **Dependency resilience** | Per-dependency fail-open/fail-closed degradation policy via `ResilienceService`. Emits `DependencyDegraded` for alerting and returns a typed 503 (`DependencyUnavailableException`) when fail-closed. |
-| **Lifecycle hooks + 29 typed events** | Declarative `before` / `after` hooks wired into commands and jobs. 19 core (tenant / quota / maintenance / resilience / metrics / guard-audit lifecycle) + 10 billing. |
+| **Lifecycle hooks + 30 typed events** | Declarative `before` / `after` hooks wired into commands and jobs. 20 core (tenant / quota / maintenance / resilience / metrics / data-change / guard-audit lifecycle) + 10 billing. |
 | **Contextual logging** | `tenantId` rides along through HTTP and queue jobs via `AsyncLocalStorage`. |
 | **`tenant:doctor`** | Ten built-in checks (plus `backup_recency` and `backup_encryption` when the backup satellite is installed), `--fix` for auto-recovery, `--json` for CI, `--watch` for a live TUI. |
 | **Plans and quotas** | Declarative plans, rolling counters, snapshot usage, an `enforceQuota()` middleware that returns 429 and emits `TenantQuotaExceeded`. |

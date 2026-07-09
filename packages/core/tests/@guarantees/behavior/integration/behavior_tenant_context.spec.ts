@@ -85,7 +85,7 @@ test.group('tenancy.run() — job context propagation under concurrency', (group
     // Shuffle so the runtime cannot accidentally serialize same-tenant jobs.
     for (let i = jobs.length - 1; i > 0; i--) {
       const k = Math.floor(Math.random() * (i + 1))
-      ;[jobs[i], jobs[k]] = [jobs[k], jobs[i]]
+      ;[jobs[i], jobs[k]] = [jobs[k]!, jobs[i]!]
     }
 
     // Track ALS leaks: any (jobId, observedTenantId, expectedTenantId)
@@ -94,7 +94,7 @@ test.group('tenancy.run() — job context propagation under concurrency', (group
 
     await Promise.all(
       jobs.map((job) => {
-        const t = tenantRecords[job.tenantIndex]
+        const t = tenantRecords[job.tenantIndex]!
         return tenancy.run(t.model, async () => {
           // ALS check: the observed currentId must equal `t.id`. If it
           // doesn't, AsyncLocalStorage is bleeding contexts.
@@ -154,7 +154,9 @@ test.group('tenancy.run() — job context propagation under concurrency', (group
   })
 
   test('nested tenancy.run() restores the outer tenant on exit', async ({ assert }) => {
-    const [outer, inner] = tenantRecords
+    // group.setup() always seeds TENANT_COUNT (3) records.
+    const outer = tenantRecords[0]!
+    const inner = tenantRecords[1]!
     let observedInner: string | undefined
     let observedOuterAfter: string | undefined
 
