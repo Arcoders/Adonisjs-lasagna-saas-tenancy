@@ -5,6 +5,15 @@ description: Multi-tenant, bidirectional WebSockets on socket.io. The tenant is 
 
 # WebSockets
 
+<Callout type="warning" title="Not published to npm">
+This package lives in the Lasagna repository and is not published. `npm install
+@adonisjs-lasagna/websockets` will 404. To use it today, vendor the `packages/websockets`
+directory into your app or depend on it through a git reference. It is documented
+here because the code is real, MIT, and exercised by the demo app's end-to-end
+suite; it is unpublished because maintaining it as a public package is a promise
+we are not yet ready to make.
+</Callout>
+
 Bidirectional, tenant-isolated realtime on [socket.io](https://socket.io).
 
 The core already does one-way server-to-client push over SSE
@@ -30,10 +39,10 @@ test), see the [Multi-tenant WebSockets cookbook](/guides/cookbook/multi-tenant-
 ## Configuration
 
 WebSockets ships as its own package. It is stateless, so there are no migrations
-and no backoffice tables. Install it and run its configure hook:
+and no backoffice tables. Vendor it, install `socket.io`, and run its configure hook:
 
 ```bash
-npm install @adonisjs-lasagna/websockets socket.io
+npm install socket.io
 node ace configure @adonisjs-lasagna/websockets   # registers the provider in adonisrc.ts
 ```
 

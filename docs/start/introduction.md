@@ -39,11 +39,12 @@ Lasagna handles the seams.
   backups, cloning, exec-under-tenant, maintenance mode, REPL, billing.
 - **REST admin API** with an OpenAPI 3.1 spec and Swagger UI.
 
-## What you *don't* get (yet)
+## What you don't get
 
-- An admin dashboard UI. Only the REST API. The Inertia + Vue
-  dashboard is on the post-1.0 roadmap.
-- A starter kit. `create-lasagna-saas` is roadmap, not shipping.
+- **An admin dashboard UI.** There is a REST admin API in the repository, and no
+  interface on top of it. Building one is on you.
+- **A starter kit.** You bring your own AdonisJS app; `configure` wires the
+  package into it.
 
 ## Read next
 

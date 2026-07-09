@@ -132,13 +132,16 @@ The isolation substrate. Everything here is **release candidate** unless noted.
 
 | Package | Stability | Surface |
 |---|---|---|
-| `@adonisjs-lasagna/admin` | Release candidate | REST admin API + OpenAPI + Swagger. |
 | `@adonisjs-lasagna/sso` | Release candidate | Per-tenant OIDC / SSO. |
 | `@adonisjs-lasagna/billing` | Release candidate | Multi-provider billing pipeline (Stripe / Paddle / Lemon Squeezy). |
 | `@adonisjs-lasagna/backup` | Release candidate | Backup / restore / clone / SQL import. |
-| `@adonisjs-lasagna/websockets` | Release candidate | Multi-tenant bidirectional WebSockets on socket.io. |
 | `@adonisjs-lasagna/reporting` | Release candidate | Cross-tenant analytics over the backoffice `tenant_metrics` table, custom named metrics, and host-defined report extensions. |
 | `@adonisjs-lasagna/ai` | Release candidate | Per-tenant AI streaming gateway: the streaming spine, a pluggable provider contract (Claude / DeepSeek / Kimi), and per-chunk cost metering over the kernel rails. |
+
+Two more packages live in the repository but are **not published to npm**, so they
+carry no stability promise at all: `@adonisjs-lasagna/admin` (the REST admin API)
+and `@adonisjs-lasagna/websockets`. Their guides say so in a banner. Vendor them or
+depend on a git reference; `npm install` will 404.
 
 The version number says the same thing the label does: a `release candidate`
 satellite is published as `>=1.0.0`, so the version string a consumer reads off

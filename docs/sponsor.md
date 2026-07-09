@@ -1,18 +1,33 @@
 ---
 title: Sponsor Lasagna
-description: Lasagna is free and MIT-licensed, with no sponsorship program yet. The best ways to help are good issues, pull requests, and showcases. Reach the maintainer directly by email.
+description: Lasagna is free and MIT-licensed, with no sponsorship program yet. The best ways to help are good issues, pull requests, and satellites. Reach the maintainer directly by email.
 ---
 
 # Sponsor Lasagna
 
-Lasagna is, and will remain, **fully open source under the MIT licence**.
-Every feature ships in the public package: no premium tier, no locked
-features, no "sponsor edition".
-
 **There is no sponsorship program right now.** Lasagna is built and funded by
-Unreallab, the startup behind it, because we run it in production ourselves
-(see the [showcase](/showcase)). You do not need to pay anything to use it or
-to get help with it.
+Unreallab, the startup behind it, because we run it in production ourselves. You
+do not need to pay anything to use it or to get help with it.
+
+## What we promise about the licence
+
+Being precise here matters more than being sweeping, because a promise you cannot
+keep is worse than one you never made.
+
+- **What ships MIT stays MIT.** Every line already published under the MIT licence
+  stays that way, in this repository, forever. We will not relicense it, paywall
+  it, or move it behind a "sponsor edition".
+- **Some of what Unreallab builds on top will stay internal.** A hosted service, an
+  operator dashboard, the tooling we run our own business on. That is how the work
+  on the open package gets paid for.
+- **Any future paid surface is new code.** It will be source-available from its
+  first commit, and it will never be a relicense of anything that was already
+  public. If that ever stops being true, this paragraph is the receipt.
+
+Not everything in this repository is published to npm, either. `admin` and
+`websockets` live here, MIT-licensed and readable, but we do not publish them
+because maintaining a package on npm is a promise about breakage, and we are not
+ready to make it for those two. Vendor them if you want them.
 
 ## The best way to support Lasagna today
 
@@ -22,8 +37,8 @@ move the project forward:
 - **File good issues.** A reproducible bug report is worth more than a
   donation; it makes the package better for everyone who comes after you.
 - **Send a pull request.** Fixes, docs, and tests are all welcome.
-- **Submit a showcase.** [See the showcase page](/showcase); even one
-  real-app submission helps every adopter who follows.
+- **Tell us it broke.** Nobody has installed this from npm and told us what
+  happened. The first person who does is worth more than a hundred stars.
 - **Build and share a satellite.** Lasagna keeps a small stable core and
   leaves the feature surface above it open: satellites are a public extension
   point, not a closed list. If you build something your project needs, publish
