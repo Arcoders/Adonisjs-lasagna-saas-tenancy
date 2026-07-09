@@ -28,6 +28,7 @@
     "@adonisjs-lasagna/saas-tenancy": "*",
     "@adonisjs-lasagna/admin": "*",
     "@adonisjs-lasagna/ai": "*",
+    "@adonisjs-lasagna/crypto": "*",
     "@adonisjs-lasagna/billing": "*",
     "@adonisjs-lasagna/sso": "*",
     "@adonisjs-lasagna/backup": "*",

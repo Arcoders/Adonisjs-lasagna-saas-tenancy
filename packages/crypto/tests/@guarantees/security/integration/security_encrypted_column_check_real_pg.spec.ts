@@ -67,36 +67,35 @@ test.group('crypto encrypted-column CHECK on real Postgres (T5 backstop)', (grou
     await db.connection(conn).rawQuery(`DELETE FROM ${TABLE}`)
   })
 
+  const skipUnlessReady = () => !ready
+  const SKIP_REASON = 'postgres not available (local); runs in CI, fails loud under REQUIRE_REAL_PG'
+
   test('a plaintext write is rejected by the constraint (T5, even via raw SQL)', async ({
     assert,
   }) => {
-    if (!ready) return assert.isTrue(true)
     await assert.rejects(() => insertValue('AB1234567'))
     // The row must not exist: the INSERT failed closed.
     const res = await db.connection(conn).rawQuery(`SELECT count(*)::int AS n FROM ${TABLE}`)
     assert.equal((res.rows?.[0]?.n ?? res[0]?.n) as number, 0)
-  })
+  }).skip(skipUnlessReady, SKIP_REASON)
 
   test('a value that merely contains a prefix mid-string is still rejected', async ({ assert }) => {
-    if (!ready) return assert.isTrue(true)
     // The CHECK anchors on the LEADING chars (left(col, 7)), so an injected prefix in
     // the middle does not satisfy it.
     await assert.rejects(() => insertValue('x enc_v2: not really'))
-  })
+  }).skip(skipUnlessReady, SKIP_REASON)
 
   test('NULL and both accepted prefixes are allowed', async ({ assert }) => {
-    if (!ready) return assert.isTrue(true)
     await insertValue(null)
     await insertValue('enc_v2:kid:iv:tag:cipher')
     await insertValue('enc_v1:legacy-frame')
     const res = await db.connection(conn).rawQuery(`SELECT count(*)::int AS n FROM ${TABLE}`)
     assert.equal((res.rows?.[0]?.n ?? res[0]?.n) as number, 3)
-  })
+  }).skip(skipUnlessReady, SKIP_REASON)
 
   test('a real CryptoService ciphertext satisfies the constraint (no false reject)', async ({
     assert,
   }) => {
-    if (!ready) return assert.isTrue(true)
     const crypto = serviceAs(T, { routes: { [T]: placement } })
     const ciphertext = await crypto.encryptField(tenant(T), 'subject-1', CAT, 'AB1234567')
     assert.match(ciphertext, /^enc_v2:/)
@@ -104,5 +103,5 @@ test.group('crypto encrypted-column CHECK on real Postgres (T5 backstop)', (grou
     await insertValue(ciphertext)
     const res = await db.connection(conn).rawQuery(`SELECT count(*)::int AS n FROM ${TABLE}`)
     assert.equal((res.rows?.[0]?.n ?? res[0]?.n) as number, 1)
-  })
+  }).skip(skipUnlessReady, SKIP_REASON)
 })

@@ -1,4 +1,5 @@
 import db from '@adonisjs/lucid/services/db'
+import { failLoudIfRealPgRequired } from '@adonisjs-lasagna/satellite-test-kit'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import WormLedgerWriter, { type WormDb } from '@adonisjs-lasagna/saas-tenancy/worm-ledger'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
@@ -44,12 +45,21 @@ export function rowsOfResult(res: unknown): Array<Record<string, unknown>> {
 
 type Client = ReturnType<typeof db.connection>
 
-/** Is the fixture's Postgres reachable? Specs `.skip` themselves when not. */
+/**
+ * Is the fixture's Postgres reachable? Specs `.skip` themselves when not — but a
+ * CI run that set `REQUIRE_REAL_PG=1` turns that self-skip into a HARD failure
+ * (mirrors core's `RLS_DB_USER` gate), so a PG-less/hardened runner can never
+ * ship the crypto real-PG proofs green by skipping them.
+ */
 export async function probePg(): Promise<boolean> {
   try {
     await db.connection(centralConn()).rawQuery('SELECT 1')
     return true
-  } catch {
+  } catch (error) {
+    failLoudIfRealPgRequired(
+      `Postgres is unreachable on the "${centralConn()}" connection ` +
+        `(${(error as Error)?.message ?? String(error)})`
+    )
     return false
   }
 }
@@ -307,16 +317,23 @@ export async function dropRowscopeTable(): Promise<void> {
     .catch(() => {})
 }
 
-/** A rowscope-pg driver fake: every tenant shares the central connection; separation is `tenant_id`. */
+/**
+ * A rowscope-pg driver fake: every tenant shares one connection; separation is
+ * `tenant_id`. `connectionName` defaults to the central (superuser) connection, but
+ * a spec can point the store at a least-privilege connection (e.g. `rls_probe`, a
+ * NOBYPASSRLS role in CI) to prove the store's set_config path works under a role
+ * that actually ENFORCES the RLS policy — not just a superuser that bypasses it.
+ */
 export function rowscopeDriver(
-  opts: { rls?: boolean; scopeColumn?: string } = {}
+  opts: { rls?: boolean; scopeColumn?: string; connectionName?: string } = {}
 ): CryptoStoreDriver {
   const scopeColumn = opts.scopeColumn ?? 'tenant_id'
   const rls = opts.rls ?? false
+  const connectionName = opts.connectionName ?? centralConn()
   return {
     name: 'rowscope-pg',
     tableLocation: () => {
-      const base = { kind: 'rowscope' as const, scopeColumn, rls, connectionName: centralConn() }
+      const base = { kind: 'rowscope' as const, scopeColumn, rls, connectionName }
       return rls ? { ...base, rlsGuc: 'app.tenant_id' } : base
     },
   }
@@ -325,10 +342,10 @@ export function rowscopeDriver(
 /** A real PgWrappedDekStore over the rowscope driver, scoped to `activeScope`. */
 export function rowscopeStoreAs(
   activeScope: string,
-  opts: { rls?: boolean } = {}
+  opts: { rls?: boolean; connectionName?: string } = {}
 ): PgWrappedDekStore {
   return new PgWrappedDekStore({
-    getDriver: async () => rowscopeDriver({ rls: opts.rls }),
+    getDriver: async () => rowscopeDriver({ rls: opts.rls, connectionName: opts.connectionName }),
     getDb: async () => db as unknown as CryptoDb,
     activeScopeTenantId: () => activeScope,
   })
@@ -337,7 +354,7 @@ export function rowscopeStoreAs(
 /** A real CryptoService over the rowscope driver, scoped to `activeScope`. */
 export function rowscopeServiceAs(
   activeScope: string,
-  opts: { rls?: boolean } = {}
+  opts: { rls?: boolean; connectionName?: string } = {}
 ): CryptoService {
   return new CryptoService({
     keyProvider: new EnvKeyProvider(),
@@ -349,18 +366,27 @@ export function rowscopeServiceAs(
 // database-pg placement: one REAL separate database per tenant.
 // ---------------------------------------------------------------------------
 
-/** True when the test PG role can CREATE DATABASE (specs self-skip otherwise). */
+/**
+ * True when the test PG role can CREATE DATABASE (specs self-skip otherwise). Under
+ * `REQUIRE_REAL_PG=1` a role that CANNOT is a hard failure, not a silent skip — the
+ * database-pg placement proof must actually run in a real-PG CI job.
+ */
 export async function hasCreateDb(): Promise<boolean> {
+  let can = false
   try {
     const res = await db
       .connection(centralConn())
       .rawQuery(
         `SELECT (rolcreatedb OR rolsuper) AS can FROM pg_roles WHERE rolname = current_user`
       )
-    return rowsOfResult(res)[0]?.can === true
+    can = rowsOfResult(res)[0]?.can === true
   } catch {
-    return false
+    can = false
   }
+  if (!can) {
+    failLoudIfRealPgRequired('the test Postgres role lacks CREATE DATABASE (rolcreatedb/rolsuper)')
+  }
+  return can
 }
 
 export interface TenantDatabase {

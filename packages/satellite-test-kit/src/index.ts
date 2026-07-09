@@ -34,3 +34,7 @@ export { assertGuaranteeTree } from './guarantee_tree.js'
 export type { TreeAssert } from './guarantee_tree.js'
 export { repoRoot, resolveWorkspaceRoot, readPackageManifest } from './repo_root.js'
 export { runUnitSuite } from './runner_entries.js'
+// Real-PG run policy (boot-safe: pure env read). The shared REQUIRE_REAL_PG
+// fail-loud gate every satellite's real-PG helper uses to turn a would-be
+// self-skip into a hard failure when CI declares real Postgres mandatory.
+export { realPgRequired, failLoudIfRealPgRequired } from './real_pg.js'

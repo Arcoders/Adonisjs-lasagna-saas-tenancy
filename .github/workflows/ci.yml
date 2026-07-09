@@ -477,6 +477,12 @@ jobs:
       # with `default_transaction_read_only = on` so a write is denied by Postgres.
       PLUGIN_RO_DB_USER: plugin_ro
       PLUGIN_RO_DB_PASSWORD: plugin_ro
+      # This job HAS a real Postgres service, so the crypto/AI real-PG proofs are
+      # mandatory here: they must EXECUTE, never self-skip. The satellite real-PG
+      # helpers read this flag and turn a would-be self-skip (PG unreachable, role
+      # lacks CREATEDB) into a hard failure — the fail-loud twin of RLS_DB_USER,
+      # so a broken/hardened runner can't ship the crypto crown-jewel proofs green.
+      REQUIRE_REAL_PG: '1'
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

@@ -60,12 +60,9 @@ test.group('plugin read-only role (integration)', (group) => {
   test('reads are allowed but every write is denied by Postgres, even when granted', async ({
     assert,
   }) => {
-    if (!readOnly) {
-      // Local default: the probe is a writable role, so the proof is meaningless.
-      // CI (PLUGIN_RO_DB_USER set) would have failed loud in setup instead.
-      assert.isTrue(true)
-      return
-    }
+    // Local default: the probe is a writable role, so the proof is meaningless and
+    // the test HONESTLY skips (no fake `assert.isTrue(true)` that reports green).
+    // CI (PLUGIN_RO_DB_USER set) would have failed loud in setup instead.
     const probe = db.connection(PROBE_CONN)
 
     const read = await probe.rawQuery(`SELECT count(*)::int AS n FROM ${TABLE}`)
@@ -80,5 +77,8 @@ test.group('plugin read-only role (integration)', (group) => {
       /read-only transaction/
     )
     await assert.rejects(() => probe.rawQuery(`DELETE FROM ${TABLE}`), /read-only transaction/)
-  })
+  }).skip(
+    () => !readOnly,
+    'DB role is writable (local default) — read-only firewall not enforced, proof skipped'
+  )
 })
