@@ -14,17 +14,24 @@ export function isProductionNodeEnv(): boolean {
 }
 
 /**
- * Read a boolean environment TOGGLE with a single, normalized parse. True only for a
- * canonical truthy value (`true` / `1` / `yes` / `on`, trimmed + case-insensitive);
- * everything else — unset, empty, `false`, or a value typo — is false.
+ * Read a SECURITY/SAFETY opt-in environment flag. True ONLY for the exact word
+ * `true` (trimmed + case-insensitive, so `TRUE` / ` true ` count); `1`, `yes`, `on`,
+ * `false`, a typo, empty, or unset are ALL false.
  *
- * Centralizing the parse keeps a security/safety toggle from being scattered as raw
- * `process.env.X === 'true'` reads: a bare strict compare silently picks the safe
- * (false) branch on `TRUE`, a trailing space, or `1`, so an operator who INTENDED to
- * enable it is ignored invisibly. This honors the intent for those variants and makes
- * the toggle unit-testable, while never widening past clearly-affirmative values.
+ * Both callers gate a security EXEMPTION — the webhook SSRF loopback escape hatch
+ * (`WEBHOOKS_ALLOW_LOOPBACK_TARGETS`, `webhook_service.ts`) and the live-key-in-dev
+ * guard (`STRIPE_ALLOW_LIVE_IN_DEV`, `stripe_driver.ts`) — where enabling one must be
+ * a DELIBERATE, unambiguous act: a stray `1`/`yes`/`on` in the environment must never
+ * open the exemption. Exact-`true` is the conservative rule a reviewer expects of a
+ * security opt-in, and `security_webhook_ssrf_loopback_optin.spec.ts` pins it. (An
+ * earlier revision widened this to any truthy value, silently loosening the SSRF
+ * exemption; that regression is corrected here.)
+ *
+ * Centralizing the parse also keeps the flag from being scattered as raw
+ * `process.env.X === 'true'` reads and makes it unit-testable. For a non-security
+ * CONVENIENCE toggle where `1`/`yes` should also count, parse inline — this helper is
+ * deliberately strict.
  */
 export function readBooleanEnvFlag(name: string): boolean {
-  const raw = (process.env[name] ?? '').trim().toLowerCase()
-  return raw === 'true' || raw === '1' || raw === 'yes' || raw === 'on'
+  return (process.env[name] ?? '').trim().toLowerCase() === 'true'
 }

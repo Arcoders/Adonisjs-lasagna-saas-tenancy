@@ -24,29 +24,35 @@ test.group('qualifyBackofficeTable', () => {
 })
 
 /**
- * `readBooleanEnvFlag` is the single normalized parse for a boolean security/safety
- * toggle: true only for a clearly-affirmative value, so a case/whitespace variant is
- * honored (not silently dropped to the safe branch) while a typo or absence stays false.
+ * `readBooleanEnvFlag` is the single strict parse for a SECURITY/SAFETY opt-in flag:
+ * true ONLY for the exact word `true` (case/whitespace-insensitive), so a security
+ * exemption (SSRF loopback, live-key-in-dev) is opened only by a deliberate,
+ * unambiguous act — a stray `1`/`yes`/`on` must NOT enable it (that would be a silent
+ * loosening). A typo or absence stays false.
  */
 test.group('readBooleanEnvFlag', () => {
   const VAR = 'LASAGNA_TEST_FLAG_XYZ'
-  test('true for affirmative values (case/space-insensitive)', ({ assert, cleanup }) => {
+  test('true ONLY for the exact word true (case/space-insensitive)', ({ assert, cleanup }) => {
     cleanup(() => {
       delete process.env[VAR]
     })
-    for (const v of ['true', 'TRUE', ' true ', '1', 'yes', 'on']) {
+    for (const v of ['true', 'TRUE', ' true ', 'True']) {
       process.env[VAR] = v
       assert.isTrue(readBooleanEnvFlag(VAR), `expected true for ${JSON.stringify(v)}`)
     }
   })
 
-  test('false for absent, empty, negative, or typo values', ({ assert, cleanup }) => {
+  test('false for any other value — incl. other truthy-looking ones (strict opt-in)', ({
+    assert,
+    cleanup,
+  }) => {
     cleanup(() => {
       delete process.env[VAR]
     })
     delete process.env[VAR]
     assert.isFalse(readBooleanEnvFlag(VAR))
-    for (const v of ['', 'false', 'no', 'off', '0', 'ture', 'enabled']) {
+    // `1`/`yes`/`on` are truthy-looking but must NOT open a security exemption.
+    for (const v of ['', 'false', 'no', 'off', '0', '1', 'yes', 'on', 'ture', 'enabled']) {
       process.env[VAR] = v
       assert.isFalse(readBooleanEnvFlag(VAR), `expected false for ${JSON.stringify(v)}`)
     }
