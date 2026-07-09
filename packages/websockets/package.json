@@ -1,6 +1,7 @@
 {
   "name": "@adonisjs-lasagna/websockets",
   "version": "1.0.0",
+  "private": true,
   "description": "Multi-tenant WebSockets for @adonisjs-lasagna/saas-tenancy: socket.io with per-tenant handshake resolution, per-event tenant-context binding, and tenant-scoped rooms",
   "type": "module",
   "license": "MIT",

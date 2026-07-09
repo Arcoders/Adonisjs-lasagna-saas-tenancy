@@ -1,6 +1,7 @@
 {
   "name": "@adonisjs-lasagna/admin",
   "version": "1.0.0",
+  "private": true,
   "description": "Admin REST API + OpenAPI/Swagger for @adonisjs-lasagna/saas-tenancy (tenant CRUD, impersonation, and satellite management)",
   "type": "module",
   "license": "MIT",
