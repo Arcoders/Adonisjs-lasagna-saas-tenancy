@@ -18,7 +18,7 @@ export default class SchedulerTickException extends PluginException {
   static status = 500
   static code = 'E_SCHEDULER_TICK'
 
-  readonly schedule?: string
+  readonly schedule?: string | undefined
 
   constructor(message: string, context: SchedulerTickContext = {}) {
     super(message, { plugin: context.plugin, cause: context.cause })

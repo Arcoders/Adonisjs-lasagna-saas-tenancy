@@ -141,7 +141,7 @@ export function injectMemoryTurns(
 /** How many messages at the head are `system` turns (a client system prompt keeps the lead). */
 function leadingSystemCount(messages: readonly AIMessage[]): number {
   let count = 0
-  while (count < messages.length && messages[count].role === 'system') count += 1
+  while (count < messages.length && messages[count]!.role === 'system') count += 1
   return count
 }
 

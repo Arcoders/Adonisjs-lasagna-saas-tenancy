@@ -79,14 +79,14 @@ test.group('runTenantMigrations — extraMigrationPaths folding', () => {
       { getLucid }
     )
     assert.lengthOf(calls.added, 1, 'one throwaway registered')
-    assert.isTrue(calls.added[0].name.startsWith('__migpaths_tenant_x_'))
+    assert.isTrue(calls.added[0]!.name.startsWith('__migpaths_tenant_x_'))
     assert.deepEqual(
-      calls.added[0].paths,
+      calls.added[0]!.paths,
       ['database/migrations/tenant', 'node_modules/@x/ai/tenant'],
       'base paths + extra, in order'
     )
-    assert.deepEqual(calls.ranAgainst, [calls.added[0].name], 'ran against the throwaway')
-    assert.deepEqual(calls.released, [calls.added[0].name], 'throwaway released')
+    assert.deepEqual(calls.ranAgainst, [calls.added[0]!.name], 'ran against the throwaway')
+    assert.deepEqual(calls.released, [calls.added[0]!.name], 'throwaway released')
     assert.equal(res.executed, 2, 'two source dirs -> two migrated files')
   })
 
@@ -100,7 +100,7 @@ test.group('runTenantMigrations — extraMigrationPaths folding', () => {
       { direction: 'up', extraMigrationPaths: ['x/y'] },
       { getLucid }
     )
-    assert.deepEqual(calls.added[0].paths, ['database/migrations', 'x/y'])
+    assert.deepEqual(calls.added[0]!.paths, ['database/migrations', 'x/y'])
   })
 
   test('empty / whitespace extra paths are ignored (treated as no-extra)', async ({ assert }) => {

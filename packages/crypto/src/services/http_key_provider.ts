@@ -57,8 +57,8 @@ export default abstract class HttpKeyProvider implements KeyProvider {
     try {
       response = await safeFetch(req.url, {
         method: req.method ?? 'GET',
-        headers: req.headers,
-        body: req.body,
+        ...(req.headers !== undefined ? { headers: req.headers } : {}),
+        ...(req.body !== undefined ? { body: req.body } : {}),
         timeoutMs: this.#timeoutMs,
       })
     } catch (error) {

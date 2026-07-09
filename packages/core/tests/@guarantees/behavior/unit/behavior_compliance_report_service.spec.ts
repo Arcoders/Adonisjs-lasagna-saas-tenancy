@@ -40,7 +40,7 @@ test.group('ComplianceReportService — registry', () => {
     svc.register(control('x', ['soc2:CC6.1']))
     svc.register(control('x', ['gdpr:art17']))
     assert.lengthOf(svc.list(), 1)
-    assert.deepEqual(svc.list()[0].frameworks, ['gdpr:art17'])
+    assert.deepEqual(svc.list()[0]!.frameworks, ['gdpr:art17'])
   })
 })
 
@@ -101,9 +101,9 @@ test.group('ComplianceReportService — run()', () => {
     })
     svc.register(control('after', ['soc2:CC6.1']))
     const report = await svc.run({}, fakeCtx)
-    assert.equal(report.controls[0].status, 'action-needed')
-    assert.match(report.controls[0].evidence, /kaboom/)
-    assert.equal(report.controls[1].id, 'after')
+    assert.equal(report.controls[0]!.status, 'action-needed')
+    assert.match(report.controls[0]!.evidence, /kaboom/)
+    assert.equal(report.controls[1]!.id, 'after')
   })
 
   test('aggregates totals by status', async ({ assert }) => {

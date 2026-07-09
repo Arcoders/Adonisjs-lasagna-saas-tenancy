@@ -28,14 +28,14 @@ export function splitSqlStatementsTagged(sql: string): SqlToken[] {
 
   let i = 0
   while (i < lines.length) {
-    const line = lines[i]
+    const line = lines[i]!
     if (COPY_FROM_STDIN_RE.test(line)) {
       flushBuffer()
       const header = line.replace(/;\s*$/, '').trim()
       const rows: string[] = []
       i++
       while (i < lines.length) {
-        const rowLine = lines[i]
+        const rowLine = lines[i]!
         if (rowLine === '\\.') {
           i++
           break
@@ -102,7 +102,7 @@ export function splitSqlStatements(sql: string): string[] {
         if (ch === '$') {
           const tagMatch = sql.slice(i).match(/^(\$[A-Za-z0-9_]*\$)/)
           if (tagMatch) {
-            dollarTag = tagMatch[1]
+            dollarTag = tagMatch[1]!
             state = 'dollar_quote'
             current += dollarTag
             i += dollarTag.length

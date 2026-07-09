@@ -40,12 +40,12 @@ interface CapturedSpan {
   name: string
   attrs: Record<string, unknown>
   setAttrs: Record<string, unknown>
-  events: { name: string; attrs?: Record<string, unknown> }[]
+  events: { name: string; attrs?: Record<string, unknown> | undefined }[]
 }
 
 function installCapture() {
   const spans: CapturedSpan[] = []
-  const activeEvents: { name: string; attrs?: Record<string, unknown> }[] = []
+  const activeEvents: { name: string; attrs?: Record<string, unknown> | undefined }[] = []
   const origWithSpan = TelemetryService.withSpan
   const origActive = TelemetryService.addEventOnActive
 
@@ -83,7 +83,7 @@ function installCapture() {
 /** Every attribute key emitted across spans + active events. */
 function emittedKeys(
   spans: CapturedSpan[],
-  active: { attrs?: Record<string, unknown> }[]
+  active: { attrs?: Record<string, unknown> | undefined }[]
 ): string[] {
   const keys = new Set<string>()
   for (const s of spans) {
@@ -129,7 +129,7 @@ test.group('QuotaService observability (WS2)', (group) => {
     await svc.reserve(buildTestTenant(), 'aiTokens', 100)
 
     assert.lengthOf(cap.spans, 1)
-    const span = cap.spans[0]
+    const span = cap.spans[0]!
     assert.equal(span.name, OBS_SPAN.quotaReserve)
     assert.equal(span.attrs[OBS_ATTR.quota], 'aiTokens')
     assert.equal(span.setAttrs[OBS_ATTR.worstCase], 100)
@@ -169,8 +169,8 @@ test.group('QuotaService observability (WS2)', (group) => {
     const freed = await svc.release(handle())
     assert.equal(freed, 70)
     assert.lengthOf(cap.spans, 1)
-    assert.equal(cap.spans[0].name, OBS_SPAN.quotaRelease)
-    const evt = cap.spans[0].events.find((e) => e.name === OBS_EVENT.release)
+    assert.equal(cap.spans[0]!.name, OBS_SPAN.quotaRelease)
+    const evt = cap.spans[0]!.events.find((e) => e.name === OBS_EVENT.release)
     assert.equal(evt!.attrs?.[OBS_ATTR.freed], 70)
   })
 

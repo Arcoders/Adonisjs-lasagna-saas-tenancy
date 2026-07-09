@@ -14,7 +14,7 @@ export function assertCryptoConfig(crypto: CryptoConfig | undefined): void;
 
 // @public
 export interface BlindIndexOptions {
-    caseInsensitive?: boolean;
+    caseInsensitive?: boolean | undefined;
 }
 
 // @public
@@ -86,7 +86,7 @@ export class CryptoService {
 // @public (undocumented)
 export interface CryptoServiceDeps {
     readonly emitShredded?: (event: SubjectShreddedEvent) => void;
-    readonly erasabilityResolver?: ErasabilityResolver;
+    readonly erasabilityResolver?: ErasabilityResolver | undefined;
     readonly generateDek?: () => Buffer;
     readonly keyProvider: KeyProvider;
     readonly ledger?: ShredLedger;
@@ -255,7 +255,7 @@ export class KeyProviderRegistry {
 
 // @public
 export interface ListLiveOptions {
-    readonly afterId?: string;
+    readonly afterId?: string | undefined;
     readonly limit?: number;
 }
 
@@ -395,7 +395,7 @@ export interface ShredLedger {
 export interface ShredLedgerEntry {
     // (undocumented)
     readonly category: CategoryKey;
-    readonly reason?: string;
+    readonly reason?: string | undefined;
     // (undocumented)
     readonly subjectId: SubjectId;
     // (undocumented)

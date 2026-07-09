@@ -261,7 +261,7 @@ const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
     trip: () => {
       const hooks = makeScopedModel()
       // No active tenancy scope and no unscoped() → strict mode refuses.
-      hooks.find[0]({ where() {} })
+      hooks.find![0]!({ where() {} })
     },
     expectThrow: /outside both tenancy\.run\(\) and unscoped/,
   },
@@ -270,7 +270,7 @@ const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
       const hooks = makeScopedModel()
       await tenancy.run({ id: UUID } as any, async () => {
         // Create a row explicitly owned by a DIFFERENT tenant.
-        hooks.create[0]({ tenant_id: '22222222-2222-4222-8222-222222222222' })
+        hooks.create![0]!({ tenant_id: '22222222-2222-4222-8222-222222222222' })
       })
     },
     expectThrow: /refusing to create a row owned by tenant/,
@@ -369,13 +369,13 @@ test.group('Isthmus guard emission matrix — trip + happy', (group) => {
       assert.match((threw as Error).message, recipe.expectThrow, `${id}: exception message changed`)
 
       assert.lengthOf(captured, 1, `${id}: expected exactly one dispatch`)
-      assert.equal(captured[0].id, id)
-      assert.equal(captured[0].severity, entry.severity)
-      assert.equal(captured[0].event, entry.event)
-      assert.equal(captured[0].pillar, entry.pillar)
+      assert.equal(captured[0]!.id, id)
+      assert.equal(captured[0]!.severity, entry.severity)
+      assert.equal(captured[0]!.event, entry.event)
+      assert.equal(captured[0]!.pillar, entry.pillar)
 
       // Metadata values are short (truncated by the guards to <= 64 chars).
-      for (const value of Object.values(captured[0].metadata)) {
+      for (const value of Object.values(captured[0]!.metadata)) {
         if (typeof value === 'string') assert.isAtMost(value.length, 64, `${id}: metadata too long`)
       }
 

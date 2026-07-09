@@ -26,8 +26,8 @@ test.group('FeatureFlagService (integration)', (group) => {
 
     const list = await svc.listForTenant(t.id)
     assert.lengthOf(list, 1)
-    assert.equal(list[0].flag, 'beta_dashboard')
-    assert.deepEqual(list[0].config, { rollout: 25 })
+    assert.equal(list[0]!.flag, 'beta_dashboard')
+    assert.deepEqual(list[0]!.config, { rollout: 25 })
   })
 
   test('set() called twice for the same flag updates the row', async ({ assert }) => {
@@ -39,8 +39,8 @@ test.group('FeatureFlagService (integration)', (group) => {
 
     const list = await svc.listForTenant(t.id)
     assert.lengthOf(list, 1, 'second call should update, not insert')
-    assert.isFalse(list[0].enabled)
-    assert.deepEqual(list[0].config, { reason: 'rolled-back' })
+    assert.isFalse(list[0]!.enabled)
+    assert.deepEqual(list[0]!.config, { reason: 'rolled-back' })
   })
 
   test('isEnabled() reflects the persisted value', async ({ assert }) => {

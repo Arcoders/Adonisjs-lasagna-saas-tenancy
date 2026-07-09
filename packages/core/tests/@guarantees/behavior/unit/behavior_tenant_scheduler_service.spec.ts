@@ -167,9 +167,15 @@ test.group('TenantSchedulerService — start (arming)', () => {
   test('arms one native schedule per registered entry', async ({ assert }) => {
     const svc = new TestScheduler()
     svc.register(intervalSchedule({ name: scheduleName('a') }))
-    svc.register(
-      intervalSchedule({ name: scheduleName('b'), cron: '0 * * * *', everyMs: undefined })
-    )
+    // A cron schedule carries no interval: omit everyMs entirely (runtime-equivalent
+    // to setting it undefined) so exactly one of cron/everyMs is present.
+    const cronB: TenantSchedule = {
+      kind: 'schedule',
+      name: scheduleName('b'),
+      job: 'app.SyncTenant',
+      cron: '0 * * * *',
+    }
+    svc.register(cronB)
     await svc.start()
     assert.deepEqual(
       svc.armed.map((s) => String(s.name)),
@@ -249,7 +255,7 @@ test.group('TenantSchedulerService — runTick fan-out', () => {
     svc.tenants = [{ id: 't1', status: 'active' }]
     svc.register(intervalSchedule({ payload: { kind: 'nightly' } }))
     await svc.runTick('sync')
-    const call = svc.dispatches[0]
+    const call = svc.dispatches[0]!
     const period = Math.floor(svc.nowValue / 60_000)
     assert.equal(call.opts.jobId, schedulerJobId(scheduleName('sync'), 't1', period))
     assert.deepEqual(call.payload, { kind: 'nightly' })

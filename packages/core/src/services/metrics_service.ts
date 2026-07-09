@@ -158,7 +158,9 @@ export default class MetricsService {
    * partial month never lands in the rollup). A no-op on an empty base table.
    * Run by the `tenant:metrics:rollup` command.
    */
-  async recomputeMonthlyRollup(options: { since?: string; until?: string } = {}): Promise<void> {
+  async recomputeMonthlyRollup(
+    options: { since?: string | undefined; until?: string | undefined } = {}
+  ): Promise<void> {
     const cfg = getConfig()
     const conn = db.connection(cfg.backofficeConnectionName)
     const schema = cfg.backofficeSchemaName
@@ -171,8 +173,8 @@ export default class MetricsService {
 
     const window = resolveRollupWindow({
       minPeriod,
-      since: options.since,
-      until: options.until,
+      ...(options.since !== undefined ? { since: options.since } : {}),
+      ...(options.until !== undefined ? { until: options.until } : {}),
       asOf: DateTime.utc().toFormat('yyyy-MM-dd'),
     })
     if (!window) return

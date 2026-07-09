@@ -88,8 +88,8 @@ export interface VectorProvisionOptions {
   /** Report what would run without issuing any DDL. */
   dryRun?: boolean
   /** Restrict to these tenant ids (database-pg only). Omit for all tenants. */
-  tenantIds?: string[]
-  logger?: ProvisionLogger
+  tenantIds?: string[] | undefined
+  logger?: ProvisionLogger | undefined
 }
 
 export interface VectorProvisionSummary {

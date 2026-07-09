@@ -5,8 +5,10 @@ import Tenant, { type DemoMeta } from '#app/models/backoffice/tenant'
 export interface CreateTenantInput {
   name: string
   email: string
-  plan?: DemoMeta['plan']
-  tier?: DemoMeta['tier']
+  // `| undefined` (not just `?`) so the validator's optional enum output passes
+  // under exactOptionalPropertyTypes; both default in `create()` below.
+  plan?: DemoMeta['plan'] | undefined
+  tier?: DemoMeta['tier'] | undefined
 }
 
 /**

@@ -32,13 +32,13 @@ export interface RateLimitOptions {
    * availability over abuse protection on the affected route — an explicit
    * per-route value always wins over the global policy.
    */
-  failOpen?: boolean
+  failOpen?: boolean | undefined
   /**
    * The middleware short-circuits when `app.inTest` is true so the rest
    * of the integration suite isn't gated on Redis. Tests that target
    * the rate-limit codepath itself must opt in by setting this to true.
    */
-  bypassInTestEnv?: boolean
+  bypassInTestEnv?: boolean | undefined
 }
 
 /**

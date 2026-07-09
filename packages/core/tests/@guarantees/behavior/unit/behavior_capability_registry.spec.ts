@@ -16,7 +16,12 @@ const trustCounter = () =>
   0
 
 function provision(name: string, api: unknown, contractVersion?: number): CapabilityProvision {
-  return { kind: 'capability', name: capabilityKey(name), api, contractVersion }
+  return {
+    kind: 'capability',
+    name: capabilityKey(name),
+    api,
+    ...(contractVersion !== undefined ? { contractVersion } : {}),
+  }
 }
 
 function sensitive(name: string, api: unknown): CapabilityProvision {

@@ -73,7 +73,7 @@ export default class TenantRepository implements TenantRepositoryContract {
         await callback(tenant)
       }
       if (batch.length < batchSize) break
-      lastId = batch[batch.length - 1].id
+      lastId = batch[batch.length - 1]!.id
     }
   }
 

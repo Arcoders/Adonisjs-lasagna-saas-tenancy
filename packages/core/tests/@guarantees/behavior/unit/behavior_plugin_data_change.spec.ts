@@ -79,21 +79,21 @@ test.group('subscribeDataChange', (group) => {
       },
     }
     await subscribeDataChange(app, 'search', [sub])
-    const listener = listeners[0]
+    const listener = listeners[0]!
     await listener({ change: change({ model: 'User', operation: 'update' }) }) // wrong model
     await listener({ change: change({ model: 'Order', operation: 'create' }) }) // wrong op
     await listener({ change: change({ model: 'Order', operation: 'update' }) }) // match
     assert.lengthOf(seen, 1)
-    assert.equal(seen[0].model, 'Order')
-    assert.equal(seen[0].operation, 'update')
+    assert.equal(seen[0]!.model, 'Order')
+    assert.equal(seen[0]!.operation, 'update')
   })
 
   test('no filters → receives every change', async ({ assert }) => {
     const { app, listeners } = fakeApp()
     let count = 0
     await subscribeDataChange(app, 'search', [{ handle: () => void count++ }])
-    await listeners[0]({ change: change({ model: 'A' }) })
-    await listeners[0]({ change: change({ model: 'B', operation: 'delete' }) })
+    await listeners[0]!({ change: change({ model: 'A' }) })
+    await listeners[0]!({ change: change({ model: 'B', operation: 'delete' }) })
     assert.equal(count, 2)
   })
 
@@ -109,7 +109,7 @@ test.group('subscribeDataChange', (group) => {
     // The listener must resolve (the failure is logged + counted, never rethrown to
     // the emitter / write path). No Redis here, so the failure-metric emit itself
     // fails and is swallowed with a warn — still must not reject.
-    await assert.doesNotReject(() => listeners[0]({ change: change() }))
+    await assert.doesNotReject(() => listeners[0]!({ change: change() }))
   })
 
   test('fan-out isolation: one failing subscriber does not stop a healthy one', async ({
@@ -131,8 +131,8 @@ test.group('subscribeDataChange', (group) => {
     ])
     // Each subscription is its own listener; the emitter fans out to both. The
     // failing one is isolated in its own try/catch, so the healthy one still runs.
-    await assert.doesNotReject(() => listeners[0]({ change: change() }))
-    await listeners[1]({ change: change() })
+    await assert.doesNotReject(() => listeners[0]!({ change: change() }))
+    await listeners[1]!({ change: change() })
     assert.isTrue(healthyRan, "the healthy subscriber ran despite plugin A's failure")
   })
 })

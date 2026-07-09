@@ -98,7 +98,7 @@ export interface BackupMetadata {
 // @public
 export interface BootstrapperContext {
     // (undocumented)
-    request?: HttpContext['request'];
+    request?: HttpContext['request'] | undefined;
     // (undocumented)
     tenant: TenantModelContract;
 }
@@ -607,11 +607,11 @@ export interface LogOptions {
     // (undocumented)
     actorId?: string | null;
     // (undocumented)
-    actorType?: AuditActorType;
+    actorType?: AuditActorType | undefined;
     // (undocumented)
     ipAddress?: string | null;
     // (undocumented)
-    metadata?: Record<string, unknown>;
+    metadata?: Record<string, unknown> | undefined;
     // (undocumented)
     tenantId?: string | null;
 }
@@ -630,8 +630,8 @@ export class MetricsService {
     // (undocumented)
     increment(tenantId: string, metric: 'requests' | 'errors', amount?: number): Promise<void>;
     recomputeMonthlyRollup(options?: {
-        since?: string;
-        until?: string;
+        since?: string | undefined;
+        until?: string | undefined;
     }): Promise<void>;
     // (undocumented)
     trackBandwidth(tenantId: string, bytes: number): Promise<void>;
@@ -920,8 +920,8 @@ export class RateLimitMiddleware {
 
 // @public
 export interface RateLimitOptions {
-    bypassInTestEnv?: boolean;
-    failOpen?: boolean;
+    bypassInTestEnv?: boolean | undefined;
+    failOpen?: boolean | undefined;
     // (undocumented)
     limit: number;
     // (undocumented)
@@ -1038,7 +1038,7 @@ export function setTenantRlsGuc(runner: RlsQueryRunner, tenantId: string, option
 
 // @public (undocumented)
 export interface SetTenantRlsGucOptions {
-    gucName?: string;
+    gucName?: string | undefined;
 }
 
 // @public

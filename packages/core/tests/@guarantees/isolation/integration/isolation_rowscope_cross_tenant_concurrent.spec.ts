@@ -101,7 +101,7 @@ test.group('rowscope-pg cross-tenant concurrency (integration)', (group) => {
 
     // Seed each tenant sequentially so the dataset is unambiguous.
     for (let t = 0; t < TENANTS; t++) {
-      await tenancy.run(fakeTenant(ids[t]), async () => {
+      await tenancy.run(fakeTenant(ids[t]!), async () => {
         for (let i = 0; i < WRITES_PER_TENANT; i++) {
           await CPost.create({ title: `t${t}-r${i}` })
         }

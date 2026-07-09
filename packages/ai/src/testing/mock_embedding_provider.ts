@@ -34,16 +34,16 @@ export interface MockEmbeddingProviderOptions {
  */
 export default class MockEmbeddingProvider implements AIEmbeddingProviderContract {
   readonly name: AIProviderName
-  readonly contractVersion?: number
+  readonly contractVersion?: number | undefined
   readonly capabilities: AIEmbeddingCapabilities
-  readonly keyFingerprint?: string
+  readonly keyFingerprint?: string | undefined
 
   /** Every `embed()` call, in order, for assertions. */
   readonly calls: { request: AIEmbeddingRequest }[] = []
 
   readonly #dimension: number
   readonly #model: string
-  readonly #verifyConfigError?: Error
+  readonly #verifyConfigError?: Error | undefined
 
   constructor(opts: MockEmbeddingProviderOptions = {}) {
     this.name = opts.name ?? 'mock-embedding'

@@ -459,7 +459,7 @@ export default class SqlImportService {
 export function assertRewriteLiteralSafety(opts: {
   suspectLiteralLines: string[]
   sourceSchema: string
-  force?: boolean
+  force?: boolean | undefined
 }): void {
   if (opts.suspectLiteralLines.length === 0 || opts.force) return
   throw new Error(

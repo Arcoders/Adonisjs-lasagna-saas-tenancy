@@ -11,7 +11,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export interface TenantPoolStat {
   connection: string
   /** Tenant id when the connection name carries a UUID suffix; else undefined. */
-  tenantId?: string
+  tenantId?: string | undefined
   numUsed: number
   numFree: number
   numPending: number

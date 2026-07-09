@@ -51,7 +51,7 @@ async function runSchemaCatalog(app: ApplicationService, db: any): Promise<Bench
   // A real, populated probe tenant queried via search_path (the realistic path).
   const { refs } = await provisionTenants(app, db, 1)
   await seedIdentifiableNotes(app, db, refs, 200)
-  const probe = refs[0]
+  const probe = refs[0]! // provisioned exactly one tenant above
   const schemaPrefix = getConfig().tenantSchemaPrefix ?? 'tenant_'
   const probeSchema = `${schemaPrefix}${probe.id}`
   const conn = await driver.connect(probe as any) // search_path = probe's schema

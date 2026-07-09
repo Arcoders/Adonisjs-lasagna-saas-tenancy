@@ -43,7 +43,7 @@ export function parseOpenAiEmbeddings(payload: unknown, fallbackModel: string): 
     return vector as number[]
   })
 
-  const dimension = embeddings[0].length
+  const dimension = embeddings[0]!.length
   if (!embeddings.every((v) => v.length === dimension)) {
     throw malformed('the embeddings response mixed vector dimensions')
   }

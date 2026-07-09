@@ -19,12 +19,15 @@ function makeBootstrapper(
       log.push(`enter:${name}`)
       if (opts.failEnter) throw new Error(`enter:${name}:boom`)
     },
-    leave: opts.skipLeave
-      ? undefined
-      : async () => {
-          log.push(`leave:${name}`)
-          if (opts.failLeave) throw new Error(`leave:${name}:boom`)
-        },
+    // Omitting `leave` is runtime-equivalent to setting it undefined.
+    ...(opts.skipLeave
+      ? {}
+      : {
+          leave: async () => {
+            log.push(`leave:${name}`)
+            if (opts.failLeave) throw new Error(`leave:${name}:boom`)
+          },
+        }),
   }
 }
 

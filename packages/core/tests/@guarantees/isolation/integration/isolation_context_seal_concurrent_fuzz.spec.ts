@@ -83,7 +83,7 @@ test.group('ContextSeal — concurrent mismatch/agree fuzz', (group) => {
     ]
     for (let i = jobs.length - 1; i > 0; i--) {
       const j = (i * 7 + 3) % (i + 1)
-      ;[jobs[i], jobs[j]] = [jobs[j], jobs[i]]
+      ;[jobs[i], jobs[j]] = [jobs[j]!, jobs[i]!]
     }
 
     // Bounded concurrency: run in chunks of 10 in flight.
@@ -101,7 +101,7 @@ test.group('ContextSeal — concurrent mismatch/agree fuzz', (group) => {
       const batch = jobs.slice(i, i + CONCURRENCY)
       const responses = await Promise.all(batch.map(run))
       responses.forEach((res, k) =>
-        results.push({ kind: batch[k].kind, status: res.status(), body: res.body() })
+        results.push({ kind: batch[k]!.kind, status: res.status(), body: res.body() })
       )
     }
 

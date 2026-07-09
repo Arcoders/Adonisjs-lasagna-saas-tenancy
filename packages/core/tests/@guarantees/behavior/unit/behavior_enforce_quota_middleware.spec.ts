@@ -63,9 +63,9 @@ test.group('enforceQuota middleware', (group) => {
 
     assert.lengthOf(calls.consume, 1)
     assert.lengthOf(calls.track, 0)
-    assert.equal(calls.consume[0].quota, 'apiCallsPerDay')
-    assert.equal(calls.consume[0].amount, 1)
-    assert.strictEqual(calls.consume[0].tenant, tenant)
+    assert.equal(calls.consume[0]!.quota, 'apiCallsPerDay')
+    assert.equal(calls.consume[0]!.amount, 1)
+    assert.strictEqual(calls.consume[0]!.tenant, tenant)
     assert.isTrue(nextCalled)
   })
 
@@ -110,7 +110,7 @@ test.group('enforceQuota middleware', (group) => {
 
     assert.lengthOf(calls.track, 1)
     assert.lengthOf(calls.consume, 0)
-    assert.equal(calls.track[0].quota, 'uploadsPerDay')
+    assert.equal(calls.track[0]!.quota, 'uploadsPerDay')
     assert.isTrue(nextCalled)
   })
 
@@ -120,11 +120,11 @@ test.group('enforceQuota middleware', (group) => {
     const enforced = fakeQuotaService()
     __setQuotaServiceResolverForTests(async () => enforced.svc)
     await enforceQuota('seats', { amount: 5 })(makeCtx(tenant), async () => {})
-    assert.equal(enforced.calls.consume[0].amount, 5)
+    assert.equal(enforced.calls.consume[0]!.amount, 5)
 
     const soft = fakeQuotaService()
     __setQuotaServiceResolverForTests(async () => soft.svc)
     await enforceQuota('seats', { amount: 3, enforce: false })(makeCtx(tenant), async () => {})
-    assert.equal(soft.calls.track[0].amount, 3)
+    assert.equal(soft.calls.track[0]!.amount, 3)
   })
 })

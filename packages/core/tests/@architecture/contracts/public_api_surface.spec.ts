@@ -42,7 +42,7 @@ function parseBlocks(source: string, blockRe: RegExp): Set<string> {
   const names = new Set<string>()
   let m: RegExpExecArray | null
   while ((m = blockRe.exec(source)) !== null) {
-    for (const raw of m[1].split(',')) {
+    for (const raw of m[1]!.split(',')) {
       const entry = raw.trim()
       if (!entry) continue
       // `A as B` and `default as B` both export the name B.

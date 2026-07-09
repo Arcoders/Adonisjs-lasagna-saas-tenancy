@@ -13,7 +13,7 @@ export interface DependencyUnavailableContext {
   dependency: string
   /** Operation label, e.g. `'quota.consume'`. */
   operation: string
-  tenantId?: string
+  tenantId?: string | undefined
 }
 
 /**
@@ -31,7 +31,7 @@ export default class DependencyUnavailableException extends Exception {
 
   readonly dependency: string
   readonly operation: string
-  readonly tenantId?: string
+  readonly tenantId?: string | undefined
   /** Retry-After hint (seconds) surfaced on the HTTP response. */
   retryAfterSeconds = 5
 

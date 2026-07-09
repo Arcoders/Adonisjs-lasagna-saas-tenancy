@@ -64,10 +64,10 @@ test.group('HealthService — readiness with checks', () => {
 
     const report = await svc.readiness()
     assert.equal(report.status, 'ok')
-    assert.equal(report.checks.db.status, 'pass')
-    assert.equal(report.checks.redis.status, 'pass')
-    assert.isAtLeast(report.checks.db.durationMs, 0)
-    assert.isAtLeast(report.checks.redis.durationMs, 0)
+    assert.equal(report.checks.db!.status, 'pass')
+    assert.equal(report.checks.redis!.status, 'pass')
+    assert.isAtLeast(report.checks.db!.durationMs, 0)
+    assert.isAtLeast(report.checks.redis!.durationMs, 0)
   })
 
   test('all-fail returns fail', async ({ assert }) => {
@@ -95,8 +95,8 @@ test.group('HealthService — readiness with checks', () => {
     })
 
     const report = await svc.readiness()
-    assert.equal(report.checks.blowup.status, 'fail')
-    assert.match(report.checks.blowup.message ?? '', /boom/)
+    assert.equal(report.checks.blowup!.status, 'fail')
+    assert.match(report.checks.blowup!.message ?? '', /boom/)
   })
 
   test('a check that hangs is killed by the timeout', async ({ assert }) => {
@@ -104,8 +104,8 @@ test.group('HealthService — readiness with checks', () => {
     svc.addCheck('hang', () => new Promise(() => {}))
 
     const report = await svc.readiness(50)
-    assert.equal(report.checks.hang.status, 'fail')
-    assert.match(report.checks.hang.message ?? '', /timeout/)
+    assert.equal(report.checks.hang!.status, 'fail')
+    assert.match(report.checks.hang!.message ?? '', /timeout/)
   })
 
   test('checks run in parallel — total time is bounded by the slowest, not the sum', async ({
@@ -143,7 +143,7 @@ test.group('HealthService — critical checks', () => {
 
     const report = await svc.readiness()
     assert.equal(report.status, 'fail')
-    assert.equal(report.checks.db.status, 'fail')
+    assert.equal(report.checks.db!.status, 'fail')
   })
 
   test('the failing critical check is marked critical in the report', async ({ assert }) => {
@@ -152,8 +152,8 @@ test.group('HealthService — critical checks', () => {
     svc.addCheck('redis', () => ({ status: 'pass', durationMs: 0 }))
 
     const report = await svc.readiness()
-    assert.isTrue(report.checks.db.critical)
-    assert.isUndefined(report.checks.redis.critical)
+    assert.isTrue(report.checks.db!.critical)
+    assert.isUndefined(report.checks.redis!.critical)
   })
 
   test('a failing non-critical check among passes still reads degraded', async ({ assert }) => {
@@ -185,8 +185,8 @@ test.group('HealthService — critical checks', () => {
 
     const report = await svc.readiness(50)
     assert.equal(report.status, 'fail')
-    assert.isTrue(report.checks.hang.critical)
-    assert.match(report.checks.hang.message ?? '', /timeout/)
+    assert.isTrue(report.checks.hang!.critical)
+    assert.match(report.checks.hang!.message ?? '', /timeout/)
   })
 
   test('a passing critical check does not affect the aggregate', async ({ assert }) => {
@@ -196,7 +196,7 @@ test.group('HealthService — critical checks', () => {
 
     const report = await svc.readiness()
     assert.equal(report.status, 'ok')
-    assert.isTrue(report.checks.db.critical)
+    assert.isTrue(report.checks.db!.critical)
   })
 })
 

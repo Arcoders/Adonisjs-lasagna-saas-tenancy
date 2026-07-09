@@ -209,8 +209,8 @@ function writeBaseline(name: string, latest: Map<string, ResultFile>): void {
   const index: Record<string, Record<string, { opsPerSec: number; nsMedian: number }>> = {}
   for (const file of latest.values()) {
     for (const e of flatten(file)) {
-      index[e.key] ??= {}
-      index[e.key][e.label] = { opsPerSec: e.opsPerSec, nsMedian: e.nsMedian }
+      const bucket = (index[e.key] ??= {})
+      bucket[e.label] = { opsPerSec: e.opsPerSec, nsMedian: e.nsMedian }
     }
   }
   const env = [...latest.values()][0]?.env ?? null

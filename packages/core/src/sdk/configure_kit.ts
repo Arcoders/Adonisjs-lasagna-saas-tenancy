@@ -256,7 +256,7 @@ async function namespaceNewMigrations(
     if (before.has(file)) continue
     const m = file.match(/^(\d+)_(.+)\.ts$/)
     if (!m) continue
-    if (m[2].startsWith(`${slug}__`)) continue // already namespaced
+    if (m[2]!.startsWith(`${slug}__`)) continue // already namespaced
     const target = `${m[1]}_${slug}__${m[2]}.ts`
     if (present.has(target)) continue // never clobber an existing file
     await rename(join(dir, file), join(dir, target))

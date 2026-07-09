@@ -34,7 +34,7 @@ export async function resolveOrderedSpecFiles(
     cwd,
     absolute: true,
     onlyFiles: true,
-    ignore,
+    ...(ignore !== undefined ? { ignore } : {}),
   })
   files.sort()
   return files.map((file) => pathToFileURL(file))

@@ -91,9 +91,9 @@ export interface ConversationMemoryDeps {
    * in-flight sessions survive a rotation window. Absent ⇒ a post-rotation blob
    * simply degrades to empty, bounded by the TTL.
    */
-  decryptMemoryPrevious?: (ciphertext: string) => string
+  decryptMemoryPrevious?: ((ciphertext: string) => string) | undefined
   /** The memory config block; absent ⇒ {@link enabled} is false and the service is inert. */
-  config?: { maxTurns?: number; maxChars?: number; ttlMs?: number }
+  config?: { maxTurns?: number; maxChars?: number; ttlMs?: number } | undefined
   /** Best-effort per-tenant integer metric (default MetricsService); fire-and-forget, never on the reject path. */
   metric?: (tenantId: string, name: string, value: number) => void
   /** Best-effort metadata-only warn log (never content, G3). */

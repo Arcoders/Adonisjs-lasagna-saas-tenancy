@@ -206,10 +206,10 @@ test.group('crypto — enc_v2 envelope', (group) => {
     const ciphertext = encrypt('payload')
     const [prefix, keyId, iv, tag, cipher] = ciphertext.split(':')
     assert.equal(prefix, 'enc_v2')
-    assert.isAbove(keyId.length, 0, 'key id segment must be present')
-    assert.match(keyId, /^[0-9a-f]+$/, 'key id is hex')
+    assert.isAbove(keyId!.length, 0, 'key id segment must be present')
+    assert.match(keyId!, /^[0-9a-f]+$/, 'key id is hex')
     // iv/tag/cipher are all present and hex
-    for (const seg of [iv, tag, cipher]) assert.match(seg, /^[0-9a-f]+$/)
+    for (const seg of [iv!, tag!, cipher!]) assert.match(seg, /^[0-9a-f]+$/)
   })
 
   test('round-trips a value through encrypt -> decrypt', ({ assert }) => {
@@ -232,21 +232,21 @@ test.group('crypto — enc_v2 envelope', (group) => {
 
   test('AAD binds the iv: tampering the iv segment fails the auth tag', ({ assert }) => {
     const [prefix, keyId, iv, tag, cipher] = encrypt('immutable').split(':')
-    const flipped = iv.slice(0, -1) + (iv.at(-1) === '0' ? '1' : '0')
+    const flipped = iv!.slice(0, -1) + (iv!.at(-1) === '0' ? '1' : '0')
     const tampered = [prefix, keyId, flipped, tag, cipher].join(':')
     assert.throws(() => decrypt(tampered))
   })
 
   test('tampering the key-id segment is rejected with a clear key-id error', ({ assert }) => {
     const [prefix, keyId, iv, tag, cipher] = encrypt('immutable').split(':')
-    const flipped = keyId.slice(0, -1) + (keyId.at(-1) === '0' ? '1' : '0')
+    const flipped = keyId!.slice(0, -1) + (keyId!.at(-1) === '0' ? '1' : '0')
     const tampered = [prefix, flipped, iv, tag, cipher].join(':')
     assert.throws(() => decrypt(tampered), /different APP_KEY|key id mismatch/)
   })
 
   test('tampering the ciphertext fails the auth tag', ({ assert }) => {
     const [prefix, keyId, iv, tag, cipher] = encrypt('immutable').split(':')
-    const flipped = cipher.slice(0, -1) + (cipher.at(-1) === '0' ? '1' : '0')
+    const flipped = cipher!.slice(0, -1) + (cipher!.at(-1) === '0' ? '1' : '0')
     const tampered = [prefix, keyId, iv, tag, flipped].join(':')
     assert.throws(() => decrypt(tampered))
   })
@@ -284,7 +284,7 @@ test.group('crypto — sealV2WithKey / openV2WithKey (DEK path)', () => {
     const [prefix, keyId, iv, tag, cipher] = sealed.split(':')
     assert.equal(prefix, 'enc_v2')
     assert.equal(keyId, 'dek-tag-1', 'keyId is the caller-supplied tag, verbatim')
-    for (const seg of [iv, tag, cipher]) assert.match(seg, /^[0-9a-f]+$/)
+    for (const seg of [iv!, tag!, cipher!]) assert.match(seg, /^[0-9a-f]+$/)
     assert.isTrue(isEncrypted(sealed))
   })
 
@@ -326,9 +326,9 @@ test.group('crypto — sealV2WithKey / openV2WithKey (DEK path)', () => {
   test('openV2WithKey rejects a tampered iv / tag / body via the auth tag', ({ assert }) => {
     const [prefix, keyId, iv, tag, cipher] = sealV2WithKey('immutable', dek(), 'tag').split(':')
     const flip = (s: string) => s.slice(0, -1) + (s.at(-1) === '0' ? '1' : '0')
-    assert.throws(() => openV2WithKey([prefix, keyId, flip(iv), tag, cipher].join(':'), dek()))
-    assert.throws(() => openV2WithKey([prefix, keyId, iv, flip(tag), cipher].join(':'), dek()))
-    assert.throws(() => openV2WithKey([prefix, keyId, iv, tag, flip(cipher)].join(':'), dek()))
+    assert.throws(() => openV2WithKey([prefix, keyId, flip(iv!), tag, cipher].join(':'), dek()))
+    assert.throws(() => openV2WithKey([prefix, keyId, iv, flip(tag!), cipher].join(':'), dek()))
+    assert.throws(() => openV2WithKey([prefix, keyId, iv, tag, flip(cipher!)].join(':'), dek()))
   })
 
   test('sealV2WithKey rejects a keyId containing a colon (it would corrupt the envelope)', ({

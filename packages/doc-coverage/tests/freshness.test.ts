@@ -95,7 +95,7 @@ test('contract mode: a changed contract hash fires', () => {
     freshness: checkpoint({ [`${SYM}|${PAGE}`]: 'h1' }),
   })
   assert.equal(out.length, 1)
-  assert.match(out[0].reason, /contract changed/)
+  assert.match(out[0]!.reason, /contract changed/)
 })
 
 test('contract mode: a never-reviewed pairing fires', () => {

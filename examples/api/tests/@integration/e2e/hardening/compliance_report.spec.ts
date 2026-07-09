@@ -41,7 +41,7 @@ test.group('hardening — tenant:compliance:report', () => {
     const svc = await app.container.make(ComplianceReportService)
     const report = await svc.run({ controls: ['audit-immutability'] })
     assert.lengthOf(report.controls, 1)
-    assert.equal(report.controls[0].status, 'satisfied')
+    assert.equal(report.controls[0]!.status, 'satisfied')
   })
 
   test('--framework filters to controls mapping to that framework', async ({ assert }) => {

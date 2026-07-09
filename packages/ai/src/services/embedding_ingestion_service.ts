@@ -31,11 +31,11 @@ export interface IngestionRequest {
   /** Pre-chunked inline texts to embed (chunking a large doc is the host's job in 1.0). */
   readonly input: readonly string[]
   /** Optional remote document, fetched through the SSRF-pinned fetch and appended as one chunk. */
-  readonly sourceUrl?: string
+  readonly sourceUrl?: string | undefined
   /** Non-PII metadata stored per row. */
   readonly metadata: Record<string, unknown>
   /** Per-request model override (validated against the provider allow-list). */
-  readonly model?: string
+  readonly model?: string | undefined
   /** The SHA-256 of the authenticated principal (provenance `actor`), never the raw id. */
   readonly actorHash: string | null
 }

@@ -12,7 +12,7 @@ import { macroName } from '../../../../src/sdk/brands.js'
 function macroFn(name: string): (this: unknown) => Promise<unknown> {
   return (HttpRequest.prototype as unknown as Record<string, (this: unknown) => Promise<unknown>>)[
     name
-  ]
+  ]!
 }
 
 test.group('registerTenantRequestMacro', (group) => {

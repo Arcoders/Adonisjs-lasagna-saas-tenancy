@@ -24,7 +24,7 @@ export interface CryptoServiceDeps {
    * (fail-closed: crypto never erases on its own initiative). Wired from
    * `config.crypto.erasabilityResolver` when governance is installed.
    */
-  readonly erasabilityResolver?: ErasabilityResolver
+  readonly erasabilityResolver?: ErasabilityResolver | undefined
   /**
    * The fail-closed WORM-ledger append seam (the shared core `WormLedgerWriter`).
    * ABSENT ⇒ every shred is refused (an irreversible erasure is never run
@@ -98,10 +98,10 @@ export default class CryptoService {
   readonly #keyProvider: KeyProvider
   readonly #store: WrappedDekStore
   readonly #generateDek: () => Buffer
-  readonly #erasabilityResolver?: ErasabilityResolver
-  readonly #ledger?: ShredLedger
-  readonly #emitShredded?: (event: SubjectShreddedEvent) => void
-  readonly #withLock?: CryptoOperationLock
+  readonly #erasabilityResolver?: ErasabilityResolver | undefined
+  readonly #ledger?: ShredLedger | undefined
+  readonly #emitShredded?: ((event: SubjectShreddedEvent) => void) | undefined
+  readonly #withLock?: CryptoOperationLock | undefined
 
   constructor(deps: CryptoServiceDeps) {
     this.#keyProvider = deps.keyProvider

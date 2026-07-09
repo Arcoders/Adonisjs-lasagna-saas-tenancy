@@ -72,7 +72,7 @@ export interface DiscoveredSatellite {
     manifest: SatelliteManifest;
     packageName: string;
     root: string;
-    version?: string;
+    version?: string | undefined;
 }
 
 // @public

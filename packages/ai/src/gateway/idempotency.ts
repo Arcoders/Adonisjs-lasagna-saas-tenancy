@@ -96,7 +96,7 @@ export interface CachedAiResponse {
    * dropped after the mint still learns its session on retry (instead of
    * re-minting an empty one and losing the persisted turn).
    */
-  readonly sessionToken?: string
+  readonly sessionToken?: string | undefined
 }
 
 /**
@@ -115,7 +115,7 @@ export interface AiIdempotencyServiceOptions {
   /** 32-byte MAC key from {@link deriveAiIdempotencyMacKey}. */
   macKey: Buffer
   /** Replay window per entry. Default {@link DEFAULT_AI_IDEMPOTENCY_TTL_MS}. */
-  ttlMs?: number
+  ttlMs?: number | undefined
   /** Cache-entry byte cap. Default {@link AI_IDEMPOTENCY_MAX_BYTES}. */
   maxBytes?: number
   /** Epoch value generator (test seam). Default: 8 random bytes, hex. */

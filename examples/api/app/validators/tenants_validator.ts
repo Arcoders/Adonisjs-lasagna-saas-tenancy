@@ -1,4 +1,5 @@
 import vine from '@vinejs/vine'
+import type { ExactOptionalProps } from './exact_optional.js'
 
 /**
  * Validates the body of POST /demo/tenants. Optional fields default to
@@ -10,18 +11,22 @@ import vine from '@vinejs/vine'
  * hook test (which proves the hook fires and flips status=failed) keep
  * working as documented.
  */
+const createTenantSchema = {
+  name: vine.string().trim().minLength(2).maxLength(100),
+  email: vine.string().trim().email(),
+  plan: vine.enum(['free', 'pro'] as const).optional(),
+  tier: vine.enum(['standard', 'premium'] as const).optional(),
+}
+
 export const createTenantValidator = vine.compile(
-  vine.object({
-    name: vine.string().trim().minLength(2).maxLength(100),
-    email: vine.string().trim().email(),
-    plan: vine.enum(['free', 'pro'] as const).optional(),
-    tier: vine.enum(['standard', 'premium'] as const).optional(),
-  })
+  vine.object(createTenantSchema as ExactOptionalProps<typeof createTenantSchema>)
 )
 
 /** ?keepSchema=true on DELETE /demo/tenants/:id */
+const destroyTenantQuerySchema = {
+  keepSchema: vine.boolean().optional(),
+}
+
 export const destroyTenantQueryValidator = vine.compile(
-  vine.object({
-    keepSchema: vine.boolean().optional(),
-  })
+  vine.object(destroyTenantQuerySchema as ExactOptionalProps<typeof destroyTenantQuerySchema>)
 )

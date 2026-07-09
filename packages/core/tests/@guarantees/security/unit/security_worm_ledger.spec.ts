@@ -82,7 +82,7 @@ function writer(fake: FakeWormLedger, activeScopeTenantId?: () => string | undef
     getDb: async () => fake.db(),
     connectionName: 'backoffice',
     schemaName: 'backoffice',
-    activeScopeTenantId,
+    ...(activeScopeTenantId !== undefined ? { activeScopeTenantId } : {}),
   })
 }
 
@@ -123,7 +123,7 @@ test.group('WORM ledger — append-only hash chain', () => {
     const w = writer(fake)
     await w.append(row({ metadata: { alpha: 1, beta: 2 } }))
     // Simulate jsonb readback reordering the keys.
-    fake.rows[0].metadata = { beta: 2, alpha: 1 }
+    fake.rows[0]!.metadata = { beta: 2, alpha: 1 }
     assert.isTrue((await w.verify('tenant-1')).ok)
   })
 
@@ -132,7 +132,7 @@ test.group('WORM ledger — append-only hash chain', () => {
     const w = writer(fake)
     await w.append(row({ action: 'a1' }))
     await w.append(row({ action: 'a2' }))
-    fake.rows[1].action = 'tampered' // rewrite past the (disabled) triggers
+    fake.rows[1]!.action = 'tampered' // rewrite past the (disabled) triggers
     const result = await w.verify('tenant-1')
     assert.isFalse(result.ok)
     assert.equal(result.break?.reason, 'checksum')
@@ -156,7 +156,7 @@ test.group('WORM ledger — append-only hash chain', () => {
     const w = writer(fake)
     await w.append(row())
     await w.append(row())
-    fake.rows[1].prev_checksum = 'b'.repeat(64)
+    fake.rows[1]!.prev_checksum = 'b'.repeat(64)
     const result = await w.verify('tenant-1')
     assert.isFalse(result.ok)
     assert.equal(result.break?.reason, 'prev_link')

@@ -7,7 +7,7 @@ import type { TenantModelContract } from '../types/contracts.js'
  */
 export interface BootstrapperContext {
   tenant: TenantModelContract
-  request?: HttpContext['request']
+  request?: HttpContext['request'] | undefined
 }
 
 /**
@@ -92,7 +92,7 @@ export default class BootstrapperRegistry {
 
   async #runLeaveUpTo(ctx: BootstrapperContext, count: number): Promise<void> {
     for (let i = Math.min(count, this.#order.length) - 1; i >= 0; i--) {
-      const name = this.#order[i]
+      const name = this.#order[i]!
       const b = this.#items.get(name)
       if (!b?.leave) continue
       try {

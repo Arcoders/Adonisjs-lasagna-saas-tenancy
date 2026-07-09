@@ -48,7 +48,7 @@ function parseStub(source: string): { tableName: string | null; columns: string[
   // Only up() defines the target shape; down() drops columns.
   const upBody = source.split(/async up\(\)/)[1]?.split(/async down\(\)/)[0] ?? ''
   const columnCall = new RegExp(`table\\.(?:${COLUMN_METHODS.join('|')})\\('([a-z_]+)'`, 'g')
-  const columns = [...upBody.matchAll(columnCall)].map((m) => m[1])
+  const columns = [...upBody.matchAll(columnCall)].map((m) => m[1]!)
   return { tableName, columns }
 }
 
@@ -114,5 +114,7 @@ test.group('bootstrap DDL stays in sync with the migration stubs', () => {
       3,
       'guard compared suspiciously few tables — check the regexes'
     )
-  })
+    // Reads several stub files and runs the mirror regexes; give it headroom over
+    // the 2s japa default so it never flakes under c8 instrumentation / slow I/O.
+  }).timeout(15000)
 })

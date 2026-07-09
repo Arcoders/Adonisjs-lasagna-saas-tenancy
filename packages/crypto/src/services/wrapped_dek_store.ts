@@ -26,7 +26,7 @@ export interface NewWrappedDekRow {
 /** Keyset-pagination options for {@link WrappedDekStore.listLive} (the rekek walk). */
 export interface ListLiveOptions {
   /** Only rows whose `id` sorts strictly after this cursor (ordered by `id` asc). */
-  readonly afterId?: string
+  readonly afterId?: string | undefined
   /** Page size; the walker loops until a short page. */
   readonly limit?: number
 }

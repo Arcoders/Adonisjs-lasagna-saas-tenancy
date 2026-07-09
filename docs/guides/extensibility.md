@@ -22,7 +22,8 @@ Lasagna has two independent version integers. Keep them straight:
 | Helper | `checkSatelliteApiCompat` | `checkContractCompat` / `assertContractCompat` |
 
 Both are independent of the package's published (npm) version, and both use the
-same asymmetric rule.
+same asymmetric rule. For the full index of every version integer in the fleet and
+its current value, see [Contract versions](/reference/contract-versions).
 
 ## The compatibility rule
 

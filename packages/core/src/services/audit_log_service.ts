@@ -20,10 +20,10 @@ const DESTINATION_TIMEOUT_MS = 2_000
  */
 export interface LogOptions {
   tenantId?: string | null
-  actorType?: AuditActorType
+  actorType?: AuditActorType | undefined
   actorId?: string | null
   action: string
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown> | undefined
   ipAddress?: string | null
 }
 

@@ -47,7 +47,7 @@ function findHits(file: string, src: string): Hit[] {
   while ((m = re.exec(src)) !== null) {
     const upToMatch = src.slice(0, m.index)
     const line = upToMatch.split('\n').length
-    const excerpt = m[0].split('\n')[0].slice(0, 120)
+    const excerpt = m[0].split('\n')[0]!.slice(0, 120)
     hits.push({ file, line, excerpt })
   }
   return hits

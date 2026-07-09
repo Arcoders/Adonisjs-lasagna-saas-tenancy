@@ -16,7 +16,7 @@ export default class PluginBootException extends PluginException {
   static status = 500
   static code = 'E_PLUGIN_BOOT'
 
-  readonly phase?: string
+  readonly phase?: string | undefined
 
   constructor(message: string, context: PluginBootContext = {}) {
     super(message, { plugin: context.plugin, cause: context.cause })

@@ -91,7 +91,7 @@ function sealGcmV2(plaintext: string, key: Buffer, keyId: string): string {
 function openGcmV2(value: string, key: Buffer): string {
   const parts = value.slice(V2_PREFIX.length).split(':')
   if (parts.length !== 4) throw new Error('Invalid encrypted value format')
-  const [keyId, ivHex, tagHex, cipherHex] = parts
+  const [keyId, ivHex, tagHex, cipherHex] = parts as [string, string, string, string]
   const iv = Buffer.from(ivHex, 'hex')
   const header = `${V2_PREFIX}${keyId}:${ivHex}`
   const decipher = createDecipheriv(ALGORITHM, key, iv)
@@ -107,7 +107,7 @@ function encryptV2(plaintext: string, appKey: string, context: string): string {
 function decryptV2(value: string, appKey: string, context: string): string {
   const parts = value.slice(V2_PREFIX.length).split(':')
   if (parts.length !== 4) throw new Error('Invalid encrypted value format')
-  const keyId = parts[0]
+  const keyId = parts[0]!
 
   // Constant-time key-id check: a mismatch means the value was written under a
   // different APP_KEY (a rotation), which we surface explicitly so callers can
@@ -124,7 +124,7 @@ function decryptV2(value: string, appKey: string, context: string): string {
 function decryptV1(value: string, key: Buffer): string {
   const parts = value.slice(V1_PREFIX.length).split(':')
   if (parts.length !== 3) throw new Error('Invalid encrypted value format')
-  const [ivHex, tagHex, cipherHex] = parts
+  const [ivHex, tagHex, cipherHex] = parts as [string, string, string]
   const decipher = createDecipheriv(ALGORITHM, key, Buffer.from(ivHex, 'hex'))
   decipher.setAuthTag(Buffer.from(tagHex, 'hex'))
   return decipher.update(Buffer.from(cipherHex, 'hex')) + decipher.final('utf8')

@@ -151,7 +151,7 @@ export interface DiscoveredSatellite {
   /** Absolute path to the package root (the dir containing its package.json). */
   root: string
   /** The installed package version (from its package.json), if readable. */
-  version?: string
+  version?: string | undefined
   /** The parsed, validated manifest. */
   manifest: SatelliteManifest
 }
@@ -287,10 +287,14 @@ export function readSatelliteManifest(
     }
   }
 
-  manifest.aliases = cleanStringArray(obj.aliases)
-  manifest.requires = cleanStringArray(obj.requires)
-  manifest.env = cleanStringArray(obj.env)
-  manifest.install = cleanStringArray(obj.install)
+  const aliases = cleanStringArray(obj.aliases)
+  if (aliases) manifest.aliases = aliases
+  const requires = cleanStringArray(obj.requires)
+  if (requires) manifest.requires = requires
+  const env = cleanStringArray(obj.env)
+  if (env) manifest.env = env
+  const install = cleanStringArray(obj.install)
+  if (install) manifest.install = install
 
   const dependsOn = parseDependsOn(obj.dependsOn, pkgName, onWarn)
   if (dependsOn) manifest.dependsOn = dependsOn

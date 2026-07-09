@@ -14,7 +14,7 @@ export interface AIMessage {
  */
 export interface AIStreamRequest {
   readonly messages: readonly AIMessage[]
-  readonly model?: string
+  readonly model?: string | undefined
   readonly maxTokens?: number
 }
 
@@ -53,7 +53,7 @@ export interface AIProviderContract {
    * `AI_CONTRACT_VERSION`). Absent registers with a one-time "unversioned"
    * warning, never a failure; declare it to opt into the compatibility check.
    */
-  readonly contractVersion?: number
+  readonly contractVersion?: number | undefined
 
   /**
    * What the provider can do. `streaming` MUST be `true`: the registry's
@@ -68,7 +68,7 @@ export interface AIProviderContract {
    * (`ext:ai:<op>:<tenant>:<keyFingerprint>`, threat #4) and audit attribution.
    * Optional: a provider that cannot expose one is keyed by its `name` instead.
    */
-  readonly keyFingerprint?: string
+  readonly keyFingerprint?: string | undefined
 
   /**
    * Boot-time validation of the provider's config slice (key presence, and for

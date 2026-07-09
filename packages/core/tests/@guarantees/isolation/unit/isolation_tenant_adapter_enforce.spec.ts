@@ -65,7 +65,7 @@ test.group('TenantAdapter — calls driver.enforce on the resolved client', (gro
     const result = adapter.modelConstructorClient({} as any)
 
     assert.lengthOf(calls, 1)
-    assert.equal(calls[0].tenantId, UUID1)
-    assert.strictEqual(calls[0].client, result)
+    assert.equal(calls[0]!.tenantId, UUID1)
+    assert.strictEqual(calls[0]!.client, result)
   })
 })

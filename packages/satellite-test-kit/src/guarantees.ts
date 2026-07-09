@@ -115,7 +115,7 @@ export function guaranteeGlobs(options: GuaranteeGlobsOptions = {}): GuaranteeGl
  */
 export function resolveSuiteGlobs(input: {
   suiteGlobs: string[]
-  guaranteeFilter?: string[]
+  guaranteeFilter?: string[] | undefined
 }): string[] {
   const filter = input.guaranteeFilter
   if (!filter || filter.length === 0) return input.suiteGlobs

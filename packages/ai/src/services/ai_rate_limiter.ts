@@ -54,7 +54,7 @@ export default class AiRateLimiter {
   readonly #consume: AiRateLimitConsumer
   readonly #policy: AiRateLimitPolicy | undefined
 
-  constructor(deps: { consume: AiRateLimitConsumer; policy?: AiRateLimitPolicy }) {
+  constructor(deps: { consume: AiRateLimitConsumer; policy?: AiRateLimitPolicy | undefined }) {
     this.#consume = deps.consume
     this.#policy = deps.policy
   }

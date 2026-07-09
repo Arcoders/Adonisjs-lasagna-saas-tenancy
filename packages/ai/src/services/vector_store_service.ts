@@ -48,7 +48,7 @@ export interface VectorStoreDeps {
    * loop retries; it is NOT a wall clock on the whole erasure (that must run to
    * completion). Absent ⇒ the connection default applies (no per-batch timeout).
    */
-  purgeStatementTimeoutMs?: number
+  purgeStatementTimeoutMs?: number | undefined
 }
 
 /**

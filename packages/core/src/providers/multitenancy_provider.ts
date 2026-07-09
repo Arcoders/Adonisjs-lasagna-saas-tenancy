@@ -130,7 +130,9 @@ export default class MultitenancyProvider {
     if (choice === 'schema-pg' && !drivers.has('schema-pg')) {
       drivers.register(
         new SchemaPgDriver({
-          templateConnectionName: config.isolation?.templateConnectionName,
+          ...(config.isolation?.templateConnectionName !== undefined
+            ? { templateConnectionName: config.isolation.templateConnectionName }
+            : {}),
         }),
         { activate: true }
       )
@@ -138,8 +140,12 @@ export default class MultitenancyProvider {
     if (choice === 'database-pg' && !drivers.has('database-pg')) {
       drivers.register(
         new DatabasePgDriver({
-          templateConnectionName: config.isolation?.templateConnectionName,
-          databasePrefix: config.isolation?.tenantDatabasePrefix,
+          ...(config.isolation?.templateConnectionName !== undefined
+            ? { templateConnectionName: config.isolation.templateConnectionName }
+            : {}),
+          ...(config.isolation?.tenantDatabasePrefix !== undefined
+            ? { databasePrefix: config.isolation.tenantDatabasePrefix }
+            : {}),
         }),
         { activate: true }
       )
@@ -151,8 +157,12 @@ export default class MultitenancyProvider {
           // one. templateConnectionName is a clone-template concept that only
           // schema-pg/database-pg use, so rowscope reads centralConnectionName.
           centralConnectionName: config.centralConnectionName,
-          scopedTables: config.isolation?.rowScopeTables,
-          scopeColumn: config.isolation?.rowScopeColumn,
+          ...(config.isolation?.rowScopeTables !== undefined
+            ? { scopedTables: config.isolation.rowScopeTables }
+            : {}),
+          ...(config.isolation?.rowScopeColumn !== undefined
+            ? { scopeColumn: config.isolation.rowScopeColumn }
+            : {}),
         }),
         { activate: true }
       )
@@ -405,8 +415,12 @@ export default class MultitenancyProvider {
 
     if (config.routing?.autoLoad !== false) {
       await autoLoadScopedRouteFiles(this.app, {
-        tenantRoutesFile: config.routing?.tenantRoutesFile,
-        universalRoutesFile: config.routing?.universalRoutesFile,
+        ...(config.routing?.tenantRoutesFile !== undefined
+          ? { tenantRoutesFile: config.routing.tenantRoutesFile }
+          : {}),
+        ...(config.routing?.universalRoutesFile !== undefined
+          ? { universalRoutesFile: config.routing.universalRoutesFile }
+          : {}),
       })
     }
   }

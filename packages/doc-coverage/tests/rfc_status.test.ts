@@ -32,8 +32,8 @@ test('every RFC checkbox matches the implementation registry', () => {
     )
     assert.equal(
       item.checked,
-      matches[0].implemented,
-      `RFC checkbox for "${matches[0].key}" (${item.checked ? '[x]' : '[ ]'}) disagrees with the registry (implemented=${matches[0].implemented})`
+      matches[0]!.implemented,
+      `RFC checkbox for "${matches[0]!.key}" (${item.checked ? '[x]' : '[ ]'}) disagrees with the registry (implemented=${matches[0]!.implemented})`
     )
   }
 })

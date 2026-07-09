@@ -11,7 +11,10 @@ function sat(
     packageName,
     root: `/tmp/${packageName}`,
     version: opts.version,
-    manifest: { name: packageName, dependsOn: opts.dependsOn },
+    manifest: {
+      name: packageName,
+      ...(opts.dependsOn !== undefined ? { dependsOn: opts.dependsOn } : {}),
+    },
   }
 }
 

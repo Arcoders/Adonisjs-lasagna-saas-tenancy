@@ -45,7 +45,7 @@ const replicaLagCheck: DoctorCheck = {
     const issues: DiagnosisIssue[] = []
 
     for (let idx = 0; idx < replicas.hosts.length; idx++) {
-      const host = replicas.hosts[idx]
+      const host = replicas.hosts[idx]!
       const probeName = `${PROBE_CONNECTION_PREFIX}${idx}`
       const label = host.name ?? `${host.host}:${host.port ?? baseConnection.port ?? 5432}`
 

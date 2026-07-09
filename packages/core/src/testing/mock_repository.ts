@@ -53,7 +53,7 @@ export class MockTenantRepository<
   }
 
   async all(
-    options: { includeDeleted?: boolean; statuses?: TenantStatus[] } = {}
+    options: { includeDeleted?: boolean | undefined; statuses?: TenantStatus[] | undefined } = {}
   ): Promise<TenantModelContract<TMeta>[]> {
     const { includeDeleted = false, statuses } = options
     return [...this.#tenants.values()].filter((t) => {

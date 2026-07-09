@@ -16,6 +16,8 @@
     "verbatimModuleSyntax": false,
     "rewriteRelativeImportExtensions": true,
     "useUnknownInCatchVariables": false,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
     "noEmit": true,
     "rootDir": "./"
   },

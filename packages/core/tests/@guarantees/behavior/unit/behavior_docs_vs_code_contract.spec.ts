@@ -67,7 +67,7 @@ test.group('docs vs code contract', () => {
     const match = source.match(/DEFAULT_DURATION\s*=\s*([0-9*\s]+)/)
     assert.isNotNull(match, 'could not locate DEFAULT_DURATION in impersonation_service.ts')
     // The expression is digits and `*` only (e.g. `15 * 60`); evaluate it safely.
-    const expr = match![1].trim()
+    const expr = match![1]!.trim()
     assert.match(expr, /^[0-9*\s]+$/)
     const seconds = expr
       .split('*')

@@ -7,7 +7,7 @@ import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 /** The provider (and optional model) resolved for a tenant. */
 export interface TenantProviderSelection {
   readonly provider: string
-  readonly model?: string
+  readonly model?: string | undefined
 }
 
 const BUILTIN_KEYS = ['claude', 'deepseek', 'kimi'] as const

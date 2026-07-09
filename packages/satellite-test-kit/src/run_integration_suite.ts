@@ -176,7 +176,7 @@ export async function runIntegrationSuite(options: RunIntegrationSuiteOptions): 
       }))
       configure({
         ...app.rcFile.tests,
-        configureSuite,
+        ...(configureSuite !== undefined ? { configureSuite } : {}),
         // The fixture's adonisrc may set `forceExit: true`. That makes
         // @japa/runner call `process.exit()` from inside run() the instant it
         // computes an exit code, before the `.finally` below runs, making the

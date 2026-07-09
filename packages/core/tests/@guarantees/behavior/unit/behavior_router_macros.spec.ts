@@ -40,7 +40,7 @@ test.group('installRouterMacros', (group) => {
     const { router, groups } = makeFakeRouter()
     await installRouterMacros(router)
     router.tenant(() => {})
-    const used = groups[0].used as any[]
+    const used = groups[0]!.used as any[]
     assert.lengthOf(used, 1)
     assert.equal(used[0].constructor.name, 'TenantGuardMiddleware')
   })
@@ -49,7 +49,7 @@ test.group('installRouterMacros', (group) => {
     const { router, groups } = makeFakeRouter()
     await installRouterMacros(router)
     router.central(() => {})
-    const used = groups[0].used as any[]
+    const used = groups[0]!.used as any[]
     assert.equal(used[0].constructor.name, 'CentralOnlyMiddleware')
   })
 
@@ -57,7 +57,7 @@ test.group('installRouterMacros', (group) => {
     const { router, groups } = makeFakeRouter()
     await installRouterMacros(router)
     router.universal(() => {})
-    const used = groups[0].used as any[]
+    const used = groups[0]!.used as any[]
     assert.equal(used[0].constructor.name, 'UniversalMiddleware')
   })
 
@@ -110,7 +110,7 @@ test.group('installRouterMacros — SEAM-2 plugin middleware', (group) => {
 
     await installRouterMacros(router, registry)
     router.tenant(() => {})
-    const used = groups[0].used as any[]
+    const used = groups[0]!.used as any[]
 
     assert.equal(used[0].constructor.name, 'TenantGuardMiddleware') // core first
     assert.deepEqual(usedIds(used), ['a', 'b']) // plugin middleware after, ordered
@@ -131,8 +131,8 @@ test.group('installRouterMacros — SEAM-2 plugin middleware', (group) => {
     router.tenant(() => {})
     router.central(() => {})
 
-    const tenantUsed = groups[0].used as any[]
-    const centralUsed = groups[1].used as any[]
+    const tenantUsed = groups[0]!.used as any[]
+    const centralUsed = groups[1]!.used as any[]
     assert.equal(tenantUsed[0].constructor.name, 'TenantGuardMiddleware')
     assert.deepEqual(usedIds(tenantUsed), ['t'])
     assert.equal(centralUsed[0].constructor.name, 'CentralOnlyMiddleware')
@@ -143,6 +143,6 @@ test.group('installRouterMacros — SEAM-2 plugin middleware', (group) => {
     const { router, groups } = makeFakeRouter()
     await installRouterMacros(router, new TenantMiddlewareRegistry())
     router.tenant(() => {})
-    assert.lengthOf(groups[0].used as any[], 1)
+    assert.lengthOf(groups[0]!.used as any[], 1)
   })
 })

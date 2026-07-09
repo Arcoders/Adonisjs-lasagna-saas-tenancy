@@ -24,10 +24,12 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
   .configure(async (app) => {
     processCLIArgs(process.argv.splice(2))
     const { plugins, configureSuite } = await import('#tests/bootstrap')
+    // `plugins` / `configureSuite` are optional on Japa's `Config`; omit each
+    // key when the bootstrap leaves it undefined instead of passing `undefined`.
     configure({
       ...app.rcFile.tests,
-      plugins,
-      configureSuite,
+      ...(plugins !== undefined ? { plugins } : {}),
+      ...(configureSuite !== undefined ? { configureSuite } : {}),
     })
   })
   .run(() => run())

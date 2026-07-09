@@ -95,9 +95,9 @@ test.group('SchemaPgDriver.connect() pins searchPath on the cached fast path', (
 
     const seal = tripped.filter((e) => e.payload.id === 'seal.connection_search_path')
     assert.isAtLeast(seal.length, 1, 'the cross-tenant connection refusal must emit its event')
-    assert.equal(seal[0].payload.severity, 'critical')
-    assert.equal(seal[0].payload.event, 'isthmus:seal:connection:mismatch')
-    assert.equal(seal[0].payload.tenantId, a.id)
+    assert.equal(seal[0]!.payload.severity, 'critical')
+    assert.equal(seal[0]!.payload.event, 'isthmus:seal:connection:mismatch')
+    assert.equal(seal[0]!.payload.tenantId, a.id)
   })
 
   test('connect(A) succeeds after a correct re-provision (control)', async ({ assert }) => {

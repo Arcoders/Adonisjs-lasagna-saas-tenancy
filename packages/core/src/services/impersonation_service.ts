@@ -32,7 +32,7 @@ const TARGET_USER_ID_RE = /^[a-zA-Z0-9._:@-]{1,128}$/
  * is the responsibility of the consumer.
  */
 export default class ImpersonationService {
-  #auditLog?: AuditLogService
+  #auditLog?: AuditLogService | undefined
 
   constructor(opts?: { auditLog?: AuditLogService }) {
     this.#auditLog = opts?.auditLog

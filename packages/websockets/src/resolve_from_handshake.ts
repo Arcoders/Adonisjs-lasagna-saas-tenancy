@@ -71,7 +71,7 @@ function asString(value: unknown): string | undefined {
 
 function subdomainOf(host: string | undefined, baseDomain: string): string | undefined {
   if (!host) return undefined
-  const bare = host.split(':')[0]
+  const bare = host.split(':')[0]!
   const suffix = baseDomain.startsWith('.') ? baseDomain : `.${baseDomain}`
   if (!bare.endsWith(suffix)) return undefined
   const sub = bare.slice(0, bare.length - suffix.length)

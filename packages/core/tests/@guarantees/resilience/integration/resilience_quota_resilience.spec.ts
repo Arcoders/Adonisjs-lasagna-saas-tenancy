@@ -64,9 +64,9 @@ test.group('QuotaService resilience policy (integration)', (group) => {
     // The DependencyDegraded dispatch is best-effort/async — give it a tick.
     await new Promise((r) => setTimeout(r, 40))
     assert.lengthOf(captured, 1)
-    assert.equal(captured[0].payload.dependency, 'redis')
-    assert.equal(captured[0].payload.operation, 'quota.consume')
-    assert.equal(captured[0].payload.policy, 'fail-open')
+    assert.equal(captured[0]!.payload.dependency, 'redis')
+    assert.equal(captured[0]!.payload.operation, 'quota.consume')
+    assert.equal(captured[0]!.payload.policy, 'fail-open')
   })
 
   test('fail-closed: consume throws DependencyUnavailableException on Redis outage', async ({

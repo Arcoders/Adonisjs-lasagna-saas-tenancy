@@ -106,11 +106,15 @@ function defaultDeps(): SsoServiceDeps {
       // validateResolvedHostIsPublic, so this only affects the rebind edge.
       const target = String(input)
       const { safeFetch } = await import('@adonisjs-lasagna/saas-tenancy')
+      const method = init?.method
+      const headers = init?.headers as Record<string, string> | undefined
+      const body = init?.body as string | URLSearchParams | undefined
+      const signal = init?.signal ?? undefined
       return safeFetch(target, {
-        method: init?.method,
-        headers: (init?.headers as Record<string, string>) ?? undefined,
-        body: init?.body as string | URLSearchParams | undefined,
-        signal: init?.signal ?? undefined,
+        ...(method !== undefined ? { method } : {}),
+        ...(headers !== undefined ? { headers } : {}),
+        ...(body !== undefined ? { body } : {}),
+        ...(signal !== undefined ? { signal } : {}),
         allowLoopback: isLoopbackIssuer(target),
       })
     },

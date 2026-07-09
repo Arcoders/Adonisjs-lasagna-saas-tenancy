@@ -6,7 +6,7 @@ export interface ShredLedgerEntry {
   readonly subjectId: SubjectId
   readonly category: CategoryKey
   /** The erasability basis governance resolved (e.g. 'consent'), for the audit trail. */
-  readonly reason?: string
+  readonly reason?: string | undefined
 }
 
 /** A handle to a PENDING shred row, returned by {@link ShredLedger.appendPending}. */

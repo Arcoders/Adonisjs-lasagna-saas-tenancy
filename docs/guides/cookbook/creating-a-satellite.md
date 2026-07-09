@@ -22,8 +22,10 @@ map:
 
 - the root export ships the feature itself: `ExampleWidgetService`, the `ExampleWidget`
   model, the `InMemoryWidgetStore` test double, and the `Widget` / `WidgetStore` types.
-- `./provider` ships `ExampleSatelliteProvider` (the default export), which implements
-  `SatelliteProviderContract` and self-registers the satellite against core's registries.
+- `./provider` ships the provider as its default export, authored with the `definePlugin`
+  facade (`export default definePlugin({ ... })`). The facade produces a
+  `SatelliteProviderContract` and self-registers the satellite against core's registries;
+  you declare what the satellite adds instead of hand-writing the lifecycle class.
 - `./commands` ships the ace command entry points `getMetaData()` and `getCommand()`, plus
   the `example:widget:list` command (a teaching example, not an operator command).
 
@@ -237,8 +239,14 @@ export default async function configure(command: Configure) {
   const manifest = readSatelliteManifest(pkgJson, (m) => command.logger.warning(m))
   if (!manifest) return
 
-  const app = command.app as any
-  const migrationsDir = app.migrationsPath?.() ?? app.makePath('database', 'migrations')
+  const app = command.app as unknown as {
+    migrationsPath?: (...p: string[]) => string
+    makePath: (...p: string[]) => string
+  }
+  const migrationsDir =
+    typeof app.migrationsPath === 'function'
+      ? app.migrationsPath()
+      : app.makePath('database', 'migrations')
 
   const codemods = await command.createCodemods()
   // Publishes this package's migrations into the host's migrations dir,

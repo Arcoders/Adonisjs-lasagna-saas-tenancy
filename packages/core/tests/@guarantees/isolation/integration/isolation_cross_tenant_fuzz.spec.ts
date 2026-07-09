@@ -84,7 +84,7 @@ test.group('Cross-tenant isolation fuzz (~1000 writes)', (group) => {
     }
     for (let i = writes.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
-      ;[writes[i], writes[j]] = [writes[j], writes[i]]
+      ;[writes[i], writes[j]] = [writes[j]!, writes[i]!]
     }
 
     // Fire in bounded-concurrency batches (CONCURRENCY in flight at a time).

@@ -104,7 +104,7 @@ test.group('TracksDataChanges mixin', (group) => {
     const { model } = fakeModel({}, false)
     await inScope('tenant-a', () => fire('after:create', model))
     assert.lengthOf(captured, 1)
-    assert.equal(captured[0].operation, 'create')
+    assert.equal(captured[0]!.operation, 'create')
   })
 
   test('NO tenant scope → skipped (never emitted mis-attributed)', async ({ assert }) => {
@@ -125,8 +125,8 @@ test.group('TracksDataChanges mixin', (group) => {
     })
     commit()
     assert.lengthOf(captured, 1)
-    assert.equal(captured[0].operation, 'update')
-    assert.deepEqual(captured[0].columns, ['total', 'status'])
+    assert.equal(captured[0]!.operation, 'update')
+    assert.deepEqual(captured[0]!.columns, ['total', 'status'])
     // the payload never carries the VALUES
     assert.notProperty(captured[0], 'values')
   })
@@ -136,8 +136,8 @@ test.group('TracksDataChanges mixin', (group) => {
     const { model, commit } = fakeModel()
     await inScope('tenant-a', () => fire('after:delete', model))
     commit()
-    assert.equal(captured[0].operation, 'delete')
-    assert.isUndefined(captured[0].columns)
-    assert.deepEqual(captured[0].keys, { id: 7 })
+    assert.equal(captured[0]!.operation, 'delete')
+    assert.isUndefined(captured[0]!.columns)
+    assert.deepEqual(captured[0]!.keys, { id: 7 })
   })
 })

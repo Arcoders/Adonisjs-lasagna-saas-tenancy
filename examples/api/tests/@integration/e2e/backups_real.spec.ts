@@ -19,7 +19,7 @@ function findBackupFile(storagePath: string, tenantId: string): string | null {
   const files = readdirSync(dir)
     .filter((f) => f.startsWith(`tenant_${tenantId}_`) && f.endsWith('.dump'))
     .sort() // newest filename last
-  return files.length === 0 ? null : files[files.length - 1]
+  return files.length === 0 ? null : files[files.length - 1]!
 }
 
 /**

@@ -100,7 +100,7 @@ test.group('e2e websockets: tenant isolation', (group) => {
       const rowsA = await tenancy.run(tenantA as any, () => ChatMessage.all())
       const rowsB = await tenancy.run(tenantB as any, () => ChatMessage.all())
       assert.lengthOf(rowsA, 1)
-      assert.equal(rowsA[0].body, 'hello from A')
+      assert.equal(rowsA[0]!.body, 'hello from A')
       assert.lengthOf(rowsB, 0)
     } finally {
       clientA.disconnect()

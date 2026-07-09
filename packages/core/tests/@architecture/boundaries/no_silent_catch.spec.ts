@@ -37,7 +37,7 @@ function silentCatchLines(src: string): number[] {
   let i = 0
   while ((i = src.indexOf('catch', i)) !== -1) {
     let p = i - 1
-    while (p >= 0 && /\s/.test(src[p])) p--
+    while (p >= 0 && /\s/.test(src[p]!)) p--
     if (src[p] !== '}') {
       i += 5
       continue

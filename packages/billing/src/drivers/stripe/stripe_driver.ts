@@ -352,8 +352,8 @@ export default class StripeDriver implements BillingProviderContract {
 
     this.#stripe = new StripeCtor(cfg.stripe.apiKey, {
       apiVersion: (cfg.stripe.apiVersion ?? DEFAULT_STRIPE_API_VERSION) as NonNullable<
-        ConstructorParameters<typeof StripeCtor>[1]
-      >['apiVersion'],
+        NonNullable<ConstructorParameters<typeof StripeCtor>[1]>['apiVersion']
+      >,
       timeout: cfg.stripe.timeout ?? DEFAULT_TIMEOUT_MS,
       maxNetworkRetries: cfg.stripe.maxNetworkRetries ?? DEFAULT_NETWORK_RETRIES,
     })

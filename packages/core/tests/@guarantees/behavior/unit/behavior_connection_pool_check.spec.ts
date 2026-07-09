@@ -23,7 +23,7 @@ test.group('connectionPoolCheck', () => {
     // We allow either: cleanly empty (manager exposes empty Map) OR a single
     // lucid_unavailable error if the dynamic import path is broken.
     if (issues.length > 0) {
-      assert.equal(issues[0].code, 'lucid_unavailable')
+      assert.equal(issues[0]!.code, 'lucid_unavailable')
     } else {
       assert.deepEqual(issues, [])
     }

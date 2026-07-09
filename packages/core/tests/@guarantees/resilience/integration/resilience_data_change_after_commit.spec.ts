@@ -106,9 +106,9 @@ test.group('data-change mixin — after-commit vs rollback (real Postgres)', (gr
       })
       await settle()
       assert.lengthOf(received, 1)
-      assert.equal(received[0].model, 'TrackedNote')
-      assert.equal(received[0].operation, 'create')
-      assert.equal(received[0].tenantId, tenant.id)
+      assert.equal(received[0]!.model, 'TrackedNote')
+      assert.equal(received[0]!.operation, 'create')
+      assert.equal(received[0]!.tenantId, tenant.id)
     } finally {
       off()
     }

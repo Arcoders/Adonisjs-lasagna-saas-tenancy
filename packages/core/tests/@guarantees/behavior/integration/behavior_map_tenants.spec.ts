@@ -37,15 +37,15 @@ test.group('mapTenants (integration)', (group) => {
     assert,
   }) => {
     const tenants = await makeTenants(3, cleanup)
-    const bad = tenants[1].id
+    const bad = tenants[1]!.id
     const { results, errors } = await mapTenants(tenants, async (t) => {
       if (t.id === bad) throw new Error('tenant blew up')
       return 'ok'
     })
     assert.lengthOf(results, 2)
     assert.lengthOf(errors, 1)
-    assert.equal(errors[0].tenantId, bad)
-    assert.match(errors[0].error.message, /blew up/)
+    assert.equal(errors[0]!.tenantId, bad)
+    assert.match(errors[0]!.error.message, /blew up/)
   }).timeout(60_000)
 
   test('continueOnError:false rejects on the first failure', async ({ assert }) => {
@@ -55,7 +55,7 @@ test.group('mapTenants (integration)', (group) => {
         mapTenants(
           tenants,
           async (t) => {
-            if (t.id === tenants[0].id) throw new Error('hard-stop')
+            if (t.id === tenants[0]!.id) throw new Error('hard-stop')
             return 'ok'
           },
           { continueOnError: false }

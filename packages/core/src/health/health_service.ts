@@ -185,7 +185,7 @@ export default class HealthService {
     const total = entries.length
     const passed = Object.values(results).filter((r) => r.status === 'pass').length
     const criticalFailed = entries.some(
-      ([name, { critical }]) => critical && results[name].status === 'fail'
+      ([name, { critical }]) => critical && results[name]!.status === 'fail'
     )
     const status: HealthReport['status'] = criticalFailed
       ? 'fail'

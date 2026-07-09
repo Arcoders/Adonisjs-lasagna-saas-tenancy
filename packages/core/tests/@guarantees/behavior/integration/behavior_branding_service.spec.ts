@@ -50,8 +50,8 @@ test.group('BrandingService (integration)', (group) => {
 
     const all = await TenantBranding.query().where('tenant_id', t.id)
     assert.lengthOf(all, 1)
-    assert.equal(all[0].fromName, 'Second Name')
-    assert.equal(all[0].primaryColor, '#000000')
+    assert.equal(all[0]!.fromName, 'Second Name')
+    assert.equal(all[0]!.primaryColor, '#000000')
   })
 
   test('renderEmailContext() applies sane defaults for missing branding', ({ assert }) => {

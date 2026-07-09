@@ -100,7 +100,7 @@ export default class SsoController {
       clientSecret,
       issuerUrl,
       redirectUri,
-      scopes: Array.isArray(scopes) ? scopes : undefined,
+      ...(Array.isArray(scopes) ? { scopes } : {}),
     })
     // Metadata is non-secret config identity only — the clientSecret in scope
     // above must NEVER reach the audit log (audit_coverage.spec.ts enforces it).

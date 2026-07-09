@@ -158,18 +158,18 @@ test.group('Satellite coexistence (integration)', (group) => {
     // Each satellite landed in its own store.
     const audit = await new AuditLogService().listForTenant(t.id, 1, 50)
     assert.equal(audit.meta.total, 1)
-    assert.equal(audit.data[0].action, 'tenant.created')
+    assert.equal(audit.data[0]!.action, 'tenant.created')
 
     const flags = await new FeatureFlagService().listForTenant(t.id)
     assert.lengthOf(flags, 1)
-    assert.equal(flags[0].flag, 'beta_dashboard')
+    assert.equal(flags[0]!.flag, 'beta_dashboard')
 
     const branding = await new BrandingService().getForTenant(t.id)
     assert.equal(branding!.fromName, 'Acme')
 
     const hooks = await new WebhookService().listWebhooks(t.id)
     assert.lengthOf(hooks, 1)
-    assert.equal(hooks[0].url, 'https://example.com/hooks')
+    assert.equal(hooks[0]!.url, 'https://example.com/hooks')
 
     const metric = await redis.get(`metrics:${t.id}:${TODAY}:requests`)
     assert.equal(metric, '3')

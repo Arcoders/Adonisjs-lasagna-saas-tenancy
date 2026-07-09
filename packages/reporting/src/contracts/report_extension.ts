@@ -1,8 +1,8 @@
 /** Time-window filters handed to a report extension (all optional). */
 export interface ReportExtensionFilters {
-  since?: string
-  until?: string
-  period?: string
+  since?: string | undefined
+  until?: string | undefined
+  period?: string | undefined
 }
 
 /**

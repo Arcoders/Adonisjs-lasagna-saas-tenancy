@@ -52,11 +52,11 @@ test.group('hardening — backup/restore concurrency lock', (group) => {
     assert.lengthOf(fulfilled, 1, 'exactly one operation may run')
     assert.lengthOf(rejected, 1, 'the second concurrent operation must be rejected')
     assert.instanceOf(
-      rejected[0].reason,
+      rejected[0]!.reason,
       TenantOperationLockedException,
       'the rejection must be the typed lock exception'
     )
-    assert.equal((rejected[0].reason as TenantOperationLockedException).status, 409)
+    assert.equal((rejected[0]!.reason as TenantOperationLockedException).status, 409)
     assert.equal(ran, 1, 'only the lock winner executes its operation body — no overlap')
   }).timeout(15_000)
 

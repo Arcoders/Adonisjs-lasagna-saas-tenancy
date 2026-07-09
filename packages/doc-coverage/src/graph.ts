@@ -39,7 +39,7 @@ export interface BuildResult {
  * id used by the docs walker: the `.md` path plus the slugified fragment.
  */
 function normalizeDocTarget(target: string): string {
-  const [path, frag] = target.split('#')
+  const [path = '', frag] = target.split('#')
   const mdPath = path.endsWith('.md') ? path : `${path}.md`
   return frag ? `${mdPath}#${slugify(frag)}` : mdPath
 }
@@ -99,10 +99,11 @@ export function buildGraph(config: DocCoverageConfig): BuildResult {
   const docNodeIds = new Set(docNodes.map((n) => n.id))
   for (const anchor of docAnchors) {
     const targetId = normalizeDocTarget(anchor.doc)
+    const targetBase = targetId.split('#')[0]!
     const fromId = docNodeIds.has(targetId)
       ? targetId
-      : docNodeIds.has(targetId.split('#')[0])
-        ? targetId.split('#')[0]
+      : docNodeIds.has(targetBase)
+        ? targetBase
         : null
     if (!fromId) {
       warnings.push(`@doc on ${anchor.from} points at ${anchor.doc}, which is not a known doc node`)

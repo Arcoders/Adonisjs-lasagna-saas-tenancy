@@ -169,6 +169,7 @@ const sidebar = [
       { text: 'Isthmus guard registry', link: '/reference/isthmus' },
       { text: 'Production checklist & runbook', link: '/reference/production-checklist' },
       { text: 'Stability', link: '/reference/stability' },
+      { text: 'Contract versions', link: '/reference/contract-versions' },
       { text: 'Upgrade to 1.0', link: '/reference/upgrade-to-1.0' },
       { text: 'Roadmap', link: '/reference/roadmap' },
       { text: 'Comparison', link: '/reference/comparison' },

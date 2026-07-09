@@ -22,7 +22,10 @@ export default class AuditLogsController {
     }
 
     const svc = await app.container.make(AuditLogService)
-    const paginated = await svc.listForTenant(tenant.id, page, limit, { from, to })
+    const paginated = await svc.listForTenant(tenant.id, page, limit, {
+      ...(from !== undefined ? { from } : {}),
+      ...(to !== undefined ? { to } : {}),
+    })
     return ctx.response.ok(paginated)
   }
 }

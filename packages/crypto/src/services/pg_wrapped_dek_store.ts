@@ -71,7 +71,7 @@ interface RowScope {
    * reports `rls: true`. When set, every store query runs inside a transaction that
    * first `set_config(...)`s it, so the store's own raw SQL passes the policy.
    */
-  readonly rlsGuc?: string
+  readonly rlsGuc?: string | undefined
 }
 
 /** The resolved (sealed) connection + table + optional rowscope filter for one operation. */

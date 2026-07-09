@@ -3,7 +3,7 @@ import { Exception } from '@adonisjs/core/exceptions'
 /** Attribution carried by every plugin-platform failure. */
 export interface PluginExceptionContext {
   /** The plugin the failure is attributed to (its `definePlugin({ name })`), when known. */
-  plugin?: string
+  plugin?: string | undefined
   /** The underlying error, preserved as `cause` for logs. */
   cause?: unknown
 }
@@ -19,7 +19,7 @@ export default class PluginException extends Exception {
   static status = 500
   static code = 'E_PLUGIN'
 
-  readonly plugin?: string
+  readonly plugin?: string | undefined
 
   constructor(message: string, context: PluginExceptionContext = {}) {
     super(message, { cause: context.cause })

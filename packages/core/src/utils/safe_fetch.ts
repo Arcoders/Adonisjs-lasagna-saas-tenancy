@@ -137,6 +137,25 @@ function combinedSignal(opts: SafeFetchOptions): AbortSignal | undefined {
   ])
 }
 
+/**
+ * Build the `fetch` init shared by the two non-pinned paths (trusted-host,
+ * loopback): `redirect: 'manual'` plus the timeout/caller signal, with the
+ * optional method/headers/body set ONLY when present. Setting a field to
+ * `undefined` is equivalent to omitting it for `fetch`, but under
+ * `exactOptionalPropertyTypes` the compiler refuses `undefined` on `RequestInit`'s
+ * optional members, so we omit them explicitly.
+ */
+function nonPinnedInit(opts: SafeFetchOptions): RequestInit {
+  const init: RequestInit = { redirect: 'manual' }
+  if (opts.method !== undefined) init.method = opts.method
+  if (opts.headers !== undefined) init.headers = opts.headers
+  const body = normalizeBody(opts.body)
+  if (body !== undefined) init.body = body
+  const signal = combinedSignal(opts)
+  if (signal !== undefined) init.signal = signal
+  return init
+}
+
 export async function safeFetch(url: string, opts: SafeFetchOptions = {}): Promise<Response> {
   // Streaming is a pinned-path-only feature. The trusted/loopback modes use a
   // buffered `fetch`, so honoring `streaming` there would silently no-op; reject
@@ -177,26 +196,14 @@ async function trustedHostFetch(url: string, opts: SafeFetchOptions): Promise<Re
   // Not pinned (CDN/edge rotation must keep working), but still no auto-redirect
   // and a shared timeout. body is normalized so URLSearchParams works uniformly.
   // safe-fetch-ok: the one trusted-host fetch, host allowlisted + https-asserted above.
-  return fetch(url, {
-    method: opts.method,
-    headers: opts.headers,
-    body: normalizeBody(opts.body),
-    redirect: 'manual',
-    signal: combinedSignal(opts),
-  })
+  return fetch(url, nonPinnedInit(opts))
 }
 
 async function loopbackFetch(url: string, opts: SafeFetchOptions): Promise<Response> {
   // Explicit loopback escape hatch (test/dev in-process listeners). The target is
   // a trusted local listener, not an attacker-influenced host, so it is not
   // pinned. safe-fetch-ok: loopback opt-in, gated by the caller's policy flag.
-  return fetch(url, {
-    method: opts.method,
-    headers: opts.headers,
-    body: normalizeBody(opts.body),
-    redirect: 'manual',
-    signal: combinedSignal(opts),
-  })
+  return fetch(url, nonPinnedInit(opts))
 }
 
 async function pinnedFetch(url: string, opts: SafeFetchOptions): Promise<Response> {

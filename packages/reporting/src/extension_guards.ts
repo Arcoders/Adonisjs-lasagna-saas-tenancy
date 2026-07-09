@@ -22,8 +22,8 @@ export function resolveExtensionGuards(
   const tail = discriminator ? `:${discriminator}` : ''
   return {
     label: `reporting:${name}`,
-    timeoutMs: cfg?.timeoutMs,
-    rateLimit: cfg?.rateLimit,
+    ...(cfg?.timeoutMs !== undefined ? { timeoutMs: cfg.timeoutMs } : {}),
+    ...(cfg?.rateLimit !== undefined ? { rateLimit: cfg.rateLimit } : {}),
     rateLimitKey: `ext:reporting:${name}${tail}`,
   }
 }

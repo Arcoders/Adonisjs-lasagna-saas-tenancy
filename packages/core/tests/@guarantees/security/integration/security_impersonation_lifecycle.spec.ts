@@ -55,9 +55,9 @@ test.group('ImpersonationService — lifecycle (integration)', (group) => {
     assert.isAtLeast(result.expiresAt, Date.now() + 280_000) // ~ 300s minus skew
 
     assert.lengthOf(audit.calls, 1)
-    assert.equal(audit.calls[0].action, 'admin:impersonate:start')
-    assert.equal(audit.calls[0].metadata?.sessionId, result.sessionId)
-    assert.equal(audit.calls[0].metadata?.targetUserId, baseStart.targetUserId)
+    assert.equal(audit.calls[0]!.action, 'admin:impersonate:start')
+    assert.equal(audit.calls[0]!.metadata?.sessionId, result.sessionId)
+    assert.equal(audit.calls[0]!.metadata?.targetUserId, baseStart.targetUserId)
   })
 
   test('verify() on a fresh token returns the public context', async ({ assert }) => {
@@ -97,7 +97,7 @@ test.group('ImpersonationService — lifecycle (integration)', (group) => {
 
     const stopRows = audit.calls.filter((c) => c.action === 'admin:impersonate:stop')
     assert.lengthOf(stopRows, 1)
-    assert.equal(stopRows[0].ipAddress, '203.0.113.6')
+    assert.equal(stopRows[0]!.ipAddress, '203.0.113.6')
   })
 
   test('stop() is idempotent — second call returns false silently', async ({ assert }) => {
@@ -127,9 +127,9 @@ test.group('ImpersonationService — lifecycle (integration)', (group) => {
 
     const stopRows = audit.calls.filter((c) => c.action === 'admin:impersonate:stop')
     assert.lengthOf(stopRows, 1, 'exactly one stop row for the revoked session')
-    assert.equal(stopRows[0].actorId, baseStart.adminId, 'attributed to the acting admin')
-    assert.equal((stopRows[0].metadata as any)?.targetUserId, baseStart.targetUserId)
-    assert.equal((stopRows[0].metadata as any)?.via, 'revoke-by-id')
+    assert.equal(stopRows[0]!.actorId, baseStart.adminId, 'attributed to the acting admin')
+    assert.equal((stopRows[0]!.metadata as any)?.targetUserId, baseStart.targetUserId)
+    assert.equal((stopRows[0]!.metadata as any)?.via, 'revoke-by-id')
   })
 
   test('revokeById() on a missing session writes NO stop row', async ({ assert }) => {
@@ -170,7 +170,7 @@ test.group('ImpersonationService — lifecycle (integration)', (group) => {
     const { token } = await svc.start(baseStart)
 
     // Flip a hex digit in the signature.
-    const [sid, sig] = token.split('.')
+    const [sid, sig] = token.split('.') as [string, string]
     const flipped = sig[0] === '0' ? '1' + sig.slice(1) : '0' + sig.slice(1)
     const tampered = `${sid}.${flipped}`
 

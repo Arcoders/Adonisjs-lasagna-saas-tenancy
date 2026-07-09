@@ -163,10 +163,10 @@ test.group('plugin permissions — install-consent display', () => {
       'network:external',
       'data_change:users,orders',
     ])
-    assert.isTrue(lines[0].startsWith('scheduler —'))
-    assert.isTrue(lines[1].includes('writes to the tenant database'))
-    assert.isTrue(lines[2].includes('outbound calls'))
-    assert.isTrue(lines[3].includes('users, orders'))
+    assert.isTrue(lines[0]!.startsWith('scheduler —'))
+    assert.isTrue(lines[1]!.includes('writes to the tenant database'))
+    assert.isTrue(lines[2]!.includes('outbound calls'))
+    assert.isTrue(lines[3]!.includes('users, orders'))
   })
 
   test('an unrecognized wire string passes through verbatim (forward-compatible)', ({ assert }) => {

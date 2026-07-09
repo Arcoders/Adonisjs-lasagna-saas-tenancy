@@ -128,7 +128,12 @@ test.group('Satellite multi-tenant destroy cascade (I1)', (group) => {
         .delete()
     })
 
-    const [first, second, third] = models
+    // Exactly three tenants were pushed in the loop above.
+    const [first, second, third] = models as [
+      TenantModelContract,
+      TenantModelContract,
+      TenantModelContract,
+    ]
 
     await runDestroySequence(hooks, driver, second)
 

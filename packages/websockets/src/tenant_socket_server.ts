@@ -41,7 +41,9 @@ export interface TenantSocketServerDeps {
   /** The active tenant id within a bound scope, or `undefined` outside one. */
   currentTenantId(): string | undefined
   /** Optional authorization seam. A falsy return rejects the upgrade. */
-  authorize?(socket: IoSocket, tenant: TenantModelContract): boolean | Promise<boolean>
+  authorize?:
+    | ((socket: IoSocket, tenant: TenantModelContract) => boolean | Promise<boolean>)
+    | undefined
   logger?: LoggerLike
 }
 

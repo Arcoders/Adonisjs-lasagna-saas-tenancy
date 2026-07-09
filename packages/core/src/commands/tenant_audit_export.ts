@@ -74,9 +74,9 @@ export default class TenantAuditExport extends BaseCommand {
 
       let count = 0
       for await (const batch of audit.exportStream({
-        tenantId: this.tenant,
-        from,
-        to,
+        ...(this.tenant !== undefined ? { tenantId: this.tenant } : {}),
+        ...(from !== undefined ? { from } : {}),
+        ...(to !== undefined ? { to } : {}),
         batchSize: 500,
       })) {
         for (const row of batch) {

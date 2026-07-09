@@ -141,9 +141,9 @@ export function d2hard(graph: DocGraph, config: DocCoverageConfig): D2HardFindin
     const re = /\b([A-Z][A-Za-z0-9_]+)\.([a-z][A-Za-z0-9_]*)\s*\(/g
     let m: RegExpExecArray | null
     while ((m = re.exec(text)) !== null) {
-      const node = byName.get(m[1])
+      const node = byName.get(m[1]!)
       if (!node) continue
-      const member = m[2]
+      const member = m[2]!
       const known = node.jsdoc!.allMembers?.length ? node.jsdoc!.allMembers : node.jsdoc!.members
       const params = (node.jsdoc!.params ?? []).map((p) => p.name)
       if (known.includes(member) || params.includes(member)) continue
@@ -208,9 +208,9 @@ export function freshnessPairings(
 }
 
 export interface FreshnessOptions {
-  since?: string
+  since?: string | undefined
   /** Committed contract-hash checkpoint; absent means timestamp fallback. */
-  freshness?: FreshnessCheckpoint | null
+  freshness?: FreshnessCheckpoint | null | undefined
   /** Pages carrying `<!-- doc:freshness-ignore -->`. */
   freshnessIgnore?: ReadonlySet<string>
 }
@@ -291,7 +291,7 @@ const DEFAULT_MAX_HOPS = 2
 export function d4reach(
   graph: DocGraph,
   config: DocCoverageConfig,
-  opts: { since?: string; maxHops?: number } = {}
+  opts: { since?: string | undefined; maxHops?: number } = {}
 ): D4Finding[] {
   if (!opts.since) return []
   const changed = new Set(changedFiles(config.repoRoot, opts.since))

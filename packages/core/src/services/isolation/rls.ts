@@ -53,7 +53,7 @@ export interface SetTenantRlsGucOptions {
    * the policy read an unset setting and fail closed (every query returns zero
    * rows) with no error.
    */
-  gucName?: string
+  gucName?: string | undefined
 }
 
 /**

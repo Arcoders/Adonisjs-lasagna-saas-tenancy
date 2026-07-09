@@ -16,7 +16,7 @@ import {
  */
 function hostnameOf(request: HttpRequest): string {
   const raw = request.hostname() ?? ''
-  return raw.split(':')[0]
+  return raw.split(':')[0]!
 }
 
 /** Normalize the `expectedHostSuffix` config into a clean list (leading dot stripped). */
@@ -90,7 +90,7 @@ export class SubdomainResolver implements TenantResolver {
     // already blocks non-UUID labels, but don't rely on that alone.)
     if (isProductionNodeEnv()) return ResolverHit.miss()
     const labels = host.split('.')
-    return labels.length > 1 ? ResolverHit.id(labels[0]) : ResolverHit.miss()
+    return labels.length > 1 ? ResolverHit.id(labels[0]!) : ResolverHit.miss()
   }
 }
 

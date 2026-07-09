@@ -6,10 +6,10 @@ export interface PluginDoctorSatellite {
   readonly packageName: string
   /** The manifest `name` (the slug the TRUSTED_SATELLITES allowlist matches). */
   readonly name: string
-  readonly satelliteApi?: number
+  readonly satelliteApi?: number | undefined
   /** Canonical wire-form permissions the manifest declares. */
-  readonly permissions?: readonly string[]
-  readonly nativeAddons?: boolean
+  readonly permissions?: readonly string[] | undefined
+  readonly nativeAddons?: boolean | undefined
 }
 
 /** The deployed posture the doctor diagnoses: installed satellites + trust/firewall config. */
@@ -76,7 +76,7 @@ export default class PluginDoctorService {
     const out: DiagnosisIssue[] = []
     for (const sat of input.satellites) {
       const compat = checkSatelliteApiCompat(
-        { satelliteApi: sat.satelliteApi },
+        sat.satelliteApi !== undefined ? { satelliteApi: sat.satelliteApi } : {},
         sat.packageName,
         core
       )

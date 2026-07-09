@@ -38,7 +38,7 @@ test.group('splitSqlStatements — adversarial inputs', () => {
     const sql = `SELECT 1 -- this; is a comment;\n; SELECT 2;`
     const result = splitSqlStatements(sql)
     assert.lengthOf(result, 2)
-    assert.match(result[0], /SELECT 1/)
+    assert.match(result[0]!, /SELECT 1/)
     assert.equal(result[1], 'SELECT 2')
   })
 
@@ -86,9 +86,10 @@ test.group('splitSqlStatementsTagged — adversarial inputs', () => {
     const sql = ['COPY public.foo (id) FROM stdin;', '\\.', 'SELECT 1;'].join('\n')
     const tokens = splitSqlStatementsTagged(sql)
     assert.lengthOf(tokens, 2)
-    assert.equal(tokens[0].kind, 'copy')
-    if (tokens[0].kind === 'copy') {
-      assert.deepEqual(tokens[0].rows, [])
+    const first = tokens[0]!
+    assert.equal(first.kind, 'copy')
+    if (first.kind === 'copy') {
+      assert.deepEqual(first.rows, [])
     }
   })
 
@@ -107,9 +108,11 @@ test.group('splitSqlStatementsTagged — adversarial inputs', () => {
     const tokens = splitSqlStatementsTagged(sql)
     const copyTokens = tokens.filter((t) => t.kind === 'copy')
     assert.lengthOf(copyTokens, 2)
-    if (copyTokens[0].kind === 'copy' && copyTokens[1].kind === 'copy') {
-      assert.lengthOf(copyTokens[0].rows, 1)
-      assert.lengthOf(copyTokens[1].rows, 2)
+    const c0 = copyTokens[0]!
+    const c1 = copyTokens[1]!
+    if (c0.kind === 'copy' && c1.kind === 'copy') {
+      assert.lengthOf(c0.rows, 1)
+      assert.lengthOf(c1.rows, 2)
     }
   })
 
@@ -122,9 +125,10 @@ test.group('splitSqlStatementsTagged — adversarial inputs', () => {
     ].join('\n')
     const tokens = splitSqlStatementsTagged(sql)
     assert.lengthOf(tokens, 1)
-    if (tokens[0].kind === 'copy') {
-      assert.equal(tokens[0].rows[0], '1\t\\N\thello world')
-      assert.equal(tokens[0].rows[1], '2\tx\t\\N')
+    const first = tokens[0]!
+    if (first.kind === 'copy') {
+      assert.equal(first.rows[0], '1\t\\N\thello world')
+      assert.equal(first.rows[1], '2\tx\t\\N')
     }
   })
 
@@ -132,7 +136,7 @@ test.group('splitSqlStatementsTagged — adversarial inputs', () => {
     const sql = ['COPY public.foo (id) FROM stdin WITH (FORMAT text);', '1', '\\.'].join('\n')
     const tokens = splitSqlStatementsTagged(sql)
     assert.lengthOf(tokens, 1)
-    assert.equal(tokens[0].kind, 'copy')
+    assert.equal(tokens[0]!.kind, 'copy')
   })
 })
 
@@ -151,13 +155,14 @@ test.group('splitSqlStatementsTagged — COPY blocks', () => {
     const tokens = splitSqlStatementsTagged(sql)
 
     assert.lengthOf(tokens, 3)
-    assert.equal(tokens[0].kind, 'sql')
-    assert.equal(tokens[1].kind, 'copy')
-    if (tokens[1].kind === 'copy') {
-      assert.match(tokens[1].header, /^COPY\s+public\.foo/i)
-      assert.deepEqual(tokens[1].rows, ['1', '2', '3'])
+    assert.equal(tokens[0]!.kind, 'sql')
+    const second = tokens[1]!
+    assert.equal(second.kind, 'copy')
+    if (second.kind === 'copy') {
+      assert.match(second.header, /^COPY\s+public\.foo/i)
+      assert.deepEqual(second.rows, ['1', '2', '3'])
     }
-    assert.equal(tokens[2].kind, 'sql')
+    assert.equal(tokens[2]!.kind, 'sql')
   })
 
   test('tab-separated rows inside COPY block are not split per row', ({ assert }) => {
@@ -171,10 +176,11 @@ test.group('splitSqlStatementsTagged — COPY blocks', () => {
     const tokens = splitSqlStatementsTagged(sql)
 
     assert.lengthOf(tokens, 1)
-    assert.equal(tokens[0].kind, 'copy')
-    if (tokens[0].kind === 'copy') {
-      assert.lengthOf(tokens[0].rows, 2)
-      assert.equal(tokens[0].rows[0], '93\tFord\tFiesta')
+    const first = tokens[0]!
+    assert.equal(first.kind, 'copy')
+    if (first.kind === 'copy') {
+      assert.lengthOf(first.rows, 2)
+      assert.equal(first.rows[0], '93\tFord\tFiesta')
     }
   })
 
@@ -182,8 +188,8 @@ test.group('splitSqlStatementsTagged — COPY blocks', () => {
     const sql = 'CREATE TABLE foo (id int); INSERT INTO foo VALUES (1);'
     const tokens = splitSqlStatementsTagged(sql)
     assert.lengthOf(tokens, 2)
-    assert.equal(tokens[0].kind, 'sql')
-    assert.equal(tokens[1].kind, 'sql')
+    assert.equal(tokens[0]!.kind, 'sql')
+    assert.equal(tokens[1]!.kind, 'sql')
   })
 
   test('empty input returns empty array', ({ assert }) => {

@@ -13,7 +13,7 @@ export interface BlindIndexOptions {
    * "NFKC + case-fold where the field semantics allow" (§6.5). Uses locale-
    * independent `toUpperCase()` so the fold is deterministic across environments.
    */
-  caseInsensitive?: boolean
+  caseInsensitive?: boolean | undefined
 }
 
 /**

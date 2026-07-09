@@ -32,7 +32,12 @@ function authorizer(
   authorize: TenantAuthorizer,
   order?: number
 ): TenantAuthorizerEntry {
-  return { kind: 'authorizer', name: authorizerName(name), authorize, order }
+  return {
+    kind: 'authorizer',
+    name: authorizerName(name),
+    authorize,
+    ...(order !== undefined ? { order } : {}),
+  }
 }
 
 const ALLOW = { allow: true } as const

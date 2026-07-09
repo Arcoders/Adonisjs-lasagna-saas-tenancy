@@ -54,7 +54,10 @@ export default class AdminController {
     const status = request.input('status') as TenantStatus | undefined
 
     const statuses = status && VALID_STATUSES.includes(status) ? [status] : undefined
-    const tenants = await repo.all({ includeDeleted, statuses })
+    const tenants = await repo.all({
+      includeDeleted,
+      ...(statuses !== undefined ? { statuses } : {}),
+    })
     return response.ok({
       data: tenants.map(serialize),
       total: tenants.length,
@@ -242,6 +245,8 @@ export default class AdminController {
     }
     const durationSeconds = request.input('durationSeconds')
     const reason = request.input('reason') ?? null
+    const resolvedDuration =
+      typeof durationSeconds === 'number' ? durationSeconds : Number(durationSeconds) || undefined
 
     const svc = await app.container.make(ImpersonationService)
     const result = await svc.start({
@@ -249,10 +254,7 @@ export default class AdminController {
       targetUserId: userId,
       adminId,
       adminType: 'admin',
-      durationSeconds:
-        typeof durationSeconds === 'number'
-          ? durationSeconds
-          : Number(durationSeconds) || undefined,
+      ...(resolvedDuration !== undefined ? { durationSeconds: resolvedDuration } : {}),
       reason,
       ipAddress: request.ip(),
     })

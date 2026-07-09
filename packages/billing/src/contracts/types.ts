@@ -244,9 +244,9 @@ export interface PortalOptions {
 /** Options for `listSubscriptions`. Provider-neutral. */
 export interface ListSubscriptionsOptions {
   /** Restrict the listing to a single provider customer id. */
-  customerId?: string
+  customerId?: string | undefined
   /** Only consider subscriptions created at/after this epoch-seconds time. */
-  createdAfter?: number
+  createdAfter?: number | undefined
 }
 
 /** Options for `reportUsage`. */

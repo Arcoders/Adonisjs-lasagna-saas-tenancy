@@ -94,7 +94,7 @@ export default class PaddleDriver implements BillingProviderContract {
           // two concurrent workers converge on one remote entity.
           ...(opts?.idempotencyKey ? { 'Idempotency-Key': opts.idempotencyKey } : {}),
         },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         trustedHost: true,
       })
     } catch (err) {

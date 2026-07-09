@@ -37,13 +37,14 @@ export default [
   {
     // E1 rigor, scoped to the `/plugin` public surface (the plan's "superficie
     // /plugin a prueba de balas"). A repo-wide ban would break existing code, so
-    // it is LOCAL to these files and enforced like every other invariant. The
-    // compiler-flag leg (a scoped tsconfig with exactOptionalPropertyTypes /
-    // noImplicitOverride) is deliberately NOT used: those flags leak into
-    // transitively-imported shared files and conflict with the repo's exception
-    // conventions. no-explicit-any + no-non-null-assertion scope cleanly per-file;
-    // the closed `switch (entry.kind)` + assertNever already gives compile-time
-    // exhaustiveness, and plugin_type_safety.spec.ts is the lexical backstop.
+    // it is LOCAL to these files and enforced like every other invariant. These two
+    // are ESLint rules, not compiler flags, because no-explicit-any and
+    // no-non-null-assertion have no tsconfig equivalent that scopes to a file set.
+    // (exactOptionalPropertyTypes + noUncheckedIndexedAccess ARE enabled repo-wide
+    // in the root tsconfig as of the strictness pass; noImplicitOverride is left
+    // off, since it would leak into transitively-imported shared files.) The closed
+    // `switch (entry.kind)` + assertNever already gives compile-time exhaustiveness,
+    // and plugin_type_safety.spec.ts is the lexical backstop.
     files: [
       'packages/core/src/sdk/plugin.ts',
       'packages/core/src/sdk/define_plugin.ts',

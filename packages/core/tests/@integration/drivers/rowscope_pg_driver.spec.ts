@@ -185,7 +185,7 @@ test.group('withTenantScope mixin (integration)', (group) => {
     await tenancy.run(fakeTenant(tenantA), async () => {
       const posts = await TestPost.all()
       assert.lengthOf(posts, 1)
-      assert.equal(posts[0].title, 'a')
+      assert.equal(posts[0]!.title, 'a')
     })
   })
 
@@ -255,7 +255,7 @@ test.group('withTenantScope mixin (integration)', (group) => {
 
     const survivors = await unscoped(() => TestPost.all())
     assert.lengthOf(survivors, 1)
-    assert.equal(survivors[0].tenant_id, tenantB)
+    assert.equal(survivors[0]!.tenant_id, tenantB)
   })
 
   test('bulk update via query builder is scoped — other tenants rows untouched', async ({

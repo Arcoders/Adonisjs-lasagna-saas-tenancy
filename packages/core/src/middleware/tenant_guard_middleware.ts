@@ -29,7 +29,7 @@ import type { NextFn } from '@adonisjs/core/types/http'
 export default class TenantGuardMiddleware {
   async handle(ctx: HttpContext, next: NextFn) {
     const { request } = ctx
-    const path = request.url(false).split('?')[0]
+    const path = request.url(false).split('?')[0]!
     const ignored = getConfig().ignorePaths.some((p) => path === p || path.startsWith(`${p}/`))
     if (ignored) return next()
 

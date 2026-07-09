@@ -58,7 +58,7 @@ test.group('Doctor checks — real-state E2E', (group) => {
     try {
       const { reports } = await svc.run({ checks: ['schema_drift'] })
       assert.lengthOf(reports, 1)
-      const issues = reports[0].issues
+      const issues = reports[0]!.issues
 
       const missingIssue = issues.find(
         (i) => i.code === 'schema_missing' && i.tenantId === missing.id
@@ -97,7 +97,7 @@ test.group('Doctor checks — real-state E2E', (group) => {
         tenants: [tenant.id],
         checks: ['migration_state'],
       })
-      const issues = reports[0].issues
+      const issues = reports[0]!.issues
       const issue = issues.find(
         (i) => i.code === 'migrations_never_ran' && i.tenantId === tenant.id
       )
@@ -127,7 +127,7 @@ test.group('Doctor checks — real-state E2E', (group) => {
         tenants: [tenant.id],
         checks: ['migration_state'],
       })
-      const issue = reports[0].issues.find((i) => i.tenantId === tenant.id)
+      const issue = reports[0]!.issues.find((i) => i.tenantId === tenant.id)
       assert.isUndefined(issue, 'tenant with adonis_schema must not be flagged')
     } finally {
       await central.rawQuery(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
@@ -143,7 +143,7 @@ test.group('Doctor checks — real-state E2E', (group) => {
         tenants: [tenant.id],
         checks: ['backup_recency'],
       })
-      const issue = reports[0].issues.find((i) => i.tenantId === tenant.id)
+      const issue = reports[0]!.issues.find((i) => i.tenantId === tenant.id)
       assert.isDefined(issue, 'must report something for a tenant with no backup history')
       // Either clean state (`backup_never_taken`) or a non-writable
       // backup path on the CI runner (`backup_inspect_failed`) is acceptable.
@@ -166,7 +166,7 @@ test.group('Doctor checks — real-state E2E', (group) => {
       assert.isTrue(cb.isOpen(tenant.id), 'precondition: breaker reports OPEN')
 
       const { reports } = await svc.run({ checks: ['circuit_breakers'] })
-      const issue = reports[0].issues.find((i) => i.tenantId === tenant.id)
+      const issue = reports[0]!.issues.find((i) => i.tenantId === tenant.id)
       assert.isDefined(issue, 'OPEN breaker must surface as an issue')
       assert.equal(issue!.code, 'circuit_open')
       assert.equal(issue!.severity, 'error')
@@ -176,7 +176,7 @@ test.group('Doctor checks — real-state E2E', (group) => {
         checks: ['circuit_breakers'],
         fix: true,
       })
-      const fixed = afterFix[0].issues.find((i) => i.tenantId === tenant.id)
+      const fixed = afterFix[0]!.issues.find((i) => i.tenantId === tenant.id)
       assert.isDefined(fixed)
       assert.equal((fixed!.meta as any)?.fixed, true, 'fix metadata must record the reset')
       assert.isFalse(cb.isOpen(tenant.id), 'breaker must be CLOSED after fix')
@@ -208,9 +208,9 @@ test.group('Doctor checks — real-state E2E', (group) => {
     try {
       const { reports, totals } = await svc.run({ checks: [customName] })
       assert.lengthOf(reports, 1)
-      assert.equal(reports[0].check, customName)
-      assert.equal(reports[0].issues[0].code, 'host_diagnosis')
-      assert.equal((reports[0].issues[0].meta as any)?.fingerprint, fingerprint)
+      assert.equal(reports[0]!.check, customName)
+      assert.equal(reports[0]!.issues[0]!.code, 'host_diagnosis')
+      assert.equal((reports[0]!.issues[0]!.meta as any)?.fingerprint, fingerprint)
       assert.equal(totals.info, 1)
     } finally {
       svc.unregister(customName)

@@ -50,7 +50,7 @@ test.group('contract — every secret-shaped config field is registered', () => 
       if (isComment(line)) continue
       const m = PROP_DECL.exec(line)
       if (!m) continue
-      const name = m[1]
+      const name = m[1]!
       if (!SECRET_NAME.test(name)) continue
       if (registered.has(name) || ALLOWED.has(name)) continue
       violations.push(name)

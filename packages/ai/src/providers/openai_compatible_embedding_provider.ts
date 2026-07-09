@@ -20,7 +20,7 @@ export interface OpenAiEmbeddingParams {
   /** The default public endpoint; overridden by `config.baseUrl` (BYOK / self-host). */
   baseUrl: string
   /** The default model when neither the request nor config sets one. */
-  defaultModel?: string
+  defaultModel?: string | undefined
 }
 
 /**
@@ -39,7 +39,7 @@ export default class OpenAICompatibleEmbeddingProvider implements AIEmbeddingPro
   readonly capabilities: AIEmbeddingCapabilities = { embedding: true }
 
   readonly #baseUrl: string
-  readonly #defaultModel?: string
+  readonly #defaultModel?: string | undefined
   #keyFingerprint?: string
 
   constructor(

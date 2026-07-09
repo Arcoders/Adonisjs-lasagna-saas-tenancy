@@ -133,7 +133,7 @@ export function buildSymbolContract(
       const type = checker.getTypeOfSymbolAtLocation(symbol, decl)
       const callSigs = type.getCallSignatures()
       if (callSigs.length > 0) {
-        const sigDecl = callSigs[0].getDeclaration()
+        const sigDecl = callSigs[0]!.getDeclaration()
         if (sigDecl) {
           const mc = signatureContract(checker, symbol.getName(), sigDecl)
           if (mc) members.push(mc)
@@ -156,7 +156,7 @@ export function buildSymbolContract(
 
   const allParams = members.flatMap((m) => m.params.map((p) => ({ name: p.name, typeStr: p.type })))
   const allThrows = [...new Set(members.flatMap((m) => m.throws))].sort()
-  const returnsTypeStr = members.length === 1 ? members[0].ret : null
+  const returnsTypeStr = members.length === 1 ? members[0]!.ret : null
 
   return {
     members,

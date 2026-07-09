@@ -115,7 +115,7 @@ test.group('Isthmus emit — never breaks the reject path', (group) => {
     const rejected = snapshotIsthmusCounters().rejected.find((r) => r.id === 'guard.config_bounds')
     assert.equal(rejected?.value, 1)
     assert.lengthOf(captured, 1, 'the config-phase trip still dispatches through the seam')
-    assert.equal(captured[0].id, 'guard.config_bounds')
+    assert.equal(captured[0]!.id, 'guard.config_bounds')
   })
 
   test('beyond the severity budget, dispatch drops as rate_limited but totals stay exact', async ({

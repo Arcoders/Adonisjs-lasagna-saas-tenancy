@@ -138,8 +138,8 @@ test.group('boundedBatch — error handling', () => {
     )
     assert.lengthOf(results, 4)
     assert.lengthOf(errors, 1)
-    assert.equal(errors[0].key, '2')
-    assert.match(errors[0].error.message, /boom-2/)
+    assert.equal(errors[0]!.key, '2')
+    assert.match(errors[0]!.error.message, /boom-2/)
   })
 
   test('continueOnError:true collects multiple failures', async ({ assert }) => {
@@ -168,7 +168,7 @@ test.group('boundedBatch — error handling', () => {
     )
     assert.lengthOf(results, 2)
     assert.lengthOf(errors, 1)
-    assert.equal(errors[0].key, '1')
+    assert.equal(errors[0]!.key, '1')
   })
 
   test('continueOnError:false rejects with the first error and leaks no unhandled rejection', async ({
