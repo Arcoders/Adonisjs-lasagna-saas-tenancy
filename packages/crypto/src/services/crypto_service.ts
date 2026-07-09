@@ -218,9 +218,12 @@ export default class CryptoService {
 
   /**
    * Crypto-shred a `(subject × category)`: the O(1) erasure (I6, §6.6). It
-   * destroys the ONLY copy of the DEK, so every field ciphertext and every vault
-   * blob under it (and their backups, which are ciphertext) becomes irrecoverable
-   * at once. Fail-closed and gated:
+   * destroys the only LIVE copy of the DEK, so every live field ciphertext and every
+   * live vault blob under it (and any backup taken AFTER the shred) becomes
+   * irrecoverable at once. HONEST LIMIT: a backup/clone/query-log written BEFORE the
+   * shred retains the wrapped DEK, which the surviving per-tenant KEK can still unwrap,
+   * so erasure of pre-shred copies is the operator's retention/KEK-rotation job (§10).
+   * Fail-closed and gated:
    *
    *  1. Governance gate FIRST (I7): if no erasability resolver is wired
    *     (governance absent), or governance says the category is not erasable (a
