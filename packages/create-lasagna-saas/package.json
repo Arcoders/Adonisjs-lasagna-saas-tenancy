@@ -1,0 +1,29 @@
+{
+  "name": "create-lasagna-saas",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Scaffold an AdonisJS 7 app with Lasagna multitenancy already wired. Not published yet — it lives in the monorepo so the golden install path is compiled and tested alongside the package it installs.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build"
+  ],
+  "bin": {
+    "create-lasagna-saas": "./build/bin/index.js"
+  },
+  "main": "./build/src/plan.js",
+  "types": "./build/src/plan.d.ts",
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "~6.0"
+  }
+}

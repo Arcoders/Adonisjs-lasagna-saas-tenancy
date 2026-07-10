@@ -211,6 +211,16 @@ jobs:
           npm run build:template
           npm run test --workspace @adonisjs-lasagna/satellite-template
 
+      # The starter scaffolder encodes the golden install path as data. Its unit
+      # suite pins that plan (peers configured before core, config/database.ts
+      # written after) and the two install defects the generated config closes.
+      # The suite never spawns a process, so it needs no database and no network;
+      # the win32 npm invocation is covered by injecting the platform instead.
+      - name: Build + test the starter scaffolder
+        run: |
+          npm run build:starter
+          npm run test --workspace create-lasagna-saas
+
       # The shared integration harness underwrites core + every satellite, so it
       # carries its own unit suite (the pure exit-code/glob/spec-import logic +
       # the boot-safety metatest) behind a self-contained coverage floor

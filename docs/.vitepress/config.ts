@@ -11,11 +11,26 @@ const REPO = 'https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy'
 // Track the published core version so the nav label never goes stale.
 const { version } = require('../../packages/core/package.json')
 
-// One sidebar applied across the whole site, organised into the three AdonisJS-v7
-// pillars: Start → Guides → Reference. The Guides pillar keeps the pedagogy in
-// nested sub-groups (Core concepts / Building / Satellites / Production). Pages
-// moved out of the old flat `/docs/*` layout in the 1.0 docs restructure; old
+// One sidebar applied across the whole site, in two tiers.
+//
+// The first four groups are the path a newcomer walks: get it running (Start),
+// learn the four ideas the package is built on (Core concepts), find out whether
+// it can be trusted with production data (Trust), then extend it (Extend). They
+// stay expanded.
+//
+// `Reference` and `Advanced` are collapsed. Nothing is deleted from the sidebar:
+// every page a CI guard pins still has exactly one entry, because
+// `docs_nav_documented.spec.ts` fails on any tracked page that no menu links to.
+// Demoting a page means moving its link into a collapsed group, never dropping it.
+//
+// `/architecture` and `/sponsor` live in `themeConfig.nav` rather than here, and
+// that nav entry is what keeps them out of the orphan list. Do not remove them
+// from the nav without first giving them a sidebar home.
+//
+// Pages moved out of the old flat `/docs/*` layout in the docs restructure; old
 // URLs keep working via the redirect stubs emitted in `buildEnd` (see below).
+// Reordering a link here is free. Moving a *page* changes its public URL and
+// needs a `redirects.json` entry.
 const sidebar = [
   {
     text: 'Start',
@@ -28,7 +43,7 @@ const sidebar = [
       { text: 'Installation & configuration', link: '/start/installation' },
       {
         text: 'Tutorial: build a SaaS',
-        collapsed: false,
+        collapsed: true,
         items: [
           { text: 'Overview', link: '/start/tutorial/' },
           { text: '1. Setup', link: '/start/tutorial/setup' },
@@ -41,85 +56,125 @@ const sidebar = [
     ],
   },
   {
-    text: 'Guides',
+    text: 'Core concepts',
     items: [
+      { text: 'Tenant identification', link: '/guides/tenant-identification' },
       {
-        text: 'Core concepts',
-        collapsed: false,
+        text: 'Data isolation',
+        link: '/guides/data-isolation/',
+        collapsed: true,
         items: [
-          { text: 'Tenant identification', link: '/guides/tenant-identification' },
-          {
-            text: 'Data isolation',
-            link: '/guides/data-isolation/',
-            collapsed: true,
-            items: [
-              { text: 'schema-pg', link: '/guides/data-isolation/schema-pg' },
-              { text: 'database-pg', link: '/guides/data-isolation/database-pg' },
-              { text: 'rowscope-pg', link: '/guides/data-isolation/rowscope-pg' },
-              { text: 'sqlite-memory', link: '/guides/data-isolation/sqlite-memory' },
-            ],
-          },
-          { text: 'Request context & routing', link: '/guides/routing' },
-          { text: 'Models & adapters', link: '/guides/models' },
-          {
-            text: 'Bootstrappers',
-            link: '/guides/bootstrappers/',
-            collapsed: true,
-            items: [
-              { text: 'Database', link: '/guides/bootstrappers/database' },
-              { text: 'Cache', link: '/guides/bootstrappers/cache' },
-              { text: 'Filesystem', link: '/guides/bootstrappers/filesystem' },
-              { text: 'Mail', link: '/guides/bootstrappers/mail' },
-              { text: 'Session', link: '/guides/bootstrappers/session' },
-              { text: 'Broadcasting', link: '/guides/bootstrappers/broadcasting' },
-            ],
-          },
+          { text: 'schema-pg', link: '/guides/data-isolation/schema-pg' },
+          { text: 'database-pg', link: '/guides/data-isolation/database-pg' },
+          { text: 'rowscope-pg', link: '/guides/data-isolation/rowscope-pg' },
+          { text: 'sqlite-memory', link: '/guides/data-isolation/sqlite-memory' },
         ],
       },
+      { text: 'Request context & routing', link: '/guides/routing' },
+      { text: 'Models & adapters', link: '/guides/models' },
+    ],
+  },
+  {
+    // The credibility tier. A reader evaluating this package for production
+    // arrives afraid of exactly one thing — leaking tenant A's rows into tenant
+    // B — and `security.md` is the page that answers it, limitations included.
+    // It is deliberately one click from the first screen, not buried.
+    text: 'Trust',
+    items: [
+      { text: 'Security guarantees', link: '/guides/security' },
+      { text: 'Known limitations', link: '/reference/known-limitations' },
+      { text: 'Stability', link: '/reference/stability' },
+      { text: 'FAQ', link: '/reference/faq' },
+      { text: 'Upgrade to 0.3', link: '/reference/upgrade-to-0.3' },
+    ],
+  },
+  {
+    text: 'Extend',
+    items: [
+      { text: 'Create your own satellite', link: '/guides/cookbook/creating-a-satellite' },
+      { text: 'Building a plugin', link: '/guides/plugins' },
+      { text: 'Contributing', link: '/reference/contributing' },
+    ],
+  },
+  {
+    text: 'Reference',
+    collapsed: true,
+    items: [
+      { text: 'Configuration', link: '/reference/configuration' },
+      { text: 'CLI commands', link: '/reference/commands' },
+      { text: 'Lifecycle events', link: '/reference/events' },
+      { text: 'Hooks', link: '/reference/hooks' },
+      { text: 'Services API', link: '/reference/services' },
+      { text: 'Exceptions', link: '/reference/exceptions' },
+      { text: 'Isthmus guard registry', link: '/reference/isthmus' },
+      { text: 'Contract versions', link: '/reference/contract-versions' },
+      { text: 'Production checklist & runbook', link: '/reference/production-checklist' },
+      { text: 'Roadmap', link: '/reference/roadmap' },
+      { text: 'Comparison', link: '/reference/comparison' },
+      { text: 'Troubleshooting', link: '/reference/gotchas' },
+      { text: 'Release notes', link: '/reference/release-notes' },
+    ],
+  },
+  {
+    text: 'Advanced',
+    collapsed: true,
+    items: [
       {
         text: 'Building',
-        collapsed: false,
+        collapsed: true,
         items: [
           { text: 'Authentication', link: '/guides/authentication' },
           { text: 'Background jobs & queues', link: '/guides/jobs' },
           { text: 'Read replicas', link: '/guides/read-replicas' },
           { text: 'Contextual logging', link: '/guides/contextual-logging' },
           { text: 'Testing', link: '/guides/testing' },
-          { text: 'Building a plugin', link: '/guides/plugins' },
           { text: 'Scheduler', link: '/guides/scheduler' },
           { text: 'Data-change hooks', link: '/guides/data-change-hooks' },
+          { text: 'Extensibility', link: '/guides/extensibility' },
+        ],
+      },
+      {
+        text: 'Bootstrappers',
+        link: '/guides/bootstrappers/',
+        collapsed: true,
+        items: [
+          { text: 'Database', link: '/guides/bootstrappers/database' },
+          { text: 'Cache', link: '/guides/bootstrappers/cache' },
+          { text: 'Filesystem', link: '/guides/bootstrappers/filesystem' },
+          { text: 'Mail', link: '/guides/bootstrappers/mail' },
+          { text: 'Session', link: '/guides/bootstrappers/session' },
+          { text: 'Broadcasting', link: '/guides/bootstrappers/broadcasting' },
+        ],
+      },
+      {
+        text: 'Recipes',
+        link: '/guides/cookbook/',
+        collapsed: true,
+        items: [
           {
-            text: 'Recipes',
-            link: '/guides/cookbook/',
-            collapsed: true,
-            items: [
-              {
-                text: 'Adding features later',
-                link: '/guides/cookbook/adding-features-incrementally',
-              },
-              {
-                text: 'Tenant onboarding & offboarding',
-                link: '/guides/cookbook/tenant-onboarding-offboarding',
-              },
-              {
-                text: 'Per-tenant worker concurrency',
-                link: '/guides/cookbook/per-tenant-worker-concurrency',
-              },
-              { text: 'Custom-domain HTTPS', link: '/guides/cookbook/custom-domain-https' },
-              { text: 'Stripe + quotas', link: '/guides/cookbook/stripe-quotas' },
-              { text: 'Multi-tenant WebSockets', link: '/guides/cookbook/multi-tenant-websockets' },
-              { text: 'Multi-region replicas', link: '/guides/cookbook/multi-region-replicas' },
-              { text: 'Custom isolation driver', link: '/guides/cookbook/custom-isolation-driver' },
-              { text: 'Creating a satellite', link: '/guides/cookbook/creating-a-satellite' },
-            ],
+            text: 'Adding features later',
+            link: '/guides/cookbook/adding-features-incrementally',
           },
+          {
+            text: 'Tenant onboarding & offboarding',
+            link: '/guides/cookbook/tenant-onboarding-offboarding',
+          },
+          {
+            text: 'Per-tenant worker concurrency',
+            link: '/guides/cookbook/per-tenant-worker-concurrency',
+          },
+          { text: 'Custom-domain HTTPS', link: '/guides/cookbook/custom-domain-https' },
+          { text: 'Stripe + quotas', link: '/guides/cookbook/stripe-quotas' },
+          { text: 'Multi-tenant WebSockets', link: '/guides/cookbook/multi-tenant-websockets' },
+          { text: 'Multi-region replicas', link: '/guides/cookbook/multi-region-replicas' },
+          { text: 'Custom isolation driver', link: '/guides/cookbook/custom-isolation-driver' },
         ],
       },
       {
         text: 'Satellites',
+        link: '/guides/satellites/',
         collapsed: true,
         items: [
-          { text: 'Overview', link: '/guides/satellites/' },
           { text: 'Audit', link: '/guides/satellites/audit' },
           { text: 'Feature flags', link: '/guides/satellites/feature-flags' },
           { text: 'Webhooks', link: '/guides/satellites/webhooks' },
@@ -136,14 +191,12 @@ const sidebar = [
           { text: 'Impersonation', link: '/guides/satellites/impersonation' },
           { text: 'Admin', link: '/guides/satellites/admin' },
           { text: 'Admin REST API', link: '/guides/satellites/admin-rest-api' },
-          { text: 'Extensibility', link: '/guides/extensibility' },
         ],
       },
       {
         text: 'Production',
         collapsed: true,
         items: [
-          { text: 'Security', link: '/guides/security' },
           { text: 'Compliance (SOC2 & GDPR)', link: '/guides/compliance' },
           { text: 'Resilience', link: '/guides/resilience' },
           { text: 'Rate limiting', link: '/guides/rate-limiting' },
@@ -154,29 +207,6 @@ const sidebar = [
           { text: 'Documentation coverage', link: '/guides/documentation-coverage' },
         ],
       },
-    ],
-  },
-  {
-    text: 'Reference',
-    items: [
-      { text: 'Configuration', link: '/reference/configuration' },
-      { text: 'CLI commands', link: '/reference/commands' },
-      { text: 'Lifecycle events', link: '/reference/events' },
-      { text: 'Hooks', link: '/reference/hooks' },
-      { text: 'Services API', link: '/reference/services' },
-      { text: 'Exceptions', link: '/reference/exceptions' },
-      { text: 'Isthmus guard registry', link: '/reference/isthmus' },
-      { text: 'Production checklist & runbook', link: '/reference/production-checklist' },
-      { text: 'Stability', link: '/reference/stability' },
-      { text: 'Contract versions', link: '/reference/contract-versions' },
-      { text: 'Upgrade to 0.3', link: '/reference/upgrade-to-0.3' },
-      { text: 'Roadmap', link: '/reference/roadmap' },
-      { text: 'Comparison', link: '/reference/comparison' },
-      { text: 'Troubleshooting', link: '/reference/gotchas' },
-      { text: 'FAQ', link: '/reference/faq' },
-      { text: 'Known limitations', link: '/reference/known-limitations' },
-      { text: 'Contributing', link: '/reference/contributing' },
-      { text: 'Release notes', link: '/reference/release-notes' },
     ],
   },
 ]
