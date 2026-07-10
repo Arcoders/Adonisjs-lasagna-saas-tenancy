@@ -14,6 +14,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const GUARDS = [
   'check-lockfile-workspaces.mjs',
   'check-stub-render.mjs',
+  'check-migration-order.mjs',
   'check-doc-paths.mjs',
   'check-positioning.mjs',
   'check-stability-versions.mjs',

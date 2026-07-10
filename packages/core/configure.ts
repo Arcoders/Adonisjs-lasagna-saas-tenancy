@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url'
 import { access } from 'node:fs/promises'
 import {
   filterAlreadyPublished,
+  finalizeNewMigrations,
   listExistingMigrations,
+  snapshotMigrationDir,
   discoverSatellites,
   indexSatellites,
   publishSatellite,
@@ -110,7 +112,7 @@ export const OPT_IN_BUNDLES: Record<string, string[]> = {
   // both the per-tenant and the cross-tenant-sweep paths. Request with
   // `--with=rls-backoffice`.
   'rls-backoffice': ['enable_rls_backoffice_isolation'],
-  // Per-tenant maintenance mode adds an `is_maintenance` column to the host's
+  // Per-tenant maintenance mode adds a `maintenance` column to the host's
   // central `tenants` table. It alters host-owned schema rather than creating a
   // backoffice satellite table, so it is opt-in (never auto-published) and
   // requested explicitly with `--with=maintenance`.
@@ -533,9 +535,18 @@ export default async function configure(command: Configure) {
     const existing = await listExistingMigrations(migrationsDir)
     const { toPublish, skipped } = filterAlreadyPublished(resolved, existing)
 
+    // Snapshotted AFTER the `tenants` migration above, whose fixed zero prefix is
+    // load-bearing (`--with=maintenance` ALTERs that table) and must not be re-stamped.
+    // `resolved` carries the bundle's dependency order — `tenant_webhooks` before the
+    // `tenant_webhook_deliveries` whose foreign key points at it — and
+    // `finalizeNewMigrations` seals that order into the timestamps, which is the only
+    // thing `migration:run` reads.
+    const before = await snapshotMigrationDir(migrationsDir)
     for (const name of toPublish) {
       await codemods.makeUsingStub(stubsRoot, `migrations/${name}.stub`, {})
     }
+    await finalizeNewMigrations(migrationsDir, before, toPublish)
+
     if (skipped.length > 0) {
       command.logger.info(
         `skipped already-published migrations (re-run safe): ${skipped.join(', ')}`
@@ -677,7 +688,7 @@ function postPublishConfigReminders(command: Configure, selected: string[]): voi
   if (has('maintenance')) {
     log.log('')
     log.log('— Maintenance mode — additional setup —')
-    log.log('The published migration ALTERS your central `tenants` table (adds is_maintenance).')
+    log.log('The published migration ALTERS your central `tenants` table (adds maintenance).')
     log.log('Add an optional config/multitenancy.ts block to customise the response:')
     log.log('  maintenance: { retryAfterSeconds: 600, defaultMessage: "Back soon" },')
   }

@@ -26,10 +26,10 @@ test.group('Fiscal features are opt-in (separate stub dir)', () => {
     const fiscal = await readdir(join(pkgRoot, 'stubs', 'migrations-fiscal'))
 
     assert.includeMembers(fiscal, [
-      'add_country_code_to_billing_customers.stub',
-      'create_billing_invoice_snapshots_table.stub',
+      '0001_add_country_code_to_billing_customers.stub',
+      '0002_create_billing_invoice_snapshots_table.stub',
     ])
-    assert.notInclude(base, 'add_country_code_to_billing_customers.stub')
-    assert.notInclude(base, 'create_billing_invoice_snapshots_table.stub')
+    assert.notInclude(base, '0001_add_country_code_to_billing_customers.stub')
+    assert.notInclude(base, '0002_create_billing_invoice_snapshots_table.stub')
   })
 })

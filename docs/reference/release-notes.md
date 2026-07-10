@@ -584,6 +584,19 @@ a minor. `1.0.0` is earned, not declared. The five satellite packages ship
   named `<ts>_<pkg_slug>__<stub>.ts` intrinsically; idempotency recognizes both the
   namespaced and legacy un-namespaced forms, so existing installs are not
   re-published as duplicates.
+- **Published migrations now run in the order they were published, not in
+  alphabetical order.** Every migration stub named its own output
+  `${Date.now()}_<name>.ts`. Two stubs of one batch render in the same millisecond and
+  tie, and `migration:run` sorts by filename, so the tie fell through to the alphabet.
+  `configure --with=webhooks` could therefore emit
+  `create_tenant_webhook_deliveries_table` ahead of the `create_tenant_webhooks_table`
+  its foreign key points at, and `migration:run` failed on a table that did not exist
+  yet. The publisher now re-stamps each batch so publish order is run order, clearing
+  every timestamp already in the directory. A new `check-migration-order` CI guard
+  reads the `createTable`, `alterTable`, `inTable` and raw `ALTER TABLE` statements out
+  of every stub, and fails the build if a batch declares a dependency it publishes too
+  late. The clean-install gate now selects `--with=webhooks,maintenance`, so real
+  PostgreSQL adjudicates the foreign key.
 - **`configure --with=metrics` now publishes every metrics table.** The bundle only
   published `create_tenant_metrics_table`; `create_tenant_custom_metrics_table` and
   `create_tenant_metrics_monthly_table` were orphaned (in no bundle), so a host that

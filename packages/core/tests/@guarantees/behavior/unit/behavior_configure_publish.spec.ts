@@ -51,12 +51,18 @@ function destinationFor(stubPath: string, root: string, nextId: () => string): s
     )
   // Core stubs are `migrations/<name>.stub`; external satellites publish via the
   // toolkit as `<migrationsDir>/<name>.stub` (e.g. `stubs/migrations/<name>.stub`).
+  // A stub file may carry an `NNNN_` publish-order prefix. That prefix orders the
+  // package's stubs on disk and stops there: the stub's own `exports({ to })` header
+  // names the migration without it, exactly as reproduced here.
   const m = stubPath.match(/(?:^|[\\/])migrations[\\/](.+)\.stub$/)
-  if (m) return join(root, 'database', 'migrations', `${nextId()}_${m[1]}.ts`)
-  return null
+  if (!m) return null
+  const name = m[1]!.replace(/^\d{4}_/, '')
+  return join(root, 'database', 'migrations', `${nextId()}_${name}.ts`)
 }
 
 const TENANTS_MIGRATION_PREFIX = '0000000000000'
+/** Every stub in a batch renders in this one millisecond. See `fakeCommand`. */
+const FROZEN_NOW = 1_700_000_000_000
 const STUBS_ROOT = new URL('../../../../stubs/', import.meta.url)
 
 interface Captured {
@@ -67,8 +73,15 @@ interface Captured {
 }
 
 function fakeCommand(root: string, flags: Record<string, unknown> = {}) {
-  let counter = 0
-  const nextId = () => `${Date.now()}${String(counter++).padStart(4, '0')}`
+  // A real stub's `exports({ to })` header writes a bare `${Date.now()}` prefix, so
+  // two stubs rendered back to back routinely tie — and a tie hands the run order to
+  // the alphabet. This double freezes the clock to make that tie certain instead of
+  // merely likely, which is the state `configure` has to publish correctly from.
+  //
+  // It used to append a monotonic counter (`${Date.now()}${counter}`), which made a
+  // collision impossible and so hid the defect: `tenant_webhook_deliveries` sorting
+  // ahead of the `tenant_webhooks` its foreign key points at.
+  const nextId = () => String(FROZEN_NOW)
   const captured: Captured = { providers: [], commands: [], logs: [], warnings: [] }
 
   const codemods = {
@@ -181,6 +194,37 @@ test.group('configure() publish orchestration — core bundles', (group) => {
     assert.lengthOf(matching(migrations, 'create_tenant_webhooks_table'), 1)
     assert.lengthOf(matching(migrations, 'create_tenant_webhook_deliveries_table'), 1)
     assert.lengthOf(migrations, 4)
+  })
+
+  test('a bundle publishes in dependency order, whatever the alphabet says', async ({ assert }) => {
+    await configure(fakeCommand(root, { with: 'webhooks' }))
+
+    // `migration:run` sorts by filename, so the timestamp prefix is the whole
+    // contract. `tenant_webhook_deliveries` carries a foreign key into
+    // `tenant_webhooks`; it must therefore run second. Alphabetically it sorts
+    // FIRST (`webhook_` < `webhooks`), so any two stubs that share a timestamp —
+    // which two stubs rendered back to back routinely do — used to run backwards
+    // and fail on a table that did not exist yet.
+    const ordered = (await featureMigrations(root)).sort()
+    assert.lengthOf(ordered, 2)
+    assert.match(ordered[0]!, /_create_tenant_webhooks_table\.ts$/)
+    assert.match(ordered[1]!, /_create_tenant_webhook_deliveries_table\.ts$/)
+  })
+
+  test('migrations from a later run sort after every migration already present', async ({
+    assert,
+  }) => {
+    await configure(fakeCommand(root, { with: 'webhooks' }))
+    const first = (await featureMigrations(root)).sort()
+
+    await configure(fakeCommand(root, { with: 'quotas' }))
+    const second = (await featureMigrations(root)).sort()
+
+    // The `quotas` table lands last: a re-stamp must clear every timestamp already
+    // in the directory, or a second `configure` could interleave its migrations
+    // among the ones a previous run already applied.
+    assert.match(second.at(-1)!, /_create_tenant_plans_table\.ts$/)
+    assert.deepEqual(second.slice(0, first.length), first)
   })
 
   test('a later --with adds new satellites without touching the first ones', async ({ assert }) => {
@@ -354,6 +398,32 @@ test.group('configure() publish orchestration — external satellites', (group) 
     await configure(fakeCommand(root, { with: '@acme/widgets' }))
     const after2 = (await listMigrations(root)).sort()
     assert.deepEqual(after2, after1)
+  })
+
+  test('an NNNN_ prefixed stub set runs in ordinal order, and the ordinal never reaches the host', async ({
+    assert,
+  }) => {
+    // `readdir().sort()` is the publish order, so a package that must create a table
+    // before the migration that alters it says so in the stub filenames. Alphabetically
+    // `add_…` precedes `create_…`, which is how billing shipped an ALTER that ran
+    // against a table its own next migration had not created yet.
+    const ledger = { name: 'ledger', migrations: 'stubs/migrations' }
+    await scaffoldSatellite(root, '@acme/ledger', ledger, [
+      '0001_create_ledger_entries_table',
+      '0002_add_currency_to_ledger_entries',
+    ])
+
+    await configure(fakeCommand(root, { with: '@acme/ledger' }))
+
+    const published = (await featureMigrations(root)).sort()
+    assert.lengthOf(published, 2)
+    assert.match(published[0]!, /^\d+_acme_ledger__create_ledger_entries_table\.ts$/)
+    assert.match(published[1]!, /^\d+_acme_ledger__add_currency_to_ledger_entries\.ts$/)
+
+    // A re-run recognizes them as already published: the ordinal is not part of the
+    // migration's identity, so numbering an existing stub can never republish it.
+    await configure(fakeCommand(root, { with: '@acme/ledger' }))
+    assert.deepEqual((await featureMigrations(root)).sort(), published)
   })
 
   test('--list-satellites lists installed satellites and publishes nothing', async ({ assert }) => {

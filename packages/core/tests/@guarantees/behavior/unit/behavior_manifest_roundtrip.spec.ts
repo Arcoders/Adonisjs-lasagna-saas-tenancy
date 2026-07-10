@@ -24,14 +24,17 @@ test.group('satellite — real package manifests round-trip', () => {
     assert.equal(manifest!.commands, '@adonisjs-lasagna/billing/commands')
 
     // The declared migrations dir exists and holds the billing stubs (the four
-    // create-table stubs plus the per-tenant uniqueness fix migration).
+    // create-table stubs, the per-tenant uniqueness fix, and the status widening).
+    // The `NNNN_` prefixes are the publish order: `publishSatellite` walks the dir
+    // sorted, so every stub that alters a table sorts after the stub creating it.
     const files = await readdir(join(root, manifest!.migrations!))
     for (const stub of [
-      'create_billing_customers_table.stub',
-      'create_billing_subscriptions_table.stub',
-      'create_billing_processed_events_table.stub',
-      'create_billing_usage_events_table.stub',
-      'fix_billing_usage_events_unique_per_tenant.stub',
+      '0001_create_billing_customers_table.stub',
+      '0002_create_billing_subscriptions_table.stub',
+      '0003_create_billing_processed_events_table.stub',
+      '0004_create_billing_usage_events_table.stub',
+      '0005_fix_billing_usage_events_unique_per_tenant.stub',
+      '0006_add_processing_status_to_billing_processed_events.stub',
     ]) {
       assert.include(files, stub)
     }

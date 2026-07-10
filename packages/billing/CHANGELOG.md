@@ -150,6 +150,16 @@ billing versions independently. It depends on the core as a peer (`>=0.3.0 <1.0.
 
 ### Fixed
 
+- **`configure @adonisjs-lasagna/billing` no longer publishes an ALTER before the
+  CREATE it depends on.** The satellite's stubs are published in sorted order, and
+  `add_processing_status_to_billing_processed_events` sorts ahead of
+  `create_billing_processed_events_table`. On a clean install `migration:run` therefore
+  tried to `ALTER TABLE backoffice.billing_processed_events` before that table existed,
+  and aborted. Only new installs were affected: the four-value status enum the ALTER
+  adds is already present in the create migration. The stubs are now numbered `0001_`
+  through `0006_`, which is the publish order. The ordinal is stripped before the
+  migration reaches the host, so an install that already ran these migrations does not
+  republish them.
 - **Type resolution for the `/provider` and `/commands` subpath exports.** These
   subpaths were declared in `exports` but had no matching `typesVersions` entries, so
   a consumer on `node10`-style module resolution could not resolve their type

@@ -237,29 +237,103 @@ async function safeReaddir(dir: string): Promise<string[]> {
   }
 }
 
+/** A migration file as Lucid sees it: `<timestamp>_<name>.ts`, run in filename order. */
+const MIGRATION_FILE = /^(\d+)_(.+)\.ts$/
+
+/** Timestamps are zero-padded to this width so string order equals numeric order. */
+const TIMESTAMP_WIDTH = 13
+
 /**
- * Namespace the migration files a satellite just emitted: rename each newly
- * created `<ts>_<basename>.ts` to `<ts>_<slug>__<basename>.ts`. The migration
- * destination lives inside each stub's `exports({ to })` header, so the toolkit
- * takes ownership of the final filename HERE — that is what stops two satellites
- * that ship a stub with the same basename from colliding (the second used to be
- * silently skipped, so its table was never created). Skips a rename whose target
- * already exists so we never clobber a file.
+ * Snapshot the migration directory's own files (not its subdirectories), for a
+ * caller that is about to publish into it and then hand the result to
+ * `finalizeNewMigrations`.
  */
-async function namespaceNewMigrations(
+export async function snapshotMigrationDir(dir: string): Promise<Set<string>> {
+  return new Set(await safeReaddir(dir))
+}
+
+/**
+ * The migration name a stub publishes, with its optional `NNNN_` publish-order
+ * prefix removed. The prefix exists only so `readdir().sort()` inside a package
+ * yields the order the migrations must RUN in (a `create` before the `alter`
+ * that widens it). It is not part of the migration's identity: it never reaches
+ * the host and never enters the already-published key, so adding one to an
+ * existing stub does not republish it on an install that already ran it.
+ */
+export function stubMigrationName(stubFile: string): string {
+  return stubFile.replace(/\.stub$/, '').replace(/^\d{4}_/, '')
+}
+
+/** The highest `<timestamp>_` prefix among a set of migration filenames. */
+function highestTimestamp(files: Iterable<string>): number {
+  let highest = 0
+  for (const file of files) {
+    const m = file.match(MIGRATION_FILE)
+    if (m) highest = Math.max(highest, Number(m[1]))
+  }
+  return highest
+}
+
+/**
+ * Take ownership of the filenames a publish batch just emitted, and re-stamp them
+ * so the order they were published in is the order Lucid runs them in.
+ *
+ * Every migration stub names its own output `${Date.now()}_<name>.ts`. Two stubs
+ * published in the same millisecond therefore tie, and Lucid breaks the tie
+ * alphabetically — which is the order the *characters* of the table names happen
+ * to fall in, not the order the tables depend on each other. `tenant_webhook_deliveries`
+ * sorted ahead of the `tenant_webhooks` its foreign key points at; billing's
+ * `add_processing_status_…` sorted ahead of the `create_…` it alters. Both are the
+ * same defect: the emitted filename recorded WHEN a stub was rendered, never the
+ * order the caller asked for.
+ *
+ * So the toolkit re-stamps: the i-th name in `order` gets `base + i`, where `base`
+ * clears every timestamp already in the directory. Ties become impossible rather
+ * than unlikely. Files the batch emitted that `order` does not name keep their
+ * relative order and land after it. A rename whose target already exists is skipped,
+ * so we never clobber a file.
+ *
+ * `slug` (a satellite's package slug) additionally namespaces each file as
+ * `<ts>_<slug>__<name>.ts`, which is what stops two satellites shipping a stub with
+ * the same basename from colliding — before namespacing, the second was silently
+ * skipped and its table was never created. Core publishes its own stubs un-namespaced.
+ */
+export async function finalizeNewMigrations(
   dir: string,
   before: Set<string>,
-  slug: string
+  order: string[],
+  slug?: string
 ): Promise<void> {
-  const present = new Set(await safeReaddir(dir))
+  const present = await safeReaddir(dir)
+
+  // The files this batch emitted, keyed by migration name. A stub renders its own
+  // `exports({ to })` header, so the name is whatever it wrote minus the timestamp.
+  const emitted = new Map<string, string>()
   for (const file of present) {
     if (before.has(file)) continue
-    const m = file.match(/^(\d+)_(.+)\.ts$/)
+    const m = file.match(MIGRATION_FILE)
     if (!m) continue
-    if (m[2]!.startsWith(`${slug}__`)) continue // already namespaced
-    const target = `${m[1]}_${slug}__${m[2]}.ts`
-    if (present.has(target)) continue // never clobber an existing file
+    const written = m[2]!
+    const name = slug && written.startsWith(`${slug}__`) ? written.slice(slug.length + 2) : written
+    emitted.set(name, file)
+  }
+  if (emitted.size === 0) return
+
+  const requested = order.filter((name) => emitted.has(name))
+  const unrequested = [...emitted.keys()].filter((name) => !order.includes(name)).sort()
+
+  const base = Math.max(Date.now(), highestTimestamp(before) + 1)
+  const taken = new Set(present)
+
+  let offset = 0
+  for (const name of [...requested, ...unrequested]) {
+    const file = emitted.get(name)!
+    const stamp = String(base + offset++).padStart(TIMESTAMP_WIDTH, '0')
+    const target = `${stamp}_${slug ? `${slug}__` : ''}${name}.ts`
+    if (target === file || taken.has(target)) continue
     await rename(join(dir, file), join(dir, target))
+    taken.delete(file)
+    taken.add(target)
   }
 }
 
@@ -268,7 +342,11 @@ async function namespaceNewMigrations(
  * `codemods.makeUsingStub` path core uses for its own stubs, with the satellite
  * package root as `stubsRoot`.
  *
- * Only `.stub` files are published. Every emitted file is namespaced by package
+ * Only `.stub` files are published, in `readdir().sort()` order. A package whose
+ * migrations depend on each other (a `create` that an `alter` later widens, a
+ * foreign key pointing at a sibling table) names its stubs with an `NNN_` prefix
+ * so that sort IS the dependency order; `finalizeNewMigrations` then seals that
+ * order into the emitted timestamps. Every emitted file is namespaced by package
  * (`<ts>_<slug>__<stub>.ts`) so two satellites that ship the same stub basename
  * no longer collide (before this, the second was silently skipped and its table
  * was never created). Namespacing is intrinsic, not opt-in: `hostMigrationsDir`
@@ -306,26 +384,29 @@ export async function publishSatellite(
 
   const slug = migrationSlug(satellite.packageName)
   const existing = await listExistingMigrations(hostMigrationsDir)
-  const stubNames = files.filter((f) => f.endsWith('.stub')).map((f) => f.replace(/\.stub$/, ''))
-  const toPublish: string[] = []
+  const stubs = files
+    .filter((f) => f.endsWith('.stub'))
+    .map((file) => ({ file, name: stubMigrationName(file) }))
+  const toPublish: { file: string; name: string }[] = []
   const skipped: string[] = []
-  for (const name of stubNames) {
-    if (isStubPublished(name, existing, slug)) skipped.push(name)
-    else toPublish.push(name)
+  for (const stub of stubs) {
+    if (isStubPublished(stub.name, existing, slug)) skipped.push(stub.name)
+    else toPublish.push(stub)
   }
   if (toPublish.length === 0) return { published: [], skipped }
 
-  // Snapshot before publishing so we can identify (and namespace) exactly the
+  // Snapshot before publishing so we can identify (and re-stamp) exactly the
   // files these stubs emit into the host migrations dir.
-  const before = new Set(await safeReaddir(hostMigrationsDir))
+  const before = await snapshotMigrationDir(hostMigrationsDir)
 
-  for (const name of toPublish) {
-    await codemods.makeUsingStub(root, join(manifest.migrations, `${name}.stub`), {})
+  for (const stub of toPublish) {
+    await codemods.makeUsingStub(root, join(manifest.migrations, stub.file), {})
   }
 
-  await namespaceNewMigrations(hostMigrationsDir, before, slug)
+  const published = toPublish.map((stub) => stub.name)
+  await finalizeNewMigrations(hostMigrationsDir, before, published, slug)
 
-  return { published: toPublish, skipped }
+  return { published, skipped }
 }
 
 /**

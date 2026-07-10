@@ -106,8 +106,13 @@ node ace configure @adonisjs/redis </dev/null >/dev/null 2>&1 || fail "configure
 # Prompts for a driver; a bare newline accepts the default (redis).
 printf '\n' | node ace configure @adonisjs/queue >/dev/null 2>&1 || fail "configure @adonisjs/queue failed"
 
-log "node ace configure @adonisjs-lasagna/saas-tenancy"
-CONFIGURE_OUT="$(node ace configure @adonisjs-lasagna/saas-tenancy 2>&1)" || {
+# `--with=webhooks` is not decoration. It is the only core bundle whose migrations
+# depend on each other (`tenant_webhook_deliveries` carries a foreign key into
+# `tenant_webhooks`), so it is the one selection that proves the published timestamps
+# encode publish order rather than the alphabet. `maintenance` ALTERs the `tenants`
+# table, which proves the same for the fixed zero prefix that sorts it first.
+log "node ace configure @adonisjs-lasagna/saas-tenancy --with=webhooks,maintenance"
+CONFIGURE_OUT="$(node ace configure @adonisjs-lasagna/saas-tenancy --with=webhooks,maintenance 2>&1)" || {
   echo "$CONFIGURE_OUT"; fail "configure exited non-zero"
 }
 echo "$CONFIGURE_OUT"
@@ -126,12 +131,26 @@ done
 ls database/migrations/*_create_tenants_table.ts >/dev/null 2>&1 \
   || fail "configure did not publish the tenants migration"
 
-# The tenants migration must sort first: `--with=maintenance` ALTERs that table.
-FIRST_MIGRATION="$(ls database/migrations | sort | head -1)"
-case "$FIRST_MIGRATION" in
-  *_create_tenants_table.ts) ;;
-  *) fail "the tenants migration does not sort first (got $FIRST_MIGRATION)" ;;
-esac
+# `migration:run` sorts by filename, so the filenames ARE the run order. The tenants
+# migration must sort first — `--with=maintenance` ALTERs that table — and within the
+# webhooks bundle the FK target must sort ahead of the table that points at it.
+# Alphabetically it does not (`webhook_` < `webhooks`), so this only holds because the
+# publisher re-stamps a batch into publish order.
+ls database/migrations | sort
+# The starter kit brings its own `users` / `access_tokens` migrations, so compare only
+# the ones this package published — but compare them in the FULL sorted order, which is
+# the order `migration:run` will use.
+ACTUAL="$(ls database/migrations | sort | sed -E 's/^[0-9]+_//; s/\.ts$//')"
+[ "$(echo "$ACTUAL" | head -1)" = "create_tenants_table" ] \
+  || fail "the tenants migration does not sort first (got $(echo "$ACTUAL" | head -1))"
+
+EXPECTED='create_tenants_table
+create_tenant_webhooks_table
+create_tenant_webhook_deliveries_table
+add_maintenance_to_tenants_table'
+OURS="$(echo "$ACTUAL" | grep -Ex 'create_tenants_table|create_tenant_webhooks_table|create_tenant_webhook_deliveries_table|add_maintenance_to_tenants_table')"
+[ "$OURS" = "$EXPECTED" ] || fail "migrations are stamped out of dependency order:
+$OURS"
 
 log "Pointing the app at Postgres and Redis"
 # The three connection contexts the quickstart documents. Their names must match
@@ -199,6 +218,22 @@ npx tsc --noEmit || fail "the code configure generated does not typecheck"
 
 log "node ace backoffice:setup"
 node ace backoffice:setup || fail "backoffice:setup failed"
+
+# `backoffice:setup` runs the published migrations, so PostgreSQL itself adjudicates
+# the order: creating `tenant_webhook_deliveries` before `tenant_webhooks` exists would
+# have aborted above. Assert the foreign key landed anyway, so a future migration that
+# quietly drops the constraint cannot pass this gate. Read pg_constraint rather than
+# information_schema, which hides objects the current role does not own.
+FK="$(db "$PG_DATABASE" "SELECT 1 FROM pg_constraint c
+  JOIN pg_class t ON t.oid = c.conrelid
+  JOIN pg_namespace n ON n.oid = t.relnamespace
+  WHERE n.nspname = 'backoffice' AND t.relname = 'tenant_webhook_deliveries' AND c.contype = 'f'
+  LIMIT 1")"
+[ "$FK" = "1" ] || fail "backoffice.tenant_webhook_deliveries has no foreign key into tenant_webhooks"
+
+MAINT="$(db "$PG_DATABASE" "SELECT 1 FROM information_schema.columns
+  WHERE table_schema = 'backoffice' AND table_name = 'tenants' AND column_name = 'maintenance'")"
+[ "$MAINT" = "1" ] || fail "the maintenance migration did not ALTER backoffice.tenants"
 
 log "node ace tenant:create"
 node ace tenant:create "Acme Corp" "admin@acme.example.com" || fail "tenant:create failed"
