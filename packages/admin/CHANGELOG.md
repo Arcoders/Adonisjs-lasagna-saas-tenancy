@@ -73,5 +73,6 @@ Pin the version and read this changelog before upgrading. See the
 
 ### Migration from core
 
-`@adonisjs-lasagna/saas-tenancy/admin` is a deprecated throwing shim for one minor, then
-drops. Install `@adonisjs-lasagna/admin` and import `multitenancyAdminRoutes` from it.
+`@adonisjs-lasagna/saas-tenancy/admin` is gone from the core's `exports` map, so importing
+it fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`. There is no shim. Install
+`@adonisjs-lasagna/admin` and import `multitenancyAdminRoutes` from it.

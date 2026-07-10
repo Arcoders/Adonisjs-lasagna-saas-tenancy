@@ -75,24 +75,38 @@ on `release candidate` ground rather than on a contract that could move under th
 
 ## Public subpath surface (keep vs. hide)
 
-The core publishes a set of `exports` subpaths. Most (`/services`, `/types`,
-`/events`, `/testing`, `/health`, `/sdk`, `/plugin`, `/middleware`, …) are the
-documented, high-level surfaces. A handful are **low-level entry points**: they
-exist because a satellite or an advanced host reached for one primitive without
-wanting the whole barrel. The decision for each, so the surface does not drift:
+The core publishes 20 `exports` subpaths. `/base-models`, `/middleware`,
+`/events`, `/exceptions`, `/types`, `/jobs`, `/models/satellites`, `/mixins`,
+`/config`, `/testing`, `/commands` and `/providers/multitenancy_provider` are the
+documented, app-facing surfaces. Four more are an **advanced tier** (see below).
+The rest are low-level entry points that exist because a satellite or an advanced
+host reached for one primitive without wanting the whole barrel.
 
 | Subpath | Decision | Why |
 |---|---|---|
-| `/crypto` | **Keep** (low-level) | The AEAD envelope + key-id primitives. Core's own secret-at-rest path (webhook signing secrets, SSO client secrets) composes them, so the module must not move under it. Not a field-encryption API. |
-| `/worm-ledger` | **Keep** (low-level) | An append-only hash-chain writer. No shipped package consumes it today; it is not a general-purpose logging API. |
 | `/signals` | **Keep** (low-level) | The provisioning-signal helpers a satellite `after:provision` hook uses. Kept for satellite authors. |
-| `/adapters`, `/base-models` | **Keep** (low-level) | The model routing primitives (`TenantAdapter`, the three base models). A host wiring a custom model needs them; the root barrel also re-exports the base models for the common case. |
+| `/base-models` | **Keep** | The three base models. The root barrel re-exports them, and the three adapters, for the common case. |
 | `/safe-fetch` | **Keep** | The DNS-pinned egress helper — a first-class security primitive a host or satellite SHOULD use for any attacker-influenced fetch. Documented, not merely low-level. |
-| `/internal` | **Hide** (unstable) | Not part of the stable API. Published only so first-party satellites can import app.booted-safe helpers from a bare unit runner; see the stability policy in `src/internal.ts`. Anything a third party legitimately needs also lives on a stable surface (`/sdk`, `/services`, `/testing`). |
+| `/services`, `/health`, `/sdk`, `/plugin` | **Advanced** (minor-breakable) | Everything a custom driver, resolver, bootstrapper, health check or plugin author needs. Broad and close to the internals: symbols here may change in a **minor**, and the deprecation path below does not cover them. An app that only wires tenants never imports from these. |
+| `/internal` | **Hide** (unstable) | Not part of the stable API. Published only so first-party satellites can import app.booted-safe helpers from a bare unit runner; see the stability policy in `src/internal.ts`. It carries the AEAD envelope primitives and the SSRF URL guards. `backup`, `ai` and `satellite-test-kit` import it, as do core's own integration specs. Anything a third party legitimately needs also lives on a stable surface (`/sdk`, `/services`, `/testing`). |
 
 Keep-labelled subpaths are covered by the 1.x promise at the stability of the
 symbols they expose (all `release candidate` today) and are removed only through
-the deprecation path below. `/internal` is the sole excluded subpath.
+the deprecation path below. `/internal` and the advanced tier are the exclusions.
+
+### De-listed before the first release
+
+Five subpaths were removed from `exports` while the package still had no
+published consumers, so nothing had to break to shrink the promise. Each symbol
+they carried is still reachable:
+
+| Was | Now |
+|---|---|
+| `/crypto` | The AEAD envelope primitives moved to `/internal`. A host stores a secret through `readSecret` / `writeSecret` / `SECRET_CLASS` on the root barrel and never composes the envelope itself. |
+| `/worm-ledger` | Removed from the public surface. The append-only hash-chain writer had no consumer and was never a general-purpose logging API. |
+| `/adapters` | `DefaultLucidAdapter`, `BackofficeAdapter` and `TenantAdapter` are on the root barrel. |
+| `/helpers` | `buildTenantWorkerOptions` is on the root barrel. |
+| `/extensions/request` | `resolveTenantId` is on the root barrel. The module's `__*ForTests` seams are no longer public at all. |
 
 ## Feature stability matrix
 

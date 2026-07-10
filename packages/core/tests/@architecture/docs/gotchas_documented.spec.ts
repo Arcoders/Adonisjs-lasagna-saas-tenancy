@@ -1,7 +1,8 @@
 import { test } from '@japa/runner'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { getConfig, __resetConfigForTests } from '../../../src/config.js'
+import { getConfig } from '../../../src/config.js'
+import { __resetConfigForTests } from '../../../src/testing/config_reset.js'
 import { setupTestConfig } from '../../helpers/config.js'
 
 /**

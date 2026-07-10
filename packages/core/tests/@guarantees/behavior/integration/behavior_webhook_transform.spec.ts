@@ -6,7 +6,7 @@ import {
   WebhookTransformerRegistry,
   WEBHOOKS_CONTRACT_VERSION,
 } from '@adonisjs-lasagna/saas-tenancy/services'
-import { encrypt } from '@adonisjs-lasagna/saas-tenancy'
+import { encrypt } from '@adonisjs-lasagna/saas-tenancy/internal'
 import {
   TenantWebhook,
   TenantWebhookDelivery,

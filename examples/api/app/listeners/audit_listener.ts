@@ -1,4 +1,4 @@
-import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy'
+import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import {
   TenantCreated,
   TenantActivated,

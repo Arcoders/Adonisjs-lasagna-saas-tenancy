@@ -9,8 +9,6 @@ import type { ApplicationService } from '@adonisjs/core/types';
 import { BaseEvent } from '@adonisjs/core/events';
 import { BaseModel } from '@adonisjs/lucid/orm';
 import type { BelongsTo } from '@adonisjs/lucid/types/relations';
-import { BentoCache } from 'bentocache';
-import { BentoStore } from 'bentocache';
 import { CamelCaseNamingStrategy } from '@adonisjs/lucid/orm';
 import CircuitBreaker from 'opossum';
 import type Configure from '@adonisjs/core/commands/configure';
@@ -21,7 +19,6 @@ import type { HasMany } from '@adonisjs/lucid/types/relations';
 import type { HttpContext } from '@adonisjs/core/http';
 import { HttpRequest } from '@adonisjs/core/http';
 import { JobsOptions } from 'bullmq';
-import { LoggerService } from '@adonisjs/core/types';
 import type { LucidModel } from '@adonisjs/lucid/types/model';
 import type { LucidRow } from '@adonisjs/lucid/types/model';
 import type { MigratorOptions } from '@adonisjs/lucid/types/migrator';
@@ -39,9 +36,6 @@ import { SpanContext } from '@opentelemetry/api';
 import { Tracer } from '@opentelemetry/api';
 import type { WorkerOptions as WorkerOptions_2 } from 'bullmq';
 
-// @public (undocumented)
-export type AuditActorType = 'admin' | 'system';
-
 // @public
 export class AuditLogService {
     exportStream(options?: {
@@ -58,6 +52,9 @@ export class AuditLogService {
         meta: any;
         data: ModelObject[];
     }>;
+    // Warning: (ae-forgotten-export) The symbol "LogOptions" needs to be exported by the entry point index.d.ts
+    // Warning: (ae-forgotten-export) The symbol "TenantAuditLog" needs to be exported by the entry point index.d.ts
+    //
     // (undocumented)
     log(options: LogOptions): Promise<TenantAuditLog>;
 }
@@ -83,65 +80,10 @@ export class BackofficeBaseModel extends BaseModel {
 }
 
 // @public
-export interface BackupMetadata {
-    // (undocumented)
-    file: string;
-    // (undocumented)
-    schema: string;
-    // (undocumented)
-    size: number;
-    // (undocumented)
-    tenantId: string;
-    // (undocumented)
-    timestamp: string;
-}
-
-// @public
-export interface BootstrapperContext {
-    // (undocumented)
-    request?: HttpContext['request'] | undefined;
-    // (undocumented)
-    tenant: TenantModelContract;
-}
-
-// @public (undocumented)
-export class BootstrapperRegistry {
-    // (undocumented)
-    clear(): this;
-    // (undocumented)
-    has(name: string): boolean;
-    // (undocumented)
-    list(): readonly string[];
-    // (undocumented)
-    register(bootstrapper: TenantBootstrapper): this;
-    // (undocumented)
-    runEnter(ctx: BootstrapperContext): Promise<void>;
-    // (undocumented)
-    runLeave(ctx: BootstrapperContext): Promise<void>;
-    runScoped<T>(ctx: BootstrapperContext, fn: () => T | Promise<T>): Promise<T>;
-    // (undocumented)
-    unregister(name: string): boolean;
-}
-
-// @public
-export interface BrandingData {
-    // (undocumented)
-    emailFooter?: Record<string, unknown> | null;
-    // (undocumented)
-    fromEmail?: string | null;
-    // (undocumented)
-    fromName?: string | null;
-    // (undocumented)
-    logoUrl?: string | null;
-    // (undocumented)
-    primaryColor?: string | null;
-    // (undocumented)
-    supportUrl?: string | null;
-}
-
-// @public
 export class BrandingService {
     getCurrent(): Promise<TenantBranding | null>;
+    // Warning: (ae-forgotten-export) The symbol "TenantBranding" needs to be exported by the entry point index.d.ts
+    //
     // (undocumented)
     getForTenant(tenantId: string): Promise<TenantBranding | null>;
     // (undocumented)
@@ -153,18 +95,14 @@ export class BrandingService {
         supportUrl: string | null;
         footer: Record<string, unknown>;
     };
+    // Warning: (ae-forgotten-export) The symbol "BrandingData" needs to be exported by the entry point index.d.ts
+    //
     // (undocumented)
     upsert(tenantId: string, data: BrandingData): Promise<TenantBranding>;
 }
 
 // @public
 export function buildTenantWorkerOptions(tenantId: string, concurrency?: number): WorkerOptions_2;
-
-// @public
-export const CACHE_NAMESPACE_PREFIX = "tenant_";
-
-// @public
-export const cacheBootstrapper: TenantBootstrapper;
 
 // @public (undocumented)
 export class CentralBaseModel extends BaseModel {
@@ -202,6 +140,8 @@ export class CircuitBreakerService {
     getAllMetrics(): Record<string, CircuitMetrics>;
     // (undocumented)
     getCircuit(tenantId: string): CircuitBreaker;
+    // Warning: (ae-forgotten-export) The symbol "CircuitMetrics" needs to be exported by the entry point index.d.ts
+    //
     // (undocumented)
     getMetrics(tenantId: string): CircuitMetrics | null;
     protected getRedis(): Promise<any>;
@@ -211,20 +151,6 @@ export class CircuitBreakerService {
     // (undocumented)
     reset(tenantId: string): void;
     run(tenantId: string): Promise<void>;
-}
-
-// @public (undocumented)
-export interface CircuitMetrics {
-    // (undocumented)
-    failures: number;
-    // (undocumented)
-    fallbackCalls: number;
-    // (undocumented)
-    state: CircuitState;
-    // (undocumented)
-    successes: number;
-    // (undocumented)
-    tenantId: string;
 }
 
 // @public
@@ -238,44 +164,7 @@ export class CircuitOpenException extends Exception {
 }
 
 // @public (undocumented)
-export type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
-
-// @public
-export interface CloneResult {
-    // (undocumented)
-    destination: TenantModelContract;
-    // (undocumented)
-    rowsCopied: number;
-    // (undocumented)
-    source: TenantModelContract;
-    // (undocumented)
-    tablesCopied: number;
-}
-
-// @public (undocumented)
 export function configure(command: Configure): Promise<void>;
-
-// @public
-export function configuredScopeColumn(): string;
-
-// Warning: (ae-forgotten-export) The symbol "NamespaceFactory" needs to be exported by the entry point index.d.ts
-//
-// @public
-export function createCacheBootstrapper(factory?: NamespaceFactory): TenantBootstrapper;
-
-// @public
-export function createDriveBootstrapper(): TenantBootstrapper;
-
-// @public
-export function createMailBootstrapper(): TenantBootstrapper;
-
-// @public
-export function createSessionBootstrapper(): TenantBootstrapper;
-
-// Warning: (ae-forgotten-export) The symbol "TransmitBootstrapperOptions" needs to be exported by the entry point index.d.ts
-//
-// @public
-export function createTransmitBootstrapper(opts?: TransmitBootstrapperOptions): TenantBootstrapper;
 
 // @public
 export class CrossDomainRedirectService {
@@ -302,43 +191,6 @@ export class CustomDomainMiddleware {
     // (undocumented)
     handle(input: HttpContext, next: NextFn, options?: CustomDomainOptions): Promise<any>;
 }
-
-// @public (undocumented)
-export interface DeclarativeHooks {
-    // (undocumented)
-    afterBackup?: TenantLifecycleHook<TenantBackupHookContext>;
-    // (undocumented)
-    afterClone?: TenantLifecycleHook<TenantCloneHookContext>;
-    // (undocumented)
-    afterDestroy?: TenantLifecycleHook<TenantHookContext>;
-    // (undocumented)
-    afterMigrate?: TenantLifecycleHook<TenantMigrateHookContext>;
-    // (undocumented)
-    afterProvision?: TenantLifecycleHook<TenantHookContext>;
-    // (undocumented)
-    afterRestore?: TenantLifecycleHook<TenantRestoreHookContext>;
-    // (undocumented)
-    beforeBackup?: TenantLifecycleHook<TenantBackupHookContext>;
-    // (undocumented)
-    beforeClone?: TenantLifecycleHook<TenantCloneHookContext>;
-    // (undocumented)
-    beforeDestroy?: TenantLifecycleHook<TenantHookContext>;
-    // (undocumented)
-    beforeMigrate?: TenantLifecycleHook<TenantMigrateHookContext>;
-    // (undocumented)
-    beforeProvision?: TenantLifecycleHook<TenantHookContext>;
-    // (undocumented)
-    beforeRestore?: TenantLifecycleHook<TenantRestoreHookContext>;
-}
-
-// @public
-export function decrypt(value: string, context?: string): string;
-
-// @public
-export function decryptStrict(value: string, context?: string): string;
-
-// @public
-export function decryptWithAppKey(value: string, appKey: string, context?: string): string;
 
 // @public
 export const DEFAULT_RLS_GUC = "app.tenant_id";
@@ -367,20 +219,6 @@ export class DefaultLucidAdapter implements AdapterContract {
 // @public
 export function defineConfig(config: MultitenancyConfig): MultitenancyConfig;
 
-// @public (undocumented)
-export type DeliveryStatus = 'pending' | 'success' | 'failed' | 'retrying';
-
-// @public (undocumented)
-export interface DestroyOptions {
-    keepData?: boolean;
-}
-
-// @public
-export const driveBootstrapper: TenantBootstrapper;
-
-// @public
-export function encrypt(plaintext: string, context?: string): string;
-
 // @public
 export function enforceQuota(quota: string, options?: EnforceQuotaOptions): (input: HttpContext, next: NextFn) => Promise<any>;
 
@@ -400,45 +238,14 @@ export class FeatureFlagService {
     isEnabled(tenantId: string, flag: string, context?: Record<string, unknown>): Promise<boolean>;
     // (undocumented)
     listForTenant(tenantId: string): Promise<TenantFeatureFlag[]>;
+    // Warning: (ae-forgotten-export) The symbol "TenantFeatureFlag" needs to be exported by the entry point index.d.ts
+    //
     // (undocumented)
     set(tenantId: string, flag: string, enabled: boolean, config?: Record<string, unknown>, expiresAt?: DateTime | null): Promise<TenantFeatureFlag>;
 }
 
 // @public (undocumented)
-export function getActiveDriver(): Promise<IsolationDriver>;
-
-// @public (undocumented)
 export function getConfig(): MultitenancyConfig;
-
-// @public (undocumented)
-export interface HookContextByEvent {
-    // (undocumented)
-    backup: TenantBackupHookContext;
-    // (undocumented)
-    clone: TenantCloneHookContext;
-    // (undocumented)
-    destroy: TenantHookContext;
-    // (undocumented)
-    migrate: TenantMigrateHookContext;
-    // (undocumented)
-    provision: TenantHookContext;
-    // (undocumented)
-    restore: TenantRestoreHookContext;
-}
-
-// @public (undocumented)
-export class HookRegistry {
-    // (undocumented)
-    after<E extends TenantLifecycleEvent>(event: E, hook: TenantLifecycleHook<HookContextByEvent[E]>): this;
-    // (undocumented)
-    before<E extends TenantLifecycleEvent>(event: E, hook: TenantLifecycleHook<HookContextByEvent[E]>): this;
-    // (undocumented)
-    clear(): this;
-    // (undocumented)
-    loadDeclarative(hooks: DeclarativeHooks | undefined): this;
-    // (undocumented)
-    run<E extends TenantLifecycleEvent>(phase: TenantLifecyclePhase, event: E, ctx: HookContextByEvent[E]): Promise<void>;
-}
 
 // @public
 export interface ImpersonationContext {
@@ -474,6 +281,7 @@ export class ImpersonationMiddleware {
     protected getService(): Promise<ImpersonationService>;
     // (undocumented)
     handle(ctx: HttpContext, next: NextFn): Promise<any>;
+    // Warning: (ae-forgotten-export) The symbol "TenantResolveResult" needs to be exported by the entry point index.d.ts
     protected resolveRequestTenant(ctx: HttpContext): Promise<TenantResolveResult>;
 }
 
@@ -536,9 +344,6 @@ export interface ImpersonationStartResult {
 export function installRouterMacros(routerInstance?: RouterLike, middlewareRegistry?: TenantMiddlewareRegistry): Promise<void>;
 
 // @public (undocumented)
-export function isEncrypted(value: string): boolean;
-
-// @public (undocumented)
 export interface IsolationConfig {
     driver: IsolationDriverChoice;
     enforceConnectionCap?: boolean;
@@ -553,81 +358,21 @@ export interface IsolationConfig {
     tenantDatabasePrefix?: string;
 }
 
-// @public
-export interface IsolationDriver {
-    connect(tenant: TenantModelContract, opts?: {
-        bypassHardCap?: boolean;
-    }): Promise<QueryClientContract>;
-    connectionName(tenantId: string): string;
-    readonly contractVersion?: number;
-    destroy(tenant: TenantModelContract, opts?: DestroyOptions): Promise<void>;
-    disconnect(tenant: TenantModelContract): Promise<void>;
-    enforce(client: QueryClientContract, tenantId: string): void;
-    markUsed?(tenantId: string): void;
-    migrate(tenant: TenantModelContract, opts: MigrateOptions): Promise<MigrateResult>;
-    // (undocumented)
-    readonly name: IsolationDriverName;
-    reset(tenant: TenantModelContract): Promise<void>;
-    tableLocation(tenant: TenantModelContract): TableLocation;
-}
-
+// Warning: (ae-forgotten-export) The symbol "IsolationDriverName" needs to be exported by the entry point index.d.ts
+//
 // @public
 export type IsolationDriverChoice = IsolationDriverName;
 
 // @public
-export type IsolationDriverName = 'schema-pg' | 'database-pg' | 'rowscope-pg' | 'sqlite-memory' | (string & {});
-
-// @public
-export class IsolationDriverRegistry {
-    // (undocumented)
-    active(): IsolationDriver;
-    // (undocumented)
-    clear(): this;
-    get contractVersion(): number;
-    // (undocumented)
-    get(name: IsolationDriverName | string): IsolationDriver | undefined;
-    // (undocumented)
-    has(name: IsolationDriverName | string): boolean;
-    // (undocumented)
-    list(): readonly string[];
-    // (undocumented)
-    register(driver: IsolationDriver, opts?: {
-        activate?: boolean;
-        override?: boolean;
-    }): this;
-    use(name: IsolationDriverName | string): this;
-}
-
-// @public
 export function isScopeBypassed(): boolean;
-
-// @public @deprecated
-export type LogActionOptions = LogOptions;
-
-// @public
-export interface LogOptions {
-    // (undocumented)
-    action: string;
-    // (undocumented)
-    actorId?: string | null;
-    // (undocumented)
-    actorType?: AuditActorType | undefined;
-    // (undocumented)
-    ipAddress?: string | null;
-    // (undocumented)
-    metadata?: Record<string, unknown> | undefined;
-    // (undocumented)
-    tenantId?: string | null;
-}
-
-// @public
-export const mailBootstrapper: TenantBootstrapper;
 
 // @public
 export class MetricsService {
     emitMetric(tenantId: string, name: string, value?: number): Promise<void>;
     flush(period?: string): Promise<void>;
     flushCustomMetrics(period?: string): Promise<void>;
+    // Warning: (ae-forgotten-export) The symbol "TenantMetric" needs to be exported by the entry point index.d.ts
+    //
     // (undocumented)
     getForTenant(tenantId: string, days?: number): Promise<TenantMetric[]>;
     protected getRedis(): typeof redis;
@@ -639,17 +384,6 @@ export class MetricsService {
     }): Promise<void>;
     // (undocumented)
     trackBandwidth(tenantId: string, bytes: number): Promise<void>;
-}
-
-// @public
-export type MigrateOptions = Omit<MigratorOptions, 'connectionName'> & {
-    extraMigrationPaths?: string[];
-};
-
-// @public (undocumented)
-export interface MigrateResult {
-    executed: number;
-    noop?: boolean;
 }
 
 // @public
@@ -715,6 +449,8 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
         tenantPoolSaturationThreshold?: number;
         readReplicasCheck?: boolean;
     };
+    // Warning: (ae-forgotten-export) The symbol "DeclarativeHooks" needs to be exported by the entry point index.d.ts
+    //
     // (undocumented)
     hooks?: DeclarativeHooks;
     // (undocumented)
@@ -748,6 +484,7 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
     //
     // (undocumented)
     plans?: PlansConfig;
+    // Warning: (ae-forgotten-export) The symbol "PluginPlatformConfig" needs to be exported by the entry point index.d.ts
     plugins?: PluginPlatformConfig;
     // (undocumented)
     queue: {
@@ -769,6 +506,7 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
     resilience?: ResilienceConfig;
     // Warning: (ae-forgotten-export) The symbol "ResolverConfig" needs to be exported by the entry point index.d.ts
     resolver?: ResolverConfig;
+    // Warning: (ae-forgotten-export) The symbol "TenantResolver" needs to be exported by the entry point index.d.ts
     resolverChain?: Array<TenantResolverStrategy | string | TenantResolver>;
     resolvers?: TenantResolver[];
     // (undocumented)
@@ -790,42 +528,6 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
     tenantReadReplicas?: ReadReplicasConfig;
     // (undocumented)
     tenantSchemaPrefix: string;
-}
-
-// @public
-export function openV2WithKey(value: string, dek: Buffer): string;
-
-// @public
-export interface PluginLimitsConfig {
-    authorizerDeadlineMs?: number;
-    maxAuthorizers?: number;
-    maxCapabilities?: number;
-    maxMiddleware?: number;
-    maxSchedules?: number;
-}
-
-// @public
-export interface PluginPlatformConfig {
-    limits?: PluginLimitsConfig;
-    readOnly?: PluginReadOnlyConfig;
-}
-
-// @public
-export interface PluginReadOnlyConfig {
-    password?: string;
-    user: string;
-}
-
-// @public
-export interface QuotaCheckResult {
-    // (undocumented)
-    allowed: boolean;
-    // (undocumented)
-    attempted: number;
-    // (undocumented)
-    current: number;
-    // (undocumented)
-    limit: number;
 }
 
 // @public
@@ -855,32 +557,12 @@ export class QuotaExceededException extends Exception {
 }
 
 // @public
-export type QuotaMode = 'rolling-day' | 'snapshot';
-
-// @public
-export interface QuotaReservation {
-    // (undocumented)
-    readonly day: string;
-    // (undocumented)
-    readonly id: string;
-    // (undocumented)
-    readonly op: boolean;
-    // (undocumented)
-    readonly quota: string;
-    // (undocumented)
-    readonly tenantId: string;
-    // (undocumented)
-    readonly ttl: number;
-    // (undocumented)
-    readonly worstCase: number;
-}
-
-// @public
 export class QuotaService {
     assignPlan(tenantId: string, planName: string, opts?: {
         source?: string;
         expiresAt?: DateTime;
     }): Promise<void>;
+    // Warning: (ae-forgotten-export) The symbol "QuotaCheckResult" needs to be exported by the entry point index.d.ts
     check(tenant: TenantModelContract, quota: string, amount?: number): Promise<QuotaCheckResult>;
     clearAssignedPlan(tenantId: string): Promise<void>;
     consume(tenant: TenantModelContract, quota: string, amount?: number): Promise<number>;
@@ -894,22 +576,14 @@ export class QuotaService {
     release(reservation: QuotaReservation): Promise<number>;
     // Warning: (ae-forgotten-export) The symbol "lazyRedis" needs to be exported by the entry point index.d.ts
     protected requireRedis(): Promise<NonNullable<Awaited<ReturnType<typeof lazyRedis>>>>;
+    // Warning: (ae-forgotten-export) The symbol "QuotaReservation" needs to be exported by the entry point index.d.ts
     reserve(tenant: TenantModelContract, quota: string, worstCase: number): Promise<QuotaReservation>;
     reset(tenant: TenantModelContract, quota?: string): Promise<void>;
     settle(reservation: QuotaReservation, cumulativeUsed: number): Promise<void>;
     setUsage(tenant: TenantModelContract, quota: string, value: number): Promise<void>;
+    // Warning: (ae-forgotten-export) The symbol "QuotaStateSnapshot" needs to be exported by the entry point index.d.ts
     snapshot(tenant: TenantModelContract): Promise<QuotaStateSnapshot>;
     track(tenant: TenantModelContract, quota: string, amount?: number): Promise<number>;
-}
-
-// @public
-export interface QuotaStateSnapshot {
-    // (undocumented)
-    limits: Record<string, number>;
-    // (undocumented)
-    plan: string;
-    // (undocumented)
-    usage: Record<string, number>;
 }
 
 // @public
@@ -991,36 +665,6 @@ export interface RoutingConfig {
     universalRoutesFile?: string;
 }
 
-// @public (undocumented)
-export function safeFetch(url: string, opts?: SafeFetchOptions): Promise<Response>;
-
-// @public
-export class SafeFetchError extends Error {
-    constructor(code: string, message: string, retryable?: boolean);
-    // (undocumented)
-    readonly code: string;
-    // (undocumented)
-    readonly retryable: boolean;
-}
-
-// @public (undocumented)
-export interface SafeFetchOptions {
-    allowLoopback?: boolean;
-    // (undocumented)
-    body?: string | URLSearchParams;
-    // (undocumented)
-    headers?: Record<string, string>;
-    // (undocumented)
-    method?: string;
-    signal?: AbortSignal;
-    streaming?: boolean;
-    timeoutMs?: number;
-    trustedHost?: boolean;
-}
-
-// @public
-export function sealV2WithKey(plaintext: string, dek: Buffer, keyId: string): string;
-
 // @public
 export const SECRET_CLASS: {
     readonly ssoClientSecret: "sso:client_secret:v2";
@@ -1031,9 +675,6 @@ export const SECRET_CLASS: {
 // @public (undocumented)
 export type SecretClass = keyof typeof SECRET_CLASS;
 
-// @public
-export const sessionBootstrapper: TenantBootstrapper;
-
 // @public (undocumented)
 export function setConfig(config: MultitenancyConfig): void;
 
@@ -1043,42 +684,6 @@ export function setTenantRlsGuc(runner: RlsQueryRunner, tenantId: string, option
 // @public (undocumented)
 export interface SetTenantRlsGucOptions {
     gucName?: string | undefined;
-}
-
-// @public
-export type TableLocation = TableLocationSchema | TableLocationDatabase | TableLocationRowscope | TableLocationConnection;
-
-// @public
-export interface TableLocationConnection {
-    readonly connectionName: string;
-    // (undocumented)
-    readonly kind: 'connection';
-}
-
-// @public
-export interface TableLocationDatabase {
-    readonly connectionName: string;
-    readonly database: string;
-    // (undocumented)
-    readonly kind: 'database';
-}
-
-// @public
-export interface TableLocationRowscope {
-    readonly connectionName: string;
-    // (undocumented)
-    readonly kind: 'rowscope';
-    readonly rls: boolean;
-    readonly rlsGuc?: string;
-    readonly scopeColumn: string;
-}
-
-// @public
-export interface TableLocationSchema {
-    readonly connectionName: string;
-    // (undocumented)
-    readonly kind: 'schema';
-    readonly schema: string;
 }
 
 // @public
@@ -1103,19 +708,7 @@ export const tenancy: {
 };
 
 // @public
-export const TENANT_BROADCAST_PREFIX = "tenants/";
-
-// @public
-export const TENANT_DRIVE_PREFIX = "tenants/";
-
-// @public
-export const TENANT_MAIL_HEADER = "X-Tenant-Id";
-
-// @public
 export const TENANT_REPOSITORY: unique symbol;
-
-// @public
-export const TENANT_SESSION_PREFIX = "tenants/";
 
 // @public
 export type TenantAccessAuthorizer = (ctx: HttpContext, tenant: TenantModelContract) => boolean | Promise<boolean>;
@@ -1139,47 +732,23 @@ export class TenantActivated extends BaseEvent {
 
 // @public
 export class TenantAdapter extends DefaultLucidAdapter {
+    // Warning: (ae-forgotten-export) The symbol "IsolationDriverRegistry" needs to be exported by the entry point index.d.ts
+    // Warning: (ae-forgotten-export) The symbol "TenantResolverRegistry" needs to be exported by the entry point index.d.ts
     constructor(db: Database, drivers: IsolationDriverRegistry, resolvers?: TenantResolverRegistry | undefined);
     // (undocumented)
     modelConstructorClient(modelConstructor: LucidModel, options?: ModelAdapterOptions): QueryClientContract;
     query(modelConstructor: LucidModel, options?: ModelAdapterOptions): any;
 }
 
-// @public (undocumented)
-export class TenantAuditLog extends BackofficeBaseModel {
-    // (undocumented)
-    action: string;
-    // (undocumented)
-    actorId: string | null;
-    // (undocumented)
-    actorType: AuditActorType;
-    // (undocumented)
-    createdAt: DateTime;
-    // (undocumented)
-    id: string;
-    // (undocumented)
-    ipAddress: string | null;
-    // (undocumented)
-    metadata: Record<string, unknown> | null;
-    // (undocumented)
-    static readonly table = "tenant_audit_logs";
-    // (undocumented)
-    tenantId: string | null;
-}
-
 // @public
 export class TenantBackedUp extends BaseEvent {
     constructor(tenant: TenantModelContract, metadata: BackupMetadata);
+    // Warning: (ae-forgotten-export) The symbol "BackupMetadata" needs to be exported by the entry point index.d.ts
+    //
     // (undocumented)
     readonly metadata: BackupMetadata;
     // (undocumented)
     readonly tenant: TenantModelContract;
-}
-
-// @public (undocumented)
-export interface TenantBackupHookContext extends TenantHookContext {
-    // (undocumented)
-    metadata?: BackupMetadata;
 }
 
 // @public (undocumented)
@@ -1188,71 +757,16 @@ export class TenantBaseModel extends BaseModel {
 }
 
 // @public
-export interface TenantBootstrapper {
-    // (undocumented)
-    enter(ctx: BootstrapperContext): void | Promise<void>;
-    // (undocumented)
-    leave?(ctx: BootstrapperContext): void | Promise<void>;
-    // (undocumented)
-    readonly name: string;
-}
-
-// @public (undocumented)
-export class TenantBranding extends BackofficeBaseModel {
-    // (undocumented)
-    createdAt: DateTime;
-    // (undocumented)
-    emailFooter: Record<string, unknown> | null;
-    // (undocumented)
-    fromEmail: string | null;
-    // (undocumented)
-    fromName: string | null;
-    // (undocumented)
-    id: string;
-    // (undocumented)
-    logoUrl: string | null;
-    // (undocumented)
-    primaryColor: string | null;
-    // (undocumented)
-    supportUrl: string | null;
-    // (undocumented)
-    static readonly table = "tenant_brandings";
-    // (undocumented)
-    tenantId: string;
-    // (undocumented)
-    updatedAt: DateTime;
-}
-
-// @public
-export function tenantBroadcast(channel: string, payload?: unknown): Promise<void>;
-
-// Warning: (ae-forgotten-export) The symbol "CacheNamespace" needs to be exported by the entry point index.d.ts
-//
-// @public
-export function tenantCache(): CacheNamespace;
-
-// @public
-export function tenantChannel(channel: string): string;
-
-// @public
 export class TenantCloned extends BaseEvent {
     constructor(source: TenantModelContract, destination: TenantModelContract, result: CloneResult);
     // (undocumented)
     readonly destination: TenantModelContract;
+    // Warning: (ae-forgotten-export) The symbol "CloneResult" needs to be exported by the entry point index.d.ts
+    //
     // (undocumented)
     readonly result: CloneResult;
     // (undocumented)
     readonly source: TenantModelContract;
-}
-
-// @public (undocumented)
-export interface TenantCloneHookContext {
-    // (undocumented)
-    destination: TenantModelContract;
-    // (undocumented)
-    result?: CloneResult;
-    // (undocumented)
-    source: TenantModelContract;
 }
 
 // @public
@@ -1270,9 +784,6 @@ export class TenantDeleted extends BaseEvent {
 }
 
 // @public
-export function tenantDisk(diskName?: string): Promise<any>;
-
-// @public
 export class TenantEnteredMaintenance extends BaseEvent {
     constructor(tenant: TenantModelContract, message: string | null);
     // (undocumented)
@@ -1286,28 +797,6 @@ export class TenantExitedMaintenance extends BaseEvent {
     constructor(tenant: TenantModelContract);
     // (undocumented)
     readonly tenant: TenantModelContract;
-}
-
-// @public (undocumented)
-export class TenantFeatureFlag extends BackofficeBaseModel {
-    // (undocumented)
-    config: Record<string, unknown> | null;
-    // (undocumented)
-    createdAt: DateTime;
-    // (undocumented)
-    enabled: boolean;
-    // (undocumented)
-    expiresAt: DateTime | null;
-    // (undocumented)
-    flag: string;
-    // (undocumented)
-    id: string;
-    // (undocumented)
-    static readonly table = "tenant_feature_flags";
-    // (undocumented)
-    tenantId: string;
-    // (undocumented)
-    updatedAt: DateTime;
 }
 
 // @public
@@ -1326,43 +815,15 @@ export class TenantHeaderDomainMismatchException extends Exception {
     static readonly status = 400;
 }
 
-// @public (undocumented)
-export interface TenantHookContext {
-    // (undocumented)
-    tenant: TenantModelContract;
-}
-
-// @public (undocumented)
-export type TenantLifecycleEvent = 'provision' | 'destroy' | 'backup' | 'restore' | 'clone' | 'migrate';
-
-// @public (undocumented)
-export type TenantLifecycleHook<C = TenantHookContext> = (ctx: C) => void | Promise<void>;
-
-// @public (undocumented)
-export type TenantLifecyclePhase = 'before' | 'after';
-
 // @public
 export class TenantLogContext {
     // Warning: (ae-forgotten-export) The symbol "LoggerLike" needs to be exported by the entry point index.d.ts
     bind<L extends LoggerLike>(logger: L): L;
     current(): TenantLogContextData | undefined;
     currentTenantId(): string | undefined;
+    // Warning: (ae-forgotten-export) The symbol "TenantLogContextData" needs to be exported by the entry point index.d.ts
     run<T>(context: TenantLogContextData, fn: () => T): T;
 }
-
-// @public
-export interface TenantLogContextData {
-    // (undocumented)
-    [key: string]: unknown;
-    // (undocumented)
-    tenantId: string;
-}
-
-// @public
-export function tenantLogger(): Promise<LoggerService>;
-
-// @public
-export function tenantMailer(transportName?: string): Promise<any>;
 
 // @public
 export class TenantMaintenanceException extends Exception {
@@ -1381,26 +842,6 @@ export class TenantMaintenanceException extends Exception {
 // @public
 export type TenantMetadata = Record<string, unknown>;
 
-// @public (undocumented)
-export class TenantMetric extends BackofficeBaseModel {
-    // (undocumented)
-    bandwidthBytes: number;
-    // (undocumented)
-    createdAt: DateTime;
-    // (undocumented)
-    errorCount: number;
-    // (undocumented)
-    id: string;
-    // (undocumented)
-    period: string;
-    // (undocumented)
-    requestCount: number;
-    // (undocumented)
-    static readonly table = "tenant_metrics";
-    // (undocumented)
-    tenantId: string;
-}
-
 // @public
 export class TenantMigrated extends BaseEvent {
     constructor(tenant: TenantModelContract, direction: TenantMigrationDirection);
@@ -1408,12 +849,6 @@ export class TenantMigrated extends BaseEvent {
     readonly direction: TenantMigrationDirection;
     // (undocumented)
     readonly tenant: TenantModelContract;
-}
-
-// @public (undocumented)
-export interface TenantMigrateHookContext extends TenantHookContext {
-    // (undocumented)
-    direction: 'up' | 'down';
 }
 
 // @public
@@ -1485,9 +920,6 @@ export class TenantNotReadyException extends Exception {
 }
 
 // @public
-export function tenantPrefix(): string;
-
-// @public
 export class TenantProvisioned extends BaseEvent {
     constructor(tenant: TenantModelContract);
     // (undocumented)
@@ -1506,30 +938,14 @@ export class TenantQueueService {
     getOrCreate(tenantId: string): Queue;
     // (undocumented)
     getQueueName(tenantId: string): string;
+    // Warning: (ae-forgotten-export) The symbol "TenantQueueStats" needs to be exported by the entry point index.d.ts
+    //
     // (undocumented)
     getStats(tenantId: string): Promise<TenantQueueStats>;
     protected now(): number;
     get openHandleCount(): number;
     statsForTenants(tenantIds: string[], concurrency?: number): Promise<TenantQueueStats[]>;
     withTempQueue<T>(tenantId: string, fn: (queue: Queue) => Promise<T>): Promise<T>;
-}
-
-// @public
-export interface TenantQueueStats {
-    // (undocumented)
-    active: number;
-    // (undocumented)
-    completed: number;
-    // (undocumented)
-    delayed: number;
-    // (undocumented)
-    failed: number;
-    // (undocumented)
-    queueName: string;
-    // (undocumented)
-    tenantId: string;
-    // (undocumented)
-    waiting: number;
 }
 
 // @public
@@ -1575,42 +991,6 @@ export interface TenantRepositoryContract<TMeta extends object = TenantMetadata>
     whereIn(ids: string[], includeDeleted?: boolean): Promise<TenantModelContract<TMeta>[]>;
 }
 
-// @public
-export interface TenantResolver {
-    readonly contractVersion?: number;
-    // (undocumented)
-    readonly name: string;
-    // (undocumented)
-    resolve(request: HttpRequest): TenantResolveResult | Promise<TenantResolveResult>;
-}
-
-// Warning: (ae-forgotten-export) The symbol "TenantHit" needs to be exported by the entry point index.d.ts
-//
-// @public
-export type TenantResolveResult = TenantHit | undefined;
-
-// @public
-export class TenantResolverRegistry {
-    // (undocumented)
-    chain(): readonly string[];
-    // (undocumented)
-    clear(): this;
-    get contractVersion(): number;
-    // (undocumented)
-    has(name: string): boolean;
-    // (undocumented)
-    list(): readonly string[];
-    // (undocumented)
-    register(resolver: TenantResolver, opts?: {
-        override?: boolean;
-    }): this;
-    resolve(request: HttpRequest): Promise<TenantResolveResult>;
-    resolveSync(request: HttpRequest): TenantResolveResult;
-    setChain(names: string[]): this;
-    // (undocumented)
-    unregister(name: string): boolean;
-}
-
 // @public (undocumented)
 export type TenantResolverStrategy = 'subdomain' | 'header' | 'path' | 'domain-or-subdomain' | 'request-data';
 
@@ -1622,25 +1002,6 @@ export class TenantRestored extends BaseEvent {
     // (undocumented)
     readonly tenant: TenantModelContract;
 }
-
-// @public (undocumented)
-export interface TenantRestoreHookContext extends TenantHookContext {
-    // (undocumented)
-    fileName: string;
-}
-
-// @public
-export function tenantSession(ctx: unknown): {
-    get<T = unknown>(key: string, defaultValue?: T): T;
-    put(key: string, value: unknown): void;
-    forget(key: string): void;
-    has(key: string): boolean;
-    pull<T = unknown>(key: string, defaultValue?: T): T;
-    raw: any;
-};
-
-// @public
-export function tenantSessionKey(key: string): string;
 
 // @public (undocumented)
 export type TenantStatus = 'provisioning' | 'active' | 'suspended' | 'failed' | 'deleted';
@@ -1677,58 +1038,6 @@ export class TenantUpdated extends BaseEvent {
     readonly tenant: TenantModelContract;
 }
 
-// @public (undocumented)
-export class TenantWebhook extends BackofficeBaseModel {
-    // (undocumented)
-    createdAt: DateTime;
-    // (undocumented)
-    deliveries: HasMany<typeof TenantWebhookDelivery>;
-    // (undocumented)
-    enabled: boolean;
-    // (undocumented)
-    events: string[];
-    // (undocumented)
-    id: string;
-    // (undocumented)
-    secret: string | null;
-    // (undocumented)
-    static readonly table = "tenant_webhooks";
-    // (undocumented)
-    tenantId: string;
-    // (undocumented)
-    updatedAt: DateTime;
-    // (undocumented)
-    url: string;
-}
-
-// @public (undocumented)
-export class TenantWebhookDelivery extends BackofficeBaseModel {
-    // (undocumented)
-    attempt: number;
-    // (undocumented)
-    createdAt: DateTime;
-    // (undocumented)
-    event: string;
-    // (undocumented)
-    id: string;
-    // (undocumented)
-    nextRetryAt: DateTime | null;
-    // (undocumented)
-    payload: Record<string, unknown>;
-    // (undocumented)
-    responseBody: string | null;
-    // (undocumented)
-    status: DeliveryStatus;
-    // (undocumented)
-    statusCode: number | null;
-    // (undocumented)
-    static readonly table = "tenant_webhook_deliveries";
-    // (undocumented)
-    webhook: BelongsTo<typeof TenantWebhook>;
-    // (undocumented)
-    webhookId: string;
-}
-
 // @public
 export class TooManyRequestsException extends Exception {
     // (undocumented)
@@ -1740,12 +1049,6 @@ export class TooManyRequestsException extends Exception {
 }
 
 // @public
-export const transmitBootstrapper: TenantBootstrapper;
-
-// @public
-export const TRUSTED_FETCH_HOSTS: ReadonlySet<string>;
-
-// @public
 export class UniversalMiddleware {
     // (undocumented)
     handle(input: HttpContext, next: NextFn): Promise<any>;
@@ -1755,12 +1058,6 @@ export class UniversalMiddleware {
 export function unscoped<T>(fn: () => T | Promise<T>, opts?: {
     reason?: string;
 }): Promise<T>;
-
-// @public
-export function validateExternalHttpsUrl(value: unknown): string | null;
-
-// @public
-export function validateResolvedHostIsPublic(value: unknown): Promise<string | null>;
 
 // @public
 export class WebhookService {
@@ -1778,6 +1075,9 @@ export class WebhookService {
     //
     // (undocumented)
     registerWebhook(tenantId: string, url: string, events: string[], secret?: string): Promise<RegisterWebhookResult>;
+    // Warning: (ae-forgotten-export) The symbol "TenantWebhook" needs to be exported by the entry point index.d.ts
+    // Warning: (ae-forgotten-export) The symbol "TenantWebhookDelivery" needs to be exported by the entry point index.d.ts
+    //
     // (undocumented)
     send(hook: TenantWebhook, delivery: TenantWebhookDelivery): Promise<void>;
 }

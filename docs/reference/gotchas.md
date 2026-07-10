@@ -19,7 +19,7 @@ so code that "works" under the `header` strategy breaks silently under
 const id = request.header('x-tenant-id')
 
 // ✅ honours the configured strategy + UUID validation
-import { resolveTenantId } from '@adonisjs-lasagna/saas-tenancy/extensions/request'
+import { resolveTenantId } from '@adonisjs-lasagna/saas-tenancy'
 const id = resolveTenantId(request)
 ```
 

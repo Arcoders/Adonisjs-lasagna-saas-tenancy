@@ -6,7 +6,7 @@ import {
   TenantRestored,
   TenantCloned,
 } from '@adonisjs-lasagna/saas-tenancy/events'
-import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy'
+import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { QuotaService } from '@adonisjs-lasagna/saas-tenancy/services'
 import Tenant from '#app/models/backoffice/tenant'
 import { ADMIN_HEADERS, createInstalledTenant, dropAllTenants, runAce } from './_helpers.js'

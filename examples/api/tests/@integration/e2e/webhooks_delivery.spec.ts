@@ -1,7 +1,7 @@
 import { test } from '@japa/runner'
 import http from 'node:http'
 import { createHmac } from 'node:crypto'
-import { TenantWebhookDelivery } from '@adonisjs-lasagna/saas-tenancy'
+import { TenantWebhookDelivery } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { createInstalledTenant, dropAllTenants, runAce, waitFor } from './_helpers.js'
 
 interface CapturedRequest {

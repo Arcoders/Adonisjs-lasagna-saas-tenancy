@@ -7,7 +7,7 @@ import {
   TenantQueueService,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import Tenant from '#app/models/backoffice/tenant'
-import { TenantMetric } from '@adonisjs-lasagna/saas-tenancy'
+import { TenantMetric } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { createInstalledTenant, dropAllTenants, runAce } from './_helpers.js'
 
 /**

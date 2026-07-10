@@ -21,13 +21,8 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { TenantDeleted, TenantAnonymized } from '@adonisjs-lasagna/saas-tenancy/events'
 import { safeFetch } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
-import {
-  tenancy,
-  writeSecret,
-  readSecret,
-  decryptWithAppKey,
-  SECRET_CLASS,
-} from '@adonisjs-lasagna/saas-tenancy'
+import { tenancy, writeSecret, readSecret, SECRET_CLASS } from '@adonisjs-lasagna/saas-tenancy'
+import { decryptWithAppKey } from '@adonisjs-lasagna/saas-tenancy/internal'
 import { assertAiConfig } from '../src/validate_config.js'
 import type { AiConfig, MultitenancyConfigWithAi } from '../src/define_config.js'
 import { DEFAULT_AI_PROVIDER, DEFAULT_EMBEDDING_DIM } from '../src/constants.js'

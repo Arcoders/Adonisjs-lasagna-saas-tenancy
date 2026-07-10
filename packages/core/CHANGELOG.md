@@ -17,11 +17,34 @@ for a copy-paste migration.
 
 ### Breaking changes
 
+- **The public surface is frozen and much smaller.** The root barrel goes from 186
+  exported symbols to 95, and the `exports` map from 25 subpaths to 20. Nothing is
+  lost: every symbol pulled off the root still lives on a subpath that is still
+  published, and every symbol on a de-listed subpath still lives on the root or on
+  `/internal`. What moved:
+  - De-listed: `/crypto`, `/worm-ledger`, `/adapters`, `/helpers`,
+    `/extensions/request`. The three adapters and `buildTenantWorkerOptions` are on
+    the root barrel; `resolveTenantId` already was. `/extensions/request` was the
+    only public path to `__setMemoizedTenant` and its four sibling test seams, which
+    are now private.
+  - Off the root, onto their subpath: the four extension registries, the
+    bootstrapper helpers, the six satellite models (`/models/satellites`),
+    `safeFetch` (`/safe-fetch`), and the service type cluster (`/services`).
+  - Onto `/internal`: the AEAD envelope primitives (`encrypt`, `sealV2WithKey`,
+    `decryptWithAppKey`, …) and the SSRF URL guards. A host app stores secrets at
+    rest through `readSecret` / `writeSecret` / `SECRET_CLASS`, which stay on the
+    root barrel.
+  - `__resetConfigForTests` moved off the public `/config` subpath onto `/testing`.
+  - `/services`, `/health`, `/sdk` and `/plugin` are now labelled an **advanced**
+    tier: broad, close to the internals, and breakable in a minor. See
+    [stability.md](../../docs/reference/stability.md).
+
 - **Satellites are separate packages now.** Billing, SSO, the admin REST API,
   and backup/clone/restore moved out of the core. Install the ones you use and
   update imports:
   - `@adonisjs-lasagna/saas-tenancy/admin` → **`@adonisjs-lasagna/admin`**. The
-    old `/admin` subpath is a deprecated throwing shim for one minor, then drops.
+    old `/admin` subpath is gone from the `exports` map, so importing it fails
+    with `ERR_PACKAGE_PATH_NOT_EXPORTED`. There is no shim.
   - `SsoService` + `TenantSsoConfig` → **`@adonisjs-lasagna/sso`** (they were
     exported from shared barrels, so there is no shim — the symbols are removed).
   - `BillingService`, the Stripe models, the billing events/jobs,
@@ -269,7 +292,7 @@ for a copy-paste migration.
   work in `tenancy.run()` automatically (models, cache, drive, and logging resolve
   to the tenant), running globally when the payload carries no `tenantId`. Removes
   the manual `tenancy.run()` wrapping footgun for host and third-party jobs.
-- **`buildTenantWorkerOptions(tenantId, concurrency?)`** on a new `/helpers` subpath.
+- **`buildTenantWorkerOptions(tenantId, concurrency?)`** on the root barrel.
   Assembles the per-tenant BullMQ `WorkerOptions` (Redis connection, name,
   concurrency) needed to run a dedicated worker per tenant with its own concurrency
   ceiling, so one tenant's job burst cannot starve the others. The package stays

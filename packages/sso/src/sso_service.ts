@@ -105,7 +105,7 @@ function defaultDeps(): SsoServiceDeps {
       // and discovery already range-checks token_endpoint/jwks_uri via
       // validateResolvedHostIsPublic, so this only affects the rebind edge.
       const target = String(input)
-      const { safeFetch } = await import('@adonisjs-lasagna/saas-tenancy')
+      const { safeFetch } = await import('@adonisjs-lasagna/saas-tenancy/safe-fetch')
       const method = init?.method
       const headers = init?.headers as Record<string, string> | undefined
       const body = init?.body as string | URLSearchParams | undefined
@@ -131,7 +131,8 @@ function defaultDeps(): SsoServiceDeps {
       return TenantSsoConfig.updateOrCreate({ tenantId }, attrs)
     },
     async validateHostIsPublic(url) {
-      const { validateResolvedHostIsPublic } = await import('@adonisjs-lasagna/saas-tenancy')
+      const { validateResolvedHostIsPublic } =
+        await import('@adonisjs-lasagna/saas-tenancy/internal')
       return validateResolvedHostIsPublic(url)
     },
     async encryptSecret(value) {

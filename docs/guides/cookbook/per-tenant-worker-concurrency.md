@@ -53,7 +53,7 @@ export default class GenerateInvoice extends TenantJob<GenerateInvoicePayload> {
 import { Worker } from 'bullmq'
 import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
-import { buildTenantWorkerOptions } from '@adonisjs-lasagna/saas-tenancy/helpers'
+import { buildTenantWorkerOptions } from '@adonisjs-lasagna/saas-tenancy'
 import { TenantQueueService } from '@adonisjs-lasagna/saas-tenancy/services'
 
 const tenantId = process.argv[2]

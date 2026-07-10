@@ -1,38 +1,6 @@
 import type { MultitenancyConfig } from './types/config.js'
 import { isProductionNodeEnv } from './utils/env.js'
-
-/**
- * Stash the config singleton on a `Symbol.for(...)` key on `globalThis` so
- * src/ and build/ instances of this module share state. Without this, the
- * package self-references its own build/ output via the `exports` map
- * (`@adonisjs-lasagna/saas-tenancy/...` → `./build/src/...`), while
- * integration specs and the package's own internal imports from `'./...'`
- * resolve to a SECOND copy of this module under src/. Each copy would have
- * its own `let _config = null`, so the provider booting from build/ would
- * leave src/'s `_config` permanently null — and any code reading from src/
- * (`request.tenant()` macro, billing middleware/job/listener, etc.) would
- * throw "saas-tenancy not configured" on the first call.
- *
- * `Symbol.for` is registry-keyed, so the same key resolves to the same
- * symbol across realms / module instances. The store is shared.
- */
-const STORE_KEY = Symbol.for('@adonisjs-lasagna/saas-tenancy/config-singleton')
-
-interface ConfigStore {
-  current: MultitenancyConfig | null
-  /** Monotonic version, bumped on every successful set (the envelope). */
-  version: number
-}
-
-function getStore(): ConfigStore {
-  const g = globalThis as unknown as Record<symbol, ConfigStore | undefined>
-  let store = g[STORE_KEY]
-  if (!store) {
-    store = { current: null, version: 0 }
-    g[STORE_KEY] = store
-  }
-  return store
-}
+import { getStore } from './config_store.js'
 
 /**
  * Recursively freeze the config so a consumer cannot mutate the shared singleton
@@ -88,14 +56,9 @@ export function getConfigVersion(): number {
   return getStore().version
 }
 
-/**
- * Test-only: clear the config singleton so `getConfig()` throws again, used to
- * exercise the "config unreadable" fail-closed paths. Mirrors
- * `__configureTenancyForTests`; never call it from runtime code.
- */
-export function __resetConfigForTests(): void {
-  getStore().current = null
-}
+// `__resetConfigForTests` used to live here. It now sits on the `/testing`
+// barrel (src/testing/config_reset.ts): this module is public at `/config`, so
+// a test-only reset exported from it was a test seam on the app-facing surface.
 
 export function getConfig(): MultitenancyConfig {
   const store = getStore()

@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
-import { encrypt, decryptWithAppKey, readSecret, writeSecret } from '@adonisjs-lasagna/saas-tenancy'
+import { readSecret, writeSecret } from '@adonisjs-lasagna/saas-tenancy'
+import { encrypt, decryptWithAppKey } from '@adonisjs-lasagna/saas-tenancy/internal'
 
 /**
  * Fault injection (WS-1): the secret-at-rest invariant under an APP_KEY rotation.

@@ -4,26 +4,35 @@
  * This root barrel plus the documented subpaths in package.json `exports`
  * (`/services`, `/middleware`, `/events`, `/types`, `/testing`, `/health`,
  * `/sdk`, ...) are the stable, app-facing API. The root is deliberately a
- * curated subset: the high-level services, base models, adapters, middleware,
- * events, exceptions, contracts, and the extension registries
- * (`IsolationDriverRegistry`, `TenantResolverRegistry`) an app actually reaches
- * for. Service classes are exported because they double as the container's DI
- * tokens — resolve instances with `app.container.make(TheService)`, don't `new`
- * them.
+ * curated subset: the three base models and their adapters, the middleware, the
+ * high-level services, the events, the exceptions, the contracts, and the
+ * routing and scoping helpers an app actually reaches for. Service classes are
+ * exported because they double as the container's DI tokens — resolve instances
+ * with `app.container.make(TheService)`, don't `new` them.
  *
- * The concrete built-in implementations (the `*PgDriver` isolation drivers, the
- * `*Resolver` classes, `ResolverHit`, `builtInResolvers`) live on `/services`
- * only. An app selects a driver by config string (`isolation.driver`) and a
- * resolver chain by name, so it never imports those classes directly; the only
- * caller is someone authoring a custom driver/resolver, who is already in
- * "advanced" territory and reaching for the granular subpath.
+ * Plumbing an app never hand-imports lives on its subpath only, so the root
+ * stays small enough to keep as a promise. The extension registries
+ * (`HookRegistry`, `BootstrapperRegistry`, `IsolationDriverRegistry`,
+ * `TenantResolverRegistry`), the bootstrapper helpers, the concrete built-in
+ * `*PgDriver` / `*Resolver` implementations and the service type cluster are on
+ * `/services`. The six satellite models are on `/models/satellites`. `safeFetch`
+ * is on `/safe-fetch`. An app selects a driver by config string
+ * (`isolation.driver`) and a resolver chain by name, so it never imports those
+ * classes directly; the only caller is someone authoring a custom
+ * driver/resolver, who is already in "advanced" territory and reaching for the
+ * granular subpath.
+ *
+ * `readSecret` / `writeSecret` / `SECRET_CLASS` stay here because storing a
+ * webhook or SSO secret at rest is a host-app job. The envelope primitives they
+ * compose (`encrypt`, `sealV2WithKey`, `decryptWithAppKey`, ...) and the SSRF
+ * URL guards moved to `/internal`.
  *
  * `/internal` is explicitly NOT stable and may change between minors. Anything a
  * third-party satellite legitimately needs is mirrored onto a stable surface.
  *
- * An architectural test (tests/architectural/public_api_surface.spec.ts) guards
- * this contract: it keeps the root from drifting out of sync with `/services`
- * and from re-exporting `/internal`.
+ * An architectural test (tests/@architecture/contracts/public_api_surface.spec.ts)
+ * guards this contract: it keeps the root from drifting out of sync with
+ * `/services` and from re-exporting `/internal`.
  */
 export type {
   MultitenancyConfig,
@@ -33,9 +42,6 @@ export type {
   IsolationDriverChoice,
   RequestDataResolverConfig,
   RoutingConfig,
-  PluginPlatformConfig,
-  PluginLimitsConfig,
-  PluginReadOnlyConfig,
 } from './types/config.js'
 export { TENANT_REPOSITORY } from './types/contracts.js'
 export type {
@@ -44,22 +50,8 @@ export type {
   TenantStatus,
   TenantMetadata,
 } from './types/contracts.js'
-// `BackupMetadata` / `CloneResult` are referenced by the tenant-lifecycle hook
-// contexts + the `TenantBackedUp` / `TenantCloned` events, which stay in core.
-// The implementing services moved to `@adonisjs-lasagna/backup`.
-export type { BackupMetadata, CloneResult } from './types/backup.js'
 export { BackofficeBaseModel, TenantBaseModel, CentralBaseModel } from './models/base/index.js'
 export { DefaultLucidAdapter, BackofficeAdapter, TenantAdapter } from './models/adapters/index.js'
-export {
-  TenantAuditLog,
-  TenantFeatureFlag,
-  TenantWebhook,
-  TenantWebhookDelivery,
-  TenantBranding,
-  TenantMetric,
-} from './models/satellites/index.js'
-// `TenantSsoConfig` moved to `@adonisjs-lasagna/sso`.
-export type { AuditActorType, DeliveryStatus } from './models/satellites/index.js'
 export {
   RateLimitMiddleware,
   CustomDomainMiddleware,
@@ -84,74 +76,7 @@ export {
   MetricsService,
   QuotaService,
   ReadReplicaService,
-  HookRegistry,
-  BootstrapperRegistry,
-  IsolationDriverRegistry,
-  configuredScopeColumn,
-  getActiveDriver,
-  TenantResolverRegistry,
-  cacheBootstrapper,
-  createCacheBootstrapper,
-  tenantCache,
-  CACHE_NAMESPACE_PREFIX,
-  driveBootstrapper,
-  createDriveBootstrapper,
-  tenantDisk,
-  tenantPrefix,
-  TENANT_DRIVE_PREFIX,
-  mailBootstrapper,
-  createMailBootstrapper,
-  tenantMailer,
-  TENANT_MAIL_HEADER,
-  sessionBootstrapper,
-  createSessionBootstrapper,
-  tenantSession,
-  tenantSessionKey,
-  TENANT_SESSION_PREFIX,
-  transmitBootstrapper,
-  createTransmitBootstrapper,
-  tenantBroadcast,
-  tenantChannel,
-  TENANT_BROADCAST_PREFIX,
   TenantLogContext,
-  tenantLogger,
-} from './services/index.js'
-export type {
-  CircuitState,
-  CircuitMetrics,
-  TenantQueueStats,
-  LogOptions,
-  LogActionOptions,
-  BrandingData,
-  TenantLifecyclePhase,
-  TenantLifecycleEvent,
-  TenantLifecycleHook,
-  TenantHookContext,
-  TenantBackupHookContext,
-  TenantRestoreHookContext,
-  TenantCloneHookContext,
-  TenantMigrateHookContext,
-  HookContextByEvent,
-  DeclarativeHooks,
-  BootstrapperContext,
-  TenantBootstrapper,
-  IsolationDriver,
-  IsolationDriverName,
-  DestroyOptions,
-  MigrateOptions,
-  MigrateResult,
-  TableLocation,
-  TableLocationSchema,
-  TableLocationDatabase,
-  TableLocationRowscope,
-  TableLocationConnection,
-  TenantResolver,
-  TenantResolveResult,
-  TenantLogContextData,
-  QuotaCheckResult,
-  QuotaStateSnapshot,
-  QuotaReservation,
-  QuotaMode,
 } from './services/index.js'
 export {
   TenantCreated,
@@ -211,20 +136,8 @@ export type {
   SetTenantRlsGucOptions,
   WithTenantRlsOptions,
 } from './services/isolation/rls.js'
-export {
-  encrypt,
-  decrypt,
-  decryptStrict,
-  decryptWithAppKey,
-  isEncrypted,
-  sealV2WithKey,
-  openV2WithKey,
-} from './utils/crypto.js'
 export { readSecret, writeSecret, SECRET_CLASS } from './utils/secret_at_rest.js'
 export type { SecretClass } from './utils/secret_at_rest.js'
-export { validateExternalHttpsUrl, validateResolvedHostIsPublic } from './utils/url.js'
-export { safeFetch, SafeFetchError, TRUSTED_FETCH_HOSTS } from './utils/safe_fetch.js'
-export type { SafeFetchOptions } from './utils/safe_fetch.js'
 
 /**
  * `node ace configure @adonisjs-lasagna/saas-tenancy` imports THIS module and calls its

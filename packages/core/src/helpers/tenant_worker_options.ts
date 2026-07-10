@@ -14,7 +14,7 @@ import { getConfig } from '../config.js'
  *
  * @example
  *   import { Worker } from 'bullmq'
- *   import { buildTenantWorkerOptions } from '@adonisjs-lasagna/saas-tenancy/helpers'
+ *   import { buildTenantWorkerOptions } from '@adonisjs-lasagna/saas-tenancy'
  *
  *   const opts = buildTenantWorkerOptions(tenantId, 3)
  *   const queueName = `${config.queue.tenantQueuePrefix}${tenantId}`

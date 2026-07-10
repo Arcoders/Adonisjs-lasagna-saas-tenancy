@@ -9,7 +9,7 @@ import { tenancy, __configureTenancyForTests } from '../../../../src/tenancy.js'
 import BootstrapperRegistry from '../../../../src/services/bootstrapper_registry.js'
 import TenantLogContext from '../../../../src/services/tenant_log_context.js'
 import { setupTestConfig } from '../../../helpers/config.js'
-import { __resetConfigForTests } from '../../../../src/config.js'
+import { __resetConfigForTests } from '../../../../src/testing/config_reset.js'
 import type { TenantModelContract } from '../../../../src/types/contracts.js'
 
 const fakeTenant = (id = 'tenant-1') =>

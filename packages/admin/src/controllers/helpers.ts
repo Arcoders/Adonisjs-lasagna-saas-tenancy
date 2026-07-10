@@ -5,9 +5,10 @@ import { resolveTenantRepository, AuditLogService } from '@adonisjs-lasagna/saas
 import { getAdminActorResolver } from '../admin_actor.js'
 
 // `validateExternalHttpsUrl` lives in core (both admin and SsoService need it).
-// Re-exported here so the admin controllers keep importing it from
-// `./helpers.js` unchanged.
-export { validateExternalHttpsUrl } from '@adonisjs-lasagna/saas-tenancy'
+// It sits on `/internal` rather than the root barrel: a host app never validates
+// an issuer URL by hand. Re-exported here so the admin controllers keep importing
+// it from `./helpers.js` unchanged.
+export { validateExternalHttpsUrl } from '@adonisjs-lasagna/saas-tenancy/internal'
 
 // The pure, container-free helpers live in `./pure.js` (no core barrel import)
 // so they can be unit tested without booting an Ignitor. Re-exported here so the

@@ -1,7 +1,8 @@
 import { test } from '@japa/runner'
 import { createHmac } from 'node:crypto'
 import { WebhookService, verifyWebhookSignature } from '@adonisjs-lasagna/saas-tenancy/services'
-import { encrypt, writeSecret } from '@adonisjs-lasagna/saas-tenancy'
+import { writeSecret } from '@adonisjs-lasagna/saas-tenancy'
+import { encrypt } from '@adonisjs-lasagna/saas-tenancy/internal'
 import { SafeFetchError, type SafeFetchOptions } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
 import { makeDelivery, makeHook } from '../../../helpers/webhook_doubles.js'
 

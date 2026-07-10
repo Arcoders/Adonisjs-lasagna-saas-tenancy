@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { inject } from '@adonisjs/core'
-import { TenantWebhook, writeSecret } from '@adonisjs-lasagna/saas-tenancy'
+import { writeSecret } from '@adonisjs-lasagna/saas-tenancy'
+import { TenantWebhook } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import { WebhookService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { fireWebhookValidator, subscribeWebhookValidator } from '#app/validators/webhooks_validator'
 

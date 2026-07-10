@@ -30,7 +30,8 @@ for a copy-paste migration.
   and backup/clone/restore moved out of the core. Install the ones you use and
   update imports:
   - `@adonisjs-lasagna/saas-tenancy/admin` → **`@adonisjs-lasagna/admin`**. The
-    old `/admin` subpath is a deprecated throwing shim for one minor, then drops.
+    old `/admin` subpath is gone from the `exports` map, so importing it fails
+    with `ERR_PACKAGE_PATH_NOT_EXPORTED`. There is no shim.
   - `SsoService` + `TenantSsoConfig` → **`@adonisjs-lasagna/sso`** (they were
     exported from shared barrels, so there is no shim — the symbols are removed).
   - `BillingService`, the Stripe models, the billing events/jobs,
@@ -278,7 +279,7 @@ for a copy-paste migration.
   work in `tenancy.run()` automatically (models, cache, drive, and logging resolve
   to the tenant), running globally when the payload carries no `tenantId`. Removes
   the manual `tenancy.run()` wrapping footgun for host and third-party jobs.
-- **`buildTenantWorkerOptions(tenantId, concurrency?)`** on a new `/helpers` subpath.
+- **`buildTenantWorkerOptions(tenantId, concurrency?)`** on the root barrel.
   Assembles the per-tenant BullMQ `WorkerOptions` (Redis connection, name,
   concurrency) needed to run a dedicated worker per tenant with its own concurrency
   ceiling, so one tenant's job burst cannot starve the others. The package stays

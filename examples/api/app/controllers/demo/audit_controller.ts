@@ -1,5 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy'
+import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200

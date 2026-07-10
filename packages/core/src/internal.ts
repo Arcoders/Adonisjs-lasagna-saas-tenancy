@@ -58,3 +58,20 @@ export {
 } from './isthmus/audit.js'
 export type { IsthmusCountersSnapshot, IsthmusEmitOptions } from './isthmus/audit.js'
 export { NO_SILENT_GUARD_ALLOWLIST } from './isthmus/no_silent_guard_allowlist.js'
+// The envelope primitives and the SSRF guard. Taken off the root barrel in the
+// surface freeze: a host app stores a secret through `readSecret` / `writeSecret`
+// / `SECRET_CLASS` (still public on the root) and never needs the primitives
+// underneath. `decryptWithAppKey` is the app-key rotation seam, and the two URL
+// validators guard SSO issuer and webhook URLs. First-party callers only: `ai`
+// rotates provider keys, core's own services compose the rest. Both modules
+// import nothing but `node:` builtins, so /internal stays app.booted-safe.
+export {
+  encrypt,
+  decrypt,
+  decryptStrict,
+  decryptWithAppKey,
+  isEncrypted,
+  sealV2WithKey,
+  openV2WithKey,
+} from './utils/crypto.js'
+export { validateExternalHttpsUrl, validateResolvedHostIsPublic } from './utils/url.js'
