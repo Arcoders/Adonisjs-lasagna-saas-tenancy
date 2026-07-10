@@ -5,7 +5,7 @@ import type { TenantModelContract } from '../../types/contracts.js'
 /**
  * The four shipped driver names, plus any custom name a host registers via
  * `IsolationDriverRegistry.register()` (the registry keys drivers by
- * `driver.name` at runtime, so the type must not close the set — see the
+ * `driver.name` at runtime, so the type must not close the set; see the
  * custom-isolation-driver cookbook). `(string & {})` keeps editor
  * autocomplete for the built-ins while admitting custom names.
  */
@@ -34,10 +34,10 @@ export type MigrateOptions = Omit<MigratorOptions, 'connectionName'> & {
   /**
    * Additional per-tenant migration source directories to fold into this run,
    * on top of the connection's own configured `migrations.paths`. Reserved for
-   * the per-tenant satellite-migration wiring (SEAM-2): a satellite registers
+   * the per-tenant satellite-migration wiring: a satellite registers
    * its per-tenant migration directory and `tenant:migrate` threads it here.
    * The shipped drivers do not consume it yet; it is declared on the contract
-   * now, riding the v2 bump, so SEAM-2 can wire it later without a second
+   * now, riding the v2 bump, so that wiring can land later without a second
    * breaking change against a moving shape.
    */
   extraMigrationPaths?: string[]
@@ -150,25 +150,25 @@ export interface TableLocationConnection {
  * the answer to: "where does this tenant's data live, how do I get a Lucid
  * client to it, and how is the tenant boundary enforced on that client?".
  *
- * Storage *creation* is deliberately NOT here — a driver that shares one set of
+ * Storage *creation* is deliberately NOT here. A driver that shares one set of
  * tables across tenants (rowscope-pg) owns no per-tenant storage to provision,
  * and must not be forced to ship a `provision()` no-op that lies. That capability
  * lives on {@link ProvisionableDriver}; use {@link isProvisionableDriver} to
  * branch on it.
  *
  * Shipped drivers:
- *   - `schema-pg`     — one PostgreSQL schema per tenant (default, provisionable)
- *   - `database-pg`   — one PostgreSQL database per tenant (provisionable)
- *   - `rowscope-pg`   — shared schema, `tenant_id` column, scoping via the
- *                       `withTenantScope()` mixin (NOT provisionable)
- *   - `sqlite-memory` — in-memory per-tenant SQLite for tests (provisionable)
+ *   - `schema-pg`: one PostgreSQL schema per tenant (default, provisionable)
+ *   - `database-pg`: one PostgreSQL database per tenant (provisionable)
+ *   - `rowscope-pg`: shared schema, `tenant_id` column, scoping via the
+ *     `withTenantScope()` mixin (NOT provisionable)
+ *   - `sqlite-memory`: in-memory per-tenant SQLite for tests (provisionable)
  */
 export interface IsolationDriver {
   readonly name: IsolationDriverName
 
   /**
    * Contract version this driver was built against (see
-   * {@link ISOLATION_CONTRACT_VERSION}). Omitted on legacy drivers — the
+   * {@link ISOLATION_CONTRACT_VERSION}). Omitted on legacy drivers, where the
    * registry warns rather than fails when it is absent.
    */
   readonly contractVersion?: number
@@ -180,7 +180,7 @@ export interface IsolationDriver {
    * connection *is* the boundary, so this is a documented no-op. Row-scoping
    * drivers enforce the boundary at query time (the `withTenantScope()` mixin)
    * and, optionally, per transaction via `withTenantRls()`, so there is nothing
-   * to stamp synchronously here either — but every driver declares the hook so
+   * to stamp synchronously here either, but every driver declares the hook so
    * the responsibility is explicit in the contract and a custom driver cannot
    * forget it.
    */
@@ -188,8 +188,8 @@ export interface IsolationDriver {
 
   /**
    * Destroy the tenant's data. By default removes it; pass `{ keepData: true }`
-   * for the recycle-bin pattern. Every driver can tear a tenant down —
-   * schema-pg drops the schema, rowscope-pg deletes the scoped rows — so this
+   * for the recycle-bin pattern. Every driver can tear a tenant down (schema-pg
+   * drops the schema, rowscope-pg deletes the scoped rows), so this
    * stays on the core contract.
    */
   destroy(tenant: TenantModelContract, opts?: DestroyOptions): Promise<void>
@@ -206,7 +206,7 @@ export interface IsolationDriver {
    * storage. Implementations are expected to memoize within a connection
    * pool so repeated calls within a request reuse the same client.
    *
-   * `bypassHardCap` skips the opt-in connection-cap admission check — operational
+   * `bypassHardCap` skips the opt-in connection-cap admission check: operational
    * paths (provisioning, migrations, seeding) must not be refused by request-path
    * backpressure. Drivers without a per-tenant pool ignore it.
    */
@@ -252,7 +252,7 @@ export interface IsolationDriver {
   /**
    * Run migrations against the tenant's storage. For drivers without
    * per-tenant storage (rowscope-pg) this returns `{ executed: 0,
-   * noop: true }` — central migrations are the canonical source.
+   * noop: true }`, since central migrations are the canonical source.
    */
   migrate(tenant: TenantModelContract, opts: MigrateOptions): Promise<MigrateResult>
 }

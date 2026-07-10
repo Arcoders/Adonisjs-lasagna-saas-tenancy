@@ -153,7 +153,7 @@ export default class MultitenancyProvider {
     if (choice === 'rowscope-pg' && !drivers.has('rowscope-pg')) {
       drivers.register(
         new RowScopePgDriver({
-          // rowscope-pg shares one connection across all tenants — the central
+          // rowscope-pg shares one connection across all tenants, the central
           // one. templateConnectionName is a clone-template concept that only
           // schema-pg/database-pg use, so rowscope reads centralConnectionName.
           centralConnectionName: config.centralConnectionName,
@@ -167,12 +167,12 @@ export default class MultitenancyProvider {
         { activate: true }
       )
     }
-    // rowscope-pg's default isolation is the `withTenantScope` mixin —
+    // rowscope-pg's default isolation is the `withTenantScope` mixin:
     // convention, not enforcement. A hand-written top-level `orWhere` can escape
     // it. The enforced backstop is PostgreSQL RLS (the
     // `enable_rls_tenant_isolation` migration + `withTenantRls`). Warn whenever
     // rowscope-pg is the ACTIVE driver without the acknowledgment, regardless of
-    // whether this provider registered it or a host pre-registered its own — the
+    // whether this provider registered it or a host pre-registered its own. The
     // pre-registered case arguably needs the hint most. The logger MUST come
     // from the container here: the `@adonisjs/core/services/logger` binding
     // only materializes once the app reaches `booted`, and provider boot()
@@ -262,7 +262,7 @@ export default class MultitenancyProvider {
 
     // Default readiness checks live on the singleton from boot onward.
     // Host providers boot after this one, so their addCheck/removeCheck
-    // calls override the defaults deterministically — the controller never
+    // calls override the defaults deterministically, and the controller never
     // re-registers anything at probe time.
     registerDefaultChecks(await this.app.container.make(HealthService))
 
@@ -276,13 +276,13 @@ export default class MultitenancyProvider {
   // Register package jobs with @adonisjs/queue's Locator. Host apps
   // auto-discover from `app/jobs/**`, which doesn't reach node_modules,
   // so without this dispatched InstallTenant/etc. dead-letter at the worker.
-  // Best-effort — a host without @adonisjs/queue just skips it.
+  // Best-effort: a host without @adonisjs/queue just skips it.
   async #registerQueueJobs(): Promise<void> {
     try {
       const { Locator } = await import('@adonisjs/queue')
       const jobs = await import('../jobs/index.js')
       for (const exported of Object.values(jobs)) {
-        // Skip type-only re-exports — they erase to undefined at runtime.
+        // Skip type-only re-exports, which erase to undefined at runtime.
         if (
           typeof exported !== 'function' ||
           typeof (exported as { dispatch?: unknown }).dispatch !== 'function'
@@ -351,7 +351,7 @@ export default class MultitenancyProvider {
    * into the host app. We probe `container.hasBinding(...)` instead of
    * importing the service module directly, because the service-main
    * files in `@adonisjs/mail` etc. eagerly `container.make()` the
-   * binding — which throws if the host hasn't loaded the provider that
+   * binding, which throws if the host hasn't loaded the provider that
    * registers it. Detection via the binding name is both cheaper and
    * exact: the bootstrapper is only useful when the host app actually
    * configured the underlying service.
@@ -390,13 +390,13 @@ export default class MultitenancyProvider {
 
     // Every provider's boot() has run by now, so a custom driver registered
     // by the host is visible. A typo'd built-in name compiles (the choice
-    // type is open for custom drivers) — catch it here, at boot, instead of
+    // type is open for custom drivers), so catch it here, at boot, instead of
     // letting the first tenant query fail with a generic "no active driver".
     const drivers = await this.app.container.make(IsolationDriverRegistry)
     assertConfiguredDriverRegistered(drivers, config.isolation?.driver ?? 'schema-pg')
 
     // Fail-closed cap enforcement for the plugin request-path surfaces. Runs here,
-    // in start(), because every provider's boot() has completed — so a plugin's
+    // in start(), because every provider's boot() has completed, so a plugin's
     // authorizer/middleware/capability registrations are final and countable. A
     // surface over its configured cap aborts the deploy (PluginBootException); an
     // omitted cap is unlimited. No-op unless a host sets `plugins.limits`.
@@ -429,14 +429,14 @@ export default class MultitenancyProvider {
    * When the opt-in tenant-resolution cache is enabled, drop a tenant's cached
    * entry the moment a lifecycle event changes its status in-process, so a
    * suspend / maintenance / delete takes effect immediately on this pod instead
-   * of waiting out the TTL. (Cross-pod propagation stays bounded by the TTL —
+   * of waiting out the TTL. (Cross-pod propagation stays bounded by the TTL,
    * documented on the config.) No-op when the cache is off.
    *
    * Wired in `ready()`, NOT `boot()`: the emitter is only fully constructed once
    * the app is booted, so resolving it during boot() returns an unwired emitter
    * and silently drops every subscription. `ready()` runs after the booted
    * hooks (the same lifecycle the satellite providers use for listeners), and
-   * the emitter comes from the container — never the `services/emitter` module,
+   * the emitter comes from the container, never the `services/emitter` module,
    * which resolves to `undefined` mid-boot. It is resolved defensively so a
    * stripped-down container without an emitter can't break startup.
    */
@@ -466,7 +466,7 @@ export default class MultitenancyProvider {
 
   /**
    * Invalidate module-level caches that hold references to container
-   * singletons — see {@link resetModuleCaches} for the why. The billing
+   * singletons. See {@link resetModuleCaches} for the why. The billing
    * metering drain moved to the @adonisjs-lasagna/billing provider's
    * shutdown.
    */

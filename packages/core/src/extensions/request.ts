@@ -48,7 +48,7 @@ declare module '@adonisjs/core/http' {
 
 /**
  * Cached registry handle. The provider seeds the registry at boot, so a
- * cache miss here means we're being called before boot finished — fall
+ * cache miss here means we're being called before boot finished, and we fall
  * back to the synchronous strategy switch so unit tests still work.
  */
 let cachedResolverRegistry: TenantResolverRegistry | undefined
@@ -88,7 +88,7 @@ export function __resetResolutionCacheRefForTests(): void {
 }
 
 /**
- * Test-only: inject a resolution cache directly, skipping the container — so the
+ * Test-only: inject a resolution cache directly, skipping the container, so the
  * caching hot path can be exercised in a unit test without booting the app.
  */
 export function __setResolutionCacheForTests(cache: TenantResolutionCache | undefined): void {
@@ -101,7 +101,7 @@ export function __setResolutionCacheForTests(cache: TenantResolutionCache | unde
  *
  * When the cache is disabled (or unavailable before boot), this falls straight
  * through to `repo.findById(id, includeDeleted)` honouring the caller's
- * `includeDeleted` — so the cache-off path is byte-for-byte the legacy behaviour
+ * `includeDeleted`, so the cache-off path is byte-for-byte the legacy behaviour
  * (the guard passes `true`, the universal middleware passes `false`).
  *
  * When the cache IS enabled, a single entry per tenant is shared across call
@@ -246,7 +246,7 @@ export async function resolveTenant(request: HttpRequest): Promise<TenantResolve
 /**
  * Synchronous tenant-id resolver. Kept for `TenantAdapter`, which needs
  * to decide a connection name in a sync codepath. The new resolvers are
- * async-friendly — async work belongs to `resolveTenant()`.
+ * async-friendly, so async work belongs to `resolveTenant()`.
  */
 export function resolveTenantId(request: HttpRequest): string | undefined {
   return legacyResolveTenantId(request)
@@ -294,7 +294,7 @@ export function dependencyUnavailable(
  * True when an error already carries a decided HTTP status (an AdonisJS
  * exception with a numeric `.status`). The tenant lookup/connect catch sites
  * use this to pass such errors through untouched and wrap everything else as a
- * 503 — the fail-closed-vs-pass-through contract lives here so a `statusCode`
+ * 503. The fail-closed-vs-pass-through contract lives here so a `statusCode`
  * vs `status` typo can't drift across the four call sites that depend on it.
  */
 export function hasDecidedHttpStatus(err: unknown): err is { status: number } {
@@ -308,7 +308,7 @@ export function hasDecidedHttpStatus(err: unknown): err is { status: number } {
 /**
  * Map an error raised during the tenant resolve/connect phase (registry lookup,
  * circuit probe, driver connect) to the fail-closed response. A dependency
- * outage maps to a retry-able 503 EVEN IF it carries an HTTP status — Lucid tags
+ * outage maps to a retry-able 503 EVEN IF it carries an HTTP status. Lucid tags
  * an unregistered-connection error (`E_UNMANAGED_DB_CONNECTION`, raised when a
  * tenant's pool was never established) with a 500, but it is a transient
  * connection-infrastructure failure, not a permanent decision. Any OTHER decided
@@ -324,8 +324,8 @@ export function mapTenantConnectError(operation: string, err: unknown, tenantId?
 
 /**
  * Map an error raised while a tenant request was running its handler (the
- * query phase, after connect succeeded). A backend severed mid-flight — a
- * failover, an admin `pg_terminate_backend`, a crash — otherwise bubbles a raw
+ * query phase, after connect succeeded). A backend severed mid-flight (a
+ * failover, an admin `pg_terminate_backend`, a crash) otherwise bubbles a raw
  * Lucid 500 that reads as non-retryable, even though Postgres has already rolled
  * the transaction back. An outage maps to a clean, retry-able 503 even if it
  * carries a status; everything else (an ordinary constraint violation, an
@@ -369,8 +369,8 @@ export function mapTenantQueryError(err: unknown, tenantId?: string): unknown {
           throw new MissingTenantHeaderException()
         }
       } catch (err) {
-        // Respect an error that already declares an HTTP status — a 400 missing
-        // header, a 404 not-found, a 500 config fault: the layer that threw it
+        // Respect an error that already declares an HTTP status (a 400 missing
+        // header, a 404 not-found, a 500 config fault): the layer that threw it
         // already decided the right response. A connection-infrastructure outage
         // (even one Lucid tags with a 500) maps to a clean, retry-able 503; any
         // other registry failure (central DB unreachable) likewise fails closed
@@ -385,7 +385,7 @@ export function mapTenantQueryError(err: unknown, tenantId?: string): unknown {
       if (!tenant) throw new TenantNotFoundException()
 
       // Fail closed on lifecycle, BEFORE connecting: a soft-deleted or
-      // suspended tenant must not be served — nor have a pool opened for it —
+      // suspended tenant must not be served (nor have a pool opened for it)
       // just because a route group forgot the guard middleware. The guard still
       // runs its own richer checks (provisioning/failed, maintenance bypass,
       // circuit breaker); this is the order-independent floor underneath them.
@@ -425,10 +425,10 @@ function assertTenantActive(
 }
 
 /**
- * SEAM-4 — a plugin-registered `request.<name>()` macro. Discriminated by `kind`
- * (E1). `name` is branded (minted via `macroName()`). `resolve` computes the
- * value from the request; `requireTenant` fails closed if no tenant is resolved.
- * Versioned under the umbrella ABI (no per-surface contract constant).
+ * A plugin-registered `request.<name>()` macro. Discriminated by `kind`. `name`
+ * is branded (minted via `macroName()`). `resolve` computes the value from the
+ * request; `requireTenant` fails closed if no tenant is resolved. Versioned under
+ * the umbrella ABI (no per-surface contract constant).
  */
 export interface TenantRequestMacroSpec<T = unknown> {
   readonly kind: 'requestMacro'
@@ -444,14 +444,14 @@ const registeredRequestMacros = new Map<string, symbol>()
  * Install a `request.<name>()` macro that mirrors the built-in `tenant()` macro:
  * memoized per-request under a private `Symbol` (so repeated reads don't
  * recompute), fail-closed when `requireTenant` and no tenant resolves, and
- * COLLISION-checked — a name already taken by `tenant()`, another plugin's macro,
+ * COLLISION-checked: a name already taken by `tenant()`, another plugin's macro,
  * or an existing request property throws a {@link RequestMacroCollisionException}
  * rather than silently shadowing. Called by the `definePlugin` facade for each
  * `requestMacros` entry; also usable directly.
  */
 export function registerTenantRequestMacro(spec: TenantRequestMacroSpec): void {
-  // Re-validate the slug (idempotent — a definePlugin entry already minted it, a
-  // direct caller may not have): it becomes a prototype property and a Symbol tag.
+  // Re-validate the slug (idempotent, since a definePlugin entry already minted it
+  // while a direct caller may not have): it becomes a prototype property and a Symbol tag.
   const name = macroName(spec.name)
   const proto = HttpRequest.prototype as unknown as Record<string, unknown>
   if (registeredRequestMacros.has(name) || typeof proto[name] === 'function') {

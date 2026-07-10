@@ -7,7 +7,7 @@ import type { TenantResolver } from '../services/resolvers/resolver.js'
 // The large isolation config shape lives in ./config/isolation.ts; re-export it
 // here so the public `./types` surface and every `from '../types/config.js'`
 // import keep resolving exactly as before. Satellite config blocks (billing,
-// backup) are NOT declared here — see SatelliteConfigRegistry below.
+// backup) are NOT declared here. See SatelliteConfigRegistry below.
 export type { IsolationConfig, IsolationDriverChoice } from './config/isolation.js'
 
 /**
@@ -19,7 +19,7 @@ export type { IsolationConfig, IsolationDriverChoice } from './config/isolation.
  * type free of satellite-specific shapes (a host that never installs billing
  * sees no `billing` key) while the satellite's own code keeps `getConfig().billing`
  * fully typed. Adding a field here from core would re-freeze satellite config into
- * the core type — the exact coupling this indirection removes.
+ * the core type, the exact coupling this indirection removes.
  */
 export interface SatelliteConfigRegistry {}
 
@@ -50,13 +50,13 @@ export type TenantAccessAuthorizer = (
 ) => boolean | Promise<boolean>
 
 /**
- * Optional GDPR anonymizer SEAM. The package never imports your models, so YOU
+ * Optional GDPR anonymizer seam. The package never imports your models, so YOU
  * decide which columns are PII and how to mask them. `tenant:gdpr:anonymize`
  * invokes this INSIDE `tenancy.run(tenant)`, so your model queries hit the
  * tenant's own schema. Use it for Art.17 erasure-by-anonymization when a legal
  * retention obligation means you must keep the row but strip the personal data.
  * Honor `dryRun` (count, do not write) and return `{ affected }` for the audit
- * trail. If this is not configured, `tenant:gdpr:anonymize` fails loudly — that
+ * trail. If this is not configured, `tenant:gdpr:anonymize` fails loudly. That
  * is the signal your implementation is missing, not a bug.
  *
  * @example
@@ -100,7 +100,7 @@ export interface ResolverConfig {
    *    `tenancy.currentId()` reflects the guard). This makes custom and
    *    domain-based resolvers route model queries consistently. Async-only
    *    resolvers are skipped on the synchronous routing path.
-   *  - `true`: restores the historical 0.x behavior — the adapter uses only the
+   *  - `true`: restores the historical 0.x behavior. The adapter uses only the
    *    built-in `resolverStrategy` switch on this fallback. Custom resolvers
    *    registered in `resolverChain` are NOT consulted for model-query routing,
    *    and a custom-domain resolver cannot route a raw model query.
@@ -129,7 +129,7 @@ export interface ResolverConfig {
    * Opt-in per-process cache for the tenant-registry lookup that the HTTP guard
    * and universal middleware run on EVERY request (`repo.findById`). Without it,
    * every tenant request makes a round-trip to the shared backoffice DB before
-   * any tenant work — a fixed latency add and a contention point that funnels
+   * any tenant work, a fixed latency add and a contention point that funnels
    * all traffic through one pool.
    *
    * When enabled, a resolved tenant is cached in-process (per pod) for `ttlMs`.
@@ -137,7 +137,7 @@ export interface ResolverConfig {
    * activate / update / delete / maintenance), so the entry is dropped the moment
    * one of those events fires ON THIS POD.
    *
-   * IMPORTANT — the invalidation depends on the event actually being emitted:
+   * IMPORTANT: the invalidation depends on the event actually being emitted:
    *   - The `@adonisjs-lasagna/admin` package emits these events for you on every
    *     status change it performs.
    *   - The core emits `TenantDeleted` (uninstall) and the provisioning events,
@@ -152,12 +152,12 @@ export interface ResolverConfig {
    * a tenant suspended on one pod may keep serving on another for up to `ttlMs`
    * (events are per-process; there is no shared invalidation bus). Keep `ttlMs`
    * short (seconds) so that window stays small. Treat the cache as a throughput
-   * optimization with bounded staleness, not as an instant kill-switch — for an
+   * optimization with bounded staleness, not as an instant kill-switch. For an
    * immediate, fleet-wide suspend, gate on a fresh status check or disable the
    * cache.
    *
    * IMPORTANT: the cached `request.tenant()` is shared across concurrent requests
-   * in the same process — treat it as READ-ONLY. For a mutate-then-save flow,
+   * in the same process, so treat it as READ-ONLY. For a mutate-then-save flow,
    * load a fresh instance through your repository instead of mutating the
    * resolved request tenant. Disabled by default (behaviour is byte-for-byte
    * unchanged unless you opt in).
@@ -187,7 +187,7 @@ export interface ResolverConfig {
 export type ResolverCacheConfig = NonNullable<ResolverConfig['cache']>
 
 /**
- * Per-strategy configuration the resolvers consume. Optional — the built-in
+ * Per-strategy configuration the resolvers consume. Optional: the built-in
  * resolvers fall back to sensible defaults when these blocks are absent.
  */
 export interface RequestDataResolverConfig {
@@ -255,7 +255,7 @@ export interface PlansConfig {
    */
   getPlan?: (tenant: TenantModelContract) => string | undefined | Promise<string | undefined>
   /**
-   * Where the tenant→plan assignment lives:
+   * Where the tenant-to-plan assignment lives:
    *   - `'config-only'` (default for backwards compat when `getPlan` is set):
    *     resolution comes only from `getPlan`. `assignPlan` becomes a no-op
    *     unless the host explicitly wires it.
@@ -269,7 +269,7 @@ export interface PlansConfig {
   /**
    * Emit a `QuotaTracked` event after every `track`/`consume` call. Default
    * `false` (zero overhead). Set to `true` to enable the metered-billing
-   * auto-bridge to Stripe — `BillingService` listens and reports usage.
+   * auto-bridge to Stripe: `BillingService` listens and reports usage.
    */
   emitTracked?: boolean
   /**
@@ -308,7 +308,7 @@ export interface ReadReplicasConfig {
   /**
    * `round-robin` (default): cycles through hosts globally.
    * `random`: picks at random per call.
-   * `sticky`: hashes tenant id → always the same replica for a given tenant.
+   * `sticky`: hashes the tenant id so a given tenant always lands on the same replica.
    */
   strategy?: ReadReplicaStrategy
   /**
@@ -382,21 +382,21 @@ export interface ResilienceConfig {
  * after every plugin has registered): a surface whose registered count exceeds
  * its cap aborts the deploy, so a runaway or hostile plugin cannot exhaust the
  * request path or fan a tick out over more schedules than the operator allows.
- * Every field is optional; an omitted cap means UNLIMITED — byte-identical to the
+ * Every field is optional; an omitted cap means UNLIMITED, byte-identical to the
  * pre-cap behavior.
  */
 export interface PluginLimitsConfig {
-  /** Max tenant-access authorizers the chain may register. Omitted → unlimited. */
+  /** Max tenant-access authorizers the chain may register. Omitted means unlimited. */
   maxAuthorizers?: number
-  /** Max plugin-injected route middleware entries. Omitted → unlimited. */
+  /** Max plugin-injected route middleware entries. Omitted means unlimited. */
   maxMiddleware?: number
-  /** Max capabilities provided into the capability registry. Omitted → unlimited. */
+  /** Max capabilities provided into the capability registry. Omitted means unlimited. */
   maxCapabilities?: number
-  /** Max tenant schedules registered across all plugins (SEAM-1). Omitted → unlimited. */
+  /** Max tenant schedules registered across all plugins. Omitted means unlimited. */
   maxSchedules?: number
   /**
    * Response deadline (ms) for a SINGLE plugin authorizer before it is treated as
-   * a DENY (fail-closed) — a hung authorizer must not hang the request. This is a
+   * a DENY (fail-closed): a hung authorizer must not hang the request. This is a
    * DEADLINE, not cancellation: a non-cooperative authorizer keeps running in the
    * background while the caller is unblocked with a 403. Default `1000`.
    */
@@ -406,28 +406,28 @@ export interface PluginLimitsConfig {
 /**
  * Optional configuration for the plugin platform (the `definePlugin` facade and
  * its request-path seams). Omit the whole block to run uncapped with the default
- * authorizer deadline. Grows additively as later lotes land their seams (the
+ * authorizer deadline. Grows additively as later phases land their seams (the
  * scheduler and data-change tunables attach here under their own sub-blocks).
  */
 export interface PluginPlatformConfig {
   /** Fail-closed caps + authorizer deadline for the request-path surfaces. */
   limits?: PluginLimitsConfig
-  /** Opt-in read-only DB connection untrusted plugin code is routed to (S3). */
+  /** Opt-in read-only DB connection untrusted plugin code is routed to. */
   readOnly?: PluginReadOnlyConfig
 }
 
 /**
  * Credentials for the least-privilege, SELECT-only Postgres role that UNTRUSTED
- * plugin code runs under (S3, the real firewall). When set, the tenant adapter
+ * plugin code runs under (the real firewall). When set, the tenant adapter
  * routes every query made inside an untrusted plugin execution scope to a
  * connection cloned from the tenant's own (same database/schema/search_path) but
- * authenticated as this role, so Postgres — not a JS proxy — denies a write.
+ * authenticated as this role, so Postgres (not a JS proxy) denies a write.
  *
  * The role MUST be provisioned `NOSUPERUSER NOBYPASSRLS` with no write grants (or
  * `ALTER ROLE ... SET default_transaction_read_only = on`); otherwise the denial
  * the adapter relies on does not fire. A plugin is "untrusted" unless it is on the
- * `TRUSTED_SATELLITES` allowlist (S5). Omit the block to disable the read-only
- * route (all plugins then share the app role — in-process friction only).
+ * `TRUSTED_SATELLITES` allowlist. Omit the block to disable the read-only
+ * route (all plugins then share the app role, in-process friction only).
  */
 export interface PluginReadOnlyConfig {
   /** The read-only role's database user. */
@@ -450,7 +450,7 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
    *
    * Each entry is either a built-in resolver name (`'header'`, `'subdomain'`, …),
    * the name of an instance you passed in {@link resolvers}, or an inline
-   * `TenantResolver` instance — so a custom resolver can be chained without
+   * `TenantResolver` instance, so a custom resolver can be chained without
    * reaching into the registry. Unknown string names fail at boot with a clear
    * config-level error.
    */
@@ -508,7 +508,7 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
    */
   /**
    * Optional impersonation configuration. If `secret` is unset, calls to
-   * `ImpersonationService.start()` throw — the package never ships with a
+   * `ImpersonationService.start()` throw. The package never ships with a
    * default secret.
    */
   impersonation?: {

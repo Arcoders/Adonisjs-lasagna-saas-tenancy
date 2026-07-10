@@ -15,13 +15,13 @@ import { assertSafeIdentifier } from './identifier.js'
  *      a fail-closed policy:
  *      `USING (tenant_id::text = nullif(current_setting('app.tenant_id', true), ''))`.
  *   2. At the start of each tenant request/job, set that setting on the
- *      connection that will run the queries — `setTenantRlsGuc()` does this.
+ *      connection that will run the queries. `setTenantRlsGuc()` does this.
  *   3. Because the setting is transaction-local, the queries must run on the
  *      SAME transaction. `withTenantRls()` opens one and hands you the `trx`.
  *
  * When the setting is unset (NULL) or reset to '' after a prior transaction on
  * a reused pooled connection, the `nullif(...)` makes the predicate NULL and it
- * matches no rows — a forgotten scope returns nothing instead of leaking. That
+ * matches no rows: a forgotten scope returns nothing instead of leaking. That
  * is the safe failure mode and the whole point of RLS here.
  */
 
@@ -31,17 +31,17 @@ export const DEFAULT_RLS_GUC = 'app.tenant_id'
 /**
  * A PostgreSQL custom setting must be `class.name` (a dotted pair) so the server
  * accepts it without a prior definition in `postgresql.conf`. Validate the shape
- * even though `set_config()` binds the name as a parameter — a malformed name is
+ * even though `set_config()` binds the name as a parameter: a malformed name is
  * a config bug we want to surface loudly, not a silent no-op.
  */
 const GUC_NAME = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/i
 
-/** Anything exposing Lucid's `rawQuery` — a `QueryClient` or a `TransactionClient`. */
+/** Anything exposing Lucid's `rawQuery`: a `QueryClient` or a `TransactionClient`. */
 export interface RlsQueryRunner {
   rawQuery(sql: string, bindings?: any[]): Promise<unknown>
 }
 
-/** Anything that can open a transaction — a Lucid `Database` or `QueryClient`. */
+/** Anything that can open a transaction: a Lucid `Database` or `QueryClient`. */
 export interface RlsTransactor {
   transaction<R>(callback: (trx: RlsQueryRunner) => Promise<R>): Promise<R>
 }
@@ -49,7 +49,7 @@ export interface RlsTransactor {
 export interface SetTenantRlsGucOptions {
   /**
    * Override the setting name. Defaults to `app.tenant_id`. MUST match the
-   * `current_setting(...)` name in your RLS policy migration — a mismatch makes
+   * `current_setting(...)` name in your RLS policy migration. A mismatch makes
    * the policy read an unset setting and fail closed (every query returns zero
    * rows) with no error.
    */
@@ -83,7 +83,7 @@ export async function setTenantRlsGuc(
         `Expected a "class.name" setting such as "app.tenant_id".`
     )
   }
-  // set_config(setting, value, is_local) — is_local is always true so the value
+  // set_config(setting, value, is_local): is_local is always true so the value
   // is scoped to the current transaction and resets on COMMIT/ROLLBACK. We never
   // expose a session-level mode: a session GUC on a pooled connection would
   // persist past the request and leak to whichever tenant reuses the connection
@@ -98,7 +98,7 @@ export interface WithTenantRlsOptions {
   gucName?: string
   /**
    * Advanced/testing: supply a transaction-capable client (anything with
-   * `.transaction(cb)`). Defaults to the Lucid `db` service — the named
+   * `.transaction(cb)`). Defaults to the Lucid `db` service: the named
    * connection, or the default one when `connectionName` is omitted.
    */
   transactor?: RlsTransactor
@@ -112,12 +112,12 @@ async function defaultTransactor(connectionName?: string): Promise<RlsTransactor
 /**
  * Run `fn` inside a transaction with `app.tenant_id` set for that transaction,
  * so a PostgreSQL RLS policy enforces tenant isolation for every query that
- * runs on the provided `trx` — regardless of query shape.
+ * runs on the provided `trx`, regardless of query shape.
  *
  * IMPORTANT: pass `trx` to every tenant-scoped query inside `fn` (e.g.
  * `model.useTransaction(trx)`, or a raw `trx.from(...)` builder). A query that
  * ignores `trx` runs on a different pooled connection where the setting is not
- * set, so RLS (fail-closed) returns zero rows for it — no leak, but no data
+ * set, so RLS (fail-closed) returns zero rows for it: no leak, but no data
  * either. This is the deliberate trade for shape-independent isolation.
  *
  * `withTenantRls` only sets the database setting; it does NOT open a
@@ -127,7 +127,7 @@ async function defaultTransactor(connectionName?: string): Promise<RlsTransactor
  *
  * @example
  *   // RLS scopes this to the active tenant even though the orWhere is
- *   // ungrouped — the database policy enforces it, not the query.
+ *   // ungrouped: the database policy enforces it, not the query.
  *   await withTenantRls(tenant.id, (trx) =>
  *     trx.from('posts').where('a', 1).orWhere('featured', true)
  *   )

@@ -26,7 +26,7 @@ const stubsRoot = join(dirname(fileURLToPath(import.meta.url)), '..', 'stubs')
  * repository keeps its edits.
  *
  * `path` is relative to the app root and must agree with the `exports({ to: … })`
- * line inside the matching stub — `behavior_configure_publish.spec.ts` pins that.
+ * line inside the matching stub. `behavior_configure_publish.spec.ts` pins that.
  */
 export const CORE_SCAFFOLD: { path: string; stub: string }[] = [
   { path: 'app/models/backoffice/tenant.ts', stub: 'models/tenant.stub' },
@@ -201,7 +201,7 @@ export interface ApiCompatPartition {
  * BEFORE any of their code is wired into the host. A satellite that needs a
  * NEWER ABI than this core provides is refused; a satellite that depends on a
  * refused one is refused too (the input is dependency-first, so the dependency
- * has always been seen by the time its dependent is processed — this also
+ * has always been seen by the time its dependent is processed, which also
  * catches transitive chains). An OLDER or undeclared ABI is accepted with a
  * warning.
  *
@@ -248,7 +248,7 @@ export function partitionSatellitesByApiCompat(
 }
 
 /**
- * Fail-closed install consent (S1): a satellite that declares permissions is only
+ * Fail-closed install consent: a satellite that declares permissions is only
  * published if the operator grants them. `--accept-permissions` (or
  * `LASAGNA_ACCEPT_PERMISSIONS=1`) grants non-interactively for CI; otherwise, on a
  * TTY, the operator is shown the concrete capabilities and prompted. A
@@ -273,9 +273,9 @@ async function permissionsGranted(
 }
 
 /**
- * Fail-closed native-addon acknowledgement (S4b): a satellite that ships native
- * (`.node`) addons cannot be sandboxed by the worker Permission Model — a native
- * addon evades `--permission` entirely — so it must be installed as fully-trusted
+ * Fail-closed native-addon acknowledgement: a satellite that ships native
+ * (`.node`) addons cannot be sandboxed by the worker Permission Model (a native
+ * addon evades `--permission` entirely), so it must be installed as fully-trusted
  * with an explicit `--allow-native` (or `LASAGNA_ALLOW_NATIVE_ADDONS=1`), or on a
  * TTY an explicit confirmation. A non-interactive install without the flag
  * refuses, so a scripted install can't silently pull in an un-sandboxable plugin.
@@ -324,7 +324,7 @@ export default async function configure(command: Configure) {
 
   // Declare the env vars the config below reads, BEFORE publishing it: `env.get()`
   // is typed off start/env.ts, so an undeclared key is a compile error in the file
-  // we are about to write. Best-effort — a host with a non-standard env.ts should
+  // we are about to write. Best-effort: a host with a non-standard env.ts should
   // get a hint, not a failed install.
   try {
     await (codemods as any).defineEnvValidations({
@@ -354,7 +354,7 @@ export default async function configure(command: Configure) {
     await codemods.makeUsingStub(stubsRoot, scaffold.stub, {})
   }
 
-  // The `tenants` table is not a feature — it is the table every command and
+  // The `tenants` table is not a feature. It is the table every command and
   // `request.tenant()` pivot on, so its migration is published unconditionally,
   // before the "no features selected" early return below.
   const migrationsDir = resolveMigrationsDir(command)
@@ -369,7 +369,7 @@ export default async function configure(command: Configure) {
     command.logger.info('skipped already-published migration: create_tenants_table')
   }
 
-  // Discover installed external satellites once (reads package.json only — never
+  // Discover installed external satellites once (reads package.json only, never
   // imports a satellite).
   const satellites = await discoverSatellites(hostRoot, warn)
   const satIndex = indexSatellites(satellites)
@@ -377,7 +377,7 @@ export default async function configure(command: Configure) {
   // Decide what to publish.
   //   1. Explicit --with=audit,@scope/pkg wins (core features + external satellites).
   //   2. Else if interactive (TTY): prompt the operator (core + installed externals),
-  //      with NOTHING preselected — every satellite is experimental, so publishing
+  //      with NOTHING preselected: every satellite is experimental, so publishing
   //      one is an explicit opt-in, not a default.
   //   3. Else (CI / piped): publish NOTHING beyond the core config + tenant model
   //      (already emitted above). The core satellites are experimental and their
@@ -483,7 +483,7 @@ export default async function configure(command: Configure) {
   // Gate external satellites on the Satellite ABI version BEFORE wiring any of
   // their code into the host. A satellite that needs a newer ABI than this core
   // provides is refused (and `configure` exits non-zero); an older / undeclared
-  // one warns but proceeds. Pure check — see `checkSatelliteApiCompat`.
+  // one warns but proceeds. Pure check. See `checkSatelliteApiCompat`.
   //
   // `selectedExternal` is in dependency-first order here, so when we refuse a
   // satellite we also refuse anything that depends on it: wiring a dependent
@@ -537,8 +537,8 @@ export default async function configure(command: Configure) {
 
     // Snapshotted AFTER the `tenants` migration above, whose fixed zero prefix is
     // load-bearing (`--with=maintenance` ALTERs that table) and must not be re-stamped.
-    // `resolved` carries the bundle's dependency order — `tenant_webhooks` before the
-    // `tenant_webhook_deliveries` whose foreign key points at it — and
+    // `resolved` carries the bundle's dependency order (`tenant_webhooks` before the
+    // `tenant_webhook_deliveries` whose foreign key points at it), and
     // `finalizeNewMigrations` seals that order into the timestamps, which is the only
     // thing `migration:run` reads.
     const before = await snapshotMigrationDir(migrationsDir)
@@ -652,7 +652,7 @@ function resolveMigrationsDir(command: Configure): string {
 /**
  * Surface the config block each selected core feature needs. Most satellites
  * (audit, feature_flags, webhooks, branding) are zero-config and print nothing.
- * We never AST-patch the host's config — the operator pastes.
+ * We never AST-patch the host's config. The operator pastes.
  */
 function postPublishConfigReminders(command: Configure, selected: string[]): void {
   const log = command.logger
@@ -696,7 +696,7 @@ function postPublishConfigReminders(command: Configure, selected: string[]): voi
 
 /**
  * Post-publish hint for the RLS hardening migration. The stub ships with
- * placeholder table names on purpose — running it as-is would fail — so make
+ * placeholder table names on purpose (running it as-is would fail), so make
  * the required edit loud rather than letting `migration:run` blow up later.
  */
 function postPublishRls(command: Configure): void {
