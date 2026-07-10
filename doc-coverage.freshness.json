@@ -1,15 +1,15 @@
 {
   "version": 1,
   "reviewed": {
-    "@adonisjs-lasagna/backup#BackupService|docs/reference/upgrade-to-1.0.md": "dec6abeb8c17d3b6fdcff93bc16497d5555931064bbff0707a13b2f0a993a643",
+    "@adonisjs-lasagna/backup#BackupService|docs/reference/upgrade-to-0.3.md": "dec6abeb8c17d3b6fdcff93bc16497d5555931064bbff0707a13b2f0a993a643",
     "@adonisjs-lasagna/backup#BackupTenant|docs/guides/jobs.md": "1aa09e615801278bc1277bdf2c60cbad9632b5614de6a43eae5ffa65cb697115",
-    "@adonisjs-lasagna/backup#CloneService|docs/reference/upgrade-to-1.0.md": "c4fcd747922247ad5b4e93c49d5a793e218f4c4570230430d569962adb95ce37",
+    "@adonisjs-lasagna/backup#CloneService|docs/reference/upgrade-to-0.3.md": "c4fcd747922247ad5b4e93c49d5a793e218f4c4570230430d569962adb95ce37",
     "@adonisjs-lasagna/backup#CloneTenant|docs/guides/jobs.md": "1aa09e615801278bc1277bdf2c60cbad9632b5614de6a43eae5ffa65cb697115",
     "@adonisjs-lasagna/backup#RestoreTenant|docs/guides/jobs.md": "1aa09e615801278bc1277bdf2c60cbad9632b5614de6a43eae5ffa65cb697115",
     "@adonisjs-lasagna/billing#BillingCleanupJob|docs/guides/jobs.md": "0d701473580c6516aa1189d9dd8559c8f797d8c6bd529587774d59fb43d7fc4c",
     "@adonisjs-lasagna/billing#BillingService|docs/guides/cookbook/stripe-quotas.md": "a67865666a81d994ac059a576cb42bb502ddeb3210f686b08a2c77409becec1b",
     "@adonisjs-lasagna/billing#BillingService|docs/guides/satellites/billing.md": "a67865666a81d994ac059a576cb42bb502ddeb3210f686b08a2c77409becec1b",
-    "@adonisjs-lasagna/billing#BillingService|docs/reference/upgrade-to-1.0.md": "a67865666a81d994ac059a576cb42bb502ddeb3210f686b08a2c77409becec1b",
+    "@adonisjs-lasagna/billing#BillingService|docs/reference/upgrade-to-0.3.md": "a67865666a81d994ac059a576cb42bb502ddeb3210f686b08a2c77409becec1b",
     "@adonisjs-lasagna/billing#BillingService|docs/start/tutorial/billing.md": "a67865666a81d994ac059a576cb42bb502ddeb3210f686b08a2c77409becec1b",
     "@adonisjs-lasagna/billing#ProcessBillingEventJob|docs/guides/jobs.md": "2cc3ef9b04215a29df1cdfddd6ba67f5742f9746d3067d30809f0d646a585e7e",
     "@adonisjs-lasagna/billing#ReportUsageBatchJob|docs/guides/jobs.md": "7c272e7a7b74bb1b04406c5c649e2a3e783a6a3042e7d50a381b1877152df8fd",
@@ -69,6 +69,6 @@
     "@adonisjs-lasagna/saas-tenancy/services#verifyWebhookSignature|docs/guides/satellites/webhooks.md": "6e7da32631f5f3d2bc4c035f8e5cec688f9dc5c24dafa189047bb63a42bc4721",
     "@adonisjs-lasagna/saas-tenancy/services#WebhookService|docs/guides/satellites/webhooks.md": "6cf285f98d648e92a5c5f8dcdf55768b3d155908b547f0d77788409fc457c3cb",
     "@adonisjs-lasagna/sso#SsoService|docs/guides/satellites/sso.md": "3928298e31483b6dd3e1ccbbffcef3d6e1ffc5a60d6643517d7a79270c3b8d8c",
-    "@adonisjs-lasagna/sso#SsoService|docs/reference/upgrade-to-1.0.md": "3928298e31483b6dd3e1ccbbffcef3d6e1ffc5a60d6643517d7a79270c3b8d8c"
+    "@adonisjs-lasagna/sso#SsoService|docs/reference/upgrade-to-0.3.md": "3928298e31483b6dd3e1ccbbffcef3d6e1ffc5a60d6643517d7a79270c3b8d8c"
   }
 }

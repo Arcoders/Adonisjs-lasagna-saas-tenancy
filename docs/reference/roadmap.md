@@ -84,4 +84,4 @@ with a changelog note. Pin your version and read the
 
 - [Stability](/reference/stability); label definitions and the feature matrix.
 - [Known limitations](/reference/known-limitations); what is intentionally not here.
-- [Upgrade to 1.0](/reference/upgrade-to-1.0); the mechanical changes from 0.x.
+- [Upgrade to 0.3](/reference/upgrade-to-0.3); the mechanical changes from 0.2.x.

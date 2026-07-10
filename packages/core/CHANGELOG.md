@@ -6,14 +6,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.0] — 2026-06-08
+## [0.3.0] — 2026-07-10
 
-The 1.0 cut. The optional satellites move out of the core into their own
-independently-versioned packages, and the unified tenant-resolution path becomes
-the default. The core now ships only the tenancy primitives plus the leaf
-satellites (audit, feature flags, metrics, webhooks, branding, quotas,
-impersonation). See the [Upgrade to 1.0 guide](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/upgrade-to-1.0.md)
+The restructure. The optional satellites move out of the core into their own
+independently-versioned packages, the unified tenant-resolution path becomes the
+default, and the public surface is frozen. The core now ships only the tenancy
+primitives plus the leaf satellites (audit, feature flags, metrics, webhooks,
+branding, quotas, impersonation). See the
+[Upgrade to 0.3 guide](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/upgrade-to-0.3.md)
 for a copy-paste migration.
+
+This is still `0.x`. The core is a release candidate on maturity (feature
+complete, green in CI against real Postgres and Redis), but it has no production
+mileage and no independent security review, so it makes no semver promise across
+a minor. `1.0.0` is earned, not declared. The five satellite packages ship
+`0.1.0` and are labeled experimental.
 
 ### Breaking changes
 
@@ -154,7 +161,7 @@ for a copy-paste migration.
   take an optional `--admin=<id>` flag that attributes the append-only audit row to
   that operator; absent, the row is recorded as `system`.
 - Docs: a [Scaling limits](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/guides/scaling-limits.md)
-  page and the Upgrade to 1.0 guide.
+  page and the Upgrade to 0.3 guide.
 - **Row-Level Security for `rowscope-pg`.** A new opt-in
   (`configure --with=rls`) publishes a policy migration, plus `withTenantRls()`
   and `setTenantRlsGuc()` helpers that set a transaction-local `app.tenant_id`.
@@ -361,8 +368,8 @@ for a copy-paste migration.
   `dependsOn` other satellites (ordered and cycle-checked at configure time), and
   manifest `provider`/`commands` paths are validated as safe relative specifiers.
   `SATELLITE_API_VERSION` (currently `1`) plus `checkSatelliteApiCompat(...)` freeze
-  the ABI under the 1.x promise: `configure` refuses to wire a satellite that needs
-  a newer ABI than the installed core. The `/testing` barrel is now safe to import
+  the ABI on its own version line, independent of the npm version: `configure`
+  refuses to wire a satellite that needs a newer ABI than the installed core. The `/testing` barrel is now safe to import
   in a hermetic unit test (it no longer boots a DB connection at import time).
 - **`tenant:satellite:remove <package>`** prints a precise, safe checklist for
   removing a packaged satellite (the `adonisrc.ts` lines, the migrations it
@@ -577,9 +584,8 @@ for a copy-paste migration.
   hosts re-run `configure @adonisjs-lasagna/saas-tenancy --with=metrics` (idempotent)
   then `migration:run --connection=backoffice`.
 - **README/docs accuracy.** Corrected the package README highlight counts (28 typed
-  events, 39 admin endpoints, nine doctor checks), described the satellite *packages*
-  as release candidate (only the in-core opt-in features stay experimental), and
-  pointed the reference-app snippets at the real `examples/api/docker-compose.yml`.
+  events, 39 admin endpoints, nine doctor checks), and pointed the reference-app
+  snippets at the real `examples/api/docker-compose.yml`.
   These structural counts and the README stability badges are now pinned by CI guards
   so they cannot silently drift again.
 

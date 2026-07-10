@@ -5,9 +5,9 @@ Cross-tenant analytics & reporting for
 aggregated usage metrics, top-N tenant rankings, and period summaries over the
 backoffice schema.
 
-[![Stability: release candidate](https://img.shields.io/badge/stability-release_candidate-C26A4B)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability)
+[![Stability: experimental](https://img.shields.io/badge/stability-experimental-C26A4B)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability)
 
-> **Stability: release candidate.** The API is frozen under the 1.x promise, with the honest caveat that a correction forced by the pending security review or production mileage may land in a 1.x minor with a loud changelog entry. Pin the version and read the changelog before upgrading. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability).
+> **Stability: experimental.** This package ships `0.1.0` and carries no semver promise: the API may change in any minor. It is covered by tests and green in CI, but it has no production mileage. Pin the exact version and read the changelog before upgrading. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability).
 
 It was split out of the core so the analytics surface versions on its own cadence
 and is only installed by apps that report. It reads the core's existing metrics

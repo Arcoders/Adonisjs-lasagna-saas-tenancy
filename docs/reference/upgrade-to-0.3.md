@@ -1,11 +1,11 @@
 ---
-title: Upgrade to 1.0
-description: Migrate from 0.x to 1.0; the satellite packages and the unified tenant-resolution default.
+title: Upgrade to 0.3
+description: Migrate from 0.2.x to 0.3.0; the satellite packages and the unified tenant-resolution default.
 ---
 
-# Upgrade to 1.0
+# Upgrade to 0.3
 
-Three things change in 1.0, and all are mechanical:
+Three things change in `0.3.0`, and all are mechanical:
 
 1. The optional satellites (billing, SSO, the admin REST API, backup/clone) moved
    out of the core into their own packages. You install the ones you use and
@@ -22,26 +22,29 @@ The core keeps every tenancy primitive plus the leaf satellites (audit, feature
 flags, metrics, webhooks, branding, quotas, impersonation). If you only use those,
 the only thing to check is the resolver default at the end.
 
-## What 1.0 promises (and what it doesn't)
+## What 0.3 promises (and what it doesn't)
 
-1.0 narrows its promise on purpose. The isolation **core** is a release
-candidate: feature complete and green in CI, with the `stable` label withheld
-until an independent security review and production mileage close. The satellite
-**packages** (billing, SSO, the admin REST API, backup, websockets) are release
-candidates too: each cleared the same graduation gate as the core (frozen
-Satellite ABI, its own merged coverage floor, doc page, CHANGELOG), so they sit
-under the 1.x semver promise. The opt-in **in-core features** (quotas, webhooks,
-metrics, audit logs, branding, feature flags, impersonation) are still
-**experimental** and are not covered by that promise, so they may change in a
-minor release. The full breakdown and the per-tier rules are in the
-[stability matrix](/reference/stability). Pin your versions accordingly and check the
-changelog before upgrading an experimental surface.
+`0.3.0` narrows its promise on purpose. Everything here is pre-1.0, so semver
+formally promises nothing across a minor. The isolation **core** is a release
+candidate: feature complete and green in CI, with the `stable` label and the
+`1.0.0` version both withheld until an independent security review and production
+mileage close. The satellite **packages** (billing, SSO, backup, reporting, AI)
+ship `0.1.0` and are **experimental**: each cleared the same graduation gate as the
+core (frozen Satellite ABI, its own merged coverage floor, doc page, CHANGELOG),
+but none has been installed by anyone yet. The opt-in **in-core features** (quotas,
+webhooks, metrics, audit logs, branding, feature flags, impersonation) are
+experimental too. The full breakdown and the per-tier rules are in the
+[stability matrix](/reference/stability). Pin your versions, and check the changelog
+before every upgrade.
 
 ## 1. Install the satellites you use
 
 ```bash
-npm i @adonisjs-lasagna/admin @adonisjs-lasagna/sso @adonisjs-lasagna/billing @adonisjs-lasagna/backup
+npm i @adonisjs-lasagna/sso @adonisjs-lasagna/billing @adonisjs-lasagna/backup
 ```
+
+The admin REST API and the WebSockets satellite are **not published to npm**.
+Vendor them or depend on a git reference.
 
 Install only what you actually import. Each package declares the core as a peer,
 so it tracks the core version you already have.

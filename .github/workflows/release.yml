@@ -31,9 +31,19 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # `types: [completed]` fires on failure and cancellation too; this guard is
-    # the actual gate.
-    if: github.event.workflow_run.conclusion == 'success'
+    # `types: [completed]` fires on failure and cancellation too; the conclusion
+    # check is the CI gate.
+    #
+    # `PUBLISH_ENABLED` is the human gate, and it is OFF until the repository
+    # variable is set to 'true' (Settings → Secrets and variables → Actions →
+    # Variables). Without it, this workflow would publish to npm the moment CI
+    # goes green on master: with no changeset files pending, changesets/action
+    # skips the Version PR and runs the publish command straight away, shipping
+    # whatever versions the package.json files happen to carry. npm versions are
+    # immutable, so that is a one-way door taken by a merge, not by a decision.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      vars.PUBLISH_ENABLED == 'true'
     steps:
       # Check out the exact commit CI validated, not the branch tip — if master
       # moved while CI ran, the tip's suite hasn't passed yet and its publish

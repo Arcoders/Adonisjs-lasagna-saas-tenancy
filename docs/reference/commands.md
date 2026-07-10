@@ -34,7 +34,7 @@ ships with: <code>node ace list:commands | grep -E 'tenant|backoffice|migration:
 ## Operations
 
 The backup, restore, import, and clone commands register when
-[`@adonisjs-lasagna/backup`](/reference/upgrade-to-1.0#backup-clone-restore-sql-import--adonisjs-lasagnabackup)
+[`@adonisjs-lasagna/backup`](/reference/upgrade-to-0.3#backup-clone-restore-sql-import--adonisjs-lasagnabackup)
 is installed and its provider + commands are wired in `adonisrc.ts`.
 
 | Command | What it does |

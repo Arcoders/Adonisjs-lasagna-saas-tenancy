@@ -1,10 +1,13 @@
 {
   "name": "@adonisjs-lasagna/ai",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "AI streaming gateway for Lasagna: a per-tenant, cost-metered, SSRF-pinned streaming spine with a pluggable provider contract (Claude, DeepSeek, Kimi).",
   "type": "module",
   "license": "MIT",
   "author": "Ismael Haytam Tanane",
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=24.0.0"
   },
@@ -67,7 +70,7 @@
     "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/ai-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
   },
   "peerDependencies": {
-    "@adonisjs-lasagna/saas-tenancy": "^1.0.0",
+    "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
     "@adonisjs/core": "^7.0.0"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@adonisjs-lasagna/sso",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Per-tenant OIDC/SSO for @adonisjs-lasagna/saas-tenancy (discovery, auth URL, callback verification, config model)",
   "type": "module",
   "license": "MIT",
@@ -68,7 +68,7 @@
     "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/sso-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
   },
   "peerDependencies": {
-    "@adonisjs-lasagna/saas-tenancy": "^1.0.0",
+    "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
     "@adonisjs/core": "^7.0.0",
     "@adonisjs/lucid": "^22.0.0",
     "@adonisjs/redis": "^10.0.0",

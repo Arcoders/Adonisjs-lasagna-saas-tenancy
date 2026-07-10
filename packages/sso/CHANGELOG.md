@@ -6,12 +6,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.0] — 2026-06-19
+## [0.1.0] — 2026-07-10
 
-Graduated to `release candidate` and versioned `1.0.0` (see the stability matrix).
-The API is considered final; `release candidate` (not `stable`) reflects the two
-still-open items shared with the core, an independent security review and
-production mileage.
+Shipped as `experimental` at `0.1.0` (see the stability matrix). The API carries no
+semver promise and may change in any minor. Two items are still open, shared with
+the core: an independent security review and production mileage. The per-tenant
+OIDC/SSO surface was extracted from `@adonisjs-lasagna/saas-tenancy` so it versions
+on its own and is only installed by apps that use it, and it depends on the core as
+a peer (`>=0.3.0 <1.0.0`).
 
 - **Breaking: stored SSO client secrets fail closed and are domain-separated.**
   The stored `client_secret` is now read through the core's strict, per-class
@@ -42,25 +44,10 @@ production mileage.
   migrations are already committed), but a fresh install is now
   `node ace configure @adonisjs-lasagna/sso` (equivalently `--with=sso`, which
   requires the package to be installed).
-- **README refreshed for the 1.0 launch.** Badge corrected to release candidate;
+- **README refreshed for this release.** Badge corrected to experimental;
   configure-first install documented (the package-owned `tenant_sso_configs` migration
   is published by `node ace configure`, then `migration:run --connection=backoffice`);
   added an extensibility pointer to `identityProviderRegistry`.
-
-**Stability: release candidate.** The API is frozen under the 1.x promise, with the
-honest caveat that a correction forced by the pending security review or production
-mileage may land in a 1.x minor with a loud changelog entry.
-
-## [0.1.0] — 2026-06-08
-
-Initial standalone release, versioned `0.x` to match its `experimental` stability
-label (see the stability matrix): the surface may change in any minor. The per-tenant OIDC/SSO surface was extracted from
-`@adonisjs-lasagna/saas-tenancy` so it versions on its own and is only installed by apps
-that use it. It depends on the core as a peer (`^1.0.0`).
-
-**Stability: experimental.** The API is covered by tests but may change in a minor release.
-Pin the version and read this changelog before upgrading. See the
-[stability matrix](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/stability.md).
 
 ### Added
 
@@ -76,3 +63,8 @@ Pin the version and read this changelog before upgrading. See the
 `SsoService` and `TenantSsoConfig` were previously exported from the core's shared barrels.
 They were removed from the core with no shim (the symbols are gone), so update imports to
 `@adonisjs-lasagna/sso` and register the package per its README.
+
+**Stability: experimental.** The API carries no semver promise and may change in any
+minor, with the honest caveat that a correction forced by the pending security review
+or production mileage lands with a loud changelog entry. See the
+[stability matrix](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/stability.md).

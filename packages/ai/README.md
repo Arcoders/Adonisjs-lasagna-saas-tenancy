@@ -7,13 +7,13 @@ contract. It composes the kernel rails (isolation, metering, resilience, secrets
 instead of laying parallel track, so AI features ship already isolated and
 billable rather than as a leaky LLM wrapper.
 
-[![Stability: release candidate](https://img.shields.io/badge/stability-release_candidate-C26A4B)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability)
+[![Stability: experimental](https://img.shields.io/badge/stability-experimental-C26A4B)](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability)
 
-> **Stability: release candidate.** The provider contract and the streaming
-> service are considered final under the 1.x promise, with the honest caveat
-> that a correction forced by the pending security review or production mileage
-> may land in a 1.x minor with a loud changelog entry. Pin the version and read
-> the changelog before upgrading. See the [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability).
+> **Stability: experimental.** This package ships `0.1.0` and carries no semver
+> promise: the provider contract and the streaming service may change in any
+> minor. Both are covered by tests and green in CI, but they have no production
+> mileage. Pin the exact version and read the changelog before upgrading. See the
+> [stability matrix](https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/reference/stability).
 
 This release ships the streaming spine and the provider abstraction: the
 `StreamExtensionService` (backpressure, heartbeat, four-way composed abort,

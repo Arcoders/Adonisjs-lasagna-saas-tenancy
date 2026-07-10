@@ -3,14 +3,19 @@
  * Stability-label vs. version guard (audit P1-3).
  *
  * The stability page (docs/reference/stability.md) is the canonical source for what
- * each package promises: `experimental` surfaces "may change in any minor" and
- * are excluded from the semver promise, while `release candidate` / `stable`
- * surfaces freeze their API at >=1.0.0. A version string asserts the same
- * thing to npm consumers — `1.0.0` is the universal "semver-protected" signal —
- * so the two must never disagree. This script makes that agreement mechanical:
+ * each package promises. The label describes MATURITY; the version describes the
+ * SEMVER PROMISE. They are related but not the same axis, and the rule below only
+ * forbids the combinations that are a lie:
  *
- *   experimental            -> version must be 0.x (or carry a pre-release tag)
- *   release candidate/stable -> version must be >= 1.0.0
+ *   experimental      -> version must be 0.x (or carry a pre-release tag).
+ *                        Claiming "may change in any minor" while shipping 1.x
+ *                        tells npm consumers the opposite.
+ *   release candidate -> any version. A 0.x RC says "we think the API is nearly
+ *                        right, and semver still promises you nothing" — strictly
+ *                        more conservative than a 1.x RC, so it cannot mislead.
+ *   stable            -> version must be >= 1.0.0. This is the only claim that
+ *                        REQUIRES the semver-protected signal, and the one that
+ *                        must be earned.
  *
  * Labels are PARSED from stability.md (the satellite table and the core
  * section header), not hard-coded, so relabeling a package without
@@ -30,11 +35,12 @@ import { join } from 'node:path'
 const STABILITY_DOC = 'docs/reference/stability.md'
 const PACKAGES_DIR = 'packages'
 
-// Prose-drift pass (WS-10 / stability-prose-contradicts-matrix). These pages
-// must not call the satellite PACKAGES "experimental" — the matrix labels them
-// release candidate, and the README badges + versions agree. The in-core opt-in
-// FEATURES (quotas, webhooks, metrics, …) ARE still experimental, so only the
-// "satellites are/stay/from experimental" assertion is banned, not the word.
+// Prose-drift pass (WS-10 / stability-prose-contradicts-matrix). These pages must
+// agree with the matrix about what the satellite PACKAGES promise. The matrix now
+// labels all five experimental and ships them at 0.x, so the banned assertion is
+// the inverse of what it once was: prose must not promote them to release
+// candidate or stable. The word itself is not banned — the CORE is a release
+// candidate, and saying so is true.
 const PROSE_PAGES = [
   'docs/reference/stability.md',
   '.github/SECURITY.md',
@@ -44,8 +50,8 @@ const PROSE_PAGES = [
   'docs/reference/roadmap.md',
 ]
 const BANNED_PROSE = [
-  /satellites?\s+(?:are|stay|remain)\s+[*`]*experimental/i,
-  /satellites?\s+from\s+experimental/i,
+  /satellites?\s+(?:are|stay|remain)\s+[*`]*(?:release candidate|stable)/i,
+  /satellites?\s+(?:have\s+)?graduated\s+(?:to\s+)?[*`]*(?:release candidate|stable)/i,
 ]
 
 /** Pure: the banned matches in one page's text (for the prose pass + self-test). */
@@ -54,12 +60,12 @@ function proseDrift(text) {
 }
 
 if (process.argv.includes('--self-test')) {
-  const bad = 'The isolation core is RC and the satellites are **experimental**.'
+  const bad = 'The satellites are **release candidate** and the core is stable.'
   const good =
-    'The satellite packages are release candidate; the in-core opt-in features are experimental.'
+    'The satellite packages are experimental; the isolation core is a release candidate.'
   const problems = []
-  if (proseDrift(bad).length === 0) problems.push('bad fixture (satellites experimental) not flagged')
-  if (proseDrift(good).length !== 0) problems.push('good fixture (features experimental) flagged')
+  if (proseDrift(bad).length === 0) problems.push('bad fixture (satellites promoted to RC) not flagged')
+  if (proseDrift(good).length !== 0) problems.push('good fixture (core is RC) flagged')
   if (problems.length) {
     console.error('check-stability-versions --self-test: FAIL')
     for (const p of problems) console.error(`  - ${p}`)
@@ -111,13 +117,15 @@ for (const dir of readdirSync(PACKAGES_DIR)) {
           `use 0.x or a pre-release tag, or promote the label`
       )
     }
-  } else if (label === 'release candidate' || label === 'stable') {
+  } else if (label === 'stable') {
     if (major < 1) {
       failures.push(
-        `${manifest.name}@${version}: labeled "${label}" but versioned 0.x — bump to >=1.0.0 or demote the label`
+        `${manifest.name}@${version}: labeled "stable" but versioned 0.x — bump to >=1.0.0 or demote the label`
       )
     }
-  } else {
+  } else if (label !== 'release candidate') {
+    // A release candidate may sit at any version: 0.x is the more conservative
+    // pairing, and forcing it to >=1.0.0 would only inflate the number.
     failures.push(`${manifest.name}: unrecognized stability label "${label}" in ${STABILITY_DOC}`)
   }
 
