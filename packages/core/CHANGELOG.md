@@ -36,8 +36,8 @@ for a copy-paste migration.
     root barrel.
   - `__resetConfigForTests` moved off the public `/config` subpath onto `/testing`.
   - `/services`, `/health`, `/sdk` and `/plugin` are now labelled an **advanced**
-    tier: broad, close to the internals, and breakable in a minor. See
-    [stability.md](../../docs/reference/stability.md).
+    tier: broad, close to the internals, and breakable in a minor. See the
+    [stability reference](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/stability.md).
 
 - **Satellites are separate packages now.** Billing, SSO, the admin REST API,
   and backup/clone/restore moved out of the core. Install the ones you use and
