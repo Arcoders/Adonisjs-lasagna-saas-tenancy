@@ -104,13 +104,13 @@ function normalizeBody(body: SafeFetchOptions['body']): string | undefined {
  * A custom DNS `lookup` that pins every connection attempt to one
  * already-validated address, so no second resolution can rebind the hostname to
  * a private/metadata target (the DNS-rebinding TOCTOU guard). The hostname
- * argument is ignored — there is no real lookup, only the pin.
+ * argument is ignored. There is no real lookup, only the pin.
  *
  * It must honour Node's Happy-Eyeballs contract: since Node 20, `autoSelectFamily`
  * (default true) invokes a custom lookup with `{ all: true }` and REQUIRES an
  * array result `[{ address, family }]`. A single-address callback there throws
  * `ERR_INVALID_IP_ADDRESS` at connect time, which silently broke every pinned
- * request on Node 24 (webhook delivery, OIDC token/discovery) — the failure was
+ * request on Node 24 (webhook delivery, OIDC token/discovery). The failure was
  * wrapped as a retryable `network_error`, so it read as flaky networking rather
  * than a hard bug. We return the pinned address in whichever shape the caller
  * asked for. Either way it is the same single validated address, so the pin holds.
@@ -211,7 +211,7 @@ async function pinnedFetch(url: string, opts: SafeFetchOptions): Promise<Respons
   if (typeof target === 'string') {
     // url_dns_failure is transient (retry re-validates); everything else is a
     // structural/security rejection that must not be retried. Only the
-    // security rejections trip the Isthmus — a flaky DNS is not an intrusion
+    // security rejections trip the Isthmus. A flaky DNS is not an intrusion
     // signal.
     const retryable = target === 'url_dns_failure'
     if (!retryable) {

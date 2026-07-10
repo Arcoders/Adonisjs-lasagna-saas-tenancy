@@ -24,8 +24,8 @@ import { connectionHasActiveQuery } from './pool_in_use.js'
 
 /**
  * Lazily resolve `db` so unit tests that only exercise pure helpers
- * (connectionName/schemaName) don't drag the Lucid runtime — and the
- * `await app.booted(...)` inside `@adonisjs/lucid/services/db` — into
+ * (connectionName/schemaName) don't drag the Lucid runtime, nor the
+ * `await app.booted(...)` inside `@adonisjs/lucid/services/db`, into
  * the test process. Read replicas use the same pattern.
  */
 async function lucid() {
@@ -129,7 +129,7 @@ export default class SchemaPgDriver implements ProvisionableDriver {
     const name = this.connectionName(tenant.id)
 
     // If this connection was just evicted, wait for its pool to finish draining
-    // before deciding it's still registered — otherwise we'd re-adopt a closing
+    // before deciding it's still registered. Otherwise we'd re-adopt a closing
     // pool and queries would fail mid-flight.
     await this.#lru.settlePending(name)
 
@@ -201,7 +201,7 @@ export default class SchemaPgDriver implements ProvisionableDriver {
     await this.#lru.settlePending(name)
     if (db.manager.has(name)) {
       // `release` both closes the pool and unregisters the connection from
-      // the manager. `close` only ends the pool — `manager.has()` would
+      // the manager. `close` only ends the pool, so `manager.has()` would
       // still report true, leaking entries across `provision/destroy` cycles.
       await db.manager.release(name)
     }
@@ -209,7 +209,7 @@ export default class SchemaPgDriver implements ProvisionableDriver {
 
   async migrate(tenant: TenantModelContract, opts: MigrateOptions): Promise<MigrateResult> {
     // Self-connect (bypassing the hard cap) so migrate() works regardless of
-    // whether the caller pre-connected — matching database-pg / sqlite. An
+    // whether the caller pre-connected, matching database-pg / sqlite. An
     // operational migration must never be refused by request-path backpressure.
     await this.connect(tenant, { bypassHardCap: true })
     return runTenantMigrations(this.connectionName(tenant.id), opts)

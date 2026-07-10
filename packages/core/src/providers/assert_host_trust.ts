@@ -3,7 +3,7 @@ import type { MultitenancyConfig } from '../types/config.js'
 /**
  * Resolver strategies that derive the tenant from the request HOST. Under a
  * permissive proxy trust these read `X-Forwarded-Host`, which an upstream hop
- * (or the client, if no trusted proxy strips it) can set freely — so without a
+ * (or the client, if no trusted proxy strips it) can set freely, so without a
  * host allowlist a request can be steered onto another tenant's host.
  */
 const HOST_STRATEGIES: ReadonlySet<string> = new Set(['subdomain', 'domain-or-subdomain'])

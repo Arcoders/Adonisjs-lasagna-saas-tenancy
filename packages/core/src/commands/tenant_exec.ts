@@ -138,7 +138,7 @@ export default class TenantExec extends BaseCommand {
         }
       }
     } else {
-      // Whole-population path — uses the cursor-paginated each() helper
+      // Whole-population path. Uses the cursor-paginated each() helper
       // so we don't load every tenant into memory at once.
       try {
         await repo.each(
@@ -163,7 +163,7 @@ export default class TenantExec extends BaseCommand {
           }
         )
       } catch (error: any) {
-        // Internal sentinels — re-throw real errors.
+        // Internal sentinels. Re-throw real errors.
         if (error?.message !== '__abort_on_error__' && error?.message !== '__limit_reached__') {
           throw error
         }

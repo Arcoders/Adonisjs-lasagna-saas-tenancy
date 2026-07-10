@@ -29,7 +29,7 @@ export interface RateLimitOptions {
    * applies (default `'fail-closed'`): a Redis outage must not silently
    * disable rate limiting; we'd rather return 503 than let a flood
    * through. Set to `true` (per route) only if your threat model prefers
-   * availability over abuse protection on the affected route — an explicit
+   * availability over abuse protection on the affected route. An explicit
    * per-route value always wins over the global policy.
    */
   failOpen?: boolean | undefined
@@ -52,7 +52,7 @@ export interface RateLimitOptions {
  */
 export default class RateLimitMiddleware {
   /**
-   * Override hook for tests — lets a spec swap in a Redis stub that
+   * Override hook for tests: lets a spec swap in a Redis stub that
    * throws on demand. Production code lazy-loads the real `redis`
    * service from `@adonisjs/redis` so this module can be imported
    * without booting the AdonisJS app (e.g. from unit tests).
@@ -101,13 +101,13 @@ export default class RateLimitMiddleware {
     }
 
     // `request.ip()` honours X-Forwarded-For only per the app's `trustProxy`
-    // config — a misconfigured trustProxy lets a client mint fresh buckets per
+    // config. A misconfigured trustProxy lets a client mint fresh buckets per
     // spoofed XFF value. Document/verify trustProxy wherever this middleware
     // is enabled behind a proxy.
     const ip = request.ip()
     // Attribution: prefer the canonical id the guard already resolved
     // (`tenancy.currentId()`), because the sync legacy resolver can come up
-    // empty under domain/custom-domain strategies — which would collapse every
+    // empty under domain/custom-domain strategies, which would collapse every
     // tenant into one shared per-IP 'global' bucket and let one tenant starve
     // the others' quota. The resolver stays as the fallback for routes where
     // rate-limit runs before (or without) the guard.
@@ -187,7 +187,7 @@ async function warn(kind: string, err: unknown, ctx: Record<string, unknown>): P
       return
     }
   } catch {
-    // ignore — logging must never throw out of the middleware
+    // ignore: logging must never throw out of the middleware
   }
   console.warn(`[multitenancy] rate-limit middleware ${kind}:`, (err as any)?.message ?? err, ctx)
 }

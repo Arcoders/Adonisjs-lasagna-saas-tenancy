@@ -39,7 +39,7 @@ export interface LoggerLike {
 /**
  * Split resolved stub names into the ones not yet published and the ones already
  * present in the host's migrations directory. A stub counts as already published
- * when an existing file matches `<digits>_<stub>.ts` — migration stubs are
+ * when an existing file matches `<digits>_<stub>.ts`. Migration stubs are
  * emitted as `${Date.now()}_<stub>.ts`, so the timestamp prefix is always new
  * and the codemod's own "file exists" skip never fires.
  *
@@ -80,7 +80,7 @@ export async function listExistingMigrations(dir: string): Promise<string[]> {
 /**
  * Resolve a dependency's package root (the dir holding its package.json) from
  * the host app. Tries the conventional `<dep>/package.json` subpath first, then
- * falls back to resolving the package entry and walking up — needed because a
+ * falls back to resolving the package entry and walking up, needed because a
  * package with an `exports` map may not expose `./package.json`.
  */
 function resolvePackageRoot(require: NodeRequire, dep: string): string | null {
@@ -114,7 +114,7 @@ function resolvePackageRoot(require: NodeRequire, dep: string): string | null {
 /**
  * Discover every installed package that declares a `lasagnaSatellite` manifest.
  * Scans the host app's direct `dependencies` + `devDependencies` (predictable
- * scope; satellites are direct installs). Never imports a satellite — it only
+ * scope; satellites are direct installs). Never imports a satellite: it only
  * reads `package.json` files. Best-effort: an unresolvable / unreadable dep is
  * skipped silently.
  */
@@ -162,7 +162,7 @@ export async function discoverSatellites(
 }
 
 /**
- * The per-tenant migration directories (SEAM-2) contributed by discovered
+ * The per-tenant migration directories contributed by discovered
  * satellites, as paths RELATIVE to the host root and forward-slashed.
  *
  * `tenant:migrate` folds these into `MigrateOptions.extraMigrationPaths`, and
@@ -184,7 +184,7 @@ export function satelliteMigrationDirs(
     )
 }
 
-/** Build a lookup of `packageName` and every `alias` → DiscoveredSatellite. */
+/** Build a lookup from `packageName` and every `alias` to its DiscoveredSatellite. */
 export function indexSatellites(
   satellites: DiscoveredSatellite[]
 ): Map<string, DiscoveredSatellite> {
@@ -200,7 +200,7 @@ export function indexSatellites(
 
 /**
  * A filesystem-safe slug for a package name, used to namespace the migrations a
- * satellite publishes (`@adonisjs-lasagna/billing` → `adonisjs_lasagna_billing`).
+ * satellite publishes (`@adonisjs-lasagna/billing` becomes `adonisjs_lasagna_billing`).
  */
 export function migrationSlug(packageName: string): string {
   return packageName
@@ -280,7 +280,7 @@ function highestTimestamp(files: Iterable<string>): number {
  *
  * Every migration stub names its own output `${Date.now()}_<name>.ts`. Two stubs
  * published in the same millisecond therefore tie, and Lucid breaks the tie
- * alphabetically — which is the order the *characters* of the table names happen
+ * alphabetically, which is the order the *characters* of the table names happen
  * to fall in, not the order the tables depend on each other. `tenant_webhook_deliveries`
  * sorted ahead of the `tenant_webhooks` its foreign key points at; billing's
  * `add_processing_status_…` sorted ahead of the `create_…` it alters. Both are the
@@ -295,7 +295,7 @@ function highestTimestamp(files: Iterable<string>): number {
  *
  * `slug` (a satellite's package slug) additionally namespaces each file as
  * `<ts>_<slug>__<name>.ts`, which is what stops two satellites shipping a stub with
- * the same basename from colliding — before namespacing, the second was silently
+ * the same basename from colliding. Before namespacing, the second was silently
  * skipped and its table was never created. Core publishes its own stubs un-namespaced.
  */
 export async function finalizeNewMigrations(
@@ -350,8 +350,8 @@ export async function finalizeNewMigrations(
  * (`<ts>_<slug>__<stub>.ts`) so two satellites that ship the same stub basename
  * no longer collide (before this, the second was silently skipped and its table
  * was never created). Namespacing is intrinsic, not opt-in: `hostMigrationsDir`
- * — the host's migrations directory, the same dir each stub's `exports({ to })`
- * targets — is required, and the toolkit owns the final filename.
+ * (the host's migrations directory, the same dir each stub's `exports({ to })`
+ * targets) is required, and the toolkit owns the final filename.
  *
  * Idempotent: a stub already present (under either the namespaced form or the
  * legacy un-namespaced `<ts>_<stub>.ts` an older install wrote) is skipped, so a
@@ -412,7 +412,7 @@ export async function publishSatellite(
 /**
  * Register a satellite's provider + commands in `adonisrc.ts`. The only place we
  * patch the host's rc file (the framework's sanctioned codemod); the host's
- * `config/multitenancy.ts` is never patched — we only print a snippet for it.
+ * `config/multitenancy.ts` is never patched. We only print a snippet for it.
  * `addProvider` / `addCommand` are no-ops if the entry already exists, so this
  * is re-run safe.
  */
@@ -430,7 +430,7 @@ export async function registerSatelliteInRcFile(
 /**
  * Human-readable one-liners for the wire permissions a satellite declares, so the
  * operator consents to concrete capabilities at install rather than opaque wire
- * strings (S1). Unknown strings pass through verbatim (forward-compatible with a
+ * strings. Unknown strings pass through verbatim (forward-compatible with a
  * future permission kind an older core does not recognize).
  */
 export function describePluginPermissions(permissions: readonly string[]): string[] {

@@ -30,7 +30,7 @@ export async function collectSnapshot(options: CollectOptions = {}): Promise<Met
   for (const s of STATUSES) tenantsByStatus[s] = 0
   let tenantsTotal = 0
 
-  // The /metrics endpoint must always respond — it's polled by Prometheus
+  // The /metrics endpoint must always respond: it's polled by Prometheus
   // and a hard failure cascades into alerts about the alerting system. So
   // every section below catches and surfaces zeros on error, but logs a
   // warn so the degradation is visible.
@@ -93,7 +93,7 @@ export async function collectSnapshot(options: CollectOptions = {}): Promise<Met
 
   // Operator-global ceiling utilisation, DERIVED at scrape from live Redis (never
   // stored). Bounded O(#quotas): the enforced quotas come from config, and each
-  // reads only its shared operator keys — never a per-tenant scan.
+  // reads only its shared operator keys, never a per-tenant scan.
   let quotaCeilings: QuotaCeilingStat[] = []
   try {
     quotaCeilings = await collectQuotaCeilings()
@@ -117,7 +117,7 @@ export async function collectSnapshot(options: CollectOptions = {}): Promise<Met
 /**
  * Read the operator ceiling utilisation for every quota that declares one. The
  * set of quotas is enumerable from `plans.operatorCeiling` (a `Record`), so this
- * is O(#quotas) — a handful of `GET`/`ZRANGE`/`HMGET` — with no tenant fan-out.
+ * is O(#quotas) (a handful of `GET`/`ZRANGE`/`HMGET`) with no tenant fan-out.
  * Outstanding is recomputed from the live hold members (derive, never store),
  * matching how `reserve()` itself computes the effective ceiling.
  */
@@ -171,7 +171,7 @@ async function warn(kind: string, err: unknown): Promise<void> {
       return
     }
   } catch {
-    // Logger itself is broken — fall through to console as a last resort.
+    // Logger itself is broken. Fall through to console as a last resort.
   }
   console.warn(`[multitenancy] metrics collector ${kind}: ${message}`)
 }

@@ -56,7 +56,7 @@ export default class TenantAuditExport extends BaseCommand {
     const audit = await app.container.make(AuditLogService)
     const toFile = typeof this.out === 'string' && this.out.length > 0
 
-    // One destination opened once (a file stream, or stdout) — never reopened
+    // One destination opened once (a file stream, or stdout), never reopened
     // per row. `write` honors backpressure so a slow consumer can't make us
     // buffer the whole export in memory.
     const stream: Writable = toFile ? createWriteStream(this.out!) : process.stdout

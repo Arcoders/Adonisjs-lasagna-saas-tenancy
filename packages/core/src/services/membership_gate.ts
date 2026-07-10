@@ -5,7 +5,7 @@ import type { MultitenancyConfig } from '../types/config.js'
  * (a header, a URL path segment, or a query/body field) rather than from DNS or
  * the host (subdomain / custom domain). With a client-controlled strategy a
  * swapped tenant id is a textbook cross-tenant IDOR unless an app-layer
- * membership check rejects the principal — which is exactly what
+ * membership check rejects the principal, which is exactly what
  * `authorizeTenantAccess` is for.
  */
 const CLIENT_CONTROLLED: ReadonlySet<string> = new Set(['header', 'path', 'request-data'])
@@ -40,7 +40,7 @@ const IDOR_MESSAGE =
 
 /**
  * Returns the IDOR warning message when the deployment is exposed to the
- * cross-tenant access described in the security guide — a client-controlled
+ * cross-tenant access described in the security guide: a client-controlled
  * resolution strategy with neither the package membership gate
  * (`authorizeTenantAccess`) nor an explicit `acknowledgeNoMembershipGate`.
  * Returns null when the posture is safe (server-controlled resolution, a wired

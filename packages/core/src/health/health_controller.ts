@@ -6,7 +6,7 @@ import { renderPrometheus } from './metrics_exporter.js'
 
 /**
  * The default check set (backoffice_db, redis, circuit_breakers) is
- * registered by the provider's `boot()` — see
+ * registered by the provider's `boot()`. See
  * `registerDefaultChecks()` in default_checks.ts. The controller is
  * stateless: it serves whatever the service holds at probe time, so a
  * host that overrode or removed a default never has it resurrected here.

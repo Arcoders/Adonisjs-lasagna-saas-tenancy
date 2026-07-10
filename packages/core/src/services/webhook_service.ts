@@ -40,7 +40,7 @@ export interface RegisterWebhookResult {
   hook: TenantWebhook
   /**
    * Present only when the service generated the signing secret (the caller
-   * omitted it). This is the ONE time the plaintext is disclosed — it is
+   * omitted it). This is the ONE time the plaintext is disclosed. It is
    * stored encrypted and cannot be read back later. Hand it to the
    * subscriber now.
    */
@@ -54,14 +54,14 @@ export const BACKOFF_BASE_SECONDS = [10, 60, 300, 1800, 7200] as const
  * outgoing webhooks with `HMAC-SHA256(secret, JSON.stringify(payload))`
  * and sends the hex digest in the `x-webhook-signature` header.
  * Receivers MUST verify with this helper rather than rolling their
- * own — naive `===` comparisons leak timing, and re-serializing the
+ * own. Naive `===` comparisons leak timing, and re-serializing the
  * body before hashing produces a different digest.
  *
- * @param rawBody — the EXACT bytes the receiver got, NOT a re-serialized
+ * @param rawBody the EXACT bytes the receiver got, NOT a re-serialized
  *   object. The signature was computed over the wire bytes; any
  *   round-trip through JSON.parse + JSON.stringify changes the digest.
- * @param signatureHeader — the value of `x-webhook-signature` (hex).
- * @param secret — the plain (already-decrypted) shared secret.
+ * @param signatureHeader the value of `x-webhook-signature` (hex).
+ * @param secret the plain (already-decrypted) shared secret.
  * @returns `true` iff the signature matches in constant time.
  */
 export function verifyWebhookSignature(
@@ -72,7 +72,7 @@ export function verifyWebhookSignature(
   if (!signatureHeader || typeof signatureHeader !== 'string') return false
   const expected = createHmac('sha256', secret).update(rawBody).digest('hex')
   // Both digests are hex with the same length when produced by sha256,
-  // but a malformed header could be any length — `timingSafeEqual`
+  // but a malformed header could be any length. `timingSafeEqual`
   // throws on length mismatch, so guard first.
   if (signatureHeader.length !== expected.length) return false
   try {
@@ -130,7 +130,7 @@ async function mapConcurrent<T>(
 ): Promise<void> {
   for (let i = 0; i < items.length; i += concurrency) {
     // allSettled so one row's failure (e.g. a save() conflict) can't abort the
-    // whole sweep — every `* * * * *` retry tick must make progress on the rest.
+    // whole sweep. Every `* * * * *` retry tick must make progress on the rest.
     const results = await Promise.allSettled(items.slice(i, i + concurrency).map(fn))
     const failed = results.filter((r) => r.status === 'rejected').length
     if (failed > 0) {
@@ -163,8 +163,8 @@ export default class WebhookService {
       .where('enabled', true)
       .whereRaw('? = ANY(events)', [event])
 
-    // Resolve the (optional) transformer registry once for the fan-out. Absent /
-    // empty → no transformation, so the body is byte-identical to before.
+    // Resolve the (optional) transformer registry once for the fan-out. Absent
+    // or empty means no transformation, so the body is byte-identical to before.
     const transformers = await this.#transformerRegistry()
 
     // allSettled, not all: each delivery persists its own outcome in send(), so
@@ -189,7 +189,7 @@ export default class WebhookService {
     payload: Record<string, unknown>,
     transformers?: WebhookTransformerRegistry
   ): Promise<void> {
-    // Transform ONCE, here, BEFORE persisting — so the stored payload is exactly
+    // Transform ONCE, here, BEFORE persisting, so the stored payload is exactly
     // what `send()` signs and what `processRetries()` re-sends. Running it in
     // `send()` instead would re-transform on every retry and break the
     // signature/stored-body invariant.
@@ -375,9 +375,9 @@ export default class WebhookService {
     }
     // Every webhook gets a signing secret: when the caller doesn't provide
     // one, generate it. Deliveries from a secretless hook would be unsigned
-    // and the receiver couldn't authenticate them — a silent downgrade no
-    // caller actually wants. An empty string counts as "not provided" —
-    // otherwise it would be encrypted and used as an HMAC key of length 0.
+    // and the receiver couldn't authenticate them, a silent downgrade no
+    // caller actually wants. An empty string counts as "not provided".
+    // Otherwise it would be encrypted and used as an HMAC key of length 0.
     const provided = secret || undefined
     const plainSecret = provided ?? randomBytes(32).toString('hex')
     const hook = await TenantWebhook.create({

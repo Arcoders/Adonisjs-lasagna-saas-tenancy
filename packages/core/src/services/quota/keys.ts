@@ -2,8 +2,8 @@ import { DateTime } from 'luxon'
 
 /**
  * Pure Redis key builders + the atomic consume script for {@link QuotaService}.
- * Extracted so the key formats — which `reset()` depends on via a wildcard
- * `SCAN quota:<id>:*` and which the consume/getUsage round-trip must agree on —
+ * Extracted so the key formats (which `reset()` depends on via a wildcard
+ * `SCAN quota:<id>:*` and which the consume/getUsage round-trip must agree on)
  * are directly unit-testable and can never silently drift.
  */
 
@@ -16,9 +16,9 @@ export const ROLLING_TTL_SECONDS = 60 * 60 * 48
  *   ARGV[1] = limit (integer; caller guarantees finite)
  *   ARGV[2] = amount to increment by
  *   ARGV[3] = TTL seconds
- * Returns `{allowed, value}`: `allowed=1` → incremented, `value` is the new
- * total; `allowed=0` → would exceed, `value` is the unchanged pre-increment
- * counter.
+ * Returns `{allowed, value}`: `allowed=1` means incremented and `value` is the new
+ * total; `allowed=0` means it would exceed and `value` is the unchanged
+ * pre-increment counter.
  */
 export const QUOTA_CONSUME_LUA = `
 local current = tonumber(redis.call('GET', KEYS[1]) or '0')
@@ -61,7 +61,7 @@ export function snapshotKey(tenantId: string, quota: string): string {
 /**
  * Wildcard matching every quota key owned by one tenant (rolling counters,
  * snapshots, reservation holds, amounts). `reset()` SCANs this to drop a tenant's
- * state. Tenant-scoped by construction — it embeds `tenantId`, so it can never
+ * state. Tenant-scoped by construction: it embeds `tenantId`, so it can never
  * match the shared `quota:op:*` operator-ceiling keys.
  */
 export function tenantKeyPattern(tenantId: string): string {
@@ -69,7 +69,7 @@ export function tenantKeyPattern(tenantId: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Reservation holds (reserve/settle/release) — the AI-streaming cost seam.
+// Reservation holds (reserve/settle/release): the AI-streaming cost seam.
 //
 // A reservation HOLDS a worst-case amount against the budget BEFORE a streaming
 // provider call, then settles the actual usage as it arrives and releases the

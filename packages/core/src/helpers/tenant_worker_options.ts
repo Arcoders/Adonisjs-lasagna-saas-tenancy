@@ -4,7 +4,7 @@ import { getConfig } from '../config.js'
 /**
  * Build the per-tenant BullMQ `WorkerOptions` (Redis connection + name +
  * concurrency) a host needs to run a dedicated worker for one tenant's queue.
- * The package is dispatch-only — it never spawns a `Worker` — so the host owns
+ * The package is dispatch-only (it never spawns a `Worker`), so the host owns
  * the `new Worker(getQueueName(tenantId), processor, opts)` call and its
  * lifecycle. This helper just assembles the options from `config.queue`.
  *

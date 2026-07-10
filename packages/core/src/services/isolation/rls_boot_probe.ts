@@ -22,19 +22,17 @@ export interface RlsCatalogRow {
 }
 
 /**
- * WS-5 / rowscope-acknowledgment-flag-no-verification.
- *
  * `isolation.rowScopeRls: true` is the operator ASSERTING they ran the
  * `enable_rls_tenant_isolation` migration so RLS is the real isolation backstop.
- * Before this, nothing checked the claim — the flag only silenced a boot warning,
+ * Before this, nothing checked the claim. The flag only silenced a boot warning,
  * so a half-applied migration left the escapable `withTenantScope` mixin as the
  * ONLY boundary while the config implied a hard one.
  *
  * This pure helper turns the claim into a checked invariant: every scoped table
  * must have RLS ENABLED, FORCED, at least one policy, AND a NOT NULL scoped
  * column (a nullable one would let an unowned, policy-invisible row exist). It
- * throws `IsolationConfigException` (500, not a retry-able 503 — a deploy fix is
- * required) naming the first unprotected table. Pure (no db/app) so it is
+ * throws `IsolationConfigException` (500, not a retry-able 503, since a deploy fix
+ * is required) naming the first unprotected table. Pure (no db/app) so it is
  * unit-testable; the boot probe supplies the catalog rows.
  */
 export function assertRowScopeRlsPresent(
@@ -73,7 +71,7 @@ export function assertRowScopeRlsPresent(
  * asserts RLS is the isolation backstop, so there MUST be at least one scoped table
  * to verify. An empty `rowScopeTables` used to skip {@link probeRlsCatalog} /
  * {@link assertRowScopeRlsPresent} entirely (`if (tables.length > 0)`), so the claim
- * reported protected while NOTHING was checked — a false-green that leaves the
+ * reported protected while NOTHING was checked, a false-green that leaves the
  * escapable `withTenantScope` mixin as the only real boundary. Fail closed instead,
  * naming the fix. Pure (no db/app) so the provider boot path stays unit-testable.
  */

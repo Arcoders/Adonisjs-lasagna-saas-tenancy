@@ -37,7 +37,7 @@ export interface RateLimitReading {
  * outage detection is shared with the extension execution guard
  * ({@link ./extensions/execute_extension.js}).
  *
- * ioredis does NOT reject `exec()` when the backend is unreachable — it
+ * ioredis does NOT reject `exec()` when the backend is unreachable. It
  * RESOLVES with per-command `[error, value]` tuples. So a Redis outage shows up
  * here as a missing result set, a per-command error, or a non-numeric ZCARD,
  * and we THROW in all three cases. Callers (middleware, executeExtension) own

@@ -143,13 +143,13 @@ export function encrypt(plaintext: string, context: string = DEFAULT_CONTEXT): s
 
 /**
  * Decrypt an `enc_v2` or `enc_v1` value. A value WITHOUT a known prefix is
- * returned unchanged — a deliberate migration affordance so rows written before
+ * returned unchanged, a deliberate migration affordance so rows written before
  * encryption was added keep working. The flip side: a corrupted stored
  * ciphertext that lost its prefix would silently be treated as plaintext. Use
  * {@link decryptStrict} where the value MUST be ciphertext.
  *
  * Rotating `APP_KEY` makes every stored secret undecryptable until re-encrypted
- * (an `enc_v2` value reports a clear key-id mismatch) — run
+ * (an `enc_v2` value reports a clear key-id mismatch). Run
  * `node ace tenant:secrets:reencrypt` with `OLD_APP_KEY` set as part of any
  * rotation (see the security guide).
  */

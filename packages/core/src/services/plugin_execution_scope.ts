@@ -5,13 +5,13 @@ import type { PluginName } from '../sdk/brands.js'
  * The identity + trust of the plugin whose code is currently executing. Core
  * enters this scope whenever it invokes a plugin-supplied callback (an
  * authorizer, a route middleware, a request macro today; a scheduled tick or a
- * data-change subscriber once Lote B/C land). Consumers deep in the request
+ * data-change subscriber once those later phases land). Consumers deep in the request
  * path read it WITHOUT a container round-trip:
  *
  *   - the tenant adapter routes to a read-only connection when an UNTRUSTED
- *     plugin is on the stack (S3 — the Postgres-enforced firewall);
+ *     plugin is on the stack (the Postgres-enforced firewall);
  *   - the sensitive-singleton proxies deny core access to untrusted plugins
- *     (S5 — labeled in-process friction, not a hard boundary).
+ *     (labeled in-process friction, not a hard boundary).
  *
  * `trusted` is decided ONCE at scope entry (from the operator's
  * `TRUSTED_SATELLITES` allowlist) so per-query consumers never recompute it.
@@ -35,7 +35,7 @@ const als = new AsyncLocalStorage<PluginExecutionContext>()
 
 /**
  * Run `fn` with `context` bound as the active plugin execution scope. Any code
- * — including async continuations — that calls {@link current} inside `fn` sees
+ * (including async continuations) that calls {@link current} inside `fn` sees
  * it. Whatever `fn` returns (including a promise) is returned unchanged.
  */
 function run<T>(context: PluginExecutionContext, fn: () => T): T {
@@ -48,7 +48,7 @@ function current(): PluginExecutionContext | undefined {
 }
 
 /**
- * True when UNTRUSTED plugin code is on the stack — the single predicate the
+ * True when UNTRUSTED plugin code is on the stack, the single predicate the
  * read-only adapter and the core-access proxies gate on. False both outside any
  * plugin scope (core's own code, fully trusted) and inside a trusted plugin's
  * scope. Fail-closed by construction: anything core has not explicitly entered

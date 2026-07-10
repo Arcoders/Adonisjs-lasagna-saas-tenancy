@@ -9,7 +9,7 @@ import { discoverSatellites, indexSatellites, migrationSlug } from '../sdk/confi
  *
  * Why guidance, not automation: the AdonisJS codemods API can ADD a provider /
  * command to `adonisrc.ts` but has no sanctioned removal, and migrations that
- * have run own real tenant data. So this command never mutates the app — it
+ * have run own real tenant data. So this command never mutates the app. It
  * computes exactly what to remove (the provider/command lines, the published
  * migrations, the config block, the npm package) and prints it, so the operator
  * removes it deliberately. `configure` itself is idempotent, so a half-finished

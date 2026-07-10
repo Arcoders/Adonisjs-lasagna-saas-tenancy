@@ -20,7 +20,7 @@ export interface FeatureFlagEvaluationContext {
 /**
  * A host-registered decision function for a feature flag. Selected per-flag via
  * the flag's `config.strategy` name. Evaluated PER CALL against the stored
- * record plus the caller's context — a context-aware strategy (rollout %,
+ * record plus the caller's context. A context-aware strategy (rollout %,
  * per-user) must never be cached as a boolean, or one user's decision would leak
  * to another. The record map cache stays at the data level only.
  */

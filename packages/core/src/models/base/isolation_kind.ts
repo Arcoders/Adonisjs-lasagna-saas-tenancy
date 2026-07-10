@@ -3,9 +3,9 @@ import type { LucidModel } from '@adonisjs/lucid/types/model'
 /**
  * Where a model's rows live, declared on the model rather than inferred from
  * which base class it extends:
- *   - `tenant`     — per-tenant storage, routed by the active `IsolationDriver`
- *   - `backoffice` — the shared backoffice schema (satellite / cross-tenant data)
- *   - `central`    — the central/default connection (the tenants registry itself)
+ *   - `tenant`:     per-tenant storage, routed by the active `IsolationDriver`
+ *   - `backoffice`: the shared backoffice schema (satellite / cross-tenant data)
+ *   - `central`:    the central/default connection (the tenants registry itself)
  *
  * `TenantBaseModel` / `BackofficeBaseModel` / `CentralBaseModel` are thin shims
  * that just set `static isolation` to one of these; the unified `TenantAdapter`

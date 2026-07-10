@@ -5,7 +5,7 @@ import type {
 } from '../../events/tenant_data_changed.js'
 
 /**
- * Opt-in mixin (SEAM-5) that makes a tenant model EMIT a {@link TenantDataChanged}
+ * Opt-in mixin that makes a tenant model EMIT a {@link TenantDataChanged}
  * event after each committed row mutation, so plugins (search, analytics, realtime)
  * can react to writes without the model importing them. It is OFF by default:
  * `TenantBaseModel` stays untouched; only a model wrapped in `TracksDataChanges`
@@ -15,20 +15,20 @@ import type {
  *
  * Guarantees:
  *  - **Isolation by construction.** The payload names WHAT changed (model class,
- *    table, primary key, changed column names) — never the column VALUES — and is
+ *    table, primary key, changed column names), never the column VALUES, and is
  *    attributed to `tenancy.currentId()`. If there is no active tenant scope the
  *    change is SKIPPED, never emitted mis-attributed. (`keys` carries the primary
- *    key's VALUE; that is safe for a surrogate key, but a model with a natural PK —
- *    an email/slug — would put that value in the payload.)
+ *    key's VALUE; that is safe for a surrogate key, but a model with a natural PK
+ *    (an email/slug) would put that value in the payload.)
  *  - **After-commit.** The dispatch is deferred to `model.$trx`'s `commit`, so a
  *    write that ROLLS BACK emits nothing. An autocommit write (no `$trx`) dispatches
  *    inline (it has already committed). CAVEAT: a NESTED transaction (a savepoint)
- *    that commits before its outer transaction rolls back can still emit — the
+ *    that commits before its outer transaction rolls back can still emit. The
  *    rollback guarantee is absolute only for a top-level transaction.
  *  - **Fail-open.** The emit is fire-and-forget and guarded, so a downed subscriber
  *    or emitter never breaks (or slows) the write; a failure is logged, not swallowed.
  *
- * COVERAGE: only INSTANCE writes fire this — `model.save()` / `Model.create()` /
+ * COVERAGE: only INSTANCE writes fire this: `model.save()` / `Model.create()` /
  * `model.delete()`. A query-builder BULK mutation (`Model.query().update({...})` /
  * `.delete()`) bypasses Lucid's per-instance hooks entirely and emits NOTHING, so a
  * subscriber relying on this for cache/search invalidation must mirror bulk writes
@@ -70,7 +70,7 @@ let dispatchDataChange: (payload: TenantDataChangePayload) => unknown | Promise<
 
 /**
  * Test seam: override the data-change dispatcher. Returns a restore function.
- * @internal — swaps a process-wide sink; not re-exported from the `/mixins` barrel.
+ * @internal swaps a process-wide sink; not re-exported from the `/mixins` barrel.
  */
 export function __setDataChangeDispatcherForTests(
   fn: (payload: TenantDataChangePayload) => unknown | Promise<unknown>
@@ -92,7 +92,7 @@ function modelMeta(model: any): { name: string; table: string; primaryKey: strin
   }
 }
 
-/** Fire-and-forget, guarded emit — never throws into the caller (the write path). */
+/** Fire-and-forget, guarded emit that never throws into the caller (the write path). */
 function safeEmit(payload: TenantDataChangePayload): void {
   const onFail = (err: unknown) =>
     void lazyLogger().then((l) =>
@@ -118,7 +118,7 @@ function safeEmit(payload: TenantDataChangePayload): void {
 
 /**
  * Build the change and emit it after commit (or inline on autocommit). Skips when
- * there is no active tenant scope — a change must never be emitted mis-attributed.
+ * there is no active tenant scope: a change must never be emitted mis-attributed.
  */
 function trackChange(model: any, operation: TenantDataChangeOperation, columns?: string[]): void {
   const tenantId = tenancy.currentId()
@@ -156,7 +156,7 @@ export function TracksDataChanges<TBase extends LucidBaseModelClass>(Base: TBase
       if ((this as any).booted === true) return
       super.boot?.()
 
-      // Capture the changed column NAMES before the update persists — Lucid clears
+      // Capture the changed column NAMES before the update persists: Lucid clears
       // `$dirty` once the row is saved, so the after-hook cannot read them.
       this.before('update', (model: any) => {
         const dirty = model?.$dirty

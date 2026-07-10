@@ -13,7 +13,7 @@ export function setRequestTenant(request: HttpRequest, tenant: TenantModelContra
 }
 
 /**
- * Run `fn` inside an active tenant context — a test-time convenience over
+ * Run `fn` inside an active tenant context, a test-time convenience over
  * `tenancy.run(tenant, fn)`. The bootstrapper registry enters before `fn`
  * and leaves after it (even on throw), and `tenancy.currentId()` reflects
  * the tenant for the duration, so tenant-scoped models and helpers behave

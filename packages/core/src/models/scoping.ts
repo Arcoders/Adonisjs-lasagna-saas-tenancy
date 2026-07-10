@@ -7,7 +7,7 @@ import { recordScopeBypass } from './scope_bypass_audit.js'
 
 /**
  * Lucid's `BaseModel` (typed loosely so this file doesn't have to import
- * the full ORM type — keeps the mixin tree-shakeable).
+ * the full ORM type, which keeps the mixin tree-shakeable).
  */
 type LucidBaseModelClass = new (...args: any[]) => any
 type Bootable = LucidBaseModelClass & {
@@ -53,13 +53,13 @@ export function isScopeBypassed(): boolean {
  * Whether a scope-less query (no active `tenancy.run()`, no `unscoped(fn)`) is
  * permitted to run globally. Fail-closed: this is true ONLY when the config is
  * readable AND explicitly opts out with `rowScopeMode: 'allowGlobal'`. Every
- * other case — strict (the default) OR an UNREADABLE config (getConfig threw,
- * e.g. the provider hasn't booted) — returns false so the caller throws rather
- * than silently falling through to a cross-tenant global query.
+ * other case returns false so the caller throws rather than silently falling
+ * through to a cross-tenant global query: strict (the default) OR an UNREADABLE
+ * config (getConfig threw, e.g. the provider hasn't booted).
  *
  * The previous version returned false (= strict) from getConfig()'s throw but
  * was consulted as `isStrictScope()`, so an unreadable config actually meant
- * "not strict" → fail-OPEN. Inverting to an explicit allow flag closes that.
+ * "not strict", which is fail-OPEN. Inverting to an explicit allow flag closes that.
  */
 function allowsGlobalScope(): boolean {
   try {
@@ -71,7 +71,7 @@ function allowsGlobalScope(): boolean {
 
 /**
  * Thrown when a scoped model is queried without an active tenant context
- * and without `unscoped(fn)`. Indicates a forgotten `tenancy.run()` —
+ * and without `unscoped(fn)`. Indicates a forgotten `tenancy.run()`:
  * wrap the call site in either `tenancy.run(tenant, fn)` (intended) or
  * `unscoped(fn)` (admin/cross-tenant operation).
  */
@@ -111,14 +111,14 @@ export class MissingTenantScopeException extends Error {
  * branches can leave a branch outside the tenant filter and leak rows across
  * tenants:
  *
- *   // UNSAFE — the `featured` branch is not tenant-scoped, so other tenants'
+ *   // UNSAFE: the `featured` branch is not tenant-scoped, so other tenants'
  *   // featured rows leak. Becomes (roughly):
  *   //   WHERE (tenant_id = X AND a = 1) OR featured = true OR (b = 2 AND tenant_id = X)
  *   Post.query().where('a', 1).orWhere('featured', true).orWhere('b', 2)
  *
  * Always GROUP your `OR` branches so the tenant predicate wraps all of them:
  *
- *   // SAFE — WHERE (a = 1 OR featured = true OR b = 2) AND tenant_id = X
+ *   // SAFE: WHERE (a = 1 OR featured = true OR b = 2) AND tenant_id = X
  *   Post.query().where((q) => q.where('a', 1).orWhere('featured', true).orWhere('b', 2))
  *
  * Treat any non-grouped top-level `OR` as unsafe. This is a fundamental
@@ -168,11 +168,11 @@ export function withTenantScope<TBase extends LucidBaseModelClass>(Base: TBase):
       // Lucid's `before:fetch` only fires when knex's `_method === 'select'`,
       // so query-builder DELETE/UPDATE wouldn't get scoped through it.
       // Wrap the static `query()` factory to inject the scope predicate at
-      // construction time — that way `Model.query().delete()` and
+      // construction time. That way `Model.query().delete()` and
       // `Model.query().update({...})` inherit the same `where tenant_id = ?`
       // guard as fetches without us having to plumb individual hooks.
       // Guard the wrap so unit tests using a minimal Lucid stub (no static
-      // `query`) still boot — only real ORM models wire this path up.
+      // `query`) still boot. Only real ORM models wire this path up.
       const originalQuery = (this as any).query
       if (typeof originalQuery === 'function') {
         const bound = originalQuery.bind(this)

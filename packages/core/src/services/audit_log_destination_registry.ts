@@ -45,7 +45,7 @@ export interface AuditLogDestination {
  * `MultitenancyProvider`; the host registers destinations in its provider
  * `boot()`. Map-backed (stateful): resolve via `container.make`, never `new`.
  *
- * Empty by default — the DB table writer is the only destination and behavior is
+ * Empty by default. The DB table writer is the only destination and behavior is
  * unchanged.
  */
 export default class AuditLogDestinationRegistry {

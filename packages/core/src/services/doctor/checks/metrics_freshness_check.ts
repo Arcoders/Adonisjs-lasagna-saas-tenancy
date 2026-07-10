@@ -10,7 +10,7 @@ const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default
  * Opt-in check: warns when the backoffice `tenant_metrics` table has not been
  * flushed recently, i.e. the cross-tenant reports are running on stale data
  * (usually a `tenant:metrics:flush` cron that stopped). Deliberately NOT in
- * `builtInChecks` — a fresh install / test DB legitimately has no metrics yet and
+ * `builtInChecks`: a fresh install / test DB legitimately has no metrics yet and
  * would warn forever. Register it explicitly in your provider when you run the
  * metrics pipeline.
  */

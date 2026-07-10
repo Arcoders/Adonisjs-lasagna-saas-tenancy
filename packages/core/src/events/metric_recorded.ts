@@ -19,7 +19,7 @@ export interface MetricRecordedPayload {
 /**
  * Emitted by `MetricsService.emitMetric()` after a custom named metric is
  * recorded to Redis. Other satellites and host code can subscribe
- * (`emitter.on(MetricRecorded, …)`) to react to domain metrics — e.g. to mirror
+ * (`emitter.on(MetricRecorded, …)`) to react to domain metrics, e.g. to mirror
  * a value into another store or trigger an alert. Emission is best-effort: a
  * throwing listener never breaks the caller.
  */

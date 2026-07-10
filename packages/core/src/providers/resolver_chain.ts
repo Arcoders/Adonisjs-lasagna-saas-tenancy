@@ -25,10 +25,10 @@ function knownResolverNames(config: MultitenancyConfig): Set<string> {
 }
 
 /**
- * Config-level validation of `resolverChain` (WS-7 / resolver-chain-string-only).
+ * Config-level validation of `resolverChain`.
  * Every string entry must name a built-in or an inline instance the host
  * supplied (in `resolverChain` itself or `config.resolvers`). Throws a clear,
- * config-level error naming the offender and the valid options — instead of the
+ * config-level error naming the offender and the valid options, instead of the
  * registry-internal "unknown resolver" message that `setChain` would raise later.
  * Pure, so it runs from `assertConfigBounds` and is unit-testable without a boot.
  */
@@ -54,7 +54,7 @@ export function assertResolverChain(config: MultitenancyConfig): void {
 /**
  * Seed the resolver registry from config: register the built-ins, then any
  * host-provided inline instances (`config.resolvers` plus instances embedded in
- * `resolverChain`), then set the chain — mapping each instance to its name.
+ * `resolverChain`), then set the chain, mapping each instance to its name.
  * Falls back to the single `resolverStrategy` when no chain is configured.
  */
 export function wireResolverChain(

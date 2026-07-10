@@ -30,7 +30,7 @@ export function expectedHostSuffixes(): string[] {
 
 /**
  * Is `host` allowed by the configured suffix allowlist? An empty allowlist
- * (the default) allows everything — the boot check warns about that posture
+ * (the default) allows everything. The boot check warns about that posture
  * separately. A host matches a suffix when it equals it or is a sub-host of it
  * (`app.com` matches `app.com` and `a.app.com`, never `app.com.evil.io`).
  */
@@ -96,7 +96,7 @@ export class SubdomainResolver implements TenantResolver {
 
 /**
  * Pulls the tenant id from the first segment of the URL path
- * (`/<tenantId>/foo` → `tenantId`). `ignorePaths` from config let apps
+ * (`/<tenantId>/foo` maps to `tenantId`). `ignorePaths` from config let apps
  * exclude prefixes like `/health` or `/admin`.
  */
 export class PathResolver implements TenantResolver {
@@ -117,8 +117,8 @@ export class PathResolver implements TenantResolver {
  * asks the repository for the tenant by domain); if the host is a
  * subdomain of `baseDomain`, fall back to subdomain extraction.
  *
- * This is the typical "either acme.app.com or acme.com" SaaS deployment
- * — host matches before subdomain math because custom domains are the
+ * This is the typical "either acme.app.com or acme.com" SaaS deployment.
+ * Host matches before subdomain math because custom domains are the
  * stronger signal.
  */
 export class DomainOrSubdomainResolver implements TenantResolver {
@@ -129,7 +129,7 @@ export class DomainOrSubdomainResolver implements TenantResolver {
     const host = hostnameOf(request)
     if (!host) return ResolverHit.miss()
     // A host outside the allowlist is refused before either the subdomain math
-    // OR the custom-domain `findByDomain` lookup — closing the spoofed-host hop
+    // OR the custom-domain `findByDomain` lookup, closing the spoofed-host hop
     // for both branches in one place.
     if (!hostMatchesExpectedSuffix(host)) return ResolverHit.miss()
 
@@ -138,7 +138,7 @@ export class DomainOrSubdomainResolver implements TenantResolver {
       const sub = host.slice(0, host.length - suffix.length)
       if (sub) return ResolverHit.id(sub)
     }
-    // Not a subdomain of baseDomain → must be a custom domain. Defer
+    // Not a subdomain of baseDomain, so it must be a custom domain. Defer
     // resolution to the repository (`findByDomain`) via the registry.
     if (host !== baseDomain) {
       return ResolverHit.domain(host)

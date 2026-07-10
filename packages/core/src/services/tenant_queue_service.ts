@@ -36,7 +36,7 @@ export interface TenantQueueStats {
 /**
  * Per-tenant BullMQ queue access.
  *
- * Registered as a container singleton by `MultitenancyProvider` — resolve it
+ * Registered as a container singleton by `MultitenancyProvider`. Resolve it
  * with `app.container.make(TenantQueueService)` rather than `new`-ing it.
  * The dispatch path keeps a persistent `Queue` per tenant (each owns an ioredis
  * connection); constructing a fresh service per call would leak one connection
@@ -173,7 +173,7 @@ export default class TenantQueueService {
 
   /**
    * Stats for an explicit set of tenants. Prefer this over {@link getAllStats}
-   * when you have the tenant list (e.g. the /metrics collector) — it reflects
+   * when you have the tenant list (e.g. the /metrics collector). It reflects
    * ALL tenants, not just the ones this process happened to dispatch to.
    *
    * Each tenant's counts come from a short-lived handle ({@link withTempQueue}),
@@ -220,7 +220,7 @@ export default class TenantQueueService {
   }
 
   async destroy(tenantId: string): Promise<void> {
-    // Obliterate UNCONDITIONALLY — never depend on whether this process's
+    // Obliterate UNCONDITIONALLY. Never depend on whether this process's
     // in-memory map happens to hold the queue. The worker running an uninstall
     // may have restarted since install created the handle, so a map-only
     // destroy would silently orphan the tenant's `bull:` keys in Redis (and a
@@ -236,7 +236,7 @@ export default class TenantQueueService {
       )
     } finally {
       // Close in finally: if obliterate() throws, the Queue (and its ioredis
-      // connection) must still be released — the map delete below drops our
+      // connection) must still be released. The map delete below drops our
       // only reference to it.
       await queue.close().catch(() => {})
       this.queues.delete(tenantId)

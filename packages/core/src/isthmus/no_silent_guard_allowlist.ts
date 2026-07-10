@@ -2,13 +2,13 @@
  * Allowlist for the no-silent-guard scan: fail-closed `throw` sites (detected by
  * a "refus…" message adjacent to the throw) that are DELIBERATELY not registered
  * in the Isthmus and therefore emit no event. One entry per path, each with a
- * written reason — an unexplained silent guard fails both the
+ * written reason. An unexplained silent guard fails both the
  * `@architecture/boundaries/no_silent_guard` spec and `scripts/check-isthmus.mjs`
  * (which parses this file textually; keep entries literal).
  *
  * This list is the Audit-coverage Index's denominator adjustment: every entry
  * added here lowers the pressure on the Index, so additions need the same
- * evidence discipline as registry entries — say WHY observability adds nothing.
+ * evidence discipline as registry entries: say WHY observability adds nothing.
  */
 export const NO_SILENT_GUARD_ALLOWLIST: ReadonlyArray<{ path: string; why: string }> = [
   {

@@ -52,7 +52,7 @@ export default class TenantGuardMiddleware {
     // plugin authorizer is ADDITIVE and does NOT satisfy the membership-gate
     // signal, which stays bound to config.authorizeTenantAccess. The registry is
     // resolved defensively so a stripped-down container without it falls back to
-    // the config callback alone — byte-identical to the pre-seam behavior.
+    // the config callback alone, byte-identical to the pre-seam behavior.
     const configAuthorizer = getConfig().authorizeTenantAccess
     // try/catch (not `.catch`): resolving the registry can throw SYNCHRONOUSLY
     // in an unbooted container (a Promise `.catch` would miss that), so guard the
@@ -133,7 +133,7 @@ export default class TenantGuardMiddleware {
     if (typeof presented !== 'string') return false
     // Constant-time compare to keep the secret out of timing side channels.
     // The length-prefix check is necessary because timingSafeEqual throws
-    // on length mismatch — but doing it explicitly still leaks length, which
+    // on length mismatch, but doing it explicitly still leaks length, which
     // is acceptable for a fixed-size operator-rotated token.
     const a = Buffer.from(presented)
     const b = Buffer.from(cfg.bypassToken)

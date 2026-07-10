@@ -10,12 +10,12 @@ import { emitIsthmusEvent } from '../isthmus/audit.js'
  * compiler refuses a raw `string` that skipped the check.
  *
  * The single `as` assertion in {@link mint} is the ONE sanctioned type assertion
- * on this surface (the plan's E1 rule bans casts everywhere else). It is safe
- * precisely because `isSafeIdentifier` has already returned false — and `mint` has
- * thrown — on anything that is not `/^[a-zA-Z0-9_-]{1,63}$/` in canonical NFKC form.
+ * on this surface (the plan bans casts everywhere else). It is safe
+ * precisely because `isSafeIdentifier` has already returned false (and `mint` has
+ * thrown) on anything that is not `/^[a-zA-Z0-9_-]{1,63}$/` in canonical NFKC form.
  *
  * These are IDENTIFIER slugs (a plugin's short registration name, an authorizer
- * name, a capability key), NOT npm package names — a package name like
+ * name, a capability key), NOT npm package names. A package name like
  * `@adonisjs-lasagna/reporting` carries `@` and `/` and stays a plain `string`
  * used only in human-facing messages.
  */
@@ -35,7 +35,7 @@ export type MacroName = Branded<'MacroName'>
 export type CapabilityKey = Branded<'CapabilityKey'>
 /** A Lucid model / table identifier a plugin declares it observes (a `data_change` permission). */
 export type ModelName = Branded<'ModelName'>
-/** A registered tenant schedule's name (SEAM-1). Interpolated into the native
+/** A registered tenant schedule's name. Interpolated into the native
  *  schedule id and the per-tenant dispatch `jobId`, so it must be a safe slug. */
 export type ScheduleName = Branded<'ScheduleName'>
 
@@ -45,7 +45,7 @@ export type ScheduleName = Branded<'ScheduleName'>
  * `guard.plugin_extension_identifier` (distinct from the tenant-DDL
  * `guard.tenant_identifier`, so an operator can tell a hostile plugin identifier
  * apart from a bad tenant id) and throws BEFORE minting the brand. The single `as`
- * below is reached only once the predicate has confirmed the value is safe (S6).
+ * below is reached only once the predicate has confirmed the value is safe.
  */
 function mint<B extends string>(raw: string, kind: string): Branded<B> {
   if (!isSafeIdentifier(raw)) {

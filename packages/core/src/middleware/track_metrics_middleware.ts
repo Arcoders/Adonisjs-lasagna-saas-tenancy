@@ -33,12 +33,12 @@ export interface TrackMetricsOptions {
  * downstream handler runs it records one request, an error on a >= `errorThreshold`
  * response, and the response bandwidth from `Content-Length` against the resolved
  * tenant. Counters land in Redis (via {@link MetricsService}) and are flushed to
- * `backoffice.tenant_metrics` by the `tenant:metrics:flush` command — the data the
+ * `backoffice.tenant_metrics` by the `tenant:metrics:flush` command, the data the
  * `reporting` satellite reads.
  *
  * Recording is **fail-open**: a metrics backend error never breaks the request,
  * and the downstream handler's own error always propagates untouched (only the
- * recording is swallowed). Register it like `RateLimitMiddleware` — the host adds
+ * recording is swallowed). Register it like `RateLimitMiddleware`: the host adds
  * it to its kernel or a route group; there is no config block.
  */
 export default class TrackMetricsMiddleware {
@@ -59,7 +59,7 @@ export default class TrackMetricsMiddleware {
   }
 
   /**
-   * Override hook for tests — lets a spec swap in a capturing fake. Production
+   * Override hook for tests: lets a spec swap in a capturing fake. Production
    * code lazy-imports `MetricsService` so this module stays importable without a
    * booted app (the service eagerly imports `@adonisjs/lucid/services/db`).
    */
@@ -81,7 +81,7 @@ export default class TrackMetricsMiddleware {
       try {
         await this.record(ctx, options)
       } catch {
-        // swallow — recording is best-effort
+        // swallow: recording is best-effort
       }
     }
   }

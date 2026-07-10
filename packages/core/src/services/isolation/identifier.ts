@@ -13,8 +13,8 @@ const SAFE_IDENT = /^[a-zA-Z0-9_-]{1,63}$/
 /**
  * Defense-in-depth: a safe identifier must ALSO be in canonical NFKC form.
  *
- * NFKC folds compatibility/homoglyph characters onto ASCII (`℀`→`a/c`, `𝔸`→`A`,
- * fullwidth digits → ASCII digits). The correct posture for a tenant identifier
+ * NFKC folds compatibility/homoglyph characters onto ASCII (`℀` becomes `a/c`,
+ * `𝔸` becomes `A`, fullwidth digits become ASCII digits). The correct posture for a tenant identifier
  * is to REJECT a non-canonical input, never to fold it: folding `tenant_℀` to
  * `tenant_A` would COLLIDE with a legitimate `tenant_A` schema, which is exactly
  * the homoglyph-collision risk this guards against. The ASCII-only `SAFE_IDENT`
@@ -29,13 +29,13 @@ function isCanonicalForm(value: string): boolean {
  * Reject anything that could escape a quoted identifier in PostgreSQL DDL.
  * We never want to interpolate an unsafe string into `CREATE SCHEMA "…"`,
  * `DROP DATABASE "…"`, or any other identifier slot, so this check is the
- * first line of defense — call it at the entry of every driver method that
+ * first line of defense. Call it at the entry of every driver method that
  * uses `tenant.id` in raw SQL.
  *
  * Allows UUID v4 (the canonical id) and opaque alphanumeric ids of up to
  * 63 chars. Doubled `"` is the PG escape for embedded quotes inside a
- * quoted identifier, so a single `"` in the input would corrupt the DDL —
- * we reject before reaching SQL.
+ * quoted identifier, so a single `"` in the input would corrupt the DDL. We
+ * reject before reaching SQL.
  */
 export function assertSafeIdentifier(value: string, kind: string = 'identifier'): void {
   if (typeof value !== 'string' || !SAFE_IDENT.test(value) || !isCanonicalForm(value)) {

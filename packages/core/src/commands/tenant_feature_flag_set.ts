@@ -6,7 +6,7 @@ import FeatureFlagService from '../services/feature_flag_service.js'
 
 /**
  * Set (create or update) a tenant feature flag from the CLI. Goes through
- * FeatureFlagService so the shared cache is invalidated — this command needs
+ * FeatureFlagService so the shared cache is invalidated. This command needs
  * Redis reachable, unlike the read-only `get`/`list`.
  */
 export default class TenantFeatureFlagSet extends BaseCommand {

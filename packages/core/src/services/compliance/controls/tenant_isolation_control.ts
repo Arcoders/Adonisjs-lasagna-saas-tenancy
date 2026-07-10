@@ -16,7 +16,7 @@ const EVIDENCE: Record<string, string> = {
 
 /**
  * Which isolation driver is active, and what separation it actually buys. Always
- * informative (a driver is always selected) — `sqlite-memory` is flagged because
+ * informative (a driver is always selected). `sqlite-memory` is flagged because
  * it is a test fixture, not a production posture.
  */
 const tenantIsolationControl: ComplianceControl = {

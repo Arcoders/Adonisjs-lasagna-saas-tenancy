@@ -1,8 +1,9 @@
 import PluginBootException from '../exceptions/plugin_boot_exception.js'
 
 /**
- * The current process's Node Permission Model posture (S4). Background plugin code
- * (Lote B/C) runs in a dedicated worker the operator launches with `--permission`
+ * The current process's Node Permission Model posture. Background plugin code
+ * (the scheduled and data-change phases) runs in a dedicated worker the operator
+ * launches with `--permission`
  * to sandbox filesystem/network/addon access. The API process is NOT sandboxed,
  * so anything derived from this in the API process is inert.
  */
@@ -22,7 +23,7 @@ export function parseWorkerSandboxState(execArgv: readonly string[]): WorkerSand
 }
 
 /**
- * The current process's posture, read ONCE at module load (R7#2) so a per-boot
+ * The current process's posture, read ONCE at module load so a per-boot
  * re-read can't drift. In the API process `--permission` is absent, so the
  * native-addon boot-check is inert there; it only bites inside a worker launched
  * under the Permission Model.
@@ -34,13 +35,13 @@ export const WORKER_SANDBOX_STATE: WorkerSandboxState = parseWorkerSandboxState(
  * filesystem allow-lists (`--allow-fs-read` / `--allow-fs-write`) are host-specific
  * (app build dir, tmp, CA bundle) and are documented in SECURITY.md rather than
  * hard-coded here; native addons are intentionally NOT allowed by default (a
- * plugin needing them must opt in AND be treated as fully trusted — see
+ * plugin needing them must opt in AND be treated as fully trusted, see
  * {@link assertNativeAddonsSandboxable}).
  */
 export const NODE_SANDBOX_FLAGS = ['--permission'] as const
 
 /**
- * Boot-time native-addon guard (R6#2). A native (`.node`) addon evades the Node
+ * Boot-time native-addon guard. A native (`.node`) addon evades the Node
  * Permission Model entirely, so a plugin that ships one cannot run in a sandboxed
  * worker. If the CURRENT process is sandboxed (`--permission`) WITHOUT
  * `--allow-addons` and the plugin declares native addons, abort the deploy: the

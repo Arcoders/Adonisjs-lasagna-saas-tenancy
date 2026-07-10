@@ -10,21 +10,21 @@ import type {
  * best-effort instrumentation for a fail-closed guard. The kernel and every
  * satellite (AI, crypto, …) build ONE instance of this from their own registry,
  * so the limiter mechanics, the counter discipline, the dispatch contract, and
- * the 10s window live in exactly one place — no line-for-line triplication, no
+ * the 10s window live in exactly one place: no line-for-line triplication, no
  * `WINDOW_MS` drift on a kernel retune.
  *
  * The contract every instance upholds (pinned by the kernel's and satellites'
  * unit specs):
  *
  *   1. Counters first, always. `emit` synchronously bumps the in-process
- *      counters before anything else — they have zero dependencies and work in
+ *      counters before anything else: they have zero dependencies and work in
  *      every phase (config-time boot guards, bare unit runners, runtime).
  *   2. Everything dropped is counted. The rate limiter and the dispatcher can
  *      only suppress the EVENT; each suppression increments the dropped counter,
  *      so nothing is ever silently lost.
  *   3. The reject path is untouchable. Dispatch is fire-and-forget (never
  *      awaited) and swallowed (never throws), and the emit happens BEFORE the
- *      guard's throw — a slow or failing host listener can neither block nor
+ *      guard's throw, so a slow or failing host listener can neither block nor
  *      mask the rejection.
  *
  * Each instance owns its OWN windows and counters (a fresh closure per
@@ -36,7 +36,7 @@ import type {
  *
  * Bare-safe: this module statically imports only vocabulary types. The default
  * dispatcher resolves the public `IsthmusGuardTripped` event class LAZILY, so
- * importing it never drags app machinery — a satellite can build its audit from
+ * importing it never drags app machinery. A satellite can build its audit from
  * its own unit runner without booting an app.
  */
 
@@ -49,7 +49,7 @@ const WINDOW_MS = 10_000
  * "critical is unlimited" is deliberately rejected. warn/info inherit the proven
  * MAX_PER_WINDOW=50 magnitude of the scope-bypass limiter; critical and high get
  * finite headroom above it because they are the alerting signals a host must not
- * miss during a burst. Deliberately NOT host-configurable — a tunable audit
+ * miss during a burst. Deliberately NOT host-configurable: a tunable audit
  * limiter is a disable-your-own-alarms vector. Each severity has an independent
  * window, so a burst at one severity cannot starve another. Shared by the kernel
  * and every satellite audit so a retune moves all layers together.
@@ -112,7 +112,7 @@ export interface CreateGuardAuditOptions<TId extends string> {
   /**
    * Total lookup from an id to its registry entry. Called on the emit hot path
    * and again per snapshot row. May return undefined or throw for an
-   * unregistered id — either way the emit swallows it and counts nothing (a
+   * unregistered id. Either way the emit swallows it and counts nothing (a
    * runtime-invalid id must never throw or mutate a counter).
    */
   readonly lookup: (id: TId) => GuardAuditEntry
@@ -137,7 +137,7 @@ export interface GuardAuditInstance<TId extends string> {
    * Record a guard trip: bump the counters, bridge the per-tenant metric (if
    * configured), then dispatch the public `IsthmusGuardTripped` event
    * (best-effort, rate-limited, fire-and-forget). Synchronous and it NEVER
-   * throws — call it on the line BEFORE the guard's throw, never after. Must not
+   * throws. Call it on the line BEFORE the guard's throw, never after. Must not
    * read config: config-phase guards trip before the app exists.
    */
   emit(id: TId, options?: GuardEmitOptions): void
@@ -209,8 +209,8 @@ export function createGuardAudit<TId extends string>(
     try {
       const entry = lookup(id)
       // Reading entry.pillar/severity here means an unregistered id (undefined
-      // entry, or a lookup that throws) aborts BEFORE any counter is bumped —
-      // the outer catch then swallows it, so a bad id never mutates state.
+      // entry, or a lookup that throws) aborts BEFORE any counter is bumped.
+      // The outer catch then swallows it, so a bad id never mutates state.
       bump(guardedCounts, `${entry.pillar} ${entry.severity}`)
       bump(rejectedCounts, id)
 
@@ -242,10 +242,10 @@ export function createGuardAudit<TId extends string>(
       }
       // Fire-and-forget: the reject path never waits on listeners. Any dispatch
       // failure (unwired emitter in a unit test / pre-boot phase, a throwing
-      // listener with no emitter error handler) lands in dropped{no_emitter} —
+      // listener with no emitter error handler) lands in dropped{no_emitter}:
       // counted, never rethrown, never buffered. The Promise.resolve().then wrap
       // routes even a SYNCHRONOUSLY-throwing dispatcher into the same counted
-      // path — a bare dispatcher(payload).catch would throw before .catch
+      // path. A bare dispatcher(payload).catch would throw before .catch
       // attaches and the drop would vanish into the outer swallow, uncounted.
       // Capture the dispatcher reference eagerly: the audit uses whatever was
       // live when the guard tripped, so a later swap can never redirect an

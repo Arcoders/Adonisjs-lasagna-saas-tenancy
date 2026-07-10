@@ -15,7 +15,7 @@ const MAX_DURATION = 24 * 60 * 60
  * Permissive enough to accept UUIDs, ULIDs, and bigint-as-string user ids
  * but strict enough to keep the audit trail readable and reject embedded
  * control chars or path-like values. Apps with looser id formats can pass
- * `validateTargetUserId: false` (added if/when needed) — for now we err on
+ * `validateTargetUserId: false` (added if/when needed). For now we err on
  * the side of safety.
  */
 const TARGET_USER_ID_RE = /^[a-zA-Z0-9._:@-]{1,128}$/
@@ -27,7 +27,7 @@ const TARGET_USER_ID_RE = /^[a-zA-Z0-9._:@-]{1,128}$/
  * compare (rejects tampering offline) and a cache lookup (confirms the
  * session is still alive and not revoked).
  *
- * The package never assumes anything about the host's auth model — it just
+ * The package never assumes anything about the host's auth model. It just
  * exposes the verified `ImpersonationContext`. Wiring it into `auth.user`
  * is the responsibility of the consumer.
  */
@@ -41,12 +41,12 @@ export default class ImpersonationService {
   /**
    * Start an impersonation session. Returns a wire token, the underlying
    * session id, and the absolute expiration. The session is persisted in
-   * the package cache (BentoCache → Redis L2) with TTL = duration.
+   * the package cache (BentoCache backed by the Redis L2 tier) with TTL = duration.
    */
   async start(opts: ImpersonationStartOptions): Promise<ImpersonationStartResult> {
     // Validate the secret BEFORE we touch the cache or generate session
     // data. Otherwise a misconfigured deploy leaves us hanging on Redis
-    // long enough for the request to time out — and it would be a real
+    // long enough for the request to time out, and it would be a real
     // pain to debug from a 30-second timeout instead of a clear error.
     this.#secret()
 
@@ -111,7 +111,7 @@ export default class ImpersonationService {
     }
   }
 
-  /** Revoke a session by token (idempotent — silent if already gone). */
+  /** Revoke a session by token (idempotent, silent if already gone). */
   async stop(token: string, opts: { ipAddress?: string | null } = {}): Promise<boolean> {
     const sessionId = this.#extractSessionId(token)
     if (!sessionId) return false
@@ -184,7 +184,7 @@ export default class ImpersonationService {
 
     // Audit the FIRST successful verify so the trail records when the
     // session was actually used (start vs use can be hours apart). Subsequent
-    // verifies are silent — we only need one entry per session.
+    // verifies are silent. We only need one entry per session.
     if (!session.firstVerifyAt) {
       const remainingMs = Math.max(session.expiresAt - Date.now(), 1000)
       session.firstVerifyAt = new Date().toISOString()
@@ -203,7 +203,7 @@ export default class ImpersonationService {
           },
         })
       } catch {
-        // Audit / cache write failures must not break verify — the session
+        // Audit / cache write failures must not break verify. The session
         // is still valid; we just lose the first-use audit row.
       }
     }

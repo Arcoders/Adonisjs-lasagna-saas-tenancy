@@ -32,12 +32,12 @@ async function lucid() {
  * DB on first connect); destroy releases the Lucid connection so the OS
  * reclaims the in-memory pages.
  *
- * Limitations (intentional — this is a TEST driver):
+ * Limitations (intentional, this is a TEST driver):
  *   - No backup/restore. The `tenant:backup` command will refuse to run when
  *     this driver is active.
  *   - No read replicas.
  *   - No persistence across process restarts.
- *   - SQLite SQL dialect ≠ PostgreSQL — schema features (CTEs in DML, JSONB,
+ *   - SQLite SQL dialect ≠ PostgreSQL, so schema features (CTEs in DML, JSONB,
  *     RETURNING semantics) may behave differently. Use this driver for fast
  *     unit/integration suites; rely on the PG drivers for production parity.
  *
@@ -75,7 +75,7 @@ export default class SqliteMemoryDriver implements ProvisionableDriver {
 
   async destroy(tenant: TenantModelContract, opts: DestroyOptions = {}): Promise<void> {
     await this.disconnect(tenant)
-    // `keepData` is meaningless for in-memory storage — releasing the
+    // `keepData` is meaningless for in-memory storage. Releasing the
     // connection drops the data either way. We honor the flag for API
     // symmetry with the PG drivers but log nothing.
     void opts

@@ -9,7 +9,7 @@ import { isIP } from 'node:net'
  *   - scheme MUST be `https:` (no http/file/gopher/ftp/data)
  *   - the host MUST NOT be (or resolve, syntactically, to) loopback,
  *     link-local, RFC 1918 / ULA private ranges, CGN, multicast/reserved, or
- *     a cloud-metadata IP — checked for IPv4, IPv6, and IPv4-mapped IPv6 in
+ *     a cloud-metadata IP, checked for IPv4, IPv6, and IPv4-mapped IPv6 in
  *     ANY notation (`net.isIP` canonicalises the literal first)
  *   - the host MUST NOT be an ambiguous numeric encoding of an IP (a bare
  *     decimal `2130706433`, hex `0x7f000001`, octal, or short `127.1` form),
@@ -149,7 +149,7 @@ export async function resolvePinnedHttpsTarget(
  * True iff `value` is a syntactic loopback URL (localhost / 127.0.0.0/8 / ::1 /
  * an IPv4-mapped IPv6 loopback). Scopes the webhook delivery escape hatch: even
  * when an operator opts into delivering to otherwise-blocked targets, only
- * loopback is exempted — private (RFC 1918) and cloud-metadata ranges stay
+ * loopback is exempted. Private (RFC 1918) and cloud-metadata ranges stay
  * blocked. A hostname that merely *resolves* to loopback is NOT matched here (it
  * still fails the resolving guard), so the exemption can't be abused via DNS
  * rebinding.
@@ -170,7 +170,7 @@ export function isLoopbackUrl(value: unknown): boolean {
 function stripBrackets(host: string): string {
   // Node's URL parser keeps the brackets on IPv6 literal hostnames
   // (`new URL('https://[::1]/').hostname === '[::1]'`), so strip them before
-  // comparing — otherwise `[::1]`, `[fc00::1]`, `[fe80::1]` slip through the
+  // comparing. Otherwise `[::1]`, `[fc00::1]`, `[fe80::1]` slip through the
   // IPv6 checks as opaque hostnames and the SSRF guard is bypassed.
   return host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
 }

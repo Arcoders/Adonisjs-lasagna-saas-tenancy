@@ -30,7 +30,7 @@ export default class SetupBackoffice extends BaseCommand {
     await migrator.run()
 
     if (migrator.status === 'error') {
-      // Surface the underlying cause and the file that failed — a bare
+      // Surface the underlying cause and the file that failed. A bare
       // "migration failed" forces the operator to re-run the migration by
       // hand just to see the error.
       const failed = Object.entries(migrator.migratedFiles).find(

@@ -21,8 +21,8 @@ import ConnectionLru, {
 import { connectionHasActiveQuery } from './pool_in_use.js'
 
 /**
- * Lazily resolve `db` so unit tests don't drag the Lucid runtime — and
- * the `await app.booted(...)` inside `@adonisjs/lucid/services/db` —
+ * Lazily resolve `db` so unit tests don't drag the Lucid runtime (and
+ * the `await app.booted(...)` inside `@adonisjs/lucid/services/db`)
  * into the test process.
  */
 async function lucid() {
@@ -43,7 +43,7 @@ async function lucid() {
  * Trade-offs vs `schema-pg`:
  *   - Stronger isolation at the OS/process level (per-tenant tablespaces,
  *     stats, vacuum schedules).
- *   - Higher per-tenant overhead — one database registration in PG, more
+ *   - Higher per-tenant overhead: one database registration in PG, more
  *     resources for connection pooling.
  *   - The role used by the template connection must have `CREATEDB`
  *     privilege; `CREATE DATABASE` cannot run inside a transaction.
@@ -147,7 +147,7 @@ export default class DatabasePgDriver implements ProvisionableDriver {
     const name = this.connectionName(tenant.id)
 
     // If this connection was just evicted, wait for its pool to finish draining
-    // before deciding it's still registered — otherwise we'd re-adopt a closing
+    // before deciding it's still registered. Otherwise we'd re-adopt a closing
     // pool and queries would fail mid-flight.
     await this.#lru.settlePending(name)
 

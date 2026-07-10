@@ -38,7 +38,7 @@ export default class InstallTenant extends Job<InstallTenantPayload> {
       logger.info({ tenantId: tenant.id }, 'Provisioning tenant schema')
       // NOTE: `before:provision` runs on EVERY job attempt (BullMQ retries),
       // whereas `after:provision` only fires once the provision succeeds. Host
-      // hooks here must be idempotent — a retried install re-runs them.
+      // hooks here must be idempotent: a retried install re-runs them.
       await hooks.run('before', 'provision', { tenant })
 
       const driver = await getActiveDriver()
@@ -49,7 +49,7 @@ export default class InstallTenant extends Job<InstallTenantPayload> {
           await driver.provision(tenant)
         } else {
           // Shared-storage drivers (rowscope-pg) own no per-tenant storage to
-          // create — the central tables already exist — so there is nothing to
+          // create (the central tables already exist), so there is nothing to
           // provision. The tenant goes straight to active.
           logger.info(
             { tenantId: tenant.id, driver: driver.name },

@@ -8,7 +8,7 @@ import PluginMiddlewareException from '../exceptions/plugin_middleware_exception
  * The tenant-middleware contract version: the shape of {@link TenantMiddlewareEntry}.
  * Bump as a MAJOR for a backward-incompatible change. INDEPENDENT of `satelliteApi`,
  * the facade `pluginApiVersion`, and the published version (plan: pluggable
- * request-path surface → its own constant).
+ * request-path surface gets its own constant).
  */
 export const TENANT_MIDDLEWARE_CONTRACT_VERSION = 1
 
@@ -17,12 +17,12 @@ export const TENANT_MIDDLEWARE_CONTRACT_VERSION = 1
 export type TenantMiddlewareScope = 'tenant' | 'central' | 'universal'
 
 /** A middleware handle. Either a bare `(ctx, next)` function or an object with a
- *  `handle(ctx, next)` method — both accepted by the Adonis router's `.use()`. */
+ *  `handle(ctx, next)` method, both accepted by the Adonis router's `.use()`. */
 export type TenantMiddlewareHandle = (ctx: HttpContext, next: NextFn) => unknown | Promise<unknown>
 export type TenantMiddleware = TenantMiddlewareHandle | { handle: TenantMiddlewareHandle }
 
 /**
- * A registered tenant middleware. Discriminated by `kind` (E1), all fields
+ * A registered tenant middleware. Discriminated by `kind`, all fields
  * `readonly`. `name` is branded (minted via `middlewareName()`), so a raw string
  * cannot reach this slot. Runs AFTER the core scope middleware (guard / central /
  * universal), so `request.tenant()` is already resolved when it executes.
@@ -89,7 +89,7 @@ export default class TenantMiddlewareRegistry {
    * The middleware attached to a scope, ordered by ascending `order` (default 0);
    * the Map preserves registration order and Array#sort is stable, so equal
    * `order` keeps registration order. Returns an empty array for a scope no plugin
-   * targeted — byte-identical to the pre-seam router behavior.
+   * targeted, byte-identical to the pre-seam router behavior.
    */
   resolve(scope: TenantMiddlewareScope): readonly TenantMiddleware[] {
     return [...this.#entries.values()]

@@ -16,7 +16,7 @@ import {
  * based on `config.resolverStrategy`. Apps can register their own
  * resolvers via `register(resolver)` and either pick them via config
  * (`resolverStrategy: 'my-resolver'`) or chain several together via
- * `setChain(['domain-or-subdomain', 'header'])` — handy when most
+ * `setChain(['domain-or-subdomain', 'header'])`, handy when most
  * traffic arrives by domain but a fallback header is honored for
  * internal API clients.
  */
@@ -108,7 +108,7 @@ export default class TenantResolverRegistry {
   }
 
   /**
-   * Synchronous chain walk for code paths that cannot await — notably
+   * Synchronous chain walk for code paths that cannot await, notably
    * `TenantAdapter`, which has to pick a connection in a sync call. Resolvers
    * that return a Promise (async-only) are skipped here, since they can't
    * participate in a synchronous routing decision; the first synchronous hit

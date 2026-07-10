@@ -31,7 +31,7 @@ const HTTP_COMPARAND = Symbol('isthmus_http_comparand')
  * Resolution order for the active tenant id:
  *   1. Explicit `options.client` (already a connection)
  *   2. Explicit `options.connection` or `modelConstructor.connection`
- *   3. `tenancy.currentId()` — set by `tenancy.run(tenant, fn)` in queue
+ *   3. `tenancy.currentId()`, set by `tenancy.run(tenant, fn)` in queue
  *      jobs, scripts, custom commands
  *   4. The HTTP request resolver via `resolveTenantId(context.request)`
  */
@@ -92,17 +92,17 @@ export default class TenantAdapter extends DefaultLucidAdapter {
           `tenancy.run(tenant, fn) in jobs, scripts, and custom commands.`
       )
     }
-    // Untrusted-plugin read-only routing (S3, the Postgres-enforced firewall):
+    // Untrusted-plugin read-only routing (the Postgres-enforced firewall):
     // when UNTRUSTED plugin code is on the stack and a read-only role is
     // configured, route this query to a connection cloned from the tenant's own
     // (same database/schema) but authenticated as the SELECT-only role, so a write
-    // is denied by Postgres — not a JS proxy. The clone is synchronous: the
+    // is denied by Postgres, not a JS proxy. The clone is synchronous: the
     // primary is registered (asserted above), so its config is available now.
     const readOnly = getConfig().plugins?.readOnly
     if (readOnly && pluginScope.untrustedActive()) {
       // Fail CLOSED, not open: once untrusted plugin code is on the stack and a
       // read-only role is configured, this query MUST route to the SELECT-only
-      // clone. If the clone cannot be established, DENY — never fall through to the
+      // clone. If the clone cannot be established, DENY. Never fall through to the
       // writable primary, which would hand write access to exactly the code the
       // firewall exists to contain. A bare unit-test double without a manager
       // reaching here under an untrusted scope is itself a misconfiguration.
@@ -144,11 +144,11 @@ export default class TenantAdapter extends DefaultLucidAdapter {
    * Pulls the active tenant id from `tenancy.run()` first, then from the
    * HTTP request. Throws if neither yields a valid id.
    *
-   * ContextSeal (Isthmus, invariant I1): on the guarded HTTP path BOTH sources
-   * are present — the guard wraps `next()` in `tenancy.runForRequest`, so
+   * ContextSeal (an Isthmus invariant): on the guarded HTTP path BOTH sources
+   * are present: the guard wraps `next()` in `tenancy.runForRequest`, so
    * `tenancy.currentId()` and the request resolve the same tenant and this
    * check is a memoized string compare. When they DISAGREE (code inside a
-   * tenant-resolving request entered `tenancy.run(otherTenant)` — context
+   * tenant-resolving request entered `tenancy.run(otherTenant)`, context
    * confusion), fail closed instead of silently routing under the scope's
    * tenant. Jobs and commands have no HttpContext, so the seal is inert there;
    * an explicit `connection`/`client` option never reaches this method.
@@ -183,7 +183,7 @@ export default class TenantAdapter extends DefaultLucidAdapter {
   /**
    * The HTTP side of the ContextSeal compare, computed once per request and
    * memoized on the request object. Prefers the id the guard/macro already
-   * resolved (`request.tenant()` — covers async `domain` resolution), falling
+   * resolved (`request.tenant()`, which covers async `domain` resolution), falling
    * back to the synchronous resolver chain. A `null` result (a genuine central
    * route) is NOT cached: the guard may memoize the tenant later in the same
    * request, and the next query should see it.

@@ -11,8 +11,8 @@ import {
 } from '../services/supply_chain_audit.js'
 
 /**
- * `lasagna:health-check` — a supply-chain health check the operator runs against
- * their app (S2). It runs `npm audit` over the dependency tree and flags each
+ * `lasagna:health-check` is a supply-chain health check the operator runs against
+ * their app. It runs `npm audit` over the dependency tree and flags each
  * installed satellite that ships a native addon (not sandboxable by the worker
  * Permission Model) or an install lifecycle script (the vector `--ignore-scripts`
  * blocks). It fails (exitCode 1) on a high/critical advisory so it doubles as a CI

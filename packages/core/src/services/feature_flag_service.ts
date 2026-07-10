@@ -30,7 +30,7 @@ export interface FeatureFlagRecord {
  */
 export default class FeatureFlagService {
   private mapCacheKey(tenantId: string) {
-    // `ffm2:` (not `ff_map:`) — the cached value shape changed from a bare
+    // `ffm2:` (not `ff_map:`): the cached value shape changed from a bare
     // boolean to a FeatureFlagRecord. The versioned key keeps a rolling deploy
     // from letting a new pod read an old pod's boolean-shaped entry (and the
     // reverse). Pre-bump entries age out under their own old key.
@@ -44,7 +44,7 @@ export default class FeatureFlagService {
    * A flag may name a host-registered strategy via `config.strategy` (e.g. a
    * rollout-percentage or context-aware decision); pass `context` (a userId, a
    * request attribute) for those. The flag RECORD is cached (per-tenant map),
-   * but the decision is computed PER CALL — a context-aware strategy is never
+   * but the decision is computed PER CALL. A context-aware strategy is never
    * cached as a boolean, so one principal's result can't leak to another. A flag
    * with no `config.strategy` takes the fast default path (no registry lookup),
    * identical to legacy behavior.
@@ -80,7 +80,7 @@ export default class FeatureFlagService {
 
   /**
    * The raw stored record for one flag (or `null` if it isn't set). This is a
-   * faithful data accessor — it does NOT apply expiry; use {@link isEnabled}
+   * faithful data accessor. It does NOT apply expiry; use {@link isEnabled}
    * for the boolean decision. Handy when you only need the `config` (e.g. a
    * rollout percentage) without listing every flag.
    */

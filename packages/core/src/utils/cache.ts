@@ -28,7 +28,7 @@ export interface CacheStackOptions {
  * and a Redis bus that invalidates peer L1s across processes. The singleton
  * below and the multi-pod coherency spec
  * (tests/integration/services/cache_bus_invalidation.spec.ts) both build
- * through here, so what the test proves is the wiring production runs —
+ * through here, so what the test proves is the wiring production runs,
  * not a hand-rolled copy that can drift.
  */
 export function buildCacheStack(options: CacheStackOptions) {
@@ -61,7 +61,7 @@ let _cache: CacheInstance | null = null
 
 /**
  * The package-level BentoCache singleton (memory L1 + Redis L2 + bus
- * for cross-process invalidation). Shared across all tenants — keys
+ * for cross-process invalidation). Shared across all tenants. Keys
  * MUST be namespaced before use, otherwise two tenants writing to the
  * same key would clobber each other. Most code should reach for
  * {@link cacheFor} instead and let it apply the tenant prefix.
@@ -74,7 +74,7 @@ export function getCache(): CacheInstance {
 /**
  * Returns a BentoCache namespace whose keys are prefixed with the
  * tenant's id (`tenant:<id>:`). Use this whenever you want to cache
- * something tenant-scoped — it makes accidental cross-tenant reads
+ * something tenant-scoped. It makes accidental cross-tenant reads
  * impossible because every key the returned namespace produces lives
  * in a tenant-private prefix.
  *

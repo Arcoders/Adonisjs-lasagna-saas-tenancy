@@ -37,7 +37,7 @@ export function composeSignals(signals: Array<AbortSignal | undefined>): AbortSi
  *
  * `writableEnded` means the handler has CALLED `res.end()` (the producer is done),
  * which is the correct boundary here: we abort the producer only while it is still
- * producing. It is deliberately not `writableFinished` (fully flushed) — once
+ * producing. It is deliberately not `writableFinished` (fully flushed). Once
  * `end()` is called there is nothing left to abort, so a disconnect during the
  * final flush needs no signal. A handler that streams without a pre-emptive
  * `end()` (the SSE case this seam serves) never sees that window.

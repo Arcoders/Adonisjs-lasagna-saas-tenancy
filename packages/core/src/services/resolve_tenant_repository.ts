@@ -13,16 +13,16 @@ import type { TenantRepositoryContract, TenantMetadata } from '../types/contract
  * exactly one place and callers get a properly typed result instead of repeating
  * `make(TENANT_REPOSITORY as any) as TenantRepositoryContract` at 50+ sites.
  *
- * That ~40-site funnel is also the S5 core-access choke point: because untrusted
+ * That ~40-site funnel is also the core-access choke point: because untrusted
  * plugin code has no legitimate reason to reach the cross-tenant repository,
  * `assertCoreAccessAllowed` denies the lookup (and emits `guard.plugin_core_access`)
  * when untrusted plugin code is on the stack. Core and trusted plugins pass through
  * unchanged. Because every one of core's own callers routes through here, the gate
- * covers core's usage cleanly — but it is still only IN-PROCESS FRICTION, not a
+ * covers core's usage cleanly, but it is still only IN-PROCESS FRICTION, not a
  * boundary: `TENANT_REPOSITORY` is a global `Symbol.for`, so a plugin can reconstruct
  * the key and call `container.make` directly, reaching around this gate exactly as a
  * direct db import reaches around `resolveDatabase`. The hard boundary that actually
- * denies an untrusted write is the S3 read-only Postgres role.
+ * denies an untrusted write is the read-only Postgres role.
  *
  * Pass a request-scoped resolver when you already have one (e.g. an HTTP
  * controller's `ctx.containerResolver`); it defaults to the app container, which

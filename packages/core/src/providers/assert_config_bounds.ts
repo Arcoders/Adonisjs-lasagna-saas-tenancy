@@ -75,8 +75,8 @@ export function assertConfigBounds(config: MultitenancyConfig): void {
   atLeast(config.resolver?.cache?.maxEntries, 'resolver.cache.maxEntries', 1)
 
   // Plugin-platform request-path caps. These validate the CONFIGURED numbers are
-  // sane (a 0/negative cap is a deploy mistake). The actual count enforcement —
-  // registered entries vs cap — happens in the provider's start(), once every
+  // sane (a 0/negative cap is a deploy mistake). The actual count enforcement
+  // (registered entries vs cap) happens in the provider's start(), once every
   // plugin has registered (see assert_plugin_limits.ts).
   const pl = config.plugins?.limits
   if (pl) {

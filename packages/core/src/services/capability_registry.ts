@@ -11,17 +11,17 @@ import CapabilityTrustException from '../exceptions/capability_trust_exception.j
  * The capability-registry contract version: the shape of {@link CapabilityProvision}
  * and the `provide`/`consume` protocol. Bump as a MAJOR for a backward-incompatible
  * change. INDEPENDENT of `satelliteApi`, the facade `pluginApiVersion`, and the
- * published version (plan: a cross-plugin provide/consume contract → its own constant).
+ * published version (a cross-plugin provide/consume contract earns its own constant).
  *
- * v2 (S5): the protocol now carries TRUST. A provision may opt in as `sensitive`,
+ * v2: the protocol now carries TRUST. A provision may opt in as `sensitive`,
  * and the registry allowlist-gates sensitive provide/consume against
  * `TRUSTED_SATELLITES`. Ordinary (non-sensitive) provisions are unaffected, so a v1
- * plugin still boots (older→warn); a v2 plugin knows the registry enforces the split.
+ * plugin still boots (older versions warn); a v2 plugin knows the registry enforces the split.
  */
 export const CAPABILITY_CONTRACT_VERSION = 2
 
 /**
- * A capability a plugin provides. Discriminated by `kind` (E1), all fields
+ * A capability a plugin provides. Discriminated by `kind`, all fields
  * `readonly`. `name` is branded (minted via `capabilityKey()`); `api` is the
  * object a consumer gets back, typed at the `consume` site via {@link LasagnaCapabilities}.
  */
@@ -30,9 +30,9 @@ export interface CapabilityProvision {
   readonly name: CapabilityKey
   readonly api: unknown
   /**
-   * Opt this capability into the S5 trust gate. When `true`, only a plugin on the
+   * Opt this capability into the trust gate. When `true`, only a plugin on the
    * `TRUSTED_SATELLITES` allowlist may `provide` it, and only trusted code (core or
-   * a trusted plugin) may `consume` it — an untrusted attempt throws
+   * a trusted plugin) may `consume` it. An untrusted attempt throws
    * {@link CapabilityTrustException}. Default (`undefined`/`false`): freely composable.
    */
   readonly sensitive?: boolean
@@ -52,14 +52,14 @@ interface StoredCapability {
  * `container.make`, never `new`.
  *
  * SINGLE-provider: two plugins providing the same key is a deploy-time conflict
- * ({@link CapabilityCollisionException}), not last-writer-wins — a `consume(key)`
+ * ({@link CapabilityCollisionException}), not last-writer-wins. A `consume(key)`
  * must be unambiguous. `consume` returns `undefined` when the capability is
  * absent, so a consumer degrades gracefully ("use it if installed").
  *
- * SENSITIVE capabilities (S5, `sensitive: true`) additionally cross a trust gate:
+ * SENSITIVE capabilities (`sensitive: true`) additionally cross a trust gate:
  * an untrusted plugin cannot provide or consume one. This is labeled in-process
  * friction (an installed plugin has full reach) that makes the trusted/untrusted
- * split explicit at the composition seam — see `.github/SECURITY.md`.
+ * split explicit at the composition seam. See `.github/SECURITY.md`.
  */
 export default class CapabilityRegistry {
   readonly #caps = new Map<string, StoredCapability>()
@@ -70,8 +70,8 @@ export default class CapabilityRegistry {
   }
 
   /**
-   * Provide a capability. Throws on a duplicate key, an incompatible contract, or —
-   * for a `sensitive` capability — a `providerName` not on the trusted allowlist.
+   * Provide a capability. Throws on a duplicate key, an incompatible contract, or
+   * (for a `sensitive` capability) a `providerName` not on the trusted allowlist.
    * `providerName` is the registering plugin's `definePlugin({ name })`; the facade
    * threads it in. A sensitive provision with no providerName (a hand-registration
    * that cannot be attributed) fails closed.
@@ -112,7 +112,7 @@ export default class CapabilityRegistry {
    * key falls to `unknown`.
    *
    * A SENSITIVE capability consumed from inside an UNTRUSTED plugin execution scope
-   * throws {@link CapabilityTrustException} (fail-closed) rather than degrading —
+   * throws {@link CapabilityTrustException} (fail-closed) rather than degrading:
    * an untrusted plugin reaching a sensitive api is an attack, not an absence.
    */
   consume<K extends keyof LasagnaCapabilities & string>(name: K): LasagnaCapabilities[K] | undefined

@@ -8,7 +8,7 @@ import { assertSafeIdentifier } from '../isolation/identifier.js'
  */
 async function lazyMail(): Promise<{ use(name?: string): any; send: any; sendLater: any }> {
   // Dynamic specifier so TypeScript doesn't pin the module path at compile
-  // time — `@adonisjs/mail` is an optional peer dependency.
+  // time. `@adonisjs/mail` is an optional peer dependency.
   const specifier = '@adonisjs/mail/services/main'
   const mod: any = await (Function('s', 'return import(s)') as (s: string) => Promise<any>)(
     specifier
@@ -30,7 +30,7 @@ export const TENANT_MAIL_HEADER = 'X-Tenant-Id'
  * helper that auto-stamps `X-Tenant-Id` on every send.
  *
  * Per-tenant transport selection (e.g., a different SMTP host per tenant)
- * is intentionally a host-app concern — the bootstrapper provides
+ * is intentionally a host-app concern. The bootstrapper provides
  * `tenantMailer(transport)` so the host can pick the transport based on
  * the active tenant via its own logic.
  */
@@ -61,8 +61,8 @@ export default mailBootstrapper
  * Throws outside a `tenancy.run()` scope.
  *
  * @param transportName Optional transport key. If your app picks transports
- *   per tenant (e.g. each tenant has its own SMTP), pass the name here —
- *   the bootstrapper does not infer it; that's your domain logic.
+ *   per tenant (e.g. each tenant has its own SMTP), pass the name here.
+ *   The bootstrapper does not infer it; that's your domain logic.
  */
 export async function tenantMailer(transportName?: string): Promise<any> {
   const id = tenancy.currentId()
@@ -91,8 +91,8 @@ export async function tenantMailer(transportName?: string): Promise<any> {
 
 /**
  * Wrap a `MessageComposeCallback` (or a `BaseMail` instance) so the message
- * always carries `X-Tenant-Id`. We don't mutate the original callback —
- * tests might pass a frozen/shared one — and we don't override an
+ * always carries `X-Tenant-Id`. We don't mutate the original callback
+ * (tests might pass a frozen/shared one) and we don't override an
  * already-set header (the host app may have a more specific value).
  */
 function wrapWithTenantHeader(callbackOrMail: any, tenantId: string): any {

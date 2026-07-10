@@ -4,10 +4,10 @@ import { DateTime } from 'luxon'
 
 /**
  * A host-defined named metric, one row per (tenant, period, name). Populated by
- * `MetricsService.emitMetric()` → `flushCustomMetrics()` and aggregated
+ * `MetricsService.emitMetric()` then `flushCustomMetrics()` and aggregated
  * cross-tenant by the `reporting` satellite. Lives in the shared backoffice
  * schema (never a tenant's `search_path`), so aggregating it is isolation-safe by
- * construction — the same model the built-in `tenant_metrics` uses.
+ * construction, the same model the built-in `tenant_metrics` uses.
  */
 export default class TenantCustomMetric extends BackofficeBaseModel {
   static readonly table = 'tenant_custom_metrics'

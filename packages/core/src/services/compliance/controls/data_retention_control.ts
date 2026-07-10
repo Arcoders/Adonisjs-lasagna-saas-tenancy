@@ -5,7 +5,7 @@ import { DEFAULT_SOFT_DELETE_RETENTION_DAYS } from '../../../utils/soft_delete.j
  * Is a data-retention window configured for deleted tenants? Soft delete keeps a
  * tenant's schema for `softDelete.retentionDays`, after which `tenant:purge-expired`
  * drops it. An unset value still has a working default, so absence is info, not a
- * failure — but making it explicit is the auditable posture.
+ * failure, but making it explicit is the auditable posture.
  */
 const dataRetentionControl: ComplianceControl = {
   id: 'data-retention',

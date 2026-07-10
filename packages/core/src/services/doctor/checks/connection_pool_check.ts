@@ -57,7 +57,7 @@ export async function collectTenantPoolStats(): Promise<TenantPoolStat[] | null>
     const numPending = Number(pool.numPendingAcquires?.() ?? 0)
     const max = Number(pool.max ?? numUsed + numFree)
 
-    // Only treat the suffix as a tenant id when it really is a UUID — defense
+    // Only treat the suffix as a tenant id when it really is a UUID, guarding
     // against a connection name that shares the prefix but isn't a tenant pool.
     const candidate = name.startsWith(tenantPrefix) ? name.slice(tenantPrefix.length) : undefined
     const tenantId = candidate && UUID_RE.test(candidate) ? candidate : undefined

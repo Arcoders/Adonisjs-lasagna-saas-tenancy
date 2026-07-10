@@ -64,8 +64,8 @@ export default class AuditLogService {
 
   /**
    * Fan the persisted row out to every registered destination, isolated
-   * (`allSettled`) and bounded (`executeExtension` timeout). No destinations
-   * registered → returns immediately, so the default path adds nothing.
+   * (`allSettled`) and bounded (`executeExtension` timeout). With no destinations
+   * registered it returns immediately, so the default path adds nothing.
    */
   async #fanOut(row: TenantAuditLog): Promise<void> {
     const registry = await this.#destinationRegistry()

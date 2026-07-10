@@ -49,13 +49,13 @@ interface RouterLike {
 
 /**
  * Install the `tenant() / central() / universal()` route helpers on the
- * Adonis Router singleton. Idempotent — calling more than once is a no-op.
+ * Adonis Router singleton. Idempotent: calling more than once is a no-op.
  *
  * The helpers are thin wrappers around `router.group()` that pre-attach the
  * appropriate middleware. They return the underlying RouteGroup so callers
  * can chain `.prefix()`, `.use()`, `.where()`, etc.
  *
- * SEAM-2: plugin middleware registered in a satellite's `boot()` is stacked onto
+ * Plugin middleware registered in a satellite's `boot()` is stacked onto
  * each scope group AFTER the core scope middleware (so `request.tenant()` is
  * already resolved when it runs) and BEFORE the host's own `.use()` chain. The
  * registry is pre-resolved ONCE here (start() runs after every boot(), so it is
@@ -131,7 +131,7 @@ export function __resetRouterMacrosForTests(routerInstance?: RouterLike): void {
  * Auto-load the optional `start/tenant.ts` and `start/universal.ts` route
  * files if they exist in the host app. Called from the provider's `start()`
  * after the router macros are installed. Failures importing the files are
- * thrown — silent failure here would leave the user wondering why their
+ * thrown. Silent failure here would leave the user wondering why their
  * tenant routes don't fire.
  */
 export async function autoLoadScopedRouteFiles(

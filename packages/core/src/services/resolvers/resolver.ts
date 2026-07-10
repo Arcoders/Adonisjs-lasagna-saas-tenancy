@@ -16,7 +16,7 @@ export const RESOLVER_CONTRACT_VERSION = 1
  *
  *   - the **tenant id** as a string (matched canonically),
  *   - a **`{ domain }` envelope** when the resolver pulled a custom
- *     domain or subdomain off the request — the registry then asks the
+ *     domain or subdomain off the request, so the registry then asks the
  *     repository for the tenant by domain,
  *   - `undefined` when this resolver doesn't apply (so the registry can
  *     fall through to the next strategy).
@@ -28,7 +28,7 @@ export interface TenantResolver {
   readonly name: string
   /**
    * Contract version this resolver was built against (see
-   * {@link RESOLVER_CONTRACT_VERSION}). Omitted on legacy resolvers — the
+   * {@link RESOLVER_CONTRACT_VERSION}). Omitted on legacy resolvers. The
    * registry warns rather than fails when it is absent.
    */
   readonly contractVersion?: number

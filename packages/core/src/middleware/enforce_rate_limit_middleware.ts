@@ -66,8 +66,8 @@ export function __setRateLimiterForTests(factory: (() => Limiter) | undefined): 
  * to the existing `RateLimitMiddleware` with the plan's `limit`/`windowSeconds`.
  *
  * The plan must declare a `rateLimit` block (see {@link PlanDefinition}); a plan
- * without one is not routable through this middleware and the request throws —
- * an unlimited tier simply omits the middleware on its routes.
+ * without one is not routable through this middleware and the request throws.
+ * An unlimited tier simply omits the middleware on its routes.
  *
  * @example
  *   router.get('/api/expensive', handler).use(enforceRateLimit())

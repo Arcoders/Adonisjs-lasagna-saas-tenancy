@@ -4,7 +4,7 @@ import type { ComplianceControl } from '../types.js'
  * Are stored secrets encryptable at rest? The package derives an AES-256-GCM key
  * from `APP_KEY`; without it, webhook/SSO secrets fall back to plaintext storage.
  * The evidence is deliberate about scope: this covers SECRETS, not application
- * data — so nobody reads "satisfied" as "everything is encrypted at rest".
+ * data, so nobody reads "satisfied" as "everything is encrypted at rest".
  */
 const secretEncryptionControl: ComplianceControl = {
   id: 'secret-encryption',

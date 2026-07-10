@@ -10,7 +10,7 @@ const lazyRedis = () => import('@adonisjs/redis/services/main').then((m) => m.de
 
 /**
  * Raised when an extension overruns its `timeoutMs`. Maps to `504 Gateway
- * Timeout` over HTTP. The deadline is a RESPONSE deadline for the caller — see
+ * Timeout` over HTTP. The deadline is a RESPONSE deadline for the caller. See
  * the caveat on {@link executeExtension}.
  */
 export class ExtensionTimeoutError extends Exception {
@@ -45,7 +45,7 @@ export interface ExecuteExtensionOptions {
   failOpen?: boolean
   /**
    * Caller-facing abort signal, composed with the internal timeout controller on
-   * BOTH paths — including the no-timeout fast path. An external abort (budget
+   * BOTH paths, including the no-timeout fast path. An external abort (budget
    * exhaustion, tenant suspension, client disconnect) then trips `fn`'s signal
    * even when `timeoutMs` is unset. Defaults to none, byte-identical to the
    * previous behavior for callers that pass no signal.
@@ -59,12 +59,12 @@ export interface ExecuteExtensionOptions {
  * behaves exactly as before.
  *
  * TIMEOUT IS A DEADLINE, NOT CANCELLATION. `Promise.race` resolves the race but
- * cannot stop the underlying work — a timed-out extension keeps running and, if
+ * cannot stop the underlying work. A timed-out extension keeps running and, if
  * it holds a tenant DB connection, keeps holding it past the deadline. To let
  * cooperative extensions actually stop, we pass an `AbortSignal` to `fn` and
  * abort it when the timer fires; extensions that thread the signal into their
- * `fetch`/queries will unwind. Non-cooperative ones continue in the background
- * (mind the connection budget — see docs/guides/scaling-limits.md).
+ * `fetch`/queries will unwind. Non-cooperative ones continue in the background.
+ * Mind the connection budget (see docs/guides/scaling-limits.md).
  */
 export async function executeExtension<T>(
   fn: (signal: AbortSignal) => Promise<T>,
@@ -73,8 +73,8 @@ export async function executeExtension<T>(
   const { label, timeoutMs, rateLimit, failOpen = false } = options
 
   // Once-per-call: a span carrying the label and a classified outcome. The span
-  // wraps the whole body (rate limit + execution) so every terminal state —
-  // completed, timeout, aborted, rate_limited, error — is observable in one
+  // wraps the whole body (rate limit + execution) so every terminal state
+  // (completed, timeout, aborted, rate_limited, error) is observable in one
   // place. OTel is a no-op tracer when no SDK is wired, so this is free by
   // default; when a stream runs inside `fn`, the span stays active for its
   // duration, which is where a per-fragment settle event lands.
@@ -117,7 +117,7 @@ export async function executeExtension<T>(
           timer = setTimeout(() => {
             // Reject with the deadline FIRST so it deterministically wins the race:
             // the timeout is the authoritative reason the caller sees. Aborting after
-            // is best-effort cleanup — a cooperative fn that rejects on abort settles
+            // is best-effort cleanup. A cooperative fn that rejects on abort settles
             // after the race already resolved, so its error is consumed, not surfaced.
             reject(new ExtensionTimeoutError(timeoutMs, label))
             controller.abort()

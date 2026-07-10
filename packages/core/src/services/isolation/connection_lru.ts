@@ -140,7 +140,7 @@ export default class ConnectionLru {
     }
 
     if (victim === undefined) {
-      // Everything is in the grace window → likely all in use. Letting the
+      // Everything is in the grace window, so likely all in use. Letting the
       // pool exceed the cap for a moment beats severing an active request.
       this.#warnOverCap(cap)
       return

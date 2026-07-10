@@ -2,7 +2,7 @@ import type { SatelliteManifest } from './manifest.js'
 
 /**
  * The Satellite ABI version: a single monotonic integer identifying the shape
- * of the public extension surface a satellite builds against — the core
+ * of the public extension surface a satellite builds against: the core
  * registries it self-registers into (`HookRegistry`, `DoctorService`,
  * `IsolationDriverRegistry`, `TenantResolverRegistry`, the queue `Locator`, the
  * emitter), the manifest + configure toolkit, and the provider lifecycle.
@@ -30,10 +30,10 @@ export type SatelliteApiCompat =
  * `configure` and a satellite's own configure hook / provider `boot()` can call
  * it.
  *
- *  - satellite needs a NEWER ABI than this core provides → `fail` (refuse to wire).
- *  - satellite built for an OLDER ABI → `warn` (surface may have changed under it).
- *  - equal → `ok`.
- *  - absent → `warn` (compatibility unverified; pre-versioning satellites).
+ *  - satellite needs a NEWER ABI than this core provides: `fail` (refuse to wire).
+ *  - satellite built for an OLDER ABI: `warn` (surface may have changed under it).
+ *  - equal: `ok`.
+ *  - absent: `warn` (compatibility unverified; pre-versioning satellites).
  */
 export function checkSatelliteApiCompat(
   manifest: Pick<SatelliteManifest, 'satelliteApi'>,
@@ -75,14 +75,14 @@ export function checkSatelliteApiCompat(
 
 /**
  * Enforce {@link checkSatelliteApiCompat} at satellite `boot()` time: throw on
- * `fail` (the running core is too old for this satellite — fail fast before any
+ * `fail` (the running core is too old for this satellite, so fail fast before any
  * feature code runs), surface `warn` through `onWarn` (defaults to `console.warn`,
  * the same fallback the registries use), do nothing on `ok`.
  *
  * `configure` already gates ABI at install time ({@link checkSatelliteApiCompat}
  * via `partitionSatellitesByApiCompat`), but that only runs once, at scaffold
  * time. A later `npm i @adonisjs-lasagna/saas-tenancy@older` downgrades the core
- * underneath an already-configured satellite with no re-check — so each satellite
+ * underneath an already-configured satellite with no re-check, so each satellite
  * provider calls this at boot as the runtime backstop. Pure (no fs/app import) so
  * a provider can call it synchronously; pass a logger-backed `onWarn` if desired.
  */

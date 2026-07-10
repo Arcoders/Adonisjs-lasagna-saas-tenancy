@@ -22,8 +22,8 @@ import type {
  *
  * `resolution_safety.ts` is deliberately NOT a separate entry: it is a pure
  * detector (it returns findings, dispatches nothing), single-sourced and
- * pinned by its own spec. Its enforcement point — the production hard-fail in
- * `assertConfigBounds` — is what rejects, so that is what the registry names
+ * pinned by its own spec. Its enforcement point, the production hard-fail in
+ * `assertConfigBounds`, is what rejects, so that is what the registry names
  * (`guard.resolution_safety`).
  */
 
@@ -32,7 +32,7 @@ type IsoDate = `${number}-${number}-${number}`
 
 /**
  * Event taxonomy: `isthmus:<pillar>:<class>:<outcome>` for every new event.
- * The one grandfathered name is `scope:bypass` — it shipped before the
+ * The one grandfathered name is `scope:bypass`: it shipped before the
  * taxonomy (see SCOPE_BYPASS_ACTION in models/scope_bypass_audit.ts) and
  * renaming a public event would break subscribed hosts.
  */
@@ -429,7 +429,7 @@ export const ISTHMUS_REGISTRY = [
   },
 ] as const satisfies readonly IsthmusRegistryEntryShape[]
 
-/** Compile-time id union — emitIsthmusEvent(id) cannot reference an unregistered guard. */
+/** Compile-time id union: emitIsthmusEvent(id) cannot reference an unregistered guard. */
 export type IsthmusGuardId = (typeof ISTHMUS_REGISTRY)[number]['id']
 export type IsthmusRegistryEntry = (typeof ISTHMUS_REGISTRY)[number]
 

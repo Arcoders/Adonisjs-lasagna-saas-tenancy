@@ -14,12 +14,12 @@ const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default
  * Pure for `random`/`round-robin` (in-memory cursor), deterministic for
  * `sticky` (hash of tenantId).
  *
- * Returns `null` when read replicas are not configured — callers should
+ * Returns `null` when read replicas are not configured. Callers should
  * fall back to the primary connection.
  *
  * Read-your-writes note: `round-robin` and `random` spread a single tenant's
  * sequential reads across hosts, so a read immediately after a write may hit a
- * lagging replica. Use `sticky` (hash of tenant id → one host) when a tenant
+ * lagging replica. Use `sticky` (hash of tenant id maps to one host) when a tenant
  * needs consistent reads, and route read-after-write paths to the primary.
  *
  * Replica connections are created on demand and capped by an in-use-aware LRU
@@ -41,9 +41,9 @@ const STICKY_HASH_CACHE_MAX = 10_000
  */
 export default class ReadReplicaService {
   #cursor = 0
-  // Memoized SHA-1 → uint32 per tenant for the `sticky` strategy. The hash is
+  // Memoized SHA-1 hashed to a uint32 per tenant for the `sticky` strategy. The hash is
   // independent of host count, so we cache the raw 32-bit value and apply the
-  // modulo per call — a host-pool change still routes correctly without
+  // modulo per call, so a host-pool change still routes correctly without
   // re-hashing on every read.
   readonly #stickyHashCache = new Map<string, number>()
   readonly #lru = new ConnectionLru({
@@ -76,7 +76,7 @@ export default class ReadReplicaService {
       if (hash === undefined) {
         hash = createHash('sha1').update(tenantId).digest().readUInt32BE(0)
         // Simple bound: drop the whole memo when it grows too large rather than
-        // tracking per-entry recency — the hash recomputes cheaply on the next miss.
+        // tracking per-entry recency. The hash recomputes cheaply on the next miss.
         if (this.#stickyHashCache.size >= STICKY_HASH_CACHE_MAX) this.#stickyHashCache.clear()
         this.#stickyHashCache.set(tenantId, hash)
       }
@@ -148,7 +148,7 @@ export default class ReadReplicaService {
       const baseConnection: any = primary?.connection ?? {}
       // Clone the FULL primary config and override only host/credentials with
       // the replica's. Spreading `primary` carries over pool sizing, ssl,
-      // wrapIdentifier, and — critically — the TOP-LEVEL `searchPath`.
+      // wrapIdentifier, and (critically) the TOP-LEVEL `searchPath`.
       //
       // `searchPath` MUST stay at the top level: knex reads `config.searchPath`,
       // not `config.connection.searchPath`. The previous bug nested it inside
@@ -181,7 +181,7 @@ export default class ReadReplicaService {
   }
 
   /**
-   * Reset the round-robin cursor — mainly useful in tests for determinism.
+   * Reset the round-robin cursor. Mainly useful in tests for determinism.
    */
   resetCursor(): void {
     this.#cursor = 0

@@ -168,7 +168,7 @@ export default class CircuitBreakerService {
   /**
    * Keep the breaker map bounded. When at/over capacity, shut down and drop the
    * oldest CLOSED breakers (Map preserves insertion order) until one slot is
-   * free for the caller's add. Skips OPEN/HALF_OPEN breakers — they're actively
+   * free for the caller's add. Skips OPEN/HALF_OPEN breakers, which are actively
    * failing fast. If every tracked breaker is non-closed we let the map exceed
    * the bound briefly rather than drop a live one (matching the connection
    * LRU's "never sever an active resource" stance); evicting down to the cap
@@ -200,7 +200,7 @@ export default class CircuitBreakerService {
    *
    * Resolves when the probe succeeds. Rejects with an opossum `EOPENBREAKER`
    * error when the breaker is already OPEN (fast-fail, the probe is skipped), or
-   * with the probe's own error when it fails while CLOSED/HALF_OPEN — use
+   * with the probe's own error when it fails while CLOSED/HALF_OPEN. Use
    * {@link isOpenRejection} (or re-check {@link isOpen}) to tell the two apart.
    */
   async run(tenantId: string): Promise<void> {
