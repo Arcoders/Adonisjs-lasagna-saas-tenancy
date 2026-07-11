@@ -27,7 +27,7 @@ test.group('Doctor checks — real-state E2E', (group) => {
 
   group.setup(async () => {
     svc = await app.container.make(DoctorService)
-    // Register defensively — fixture provider may not have done it yet.
+    // Register defensively in case the fixture provider hasn't done it yet.
     if (!svc.has('schema_drift')) svc.register(schemaDriftCheck)
     if (!svc.has('migration_state')) svc.register(migrationStateCheck)
     if (!svc.has('backup_recency')) svc.register(backupRecencyCheck)
@@ -117,7 +117,7 @@ test.group('Doctor checks — real-state E2E', (group) => {
     const schema = `${cfg.tenantSchemaPrefix}${tenant.id}`
 
     await central.rawQuery(`CREATE SCHEMA "${schema}"`)
-    // Minimal adonis_schema — the check tests existence only.
+    // A minimal adonis_schema is enough. The check tests existence only.
     await central.rawQuery(
       `CREATE TABLE "${schema}".adonis_schema (id serial PRIMARY KEY, name varchar(255), batch int)`
     )
@@ -159,7 +159,7 @@ test.group('Doctor checks — real-state E2E', (group) => {
     const cb = await app.container.make(CircuitBreakerService)
 
     try {
-      // Force the breaker OPEN without firing a probe — we're testing
+      // Force the breaker OPEN without firing a probe. We're testing
       // the doctor check (the observer), not the breaker.
       const circuit = cb.getCircuit(tenant.id)
       ;(circuit as any).open()

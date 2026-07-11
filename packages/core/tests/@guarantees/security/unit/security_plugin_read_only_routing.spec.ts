@@ -13,7 +13,7 @@ import {
 import { pluginName } from '../../../../src/sdk/brands.js'
 
 /**
- * S3 — the read-only firewall. When UNTRUSTED plugin code is on the stack and a
+ * The read-only firewall. When UNTRUSTED plugin code is on the stack and a
  * read-only role is configured, the tenant adapter routes the query to a
  * connection cloned from the tenant's own (same schema/search_path) but
  * authenticated as the SELECT-only role, so Postgres denies a write. Core code

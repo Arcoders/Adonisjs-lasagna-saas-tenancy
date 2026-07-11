@@ -14,9 +14,9 @@ import { testConfig } from '../../../helpers/config.js'
 import type { IsthmusGuardTrippedPayload } from '../../../../src/types/isthmus.js'
 
 /**
- * The emit helper's contract (cross-cutting invariants 1-3 of the Isthmus):
+ * The emit helper's contract, the three cross-cutting invariants of the Isthmus:
  * counters first and always; everything dropped is counted; and the reject
- * path can never be blocked, broken, or masked by the audit path — including
+ * path can never be blocked, broken, or masked by the audit path, including
  * in an unbooted process (unit runners, config-phase guards before the app
  * provider wires the emitter).
  */

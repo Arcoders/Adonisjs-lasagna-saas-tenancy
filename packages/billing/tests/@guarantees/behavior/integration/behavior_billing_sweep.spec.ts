@@ -14,7 +14,7 @@ import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite
 /**
  * `tenant:billing:sweep` / `runBillingSweep` drives the two time-based,
  * provider-agnostic chores that don't ride a webhook:
- *   1. Trial-ending notices — the Paddle / Lemon Squeezy fallback for Stripe's
+ *   1. Trial-ending notices: the Paddle / Lemon Squeezy fallback for Stripe's
  *      native `trial_will_end`, deduped against `trial_ending_notified_at`.
  *   2. Grace-period dunning downgrades scheduled via `dunning_downgrade_at`.
  */

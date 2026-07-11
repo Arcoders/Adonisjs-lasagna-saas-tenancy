@@ -77,7 +77,7 @@ test.group('mapTenants (integration)', (group) => {
     )
     assert.lengthOf(errors, 0)
     assert.lengthOf(results, 4)
-    // a follow-up backoffice query still works → the pool was not exhausted
+    // a follow-up backoffice query still works, so the pool was not exhausted
     const after = await db.connection('backoffice').rawQuery('SELECT 1 AS ok')
     assert.equal(Number(after.rows?.[0]?.ok ?? 1), 1)
   }).timeout(90_000)

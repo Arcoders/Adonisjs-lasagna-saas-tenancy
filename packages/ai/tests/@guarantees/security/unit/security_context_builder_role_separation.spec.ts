@@ -3,11 +3,11 @@ import { buildRetrievalContext } from '../../../../src/gateway/context_builder.j
 import type { VectorMatch } from '../../../../src/services/vector_store_service.js'
 
 /**
- * The retrieved-context builder (WS-AI-5, #10 indirect prompt injection / #8
+ * The retrieved-context builder (#10 indirect prompt injection / #8
  * output bounds). Retrieved content is untrusted DATA: it is role-separated into
  * a `user` turn (never a trusted instruction turn), delimiter-fenced with a
  * token the document cannot forge, and bounded so the assembled prompt cannot
- * blow past the caller's budget. Its wording is NOT scrubbed — role separation is
+ * blow past the caller's budget. Its wording is NOT scrubbed. Role separation is
  * the defense, not a regex.
  */
 

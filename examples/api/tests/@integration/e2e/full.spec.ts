@@ -272,7 +272,7 @@ test.group('e2e — full feature tour', (group) => {
     assert.equal(after.rows.length, 0, 'schema should be dropped after purge')
   })
 
-  // ─── Resolution: missing header → 400 ───────────────────────────
+  // ─── Resolution: missing header returns 400 ─────────────────────
   test('missing tenant header returns 400', async ({ client }) => {
     const r = await client.get('/demo/connection')
     r.assertStatus(400)

@@ -11,10 +11,10 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 /**
  * `ensureCustomer` must remain idempotent under concurrency. Two paths
  * provide that guarantee in tandem:
- *   - Stripe `Idempotency-Key: tenant:<id>:create-customer` → Stripe
- *     dedupes API-side, so even N parallel hits get back the same customer.
- *   - Local UNIQUE constraint on `billing_customers.tenant_id` (the PK) →
- *     the second writer's INSERT loses; we re-SELECT and return the winner.
+ *   - the Stripe `Idempotency-Key: tenant:<id>:create-customer` makes Stripe
+ *     dedupe API-side, so even N parallel hits get back the same customer.
+ *   - the local UNIQUE constraint on `billing_customers.tenant_id` (the PK)
+ *     means the second writer's INSERT loses; we re-SELECT and return the winner.
  *
  * This spec runs N parallel ensureCustomer calls on the same tenant and
  * asserts: 1 Stripe customer created, 1 local row, no exceptions thrown.
@@ -73,7 +73,7 @@ test.group('BillingService.ensureCustomer — concurrency (integration)', (group
     assert.lengthOf(rows, 1, 'exactly one DB row')
 
     // The Stripe-side idempotency key was hit on the second through Nth
-    // calls — the cache key matches what BillingService passes.
+    // calls. The cache key matches what BillingService passes.
     assert.isTrue(
       mock.idempotencyHits(`tenant:${tenant.id}:create-customer`),
       'Stripe-side idempotency-key cache used'
@@ -98,7 +98,7 @@ test.group('BillingService.ensureCustomer — concurrency (integration)', (group
     const first = await billing.ensureCustomer(fakeTenant)
     const beforeIdempotencyHit = mock.idempotencyHits(`tenant:${tenant.id}:create-customer`)
 
-    // Replace the mock with a fresh one — proves the second call did NOT
+    // Replace the mock with a fresh one to prove the second call did NOT
     // hit Stripe at all (it short-circuits on the local row lookup).
     const freshMock = new MockStripe('whsec_test_billing_helper')
     await billing.__setStripeForTests(freshMock)

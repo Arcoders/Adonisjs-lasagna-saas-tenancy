@@ -12,7 +12,7 @@ const TENANT_COUNT = 5
 const POSTS_PER_TENANT = 20
 
 /**
- * S0-3 (case 4.1): the load-bearing isolation test for the whole package.
+ * The load-bearing isolation test for the whole package.
  *
  * Spins up N real tenants, each with its own `tenant_<uuid>` schema and a
  * private `posts` table. Hammers the HTTP server with concurrent reads
@@ -115,7 +115,7 @@ test.group('Cross-tenant HTTP isolation under concurrency', (group) => {
       const body = res.body() as { tenantId: string; posts: { title: string }[] }
 
       // Every post returned must belong to this exact tenant. The title
-      // tag's prefix encodes the tenant index — we look it up by id so
+      // tag's prefix encodes the tenant index. We look it up by id so
       // a typo in the route handler can't make this assertion vacuous.
       const ownIndex = tenants.find((t) => t.id === body.tenantId)?.index
       assert.isDefined(ownIndex, `unknown tenantId in response: ${body.tenantId}`)

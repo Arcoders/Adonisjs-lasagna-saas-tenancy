@@ -7,7 +7,7 @@ import { buildCacheStack } from '@adonisjs-lasagna/saas-tenancy/services'
  * because the package cache is memory L1 + shared Redis L2 with a Redis bus
  * that invalidates peer L1s. This spec proves the claim with two instances
  * built through the same `buildCacheStack` factory the package singleton
- * uses (src/utils/cache.ts) — the in-process equivalent of two pods —
+ * uses (src/utils/cache.ts), the in-process equivalent of two pods, run
  * against the suite's real Redis: a value written through instance A is
  * visible to B via L2, and a delete issued through A evicts B's
  * already-populated L1 via the bus.
@@ -31,7 +31,7 @@ test.group('Multi-pod cache coherency via the Redis bus (integration)', (group) 
   // the ioredis SUBSCRIBE, which rides a separate connection), and Redis
   // pub/sub has no replay: a message published before B's subscription lands
   // is lost forever. A fixed sleep is therefore a race on a slow CI runner.
-  // Instead, prove the A→bus→B path is live with probe rounds — each round
+  // Instead, prove the path from A through the bus to B is live with probe rounds. Each round
   // publishes a FRESH delete, so a message lost during subscription startup
   // is retried, not fatal. A genuinely broken bus still fails loudly here.
   async function waitForBusReady(timeoutMs = 15_000) {

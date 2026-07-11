@@ -4,11 +4,11 @@ import { mapTenantQueryError, mapTenantConnectError } from '../../../../src/exte
 import DependencyUnavailableException from '../../../../src/exceptions/dependency_unavailable_exception.js'
 
 /**
- * WS-9 / no-pg-outage-mid-transaction-test (the FIX half).
+ * The fix half of the mid-transaction outage story.
  *
  * A tenant backend severed mid-handler (failover, admin `pg_terminate_backend`,
- * crash) used to bubble a raw Lucid 500 — opaque and read as non-retryable —
- * even though Postgres had already rolled the aborted transaction back. The
+ * crash) used to bubble a raw Lucid 500 (opaque and read as non-retryable) even
+ * though Postgres had already rolled the aborted transaction back. The
  * query-phase mapper turns ONLY unambiguous connection-loss signatures into a
  * clean, retry-able 503, and passes ordinary query errors (constraint
  * violations, type casts) straight through to the host handler.
@@ -17,7 +17,7 @@ import DependencyUnavailableException from '../../../../src/exceptions/dependenc
  * severed-connection errors reached the host as a 500.
  */
 test.group('dependency-outage classifier', () => {
-  // Positive controls — these MUST map to a 503.
+  // Positive controls: these MUST map to a 503.
   const outages: Array<[string, any]> = [
     ['ECONNRESET socket error', { code: 'ECONNRESET' }],
     ['ECONNREFUSED socket error', { code: 'ECONNREFUSED' }],
@@ -51,7 +51,7 @@ test.group('dependency-outage classifier', () => {
     })
   }
 
-  // Negative controls — ordinary query/application errors MUST pass through.
+  // Negative controls: ordinary query/application errors MUST pass through.
   const passthrough: Array<[string, any]> = [
     ['unique_violation 23505', { code: '23505', message: 'duplicate key value' }],
     ['foreign_key_violation 23503', { code: '23503' }],

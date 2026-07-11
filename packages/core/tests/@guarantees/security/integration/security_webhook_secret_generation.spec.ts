@@ -10,7 +10,7 @@ process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
 /**
  * webhooks.md: "Generated when omitted; encrypted at rest". A webhook
  * registered without a secret must NOT silently produce unsigned
- * deliveries — the service generates one, stores it encrypted under the
+ * deliveries. The service generates one, stores it encrypted under the
  * webhook secret class, and returns the plaintext exactly once as
  * `generatedSecret`.
  */

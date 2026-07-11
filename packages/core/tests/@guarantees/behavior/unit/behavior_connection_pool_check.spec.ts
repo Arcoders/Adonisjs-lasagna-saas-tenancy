@@ -13,7 +13,7 @@ test.group('connectionPoolCheck', () => {
   test('returns lucid_unavailable when db cannot be loaded', async ({ assert }) => {
     setupTestConfig()
     // Without an AdonisJS app boot, the db service module loads but the
-    // manager is not initialized — `db.manager.connections` becomes a noop
+    // manager is not initialized, so `db.manager.connections` becomes a noop
     // empty Map. The check tolerates that and returns [].
     const issues = await connectionPoolCheck.run({
       tenants: [],

@@ -10,7 +10,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import type { TenantModelContract } from '../../../../src/types/contracts.js'
 
 /**
- * SEAM-3 — the tenant-access authorizer chain. The load-bearing guarantee is
+ * The tenant-access authorizer chain. The load-bearing guarantee is
  * FAIL-CLOSED: config.authorizeTenantAccess runs first, then every registered
  * authorizer; ANY false-or-throw denies, and an empty chain with no config
  * callback allows (byte-identical to the pre-seam behavior). A thrown authorizer

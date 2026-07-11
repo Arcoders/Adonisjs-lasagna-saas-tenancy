@@ -7,11 +7,11 @@ import { walkTsFiles } from '../../helpers/walk_ts_files.js'
 const SRC_ROOT = fileURLToPath(new URL('../../../src/', import.meta.url))
 
 /**
- * S2-4: anti-regression guard against SQL injection by template-string
+ * Anti-regression guard against SQL injection by template-string
  * interpolation. The package's *only* defense against an attacker
  * planting unsafe identifiers in DDL is the `SAFE_IDENT` regex inside
  * `assertSafeIdentifier`. Every file that interpolates a value into a
- * raw SQL call must have made that contract visible — either by
+ * raw SQL call must have made that contract visible: either by
  * calling `assertSafeIdentifier` itself, or by accepting an
  * already-validated identifier from a path that does.
  *
@@ -33,7 +33,7 @@ interface Hit {
 // Matches: .rawQuery(`...${...}...`) or .raw(`...${...}...`).
 // Multiline-aware via [\s\S]. Conservative: we accept any template
 // literal that contains a ${...} interpolation as "interpolated raw
-// SQL" — even if the interpolation is a literal constant.
+// SQL", even if the interpolation is a literal constant.
 const TEMPLATE_RAW_SQL = /\.(?:rawQuery|raw)\(\s*`[^`]*\$\{[\s\S]*?`/g
 
 const ALLOWED_OPT_OUT = /\/\/\s*safe-sql:/i
@@ -69,7 +69,7 @@ test.group('Architectural: raw SQL interpolation must be guarded', () => {
 
     for (const file of walkTsFiles(SRC_ROOT)) {
       const rel = relative(SRC_ROOT, file)
-      // The validator itself is allowed — it owns the contract.
+      // The validator itself is allowed. It owns the contract.
       if (rel.replace(/\\/g, '/') === 'services/isolation/identifier.ts') continue
 
       const src = readFileSync(file, 'utf8')

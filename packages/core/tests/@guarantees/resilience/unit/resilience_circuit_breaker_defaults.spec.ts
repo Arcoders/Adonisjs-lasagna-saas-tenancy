@@ -7,13 +7,14 @@ import type { MultitenancyConfig } from '../../../../src/types/config.js'
 /**
  * Regression guard for the isolation-benchmark 503 storm.
  *
- * WS-2 put the circuit breaker on the request path: the tenant-guard middleware
- * now fires `cbService.run(id)` → `getCircuit(id)` on every guarded request. But
- * `getCircuit()` read `getConfig().circuitBreaker.threshold` WITHOUT a guard, so
- * a config that omits the (normally required) `circuitBreaker` block — an untyped
- * fixture, a config assembled dynamically, a partial block — threw a `TypeError`
- * on every request, which the guard mapped to a 503. The isolation benchmark
- * fixture (untyped, no block) 503'd on 100% of guarded reads.
+ * We put the circuit breaker on the request path: the tenant-guard middleware
+ * now fires `cbService.run(id)`, which calls `getCircuit(id)`, on every guarded
+ * request. But `getCircuit()` read `getConfig().circuitBreaker.threshold`
+ * WITHOUT a guard, so a config that omits the (normally required)
+ * `circuitBreaker` block (an untyped fixture, a config assembled dynamically, a
+ * partial block) threw a `TypeError` on every request, which the guard mapped to
+ * a 503. The isolation benchmark fixture (untyped, no block) 503'd on 100% of
+ * guarded reads.
  *
  * Typed configs (`defineConfig`) can't reach this state, but the runtime must
  * degrade to safe defaults rather than storm 503s. `#evictIfOverCapacity` already

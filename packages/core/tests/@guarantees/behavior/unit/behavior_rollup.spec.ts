@@ -15,7 +15,7 @@ test.group('rollup — buildMonthlyRollupSql (overwrite-not-accumulate, paramete
   test('uses ??.?? identifier placeholders for target + source and ? for the dates', ({
     assert,
   }) => {
-    // two `??.??` pairs → four `??`; exactly two `?` date params.
+    // two `??.??` pairs give four `??`; exactly two `?` date params.
     assert.equal((sql.match(/\?\?/g) ?? []).length, 4)
     const singleQ = sql.replace(/\?\?/g, '').match(/\?/g) ?? []
     assert.equal(singleQ.length, 2)
@@ -49,7 +49,7 @@ test.group('rollup — month math (UTC)', () => {
 
   test('endOfLastCompletedMonth excludes the open month, crosses years', ({ assert }) => {
     assert.equal(endOfLastCompletedMonth('2026-06-24'), '2026-05-31')
-    assert.equal(endOfLastCompletedMonth('2026-03-01'), '2026-02-28') // first day → prev month end
+    assert.equal(endOfLastCompletedMonth('2026-03-01'), '2026-02-28') // first day maps to prev month end
     assert.equal(endOfLastCompletedMonth('2026-01-15'), '2025-12-31') // year boundary
   })
 })

@@ -27,7 +27,7 @@ test.group('isInfraError — smoke skip-vs-fail classifier', () => {
     assert,
   }) => {
     // stripe-node sets `.type = this.constructor.name` but never sets `.name`,
-    // so a real error is `{ name: 'Error', type: 'StripeConnectionError' }` — the
+    // so a real error is `{ name: 'Error', type: 'StripeConnectionError' }`. The
     // `.type` branch is what carries production classification.
     assert.isTrue(isInfraError({ name: 'Error', type: 'StripeConnectionError' }))
     assert.isTrue(isInfraError({ name: 'Error', type: 'StripeRateLimitError' }))

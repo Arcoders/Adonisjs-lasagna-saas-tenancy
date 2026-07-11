@@ -3,7 +3,7 @@ import { provisionExtension } from '../../../../src/services/isolation/vector_pr
 import { setupTestConfig } from '../../../helpers/config.js'
 
 /**
- * The generic Postgres-extension provisioner (SEAM-7) — the engine that
+ * The generic Postgres-extension provisioner, the engine that
  * `provisionVectorExtension` now delegates to. This pins the parts NOT already
  * covered by the pgvector spec: identifier validation (name + schema go into raw
  * DDL, so a hostile value must throw BEFORE any connection work), the no-schema

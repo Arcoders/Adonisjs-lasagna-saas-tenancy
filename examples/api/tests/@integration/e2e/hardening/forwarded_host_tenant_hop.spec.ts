@@ -4,7 +4,7 @@ import { setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { TenantResolverRegistry } from '@adonisjs-lasagna/saas-tenancy/services'
 
 /**
- * HARDENING — forwarded-host tenant hop (WS-3).
+ * HARDENING: forwarded-host tenant hop.
  *
  * A host-based resolver (subdomain / domain-or-subdomain) derives the tenant
  * from the request host. Under a permissive proxy trust the host can be set via

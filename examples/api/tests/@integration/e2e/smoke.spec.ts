@@ -4,7 +4,7 @@ import type { DemoMeta } from '#app/models/backoffice/tenant'
 import { ADMIN_HEADERS } from './_helpers.js'
 
 /**
- * Smoke tests — one assertion per public surface that doesn't require a fully
+ * Smoke tests: one assertion per public surface that doesn't require a fully
  * provisioned tenant in PG. The DB-backed routes (notes, audit, etc.) are
  * exercised by the README's curl recipes, not here.
  */

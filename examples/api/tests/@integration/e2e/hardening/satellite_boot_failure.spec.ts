@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import { spawn, spawnSync } from 'node:child_process'
 
 /**
- * E2 — A satellite provider that throws in boot() must fail the app FAST and name
+ * A satellite provider that throws in boot() must fail the app FAST and name
  * itself, not come up half-wired and 500 on the first request.
  *
  * The billing provider validates its driver eagerly in boot(): an unknown driver

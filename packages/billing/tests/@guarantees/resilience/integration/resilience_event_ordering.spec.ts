@@ -107,7 +107,7 @@ test.group('Webhook ordering guard (integration)', (group) => {
       tNow
     )
 
-    // 3s earlier — within the 5s jitter tolerance — should be accepted.
+    // 3s earlier (within the 5s jitter tolerance) should be accepted.
     const result = await billing.syncSubscription(
       buildNeutralSubscription({
         id: subId,

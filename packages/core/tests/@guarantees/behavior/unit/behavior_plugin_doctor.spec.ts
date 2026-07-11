@@ -5,7 +5,7 @@ import PluginDoctorService, {
 } from '../../../../src/services/plugin_doctor_service.js'
 
 /**
- * The plugin platform doctor (S6). Pure: it maps installed satellite manifests + the
+ * The plugin platform doctor. Pure: it maps installed satellite manifests + the
  * runtime trust/firewall posture to actionable diagnoses. Each check is exercised in
  * isolation, plus the all-clear path and the severity totals.
  */
@@ -117,7 +117,7 @@ test.group('PluginDoctorService — read-only firewall posture', () => {
 
 test.group('PluginDoctorService — declared permission disclosure', () => {
   test('EVERY declared (consent-gated) permission kind is disclosed as info', ({ assert }) => {
-    // All four kinds are sensitive per the permission model — scheduler and
+    // All four kinds are sensitive per the permission model, so scheduler and
     // data_change must NOT be silently dropped from the audit.
     for (const perms of [
       ['db:write', 'network:external'],

@@ -25,8 +25,8 @@ async function auditActions(tenantId: string): Promise<string[]> {
  * Note: TenantBackedUp / TenantRestored / TenantCloned are dispatched by the
  * queue jobs (`BackupTenant`, `RestoreTenant`, `CloneTenant`), NOT by the
  * synchronous CLI commands. The CLI commands run the underlying service but
- * don't emit. This test verifies the listener wiring with synthetic dispatch
- * — full command-driven flow lives in `backups_real.spec.ts`.
+ * don't emit. This test verifies the listener wiring with synthetic dispatch.
+ * The full command-driven flow lives in `backups_real.spec.ts`.
  */
 test.group('e2e — 11 lifecycle events surface in the audit log', (group) => {
   group.setup(async () => {

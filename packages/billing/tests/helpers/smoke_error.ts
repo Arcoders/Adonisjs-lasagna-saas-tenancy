@@ -9,10 +9,11 @@
  *
  * `isInfraError` draws the line: a Stripe-side transport/availability failure
  * (or the explicit `StripeInfraUnavailable` sentinel a wedged/timed-out clock
- * throws) is treated as INFRA → the smoke soft-skips with a loud warning.
- * Everything else — a `@japa` `AssertionError` (a real lifecycle regression),
- * a `TypeError`, or a `StripeInvalidRequestError`/`StripeAuthenticationError`
- * (our own misuse or a bad secret) — is NOT infra and still fails the build.
+ * throws) is treated as INFRA, so the smoke soft-skips with a loud warning.
+ * Everything else is NOT infra and still fails the build: a `@japa`
+ * `AssertionError` (a real lifecycle regression), a `TypeError`, or a
+ * `StripeInvalidRequestError`/`StripeAuthenticationError` (our own misuse or a
+ * bad secret).
  *
  * This module is intentionally dependency-free (no `app`, no Stripe import) so
  * the classifier can be unit-tested deterministically without an Ignitor.
@@ -31,7 +32,7 @@ export class StripeInfraUnavailable extends Error {
  * test found a real problem". Stripe attaches the class name on both `.name`
  * and `.type`, so we check both. Deliberately excludes
  * `StripeInvalidRequestError` (4xx = our misuse) and `StripeAuthenticationError`
- * (bad/expired key = fix the secret) — those should fail loudly.
+ * (bad/expired key = fix the secret). Those should fail loudly.
  */
 const INFRA_NAMES = new Set([
   'StripeInfraUnavailable',
@@ -40,7 +41,7 @@ const INFRA_NAMES = new Set([
   'StripeRateLimitError',
 ])
 
-/** True when `err` is a Stripe-side infrastructure failure (→ soft-skip), false otherwise (→ fail). */
+/** True when `err` is a Stripe-side infrastructure failure (soft-skip), false otherwise (fail). */
 export function isInfraError(err: unknown): boolean {
   if (err instanceof StripeInfraUnavailable) return true
   const e = err as { name?: unknown; type?: unknown } | null | undefined

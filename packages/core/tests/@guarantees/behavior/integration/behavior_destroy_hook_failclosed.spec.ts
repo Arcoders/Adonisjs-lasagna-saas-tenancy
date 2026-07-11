@@ -10,7 +10,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 /**
- * I2 — Fail-closed destroy: a throwing satellite cleanup hook leaves no
+ * Fail-closed destroy: a throwing satellite cleanup hook leaves no
  * half-destroyed state.
  *
  * `before('destroy')` runs BEFORE driver.destroy (DROP SCHEMA CASCADE), and
@@ -19,7 +19,7 @@ import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
  * its rows survive intact. There is no partial state to recover from. A sibling
  * tenant with a healthy hook then destroys cleanly, proving the abort was scoped
  * to the failing tenant and did not wedge the destroy path. The unit-level
- * guarantee this rests on is pinned by hook_registry.spec.ts (U1 anchor).
+ * guarantee this rests on is pinned by hook_registry.spec.ts.
  */
 async function findTenantModel(id: string): Promise<TenantModelContract> {
   const Tenant = (await import('../../../fixtures/app/models/tenant.js')).default

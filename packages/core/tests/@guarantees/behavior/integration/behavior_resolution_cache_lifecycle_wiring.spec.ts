@@ -20,7 +20,7 @@ import { createTestTenant, destroyTestTenant, updateTenantStatus } from '../../.
  * The example app leaves `resolver.cache` off (so `ready()` early-returns), so
  * this group enables the cache, re-runs the provider's `ready()`, then drives a
  * real request lifecycle: warm the cache, mutate the tenant WITHOUT an event
- * (still served stale — proving the cache is live), then dispatch the real
+ * (still served stale, proving the cache is live), then dispatch the real
  * `TenantSuspended` and prove the next request sees the new state. If the
  * wiring moved back to `boot()` / the module emitter, the final request would
  * still serve the stale active tenant and this test fails.

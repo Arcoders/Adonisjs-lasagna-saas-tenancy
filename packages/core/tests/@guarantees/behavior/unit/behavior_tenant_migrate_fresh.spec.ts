@@ -27,8 +27,8 @@ test.group('tenant:migrate:fresh — command metadata', () => {
   })
 
   test('barrel re-exports the command name (text check, no eager import)', async ({ assert }) => {
-    // We verify the export by reading the source so the test stays hermetic
-    // — importing the barrel would eager-load every command, which drags
+    // We verify the export by reading the source so the test stays hermetic.
+    // Importing the barrel would eager-load every command, which drags
     // the Adonis app boot path into a unit test process.
     const source = await readFile(
       new URL('../../../../src/commands/index.ts', import.meta.url),

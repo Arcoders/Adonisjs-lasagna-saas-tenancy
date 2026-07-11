@@ -7,8 +7,8 @@ import { scheduleName } from '@adonisjs-lasagna/saas-tenancy/plugin'
 import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 /**
- * SEAM-1 integration: `runTick` fans out over the REAL tenant repository, honoring
- * the status filter, against real Postgres — the part the unit test stubs. The
+ * Integration: `runTick` fans out over the REAL tenant repository, honoring
+ * the status filter, against real Postgres. This is the part the unit test stubs. The
  * per-tenant queue is captured with a recording subclass (no Redis needed; the
  * BullMQ dispatch itself is covered by TenantQueueService's own specs). The
  * backoffice table is shared across the integration suite, so assertions are

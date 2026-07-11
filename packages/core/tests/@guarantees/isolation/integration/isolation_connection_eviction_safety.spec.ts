@@ -11,11 +11,12 @@ import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
- * H1 regression guard. The previous LRU evicted the oldest connection purely
- * by last-`connect()` time, with no notion of "currently serving a request".
- * Under more than `maxTenantConnections` concurrent distinct tenants it could
- * `release()` a pool that was mid-query, severing it and dropping writes — the
- * "~16/20 rows land per schema" symptom seen in `cross_tenant_e2e`.
+ * Regression guard for the connection-eviction bug. The previous LRU evicted the
+ * oldest connection purely by last-`connect()` time, with no notion of
+ * "currently serving a request". Under more than `maxTenantConnections`
+ * concurrent distinct tenants it could `release()` a pool that was mid-query,
+ * severing it and dropping writes. That was the "~16/20 rows land per schema"
+ * symptom seen in `cross_tenant_e2e`.
  *
  * With the in-use grace window, a connection touched within
  * `evictionGracePeriodMs` is never evicted: the pool is allowed to exceed the
@@ -88,7 +89,7 @@ test.group('SchemaPgDriver — connection eviction safety under load (H1)', (gro
     )
     await Promise.all(writes.map((w) => w()))
 
-    // Every schema must hold exactly its own rows — no loss, no leakage.
+    // Every schema must hold exactly its own rows: no loss, no leakage.
     for (const { id } of tenants) {
       const rows = await db.connection(`tenant_${id}`).from('notes').select('owner')
       assert.equal(

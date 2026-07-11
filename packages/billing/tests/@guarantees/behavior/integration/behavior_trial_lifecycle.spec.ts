@@ -22,23 +22,21 @@ import type Stripe from 'stripe'
 
 /**
  * Trial lifecycle, driven end-to-end through the same chain production
- * uses:
- *
- *   POST /webhooks/billing (signed)
- *     → VerifyBillingWebhookMiddleware (HMAC)
- *     → StripeWebhookController (ledger insert + dispatch)
- *     → ProcessBillingEventJob.execute (retrieveEvent + dispatcher)
+ * uses. A signed POST to /webhooks/billing runs through
+ * VerifyBillingWebhookMiddleware (HMAC), then StripeWebhookController
+ * (ledger insert and dispatch), then ProcessBillingEventJob.execute
+ * (retrieveEvent and dispatcher).
  *
  * Calling `dispatchStripeEvent` directly would skip the middleware and
- * the job's re-fetch — both load-bearing. The job is executed inline
+ * the job's re-fetch, both load-bearing. The job is executed inline
  * here (no BullMQ in tests) but every other layer is real.
  *
- * Scenarios (audit T-1 / T-2):
- *   - `customer.subscription.trial_will_end` → emits `TrialEnding`
+ * Scenarios:
+ *   - `customer.subscription.trial_will_end` emits `TrialEnding`
  *   - trial converts to paid: `subscription.updated` flips
- *     `trialing` → `active`, plan preserved
+ *     `trialing` to `active`, plan preserved
  *   - trial expires with no usable payment method:
- *     `subscription.deleted` → mirror `canceled`, tenant downgraded
+ *     `subscription.deleted` leaves the mirror `canceled`, tenant downgraded
  */
 test.group('Trial lifecycle (integration)', (group) => {
   const cleanupTenants: string[] = []
@@ -124,7 +122,7 @@ test.group('Trial lifecycle (integration)', (group) => {
   }) => {
     const { tenantId, providerCustomerId } = await seedCustomer()
 
-    // Trial ends in ~3 days — the typical lead time Stripe gives.
+    // Trial ends in ~3 days, the typical lead time Stripe gives.
     const trialEndTs = Math.floor(DateTime.utc().plus({ days: 3, hours: 1 }).toSeconds())
     const sub = buildSubscription({
       id: `sub_trial_${randomUUID().slice(0, 8)}`,
@@ -223,7 +221,7 @@ test.group('Trial lifecycle (integration)', (group) => {
     let tp = await TenantPlan.find(tenantId)
     assert.equal(tp?.planName, 'pro')
 
-    // 2. Trial converts — Stripe fires subscription.updated with
+    // 2. Trial converts: Stripe fires subscription.updated with
     //    status='active' and (in practice) trial_end cleared.
     const active = buildSubscription({
       id: subId,
@@ -271,11 +269,11 @@ test.group('Trial lifecycle (integration)', (group) => {
     await flushJobs()
     assert.equal((await TenantPlan.find(tenantId))?.planName, 'pro')
 
-    // 2. Trial ends, no valid payment method → Stripe cancels the
+    // 2. Trial ends with no valid payment method, so Stripe cancels the
     //    subscription and fires customer.subscription.deleted. The
     //    dispatcher routes deletions through syncSubscription with
     //    downgrade:true, so the product is NOT re-read off the dead
-    //    subscription — we land on defaultPlan.
+    //    subscription, and we land on defaultPlan.
     const canceled = buildSubscription({
       id: subId,
       customer: providerCustomerId,

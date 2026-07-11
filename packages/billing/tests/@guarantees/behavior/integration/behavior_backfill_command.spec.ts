@@ -13,8 +13,8 @@ import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite
  * an app with existing tenants.
  *
  * Skip-by-default for tenants that already have a plan. `--force`
- * overwrites — but the typical operator preference is "let Stripe sync
- * win" so the default is non-destructive.
+ * overwrites. The typical operator preference is "let Stripe sync win",
+ * so the default is non-destructive.
  */
 test.group('tenant:billing:backfill (integration)', (group) => {
   const cleanupTenants: string[] = []
@@ -56,7 +56,7 @@ test.group('tenant:billing:backfill (integration)', (group) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
 
-    // Pre-existing row at "pro" — must be preserved.
+    // Pre-existing row at "pro" that must be preserved.
     const existing = new TenantPlan()
     existing.tenantId = tenant.id
     existing.planName = 'pro'

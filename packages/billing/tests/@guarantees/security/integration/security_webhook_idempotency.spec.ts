@@ -26,7 +26,7 @@ import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite
 /**
  * Covers the controller's `INSERT ... ON CONFLICT DO NOTHING` ledger and
  * confirms a duplicate webhook (same event_id) is acked without
- * re-dispatching the job. The dedupe is the load-bearing piece — Stripe
+ * re-dispatching the job. The dedupe is the load-bearing piece: Stripe
  * retries aggressively, and double-processing a `subscription.created`
  * would re-emit `SubscriptionActivated`, re-bust the cache, and
  * potentially reset rolling counters.
@@ -44,8 +44,8 @@ test.group('Webhook idempotency (integration)', (group) => {
 
     // Stub the queue dispatch so the test runs without BullMQ wiring
     // AND so we can assert how many times it was invoked. The load-bearing
-    // contract is "duplicate event_id ⇒ job dispatched once". A row count
-    // of 1 in the ledger doesn't prove that — it only proves the INSERT
+    // contract is "a duplicate event_id dispatches the job once". A row count
+    // of 1 in the ledger doesn't prove that. It only proves the INSERT
     // dedupe worked. The dispatch counter proves the controller skipped
     // the dispatch on the duplicate path.
     dispatchCount = 0
@@ -112,8 +112,8 @@ test.group('Webhook idempotency (integration)', (group) => {
     // In production, BullMQ worker would have at least incremented the
     // ledger row's `attempts` by now (line ~52 of
     // process_stripe_event_job). The mocked dispatch in this suite
-    // just counts calls — without a real worker the row stays at
-    // attempts=0, which the C-1 redispatch branch explicitly retries.
+    // just counts calls. Without a real worker the row stays at
+    // attempts=0, which the redispatch branch explicitly retries.
     // Simulate worker progress so the second POST exercises the
     // "already in flight, do nothing" path.
     const inflight = await BillingProcessedEvent.find('evt_idem_dup')
@@ -141,11 +141,11 @@ test.group('Webhook idempotency (integration)', (group) => {
     assert,
     client,
   }) => {
-    // Regression for C-1: previously the controller swallowed dispatch
+    // Regression: previously the controller swallowed dispatch
     // exceptions, returned 200, and left the ledger row stuck in
     // 'pending' until manual replay. Stripe never retried because it
     // saw 200, so the event was lost. The fix re-throws so the response
-    // is 5xx — Stripe's automatic retry kicks in over the next 3 days.
+    // is 5xx, and Stripe's automatic retry kicks in over the next 3 days.
     ;(
       ProcessBillingEventJob as unknown as {
         dispatch: (payload: { eventId: string }) => Promise<void>
@@ -215,7 +215,7 @@ test.group('Webhook idempotency (integration)', (group) => {
 
     assert.equal(dispatchCount, 1, 'dispatch was retried for the orphaned pending row')
 
-    // Still exactly one ledger row — the recovery path does not insert
+    // Still exactly one ledger row. The recovery path does not insert
     // a second row.
     const rows = await BillingProcessedEvent.query().where('event_id', event.id)
     assert.lengthOf(rows, 1)
@@ -227,7 +227,7 @@ test.group('Webhook idempotency (integration)', (group) => {
   }) => {
     // Worker incremented attempts to 1 (line ~52 of process_stripe_event_job)
     // and is still running (or crashed mid-flight). We must not over-dispatch
-    // in that case — concurrent jobs racing on the same row can lose updates
+    // in that case: concurrent jobs racing on the same row can lose updates
     // on BillingSubscription. The manual `tenant:billing:replay` command is
     // the recovery path for stuck-in-progress rows.
     const event = buildEvent('customer.subscription.created', buildSubscription(), {
@@ -319,7 +319,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     const billing = await app.container.make(BillingService)
     await billing.__setStripeForTests(mock)
 
-    // POST once → controller inserts the ledger row.
+    // POST once, and the controller inserts the ledger row.
     const sig = signWebhookPayload(JSON.stringify(event), 'whsec_test_billing_helper')
     const res = await client
       .post('/webhooks/billing')
@@ -355,7 +355,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     assert.isAtLeast(ledger?.attempts ?? 0, 1)
   })
 
-  // SECURITY (#3): the atomic claim. A row already claimed ('processing') by a
+  // SECURITY: the atomic claim. A row already claimed ('processing') by a
   // live worker must block a second concurrent worker from re-running the heavy
   // path and double-dispatching the host-facing application event.
   test('a fresh processing claim blocks a second worker (no double-dispatch)', async ({
@@ -430,10 +430,10 @@ test.group('Webhook idempotency (integration)', (group) => {
     assert,
     client,
   }) => {
-    // Case A: data.object with customer:null → syncSubscription throws a
+    // Case A: data.object with customer:null makes syncSubscription throw a
     // *retryable* tenant_not_resolvable. The job re-throws (so BullMQ
     // retries), the worker doesn't crash, the ledger row stays pending,
-    // and last_error is the package message — not a stack trace.
+    // and last_error is the package message, not a stack trace.
     const mock = new MockStripe('whsec_test_billing_helper')
     const noCustomerEvent = buildEvent(
       'customer.subscription.created',
@@ -471,8 +471,8 @@ test.group('Webhook idempotency (integration)', (group) => {
       'stable message, not a stack'
     )
 
-    // Case B: data.object with no items → optional-chaining defense
-    // holds; lands the tenant on defaultPlan instead of crashing.
+    // Case B: data.object with no items. The optional-chaining defense
+    // holds and lands the tenant on defaultPlan instead of crashing.
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
@@ -543,8 +543,8 @@ test.group('Webhook idempotency (integration)', (group) => {
       .header('content-type', 'application/json')
       .header('stripe-signature', sig)
       .json(tampered)
-    // The mock's constructEvent compares against the body (not HMAC of
-    // contents — but it does parse) — for our purposes the secret check
+    // The mock's constructEvent compares against the body (not an HMAC of the
+    // contents, though it does parse). For our purposes the secret check
     // runs first; tests using the mock confirm the dispatch path is gated.
     // If the mock were stricter (real HMAC), this would fail outright.
     assert.notEqual(res.status(), 500)

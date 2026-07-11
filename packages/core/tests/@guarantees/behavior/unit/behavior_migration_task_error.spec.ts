@@ -2,13 +2,13 @@ import { test } from '@japa/runner'
 import { migrationTaskError } from '../../../../src/commands/migration_task_error.js'
 
 /**
- * Unlike the command specs in this directory (metadata-only — command
+ * Unlike the command specs in this directory (metadata-only, since command
  * modules pull the app logger into their graph), this helper imports
  * nothing, so its behavior is testable in the unit environment.
  *
  * The contract: the operator ALWAYS sees the underlying error message,
- * never a bare "failed" that forces a --verbose re-run (the F-4 lesson,
- * applied to the per-tenant migration commands).
+ * never a bare "failed" that forces a --verbose re-run (a lesson applied
+ * to the per-tenant migration commands).
  */
 function captureTask() {
   const calls: string[] = []

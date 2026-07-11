@@ -5,17 +5,18 @@ import TenantResolverRegistry from '../../../../src/services/resolvers/registry.
 import { RESOLVER_CONTRACT_VERSION } from '../../../../src/services/resolvers/resolver.js'
 
 /**
- * WS-5 / isolation-resolver-registries-unversioned.
+ * Contract-version enforcement for the isolation-driver and tenant-resolver
+ * registries.
  *
  * Custom isolation drivers and tenant resolvers are third-party extensions, but
  * the registries used to accept any object regardless of the contract it was
- * built against — a driver compiled for a NEWER core contract would register and
+ * built against. A driver compiled for a NEWER core contract would register and
  * then call methods the running core does not provide. This brings them in line
  * with the satellite ABI / extension-contract standard (see
  * sdk/contract_version.ts): a newer declared contract fails, an older one warns,
  * equal is ok, absent warns.
  *
- * RED (pre-fix): the *_CONTRACT_VERSION constants were unexported (undefined),
+ * Before the fix, the *_CONTRACT_VERSION constants were unexported (undefined),
  * and register() never compared versions, so a v999 driver registered silently.
  */
 function driver(name: string, contractVersion?: number) {

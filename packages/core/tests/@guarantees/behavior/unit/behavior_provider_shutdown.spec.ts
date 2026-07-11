@@ -84,7 +84,7 @@ test.group('provider shutdown — singleton cache invalidation', (group) => {
     // the (unavailable, in this unit env) container instead of reusing it.
     await assert.rejects(() => getActiveDriver())
 
-    // And the seam accepts a fresh registry afterwards — proving the reset
+    // And the seam accepts a fresh registry afterwards, proving the reset
     // left the module usable, not wedged.
     __setActiveDriverRegistryForTests(registry)
     assert.equal((await getActiveDriver()).name, 'schema-pg')
@@ -103,7 +103,7 @@ test.group('provider shutdown — singleton cache invalidation', (group) => {
     await resetModuleCaches()
 
     // With the cached singletons invalidated, a new run() must re-resolve
-    // from the container — which does not exist in this unit environment,
+    // from the container, which does not exist in this unit environment,
     // so holding on to the old instances would be the only way to "pass".
     await assert.rejects(() => tenancy.run(tenant, async () => {}))
     assert.isUndefined(tenancy.currentId())

@@ -12,9 +12,9 @@ import type { ApplicationService } from '@adonisjs/core/types'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { TenantModelContract } from '../../../../src/types/contracts.js'
 
-// Async-aware: the S5 tests set the allowlist and then `await boot()`, so the
-// restore MUST wait for the promise (a sync try/finally would restore the env
-// before the awaited body runs, and the trusted provider would read a cleared list).
+// Async-aware: the in-process friction tests set the allowlist and then `await
+// boot()`, so the restore MUST wait for the promise (a sync try/finally would restore
+// the env before the awaited body runs, and the trusted provider would read a cleared list).
 async function withEnv<T>(value: string | undefined, fn: () => Promise<T>): Promise<T> {
   const prev = process.env.TRUSTED_SATELLITES
   if (value === undefined) delete process.env.TRUSTED_SATELLITES
@@ -28,24 +28,24 @@ async function withEnv<T>(value: string | undefined, fn: () => Promise<T>): Prom
 }
 
 /**
- * E6 red-team — a HOSTILE plugin authored through `definePlugin` must not subvert
- * the Lote-A request-path boundaries. Each boundary is fail-closed (it aborts the
+ * Red-team: a HOSTILE plugin authored through `definePlugin` must not subvert
+ * the request-path boundaries. Each boundary is fail-closed (it aborts the
  * deploy or denies the request), framed here from the attacker's side:
- *   1. it cannot smuggle a hostile IDENTIFIER into any section — the minter throws
+ *   1. it cannot smuggle a hostile IDENTIFIER into any section. The minter throws
  *      before it can reach a key / Symbol / DDL slot, and the facade aborts boot
  *      attributed to {plugin, phase};
- *   2. it cannot HIJACK a capability key another plugin already provides — the
+ *   2. it cannot HIJACK a capability key another plugin already provides. The
  *      single-provider registry throws a typed collision and the victim's api is
  *      left intact;
- *   3. its authorizer cannot open a BACKDOOR by throwing — the chain converts a
+ *   3. its authorizer cannot open a BACKDOOR by throwing. The chain converts a
  *      thrown authorizer to a DENY (fail-closed), never a bypass.
  *
- * SCOPE — read honestly. The in-process trust boundary is NOT a hard wall: an
+ * SCOPE, read honestly. The in-process trust boundary is NOT a hard wall: an
  * installed plugin runs with full privilege, so the controls that actually
  * contain a hostile plugin's DATA access (a read-only Postgres role that denies
- * `User.query().delete()`, the trusted-list proxy over core singletons) are
- * Lote S and are NOT enforced here. This spec pins only the request-path surface
- * controls that exist today; it does NOT claim a malicious plugin is sandboxed.
+ * `User.query().delete()`, the trusted-list proxy over core singletons) live in
+ * a separate batch and are NOT enforced here. This spec pins only the request-path
+ * surface controls that exist today; it does NOT claim a malicious plugin is sandboxed.
  */
 
 type Lifecycle = Required<SatelliteProviderContract>
@@ -83,7 +83,7 @@ test.group('malicious plugin — request-path boundaries stay fail-closed', () =
       authorizers: () => [
         {
           kind: 'authorizer',
-          // `authorizerName` runs assertSafeIdentifier and throws on the ':' —
+          // `authorizerName` runs assertSafeIdentifier and throws on the ':', so
           // the attacker never gets a branded name to interpolate into a key.
           name: authorizerName('evil:injected'),
           authorize: () => ({ allow: true }),
@@ -155,17 +155,17 @@ test.group('malicious plugin — request-path boundaries stay fail-closed', () =
     const ctx = { logger: { error: () => {} } } as unknown as HttpContext
     const tenant = { id: 'tenant-1' } as unknown as TenantModelContract
     const decision = await authorizer.authorizeAll(ctx, tenant)
-    // The throw became a DENY, not a bypass — a hostile authorizer fails closed.
+    // The throw became a DENY, not a bypass. A hostile authorizer fails closed.
     assert.isFalse(decision.allow)
   })
 })
 
 /**
- * S5 — in-process friction (labeled: NOT a hard boundary). These pin the friction
+ * In-process friction (labeled: NOT a hard boundary). These pin the friction
  * an untrusted plugin hits when it reaches for core singletons or sensitive
  * capabilities. Read honestly: an installed plugin runs with full privilege, so a
- * direct `import` of the db service evades the repo/db funnels — the Postgres
- * read-only role (S3) is the wall that actually denies a write. What is pinned here
+ * direct `import` of the db service evades the repo/db funnels, and the Postgres
+ * read-only role is the wall that actually denies a write. What is pinned here
  * is that the SANCTIONED paths deny an untrusted plugin, and that the trust
  * allowlist is real (a trusted plugin is NOT blanket-denied).
  */

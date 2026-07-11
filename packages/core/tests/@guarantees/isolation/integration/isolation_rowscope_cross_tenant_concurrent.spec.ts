@@ -6,18 +6,18 @@ import { randomUUID } from 'node:crypto'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
- * WS-9 / rowscope-mixin-no-concurrency-test.
+ * Concurrency coverage for the rowscope-pg tenant mixin.
  *
  * `schema-pg` has a load-bearing concurrent cross-tenant proof
- * (cross_tenant_fuzz.spec.ts), but `rowscope-pg` — which shares ONE connection
+ * (cross_tenant_fuzz.spec.ts), but `rowscope-pg` (which shares ONE connection
  * across all tenants and relies on the AsyncLocalStorage scope from
- * `tenancy.run()` to stamp/filter `tenant_id` — had only sequential coverage.
+ * `tenancy.run()` to stamp/filter `tenant_id`) had only sequential coverage.
  * If that ALS scope ever bled across concurrently-interleaved `tenancy.run()`
  * calls, a create would stamp the wrong tenant_id and a read would surface
  * another tenant's rows. This drives many tenants writing AND reading
  * concurrently on the shared connection and asserts perfect partitioning.
  *
- * RED (pre-fix): no concurrent rowscope proof existed.
+ * Before the fix, no concurrent rowscope proof existed.
  */
 const SHARED_TABLE = 'lasagna_rowscope_concurrent_posts'
 const TENANTS = 10
@@ -60,7 +60,7 @@ test.group('rowscope-pg cross-tenant concurrency (integration)', (group) => {
     const ids = Array.from({ length: TENANTS }, () => randomUUID())
 
     // Run every tenant's write loop concurrently. Each iteration awaits a real
-    // INSERT, so the scopes interleave on the shared connection — exactly the
+    // INSERT, so the scopes interleave on the shared connection, exactly the
     // race that would surface an ALS scope bleed.
     await Promise.all(
       ids.map((id, t) =>

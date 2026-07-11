@@ -37,7 +37,7 @@ const SRC_ROOTS = [
 // NOT here: they are per-instance stateless (their state lives in Redis /
 // BentoCache / module scope), so the billing satellite and the REPL legitimately
 // `new` them. The provider's register() (multitenancy_provider.ts) is the single
-// authority for this list — keep them in sync when a new stateful singleton is
+// authority for this list. Keep them in sync when a new stateful singleton is
 // registered.
 const STATEFUL_SINGLETONS = [
   'TenantQueueService',

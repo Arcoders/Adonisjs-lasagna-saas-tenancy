@@ -29,7 +29,7 @@ test.group('custom_aggregate — aggregation whitelist', () => {
     assert.isFalse(isCustomAggregation(undefined))
   })
 
-  // CHAOS: an unknown/malicious aggregation can never inject SQL — it collapses to SUM.
+  // CHAOS: an unknown/malicious aggregation can never inject SQL. It collapses to SUM.
   test('resolveCustomAggregation defaults unknown values to sum', ({ assert }) => {
     assert.equal(resolveCustomAggregation('median'), 'sum')
     assert.equal(resolveCustomAggregation('SUM(x);DROP TABLE t;--'), 'sum')

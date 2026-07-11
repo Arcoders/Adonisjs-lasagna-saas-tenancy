@@ -291,7 +291,7 @@ test.group('WebhookService.send() — exponential backoff bounds', () => {
 
       await failingSvc().send(hook as any, delivery as any)
 
-      // Last attempt has no follow-up retry — status is 'failed' and
+      // Last attempt has no follow-up retry, so status is 'failed' and
       // nextRetryAt stays unset.
       if (attempt === BACKOFF_BASE.length) {
         assert.equal(delivery.status, 'failed')
@@ -359,7 +359,7 @@ test.group('WebhookService.processRetries() — dead-letter behaviour (real DB)'
     })
     cleanup.push({ tenantId: tenant.id, webhookId: hook.id })
 
-    // Seed a delivery that has already been declared dead — status=failed,
+    // Seed a delivery that has already been declared dead: status=failed,
     // attempt at the cap. processRetries() must skip it.
     const dead = await TenantWebhookDelivery.create({
       webhookId: hook.id,

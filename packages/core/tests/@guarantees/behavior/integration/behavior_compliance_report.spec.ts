@@ -52,7 +52,7 @@ test.group('compliance — AuditLogService.exportStream (real PG)', (group) => {
 
     // Pin each probe row to a distinct, ascending created_at. The three inserts
     // above can land in the same millisecond, and exportStream breaks a created_at
-    // tie by the primary key — a random UUID — so "oldest first" is only
+    // tie by the primary key (a random UUID), so "oldest first" is only
     // well-defined once created_at itself is distinct (relying on the UUID tie-break
     // to reproduce insertion order is what made this flaky). export.a sits in 2020
     // so a 2026 lower bound excludes it; b and c stay in 2026, ascending.

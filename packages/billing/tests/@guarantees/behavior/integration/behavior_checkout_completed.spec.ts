@@ -27,8 +27,9 @@ import type Stripe from 'stripe'
  * handler writes the `billing_customers` mapping so the subsequent
  * `customer.subscription.created` event can resolve the tenant.
  *
- * Driven end-to-end (POST signed → middleware → controller → job →
- * dispatcher) — the same chain `dunning_flow` / `trial_lifecycle` use.
+ * Driven end-to-end: the signed POST runs through the middleware,
+ * controller, job, and dispatcher, the same chain `dunning_flow` and
+ * `trial_lifecycle` use.
  */
 test.group('checkout.session.completed (integration)', (group) => {
   const cleanupTenants: string[] = []
@@ -147,7 +148,7 @@ test.group('checkout.session.completed (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const customerId = `cus_${randomUUID().slice(0, 8)}`
 
-    // 1. Checkout completes → customer mapping written.
+    // 1. Checkout completes, writing the customer mapping.
     await postSignedEvent(
       client,
       buildEvent(
@@ -159,7 +160,7 @@ test.group('checkout.session.completed (integration)', (group) => {
     await flushJobs()
     assert.isNotNull(await BillingCustomer.find(tenant.id))
 
-    // 2. Subscription created for the same customer → must resolve the
+    // 2. Subscription created for the same customer must resolve the
     //    tenant via the mapping (would throw tenant_not_resolvable
     //    otherwise).
     const subId = `sub_${randomUUID().slice(0, 8)}`
@@ -231,7 +232,7 @@ test.group('checkout.session.completed (integration)', (group) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
 
-    // `setup` mode (e.g. saving a card without a charge) — handler bails.
+    // `setup` mode (e.g. saving a card without a charge). The handler bails.
     const event = buildEvent(
       'checkout.session.completed',
       {

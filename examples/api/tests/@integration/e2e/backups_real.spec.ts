@@ -23,8 +23,8 @@ function findBackupFile(storagePath: string, tenantId: string): string | null {
 }
 
 /**
- * Real backup → restore → import → clone round-trip. Every test starts by
- * checking pg_dump / pg_restore / psql are on PATH; if not, it skips with a
+ * A real round-trip through backup, restore, import, and clone. Every test starts
+ * by checking pg_dump / pg_restore / psql are on PATH; if not, it skips with a
  * clear message so the suite remains rerunnable in environments without the
  * PostgreSQL client tools (e.g. minimal CI runners).
  */
@@ -95,7 +95,7 @@ test.group('e2e — backup, restore, import, clone (real)', (group) => {
     const file = findBackupFile(storagePath, id)
     assert.isNotNull(file)
 
-    // Mutate the schema after backup — restore must overwrite back to 2 rows.
+    // Mutate the schema after backup. Restore must overwrite back to 2 rows.
     await client
       .post('/demo/notes')
       .header('x-tenant-id', id)
@@ -141,7 +141,7 @@ test.group('e2e — backup, restore, import, clone (real)', (group) => {
     assert.equal(code, 0, 'tenant:import should exit 0')
 
     // The fixture creates a `widgets` table that is NOT in the per-tenant
-    // migrations — its presence proves the dump was rewritten and applied.
+    // migrations, so its presence proves the dump was rewritten and applied.
     const tenant = await Tenant.findOrFail(id)
     const conn = tenant.getConnection()
     const widgets = await conn.rawQuery('SELECT count(*)::int AS n FROM widgets')

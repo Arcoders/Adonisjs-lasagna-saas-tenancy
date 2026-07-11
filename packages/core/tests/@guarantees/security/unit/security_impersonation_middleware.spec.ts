@@ -31,8 +31,8 @@ function fakeService(verifyImpl: (token: string) => Promise<ImpersonationContext
 /**
  * Build a middleware instance that resolves to a fake service via the
  * `getService()` override seam. Mirrors how the production middleware
- * picks up the real `ImpersonationService` from the container —
- * without subclassing here, the container would fail to construct the
+ * picks up the real `ImpersonationService` from the container. Without
+ * subclassing here, the container would fail to construct the
  * middleware (it can't resolve the optional `ImpersonationService`
  * dependency without a fully-booted config).
  */
@@ -49,7 +49,7 @@ function makeMiddleware(service: any): ImpersonationMiddleware {
  * Build a middleware whose binding inputs are fully controlled: the verify
  * service, the active tenancy id, the request resolution result, and the
  * by-domain repository. Mirrors the production seams so the binding logic
- * (P1-2: domain resolution must not bypass the check) is exercised without
+ * (domain resolution must not bypass the check) is exercised without
  * booting the app or a resolver chain.
  */
 function makeBindingMiddleware(opts: {
@@ -145,7 +145,7 @@ test.group('ImpersonationMiddleware', (group) => {
 })
 
 /**
- * P1-2: the token↔request tenant binding must hold for ALL resolution
+ * The token-to-request tenant binding must hold for ALL resolution
  * strategies, including `domain`/custom-domain. Before the fix, a `domain`
  * envelope left the bound id undefined and the check was skipped, so an
  * A-token attached on B's domain.
@@ -215,7 +215,7 @@ test.group('ImpersonationMiddleware — tenant binding under domain resolution',
     assert,
   }) => {
     // A host the package does not manage as a custom domain resolves to no
-    // tenant, like a central route — there is nothing to bind against.
+    // tenant, like a central route, so there is nothing to bind against.
     const m = makeBindingMiddleware({
       verified: verifiedFor('tenant-A'),
       resolved: { type: 'domain', domain: 'unmanaged.example.com' },

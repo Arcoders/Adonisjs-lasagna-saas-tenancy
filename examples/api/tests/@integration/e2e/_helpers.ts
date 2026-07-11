@@ -56,7 +56,7 @@ export async function installInline(id: string): Promise<'active' | 'failed'> {
       await TenantActivated.dispatch(tenant as any)
       return 'active'
     } catch {
-      // Close before dropping — otherwise the pool keeps sessions whose
+      // Close before dropping. Otherwise the pool keeps sessions whose
       // search_path points at a just-dropped schema, surfacing as random
       // 503s several specs later.
       await tenant.closeConnection().catch(() => {})

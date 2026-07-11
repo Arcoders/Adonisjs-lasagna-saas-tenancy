@@ -14,13 +14,13 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 /**
  * Tenant hard-delete lifecycle. Three policies via
  * `config.billing.onTenantDelete`:
- *   - 'cancel' (default) — cancel active subs in Stripe + drop local mapping
- *   - 'detach' — leave Stripe alone, drop local mapping
- *   - 'preserve' — no-op (operator handles cleanup)
+ *   - 'cancel' (default): cancel active subs in Stripe + drop local mapping
+ *   - 'detach': leave Stripe alone, drop local mapping
+ *   - 'preserve': no-op (operator handles cleanup)
  *
  * Tests route through `HookRegistry.run('before', 'destroy', { tenant })`
  * so a regression that breaks the wiring in `MultitenancyProvider.start()`
- * is caught — calling the listener's `.handle()` directly would skip
+ * is caught. Calling the listener's `.handle()` directly would skip
  * the wiring layer and give false confidence.
  */
 test.group('Tenant destroy billing listener (integration)', (group) => {
@@ -39,7 +39,7 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
     // `TenantDestroyBillingListener` from `../../../core/src/...` and
     // wiring it manually loaded a SECOND copy of the listener that
     // resolved `BillingService` against a different module-class key
-    // than the one the spec mocked — the cancel mock never fired.
+    // than the one the spec mocked, so the cancel mock never fired.
   })
 
   group.each.teardown(async () => {
@@ -91,7 +91,7 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
    * Wire MockStripe and patch `subscriptions.cancel` to record the call.
    * The mock's auto-generated subscription id won't match our local one
    * (we seeded a specific subId), so the patched cancel just acks any
-   * id and records what was passed. That's the contract under test —
+   * id and records what was passed. That's the contract under test:
    * the listener calls cancel(subId), not which Stripe state is left.
    */
   function wireMock(): MockStripe {

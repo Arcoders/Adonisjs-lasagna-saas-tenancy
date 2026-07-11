@@ -14,11 +14,11 @@ import { dirname, join } from 'node:path'
 import configure, { CORE_SCAFFOLD } from '../../../../configure.js'
 
 /**
- * File-level test of `configure()`'s orchestration: selection → resolve → dedup
- * → idempotency guard → publish, for BOTH core bundles and external (packaged)
+ * File-level test of `configure()`'s orchestration: selection, resolve, dedup,
+ * the idempotency guard, then publish, for BOTH core bundles and external (packaged)
  * satellites. We drive the real `configure()` with a fake command whose
- * `makeUsingStub` writes the same destinations the real stubs target —
- * `database/migrations/${Date.now()}_<stub>.ts` — so the timestamped-filename
+ * `makeUsingStub` writes the same destinations the real stubs target
+ * (`database/migrations/${Date.now()}_<stub>.ts`), so the timestamped-filename
  * behaviour the guard defends against is reproduced faithfully. External
  * satellites are scaffolded as real `node_modules/<pkg>` trees so the real
  * `discoverSatellites` resolver runs (no mocking).
@@ -74,7 +74,7 @@ interface Captured {
 
 function fakeCommand(root: string, flags: Record<string, unknown> = {}) {
   // A real stub's `exports({ to })` header writes a bare `${Date.now()}` prefix, so
-  // two stubs rendered back to back routinely tie — and a tie hands the run order to
+  // two stubs rendered back to back routinely tie, and a tie hands the run order to
   // the alphabet. This double freezes the clock to make that tie certain instead of
   // merely likely, which is the state `configure` has to publish correctly from.
   //
@@ -202,8 +202,8 @@ test.group('configure() publish orchestration — core bundles', (group) => {
     // `migration:run` sorts by filename, so the timestamp prefix is the whole
     // contract. `tenant_webhook_deliveries` carries a foreign key into
     // `tenant_webhooks`; it must therefore run second. Alphabetically it sorts
-    // FIRST (`webhook_` < `webhooks`), so any two stubs that share a timestamp —
-    // which two stubs rendered back to back routinely do — used to run backwards
+    // FIRST (`webhook_` < `webhooks`), so any two stubs that share a timestamp
+    // (which two stubs rendered back to back routinely do) used to run backwards
     // and fail on a table that did not exist yet.
     const ordered = (await featureMigrations(root)).sort()
     assert.lengthOf(ordered, 2)
@@ -540,8 +540,8 @@ test.group('configure() publish orchestration — external satellites', (group) 
     await configure(fakeCommand(root, { with: '@acme/widgets,@beta/gadgets' }))
 
     const migrations = await listMigrations(root)
-    // Before B2 the second satellite was silently skipped (one file, one table).
-    // Now each publishes its own namespaced migration → both tables get created.
+    // Before this fix the second satellite was silently skipped (one file, one table).
+    // Now each publishes its own namespaced migration, so both tables get created.
     assert.lengthOf(matching(migrations, 'create_shared_table'), 2)
     assert.isTrue(migrations.some((f) => /_acme_widgets__create_shared_table\.ts$/.test(f)))
     assert.isTrue(migrations.some((f) => /_beta_gadgets__create_shared_table\.ts$/.test(f)))
@@ -582,7 +582,7 @@ test.group('configure() publish orchestration — external satellites', (group) 
     await configure(fakeCommand(root, {}))
 
     const migrations = await listMigrations(root)
-    // B7: core config + tenant model only; no satellite migrations at all.
+    // A bare run publishes core config + the tenant model only; no satellite migrations at all.
     assert.isTrue(await exists(join(root, 'config', 'multitenancy.ts')))
     assert.lengthOf(matching(migrations, 'create_tenant_audit_logs_table'), 0) // core NOT auto-published
     assert.lengthOf(matching(migrations, 'create_acme_table'), 0) // external NOT auto-published
@@ -645,7 +645,7 @@ test.group('configure() publish orchestration — external satellites', (group) 
     assert,
   }) => {
     // @me/app dependsOn @me/lib; @me/lib needs a newer ABI than this core, so it
-    // is refused — and @me/app must NOT be wired against a dependency that was
+    // is refused, and @me/app must NOT be wired against a dependency that was
     // rejected.
     await scaffoldSatellite(
       root,
@@ -689,7 +689,7 @@ test.group('configure() publish orchestration — external satellites', (group) 
   }) => {
     await scaffoldSatellite(root, '@acme/widgets', manifest, ['create_acme_table'])
 
-    const cmd = fakeCommand(root, {}) // no --with → interactive branch
+    const cmd = fakeCommand(root, {}) // no --with, so the interactive branch runs
     cmd.prompt = {
       async multiple() {
         return ['audit', '@acme/widgets'] // one core bundle + one external satellite

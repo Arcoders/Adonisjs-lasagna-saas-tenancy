@@ -11,7 +11,7 @@ import type { NextFn } from '@adonisjs/core/types/http'
 /**
  * Webhook verification negative paths, driven through
  * `VerifyBillingWebhookMiddleware` (imported via the package build so it shares
- * the booted provider's config singleton — see ip_allowlist.spec for why). A
+ * the booted provider's config singleton, see ip_allowlist.spec for why). A
  * request that fails verification MUST reject with a mapped `BillingException`
  * and never call `next()`, so the controller never stamps a ledger row or
  * dispatches a job. Tamper/HMAC rejection itself is covered at the driver level
@@ -37,7 +37,7 @@ test.group('Webhook verification — negative paths', (group) => {
         stripe: { apiKey: 'sk_test_x', webhookSecret: SECRET },
         products: { prod_starter: 'starter' },
         defaultPlan: 'starter',
-        // IP allowlist off → requests reach signature verification.
+        // IP allowlist off, so requests reach signature verification.
       },
     } as never)
     const billing = await app.container.make(BillingService)

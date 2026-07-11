@@ -15,13 +15,13 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 /**
  * Two layers in the metered-billing path:
  *
- *   1. `BillingService.reportUsage` — the always-available manual API.
+ *   1. `BillingService.reportUsage`: the always-available manual API.
  *      Persists a `billing_usage_events` row (UNIQUE per tenant on
  *      idempotency_key) and forwards to Stripe with the same key, so retries
  *      never produce duplicate meter events, and a custom key from one tenant
  *      never collides with a different tenant's row.
  *
- *   2. `UsageAutoBridgeListener` — opt-in aggregator. Buffers
+ *   2. `UsageAutoBridgeListener`: opt-in aggregator. Buffers
  *      `QuotaTracked` events per (tenant, meter) and dispatches a single
  *      `ReportUsageBatchJob` per `batchFlushMs`. Drains on shutdown.
  *
@@ -115,10 +115,10 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     await billing.reportUsage(fakeTenant, { eventName: 'api_request' }, 1, {
       idempotencyKey: 'replayed',
     })
-    // After G-6 the duplicate call short-circuits silently rather than
-    // throwing. The first attempt's audit row is in 'sent' state; we
-    // detect it and return without re-hitting Stripe. This is what a
-    // caller retrying after a transient client-side failure expects.
+    // The duplicate call short-circuits silently rather than throwing.
+    // The first attempt's audit row is in 'sent' state; we detect it and
+    // return without re-hitting Stripe. This is what a caller retrying
+    // after a transient client-side failure expects.
     await billing.reportUsage(fakeTenant, { eventName: 'api_request' }, 1, {
       idempotencyKey: 'replayed',
     })
@@ -132,7 +132,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
   }) => {
     // Idempotency is anchored per tenant: UNIQUE(tenant_id, idempotency_key),
     // never global. A host that passes its own (non-tenant-prefixed) key must
-    // not have one tenant's usage report collide with — and silently drop —
+    // not have one tenant's usage report collide with (and silently drop)
     // another tenant's. Before the fix the second INSERT hit a global unique
     // constraint and the second tenant's billable event was lost.
     const tenantA = await createTestTenant()
@@ -182,11 +182,11 @@ test.group('Metered/usage-based billing (integration)', (group) => {
   test('reportUsage recovers a pending audit row left by a prior DB blip (G-6)', async ({
     assert,
   }) => {
-    // Simulate the failure mode the audit's BUG #1 / G-6 calls out:
-    // first attempt successfully reported to Stripe but the second
-    // save() (status=pending → sent) was lost to a DB hiccup, leaving
-    // the audit row stuck in 'pending'. A retry must finalise it
-    // rather than throwing on the UNIQUE(idempotency_key) constraint.
+    // Simulate the failure mode the audit calls out: the first attempt
+    // successfully reported to Stripe but the second save() that moves
+    // status from pending to sent was lost to a DB hiccup, leaving the
+    // audit row stuck in 'pending'. A retry must finalise it rather than
+    // throwing on the UNIQUE(idempotency_key) constraint.
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
     const fakeTenant = {
@@ -263,7 +263,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
 
     // Resolve the listener via the container so it shares the singleton
     // instance the provider would register at start(). We then subscribe
-    // it to the emitter ourselves — same call shape as
+    // it to the emitter ourselves, the same call shape as
     // `MultitenancyProvider.#wireBillingListeners`. If a future refactor
     // changes the wiring signature, this test breaks loudly.
     const emitter = (await import('@adonisjs/core/services/emitter')).default
@@ -299,7 +299,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     })
 
     try {
-      // Drive QuotaTracked through the REAL emitter — no `.handle()`
+      // Drive QuotaTracked through the REAL emitter, not the `.handle()`
       // shortcut. This proves both that (a) the listener wires correctly
       // and (b) it aggregates across emit calls.
       await emitter.emit(QuotaTracked, new QuotaTracked(fakeTenant, 'apiRequests', 1, 1))
@@ -313,7 +313,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
       assert.equal(dispatched[0].tenantId, tenant.id)
       assert.equal(dispatched[0].meterEventName, 'api_request')
       assert.equal(dispatched[0].quantity, 8, 'sum of all amounts')
-      // SECURITY (#1/#6): the listener seals a stable, unique-per-flush
+      // SECURITY: the listener seals a stable, unique-per-flush
       // idempotency key into the payload. It must be present and scoped to the
       // (tenant, meter) so the job never recomputes one from wall-clock.
       assert.match(
@@ -332,7 +332,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     }
   })
 
-  // SECURITY (#1): under-reporting. The OLD key was tenant:meter:minute-bucket,
+  // SECURITY: under-reporting. The OLD key was tenant:meter:minute-bucket,
   // so up to 6 flushes/minute (default 10s flush) collapsed onto ONE key and the
   // provider deduped 5 of 6 away. Each flush must now mint a DISTINCT key.
   test('each flush gets a DISTINCT idempotency key so same-minute flushes all count', async ({
@@ -383,15 +383,15 @@ test.group('Metered/usage-based billing (integration)', (group) => {
   test('auto-bridge: ReportUsageBatchJob.execute reports the aggregated quantity to Stripe + audit row', async ({
     assert,
   }) => {
-    // The aggregation half (QuotaTracked → one dispatch with the summed
-    // quantity) is covered by the test above. This covers the half that
-    // test stubs out: actually executing the batch job — it must reach
-    // Stripe with the aggregated quantity and persist a `sent` audit row.
+    // The aggregation half (QuotaTracked produces one dispatch with the summed
+    // quantity) is covered by the test above. This covers the half that test
+    // stubs out: actually executing the batch job, which must reach Stripe with
+    // the aggregated quantity and persist a `sent` audit row.
     //
     // Import the job from the PACKAGE path (build), not src/, so its
     // `app.container.make(BillingService)` resolves the same singleton we
-    // inject the mock into (the dual-module hazard the CLAUDE.md warns
-    // about — a src/ copy would resolve a fresh, un-mocked instance).
+    // inject the mock into (the dual-module hazard the CLAUDE.md warns about:
+    // a src/ copy would resolve a fresh, un-mocked instance).
     const { ReportUsageBatchJob } = await import('@adonisjs-lasagna/billing')
 
     const tenant = await createTestTenant()

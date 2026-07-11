@@ -15,7 +15,7 @@ import type Stripe from 'stripe'
 
 /**
  * `tenant:billing:sync` paginates Stripe.subscriptions.list and reapplies
- * `BillingService.syncSubscription` for every drift. Idempotent — on a
+ * `BillingService.syncSubscription` for every drift. Idempotent: on a
  * clean state it scans + reports zero repaired.
  *
  * We avoid running the actual ace command bin path (the harness already
@@ -255,8 +255,8 @@ test.group('tenant:billing:sync (integration)', (group) => {
     assert,
   }) => {
     // A custom driver that cannot enumerate subscriptions. The forward pass
-    // (provider → mirror) must be skipped with a warning rather than crashing,
-    // while the driver-neutral reverse pass (orphaned plans → defaultPlan)
+    // (provider to mirror) must be skipped with a warning rather than crashing,
+    // while the driver-neutral reverse pass (orphaned plans to defaultPlan)
     // still recovers drift.
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)

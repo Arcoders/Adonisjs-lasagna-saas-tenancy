@@ -4,7 +4,7 @@ import { InvalidOptionError, parseOptions } from '../../../../src/options.js'
 /**
  * The destination directory is the one argument that reaches another program.
  * It is spawned as argv without a shell, so there is no command injection to
- * defend against — but two shapes still do damage:
+ * defend against, but two shapes still do damage:
  *
  *   - a leading dash is read by create-adonisjs as a flag, not a destination
  *   - a traversal or absolute path scaffolds the app outside the current directory

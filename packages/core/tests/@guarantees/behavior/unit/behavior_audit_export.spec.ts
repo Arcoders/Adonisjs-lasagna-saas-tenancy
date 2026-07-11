@@ -77,7 +77,7 @@ test.group('audit_export — CSV', () => {
   test('quotes and escapes cells with commas, quotes and real newlines (RFC 4180)', ({
     assert,
   }) => {
-    // action holds a comma, a double-quote AND a real newline — all three triggers.
+    // action holds a comma, a double-quote AND a real newline, all three triggers.
     const r = auditRowToRecord(row({ action: 'a,b "c"\nd', metadata: { note: 'has,comma' } }))
     const cells = parseCsvLine(toCsvRow(r))
     assert.equal(cells[4], 'a,b "c"\nd')
@@ -90,7 +90,7 @@ test.group('audit_export — CSV', () => {
     assert.lengthOf(cells, headerCount)
   })
 
-  // SECURITY (#12): CSV formula injection. A spreadsheet executes a cell that
+  // SECURITY: CSV formula injection. A spreadsheet executes a cell that
   // begins with =, +, -, @, or a leading tab/CR. The forensic export must
   // neutralize those by prefixing an apostrophe so opening it can't run a formula.
   test('neutralizes formula-injection payloads with a leading apostrophe', ({ assert }) => {

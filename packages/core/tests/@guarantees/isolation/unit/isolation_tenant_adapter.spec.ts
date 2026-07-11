@@ -259,8 +259,8 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
     assert,
   }) => {
     // Pre-Isthmus, tenancy silently won this disagreement and routed tenant A
-    // queries under tenant B's context — the exact context-confusion bug class
-    // the ContextSeal exists to stop (invariant I1).
+    // queries under tenant B's context, the exact context-confusion bug class
+    // the ContextSeal exists to stop (the core isolation invariant).
     const tenancyMod = await import('../../../../src/tenancy.js')
     const TenantLogContext = (await import('../../../../src/services/tenant_log_context.js'))
       .default
@@ -274,7 +274,7 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
       registry: new BootstrapperRegistry(),
     })
 
-    // HTTP says one tenant, tenancy.run says another — refuse to route.
+    // HTTP says one tenant, tenancy.run says another, so refuse to route.
     ;(HttpContext as any).get = () => ({
       request: makeRequest({ headers: { 'x-tenant-id': UUID1 } }),
     })
@@ -360,7 +360,7 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
     // connection (typically `central`/`backoffice`) must NOT be
     // silently rerouted to whatever tenant scope happens to be active.
     // Without this, a CentralBaseModel query inside `tenancy.run(t, ...)`
-    // could land in the tenant schema — a cross-schema bug.
+    // could land in the tenant schema, a cross-schema bug.
     const tenancyMod = await import('../../../../src/tenancy.js')
     const TenantLogContext = (await import('../../../../src/services/tenant_log_context.js'))
       .default
@@ -441,10 +441,10 @@ test.group('TenantAdapter — ContextSeal (Isthmus) deep behavior', (group) => {
     const adapter = new TenantAdapter(db as any, makeRegistry())
 
     await tenancyMod.tenancy.run({ id: UUID1 } as any, async () => {
-      adapter.modelConstructorClient({} as any) // agrees → routes
+      adapter.modelConstructorClient({} as any) // agrees, so routes
       assert.equal(db.lastCall, `tenant_${UUID1}`)
       await tenancyMod.tenancy.run({ id: UUID2 } as any, async () => {
-        // Inner scope disagrees with the request (still UUID1) → trips.
+        // Inner scope disagrees with the request (still UUID1), so it trips.
         let threw: any
         try {
           adapter.modelConstructorClient({} as any)
@@ -484,7 +484,7 @@ test.group('TenantAdapter — ContextSeal (Isthmus) deep behavior', (group) => {
     const adapter = new TenantAdapter(db as any, makeRegistry())
 
     await tenancyMod.tenancy.run({ id: UUID2 } as any, async () => {
-      // Comparand null → seal inert, routes by the scope.
+      // Comparand null, so the seal is inert and routes by the scope.
       adapter.modelConstructorClient({} as any)
       assert.equal(db.lastCall, `tenant_${UUID2}`)
 
@@ -504,7 +504,7 @@ test.group('TenantAdapter — ContextSeal (Isthmus) deep behavior', (group) => {
     const { __setMemoizedTenant } = await import('../../../../src/extensions/request.js')
 
     // Header says A, but request.tenant() (domain resolution) memoized B, and
-    // the scope is B → the comparand is B, so it AGREES and routes B.
+    // the scope is B, so the comparand is B, so it AGREES and routes B.
     const request: any = makeRequest({ headers: { 'x-tenant-id': UUID1 } })
     __setMemoizedTenant(request, { id: UUID2 } as any)
     ;(HttpContext as any).get = () => ({ request })
@@ -538,7 +538,7 @@ test.group('TenantAdapter — ContextSeal (Isthmus) deep behavior', (group) => {
     })
     await settle()
 
-    // The memo caches the comparand, never the verdict — every query re-checks.
+    // The memo caches the comparand, never the verdict. Every query re-checks.
     assert.lengthOf(captured, 3)
     assert.lengthOf(db.calls, 0)
   })
@@ -727,7 +727,7 @@ test.group('TenantAdapter — domain-or-subdomain resolver strategy', (group) =>
     const db = makeMockDb()
     const adapter = new TenantAdapter(db as any, makeRegistry())
 
-    // No tenant id is extractable — the synchronous adapter path can't
+    // No tenant id is extractable, and the synchronous adapter path can't
     // do the async findByDomain lookup, so the request must fail closed.
     assert.throws(
       () => adapter.modelConstructorClient({} as any),

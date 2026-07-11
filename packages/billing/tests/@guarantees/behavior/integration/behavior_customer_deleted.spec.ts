@@ -16,7 +16,7 @@ import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite
 import type Stripe from 'stripe'
 
 /**
- * `customer.deleted` — Stripe fires this when a customer is deleted on
+ * `customer.deleted`: Stripe fires this when a customer is deleted on
  * their side (rare, but happens via GDPR scrubs or operator tooling).
  * The handler soft-deletes the local mapping by stamping `deletedAt` so
  * a future tenant with the same id doesn't inherit billing state, and

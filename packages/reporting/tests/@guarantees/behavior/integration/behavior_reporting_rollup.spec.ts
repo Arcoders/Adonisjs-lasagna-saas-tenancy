@@ -18,7 +18,7 @@ class RollupReporting extends ReportingService {
     return true
   }
 }
-const live = new ReportingService() // config has no reporting block → rollups off
+const live = new ReportingService() // config has no reporting block, so rollups are off
 const rollup = new RollupReporting()
 
 async function seedDaily(tenantId: string, period: string, requests: number, errors = 0) {
@@ -97,13 +97,13 @@ test.group('reporting rollup: equivalence with live aggregation', (group) => {
     await seedDaily(t, `${Y}-06-10`, 6)
     await seedDaily(t, `${Y}-07-10`, 9)
     await seedDaily(t, `${Y}-08-10`, 4)
-    // Roll up only Jun–Jul; query Jun–Aug (Aug uncovered → live).
+    // Roll up only Jun–Jul; query Jun–Aug (Aug uncovered, so it falls back to live).
     await metrics.recomputeMonthlyRollup({ since: `${Y}-06-01`, until: `${Y}-07-31` })
 
     const opts = { period: 'month' as const, since: `${Y}-06-01`, until: `${Y}-08-31` }
     const res = await rollup.getAggregate(opts)
     const total = res.reduce((a, r) => a + r.totalRequests, 0)
-    assert.equal(total, 19) // 6 + 9 + 4 — Aug included via live fallback
+    assert.equal(total, 19) // 6 + 9 + 4, Aug included via live fallback
     assert.deepEqual(res, await live.getAggregate(opts))
   })
 
@@ -155,8 +155,8 @@ test.group('reporting rollup: chaos & correctness', (group) => {
       .where('month', thisMonth.toFormat('yyyy-MM-dd'))
     assert.lengthOf(monthlyOpen, 0)
 
-    // A month-aligned window ending in the open month → live path → sees the
-    // current-month rows the rollup never captured.
+    // A month-aligned window ending in the open month takes the live path and sees
+    // the current-month rows the rollup never captured.
     const res = await rollup.getAggregate({
       period: 'month',
       since: lastMonth.toFormat('yyyy-MM-dd'),

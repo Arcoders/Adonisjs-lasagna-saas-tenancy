@@ -5,7 +5,7 @@ import { signWebhookPayload } from '../../../../src/testing/sign_webhook_payload
 /**
  * `signWebhookPayload` mirrors the format Stripe ships in the
  * `stripe-signature` header. Unit-level tests here are independent of
- * MockStripe — they verify the actual HMAC bytes, so a future refactor
+ * MockStripe: they verify the actual HMAC bytes, so a future refactor
  * that breaks the helper is caught even if MockStripe's lenient
  * verification masks it.
  */
@@ -44,7 +44,7 @@ test.group('signWebhookPayload — HMAC format & tamper detection', () => {
     const sig = signWebhookPayload(original, 'whsec_secret', ts)
     const v1 = sig.split('v1=')[1]
 
-    // Attacker replaces "attempts:1" with "attempts:99" — recomputed HMAC
+    // Attacker replaces "attempts:1" with "attempts:99". The recomputed HMAC
     // over the tampered body is not the same as the original v1.
     const tampered = original.replace('attempts":1', 'attempts":99')
     const recomputed = recompute(ts, tampered, 'whsec_secret')

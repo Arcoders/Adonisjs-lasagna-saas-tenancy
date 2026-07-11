@@ -37,7 +37,7 @@ test.group('setTenantRlsGuc', () => {
     const runner = recordingRunner()
     await setTenantRlsGuc(runner, TENANT, { gucName: 'tenancy.id' })
 
-    // Third arg (is_local) is always true — there is no session-level mode.
+    // Third arg (is_local) is always true. There is no session-level mode.
     assert.deepEqual(runner.calls[0]!.bindings, ['tenancy.id', TENANT, true])
   })
 

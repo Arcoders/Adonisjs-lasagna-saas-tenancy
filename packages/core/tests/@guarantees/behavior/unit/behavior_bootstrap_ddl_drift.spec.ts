@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
  * this spec makes the duplication self-checking: every column a stub defines for
  * a table the bootstrap provisions must appear in the bootstrap's DDL for that
  * table. When it fails, update ensureBackofficeSchema() in
- * packages/satellite-test-kit/src/bootstrap.ts — including an idempotent
+ * packages/satellite-test-kit/src/bootstrap.ts, including an idempotent
  * `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for databases created before the
  * change. (The DDL moved out of core's tests/integration/bootstrap.ts into the
  * kit when core and the satellites unified on one Ignitor boot path.)

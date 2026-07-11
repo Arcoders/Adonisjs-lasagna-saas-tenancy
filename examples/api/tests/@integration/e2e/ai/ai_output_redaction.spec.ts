@@ -3,12 +3,13 @@ import db from '@adonisjs/lucid/services/db'
 import { createInstalledTenant, dropAllTenants } from '../_helpers.js'
 
 /**
- * WS-AI-10 hardening / redaction — the optional host output-redaction (DLP) hook
- * runs end to end over the real HTTP gateway. The demo `config.ai.redactOutput`
- * strips an SSN-shaped token from the model's streamed output, so the raw PII
- * never reaches the client, while the mandatory output bound (I8) still applies.
- * Host-owned defense-in-depth, NEVER the isolation control (I4/I8 remain the
- * guarantee). Self-skips without pgvector (the AI e2e group shares the bootstrap).
+ * The optional host output-redaction (DLP) hook runs end to end over the real
+ * HTTP gateway. The demo `config.ai.redactOutput` strips an SSN-shaped token from
+ * the model's streamed output, so the raw PII never reaches the client, while the
+ * mandatory output bound still applies. This is host-owned defense-in-depth,
+ * NEVER the isolation control: the tenant-isolation and output-bound guarantees
+ * still stand on their own. Self-skips without pgvector (the AI e2e group shares
+ * the bootstrap).
  */
 let ready = false
 

@@ -14,7 +14,7 @@ import { TENANT_MIDDLEWARE_CONTRACT_VERSION } from '../../../../src/services/ten
 import { CAPABILITY_CONTRACT_VERSION } from '../../../../src/services/capability_registry.js'
 
 /**
- * E8 typed builders — the ergonomic authoring path. Each builder mints the
+ * Typed builders: the ergonomic authoring path. Each builder mints the
  * branded name (running assertSafeIdentifier, so a hostile name throws HERE at
  * authoring time), stamps the `kind` discriminant, and defaults `contractVersion`
  * to the surface constant, producing an entry byte-compatible with the raw
@@ -111,9 +111,9 @@ test.group('plugin builders — defineCapability()', () => {
 
   test('threads the sensitive flag ONLY when opted in (S5 trust gate)', ({ assert }) => {
     // The builder is the sanctioned way to mark a capability sensitive; if this
-    // flag is dropped the whole S5 allowlist silently no-ops for the cap.
+    // flag is dropped the whole sensitive-capability allowlist silently no-ops for the cap.
     assert.isTrue(defineCapability({ name: 'secret_keys', api: {}, sensitive: true }).sensitive)
-    // Omitted or false → NOT sensitive-by-accident (an ordinary cap stays composable).
+    // Omitted or false means NOT sensitive-by-accident (an ordinary cap stays composable).
     assert.isUndefined(defineCapability({ name: 'email', api: {} }).sensitive)
     assert.isUndefined(defineCapability({ name: 'email', api: {}, sensitive: false }).sensitive)
   })

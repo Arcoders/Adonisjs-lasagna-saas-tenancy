@@ -9,7 +9,7 @@ process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
  * Service-level SSRF matrix for webhook delivery. The unit suite proves the
  * URL guard classifies every encoding (tests/unit/utils/url.spec.ts); this
  * spec proves `WebhookService.send()` actually consults the guard for each
- * of those encodings — a persisted URL in ANY blocked notation must mark
+ * of those encodings: a persisted URL in ANY blocked notation must mark
  * the delivery permanently failed without delivering. The block lives inside
  * the real transport (safeFetch), so these run against the production default,
  * not an injected double. Guards the security.md/webhooks.md SSRF promise at the
@@ -42,7 +42,7 @@ test.group('WebhookService.send() — SSRF encoding matrix', () => {
 
       assert.equal(delivery.status, 'failed')
       assert.match(String(delivery.responseBody), /blocked_unsafe_url/)
-      // Permanently failed: no retry sweep may pick it up — retrying an
+      // Permanently failed: no retry sweep may pick it up, since retrying an
       // unsafe target would just re-attempt the SSRF.
       assert.isNull(delivery.nextRetryAt)
     })

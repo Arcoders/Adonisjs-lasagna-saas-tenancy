@@ -57,7 +57,7 @@ interface QueueWorker {
 
 /**
  * Spawn `node ace queue:work` as a subprocess. Used only by the queue
- * integration test in this file — the rest of the e2e suite bypasses the
+ * integration test in this file. The rest of the e2e suite bypasses the
  * queue with `installInline`. Returns a handle with a `stop()` method.
  */
 async function startQueueWorker(): Promise<QueueWorker> {
@@ -195,7 +195,7 @@ test.group('e2e — mail (MailCatcher)', (group) => {
     // Create the tenant row WITHOUT activating yet, so the welcome email
     // hasn't fired with the default branding. Upsert branding, then run
     // installInline so TenantActivated fires once with branding already
-    // persisted — single email, deterministic content.
+    // persisted: single email, deterministic content.
     const create = await client.post('/demo/tenants').json({
       name: 'Branded Tenant',
       email: 'branded@e2e.test',
@@ -250,7 +250,7 @@ test.group('e2e — mail (MailCatcher)', (group) => {
 
     // Create both tenants without activating, upsert each one's branding,
     // THEN activate. Each tenant fires exactly one TenantActivated event
-    // with its own branding in place — no race with the queue or the cache.
+    // with its own branding already in place, so no race with the queue or the cache.
     const c1 = await client.post('/demo/tenants').json({
       name: 'OneCo',
       email: 't1@e2e.test',
@@ -337,7 +337,7 @@ test.group('e2e — mail (MailCatcher)', (group) => {
       )
       assert.exists(msg)
       assert.match(msg.subject, /Welcome/)
-      // Confirm the test actually exercised the queued path — the listener
+      // Confirm the test actually exercised the queued path. The listener
       // calls mail.sendLater() unconditionally, so any received mail proves
       // the queue worker picked it up.
       void t
@@ -356,7 +356,7 @@ test.group('e2e — mail (MailCatcher)', (group) => {
     }
 
     // Override env so the listener resolves an SMTP host pointing at a closed
-    // port. The mail listener uses a top-level try/catch — the host process
+    // port. The mail listener uses a top-level try/catch, so the host process
     // must remain healthy.
     const originalHost = process.env.MAILCATCHER_HOST
     const originalPort = process.env.MAILCATCHER_PORT
@@ -381,7 +381,7 @@ test.group('e2e — mail (MailCatcher)', (group) => {
 
   /**
    * Email status webhook ingestion (e.g. Postmark / SendGrid `delivered`,
-   * `bounced`, `spam_complaint` events) is NOT part of the package today —
+   * `bounced`, `spam_complaint` events) is NOT part of the package today.
    * MailCatcher itself has no such webhook. The plan for a future test:
    *
    *   1. Add a `POST /demo/mail/events` route that accepts a signed payload

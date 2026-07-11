@@ -7,14 +7,12 @@ import { randomUUID } from 'node:crypto'
 import { isDependencyOutageError } from '../../../../src/utils/dependency_outage.js'
 
 /**
- * WS-9 / no-pg-outage-mid-transaction-test.
- *
  * The connect-phase mapping covered a backend that is down when a request
  * arrives. A backend that dies DURING a request (failover, admin
  * `pg_terminate_backend`, crash) is a different failure mode and was untested.
  * This severs a live transaction's backend with `pg_terminate_backend` and
  * proves two things: (1) the real driver error is classified as a dependency
- * outage (so `mapTenantQueryError` turns it into a clean 503, not a raw 500 —
+ * outage (so `mapTenantQueryError` turns it into a clean 503, not a raw 500, and
  * the HTTP mapping itself is unit-tested), and (2) Postgres has rolled the
  * aborted transaction back, so no partial write survives.
  *

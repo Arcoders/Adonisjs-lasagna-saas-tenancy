@@ -36,7 +36,7 @@ test.group('BackupService — backup filename validation', () => {
 
   test('a well-formed .dump filename passes the validation gate', async ({ assert }) => {
     // Our own producer's format: tenant_<id>_<ts>.dump. A valid name passes
-    // the pattern check, then fails downstream (no config/IO) — the point is
+    // the pattern check, then fails downstream (no config/IO). The point is
     // it is NOT rejected as an invalid filename.
     const valid = 'tenant_abcd_2026-05-02T16-16-36-264Z.dump'
     let message = ''

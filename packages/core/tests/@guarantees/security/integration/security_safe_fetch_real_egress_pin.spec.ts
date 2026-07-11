@@ -9,12 +9,12 @@ import { safeFetch, SafeFetchError } from '@adonisjs-lasagna/saas-tenancy/safe-f
  * exchange, crypto KeyProvider). Its SSRF guarantee was previously proven against a
  * REAL socket ONLY in the fault-injection/chaos tier (`@integration/fault_injection/
  * safe_fetch_pinning.spec.ts`), which runs only on a `[chaos]`-tagged commit with
- * `continue-on-error: true` — so on an ordinary run the ONLY SSRF coverage was a
+ * `continue-on-error: true`, so on an ordinary run the ONLY SSRF coverage was a
  * monkeypatched-`fetch` double. That let a real-egress regression ship green.
  *
  * This spec lives in the GATING security-integration tier (it runs on every
- * integration CI run), and it drives a REAL in-process listener on 127.0.0.1 — no
- * `fetch` double — to pin the load-bearing property end to end:
+ * integration CI run), and it drives a REAL in-process listener on 127.0.0.1 (no
+ * `fetch` double) to pin the load-bearing property end to end:
  *   - pinned mode (the default) REFUSES a loopback target before any byte leaves
  *     (SafeFetchError, non-retryable): a hostname that resolves to a private/loopback
  *     address can never be reached without an explicit opt-in;
@@ -45,7 +45,7 @@ test.group('security: safeFetch real-egress SSRF pin (gating)', (group) => {
     assert,
   }) => {
     // 127.0.0.1 is a blocked range and https is required, so this fails closed
-    // before any connection is attempted — the SSRF guarantee against a real socket.
+    // before any connection is attempted. This is the SSRF guarantee against a real socket.
     try {
       await safeFetch(url, { method: 'POST', body: '{}' })
       assert.fail('pinned mode must refuse a real loopback target')

@@ -4,17 +4,17 @@ import { fileURLToPath } from 'node:url'
 import type { MultitenancyConfig } from '../../../src/types/config.js'
 
 /**
- * WS-7 / satellite-config-frozen-into-core.
+ * No satellite config frozen into core.
  *
  * Core's public `MultitenancyConfig` is frozen at 1.0. It must NOT bake in
  * satellite-specific config blocks (`billing`, `backup`) or the satellite-owned
- * `BillingConfig` / `BillingDriverChoice` types — a host that never installs
+ * `BillingConfig` / `BillingDriverChoice` types. A host that never installs
  * those satellites would otherwise carry their shapes in its frozen core type,
  * and the satellites could never evolve their config without a core release. The
  * blocks are now contributed by each satellite via `SatelliteConfigRegistry`
  * declaration merging (see packages/billing|backup/src/define_config.ts).
  *
- * RED (pre-fix): config.ts declared `billing?: BillingConfig` + a `backup?` block
+ * Before the fix, config.ts declared `billing?: BillingConfig` + a `backup?` block
  * and re-exported `BillingConfig` / `BillingDriverChoice`.
  */
 const CONFIG_TS = fileURLToPath(new URL('../../../src/types/config.ts', import.meta.url))

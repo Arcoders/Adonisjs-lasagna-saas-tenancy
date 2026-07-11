@@ -231,7 +231,7 @@ test.group('BackupRetentionService — applyRetention', () => {
     } as unknown as BackupService
     const svc = new BackupRetentionService(flakyService)
     const plan = await svc.applyRetention(tenant)
-    // both b and c are slated for purge — first throws, second succeeds; still report both as planned
+    // both b and c are slated for purge: the first throws, the second succeeds, and we report both
     assert.lengthOf(plan.purged, 2)
   })
 })

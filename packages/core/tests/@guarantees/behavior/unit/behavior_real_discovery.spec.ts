@@ -17,7 +17,7 @@ import { discoverSatellites } from '../../../../src/sdk/configure_kit.js'
  * entry is the cheapest "is it really here?" probe.
  */
 
-// packages/core/tests/unit/sdk → repo root → examples/api
+// From packages/core/tests/unit/sdk up to the repo root, then examples/api
 const examplesApiRoot = fileURLToPath(new URL('../../../../../../examples/api/', import.meta.url))
 
 function workspaceInstalled(): boolean {

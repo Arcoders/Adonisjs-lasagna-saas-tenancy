@@ -7,14 +7,14 @@ import {
 import { setupTestConfig } from '../../../helpers/config.js'
 
 /**
- * WS-2 / readyz-no-tenant-connectivity-dimension.
+ * `/readyz` had no tenant-connectivity dimension.
  *
  * `/readyz` checked the backoffice DB, Redis, and circuit breakers, but nothing
- * about TENANT connectivity (pool saturation, read-replica health) — a pod with
+ * about TENANT connectivity (pool saturation, read-replica health). A pod with
  * exhausted tenant pools or a dead replica still reported ready. The fix adds
  * two OPT-IN, non-critical dimensions.
  *
- * RED (pre-fix): `tenant_pools` / `read_replicas` were never registerable.
+ * Before the fix, `tenant_pools` / `read_replicas` were never registerable.
  */
 test.group('default checks — tenant connectivity dimensions', () => {
   test('the tenant dimensions are OFF by default', ({ assert }) => {

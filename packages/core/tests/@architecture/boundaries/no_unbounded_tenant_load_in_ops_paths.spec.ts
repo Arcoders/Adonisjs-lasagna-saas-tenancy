@@ -3,15 +3,15 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 /**
- * WS-2 / doctor-and-metrics-load-all-tenants (anti-regression lock).
+ * Ops paths do not load all tenants (anti-regression lock).
  *
- * The ops paths that walk EVERY tenant — `tenant:doctor` and `tenant:queue:stats`
- * — must cursor-iterate via `repo.each()` (keyset pagination), never load the
+ * The ops paths that walk EVERY tenant (`tenant:doctor` and `tenant:queue:stats`)
+ * must cursor-iterate via `repo.each()` (keyset pagination), never load the
  * whole table with `repo.all(`. The `/metrics` collector is exempt: it uses the
  * `countByStatus` aggregate and only falls back to `all()` when the repo omits
  * that optional method, so it is intentionally not scanned here.
  *
- * RED (pre-fix): both files called `repo.all(`.
+ * Before the fix, both files called `repo.all(`.
  */
 const FILES = {
   doctor: fileURLToPath(new URL('../../../src/services/doctor/doctor_service.ts', import.meta.url)),

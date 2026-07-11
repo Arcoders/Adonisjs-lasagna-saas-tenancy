@@ -98,7 +98,7 @@ test.group('CustomDomainMiddleware', (group) => {
     const m = makeMiddleware({ 'acme.com': { id: UUID_A } })
     const { ctx } = makeCtx({ host: 'acme.com', tenantHeader: UUID_B })
     let nextCalled = false
-    // No options at all — strict must be the default.
+    // No options at all, so strict must be the default.
     const err = await catchError(() =>
       m.handle(ctx, async () => {
         nextCalled = true

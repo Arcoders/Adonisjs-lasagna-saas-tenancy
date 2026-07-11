@@ -10,7 +10,7 @@ import {
 } from '../../../helpers/real_audit_pg.js'
 
 /**
- * WS-AI-8 / T3 — the per-tenant audit chain stays contiguous under CONCURRENT
+ * The per-tenant audit chain stays contiguous under CONCURRENT
  * writers. The writer serialises the tail-read + seq-compute + INSERT with a
  * `pg_advisory_xact_lock` and a `UNIQUE(tenant_id, seq)` backstop + retry; existing
  * coverage only proves single-writer retry. Here N appends for one tenant race at

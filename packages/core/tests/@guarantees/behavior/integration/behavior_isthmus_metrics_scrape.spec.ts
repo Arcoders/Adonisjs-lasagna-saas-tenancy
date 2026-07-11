@@ -5,17 +5,17 @@ import { collectSnapshot, renderPrometheus } from '@adonisjs-lasagna/saas-tenanc
 /**
  * The Isthmus counters wire through to the /metrics scrape end-to-end. Thin on
  * purpose: label formats are unit-pinned (behavior_metrics_exporter), so this
- * proves the wiring — collectSnapshot() carries the live counters and
+ * proves the wiring. collectSnapshot() carries the live counters and
  * renderPrometheus() renders the four families.
  *
  * DELTA-ONLY: the integration suite shares one process and the reset seams are
  * not on /internal, so other specs have already tripped guards. The trip goes
  * through the package's build-instance export (assertSafeIdentifier from
- * /services) — a relative src import would bump a different module instance than
+ * /services). A relative src import would bump a different module instance than
  * the booted app + collectSnapshot read.
  */
 
-/** Parse `multitenancy_isthmus_rejected_total{...,id="X"} N` → N (0 if absent). */
+/** Parse the count from a `multitenancy_isthmus_rejected_total{...,id="X"} N` line (0 if absent). */
 function rejectedFor(scrape: string, id: string): number {
   const line = scrape
     .split('\n')

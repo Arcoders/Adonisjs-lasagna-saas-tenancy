@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import { readFile } from 'node:fs/promises'
 
 /**
- * Metadata-only spec — see `create_tenant.spec.ts` for why the command modules
+ * Metadata-only spec. See `create_tenant.spec.ts` for why the command modules
  * are not imported here (they eagerly pull in a logger that top-level-awaits
  * `app.booted()`). We assert the ace manifest and the barrel re-export instead;
  * execution coverage lives in examples/api/tests/e2e.

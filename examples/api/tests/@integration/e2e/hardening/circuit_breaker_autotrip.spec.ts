@@ -4,7 +4,7 @@ import { CircuitBreakerService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { createInstalledTenant, dropAllTenants } from '../_helpers.js'
 
 /**
- * HARDENING — circuit breaker AUTO-TRIP (WS-2 / circuit-breaker-never-auto-trips).
+ * HARDENING: circuit breaker AUTO-TRIP (the bug where the breaker never auto-tripped).
  *
  * The sibling spec (circuit_breaker.spec.ts) trips the breaker manually to prove
  * fail-fast + isolation. This proves the path that was actually broken: the
@@ -13,8 +13,9 @@ import { createInstalledTenant, dropAllTenants } from '../_helpers.js'
  * CLOSED forever and a dead tenant DB surfaced as a raw 500 per request).
  *
  * We swap in a breaker whose connectivity probe always throws (a dead tenant
- * DB), drive real HTTP requests through the guard, and assert CLOSED -> repeated
- * 503 -> OPEN (fast-fail). The swap is local to this group and restored after.
+ * DB), drive real HTTP requests through the guard, and assert the breaker moves
+ * from CLOSED to repeated 503 to OPEN (fast-fail). The swap is local to this group
+ * and restored after.
  */
 class AlwaysFailingProbeService extends CircuitBreakerService {
   protected buildProbe(): () => Promise<void> {

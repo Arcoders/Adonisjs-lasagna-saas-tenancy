@@ -10,7 +10,7 @@ import type {
 import type { ApplicationService } from '@adonisjs/core/types'
 
 /**
- * The onDataChange subscription wiring (SEAM-5). It applies the declared
+ * The onDataChange subscription wiring. It applies the declared
  * model/operation filters, RE-ESTABLISHES the tenant scope, and runs each handler
  * FAIL-OPEN: a throwing subscriber is caught (never propagated back through the
  * emitter to the write path), so one bad plugin can't break another's handler or the
@@ -108,7 +108,7 @@ test.group('subscribeDataChange', (group) => {
     ])
     // The listener must resolve (the failure is logged + counted, never rethrown to
     // the emitter / write path). No Redis here, so the failure-metric emit itself
-    // fails and is swallowed with a warn — still must not reject.
+    // fails and is swallowed with a warn, but still must not reject.
     await assert.doesNotReject(() => listeners[0]!({ change: change() }))
   })
 

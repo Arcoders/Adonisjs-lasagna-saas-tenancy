@@ -23,16 +23,15 @@ import { DateTime } from 'luxon'
 import type Stripe from 'stripe'
 
 /**
- * Dunning flow drove end-to-end:
- *
- *   POST /webhooks/billing (signed)
- *     → middleware verifies signature
- *     → controller writes idempotency row + dispatches the job
- *     → job (executed inline below) calls retrieveEvent() and dispatcher
- *     → dispatcher logic flips status / emits PaymentFailed
+ * The dunning flow is driven end-to-end. A signed POST to
+ * /webhooks/billing reaches the middleware, which verifies the
+ * signature; the controller then writes the idempotency row and
+ * dispatches the job; the job (executed inline below) calls
+ * retrieveEvent() and the dispatcher; and the dispatcher flips the
+ * status and emits PaymentFailed.
  *
  * Calling `dispatchStripeEvent` directly would skip the controller and
- * the job's retrieveEvent re-fetch — both load-bearing in production.
+ * the job's retrieveEvent re-fetch, both load-bearing in production.
  * Here we still execute the job inline (no BullMQ in tests) but go
  * through every other layer.
  */
@@ -52,7 +51,7 @@ test.group('Dunning state machine (integration)', (group) => {
     const billing = await app.container.make(BillingService)
     await billing.__setStripeForTests(mock)
 
-    // Capture dispatch calls instead of queueing — the test harness has
+    // Capture dispatch calls instead of queueing. The test harness has
     // no BullMQ wiring. We run the job inline at the assertion point so
     // every layer (controller insert + job retrieveEvent + dispatcher)
     // is exercised in order.
@@ -282,7 +281,7 @@ test.group('Dunning state machine (integration)', (group) => {
         attemptCount: 3,
       })
       await postSignedEvent(client, evt)
-      await postSignedEvent(client, evt) // same event_id — must collapse
+      await postSignedEvent(client, evt) // same event_id, must collapse
       await flushJobs()
 
       assert.equal(finalCount, 1, 'final PaymentFailed emitted exactly once')
@@ -298,10 +297,10 @@ test.group('Dunning state machine (integration)', (group) => {
     assert,
     client,
   }) => {
-    // Regression for C-3: customer fixes their card via the billing
+    // Regression: the customer fixes their card via the billing
     // portal and the next retry succeeds. The local mirror was
     // staying past_due indefinitely until a subscription.updated
-    // event happened to arrive — host listeners that gate on
+    // event happened to arrive, and host listeners that gate on
     // status !== 'active' kept blocking a paying tenant.
     const seed = await seedActiveSubscription()
     const succeeded: number[] = []
@@ -324,7 +323,7 @@ test.group('Dunning state machine (integration)', (group) => {
       let mirror = await BillingSubscription.find(seed.subId)
       assert.equal(mirror?.status, 'past_due')
 
-      // 2. Customer pays — payment_succeeded arrives.
+      // 2. The customer pays and payment_succeeded arrives.
       await postSignedEvent(
         client,
         buildPaymentSucceededEvent({
@@ -373,7 +372,7 @@ test.group('Dunning state machine (integration)', (group) => {
     assert,
     client,
   }) => {
-    // Regression for S-1 + P-4: out-of-order event delivery where a
+    // Regression: out-of-order event delivery where a
     // final payment_failed arrives AFTER a more recent
     // subscription.updated(active). Without the ordering guard, the
     // mirror would silently revert to past_due.

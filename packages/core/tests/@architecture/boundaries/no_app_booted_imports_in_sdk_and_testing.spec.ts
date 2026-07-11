@@ -7,15 +7,15 @@ import { walkTsFiles } from '../../helpers/walk_ts_files.js'
 /**
  * Anti-regression guard for two surfaces that MUST load without a booted app:
  *
- *  - `src/sdk/**` — the packaged-satellite toolkit runs inside a bare `configure`
+ *  - `src/sdk/**`: the packaged-satellite toolkit runs inside a bare `configure`
  *    context (and in third-party satellites' own configure hooks), before any
  *    Ignitor. It must never statically import an app.booted-touching module.
- *  - `src/testing/**` — the `/testing` barrel must be importable in a hermetic
+ *  - `src/testing/**`: the `/testing` barrel must be importable in a hermetic
  *    unit test (see testing/barrel_hermetic.spec.ts). `factory.ts` already
  *    regressed once by top-level-importing `@adonisjs/lucid/services/db`.
  *
  * The forbidden modules top-level-`await app.booted(...)`, which throws outside
- * an Ignitor. A *dynamic* `import('...')` (deferred to call time) is fine — it
+ * an Ignitor. A *dynamic* `import('...')` (deferred to call time) is fine: it
  * has no `from` clause, so the `from '<module>'` matcher below does not flag it.
  */
 

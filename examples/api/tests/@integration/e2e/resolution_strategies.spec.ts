@@ -5,7 +5,7 @@ import { resolveTenantId, setConfig } from '@adonisjs-lasagna/saas-tenancy'
  * The subdomain / path resolution strategies are awkward to drive end-to-end
  * because the test HTTP client's Host header and path are both fixed. We
  * test the resolver primitive directly with a fabricated `HttpRequest`-like
- * object — `resolveTenantId` only reads `hostname()`, `url()`, and
+ * object. `resolveTenantId` only reads `hostname()`, `url()`, and
  * `header()`, so this is enough to exercise every code path.
  */
 function fakeRequest(parts: {

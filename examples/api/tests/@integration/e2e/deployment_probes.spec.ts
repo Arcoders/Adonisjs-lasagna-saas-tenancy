@@ -5,7 +5,7 @@ import { ADMIN_HEADERS } from './_helpers.js'
 // nginx /healthz bypass) all point at these four endpoints, so this spec pins
 // what an orchestrator actually sees from the demo app: statuses, the
 // auto-registered default checks, criticality flags, and the guarantee that
-// probe paths never resolve a tenant (config.ignorePaths) — a probe must not
+// probe paths never resolve a tenant (config.ignorePaths). A probe must not
 // start failing because a caller sent a junk tenant header.
 test.group('e2e — deployment probes', () => {
   test('GET /livez returns 200 without touching dependencies', async ({ client, assert }) => {

@@ -16,11 +16,11 @@ import { AI_TAG } from '../../helpers/tags.js'
  * the same time for a fresh tenant.
  *
  * The concern this RETIRES (rather than fixes): the two do NOT need an advisory
- * lock. They touch disjoint objects — provisioning installs the database-level
- * `vector` extension (pg_extension catalog), migrate creates the tenant's schema
- * objects and its own `adonis_schema` ledger — and `CREATE EXTENSION IF NOT
- * EXISTS` is idempotent, so PostgreSQL's catalog locks serialize any overlap with
- * no corruption. This spec proves that: run both concurrently and assert the
+ * lock. They touch disjoint objects: provisioning installs the database-level
+ * `vector` extension (pg_extension catalog), and migrate creates the tenant's
+ * schema objects and its own `adonis_schema` ledger. Because `CREATE EXTENSION
+ * IF NOT EXISTS` is idempotent, PostgreSQL's catalog locks serialize any overlap
+ * with no corruption. This spec proves that: run both concurrently and assert the
  * extension is present AND the tenant's migration ledger is intact and queryable.
  *
  * The real prerequisite is ORDERING, not locking: a migration that declares a
@@ -83,7 +83,7 @@ test.group('migrate during vector:provision (fault injection, real Postgres)', (
 
     try {
       // Run the two operators' actions at the same time: the global extension
-      // install and this tenant's full provision + migrate lifecycle.
+      // install and this tenant's full provision and migrate lifecycle.
       const [provision, lifecycle] = await Promise.allSettled([
         provisionVectorExtension({}),
         (async () => {

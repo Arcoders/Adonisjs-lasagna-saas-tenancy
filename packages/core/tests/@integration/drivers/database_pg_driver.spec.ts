@@ -7,7 +7,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
  * Stand-alone tests against a real PostgreSQL instance.
  *
  * The fixture app is configured for `schema-pg`, so we don't activate
- * the `database-pg` driver in the registry — we instantiate it directly
+ * the `database-pg` driver in the registry. We instantiate it directly
  * and exercise its primitives against the same template connection.
  *
  * The role used by the test PG instance must have `CREATEDB`. Skipping

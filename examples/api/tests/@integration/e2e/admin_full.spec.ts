@@ -16,7 +16,7 @@ import { TenantUpdated } from '@adonisjs-lasagna/saas-tenancy/events'
  *   POST   /admin/tenants/:id/restore       restore
  *   GET    /admin/tenants/:id/queue/stats   queueStats
  *
- * Negative paths: missing token → 401; unknown tenant → 404.
+ * Negative paths: a missing token returns 401, an unknown tenant returns 404.
  */
 test.group('e2e — admin REST endpoints', (group) => {
   group.setup(async () => {
@@ -131,10 +131,10 @@ test.group('e2e — admin REST endpoints', (group) => {
       .headers(ADMIN_HEADERS)
       .json({ keepSchema: true })
 
-    // SECURITY (#16): restore() must fire a cache-invalidating lifecycle event so
-    // the resolution-cache listener evicts the stale "deleted → 403" entry
-    // immediately. Without the event the un-deleted tenant stays locked out until
-    // the TTL.
+    // SECURITY: restore() must fire a cache-invalidating lifecycle event so the
+    // resolution-cache listener immediately evicts the stale entry that still
+    // treats the tenant as deleted and returns 403. Without the event the
+    // un-deleted tenant stays locked out until the TTL expires.
     const emitter = await app.container.make('emitter')
     let restoredId: string | undefined
     const off = (emitter as any).on(TenantUpdated, (e: any) => {
@@ -228,7 +228,7 @@ test.group('e2e — admin REST endpoints', (group) => {
     assert.notInclude(ids, a.id)
   })
 
-  // Reference: ensures POST /admin/tenants exists and can also create tenants
+  // Confirms POST /admin/tenants exists and can also create tenants
   // (alongside the demo's `POST /demo/tenants` path).
   test('POST /admin/tenants creates + dispatches provisioning', async ({ client, assert }) => {
     const r = await client

@@ -5,14 +5,13 @@ import { fileURLToPath } from 'node:url'
 import { walkTsFiles } from '../../helpers/walk_ts_files.js'
 
 /**
- * SEAM-4 guard: the raw inbound request (`ctx.request.request`, a Node
- * `IncomingMessage`) is touched in exactly ONE place — `onRequestDisconnect` in
- * `utils/signals.ts`, which bridges a client disconnect into an AbortSignal and
- * removes its listener on `dispose()`. Attaching a `'close'`/`'aborted'` listener
- * to that socket anywhere else is how a listener leaks and how disconnect handling
- * drifts from the sanctioned, disposed seam, so the whole `.request.request`
- * property access is fenced. Add a `// inbound-request-ok:` comment for a
- * deliberate exception.
+ * The raw inbound request (`ctx.request.request`, a Node `IncomingMessage`) is
+ * touched in exactly ONE place: `onRequestDisconnect` in `utils/signals.ts`,
+ * which bridges a client disconnect into an AbortSignal and removes its listener
+ * on `dispose()`. Attaching a `'close'`/`'aborted'` listener to that socket
+ * anywhere else is how a listener leaks and how disconnect handling drifts from
+ * the sanctioned, disposed seam, so the whole `.request.request` property access
+ * is fenced. Add a `// inbound-request-ok:` comment for a deliberate exception.
  *
  * The walk covers EVERY `packages/<pkg>/src`, so a satellite that reaches for the
  * raw socket is held to the same seam without editing this spec.

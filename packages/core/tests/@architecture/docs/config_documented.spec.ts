@@ -9,12 +9,12 @@ import { repoRoot } from '../../../../satellite-test-kit/src/repo_root.js'
  * the docs site.
  *
  * The "declared" set is parsed straight from the interface in
- * src/types/config.ts — top level only, since nested keys (e.g. `circuitBreaker.threshold`)
+ * src/types/config.ts, top level only, since nested keys (e.g. `circuitBreaker.threshold`)
  * are documented under their parent and going deeper invites false positives. The
  * "documented" set is the whole docs/ markdown corpus: a key counts as documented
  * when it appears as an inline-code token (`` `resolver` ``, `` `resolver.cache.enabled` ``)
  * or as a config property (`hooks:` in a code block). Cross-cutting seams live on
- * their own pages (hooks → hooks.md, compliance → compliance.md), so the corpus is
+ * their own pages (hooks in hooks.md, compliance in compliance.md), so the corpus is
  * the whole site, not just configuration.md.
  *
  * Fails the moment a new top-level config option ships undocumented.

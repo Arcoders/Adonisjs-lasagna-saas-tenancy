@@ -24,13 +24,12 @@ import type Stripe from 'stripe'
  * catch calls that go through that exact reference; this catches the
  * whole stream.
  *
- * Flow exercised:
- *   POST /webhooks/billing (signed)
- *     → middleware logs (none in happy path; signature mismatch logs)
- *     → controller logs (`stripe.webhook.duplicate` on dups)
- *     → job execute() logs (`stripe.event.processed`)
- *     → job failed() logs (`stripe.event.dead_lettered`) when forced
- *     → dispatcher logs (`stripe.event.stale` for stale events)
+ * The flow exercised is a signed POST to /webhooks/billing that flows
+ * through every logging layer: the middleware (nothing on the happy path,
+ * but a signature mismatch logs), the controller (`stripe.webhook.duplicate`
+ * on dups), the job's execute() (`stripe.event.processed`), the job's
+ * failed() (`stripe.event.dead_lettered`, when forced), and the dispatcher
+ * (`stripe.event.stale` for stale events).
  */
 test.group('PII redaction (integration)', (group) => {
   const cleanupTenants: string[] = []
@@ -47,7 +46,7 @@ test.group('PII redaction (integration)', (group) => {
 
     captured = []
     originalStdoutWrite = process.stdout.write.bind(process.stdout)
-    // Intercept stdout — Pino in the fixture is configured with
+    // Intercept stdout. Pino in the fixture is configured with
     // `targets.file({ destination: 1 })`, i.e. raw writes to fd 1. We
     // record the chunk and forward to the original so test runner output
     // still shows up.
@@ -139,7 +138,7 @@ test.group('PII redaction (integration)', (group) => {
     const mock = new MockStripe('whsec_test_billing_helper')
     await billing.__setStripeForTests(mock)
 
-    // Hostile event payload — every PII landmine. The redacted output
+    // Hostile event payload: every PII landmine. The redacted output
     // should land in billing_processed_events.payload AND in the logs
     // without these fields.
     const sub = buildSubscription({

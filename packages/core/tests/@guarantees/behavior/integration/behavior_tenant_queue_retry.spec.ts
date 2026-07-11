@@ -50,7 +50,7 @@ test.group('TenantQueueService — retry attempts wiring (integration)', (group)
           password: conn.password ?? undefined,
           db: conn.db ?? 0,
         },
-        // No backoff configured on the job → BullMQ retries immediately,
+        // No backoff configured on the job, so BullMQ retries immediately,
         // keeping the spec fast.
       }
     )

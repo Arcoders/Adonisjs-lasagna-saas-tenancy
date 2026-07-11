@@ -32,7 +32,7 @@ const DE_LISTED_SUBPATHS = [
  * the same reason.
  */
 
-// `[^}]*` (not `[\s\S]*?`) keeps each capture inside a single export block —
+// `[^}]*` (not `[\s\S]*?`) keeps each capture inside a single export block:
 // these barrels have no nested braces, and a lazy dot-all would backtrack across
 // `}` boundaries and swallow every block up to the anchor.
 
@@ -67,7 +67,7 @@ function parseBlocks(source: string, blockRe: RegExp): Set<string> {
 // Plumbing that was intentionally pulled off the root and now lives on a
 // subpath only. Re-adding any of these would undo the surface freeze.
 const TRIMMED_FROM_ROOT = [
-  // Concrete built-in drivers/resolvers — selected by config string / registry
+  // Concrete built-in drivers/resolvers, selected by config string / registry
   // (`isolation.driver`, the resolver chain), never imported by an app. `/services`.
   'SchemaPgDriver',
   'DatabasePgDriver',
@@ -126,7 +126,7 @@ const TRIMMED_FROM_ROOT = [
 
 /**
  * `configure` is what `node ace configure @adonisjs-lasagna/saas-tenancy` reads
- * off the package's main entry (`app.import(pkg)` → `packageExports.configure`).
+ * off the package's main entry (`app.import(pkg)` reads `packageExports.configure`).
  * Drop it from the barrel and the very first command in the quickstart becomes a
  * silent no-op that still exits 0, which is exactly how it shipped once before.
  */

@@ -185,7 +185,7 @@ test.group('e2e — misc CLI commands', (group) => {
     ])
     assert.equal(code, 0)
 
-    // Stored enabled, but expired → isEnabled honours the expiry.
+    // Stored as enabled but expired, so isEnabled honours the expiry.
     assert.isTrue((await ff.getFlag(id, 'holiday'))!.enabled)
     assert.isFalse(await ff.isEnabled(id, 'holiday'))
   })

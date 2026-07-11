@@ -15,7 +15,7 @@ import ReactivateOnPaymentSuccessListener from '../../../../src/listeners/reacti
 /**
  * Opt-in auto-suspend/reactivate on billing failure. The listeners are exercised
  * directly (not via the emitter) so the assertions don't depend on the
- * provider's lazy wiring — that wiring is a one-liner gated on the same flags.
+ * provider's lazy wiring. That wiring is a one-liner gated on the same flags.
  */
 test.group('suspend_on_payment_failure (integration)', (group) => {
   const cleanupTenants: string[] = []
@@ -169,7 +169,7 @@ test.group('suspend_on_payment_failure (integration)', (group) => {
     const listener = new SuspendOnPaymentFailureListener()
 
     // Three duplicate terminal events race. The in-memory isSuspended check is
-    // not transactional, so dispatch is at-least-once (not exactly-once) — the
+    // not transactional, so dispatch is at-least-once (not exactly-once), the
     // documented best-effort contract. State must still converge to suspended.
     await Promise.allSettled([
       listener.handlePaymentFailed(paymentFailed(t.id, true)),

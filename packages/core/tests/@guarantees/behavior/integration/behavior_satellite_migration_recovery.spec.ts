@@ -6,7 +6,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 /**
- * I3 — Satellite migration partial-failure recovery.
+ * Satellite migration partial-failure recovery.
  *
  * A satellite ships a batch of migrations and one fails mid-batch. This proves
  * the failure is surfaced and recoverable, not silent or wedged:

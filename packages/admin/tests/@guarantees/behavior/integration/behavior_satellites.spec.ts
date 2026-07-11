@@ -62,8 +62,8 @@ test.group('Admin REST — satellite endpoints', (group) => {
   test('GET /docs renders the no-CDN placeholder by default (no third-party JS)', async ({
     client,
   }) => {
-    // Default posture: no asset base configured → a short placeholder that points
-    // the operator at the raw OpenAPI doc, never a silent remote fetch.
+    // Default posture: with no asset base configured, the docs route returns a short
+    // placeholder that points the operator at the raw OpenAPI doc, never a silent remote fetch.
     const prev = process.env.LASAGNA_ADMIN_SWAGGER_CDN
     delete process.env.LASAGNA_ADMIN_SWAGGER_CDN
     try {
@@ -85,7 +85,7 @@ test.group('Admin REST — satellite endpoints', (group) => {
     const res = await client.get(`${PREFIX}/tenants/${tenantId}/audit-logs`)
     res.assertStatus(200)
     const body: any = res.body()
-    // Adonis paginator shape — `data` and `meta` are siblings of the payload
+    // Adonis paginator shape: `data` and `meta` are siblings of the payload
     assert.containsSubset(body, { data: [] as any[] })
   })
 
@@ -141,7 +141,7 @@ test.group('Admin REST — satellite endpoints', (group) => {
     })
     create.assertStatus(201)
     const created: any = create.body()
-    // Top-level, beside `data` — the shape the OpenAPI document declares.
+    // Top-level, beside `data`: the shape the OpenAPI document declares.
     assert.match(created.secret, /^[0-9a-f]{64}$/)
     assert.isTrue(created.data.hasSecret)
     assert.notProperty(created.data, 'secret')
@@ -249,7 +249,7 @@ test.group('Admin REST — satellite endpoints', (group) => {
 
   test('Quotas snapshot returns 503 when plans config absent', async ({ client }) => {
     // Without plans configured, QuotaService.snapshot throws and the
-    // controller surfaces a clean 503 — stancl-style "feature not enabled".
+    // controller surfaces a clean 503, the stancl-style "feature not enabled".
     const res = await client.get(`${PREFIX}/tenants/${tenantId}/quotas`)
     // Either 200 (plans configured in fixture) or 503 (not configured).
     if (res.status() !== 200) res.assertStatus(503)

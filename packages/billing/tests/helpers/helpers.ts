@@ -14,7 +14,7 @@ export interface BillingTestSetup {
 
 /**
  * Wire up `config.billing` + `config.plans` for an integration test. Uses
- * fake API/webhook secrets — tests inject MockStripe via
+ * fake API/webhook secrets. Tests inject MockStripe via
  * `BillingService.__setStripeForTests`, so the SDK is never instantiated
  * with these.
  */
@@ -95,8 +95,8 @@ export function buildSubscription(
 /**
  * Build a neutral `Subscription` (the shape `BillingService.syncSubscription`
  * now consumes, after the multi-provider refactor). The override keys mirror
- * `buildSubscription` for an easy swap: `customer` → `customerId`,
- * `id` → `providerSubscriptionId`. Defaults to `active` / `prod_pro` / 30d.
+ * `buildSubscription` for an easy swap: `customer` becomes `customerId`,
+ * `id` becomes `providerSubscriptionId`. Defaults to `active` / `prod_pro` / 30d.
  */
 export function buildNeutralSubscription(
   overrides: Partial<{
@@ -153,7 +153,7 @@ export function buildEvent(
  * context so we can drive its `execute()` / `failed()` lifecycle inline
  * from a spec (without spinning up a real worker).
  *
- * `Job#payload` is a getter — direct assignment is rejected at runtime
+ * `Job#payload` is a getter. Direct assignment is rejected at runtime
  * with `Cannot set property payload of #<Job> which has only a getter`.
  * The supported entry-point is the `$hydrate(payload, context, signal?)`
  * method, which is what the worker calls in production.
@@ -180,7 +180,7 @@ export function hydrateJob<P>(
 /**
  * The neutral subscription statuses (kept in sync with `SUBSCRIPTION_STATUSES`
  * in `src/contracts/types.ts`). Inlined here rather than importing the runtime
- * guard, which is not part of the package's public barrel — keeping it off the
+ * guard, which is not part of the package's public barrel. Keeping it off the
  * public surface avoids a changeset just to assert in a test.
  */
 const KNOWN_SUBSCRIPTION_STATUSES: readonly string[] = [
@@ -218,7 +218,7 @@ export function assertNeutralSubscription(sub: Subscription): void {
 }
 
 /**
- * Truncate every billing table — call this from `group.each.teardown` to
+ * Truncate every billing table. Call this from `group.each.teardown` to
  * keep specs isolated. Order matters because of FKs.
  */
 export async function clearBillingTables(): Promise<void> {

@@ -6,7 +6,7 @@ import AiRateLimiter, { aiRateLimitKey } from '../../../../src/services/ai_rate_
 import AIException from '../../../../src/exceptions/ai_exception.js'
 
 /**
- * WS-AI-8 / 1B — the BYOK per-key rate-limit rail fails CLOSED under a real Redis
+ * The BYOK per-key rate-limit rail fails CLOSED under a real Redis
  * outage. Existing coverage proves the rail with a stubbed consumer
  * (resilience_stream_extension) and proves the window bites on healthy real Redis
  * (security_cost_governor_bites_real_redis); the gap is the rail composed with the

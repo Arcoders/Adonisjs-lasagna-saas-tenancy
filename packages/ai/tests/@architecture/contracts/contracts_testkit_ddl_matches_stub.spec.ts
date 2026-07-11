@@ -6,11 +6,11 @@ import { fileURLToPath } from 'node:url'
  * The AI real-Postgres audit helper (`tests/helpers/real_audit_pg.ts`) provisions
  * the append-only `backoffice.ai_audit_logs` table + its trigger set inline (the
  * kit bootstrap does not own it, and the table is append-only so it cannot be
- * truncated between groups — each spec drops + recreates it). That inline DDL
+ * truncated between groups. Each spec drops + recreates it). That inline DDL
  * mirrors the shipped migration stub, so this guard pins the two together the same
  * way core's `behavior_bootstrap_ddl_drift` pins the backoffice mirror: every
  * column the stub defines, and the append-only trigger set, must appear in the
- * helper. When it fails, the stub changed and the helper did not — so the audit
+ * helper. When it fails, the stub changed and the helper did not, so the audit
  * integration tier would run against a stale shape.
  */
 

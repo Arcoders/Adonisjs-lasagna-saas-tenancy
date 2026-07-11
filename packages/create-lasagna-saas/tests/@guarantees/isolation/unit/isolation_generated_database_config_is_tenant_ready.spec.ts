@@ -3,7 +3,7 @@ import { databaseConfig, databaseName, envBlock } from '../../../../src/template
 
 /**
  * `config/database.ts` is the file `configure` cannot write, and getting it
- * wrong does not fail loudly — it fails by routing every tenant's query to the
+ * wrong does not fail loudly. It fails by routing every tenant's query to the
  * `public` schema. Two defects shipped in the install docs before these specs
  * existed, and both are pinned here:
  *

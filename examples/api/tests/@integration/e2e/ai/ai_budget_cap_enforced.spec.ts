@@ -3,7 +3,7 @@ import db from '@adonisjs/lucid/services/db'
 import { createInstalledTenant, dropAllTenants } from '../_helpers.js'
 
 /**
- * WS-AI-8 / 3B — the per-key rate limit bites end to end over the HTTP gateway.
+ * The per-key rate limit bites end to end over the HTTP gateway.
  * config.ai.rateLimit caps requests per window; once the window is exceeded the
  * next /ai/chat is a clean pre-flight 429 `rate_limited` with no SSE bytes. (The
  * token-budget `over_budget` rail is proven on real Redis in

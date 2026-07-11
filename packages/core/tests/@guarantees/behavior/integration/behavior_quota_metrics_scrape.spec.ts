@@ -10,11 +10,11 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { AI_TAG } from '../../../helpers/tags.js'
 
 /**
- * WS2 observability — the operator-ceiling gauges render on the Prometheus scrape,
+ * Observability for the operator-ceiling gauges: they render on the Prometheus scrape,
  * derived at collect time from live Redis. This drives a real reserve against a
  * configured ceiling, then renders the snapshot the /metrics endpoint serves and
  * asserts the three gauges appear with correct values and are labelled by `quota`
- * only — NEVER `tenant_id` (the cardinality rule, enforced at runtime here).
+ * only, NEVER `tenant_id` (the cardinality rule, enforced at runtime here).
  */
 function fakeTenant(id: string): TenantModelContract {
   return { id, name: `q-${id}` } as unknown as TenantModelContract

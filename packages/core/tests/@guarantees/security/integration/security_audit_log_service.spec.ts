@@ -120,7 +120,7 @@ test.group('AuditLogService — public API', (group) => {
     tenantIds.push(a.id, b.id)
 
     const service = new AuditLogService()
-    // 5ms gap so created_at is strictly distinct — id is a random UUID
+    // 5ms gap so created_at is strictly distinct. The id is a random UUID
     // and can't tie-break ORDER BY created_at DESC.
     await service.log({ tenantId: a.id, action: 'a.action.1' })
     await new Promise((r) => setTimeout(r, 5))
@@ -150,7 +150,7 @@ test.group('AuditLogService — public API', (group) => {
     const service = new AuditLogService()
     for (let i = 0; i < 5; i++) {
       await service.log({ tenantId: t.id, action: `evt.${i}` })
-      // Distinct created_at per row — see DESC-order test above.
+      // Distinct created_at per row (see the DESC-order test above).
       await new Promise((r) => setTimeout(r, 5))
     }
 

@@ -11,15 +11,15 @@ import TenantSocketServer, {
 import { resolveTenantIdFromHandshake } from '../../../../src/resolve_from_handshake.js'
 
 /**
- * Multi-node WebSocket severance (Phase 4 chaos). socket.io rooms are
+ * Multi-node WebSocket severance (chaos tier). socket.io rooms are
  * per-process, so a tenant suspended on one node leaves its sockets connected on
- * the others — a real isolation gap at scale. The cookbook closes it with a Redis
+ * the others, a real isolation gap at scale. The cookbook closes it with a Redis
  * pub/sub bridge: every node publishes the tenant id when it severs, and every
  * node subscribes and calls `disconnectTenant()` locally when a message arrives
  * (docs/guides/cookbook/multi-tenant-websockets.md, "Scaling to multiple nodes").
  *
- * This boots TWO real socket.io servers wired exactly like the recipe — the
- * @socket.io/redis-adapter for emit fan-out, plus the severance bridge — and
+ * This boots TWO real socket.io servers wired exactly like the recipe (the
+ * @socket.io/redis-adapter for emit fan-out, plus the severance bridge), and
  * proves both halves across nodes:
  *   - suspending a tenant on node A severs its sockets on BOTH nodes, while a
  *     different tenant's socket stays connected (the headline guarantee);
@@ -36,7 +36,7 @@ const REDIS_PORT = Number(process.env.REDIS_PORT ?? 6379)
 const SEVER_CHANNEL = `lasagna:ws:sever-tenant:test:${randomUUID()}`
 
 // Load the optional peers dynamically so the spec self-skips where they are
-// absent, matching the repo's "backend not present → skip" convention.
+// absent, matching the repo's "skip when the backend isn't present" convention.
 type Mods = {
   Server: any
   ioClient: (url: string, opts: any) => any
@@ -184,7 +184,7 @@ test.group('Multi-node WebSocket severance (integration)', (group) => {
     tenants.set(suspended, buildTestTenant({ id: suspended, status: 'active' }))
     tenants.set(other, buildTestTenant({ id: other, status: 'active' }))
 
-    // Two sockets for the doomed tenant — one on each node — plus a control
+    // Two sockets for the doomed tenant (one on each node), plus a control
     // socket for a different tenant on node B.
     const onA = connectClient(nodeA, suspended)
     const onB = connectClient(nodeB, suspended)

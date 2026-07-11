@@ -5,7 +5,7 @@ import MockEmbeddingProvider from '../../../../src/testing/mock_embedding_provid
 import type { AIEmbeddingConfig } from '../../../../src/define_config.js'
 
 /**
- * WS-AI-8 / 2A — the embedding-provider override registry. With no host override it
+ * The embedding-provider override registry. With no host override it
  * builds the configured OpenAI-compatible backend (byte-identical to the pre-seam
  * inline construction); a registered override supersedes it; clear() restores the
  * default. Mirrors the chat AIProviderRegistry for the single embedding provider.

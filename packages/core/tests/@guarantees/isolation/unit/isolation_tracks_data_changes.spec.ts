@@ -8,12 +8,12 @@ import { primeTenancy, __configureTenancyForTests } from '../../../../src/tenanc
 import type { TenantDataChangePayload } from '../../../../src/events/tenant_data_changed.js'
 
 /**
- * The data-change mixin (SEAM-5). Guarantees under test — all provable without a
+ * The data-change mixin. Guarantees under test, all provable without a
  * booted app via the dispatcher + tenancy test seams:
  *  - ISOLATION: a change is attributed to `tenancy.currentId()` and SKIPPED when
  *    there is no scope (never emitted mis-attributed); the payload names WHAT
  *    changed (model/table/pk/changed columns), never the values.
- *  - AFTER-COMMIT: with a transaction, the emit is deferred to `commit` — a write
+ *  - AFTER-COMMIT: with a transaction, the emit is deferred to `commit`. A write
  *    that ROLLS BACK (commit never fires) emits nothing; an autocommit write
  *    (no `$trx`) emits inline.
  */
@@ -95,7 +95,7 @@ test.group('TracksDataChanges mixin', (group) => {
     const { fire } = fakeBase()
     const { model } = fakeModel()
     await inScope('tenant-a', () => fire('after:create', model))
-    // commit() is never called → rollback → no emit
+    // commit() is never called, so it rolls back and nothing is emitted
     assert.lengthOf(captured, 0)
   })
 
@@ -110,7 +110,7 @@ test.group('TracksDataChanges mixin', (group) => {
   test('NO tenant scope → skipped (never emitted mis-attributed)', async ({ assert }) => {
     const { fire } = fakeBase()
     const { model, commit } = fakeModel()
-    // fire OUTSIDE logCtx.run → currentId() is undefined
+    // fire OUTSIDE logCtx.run, so currentId() is undefined
     fire('after:create', model)
     commit()
     assert.lengthOf(captured, 0)

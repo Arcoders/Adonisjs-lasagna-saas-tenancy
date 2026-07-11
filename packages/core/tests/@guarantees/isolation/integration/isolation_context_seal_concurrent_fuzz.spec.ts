@@ -12,7 +12,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
  * ContextSeal under concurrency: a shuffled, interleaved mix of mismatch and
- * agree requests must keep per-request isolation — every mismatch fails closed
+ * agree requests must keep per-request isolation. Every mismatch fails closed
  * (500), every agree succeeds (200) with its OWN tenant's data, and the memo on
  * one request never contaminates another. DELTA-only (shared process, no reset
  * seam on /internal): assert the rejected{seal.tenant_context} increase equals

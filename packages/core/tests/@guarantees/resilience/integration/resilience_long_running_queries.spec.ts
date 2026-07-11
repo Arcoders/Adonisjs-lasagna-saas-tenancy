@@ -8,11 +8,10 @@ const fakeCtx = (): DoctorContext =>
   ({ tenants: [], repo: {} as any, attemptFix: false }) as DoctorContext
 
 /**
- * S2-2: long_running_queries_check end-to-end against real Postgres.
- * Spawns a backend running pg_sleep(N), runs the check with the
- * threshold dropped to 1s, and asserts the check actually surfaces
- * the slow query as an issue. Once the sleep finishes the check
- * goes back to clean.
+ * long_running_queries_check end-to-end against real Postgres. Spawns a backend
+ * running pg_sleep(N), runs the check with the threshold dropped to 1s, and
+ * asserts the check actually surfaces the slow query as an issue. Once the sleep
+ * finishes the check goes back to clean.
  */
 test.group('Doctor: long_running_queries — real PG state', (group) => {
   let originalConfig: ReturnType<typeof getConfig>
@@ -38,13 +37,13 @@ test.group('Doctor: long_running_queries — real PG state', (group) => {
   })
 
   test('flags an active backend running pg_sleep above the warn threshold', async ({ assert }) => {
-    // Fire pg_sleep on the `tenant` pool — a different pool from the
+    // Fire pg_sleep on the `tenant` pool, a different pool from the
     // `central` one the check inspects, so we don't block ourselves
     // waiting on the same pool's only connection. pg_stat_activity is
     // database-wide so the central probe sees the sleep regardless.
     //
     // Use Promise.race against a timeout so JS actually schedules the
-    // query — a bare unawaited promise can sit on the microtask queue
+    // query. A bare unawaited promise can sit on the microtask queue
     // long enough that pg_stat_activity hasn't seen it yet.
     const sleepPromise = db.connection('tenant').rawQuery('SELECT pg_sleep(8)')
     await Promise.race([

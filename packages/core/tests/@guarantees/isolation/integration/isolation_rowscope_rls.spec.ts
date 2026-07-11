@@ -18,7 +18,7 @@ import { randomUUID } from 'node:crypto'
  */
 const TABLE = 'lasagna_rls_test_posts'
 const POLICY = 'tenant_isolation'
-// The connection the proof executes on — least-privilege in CI.
+// The connection the proof executes on, least-privilege in CI.
 const PROBE_CONN = 'rls_probe'
 
 let rlsEnforced = false
@@ -45,7 +45,7 @@ test.group('rowscope RLS (integration)', (group) => {
     const flags = rowsOf(flagsRes)[0]
     rlsEnforced = !(flags.super === true || flags.bypass === true)
 
-    // Fail loud — rather than skip — whenever a least-privilege RLS role was
+    // Fail loud (rather than skip) whenever a least-privilege RLS role was
     // CONFIGURED but the proof still wouldn't be enforced. We key off
     // `RLS_DB_USER` (the env the CI workflow sets to point `rls_probe` at the
     // NOSUPERUSER `rls_ci` role) instead of a generic `CI` flag: that fires
@@ -127,7 +127,7 @@ test.group('rowscope RLS (integration)', (group) => {
 
   test('WITH CHECK blocks an insert owned by another tenant', async ({ assert }) => {
     // Assert it fails for the RIGHT reason (the policy), not because trx setup
-    // or set_config threw — otherwise the test gives false confidence.
+    // or set_config threw. Otherwise the test gives false confidence.
     await assert.rejects(
       () =>
         withTenantRls(

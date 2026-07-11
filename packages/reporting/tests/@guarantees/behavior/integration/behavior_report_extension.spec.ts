@@ -102,7 +102,7 @@ test.group('report extensions (integration)', () => {
       /extension blew up/
     )
 
-    // The registry is uncorrupted — a different extension still runs.
+    // The registry is uncorrupted, so a different extension still runs.
     const { ctx, captured } = makeCtx('demo_report')
     await controller.extension(ctx)
     assert.equal(captured.status, 200)

@@ -25,12 +25,12 @@ import {
 import { ensureVectorExtension, tenantSearchPath } from '../../../helpers/pgvector.js'
 
 /**
- * WS-AI-8 / 1E — purge-completeness on the REAL stores. After
+ * Purge-completeness on the REAL stores. After
  * `AiComplianceService.purgeTenant`, a scan of every PII store must find ZERO
  * residue (embeddings gone, memory gone, the idempotency cache epoch bumped so a
  * pre-purge cached completion is unreachable), while the immutable, non-PII audit
- * chain SURVIVES (G1: erasure of PII must not destroy the tamper-evident record).
- * Validates WS-AI-9 end to end against pgvector + Redis + Postgres. Self-skips when
+ * chain SURVIVES (erasure of PII must not destroy the tamper-evident record).
+ * Validates the purge end to end against pgvector + Redis + Postgres. Self-skips when
  * pgvector/Redis/Postgres are unavailable, runs in CI.
  */
 const DIM = 4
@@ -187,7 +187,7 @@ test.group('AI purge-completeness across real stores (1E)', (group) => {
       'the epoch bump makes the pre-purge cached completion unreachable (no GDPR resurrection)'
     )
 
-    // G1: the immutable, non-PII audit chain SURVIVES the purge and still verifies.
+    // The immutable, non-PII audit chain SURVIVES the purge and still verifies.
     const after = await writer.verify(tenant.id)
     assert.isTrue(after.ok, 'the audit chain still verifies after erasure')
     assert.equal(

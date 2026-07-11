@@ -3,10 +3,8 @@ import CircuitBreakerService from '../../../../src/services/circuit_breaker_serv
 import { setupTestConfig } from '../../../helpers/config.js'
 
 /**
- * WS-2 / circuit-breaker-never-auto-trips.
- *
  * The breaker was only ever READ (`isOpen`) and never FIRED, so it could never
- * accumulate failures and never open — dead code dressed as resilience. The fix
+ * accumulate failures and never open: dead code dressed as resilience. The fix
  * adds `run()`, which fires the connectivity probe through the breaker, and the
  * request middlewares call it. These tests prove the breaker now auto-trips and
  * then fast-fails, using the `buildProbe` seam to force the probe outcome

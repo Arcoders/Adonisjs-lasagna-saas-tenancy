@@ -4,15 +4,15 @@ import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 
 /**
- * WS-AI-8 / 1G — the per-vector coverage matrix the ARCHITECTURE demands
+ * The per-vector coverage matrix the ARCHITECTURE demands
  * (packages/ai/ARCHITECTURE.md, "A per-vector matrix ... ships in the test suite
- * so coverage is auditable"). Each of the 18 threat vectors (ARCHITECTURE.md
- * §"threat model", the numbered table) maps to a RED/behavioral covering spec and,
+ * so coverage is auditable"). Each of the 18 threat vectors (the "threat model"
+ * section of ARCHITECTURE.md, the numbered table) maps to a RED/behavioral covering spec and,
  * where one applies, a chaos/resilience covering spec. Paths are repo-relative and
  * every non-null one must EXIST on disk, so renaming or deleting a covering spec
  * without updating this matrix is a hard CI failure.
  *
- * MAINTENANCE (review #6): this matrix is the single auditable source of "which
+ * MAINTENANCE: this matrix is the single auditable source of "which
  * test covers which vector". When you ADD, RENAME, or DELETE a covering spec, you
  * MUST update the matching row here. The fs-existence assertion below turns a stale
  * path into a red gate on purpose; that is the anti-drift, and it needs the

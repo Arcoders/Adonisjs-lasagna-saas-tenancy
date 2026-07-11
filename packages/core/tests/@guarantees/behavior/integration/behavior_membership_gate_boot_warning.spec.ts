@@ -5,7 +5,7 @@ import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { createResolverStateBaseline } from '@adonisjs-lasagna/saas-tenancy/internal'
 
 /**
- * WS-4 / membership-idor-gate-opt-in-no-runtime-signal — real provider wiring.
+ * Real provider wiring for the opt-in membership IDOR gate.
  *
  * The unit specs prove the verdict logic and that the boot branch references
  * `membershipGateRisk`. This proves the part operators actually rely on: a real
@@ -13,7 +13,7 @@ import { createResolverStateBaseline } from '@adonisjs-lasagna/saas-tenancy/inte
  * emits EXACTLY ONE warning naming the IDOR risk, and stays silent when the
  * host wires the hook or acknowledges the risk.
  *
- * RED (pre-fix): boot emitted zero membership warnings regardless of posture.
+ * Before the fix, boot emitted zero membership warnings regardless of posture.
  */
 test.group('membership-gate boot warning — real provider wiring (integration)', (group) => {
   // Capture the originals in setup and restore in an explicit `each.teardown`.

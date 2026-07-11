@@ -38,7 +38,7 @@ test.group('satellite — real package manifests round-trip', () => {
     ]) {
       assert.include(files, stub)
     }
-    // tenant_plans stays in core — billing must NOT own it.
+    // tenant_plans stays in core, so billing must NOT own it.
     assert.notInclude(files, 'create_tenant_plans_table.stub')
   })
 

@@ -95,7 +95,7 @@ test.group('RateLimitMiddleware (integration, real Redis pipeline)', (group) => 
     // breaking sibling specs, so we exercise the failure path by
     // subclassing the middleware and forcing `getRedis()` to throw.
     // This is exactly what the production middleware sees when Redis
-    // refuses a connection — same code path, same exception, same
+    // refuses a connection: same code path, same exception, same
     // status. The route mapping (`/rate-limited/strict`) ships
     // `failOpen: false`, which is the production-safe default.
     const { default: RateLimitMiddleware } =

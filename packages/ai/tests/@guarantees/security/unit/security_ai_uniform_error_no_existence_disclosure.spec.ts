@@ -10,7 +10,7 @@ import {
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * WS-AI-8 / T5 — vector #17 (cross-tenant existence disclosure / side channel).
+ * Vector #17 (cross-tenant existence disclosure / side channel).
  * A caller must not be able to tell "this tenant does not exist / is not resolvable"
  * apart from "this tenant exists but you are not a member": both must be the SAME
  * uniform 403 with the SAME message, and neither may echo the tenant id. Otherwise an

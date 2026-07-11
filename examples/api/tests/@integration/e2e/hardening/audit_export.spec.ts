@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { runAce } from '../_helpers.js'
 
 /**
- * HARDENING — `tenant:audit:export` produces correct, complete, streamed output.
+ * HARDENING: `tenant:audit:export` produces correct, complete, streamed output.
  *
  * The command streams the immutable audit log to JSON or CSV. We seed a probe
  * tenant's rows with known timestamps (INSERT is the only operation the

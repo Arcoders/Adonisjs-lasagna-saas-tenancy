@@ -4,7 +4,7 @@ import ace from '@adonisjs/core/services/ace'
 import { createInstalledTenant, dropAllTenants, runAce } from '../_helpers.js'
 
 /**
- * E1 — Uninstall (read-only checklist) -> reinstall is clean.
+ * Uninstall runs a read-only checklist, then reinstall is clean.
  *
  * Lasagna's uninstall is deliberately READ-ONLY: `tenant:satellite:remove` prints
  * the exact steps (and the precise backoffice migration files) to roll back, but

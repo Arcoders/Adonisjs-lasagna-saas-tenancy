@@ -7,7 +7,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
  * Exercises the Paddle driver's REST call-sites + webhook scheme against a
- * stubbed `fetch` — no network, no credentials. Runs unconditionally in the
+ * stubbed `fetch`: no network, no credentials. Runs unconditionally in the
  * integration suite (the gated `paddle_real_smoke` spec only runs with a
  * sandbox key), so the driver's methods are actually executed and counted by
  * the aggregate coverage report.

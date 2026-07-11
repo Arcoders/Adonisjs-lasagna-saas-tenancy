@@ -16,12 +16,12 @@ router.get('/health', async ({ response }) => {
 // Package operational probes under /ops (the bare /health above predates
 // them). Used by the readyz_http integration spec to assert the real HTTP
 // status codes (200 ok/degraded, 503 fail) Kubernetes probes would see.
-// `metricsMiddleware: false` mounts /metrics public on purpose — this is a test
+// `metricsMiddleware: false` mounts /metrics public on purpose. This is a test
 // fixture behind no network boundary, and the readyz_http spec asserts the raw
 // HTTP status codes. Production must pass real auth (it now throws otherwise).
 multitenancyRoutes({ prefix: '/ops', metricsMiddleware: false })
 
-// Mount admin REST + OpenAPI docs without auth — the fixture is for tests
+// Mount admin REST and OpenAPI docs without auth. The fixture is for tests
 // only, and individual specs supply their own ad-hoc gating where needed.
 // `middleware: false` is the explicit opt-out the package now requires.
 // `resolveAdminActor` reads the acting admin from an `x-admin-id` header so the
@@ -35,8 +35,8 @@ multitenancyAdminRoutes({
 
 // Mount the Stripe webhook receiver. Required by the dunning_flow,
 // webhook_idempotency, ip_allowlist (HTTP variant), and pii_redaction
-// integration specs — they POST signed events to /webhooks/billing and
-// assert the controller + job pipeline.
+// integration specs. They POST signed events to /webhooks/billing and
+// assert the controller and job pipeline.
 multitenancyBillingRoutes()
 
 router
@@ -79,7 +79,7 @@ router
   .use(middleware.tenantGuard())
 
 // ContextSeal (Isthmus) integration. `/query` routes a model query on the
-// normal guarded path — the tenancy scope the guard opened agrees with the
+// normal guarded path. The tenancy scope the guard opened agrees with the
 // request, so behavior must be exactly as before the seal. `/mismatch`
 // deliberately enters `tenancy.run()` for a DIFFERENT tenant before querying:
 // context confusion the seal refuses with the typed E_ISTHMUS_TENANT_MISMATCH
@@ -102,7 +102,7 @@ router
   .prefix('context-seal')
   .use(middleware.tenantGuard())
 
-// Deliberately UNGUARDED (P2-3): proves `request.tenant()` itself fails closed
+// Deliberately UNGUARDED: proves `request.tenant()` itself fails closed
 // (403) on a suspended/deleted tenant even when no guard middleware ran, and
 // that `{ allowInactive: true }` is the explicit admin-flow escape hatch.
 router.get('/unguarded-tenant', async ({ request, response }) => {
@@ -179,7 +179,7 @@ router
   .use(middleware.tenantGuard())
   .use(middleware.impersonation())
 
-// Legacy (opt-out) mode — used by custom_domain_middleware integration tests.
+// Legacy (opt-out) mode, used by custom_domain_middleware integration tests.
 // `strict: false` restores the pre-1.0 behavior where an explicit header wins
 // over a matching custom domain. Secure-by-default is the bare call below.
 router
@@ -188,7 +188,7 @@ router
   })
   .use(middleware.customDomain({ strict: false }))
 
-// Default (secure) mode — `customDomain()` with no options is now strict.
+// Default (secure) mode: `customDomain()` with no options is now strict.
 // header_vs_domain_precedence proves a header conflicting with a registered
 // custom domain is rejected (rather than silently shadowing the domain-derived
 // tenant) WITHOUT having to opt in.

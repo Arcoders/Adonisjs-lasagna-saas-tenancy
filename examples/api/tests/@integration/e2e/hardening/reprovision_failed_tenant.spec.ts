@@ -4,14 +4,14 @@ import Tenant from '#app/models/backoffice/tenant'
 import { createInstalledTenant, dropAllTenants, runAce } from '../_helpers.js'
 
 /**
- * WS-2 / tenant-lifecycle-partial-failure — reprovision recovery (e2e).
+ * Reprovision recovery from a tenant-lifecycle partial failure (e2e).
  *
  * A tenant stuck in `failed` (a provisioning job threw) was a dead end: the
  * install job had run and the status floor keeps serving it a 503. `tenant:activate`
- * only flips status — it does NOT re-create the schema. `tenant:reprovision`
+ * only flips status. It does NOT re-create the schema. `tenant:reprovision`
  * re-runs the idempotent provision and lands the tenant `active` with a real schema.
  *
- * RED (pre-fix): the command did not exist; a failed tenant was unrecoverable.
+ * Before the fix the command did not exist, so a failed tenant was unrecoverable.
  */
 async function schemaExists(id: string): Promise<boolean> {
   const r = await db

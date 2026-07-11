@@ -10,7 +10,7 @@ import { TenantSuspended, TenantActivated } from '../../../../src/events/index.j
  * Backs the resolution-cache invalidation wiring that
  * `MultitenancyProvider.ready()` installs. The provider class itself can't be
  * imported in the unit environment (its graph pulls a service that
- * top-level-awaits app boot), so — as with `resetModuleCaches` — the spec
+ * top-level-awaits app boot), so (as with `resetModuleCaches`) the spec
  * exercises the extracted function the provider calls.
  *
  * Regression context: this wiring used to run in `boot()` against the

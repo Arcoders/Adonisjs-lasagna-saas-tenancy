@@ -26,7 +26,7 @@ test.group('longRunningQueriesCheck', (group) => {
   })
 
   test('does not throw when central connection is unavailable', async ({ assert }) => {
-    // Without an AdonisJS app boot, db.connection() will throw — the check
+    // Without an AdonisJS app boot, db.connection() will throw, and the check
     // must catch it and either return [] or an info-level diagnostic. It
     // must NEVER throw, because the doctor command keeps running other
     // checks after a failure.
@@ -44,7 +44,7 @@ test.group('longRunningQueriesCheck', (group) => {
   })
 })
 
-// SECURITY (#17): the doctor report is reachable over HTTP at the admin
+// SECURITY: the doctor report is reachable over HTTP at the admin
 // /health/report surface, so a long query's RAW SQL text (which can carry
 // another tenant's secrets/PII as literals) must never land in meta by default.
 test.group('buildLongQueryIssue — query-text scrub', () => {
@@ -63,7 +63,7 @@ test.group('buildLongQueryIssue — query-text scrub', () => {
     // Operationally useful, non-sensitive fields are preserved.
     assert.equal(meta.pid, 4242)
     assert.equal(meta.durationSeconds, 95)
-    assert.equal(issue.code, 'long_running_query') // 95s < 120s error threshold → warn
+    assert.equal(issue.code, 'long_running_query') // 95s < 120s error threshold, so warn
     assert.equal(issue.severity, 'warn')
   })
 

@@ -3,7 +3,7 @@ import db from '@adonisjs/lucid/services/db'
 import { createInstalledTenant, dropAllTenants } from '../_helpers.js'
 
 /**
- * WS-AI-8 / 3A — end-to-end two-tenant isolation over the real HTTP gateway.
+ * End-to-end two-tenant isolation over the real HTTP gateway.
  * Two tenants embed a distinct secret document; each tenant's /ai/retrieve returns
  * ONLY its own document, never the other tenant's, even though both use the same
  * source key. Runs fully offline through the demo's mock providers. Self-skips
@@ -51,8 +51,8 @@ test.group('AI e2e — two-tenant embed/retrieve isolation (3A)', (group) => {
       200,
       `POST /ai/embed (tenant A) should succeed; got ${embedA.status()}: ${JSON.stringify(embedA.body())}`
     )
-    // Demo-layer check (review #2): the write succeeded, so SEAM-2 discovery + the AI
-    // per-tenant migration created the tenant's ai_embeddings table.
+    // Demo-layer check: the write succeeded, so the per-tenant migration discovery
+    // and the AI migration created the tenant's ai_embeddings table.
     assert.equal(embedA.body().inserted, 1, 'the ai_embeddings table exists and took the row')
 
     const embedB = await client

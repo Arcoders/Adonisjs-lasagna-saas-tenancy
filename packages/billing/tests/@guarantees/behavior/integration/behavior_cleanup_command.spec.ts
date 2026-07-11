@@ -69,7 +69,7 @@ test.group('tenant:billing:cleanup (integration)', (group) => {
       const row = await BillingProcessedEvent.find(id)
       assert.isNotNull(row, `${id} (10 days old) must NOT be purged`)
     }
-    // Old failed survives — purge is for completed only (audit + replay window).
+    // Old failed survives: purge is for completed only (audit + replay window).
     for (const id of oldFailed) {
       const row = await BillingProcessedEvent.find(id)
       assert.isNotNull(row, `${id} (failed, 100 days old) must NOT be purged`)

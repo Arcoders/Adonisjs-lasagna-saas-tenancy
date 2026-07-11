@@ -4,12 +4,12 @@ import Tenant from '#app/models/backoffice/tenant'
 import { dropAllTenants, installInline } from '../_helpers.js'
 
 /**
- * HARDENING — concurrent provisioning is idempotent (no duplicate schema).
+ * HARDENING: concurrent provisioning is idempotent (no duplicate schema).
  *
  * The schema-pg driver provisions with `CREATE SCHEMA IF NOT EXISTS`
  * (packages/core/src/services/isolation/schema_pg_driver.ts), and the demo
  * Tenant.install() mirrors it. So two provisioning passes for the same tenant
- * id — a job retry racing a manual install, say — must converge on a single
+ * id (a job retry racing a manual install, say) must converge on a single
  * schema with the tenant left `active`, and neither pass may throw.
  */
 test.group('hardening — concurrent provisioning idempotency', (group) => {

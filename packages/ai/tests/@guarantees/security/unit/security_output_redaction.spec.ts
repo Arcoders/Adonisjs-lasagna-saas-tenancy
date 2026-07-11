@@ -10,8 +10,8 @@ import type { StreamFragment } from '../../../../src/types/ai_provider_contract.
 import type { RedactOutput } from '../../../../src/define_config.js'
 
 /**
- * WS-AI-10 hardening — the optional host `redactOutput` seam (LLM05 / LLM02).
- * The composed gate applies the mandatory I8 bound FIRST and LAST, so the bound
+ * The optional host `redactOutput` seam (LLM05 / LLM02).
+ * The composed gate applies the mandatory output bound FIRST and LAST, so the bound
  * always holds; the host redactor sits between as defense-in-depth, NEVER the
  * isolation control. Fail-closed on throw / non-string; `null` aborts; `tokens`
  * preserved. These are pure-function proofs (Tier 1); the replay/memory coherence

@@ -69,9 +69,9 @@ class CountingPipeline {
   }
 }
 
-// ioredis does NOT reject exec() when the backend is down — it RESOLVES with
+// ioredis does NOT reject exec() when the backend is down. It RESOLVES with
 // per-command [error, value] tuples. This is the real Redis-outage shape that
-// the older middleware mistook for success (reading count=0 → fail-open).
+// the older middleware mistook for success (reading count=0 and failing open).
 class ResolvedWithErrorsPipeline {
   zremrangebyscore() {
     return this
@@ -168,7 +168,7 @@ test.group('RateLimitMiddleware', (group) => {
     assert,
   }) => {
     // The real ioredis outage shape: exec() resolves with [error, null] tuples
-    // instead of rejecting. Must NOT be mistaken for success (count=0 → open).
+    // instead of rejecting. Must NOT be mistaken for success (count=0 read as open).
     const m = new ResolvedErrorsRedisRateLimit()
     let nextCalled = false
 
@@ -244,7 +244,7 @@ test.group('RateLimitMiddleware', (group) => {
   test('short-circuits in test env unless bypassInTestEnv is set', async ({ assert }) => {
     // The Redis stub would throw if reached. With isTestEnv=true and no
     // bypassInTestEnv flag, the middleware MUST short-circuit before
-    // touching the backend — proving the test bypass is wired up.
+    // touching the backend, proving the test bypass is wired up.
     const m = new TestEnvForcedRateLimit()
     let nextCalled = false
 
@@ -285,8 +285,8 @@ class KeyCapturingRateLimit extends RateLimitMiddleware {
   }
 }
 
-// P3-2: attribution must prefer the canonical id the guard resolved
-// (tenancy.currentId()) over the sync legacy resolver — under domain-based
+// Attribution must prefer the canonical id the guard resolved
+// (tenancy.currentId()) over the sync legacy resolver. Under domain-based
 // strategies the resolver comes up empty and would collapse every tenant into
 // one shared per-IP 'global' bucket.
 test.group('RateLimitMiddleware — tenant attribution (P3-2)', (group) => {

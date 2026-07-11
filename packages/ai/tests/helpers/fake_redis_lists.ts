@@ -4,13 +4,13 @@
  * del / unlink / scan / set / mget). It models redis' inclusive, negative-index
  * range semantics and ioredis' resolve-not-reject pipeline-outage shape, so a
  * unit spec exercises the memory service's real code paths (atomic append,
- * bounded trim, degrade-on-outage, WS-AI-9 purge + tombstone) without a live
+ * bounded trim, degrade-on-outage, purge + tombstone) without a live
  * server.
  *
- * It also faithfully models ioredis' `keyPrefix` footgun (WS-AI-9 E2): every
+ * It also faithfully models ioredis' `keyPrefix` footgun: every
  * key-taking command is prefixed EXCEPT a `SCAN MATCH` pattern, which ioredis
  * leaves raw. So a purge that does not prepend the prefix to its MATCH silently
- * matches nothing — the exact bug the memory service now guards against.
+ * matches nothing, the exact bug the memory service now guards against.
  */
 
 export interface FakeRedisOptions {
@@ -75,7 +75,7 @@ class FakePipeline {
 
   async exec(): Promise<Array<[Error | null, unknown]>> {
     // ioredis RESOLVES (never rejects) on a backend fault, surfacing per-command
-    // [error, value] tuples — the shape the memory service's outage detection reads.
+    // [error, value] tuples, the shape the memory service's outage detection reads.
     if (this.isDown()) return this.#ops.map(() => [new Error('redis down'), null])
     return this.#ops.map((op) => {
       op()
@@ -87,7 +87,7 @@ class FakePipeline {
 export class FakeRedisLists {
   readonly data = new Map<string, string[]>()
   readonly ttls = new Map<string, number>()
-  /** Scalar keys (SET/GET/MGET), e.g. the WS-AI-9 purge tombstones — a separate space from the LIST keys. */
+  /** Scalar keys (SET/GET/MGET), e.g. the purge tombstones, a separate space from the LIST keys. */
   readonly scalars = new Map<string, string>()
   /** ioredis exposes the configured prefix here; the memory service reads it to prefix a SCAN MATCH. */
   readonly options: { keyPrefix: string }
@@ -128,7 +128,7 @@ export class FakeRedisLists {
     if (this.#down) throw new Error('redis down')
     const matchIdx = args.indexOf('MATCH')
     // ioredis does NOT apply keyPrefix to a SCAN MATCH: it is matched raw against
-    // the (already-prefixed) stored keys. This is the E2 footgun the service handles.
+    // the (already-prefixed) stored keys. This is the footgun the service handles.
     const pattern = matchIdx >= 0 ? String(args[matchIdx + 1]) : '*'
     const re = globToRegExp(pattern)
     const keys = [...this.data.keys()].filter((key) => re.test(key))
@@ -136,14 +136,14 @@ export class FakeRedisLists {
     return ['0', keys]
   }
 
-  /** SET key value [PX ttl] — the tombstone write path. Extra args (PX/ttl) are accepted and ignored by the fake. */
+  /** SET key value [PX ttl] is the tombstone write path. Extra args (PX/ttl) are accepted and ignored by the fake. */
   async set(key: string, value: string, ..._args: unknown[]): Promise<'OK'> {
     if (this.#down) throw new Error('redis down')
     this.scalars.set(this.#k(key), String(value))
     return 'OK'
   }
 
-  /** MGET — the tombstone read path. Missing keys read as `null`, like ioredis. */
+  /** MGET is the tombstone read path. Missing keys read as `null`, like ioredis. */
   async mget(...keys: string[]): Promise<Array<string | null>> {
     if (this.#down) throw new Error('redis down')
     return keys.map((key) => this.scalars.get(this.#k(key)) ?? null)

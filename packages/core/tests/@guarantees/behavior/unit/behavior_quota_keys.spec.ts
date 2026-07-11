@@ -14,7 +14,7 @@ import {
  * wildcard `SCAN quota:<id>:*`, and consume/getUsage must read and write the
  * SAME key. A silent drift (dropping the date segment, reordering, renaming the
  * `:snap:` marker) would make counters never enforce or never reset while the
- * higher-level tests still pass — so the formats are frozen here.
+ * higher-level tests still pass, so the formats are frozen here.
  */
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 

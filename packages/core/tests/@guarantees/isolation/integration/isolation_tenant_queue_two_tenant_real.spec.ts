@@ -5,7 +5,7 @@ import { TenantQueueService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy'
 
 /**
- * ISOLATION — per-tenant queue isolation against REAL BullMQ + Redis. The scheduler
+ * Per-tenant queue isolation against REAL BullMQ + Redis. The scheduler
  * fan-out is proven elsewhere with a `RecordingScheduler` double (no Redis), which
  * captures the dispatch call but can NOT prove the load-bearing property: that each
  * tenant's job lands in that tenant's OWN queue and a worker draining tenant A never
@@ -74,7 +74,7 @@ test.group('tenant queue isolation — real BullMQ (integration)', (group) => {
         })
       })
 
-      // The worker saw ONLY tenant A's job — never tenant B's.
+      // The worker saw ONLY tenant A's job, never tenant B's.
       assert.deepEqual(processed, ['A'], 'the tenant-A worker processed only tenant A’s job')
 
       // Tenant B's job is untouched: it still sits in tenant B's queue.

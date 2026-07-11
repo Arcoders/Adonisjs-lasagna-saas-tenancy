@@ -200,7 +200,7 @@ test.group('BootstrapperRegistry — runScoped atomicity', () => {
     )
 
     assert.isFalse(fnCalled)
-    // 'a' entered → leaves; 'b' threw before completion → no leave for b; 'c' never entered
+    // 'a' entered, so it leaves. 'b' threw before completing, so no leave for b. 'c' never entered
     assert.deepEqual(log, ['enter:a', 'enter:b', 'leave:a'])
   })
 })

@@ -6,7 +6,7 @@ import Tenant from '#app/models/backoffice/tenant'
 import { createInstalledTenant, dropAllTenants, runAce } from '../_helpers.js'
 
 /**
- * WS-2 / tenant-lifecycle-partial-failure — destroy chaos (e2e).
+ * Destroy chaos (e2e): a partial failure in the tenant lifecycle teardown.
  *
  * `tenant:destroy` soft-deletes the tenant THEN drops its schema. If the drop
  * fails after the soft-delete, the tenant is already unreachable but its schema

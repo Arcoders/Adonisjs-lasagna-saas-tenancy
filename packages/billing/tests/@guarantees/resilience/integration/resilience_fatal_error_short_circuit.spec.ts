@@ -18,13 +18,13 @@ import {
 import type Stripe from 'stripe'
 
 /**
- * Covers `ProcessBillingEventJob.#shortCircuitIfFatal` — the fatal-error
- * gate added in the audit (A-6). A non-retryable `BillingException`
+ * Covers `ProcessBillingEventJob.#shortCircuitIfFatal`, the fatal-error
+ * gate added in the audit. A non-retryable `BillingException`
  * (revoked API key, invalid request, permission denied) must:
  *   - mark the ledger row `status='failed'` immediately
  *   - emit `BillingEventDeadLettered`
  *   - NOT re-throw (so BullMQ doesn't burn its retry budget on something
- *     that can't succeed) — `attempts` stays at 1
+ *     that can't succeed), leaving `attempts` at 1
  *
  * The contrast case proves a *retryable* error (network blip, 5xx) is
  * NOT short-circuited: the row stays `pending`, the job re-throws so
@@ -110,8 +110,8 @@ test.group('Fatal-error short-circuit (integration)', (group) => {
     await seedLedgerViaPost(client, eventId)
     assert.lengthOf(pendingJobs, 1)
 
-    // retrieveEvent → stripe.events.retrieve throws an auth error →
-    // BillingException('authentication_failed') → isRetryable() === false.
+    // retrieveEvent calls stripe.events.retrieve, which throws an auth error,
+    // becoming BillingException('authentication_failed') with isRetryable() === false.
     ;(mock.events as { retrieve: (id: string) => Promise<Stripe.Event> }).retrieve = async () => {
       throw Object.assign(new Error('Invalid API Key provided'), {
         type: 'StripeAuthenticationError',
@@ -147,7 +147,7 @@ test.group('Fatal-error short-circuit (integration)', (group) => {
     const eventId = `evt_retryable_${randomUUID().slice(0, 8)}`
     await seedLedgerViaPost(client, eventId)
 
-    // StripeConnectionError → BillingException('network_error') →
+    // StripeConnectionError becomes BillingException('network_error') with
     // isRetryable() === true.
     ;(mock.events as { retrieve: (id: string) => Promise<Stripe.Event> }).retrieve = async () => {
       throw Object.assign(new Error('socket hang up'), { type: 'StripeConnectionError' })

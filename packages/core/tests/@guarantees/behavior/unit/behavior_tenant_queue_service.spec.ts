@@ -46,7 +46,7 @@ test.group('TenantQueueService — handle bound (P1-3)', (group) => {
         redis: { host: '127.0.0.1', port: 6379, db: 1 },
         maxOpenQueues: 5,
         // Zero grace so every previously-touched handle is immediately
-        // evictable — the LRU keeps the live set at the cap as we churn.
+        // evictable. The LRU keeps the live set at the cap as we churn.
         queueIdleGraceMs: 0,
       },
     })

@@ -5,15 +5,15 @@ import { setupTestConfig } from '../../../helpers/config.js'
 import type { TenantRepositoryContract } from '../../../../src/types/contracts.js'
 
 /**
- * WS-2 / doctor-and-metrics-load-all-tenants.
+ * DoctorService and metrics loaded all tenants at once.
  *
  * DoctorService.run loaded every tenant with one unbounded `repo.all()` on each
- * run — an O(n-tenants) full-table load that spikes memory at scale. The fix
+ * run, an O(n-tenants) full-table load that spikes memory at scale. The fix
  * cursor-iterates via `repo.each()` (keyset pagination). This uses a recording
  * repo whose `each()` does NOT delegate to `all()`, so it can prove which path
  * the service actually takes.
  *
- * RED (pre-fix): `all` is called once, `each` zero times.
+ * Before the fix, `all` is called once and `each` zero times.
  */
 function recordingRepo(tenants: ReturnType<typeof buildTestTenant>[]) {
   const calls = { all: 0, each: 0 }

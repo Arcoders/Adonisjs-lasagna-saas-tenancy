@@ -49,8 +49,8 @@ test.group('TenantResolutionCache (P1-1)', () => {
     assert.equal(cache.get('c')?.id, 'c')
   })
 
-  // Pins the sharing contract (P2-2): the cache hands the SAME instance to
-  // every concurrent request — it does not snapshot or freeze. This is exactly
+  // Pins the sharing contract: the cache hands the SAME instance to
+  // every concurrent request, and it does not snapshot or freeze. This is exactly
   // why the config doc says "treat the resolved tenant as READ-ONLY; load a
   // fresh instance to mutate". If this test starts failing because get()
   // returns a copy, the documented contract changed: update the config JSDoc

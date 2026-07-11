@@ -5,7 +5,7 @@ import { test } from '@japa/runner'
  * in a bare unit test (no Ignitor / no booted app) so satellite authors can
  * import the test helpers without standing up an application. This broke once:
  * `factory.ts` did a top-level `import db from '@adonisjs/lucid/services/db'`,
- * whose `await app.booted(...)` throws outside an Ignitor — making the whole
+ * whose `await app.booted(...)` throws outside an Ignitor, making the whole
  * barrel (and anything re-exported from it) unimportable. It is now a lazy
  * import; this test fails the moment a top-level app.booted-touching import
  * sneaks back in.

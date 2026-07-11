@@ -6,12 +6,12 @@ import { fileURLToPath } from 'node:url'
  * Architectural guard for the admin audit trail. It reads the controller source
  * (no Ignitor) and proves three invariants that the rest of the suite assumes:
  *
- *   1. Completeness — every controller method that performs a mutation also
+ *   1. Completeness: every controller method that performs a mutation also
  *      records an audit row (or carries an explicit `// audit-exempt:` marker).
  *      A new endpoint that mutates without auditing fails this test.
- *   2. Action names — each documented `admin:<resource>:<verb>` action literal is
+ *   2. Action names: each documented `admin:<resource>:<verb>` action literal is
  *      present in its controller, so a rename/drop is caught.
- *   3. No secret leak — no `auditAdminAction(...)` call passes a secret in its
+ *   3. No secret leak: no `auditAdminAction(...)` call passes a secret in its
  *      metadata. This turns the "ids and flags only, never secrets" rule into a
  *      test rather than a convention.
  *
@@ -99,7 +99,7 @@ const EXPECTED_ACTIONS: Record<string, string[]> = {
   ],
 }
 
-// The sum of EXPECTED_ACTIONS — the total number of audit call sites we expect.
+// The sum of EXPECTED_ACTIONS: the total number of audit call sites we expect.
 const EXPECTED_TOTAL = Object.values(EXPECTED_ACTIONS).reduce((n, a) => n + a.length, 0)
 
 // Never allowed inside an audit call's metadata. `\bsecret\b` flags a bare

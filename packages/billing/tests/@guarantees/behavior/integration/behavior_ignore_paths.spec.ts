@@ -7,7 +7,7 @@ import { readFile } from 'node:fs/promises'
  * host MUST already contain it. A host that follows the docs and pastes
  * the published config will hit `TenantGuard` on every webhook otherwise.
  *
- * This test reads the stub directly from disk — same bytes the user gets.
+ * This test reads the stub directly from disk, the same bytes the user gets.
  */
 test.group('multitenancy.stub default ignorePaths', () => {
   test("includes '/webhooks/billing' in the default ignorePaths array", async ({ assert }) => {
@@ -29,7 +29,7 @@ test.group('multitenancy.stub default ignorePaths', () => {
     const match = /ignorePaths:\s*\[([^\]]+)\]/.exec(text)
     const list = match![1]
     // Defensive list of paths the package expects to be unauthenticated
-    // out of the box — health, admin, generic webhooks, stripe webhook.
+    // out of the box: health, admin, generic webhooks, stripe webhook.
     for (const required of ["'/health'", "'/admin'", "'/webhooks/billing'"]) {
       assert.include(list, required, `${required} missing from default ignorePaths`)
     }

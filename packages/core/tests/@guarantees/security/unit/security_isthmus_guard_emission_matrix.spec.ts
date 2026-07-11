@@ -109,7 +109,7 @@ type GatingGuardId = Exclude<IsthmusGuardId, AuditGuardId>
 const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
   'guard.tenant_identifier': {
     // ASCII-only SAFE_IDENT fires before the NFKC clause; '℀' still trips it,
-    // as input diversity — not as distinct NFKC-clause coverage.
+    // as input diversity, not as distinct NFKC-clause coverage.
     trip: () => assertSafeIdentifier('tenant@bad', 'tenant id'),
     expectThrow: /Refusing to use unsafe tenant id/,
     happy: () => assertSafeIdentifier(UUID, 'tenant id'),
@@ -132,7 +132,7 @@ const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
   'guard.redirect_port': {
     trip: () =>
       new CrossDomainRedirectService().toTenant({ customDomain: 'ok.example' } as any, '/x', {
-        // 0 is falsy → the `opts.port ? …` guard skips it; use an out-of-range
+        // 0 is falsy, so the `opts.port ? …` guard skips it; use an out-of-range
         // truthy port so assertSafePort actually runs.
         port: 70000,
       }),
@@ -194,7 +194,7 @@ const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
     happy: () => setTenantRlsGuc(recordingRunner(), UUID, { gucName: 'app.tenant_id' }),
   },
   'guard.broadcast_channel': {
-    // tenantChannel (sync, no Transmit import) — NOT tenantBroadcast, whose
+    // tenantChannel (sync, no Transmit import), NOT tenantBroadcast, whose
     // normalizeChannel runs after `await lazyTransmit()`. Must run inside a
     // tenancy scope carrying a SAFE id, or it trips the "outside a scope" error
     // (or guard.tenant_identifier) instead of the channel guard.
@@ -203,8 +203,8 @@ const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
     happy: () => tenancy.run({ id: UUID } as any, () => tenantChannel('chat')),
   },
   'guard.outbound_fetch': {
-    // Hermetic: an IP literal pins without DNS → url_blocks_private. No happy
-    // recipe — a non-emitting fetch would make a real network call, which has
+    // Hermetic: an IP literal pins without DNS and trips url_blocks_private. No
+    // happy recipe: a non-emitting fetch would make a real network call, which has
     // no place in a unit spec; the trusted-host happy path is covered in
     // security_safe_fetch.spec.ts.
     trip: () => safeFetch('https://10.0.0.1/x'),
@@ -212,7 +212,7 @@ const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
   },
   'guard.webhook_url': {
     // registerWebhook validates the URL before any crypto/model use, so the
-    // trip is hermetic. No happy recipe — a valid URL proceeds into writeSecret
+    // trip is hermetic. No happy recipe: a valid URL proceeds into writeSecret
     // + TenantWebhook.create, which need a booted app; the happy path is covered
     // by the webhook integration specs.
     trip: () => new WebhookService().registerWebhook(UUID, 'http://insecure.example/hook', ['e']),
@@ -226,8 +226,8 @@ const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
   },
   'guard.plugin_core_access': {
     // Untrusted plugin code on the stack reaching a core singleton funnel is
-    // denied (S5 in-process friction). No scope → core's own code → no denial,
-    // so the happy path is a plain no-op.
+    // denied (in-process friction). With no scope, the caller is core's own
+    // code and there is no denial, so the happy path is a plain no-op.
     trip: () =>
       pluginScope.run({ plugin: pluginName('sketchy'), trusted: false }, () =>
         assertCoreAccessAllowed('tenant-repository')
@@ -261,7 +261,7 @@ const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
   'seal.scope_required': {
     trip: () => {
       const hooks = makeScopedModel()
-      // No active tenancy scope and no unscoped() → strict mode refuses.
+      // No active tenancy scope and no unscoped(), so strict mode refuses.
       hooks.find![0]!({ where() {} })
     },
     expectThrow: /outside both tenancy\.run\(\) and unscoped/,

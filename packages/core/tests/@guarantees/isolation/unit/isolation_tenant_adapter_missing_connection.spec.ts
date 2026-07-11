@@ -8,10 +8,10 @@ import IsolationDriverRegistry from '../../../../src/services/isolation/registry
 import SchemaPgDriver from '../../../../src/services/isolation/schema_pg_driver.js'
 
 /**
- * WS-1 / adapter-assumes-connection-preregistered.
+ * Missing-connection precondition in the tenant adapter.
  *
  * The adapter resolves a tenant connection NAME and hands it to Lucid, but
- * it never registers the connection — that is the driver's job at context
+ * it never registers the connection. That is the driver's job at context
  * entry (request.tenant() / tenancy.run()). If a query reaches the adapter
  * with no connection registered (a cold worker, an LRU eviction, a custom
  * entry point that forgot to enter context), Lucid throws an opaque
@@ -19,7 +19,7 @@ import SchemaPgDriver from '../../../../src/services/isolation/schema_pg_driver.
  * db.manager.has(name) at the boundary and throws a typed, actionable
  * IsolationConfigException instead.
  *
- * RED (current code): the adapter calls db.connection(name) directly with no
+ * Before the fix, the adapter calls db.connection(name) directly with no
  * precondition, so the raw Lucid error surfaces and it is NOT an
  * IsolationConfigException.
  */
