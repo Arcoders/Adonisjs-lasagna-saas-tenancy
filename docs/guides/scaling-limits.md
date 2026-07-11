@@ -87,7 +87,7 @@ default for most deployments, and it is the behaviour the 1.0 ships with.
 
 Eviction is by recency, not by tenant "noise": when the cap is reached the LRU
 drops the connection that has gone *idle* the longest, never the one that has
-sent the most queries. It is not a fair-share scheduler — a tenant with many
+sent the most queries. It is not a fair-share scheduler. A tenant with many
 concurrent requests is protected by the grace window, while a quiet tenant's
 connection is reclaimed first. Per-tenant load fairness (rate limits, worker
 concurrency) is a separate concern handled elsewhere.
@@ -174,7 +174,7 @@ documented under [reporting → Scaling the metrics table](/guides/satellites/re
   ```
 
   The existing `UNIQUE(tenant_id, period)` already includes the partition key
-  `period` (Postgres requires it) — don't reorder it, or partitioning breaks. Use
+  `period` (Postgres requires it). Don't reorder it, or partitioning breaks. Use
   attach/detach of yearly child partitions for retention.
 
 ## Read next

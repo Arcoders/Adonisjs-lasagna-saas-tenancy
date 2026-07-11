@@ -143,8 +143,8 @@ full model.
 These are the four sections that attach code to the request path. A plugin uses
 only the ones it needs.
 
-Each seam has a typed **builder** — `authorizer()`, `middleware()`, `requestMacro()`,
-`defineCapability()` — and it is the recommended way to author an entry. The builder
+Each seam has a typed **builder** (`authorizer()`, `middleware()`, `requestMacro()`,
+`defineCapability()`), and it is the recommended way to author an entry. The builder
 mints the branded name (rejecting an unsafe one at authoring time), stamps the `kind`
 discriminant, and defaults `contractVersion` to the SDK's current constant, so you
 write the fields that matter and nothing else. The raw discriminated object still
@@ -301,7 +301,7 @@ defineCapability({ name: 'secret_keys', api, sensitive: true })
 
 A sensitive capability crosses a trust gate. Only a plugin on the operator's
 `TRUSTED_SATELLITES` allowlist (a comma- or space-separated list of plugin names in
-the environment) may **provide** one, and only trusted code may **consume** one — an
+the environment) may **provide** one, and only trusted code may **consume** one. An
 untrusted attempt throws `CapabilityTrustException` (403) rather than degrading to
 `undefined`. Ordinary (non-sensitive) capabilities ignore the allowlist and stay
 freely composable. The bump to `CAPABILITY_CONTRACT_VERSION` 2 records this: a plugin
@@ -312,7 +312,7 @@ warns rather than fails).
 `TRUSTED_SATELLITES` also gates the in-process core-access funnels: an untrusted
 plugin that resolves the host tenant repository or the shared db handle through the
 sanctioned accessors is denied. This raises the cost of a careless reach, but an
-installed plugin runs with full in-process privilege — a direct `import` of the db
+installed plugin runs with full in-process privilege. A direct `import` of the db
 service evades the db funnel. The wall that actually denies an untrusted write is the
 read-only Postgres role (below), enforced by the database, not by JavaScript.
 </Callout>
@@ -421,17 +421,17 @@ Set exactly one of `cron` or `everyMs`. `job` is the per-tenant job name dispatc
 to each active tenant's queue. The tick runs on the host's `queue:work` worker, so
 the `schedules` seam needs `@adonisjs/queue` configured; declare
 `permission.scheduler()` so the operator consents to it at install (disclosure, not
-enforcement). The full model — the native scheduler backend, the status filter,
-reconciling vs fire-once delivery, and idempotency — is in
+enforcement). The full model (the native scheduler backend, the status filter,
+reconciling vs fire-once delivery, and idempotency) is in
 [Scheduler](/guides/scheduler).
 
 ## Provisioning Postgres extensions
 
 A plugin whose tables need a Postgres extension (pgvector, PostGIS, `pg_trgm`)
 declares it with `provisionExtensions`. The facade registers an `after('provision')`
-hook that installs each extension into every newly-provisioned tenant's storage —
-per tenant database on `database-pg`, once on the shared database for
-`schema-pg`/`rowscope-pg` — under the privileged provisioning connection
+hook that installs each extension into every newly-provisioned tenant's storage
+(per tenant database on `database-pg`, once on the shared database for
+`schema-pg`/`rowscope-pg`) under the privileged provisioning connection
 (`isolation.provisionConnectionName`), so the app's least-privilege request role
 never runs `CREATE EXTENSION`.
 
@@ -469,9 +469,9 @@ export default definePlugin({
 
 Handlers run decoupled from the write (after-commit, fail-open), so a slow or failing
 subscriber never blocks or rolls back the write. It fires for instance writes
-(`save`/`create`/`delete`) only — a query-builder bulk `update`/`delete` emits
-nothing. The full model — the mixin, the names-only payload, the bulk-write and
-minification caveats, the re-read pattern for values — is in
+(`save`/`create`/`delete`) only. A query-builder bulk `update`/`delete` emits
+nothing. The full model (the mixin, the names-only payload, the bulk-write and
+minification caveats, the re-read pattern for values) is in
 [Data-change hooks](/guides/data-change-hooks).
 
 ## The `/plugin` import surface

@@ -91,7 +91,7 @@ boot and binds nothing), so their registries stay module-level singletons you
 import directly. `billing`
 selects its active driver from `config.billing.driver`; `websockets` reads its
 hook from config. The `isolation` and `resolution` registries live in core and
-are also container singletons — a custom `IsolationDriver` or `TenantResolver`
+are also container singletons. A custom `IsolationDriver` or `TenantResolver`
 declares `contractVersion: ISOLATION_CONTRACT_VERSION` / `RESOLVER_CONTRACT_VERSION`
 and the registry refuses one built for a newer core (older/absent only warn).
 

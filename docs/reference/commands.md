@@ -66,7 +66,7 @@ ABI compatibility of each installed satellite, native-addon sandbox risk, a stal
 typo'd `TRUSTED_SATELLITES` allowlist, whether the read-only firewall (`plugins.readOnly`)
 is configured while untrusted plugins are installed, and which plugins hold declared
 (consent-gated) permissions. It exits non-zero on any error, so it doubles as a CI gate. It does not
-re-check manifest↔spec coherence — that is the `check-plugin-permissions` build guard.
+re-check manifest↔spec coherence. That is the `check-plugin-permissions` build guard.
 
 ```bash
 node ace plugin:doctor
@@ -113,7 +113,7 @@ extension must exist before any migration declares a `vector(N)` column.
 provisioning connection (`isolation.provisionConnectionName`), never the app's
 request-serving role. The extension is installed into a dedicated `extensions`
 schema, which `schema-pg` tenant connections append to their `search_path` after
-the tenant's own schema — so a bare `vector(N)` column and its operators resolve
+the tenant's own schema, so a bare `vector(N)` column and its operators resolve
 while `public` (which holds central-connection data) stays off the tenant path,
 keeping physical tenant isolation (I1) intact. A hand-rolled tenant model that
 registers its own connection must append that schema too (see the demo's

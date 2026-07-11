@@ -6,7 +6,7 @@ description: Run a dedicated BullMQ worker per tenant with its own concurrency c
 # Per-tenant worker concurrency
 
 The package dispatches every tenant's jobs to a per-tenant BullMQ queue
-(`config.queue.tenantQueuePrefix + tenantId`). It is **dispatch-only** — it never
+(`config.queue.tenantQueuePrefix + tenantId`). It is **dispatch-only**. It never
 spawns a worker. By default your single `node ace queue:work` process drains all
 those queues with one shared concurrency budget, so a tenant that floods its
 queue can monopolise the workers and starve everyone else.
@@ -25,7 +25,7 @@ manually as shown below.
 ## Jobs: extend `TenantJob` for automatic context
 
 Make tenant jobs extend [`TenantJob`](/guides/jobs) so they restore the tenant
-context automatically — no manual `tenancy.run()` wrapping:
+context automatically (no manual `tenancy.run()` wrapping):
 
 ```ts
 // app/jobs/generate_invoice.ts
@@ -103,15 +103,15 @@ process.on('SIGTERM', async () => {
 ```
 
 Wrap it in an ace command (`run:tenant-worker`) and let your orchestration layer
-run one process per active tenant — for example a Docker Compose / Kubernetes
-deployment per tenant tier, assigning a higher concurrency to premium tenants:
+run one process per active tenant (for example a Docker Compose / Kubernetes
+deployment per tenant tier, assigning a higher concurrency to premium tenants):
 
 ```ts
 const concurrency = tenant.plan === 'enterprise' ? 8 : tenant.plan === 'pro' ? 3 : 1
 const opts = buildTenantWorkerOptions(tenant.id, concurrency)
 ```
 
-Multiple workers on the same tenant queue is also valid — BullMQ distributes jobs
+Multiple workers on the same tenant queue is also valid. BullMQ distributes jobs
 across them, so total parallelism is the sum of their concurrencies.
 
 ## Monitoring

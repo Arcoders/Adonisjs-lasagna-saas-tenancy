@@ -6,8 +6,8 @@ description: A plugin schedule is one periodic tick that fans out over active te
 # Scheduler
 
 A **schedule** lets a plugin run periodic work for every tenant without wiring one
-repeatable per tenant. You declare a single tick — a cron expression or a fixed
-interval plus the name of a per-tenant job — and on each firing the scheduler fans
+repeatable per tenant. You declare a single tick (a cron expression or a fixed
+interval plus the name of a per-tenant job), and on each firing the scheduler fans
 out over active tenants, dispatching that job to each one's queue. One declaration
 covers 10 tenants or 10,000, and a suspended or deleted tenant drops out of the
 fan-out for free through the status filter.
@@ -87,7 +87,7 @@ lock. In the provider's `ready()`, each declared schedule is **armed** as one na
 schedule (upserted by a deterministic id, so re-arming on another pod or a redeploy
 updates in place rather than duplicating). The host's `queue:work` worker then fires
 it: the worker **atomically claims** a due schedule, so the tick is **dispatched
-once per interval** across every pod — there is no advisory lock to configure and no
+once per interval** across every pod. There is no advisory lock to configure and no
 thundering-herd window. The dispatched tick *body* still runs at-least-once (a
 worker retry or stall recovery can re-run it), which is why the per-tenant dispatch
 carries a best-effort dedup id and why reconciling work is the pattern to prefer.
@@ -106,13 +106,13 @@ so a worker retry of the same tick within the same period tries to re-dispatch t
 same ids. That dedup is **best-effort**: the per-tenant queue only retains a
 *completed* id for a bounded window (`removeOnComplete`), so for a large fan-out the
 early ids evict before the retry runs and most tenants are re-dispatched rather than
-deduped. Do not rely on it for correctness — correctness comes from the schedule's
+deduped. Do not rely on it for correctness. Correctness comes from the schedule's
 shape:
 
-- **`reconciling`** (default): the work is idempotent catch-up — "sync whatever is
-  behind". A missed tick (a worker down during the window) self-heals on the next
+- **`reconciling`** (default): the work is idempotent catch-up ("sync whatever is
+  behind"). A missed tick (a worker down during the window) self-heals on the next
   tick, which simply picks up the still-pending work. This is the pattern to prefer.
-- **`fire-once`**: the work is time-specific — "email the 09:00 summary". It must
+- **`fire-once`**: the work is time-specific ("email the 09:00 summary"). It must
   NOT re-fire at 10:00. The framework does not branch on this flag; it documents
   your intent. For fire-once work you own the compensation (a processed-marker per
   period, or accepting at-most-once with possible loss during an outage) via the
@@ -120,7 +120,7 @@ shape:
 
 <Callout type="info" title="Availability is bounded by the queue backend">
 The scheduler's schedules and the per-tenant queues share the queue backend. A
-total backend outage means nothing dispatches AND nothing enqueues — there is no
+total backend outage means nothing dispatches AND nothing enqueues. There is no
 second path. For schedules that must not miss, run the queue backend in HA and make
 the work reconciling so a missed window recovers.
 </Callout>
@@ -136,7 +136,7 @@ the work reconciling so a missed window recovers.
 - **Arming — fail-closed on the worker, fail-open on the web.** A declared schedule
   that cannot be armed aborts the deploy in the worker/console process (where the
   schedule actually runs), so a broken feature surfaces immediately. In the `web`
-  process the same failure is logged loudly but does not fail readiness — the worker
+  process the same failure is logged loudly but does not fail readiness. The worker
   arms the shared schedule anyway, so a transient queue-backend blip must not take
   the API down.
 

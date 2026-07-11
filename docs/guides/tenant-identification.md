@@ -151,7 +151,7 @@ class HeaderTokenResolver implements TenantResolver {
 }
 ```
 
-The simplest way to wire it is inline in config — no provider needed. Pass the
+The simplest way to wire it is inline in config, no provider needed. Pass the
 instance directly in `resolverChain`, or in the `resolvers` bag so a string in
 the chain can name it:
 
@@ -177,7 +177,7 @@ registry.register(new HeaderTokenResolver())
 
 Set `resolverChain` to try multiple strategies in order; first one to
 return a hit wins. Entries are built-in names, names from `resolvers`, or inline
-`TenantResolver` instances — an unknown string name fails at boot:
+`TenantResolver` instances. An unknown string name fails at boot:
 
 ```ts
 export default defineConfig({

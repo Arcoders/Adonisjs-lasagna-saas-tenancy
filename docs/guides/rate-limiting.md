@@ -56,8 +56,8 @@ router
 ```
 
 The `tenantGuard` (or any middleware that resolves `request.tenant()`) must run
-first. A plan that omits `rateLimit` is not routable through `enforceRateLimit()`
-— the request throws, which is the signal to either add a `rateLimit` to that
+first. A plan that omits `rateLimit` is not routable through `enforceRateLimit()`.
+The request throws, which is the signal to either add a `rateLimit` to that
 plan or drop the middleware from the route for an unlimited tier.
 
 Per-route overrides are still available without losing the per-tenant ceiling:

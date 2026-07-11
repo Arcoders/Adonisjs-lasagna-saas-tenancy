@@ -86,7 +86,7 @@ outage cannot take it down.**
 It is dependency-centric, not a noisy-neighbor guard. It trips on a tenant's own
 database *failing* (the `SELECT 1` probe below), so a broken tenant fails fast
 instead of dragging others down. It does **not** watch request volume or shed load
-from a tenant that is merely busy — for that, reach for per-tenant
+from a tenant that is merely busy. For that, reach for per-tenant
 [rate limits](/guides/rate-limiting) and the per-tenant worker concurrency recipe.
 
 The decision is in-memory and per-tenant. Each tenant gets its own in-process
@@ -244,7 +244,7 @@ error: transient errors (network, rate-limit, 5xx) retry with the queue's backof
 known-fatal errors short-circuit straight to `status='failed'`. Either way an
 exhausted event fires `BillingEventDeadLettered`. Inspect with
 `tenant:billing:dlq:list`, fix the cause, and re-dispatch with
-`tenant:billing:replay`. Wire the event to your pager — see the demo listener in
+`tenant:billing:replay`. Wire the event to your pager. See the demo listener in
 `examples/api/app/listeners/billing_dead_letter_listener.ts`.
 
 **Provider outage → reconcile.** While the provider is unreachable the mirror
@@ -281,7 +281,7 @@ another tenant's data into a tenant context. The guard is pure and unit-tested.
 **Aggregation is read-only over the backoffice schema.** Reporting never enters a
 tenant's `search_path`; it aggregates the shared `tenant_metrics` /
 `tenant_custom_metrics` tables. SQL is parameterized, the period bucket and the
-custom-metric aggregation come from whitelists, and metric names are validated —
+custom-metric aggregation come from whitelists, and metric names are validated,
 so a crafted `since`, `period`, `name`, or `aggregation` cannot inject SQL.
 
 **Concurrent writes during a read are consistent.** PostgreSQL MVCC gives each
@@ -297,7 +297,7 @@ reports; a metric row whose tenant row no longer exists is skipped, not fatal.
 **Postgres outage fails clean (no resilience wrap, by design).** Reporting reads
 Postgres, not Redis; the Redis-scoped `config.resilience` policies don't apply.
 A database outage surfaces as a rejected query (no hang, no partial or
-cross-tenant result, the pool released) — acceptable for a backoffice/admin tool.
+cross-tenant result, the pool released), acceptable for a backoffice/admin tool.
 Recovery is automatic once the database is back.
 
 **`emitMetric` is fail-open.** Recording a custom metric never throws on a Redis
