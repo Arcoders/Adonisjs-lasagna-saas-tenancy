@@ -18,7 +18,7 @@ export { clamp, isNonEmptyString } from './pure.js'
 /**
  * Resolve `params.id` to a tenant or short-circuit with a 404. Returns the
  * tenant on success and `null` on failure (the response has already been
- * sent — the caller must `return`).
+ * sent, so the caller must `return`).
  */
 export async function loadTenantOr404(ctx: HttpContext): Promise<TenantModelContract | null> {
   const repo = await resolveTenantRepository()
@@ -39,7 +39,7 @@ export async function loadTenantOr404(ctx: HttpContext): Promise<TenantModelCont
  * the whole call is wrapped so a missing resolver, a container miss, or a
  * throwing audit write all degrade to a swallowed no-op (same posture as
  * `ImpersonationService`'s audit). The metadata must carry ids and flags only,
- * never secrets — `audit_coverage.spec.ts` enforces that statically.
+ * never secrets. `audit_coverage.spec.ts` enforces that statically.
  *
  * `actorType` is always `'admin'` on the REST path. A null actor (no resolver,
  * or a resolver that returned null) still writes a row with `actorId: null`: a

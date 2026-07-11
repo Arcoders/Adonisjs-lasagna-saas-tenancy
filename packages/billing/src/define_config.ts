@@ -9,7 +9,7 @@ import type { MultitenancyConfig } from '@adonisjs-lasagna/saas-tenancy/types'
 export type BillingDriverChoice = 'stripe' | 'paddle' | 'lemonsqueezy' | (string & {})
 
 /**
- * Billing satellite — opt-in via `--with=billing` and declaring `config.billing`.
+ * Billing satellite: opt-in via `--with=billing` and declaring `config.billing`.
  * Provider-agnostic: pick `driver` and fill in the matching config block.
  * Documented end-to-end in `docs/guides/cookbook/stripe-quotas.md`.
  *
@@ -53,7 +53,7 @@ export interface BillingConfig {
     /** Store id checkouts are created against. Read from `LEMONSQUEEZY_STORE_ID`. */
     storeId: string
   }
-  /** Provider product (or price/variant) ID → plan name. Plan must exist in `plans.definitions`. */
+  /** Provider product (or price/variant) ID maps to plan name. Plan must exist in `plans.definitions`. */
   products: Record<string, string>
   /** Plan assigned when a subscription is canceled or no mapping is found. Must exist in `plans.definitions`. */
   defaultPlan: string
@@ -69,7 +69,7 @@ export interface BillingConfig {
     /** CIDR/IP list. Default fetched from Stripe's published ranges (cached 24h). */
     allowedIps?: string[]
   }
-  /** Dunning state-machine config — what happens after `invoice.payment_failed` retries. */
+  /** Dunning state-machine config: what happens after `invoice.payment_failed` retries. */
   dunning?: {
     /** After this many failed attempts, mark `status='past_due'` and emit `PaymentFailed{final:true}`. Default 3 (matches Stripe Smart Retries). */
     maxAttempts?: number
@@ -90,7 +90,7 @@ export interface BillingConfig {
     /**
      * Days to wait after `past_due` before applying `action`. Default 0
      * (apply immediately). When `> 0`, the downgrade is scheduled and applied
-     * by `tenant:billing:sweep` once the window elapses — so run that command
+     * by `tenant:billing:sweep` once the window elapses, so run that command
      * on a cron (hourly suggested) if you set a grace period.
      */
     gracePeriodDays?: number
@@ -122,7 +122,7 @@ export interface BillingConfig {
   /** What to do with the provider subscription on tenant hard-delete. Default `'cancel'`. */
   onTenantDelete?: 'cancel' | 'detach' | 'preserve'
   /**
-   * Auto-bridge `QuotaService.track` → the active driver's usage metering.
+   * Auto-bridge `QuotaService.track` to the active driver's usage metering.
    * Requires `plans.emitTracked = true` and a driver that supports
    * `usage_metering`. Each entry maps a quota name to the provider meter event
    * name. Reports are batched in-memory and flushed every `batchFlushMs`
@@ -138,9 +138,9 @@ export interface BillingConfig {
   /**
    * Opt-in fiscal features (multi-country tax snapshots + an append-only invoice
    * read model). The DDL is published separately at configure time
-   * (`node ace configure @adonisjs-lasagna/billing` → answer yes, or
+   * (`node ace configure @adonisjs-lasagna/billing`, then answer yes, or
    * `LASAGNA_BILLING_FISCAL=1`); this block gates the runtime behaviour. The
-   * provider stays the source of truth for tax and invoices — we only record
+   * provider stays the source of truth for tax and invoices. We only record
    * snapshots for reporting/reconciliation (no local invoice numbering, no tax
    * engine). Disabled when absent.
    */
@@ -165,7 +165,7 @@ export interface BillingConfig {
  * Augment core's open `SatelliteConfigRegistry` so `getConfig().billing` (and any
  * `MultitenancyConfig` consumer) is typed wherever the billing satellite is
  * imported. The augmentation lives in this package's compilation only, so core
- * — which never imports billing — keeps a `billing`-free public type. This is
+ * (which never imports billing) keeps a `billing`-free public type. This is
  * the mechanism that replaces the old hard-coded `billing?: BillingConfig` field
  * on core's `MultitenancyConfig`.
  */

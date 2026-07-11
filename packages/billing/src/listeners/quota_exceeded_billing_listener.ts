@@ -59,7 +59,7 @@ export default class QuotaExceededBillingListener {
       if (!redis) return true
 
       const dedupeKey = `quota_warn:${event.tenant.id}:${event.quota}`
-      // SETNX with TTL — atomic. The first hit wins; subsequent hits within
+      // SETNX with TTL is atomic. The first hit wins; subsequent hits within
       // 24h see a null return value and skip the mailer dispatch.
       const acquired = await redis.set(dedupeKey, '1', 'EX', DEDUPE_TTL_SECONDS, 'NX')
       return acquired === 'OK'

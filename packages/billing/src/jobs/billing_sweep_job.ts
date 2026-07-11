@@ -10,7 +10,7 @@ import {
 
 /**
  * Periodic billing sweep. Reused by the queue job AND the `tenant:billing:sweep`
- * ace command. Provider-agnostic and idempotent — each unit of work clears the
+ * ace command. Provider-agnostic and idempotent: each unit of work clears the
  * row from its own query (stamp the trial flag / clear the downgrade timestamp),
  * so concurrent or repeated runs never double-act.
  *
@@ -19,7 +19,7 @@ import {
  *   1. Trial-ending notices. Stripe fires a native `trial_will_end` webhook, but
  *      Paddle and Lemon Squeezy don't. This synthesises the notice from the
  *      mirror's `trial_end` for every provider, deduped against the same
- *      `trial_ending_notified_at` flag the native handler stamps — so each
+ *      `trial_ending_notified_at` flag the native handler stamps, so each
  *      subscription is notified exactly once regardless of provider.
  *
  *   2. Grace-period dunning downgrades. When `dunning.gracePeriodDays > 0`, the

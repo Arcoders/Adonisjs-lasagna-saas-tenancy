@@ -253,7 +253,7 @@ export default class BackupService {
 
   async #uploadToS3(tenantId: string, fileName: string, filePath: string): Promise<void> {
     const s3cfg = backupConfig().s3!
-    // @ts-ignore — @aws-sdk/client-s3 is an optional peer dependency
+    // @ts-ignore: @aws-sdk/client-s3 is an optional peer dependency
     const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3')
     const { createReadStream } = await import('node:fs')
 
@@ -276,7 +276,7 @@ export default class BackupService {
 
   async #deleteFromS3(tenantId: string, fileName: string): Promise<void> {
     const s3cfg = backupConfig().s3!
-    // @ts-ignore — @aws-sdk/client-s3 is an optional peer dependency
+    // @ts-ignore: @aws-sdk/client-s3 is an optional peer dependency
     const { S3Client, DeleteObjectCommand } = await import('@aws-sdk/client-s3')
     const client = new S3Client({
       region: s3cfg.region,
@@ -297,7 +297,7 @@ export default class BackupService {
     if (exists) return
 
     const s3cfg = backupConfig().s3!
-    // @ts-ignore — @aws-sdk/client-s3 is an optional peer dependency
+    // @ts-ignore: @aws-sdk/client-s3 is an optional peer dependency
     const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3')
     const { createWriteStream } = await import('node:fs')
     const { pipeline } = await import('node:stream/promises')

@@ -37,7 +37,7 @@ export type {
 } from './define_config.js'
 // `getActiveBillingDriver` is the public accessor for the active driver. The
 // `__*ForTests` cache/registry seams in the same module are intentionally NOT
-// re-exported here — they're internal test hooks; import them from
+// re-exported here. They're internal test hooks; import them from
 // `./services/billing/active_billing_driver.js` directly inside the package.
 export { getActiveBillingDriver } from './services/billing/active_billing_driver.js'
 

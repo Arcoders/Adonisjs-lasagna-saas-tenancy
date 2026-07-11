@@ -31,18 +31,18 @@ export interface MultitenancyReportingRoutesOptions {
    *
    * REQUIRED. The dashboard exposes fleet-wide, cross-tenant analytics, so it
    * refuses to mount without auth: omitting this throws at startup. To
-   * intentionally mount the routes public — only ever behind a trusted network
-   * boundary (a private VPC, an authenticating gateway, or local tests) — pass
+   * intentionally mount the routes public, only ever behind a trusted network
+   * boundary (a private VPC, an authenticating gateway, or local tests), pass
    * `false` explicitly.
    */
   middleware?: ReportingRouteMiddleware | false
   /**
    * When > 0, dashboard responses are cached in the global `reporting` namespace
    * for this many milliseconds. Off by default (no behavior change). Caching is
-   * cross-tenant/global by design — never tenant-scoped.
+   * cross-tenant/global by design, never tenant-scoped.
    */
   cacheTtlMs?: number
-  /** Max allowed since→until span in days (default 366). Over-wide/inverted → 400. */
+  /** Max allowed span from since to until, in days (default 366). An over-wide or inverted range is a 400. */
   maxRangeDays?: number
   /**
    * Mount `{prefix}/openapi.json` + `{prefix}/docs` (Swagger UI) under the same

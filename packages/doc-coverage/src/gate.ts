@@ -1,5 +1,5 @@
 /**
- * The Tier-1 gate (RFC §5). Only deterministic, fail-closed checks can block.
+ * The Tier-1 gate (RFC section 5). Only deterministic, fail-closed checks can block.
  * Each check has a severity (gate | warn | off) so a check is adopted as a
  * warning first and promoted to a gate later. A finding blocks only when its
  * severity is `gate` AND its key is not in the baseline (new drift).

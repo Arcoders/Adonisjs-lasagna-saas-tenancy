@@ -1,5 +1,5 @@
 /**
- * The Deterministic Semantic Diff (RFC §8). The four signals over the graph:
+ * The Deterministic Semantic Diff (RFC section 8). The four signals over the graph:
  *
  *   D2-hard  prose naming `Symbol.member(` where member no longer exists (gate-able)
  *   D2-soft  contract-vs-prose token diff, exact missing tokens (advisory)
@@ -37,7 +37,7 @@ class DocTextCache {
     let text = this.cache.get(relPath)
     if (text === undefined) {
       const abs = join(this.repoRoot, relPath)
-      // CRLF -> LF so token/regex matching agrees with the graph builder and is
+      // CRLF to LF so token/regex matching agrees with the graph builder and is
       // identical on Windows and Linux.
       text = existsSync(abs) ? readFileSync(abs, 'utf8').replace(/\r\n/g, '\n') : ''
       this.cache.set(relPath, text)
@@ -237,7 +237,7 @@ export function d3freshness(
       })
     }
   } else if (opts.freshness) {
-    // Contract-checkpoint mode (RFC §6/§8): fire only when the symbol's contract
+    // Contract-checkpoint mode (RFC sections 6 and 8): fire only when the symbol's contract
     // hash differs from the hash recorded when the pairing was last reviewed. A
     // comment-only edit leaves the hash unchanged, so it is silent by construction.
     const reviewed = opts.freshness.reviewed
@@ -281,12 +281,12 @@ export interface D4Finding {
 const DEFAULT_MAX_HOPS = 2
 
 /**
- * Depth-bounded static reach (RFC §8, D4). For each changed documented symbol,
+ * Depth-bounded static reach (RFC section 8, D4). For each changed documented symbol,
  * BFS over a file-level reference graph (symbol A references symbol B when A's
  * source textually names B) up to `maxHops`, and report the reachable documented
  * symbols ranked by distance. Approximate by design and honestly labelled: the
  * reference graph is text-level, and it misses DI / `container.make` edges
- * (RFC §10), which rely on declared anchors instead.
+ * (RFC section 10), which rely on declared anchors instead.
  */
 export function d4reach(
   graph: DocGraph,
@@ -306,7 +306,7 @@ export function d4reach(
     if (name && !byName.has(name)) byName.set(name, n)
   }
 
-  // 1-hop adjacency: symbol -> the other public symbols its source file names.
+  // 1-hop adjacency: a symbol maps to the other public symbols its source file names.
   const docs = new DocTextCache(config.repoRoot)
   const fileNeighbors = new Map<string, Set<GraphNode>>()
   const neighborsOf = (node: GraphNode): Set<GraphNode> => {

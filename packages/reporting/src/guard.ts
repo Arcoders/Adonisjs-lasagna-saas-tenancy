@@ -4,8 +4,8 @@
  * Reporting must run from a backoffice context (a queue job, scheduled task, or
  * admin endpoint), never inside `tenancy.run()`.
  *
- * Lives in its own dependency-free module — it imports nothing from core or
- * Lucid — so it stays unit-testable without an Ignitor (importing the reporting
+ * Lives in its own dependency-free module (it imports nothing from core or
+ * Lucid) so it stays unit-testable without an Ignitor (importing the reporting
  * service pulls in `@adonisjs/lucid/services/db`, which top-level-`await`s
  * `app.booted`). Callers pass the current-tenant getter (`tenancy.currentId`).
  */

@@ -12,12 +12,12 @@ import type { ReportExtension } from './contracts/report_extension.js'
  *   const registry = await app.container.make(ReportExtensionRegistry)
  *   registry.register(new TopPropertiesReport())
  *
- * Names are validated (`assertSafeMetricName`) and unique — a duplicate throws so
+ * Names are validated (`assertSafeMetricName`) and unique: a duplicate throws so
  * two extensions can't shadow each other. Each extension's `contractVersion` is
  * checked at registration time via `assertContractCompat`: a version NEWER than
  * the surface fails fast (the extension relies on contract this build doesn't
  * provide); OLDER or absent warns and still registers. Validation lives here, at
- * the point of registration, NOT in the provider `boot()` — hosts register in
+ * the point of registration, NOT in the provider `boot()`. Hosts register in
  * their own `boot()`, which can run after the satellite's.
  *
  * Pure/dependency-free apart from the name guard + the (pure) version check, so

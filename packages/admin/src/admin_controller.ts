@@ -223,7 +223,7 @@ export default class AdminController {
     const resolver = getAdminActorResolver()
     if (!resolver) {
       // Without an actor resolver we'd have to trust `adminId` from the
-      // request body — which means anyone hitting this endpoint could forge
+      // request body, which means anyone hitting this endpoint could forge
       // the audit trail. Refuse loudly so the operator wires the hook.
       return response.notImplemented({
         error: 'admin_actor_resolver_not_configured',

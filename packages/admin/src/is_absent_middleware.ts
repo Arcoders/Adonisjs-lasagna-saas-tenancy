@@ -9,7 +9,7 @@ import type { AdminRouteMiddleware } from './routes.js'
  * otherwise mount the destructive admin API public silently while looking
  * guarded. `false` must be written out to go public, on purpose.
  *
- * Lives in its own module — free of any `@adonisjs/core/services/router` import —
+ * Lives in its own module (free of any `@adonisjs/core/services/router` import),
  * so the rule can be unit-tested without dragging in the router service (which
  * `await app.booted(...)`s at module evaluation and throws outside an Ignitor).
  */

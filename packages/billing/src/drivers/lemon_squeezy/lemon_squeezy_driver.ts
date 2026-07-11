@@ -41,7 +41,7 @@ function codeForStatus(status: number): BillingErrorCode {
  * customer-portal link are subscription-scoped (not customer-scoped) and don't
  * map onto the neutral contract, so they are reported unsupported.
  *
- * NOTE: exercise against an LS test store before production — the
+ * NOTE: exercise against an LS test store before production. The
  * `*_real.spec.ts` smoke test covers this when `LEMONSQUEEZY_TEST_API_KEY` is set.
  */
 export default class LemonSqueezyDriver implements BillingProviderContract {
@@ -121,7 +121,7 @@ export default class LemonSqueezyDriver implements BillingProviderContract {
    * already been taken`) re-read and reuse the winner. The realistic
    * sequential-retry path (a webhook redelivery, a double-click) is fully
    * race-safe; a genuinely simultaneous double-create can still leave one
-   * orphaned LS customer (no subscription, no charge) — it is logged and
+   * orphaned LS customer (no subscription, no charge). It is logged and
    * reconciled by `tenant:billing:sync`. A connection-holding advisory lock was
    * rejected: it would pin a pooled DB connection across the provider HTTP call,
    * and the local `BillingService.ensureCustomer` SELECT fast-path already

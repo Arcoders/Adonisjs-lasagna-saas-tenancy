@@ -17,7 +17,7 @@ import type {
  * answer to: "how do I talk to this payment provider, and how do I translate
  * its webhooks into the package's neutral event model?".
  *
- * This is the public extension seam — third parties implement it to add a
+ * This is the public extension seam. Third parties implement it to add a
  * provider, register it on `BillingDriverRegistry`, and select it with
  * `config.billing.driver`. It mirrors `IsolationDriver`.
  *
@@ -77,7 +77,7 @@ export interface BillingProviderContract {
 
   /**
    * Report a usage/meter event. Capability: `usage_metering`. The audit row in
-   * `billing_usage_events` is owned by `BillingService` — the driver only makes
+   * `billing_usage_events` is owned by `BillingService`. The driver only makes
    * the remote call (idempotently, keyed by `idempotencyKey`).
    */
   reportUsage?(
@@ -106,7 +106,7 @@ export interface BillingProviderContract {
   /**
    * Enumerate the provider's subscriptions as neutral `Subscription`s, paging
    * internally. Capability: `subscription_list`. Drives the `tenant:billing:sync`
-   * forward pass (provider → local mirror). Drivers without an enumerable
+   * forward pass (provider to local mirror). Drivers without an enumerable
    * subscription endpoint omit this; `sync`/`doctor` then warn that forward
    * drift-recovery is unavailable for that provider.
    */
@@ -126,7 +126,7 @@ export interface BillingProviderContract {
   /**
    * Optional synchronous signature check, for drivers whose scheme is a plain
    * `crypto` HMAC needing no SDK (Paddle `Paddle-Signature`, Lemon Squeezy
-   * `X-Signature`). Must not throw — return false on mismatch. Stripe folds
+   * `X-Signature`). Must not throw. Return false on mismatch. Stripe folds
    * verification into `parseWebhookEvent` (the SDK call is async), so it omits
    * this. Provided mainly for tests/diagnostics.
    */

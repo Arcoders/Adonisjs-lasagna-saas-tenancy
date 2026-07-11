@@ -1,7 +1,7 @@
 // Thin unit-suite runner entry shared by every package's `bin/test.ts`, so the
 // 6+ byte-identical copies collapse to one call and the harness globs live in a
 // single place (`guarantees.ts`). Side-effectful (calls `run()`); like
-// `run_integration_suite.ts` it is NOT in the kit's coverage include — its only
+// `run_integration_suite.ts` it is NOT in the kit's coverage include: its only
 // logic is the glob selection, which is unit-tested in `guaranteeGlobs`.
 //
 // Boot-safe: imports only `@japa/runner` / `@japa/assert` (no `@adonisjs/*`

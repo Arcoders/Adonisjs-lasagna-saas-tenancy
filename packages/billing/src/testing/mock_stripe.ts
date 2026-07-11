@@ -40,14 +40,14 @@ interface CreatedSession {
  *   - `checkout.sessions.create`
  *   - `billingPortal.sessions.create`
  *   - `events.retrieve` against an internal store
- *   - `webhooks.constructEvent` (real HMAC verification — keep production
+ *   - `webhooks.constructEvent` (real HMAC verification, to keep production
  *     parity)
  *   - `balance.retrieve` (used by the health check)
  *   - `billing.meterEvents.create` with idempotency dedupe
  *
  * What's NOT modelled (returns reasonable stubs / throws):
  *   - real Stripe error types beyond what's needed in tests
- *   - prorations, taxes, refunds — out of scope for v1 fixtures
+ *   - prorations, taxes, refunds (out of scope for v1 fixtures)
  *
  * Tests can `inject` events to drive webhook flows:
  *   `mock.injectEvent({ id: 'evt_x', type: '...', data: {...} })`.
@@ -89,10 +89,10 @@ export class MockStripe {
   }
 
   /**
-   * Test helper: pre-seed a (priceId → productId) mapping so
+   * Test helper: pre-seed a priceId-to-productId mapping so
    * `prices.retrieve(id)` returns it. Without this, the mock derives the
    * product from the price by string substitution (`price_pro_monthly`
-   * → `prod_pro_monthly`), which is convenient but coarse.
+   * becomes `prod_pro_monthly`), which is convenient but coarse.
    */
   injectPrice(priceId: string, productId: string): void {
     this.#prices.set(priceId, { id: priceId, product: productId })
@@ -111,7 +111,7 @@ export class MockStripe {
    * Test helper: did any request reach the idempotency cache under this
    * key? Storage is namespaced by resource (`customers:<key>`,
    * `subscriptions:<key>`, …) so the helper accepts the bare idempotency
-   * key — same string the caller passed via `Idempotency-Key` — and
+   * key (the same string the caller passed via `Idempotency-Key`) and
    * matches against either the bare or any namespaced form.
    */
   idempotencyHits(key: string): boolean {
@@ -292,7 +292,7 @@ export class MockStripe {
   _buildWebhooks() {
     return {
       constructEvent: (body: string | Buffer, sig: string, secret: string): Stripe.Event => {
-        // Real HMAC verify, just like prod — using the package's own test
+        // Real HMAC verify, just like prod, using the package's own test
         // helper to stay byte-compatible with `signWebhookPayload`.
         if (secret !== this.webhookSecret) {
           throw Object.assign(new Error('mismatched webhook secret'), {
@@ -329,8 +329,8 @@ export class MockStripe {
       retrieve: async (id: string): Promise<{ id: string; product: string }> => {
         const seeded = this.#prices.get(id)
         if (seeded) return seeded
-        // Auto-derive: `price_pro_monthly` → `prod_pro_monthly`. Tests
-        // that need a specific (priceId → productId) shape pre-seed via
+        // Auto-derive: `price_pro_monthly` becomes `prod_pro_monthly`. Tests
+        // that need a specific priceId-to-productId shape pre-seed via
         // `injectPrice`.
         if (!id.startsWith('price_')) {
           throw Object.assign(new Error(`No such price: ${id}`), {

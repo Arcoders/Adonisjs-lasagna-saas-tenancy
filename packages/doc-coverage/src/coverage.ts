@@ -1,5 +1,5 @@
 /**
- * The coverage metric (RFC §6). For every public symbol of a documentable kind,
+ * The coverage metric (RFC section 6). For every public symbol of a documentable kind,
  * classify it as explained, exemplified-only, or uncovered, with a quality floor
  * so a fence-only or backtick-only mention is not counted as real explanation.
  *

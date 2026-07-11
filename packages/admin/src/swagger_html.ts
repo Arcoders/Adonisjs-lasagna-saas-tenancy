@@ -1,7 +1,7 @@
 /**
  * Tiny Swagger UI shell for the admin API docs. `swagger-ui-dist` is intentionally
  * NOT a dependency (zero footprint), so the assets are loaded from a base the
- * operator provides — never a public CDN the package ships by default.
+ * operator provides, never a public CDN the package ships by default.
  *
  * Enable the rendered docs by pointing `cdnBase` (or the `LASAGNA_ADMIN_SWAGGER_CDN`
  * env var) at a Swagger UI dist:
@@ -33,7 +33,7 @@ function htmlEscape(value: string): string {
  * The asset base ends up as the `src` of `<script>`/`<link>` tags. Accept only an
  * absolute https URL or a `/`-rooted path so an operator cannot inject a
  * `javascript:` URL into a docs page served behind the admin auth gate. Returns null
- * when no base is configured (param nor env) or the value is unsafe — the caller then
+ * when no base is configured (param nor env) or the value is unsafe. The caller then
  * renders the placeholder instead of a remote fetch.
  */
 function resolveCdnBase(value: string | undefined): string | null {
@@ -75,7 +75,7 @@ export function renderSwaggerHtml(specUrl: string, options: SwaggerOptions = {})
 
   const cdn = htmlEscape(base)
   // `specUrl` ends up both in HTML attribute context and inside a JS
-  // string literal. HTML-escape covers both — single quotes become
+  // string literal. HTML-escape covers both: single quotes become
   // `&#39;` which JS parsers tolerate.
   const safeSpec = htmlEscape(specUrl)
   return `<!doctype html>

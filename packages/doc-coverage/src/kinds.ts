@@ -1,5 +1,5 @@
 /**
- * Kind inference: convention default + `@kind`/`@doc` override (RFC §8.4). Proven
+ * Kind inference: convention default + `@kind`/`@doc` override (RFC section 8.4). Proven
  * in the Step-0 spike: a class in `*_service.ts` exported from `/services` is a
  * `service` with zero annotations, and an explicit `@kind ai-provider-contract`
  * overrides the convention. A new kind is a new tag, never a tool change.

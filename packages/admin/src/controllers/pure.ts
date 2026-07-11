@@ -38,7 +38,7 @@ export function looksLikeUrl(value: unknown): value is string {
   }
 }
 
-/** An http(s) URL — the loose check used where the value is only echoed, never fetched. */
+/** An http(s) URL: the loose check used where the value is only echoed, never fetched. */
 export function isHttpsUrl(v: unknown): v is string {
   if (typeof v !== 'string') return false
   try {
@@ -51,9 +51,9 @@ export function isHttpsUrl(v: unknown): v is string {
 
 /**
  * Three-state pick for partial-update payloads:
- *   - field absent (`undefined`) → return `undefined`, the caller skips it
- *   - field set to `null` → return `null`, the caller clears the column
- *   - field set to a value → run the validator; throw `invalid_<key>` on
+ *   - when the field is absent (`undefined`), return `undefined` and the caller skips it
+ *   - when the field is set to `null`, return `null` and the caller clears the column
+ *   - when the field is set to a value, run the validator; throw `invalid_<key>` on
  *     failure so the controller can surface a 400 with a stable code
  */
 export function pickIfDefined<T>(
@@ -71,7 +71,7 @@ export function pickIfDefined<T>(
 
 /**
  * Parse an optional `expiresAt` request input. Returns `{ ok: true, value }`
- * with a `DateTime` (or `null` when the field is absent/empty — which clears
+ * with a `DateTime` (or `null` when the field is absent/empty, which clears
  * any stored expiry, consistent with how `config` is handled), or
  * `{ ok: false }` when the value is present but not a valid ISO timestamp.
  */

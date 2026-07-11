@@ -9,7 +9,7 @@ import type {
 import { isKnownSubscriptionStatus } from '../../contracts/types.js'
 
 /**
- * Stripe → neutral mappers. Every Stripe quirk that used to live in
+ * Stripe-to-neutral mappers. Every Stripe quirk that used to live in
  * `BillingService.syncSubscription` / the dispatcher is consolidated here, so
  * the rest of the package only ever sees neutral types.
  */

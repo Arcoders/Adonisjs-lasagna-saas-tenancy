@@ -30,7 +30,7 @@ interface ReportUsageBatchPayload {
  * reported every flush. The queue absorbs the latency, and BullMQ's
  * retry policy + our DB idempotency_key makes double-reports impossible.
  *
- * Note: the heavy usage-mapping logic (which quotas → which meters) lives
+ * Note: the heavy usage-mapping logic (which quotas map to which meters) lives
  * in the listener, not here. This job is the dumb pipe.
  */
 export default class ReportUsageBatchJob extends Job<ReportUsageBatchPayload> {
@@ -72,8 +72,8 @@ export default class ReportUsageBatchJob extends Job<ReportUsageBatchPayload> {
   }
 
   async failed(error: Error): Promise<void> {
-    // The DB row in `billing_usage_events` already records the failure —
-    // we just emit a metric/log so ops sees the rate. No dead-letter event
+    // The DB row in `billing_usage_events` already records the failure.
+    // We just emit a metric/log so ops sees the rate. No dead-letter event
     // for metering; loss of a single batch isn't worth paging on.
     logger.error(
       {
@@ -97,7 +97,7 @@ export default class ReportUsageBatchJob extends Job<ReportUsageBatchPayload> {
         await failed.save()
       }
     } catch {
-      /* swallow — best effort */
+      /* swallow, best effort */
     }
   }
 

@@ -5,7 +5,7 @@ import type { BillingErrorCode } from '../../exceptions/billing_exception.js'
  * Fires when a webhook event has exhausted all retries in the queue.
  * Hooks to ops/paging integrations (PagerDuty, Slack, Sentry).
  *
- * The payload intentionally avoids `error.message` from raw exceptions —
+ * The payload intentionally avoids `error.message` from raw exceptions.
  * Stripe SDK errors can carry request IDs, payment fragments, and other
  * fields that look like PII to compliance reviewers. `errorCode` is a
  * stable enum (`BillingErrorCode | 'unhandled_error'`); `details` is a

@@ -16,8 +16,8 @@ interface DeadLetter {
 /**
  * Read-only inspection of dead-lettered webhook events (the `status='failed'`
  * rows on `billing_processed_events`). It is the missing read view to pair with
- * `tenant:billing:replay`, which re-dispatches them. Never mutates — reuses the
- * existing ledger rather than a separate DLQ table.
+ * `tenant:billing:replay`, which re-dispatches them. Never mutates. It reuses
+ * the existing ledger rather than a separate DLQ table.
  *
  *   node ace tenant:billing:dlq:list
  *   node ace tenant:billing:dlq:list --json

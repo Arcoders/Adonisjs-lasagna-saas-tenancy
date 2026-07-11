@@ -9,7 +9,7 @@ import AiComplianceService, { type PurgeSummary } from '../services/ai_complianc
 import VectorStoreService from '../services/vector_store_service.js'
 
 /**
- * Operator-privileged erasure of a tenant's AI data (WS-AI-9, G15): conversation
+ * Operator-privileged erasure of a tenant's AI data: conversation
  * memory + the response-cache epoch + embeddings. Composes the existing purge
  * seams through `AiComplianceService`, records the admin action in the audit log
  * (best-effort), and reports an HONEST per-step summary. Scopes:
@@ -21,7 +21,7 @@ import VectorStoreService from '../services/vector_store_service.js'
  * `--dry-run` previews the counts and writes nothing (no delete, no epoch bump).
  * A full-tenant purge requires `--force`; per-user and per-source erasures do not
  * (they are the routine DSAR path). The immutable AI audit chain is non-PII and
- * intentionally survives (G1).
+ * intentionally survives.
  */
 export default class TenantAiPurge extends BaseCommand {
   static readonly commandName = 'tenant:ai:purge'

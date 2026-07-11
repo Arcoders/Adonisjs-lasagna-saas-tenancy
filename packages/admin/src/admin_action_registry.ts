@@ -13,7 +13,7 @@ export function isSafeActionName(name: unknown): name is string {
  * `POST {adminPrefix}/actions/:name` behind the admin auth middleware. `execute`
  * receives the full {@link HttpContext} (read params/body, write the response or
  * return a value) and an optional `AbortSignal` that fires if a `timeoutMs` is
- * configured — thread it into slow work so a deadline can unwind it.
+ * configured. Thread it into slow work so a deadline can unwind it.
  */
 export interface AdminAction {
   readonly name: string
@@ -26,7 +26,7 @@ export interface AdminAction {
 /**
  * Registry of host admin actions. Validated at registration time: an unsafe or
  * duplicate name throws, and `contractVersion` is checked via
- * `assertContractCompat` (newer than this build → throw; older/absent → warn).
+ * `assertContractCompat` (a version newer than this build throws; older or absent warns).
  *
  * Admin ships no provider (it is routes + controllers over the core container),
  * so this is a MODULE-LEVEL singleton ({@link adminActionRegistry}) rather than

@@ -24,7 +24,7 @@ interface RecordedUsage {
 
 /**
  * In-memory billing driver for tests. The "second implementation" that proves
- * the abstraction without any SDK or network — register it as the active
+ * the abstraction without any SDK or network. Register it as the active
  * driver to exercise `BillingService` and the dispatcher hermetically.
  *
  * Webhook signing is a plain HMAC-SHA256 over the raw body (hex digest in the
@@ -144,7 +144,7 @@ export default class MockBillingDriver implements BillingProviderContract {
     this.#events.set(event.id, event)
   }
 
-  /** Seed a price→product mapping for `resolvePriceProduct`. */
+  /** Seed a price-to-product mapping for `resolvePriceProduct`. */
   injectPrice(priceId: string, productId: string | null): void {
     this.#priceProducts.set(priceId, productId)
   }

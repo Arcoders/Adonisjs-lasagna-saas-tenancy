@@ -6,7 +6,7 @@ import AIException from '../exceptions/ai_exception.js'
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 
 /**
- * The per-request AI membership gate (G4), the runtime backstop behind the
+ * The per-request AI membership gate, the runtime backstop behind the
  * fail-closed route mount. Mirrors the kernel's `authorizeTenantAccess`
  * contract with one deliberate hardening: a hook that THROWS is a denial (403
  * with the original error as cause), never a 500. An erroring authorization
@@ -81,7 +81,7 @@ export async function authorizeAiAccess(
 }
 
 /**
- * The ingestion WRITE gate (WS-AI-3), distinct from {@link authorizeAiAccess}
+ * The ingestion WRITE gate, distinct from {@link authorizeAiAccess}
  * ("may this caller use AI at all"): it decides "may this caller WRITE to the
  * tenant's vector index". Opt-in via `config.ai.embedding.authorizeIngestion`;
  * when the hook is absent the write is allowed (the access gate already ran).
@@ -127,13 +127,13 @@ export async function authorizeIngestion(
 }
 
 /**
- * Resolve the retrieval scope (WS-AI-5, G2), the per-user document ACL applied
+ * Resolve the retrieval scope, the per-user document ACL applied
  * to a similarity search. Mirrors {@link authorizeIngestion} but returns a
  * {@link RetrievalScope} rather than void, because a document ACL answers "WHICH
  * documents may this caller see", not a boolean "may they retrieve at all".
  *
- * Opt-in via `config.ai.retrieval.retrievalFilter`. Fail-closed (G2), mirroring
- * the G4 mount gate: when NO hook is wired the retrieval is refused with a 403
+ * Opt-in via `config.ai.retrieval.retrievalFilter`. Fail-closed, mirroring
+ * the membership mount gate: when NO hook is wired the retrieval is refused with a 403
  * `retrieval_denied` and a `guard.ai_retrieval_denied` trip, UNLESS the host sets
  * `config.ai.acknowledgeUnscopedRetrieval`, which opts into tenant-wide retrieval
  * (`{ kind: 'all' }`; tenant isolation still holds, and the missing per-user ACL

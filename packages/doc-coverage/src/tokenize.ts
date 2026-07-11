@@ -1,5 +1,5 @@
 /**
- * The D2-soft tokenizer (RFC §8). Splits identifiers on camelCase / snake_case /
+ * The D2-soft tokenizer (RFC section 8). Splits identifiers on camelCase / snake_case /
  * non-alphanumeric boundaries, lowercases, and drops noise. The output is an
  * exact token set, never a percentage. A param stoplist and a synonyms map keep
  * the false-missing rate down. Both were calibrated against the Step-0 spike,
@@ -163,7 +163,7 @@ export function tokenize(input: string): string[] {
       input
         // camelCase / PascalCase boundary
         .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-        // acronym to word boundary: HTTPServer -> HTTP Server
+        // acronym to word boundary: HTTPServer becomes HTTP Server
         .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
         .replace(/[_-]/g, ' ')
         .toLowerCase()

@@ -30,7 +30,7 @@ const lazyEmitter = () =>
  * Defense-in-depth state machine for subscription status transitions. Keys list
  * every status a provider can emit, mapped to the set it may transition INTO.
  *
- * We never refuse a provider-driven transition — the provider is the source of
+ * We never refuse a provider-driven transition: the provider is the source of
  * truth and a refusal would just leave us out of sync. Illegal transitions log
  * a warning so operators can investigate.
  */
@@ -57,8 +57,8 @@ const LEGAL_SUBSCRIPTION_TRANSITIONS: Record<
 export interface CreateCheckoutOptions extends CheckoutOptions {
   /**
    * Skip the priceId allowlist check against `config.billing.products`.
-   * Default `false` (strict). Setting `true` re-opens the trust boundary —
-   * only use it when the host validates priceIds upstream.
+   * Default `false` (strict). Setting `true` re-opens the trust boundary.
+   * Only use it when the host validates priceIds upstream.
    */
   allowUnknownPrices?: boolean
 
@@ -102,8 +102,8 @@ export interface ReportUsageOptions {
  * checkout price allowlist, and delegates every provider call to the active
  * driver resolved from `BillingDriverRegistry`.
  *
- * The package never imports a provider SDK statically — drivers lazy-load
- * theirs — so hosts pay nothing for providers they don't use.
+ * The package never imports a provider SDK statically (drivers lazy-load
+ * theirs), so hosts pay nothing for providers they don't use.
  */
 export default class BillingService {
   #verified = false
@@ -159,7 +159,7 @@ export default class BillingService {
       row.providerCustomerId = remote.providerCustomerId
       row.currency = remote.currency
       row.defaultPaymentMethod = remote.defaultPaymentMethod
-      // Only touch country_code when fiscal features are enabled — the column
+      // Only touch country_code when fiscal features are enabled. The column
       // ships with the opt-in fiscal migration, so on a non-fiscal install it
       // does not exist and must stay out of the INSERT.
       if (getConfig().billing?.fiscal?.enabled) {
@@ -237,7 +237,7 @@ export default class BillingService {
    *     driver can cancel immediately at the provider (Stripe, Paddle) its
    *     deletion webhook finalises the plan downgrade. When it cannot (Lemon
    *     Squeezy, which only cancels at period end), we *emulate* an immediate
-   *     cancel — reassign the tenant to `defaultPlan` now so access is revoked
+   *     cancel: reassign the tenant to `defaultPlan` now so access is revoked
    *     immediately, while the provider keeps billing through the period end
    *     (there is no automatic refund).
    */
@@ -356,7 +356,7 @@ export default class BillingService {
 
     // Tenant-state guard: never resurrect a deleted tenant's plan/quota from a
     // late or replayed provider event. A hard delete drops the customer mirror
-    // (handled above), but a soft status flip can leave the mirror in place — so
+    // (handled above), but a soft status flip can leave the mirror in place, so
     // we check the host tenant's lifecycle status explicitly. Fail-open: a repo
     // miss or error falls through and processes as before, so a transient fault
     // (or a repo that doesn't surface the row) never drops a legitimate event.
@@ -376,7 +376,7 @@ export default class BillingService {
         return null
       }
     } catch {
-      // Repository unavailable / not bound — process as before.
+      // Repository unavailable / not bound: process as before.
     }
 
     const eventAt = DateTime.fromSeconds(eventCreated)
@@ -478,7 +478,7 @@ export default class BillingService {
     // Apply the plan to QuotaService BEFORE persisting the mirror. A failing
     // assignPlan() leaves both the mirror and the quota in their pre-event
     // state, and the next webhook retry re-runs the whole flow idempotently.
-    // Lazy import avoids a circular dep (QuotaService → events → here).
+    // Lazy import avoids a circular dep (QuotaService imports events, which imports this module).
     const { QuotaService } = await import('@adonisjs-lasagna/saas-tenancy/services')
     const quotas = new QuotaService()
     await quotas.assignPlan(customer.tenantId, planName, { source: driver.name })

@@ -69,7 +69,7 @@ export default class BrandingController {
         ...(emailFooter !== undefined ? { emailFooter } : {}),
       }
     } catch (err: any) {
-      // Stable error codes only — error message is `invalid_<key>` from
+      // Stable error codes only: the error message is `invalid_<key>` from
       // pickIfDefined, never a raw exception string.
       const code =
         typeof err?.message === 'string' && /^invalid_[a-zA-Z]+$/.test(err.message)

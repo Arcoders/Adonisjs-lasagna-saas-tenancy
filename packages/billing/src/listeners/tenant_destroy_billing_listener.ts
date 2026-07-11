@@ -36,7 +36,7 @@ export default class TenantDestroyBillingListener {
 
     // For both `cancel` and `detach`, drop the local customer mapping so a
     // future tenant with the same id doesn't inherit billing state. We do NOT
-    // delete `billing_subscriptions` rows — the audit value of keeping
+    // delete `billing_subscriptions` rows: the audit value of keeping
     // cancelled rows beats the storage cost.
     try {
       await customer.delete()

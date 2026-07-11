@@ -14,7 +14,7 @@ export interface DispatchContext {
 }
 
 export interface DispatchResult {
-  /** What the handler decided to do — used by the job for logs/audit. */
+  /** What the handler decided to do, used by the job for logs/audit. */
   outcome: 'synced' | 'stale' | 'unmapped' | 'noop' | 'event_emitted'
   /** Tenant id when resolvable. Null for events that couldn't be matched. */
   tenant_id?: string
@@ -60,7 +60,7 @@ export async function dispatchBillingEvent(
 /* --------------------------------------------------------------------- */
 
 /**
- * Fires after a successful checkout — ensures the local customer mapping exists
+ * Fires after a successful checkout. Ensures the local customer mapping exists
  * BEFORE the `subscription.upsert` webhook arrives, so the subscription handler
  * doesn't fail with `tenant_not_resolvable` on the very first checkout.
  */
@@ -194,7 +194,7 @@ async function handlePaymentSucceeded(
   }
 
   // Fiscal opt-in: snapshot the invoice for reporting/reconciliation. Best
-  // effort — a snapshot failure must never dead-letter a successful payment.
+  // effort: a snapshot failure must never dead-letter a successful payment.
   if (getConfig().billing?.fiscal?.enabled && invoice.id) {
     await snapshotInvoice(event.provider, customer.tenantId, invoice, event.createdAt, ctx.logger)
   }
@@ -214,7 +214,7 @@ async function handlePaymentSucceeded(
 /**
  * Append (or no-op) a provider invoice into the fiscal read model. Idempotent on
  * `(provider, provider_invoice_id)` via a unique-violation catch, so a webhook
- * redelivery doesn't duplicate. Never throws — the snapshot is reporting-only.
+ * redelivery doesn't duplicate. Never throws: the snapshot is reporting-only.
  */
 async function snapshotInvoice(
   provider: string,
@@ -243,7 +243,7 @@ async function snapshotInvoice(
       issuedAt: DateTime.fromSeconds(eventCreated),
     })
   } catch (err) {
-    // A duplicate (redelivery) trips the unique constraint — expected, ignore.
+    // A duplicate (redelivery) trips the unique constraint: expected, ignore.
     // Anything else is logged but not rethrown: the payment still succeeded.
     logger.debug(
       { provider, provider_invoice_id: invoice.id, err: (err as Error)?.message },
@@ -309,7 +309,7 @@ async function handlePaymentFailed(
         sub.lastEventAt = eventAt
       }
       if (cfg?.dunning?.action === 'downgrade' && cfg.defaultPlan && gracePeriodDays > 0) {
-        // Defer the downgrade — `tenant:billing:sweep` applies it once the
+        // Defer the downgrade. `tenant:billing:sweep` applies it once the
         // grace window elapses (and a recovery clears it first).
         sub.dunningDowngradeAt = eventAt.plus({ days: gracePeriodDays })
       }
@@ -341,7 +341,7 @@ async function handlePaymentFailed(
 /**
  * Reassign a tenant to its `defaultPlan` as the dunning `downgrade` action.
  * Shared by the immediate path here and the deferred grace-period path in
- * `tenant:billing:sweep`. Never throws — a failed downgrade is logged so the
+ * `tenant:billing:sweep`. Never throws: a failed downgrade is logged so the
  * webhook still acks (the next retry / sweep re-applies it idempotently).
  */
 export async function applyDunningDowngrade(

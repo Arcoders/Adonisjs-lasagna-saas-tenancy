@@ -46,7 +46,7 @@ export default class BillingReplay extends BaseCommand {
     for (const row of targets) {
       if (!row) continue
       // Reset state so the job will pick it up; attempts is intentionally
-      // NOT reset — operators can use it to spot pathological events.
+      // NOT reset. Operators can use it to spot pathological events.
       row.status = 'pending'
       row.lastError = null
       await row.save()

@@ -1,4 +1,4 @@
-// Main entry — SAFE TO IMPORT BEFORE THE APP BOOTS.
+// Main entry: SAFE TO IMPORT BEFORE THE APP BOOTS.
 //
 // A package's `bin/test.integration.ts` imports `runIntegrationSuite` from here
 // at the top level, BEFORE the Ignitor creates the AdonisJS application. So this

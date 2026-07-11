@@ -17,7 +17,7 @@ interface TenantResolvableRequest {
  * serves the snapshots we recorded plus a redirect to the provider-hosted PDF.
  *
  * The host mounts these inside its own auth + tenant middleware group (exactly
- * like checkout / portal), so access control stays with the host — the package
+ * like checkout / portal), so access control stays with the host. The package
  * never registers unauthenticated tenant-data routes. Both actions scope every
  * query to `request.tenant()`, so one tenant can't read another's invoices.
  *

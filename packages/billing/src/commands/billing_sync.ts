@@ -13,11 +13,11 @@ import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
  * Reconcile drift between the provider and our local mirror. Run as a daily
  * cron to recover from missed webhooks (provider outages, queue backlog).
  *
- * Provider-neutral: the forward pass (provider → mirror) enumerates the
+ * Provider-neutral: the forward pass (provider to mirror) enumerates the
  * provider's subscriptions via the driver's `subscription_list` capability,
  * implemented by Stripe, Paddle, and Lemon Squeezy. A custom driver that lacks
  * the capability skips the forward pass with an explicit warning; the reverse
- * pass (orphaned `tenant_plans` → defaultPlan) is driver-neutral and always runs.
+ * pass (orphaned `tenant_plans` to defaultPlan) is driver-neutral and always runs.
  *
  * Idempotent: re-applying the same remote state via `syncSubscription` is a
  * no-op (the ordering guard handles redelivery; same plan = no quota bust).
@@ -81,7 +81,7 @@ export default class BillingSync extends BaseCommand {
       createdAfter = Math.floor(ts / 1000)
     }
 
-    // Forward pass (provider → local mirror). Requires the driver to enumerate
+    // Forward pass (provider to local mirror). Requires the driver to enumerate
     // its subscriptions. A driver without `subscription_list` (a custom driver)
     // skips this pass with an explicit warning rather than silently implying
     // drift-recovery; the reverse pass below is driver-neutral and still runs.
@@ -130,7 +130,7 @@ export default class BillingSync extends BaseCommand {
       )
     }
 
-    // Reverse pass — tenants whose tenant_plans claims a provider-priced plan
+    // Reverse pass: tenants whose tenant_plans claims a provider-priced plan
     // but whose local mirror has no active subscription (a missed
     // `subscription.deleted`, a manual row delete, or a migrated plan row).
     // Recovery is to downgrade them back to defaultPlan.

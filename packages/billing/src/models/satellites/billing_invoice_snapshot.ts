@@ -4,7 +4,7 @@ import { DateTime } from 'luxon'
 
 /**
  * Append-only read model of provider invoices (fiscal opt-in). For reporting and
- * reconciliation only — the provider stays the system of record. No local
+ * reconciliation only: the provider stays the system of record. No local
  * invoice numbering, no tax calculation: every amount is what the provider
  * charged (integer minor units). Written by the dispatcher on
  * `payment.succeeded` when `config.billing.fiscal.enabled`, idempotent via the

@@ -1,6 +1,6 @@
 /**
- * Resolve the billing webhook mount path: explicit option →
- * `config.billing.webhook.path` → the provider-neutral default
+ * Resolve the billing webhook mount path: an explicit option, else
+ * `config.billing.webhook.path`, else the provider-neutral default
  * `'/webhooks/billing'`. Billing supports Stripe, Paddle, and Lemon Squeezy, so
  * the default carries no provider branding.
  *

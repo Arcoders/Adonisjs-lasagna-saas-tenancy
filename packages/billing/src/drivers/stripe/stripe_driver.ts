@@ -39,7 +39,7 @@ const STRIPE_CAPABILITIES: ReadonlySet<BillingCapability> = new Set<BillingCapab
 
 /**
  * The Stripe billing driver. Holds the lazily-loaded Stripe SDK and performs
- * all remote calls + native→neutral mapping. It owns no database state — the
+ * all remote calls + native-to-neutral mapping. It owns no database state. The
  * mirror tables, audit rows, and plan assignment stay in `BillingService`.
  *
  * The package never imports `stripe` statically (only `import type`), so hosts
@@ -217,7 +217,7 @@ export default class StripeDriver implements BillingProviderContract {
       //
       // Single-item assumption: we target items.data[0]. For multi-item /
       // metered subscriptions (a base plan plus a metered add-on) the base plan
-      // may not be the first item — those need per-item targeting and should be
+      // may not be the first item. Those need per-item targeting and should be
       // driven through the provider directly until that lands.
       const sub = await stripe.subscriptions.retrieve(providerSubscriptionId)
       const itemId = sub.items?.data?.[0]?.id
@@ -304,7 +304,7 @@ export default class StripeDriver implements BillingProviderContract {
       const event = await stripe.events.retrieve(eventId)
       return toBillingWebhookEvent(event)
     } catch (err) {
-      // Aged-out events return resource_missing/404 — signal the caller to fall
+      // Aged-out events return resource_missing/404. Signal the caller to fall
       // back to the persisted replay payload. Every other failure surfaces.
       const e = (err ?? {}) as { code?: string; statusCode?: number }
       if (e.code === 'resource_missing' || e.statusCode === 404) return null
@@ -317,17 +317,17 @@ export default class StripeDriver implements BillingProviderContract {
     await stripe.balance.retrieve()
   }
 
-  /** @internal — advanced host access / tests. Returns the raw Stripe SDK. */
+  /** @internal advanced host access / tests. Returns the raw Stripe SDK. */
   async getClient(): Promise<Stripe> {
     return this.#getStripe()
   }
 
-  /** @internal — inject a mock SDK (e.g. `MockStripe`). */
+  /** @internal inject a mock SDK (e.g. `MockStripe`). */
   __setStripeForTests(client: unknown): void {
     this.#stripe = client as Stripe
   }
 
-  /** @internal — drop the cached SDK between test cases. */
+  /** @internal drop the cached SDK between test cases. */
   __resetForTests(): void {
     this.#stripe = null
   }

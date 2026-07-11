@@ -6,7 +6,7 @@ import type {
   SubscriptionStatus,
 } from '../../contracts/types.js'
 
-/** ISO-8601 string → epoch seconds, or null. */
+/** ISO-8601 string to epoch seconds, or null. */
 export function isoToSeconds(iso: string | null | undefined): number | null {
   if (!iso) return null
   const ms = Date.parse(iso)
@@ -14,8 +14,8 @@ export function isoToSeconds(iso: string | null | undefined): number | null {
 }
 
 /**
- * Paddle Billing subscription status → neutral status. `recognized: false` flags
- * a status string Paddle added that we don't map yet — the default is the
+ * Paddle Billing subscription status to neutral status. `recognized: false` flags
+ * a status string Paddle added that we don't map yet. The default is the
  * fail-closed `incomplete` (no entitlement) and `syncSubscription` keeps an
  * existing row's known status rather than trusting the guess.
  */
@@ -37,7 +37,7 @@ function mapStatus(status: string): { status: SubscriptionStatus; recognized: bo
   }
 }
 
-/** Paddle event name → canonical taxonomy. */
+/** Paddle event name to canonical taxonomy. */
 export function mapEventType(name: string): BillingEventType {
   switch (name) {
     case 'subscription.created':

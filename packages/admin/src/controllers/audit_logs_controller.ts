@@ -9,7 +9,7 @@ export default class AuditLogsController {
     const tenant = await loadTenantOr404(ctx)
     if (!tenant) return
 
-    // Page is hard-capped at 1000 to prevent OFFSET-based DOS — Postgres
+    // Page is hard-capped at 1000 to prevent OFFSET-based DOS: Postgres
     // OFFSET is O(n), so `?page=10000&limit=200` reads + discards 2M
     // rows. Callers walking deep history should pass `from`/`to` (ISO 8601)
     // to switch the index from full-scan to range-scan on (tenant_id, created_at).

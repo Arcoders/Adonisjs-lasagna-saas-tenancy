@@ -26,7 +26,7 @@ export function isValidIsoDate(value: string): boolean {
 /**
  * Reject an inverted (`since > until`) or over-wide window. A safety cap so a
  * single dashboard request can't scan an unbounded range. `maxDays` defaults to
- * 366 so a full 12-month monthly view still works. Pure — the controller wraps
+ * 366 so a full 12-month monthly view still works. Pure. The controller wraps
  * the throw into a 400. Both bounds must be valid ISO dates (the controller
  * validates that first); invalid input here is a no-op so this never masks the
  * dedicated ISO check.

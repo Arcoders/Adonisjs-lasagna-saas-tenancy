@@ -2,7 +2,7 @@ import { BaseEvent } from '@adonisjs/core/events'
 
 /**
  * Emitted on every `invoice.payment_failed`. The `final` flag distinguishes
- * dunning-step warnings from the terminal "we've given up" event — most
+ * dunning-step warnings from the terminal "we've given up" event. Most
  * mailer / downgrade integrations should hook on `final: true` to avoid
  * spamming a user during the retry window.
  */

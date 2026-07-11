@@ -44,7 +44,7 @@ export default class BillingDoctor extends BaseCommand {
 
     const driver = await getActiveBillingDriver()
 
-    // 1. Driver config (key mode, secret shape — provider-specific checks).
+    // 1. Driver config (provider-specific checks of key mode and secret shape).
     try {
       await driver.verifyConfig()
       results.push({ name: 'driver_config', status: 'ok', message: `${driver.name} config valid` })

@@ -7,7 +7,7 @@ import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 
 /**
  * Core cleanup routine. Reused by the queue job AND the `billing_cleanup`
- * ace command — keeping the logic outside `Job.execute()` lets the
+ * ace command. Keeping the logic outside `Job.execute()` lets the
  * command instantiate it directly without the `payload` setter dance.
  *
  * Idempotent: runs in batches and re-queries each loop, so concurrent
@@ -15,12 +15,12 @@ import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
  *
  * Prunes:
  *   - `billing_processed_events` with `status='completed'` older than TTL
- *     (the provider's max retry window — older events can never legitimately
+ *     (the provider's max retry window, so older events can never legitimately
  *     be re-delivered)
  *   - `billing_usage_events` with `status='sent'` older than TTL
  *     (already accepted by the provider; the audit row was useful while
  *     reportedAt was null. `failed` and `pending` rows are NOT
- *     auto-pruned — they're operator concerns surfaced by
+ *     auto-pruned. They're operator concerns surfaced by
  *     `billing_doctor`)
  */
 export async function runBillingCleanup(opts: { batchSize?: number } = {}): Promise<{
@@ -95,7 +95,7 @@ export async function runBillingCleanup(opts: { batchSize?: number } = {}): Prom
 /**
  * Purges `billing_processed_events` rows whose `status='completed'` and
  * `processed_at` is older than the configured retention window
- * (default 90 days — matches the provider's max retry window, so older events
+ * (default 90 days, which matches the provider's max retry window, so older events
  * can never legitimately be re-delivered).
  *
  * Idempotent. Safe to run on a daily cron via `tenant:billing:cleanup`.

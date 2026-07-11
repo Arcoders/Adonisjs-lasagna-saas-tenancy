@@ -102,7 +102,7 @@ export default class ProcessBillingEventJob extends Job<ProcessBillingEventPaylo
 
   async failed(error: Error): Promise<void> {
     // Final retry exhausted. Promote to `failed` for the doctor + replay, and
-    // fire a dead-letter event. Never log raw error messages — wrap into our
+    // fire a dead-letter event. Never log raw error messages. Wrap into our
     // own taxonomy first (provider errors can carry request ids / PII).
     const { eventId } = this.payload
     const { errorCode, details } = classifyError(error)

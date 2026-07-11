@@ -29,7 +29,7 @@ declare module '@adonisjs/core/http' {
  * `driver.parseWebhookEvent` do verification + parsing in one step.
  *
  * Body access relies on `request.raw()`, which AdonisJS BodyParser preserves
- * regardless of content-type — hosts don't need to disable bodyparser.
+ * regardless of content-type, so hosts don't need to disable bodyparser.
  */
 export default class VerifyBillingWebhookMiddleware {
   async handle({ request, response }: HttpContext, next: NextFn) {

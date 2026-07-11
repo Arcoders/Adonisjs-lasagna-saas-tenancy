@@ -10,7 +10,7 @@ import { formatReport, isReportFormat, type ReportFormat } from '../format.js'
 import type { ReportPeriod } from '../types.js'
 
 /**
- * Print (or write) a cross-tenant usage report — handy for ops spot-checks, a
+ * Print (or write) a cross-tenant usage report. Handy for ops spot-checks, a
  * scheduled summary, or verifying the metrics pipeline. With `--extension` it
  * runs a host-registered report extension instead of the built-in report.
  */
@@ -89,7 +89,7 @@ export default class ReportGenerator extends BaseCommand {
       return ''
     }
     const filters = { since: this.since, until: this.until, period: this.period }
-    // No client ip on the CLI path → the rate-limit bucket (if configured) keys
+    // No client ip on the CLI path, so the rate-limit bucket (if configured) keys
     // by extension name alone. Guards are off unless reporting.extensions is set.
     const result = await executeExtension(
       (signal) => ext.execute(filters, undefined, signal),

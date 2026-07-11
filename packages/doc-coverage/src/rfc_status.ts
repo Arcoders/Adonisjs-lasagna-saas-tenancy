@@ -1,5 +1,5 @@
 /**
- * The machine-checked RFC status registry (RFC §11). Each entry pairs a stable
+ * The machine-checked RFC status registry (RFC section 11). Each entry pairs a stable
  * key with a substring that identifies its line in the RFC's implementation
  * checklist, plus whether it is actually implemented. `tests/rfc_status.test.ts`
  * parses the RFC and asserts every checkbox matches `implemented` here, so the

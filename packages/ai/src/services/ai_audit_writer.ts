@@ -7,7 +7,7 @@ import { qualifyBackofficeTable } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import type { AuditLogEntry } from '@adonisjs-lasagna/saas-tenancy/services'
 
 /**
- * The append-only AI audit writer (WS-AI-7, I5). Every chat / embedding /
+ * The append-only AI audit writer. Every chat / embedding /
  * retrieval choke point maps its frozen non-PII event onto an {@link AiAuditRow}
  * and hands it here. The writer serializes a per-tenant hash chain with a
  * transaction-scoped advisory lock, computes `seq`+`checksum` (so tampering that

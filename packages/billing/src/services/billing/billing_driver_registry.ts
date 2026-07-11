@@ -8,7 +8,7 @@ import { BILLING_CONTRACT_VERSION } from '../../constants.js'
  * `BillingProvider` seeds the active driver from `config.billing.driver`; tests
  * swap drivers via {@link BillingDriverRegistry.use} for hermetic runs.
  *
- * Stateful (Map-backed) — must be resolved via `container.make(...)`, never
+ * Stateful (Map-backed): must be resolved via `container.make(...)`, never
  * `new`-ed ad hoc (the architectural test enforces this). Mirrors
  * `IsolationDriverRegistry`.
  */
@@ -18,7 +18,7 @@ export default class BillingDriverRegistry {
 
   register(driver: BillingProviderContract, opts: { activate?: boolean } = {}): this {
     // Reject a driver built against an incompatible contract version at
-    // registration time (newer than this build → throw; older/absent → warn).
+    // registration time (newer than this build throws; older or absent warns).
     assertContractCompat(
       driver.contractVersion,
       BILLING_CONTRACT_VERSION,

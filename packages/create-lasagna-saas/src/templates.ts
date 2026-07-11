@@ -3,7 +3,7 @@
  *
  * `node ace configure @adonisjs-lasagna/saas-tenancy` publishes the tenant model,
  * the repository, the provider and the migrations, but it never touches
- * `config/database.ts` — that file belongs to Lucid. Two details of it are load
+ * `config/database.ts`. That file belongs to Lucid. Two details of it are load
  * bearing and both have silently broken installs before:
  *
  *   1. `searchPath` sits BESIDE `connection` on the connection node, not inside

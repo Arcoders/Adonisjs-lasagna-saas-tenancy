@@ -41,7 +41,7 @@ const BUCKET_SQL: Record<NonNullable<AggregationOptions['period']>, string> = {
 
 /**
  * Cross-tenant reporting over the backoffice `tenant_metrics` table. Aggregating
- * in the shared backoffice schema is isolation-safe by construction — these
+ * in the shared backoffice schema is isolation-safe by construction. These
  * queries never enter a tenant's `search_path`. Requires PostgreSQL 13+
  * (`DATE_TRUNC`).
  *
@@ -208,7 +208,7 @@ export default class ReportingService {
 
   /**
    * Per-name cross-tenant totals (`SUM`) for every custom metric in the window,
-   * newest names first by total. Unregistered names are included — config is
+   * newest names first by total. Unregistered names are included: config is
    * metadata, never a gate.
    */
   async getCustomMetricsBreakdown(
@@ -232,7 +232,7 @@ export default class ReportingService {
   /**
    * The freshest period present in `tenant_metrics` (`MAX(period)`) as `yyyy-MM-dd`,
    * or null when empty. Reports reflect FLUSHED data only, so this surfaces how
-   * current that data is (see the data-freshness note in the docs) — there is no
+   * current that data is (see the data-freshness note in the docs). There is no
    * Redis fallback by design. Cheap: served by `INDEX(period)`.
    */
   async getDataAsOf(): Promise<string | null> {

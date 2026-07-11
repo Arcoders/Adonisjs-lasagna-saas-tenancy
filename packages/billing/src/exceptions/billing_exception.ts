@@ -2,7 +2,7 @@ import { Exception } from '@adonisjs/core/exceptions'
 
 /**
  * Stable, user-facing error codes for the billing satellite. Always prefer
- * matching on the `billingCode` rather than the message — messages may be
+ * matching on the `billingCode` rather than the message. Messages may be
  * localised or rephrased; codes won't change without a major bump.
  */
 export type BillingErrorCode =
@@ -36,7 +36,7 @@ export type BillingErrorCode =
  * waste of compute and tail-latency (false).
  *
  * Used by `ProcessBillingEventJob` to short-circuit BullMQ retries on
- * fatal errors — a revoked API key or a deleted provider customer
+ * fatal errors. A revoked API key or a deleted provider customer
  * isn't going to fix itself in 30s.
  *
  * Fatal:
@@ -50,7 +50,7 @@ export type BillingErrorCode =
  * Retryable (anything else):
  *   - network / rate / 5xx (network_error, rate_limited, api_error,
  *     queue_unavailable, metering_failed)
- *   - resolution races (customer_not_found, tenant_not_resolvable —
+ *   - resolution races (customer_not_found, tenant_not_resolvable:
  *     a checkout.session.completed may not have been processed yet)
  */
 const FATAL_CODES = new Set<BillingErrorCode>([
@@ -78,7 +78,7 @@ const FATAL_CODES = new Set<BillingErrorCode>([
  * Why a dedicated exception:
  *   - Stripe's raw `StripeError.message` can leak internal payment IDs,
  *     test/live mode hints, and request IDs. We never let the host route
- *     those through to the user — `BillingException.message` is always a
+ *     those through to the user. `BillingException.message` is always a
  *     short, generic, log-safe string.
  *   - The original Stripe error is preserved in `cause` for structured
  *     logs (with PII redaction applied separately at the log layer).
@@ -165,7 +165,7 @@ export default class BillingException extends Exception {
     }
     if (type === 'StripeInvalidRequestError') {
       // Bad parameters, missing required field, deleted resource. Not
-      // a transient condition — a retry will fail with the same error.
+      // a transient condition. A retry will fail with the same error.
       return new BillingException(
         'invalid_stripe_request',
         'Stripe rejected the request as invalid',

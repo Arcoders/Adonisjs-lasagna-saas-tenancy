@@ -234,7 +234,7 @@ export async function ensureBackofficeSchema(): Promise<void> {
        CONSTRAINT billing_usage_events_tenant_id_idempotency_key_unique
          UNIQUE (tenant_id, idempotency_key)
      )`,
-    // Fiscal (opt-in) schema — bootstrapped so the fiscal integration specs run
+    // Fiscal (opt-in) schema: bootstrapped so the fiscal integration specs run
     // against the real shape. Mirrors the opt-in stubs in
     // packages/billing/stubs/migrations-fiscal/ (country_code ALTER + the
     // invoice-snapshots table). Harmless for non-fiscal specs.

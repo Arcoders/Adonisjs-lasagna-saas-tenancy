@@ -59,7 +59,7 @@ interface ChatBody {
   model?: string | undefined
   maxTokens?: number | undefined
   sessionId?: string | undefined
-  /** Opt-in RAG (WS-AI-5): retrieve matches for `query` and fold them into the context as data. */
+  /** Opt-in RAG: retrieve matches for `query` and fold them into the context as data. */
   retrieve?: { query: string; limit?: number | undefined } | undefined
 }
 
@@ -78,17 +78,17 @@ export interface AiChatControllerDeps {
   /** The per-key request rate limiter (threat #4). Default: a disabled limiter. */
   rateLimiter?: AiRateLimiter
   /**
-   * The retrieval service (WS-AI-5), for opt-in RAG. Present only when the host
+   * The retrieval service, for opt-in RAG. Present only when the host
    * configured embeddings; absent means a `retrieve` request is a 400. Resolved
    * lazily by the route so non-RAG chat is unaffected when embeddings are off.
    */
   retrieval?: RetrievalService | undefined
-  /** The WS-AI-7 attribution seam. Default: the no-op sink. */
+  /** The attribution seam. Default: the no-op sink. */
   audit?: AiGatewayAuditSink | undefined
-  /** The WS-AI-7 retrieval attribution seam (for the RAG step). Default: the no-op sink. */
+  /** The retrieval attribution seam (for the RAG step). Default: the no-op sink. */
   retrievalAudit?: AiRetrievalAuditSink | undefined
   /**
-   * Conversation memory (WS-AI-4). Present only when the host configured
+   * Conversation memory. Present only when the host configured
    * `config.ai.memory`; absent (or `.enabled` false) leaves chat stateless and
    * `sessionId` its opaque idempotency-scope meaning. When active, the gateway
    * mints/validates the HMAC-bound session, replays prior turns, and persists the
@@ -98,7 +98,7 @@ export interface AiChatControllerDeps {
 }
 
 /**
- * The single choke point (WS-AI-6): every model call flows through `chat`, in
+ * The single choke point: every model call flows through `chat`, in
  * the ARCHITECTURE.md sequence order, which is deliberate: authorization
  * first (a denied caller spends nothing), reserve before the provider call
  * (inside the streaming spine), settle/release in its finally, and the
@@ -108,10 +108,10 @@ export interface AiChatControllerDeps {
  * injected here, so this module never value-imports the eager core barrels
  * and unit-tests with doubles. Instantiated per request (it is stateless).
  *
- * ContextSeal constraint (kernel, doc-level for this WS): no code below runs
- * a tenant-scoped model query. When WS-AI-3 adds retrieval inside the stream,
- * that query MUST run under this request's own tenant scope, or the kernel's
- * ContextSeal refuses it with a typed 500.
+ * ContextSeal constraint (a kernel guarantee, doc-level here): no code below runs
+ * a tenant-scoped model query. When retrieval runs inside the stream, that query
+ * MUST run under this request's own tenant scope, or the kernel's ContextSeal
+ * refuses it with a typed 500.
  */
 export default class AiChatController {
   constructor(private readonly deps: AiChatControllerDeps) {}
@@ -173,7 +173,7 @@ export default class AiChatController {
 
     // 5-residency. Data residency / no-train (#7/#15): the tenant posture may
     //    refuse this provider (a 403 `residency_denied`), before any reservation
-    //    or rate-limit hit — like the access gate, it propagates.
+    //    or rate-limit hit. Like the access gate, it propagates.
     await enforceChatResidency(tenant, provider.name, ai)
 
     // Attribution base, shared by the RAG-preflight failure paths and the
@@ -187,7 +187,7 @@ export default class AiChatController {
       idempotentReplay: false,
     }
 
-    // 5a. Conversation memory session (WS-AI-4, I2), pre-cost. When memory is
+    // 5a. Conversation memory session, pre-cost. When memory is
     //     enabled AND a principal is resolvable, a supplied sessionId is validated
     //     (a forged token 400s HERE, before any reservation, via the shared
     //     preflight path) and an absent one mints a new server-owned session whose
@@ -197,7 +197,7 @@ export default class AiChatController {
     const memory = this.deps.memory
     let memorySession: ResolvedMemorySession | undefined
     let mintedSessionToken: string | undefined
-    // The memory-view snapshot time (WS-AI-9 E5): a purge that lands after this
+    // The memory-view snapshot time: a purge that lands after this
     // instant tombstones the session, and the late `append` below is dropped so
     // an in-flight turn cannot resurrect just-erased history.
     let memorySnapshotAt: number | undefined
@@ -217,8 +217,8 @@ export default class AiChatController {
       }
     }
 
-    // 5b. Document-ACL preflight (WS-AI-5, G2), BEFORE the rate limiter so a RAG
-    //     request refused by the per-user ACL (or the C9 fail-closed default)
+    // 5b. Document-ACL preflight, BEFORE the rate limiter so a RAG
+    //     request refused by the per-user ACL (or the fail-closed default)
     //     spends nothing, matching /ai/retrieve (a refused caller must not burn a
     //     rate-limit hit). Only the cheap authorization resolves here; the metered
     //     query embed stays after the limiter (6a).
@@ -247,13 +247,13 @@ export default class AiChatController {
       throw error
     }
 
-    // 6. The stream itself: liveness handle for G11 (also covering the RAG query
+    // 6. The stream itself: the liveness handle (also covering the RAG query
     //    embed), a recording tee for the idempotency cache, the spine for the rest.
     const liveness = this.deps.liveness.acquire(tenant.id)
     const recorder = recordingStreamTarget(httpStreamTarget(ctx), {
       maxBytes: AI_IDEMPOTENCY_MAX_BYTES,
     })
-    // The optional host output-redaction hook composes with the mandatory I8
+    // The optional host output-redaction hook composes with the mandatory output
     // bound; because it runs at the single fragment choke point (upstream of the
     // recording tee), the redacted bytes are what the client, the idempotency
     // cache, and conversation memory all see.
@@ -267,7 +267,7 @@ export default class AiChatController {
     )
     let result: StreamResult
     try {
-      // 6a. RAG augmentation (WS-AI-5), on a cache MISS only: run the metered
+      // 6a. RAG augmentation, on a cache MISS only: run the metered
       //     query embed + scoped search under the ALREADY-resolved document ACL
       //     (5a), and fold the fenced matches into the context as untrusted
       //     user-role DATA (#10), bounded so the ASSEMBLED prompt stays within
@@ -288,7 +288,7 @@ export default class AiChatController {
         throw error
       }
 
-      // 6b. Conversation memory replay (WS-AI-4, I2). Load the session's prior
+      // 6b. Conversation memory replay. Load the session's prior
       //     turns (a store/decrypt failure degrades to none, never fails the chat)
       //     and prepend them AFTER retrieval, bounded to the budget left under
       //     maxPromptChars so the assembled prompt stays within it (#2/#8).

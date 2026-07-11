@@ -9,7 +9,7 @@ import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
  * Seed a `tenant_plans` row for every tenant that doesn't have one. Use
  * cases:
  *   - First-time install of `--with=billing` on an app with existing tenants.
- *   - Migration from a host-managed `tenants.plan_id` column → `tenant_plans`.
+ *   - Migration from a host-managed `tenants.plan_id` column into `tenant_plans`.
  *
  * Idempotent. Skip-by-default for tenants that already have a row, even
  * if their plan differs from `defaultPlan`. Pass `--force` to overwrite

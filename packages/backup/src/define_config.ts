@@ -41,8 +41,8 @@ export interface BackupConfig {
 /**
  * Augment core's open `SatelliteConfigRegistry` so `getConfig().backup` (and any
  * `MultitenancyConfig` consumer) is typed wherever the backup satellite is
- * imported. The augmentation lives in this package's compilation only, so core —
- * which never imports backup — keeps a `backup`-free public type. This replaces
+ * imported. The augmentation lives in this package's compilation only, so core
+ * (which never imports backup) keeps a `backup`-free public type. This replaces
  * the old hard-coded `backup?` block on core's `MultitenancyConfig`.
  */
 declare module '@adonisjs-lasagna/saas-tenancy/types' {

@@ -1,5 +1,5 @@
 /**
- * The graph data model. See docs/dev/doc-coverage-rfc.md §3.
+ * The graph data model. See docs/dev/doc-coverage-rfc.md section 3.
  *
  * A node is a code symbol or a doc fragment; an edge means "this doc explains /
  * references / exemplifies this code". The graph is bidirectional so impact

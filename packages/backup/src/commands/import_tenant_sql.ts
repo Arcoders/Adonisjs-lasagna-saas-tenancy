@@ -145,7 +145,7 @@ export default class ImportTenantSql extends BaseCommand {
     this.logger.info(`  Errors     : ${result.errors.length}`)
 
     // Data-integrity flags (e.g. the schema rewrite touched a string literal)
-    // are loud even on a "successful" import — a silently mutated value in a
+    // are loud even on a "successful" import. A silently mutated value in a
     // restore is worse than a visible failure.
     for (const warning of result.warnings) {
       this.logger.warning(`  [WARN] ${warning}`)
