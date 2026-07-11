@@ -503,9 +503,14 @@ booted app, so a plugin module loads under any tooling.
 Reach for a raw `implements SatelliteProviderContract` class when you need
 behavior the spec does not model: conditional wiring across phases that a single
 section can't express, or a provider that other core machinery constructs
-directly. The [satellite reference template](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/tree/master/packages/satellite-template)
-uses `definePlugin`; the built-in billing and backup satellites still hand-write
-the contract, so both paths stay exercised.
+directly. `definePlugin` compiles down to exactly that contract, so nothing is
+out of reach.
+
+Every satellite we ship uses `definePlugin`, including billing, SSO, backup,
+reporting, and AI, and so does the
+[satellite reference template](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/tree/master/packages/satellite-template).
+The raw contract stays supported and covered by its own back-compat spec, but the
+facade is the path we build on ourselves.
 
 ## Read next
 

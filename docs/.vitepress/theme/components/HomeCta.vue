@@ -12,10 +12,11 @@ import { PhArrowRight } from '@phosphor-icons/vue'
 <template>
   <section class="cta">
     <div class="cta__inner">
-      <h2 class="cta__title">Give every tenant its own schema.</h2>
+      <h2 class="cta__title">Give every tenant real isolation.</h2>
       <p class="cta__lede">
-        From <code>npm install</code> to a live, schema-isolated tenant in under
-        ten minutes. No <code>tenant_id</code> in sight.
+        From <code>npm install</code> to a live, isolated tenant in under ten
+        minutes. Start on <code>schema-pg</code> and change one config line if you
+        ever outgrow it.
       </p>
       <a class="cta__btn" :href="withBase('/start/quickstart')">
         Start the quickstart
@@ -73,17 +74,18 @@ import { PhArrowRight } from '@phosphor-icons/vue'
   align-items: center;
   gap: 0.5rem;
   padding: 0.8rem 1.6rem;
-  border-radius: 999px;
-  background: var(--vp-c-brand-1);
-  color: #fff;
+  border-radius: 8px;
+  background: var(--lsg-c-ink);
+  color: var(--lsg-c-on-ink);
   font-weight: 600;
   font-size: 1.02rem;
   text-decoration: none;
-  border: 1px solid var(--vp-c-brand-1);
-  transition: background-color 0.2s ease, transform 0.2s ease;
+  border: 1px solid var(--lsg-c-ink);
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 .cta__btn:hover {
-  background: var(--vp-c-brand-2);
+  background: var(--lsg-c-ink-hover);
+  border-color: var(--lsg-c-ink-hover);
   transform: translateY(-1px);
 }
 </style>

@@ -1,9 +1,10 @@
 /*
  * Lasagna theme — minimalist restyle.
  *
- * Two jobs only:
+ * Three jobs only:
  *   1. Load Inter (UI + headings) and JetBrains Mono (code).
  *   2. Point VitePress's brand tokens at a single terracotta accent.
+ *   3. Define the neutral ink scale that paints primary buttons.
  *
  * Everything else inherits VitePress's default light/dark tokens, so the
  * site reads clean and neutral with one accent. The earlier "Zellige"
@@ -26,6 +27,14 @@
     Consolas, monospace;
 
   --vp-home-hero-name-color: var(--vp-c-brand-1);
+
+  /* Ink: the primary-button surface on the landing page. Terracotta stays an
+     accent (links, eyebrows, active states) rather than a filled surface, so
+     the page reads as infrastructure. Deliberately NOT a --vp-c-brand-*
+     override: the sidebar, prose links, and search all derive from those. */
+  --lsg-c-ink: #1c1917;
+  --lsg-c-ink-hover: #000;
+  --lsg-c-on-ink: #fff;
 }
 
 .dark {
@@ -33,6 +42,10 @@
   --vp-c-brand-2: #fdba74;
   --vp-c-brand-3: #ea580c;
   --vp-c-brand-soft: rgba(251, 146, 60, 0.16);
+
+  --lsg-c-ink: #f2f2f2;
+  --lsg-c-ink-hover: #fff;
+  --lsg-c-on-ink: #14110f;
 }
 
 /* ─── Section rhythm: a quiet divider above each H2 ─────────────── */
