@@ -8,7 +8,7 @@ import { multitenancyReportingRoutes } from '@adonisjs-lasagna/reporting'
 import { multitenancyAiRoutes } from '@adonisjs-lasagna/ai/routes'
 
 /**
- * Lazy controller imports — keeps the route file small and lets the
+ * Lazy controller imports keep the route file small and let the
  * framework instantiate controllers per request via the IoC container,
  * which is required for `@inject()`-decorated constructor parameters.
  */
@@ -45,7 +45,7 @@ multitenancyAdminRoutes({
     ctx.request.header('x-admin-id') ?? 'dec0ffee-0000-4000-8000-000000000000',
 })
 
-/* ─── Stripe webhook receiver (ungated — in ignorePaths) ─────────────────── */
+/* ─── Stripe webhook receiver (ungated, in ignorePaths) ─────────────────── */
 multitenancyBillingRoutes()
 
 /* ─── Cross-tenant reporting dashboard (fail-closed, admin-gated) ─────────── */
@@ -60,7 +60,7 @@ multitenancyReportingRoutes({
   cacheTtlMs: 60_000,
 })
 
-/* ─── AI gateway (@adonisjs-lasagna/ai) — tenant-scoped, fail-closed mount ── */
+/* ─── AI gateway (@adonisjs-lasagna/ai): tenant-scoped, fail-closed mount ── */
 // POST /ai/chat (SSE), /ai/embed, /ai/retrieve. TenantGuard FIRST per the mount
 // contract; config.ai.authorizeAIAccess is the per-request membership gate. The
 // demo runs fully offline through the mock providers registered in AppProvider.
@@ -77,7 +77,7 @@ router
   })
   .use([middleware.impersonation()])
 
-/* ─── /demo: tenant CRUD (no tenant guard — no tenant context yet) ───────── */
+/* ─── /demo: tenant CRUD (no tenant guard, no tenant context yet) ───────── */
 router
   .group(() => {
     router.get('/tenants', [TenantsController, 'list'])
@@ -122,7 +122,7 @@ router
     router.get('/sso', [SsoController, 'show'])
     router.put('/sso', [SsoController, 'update'])
 
-    // Billing (Stripe) — added incrementally alongside the satellites above
+    // Billing (Stripe), added incrementally alongside the satellites above
     router.get('/billing', [BillingController, 'show'])
     router.post('/billing/checkout', [BillingController, 'checkout'])
   })

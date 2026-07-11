@@ -8,8 +8,8 @@ import {
 import { currentTenant } from '#app/helpers/current_tenant'
 
 /**
- * A friendlier façade over the package's admin endpoints — uses the same
- * jobs and lifecycle methods, but exposes simpler shapes for demo curls.
+ * A friendlier façade over the package's admin endpoints. It uses the same jobs
+ * and lifecycle methods, but exposes simpler shapes for demo curls.
  *
  * Lives alongside `multitenancyAdminRoutes()` (mounted at `/admin`) to
  * demonstrate both styles. Real apps usually pick one.

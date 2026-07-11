@@ -3,8 +3,8 @@ import type Tenant from '#app/models/backoffice/tenant'
 
 export interface CreateNoteInput {
   title: string
-  // `| undefined` (not just `?`) so the validator's optional output — which is
-  // `string | null | undefined` — passes under exactOptionalPropertyTypes.
+  // `| undefined` (not just `?`) so the validator's optional output, which is
+  // `string | null | undefined`, passes under exactOptionalPropertyTypes.
   body?: string | null | undefined
 }
 

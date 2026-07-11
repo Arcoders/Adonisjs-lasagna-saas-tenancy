@@ -5,7 +5,7 @@ import env from '#start/env'
 /**
  * Header-based fake auth used to gate `multitenancyAdminRoutes`.
  *
- * Real apps should swap this for session/JWT/mTLS — the package doesn't
+ * Real apps should swap this for session/JWT/mTLS. The package doesn't
  * prescribe one. This stub exists so the demo can ship with the admin
  * routes mounted but still locked down.
  */

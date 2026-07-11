@@ -27,7 +27,7 @@ const baseConnection = {
 
 // Pool sizing: backoffice/central are *shared* connections used by every
 // request, so they get a generous pool. The `tenant` template is cloned per
-// tenant — keeping its pool small + aggressively idle-closing avoids
+// tenant, so keeping its pool small and aggressively idle-closing avoids
 // exhausting Postgres' `max_connections` when many tenants are live
 // (LRU cap × max_per_pool grows fast: 50 × 3 = 150 worst-case, but idle
 // connections close in 5s so steady-state stays well under PG's default 100).
@@ -55,7 +55,7 @@ export default defineConfig({
       },
     },
 
-    // Template config — the package clones this when materialising tenant_<uuid> connections.
+    // Template config: the package clones this when materialising tenant_<uuid> connections.
     tenant: {
       ...baseConnection,
       ...tenantTemplatePool,

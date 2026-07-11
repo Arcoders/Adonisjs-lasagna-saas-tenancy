@@ -5,8 +5,8 @@ import type { DemoMeta } from '#app/models/backoffice/tenant'
 
 /**
  * Demonstrates the billing satellite added on top of the other satellites.
- *   - GET  /demo/billing           → does this tenant have a billing customer?
- *   - POST /demo/billing/checkout  → create a Checkout session for a plan
+ *   - `GET  /demo/billing` reports whether this tenant has a billing customer.
+ *   - `POST /demo/billing/checkout` creates a Checkout session for a plan.
  *
  * BillingService is injected from the container (a singleton that delegates to
  * the active billing driver), so the e2e suite can inject a mock SDK / driver
@@ -20,8 +20,8 @@ import type { DemoMeta } from '#app/models/backoffice/tenant'
  * bypassed would let a caller check out at an arbitrary price.
  */
 
-// Server-side catalog: plan name → provider price id. In a real app this lives
-// in your database or config, never in the request body.
+// Server-side catalog mapping a plan name to a provider price id. In a real app
+// this lives in your database or config, never in the request body.
 const PRICE_BY_PLAN: Record<string, string> = {
   pro: 'price_pro_monthly',
 }

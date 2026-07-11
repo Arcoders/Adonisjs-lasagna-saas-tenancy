@@ -27,7 +27,7 @@ import type { EmitterService } from '@adonisjs/core/types'
  * not an event, so listeners only ever see successful transitions.
  *
  * The emitter is passed in by `AppProvider.boot()` rather than imported as a
- * service singleton — the magic import resolves to `undefined` until the
+ * service singleton. The magic import resolves to `undefined` until the
  * `app.booted()` hook fires, which is *after* provider `boot()` runs.
  */
 async function record(
@@ -76,7 +76,7 @@ export default class AuditListener {
     )
 
     emitter.on(TenantCloned, ({ source, destination, result }) =>
-      // Logged against the destination — that's the new tenant the event
+      // Logged against the destination, the new tenant the event
       // materialises.
       record(destination.id, 'tenant.cloned', {
         sourceId: source.id,
