@@ -35,7 +35,7 @@ export default {
   // the isolation tier swaps the id per request to prove cross-tenant queries are
   // contained. There is no authenticated principal in a benchmark, so the
   // membership gate is intentionally absent. Acknowledge it so the production-mode
-  // run boots (the WS-3 resolution-safety check hard-fails an unacknowledged
+  // run boots (the resolution-safety check hard-fails an unacknowledged
   // client-controlled strategy in production).
   acknowledgeNoMembershipGate: true,
   tenantHeaderKey: env.get('TENANT_HEADER_KEY'),
@@ -46,7 +46,7 @@ export default {
   isolation: {
     driver,
     // The template connection that schema-pg/database-pg clone per tenant.
-    // rowscope-pg ignores this — it shares `centralConnectionName` ('public')
+    // rowscope-pg ignores this: it shares `centralConnectionName` ('public')
     // since there is no per-tenant connection. `tenant` points at `public`, so
     // the same physical DB backs every driver under BENCH_DRIVER.
     templateConnectionName: 'tenant',
@@ -73,7 +73,7 @@ export default {
   },
 
   // The breaker fires on every guarded request, so the config must carry the
-  // block — values mirror examples/api (volumeThreshold high enough not to trip
+  // block. Values mirror examples/api (volumeThreshold high enough not to trip
   // under a healthy load run).
   circuitBreaker: {
     threshold: 50,

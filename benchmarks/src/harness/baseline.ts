@@ -1,6 +1,6 @@
 /**
- * `npm run bench:check` — compare the newest results against a committed
- * baseline and print a regression verdict.
+ * `npm run bench:check` compares the newest results against a committed
+ * baseline and prints a regression verdict.
  *
  *   --baseline=ci-ubuntu   (default; the gate baseline)
  *   --baseline=1.0.0       (the docs baseline; for a self-compare sanity check)
@@ -47,7 +47,7 @@ const latest = latestBySuiteDriver()
 
 // Correctness gate (always hard, independent of the throughput tolerance and of
 // BENCH_GATE_ENFORCE): any result whose meta carries a `*Check` field set to
-// 'FAIL' is a correctness regression — a cross-tenant leak, a broken fail
+// 'FAIL' is a correctness regression: a cross-tenant leak, a broken fail
 // policy, an unstable soak. These must never be merged, noisy runner or not.
 const correctnessFailures: string[] = []
 for (const [key, file] of latest) {

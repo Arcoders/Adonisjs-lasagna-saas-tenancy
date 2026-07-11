@@ -1,10 +1,10 @@
 /**
- * Isolation tier — the assertion the throughput HTTP tier does NOT make.
+ * Isolation tier: the assertion the throughput HTTP tier does NOT make.
  *
  * Fires many concurrent requests, each rotating `x-tenant-id` across the seeded
  * tenants, and asserts per response that it carries ONLY the requested tenant's
- * data — exercising the real request path (header → resolver → TenantAdapter →
- * AsyncLocalStorage → driver → pool) under concurrency. A single mismatch is a
+ * data, exercising the real request path (header, resolver, TenantAdapter,
+ * AsyncLocalStorage, driver, pool) under concurrency. A single mismatch is a
  * cross-tenant leak and fails the gate.
  *
  * The seeded note titles encode their owner (`t:<id>:<i>`) so any row in the
@@ -72,7 +72,7 @@ export async function runIsolationLoad(
     const leaks = r.mismatches
     // The isolation check only inspects 200s, so a run that mostly errors could
     // read PASS vacuously. The error-rate ceiling makes that a FAIL in its own
-    // right — and because bench:check fails the PR on any `*Check=FAIL`, a
+    // right, and because bench:check fails the PR on any `*Check=FAIL`, a
     // degraded persisted run can't slip through the correctness gate either.
     const errorRate = r.total === 0 ? 1 : r.errors / r.total
     return zeroMetric(

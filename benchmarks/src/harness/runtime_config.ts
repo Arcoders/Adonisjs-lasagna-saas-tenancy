@@ -8,7 +8,7 @@ type IsolationConfig = NonNullable<MultitenancyConfig['isolation']>
  *
  * The config singleton is deep-frozen by `setConfig`, so a bench that varies the
  * connection cap, eviction grace, or hard-cap flag at runtime cannot mutate
- * `getConfig().isolation` in place — that throws `TypeError: Cannot assign to read
+ * `getConfig().isolation` in place. That throws `TypeError: Cannot assign to read
  * only property`. Re-setting a fresh object is permitted outside production, which
  * is where the benches run (`NODE_ENV=development`). Use this from any bench that
  * needs to retune isolation live, rather than reaching into the frozen config.

@@ -8,7 +8,7 @@
  * graph. The package `exports` field blocks subpath imports of the package
  * name, so these go straight at the emitted files by relative path.
  *
- * Requires `npm run build` (core) first — same as every other tier. Only types
+ * Requires `npm run build` (core) first, same as every other tier. Only types
  * may be imported from the public barrel elsewhere (type imports are erased).
  */
 export { default as TenantResolverRegistry } from '../../../packages/core/build/src/services/resolvers/registry.js'

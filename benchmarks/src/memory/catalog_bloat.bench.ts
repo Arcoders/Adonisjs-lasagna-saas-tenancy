@@ -16,7 +16,7 @@ async function scalarInt(db: any, sql: string): Promise<number> {
 /**
  * Catalog-bloat curve done RIGHT.
  *
- * The previous version timed `EXPLAIN SELECT * FROM "bench_cat_0".t0 …` — a
+ * The previous version timed `EXPLAIN SELECT * FROM "bench_cat_0".t0 …`, a
  * fully-qualified name against an EMPTY toy table, always the first schema. That
  * bypasses exactly the cost catalog bloat imposes: PostgreSQL resolving an
  * UNqualified table name against `search_path` as the catalog grows, which is
@@ -30,8 +30,8 @@ async function scalarInt(db: any, sql: string): Promise<number> {
  *   - also times the old fully-qualified plan, so the delta is visible.
  *
  * For database-pg the catalog is PER-DATABASE (bounded and small); the bloat
- * risk there is the NUMBER of databases, not a giant pg_class — measured
- * separately. rowscope-pg has a single shared schema, so it is skipped.
+ * risk there is the NUMBER of databases, not a giant pg_class (measured
+ * separately). rowscope-pg has a single shared schema, so it is skipped.
  */
 export async function runCatalogBloat(app: ApplicationService, db: any): Promise<BenchResult[]> {
   const driver = await activeDriver(app)

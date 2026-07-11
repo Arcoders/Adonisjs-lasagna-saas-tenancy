@@ -6,7 +6,7 @@
  * provider's boot). So anything that touches the DB needs a fully booted +
  * started app, not bare imports. This mirrors the bootstrap shape of the core
  * integration runner (packages/core/bin/test.integration.ts) but with no HTTP
- * listener and no test runner: just init → boot → start.
+ * listener and no test runner: just init, then boot, then start.
  */
 import 'reflect-metadata'
 import { Ignitor } from '@adonisjs/core'

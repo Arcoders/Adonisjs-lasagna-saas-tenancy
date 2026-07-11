@@ -7,8 +7,8 @@ import type { TenantStatus } from '@adonisjs-lasagna/saas-tenancy/types'
 /**
  * Lean tenant registry model. The bench provisions tenant storage directly
  * (see src/harness/provision.ts), so this model carries only what the
- * repository, the tenant guard, and `request.tenant()` read — no install /
- * migrate / connection plumbing.
+ * repository, the tenant guard, and `request.tenant()` read, with none of the
+ * install, migrate, or connection plumbing.
  */
 export default class Tenant extends BackofficeBaseModel {
   @column({ isPrimary: true })

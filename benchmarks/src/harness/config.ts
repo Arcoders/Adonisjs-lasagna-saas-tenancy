@@ -70,7 +70,7 @@ export const sizes = {
     /**
      * Ceiling on non-200 responses (fraction of total). The isolation check
      * only inspects 200s, so a run where most cross-tenant requests error out
-     * could read `isolationCheck: PASS` vacuously — above this rate the run
+     * could read `isolationCheck: PASS` vacuously. Above this rate the run
      * fails instead of rubber-stamping.
      */
     maxErrorRate: float('BENCH_ISO_MAX_ERROR_RATE', 0.05),

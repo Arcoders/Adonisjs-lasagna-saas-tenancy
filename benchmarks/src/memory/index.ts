@@ -1,5 +1,5 @@
 /**
- * Tier 4 — memory + connection budget. Boots the bench fixture headless and
+ * Tier 4: memory + connection budget. Boots the bench fixture headless and
  * runs against real Postgres for the driver selected by BENCH_DRIVER.
  *
  *   docker compose -f benchmarks/docker-compose.yml up -d
@@ -21,7 +21,7 @@ try {
   const pg = await pgVersion(db)
 
   // Steady (grace shrunk to 50ms; cap binds) for continuity with the old number,
-  // then the HONEST burst under the production 30s grace (open → N, not the cap)
+  // then the HONEST burst under the production 30s grace (open grows to N, not the cap)
   // plus the saturation/recovery probe. Run the burst LAST so its grace reset
   // doesn't affect the steady measurement.
   const results: BenchResult[] = [
