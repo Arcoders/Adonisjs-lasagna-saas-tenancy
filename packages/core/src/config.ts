@@ -48,12 +48,6 @@ export function setConfig(config: MultitenancyConfig): void {
     )
   }
   store.current = deepFreeze(config)
-  store.version += 1
-}
-
-/** Current config version (0 before the first set). The {version, config} envelope. */
-export function getConfigVersion(): number {
-  return getStore().version
 }
 
 // `__resetConfigForTests` used to live here. It now sits on the `/testing`

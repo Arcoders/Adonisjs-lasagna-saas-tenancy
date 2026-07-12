@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { setConfig, getConfig, getConfigVersion } from '../../../../src/config.js'
+import { setConfig, getConfig } from '../../../../src/config.js'
 import { testConfig } from '../../../helpers/config.js'
 
 /**
@@ -8,11 +8,9 @@ import { testConfig } from '../../../helpers/config.js'
  * getConfig() returned a live, mutable reference to a process-wide singleton, so
  * any caller could `getConfig().isolation.driver = ...` and silently re-point
  * every tenant. And a second setConfig silently replaced the config at runtime.
- * The fix deep-freezes the config, refuses a second set in production, and bumps
- * a version envelope.
+ * The fix deep-freezes the config and refuses a second set in production.
  *
- * RED (pre-fix): config was mutable, a second prod set was silently accepted,
- * and there was no version.
+ * RED (pre-fix): config was mutable and a second prod set was silently accepted.
  */
 test.group('config immutability', () => {
   test('getConfig() returns a deeply frozen object', ({ assert }) => {
@@ -23,12 +21,6 @@ test.group('config immutability', () => {
     assert.throws(() => {
       ;(cfg as { tenantHeaderKey: string }).tenantHeaderKey = 'mutated'
     })
-  })
-
-  test('setConfig bumps the version envelope', ({ assert }) => {
-    const before = getConfigVersion()
-    setConfig({ ...testConfig })
-    assert.equal(getConfigVersion(), before + 1)
   })
 
   test('a second setConfig is refused in production', ({ assert }) => {

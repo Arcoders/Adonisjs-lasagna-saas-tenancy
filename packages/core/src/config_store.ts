@@ -21,20 +21,26 @@ import type { MultitenancyConfig } from './types/config.js'
  * Keeping the store accessor here lets `src/testing/config_reset.ts` reach the
  * singleton over a compile-time link instead of re-deriving the `Symbol.for`
  * literal, which would silently no-op the day this key changes.
+ *
+ * Invariant: one tenancy configuration per process. The store is process-global
+ * and keyed by a single fixed `Symbol.for`, so a process hosts exactly one
+ * MultitenancyProvider. A second `setConfig` in production is refused (see
+ * `config.ts`), and running two apps with different tenancy configs in one
+ * process is unsupported. Tests that re-seed or clear the singleton go through
+ * the `/testing` reset seam (`__resetConfigForTests`), never by re-deriving this
+ * key.
  */
 const STORE_KEY = Symbol.for('@adonisjs-lasagna/saas-tenancy/config-singleton')
 
 export interface ConfigStore {
   current: MultitenancyConfig | null
-  /** Monotonic version, bumped on every successful set (the envelope). */
-  version: number
 }
 
 export function getStore(): ConfigStore {
   const g = globalThis as unknown as Record<symbol, ConfigStore | undefined>
   let store = g[STORE_KEY]
   if (!store) {
-    store = { current: null, version: 0 }
+    store = { current: null }
     g[STORE_KEY] = store
   }
   return store

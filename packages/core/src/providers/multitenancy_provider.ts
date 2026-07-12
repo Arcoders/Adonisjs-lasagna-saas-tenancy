@@ -124,8 +124,12 @@ export default class MultitenancyProvider {
     const db = await this.app.container.make(Database)
     const drivers = await this.app.container.make(IsolationDriverRegistry)
 
-    // Register the configured isolation driver before wiring the adapter,
-    // because TenantAdapter consults the registry on every query.
+    // Register the configured isolation driver into the registry made above.
+    // The adapter reads the registry lazily on each query, so registering the
+    // driver before the adapter is wired below is convenience, not a
+    // requirement: the load-bearing constraints are that the driver is
+    // registered before start()'s assertConfiguredDriverRegistered and before
+    // the first tenant query.
     const choice = config.isolation?.driver ?? 'schema-pg'
     if (choice === 'schema-pg' && !drivers.has('schema-pg')) {
       drivers.register(
@@ -212,9 +216,10 @@ export default class MultitenancyProvider {
       drivers.register(new SqliteMemoryDriver(), { activate: true })
     }
 
-    // Resolve the resolver registry before wiring the adapter so the adapter
-    // can consult it synchronously for model-query routing (the chain is
-    // seeded just below; the adapter holds the reference and reads it lazily).
+    // Resolve the resolver registry singleton: the adapter takes it as a
+    // constructor dependency below, so the object must exist here. Its contents
+    // (the chain) are seeded just after wiring and read lazily per query, so the
+    // seed order relative to adapter construction is not load-bearing.
     const resolvers = await this.app.container.make(TenantResolverRegistry)
 
     // One unified adapter for all three base models. It routes by each model's
