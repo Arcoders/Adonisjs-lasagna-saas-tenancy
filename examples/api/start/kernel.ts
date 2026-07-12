@@ -36,9 +36,5 @@ export const middleware = router.named({
     import('@adonisjs-lasagna/saas-tenancy/middleware').then((m) => ({
       default: m.ImpersonationMiddleware,
     })),
-  centralOnly: () =>
-    import('@adonisjs-lasagna/saas-tenancy/middleware').then((m) => ({
-      default: m.CentralOnlyMiddleware,
-    })),
   auth: () => import('#app/middleware/auth_middleware'),
 })

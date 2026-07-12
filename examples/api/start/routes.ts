@@ -78,26 +78,22 @@ router
   .use([middleware.impersonation()])
 
 /* ─── Operator realm: login surface on the central (apex) plane ──────────── */
-// CentralOnlyMiddleware rejects any request that carries a tenant id, which
-// is intended: operators authenticate on the apex, never inside a tenant
-// context. Wired through the named-middleware registry (the same way every
-// other core middleware is mounted here) rather than the router.central()
-// macro sugar over the identical middleware. Login is rate-limited with the
+// Declared with router.central(): CentralOnlyMiddleware rejects any request
+// that carries a tenant id, which is intended. Operators authenticate on the
+// apex, never inside a tenant context. Login is rate-limited with the
 // package's own middleware (on central routes it degrades to the shared
 // per-IP bucket, and it is inert under app.inTest).
-router
-  .group(() => {
-    router
-      .post('/backoffice/login', [BackofficeAuthController, 'login'])
-      .use(middleware.rateLimit({ limit: 10, windowSeconds: 60 }))
-    router
-      .get('/backoffice/me', [BackofficeAuthController, 'me'])
-      .use(middleware.auth({ guards: ['backoffice'] }))
-    router
-      .delete('/backoffice/logout', [BackofficeAuthController, 'logout'])
-      .use(middleware.auth({ guards: ['backoffice'] }))
-  })
-  .use(middleware.centralOnly())
+router.central(() => {
+  router
+    .post('/backoffice/login', [BackofficeAuthController, 'login'])
+    .use(middleware.rateLimit({ limit: 10, windowSeconds: 60 }))
+  router
+    .get('/backoffice/me', [BackofficeAuthController, 'me'])
+    .use(middleware.auth({ guards: ['backoffice'] }))
+  router
+    .delete('/backoffice/logout', [BackofficeAuthController, 'logout'])
+    .use(middleware.auth({ guards: ['backoffice'] }))
+})
 
 /* ─── /demo: tenant CRUD (no tenant guard, no tenant context yet) ───────── */
 router
