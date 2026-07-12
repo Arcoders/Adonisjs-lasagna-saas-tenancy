@@ -465,12 +465,24 @@ export default class MultitenancyProvider {
   }
 
   /**
-   * Invalidate module-level caches that hold references to container
-   * singletons. See {@link resetModuleCaches} for the why. The billing
-   * metering drain moved to the @adonisjs-lasagna/billing provider's
-   * shutdown.
+   * Graceful teardown on `app.terminate()` (the SIGTERM path in worker/web
+   * processes). Two steps, in order:
+   *
+   * 1. Close the long-lived libuv handles our singletons own (see
+   *    {@link closeOwnedHandles}) — chiefly `TenantQueueService`'s per-tenant
+   *    BullMQ queues, whose ioredis sockets would otherwise keep the event loop
+   *    alive after terminate() and hang the process until SIGKILL.
+   * 2. Invalidate module-level caches that hold references to container
+   *    singletons (see {@link resetModuleCaches} for the why).
+   *
+   * Handles first: dropping the module-cache references before releasing the
+   * sockets would orphan the very services that still own them. The billing
+   * metering drain moved to the @adonisjs-lasagna/billing provider's shutdown.
    */
   async shutdown() {
+    const { closeOwnedHandles } = await import('./shutdown_handles.js')
+    await closeOwnedHandles(this.app)
+
     const { resetModuleCaches } = await import('./shutdown_caches.js')
     await resetModuleCaches()
   }

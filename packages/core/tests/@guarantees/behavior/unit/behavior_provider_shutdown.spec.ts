@@ -1,5 +1,9 @@
 import { test } from '@japa/runner'
+import type { Queue, QueueOptions } from 'bullmq'
+import type { ApplicationService } from '@adonisjs/core/types'
 import { resetModuleCaches } from '../../../../src/providers/shutdown_caches.js'
+import { closeOwnedHandles } from '../../../../src/providers/shutdown_handles.js'
+import TenantQueueService from '../../../../src/services/tenant_queue_service.js'
 import { tenancy, __configureTenancyForTests } from '../../../../src/tenancy.js'
 import {
   getActiveDriver,
@@ -126,5 +130,79 @@ test.group('provider shutdown — singleton cache invalidation', (group) => {
     // yields nothing). A retained reference would keep this at 1.
     await findTenantByIdCached(repo, 'tenant-1')
     assert.equal(calls(), 2)
+  })
+})
+
+/** A stub BullMQ queue that records close(); stands in for a live ioredis handle. */
+class FakeQueue {
+  closed = false
+  constructor(public readonly name: string) {}
+  async close(): Promise<void> {
+    this.closed = true
+  }
+}
+
+/** Swaps the real BullMQ Queue for {@link FakeQueue} so shutdown can drain
+ *  handles without a live Redis. */
+class StubbedQueueService extends TenantQueueService {
+  readonly created: FakeQueue[] = []
+  #clock = 0
+  protected override now(): number {
+    return (this.#clock += 1)
+  }
+  protected override createQueue(name: string, _options: QueueOptions): Queue {
+    const q = new FakeQueue(name)
+    this.created.push(q)
+    return q as unknown as Queue
+  }
+}
+
+/**
+ * Backs the clean-install smoke's SIGTERM fix: `MultitenancyProvider.shutdown()`
+ * delegates to `closeOwnedHandles(app)`, which must resolve the singleton
+ * `TenantQueueService` from the container and close every dispatch-path handle
+ * it holds. The provider class itself can't be imported in the unit environment
+ * (its graph top-level-awaits app boot), so the spec exercises the extracted
+ * function against a fake container, mirroring the resetModuleCaches specs above.
+ */
+test.group('provider shutdown — owned-handle drain', (group) => {
+  group.each.setup(() =>
+    setupTestConfig({
+      queue: {
+        tenantQueuePrefix: 'tq_',
+        defaultConcurrency: 1,
+        attempts: 3,
+        redis: { host: '127.0.0.1', port: 6379, db: 1 },
+        maxOpenQueues: 100,
+        queueIdleGraceMs: 30_000,
+      },
+    })
+  )
+
+  test('closeOwnedHandles resolves the queue singleton and drains it', async ({ assert }) => {
+    const svc = new StubbedQueueService()
+    // Simulate a worker that dispatched to two tenants: two persistent handles,
+    // each owning an ioredis socket, are now open.
+    svc.getOrCreate('tenant-a')
+    svc.getOrCreate('tenant-b')
+    assert.equal(svc.openHandleCount, 2)
+
+    let requested: unknown
+    const fakeApp = {
+      container: {
+        async make(token: unknown) {
+          requested = token
+          return svc
+        },
+      },
+    } as unknown as ApplicationService
+
+    await closeOwnedHandles(fakeApp)
+
+    // It asked the container for exactly the queue singleton...
+    assert.strictEqual(requested, TenantQueueService)
+    // ...and drained every handle, so no ioredis socket keeps the loop alive.
+    assert.equal(svc.openHandleCount, 0)
+    assert.equal(svc.created.filter((q) => q.closed).length, 2)
   })
 })

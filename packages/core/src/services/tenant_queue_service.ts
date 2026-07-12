@@ -219,6 +219,31 @@ export default class TenantQueueService {
     await queue.add(jobName, payload, opts)
   }
 
+  /**
+   * Close every persistent dispatch-path queue handle this process holds open,
+   * releasing the ioredis connection each one owns, and clear the map + LRU
+   * bookkeeping. The provider's `shutdown()` calls this so a SIGTERM'd worker or
+   * web process doesn't leave a Redis socket keeping the event loop alive past
+   * `app.terminate()` (the classic graceful-shutdown hang → SIGKILL-after-grace).
+   *
+   * Non-destructive, unlike {@link destroy}: it does NOT `obliterate` the
+   * tenant's `bull:` keys. A queued job must survive a graceful restart; this
+   * only drops the in-process connection, not the durable queue.
+   *
+   * Snapshots then clears the map synchronously (before any await) so a
+   * concurrent `getOrCreate` racing the shutdown builds a fresh handle rather
+   * than getting back one that is closing, mirroring the LRU release path. Closes
+   * concurrently and swallows per-queue errors: one queue failing to close must
+   * not strand the others' sockets open, which is exactly the hang this exists to
+   * prevent.
+   */
+  async closeAll(): Promise<void> {
+    const open = [...this.queues.entries()]
+    this.queues.clear()
+    for (const [tenantId] of open) this.#lru.delete(tenantId)
+    await Promise.all(open.map(([, queue]) => queue.close().catch(() => {})))
+  }
+
   async destroy(tenantId: string): Promise<void> {
     // Obliterate UNCONDITIONALLY. Never depend on whether this process's
     // in-memory map happens to hold the queue. The worker running an uninstall

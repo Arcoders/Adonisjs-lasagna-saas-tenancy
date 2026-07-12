@@ -10,9 +10,15 @@ import { setupTestConfig } from '../../../helpers/config.js'
  */
 class FakeQueue {
   closed = false
+  obliterated = false
   constructor(public readonly name: string) {}
   async close(): Promise<void> {
     this.closed = true
+  }
+  // Tracked so a test can assert closeAll() is NON-destructive: it must release
+  // the connection via close() and never obliterate the tenant's durable queue.
+  async obliterate(): Promise<void> {
+    this.obliterated = true
   }
 }
 
@@ -75,5 +81,37 @@ test.group('TenantQueueService — handle bound (P1-3)', (group) => {
     const second = svc.getOrCreate('tenant-a')
     assert.strictEqual(first, second)
     assert.equal(svc.created.length, 1)
+  })
+
+  // Regression for the clean-install smoke SIGTERM hang: a worker that
+  // dispatched to a tenant left one persistent queue's ioredis socket open,
+  // which survived app.terminate() and kept the process alive until SIGKILL.
+  // closeAll() (called by the provider's shutdown) must release every such
+  // handle so the event loop can drain.
+  test('closeAll() closes every open handle and clears the map', async ({ assert }) => {
+    const svc = new StubbedQueueService()
+    // Under the cap (5), so none are evicted and all stay open.
+    for (const id of ['tenant-a', 'tenant-b', 'tenant-c']) svc.getOrCreate(id)
+    assert.equal(svc.openHandleCount, 3)
+
+    await svc.closeAll()
+
+    assert.equal(svc.openHandleCount, 0)
+    assert.equal(svc.created.filter((q) => q.closed).length, 3)
+    // Non-destructive: it releases the connection, never obliterates the queue.
+    assert.equal(svc.created.filter((q) => q.obliterated).length, 0)
+
+    // The service stays usable, not wedged: a later dispatch builds a fresh
+    // handle (proving the map + LRU bookkeeping were cleared, not left stale).
+    svc.getOrCreate('tenant-a')
+    assert.equal(svc.openHandleCount, 1)
+    assert.equal(svc.created.length, 4)
+  })
+
+  test('closeAll() is a no-op when nothing was ever dispatched', async ({ assert }) => {
+    const svc = new StubbedQueueService()
+    await svc.closeAll()
+    assert.equal(svc.openHandleCount, 0)
+    assert.equal(svc.created.length, 0)
   })
 })
