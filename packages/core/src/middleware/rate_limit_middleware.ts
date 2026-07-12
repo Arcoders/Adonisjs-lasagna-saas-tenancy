@@ -1,4 +1,4 @@
-import { resolveTenantId } from '../extensions/request.js'
+import { resolveTenantIdSync } from '../extensions/request.js'
 import { isSafeIdentifier } from '../services/isolation/identifier.js'
 import { tenancy } from '../tenancy.js'
 import { getConfig } from '../config.js'
@@ -106,18 +106,20 @@ export default class RateLimitMiddleware {
     // is enabled behind a proxy.
     const ip = request.ip()
     // Attribution: prefer the canonical id the guard already resolved
-    // (`tenancy.currentId()`), because the sync legacy resolver can come up
-    // empty under domain/custom-domain strategies, which would collapse every
-    // tenant into one shared per-IP 'global' bucket and let one tenant starve
-    // the others' quota. The resolver stays as the fallback for routes where
-    // rate-limit runs before (or without) the guard.
+    // (`tenancy.currentId()`), then the chain-aware `resolveTenantIdSync` — the
+    // SAME authority routing uses — for routes where rate-limit runs before (or
+    // without) the guard. It must be the chain-aware resolver, not the legacy
+    // strategy switch: under a `resolverChain` the switch reads `resolverStrategy`
+    // alone and would attribute the bucket to a DIFFERENT tenant than the one
+    // served (or collapse everyone into the per-IP 'global' bucket), letting one
+    // tenant starve the others' quota.
     //
     // The fallback re-reads a client-controlled header/segment, so it must be a
     // `SAFE_IDENT` tenant id before it can become a bucket key: a value carrying
     // `:` would inject key structure, and an arbitrary string would let a caller
     // mint or pollute buckets. A non-safe (or absent) id degrades to the shared
     // per-IP `global` bucket rather than an attacker-chosen tenant attribution.
-    const resolved = this.currentTenantId() ?? resolveTenantId(request)
+    const resolved = this.currentTenantId() ?? resolveTenantIdSync(request)
     const tenantId = isSafeIdentifier(resolved) ? resolved : 'global'
     const key = `${prefix}:${tenantId}:${ip}`
 

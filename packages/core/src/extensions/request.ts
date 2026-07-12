@@ -68,6 +68,17 @@ export function __resetResolverRegistryCacheForTests(): void {
 }
 
 /**
+ * Seed the resolver registry into the module cache at boot, the same way the
+ * provider seeds `TenantResolutionCache` / `TenantLogContext`. This is what gives
+ * {@link resolveTenantIdSync} a GUARANTEED synchronous hit on the very first
+ * request, so rate-limit and metrics never fall through to the chain-blind legacy
+ * switch and misattribute to a different tenant than the one routing serves.
+ */
+export function setResolverRegistry(registry: TenantResolverRegistry | undefined): void {
+  cachedResolverRegistry = registry
+}
+
+/**
  * Cached handle to the per-process tenant-resolution cache singleton. Resolved
  * lazily (a miss before boot just disables caching and falls through to the DB).
  */
@@ -229,10 +240,9 @@ function legacyResolveTenantId(request: HttpRequest): string | undefined {
 
 /**
  * Returns the tenant id as a string, OR a `{ domain }` envelope, OR
- * `undefined`. Used by the `request.tenant()` macro and by
- * `TenantAdapter`. Async because resolvers may go async; the legacy
- * sync path is preserved for `TenantAdapter`'s synchronous call site
- * via {@link resolveTenantIdSync}.
+ * `undefined`. Used by the `request.tenant()` macro. Async because resolvers may
+ * go async; synchronous call sites (`TenantAdapter`, rate-limit, metrics) use the
+ * chain-aware {@link resolveTenantIdSync} instead.
  */
 export async function resolveTenant(request: HttpRequest): Promise<TenantResolveResult> {
   const registry = await getResolverRegistry()
@@ -244,9 +254,35 @@ export async function resolveTenant(request: HttpRequest): Promise<TenantResolve
 }
 
 /**
- * Synchronous tenant-id resolver. Kept for `TenantAdapter`, which needs
- * to decide a connection name in a sync codepath. The new resolvers are
- * async-friendly, so async work belongs to `resolveTenant()`.
+ * Chain-aware synchronous tenant-id resolver: the SAME authority the adapter
+ * routes by and `request.tenant()` resolves. Any sync call site that attributes a
+ * tenant (rate-limit buckets, metrics rows) MUST use this, not the chain-blind
+ * legacy switch, so a `resolverChain` deployment attributes to the tenant actually
+ * served instead of whatever `resolverStrategy` alone would pick.
+ *
+ * Resolution: unless the host opts into `legacyAdapterFallback`, walk the
+ * boot-seeded registry chain synchronously (a `domain` hit yields no sync id — it
+ * needs an async repository lookup — so it degrades to `undefined`). Falls back to
+ * the legacy strategy switch only before the registry is seeded (unit tests that
+ * never boot) or under `legacyAdapterFallback`.
+ */
+export function resolveTenantIdSync(request: HttpRequest): string | undefined {
+  const legacy = getConfig().resolver?.legacyAdapterFallback ?? false
+  if (!legacy) {
+    const registry = cachedResolverRegistry
+    if (registry && registry.chain().length > 0) {
+      const result = registry.resolveSync(request)
+      return result?.type === 'id' ? result.tenantId : undefined
+    }
+  }
+  return legacyResolveTenantId(request)
+}
+
+/**
+ * The v1 strategy switch, exposed on the root barrel. Reads `resolverStrategy`
+ * only, so it is chain-BLIND: it is the legacy fallback, not the routing authority.
+ * Prefer {@link resolveTenantIdSync} for any tenant-attribution decision.
+ * (TRES-02 folds this into the unified authority in a later wave.)
  */
 export function resolveTenantId(request: HttpRequest): string | undefined {
   return legacyResolveTenantId(request)

@@ -29,6 +29,7 @@ import RowScopePgDriver from '../services/isolation/rowscope_pg_driver.js'
 import SqliteMemoryDriver from '../services/isolation/sqlite_memory_driver.js'
 import TenantResolverRegistry from '../services/resolvers/registry.js'
 import { wireResolverChain } from './resolver_chain.js'
+import { setResolverRegistry } from '../extensions/request.js'
 import TenantLogContext from '../services/tenant_log_context.js'
 import { primeTenancy } from '../tenancy.js'
 import HealthService from '../health/health_service.js'
@@ -271,6 +272,13 @@ export default class MultitenancyProvider {
     // can register additional resolvers in their own provider's `boot()` after
     // this one runs. See providers/resolver_chain.
     wireResolverChain(resolvers, config)
+
+    // Seed the resolver registry into the request module cache so the chain-aware
+    // resolveTenantIdSync (rate-limit, metrics attribution) has a GUARANTEED
+    // synchronous hit from the first request. Without this, a sync call that lands
+    // before any async resolveTenant() falls through to the chain-blind legacy
+    // switch and attributes the bucket / metrics row to the wrong tenant (TRES-01).
+    setResolverRegistry(resolvers)
 
     // Resolution-safety signal. Both the cross-tenant IDOR posture (a
     // client-controlled strategy with no `authorizeTenantAccess`) and the
