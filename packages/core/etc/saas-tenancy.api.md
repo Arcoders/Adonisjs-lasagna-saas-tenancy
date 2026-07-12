@@ -928,6 +928,7 @@ export class TenantProvisioned extends BaseEvent {
 
 // @public
 export class TenantQueueService {
+    closeAll(): Promise<void>;
     protected createQueue(name: string, options: QueueOptions): Queue;
     // (undocumented)
     destroy(tenantId: string): Promise<void>;
