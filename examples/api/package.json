@@ -22,7 +22,7 @@
     "test:e2e:win": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/e2e.ps1",
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down -v",
-    "setup": "tsx ace.ts backoffice:setup"
+    "setup": "tsx ace.ts backoffice:setup && tsx ace.ts demo:seed"
   },
   "dependencies": {
     "@adonisjs-lasagna/saas-tenancy": "*",
@@ -33,6 +33,7 @@
     "@adonisjs-lasagna/backup": "*",
     "@adonisjs-lasagna/websockets": "*",
     "@adonisjs-lasagna/reporting": "*",
+    "@adonisjs/auth": "^10.1.0",
     "@adonisjs/core": "^7.0.0",
     "@adonisjs/lucid": "^22.0.0",
     "@adonisjs/mail": "^10.2.0",

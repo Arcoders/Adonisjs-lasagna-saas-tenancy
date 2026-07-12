@@ -24,6 +24,7 @@ export default defineConfig({
     () => import('@adonisjs/queue/queue_provider'),
     () => import('@adonisjs/mail/mail_provider'),
     () => import('@adonisjs/core/providers/vinejs_provider'),
+    () => import('@adonisjs/auth/auth_provider'),
     () => import('@adonisjs-lasagna/saas-tenancy/providers/multitenancy_provider'),
     () => import('@adonisjs-lasagna/backup/provider'),
     () => import('@adonisjs-lasagna/billing/provider'),
