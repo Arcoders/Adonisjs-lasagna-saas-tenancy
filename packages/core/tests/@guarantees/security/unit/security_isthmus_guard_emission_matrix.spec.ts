@@ -280,8 +280,9 @@ const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
   'seal.tenant_context': {
     viaIntegration: 'tests/@guarantees/isolation/unit/isolation_tenant_adapter.spec.ts',
   },
-  // Asserted by the searchpath-pin integration spec (extended with capture).
-  'seal.connection_search_path': {
+  // Asserted by the searchpath-pin integration spec (extended with capture);
+  // database-pg's mirror of the same seal is covered in @integration/drivers.
+  'seal.connection_identity': {
     viaIntegration:
       'tests/@guarantees/isolation/integration/isolation_schema_pg_searchpath_pin.spec.ts',
   },

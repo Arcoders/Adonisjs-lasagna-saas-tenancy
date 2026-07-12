@@ -348,7 +348,7 @@ export const ISTHMUS_REGISTRY = [
     nextReview: '2027-01-02',
   },
   {
-    id: 'seal.connection_search_path',
+    id: 'seal.connection_identity',
     pillar: 'seal',
     bugClass: 'cross-tenant-connection',
     failMode: 'closed',
@@ -357,11 +357,11 @@ export const ISTHMUS_REGISTRY = [
     severity: 'critical',
     evidence: {
       kind: 'inherent-risk',
-      ref: 'a name collision or stale registration would serve a connection pinned to another tenant schema — a silent cross-tenant leak',
+      ref: 'a name collision or stale registration would serve a cached connection pinned to another tenant (schema-pg checks searchPath, database-pg checks the database) — a silent cross-tenant leak',
     },
-    guardFile: 'src/services/isolation/schema_pg_driver.ts',
-    reviewed: '2026-07-02',
-    nextReview: '2027-01-02',
+    guardFile: 'src/services/isolation/connection_identity_seal.ts',
+    reviewed: '2026-07-12',
+    nextReview: '2027-01-12',
   },
   {
     id: 'seal.scope_required',

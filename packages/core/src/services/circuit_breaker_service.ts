@@ -16,9 +16,11 @@ const REDIS_KEY_PREFIX = 'cb:state:'
 /**
  * Upper bound on simultaneously-tracked tenant breakers. Each breaker holds two
  * opossum rolling-stats intervals, so an unbounded map under high tenant churn
- * leaks timers + memory. When exceeded we evict the oldest CLOSED breaker (it
- * re-creates cheaply on the next request); OPEN / HALF_OPEN breakers are kept
- * because they are actively failing fast and must not be dropped.
+ * (or a fleet-wide outage that opens every tenant) leaks timers + memory. When
+ * exceeded we evict the oldest CLOSED or OPEN breaker: a CLOSED one re-creates
+ * cheaply, and an OPEN one keeps failing fast through its lightweight `markers`
+ * entry after the heavy object is shed. Only HALF_OPEN breakers are spared (one
+ * is mid recovery-probe). See {@link CircuitBreakerService.markers}.
  */
 const DEFAULT_MAX_TRACKED_CIRCUITS = 5_000
 
@@ -62,6 +64,43 @@ export default class CircuitBreakerService {
   private circuits = new Map<string, CircuitBreaker>()
 
   /**
+   * Lightweight fail-fast markers, DECOUPLED from the heavy opossum breakers.
+   * Keyed by tenant id, the value is the epoch-ms deadline until which the
+   * tenant fails fast (mirrors opossum's OPEN→HALF_OPEN `resetTimeout` window).
+   *
+   * This is what lets {@link isOpen}/{@link run} answer "is this tenant tripped?"
+   * synchronously WITHOUT the opossum object, so a heavy OPEN breaker can be
+   * evicted under memory pressure (a fleet-wide outage opens every tenant, and
+   * each breaker holds two rolling-stats intervals) while fast-fail survives.
+   * An entry is set the instant a breaker opens, cleared when it half-opens /
+   * closes / is reset / destroyed, and treated as gone once its deadline passes
+   * (the tenant would be HALF_OPEN, so a probe is allowed through again).
+   */
+  private markers = new Map<string, number>()
+
+  /**
+   * Clock seam. Real time in production; a spec can subclass and advance a fake
+   * clock to drive the marker across its window deterministically (opossum's own
+   * timers stay real, so this only governs the marker). Mirrors getRedis/buildProbe.
+   */
+  protected now(): number {
+    return Date.now()
+  }
+
+  /** True while the tenant's fail-fast marker is set and its deadline is in the future. */
+  #markerOpen(tenantId: string): boolean {
+    const openUntil = this.markers.get(tenantId)
+    return openUntil !== undefined && openUntil > this.now()
+  }
+
+  /** An opossum-shaped fast-fail error so callers' isOpenRejection() still classifies it. */
+  #openRejection(): Error {
+    const err = new Error('Breaker is open') as Error & { code?: string }
+    err.code = 'EOPENBREAKER'
+    return err
+  }
+
+  /**
    * Override hook for tests: a spec can subclass and force the Redis calls to
    * fail without mutating the shared `@adonisjs/redis` singleton (which would
    * leak into sibling integration specs). Mirrors RateLimitMiddleware.getRedis.
@@ -99,32 +138,40 @@ export default class CircuitBreakerService {
     // it must degrade to safe defaults rather than throw per request (which the
     // guard would map to a 503). Mirrors the `?? DEFAULT` style in #evictIfOverCapacity.
     const cfg = getConfig().circuitBreaker
+    const resetTimeout = cfg?.resetTimeout ?? CIRCUIT_BREAKER_DEFAULTS.resetTimeout
 
     const breaker = new CircuitBreaker(this.buildProbe(tenantId), {
       timeout: PROBE_TIMEOUT_MS,
       errorThresholdPercentage: cfg?.threshold ?? CIRCUIT_BREAKER_DEFAULTS.threshold,
-      resetTimeout: cfg?.resetTimeout ?? CIRCUIT_BREAKER_DEFAULTS.resetTimeout,
+      resetTimeout,
       rollingCountTimeout: cfg?.rollingCountTimeout ?? CIRCUIT_BREAKER_DEFAULTS.rollingCountTimeout,
       volumeThreshold: cfg?.volumeThreshold ?? CIRCUIT_BREAKER_DEFAULTS.volumeThreshold,
       name: `tenant_${tenantId}`,
     })
 
-    // The redundant `.catch(() => {})` on each #persistState call has
-    // been removed: #persistState now logs failures itself, so an extra
-    // outer swallow would only hide the diagnostic.
+    // The marker mutation is the FIRST synchronous statement in each handler,
+    // before any `await`, so the fast-fail state is authoritative the instant
+    // opossum emits the transition (a caller reading isOpen() right after a
+    // `.open()` sees it immediately). The redundant `.catch(() => {})` on each
+    // #persistState call was removed: #persistState logs its own failures.
     breaker.on('open', async () => {
+      this.markers.set(tenantId, this.now() + resetTimeout)
       const logger = await lazyLogger()
       logger?.warn({ tenantId }, 'Circuit OPEN — tenant DB unavailable')
       await this.#persistState(tenantId, 'OPEN')
     })
 
     breaker.on('close', async () => {
+      this.markers.delete(tenantId)
       const logger = await lazyLogger()
       logger?.info({ tenantId }, 'Circuit CLOSED — tenant DB recovered')
       await this.#persistState(tenantId, 'CLOSED')
     })
 
     breaker.on('halfOpen', async () => {
+      // HALF_OPEN means the window elapsed and opossum is letting one trial probe
+      // through, so the tenant is no longer failing fast: drop the marker.
+      this.markers.delete(tenantId)
       const logger = await lazyLogger()
       logger?.info({ tenantId }, 'Circuit HALF_OPEN — probing tenant DB')
       await this.#persistState(tenantId, 'HALF_OPEN')
@@ -141,7 +188,15 @@ export default class CircuitBreakerService {
     // resetTimeout delay before the first probe. Until now `cb:state:` was
     // written but never read back, so persisted state was dead weight across
     // restarts.
-    void this.#restorePersistedState(tenantId, breaker)
+    //
+    // Gate on marker absence: a present marker means we are RE-creating a breaker
+    // we just evicted under memory pressure (run() drops through an elapsed
+    // marker), where the marker already governs fast-fail. Reading Redis then
+    // would re-open the very breaker we shed and block the self-heal probe. A
+    // genuine cold miss (empty map after a restart) has no marker, so restore runs.
+    if (!this.markers.has(tenantId)) {
+      void this.#restorePersistedState(tenantId, breaker)
+    }
     return breaker
   }
 
@@ -167,28 +222,50 @@ export default class CircuitBreakerService {
 
   /**
    * Keep the breaker map bounded. When at/over capacity, shut down and drop the
-   * oldest CLOSED breakers (Map preserves insertion order) until one slot is
-   * free for the caller's add. Skips OPEN/HALF_OPEN breakers, which are actively
-   * failing fast. If every tracked breaker is non-closed we let the map exceed
-   * the bound briefly rather than drop a live one (matching the connection
-   * LRU's "never sever an active resource" stance); evicting down to the cap
-   * (not just one) lets the map DEFLATE again after such a burst.
+   * oldest breakers (Map preserves insertion order) until the map is back under
+   * the cap. CLOSED breakers re-create cheaply. OPEN breakers are ALSO shed here
+   * — the memory pressure a fleet-wide outage creates is precisely a map full of
+   * OPEN breakers, each holding two rolling-stats intervals; their fail-fast
+   * decision is preserved by the lightweight {@link markers} entry, so the heavy
+   * opossum object goes while isOpen()/run() keep fast-failing.
+   *
+   * HALF_OPEN breakers are spared: one is mid-probe, so evicting it drops an
+   * in-flight recovery check. If every tracked breaker is HALF_OPEN we let the
+   * map exceed the bound briefly rather than sever a live probe (matching the
+   * connection LRU's "never sever an active resource" stance); evicting down to
+   * the cap (not just one) lets the map DEFLATE again after such a burst.
    */
   #evictIfOverCapacity(): void {
     const max = getConfig().circuitBreaker?.maxTrackedCircuits ?? DEFAULT_MAX_TRACKED_CIRCUITS
     if (this.circuits.size < max) return
     for (const [tenantId, breaker] of this.circuits) {
       if (this.circuits.size < max) return
-      if (!breaker.opened && !breaker.halfOpen) {
-        breaker.shutdown()
-        this.circuits.delete(tenantId)
+      if (breaker.halfOpen) continue
+      if (breaker.opened) {
+        // Preserve the fast-fail decision across the eviction. The 'open' handler
+        // set the marker; refresh it defensively in case it is somehow missing.
+        this.#ensureOpenMarker(tenantId)
       }
+      breaker.shutdown()
+      this.circuits.delete(tenantId)
     }
   }
 
+  /** Ensure a fast-fail marker exists for an OPEN tenant we are about to evict. */
+  #ensureOpenMarker(tenantId: string): void {
+    if (this.markers.has(tenantId)) return
+    const resetTimeout =
+      getConfig().circuitBreaker?.resetTimeout ?? CIRCUIT_BREAKER_DEFAULTS.resetTimeout
+    this.markers.set(tenantId, this.now() + resetTimeout)
+  }
+
   isOpen(tenantId: string): boolean {
-    if (!this.circuits.has(tenantId)) return false
-    return this.circuits.get(tenantId)!.opened
+    // The lightweight marker is authoritative and survives eviction of the heavy
+    // breaker, so consult it first. Once its window elapses fall through to the
+    // breaker's own view (it may still exist and be HALF_OPEN / recovered).
+    if (this.#markerOpen(tenantId)) return true
+    const breaker = this.circuits.get(tenantId)
+    return breaker ? breaker.opened : false
   }
 
   /**
@@ -204,7 +281,19 @@ export default class CircuitBreakerService {
    * {@link isOpenRejection} (or re-check {@link isOpen}) to tell the two apart.
    */
   async run(tenantId: string): Promise<void> {
-    await this.getCircuit(tenantId).fire()
+    // Fast-fail from the marker WITHOUT materializing the heavy breaker (it may
+    // have been evicted under memory pressure). Mirror opossum's EOPENBREAKER so
+    // isOpenRejection() still classifies it.
+    if (this.#markerOpen(tenantId)) throw this.#openRejection()
+    // Marker window elapsed (or none): let a probe through. getCircuit() FIRST,
+    // while a stale marker (if any) still suppresses the Redis restore, so a
+    // breaker we evicted re-creates CLOSED rather than being re-opened from
+    // persisted state; then drop the marker so the fresh probe can run (the
+    // recreate-on-HALF_OPEN path). fire() re-creates the breaker if it was shed.
+    const staleMarker = this.markers.has(tenantId)
+    const breaker = this.getCircuit(tenantId)
+    if (staleMarker) this.markers.delete(tenantId)
+    await breaker.fire()
   }
 
   /** True when an error thrown by {@link run} is opossum's "breaker is OPEN" fast-fail. */
@@ -235,9 +324,15 @@ export default class CircuitBreakerService {
   }
 
   reset(tenantId: string): void {
+    // Clear the fast-fail marker first so an evicted-but-open tenant (heavy
+    // breaker already shed, only the marker left) also stops fast-failing.
+    const hadMarker = this.markers.delete(tenantId)
     const breaker = this.circuits.get(tenantId)
-    if (breaker) {
-      breaker.close()
+    if (breaker) breaker.close()
+    // Persist CLOSED when there was something to reset (a live breaker or a
+    // lingering marker), so a restart doesn't restore a stale OPEN. A reset on a
+    // wholly-unknown tenant stays a true no-op (no Redis write).
+    if (breaker || hadMarker) {
       // Fire-and-forget: reset() is sync, but #persistState now logs its
       // own failures so we don't need an outer .catch.
       void this.#persistState(tenantId, 'CLOSED')
@@ -245,6 +340,7 @@ export default class CircuitBreakerService {
   }
 
   async destroy(tenantId: string): Promise<void> {
+    this.markers.delete(tenantId)
     const breaker = this.circuits.get(tenantId)
     if (breaker) {
       breaker.shutdown()

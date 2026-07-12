@@ -222,4 +222,65 @@ test.group('ReadReplicaService — resolve() against real PG', (group) => {
     assert.isNull(svc.pickIndex(randomUUID()))
     assert.isNull(svc.pickHost(randomUUID()))
   })
+
+  test('an in-flight replica query is NOT severed when eviction pressure hits its connection (F2)', async ({
+    assert,
+  }) => {
+    const baseConn = {
+      host: process.env.DB_HOST ?? '127.0.0.1',
+      port: Number(process.env.DB_PORT ?? 5432),
+    }
+    // Disable the grace window so the in-use-aware release closure is the ONLY
+    // thing that can protect an active replica connection, and cap replica
+    // connections at 1 so a second resolve() forces eviction of the first.
+    setConfig({
+      ...originalConfig,
+      isolation: {
+        ...(originalConfig.isolation ?? { driver: 'schema-pg' }),
+        driver: 'schema-pg',
+        evictionGracePeriodMs: 0,
+      },
+      tenantReadReplicas: {
+        strategy: 'round-robin',
+        hosts: [{ host: baseConn.host, port: baseConn.port, name: 'fake-replica-self' }],
+        maxReplicaConnections: 1,
+      },
+    })
+
+    const ta = await createTestTenant({ status: 'provisioning' })
+    const tb = await createTestTenant({ status: 'provisioning' })
+    const a = await findTenant(ta.id)
+    const b = await findTenant(tb.id)
+    await driver.provision(a)
+    await driver.provision(b)
+    const aRead = `tenant_${ta.id}_read_0`
+    const bRead = `tenant_${tb.id}_read_0`
+    cleanup.push({ tenantId: ta.id, connNames: [aRead, `tenant_${ta.id}`] })
+    cleanup.push({ tenantId: tb.id, connNames: [bRead, `tenant_${tb.id}`] })
+
+    const svc = new ReadReplicaService()
+    const aConn = await svc.resolve(a)
+    assert.isNotNull(aConn, 'A replica connection must resolve')
+
+    // Hold a query in flight on A's replica so it is genuinely "in use". Race a
+    // short timeout so the query is actually scheduled onto the pool first.
+    const sleep = aConn!.rawQuery('SELECT pg_sleep(3)')
+    await Promise.race([
+      sleep.then(() => 'done' as const).catch(() => 'err' as const),
+      new Promise<'scheduled'>((r) => setTimeout(() => r('scheduled'), 300)),
+    ])
+
+    // Resolving B's replica pushes the LRU over its cap of 1 with the grace
+    // window disabled, so eviction targets A's (older) connection. Because A has
+    // a query in flight, the in-use-aware release must DECLINE and keep A open.
+    await svc.resolve(b)
+    await new Promise((r) => setImmediate(r))
+
+    assert.isTrue(
+      db.manager.has(aRead),
+      'an in-flight replica query must not be severed by eviction pressure'
+    )
+
+    await sleep.catch(() => {})
+  })
 })

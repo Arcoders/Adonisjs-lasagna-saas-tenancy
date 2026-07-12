@@ -91,6 +91,11 @@ export default class SqliteMemoryDriver implements ProvisionableDriver {
     const name = this.connectionName(tenant.id)
 
     if (db.manager.has(name)) {
+      // No identity seal here (unlike schema-pg/database-pg): the connection name,
+      // derived from the validated tenant id, IS the whole identity. There is no
+      // shared searchPath or database field a stale registration could re-point at
+      // another tenant, and the in-memory database is bound to this connection
+      // alone. A name collision is impossible for distinct valid tenant ids.
       return db.connection(name)
     }
 

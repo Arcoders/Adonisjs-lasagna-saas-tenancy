@@ -10,6 +10,7 @@ import type {
   ProvisionableDriver,
   TableLocation,
 } from './driver.js'
+import { assertCachedConnectionIdentity } from './connection_identity_seal.js'
 import { assertSafeIdentifier } from './identifier.js'
 import { runTenantMigrations } from './tenant_migration_runner.js'
 import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
@@ -152,6 +153,21 @@ export default class DatabasePgDriver implements ProvisionableDriver {
     await this.#lru.settlePending(name)
 
     if (db.manager.has(name)) {
+      // Verify the cached connection is still pinned to THIS tenant's database
+      // before serving it (the shared cross-tenant identity seal). database-pg
+      // keys on `connection.database`, the one field connect() overrides per tenant.
+      const existing = db.manager.get(name)?.config as any
+      const expected = this.databaseName(tenant)
+      const actual = existing?.connection?.database
+      assertCachedConnectionIdentity({
+        driverLabel: 'DatabasePgDriver',
+        tenantId: tenant.id,
+        connection: name,
+        identityKind: 'database',
+        expected,
+        actualDisplay: JSON.stringify(actual),
+        matches: actual === expected,
+      })
       this.#lru.touch(name)
       return db.connection(name)
     }

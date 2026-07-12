@@ -10,7 +10,7 @@ import type {
   ProvisionableDriver,
   TableLocation,
 } from './driver.js'
-import { emitIsthmusEvent } from '../../isthmus/audit.js'
+import { assertCachedConnectionIdentity } from './connection_identity_seal.js'
 import { assertSafeIdentifier } from './identifier.js'
 import { PGVECTOR_EXTENSION_SCHEMA } from './pgvector.js'
 import { runTenantMigrations } from './tenant_migration_runner.js'
@@ -135,25 +135,22 @@ export default class SchemaPgDriver implements ProvisionableDriver {
 
     if (db.manager.has(name)) {
       // Verify the cached connection is still pinned to THIS tenant's schema
-      // before serving it. A name collision, a stale registration, or a
-      // changed prefix would otherwise hand back a connection scoped to a
-      // different tenant's schema, a silent cross-tenant leak. Fail closed.
+      // before serving it (the shared cross-tenant identity seal). schema-pg keys
+      // on the connection's searchPath.
       const existing = db.manager.get(name)?.config as any
       const expected = this.schemaName(tenant)
       const actual = Array.isArray(existing?.searchPath)
         ? existing.searchPath[0]
         : existing?.searchPath
-      if (actual !== expected) {
-        emitIsthmusEvent('seal.connection_search_path', {
-          tenantId: tenant.id,
-          metadata: { connection: name, expected },
-        })
-        throw new IsolationConfigException(
-          `SchemaPgDriver: connection "${name}" is registered with searchPath ` +
-            `${JSON.stringify(existing?.searchPath)} but tenant ${tenant.id} expects schema ` +
-            `"${expected}". Refusing to serve a possibly cross-tenant connection.`
-        )
-      }
+      assertCachedConnectionIdentity({
+        driverLabel: 'SchemaPgDriver',
+        tenantId: tenant.id,
+        connection: name,
+        identityKind: 'searchPath',
+        expected,
+        actualDisplay: JSON.stringify(existing?.searchPath),
+        matches: actual === expected,
+      })
       this.#lru.touch(name)
       return db.connection(name)
     }

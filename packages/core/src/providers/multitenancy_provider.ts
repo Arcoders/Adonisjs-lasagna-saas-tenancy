@@ -23,10 +23,7 @@ import TenantQueueService from '../services/tenant_queue_service.js'
 import HookRegistry from '../services/hook_registry.js'
 import IsolationDriverRegistry from '../services/isolation/registry.js'
 import { assertConfiguredDriverRegistered } from '../services/isolation/validate_driver_choice.js'
-import SchemaPgDriver from '../services/isolation/schema_pg_driver.js'
-import DatabasePgDriver from '../services/isolation/database_pg_driver.js'
-import RowScopePgDriver from '../services/isolation/rowscope_pg_driver.js'
-import SqliteMemoryDriver from '../services/isolation/sqlite_memory_driver.js'
+import { BUILT_IN_ISOLATION_DRIVERS } from '../services/isolation/built_in_drivers.js'
 import TenantResolverRegistry from '../services/resolvers/registry.js'
 import { wireResolverChain } from './resolver_chain.js'
 import { setResolverRegistry } from '../extensions/request.js'
@@ -137,10 +134,10 @@ export default class MultitenancyProvider {
     // boot-time schedule registrations are the ones ready() arms as native
     // @adonisjs/queue schedules.
     this.app.container.singleton(TenantSchedulerService, () => new TenantSchedulerService())
-    this.app.container.singleton(ImpersonationService, async (resolver) => {
-      const auditLog = await resolver.make(AuditLogService)
-      return new ImpersonationService({ auditLog })
-    })
+    // Sync factory: the audit log is resolved lazily from the container inside
+    // ImpersonationService#audit(), so this no longer needs to be the sole async
+    // factory among the provider's singletons.
+    this.app.container.singleton(ImpersonationService, () => new ImpersonationService())
   }
 
   async boot() {
@@ -164,47 +161,13 @@ export default class MultitenancyProvider {
     // driver before the adapter is wired below is convenience, not a
     // requirement: the load-bearing constraints are that the driver is
     // registered before start()'s assertConfiguredDriverRegistered and before
-    // the first tenant query.
+    // the first tenant query. Built-in construction is a data-driven lookup
+    // (BUILT_IN_ISOLATION_DRIVERS): a custom `choice` misses the map and is left
+    // for the host to register in its own boot() (start() then verifies it).
     const choice = config.isolation?.driver ?? 'schema-pg'
-    if (choice === 'schema-pg' && !drivers.has('schema-pg')) {
-      drivers.register(
-        new SchemaPgDriver({
-          ...(config.isolation?.templateConnectionName !== undefined
-            ? { templateConnectionName: config.isolation.templateConnectionName }
-            : {}),
-        }),
-        { activate: true }
-      )
-    }
-    if (choice === 'database-pg' && !drivers.has('database-pg')) {
-      drivers.register(
-        new DatabasePgDriver({
-          ...(config.isolation?.templateConnectionName !== undefined
-            ? { templateConnectionName: config.isolation.templateConnectionName }
-            : {}),
-          ...(config.isolation?.tenantDatabasePrefix !== undefined
-            ? { databasePrefix: config.isolation.tenantDatabasePrefix }
-            : {}),
-        }),
-        { activate: true }
-      )
-    }
-    if (choice === 'rowscope-pg' && !drivers.has('rowscope-pg')) {
-      drivers.register(
-        new RowScopePgDriver({
-          // rowscope-pg shares one connection across all tenants, the central
-          // one. templateConnectionName is a clone-template concept that only
-          // schema-pg/database-pg use, so rowscope reads centralConnectionName.
-          centralConnectionName: config.centralConnectionName,
-          ...(config.isolation?.rowScopeTables !== undefined
-            ? { scopedTables: config.isolation.rowScopeTables }
-            : {}),
-          ...(config.isolation?.rowScopeColumn !== undefined
-            ? { scopeColumn: config.isolation.rowScopeColumn }
-            : {}),
-        }),
-        { activate: true }
-      )
+    const buildDriver = BUILT_IN_ISOLATION_DRIVERS[choice]
+    if (buildDriver && !drivers.has(choice)) {
+      drivers.register(buildDriver(config), { activate: true })
     }
     // rowscope-pg's default isolation is the `withTenantScope` mixin:
     // convention, not enforcement. A hand-written top-level `orWhere` can escape
@@ -247,9 +210,6 @@ export default class MultitenancyProvider {
         scopeColumn
       )
       assertRowScopeRlsPresent(rows, tables, scopeColumn)
-    }
-    if (choice === 'sqlite-memory' && !drivers.has('sqlite-memory')) {
-      drivers.register(new SqliteMemoryDriver(), { activate: true })
     }
 
     // Resolve the resolver registry singleton: the adapter takes it as a

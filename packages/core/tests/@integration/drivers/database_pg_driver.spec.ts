@@ -1,6 +1,8 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
+import app from '@adonisjs/core/services/app'
 import { DatabasePgDriver } from '@adonisjs-lasagna/saas-tenancy/services'
+import { IsthmusGuardTripped } from '@adonisjs-lasagna/saas-tenancy/events'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
@@ -159,5 +161,52 @@ test.group('DatabasePgDriver (integration)', (group) => {
       /Refusing to use unsafe/
     )
     await assert.rejects(() => driver.destroy(fakeTenant('a;b')), /Refusing to use unsafe/)
+  })
+
+  test('connect refuses a cached connection registered for another tenant database (identity seal)', async ({
+    assert,
+  }) => {
+    const id = `seal_${Math.random().toString(36).slice(2, 10)}`
+    created.push(id)
+    await driver.provision(fakeTenant(id))
+
+    const name = driver.connectionName(id)
+    const cfg = db.manager.get(name)?.config as any
+    assert.isDefined(cfg, 'provision must have registered the connection')
+
+    // Corrupt the manager: re-register tenant `id`'s connection NAME with a
+    // DIFFERENT database (models a prefix collision / stale registration).
+    await driver.disconnect(fakeTenant(id))
+    const wrongDb = `${TEST_PREFIX}wrong_${id}`
+    db.manager.add(name, {
+      ...cfg,
+      connection: { ...(cfg.connection ?? {}), database: wrongDb },
+    })
+
+    // The seal must be OBSERVABLE (emits its Isthmus event), not just fail-closed.
+    const tripped: InstanceType<typeof IsthmusGuardTripped>[] = []
+    const emitter = await app.container.make('emitter')
+    const listener = (event: InstanceType<typeof IsthmusGuardTripped>) => tripped.push(event)
+    emitter.on(IsthmusGuardTripped, listener)
+
+    let err: any
+    try {
+      await driver.connect(fakeTenant(id))
+    } catch (e) {
+      err = e
+    } finally {
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      emitter.off(IsthmusGuardTripped, listener)
+    }
+
+    assert.isDefined(err, 'connect must refuse a connection pinned to another tenant database')
+    assert.equal(err.code, 'E_ISOLATION_CONFIG')
+    assert.match(err.message, /database/)
+
+    const seal = tripped.filter((e) => e.payload.id === 'seal.connection_identity')
+    assert.isAtLeast(seal.length, 1, 'the cross-tenant connection refusal must emit its event')
+    assert.equal(seal[0]!.payload.severity, 'critical')
+    assert.equal(seal[0]!.payload.event, 'isthmus:seal:connection:mismatch')
+    assert.equal(seal[0]!.payload.tenantId, id)
   })
 })

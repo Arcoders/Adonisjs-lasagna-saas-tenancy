@@ -34,8 +34,35 @@ const TARGET_USER_ID_RE = /^[a-zA-Z0-9._:@-]{1,128}$/
 export default class ImpersonationService {
   #auditLog?: AuditLogService | undefined
 
+  /**
+   * `auditLog` is an optional test override. In production the provider
+   * registers this service with a plain synchronous factory and the audit log
+   * is resolved lazily from the container on first {@link #audit} (see
+   * {@link #resolveAuditLog}), so nothing here needs an async factory.
+   */
   constructor(opts?: { auditLog?: AuditLogService }) {
     this.#auditLog = opts?.auditLog
+  }
+
+  /**
+   * Resolve the optional {@link AuditLogService}, memoizing on first success.
+   * Injected (test) instances win. Otherwise we pull the singleton from the
+   * container lazily, which is what lets the provider register this service with
+   * a uniform sync factory rather than the sole async factory among its
+   * singletons. Best-effort: a container without the binding (unit tests) just
+   * skips the audit, exactly as an unconfigured audit log did before.
+   */
+  async #resolveAuditLog(): Promise<AuditLogService | undefined> {
+    if (this.#auditLog) return this.#auditLog
+    try {
+      const { default: app } = await import('@adonisjs/core/services/app')
+      const { default: AuditLogServiceClass } = await import('./audit_log_service.js')
+      const svc = await app.container.make(AuditLogServiceClass)
+      this.#auditLog = svc
+      return svc
+    } catch {
+      return undefined
+    }
   }
 
   /**
@@ -263,9 +290,10 @@ export default class ImpersonationService {
     ipAddress: string | null
     metadata: Record<string, unknown>
   }): Promise<void> {
-    if (!this.#auditLog) return
+    const auditLog = await this.#resolveAuditLog()
+    if (!auditLog) return
     try {
-      await this.#auditLog.log(opts)
+      await auditLog.log(opts)
     } catch {
       // Audit failures should not bring down impersonation; the operator
       // already has the wire token in hand.

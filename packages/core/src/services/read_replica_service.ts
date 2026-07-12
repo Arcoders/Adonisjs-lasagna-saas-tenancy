@@ -6,6 +6,7 @@ import ConnectionLru, {
   DEFAULT_EVICTION_GRACE_MS,
   DEFAULT_MAX_TENANT_CONNECTIONS,
 } from './isolation/connection_lru.js'
+import { connectionHasActiveQuery } from './isolation/pool_in_use.js'
 
 const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default).catch(() => null)
 
@@ -53,7 +54,13 @@ export default class ReadReplicaService {
     graceMs: () => getConfig().isolation?.evictionGracePeriodMs ?? DEFAULT_EVICTION_GRACE_MS,
     release: async (name) => {
       const db = await lazyDb()
-      if (db?.manager.has(name)) await db.manager.release(name)
+      if (!db?.manager.has(name)) return true
+      // Keep a replica connection that still has a query running (an in-flight
+      // analytics read); the LRU retries it once it goes idle. Mirrors the
+      // per-tenant driver closures so eviction never severs live work.
+      if (connectionHasActiveQuery(db.manager, name)) return false
+      await db.manager.release(name)
+      return true
     },
   })
 
@@ -128,6 +135,12 @@ export default class ReadReplicaService {
     const cfg = getConfig().tenantReadReplicas!
     const host = cfg.hosts[idx]!
     const connName = this.connectionName(tenant.id, idx)
+
+    // If this replica connection was just evicted, wait for its pool to finish
+    // draining before deciding it is still registered — otherwise we would
+    // re-adopt a closing pool and queries would fail mid-flight. Mirrors the
+    // per-tenant driver connect() path.
+    await this.#lru.settlePending(connName)
 
     if (!db.manager.has(connName)) {
       // Ensure the primary tenant connection exists so we can clone its config.

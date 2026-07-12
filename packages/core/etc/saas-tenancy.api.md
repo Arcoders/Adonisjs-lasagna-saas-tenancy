@@ -142,6 +142,7 @@ export class CircuitBreakerService {
     // (undocumented)
     isOpen(tenantId: string): boolean;
     isOpenRejection(err: unknown): boolean;
+    protected now(): number;
     // (undocumented)
     reset(tenantId: string): void;
     run(tenantId: string): Promise<void>;
