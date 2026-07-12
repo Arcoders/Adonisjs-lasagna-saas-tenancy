@@ -2,10 +2,13 @@ import { existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import type { ApplicationService } from '@adonisjs/core/types'
 import type { Router, RouteGroup } from '@adonisjs/http-server'
+import type { MiddlewareFn } from '@adonisjs/http-server/types'
 import TenantGuardMiddleware from '../middleware/tenant_guard_middleware.js'
 import CentralOnlyMiddleware from '../middleware/central_only_middleware.js'
 import UniversalMiddleware from '../middleware/universal_middleware.js'
-import TenantMiddlewareRegistry from '../services/tenant_middleware_registry.js'
+import TenantMiddlewareRegistry, {
+  type TenantMiddleware,
+} from '../services/tenant_middleware_registry.js'
 
 /**
  * Callback handed to `router.tenant() / router.central() / router.universal()`.
@@ -48,12 +51,49 @@ interface RouterLike {
 }
 
 /**
+ * Adapt a middleware into the plain-function form the route executor calls
+ * with `(ctx, next)`.
+ *
+ * Route middleware run in exactly two shapes (http-server's
+ * `src/router/executor.ts`): a plain function is invoked as `fn(ctx, next)`,
+ * and anything else is treated as a ParsedNamedMiddleware whose `handle`
+ * receives the CONTAINER RESOLVER first (`handle(resolver, ctx, next, args)`).
+ * A bare instance whose `handle(ctx, next)` reaches `.use()` raw therefore
+ * runs with the resolver where it expects the HttpContext and 500s on every
+ * request; the compiler never objected because the old call site cast the
+ * array to `any`. Wrapping into a function is the one shape that preserves
+ * the `(ctx, next)` contract for both the core scope middleware and plugin
+ * middleware (which the registry accepts as a function or `{ handle }`).
+ *
+ * The wrapper takes the wrapped middleware's name so route debug traces
+ * ("executing middleware %s") and route inspection name the real middleware
+ * instead of an anonymous closure.
+ */
+export function toRouteMiddleware(middleware: TenantMiddleware): MiddlewareFn {
+  const handle = typeof middleware === 'function' ? middleware : middleware.handle.bind(middleware)
+  const adapted: MiddlewareFn = (ctx, next) => handle(ctx, next)
+  Object.defineProperty(adapted, 'name', {
+    value: middlewareDisplayName(middleware),
+    configurable: true,
+  })
+  return adapted
+}
+
+function middlewareDisplayName(middleware: TenantMiddleware): string {
+  if (typeof middleware === 'function') return middleware.name || 'tenantScopedMiddleware'
+  const ctor = middleware.constructor?.name
+  return ctor && ctor !== 'Object' ? ctor : 'tenantScopedMiddleware'
+}
+
+/**
  * Install the `tenant() / central() / universal()` route helpers on the
  * Adonis Router singleton. Idempotent: calling more than once is a no-op.
  *
  * The helpers are thin wrappers around `router.group()` that pre-attach the
- * appropriate middleware. They return the underlying RouteGroup so callers
- * can chain `.prefix()`, `.use()`, `.where()`, etc.
+ * appropriate middleware, each adapted through {@link toRouteMiddleware} into
+ * the plain-function shape the route executor invokes as `fn(ctx, next)`.
+ * They return the underlying RouteGroup so callers can chain `.prefix()`,
+ * `.use()`, `.where()`, etc.
  *
  * Plugin middleware registered in a satellite's `boot()` is stacked onto
  * each scope group AFTER the core scope middleware (so `request.tenant()` is
@@ -80,25 +120,33 @@ export async function installRouterMacros(
     ((await import('@adonisjs/core/services/router')).default as unknown as RouterLike)
 
   const registry = middlewareRegistry ?? (await resolveMiddlewareRegistry())
-  const tenantMw = registry?.resolve('tenant') ?? []
-  const centralMw = registry?.resolve('central') ?? []
-  const universalMw = registry?.resolve('universal') ?? []
+  // Everything a macro stacks goes through toRouteMiddleware, so the executor
+  // only ever sees plain `(ctx, next)` functions. No cast: MiddlewareFn[] is
+  // what `RouteGroup.use()` actually accepts, and keeping the call typed is
+  // what stops a raw instance from ever reaching the router again.
+  const tenantMw = (registry?.resolve('tenant') ?? []).map(toRouteMiddleware)
+  const centralMw = (registry?.resolve('central') ?? []).map(toRouteMiddleware)
+  const universalMw = (registry?.resolve('universal') ?? []).map(toRouteMiddleware)
+
+  const tenantGuard = toRouteMiddleware(new TenantGuardMiddleware())
+  const centralOnly = toRouteMiddleware(new CentralOnlyMiddleware())
+  const universal = toRouteMiddleware(new UniversalMiddleware())
 
   if (typeof r.tenant !== 'function') {
     r.tenant = function (callback: RouteScopeCallback) {
-      return r.group(callback).use([new TenantGuardMiddleware(), ...tenantMw] as any)
+      return r.group(callback).use([tenantGuard, ...tenantMw])
     }
   }
 
   if (typeof r.central !== 'function') {
     r.central = function (callback: RouteScopeCallback) {
-      return r.group(callback).use([new CentralOnlyMiddleware(), ...centralMw] as any)
+      return r.group(callback).use([centralOnly, ...centralMw])
     }
   }
 
   if (typeof r.universal !== 'function') {
     r.universal = function (callback: RouteScopeCallback) {
-      return r.group(callback).use([new UniversalMiddleware(), ...universalMw] as any)
+      return r.group(callback).use([universal, ...universalMw])
     }
   }
 }

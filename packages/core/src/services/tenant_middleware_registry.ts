@@ -17,7 +17,10 @@ export const TENANT_MIDDLEWARE_CONTRACT_VERSION = 1
 export type TenantMiddlewareScope = 'tenant' | 'central' | 'universal'
 
 /** A middleware handle. Either a bare `(ctx, next)` function or an object with a
- *  `handle(ctx, next)` method, both accepted by the Adonis router's `.use()`. */
+ *  `handle(ctx, next)` method. Neither shape reaches `route.use()` raw: the router
+ *  macros adapt both into the plain-function form the route executor invokes as
+ *  `fn(ctx, next)` (an object would be executed as ParsedNamedMiddleware, whose
+ *  handle receives the container resolver first). */
 export type TenantMiddlewareHandle = (ctx: HttpContext, next: NextFn) => unknown | Promise<unknown>
 export type TenantMiddleware = TenantMiddlewareHandle | { handle: TenantMiddlewareHandle }
 

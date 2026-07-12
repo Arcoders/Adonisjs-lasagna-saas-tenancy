@@ -197,3 +197,25 @@ router
     return response.ok({ tenantId: request.header('x-tenant-id') ?? null })
   })
   .use(middleware.customDomain())
+
+// Router scope macros over REAL HTTP, for behavior_router_macros_real_http.
+// The provider's start() installs router.tenant()/central()/universal()
+// before preloads import this file, so the macros exist here. The macros once
+// stacked bare middleware instances that the route executor invoked with the
+// container resolver where the middleware expects the HttpContext, so every
+// macro-scoped request 500ed while the structural unit specs stayed green.
+// Requests through these routes are the regression pin.
+router.tenant(() => {
+  router.get('/macro/tenant-ping', async ({ request, response }) => {
+    const tenant = await request.tenant()
+    return response.ok({ id: tenant.id })
+  })
+})
+
+router.central(() => {
+  router.get('/macro/central-ping', async ({ response }) => response.ok({ ok: true }))
+})
+
+router.universal(() => {
+  router.get('/macro/universal-ping', async ({ response }) => response.ok({ ok: true }))
+})
