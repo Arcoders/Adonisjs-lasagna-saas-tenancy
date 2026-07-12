@@ -51,7 +51,7 @@ export type {
   TenantMetadata,
 } from './types/contracts.js'
 export { BackofficeBaseModel, TenantBaseModel, CentralBaseModel } from './models/base/index.js'
-export { DefaultLucidAdapter, BackofficeAdapter, TenantAdapter } from './models/adapters/index.js'
+export { DefaultLucidAdapter, TenantAdapter } from './models/adapters/index.js'
 export {
   RateLimitMiddleware,
   CustomDomainMiddleware,

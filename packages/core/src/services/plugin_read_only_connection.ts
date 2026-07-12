@@ -1,3 +1,4 @@
+import type { PostgreConfig } from '@adonisjs/lucid/types/database'
 import type { PluginReadOnlyConfig } from '../types/config.js'
 
 /**
@@ -22,12 +23,17 @@ export const READ_ONLY_CONNECTION_SUFFIX = '__plugin_ro'
 export function buildReadOnlyConnectionConfig(
   primary: unknown,
   role: PluginReadOnlyConfig
-): Record<string, unknown> {
+): PostgreConfig {
   const p = primary && typeof primary === 'object' ? (primary as Record<string, unknown>) : {}
   const baseConnection =
     p.connection && typeof p.connection === 'object'
       ? (p.connection as Record<string, unknown>)
       : {}
+  // The defensive `unknown` shape stays for now (a runtime clone of a cached
+  // config); the single type assertion hands the manager a typed PostgreConfig
+  // (assignable to ConnectionConfig for `manager.add`) so a caller mistake now
+  // compiles as an error. AD-05 moves this into the driver base and narrows
+  // `primary` to PostgreConfig there.
   return {
     ...p,
     client: typeof p.client === 'string' ? p.client : 'pg',
@@ -36,5 +42,5 @@ export function buildReadOnlyConnectionConfig(
       user: role.user,
       password: role.password ?? baseConnection.password,
     },
-  }
+  } as PostgreConfig
 }

@@ -1,6 +1,6 @@
 import type { MultitenancyConfig } from '../types/config.js'
 import { emitIsthmusEvent } from '../isthmus/audit.js'
-import { isProductionNodeEnv } from '../utils/env.js'
+import { isDevOrTestNodeEnv } from '../utils/env.js'
 import { resolutionSafetyAudit } from './resolution_safety.js'
 import { assertResolverChain } from './resolver_chain.js'
 import { SECRET_CONFIG_FIELDS } from './secret_config_fields.js'
@@ -26,7 +26,10 @@ function readConfigPath(config: MultitenancyConfig, path: string): unknown {
     )
 }
 
-export function assertConfigBounds(config: MultitenancyConfig): void {
+export function assertConfigBounds(
+  config: MultitenancyConfig,
+  options?: { inDevOrTest?: boolean }
+): void {
   const fail = (path: string, rule: string, value: unknown): never => {
     // Single chokepoint for every bounds violation, so one emit covers them all.
     emitIsthmusEvent('guard.config_bounds', { metadata: { path, rule } })
@@ -133,11 +136,17 @@ export function assertConfigBounds(config: MultitenancyConfig): void {
   // Resolution-safety gate. Two high-severity cross-tenant exposures are enforced
   // through one audit: a client-controlled strategy with no membership gate
   // (IDOR) and a host strategy with no expectedHostSuffix allowlist (spoofable
-  // tenant-hop). In production we fail closed at boot on any finding; in dev the
-  // provider logs the same messages as warnings (it has the container logger).
-  // Acknowledgement (authorizeTenantAccess / acknowledgeNoMembershipGate) is
-  // honored inside the audit, so an accepted posture produces no finding.
-  if (isProductionNodeEnv()) {
+  // tenant-hop). The gate fails CLOSED everywhere EXCEPT a recognized dev/test
+  // env: production, staging, an unknown NODE_ENV, or unset all hard-fail at boot
+  // on any finding, so an insecure resolution posture never ships on a warning
+  // alone. In dev/test the provider logs the same messages as warnings instead
+  // (it has the container logger). "dev/test" is the app's own verdict when the
+  // provider calls this (`app.inDev || app.inTest`); the NODE_ENV read is the
+  // fallback for direct callers. Acknowledgement (authorizeTenantAccess /
+  // acknowledgeNoMembershipGate) is honored inside the audit, so an accepted
+  // posture produces no finding.
+  const inDevOrTest = options?.inDevOrTest ?? isDevOrTestNodeEnv()
+  if (!inDevOrTest) {
     const risks = resolutionSafetyAudit(config)
     if (risks.length > 0) {
       emitIsthmusEvent('guard.resolution_safety', {

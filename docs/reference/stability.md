@@ -92,7 +92,7 @@ host reached for one primitive without wanting the whole barrel.
 | Subpath | Decision | Why |
 |---|---|---|
 | `/signals` | **Keep** (low-level) | The provisioning-signal helpers a satellite `after:provision` hook uses. Kept for satellite authors. |
-| `/base-models` | **Keep** | The three base models. The root barrel re-exports them, and the three adapters, for the common case. |
+| `/base-models` | **Keep** | The three base models. The root barrel re-exports them, and the two adapters, for the common case. |
 | `/safe-fetch` | **Keep** | The DNS-pinned egress helper — a first-class security primitive a host or satellite SHOULD use for any attacker-influenced fetch. Documented, not merely low-level. |
 | `/services`, `/health`, `/sdk`, `/plugin` | **Advanced** (minor-breakable) | Everything a custom driver, resolver, bootstrapper, health check or plugin author needs. Broad and close to the internals: symbols here may change in a **minor**, and the deprecation path below does not cover them. An app that only wires tenants never imports from these. |
 | `/internal` | **Hide** (unstable) | Not part of the stable API. Published only so first-party satellites can import app.booted-safe helpers from a bare unit runner; see the stability policy in `src/internal.ts`. It carries the AEAD envelope primitives and the SSRF URL guards. `backup`, `ai` and `satellite-test-kit` import it, as do core's own integration specs. Anything a third party legitimately needs also lives on a stable surface (`/sdk`, `/services`, `/testing`). |
@@ -111,7 +111,7 @@ they carried is still reachable:
 |---|---|
 | `/crypto` | The AEAD envelope primitives moved to `/internal`. A host stores a secret through `readSecret` / `writeSecret` / `SECRET_CLASS` on the root barrel and never composes the envelope itself. |
 | `/worm-ledger` | Removed from the public surface. The append-only hash-chain writer had no consumer and was never a general-purpose logging API. |
-| `/adapters` | `DefaultLucidAdapter`, `BackofficeAdapter` and `TenantAdapter` are on the root barrel. |
+| `/adapters` | `DefaultLucidAdapter` and `TenantAdapter` are on the root barrel; the unused `BackofficeAdapter` was removed (the unified `TenantAdapter` routes backoffice models by their `static isolation` marker). |
 | `/helpers` | `buildTenantWorkerOptions` is on the root barrel. |
 | `/extensions/request` | `resolveTenantId` is on the root barrel. The module's `__*ForTests` seams are no longer public at all. |
 

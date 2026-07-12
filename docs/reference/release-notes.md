@@ -39,7 +39,7 @@ a minor. `1.0.0` is earned, not declared. The five satellite packages ship
   published, and every symbol on a de-listed subpath still lives on the root or on
   `/internal`. What moved:
   - De-listed: `/crypto`, `/worm-ledger`, `/adapters`, `/helpers`,
-    `/extensions/request`. The three adapters and `buildTenantWorkerOptions` are on
+    `/extensions/request`. The two adapters and `buildTenantWorkerOptions` are on
     the root barrel; `resolveTenantId` already was. `/extensions/request` was the
     only public path to `__setMemoizedTenant` and its four sibling test seams, which
     are now private.

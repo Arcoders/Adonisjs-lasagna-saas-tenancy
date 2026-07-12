@@ -1,6 +1,7 @@
 import { HttpContext } from '@adonisjs/core/http'
 import type { HttpRequest } from '@adonisjs/core/http'
 import type { Database } from '@adonisjs/lucid/database'
+import type { ConnectionManagerContract } from '@adonisjs/lucid/types/database'
 import type { LucidModel, ModelAdapterOptions } from '@adonisjs/lucid/types/model'
 import assert from 'node:assert'
 import { getConfig } from '../../config.js'
@@ -83,8 +84,11 @@ export default class TenantAdapter extends DefaultLucidAdapter {
     // driver.connect()). If we reach here with no registered connection, fail
     // closed with a typed, actionable error instead of letting Lucid throw an
     // opaque "connection is not registered". A real Database always exposes a
-    // manager; a bare unit-test double without one skips the check.
-    const manager: any = (this.db as any).manager
+    // manager; a bare unit-test double without one skips the check. Typed as
+    // `| undefined` so the runtime guards below still cover that test double,
+    // while a rename or a typo (`manager.hass`) on this cross-tenant-write path
+    // now fails to compile instead of silently routing a write.
+    const manager = this.db.manager as ConnectionManagerContract | undefined
     if (manager && typeof manager.has === 'function' && !manager.has(name)) {
       throw new IsolationConfigException(
         `Tenant connection "${name}" is not established for tenant ${tenantId}. ` +

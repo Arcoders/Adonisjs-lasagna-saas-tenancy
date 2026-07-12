@@ -66,12 +66,6 @@ export function autoLoadScopedRouteFiles(app: ApplicationService, opts?: {
 }): Promise<void>;
 
 // @public (undocumented)
-export class BackofficeAdapter extends DefaultLucidAdapter {
-    // (undocumented)
-    query(modelConstructor: LucidModel, options?: ModelAdapterOptions): any;
-}
-
-// @public (undocumented)
 export class BackofficeBaseModel extends BaseModel {
     // (undocumented)
     static connection: string;
@@ -676,7 +670,9 @@ export const SECRET_CLASS: {
 export type SecretClass = keyof typeof SECRET_CLASS;
 
 // @public (undocumented)
-export function setConfig(config: MultitenancyConfig): void;
+export function setConfig(config: MultitenancyConfig, options?: {
+    inProduction?: boolean;
+}): void;
 
 // @public
 export function setTenantRlsGuc(runner: RlsQueryRunner, tenantId: string, options?: SetTenantRlsGucOptions): Promise<void>;

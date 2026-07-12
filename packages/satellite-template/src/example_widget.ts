@@ -6,7 +6,8 @@ import { DateTime } from 'luxon'
  * The satellite's backoffice model. Every satellite table lives in the shared
  * `backoffice` schema (never a per-tenant schema), scoped by `tenant_id`, so
  * cross-tenant reporting stays a single query. Extending `BackofficeBaseModel`
- * routes the model through the `BackofficeAdapter`.
+ * routes the model to the `backoffice` schema via the unified tenant adapter,
+ * which reads each model's `static isolation` marker.
  */
 export default class ExampleWidget extends BackofficeBaseModel {
   static readonly table = 'example_widgets'

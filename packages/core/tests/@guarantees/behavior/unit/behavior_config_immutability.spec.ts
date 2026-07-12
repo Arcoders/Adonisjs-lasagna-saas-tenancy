@@ -23,6 +23,25 @@ test.group('config immutability', () => {
     })
   })
 
+  test('a stateful resolver instance in config is left mutable (not deep-frozen)', ({ assert }) => {
+    // CFG-6: deepFreeze recurses into plain objects/arrays only. A class instance
+    // (resolverChain/resolvers accept live resolver instances documented to hit a
+    // cache or remote service) must keep owning its own state — freezing it would
+    // break a stateful custom resolver.
+    class StatefulResolver {
+      cacheHits = 0
+    }
+    const resolver = new StatefulResolver()
+    setConfig({ ...testConfig, resolvers: [resolver] } as unknown as typeof testConfig)
+    const cfg = getConfig()
+    assert.isTrue(Object.isFrozen(cfg), 'the plain config tree is still frozen')
+    assert.isFalse(Object.isFrozen(resolver), 'the resolver instance is left mutable')
+    assert.doesNotThrow(() => {
+      resolver.cacheHits += 1
+    })
+    assert.equal(resolver.cacheHits, 1)
+  })
+
   test('a second setConfig is refused in production', ({ assert }) => {
     const prev = process.env.NODE_ENV
     try {

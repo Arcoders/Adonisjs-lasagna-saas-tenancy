@@ -1,7 +1,10 @@
 import { test } from '@japa/runner'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { registeredSecretLeafNames } from '../../../src/providers/secret_config_fields.js'
+import {
+  registeredSecretLeafNames,
+  SECRET_CONFIG_FIELDS,
+} from '../../../src/providers/secret_config_fields.js'
 
 /**
  * WS-2: you cannot add a secret-shaped config field without a conscious strength
@@ -67,6 +70,22 @@ test.group('contract — every secret-shaped config field is registered', () => 
         'enforce: false + reason for an operator-managed credential), or, if the name',
         'merely looks secret-shaped but holds an identifier, add it to NON_SECRET_ALLOWLIST.',
       ].join('\n')
+    )
+  })
+
+  test('no enforced secret path uses [] array grammar the reader cannot navigate', ({ assert }) => {
+    // `readConfigPath` in assert_config_bounds walks dotted paths only, so an
+    // `enforce: true` field whose path contains `[]` would silently never be
+    // length-checked (value reads back undefined, treated as "not set"). Keep the
+    // trap closed: array-shaped secrets stay `enforce: false` (guard-coverage
+    // only) until the reader learns to navigate them.
+    const offenders = SECRET_CONFIG_FIELDS.filter((f) => f.enforce && f.path.includes('[]')).map(
+      (f) => f.path
+    )
+    assert.deepEqual(
+      offenders,
+      [],
+      `enforced secret path(s) use [] the bounds reader cannot navigate: ${offenders.join(', ')}`
     )
   })
 

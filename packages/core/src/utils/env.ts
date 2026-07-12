@@ -14,6 +14,29 @@ export function isProductionNodeEnv(): boolean {
 }
 
 /**
+ * Whether NODE_ENV denotes a recognized development or test environment, using
+ * the SAME normalization AdonisJS applies (`@adonisjs/application` treats
+ * `dev`/`develop`/`development` as development and `test`/`testing` as test).
+ *
+ * The resolution-safety gate fails CLOSED everywhere EXCEPT these known-safe
+ * envs: an unrecognized value (`staging`, unset, a typo) is treated like
+ * production for that gate, so an insecure resolution posture cannot boot there
+ * on a warning alone. Same rationale as `isProductionNodeEnv` — kept as a plain
+ * env read (no app import) so it stays usable from a bare unit runner. At boot
+ * the provider passes `app.inDev || app.inTest` explicitly; this is the fallback.
+ */
+export function isDevOrTestNodeEnv(): boolean {
+  const env = (process.env.NODE_ENV ?? '').toLowerCase()
+  return (
+    env === 'dev' ||
+    env === 'develop' ||
+    env === 'development' ||
+    env === 'test' ||
+    env === 'testing'
+  )
+}
+
+/**
  * Read a SECURITY/SAFETY opt-in environment flag. True ONLY for the exact word
  * `true` (trimmed + case-insensitive, so `TRUE` / ` true ` count); `1`, `yes`, `on`,
  * `false`, a typo, empty, or unset are ALL false.

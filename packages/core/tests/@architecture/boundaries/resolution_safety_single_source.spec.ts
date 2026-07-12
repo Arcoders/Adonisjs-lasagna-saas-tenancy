@@ -10,8 +10,9 @@ import { fileURLToPath } from 'node:url'
  * production hard-fail disagree about what is unsafe.
  *
  * This lock asserts all three consumers derive from `resolutionSafetyAudit`, and
- * that the production hard-fail in `assertConfigBounds` is actually wired
- * (guarded by `isProductionNodeEnv()` and a `throw`), not merely computed.
+ * that the fail-closed hard-fail in `assertConfigBounds` is actually wired
+ * (gated on NOT being a recognized dev/test env, and a `throw`), not merely
+ * computed.
  */
 
 const file = (rel: string) => fileURLToPath(new URL(rel, import.meta.url))
@@ -40,13 +41,16 @@ test.group('architectural — resolution safety is single-sourced', () => {
     )
   })
 
-  test('assertConfigBounds hard-fails in production on any finding', ({ assert }) => {
+  test('assertConfigBounds hard-fails outside a recognized dev/test env on any finding', ({
+    assert,
+  }) => {
     const src = read('../../../src/providers/assert_config_bounds.ts')
-    // The audit must run under a production guard and a finding must throw.
+    // The audit must run under a fail-closed guard (everything except a
+    // recognized dev/test env) and a finding must throw.
     assert.match(
       src,
-      /isProductionNodeEnv\(\)[\s\S]{0,400}?resolutionSafetyAudit\s*\([\s\S]{0,200}?throw\s+new\s+Error/,
-      'production boot must throw on a non-empty resolutionSafetyAudit result'
+      /isDevOrTestNodeEnv\(\)[\s\S]{0,200}?!inDevOrTest[\s\S]{0,300}?resolutionSafetyAudit\s*\([\s\S]{0,300}?throw\s+new\s+Error/,
+      'boot must throw on a non-empty resolutionSafetyAudit result outside dev/test'
     )
   })
 
