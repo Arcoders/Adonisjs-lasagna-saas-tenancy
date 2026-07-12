@@ -22,7 +22,7 @@ interface TenantResolvableRequest {
  * query to `request.tenant()`, so one tenant can't read another's invoices.
  *
  * ```ts
- * // start/routes.ts — behind your auth + activeTenant stack
+ * // start/routes.ts (behind your auth + activeTenant stack)
  * import { BillingInvoiceController } from '@adonisjs-lasagna/billing'
  * router.group(() => {
  *   router.get('/billing/invoices', (ctx) => new BillingInvoiceController().index(ctx))

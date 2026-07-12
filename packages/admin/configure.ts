@@ -14,7 +14,7 @@ import {
  *
  * Admin ships a minimal `definePlugin` provider whose only job is the runtime ABI +
  * plugin-API backstop (it binds no seams). Registering a provider in `adonisrc.ts`
- * is a safe, idempotent codemod, so this hook wires it — that is what makes every
+ * is a safe, idempotent codemod, so this hook wires it. That is what makes every
  * satellite in the fleet assert the plugin contract uniformly at boot.
  *
  * Everything else stays guidance-only: the admin API is mounted by calling
@@ -37,7 +37,7 @@ export default async function configure(command: Configure) {
   }
 
   // Register the backstop provider in adonisrc.ts (idempotent). This is the only
-  // host file this hook mutates — the routes stay a printed reminder below.
+  // host file this hook mutates. The routes stay a printed reminder below.
   const codemods = await command.createCodemods()
   await registerSatelliteInRcFile(codemods, manifest)
 

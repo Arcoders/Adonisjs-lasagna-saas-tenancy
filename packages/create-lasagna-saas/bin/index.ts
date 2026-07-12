@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `create-lasagna-saas` — scaffold an AdonisJS 7 app with Lasagna already wired.
+ * `create-lasagna-saas` scaffolds an AdonisJS 7 app with Lasagna already wired.
  *
  * Thin by design. It parses argv, builds a plan, and either prints it or runs it.
  * All three of those live in `src/`, and all of the logic is unit-tested there.

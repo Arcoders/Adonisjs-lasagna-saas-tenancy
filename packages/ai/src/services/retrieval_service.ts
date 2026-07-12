@@ -10,7 +10,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
  * The narrow QuotaService surface a query embed needs (SEAM-3): reserve/settle/
- * release. Unlike ingestion it needs no `getLimit` — a read writes no rows, so
+ * release. Unlike ingestion it needs no `getLimit`: a read writes no rows, so
  * it never touches the `embeddingCount` cap.
  */
 export interface RetrievalQuota {

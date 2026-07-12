@@ -67,7 +67,7 @@ export default class TenantsService {
     return tenant
   }
 
-  /** Queues UninstallTenant — the job drops the schema. */
+  /** Queues UninstallTenant. The job drops the schema. */
   async destroy(id: string) {
     const tenant = await Tenant.findOrFail(id)
     await UninstallTenant.dispatch({ tenantId: tenant.id })

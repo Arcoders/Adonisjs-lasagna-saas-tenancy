@@ -34,7 +34,7 @@ export async function boundedBatch<I, O>(
 
   for (let i = 0; i < items.length; i += width) {
     const slice = items.slice(i, i + width)
-    // allSettled so the whole slice resolves before we inspect — guarantees no
+    // allSettled so the whole slice resolves before we inspect. That guarantees no
     // unhandled rejection escapes even when we're about to throw.
     const settled = await Promise.allSettled(
       slice.map(async (item) => {

@@ -18,24 +18,24 @@ import ExampleWidgetService from '../src/example_widget_service.js'
 const lazyLogger = () => import('@adonisjs/core/services/logger').then((m) => m.default)
 
 /**
- * Reference satellite provider, built with the {@link definePlugin} facade — the
- * blessed way to author a Lasagna satellite. Register it in the host's
+ * Reference satellite provider, built with the {@link definePlugin} facade (the
+ * blessed way to author a Lasagna satellite). Register it in the host's
  * `adonisrc.ts` alongside the core `MultitenancyProvider` (the configure hook does
  * this for you via `registerSatelliteInRcFile`).
  *
  * This is the CANONICAL MIRROR: it exercises every declarative seam the platform
  * ships, so a satellite author can copy the one they need and delete the rest. A
- * real satellite would wire only the seams it uses — none of these examples is
+ * real satellite would wire only the seams it uses. None of these examples is
  * mandatory, and the template stays dependency-free (each handler is a no-op /
  * logs) so it compiles and boots against a fresh consumer in CI.
  *
  * The facade wires the ABI backstops (Satellite ABI + plugin-API contract) for you,
  * so you declare `satelliteApi` / `pluginApiVersion` once and the boot-time
  * assertions run inside the facade. Core services are resolved through
- * `app.container.make`, never `new`-ed; the dependency only ever goes satellite →
- * core. Authors who want the raw provider lifecycle instead of the facade can still
- * `implements SatelliteProviderContract` directly — `definePlugin` is sugar over
- * exactly that contract.
+ * `app.container.make`, never `new`-ed; the dependency only ever goes from
+ * satellite to core. Authors who want the raw provider lifecycle instead of the
+ * facade can still `implements SatelliteProviderContract` directly. `definePlugin`
+ * is sugar over exactly that contract.
  */
 export default definePlugin({
   name: 'example-widgets',
@@ -47,8 +47,8 @@ export default definePlugin({
   // Declared, sensitive capabilities shown to the operator at install for consent
   // (S1). Kept coherent with package.json#lasagnaSatellite.permissions by the
   // check-plugin-permissions guard. Declaration is DISCLOSURE, not enforcement:
-  // this satellite registers a schedule (→ scheduler) and subscribes to writes on
-  // the ExampleWidget model (→ data_change).
+  // this satellite registers a schedule (the scheduler permission) and subscribes
+  // to writes on the ExampleWidget model (the data_change permission).
   permissions: [permission.scheduler(), permission.dataChange('ExampleWidget')],
 
   // register(): bind the satellite's own singleton.
@@ -56,8 +56,8 @@ export default definePlugin({
     app.container.singleton(ExampleWidgetService, () => new ExampleWidgetService())
   },
 
-  // start(): self-register a tenant-lifecycle hook against the core HookRegistry —
-  // core never imports this package; the dependency only goes satellite → core.
+  // start(): self-register a tenant-lifecycle hook against the core HookRegistry.
+  // Core never imports this package; the dependency only goes from satellite to core.
   async start(app) {
     const hooks = await app.container.make(HookRegistry)
     // Clean up this satellite's rows when a tenant is hard-deleted.

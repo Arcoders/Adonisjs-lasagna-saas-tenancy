@@ -1,7 +1,7 @@
 /**
  * A tiny, id-keyed in-memory collection for building hermetic test doubles.
  *
- * This is a self-contained helper you can copy into your own satellite — it has
+ * This is a self-contained helper you can copy into your own satellite. It has
  * zero dependencies and no coupling to Lasagna or AdonisJS. It backs the
  * `InMemoryWidgetStore` test double in this template; see the "Creating a
  * satellite" guide for the pattern.

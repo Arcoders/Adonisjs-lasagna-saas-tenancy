@@ -3,8 +3,8 @@ import { DateTime } from 'luxon'
 /**
  * Pure helpers for the "how fresh is the reporting data?" signal. Reporting reads
  * the durable, flushed `tenant_metrics` table, so its newest data is the latest
- * flushed period — not "now". These coerce that value and decide staleness.
- * Dependency-free (luxon only) → fully unit-tested without a booted app. Shared by
+ * flushed period, not "now". These coerce that value and decide staleness.
+ * Dependency-free (luxon only), so fully unit-tested without a booted app. Shared by
  * `ReportingService.getDataAsOf` and the opt-in `metrics_freshness` doctor check.
  */
 

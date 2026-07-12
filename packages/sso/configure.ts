@@ -10,13 +10,13 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 
 /**
- * `node ace configure @adonisjs-lasagna/sso` — publish the SSO satellite's
- * migration into the host and print the install reminder. Reads its own
+ * `node ace configure @adonisjs-lasagna/sso` publishes the SSO satellite's
+ * migration into the host and prints the install reminder. Reads its own
  * `package.json#lasagnaSatellite` manifest so the same source of truth drives
  * both this hook and core's `configure --with=@adonisjs-lasagna/sso` path.
  */
 export default async function configure(command: Configure) {
-  // build/configure.js → package root is one level up from build/.
+  // This runs as build/configure.js, so the package root is one level up from build/.
   const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
   const pkgJson = JSON.parse(await readFile(join(pkgRoot, 'package.json'), 'utf8'))
   const manifest = readSatelliteManifest(pkgJson, (m) => command.logger.warning(m))

@@ -4,11 +4,11 @@ import type { MultitenancyConfig } from './types/config.js'
  * Stash the config singleton on a `Symbol.for(...)` key on `globalThis` so
  * src/ and build/ instances of this module share state. Without this, the
  * package self-references its own build/ output via the `exports` map
- * (`@adonisjs-lasagna/saas-tenancy/...` → `./build/src/...`), while
+ * (`@adonisjs-lasagna/saas-tenancy/...` resolves to `./build/src/...`), while
  * integration specs and the package's own internal imports from `'./...'`
  * resolve to a SECOND copy of this module under src/. Each copy would have
  * its own `let _config = null`, so the provider booting from build/ would
- * leave src/'s `_config` permanently null — and any code reading from src/
+ * leave src/'s `_config` permanently null, and any code reading from src/
  * (`request.tenant()` macro, billing middleware/job/listener, etc.) would
  * throw "saas-tenancy not configured" on the first call.
  *

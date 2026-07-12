@@ -59,7 +59,7 @@ export const aiRightToErasureControl: ComplianceControl = {
 
 /**
  * Retention transparency (E24): embeddings survive `tenant:gdpr:anonymize` by
- * design (decision 1), so this control is INFO, never "satisfied erasure" — it
+ * design (decision 1), so this control is INFO, never "satisfied erasure". It
  * exists so an operator is not misled into thinking anonymize cleared the corpus.
  */
 export const aiEmbeddingRetentionControl: ComplianceControl = {

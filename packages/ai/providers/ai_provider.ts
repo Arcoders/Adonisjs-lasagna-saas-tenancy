@@ -493,7 +493,7 @@ async function registerBuiltinProviders(
  * doctor probe target. Read from the multitenancy config (never a hardcoded
  * 'backoffice' literal) so a host that renames the backoffice schema/connection is
  * honored and the fail-closed audit writer does not 503 every AI request. Reads the
- * config repository, which is populated for both register() and boot() — unlike
+ * config repository, which is populated for both register() and boot(), unlike
  * core's getConfig() singleton, seeded only in core's boot(), which runs after AI's
  * register().
  */

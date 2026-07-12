@@ -15,11 +15,10 @@ import CloneTenant from '../src/jobs/clone_tenant.js'
  * this package. The facade wires the ABI backstops (Satellite ABI + plugin-API
  * contract) inside its own `boot()`, so this file declares only the two hooks:
  *
- *  - `boot`  — register the `backup_recency` / `backup_encryption` checks into the
- *              core `DoctorService`, so `tenant:doctor` only runs them when this
- *              package is installed, then fail-fast if S3 is configured without its
- *              optional peer.
- *  - `start` — register the backup jobs with the @adonisjs/queue Locator.
+ *  - `boot`: register the `backup_recency` / `backup_encryption` checks into the
+ *    core `DoctorService`, so `tenant:doctor` only runs them when this package is
+ *    installed, then fail-fast if S3 is configured without its optional peer.
+ *  - `start`: register the backup jobs with the @adonisjs/queue Locator.
  */
 export default definePlugin({
   name: 'backup',
@@ -50,12 +49,12 @@ async function assertS3PeerIfEnabled(app: ApplicationService): Promise<void> {
   const cfg = app.config.get<{ backup?: { s3?: { enabled?: boolean } } }>('multitenancy')
   if (!cfg?.backup?.s3?.enabled) return
   try {
-    // This is a RUNTIME presence probe, not a type dependency — import through a
+    // This is a RUNTIME presence probe, not a type dependency: import through a
     // specifier TypeScript must not resolve at build time, so `@aws-sdk/client-s3`
     // stays a genuine optional peer whether or not it is installed in this repo
     // (mirrors the websockets socket.io bootstrapper). A `@ts-ignore` would silence
     // a real future error; `@ts-expect-error` breaks the moment the peer IS present
-    // in the build env — the un-analyzable import needs no suppression at all.
+    // in the build env. The un-analyzable import needs no suppression at all.
     await lazyImport('@aws-sdk/client-s3')
   } catch {
     throw new Error(
@@ -80,7 +79,7 @@ function lazyImport(specifier: string): Promise<unknown> {
  * Register the backup jobs with @adonisjs/queue's Locator. The core provider
  * auto-registers only the core jobs (its `jobs/index` no longer re-exports the
  * backup jobs), so without this a dispatched BackupTenant / RestoreTenant /
- * CloneTenant would dead-letter at the worker. Best-effort — a host without
+ * CloneTenant would dead-letter at the worker. Best-effort: a host without
  * @adonisjs/queue just skips it.
  */
 async function registerBackupJobs(): Promise<void> {

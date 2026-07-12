@@ -56,7 +56,7 @@ export interface VectorStoreDeps {
  * per-actor erasure of a multi-million-row HNSW table cannot be one `DELETE`
  * (a long lock, and a `statement_timeout` would roll it back and delete
  * nothing), so it runs as a `ctid IN (SELECT … LIMIT N)` loop, each batch a
- * short advisory-locked transaction — resumable and uncapped overall.
+ * short advisory-locked transaction, resumable and uncapped overall.
  */
 const PURGE_BATCH_SIZE = 1000
 
@@ -225,7 +225,7 @@ export default class VectorStoreService {
     return Number(rowsOf(res)[0]?.n ?? 0)
   }
 
-  /** How many embeddings a principal ingested — the read-only preview for a per-user purge --dry-run (WS-AI-9). */
+  /** How many embeddings a principal ingested: the read-only preview for a per-user purge --dry-run. */
   async countByActor(tenant: TenantModelContract, actorHash: string): Promise<number> {
     const { client, table } = await this.#target(tenant)
     // safe-sql: `table` is a fixed module constant; `actor` is a ? bind.
@@ -235,7 +235,7 @@ export default class VectorStoreService {
     return Number(rowsOf(res)[0]?.n ?? 0)
   }
 
-  /** How many embeddings a document holds — the read-only preview for a per-source purge --dry-run (WS-AI-9). */
+  /** How many embeddings a document holds: the read-only preview for a per-source purge --dry-run. */
   async countBySource(tenant: TenantModelContract, source: string): Promise<number> {
     const { client, table } = await this.#target(tenant)
     // safe-sql: `table` is a fixed module constant; `source` is a ? bind.

@@ -41,7 +41,7 @@ export { createResolverStateBaseline } from './testing/resolver_baseline.js'
 export type { ResolverStateBaseline } from './testing/resolver_baseline.js'
 // The Isthmus (guard registry + severity-graded audit emit). Internal on
 // purpose: the public surface is the IsthmusGuardTripped event on /events, the
-// vocabulary types on /types, and — for a satellite that ships its own guards —
+// vocabulary types on /types, and (for a satellite that ships its own guards)
 // the `createGuardAudit` factory + `ISTHMUS_BUDGETS` on /sdk. The kernel
 // registry and its bound emit helpers may evolve with the guards, so they stay
 // here for core's own integration specs (which import emitIsthmusEvent /

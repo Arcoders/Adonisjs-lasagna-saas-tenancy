@@ -10,7 +10,7 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 
 /**
- * `node ace configure @adonisjs-lasagna/reporting` — reads its own
+ * `node ace configure @adonisjs-lasagna/reporting` reads its own
  * `package.json#lasagnaSatellite` manifest and uses the shared toolkit so it
  * behaves identically to core's `configure --with=reporting` path. Reporting has
  * no migrations of its own (it aggregates the core `tenant_metrics` table), so

@@ -1,4 +1,4 @@
-# End-to-end runner (PowerShell) — Windows-native variant of e2e.sh.
+# End-to-end runner (PowerShell), the Windows-native variant of e2e.sh.
 # Usage: npm run test:e2e:win  (or pwsh ./scripts/e2e.ps1)
 #
 # Flags:
@@ -58,7 +58,7 @@ try {
     Start-Sleep -Seconds 1
   }
 
-  # MailCatcher is optional — the e2e mail.spec.ts skips gracefully if it
+  # MailCatcher is optional. The e2e mail.spec.ts skips gracefully if it
   # isn't reachable, so a probe failure here only emits a warning.
   Write-Host "[e2e] waiting for mailcatcher (optional)"
   $deadline = (Get-Date).AddSeconds(20)

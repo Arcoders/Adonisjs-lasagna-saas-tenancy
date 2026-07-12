@@ -4,7 +4,7 @@ import { DateTime } from 'luxon'
 
 /**
  * The satellite's backoffice model. Every satellite table lives in the shared
- * `backoffice` schema (never a per-tenant schema), scoped by `tenant_id` — so
+ * `backoffice` schema (never a per-tenant schema), scoped by `tenant_id`, so
  * cross-tenant reporting stays a single query. Extending `BackofficeBaseModel`
  * routes the model through the `BackofficeAdapter`.
  */

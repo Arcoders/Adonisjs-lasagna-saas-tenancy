@@ -80,8 +80,9 @@ function neutralizeFence(text: string): string {
  * Prepend a session's prior turns (WS-AI-4, I2) to the messages, bounded so the
  * ASSEMBLED prompt cannot exceed the caller's budget (#2/#8). Prior turns keep
  * their ORIGINAL `user`/`assistant` roles (never `system`), so replayed memory is
- * DATA the model reads, not instructions it obeys (#1/#10) — the same structural
- * defense as retrieval's role separation.
+ * DATA the model reads, not instructions it obeys. An injected or contaminated
+ * past turn stays inert, the same structural defense that role separation
+ * gives retrieval against indirect prompt injection.
  *
  * `prior` is a flat, oldest-first list of user/assistant turns (one exchange is a
  * user turn followed by its assistant turn). Bounding is exchange-granular:
@@ -151,7 +152,7 @@ function leadingSystemCount(messages: readonly AIMessage[]): number {
  * (a fragment's own newlines are one `data:` line each, per the SSE writer, so
  * they rejoin with `\n`); the control frames (`event: error`, `event: done`) are
  * skipped, and heartbeats are already excluded by the recorder. Deterministic
- * inverse of `SseWriter.formatFrame`, pinned by a writer→reconstruct round-trip
+ * inverse of `SseWriter.formatFrame`, pinned by a write-then-reconstruct round-trip
  * spec, so the persisted turn is exactly what the client received.
  */
 export function reconstructAssistantText(frames: readonly string[]): string {

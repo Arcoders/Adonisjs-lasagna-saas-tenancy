@@ -11,7 +11,7 @@ import { aiGuardEntry, type AiGuardId } from './ai_guard_registry.js'
  * {@link createGuardAudit} factory (`@adonisjs-lasagna/saas-tenancy/sdk`), bound
  * to the AI package's `AI_GUARD_REGISTRY`. The limiter mechanics, the counter
  * discipline, the fire-and-forget dispatch contract, and the 10s window all live
- * in the kernel factory now — this file is just the satellite-local binding plus
+ * in the kernel factory now. This file is just the satellite-local binding plus
  * the exported names the AI provider and guard sites call.
  *
  * The factory gives each instance its OWN windows and counters, which is exactly

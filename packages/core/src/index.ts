@@ -7,7 +7,7 @@
  * curated subset: the three base models and their adapters, the middleware, the
  * high-level services, the events, the exceptions, the contracts, and the
  * routing and scoping helpers an app actually reaches for. Service classes are
- * exported because they double as the container's DI tokens — resolve instances
+ * exported because they double as the container's DI tokens: resolve instances
  * with `app.container.make(TheService)`, don't `new` them.
  *
  * Plumbing an app never hand-imports lives on its subpath only, so the root
@@ -143,8 +143,8 @@ export type { SecretClass } from './utils/secret_at_rest.js'
  * `node ace configure @adonisjs-lasagna/saas-tenancy` imports THIS module and calls its
  * `configure` named export: @adonisjs/core's configure command does `app.import(pkg)`
  * and then reads `packageExports.configure`. Without this line the command warns
- * "the module does not export the configure hook" and publishes nothing — the very
- * first command in the quickstart, a silent no-op.
+ * "the module does not export the configure hook" and publishes nothing, leaving the
+ * very first command in the quickstart a silent no-op.
  *
  * `@adonisjs/lucid` re-exports its hook from its root entry the same way. Keep it on
  * the root barrel however far the barrel is trimmed.

@@ -10,7 +10,7 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
 
 /**
- * `node ace configure @adonisjs-lasagna/satellite-template` — the canonical
+ * `node ace configure @adonisjs-lasagna/satellite-template`: the canonical
  * shape of a satellite's own configure hook. It reads its own
  * `package.json#lasagnaSatellite` manifest and uses the shared toolkit so it
  * behaves identically to core's `configure --with=<package>` path.

@@ -11,14 +11,14 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
  *  - chat provider selection (`enforceChatResidency`), after the global provider
  *    allow-list has already picked a provider;
  *  - the embedding egress (`enforceEmbeddingResidency`) used by `/ai/embed`,
- *    `/ai/retrieve`, and RAG-into-chat — the choke point the chat allow-list
+ *    `/ai/retrieve`, and RAG-into-chat: the choke point the chat allow-list
  *    never sees (the embedding backend is configured separately, E7).
  *
  * The per-tenant posture is resolved FAIL-CLOSED (E8, mirroring the retrieval
  * ACL): a resolver that throws or returns a malformed shape refuses remote
  * egress rather than letting a resolver bug silently permit it. Residency checks
  * provider IDENTITY (name + whether the effective endpoint is loopback), NOT a
- * remote endpoint's geography — a documented honest limit (a BYOK `baseUrl` is
+ * remote endpoint's geography, a documented honest limit (a BYOK `baseUrl` is
  * the host's to place).
  */
 

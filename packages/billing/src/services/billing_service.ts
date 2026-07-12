@@ -283,14 +283,14 @@ export default class BillingService {
    *
    * Capability: `subscription_update`. The local mirror and plan reassignment
    * happen when the resulting `subscription.updated` webhook arrives
-   * (`syncSubscription`), so this returns `void` — call it as the *initiator*,
+   * (`syncSubscription`), so this returns `void`. Call it as the *initiator*,
    * not as a source of truth for the new state.
    *
    * Targets the most recently updated subscription in an actionable state
-   * (`active`, `trialing`, `past_due`, `paused` — the same "still billable" set
-   * the sync/cleanup paths use, and all states the transition table allows back
-   * to `active`). `unpaid` is intentionally excluded: a tenant in collections
-   * shouldn't be able to switch plans until payment recovers.
+   * (`active`, `trialing`, `past_due`, `paused`). That's the same "still
+   * billable" set the sync/cleanup paths use, and all states the transition
+   * table allows back to `active`. `unpaid` is intentionally excluded: a tenant
+   * in collections shouldn't be able to switch plans until payment recovers.
    */
   async changePlan(tenant: TenantModelContract, newPriceId: string): Promise<void> {
     if (tenant.status === 'deleted') {
@@ -606,7 +606,7 @@ export default class BillingService {
   }
 
   /**
-   * @internal — advanced host access / tests. Returns the raw Stripe SDK; only
+   * @internal advanced host access / tests. Returns the raw Stripe SDK; only
    * valid when the active driver is Stripe.
    */
   async getClient(): Promise<unknown> {
@@ -621,7 +621,7 @@ export default class BillingService {
     return withClient.getClient()
   }
 
-  /** @internal — inject a mock provider SDK into the active driver (tests). */
+  /** @internal inject a mock provider SDK into the active driver (tests). */
   async __setStripeForTests(client: unknown): Promise<void> {
     this.#verified = true
     const driver = await getActiveBillingDriver().catch(() => null)
@@ -630,7 +630,7 @@ export default class BillingService {
     )
   }
 
-  /** @internal — reset the cached SDK + verified flag (tests). */
+  /** @internal reset the cached SDK + verified flag (tests). */
   async __resetForTests(): Promise<void> {
     this.#verified = false
     const driver = await getActiveBillingDriver().catch(() => null)
@@ -649,7 +649,8 @@ export default class BillingService {
   /**
    * Verify the priceId resolves to a product/price declared in
    * `config.billing.products`. Fast path: the priceId is itself a key. Fallback:
-   * ask the driver to resolve price→product (when it supports `price_lookup`).
+   * ask the driver to resolve the price to its product (when it supports
+   * `price_lookup`).
    */
   async #assertPriceAllowed(driver: BillingProviderContract, priceId: string): Promise<void> {
     const cfg = getConfig().billing
@@ -689,7 +690,7 @@ export default class BillingService {
       if (!emitter) return
       await BillingMisconfigured.dispatch(payload)
     } catch {
-      // Best-effort — never throw from the sync path.
+      // Best-effort: never throw from the sync path.
     }
   }
 }

@@ -7,7 +7,7 @@ import { resolveTenantRepository } from './services/resolve_tenant_repository.js
 import type { TenantMetadata, TenantModelContract } from './types/contracts.js'
 
 /**
- * Canonical entry point for activating a tenant context outside HTTP — queue
+ * Canonical entry point for activating a tenant context outside HTTP: queue
  * jobs, scripts, scheduled tasks, custom commands, tests. Inside `fn`:
  *
  *   - `AsyncLocalStorage` is bound to the tenant via `TenantLogContext`, so

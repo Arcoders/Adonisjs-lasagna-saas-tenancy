@@ -8,7 +8,7 @@ import type { Config } from '@japa/runner/types'
 export const plugins: Config['plugins'] = [assert(), apiClient(), pluginAdonisJS(app)]
 
 // Most specs provision inline (no worker), so enqueued InstallTenant jobs
-// sit in Redis until queue_jobs/mail.spec start a worker — which then
+// sit in Redis until queue_jobs/mail.spec start a worker, which then
 // re-runs install() against already-active tenants, briefly flipping them
 // through `provisioning` and surfacing as 503s in unrelated specs.
 // Stubbing dispatch suite-wide kills that backlog; specs that need the
@@ -49,7 +49,7 @@ export const configureSuite: Config['configureSuite'] = (suite) => {
       await seedOperatorAndMintAdminToken()
       // pgvector (in its dedicated `extensions` schema) must exist BEFORE any tenant
       // is provisioned: config.ai.embedding folds the `ai_embeddings vector(N)`
-      // migration into every tenant's `tenant:migrate`. Best-effort — on a plain
+      // migration into every tenant's `tenant:migrate`. Best-effort: on a plain
       // Postgres box without pgvector this throws and the AI e2e self-skip; in CI
       // (pgvector/pgvector:pg16) it installs the extension the tenant path resolves.
       try {
