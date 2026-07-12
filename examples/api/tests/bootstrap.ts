@@ -41,6 +41,12 @@ export const configureSuite: Config['configureSuite'] = (suite) => {
     suite.setup(async () => {
       await testUtils.httpServer().start()
       await installStubIfNeeded()
+      // The admin API and /metrics are gated by the backoffice realm, so the
+      // suite seeds a real operator and mints its bearer once. Runs after the
+      // external backoffice:setup step (CI and the e2e scripts), which is
+      // what created backoffice_users.
+      const { seedOperatorAndMintAdminToken } = await import('#tests/@integration/e2e/_helpers')
+      await seedOperatorAndMintAdminToken()
       // pgvector (in its dedicated `extensions` schema) must exist BEFORE any tenant
       // is provisioned: config.ai.embedding folds the `ai_embeddings vector(N)`
       // migration into every tenant's `tenant:migrate`. Best-effort — on a plain

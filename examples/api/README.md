@@ -122,7 +122,7 @@ Every section below is a copy paste recipe for one feature. Same shape, differen
 | `REDIS_*`, `QUEUE_REDIS_*`, `CACHE_REDIS_*` | localhost:56379, dbs 0 / 1 / 2 | Three logical Redis databases, one container |
 | `BACKUP_STORAGE_PATH` | `./storage/backups` | Where `pg_dump` writes |
 | `BACKUP_S3_*` | disabled | Set `BACKUP_S3_ENABLED=true` to mirror to S3 |
-| `DEMO_ADMIN_TOKEN` | required | Sent as `x-admin-token` to gate the admin API and `/metrics` |
+| `DEMO_SEED_TENANT_USERS` | `true` in `.env.example` (unset = off) | When `true`, tenant migrations seed a demo user in each tenant schema so the tenant realm has someone to log in as. Never active in production: the hook also refuses to run there |
 | `MAILCATCHER_HOST`, `MAILCATCHER_PORT` | `127.0.0.1`, `1025` | SMTP target. Web UI lives on port 1080 |
 | `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | `demo@example.test`, `Demo Multitenancy` | Default From header when a tenant has no branding row |
 
@@ -213,14 +213,14 @@ curl -H "x-tenant-id: $TENANT_ID" http://localhost:3333/demo/notes
 
 ### 6. Health probes and Prometheus
 
-One call mounts `/livez`, `/readyz`, `/healthz`, and `/metrics`. Same shape as a real production deployment. The probes stay public for orchestrators; `/metrics` is fail-closed (it exposes per-tenant labels and tenant counts), so the demo gates it with the same `x-admin-token` as the admin API.
+One call mounts `/livez`, `/readyz`, `/healthz`, and `/metrics`. Same shape as a real production deployment. The probes stay public for orchestrators; `/metrics` is fail-closed (it exposes per-tenant labels and tenant counts), so the demo gates it with the same backoffice bearer as the admin API (see section 13 for the login flow).
 
 ```bash
 curl http://localhost:3333/livez       # process is alive
 curl http://localhost:3333/readyz      # DB + Redis + circuit checks
 curl http://localhost:3333/healthz     # the full diagnostic JSON
 curl http://localhost:3333/metrics \
-  -H "x-admin-token:$(grep DEMO_ADMIN_TOKEN .env | cut -d= -f2)"  # Prometheus 0.0.4 text exposition
+  -H "authorization: Bearer $TOKEN"    # Prometheus 0.0.4 text exposition
 ```
 
 ### 7. The doctor
@@ -311,10 +311,13 @@ node ace tenant:purge-expired --retention-days=0 --force      # purge everything
 
 ### 13. The admin REST API
 
-Nine endpoints mounted at `/admin` by `multitenancyAdminRoutes()`. The demo gates them behind a header based fake auth; swap [app/middleware/demo_admin_auth_middleware.ts](app/middleware/demo_admin_auth_middleware.ts) for whatever your real admin auth looks like.
+Nine endpoints mounted at `/admin` by `multitenancyAdminRoutes()`. The demo gates them behind the backoffice auth realm: a real `@adonisjs/auth` access-tokens guard over [app/models/backoffice/backoffice_user.ts](app/models/backoffice/backoffice_user.ts). Seed the operator with `node ace demo:seed` (it prints the credentials), log in, then send the token as a bearer.
 
 ```bash
-ADMIN="-H x-admin-token:$(grep DEMO_ADMIN_TOKEN .env | cut -d= -f2)"
+TOKEN=$(curl -s -X POST http://localhost:3333/backoffice/login \
+  -H 'content-type: application/json' \
+  -d '{"email":"operator@demo.test","password":"operator-demo-password"}' | jq -r .token)
+ADMIN="--oauth2-bearer $TOKEN"   # curl sends it as "Authorization: Bearer <token>"
 
 curl $ADMIN http://localhost:3333/admin/tenants                              # list (filter with ?status= and ?includeDeleted=)
 curl $ADMIN http://localhost:3333/admin/tenants/$TENANT_ID                   # show

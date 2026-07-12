@@ -76,7 +76,7 @@ test.group('e2e — misconfigured boot fails fast', () => {
   const cases: Array<{ varName: string; port: string }> = [
     { varName: 'APP_KEY', port: '3471' },
     { varName: 'DB_HOST', port: '3472' },
-    { varName: 'DEMO_ADMIN_TOKEN', port: '3473' },
+    { varName: 'TENANT_HEADER_KEY', port: '3473' },
   ]
 
   for (const { varName, port } of cases) {

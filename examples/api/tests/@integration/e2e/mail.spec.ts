@@ -2,7 +2,13 @@ import { test } from '@japa/runner'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { BrandingService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { useRealInstallTenantDispatch } from '#tests/bootstrap'
-import { createInstalledTenant, dropAllTenants, installInline, waitFor } from './_helpers.js'
+import {
+  ADMIN_HEADERS,
+  createInstalledTenant,
+  dropAllTenants,
+  installInline,
+  waitFor,
+} from './_helpers.js'
 
 const MAILCATCHER_HOST = process.env.MAILCATCHER_HOST ?? '127.0.0.1'
 const MAILCATCHER_HTTP = `http://${MAILCATCHER_HOST}:1080`
@@ -367,11 +373,11 @@ test.group('e2e — mail (MailCatcher)', (group) => {
         name: 'OutageTest',
         email: 'outage@e2e.test',
       })
-      // The host must still respond after the failed listener.
-      const ping = await client
-        .get(`/admin/tenants/${id}`)
-        .header('x-admin-token', process.env.DEMO_ADMIN_TOKEN ?? 'demo-admin-token-change-me')
-      assert.oneOf(ping.status(), [200, 401], 'host process should still answer after mail outage')
+      // The host must still respond after the failed listener. ADMIN_HEADERS
+      // carries the suite's valid backoffice bearer, so anything but a 200
+      // means the mail outage bled into the admin realm.
+      const ping = await client.get(`/admin/tenants/${id}`).headers(ADMIN_HEADERS)
+      ping.assertStatus(200)
     } finally {
       if (originalHost !== undefined) process.env.MAILCATCHER_HOST = originalHost
       if (originalPort !== undefined) process.env.MAILCATCHER_PORT = originalPort

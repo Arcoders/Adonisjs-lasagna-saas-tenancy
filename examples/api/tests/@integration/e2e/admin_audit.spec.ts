@@ -1,19 +1,23 @@
 import { test } from '@japa/runner'
 import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
-import { ADMIN_HEADERS, createInstalledTenant, dropAllTenants } from './_helpers.js'
+import { ADMIN_HEADERS, createInstalledTenant, dropAllTenants, operatorId } from './_helpers.js'
 
 /**
  * End-to-end proof that the admin REST API attributes every mutation in the
  * append-only audit log, that the acting admin flows from `resolveAdminActor`
- * (here the `x-admin-id` header wired in start/routes.ts), and that idempotent
- * no-ops leave no row. The impersonation REST flow (start -> revoke) is
- * exercised here too, since the demo mount now wires the actor resolver.
+ * (the operator the backoffice guard authenticated, wired in
+ * start/routes.ts), and that idempotent no-ops leave no row. The
+ * impersonation REST flow (start -> revoke) is exercised here too, since the
+ * demo mount now wires the actor resolver.
  *
- * `tenant_audit_logs.actor_id` is a uuid column in the demo, so the admin id is
- * a uuid. Rows are scoped by tenant id, so they never collide across tests.
+ * `tenant_audit_logs.actor_id` is a uuid column in the demo, and
+ * backoffice_users ids are uuids, so the seeded operator's id flows straight
+ * through. Rows are scoped by tenant id, so they never collide across tests.
+ *
+ * HEADERS is a function on purpose: ADMIN_HEADERS is filled by the suite
+ * setup, so a module-scope spread would capture it empty.
  */
-const ADMIN_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-const HEADERS = { ...ADMIN_HEADERS, 'x-admin-id': ADMIN_ID }
+const HEADERS = () => ({ ...ADMIN_HEADERS })
 
 /** The latest audit row for a tenant + action, or null. Parses JSON metadata. */
 async function latestAudit(tenantId: string, action: string) {
@@ -51,7 +55,7 @@ test.group('e2e — admin audit attribution', (group) => {
     const { id } = await createInstalledTenant(client, { migrate: false })
     const res = await client
       .post(`/admin/tenants/${id}/webhooks`)
-      .headers(HEADERS)
+      .headers(HEADERS())
       .json({ url: 'https://example.com/hook', events: ['user.created'] })
     res.assertStatus(201)
     const webhookId = res.body().data.id
@@ -59,7 +63,7 @@ test.group('e2e — admin audit attribution', (group) => {
     const row = await latestAudit(id, 'admin:webhook:create')
     assert.isNotNull(row, 'an admin:webhook:create row was written')
     assert.equal(row!.actorType, 'admin')
-    assert.equal(row!.actorId, ADMIN_ID)
+    assert.equal(row!.actorId, operatorId())
     assert.equal(row!.metadata?.webhookId, webhookId)
     assert.equal(row!.metadata?.secretGenerated, true)
     // The generated secret must NEVER appear in the metadata.
@@ -73,13 +77,13 @@ test.group('e2e — admin audit attribution', (group) => {
     const { id } = await createInstalledTenant(client, { migrate: false })
     const res = await client
       .post(`/admin/tenants/${id}/feature-flags`)
-      .headers(HEADERS)
+      .headers(HEADERS())
       .json({ flag: 'beta_dashboard', enabled: true })
     res.assertStatus(201)
 
     const row = await latestAudit(id, 'admin:feature_flag:create')
     assert.isNotNull(row)
-    assert.equal(row!.actorId, ADMIN_ID)
+    assert.equal(row!.actorId, operatorId())
     assert.equal(row!.metadata?.flag, 'beta_dashboard')
     assert.equal(row!.metadata?.enabled, true)
   })
@@ -87,7 +91,7 @@ test.group('e2e — admin audit attribution', (group) => {
   test('an idempotent no-op writes no audit row', async ({ client, assert }) => {
     const { id } = await createInstalledTenant(client, { migrate: false })
     // The tenant is already active, so activate is a no-op (unchanged: true).
-    const res = await client.post(`/admin/tenants/${id}/activate`).headers(HEADERS)
+    const res = await client.post(`/admin/tenants/${id}/activate`).headers(HEADERS())
     res.assertStatus(200)
     assert.equal(res.body().unchanged, true)
 
@@ -102,7 +106,7 @@ test.group('e2e — admin audit attribution', (group) => {
     const { id } = await createInstalledTenant(client, { migrate: false })
     const res = await client
       .delete(`/admin/tenants/${id}/webhooks/99999999-9999-4999-8999-999999999999`)
-      .headers(HEADERS)
+      .headers(HEADERS())
     res.assertStatus(404)
     assert.equal(
       await countAudit(id, 'admin:webhook:delete'),
@@ -118,7 +122,7 @@ test.group('e2e — admin audit attribution', (group) => {
     // start
     const start = await client
       .post(`/admin/tenants/${id}/impersonations`)
-      .headers(HEADERS)
+      .headers(HEADERS())
       .json({ userId: targetUserId, reason: 'support ticket #7' })
     start.assertStatus(201)
     const token = start.body().data.token as string
@@ -126,7 +130,7 @@ test.group('e2e — admin audit attribution', (group) => {
 
     const startRow = await latestAudit(id, 'admin:impersonate:start')
     assert.isNotNull(startRow, 'impersonation start was audited')
-    assert.equal(startRow!.actorId, ADMIN_ID)
+    assert.equal(startRow!.actorId, operatorId())
     assert.equal(startRow!.metadata?.targetUserId, targetUserId)
 
     // use: a request carrying the token resolves to the impersonation context
@@ -136,12 +140,12 @@ test.group('e2e — admin audit attribution', (group) => {
     used.assertStatus(200)
     const ctx = used.body().impersonation
     assert.isNotNull(ctx, 'the token resolves to an impersonation context end to end')
-    assert.equal(ctx.adminId, ADMIN_ID)
+    assert.equal(ctx.adminId, operatorId())
     // The session's targetUserId surfaces on the context as `userId`.
     assert.equal(ctx.userId, targetUserId)
 
     // revoke
-    const stop = await client.delete(`/admin/impersonations/${token}`).headers(HEADERS)
+    const stop = await client.delete(`/admin/impersonations/${token}`).headers(HEADERS())
     stop.assertStatus(200)
     assert.equal(stop.body().revoked, true)
 

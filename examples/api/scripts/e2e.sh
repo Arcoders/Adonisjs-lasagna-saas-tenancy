@@ -21,6 +21,13 @@ if [[ ! -f .env ]]; then
   cp .env.example .env
 fi
 
+# A .env predating the two-auth-realms change lacks the seed flag the
+# auth_realms e2e depends on; this script owns .env provisioning, so top it up.
+if ! grep -q '^DEMO_SEED_TENANT_USERS=' .env; then
+  echo "[e2e] adding DEMO_SEED_TENANT_USERS=true to .env (required by the auth_realms e2e)"
+  printf '\nDEMO_SEED_TENANT_USERS=true\n' >> .env
+fi
+
 cleanup() {
   if [[ $KEEP -eq 1 ]]; then
     echo "[e2e] --keep was passed; leaving infra running"

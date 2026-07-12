@@ -807,7 +807,10 @@ jobs:
       # exempt loopback from the SSRF guard for the demo run. Off in production,
       # and even when on it only allows loopback (private/metadata stay blocked).
       WEBHOOKS_ALLOW_LOOPBACK_TARGETS: 'true'
-      DEMO_ADMIN_TOKEN: demo-admin-token-change-me
+      # The auth_realms e2e logs in as the hook-seeded per-tenant demo user,
+      # so tenant migrations must seed it here. Default-off everywhere else;
+      # the deploy smoke stack deliberately leaves it unset to prove that.
+      DEMO_SEED_TENANT_USERS: 'true'
       MAILCATCHER_HOST: 127.0.0.1
       MAILCATCHER_PORT: 1025
       MAIL_FROM_ADDRESS: demo@example.test
@@ -938,7 +941,6 @@ jobs:
       CACHE_REDIS_PORT: 56379
       CACHE_REDIS_DB: 2
       BACKUP_STORAGE_PATH: ./storage/backups
-      DEMO_ADMIN_TOKEN: demo-admin-token-change-me
       MAILCATCHER_HOST: 127.0.0.1
       MAILCATCHER_PORT: 1025
       MAIL_FROM_ADDRESS: demo@example.test

@@ -48,7 +48,7 @@ test.group('e2e — deployment probes', () => {
     assert.equal(healthz.body().status, ready.body().status)
   })
 
-  // /metrics is fail-closed in the demo (gated by x-admin-token); a real
+  // /metrics is fail-closed in the demo (gated by the backoffice realm); a real
   // Prometheus scrape job carries the credential as a request header too.
   test('GET /metrics serves Prometheus text exposition', async ({ client, assert }) => {
     const res = await client.get('/metrics').headers(ADMIN_HEADERS)

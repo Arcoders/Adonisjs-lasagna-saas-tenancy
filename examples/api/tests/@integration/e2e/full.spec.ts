@@ -221,7 +221,7 @@ test.group('e2e — full feature tour', (group) => {
   })
 
   // ─── 13. Admin REST API (gated) ─────────────────────────────────
-  test('admin /admin/tenants is gated by x-admin-token', async ({ client }) => {
+  test('admin /admin/tenants is gated by the backoffice realm', async ({ client }) => {
     const r = await client.get('/admin/tenants')
     r.assertStatus(401)
   })
