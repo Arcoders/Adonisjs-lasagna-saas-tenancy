@@ -13,6 +13,8 @@ import { multitenancyAiRoutes } from '@adonisjs-lasagna/ai/routes'
  * which is required for `@inject()`-decorated constructor parameters.
  */
 const TenantsController = () => import('#app/controllers/demo/tenants_controller')
+const BackofficeAuthController = () => import('#app/controllers/demo/backoffice_auth_controller')
+const DemoAuthController = () => import('#app/controllers/demo/auth_controller')
 const NotesController = () => import('#app/controllers/demo/notes_controller')
 const QuotaController = () => import('#app/controllers/demo/quota_controller')
 const DoctorController = () => import('#app/controllers/demo/doctor_controller')
@@ -30,19 +32,17 @@ const BillingController = () => import('#app/controllers/demo/billing_controller
 // enumeration + business KPIs, so it is fail-closed: gate it with the same auth
 // as the admin API. (Pass `metricsMiddleware: false` only to mount it public
 // behind a trusted network boundary.)
-multitenancyRoutes({ metricsMiddleware: [middleware.demoAdminAuth()] })
+multitenancyRoutes({ metricsMiddleware: [middleware.auth({ guards: ['backoffice'] })] })
 
-/* ─── Package admin REST API (header-token gated) ────────────────────────── */
+/* ─── Package admin REST API (backoffice-realm gated) ────────────────────── */
 multitenancyAdminRoutes({
   prefix: '/admin',
-  middleware: [middleware.demoAdminAuth()],
-  // The demo auth is a static shared token with no user identity, so we read
-  // the acting admin from an optional `x-admin-id` header (a real app returns
-  // `auth.user?.id`). The fallback keeps impersonation working, which needs a
-  // non-null actor; the header lets the e2e suite assert audit attribution.
-  // `tenant_audit_logs.actor_id` is a uuid column, so the id must be a uuid.
-  resolveAdminActor: (ctx) =>
-    ctx.request.header('x-admin-id') ?? 'dec0ffee-0000-4000-8000-000000000000',
+  middleware: [middleware.auth({ guards: ['backoffice'] })],
+  // Real identity only: the acting admin is the operator the backoffice guard
+  // authenticated, nothing else. Returning null denies actions that need an
+  // actor (an impersonation start answers 401), so a misconfigured mount
+  // fails closed instead of attributing to a spoofable header.
+  resolveAdminActor: (ctx) => ctx.auth.use('backoffice').user?.id ?? null,
 })
 
 /* ─── Stripe webhook receiver (ungated, in ignorePaths) ─────────────────── */
@@ -53,7 +53,7 @@ multitenancyBillingRoutes()
 // `openapi: true` mounts /admin/reporting/openapi.json + /docs under the same auth.
 multitenancyReportingRoutes({
   prefix: '/admin/reporting',
-  middleware: [middleware.demoAdminAuth()],
+  middleware: [middleware.auth({ guards: ['backoffice'] })],
   openapi: true,
   // Cache dashboard responses; config.reporting.cache.invalidateOnFlush clears
   // them on every tenant:metrics:flush so the view stays fresh.
@@ -77,6 +77,28 @@ router
   })
   .use([middleware.impersonation()])
 
+/* ─── Operator realm: login surface on the central (apex) plane ──────────── */
+// CentralOnlyMiddleware rejects any request that carries a tenant id, which
+// is intended: operators authenticate on the apex, never inside a tenant
+// context. Wired through the named-middleware registry (the same way every
+// other core middleware is mounted here) rather than the router.central()
+// macro sugar over the identical middleware. Login is rate-limited with the
+// package's own middleware (on central routes it degrades to the shared
+// per-IP bucket, and it is inert under app.inTest).
+router
+  .group(() => {
+    router
+      .post('/backoffice/login', [BackofficeAuthController, 'login'])
+      .use(middleware.rateLimit({ limit: 10, windowSeconds: 60 }))
+    router
+      .get('/backoffice/me', [BackofficeAuthController, 'me'])
+      .use(middleware.auth({ guards: ['backoffice'] }))
+    router
+      .delete('/backoffice/logout', [BackofficeAuthController, 'logout'])
+      .use(middleware.auth({ guards: ['backoffice'] }))
+  })
+  .use(middleware.centralOnly())
+
 /* ─── /demo: tenant CRUD (no tenant guard, no tenant context yet) ───────── */
 router
   .group(() => {
@@ -92,6 +114,17 @@ router
 /* ─── /demo: tenant-scoped feature surface (TenantGuardMiddleware) ───────── */
 router
   .group(() => {
+    // Tenant realm: login inside the resolved tenant's context, so the
+    // credential lookup and the minted token both live in that tenant's own
+    // schema. Same rate limit shape as the operator login.
+    router
+      .post('/auth/login', [DemoAuthController, 'login'])
+      .use(middleware.rateLimit({ limit: 10, windowSeconds: 60 }))
+    router.get('/auth/me', [DemoAuthController, 'me']).use(middleware.auth({ guards: ['tenant'] }))
+    router
+      .delete('/auth/logout', [DemoAuthController, 'logout'])
+      .use(middleware.auth({ guards: ['tenant'] }))
+
     // Schema isolation probe
     router.get('/connection', [TenantsController, 'connection'])
 

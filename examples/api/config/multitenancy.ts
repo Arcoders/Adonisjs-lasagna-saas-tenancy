@@ -1,8 +1,7 @@
 import env from '#start/env'
-import type {
-  TenantResolverStrategy,
-  TenantAccessAuthorizer,
-} from '@adonisjs-lasagna/saas-tenancy/types'
+import type { TenantResolverStrategy } from '@adonisjs-lasagna/saas-tenancy/types'
+import type { DeclarativeHooks } from '@adonisjs-lasagna/saas-tenancy/services'
+import { createMembershipAuthorizer } from '#app/security/membership_authorizer'
 
 /**
  * Full configuration exercising every optional block:
@@ -27,17 +26,14 @@ export default {
   baseDomain: env.get('APP_DOMAIN'),
 
   // ─── Membership gate (cross-tenant IDOR firewall) ────────────────
-  // Opt-in: only requests carrying `x-test-principal-tenant` (a stand-in for an
-  // authenticated principal's tenant) are evaluated, so it stays a no-op for the rest
-  // of the demo. With the header present, the caller's tenant MUST match the resolved
-  // tenant or TenantGuardMiddleware returns 403, closing the cross-tenant IDOR that
-  // header-based resolution otherwise opens. A real app derives the principal tenant
-  // from `auth.user`. Exercised by the membership_gate e2e.
-  authorizeTenantAccess: ((ctx, tenant) => {
-    const principalTenant = ctx.request.header('x-test-principal-tenant')
-    if (!principalTenant) return true
-    return principalTenant === tenant.id
-  }) satisfies TenantAccessAuthorizer,
+  // Denies any request whose credentials don't belong to the resolved tenant:
+  // a bearer token is checked against the tenant guard (the token must exist
+  // in the resolved tenant's own schema), and the e2e stand-in principal
+  // header must match the tenant id. Anonymous requests stay allowed so the
+  // demo remains explorable with bare curl. See the branch-by-branch
+  // reasoning in app/security/membership_authorizer.ts; exercised by the
+  // membership_gate and auth_realms e2e.
+  authorizeTenantAccess: createMembershipAuthorizer(),
 
   // Health, admin and the Stripe webhook don't carry a tenant, so let them
   // through. The webhook resolves its tenant later from the event's customer id.
@@ -132,14 +128,37 @@ export default {
     // see tests/e2e/full.spec.ts). A production app would keep domain rules
     // like this in a service or validator; email shape already lives in
     // app/validators/tenants_validator.ts.
-    beforeProvision: async ({ tenant }: { tenant: { email: string } }) => {
+    beforeProvision: async ({ tenant }) => {
       if (!tenant.email.endsWith('.test')) {
         throw new Error(
           `Demo enforces *.test emails only — got "${tenant.email}". This shows beforeProvision aborting.`
         )
       }
     },
-  },
+
+    // Seeds a demo user inside each freshly migrated tenant schema so the
+    // tenant realm has someone to log in as. Gated on DEMO_SEED_TENANT_USERS
+    // (absent = off) so only the demo/e2e stacks grow well-known credentials;
+    // idempotent via updateOrCreate, and after-phase hook errors log and
+    // continue, so a concurrent-migrate race cannot fail the migration.
+    // The inProduction refusal mirrors demo:seed's: even a production deploy
+    // that copied .env.example wholesale never grows these credentials.
+    afterMigrate: async ({ tenant, direction }) => {
+      if (direction !== 'up') return
+      if (!env.get('DEMO_SEED_TENANT_USERS')) return
+      const { default: app } = await import('@adonisjs/core/services/app')
+      if (app.inProduction) return
+      const { tenancy } = await import('@adonisjs-lasagna/saas-tenancy')
+      const { default: TenantUser } = await import('#app/models/tenant_scoped/tenant_user')
+      const { DEMO_TENANT_USER } = await import('#app/helpers/demo_credentials')
+      await tenancy.run(tenant, async () => {
+        await TenantUser.updateOrCreate(
+          { email: DEMO_TENANT_USER.email },
+          { password: DEMO_TENANT_USER.password, fullName: DEMO_TENANT_USER.fullName }
+        )
+      })
+    },
+  } satisfies DeclarativeHooks,
 
   // ─── Soft-delete TTL ─────────────────────────────────────────────
   // tenant:purge-expired drops schemas older than this many days.

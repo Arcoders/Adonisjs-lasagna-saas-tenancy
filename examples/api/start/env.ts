@@ -42,7 +42,10 @@ export default await Env.create(new URL('../', import.meta.url), {
   AWS_ACCESS_KEY_ID: Env.schema.string.optional(),
   AWS_SECRET_ACCESS_KEY: Env.schema.string.optional(),
 
-  DEMO_ADMIN_TOKEN: Env.schema.string(),
+  // Opt-in: when true, the afterMigrate hook seeds a demo user inside every
+  // tenant schema it migrates. Default absent = off, so a real deployment
+  // never grows well-known credentials by accident. The e2e stacks enable it.
+  DEMO_SEED_TENANT_USERS: Env.schema.boolean.optional(),
 
   // Billing provider selection. Optional: defaults to 'stripe' in config. Lets a
   // deploy pick a provider without a code change (and lets the satellite boot
