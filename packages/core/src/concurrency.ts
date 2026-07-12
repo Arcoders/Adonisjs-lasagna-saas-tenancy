@@ -10,7 +10,7 @@ export interface BoundedBatchOptions<I> {
   concurrency: number
   /**
    * `true` (default at the caller): an item that throws is collected into `errors`
-   * and the batch continues. `false`: the first error rejects the whole call —
+   * and the batch continues. `false`: the first error rejects the whole call,
    * but only after the in-flight slice has fully settled (no dangling rejections).
    */
   continueOnError: boolean

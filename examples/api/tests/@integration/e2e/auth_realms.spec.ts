@@ -30,7 +30,7 @@ async function loginTenantUser(client: any, tenantId: string): Promise<string> {
   return r.body().token as string
 }
 
-test.group('e2e — two auth realms (operator vs tenant)', (group) => {
+test.group('e2e: two auth realms (operator vs tenant)', (group) => {
   group.setup(() => dropAllTenants())
   group.teardown(() => dropAllTenants())
 

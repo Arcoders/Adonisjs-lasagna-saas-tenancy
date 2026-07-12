@@ -15,8 +15,8 @@ export interface AiMemoryPosture {
  * default the `@adonisjs/auth` user id): that binding IS the per-user isolation
  * (G6), so a request with no resolvable principal is deliberately stateless
  * (memory inert). When memory is enabled but no explicit `resolvePrincipal` is
- * wired, surface that it falls back to the auth user id and is inert without one —
- * an `info`, because the default works for most hosts and a static read cannot see
+ * wired, surface that it falls back to the auth user id and is inert without one.
+ * That is an `info`, because the default works for most hosts and a static read cannot see
  * whether auth is present at runtime. Returns null when memory is off, or on and
  * explicitly bound.
  */

@@ -140,7 +140,7 @@ test.group('installRouterMacros', (group) => {
   })
 })
 
-test.group('installRouterMacros — entries execute under the route executor', (group) => {
+test.group('installRouterMacros: entries execute under the route executor', (group) => {
   group.each.setup(() => {
     __resetRouterMacrosForTests()
     __resetResolverRegistryCacheForTests()

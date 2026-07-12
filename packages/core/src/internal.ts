@@ -11,7 +11,7 @@
  * The contents here may change between minors to follow the satellites' needs.
  *
  * Stability policy (the keep-vs-hide decision): `/internal` REMAINS a
- * published-but-unstable subpath, and the rule that keeps it honest is —
+ * published-but-unstable subpath, and the rule that keeps it honest is that
  * anything a third-party satellite legitimately needs must ALSO live on a
  * stable surface, so no one is forced onto this subpath. As of the W4 dedup,
  * every stable-need helper has a stable home and first-party satellites import
