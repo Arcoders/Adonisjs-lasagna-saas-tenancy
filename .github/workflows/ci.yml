@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    # TEMP: run CI on this branch while it bakes. Revert before merging.
+    branches: [master, main, LASAGNA-090706/soft]
   pull_request:
     branches: [master, main]
 
