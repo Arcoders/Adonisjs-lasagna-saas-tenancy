@@ -134,9 +134,10 @@ export {
   RequestDataResolver,
   ResolverHit,
   RESOLVER_CONTRACT_VERSION,
+  SyncTenantResolver,
   builtInResolvers,
 } from './resolvers/index.js'
-export type { TenantResolver, TenantResolveResult } from './resolvers/index.js'
+export type { TenantResolver, TenantResolveResult, ResolverTrust } from './resolvers/index.js'
 export type {
   IsolationDriver,
   ProvisionableDriver,

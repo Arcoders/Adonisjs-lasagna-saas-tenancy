@@ -592,13 +592,15 @@ test.group('TenantAdapter — model-query routing via the resolver chain (B1)', 
   // chain — the kind of resolver a plain `resolverStrategy` switch never knew about.
   function customChain() {
     const reg = new TenantResolverRegistry()
+    const resolveHeader = (request: any) => {
+      const v = request.header('x-custom-tenant')
+      return v ? ResolverHit.id(v) : ResolverHit.miss()
+    }
     reg.register({
       name: 'custom-header',
-      contractVersion: 1,
-      resolve: (request: any) => {
-        const v = request.header('x-custom-tenant')
-        return v ? ResolverHit.id(v) : ResolverHit.miss()
-      },
+      contractVersion: 2,
+      resolve: resolveHeader,
+      resolveSync: resolveHeader,
     })
     reg.setChain(['custom-header'])
     return reg

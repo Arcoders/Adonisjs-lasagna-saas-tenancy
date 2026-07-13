@@ -50,11 +50,10 @@ function captureWarn(fn: () => void): string[] {
 }
 
 test.group('isolation/resolver contract versioning', () => {
-  test('the contract-version constants are exported (isolation at v2 after tableLocation)', ({
-    assert,
-  }) => {
+  test('the contract-version constants are exported (both at v2)', ({ assert }) => {
+    // isolation v2 = tableLocation; resolver v2 = trust + resolveSync.
     assert.equal(ISOLATION_CONTRACT_VERSION, 2)
-    assert.equal(RESOLVER_CONTRACT_VERSION, 1)
+    assert.equal(RESOLVER_CONTRACT_VERSION, 2)
   })
 
   test('the registries expose their own contractVersion', ({ assert }) => {

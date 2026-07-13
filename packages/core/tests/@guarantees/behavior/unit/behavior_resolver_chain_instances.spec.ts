@@ -1,7 +1,11 @@
 import { test } from '@japa/runner'
 import { assertResolverChain, wireResolverChain } from '../../../../src/providers/resolver_chain.js'
 import TenantResolverRegistry from '../../../../src/services/resolvers/registry.js'
-import { ResolverHit, type TenantResolver } from '../../../../src/services/resolvers/resolver.js'
+import {
+  RESOLVER_CONTRACT_VERSION,
+  ResolverHit,
+  type TenantResolver,
+} from '../../../../src/services/resolvers/resolver.js'
 import { testConfig } from '../../../helpers/config.js'
 
 /**
@@ -19,8 +23,9 @@ import { testConfig } from '../../../helpers/config.js'
 const cfg = (over: Record<string, unknown>) => ({ ...testConfig, ...over }) as any
 const custom: TenantResolver = {
   name: 'custom',
-  contractVersion: 1,
+  contractVersion: RESOLVER_CONTRACT_VERSION,
   resolve: () => ResolverHit.id('11111111-1111-4111-8111-111111111111'),
+  resolveSync: () => ResolverHit.id('11111111-1111-4111-8111-111111111111'),
 }
 
 test.group('assertResolverChain — config-level validation', () => {

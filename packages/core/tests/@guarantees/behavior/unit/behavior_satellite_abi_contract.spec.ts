@@ -100,7 +100,12 @@ test.group('Satellite ABI — TenantResolverRegistry', () => {
     ] as const) {
       assert.isFunction((r as any)[m], `TenantResolverRegistry.${m}`)
     }
-    r.register({ name: 'fixed', contractVersion: 1, resolve: () => ResolverHit.id('t-9') })
+    r.register({
+      name: 'fixed',
+      contractVersion: 2,
+      resolve: () => ResolverHit.id('t-9'),
+      resolveSync: () => ResolverHit.id('t-9'),
+    })
     r.setChain(['fixed'])
     assert.deepEqual(await r.resolve({} as any), { type: 'id', tenantId: 't-9' })
     assert.deepEqual(r.resolveSync({} as any), { type: 'id', tenantId: 't-9' })

@@ -51,7 +51,7 @@ level down: it answers "does this **extension** fit this **surface**?".
 | Constant | Value | Surface | Registry |
 |---|---|---|---|
 | `ISOLATION_CONTRACT_VERSION` | `2` | [custom isolation drivers](/guides/cookbook/custom-isolation-driver) | `IsolationDriverRegistry` |
-| `RESOLVER_CONTRACT_VERSION` | `1` | custom tenant resolvers | `TenantResolverRegistry` |
+| `RESOLVER_CONTRACT_VERSION` | `2` | custom tenant resolvers | `TenantResolverRegistry` |
 | `AUTHORIZER_CONTRACT_VERSION` | `1` | [tenant-access authorizers](/guides/plugins) | `AuthorizerRegistry` |
 | `TENANT_MIDDLEWARE_CONTRACT_VERSION` | `1` | [route middleware](/guides/plugins) | `TenantMiddlewareRegistry` |
 | `CAPABILITY_CONTRACT_VERSION` | `2` | [cross-plugin capabilities](/guides/plugins) | `CapabilityRegistry` |

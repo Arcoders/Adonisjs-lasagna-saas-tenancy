@@ -1,18 +1,17 @@
 import type { MultitenancyConfig } from '../types/config.js'
-import { canonicalChainNames } from './resolver_chain.js'
+import { chainTrusts } from '../services/resolvers/resolver_trust.js'
 
 /**
- * Resolver strategies that derive the tenant from the request HOST. Under a
- * permissive proxy trust these read `X-Forwarded-Host`, which an upstream hop
- * (or the client, if no trusted proxy strips it) can set freely, so without a
- * host allowlist a request can be steered onto another tenant's host.
+ * True when the resolution path derives the tenant from the request HOST (a
+ * `trust: 'host'` resolver — subdomain / custom domain). Under a permissive proxy
+ * trust these read `X-Forwarded-Host`, which an upstream hop (or the client, if
+ * no trusted proxy strips it) can set freely, so without a host allowlist a
+ * request can be steered onto another tenant's host. Classified from each
+ * resolver's declared `trust`, the same single source the membership-gate audit
+ * reads, so the two agree on exactly which resolvers run.
  */
-const HOST_STRATEGIES: ReadonlySet<string> = new Set(['subdomain', 'domain-or-subdomain'])
-
 export function resolutionUsesHostStrategy(config: MultitenancyConfig): boolean {
-  // Read the ONE canonical chain (built-in or inline-instance names), so this
-  // audit and the boot wiring agree on exactly which resolvers run.
-  return canonicalChainNames(config).some((name) => HOST_STRATEGIES.has(name))
+  return chainTrusts(config).some((trust) => trust === 'host')
 }
 
 function hasExpectedHostSuffix(config: MultitenancyConfig): boolean {

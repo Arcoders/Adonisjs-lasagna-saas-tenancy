@@ -7,13 +7,24 @@ import {
   __resetResolverRegistryCacheForTests,
 } from '../../../../src/extensions/request.js'
 import TenantResolverRegistry from '../../../../src/services/resolvers/registry.js'
-import { ResolverHit, type TenantResolver } from '../../../../src/services/resolvers/resolver.js'
+import {
+  RESOLVER_CONTRACT_VERSION,
+  ResolverHit,
+  type TenantResolver,
+} from '../../../../src/services/resolvers/resolver.js'
 import { setupTestConfig } from '../../../helpers/config.js'
 
-/** Seed a boot-like resolver chain of one custom resolver returning `id`. */
+/** Seed a boot-like resolver chain of one custom synchronous resolver returning `id`. */
 function seedResolver(name: string, resolve: TenantResolver['resolve']): void {
   const registry = new TenantResolverRegistry()
-  registry.register({ name, contractVersion: 1, resolve })
+  // The routing chain requires resolveSync; the middleware tests always pass a
+  // synchronous resolve, so it doubles as resolveSync.
+  registry.register({
+    name,
+    contractVersion: RESOLVER_CONTRACT_VERSION,
+    resolve,
+    resolveSync: resolve as NonNullable<TenantResolver['resolveSync']>,
+  })
   registry.setChain([name])
   setResolverRegistry(registry)
 }

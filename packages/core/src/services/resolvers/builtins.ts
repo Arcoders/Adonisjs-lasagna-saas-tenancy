@@ -4,8 +4,9 @@ import { isProductionNodeEnv } from '../../utils/env.js'
 import InvalidTenantIdentifierException from '../../exceptions/invalid_tenant_identifier_exception.js'
 import { isUuidV4 } from '../isolation/identifier.js'
 import {
-  RESOLVER_CONTRACT_VERSION,
   ResolverHit,
+  SyncTenantResolver,
+  type ResolverTrust,
   type TenantResolveResult,
   type TenantResolver,
 } from './resolver.js'
@@ -49,10 +50,11 @@ export function hostMatchesExpectedSuffix(host: string): boolean {
  * header is present and a `ResolverHit.miss` otherwise. This is the strategy
  * most server-to-server traffic relies on.
  */
-export class HeaderResolver implements TenantResolver {
+export class HeaderResolver extends SyncTenantResolver {
   readonly name = 'header'
-  readonly contractVersion = RESOLVER_CONTRACT_VERSION
-  resolve(request: HttpRequest): TenantResolveResult {
+  // Client-controlled: the header is set freely by the caller.
+  readonly trust: ResolverTrust = 'client'
+  resolveSync(request: HttpRequest): TenantResolveResult {
     const key = getConfig().tenantHeaderKey
     const value = request.header(key)
     // UUID policy at the resolver border: the header is client-controlled, so a
@@ -71,10 +73,12 @@ export class HeaderResolver implements TenantResolver {
  * itself (so apex hits can be routed to a marketing site / central app
  * without trying to resolve a tenant).
  */
-export class SubdomainResolver implements TenantResolver {
+export class SubdomainResolver extends SyncTenantResolver {
   readonly name = 'subdomain'
-  readonly contractVersion = RESOLVER_CONTRACT_VERSION
-  resolve(request: HttpRequest): TenantResolveResult {
+  // Host-based: the tenant comes from the request host, which X-Forwarded-Host
+  // can spoof without an expectedHostSuffix allowlist.
+  readonly trust: ResolverTrust = 'host'
+  resolveSync(request: HttpRequest): TenantResolveResult {
     const { baseDomain } = getConfig()
     const host = hostnameOf(request)
     if (!host) return ResolverHit.miss()
@@ -109,10 +113,11 @@ export class SubdomainResolver implements TenantResolver {
  * (`/<tenantId>/foo` maps to `tenantId`). `ignorePaths` from config let apps
  * exclude prefixes like `/health` or `/admin`.
  */
-export class PathResolver implements TenantResolver {
+export class PathResolver extends SyncTenantResolver {
   readonly name = 'path'
-  readonly contractVersion = RESOLVER_CONTRACT_VERSION
-  resolve(request: HttpRequest): TenantResolveResult {
+  // Client-controlled: the first URL path segment is caller-supplied.
+  readonly trust: ResolverTrust = 'client'
+  resolveSync(request: HttpRequest): TenantResolveResult {
     const { ignorePaths } = getConfig()
     const url = request.url(false)
     if (ignorePaths?.some((p) => url.startsWith(p))) return ResolverHit.miss()
@@ -134,10 +139,11 @@ export class PathResolver implements TenantResolver {
  * Host matches before subdomain math because custom domains are the
  * stronger signal.
  */
-export class DomainOrSubdomainResolver implements TenantResolver {
+export class DomainOrSubdomainResolver extends SyncTenantResolver {
   readonly name = 'domain-or-subdomain'
-  readonly contractVersion = RESOLVER_CONTRACT_VERSION
-  resolve(request: HttpRequest): TenantResolveResult {
+  // Host-based: matches a custom domain or a baseDomain subdomain off the host.
+  readonly trust: ResolverTrust = 'host'
+  resolveSync(request: HttpRequest): TenantResolveResult {
     const { baseDomain } = getConfig()
     const host = hostnameOf(request)
     if (!host) return ResolverHit.miss()
@@ -169,10 +175,11 @@ export class DomainOrSubdomainResolver implements TenantResolver {
  * field. The config field `requestData` controls which key to read from
  * each source; both default to `tenant_id`.
  */
-export class RequestDataResolver implements TenantResolver {
+export class RequestDataResolver extends SyncTenantResolver {
   readonly name = 'request-data'
-  readonly contractVersion = RESOLVER_CONTRACT_VERSION
-  resolve(request: HttpRequest): TenantResolveResult {
+  // Client-controlled: reads a query-string or request-body field.
+  readonly trust: ResolverTrust = 'client'
+  resolveSync(request: HttpRequest): TenantResolveResult {
     const cfg = getConfig().requestData ?? {}
     const queryKey = cfg.queryKey ?? 'tenant_id'
     const bodyKey = cfg.bodyKey ?? 'tenant_id'

@@ -131,20 +131,26 @@ const tenant = await request.tenant({ allowInactive: true })
 
 ## Custom resolvers
 
-Implement the `TenantResolver` contract. A resolver declares its `name`, a
-`contractVersion`, and a `resolve()` that returns a `ResolverHit`:
+Extend `SyncTenantResolver`: declare a `name`, a `trust`, and a `resolveSync()`
+that returns a `ResolverHit`. The base supplies the current `contractVersion` and
+an async-compatible `resolve()` that forwards to `resolveSync`, so your resolver
+is eligible for the routing chain by construction (the chain requires a
+synchronous entry point — a purely async resolver is refused at boot).
 
 ```ts
 import {
-  TenantResolver,
+  SyncTenantResolver,
   ResolverHit,
-  RESOLVER_CONTRACT_VERSION,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 
-class HeaderTokenResolver implements TenantResolver {
+class HeaderTokenResolver extends SyncTenantResolver {
   readonly name = 'header-token'
-  readonly contractVersion = RESOLVER_CONTRACT_VERSION
-  resolve(request) {
+  // 'client' (attacker-supplied), 'host', or 'server' — drives the
+  // resolution-safety audit. Omitting it defaults to 'client' (fail-safe), which
+  // trips the IDOR membership-gate nudge; declare 'server' if the id is derived
+  // server-side and cannot be forged.
+  readonly trust = 'client' as const
+  resolveSync(request) {
     const id = decodeTenantFromToken(request.header('authorization'))
     return id ? ResolverHit.id(id) : ResolverHit.miss()
   }

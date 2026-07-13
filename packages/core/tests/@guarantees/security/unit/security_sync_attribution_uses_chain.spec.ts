@@ -7,7 +7,11 @@ import {
   __resetResolverRegistryCacheForTests,
 } from '../../../../src/extensions/request.js'
 import TenantResolverRegistry from '../../../../src/services/resolvers/registry.js'
-import { ResolverHit, type TenantResolver } from '../../../../src/services/resolvers/resolver.js'
+import {
+  RESOLVER_CONTRACT_VERSION,
+  ResolverHit,
+  type TenantResolver,
+} from '../../../../src/services/resolvers/resolver.js'
 import { testConfig } from '../../../helpers/config.js'
 
 /**
@@ -30,8 +34,9 @@ const HEADER_TENANT = '22222222-2222-4222-8222-222222222222'
 /** A custom resolver that always resolves to CHAIN_TENANT, regardless of request. */
 const chainResolver: TenantResolver = {
   name: 'test-chain',
-  contractVersion: 1,
+  contractVersion: RESOLVER_CONTRACT_VERSION,
   resolve: () => ResolverHit.id(CHAIN_TENANT),
+  resolveSync: () => ResolverHit.id(CHAIN_TENANT),
 }
 
 /** Minimal request whose header carries a DIFFERENT (valid) tenant id. */

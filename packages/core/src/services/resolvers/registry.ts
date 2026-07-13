@@ -66,16 +66,32 @@ export default class TenantResolverRegistry {
   }
 
   /**
-   * Replace the resolver chain. Each entry must be a registered resolver
-   * name. Throws if any name is unknown so misconfiguration fails at boot
-   * instead of silently picking the wrong tenant in production.
+   * Replace the resolver chain. Each entry must be a registered resolver name,
+   * AND each resolver must expose `resolveSync` (be synchronous-capable). Both
+   * fail closed at boot rather than silently picking the wrong tenant in
+   * production:
+   *   - an unknown name is a config typo;
+   *   - an async-only resolver (no `resolveSync`) cannot serve the synchronous
+   *     routing/attribution path, so the sync path would skip it and resolve a
+   *     different tenant than the async `request.tenant()` — a split-brain. We
+   *     refuse it here, naming the offender, instead of shipping that divergence.
    */
   setChain(names: string[]): this {
     for (const name of names) {
-      if (!this.#resolvers.has(name)) {
+      const resolver = this.#resolvers.get(name)
+      if (!resolver) {
         throw new Error(
           `TenantResolverRegistry: cannot put unknown resolver "${name}" in the chain. ` +
             `Registered: ${[...this.#resolvers.keys()].join(', ') || '(none)'}`
+        )
+      }
+      if (typeof resolver.resolveSync !== 'function') {
+        throw new Error(
+          `TenantResolverRegistry: resolver "${name}" is async-only (no resolveSync) and ` +
+            `cannot be placed in the routing chain. The synchronous routing/attribution path ` +
+            `(model routing, rate-limit, metrics) would skip it and resolve a different tenant ` +
+            `than request.tenant() — a split-brain. Implement resolveSync(request) (extend ` +
+            `SyncTenantResolver for a purely synchronous resolver) or remove it from the chain.`
         )
       }
     }
@@ -109,22 +125,21 @@ export default class TenantResolverRegistry {
 
   /**
    * Synchronous chain walk for code paths that cannot await, notably
-   * `TenantAdapter`, which has to pick a connection in a sync call. Resolvers
-   * that return a Promise (async-only) are skipped here, since they can't
-   * participate in a synchronous routing decision; the first synchronous hit
-   * wins. All built-in resolvers are synchronous, so a default config behaves
-   * exactly like `resolve()` minus the await.
+   * `TenantAdapter`, rate-limit, and metrics. Calls each resolver's explicit
+   * `resolveSync` — no Promise sniffing — and the first non-undefined hit wins.
+   * A resolver without `resolveSync` is async-only and is skipped here (never
+   * called nor awaited). For a config-wired chain this branch is unreachable:
+   * `setChain` refuses to admit an async-only resolver, so the sync path and the
+   * async `resolve()` agree on the tenant. The skip is the backstop for the one
+   * remaining way in — a post-boot `register(name, { override: true })` that
+   * swaps a chained resolver for an async-only one without re-running setChain.
    */
   resolveSync(request: HttpRequest): TenantResolveResult {
     for (const name of this.#chain) {
       const resolver = this.#resolvers.get(name)
-      if (!resolver) continue
-      const result = resolver.resolve(request)
-      if (result !== null && typeof (result as { then?: unknown })?.then === 'function') {
-        // Async resolver: can't be used on the synchronous path. Skip it.
-        continue
-      }
-      if (result !== undefined) return result as TenantResolveResult
+      if (typeof resolver?.resolveSync !== 'function') continue
+      const result = resolver.resolveSync(request)
+      if (result !== undefined) return result
     }
     return undefined
   }
