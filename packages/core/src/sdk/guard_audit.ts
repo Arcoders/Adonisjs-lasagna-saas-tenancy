@@ -97,6 +97,16 @@ export interface GuardCountersSnapshot<TId extends string = string> {
 export interface GuardEmitOptions {
   readonly tenantId?: string | null
   readonly metadata?: Readonly<Record<string, string | number | boolean | null>>
+  /**
+   * Whether to broadcast the fire-and-forget `IsthmusGuardTripped` event.
+   * Defaults to true. Set false to record the trip on the counters (and the
+   * per-tenant metric bridge) WITHOUT dispatching an event — for a high-volume,
+   * lower-stakes degrade signal that belongs on a counter you alert on, not a
+   * per-event broadcast. A count-only trip touches no dispatch window, so it can
+   * never consume its severity's dispatch budget and crowd out a co-severity
+   * guard's events.
+   */
+  readonly dispatch?: boolean
 }
 
 export type GuardDispatcher = (payload: IsthmusGuardTrippedPayload) => Promise<void>
@@ -136,9 +146,11 @@ export interface GuardAuditInstance<TId extends string> {
   /**
    * Record a guard trip: bump the counters, bridge the per-tenant metric (if
    * configured), then dispatch the public `IsthmusGuardTripped` event
-   * (best-effort, rate-limited, fire-and-forget). Synchronous and it NEVER
-   * throws. Call it on the line BEFORE the guard's throw, never after. Must not
-   * read config: config-phase guards trip before the app exists.
+   * (best-effort, rate-limited, fire-and-forget) unless `options.dispatch` is
+   * false, in which case the trip is recorded on the counters but no event is
+   * broadcast. Synchronous and it NEVER throws. Call it on the line BEFORE the
+   * guard's throw, never after. Must not read config: config-phase guards trip
+   * before the app exists.
    */
   emit(id: TId, options?: GuardEmitOptions): void
   /** Immutable counter snapshot. Builds fresh arrays per call. */
@@ -225,6 +237,10 @@ export function createGuardAudit<TId extends string>(
           .then(() => sink(tenantId, metricName, 1))
           .catch(() => {})
       }
+
+      // Count-only trip: fully recorded above (counters + metric bridge) but
+      // never broadcast, so it touches no dispatch window and crowds out nothing.
+      if (emitOptions.dispatch === false) return
 
       if (!allow(entry.severity, Date.now())) {
         bump(droppedCounts, `${entry.severity} rate_limited`)

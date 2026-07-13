@@ -137,6 +137,7 @@ export type GuardDispatcher = (payload: IsthmusGuardTrippedPayload) => Promise<v
 
 // @public (undocumented)
 export interface GuardEmitOptions {
+    readonly dispatch?: boolean;
     // (undocumented)
     readonly metadata?: Readonly<Record<string, string | number | boolean | null>>;
     // (undocumented)
