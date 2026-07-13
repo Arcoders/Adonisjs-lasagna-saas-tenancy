@@ -88,27 +88,14 @@ export type TenantResolverStrategy =
   | 'request-data'
 
 /**
- * Controls how `TenantAdapter` routes a model query when there is no active
- * tenancy context (no `request.tenant()`/guard has run and no
- * `tenancy.run()` scope is open).
+ * Tuning for the tenant resolution path (host-trust allowlist and the optional
+ * per-process resolution cache). Model queries with no active tenancy context
+ * (no `request.tenant()`/guard has run and no `tenancy.run()` scope is open)
+ * always route through the SAME chain-aware authority the request path uses, so
+ * custom and domain-based resolvers stay consistent; there is no separate legacy
+ * switch to opt into.
  */
 export interface ResolverConfig {
-  /**
-   *  - `false` (default): the adapter consults the resolver chain synchronously
-   *    (`resolveSync`) and, in the HTTP path, trusts the id already resolved by
-   *    `request.tenant()` (the package seeds the tenant log context at boot so
-   *    `tenancy.currentId()` reflects the guard). This makes custom and
-   *    domain-based resolvers route model queries consistently. Async-only
-   *    resolvers are skipped on the synchronous routing path.
-   *  - `true`: restores the historical 0.x behavior. The adapter uses only the
-   *    built-in `resolverStrategy` switch on this fallback. Custom resolvers
-   *    registered in `resolverChain` are NOT consulted for model-query routing,
-   *    and a custom-domain resolver cannot route a raw model query.
-   *
-   * Defaults to `false` as of 1.0 (was `true` in 0.x). Set it to `true` only if
-   * you depended on the old `resolverStrategy`-only fallback.
-   */
-  legacyAdapterFallback?: boolean
   /**
    * Allowlist of host suffixes the host-based resolvers (`subdomain`,
    * `domain-or-subdomain`) and the custom-domain middleware will accept. When

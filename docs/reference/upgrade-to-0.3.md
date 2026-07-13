@@ -10,8 +10,9 @@ Three things change in `0.3.0`, and all are mechanical:
 1. The optional satellites (billing, SSO, the admin REST API, backup/clone) moved
    out of the core into their own packages. You install the ones you use and
    update a handful of imports.
-2. `resolver.legacyAdapterFallback` now defaults to `false`, so raw model queries
-   that run outside an active tenant context route through the resolver chain.
+2. Tenant resolution is unified behind the resolver chain: a raw model query that
+   runs outside an active tenant context resolves its id through the same chain
+   `request.tenant()` uses, and every resolver returns a canonical UUID v4.
 3. Several surfaces flip to their safe posture by default: `/metrics` is
    fail-closed, custom domains are strict, and `request.tenant()` rejects
    suspended/deleted tenants on its own. Each has a one-line opt-out if you
@@ -175,26 +176,23 @@ events themselves are unchanged.
 
 ## 3. Check the resolver default
 
-`resolver.legacyAdapterFallback` now defaults to `false`. When a raw model query
-runs **outside** an active tenant context (no `request.tenant()`/guard has run and
-no `tenancy.run()` scope is open), `TenantAdapter` resolves the tenant id through
-the resolver chain synchronously instead of the `resolverStrategy`-only switch.
+Tenant resolution has one authority now: the resolver chain. When a raw model
+query runs **outside** an active tenant context (no `request.tenant()`/guard has
+run and no `tenancy.run()` scope is open), `TenantAdapter` walks that same chain
+synchronously instead of a separate `resolverStrategy`-only switch, so a custom
+`resolverChain` routes those fallback queries too. There is no
+`legacyAdapterFallback` flag to opt out of.
 
 You are **not** affected if you use a single built-in `resolverStrategy` with no
-custom `resolverChain`: the chain `[resolverStrategy]` resolves to the same id as
-the old switch, and HTTP requests resolve through the guard either way.
+custom `resolverChain`: the chain `[resolverStrategy]` resolves the same id, and
+HTTP requests resolve through the guard either way.
 
-You **are** affected if you registered a custom `resolverChain` whose result
-differs from `resolverStrategy` and you query tenant models outside the request
-guard. That is the case 1.0 fixes. To keep the old behavior:
-
-```ts
-export default defineConfig({
-  resolver: {
-    legacyAdapterFallback: true, // restore the 0.x resolverStrategy-only fallback
-  },
-})
-```
+Resolution also enforces one UUID policy at the border: a `header`, `subdomain`,
+or `path` value that is not a canonical UUID v4 falls through (a later resolver in
+the chain can still match) instead of forging an id, and a mixed-case UUID is
+canonicalized to lowercase so it maps to one connection, one resolution-cache
+entry, and one rate-limit bucket. If you attributed tenants by opaque non-UUID
+ids, move to UUID v4 tenant ids; the package already required them downstream.
 
 See [Tenant identification](/guides/tenant-identification) for the full routing
 model.

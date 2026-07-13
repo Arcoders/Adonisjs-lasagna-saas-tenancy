@@ -2,6 +2,7 @@ import { test } from '@japa/runner'
 import { HttpContext } from '@adonisjs/core/http'
 import TenantAdapter from '../../../../src/models/adapters/tenant_adapter.js'
 import MissingTenantHeaderException from '../../../../src/exceptions/missing_tenant_header_exception.js'
+import { __resetResolverRegistryCacheForTests } from '../../../../src/extensions/request.js'
 import { setConfig } from '../../../../src/config.js'
 import { testConfig } from '../../../helpers/config.js'
 import IsolationDriverRegistry from '../../../../src/services/isolation/registry.js'
@@ -570,20 +571,25 @@ test.group('TenantAdapter — ContextSeal (Isthmus) deep behavior', (group) => {
   })
 })
 
-test.group('TenantAdapter — legacyAdapterFallback flag (B1)', (group) => {
+test.group('TenantAdapter — model-query routing via the resolver chain (B1)', (group) => {
   let originalGet: typeof HttpContext.get
 
   group.each.setup(() => {
+    // Reset the module-level registry cache so the "no registry wired in" test
+    // deterministically rebuilds the chain from config rather than reusing a chain
+    // another spec seeded via setResolverRegistry.
+    __resetResolverRegistryCacheForTests()
     originalGet = HttpContext.get
     ;(HttpContext as any).get = () => null
   })
 
   group.each.teardown(() => {
     ;(HttpContext as any).get = originalGet
+    __resetResolverRegistryCacheForTests()
   })
 
   // A custom resolver that reads a non-standard header and is registered in the
-  // chain. The legacy strategy switch never knows about it.
+  // chain — the kind of resolver a plain `resolverStrategy` switch never knew about.
   function customChain() {
     const reg = new TenantResolverRegistry()
     reg.register({
@@ -598,14 +604,8 @@ test.group('TenantAdapter — legacyAdapterFallback flag (B1)', (group) => {
     return reg
   }
 
-  test('legacyAdapterFallback:false routes a model query via the custom resolver chain', ({
-    assert,
-  }) => {
-    setConfig({
-      ...testConfig,
-      resolverStrategy: 'header',
-      resolver: { legacyAdapterFallback: false },
-    })
+  test('routes a model query via the injected custom resolver chain', ({ assert }) => {
+    setConfig({ ...testConfig, resolverStrategy: 'header' })
     ;(HttpContext as any).get = () => ({
       request: makeRequest({ headers: { 'x-custom-tenant': UUID1 } }),
     })
@@ -617,39 +617,14 @@ test.group('TenantAdapter — legacyAdapterFallback flag (B1)', (group) => {
     assert.equal(
       db.lastCall,
       `tenant_${UUID1}`,
-      'with the flag off, the custom resolver in the chain must route the query'
+      'the custom resolver in the chain must route the query'
     )
   })
 
-  test('legacyAdapterFallback:true (opt-in) ignores the custom chain and uses resolverStrategy', ({
-    assert,
-  }) => {
-    setConfig({
-      ...testConfig,
-      resolverStrategy: 'header',
-      resolver: { legacyAdapterFallback: true },
-    })
-    // Both headers present: legacy reads x-tenant-id, the custom chain would
-    // read x-custom-tenant. The legacy id must win.
-    ;(HttpContext as any).get = () => ({
-      request: makeRequest({ headers: { 'x-tenant-id': UUID1, 'x-custom-tenant': UUID2 } }),
-    })
-    const db = makeMockDb()
-    const adapter = new TenantAdapter(db as any, makeRegistry(), customChain())
-
-    adapter.modelConstructorClient({} as any)
-
-    assert.equal(
-      db.lastCall,
-      `tenant_${UUID1}`,
-      'the historical path must keep using resolverStrategy, not the custom chain'
-    )
-  })
-
-  test('no resolver block uses the unified chain (flag defaults to false in 1.0)', ({ assert }) => {
+  test('the custom resolver in the chain wins over the header strategy', ({ assert }) => {
     setConfig({ ...testConfig, resolverStrategy: 'header' })
-    // Both headers present: the 1.0 default consults the custom chain
-    // (x-custom-tenant), not the legacy resolverStrategy switch (x-tenant-id).
+    // Both headers present: the chain consults the custom resolver
+    // (x-custom-tenant), never a chain-blind resolverStrategy switch (x-tenant-id).
     ;(HttpContext as any).get = () => ({
       request: makeRequest({ headers: { 'x-tenant-id': UUID1, 'x-custom-tenant': UUID2 } }),
     })
@@ -661,20 +636,17 @@ test.group('TenantAdapter — legacyAdapterFallback flag (B1)', (group) => {
     assert.equal(
       db.lastCall,
       `tenant_${UUID2}`,
-      'the 1.0 default routes via the resolver chain, so the custom resolver wins'
+      'routing goes through the resolver chain, so the custom resolver wins'
     )
   })
 
-  test('legacyAdapterFallback:false with no resolvers passed falls back to legacy resolution', ({
+  test('with no registry wired in, delegates to the module authority built from config', ({
     assert,
   }) => {
-    // Defensive: the adapter only consults the chain when a registry was wired
-    // in. Without one, it must still resolve via the legacy strategy.
-    setConfig({
-      ...testConfig,
-      resolverStrategy: 'header',
-      resolver: { legacyAdapterFallback: false },
-    })
+    // The adapter uses its injected registry when present; without one it delegates
+    // to the module-level `resolveTenantId`, which builds the chain from config
+    // (here a solitary `resolverStrategy: 'header'`) — one authority, no legacy switch.
+    setConfig({ ...testConfig, resolverStrategy: 'header' })
     ;(HttpContext as any).get = () => ({
       request: makeRequest({ headers: { 'x-tenant-id': UUID1 } }),
     })

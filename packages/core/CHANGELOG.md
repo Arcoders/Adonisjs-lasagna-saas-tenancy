@@ -76,13 +76,15 @@ a minor. `1.0.0` is earned, not declared. The five satellite packages ship
     moves to `from '@adonisjs-lasagna/billing'`. The tenant-lifecycle hook phases
     (`backup`/`restore`/`clone`) and the `TenantBackedUp` / `TenantRestored` /
     `TenantCloned` events also stay in core.
-- **`resolver.legacyAdapterFallback` now defaults to `false`.** When a model
-  query runs outside an active tenant context, `TenantAdapter` resolves the id
-  through the resolver chain synchronously (`resolveSync`) instead of the
-  `resolverStrategy`-only switch. Apps using a single built-in strategy are
-  unaffected; apps that relied on the old fallback (a custom `resolverChain`
-  whose result differs from `resolverStrategy`) set
-  `resolver: { legacyAdapterFallback: true }` to restore it.
+- **Tenant resolution unified behind the resolver chain.** A model query outside
+  an active tenant context resolves its id through the same chain
+  `request.tenant()` uses (`resolveSync`), not a separate `resolverStrategy`-only
+  switch; the `legacyAdapterFallback` opt-out is removed. Every resolver enforces
+  one UUID policy at the border: a non-UUID `header`/`subdomain`/`path` value falls
+  through instead of forging an id, and a mixed-case UUID is canonicalized to
+  lowercase (one connection, one cache entry, one rate-limit bucket). Apps using a
+  single built-in strategy are unaffected; apps that attributed tenants by opaque
+  non-UUID ids move to UUID v4 tenant ids.
 - **The admin API is fail-closed.** `multitenancyAdminRoutes` now throws at boot
   unless you pass `middleware`, or `middleware: false` to mount it public on
   purpose. (Shipped behind the extraction; see `@adonisjs-lasagna/admin`.)

@@ -234,10 +234,10 @@ export default class MultitenancyProvider {
     wireResolverChain(resolvers, config)
 
     // Seed the resolver registry into the request module cache so the chain-aware
-    // resolveTenantIdSync (rate-limit, metrics attribution) has a GUARANTEED
-    // synchronous hit from the first request. Without this, a sync call that lands
-    // before any async resolveTenant() falls through to the chain-blind legacy
-    // switch and attributes the bucket / metrics row to the wrong tenant (TRES-01).
+    // resolveTenantId (rate-limit, metrics attribution) has a GUARANTEED synchronous
+    // hit from the first request without rebuilding the chain from config on the hot
+    // path. Attribution then follows the SAME chain routing serves — the fix for the
+    // cross-tenant rate-limit/metrics misattribution (TRES-01).
     setResolverRegistry(resolvers)
 
     // Resolution-safety signal. Both the cross-tenant IDOR posture (a
@@ -256,15 +256,12 @@ export default class MultitenancyProvider {
       })
     }
 
-    // When the unified resolution path is enabled, seed the tenant log context
-    // into `tenancy` so `tenancy.currentId()` reflects the HTTP guard's context
-    // immediately (instead of depending on whether a queue job ran first). This
-    // is what lets the adapter route a model query with the same id that
-    // `request.tenant()` resolved, including domain-based resolvers.
-    if (config.resolver?.legacyAdapterFallback !== true) {
-      const logCtx = await this.app.container.make(TenantLogContext)
-      primeTenancy(logCtx)
-    }
+    // Seed the tenant log context into `tenancy` so `tenancy.currentId()` reflects
+    // the HTTP guard's context immediately (instead of depending on whether a queue
+    // job ran first). This is what lets the adapter route a model query with the
+    // same id that `request.tenant()` resolved, including domain-based resolvers.
+    const logCtx = await this.app.container.make(TenantLogContext)
+    primeTenancy(logCtx)
 
     const hooks = await this.app.container.make(HookRegistry)
     hooks.loadDeclarative(config.hooks)

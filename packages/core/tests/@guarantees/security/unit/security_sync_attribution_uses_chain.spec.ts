@@ -3,7 +3,6 @@ import type { HttpRequest } from '@adonisjs/core/http'
 import { setConfig } from '../../../../src/config.js'
 import {
   resolveTenantId,
-  resolveTenantIdSync,
   setResolverRegistry,
   __resetResolverRegistryCacheForTests,
 } from '../../../../src/extensions/request.js'
@@ -12,17 +11,17 @@ import { ResolverHit, type TenantResolver } from '../../../../src/services/resol
 import { testConfig } from '../../../helpers/config.js'
 
 /**
- * TRES-01 (the one CRITICAL live bug). Rate-limit buckets and the
- * `backoffice.tenant_metrics` rows used to attribute the tenant via the public
- * `resolveTenantId` — the v1 strategy switch, which reads `resolverStrategy`
- * ALONE and never consults the resolver chain. On ANY `resolverChain` deployment
- * that attributes to a DIFFERENT tenant than routing serves: a silent cross-tenant
- * rate-limit bypass and corrupted metering.
+ * TRES-01 → TRES-02 (the one CRITICAL live bug, now closed at the root).
+ * Rate-limit buckets and the `backoffice.tenant_metrics` rows once attributed the
+ * tenant via a chain-BLIND `resolverStrategy` switch, while routing used the
+ * resolver chain — so on ANY `resolverChain` deployment attribution landed on a
+ * DIFFERENT tenant than routing served (a silent cross-tenant rate-limit bypass and
+ * corrupted metering).
  *
- * The fix is one chain-aware `resolveTenantIdSync` (seeded from boot) that both
- * middlewares now use, so attribution follows the SAME authority as routing. These
- * specs pin the divergence: the chain-aware resolver and the legacy switch
- * disagree, and the sync path must follow the chain.
+ * TRES-02 deleted that switch: `resolveTenantId` — the one both middlewares use — IS
+ * the chain-aware authority now. These specs pin that attribution follows the chain,
+ * and that before the registry is seeded it BUILDS the chain from config rather than
+ * falling to a divergent legacy path.
  */
 
 const CHAIN_TENANT = '11111111-1111-4111-8111-111111111111'
@@ -35,7 +34,7 @@ const chainResolver: TenantResolver = {
   resolve: () => ResolverHit.id(CHAIN_TENANT),
 }
 
-/** Minimal request whose header carries a DIFFERENT (safe) tenant id. */
+/** Minimal request whose header carries a DIFFERENT (valid) tenant id. */
 function requestWithHeader(value: string): HttpRequest {
   return { header: () => value } as unknown as HttpRequest
 }
@@ -47,46 +46,34 @@ function seedChain(): void {
   setResolverRegistry(registry)
 }
 
-test.group('TRES-01 — sync attribution follows the chain, not the legacy switch', (group) => {
+test.group('TRES-02 — attribution follows the resolver chain, not the raw header', (group) => {
   group.each.teardown(() => {
     __resetResolverRegistryCacheForTests()
   })
 
-  test('resolveTenantIdSync returns the CHAIN id while the legacy resolveTenantId returns the header id', ({
+  test('the seeded chain wins over the header the strategy switch would have read', ({
     assert,
   }) => {
     setConfig({ ...testConfig, resolverStrategy: 'header', tenantHeaderKey: 'x-tenant-id' })
     seedChain()
     const req = requestWithHeader(HEADER_TENANT)
 
-    // The fix: attribution follows the tenant routing actually serves.
-    assert.equal(resolveTenantIdSync(req), CHAIN_TENANT)
-    // The bug it closes: the chain-blind switch attributes to a DIFFERENT tenant.
+    // Attribution follows the tenant routing actually serves (the chain resolver),
+    // not the header a chain-blind `resolverStrategy: 'header'` switch would read.
+    assert.equal(resolveTenantId(req), CHAIN_TENANT)
+    assert.notEqual(resolveTenantId(req), HEADER_TENANT)
+  })
+
+  test('before the registry is seeded it builds the chain from config (no legacy switch)', ({
+    assert,
+  }) => {
+    setConfig({ ...testConfig, resolverStrategy: 'header', tenantHeaderKey: 'x-tenant-id' })
+    __resetResolverRegistryCacheForTests() // no seed: the sync authority rebuilds from config
+    const req = requestWithHeader(HEADER_TENANT)
+
+    // A solitary `resolverStrategy: 'header'` resolves the header UUID through the
+    // real HeaderResolver — the SAME code the seeded chain runs — never a divergent
+    // path. HEADER_TENANT is a valid UUID, so it passes the resolver's UUID border.
     assert.equal(resolveTenantId(req), HEADER_TENANT)
-    assert.notEqual(resolveTenantIdSync(req), resolveTenantId(req))
-  })
-
-  test('legacyAdapterFallback opts the sync path back to the strategy switch', ({ assert }) => {
-    setConfig({
-      ...testConfig,
-      resolverStrategy: 'header',
-      tenantHeaderKey: 'x-tenant-id',
-      resolver: { legacyAdapterFallback: true },
-    })
-    seedChain()
-    const req = requestWithHeader(HEADER_TENANT)
-
-    // With the documented opt-out, the sync path matches the adapter's own opt-out.
-    assert.equal(resolveTenantIdSync(req), HEADER_TENANT)
-  })
-
-  test('before the registry is seeded (pre-boot / unbooted unit test) it falls back to the switch', ({
-    assert,
-  }) => {
-    setConfig({ ...testConfig, resolverStrategy: 'header', tenantHeaderKey: 'x-tenant-id' })
-    __resetResolverRegistryCacheForTests() // no seed
-    const req = requestWithHeader(HEADER_TENANT)
-
-    assert.equal(resolveTenantIdSync(req), HEADER_TENANT)
   })
 })

@@ -2,7 +2,21 @@ import { test } from '@japa/runner'
 import RateLimitMiddleware from '../../../../src/middleware/rate_limit_middleware.js'
 import RateLimitUnavailableException from '../../../../src/exceptions/rate_limit_unavailable_exception.js'
 import TooManyRequestsException from '../../../../src/exceptions/too_many_requests_exception.js'
+import {
+  setResolverRegistry,
+  __resetResolverRegistryCacheForTests,
+} from '../../../../src/extensions/request.js'
+import TenantResolverRegistry from '../../../../src/services/resolvers/registry.js'
+import { ResolverHit, type TenantResolver } from '../../../../src/services/resolvers/resolver.js'
 import { setupTestConfig } from '../../../helpers/config.js'
+
+/** Seed a boot-like resolver chain of one custom resolver returning `id`. */
+function seedResolver(name: string, resolve: TenantResolver['resolve']): void {
+  const registry = new TenantResolverRegistry()
+  registry.register({ name, contractVersion: 1, resolve })
+  registry.setChain([name])
+  setResolverRegistry(registry)
+}
 
 function makeRequest(headers: Record<string, string> = {}) {
   const lower: Record<string, string> = {}
@@ -293,8 +307,43 @@ test.group('RateLimitMiddleware — tenant attribution (P3-2)', (group) => {
   group.each.setup(() => {
     setupTestConfig()
   })
+  group.each.teardown(() => {
+    __resetResolverRegistryCacheForTests()
+  })
 
   const opts = { limit: 10, windowSeconds: 60, bypassInTestEnv: true }
+
+  // TRES-02: the bucket must be keyed by the tenant the resolver CHAIN serves, not
+  // the raw header. A chain-blind regression (keying off `x-tenant-id`) would pass
+  // every other test here but would bucket tenant B's flood under tenant A.
+  test('attributes by the resolver chain, not the raw header', async ({ assert }) => {
+    const served = '11111111-1111-4111-8111-111111111111'
+    const header = '22222222-2222-4222-8222-222222222222'
+    seedResolver('chain-served', () => ResolverHit.id(served))
+    const m = new KeyCapturingRateLimit(undefined)
+    await m.handle(
+      { request: makeRequest({ 'x-tenant-id': header }), response: makeResponse() } as any,
+      async () => {},
+      opts
+    )
+    assert.equal(m.capturedKey, `rl:${served}:127.0.0.1`)
+  })
+
+  // The resolver UUID border only guards the BUILT-IN resolvers; a custom resolver
+  // can mint any id. The middleware's own `isSafeIdentifier` seam guard is the last
+  // line of defense: an id carrying ':' must never key a bucket verbatim.
+  test('a custom resolver id carrying ":" degrades to the global bucket (seam guard)', async ({
+    assert,
+  }) => {
+    seedResolver('evil', () => ResolverHit.id('victim:rl:127.0.0.1'))
+    const m = new KeyCapturingRateLimit(undefined)
+    await m.handle(
+      { request: makeRequest(), response: makeResponse() } as any,
+      async () => {},
+      opts
+    )
+    assert.equal(m.capturedKey, 'rl:global:127.0.0.1', 'unsafe custom id must not be keyed verbatim')
+  })
 
   test('prefers the active tenancy context id over the request resolver', async ({ assert }) => {
     const m = new KeyCapturingRateLimit('ctx-tenant')
@@ -308,12 +357,13 @@ test.group('RateLimitMiddleware — tenant attribution (P3-2)', (group) => {
 
   test('falls back to the sync resolver when no tenancy context is active', async ({ assert }) => {
     const m = new KeyCapturingRateLimit(undefined)
+    const tenant = '11111111-1111-4111-8111-111111111111'
     await m.handle(
-      { request: makeRequest({ 'x-tenant-id': 'header-tenant' }), response: makeResponse() } as any,
+      { request: makeRequest({ 'x-tenant-id': tenant }), response: makeResponse() } as any,
       async () => {},
       opts
     )
-    assert.equal(m.capturedKey, 'rl:header-tenant:127.0.0.1')
+    assert.equal(m.capturedKey, `rl:${tenant}:127.0.0.1`)
   })
 
   test("collapses to the shared 'global' bucket only when nothing resolves", async ({ assert }) => {

@@ -1,4 +1,5 @@
 import type { MultitenancyConfig } from '../types/config.js'
+import { canonicalChainNames } from './resolver_chain.js'
 
 /**
  * Resolver strategies that derive the tenant from the request HOST. Under a
@@ -9,11 +10,9 @@ import type { MultitenancyConfig } from '../types/config.js'
 const HOST_STRATEGIES: ReadonlySet<string> = new Set(['subdomain', 'domain-or-subdomain'])
 
 export function resolutionUsesHostStrategy(config: MultitenancyConfig): boolean {
-  const chain =
-    config.resolverChain && config.resolverChain.length > 0
-      ? config.resolverChain
-      : [config.resolverStrategy]
-  return chain.some((name) => typeof name === 'string' && HOST_STRATEGIES.has(name))
+  // Read the ONE canonical chain (built-in or inline-instance names), so this
+  // audit and the boot wiring agree on exactly which resolvers run.
+  return canonicalChainNames(config).some((name) => HOST_STRATEGIES.has(name))
 }
 
 function hasExpectedHostSuffix(config: MultitenancyConfig): boolean {

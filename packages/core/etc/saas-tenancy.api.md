@@ -1101,11 +1101,11 @@ export function writeSecret(plain: string, cls: SecretClass): string;
 // Warnings were encountered during analysis:
 //
 // src/services/quota_service.ts:154:74 - (ae-forgotten-export) The symbol "PlanDefinition" needs to be exported by the entry point index.d.ts
-// src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "run" needs to be exported by the entry point index.d.ts
-// src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "runForRequest" needs to be exported by the entry point index.d.ts
-// src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "currentId" needs to be exported by the entry point index.d.ts
-// src/tenancy.ts:149:21 - (ae-forgotten-export) The symbol "current" needs to be exported by the entry point index.d.ts
-// src/types/config.ts:633:5 - (ae-forgotten-export) The symbol "TenantAnonymizer" needs to be exported by the entry point index.d.ts
+// src/tenancy.ts:147:21 - (ae-forgotten-export) The symbol "run" needs to be exported by the entry point index.d.ts
+// src/tenancy.ts:147:21 - (ae-forgotten-export) The symbol "runForRequest" needs to be exported by the entry point index.d.ts
+// src/tenancy.ts:147:21 - (ae-forgotten-export) The symbol "currentId" needs to be exported by the entry point index.d.ts
+// src/tenancy.ts:147:21 - (ae-forgotten-export) The symbol "current" needs to be exported by the entry point index.d.ts
+// src/types/config.ts:620:5 - (ae-forgotten-export) The symbol "TenantAnonymizer" needs to be exported by the entry point index.d.ts
 
 // (No @packageDocumentation comment for this package)
 

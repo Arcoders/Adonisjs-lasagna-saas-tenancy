@@ -55,7 +55,13 @@ export class HeaderResolver implements TenantResolver {
   resolve(request: HttpRequest): TenantResolveResult {
     const key = getConfig().tenantHeaderKey
     const value = request.header(key)
-    return value ? ResolverHit.id(value) : ResolverHit.miss()
+    // UUID policy at the resolver border: the header is client-controlled, so a
+    // value that is not a canonical tenant id MUST NOT become a hit. It falls
+    // THROUGH (miss) so a later resolver in the chain can still match, and — the
+    // security point — an unsafe value (a `:` that would inject Redis-key
+    // structure into a rate-limit/metrics bucket) never leaves this method as an
+    // id. Only a well-formed UUID v4 passes.
+    return value && isUuidV4(value) ? ResolverHit.id(value) : ResolverHit.miss()
   }
 }
 
@@ -78,19 +84,23 @@ export class SubdomainResolver implements TenantResolver {
     if (host === baseDomain) return ResolverHit.miss()
 
     const suffix = baseDomain.startsWith('.') ? baseDomain : `.${baseDomain}`
+    let label: string | undefined
     if (host.endsWith(suffix)) {
-      const sub = host.slice(0, host.length - suffix.length)
-      return sub ? ResolverHit.id(sub) : ResolverHit.miss()
+      label = host.slice(0, host.length - suffix.length) || undefined
+    } else if (!isProductionNodeEnv()) {
+      // Host doesn't end with baseDomain. In dev we fall back to the leftmost
+      // label so `127.0.0.1.nip.io`-style hosts still resolve. In PRODUCTION we
+      // refuse: accepting an arbitrary off-baseDomain host would let any host
+      // routed to the app pick a tenant from its leftmost label, diluting the
+      // "host must be under baseDomain" invariant.
+      const labels = host.split('.')
+      label = labels.length > 1 ? labels[0] : undefined
     }
-    // Host doesn't end with baseDomain. In dev we fall back to the leftmost
-    // label so `127.0.0.1.nip.io`-style hosts still resolve. In PRODUCTION we
-    // refuse: accepting an arbitrary off-baseDomain host would let any host
-    // routed to the app pick a tenant from its leftmost label, diluting the
-    // "host must be under baseDomain" invariant. (Downstream UUID validation
-    // already blocks non-UUID labels, but don't rely on that alone.)
-    if (isProductionNodeEnv()) return ResolverHit.miss()
-    const labels = host.split('.')
-    return labels.length > 1 ? ResolverHit.id(labels[0]!) : ResolverHit.miss()
+    // UUID policy at the border: the subdomain label becomes a tenant id, so it
+    // must be a canonical UUID v4. A non-UUID label falls through (miss) rather
+    // than returning a hit that only fails a downstream assert; this lets a
+    // fallback resolver in the chain match.
+    return label && isUuidV4(label) ? ResolverHit.id(label) : ResolverHit.miss()
   }
 }
 
@@ -107,7 +117,10 @@ export class PathResolver implements TenantResolver {
     const url = request.url(false)
     if (ignorePaths?.some((p) => url.startsWith(p))) return ResolverHit.miss()
     const segment = url.split('/').find(Boolean)
-    return segment ? ResolverHit.id(segment) : ResolverHit.miss()
+    // UUID policy at the border: the first path segment becomes a tenant id, so
+    // it must be a canonical UUID v4; a non-UUID segment (a route prefix, a slug)
+    // falls through rather than forging an id that fails downstream.
+    return segment && isUuidV4(segment) ? ResolverHit.id(segment) : ResolverHit.miss()
   }
 }
 
@@ -136,7 +149,11 @@ export class DomainOrSubdomainResolver implements TenantResolver {
     const suffix = baseDomain.startsWith('.') ? baseDomain : `.${baseDomain}`
     if (host !== baseDomain && host.endsWith(suffix)) {
       const sub = host.slice(0, host.length - suffix.length)
-      if (sub) return ResolverHit.id(sub)
+      // UUID policy at the border: only a canonical UUID label is a subdomain id
+      // hit. A non-UUID label under baseDomain falls through to the custom-domain
+      // branch below (`findByDomain(host)`), the resolver's own designed
+      // fallback, rather than forging an id that fails a downstream assert.
+      if (sub && isUuidV4(sub)) return ResolverHit.id(sub)
     }
     // Not a subdomain of baseDomain, so it must be a custom domain. Defer
     // resolution to the repository (`findByDomain`) via the registry.

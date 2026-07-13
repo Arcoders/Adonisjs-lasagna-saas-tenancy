@@ -1,4 +1,5 @@
 import type { HttpRequest } from '@adonisjs/core/http'
+import { isUuidV4 } from '../isolation/identifier.js'
 
 /**
  * The tenant-resolver contract version: the shape of {@link TenantResolver}. A
@@ -60,7 +61,13 @@ export type TenantResolveResult = TenantHit | undefined
  */
 export const ResolverHit = {
   id(tenantId: string): TenantHit {
-    return { type: 'id', tenantId }
+    // A UUID is case-insensitive, so `ABC…` and `abc…` name the SAME tenant.
+    // Canonicalize to lowercase here, at the one place every resolver mints an
+    // id hit, so a mixed-case identifier collapses onto ONE resolution-cache
+    // entry, ONE rate-limit bucket, and ONE metrics row instead of forging a
+    // parallel set. Gated on `isUuidV4` so an opaque non-UUID id from a custom
+    // resolver (which may be case-significant) passes through untouched.
+    return { type: 'id', tenantId: isUuidV4(tenantId) ? tenantId.toLowerCase() : tenantId }
   },
   domain(domain: string): TenantHit {
     return { type: 'domain', domain }

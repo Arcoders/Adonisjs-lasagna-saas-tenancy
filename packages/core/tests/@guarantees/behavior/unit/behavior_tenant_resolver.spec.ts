@@ -1,7 +1,25 @@
 import { test } from '@japa/runner'
-import { resolveTenantId } from '../../../../src/extensions/request.js'
+import {
+  resolveTenantId,
+  __resetResolverRegistryCacheForTests,
+} from '../../../../src/extensions/request.js'
 import { setConfig } from '../../../../src/config.js'
 import { testConfig } from '../../../helpers/config.js'
+
+/**
+ * `resolveTenantId` is the package's single chain-aware request→tenant-id
+ * authority (TRES-02: the legacy `resolverStrategy` switch is gone). With no
+ * registry seeded it builds the chain from config on demand, so a solitary
+ * `resolverStrategy` still resolves through the REAL resolvers — including their
+ * UUID border (F7: a non-UUID header/subdomain/path value falls through instead
+ * of forging an id) and lowercase canonicalization (F8: a mixed-case UUID
+ * collapses onto one id). Each test resets the module cache so it builds from its
+ * own config rather than a chain another spec seeded.
+ */
+
+const UUID = '11111111-1111-4111-8111-111111111111'
+const UUID_UPPER = 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA'
+const UUID_UPPER_CANON = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 
 function makeRequest(opts: { headers?: Record<string, string>; url?: string } = {}) {
   const headers: Record<string, string> = {}
@@ -16,105 +34,113 @@ function makeRequest(opts: { headers?: Record<string, string>; url?: string } = 
 }
 
 test.group('resolveTenantId — header strategy', (group) => {
-  group.each.setup(() => setConfig({ ...testConfig, resolverStrategy: 'header' }))
-
-  test('returns tenant id from configured header', ({ assert }) => {
-    const req = makeRequest({ headers: { 'x-tenant-id': 'tenant-abc' } })
-    assert.equal(resolveTenantId(req), 'tenant-abc')
+  group.each.setup(() => {
+    __resetResolverRegistryCacheForTests()
+    setConfig({ ...testConfig, resolverStrategy: 'header' })
   })
 
-  test('returns undefined when header is absent', ({ assert }) => {
-    const req = makeRequest()
-    assert.isUndefined(resolveTenantId(req))
+  test('returns a canonical UUID from the configured header', ({ assert }) => {
+    const req = makeRequest({ headers: { 'x-tenant-id': UUID } })
+    assert.equal(resolveTenantId(req), UUID)
   })
 
-  test('reads custom header key from config', ({ assert }) => {
+  test('returns undefined when the header is absent', ({ assert }) => {
+    assert.isUndefined(resolveTenantId(makeRequest()))
+  })
+
+  test('reads a custom header key from config', ({ assert }) => {
+    __resetResolverRegistryCacheForTests()
     setConfig({ ...testConfig, resolverStrategy: 'header', tenantHeaderKey: 'x-workspace-id' })
-    const req = makeRequest({ headers: { 'x-workspace-id': 'workspace-123' } })
-    assert.equal(resolveTenantId(req), 'workspace-123')
+    const req = makeRequest({ headers: { 'x-workspace-id': UUID } })
+    assert.equal(resolveTenantId(req), UUID)
   })
 
-  // SECURITY (#2/#4/#14): the header is client-controlled. A value that is not a
-  // SAFE_IDENT (e.g. carries the ':' Redis-key delimiter) must resolve to "no
-  // tenant" (fail-closed) rather than flow downstream into a metric/rate-limit
-  // key where it would inject structure or forge another tenant's attribution.
-  test('rejects a header carrying the ":" key delimiter (fail-closed)', ({ assert }) => {
-    const req = makeRequest({ headers: { 'x-tenant-id': 'victim:2026-06-28:requests' } })
-    assert.isUndefined(resolveTenantId(req))
+  // F8: a UUID is case-insensitive, so an upper/mixed-case header collapses onto
+  // ONE canonical id — one resolution-cache entry, one rate-limit bucket, one row.
+  test('canonicalizes a mixed-case UUID header to lowercase', ({ assert }) => {
+    const req = makeRequest({ headers: { 'x-tenant-id': UUID_UPPER } })
+    assert.equal(resolveTenantId(req), UUID_UPPER_CANON)
   })
 
-  test('rejects headers with whitespace, quotes, or other unsafe characters', ({ assert }) => {
-    for (const bad of ['a b', 'a"b', 'a/b', '../etc', 'a;b', '*']) {
+  // F7 / SECURITY (#2/#4/#14): the header is client-controlled. A value that is
+  // not a canonical UUID — an opaque slug, or a string carrying the ':' Redis-key
+  // delimiter — must resolve to "no tenant" (fall through) rather than flow
+  // downstream into a metric/rate-limit key where it would inject structure or
+  // forge another tenant's attribution.
+  test('a non-UUID header falls through to no tenant', ({ assert }) => {
+    for (const bad of ['tenant-abc', 'acme_prod-01', 'victim:2026-06-28:requests', 'a b', 'a"b']) {
       const req = makeRequest({ headers: { 'x-tenant-id': bad } })
       assert.isUndefined(resolveTenantId(req), `header "${bad}" must not resolve a tenant`)
     }
   })
-
-  test('still accepts a canonical UUID and opaque alphanumeric ids', ({ assert }) => {
-    const uuid = makeRequest({ headers: { 'x-tenant-id': '11111111-1111-4111-8111-111111111111' } })
-    assert.equal(resolveTenantId(uuid), '11111111-1111-4111-8111-111111111111')
-    const opaque = makeRequest({ headers: { 'x-tenant-id': 'acme_prod-01' } })
-    assert.equal(resolveTenantId(opaque), 'acme_prod-01')
-  })
 })
 
 test.group('resolveTenantId — subdomain strategy', (group) => {
-  group.each.setup(() =>
+  group.each.setup(() => {
+    __resetResolverRegistryCacheForTests()
     setConfig({ ...testConfig, resolverStrategy: 'subdomain', baseDomain: 'example.com' })
-  )
-
-  test('extracts subdomain when host ends with baseDomain', ({ assert }) => {
-    const req = makeRequest({ headers: { host: 'acme.example.com' } })
-    assert.equal(resolveTenantId(req), 'acme')
   })
 
-  test('supports baseDomain with leading dot', ({ assert }) => {
+  test('extracts a UUID subdomain when the host ends with baseDomain', ({ assert }) => {
+    const req = makeRequest({ headers: { host: `${UUID}.example.com` } })
+    assert.equal(resolveTenantId(req), UUID)
+  })
+
+  test('supports baseDomain with a leading dot', ({ assert }) => {
+    __resetResolverRegistryCacheForTests()
     setConfig({ ...testConfig, resolverStrategy: 'subdomain', baseDomain: '.example.com' })
+    const req = makeRequest({ headers: { host: `${UUID}.example.com` } })
+    assert.equal(resolveTenantId(req), UUID)
+  })
+
+  test('strips the port before extracting the subdomain', ({ assert }) => {
+    const req = makeRequest({ headers: { host: `${UUID}.example.com:3333` } })
+    assert.equal(resolveTenantId(req), UUID)
+  })
+
+  test('canonicalizes a mixed-case UUID subdomain to lowercase', ({ assert }) => {
+    const req = makeRequest({ headers: { host: `${UUID_UPPER}.example.com` } })
+    assert.equal(resolveTenantId(req), UUID_UPPER_CANON)
+  })
+
+  // F7: the label becomes a tenant id, so a non-UUID subdomain (a marketing
+  // label, a typo) falls through rather than forging an id that fails downstream.
+  test('a non-UUID subdomain label falls through', ({ assert }) => {
     const req = makeRequest({ headers: { host: 'acme.example.com' } })
-    assert.equal(resolveTenantId(req), 'acme')
-  })
-
-  test('strips port from host before extracting subdomain', ({ assert }) => {
-    const req = makeRequest({ headers: { host: 'acme.example.com:3333' } })
-    assert.equal(resolveTenantId(req), 'acme')
-  })
-
-  test('returns undefined when host equals baseDomain (no subdomain)', ({ assert }) => {
-    const req = makeRequest({ headers: { host: 'example.com' } })
     assert.isUndefined(resolveTenantId(req))
   })
 
-  test('falls back to first label when host does not match baseDomain', ({ assert }) => {
-    const req = makeRequest({ headers: { host: 'acme.other.com' } })
-    assert.equal(resolveTenantId(req), 'acme')
+  test('returns undefined when the host equals baseDomain (no subdomain)', ({ assert }) => {
+    assert.isUndefined(resolveTenantId(makeRequest({ headers: { host: 'example.com' } })))
   })
 
-  test('returns undefined for single-label host (e.g. localhost)', ({ assert }) => {
-    const req = makeRequest({ headers: { host: 'localhost' } })
-    assert.isUndefined(resolveTenantId(req))
+  test('returns undefined for a single-label host (e.g. localhost)', ({ assert }) => {
+    assert.isUndefined(resolveTenantId(makeRequest({ headers: { host: 'localhost' } })))
   })
 })
 
 test.group('resolveTenantId — path strategy', (group) => {
-  group.each.setup(() => setConfig({ ...testConfig, resolverStrategy: 'path' }))
-
-  test('returns first path segment as tenant id', ({ assert }) => {
-    const req = makeRequest({ url: '/tenant-xyz/some/resource' })
-    assert.equal(resolveTenantId(req), 'tenant-xyz')
+  group.each.setup(() => {
+    __resetResolverRegistryCacheForTests()
+    setConfig({ ...testConfig, resolverStrategy: 'path' })
   })
 
-  test('returns first segment for a single-segment path', ({ assert }) => {
-    const req = makeRequest({ url: '/tenant-xyz' })
-    assert.equal(resolveTenantId(req), 'tenant-xyz')
+  test('returns a UUID first path segment as the tenant id', ({ assert }) => {
+    const req = makeRequest({ url: `/${UUID}/some/resource` })
+    assert.equal(resolveTenantId(req), UUID)
   })
 
-  test('returns undefined for root path', ({ assert }) => {
-    const req = makeRequest({ url: '/' })
-    assert.isUndefined(resolveTenantId(req))
+  test('ignores the query string when extracting the segment', ({ assert }) => {
+    const req = makeRequest({ url: `/${UUID}?foo=bar` })
+    assert.equal(resolveTenantId(req), UUID)
   })
 
-  test('ignores query string when extracting segment', ({ assert }) => {
-    const req = makeRequest({ url: '/tenant-xyz?foo=bar' })
-    assert.equal(resolveTenantId(req), 'tenant-xyz')
+  // F7: a non-UUID first segment (a route prefix, a slug) falls through.
+  test('a non-UUID first segment falls through', ({ assert }) => {
+    assert.isUndefined(resolveTenantId(makeRequest({ url: '/tenant-xyz/some/resource' })))
+  })
+
+  test('returns undefined for the root path', ({ assert }) => {
+    assert.isUndefined(resolveTenantId(makeRequest({ url: '/' })))
   })
 })

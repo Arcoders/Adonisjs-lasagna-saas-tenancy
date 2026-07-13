@@ -10,15 +10,13 @@ import RequestMacroCollisionException from '../exceptions/request_macro_collisio
 import { macroName, type MacroName } from '../sdk/brands.js'
 import TenantSuspendedException from '../exceptions/tenant_suspended_exception.js'
 import DependencyUnavailableException from '../exceptions/dependency_unavailable_exception.js'
-import InvalidTenantIdentifierException from '../exceptions/invalid_tenant_identifier_exception.js'
 import { getConfig } from '../config.js'
-import { hostMatchesExpectedSuffix } from '../services/resolvers/builtins.js'
 import type { ResolverCacheConfig } from '../types/config.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import TelemetryService from '../services/telemetry_service.js'
 import { isDependencyOutageError } from '../utils/dependency_outage.js'
-import { isUuidV4, isSafeIdentifier } from '../services/isolation/identifier.js'
-import { isProductionNodeEnv } from '../utils/env.js'
+import { isUuidV4 } from '../services/isolation/identifier.js'
+import { buildResolverRegistry } from '../providers/resolver_chain.js'
 import TenantResolverRegistry from '../services/resolvers/registry.js'
 import TenantResolutionCache, {
   DEFAULT_RESOLUTION_CACHE_MAX,
@@ -47,9 +45,11 @@ declare module '@adonisjs/core/http' {
 }
 
 /**
- * Cached registry handle. The provider seeds the registry at boot, so a
- * cache miss here means we're being called before boot finished, and we fall
- * back to the synchronous strategy switch so unit tests still work.
+ * Cached registry handle. The provider seeds the registry at boot, so a cache
+ * miss here means we're being called before boot finished; the resolution
+ * helpers then build a registry on demand from the current config (via
+ * {@link buildResolverRegistry}), so there is one resolution authority — the
+ * chain — and never a divergent legacy switch.
  */
 let cachedResolverRegistry: TenantResolverRegistry | undefined
 
@@ -69,10 +69,10 @@ export function __resetResolverRegistryCacheForTests(): void {
 
 /**
  * Seed the resolver registry into the module cache at boot, the same way the
- * provider seeds `TenantResolutionCache` / `TenantLogContext`. This is what gives
- * {@link resolveTenantIdSync} a GUARANTEED synchronous hit on the very first
- * request, so rate-limit and metrics never fall through to the chain-blind legacy
- * switch and misattribute to a different tenant than the one routing serves.
+ * provider seeds `TenantResolutionCache` / `TenantLogContext`. This gives
+ * {@link resolveTenantId} a GUARANTEED synchronous hit on the very first request,
+ * so rate-limit and metrics attribute by the same chain routing serves, never a
+ * config rebuild on the hot path.
  */
 export function setResolverRegistry(registry: TenantResolverRegistry | undefined): void {
   cachedResolverRegistry = registry
@@ -187,105 +187,47 @@ export async function primeResolvedTenant(tenant: TenantModelContract): Promise<
 }
 
 /**
- * Synchronous fallback used when the resolver registry hasn't been seeded
- * yet (typically only inside the `TenantAdapter` query path before the
- * provider has booted, or in unit tests that don't boot the app). Mirrors
- * the v1 strategy switch verbatim.
+ * The active resolver registry for the SYNCHRONOUS resolution path: the one the
+ * provider seeded at boot ({@link setResolverRegistry}), or — before boot and in
+ * unit tests that never boot — one built on demand from the current config so a
+ * solitary `resolverStrategy` still resolves through the real chain. There is no
+ * separate legacy switch to fall to any more: resolution has ONE authority (the
+ * chain), and the host-allowlist / UUID-border math lives in the resolvers alone.
  */
-function legacyResolveTenantId(request: HttpRequest): string | undefined {
-  const { resolverStrategy, tenantHeaderKey, baseDomain } = getConfig()
-
-  if (resolverStrategy === 'subdomain' || resolverStrategy === 'domain-or-subdomain') {
-    const hostname = request.hostname()
-    const host = hostname?.split(':')[0] ?? ''
-    // Mirror the registry resolvers' host allowlist on the legacy path too, so a
-    // spoofed X-Forwarded-Host is refused regardless of which path resolves.
-    if (!hostMatchesExpectedSuffix(host)) return undefined
-    const suffix = baseDomain.startsWith('.') ? baseDomain : `.${baseDomain}`
-    if (host.endsWith(suffix)) {
-      const sub = host.slice(0, host.length - suffix.length)
-      return sub || undefined
-    }
-    if (host === baseDomain) return undefined
-    // Dev-only leftmost-label fallback (mirrors SubdomainResolver). Production
-    // refuses an off-baseDomain host rather than guessing a tenant from it.
-    if (isProductionNodeEnv()) return undefined
-    const labels = host.split('.')
-    return labels.length > 1 ? labels[0] : undefined
-  }
-
-  if (resolverStrategy === 'path') {
-    const segment = request.url(false).split('/').find(Boolean)
-    return segment || undefined
-  }
-
-  if (resolverStrategy === 'request-data') {
-    for (const raw of [request.qs()?.['tenant_id'], request.input('tenant_id')]) {
-      if (raw === undefined || raw === null) continue
-      // Present but not a string: fail closed (matches RequestDataResolver).
-      if (typeof raw !== 'string') throw new InvalidTenantIdentifierException()
-      if (raw.length > 0 && isUuidV4(raw)) return raw
-    }
-    return undefined
-  }
-
-  // header (default). Validate the client-controlled header against the same
-  // `SAFE_IDENT` policy the drivers enforce before any id reaches SQL or a Redis
-  // key: a header carrying `:` (key-structure injection) or other unsafe chars
-  // must resolve to "no tenant" (fail-closed) rather than flow downstream into
-  // an attribution key. UUIDs and opaque alphanumeric host ids still pass.
-  const header = request.header(tenantHeaderKey)
-  return isSafeIdentifier(header) ? header : undefined
+function syncResolverRegistry(): TenantResolverRegistry {
+  return cachedResolverRegistry ?? buildResolverRegistry(getConfig())
 }
 
 /**
- * Returns the tenant id as a string, OR a `{ domain }` envelope, OR
- * `undefined`. Used by the `request.tenant()` macro. Async because resolvers may
- * go async; synchronous call sites (`TenantAdapter`, rate-limit, metrics) use the
- * chain-aware {@link resolveTenantIdSync} instead.
+ * Returns the tenant id as a string, OR a `{ domain }` envelope, OR `undefined`.
+ * Used by the `request.tenant()` macro. Async because resolvers may go async; the
+ * synchronous call sites (`TenantAdapter`, rate-limit, metrics) use the sync twin
+ * {@link resolveTenantId}. Both walk the same registry chain, so a `domain`
+ * envelope (which needs an async repository lookup) is the only thing the sync
+ * path cannot see.
  */
 export async function resolveTenant(request: HttpRequest): Promise<TenantResolveResult> {
-  const registry = await getResolverRegistry()
-  if (registry && registry.chain().length > 0) {
-    return registry.resolve(request)
-  }
-  const id = legacyResolveTenantId(request)
-  return id ? { type: 'id', tenantId: id } : undefined
+  const registry = (await getResolverRegistry()) ?? buildResolverRegistry(getConfig())
+  return registry.resolve(request)
 }
 
 /**
- * Chain-aware synchronous tenant-id resolver: the SAME authority the adapter
- * routes by and `request.tenant()` resolves. Any sync call site that attributes a
- * tenant (rate-limit buckets, metrics rows) MUST use this, not the chain-blind
- * legacy switch, so a `resolverChain` deployment attributes to the tenant actually
- * served instead of whatever `resolverStrategy` alone would pick.
+ * THE tenant-id resolver: one chain-aware authority the adapter routes by,
+ * `request.tenant()` resolves through (its sync half), and rate-limit / metrics
+ * attribute by — so a `resolverChain` deployment attributes to the tenant routing
+ * actually serves, not whatever a chain-blind switch would pick. Walks the
+ * registry chain synchronously; a `domain` hit yields no sync id (it needs an
+ * async repository lookup) and degrades to `undefined`.
  *
- * Resolution: unless the host opts into `legacyAdapterFallback`, walk the
- * boot-seeded registry chain synchronously (a `domain` hit yields no sync id — it
- * needs an async repository lookup — so it degrades to `undefined`). Falls back to
- * the legacy strategy switch only before the registry is seeded (unit tests that
- * never boot) or under `legacyAdapterFallback`.
- */
-export function resolveTenantIdSync(request: HttpRequest): string | undefined {
-  const legacy = getConfig().resolver?.legacyAdapterFallback ?? false
-  if (!legacy) {
-    const registry = cachedResolverRegistry
-    if (registry && registry.chain().length > 0) {
-      const result = registry.resolveSync(request)
-      return result?.type === 'id' ? result.tenantId : undefined
-    }
-  }
-  return legacyResolveTenantId(request)
-}
-
-/**
- * The v1 strategy switch, exposed on the root barrel. Reads `resolverStrategy`
- * only, so it is chain-BLIND: it is the legacy fallback, not the routing authority.
- * Prefer {@link resolveTenantIdSync} for any tenant-attribution decision.
- * (TRES-02 folds this into the unified authority in a later wave.)
+ * Every id it returns has already passed the UUID border in the resolvers (a
+ * non-UUID header/subdomain/path value never becomes an attribution key) and is
+ * lowercase-canonical, so the sync attribution decision and the routed connection
+ * agree on exactly one id. Exposed on the root barrel as the package's single
+ * request→tenant-id helper.
  */
 export function resolveTenantId(request: HttpRequest): string | undefined {
-  return legacyResolveTenantId(request)
+  const result = syncResolverRegistry().resolveSync(request)
+  return result?.type === 'id' ? result.tenantId : undefined
 }
 
 const TENANT_MEMO_KEY = Symbol('resolved_tenant')
