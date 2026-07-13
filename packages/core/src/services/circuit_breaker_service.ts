@@ -14,17 +14,6 @@ export interface CircuitMetrics {
 const REDIS_KEY_PREFIX = 'cb:state:'
 
 /**
- * Upper bound on simultaneously-tracked tenant breakers. Each breaker holds two
- * opossum rolling-stats intervals, so an unbounded map under high tenant churn
- * (or a fleet-wide outage that opens every tenant) leaks timers + memory. When
- * exceeded we evict the oldest CLOSED or OPEN breaker: a CLOSED one re-creates
- * cheaply, and an OPEN one keeps failing fast through its lightweight `markers`
- * entry after the heavy object is shed. Only HALF_OPEN breakers are spared (one
- * is mid recovery-probe). See {@link CircuitBreakerService.markers}.
- */
-const DEFAULT_MAX_TRACKED_CIRCUITS = 5_000
-
-/**
  * Ceiling on the `SELECT 1` probe before opossum counts a timeout as a failure.
  * This is the single value that decides how long a tenant request blocks on a
  * dead DB before the breaker trips, so it overrides opossum's 10s default with
@@ -37,20 +26,6 @@ const PROBE_TIMEOUT_MS = 5_000
  * survives a process restart before it self-heals through HALF_OPEN.
  */
 const PERSISTED_STATE_TTL_SECONDS = 60 * 60
-
-/**
- * Fallback breaker tuning used when the config omits `circuitBreaker` (or a field
- * of it). `circuitBreaker` is a required field of `MultitenancyConfig`, so a typed
- * config (`defineConfig`) always supplies it; this only keeps an untyped or
- * dynamically-assembled config from crashing the guarded request path, where the
- * breaker now fires on every request. Values mirror the documented examples.
- */
-const CIRCUIT_BREAKER_DEFAULTS = {
-  threshold: 50,
-  resetTimeout: 30_000,
-  rollingCountTimeout: 10_000,
-  volumeThreshold: 5,
-} as const
 
 const lazyRedis = () =>
   import('@adonisjs/redis/services/main').then((m) => m.default).catch(() => null)
@@ -133,19 +108,19 @@ export default class CircuitBreakerService {
       return this.circuits.get(tenantId)!
     }
 
-    // Read defensively: `circuitBreaker` is required in the type, but the breaker
-    // now fires on every guarded request, so an untyped/partial config that omits
-    // it must degrade to safe defaults rather than throw per request (which the
-    // guard would map to a 503). Mirrors the `?? DEFAULT` style in #evictIfOverCapacity.
+    // `circuitBreaker` is resolved: `setConfig` merges CONFIG_DEFAULTS, so every
+    // field is present even for an untyped or partial config. That is what keeps
+    // the guarded request path — which fires the breaker on every request — from
+    // throwing when a host omits or half-fills the block.
     const cfg = getConfig().circuitBreaker
-    const resetTimeout = cfg?.resetTimeout ?? CIRCUIT_BREAKER_DEFAULTS.resetTimeout
+    const resetTimeout = cfg.resetTimeout
 
     const breaker = new CircuitBreaker(this.buildProbe(tenantId), {
       timeout: PROBE_TIMEOUT_MS,
-      errorThresholdPercentage: cfg?.threshold ?? CIRCUIT_BREAKER_DEFAULTS.threshold,
+      errorThresholdPercentage: cfg.threshold,
       resetTimeout,
-      rollingCountTimeout: cfg?.rollingCountTimeout ?? CIRCUIT_BREAKER_DEFAULTS.rollingCountTimeout,
-      volumeThreshold: cfg?.volumeThreshold ?? CIRCUIT_BREAKER_DEFAULTS.volumeThreshold,
+      rollingCountTimeout: cfg.rollingCountTimeout,
+      volumeThreshold: cfg.volumeThreshold,
       name: `tenant_${tenantId}`,
     })
 
@@ -236,7 +211,7 @@ export default class CircuitBreakerService {
    * the cap (not just one) lets the map DEFLATE again after such a burst.
    */
   #evictIfOverCapacity(): void {
-    const max = getConfig().circuitBreaker?.maxTrackedCircuits ?? DEFAULT_MAX_TRACKED_CIRCUITS
+    const max = getConfig().circuitBreaker.maxTrackedCircuits
     if (this.circuits.size < max) return
     for (const [tenantId, breaker] of this.circuits) {
       if (this.circuits.size < max) return
@@ -254,8 +229,7 @@ export default class CircuitBreakerService {
   /** Ensure a fast-fail marker exists for an OPEN tenant we are about to evict. */
   #ensureOpenMarker(tenantId: string): void {
     if (this.markers.has(tenantId)) return
-    const resetTimeout =
-      getConfig().circuitBreaker?.resetTimeout ?? CIRCUIT_BREAKER_DEFAULTS.resetTimeout
+    const resetTimeout = getConfig().circuitBreaker.resetTimeout
     this.markers.set(tenantId, this.now() + resetTimeout)
   }
 

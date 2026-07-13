@@ -1,6 +1,6 @@
 import { Queue, type JobsOptions, type QueueOptions } from 'bullmq'
 import { getConfig } from '../config.js'
-import ConnectionLru, { DEFAULT_EVICTION_GRACE_MS } from './isolation/connection_lru.js'
+import ConnectionLru from './isolation/connection_lru.js'
 
 // Lazy logger so importing this service never triggers `@adonisjs/core`'s
 // top-level `await app.booted(...)` outside an Ignitor (which throws). Matches
@@ -8,9 +8,6 @@ import ConnectionLru, { DEFAULT_EVICTION_GRACE_MS } from './isolation/connection
 // keeps the module importable from unit tests.
 const lazyLogger = () =>
   import('@adonisjs/core/services/logger').then((m) => m.default).catch(() => null)
-
-/** Default cap on simultaneously-open per-tenant queue handles. */
-export const DEFAULT_MAX_OPEN_QUEUES = 100
 
 /** Default fan-out width when collecting stats for an explicit tenant list. */
 export const DEFAULT_STATS_CONCURRENCY = 10
@@ -58,8 +55,8 @@ export default class TenantQueueService {
   // evicted, so an in-flight dispatch is never severed.
   readonly #lru = new ConnectionLru({
     label: 'TenantQueueService',
-    cap: () => getConfig().queue.maxOpenQueues ?? DEFAULT_MAX_OPEN_QUEUES,
-    graceMs: () => getConfig().queue.queueIdleGraceMs ?? DEFAULT_EVICTION_GRACE_MS,
+    cap: () => getConfig().queue.maxOpenQueues,
+    graceMs: () => getConfig().queue.queueIdleGraceMs,
     release: async (tenantId) => {
       // Delete synchronously (before the await) so a concurrent getOrCreate for
       // the same tenant re-creates a fresh handle instead of handing back the

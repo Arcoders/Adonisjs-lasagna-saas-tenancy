@@ -212,7 +212,7 @@ export class DefaultLucidAdapter implements AdapterContract {
 }
 
 // @public
-export function defineConfig(config: MultitenancyConfig): MultitenancyConfig;
+export function defineConfig(config: MultitenancyConfig): ResolvedMultitenancyConfig;
 
 // @public
 export function enforceQuota(quota: string, options?: EnforceQuotaOptions): (input: HttpContext, next: NextFn) => Promise<any>;
@@ -240,7 +240,7 @@ export class FeatureFlagService {
 }
 
 // @public (undocumented)
-export function getConfig(): MultitenancyConfig;
+export function getConfig(): ResolvedMultitenancyConfig;
 
 // @public
 export interface ImpersonationContext {
@@ -499,7 +499,6 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
     requestData?: RequestDataResolverConfig;
     // Warning: (ae-forgotten-export) The symbol "ResilienceConfig" needs to be exported by the entry point index.d.ts
     resilience?: ResilienceConfig;
-    // Warning: (ae-forgotten-export) The symbol "ResolverConfig" needs to be exported by the entry point index.d.ts
     resolver?: ResolverConfig;
     // Warning: (ae-forgotten-export) The symbol "TenantResolver" needs to be exported by the entry point index.d.ts
     resolverChain?: Array<TenantResolverStrategy | string | TenantResolver>;
@@ -631,6 +630,44 @@ export interface RequestDataResolverConfig {
     bodyKey?: string;
     queryKey?: string;
     sourceOrder?: Array<'query' | 'body'>;
+}
+
+// @public
+export type ResolvedCircuitBreakerConfig = MultitenancyConfig['circuitBreaker'] & Required<Pick<MultitenancyConfig['circuitBreaker'], 'maxTrackedCircuits'>>;
+
+// @public
+export type ResolvedIsolationConfig = IsolationConfig & Required<Pick<IsolationConfig, 'maxTenantConnections' | 'evictionGracePeriodMs'>>;
+
+// @public
+export type ResolvedMultitenancyConfig = Omit<MultitenancyConfig, 'circuitBreaker' | 'queue' | 'isolation' | 'resolver'> & {
+    circuitBreaker: ResolvedCircuitBreakerConfig;
+    queue: ResolvedQueueConfig;
+    isolation: ResolvedIsolationConfig;
+    resolver?: ResolvedResolverConfig;
+};
+
+// @public
+export type ResolvedQueueConfig = MultitenancyConfig['queue'] & Required<Pick<MultitenancyConfig['queue'], 'maxOpenQueues' | 'queueIdleGraceMs'>>;
+
+// @public
+export type ResolvedResolverCacheConfig = ResolverCacheConfig & Required<Pick<ResolverCacheConfig, 'ttlMs' | 'maxEntries'>>;
+
+// @public
+export type ResolvedResolverConfig = Omit<ResolverConfig, 'cache'> & {
+    cache?: ResolvedResolverCacheConfig;
+};
+
+// @public
+export type ResolverCacheConfig = NonNullable<ResolverConfig['cache']>;
+
+// @public
+export interface ResolverConfig {
+    cache?: {
+        enabled?: boolean;
+        ttlMs?: number;
+        maxEntries?: number;
+    };
+    expectedHostSuffix?: string | string[];
 }
 
 // @public

@@ -15,10 +15,7 @@ import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
 import { runTenantMigrations } from './tenant_migration_runner.js'
 import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
 import IsolationConfigException from '../../exceptions/isolation_config_exception.js'
-import ConnectionLru, {
-  DEFAULT_EVICTION_GRACE_MS,
-  DEFAULT_MAX_TENANT_CONNECTIONS,
-} from './connection_lru.js'
+import ConnectionLru from './connection_lru.js'
 import { connectionHasActiveQuery } from './pool_in_use.js'
 
 /**
@@ -56,9 +53,9 @@ export default class DatabasePgDriver implements ProvisionableDriver {
   readonly #databasePrefix: string | undefined
   readonly #lru = new ConnectionLru({
     label: 'DatabasePgDriver',
-    cap: () => getConfig().isolation?.maxTenantConnections ?? DEFAULT_MAX_TENANT_CONNECTIONS,
-    graceMs: () => getConfig().isolation?.evictionGracePeriodMs ?? DEFAULT_EVICTION_GRACE_MS,
-    hardCap: () => getConfig().isolation?.enforceConnectionCap ?? false,
+    cap: () => getConfig().isolation.maxTenantConnections,
+    graceMs: () => getConfig().isolation.evictionGracePeriodMs,
+    hardCap: () => getConfig().isolation.enforceConnectionCap ?? false,
     release: async (name) => {
       const { db } = await lucid()
       if (!db.manager.has(name)) return true

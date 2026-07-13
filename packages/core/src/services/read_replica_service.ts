@@ -2,11 +2,9 @@ import { createHash } from 'node:crypto'
 import { getConfig } from '../config.js'
 import type { TenantModelContract } from '../types/contracts.js'
 import type { ReadReplicaHost } from '../types/config.js'
-import ConnectionLru, {
-  DEFAULT_EVICTION_GRACE_MS,
-  DEFAULT_MAX_TENANT_CONNECTIONS,
-} from './isolation/connection_lru.js'
+import ConnectionLru from './isolation/connection_lru.js'
 import { connectionHasActiveQuery } from './isolation/pool_in_use.js'
+import { CONFIG_DEFAULTS } from '../config_defaults.js'
 
 const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default).catch(() => null)
 
@@ -50,8 +48,9 @@ export default class ReadReplicaService {
   readonly #lru = new ConnectionLru({
     label: 'ReadReplicaService',
     cap: () =>
-      getConfig().tenantReadReplicas?.maxReplicaConnections ?? DEFAULT_MAX_TENANT_CONNECTIONS,
-    graceMs: () => getConfig().isolation?.evictionGracePeriodMs ?? DEFAULT_EVICTION_GRACE_MS,
+      getConfig().tenantReadReplicas?.maxReplicaConnections ??
+      CONFIG_DEFAULTS.tenantReadReplicas.maxReplicaConnections,
+    graceMs: () => getConfig().isolation.evictionGracePeriodMs,
     release: async (name) => {
       const db = await lazyDb()
       if (!db?.manager.has(name)) return true

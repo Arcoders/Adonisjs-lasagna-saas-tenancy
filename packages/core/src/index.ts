@@ -36,6 +36,14 @@
  */
 export type {
   MultitenancyConfig,
+  ResolvedMultitenancyConfig,
+  ResolvedCircuitBreakerConfig,
+  ResolvedQueueConfig,
+  ResolvedIsolationConfig,
+  ResolvedResolverConfig,
+  ResolvedResolverCacheConfig,
+  ResolverConfig,
+  ResolverCacheConfig,
   TenantResolverStrategy,
   TenantAccessAuthorizer,
   IsolationConfig,

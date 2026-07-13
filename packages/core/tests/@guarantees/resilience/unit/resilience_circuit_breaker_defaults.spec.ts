@@ -17,9 +17,12 @@ import type { MultitenancyConfig } from '../../../../src/types/config.js'
  * guarded reads.
  *
  * Typed configs (`defineConfig`) can't reach this state, but the runtime must
- * degrade to safe defaults rather than storm 503s. `#evictIfOverCapacity` already
- * defends with `circuitBreaker?.maxTrackedCircuits ?? DEFAULT`; this aligns the
- * hot path.
+ * degrade to safe defaults rather than storm 503s. Since CFG-1 the degradation
+ * comes from `setConfig` resolving the config against `CONFIG_DEFAULTS` (it fills
+ * the omitted/partial `circuitBreaker` block), so `getCircuit()` reads a present
+ * `getConfig().circuitBreaker` directly instead of defending per-read. This spec
+ * still guards that end behaviour: a config seeded without the block must not
+ * storm 503s.
  *
  * RED (pre-fix): `getCircuit()` throws "Cannot read properties of undefined".
  */

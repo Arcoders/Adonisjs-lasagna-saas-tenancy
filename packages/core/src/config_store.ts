@@ -1,4 +1,4 @@
-import type { MultitenancyConfig } from './types/config.js'
+import type { ResolvedMultitenancyConfig } from './types/config.js'
 
 /**
  * Stash the config singleton on a `Symbol.for(...)` key on `globalThis` so
@@ -33,7 +33,7 @@ import type { MultitenancyConfig } from './types/config.js'
 const STORE_KEY = Symbol.for('@adonisjs-lasagna/saas-tenancy/config-singleton')
 
 export interface ConfigStore {
-  current: MultitenancyConfig | null
+  current: ResolvedMultitenancyConfig | null
 }
 
 export function getStore(): ConfigStore {

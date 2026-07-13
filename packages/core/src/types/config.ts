@@ -680,3 +680,62 @@ export interface MultitenancyConfig extends SatelliteConfigRegistry {
     poolSaturationWarnRatio?: number
   }
 }
+
+// ─── Resolved config (CFG-1) ────────────────────────────────────────────────
+//
+// `MultitenancyConfig` above is the INPUT shape an app authors and `defineConfig`
+// accepts. The types below are the RESOLVED shape `getConfig()` returns, after
+// `defineConfig`/`setConfig` merge the single `CONFIG_DEFAULTS` (see
+// `src/config_defaults.ts`). The always-present tunables are promoted from
+// optional to required, so their read sites drop the `?? DEFAULT_*` fallback and
+// read a resolved value directly. Genuine feature toggles (`impersonation`,
+// `plans`, `tenantReadReplicas`, and the `resolver.cache` sub-block) stay
+// optional: their absence still means "feature off", so code behind them keeps a
+// presence check and, when it needs a value, falls back to `CONFIG_DEFAULTS`.
+//
+// These are written as mapped types over the input shapes on purpose: a new
+// numeric tunable is declared once (on the input interface) and the
+// `numeric_fields_bounded` guard keeps seeing exactly one leaf per name.
+
+/** {@link MultitenancyConfig.circuitBreaker} with `maxTrackedCircuits` resolved. */
+export type ResolvedCircuitBreakerConfig = MultitenancyConfig['circuitBreaker'] &
+  Required<Pick<MultitenancyConfig['circuitBreaker'], 'maxTrackedCircuits'>>
+
+/** {@link MultitenancyConfig.queue} with the dispatch-handle LRU tunables resolved. */
+export type ResolvedQueueConfig = MultitenancyConfig['queue'] &
+  Required<Pick<MultitenancyConfig['queue'], 'maxOpenQueues' | 'queueIdleGraceMs'>>
+
+/**
+ * {@link IsolationConfig}, always present in resolved config (defaulting to
+ * `schema-pg`), with the connection-pool caps resolved. Per-driver fields
+ * (`templateConnectionName`, `provisionConnectionName`, `rowScope*`, …) stay
+ * optional so their "unset" reads keep working.
+ */
+export type ResolvedIsolationConfig = IsolationConfig &
+  Required<Pick<IsolationConfig, 'maxTenantConnections' | 'evictionGracePeriodMs'>>
+
+/**
+ * {@link ResolverCacheConfig} with `ttlMs` + `maxEntries` resolved. Only present
+ * when the host set a `resolver.cache` block (the cache is opt-in via `enabled`).
+ */
+export type ResolvedResolverCacheConfig = ResolverCacheConfig &
+  Required<Pick<ResolverCacheConfig, 'ttlMs' | 'maxEntries'>>
+
+/** {@link ResolverConfig} whose optional `cache` sub-block, when present, is resolved. */
+export type ResolvedResolverConfig = Omit<ResolverConfig, 'cache'> & {
+  cache?: ResolvedResolverCacheConfig
+}
+
+/**
+ * The config shape `getConfig()` returns: {@link MultitenancyConfig} with the
+ * always-present tunables promoted to required (see the section comment above).
+ */
+export type ResolvedMultitenancyConfig = Omit<
+  MultitenancyConfig,
+  'circuitBreaker' | 'queue' | 'isolation' | 'resolver'
+> & {
+  circuitBreaker: ResolvedCircuitBreakerConfig
+  queue: ResolvedQueueConfig
+  isolation: ResolvedIsolationConfig
+  resolver?: ResolvedResolverConfig
+}

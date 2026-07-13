@@ -1,6 +1,7 @@
-import type { MultitenancyConfig } from './types/config.js'
+import type { MultitenancyConfig, ResolvedMultitenancyConfig } from './types/config.js'
 import { isProductionNodeEnv } from './utils/env.js'
 import { getStore } from './config_store.js'
+import { resolveConfig } from './config_defaults.js'
 
 /**
  * Recursively freeze the config so a consumer cannot mutate the shared singleton
@@ -32,13 +33,16 @@ function deepFreeze<T>(value: T): T {
 }
 
 /**
- * Identity helper that anchors the user's `config/multitenancy.ts` to the
- * MultitenancyConfig type. Same pattern as `@adonisjs/lucid` and `@adonisjs/auth`:
- * runtime is a passthrough, the value is type-checked at the call site so
- * IDE autocomplete and `tsc` catch shape errors before boot.
+ * Anchors the user's `config/multitenancy.ts` to the MultitenancyConfig INPUT
+ * type and resolves it against the single `CONFIG_DEFAULTS`. Same input→resolved
+ * pattern as `@adonisjs/lucid` and `@adonisjs/auth`: the value is type-checked at
+ * the call site (IDE autocomplete + `tsc` catch shape errors before boot) and the
+ * returned {@link ResolvedMultitenancyConfig} has the always-present tunables
+ * filled in. `setConfig` re-resolves idempotently, so an app that writes an
+ * untyped config object without calling this still gets a resolved `getConfig()`.
  */
-export function defineConfig(config: MultitenancyConfig): MultitenancyConfig {
-  return config
+export function defineConfig(config: MultitenancyConfig): ResolvedMultitenancyConfig {
+  return resolveConfig(config)
 }
 
 export function setConfig(config: MultitenancyConfig, options?: { inProduction?: boolean }): void {
@@ -58,14 +62,19 @@ export function setConfig(config: MultitenancyConfig, options?: { inProduction?:
         'The multitenancy configuration is set once at boot and is immutable thereafter.'
     )
   }
-  store.current = deepFreeze(config)
+  // Resolve here (not only in `defineConfig`) so the store is the single choke
+  // point: an app that wrote an untyped config object, or a test that seeds a
+  // partial one, still yields a fully-resolved `getConfig()`. `resolveConfig` is
+  // idempotent, so re-resolving a config that already went through `defineConfig`
+  // is a no-op.
+  store.current = deepFreeze(resolveConfig(config))
 }
 
 // `__resetConfigForTests` used to live here. It now sits on the `/testing`
 // barrel (src/testing/config_reset.ts): this module is public at `/config`, so
 // a test-only reset exported from it was a test seam on the app-facing surface.
 
-export function getConfig(): MultitenancyConfig {
+export function getConfig(): ResolvedMultitenancyConfig {
   const store = getStore()
   if (!store.current) {
     throw new Error(

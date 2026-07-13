@@ -11,17 +11,14 @@ import { macroName, type MacroName } from '../sdk/brands.js'
 import TenantSuspendedException from '../exceptions/tenant_suspended_exception.js'
 import DependencyUnavailableException from '../exceptions/dependency_unavailable_exception.js'
 import { getConfig } from '../config.js'
-import type { ResolverCacheConfig } from '../types/config.js'
+import type { ResolvedResolverCacheConfig } from '../types/config.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import TelemetryService from '../services/telemetry_service.js'
 import { isDependencyOutageError } from '../utils/dependency_outage.js'
 import { isUuidV4 } from '../services/isolation/identifier.js'
 import { buildResolverRegistry } from '../providers/resolver_chain.js'
 import TenantResolverRegistry from '../services/resolvers/registry.js'
-import TenantResolutionCache, {
-  DEFAULT_RESOLUTION_CACHE_MAX,
-  DEFAULT_RESOLUTION_CACHE_TTL_MS,
-} from '../services/tenant_resolution_cache.js'
+import TenantResolutionCache from '../services/tenant_resolution_cache.js'
 import type { TenantResolveResult } from '../services/resolvers/resolver.js'
 import { HttpRequest } from '@adonisjs/core/http'
 import app from '@adonisjs/core/services/app'
@@ -126,7 +123,7 @@ export async function findTenantByIdCached(
   id: string,
   includeDeleted: boolean = true
 ): Promise<TenantModelContract | null> {
-  let cacheCfg: ResolverCacheConfig | undefined
+  let cacheCfg: ResolvedResolverCacheConfig | undefined
   try {
     cacheCfg = getConfig().resolver?.cache
   } catch {
@@ -148,16 +145,11 @@ async function findThenCache(
   repo: TenantRepositoryContract,
   id: string,
   cache: TenantResolutionCache,
-  cacheCfg: Pick<ResolverCacheConfig, 'ttlMs' | 'maxEntries'>
+  cacheCfg: Pick<ResolvedResolverCacheConfig, 'ttlMs' | 'maxEntries'>
 ): Promise<TenantModelContract | null> {
   const tenant = await repo.findById(id, true)
   if (tenant) {
-    cache.set(
-      id,
-      tenant,
-      cacheCfg.ttlMs ?? DEFAULT_RESOLUTION_CACHE_TTL_MS,
-      cacheCfg.maxEntries ?? DEFAULT_RESOLUTION_CACHE_MAX
-    )
+    cache.set(id, tenant, cacheCfg.ttlMs, cacheCfg.maxEntries)
   }
   return tenant
 }
@@ -170,7 +162,7 @@ async function findThenCache(
  * DB a second time for the same tenant. No-op when the cache is disabled.
  */
 export async function primeResolvedTenant(tenant: TenantModelContract): Promise<void> {
-  let cacheCfg: ResolverCacheConfig | undefined
+  let cacheCfg: ResolvedResolverCacheConfig | undefined
   try {
     cacheCfg = getConfig().resolver?.cache
   } catch {
@@ -178,12 +170,7 @@ export async function primeResolvedTenant(tenant: TenantModelContract): Promise<
   }
   if (!cacheCfg?.enabled) return
   const cache = await getResolutionCache()
-  cache?.set(
-    tenant.id,
-    tenant,
-    cacheCfg.ttlMs ?? DEFAULT_RESOLUTION_CACHE_TTL_MS,
-    cacheCfg.maxEntries ?? DEFAULT_RESOLUTION_CACHE_MAX
-  )
+  cache?.set(tenant.id, tenant, cacheCfg.ttlMs, cacheCfg.maxEntries)
 }
 
 /**
