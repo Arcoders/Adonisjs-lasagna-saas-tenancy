@@ -1,4 +1,4 @@
-import { assertContractCompat } from '../sdk/contract_version.js'
+import ExtensionRegistry from './extension_registry.js'
 import { isTrustedSatellite } from '../sdk/plugin_env.js'
 import { pluginScope } from './plugin_execution_scope.js'
 import { emitIsthmusEvent } from '../isthmus/audit.js'
@@ -63,12 +63,22 @@ interface StoredCapability {
  * friction (an installed plugin has full reach) that makes the trusted/untrusted
  * split explicit at the composition seam. See `.github/SECURITY.md`.
  */
-export default class CapabilityRegistry {
-  readonly #caps = new Map<string, StoredCapability>()
+export default class CapabilityRegistry extends ExtensionRegistry<
+  string,
+  StoredCapability,
+  CapabilityProvision
+> {
+  protected readonly surfaceLabel = 'capability'
 
-  /** The capability-contract version this surface implements. */
-  get contractVersion(): number {
+  protected override get surfaceContractVersion(): number {
     return CAPABILITY_CONTRACT_VERSION
+  }
+
+  protected override collisionError(name: string): Error {
+    return new CapabilityCollisionException(
+      `Capability "${name}" is already provided; two plugins cannot provide one key.`,
+      { plugin: name }
+    )
   }
 
   /**
@@ -79,17 +89,7 @@ export default class CapabilityRegistry {
    * that cannot be attributed) fails closed.
    */
   register(entry: CapabilityProvision, providerName?: PluginName): this {
-    if (this.#caps.has(entry.name)) {
-      throw new CapabilityCollisionException(
-        `Capability "${entry.name}" is already provided; two plugins cannot provide one key.`,
-        { plugin: entry.name }
-      )
-    }
-    assertContractCompat(
-      entry.contractVersion,
-      CAPABILITY_CONTRACT_VERSION,
-      `capability "${entry.name}"`
-    )
+    const name = this.assertRegistrable(entry)
     if (
       entry.sensitive === true &&
       !(providerName !== undefined && isTrustedSatellite(providerName))
@@ -103,7 +103,7 @@ export default class CapabilityRegistry {
         { plugin: providerName }
       )
     }
-    this.#caps.set(entry.name, { api: entry.api, sensitive: entry.sensitive === true })
+    this.entries.set(name, { api: entry.api, sensitive: entry.sensitive === true })
     return this
   }
 
@@ -120,7 +120,7 @@ export default class CapabilityRegistry {
   consume<K extends keyof LasagnaCapabilities & string>(name: K): LasagnaCapabilities[K] | undefined
   consume(name: CapabilityKey): unknown
   consume(name: string): unknown {
-    const record = this.#caps.get(name)
+    const record = this.entries.get(name)
     if (record === undefined) return undefined
     if (record.sensitive && pluginScope.untrustedActive()) {
       const attributed = pluginScope.current()?.plugin ?? '(unknown)'
@@ -135,11 +135,7 @@ export default class CapabilityRegistry {
     return record.api
   }
 
-  has(name: CapabilityKey | string): boolean {
-    return this.#caps.has(name)
-  }
-
   list(): readonly string[] {
-    return [...this.#caps.keys()]
+    return [...this.entries.keys()]
   }
 }

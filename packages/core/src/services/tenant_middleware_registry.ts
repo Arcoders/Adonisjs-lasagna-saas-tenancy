@@ -1,6 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
-import { assertContractCompat } from '../sdk/contract_version.js'
+import ExtensionRegistry from './extension_registry.js'
 import type { MiddlewareName } from '../sdk/brands.js'
 import PluginMiddlewareException from '../exceptions/plugin_middleware_exception.js'
 
@@ -52,40 +52,31 @@ export interface TenantMiddlewareEntry {
  * middleware is stacked onto `router.tenant()/central()/universal()` groups AFTER
  * the core scope middleware and BEFORE the host's own `.use()` chain.
  */
-export default class TenantMiddlewareRegistry {
-  readonly #entries = new Map<MiddlewareName, TenantMiddlewareEntry>()
+export default class TenantMiddlewareRegistry extends ExtensionRegistry<
+  MiddlewareName,
+  TenantMiddlewareEntry
+> {
+  protected readonly surfaceLabel = 'tenant middleware'
 
-  /** The tenant-middleware contract version this surface implements. */
-  get contractVersion(): number {
+  protected override get surfaceContractVersion(): number {
     return TENANT_MIDDLEWARE_CONTRACT_VERSION
   }
 
-  register(entry: TenantMiddlewareEntry): this {
-    if (this.#entries.has(entry.name)) {
-      throw new PluginMiddlewareException(
-        `A tenant middleware named "${entry.name}" is already registered.`,
-        { plugin: entry.name }
-      )
-    }
-    assertContractCompat(
-      entry.contractVersion,
-      TENANT_MIDDLEWARE_CONTRACT_VERSION,
-      `tenant middleware "${entry.name}"`
+  protected override collisionError(name: MiddlewareName): Error {
+    return new PluginMiddlewareException(
+      `A tenant middleware named "${name}" is already registered.`,
+      { plugin: name }
     )
-    this.#entries.set(entry.name, entry)
+  }
+
+  register(entry: TenantMiddlewareEntry): this {
+    const name = this.assertRegistrable(entry)
+    this.entries.set(name, entry)
     return this
   }
 
-  unregister(name: MiddlewareName): boolean {
-    return this.#entries.delete(name)
-  }
-
-  has(name: MiddlewareName): boolean {
-    return this.#entries.has(name)
-  }
-
   list(): readonly MiddlewareName[] {
-    return [...this.#entries.keys()]
+    return [...this.entries.keys()]
   }
 
   /**
@@ -95,7 +86,7 @@ export default class TenantMiddlewareRegistry {
    * targeted, byte-identical to the pre-seam router behavior.
    */
   resolve(scope: TenantMiddlewareScope): readonly TenantMiddleware[] {
-    return [...this.#entries.values()]
+    return [...this.entries.values()]
       .filter((e) => (e.scope ?? 'tenant') === scope)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
       .map((e) => e.middleware)

@@ -59,7 +59,7 @@ test.group('WebhookTransformerRegistry', () => {
         }),
       /already registered/
     )
-    assert.throws(() => reg.register({ name: '', transform: (_e, p) => p }), /non-empty name/)
+    assert.throws(() => reg.register({ name: '', transform: (_e, p) => p }), /non-empty/)
   })
 
   test('apply throws when a transformer returns a non-object', ({ assert }) => {

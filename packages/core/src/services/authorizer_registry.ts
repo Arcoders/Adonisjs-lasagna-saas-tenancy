@@ -1,5 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import { assertContractCompat } from '../sdk/contract_version.js'
+import ExtensionRegistry from './extension_registry.js'
 import type { AuthorizerName } from '../sdk/brands.js'
 import type { TenantModelContract } from '../types/contracts.js'
 import type { TenantAccessAuthorizer } from '../types/config.js'
@@ -72,42 +72,30 @@ export interface TenantAuthorizerEntry {
  * signal (the boot warning + doctor check stay bound to the config callback), so
  * a plugin can never silently mask a missing IDOR gate.
  */
-export default class AuthorizerRegistry {
-  readonly #authorizers = new Map<AuthorizerName, TenantAuthorizerEntry>()
+export default class AuthorizerRegistry extends ExtensionRegistry<
+  AuthorizerName,
+  TenantAuthorizerEntry
+> {
+  protected readonly surfaceLabel = 'authorizer'
 
-  /** The authorizer-contract version this surface implements. */
-  get contractVersion(): number {
+  protected override get surfaceContractVersion(): number {
     return AUTHORIZER_CONTRACT_VERSION
   }
 
+  protected override collisionError(name: AuthorizerName): Error {
+    return new PluginAuthorizerException(`An authorizer named "${name}" is already registered.`, {
+      plugin: name,
+    })
+  }
+
   register(entry: TenantAuthorizerEntry): this {
-    if (this.#authorizers.has(entry.name)) {
-      throw new PluginAuthorizerException(
-        `An authorizer named "${entry.name}" is already registered.`,
-        { plugin: entry.name }
-      )
-    }
-    assertContractCompat(
-      entry.contractVersion,
-      AUTHORIZER_CONTRACT_VERSION,
-      `authorizer "${entry.name}"`
-    )
-    this.#authorizers.set(entry.name, entry)
+    const name = this.assertRegistrable(entry)
+    this.entries.set(name, entry)
     return this
   }
 
-  /** Remove a registered authorizer. Returns true when one was removed. Useful
-   *  for hot-reload paths and tests that must not leak a registration. */
-  unregister(name: AuthorizerName): boolean {
-    return this.#authorizers.delete(name)
-  }
-
-  has(name: AuthorizerName): boolean {
-    return this.#authorizers.has(name)
-  }
-
   list(): readonly AuthorizerName[] {
-    return [...this.#authorizers.keys()]
+    return [...this.entries.keys()]
   }
 
   /**
@@ -181,6 +169,6 @@ export default class AuthorizerRegistry {
   /** Entries sorted by ascending `order` (default 0); Map preserves registration
    *  order, and Array#sort is stable, so equal `order` keeps registration order. */
   #ordered(): TenantAuthorizerEntry[] {
-    return [...this.#authorizers.values()].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    return [...this.entries.values()].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   }
 }

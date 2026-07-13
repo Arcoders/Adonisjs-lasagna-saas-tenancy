@@ -1,5 +1,5 @@
 import type { HttpRequest } from '@adonisjs/core/http'
-import { assertContractCompat } from '../../sdk/contract_version.js'
+import ExtensionRegistry from '../extension_registry.js'
 import {
   RESOLVER_CONTRACT_VERSION,
   type TenantResolver,
@@ -20,49 +20,42 @@ import {
  * traffic arrives by domain but a fallback header is honored for
  * internal API clients.
  */
-export default class TenantResolverRegistry {
-  readonly #resolvers = new Map<string, TenantResolver>()
+export default class TenantResolverRegistry extends ExtensionRegistry<string, TenantResolver> {
   #chain: string[] = []
 
-  /** The tenant-resolver contract version this registry enforces. */
-  get contractVersion(): number {
+  protected readonly surfaceLabel = 'tenant resolver'
+  protected override readonly collisionHint = ' Pass { override: true } to replace it.'
+
+  protected override get surfaceContractVersion(): number {
     return RESOLVER_CONTRACT_VERSION
   }
 
-  register(resolver: TenantResolver, opts: { override?: boolean } = {}): this {
-    const name = resolver?.name
-    if (typeof name !== 'string' || name.length === 0) {
-      throw new Error('TenantResolverRegistry.register: resolver.name must be a non-empty string.')
-    }
-    // A duplicate name would silently shadow an existing resolver and change how
-    // tenants resolve. Refuse unless the caller explicitly overrides.
-    if (this.#resolvers.has(name) && opts.override !== true) {
+  /**
+   * Every resolver must implement the async entry point `resolve(request)` — the
+   * chain walk and `request.tenant()` call it. A resolver missing it registers fine
+   * and then crashes the first time the async path walks the chain; gate it at boot
+   * (EXT-2), unconditional, so the omission fails loudly at registration. `resolveSync`
+   * stays optional here (async-only resolvers are legitimate off the routing chain);
+   * `setChain` is where a chained resolver's `resolveSync` requirement is enforced.
+   */
+  protected override assertShape(resolver: TenantResolver): void {
+    if (typeof resolver.resolve !== 'function') {
       throw new Error(
-        `TenantResolverRegistry: a resolver named "${name}" is already registered. ` +
-          `Pass { override: true } to replace it.`
+        `TenantResolverRegistry: resolver "${resolver.name}" does not implement resolve(request) ` +
+          `(required by resolver contract v${RESOLVER_CONTRACT_VERSION}). Implement resolve(request) ` +
+          `(extend SyncTenantResolver for a purely synchronous resolver, which supplies it).`
       )
     }
-    // A resolver built for a newer core contract would expect a surface this
-    // core does not provide: refuse it. An older/unversioned one warns.
-    assertContractCompat(
-      resolver.contractVersion,
-      RESOLVER_CONTRACT_VERSION,
-      `tenant resolver "${name}"`
-    )
-    this.#resolvers.set(name, resolver)
+  }
+
+  register(resolver: TenantResolver, opts: { override?: boolean } = {}): this {
+    const name = this.assertRegistrable(resolver, opts)
+    this.entries.set(name, resolver)
     return this
   }
 
-  unregister(name: string): boolean {
-    return this.#resolvers.delete(name)
-  }
-
-  has(name: string): boolean {
-    return this.#resolvers.has(name)
-  }
-
   list(): readonly string[] {
-    return [...this.#resolvers.keys()]
+    return [...this.entries.keys()]
   }
 
   /**
@@ -78,11 +71,11 @@ export default class TenantResolverRegistry {
    */
   setChain(names: string[]): this {
     for (const name of names) {
-      const resolver = this.#resolvers.get(name)
+      const resolver = this.entries.get(name)
       if (!resolver) {
         throw new Error(
           `TenantResolverRegistry: cannot put unknown resolver "${name}" in the chain. ` +
-            `Registered: ${[...this.#resolvers.keys()].join(', ') || '(none)'}`
+            `Registered: ${[...this.entries.keys()].join(', ') || '(none)'}`
         )
       }
       if (typeof resolver.resolveSync !== 'function') {
@@ -103,8 +96,8 @@ export default class TenantResolverRegistry {
     return [...this.#chain]
   }
 
-  clear(): this {
-    this.#resolvers.clear()
+  override clear(): this {
+    super.clear()
     this.#chain = []
     return this
   }
@@ -115,7 +108,7 @@ export default class TenantResolverRegistry {
    */
   async resolve(request: HttpRequest): Promise<TenantResolveResult> {
     for (const name of this.#chain) {
-      const resolver = this.#resolvers.get(name)
+      const resolver = this.entries.get(name)
       if (!resolver) continue
       const result = await resolver.resolve(request)
       if (result !== undefined) return result
@@ -136,7 +129,7 @@ export default class TenantResolverRegistry {
    */
   resolveSync(request: HttpRequest): TenantResolveResult {
     for (const name of this.#chain) {
-      const resolver = this.#resolvers.get(name)
+      const resolver = this.entries.get(name)
       if (typeof resolver?.resolveSync !== 'function') continue
       const result = resolver.resolveSync(request)
       if (result !== undefined) return result
