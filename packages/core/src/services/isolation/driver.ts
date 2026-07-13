@@ -1,6 +1,8 @@
 import type { QueryClientContract } from '@adonisjs/lucid/types/database'
+import type { Database } from '@adonisjs/lucid/database'
 import type { MigratorOptions } from '@adonisjs/lucid/types/migrator'
 import type { TenantModelContract } from '../../types/contracts.js'
+import type { PluginReadOnlyConfig } from '../../types/config.js'
 
 /**
  * The four shipped driver names, plus any custom name a host registers via
@@ -253,6 +255,30 @@ export interface IsolationDriver {
    * without a per-tenant connection pool (rowscope-pg) don't implement it.
    */
   markUsed?(tenantId: string): void
+
+  /**
+   * OPTIONAL, and synchronous: resolve the SELECT-only firewall connection for a
+   * tenant — a clone of the already-registered primary, authenticated as the
+   * read-only role, so Postgres (not a JS proxy) denies a write from untrusted
+   * plugin code. Called by `TenantAdapter` when untrusted plugin code is on the
+   * stack and `plugins.readOnly` is configured.
+   *
+   * The driver OWNS this clone: it builds/registers it on first use, tracks it in
+   * the SAME connection pool as the primary (so it counts against the cap and is
+   * touched on use), and releases it on `disconnect` (closing the per-tenant pool
+   * leak an adapter-owned clone had). Only drivers with a per-tenant PG pool
+   * (schema-pg, database-pg) implement it; a driver that omits it has no firewall
+   * to offer, and the adapter fails CLOSED (denies the query) rather than routing
+   * untrusted code to a writable or shared connection.
+   *
+   * `db` is passed by the adapter because resolution is synchronous. Fails closed
+   * (throws) if the clone cannot be established.
+   */
+  ensureReadOnlyClient?(
+    tenantId: string,
+    db: Database,
+    role: PluginReadOnlyConfig
+  ): QueryClientContract
 
   /**
    * Run migrations against the tenant's storage. For drivers without

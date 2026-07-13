@@ -16,10 +16,6 @@ import type TenantResolverRegistry from '../../services/resolvers/registry.js'
 import { resolveIsolationKind } from '../base/isolation_kind.js'
 import { tenancy } from '../../tenancy.js'
 import { pluginScope } from '../../services/plugin_execution_scope.js'
-import {
-  buildReadOnlyConnectionConfig,
-  READ_ONLY_CONNECTION_SUFFIX,
-} from '../../services/plugin_read_only_connection.js'
 import DefaultLucidAdapter from './default_lucid_adapter.js'
 
 /** Per-request memo for the ContextSeal's HTTP-side comparand (see #requestComparandId). */
@@ -96,42 +92,27 @@ export default class TenantAdapter extends DefaultLucidAdapter {
           `tenancy.run(tenant, fn) in jobs, scripts, and custom commands.`
       )
     }
-    // Untrusted-plugin read-only routing (the Postgres-enforced firewall):
-    // when UNTRUSTED plugin code is on the stack and a read-only role is
-    // configured, route this query to a connection cloned from the tenant's own
-    // (same database/schema) but authenticated as the SELECT-only role, so a write
-    // is denied by Postgres, not a JS proxy. The clone is synchronous: the
-    // primary is registered (asserted above), so its config is available now.
+    // Untrusted-plugin read-only routing (the Postgres-enforced firewall): when
+    // UNTRUSTED plugin code is on the stack and a read-only role is configured,
+    // route this query to the tenant's SELECT-only clone so a write is denied by
+    // Postgres, not a JS proxy. The DRIVER owns that clone (it builds, pools, and
+    // releases it); the adapter only asks for it, synchronously.
     const readOnly = getConfig().plugins?.readOnly
     if (readOnly && pluginScope.untrustedActive()) {
-      // Fail CLOSED, not open: once untrusted plugin code is on the stack and a
-      // read-only role is configured, this query MUST route to the SELECT-only
-      // clone. If the clone cannot be established, DENY. Never fall through to the
-      // writable primary, which would hand write access to exactly the code the
-      // firewall exists to contain. A bare unit-test double without a manager
-      // reaching here under an untrusted scope is itself a misconfiguration.
-      if (!manager || typeof manager.has !== 'function') {
+      // Fail CLOSED, not open: untrusted code MUST route to the SELECT-only clone
+      // or be denied — never fall through to the writable primary, which would
+      // hand write access to exactly the code the firewall exists to contain. A
+      // driver with no per-tenant PG pool (rowscope-pg, sqlite-memory) offers no
+      // firewall, so `ensureReadOnlyClient` is absent and the query is denied
+      // rather than routed to a shared/writable connection.
+      const roClient = driver.ensureReadOnlyClient?.(tenantId, this.db, readOnly)
+      if (!roClient) {
         throw new IsolationConfigException(
-          `Untrusted plugin code requires the read-only connection firewall, but the ` +
-            `database manager is unavailable for tenant ${tenantId}. Refusing to route ` +
-            `untrusted code to the writable primary (fail-closed).`
+          `Untrusted plugin code requires the read-only connection firewall for tenant ` +
+            `${tenantId}, but the active isolation driver "${driver.name}" does not provide one. ` +
+            `Refusing to route untrusted code to a writable connection (fail-closed).`
         )
       }
-      const roName = `${name}${READ_ONLY_CONNECTION_SUFFIX}`
-      if (typeof manager.add === 'function' && !manager.has(roName)) {
-        const primaryConfig = manager.get?.(name)?.config
-        if (primaryConfig) {
-          manager.add(roName, buildReadOnlyConnectionConfig(primaryConfig, readOnly))
-        }
-      }
-      if (!manager.has(roName)) {
-        throw new IsolationConfigException(
-          `Untrusted plugin code requires the read-only connection "${roName}", but it ` +
-            `could not be established for tenant ${tenantId}. Refusing to route untrusted ` +
-            `code to the writable primary (fail-closed).`
-        )
-      }
-      const roClient = this.db.connection(roName)
       driver.enforce?.(roClient, tenantId)
       return roClient
     }

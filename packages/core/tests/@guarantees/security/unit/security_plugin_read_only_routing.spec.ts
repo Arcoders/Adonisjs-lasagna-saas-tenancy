@@ -40,13 +40,20 @@ function makeRequest(headers: Record<string, string>) {
   }
 }
 
+/** The tenant schema the primary is pinned to, as the driver derives it. */
+function schemaFor(tenantId: string): string {
+  return new SchemaPgDriver().schemaName(tenantId)
+}
+
 /** A db double whose manager has the primary registered and supports get/add. */
 function makeDb(primaryName: string) {
   const added: Record<string, any> = {}
   const registered = new Set<string>([primaryName])
   const primaryConfig = {
     client: 'pg',
-    searchPath: ['tenant_x'],
+    // Pinned to THIS tenant's schema, as connect() registers it — the driver seals
+    // the primary against the tenant before cloning it read-only.
+    searchPath: [schemaFor(UUID1)],
     connection: { host: 'db', user: 'app', password: 'app-secret' },
   }
   return {
@@ -125,7 +132,7 @@ test.group('TenantAdapter — read-only routing (S3)', (group) => {
     assert.equal((client as any).name, roName)
     assert.property(db.added, roName)
     assert.equal(db.added[roName].connection.user, 'plugin_ro')
-    assert.deepEqual(db.added[roName].searchPath, ['tenant_x']) // preserved from the primary
+    assert.deepEqual(db.added[roName].searchPath, [schemaFor(UUID1)]) // preserved from the primary
   })
 
   test('reuses the read-only connection on a second untrusted query (registers once)', ({

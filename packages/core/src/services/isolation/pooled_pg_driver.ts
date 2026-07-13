@@ -1,5 +1,8 @@
+import type { Database } from '@adonisjs/lucid/database'
+import type { ConnectionManagerContract, QueryClientContract } from '@adonisjs/lucid/types/database'
 import { getConfig } from '../../config.js'
 import type { TenantModelContract } from '../../types/contracts.js'
+import type { PluginReadOnlyConfig } from '../../types/config.js'
 import { ISOLATION_CONTRACT_VERSION } from './driver.js'
 import type {
   DestroyOptions,
@@ -15,6 +18,10 @@ import TenantConnectionLimitException from '../../exceptions/tenant_connection_l
 import IsolationConfigException from '../../exceptions/isolation_config_exception.js'
 import ConnectionLru from './connection_lru.js'
 import { connectionHasActiveQuery } from './pool_in_use.js'
+import {
+  buildReadOnlyConnectionConfig,
+  READ_ONLY_CONNECTION_SUFFIX,
+} from '../plugin_read_only_connection.js'
 
 /**
  * Shared base for the two PostgreSQL drivers that own a per-tenant Lucid
@@ -84,6 +91,77 @@ export default abstract class PooledPgDriver implements ProvisionableDriver {
     if (this.#lru.has(name)) this.#lru.touch(name)
   }
 
+  /** The Lucid connection name of a tenant's SELECT-only firewall clone. */
+  readOnlyConnectionName(tenantId: string): string {
+    return `${this.connectionName(tenantId)}${READ_ONLY_CONNECTION_SUFFIX}`
+  }
+
+  /**
+   * Synchronously resolve the tenant's SELECT-only firewall connection, cloned
+   * from the already-registered primary (same schema/database) but authenticated
+   * as the read-only role. Built + registered on first use and tracked in the
+   * SAME pool as the primary, so it is touched here, counts against the cap, and
+   * is released on {@link disconnect} (this ownership is what closes the
+   * per-tenant `__plugin_ro` pool leak the adapter-owned clone had). Fails CLOSED:
+   * throws rather than returning a writable client if the clone cannot be built.
+   */
+  ensureReadOnlyClient(
+    tenantId: string,
+    db: Database,
+    role: PluginReadOnlyConfig
+  ): QueryClientContract {
+    const primaryName = this.connectionName(tenantId)
+    const roName = this.readOnlyConnectionName(tenantId)
+    const manager = db.manager as ConnectionManagerContract | undefined
+    // Without a real manager the clone cannot be established; refuse rather than
+    // hand untrusted code the writable primary. (A bare unit-test double reaching
+    // here under an untrusted scope is itself a misconfiguration.)
+    if (!manager || typeof manager.has !== 'function') {
+      throw new IsolationConfigException(
+        `Untrusted plugin code requires the read-only connection firewall, but the ` +
+          `database manager is unavailable for tenant ${tenantId}. Refusing to route ` +
+          `untrusted code to the writable primary (fail-closed).`
+      )
+    }
+    // A concurrent eviction may be draining this clone's pool (`manager.has` still
+    // true, pool 'closing'). connect()/read-replica await settlePending here; this
+    // path is synchronous and cannot, so refuse rather than re-adopt a draining
+    // pool. Fail closed + transient: the next call rebuilds once the drain settles.
+    if (this.#lru.hasPendingRelease(roName)) {
+      throw new IsolationConfigException(
+        `The read-only firewall connection "${roName}" for tenant ${tenantId} is being ` +
+          `recycled; refusing to serve a draining pool (fail-closed, transient — retry).`
+      )
+    }
+    if (!manager.has(roName) && typeof manager.add === 'function') {
+      // The primary must already be registered (context entry established it); its
+      // config is the template for the clone.
+      const primaryConfig = manager.get?.(primaryName)?.config
+      if (primaryConfig) {
+        // Seal the PRIMARY before cloning it read-only: refuse to build a
+        // SELECT-only view of a connection that is not pinned to THIS tenant (a
+        // stale or collided primary registration), which would otherwise hand
+        // untrusted code a read-only window onto another tenant's data.
+        this.verifyCachedConnection(
+          { id: tenantId } as TenantModelContract,
+          primaryConfig,
+          primaryName
+        )
+        manager.add(roName, buildReadOnlyConnectionConfig(primaryConfig, role))
+      }
+    }
+    if (!manager.has(roName)) {
+      throw new IsolationConfigException(
+        `Untrusted plugin code requires the read-only connection "${roName}", but it ` +
+          `could not be established for tenant ${tenantId}. Refusing to route untrusted ` +
+          `code to the writable primary (fail-closed).`
+      )
+    }
+    this.#lru.touch(roName)
+    this.#lru.evictIfNeeded()
+    return db.connection(roName)
+  }
+
   async connect(tenant: TenantModelContract, opts: { bypassHardCap?: boolean } = {}) {
     const { db } = await this.lucid()
     const name = this.connectionName(tenant.id)
@@ -129,17 +207,22 @@ export default abstract class PooledPgDriver implements ProvisionableDriver {
 
   async disconnect(tenant: TenantModelContract): Promise<void> {
     const { db } = await this.lucid()
-    const name = this.connectionName(tenant.id)
-    this.#lru.delete(name)
-    // If an eviction is already draining this pool, wait for it instead of
-    // racing it with a second release (idempotent in Lucid, but the await
-    // keeps the manager state deterministic for the `has()` check below).
-    await this.#lru.settlePending(name)
-    if (db.manager.has(name)) {
-      // `release` both closes the pool and unregisters the connection from
-      // the manager. `close` only ends the pool, so `manager.has()` would
-      // still report true, leaking entries across `provision/destroy` cycles.
-      await db.manager.release(name)
+    // Release the primary AND its read-only firewall clone (whenever one was
+    // established). The clone shares this pool, so leaving it registered leaks a
+    // pool per tenant across provision/destroy cycles — the FD leak the
+    // driver-owned clone closes.
+    for (const name of [this.connectionName(tenant.id), this.readOnlyConnectionName(tenant.id)]) {
+      this.#lru.delete(name)
+      // If an eviction is already draining this pool, wait for it instead of
+      // racing it with a second release (idempotent in Lucid, but the await
+      // keeps the manager state deterministic for the `has()` check below).
+      await this.#lru.settlePending(name)
+      if (db.manager.has(name)) {
+        // `release` both closes the pool and unregisters the connection from the
+        // manager. `close` only ends the pool, so `manager.has()` would still
+        // report true, leaking entries.
+        await db.manager.release(name)
+      }
     }
   }
 

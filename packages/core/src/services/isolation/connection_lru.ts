@@ -76,6 +76,16 @@ export default class ConnectionLru {
     if (pending) await pending
   }
 
+  /**
+   * True while an eviction's `release()` for `name` is still draining its pool
+   * (the connection is 'closing': `manager.has()` may still report it, but its
+   * pool is being torn down). A synchronous caller that cannot `settlePending`
+   * uses this to avoid re-adopting a draining pool.
+   */
+  hasPendingRelease(name: string): boolean {
+    return this.#pendingReleases.has(name)
+  }
+
   #now(): number {
     return (this.opts.now ?? Date.now)()
   }

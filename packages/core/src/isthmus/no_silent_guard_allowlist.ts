@@ -19,4 +19,8 @@ export const NO_SILENT_GUARD_ALLOWLIST: ReadonlyArray<{ path: string; why: strin
     path: 'src/services/worm_ledger_writer.ts',
     why: 'shared low-level WORM append primitive: its fail-closed throws (write failure, tenant-scope mismatch) are surfaced by the CALLER, which owns the domain guard — crypto shred maps a write failure to guard.crypto_shred_unaudited and aborts, and every future caller (governance, AI) emits its own guard. The writer has no listener or ops channel of its own; observability lives at the call site, so a guard here would be duplicate noise',
   },
+  {
+    path: 'src/services/isolation/pooled_pg_driver.ts',
+    why: "read-only firewall SETUP failure (ensureReadOnlyClient): the manager is unavailable, the primary was never established, the clone's pool is mid-recycle, or the SELECT-only clone could not be registered. These are operational/transient states, not an attack signal — the write attempt itself is what Postgres denies, and this throw only reports that the firewall could not be built THIS call, denying the request with a loud typed IsolationConfigException that surfaces as the request's own error. Before cloning, the primary is identity-sealed against this tenant via verifyCachedConnection (guard.seal.connection_identity), so a stale/collided primary is caught by THAT guard, which does emit; there is nothing an extra audit event here would add that the denied request or the seal does not already carry",
+  },
 ]
