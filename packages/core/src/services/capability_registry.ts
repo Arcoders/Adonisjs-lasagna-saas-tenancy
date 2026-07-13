@@ -9,16 +9,18 @@ import CapabilityTrustException from '../exceptions/capability_trust_exception.j
 
 /**
  * The capability-registry contract version: the shape of {@link CapabilityProvision}
- * and the `provide`/`consume` protocol. Bump as a MAJOR for a backward-incompatible
+ * and the `provide`/`consume` protocol. Bump as a MAJOR only for a backward-incompatible
  * change. INDEPENDENT of `satelliteApi`, the facade `pluginApiVersion`, and the
  * published version (a cross-plugin provide/consume contract earns its own constant).
  *
- * v2: the protocol now carries TRUST. A provision may opt in as `sensitive`,
- * and the registry allowlist-gates sensitive provide/consume against
- * `TRUSTED_SATELLITES`. Ordinary (non-sensitive) provisions are unaffected, so a v1
- * plugin still boots (older versions warn); a v2 plugin knows the registry enforces the split.
+ * Stays at 1. The `sensitive?` trust flag was added ADDITIVELY: a provision that never
+ * sets it behaves exactly as before, and one that opts in gets the `TRUSTED_SATELLITES`
+ * gate for free. An additive change must NOT bump the integer — `assertContractCompat`
+ * WARNS every extension built against an older version, so a spurious bump floods that
+ * channel with false alarms and desensitizes operators to the genuinely breaking bumps
+ * (isolation's v2 `tableLocation` requirement) that need the warning read.
  */
-export const CAPABILITY_CONTRACT_VERSION = 2
+export const CAPABILITY_CONTRACT_VERSION = 1
 
 /**
  * A capability a plugin provides. Discriminated by `kind`, all fields

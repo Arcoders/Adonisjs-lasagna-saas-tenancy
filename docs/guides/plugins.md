@@ -304,9 +304,9 @@ A sensitive capability crosses a trust gate. Only a plugin on the operator's
 the environment) may **provide** one, and only trusted code may **consume** one. An
 untrusted attempt throws `CapabilityTrustException` (403) rather than degrading to
 `undefined`. Ordinary (non-sensitive) capabilities ignore the allowlist and stay
-freely composable. The bump to `CAPABILITY_CONTRACT_VERSION` 2 records this: a plugin
-built for v1 still boots (its provisions are unversioned or older, so the registry
-warns rather than fails).
+freely composable. The `sensitive` flag is additive, so `CAPABILITY_CONTRACT_VERSION`
+stays at `1`: a plugin that predates the flag simply never sets it and is unaffected,
+and no spurious contract warning is raised against it.
 
 <Callout type="warning" title="The trust allowlist is friction, not a sandbox">
 `TRUSTED_SATELLITES` also gates the in-process core-access funnels: an untrusted
