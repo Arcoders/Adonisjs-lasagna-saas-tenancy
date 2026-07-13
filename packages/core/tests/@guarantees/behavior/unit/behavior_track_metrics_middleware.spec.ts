@@ -223,10 +223,7 @@ test.group('TrackMetricsMiddleware', (group) => {
     const fake = new FakeMetrics()
     const m = new TestableTrackMetrics(fake, undefined)
 
-    await m.handle(
-      { request: makeRequest(), response: makeResponse(200) } as any,
-      async () => {}
-    )
+    await m.handle({ request: makeRequest(), response: makeResponse(200) } as any, async () => {})
 
     assert.lengthOf(fake.increments, 0, 'an unsafe custom id must not be recorded')
   })

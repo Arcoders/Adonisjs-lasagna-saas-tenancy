@@ -353,7 +353,11 @@ test.group('RateLimitMiddleware — tenant attribution (P3-2)', (group) => {
       async () => {},
       opts
     )
-    assert.equal(m.capturedKey, 'rl:global:127.0.0.1', 'unsafe custom id must not be keyed verbatim')
+    assert.equal(
+      m.capturedKey,
+      'rl:global:127.0.0.1',
+      'unsafe custom id must not be keyed verbatim'
+    )
   })
 
   test('prefers the active tenancy context id over the request resolver', async ({ assert }) => {
