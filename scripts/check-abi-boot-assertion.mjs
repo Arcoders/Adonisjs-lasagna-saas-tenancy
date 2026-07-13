@@ -12,7 +12,17 @@
 //      assert wired inside the facade (see sdk/define_plugin.ts), so the `n` it
 //      declares in the spec is the literal this guard pins against package.json.
 //
-// WS-7 / abi-contract-check-configure-time-only + plugin-platform Lote A. Ships `--self-test`.
+// The guard mirror-checks THREE per-provider boot surfaces the same way — declare
+// it in the facade (or a raw boot() call) and keep the manifest coherent:
+//   - satelliteApi (the Satellite ABI, required in every provider);
+//   - pluginApiVersion (the definePlugin facade contract, required in every provider);
+//   - nativeAddons (a boolean; the boot-time sandbox fail-closed, required ONLY when
+//     package.json#lasagnaSatellite.nativeAddons is true — a manifest that claims
+//     native addons but never wires assertNativeAddonsSandboxable silently disables
+//     the --permission worker guard, which this catches).
+//
+// WS-7 / abi-contract-check-configure-time-only + plugin-platform Lote A + Wave 5 EXT-5.
+// Ships `--self-test`.
 
 import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -46,12 +56,16 @@ const DEFINE_PLUGIN_RE = /definePlugin\(\s*\{[\s\S]*?\bsatelliteApi:\s*(\d+)/
 // named LASAGNA_PLUGIN_API_VERSION constant (which equals the current contract).
 const DEFINE_PLUGIN_PAV_RE = /definePlugin\(\s*\{[\s\S]*?\bpluginApiVersion:\s*(LASAGNA_PLUGIN_API_VERSION|\d+)/
 
+// A definePlugin facade may declare nativeAddons as a boolean literal (the facade
+// wires assertNativeAddonsSandboxable when it is `true`).
+const DEFINE_PLUGIN_NATIVE_RE = /definePlugin\(\s*\{[\s\S]*?\bnativeAddons:\s*(true|false)/
+
 /**
  * Pure rule: given provider source + the package's declared satelliteApi (and, for a
- * definePlugin facade, the manifest's pluginApiVersion + the current contract), return
- * problems.
+ * definePlugin facade, the manifest's pluginApiVersion + the current contract + the
+ * manifest's nativeAddons flag), return problems.
  */
-function lint(providerSrc, declaredApi, manifestPav, currentPav) {
+function lint(providerSrc, declaredApi, manifestPav, currentPav, manifestNative) {
   const problems = []
   const m = providerSrc.match(CALL_RE) ?? providerSrc.match(DEFINE_PLUGIN_RE)
   if (!m) {
@@ -91,6 +105,34 @@ function lint(providerSrc, declaredApi, manifestPav, currentPav) {
         'definePlugin({ … }) facade, or call assertPluginApiCompatAtBoot(<n>, …) in a raw boot()'
     )
   }
+  // nativeAddons mirror: a facade that declares the flag must agree with the manifest,
+  // so the install-time consent gate / doctor / health-check (which read the manifest)
+  // and the boot-time sandbox assert (driven by the facade) never disagree.
+  const nativeFacade = providerSrc.match(DEFINE_PLUGIN_NATIVE_RE)
+  const facadeNative = nativeFacade ? nativeFacade[1] === 'true' : undefined
+  if (facadeNative !== undefined && facadeNative !== Boolean(manifestNative)) {
+    problems.push(
+      `nativeAddons: the definePlugin facade declares ${facadeNative} but ` +
+        `package.json#lasagnaSatellite.nativeAddons is ${manifestNative ?? '(absent)'}`
+    )
+  }
+  // nativeAddons backstop, CONDITIONAL on the manifest: when the manifest claims native
+  // addons, the provider MUST wire the boot-time sandbox fail-closed
+  // (assertNativeAddonsSandboxable) — a facade declaring `nativeAddons: true` runs it,
+  // or a raw boot() calls it directly. Without it, a native addon loads in a --permission
+  // worker with no --allow-addons and the guard is silently absent. A plugin with no
+  // native addons needs nothing here.
+  if (manifestNative === true) {
+    const wiresNativeAssert =
+      facadeNative === true || /\bassertNativeAddonsSandboxable\s*\(/.test(providerSrc)
+    if (!wiresNativeAssert) {
+      problems.push(
+        'package.json#lasagnaSatellite.nativeAddons is true but boot() does not wire the ' +
+          'sandbox fail-closed: declare `nativeAddons: true` in the definePlugin({ … }) facade, ' +
+          'or call assertNativeAddonsSandboxable(<name>) in a raw boot()'
+      )
+    }
+  }
   return problems
 }
 
@@ -117,6 +159,20 @@ if (process.argv.includes('--self-test')) {
   const facadeNamed = "export default definePlugin({ name: 'x', satelliteApi: 1, pluginApiVersion: LASAGNA_PLUGIN_API_VERSION })"
   if (lint(facadeNamed, 1, 1, 1).length !== 0) failures.push('named pluginApiVersion good fixture flagged')
   if (lint(facadeNamed, 1, undefined, 1).length === 0) failures.push('absent manifest pluginApiVersion passed')
+  // nativeAddons mirror + conditional backstop.
+  const facadeNative = "export default definePlugin({ name: 'x', satelliteApi: 1, pluginApiVersion: 1, nativeAddons: true })"
+  if (lint(facadeNative, 1, 1, 1, true).length !== 0) failures.push('nativeAddons good fixture flagged')
+  if (lint(facadeNative, 1, 1, 1, false).length === 0) failures.push('nativeAddons facade/manifest drift passed')
+  if (lint(facadeNative, 1, 1, 1, undefined).length === 0) failures.push('nativeAddons facade vs absent manifest passed')
+  // manifest claims native addons but neither facade nor raw assert wires the boot guard.
+  if (lint(facade, 1, 1, 1, true).length === 0) failures.push('manifest nativeAddons without boot assertion passed')
+  // a raw provider that DOES call the sandbox assert satisfies the conditional backstop.
+  const rawWithNative =
+    'async boot(){ assertSatelliteApiCompatAtBoot({ satelliteApi: 1 }, "@x/y"); assertPluginApiCompatAtBoot(1, "@x/y"); assertNativeAddonsSandboxable("@x/y") }'
+  if (lint(rawWithNative, 1, undefined, 1, true).length !== 0) failures.push('raw provider with native assert flagged')
+  // a plugin WITHOUT native addons needs no sandbox assertion (absent or false manifest).
+  if (lint(facade, 1, 1, 1, false).length !== 0) failures.push('non-native plugin spuriously flagged')
+  if (lint(facade, 1, 1, 1, undefined).length !== 0) failures.push('absent-native plugin spuriously flagged')
   if (failures.length) {
     console.error('check-abi-boot-assertion --self-test: FAIL')
     for (const f of failures) console.error(`  - ${f}`)
@@ -144,7 +200,14 @@ for (const s of PROVIDERS) {
     continue
   }
   const manifestPav = pkg?.lasagnaSatellite?.pluginApiVersion
-  for (const p of lint(readFileSync(r(s.provider), 'utf8'), declaredApi, manifestPav, currentPav)) {
+  const manifestNative = pkg?.lasagnaSatellite?.nativeAddons
+  for (const p of lint(
+    readFileSync(r(s.provider), 'utf8'),
+    declaredApi,
+    manifestPav,
+    currentPav,
+    manifestNative
+  )) {
     errors.push(`${s.key}: ${p}`)
   }
 }
