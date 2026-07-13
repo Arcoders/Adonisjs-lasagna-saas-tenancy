@@ -407,9 +407,9 @@ export const ISTHMUS_REGISTRY = [
       kind: 'invariant',
       ref: 'I1: never route tenant A queries under tenant B context — when the tenancy scope and the request resolve different tenants, refuse to route',
     },
-    guardFile: 'src/models/adapters/tenant_adapter.ts',
-    reviewed: '2026-07-02',
-    nextReview: '2027-01-02',
+    guardFile: 'src/services/tenant_context_resolver.ts',
+    reviewed: '2026-07-13',
+    nextReview: '2027-01-13',
   },
   {
     id: 'audit.scope_bypass',

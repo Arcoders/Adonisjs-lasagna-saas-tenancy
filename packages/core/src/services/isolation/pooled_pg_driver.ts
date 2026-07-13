@@ -17,6 +17,7 @@ import { runTenantMigrations } from './tenant_migration_runner.js'
 import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
 import IsolationConfigException from '../../exceptions/isolation_config_exception.js'
 import ConnectionLru from './connection_lru.js'
+import { assertTenantConnectionEstablished } from './connection_established.js'
 import { connectionHasActiveQuery } from './pool_in_use.js'
 import {
   buildReadOnlyConnectionConfig,
@@ -90,6 +91,16 @@ export default abstract class PooledPgDriver implements ProvisionableDriver {
   markUsed(tenantId: string): void {
     const name = this.connectionName(tenantId)
     if (this.#lru.has(name)) this.#lru.touch(name)
+  }
+
+  /**
+   * Fail closed with a typed, actionable error if the tenant's primary connection
+   * was never established, instead of letting Lucid throw an opaque "connection is
+   * not registered" when the adapter asks for it. The per-tenant-pool drivers own
+   * this; the guard itself is single-sourced in `assertTenantConnectionEstablished`.
+   */
+  assertConnected(tenantId: string, db: Database): void {
+    assertTenantConnectionEstablished(tenantId, this.connectionName(tenantId), db)
   }
 
   /** The Lucid connection name of a tenant's SELECT-only firewall clone. */

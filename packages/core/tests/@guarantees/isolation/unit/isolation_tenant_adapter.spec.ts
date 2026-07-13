@@ -294,10 +294,11 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
     assert.lengthOf(db.calls, 0, 'the mismatched query must never reach a connection')
   })
 
-  test('ContextSeal: the HTTP comparand is resolved once per request (memoized)', async ({
+  test('ContextSeal: the seal reads the request.tenant() memo, never re-resolving the request', async ({
     assert,
   }) => {
     const tenancyMod = await import('../../../../src/tenancy.js')
+    const { __setMemoizedTenant } = await import('../../../../src/extensions/request.js')
     const TenantLogContext = (await import('../../../../src/services/tenant_log_context.js'))
       .default
     const BootstrapperRegistry = (await import('../../../../src/services/bootstrapper_registry.js'))
@@ -324,13 +325,21 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
     const adapter = new TenantAdapter(db as any, makeRegistry())
 
     const fakeTenant = { id: UUID2 } as any
+    // request.tenant() resolved the tenant (the guarded path). The seal's comparand
+    // comes from that single memoized value, so across every query in the request the
+    // synchronous resolver chain is never walked again — the memo IS the cache.
+    __setMemoizedTenant(request as any, fakeTenant)
     await tenancyMod.tenancy.run(fakeTenant, async () => {
       adapter.modelConstructorClient({} as any)
       adapter.modelConstructorClient({} as any)
       adapter.modelConstructorClient({} as any)
     })
 
-    assert.equal(headerReads, 1, 'the seal must not re-resolve the request on every query')
+    assert.equal(
+      headerReads,
+      0,
+      'the seal reads the memoized request.tenant() id, never re-resolving'
+    )
     assert.equal(db.lastCall, `tenant_${UUID2}`)
   })
 

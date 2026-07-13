@@ -1,3 +1,4 @@
+import type { Database } from '@adonisjs/lucid/database'
 import { getConfig } from '../../config.js'
 import type { TenantModelContract } from '../../types/contracts.js'
 import { ISOLATION_CONTRACT_VERSION } from './driver.js'
@@ -10,6 +11,7 @@ import type {
   TableLocation,
 } from './driver.js'
 import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
+import { assertTenantConnectionEstablished } from './connection_established.js'
 import { runTenantMigrations } from './tenant_migration_runner.js'
 
 /**
@@ -51,6 +53,13 @@ export default class SqliteMemoryDriver implements ProvisionableDriver {
   connectionName(tenantId: string): string {
     assertSafeIdentifier(tenantId, 'tenant id')
     return `${getConfig().tenantConnectionNamePrefix}${tenantId}`
+  }
+
+  /** Fail closed with a typed error if this tenant's connection was never
+   *  established, matching the PG drivers (sqlite-memory also owns a per-tenant
+   *  connection). Single-sourced in `assertTenantConnectionEstablished`. */
+  assertConnected(tenantId: string, db: Database): void {
+    assertTenantConnectionEstablished(tenantId, this.connectionName(tenantId), db)
   }
 
   tableLocation(tenant: TenantModelContract): TableLocation {

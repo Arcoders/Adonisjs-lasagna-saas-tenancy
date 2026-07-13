@@ -769,7 +769,7 @@ export class TenantActivated extends BaseEvent {
 export class TenantAdapter extends DefaultLucidAdapter {
     // Warning: (ae-forgotten-export) The symbol "IsolationDriverRegistry" needs to be exported by the entry point index.d.ts
     // Warning: (ae-forgotten-export) The symbol "TenantResolverRegistry" needs to be exported by the entry point index.d.ts
-    constructor(db: Database, drivers: IsolationDriverRegistry, resolvers?: TenantResolverRegistry | undefined);
+    constructor(db: Database, drivers: IsolationDriverRegistry, resolvers?: TenantResolverRegistry);
     // (undocumented)
     modelConstructorClient(modelConstructor: LucidModel, options?: ModelAdapterOptions): QueryClientContract;
     query(modelConstructor: LucidModel, options?: ModelAdapterOptions): any;

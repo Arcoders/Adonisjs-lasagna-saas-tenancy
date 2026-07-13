@@ -257,6 +257,21 @@ export interface IsolationDriver {
   markUsed?(tenantId: string): void
 
   /**
+   * OPTIONAL, and synchronous: fail closed if this tenant's primary connection was
+   * never established. The adapter routes to a connection it does NOT register —
+   * establishing it is the job of context entry (`request.tenant()` / `tenancy.run()`,
+   * which call `connect()`). A query that reaches routing with no registered
+   * connection (a cold worker, an LRU eviction, a custom entry point that forgot to
+   * enter context) would let Lucid throw an opaque "connection is not registered";
+   * this throws a typed, actionable error at the boundary instead. Only a driver with
+   * a per-tenant connection pool (schema-pg, database-pg) needs it — it owns the pool
+   * and the single `db.manager` cast. A driver whose connection is always registered
+   * (rowscope-pg's shared connection, sqlite-memory) omits it, and the check is a
+   * no-op there.
+   */
+  assertConnected?(tenantId: string, db: Database): void
+
+  /**
    * OPTIONAL, and synchronous: resolve the SELECT-only firewall connection for a
    * tenant — a clone of the already-registered primary, authenticated as the
    * read-only role, so Postgres (not a JS proxy) denies a write from untrusted
