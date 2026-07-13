@@ -174,7 +174,7 @@ flowchart TB
   subgraph phys["Physical isolation · schema-pg (default), database-pg"]
     direction TB
     PC["the connection IS the boundary<br/>search_path = tenant_acme, or a separate database"]
-    PC --> PW["one wall · a query physically cannot reach another tenant<br/>driver enforce() is a no-op, nothing to scope at query time"]
+    PC --> PW["one wall · a query physically cannot reach another tenant<br/>no query-time scoping hook, nothing to scope"]
   end
   subgraph logi["Logical isolation · rowscope-pg"]
     direction TB
@@ -185,8 +185,9 @@ flowchart TB
 ```
 
 With a **physical** driver there is nothing to defend in depth: the connection's `search_path` (or a
-separate database) means a query simply cannot name another tenant's table. The driver's `enforce()`
-is a deliberate no-op because the boundary is the connection itself.
+separate database) means a query simply cannot name another tenant's table. There is no query-time
+scoping hook to apply (`enforce` is an optional driver hook these drivers omit) because the boundary
+is the connection itself.
 
 With the **logical** driver (`rowscope-pg`) every tenant shares one connection, so isolation has to
 be built in software, and that is where defense in depth matters. The `withTenantScope` mixin injects

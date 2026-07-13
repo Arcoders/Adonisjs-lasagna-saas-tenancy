@@ -1,4 +1,3 @@
-import type { QueryClientContract } from '@adonisjs/lucid/types/database'
 import { getConfig } from '../../config.js'
 import type { TenantModelContract } from '../../types/contracts.js'
 import { ISOLATION_CONTRACT_VERSION } from './driver.js'
@@ -84,11 +83,6 @@ export default class SchemaPgDriver implements ProvisionableDriver {
       schema: this.schemaName(tenant),
       connectionName: this.connectionName(tenant.id),
     }
-  }
-
-  enforce(_client: QueryClientContract, _tenantId: string): void {
-    // No-op: the per-tenant connection (its search_path points at the tenant's
-    // own schema) IS the boundary. There is nothing to scope on the client.
   }
 
   async provision(tenant: TenantModelContract): Promise<void> {

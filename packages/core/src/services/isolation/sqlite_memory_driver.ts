@@ -1,4 +1,3 @@
-import type { QueryClientContract } from '@adonisjs/lucid/types/database'
 import { getConfig } from '../../config.js'
 import type { TenantModelContract } from '../../types/contracts.js'
 import { ISOLATION_CONTRACT_VERSION } from './driver.js'
@@ -61,11 +60,6 @@ export default class SqliteMemoryDriver implements ProvisionableDriver {
       kind: 'connection',
       connectionName: this.connectionName(tenant.id),
     }
-  }
-
-  enforce(_client: QueryClientContract, _tenantId: string): void {
-    // No-op: each tenant gets its own in-memory database, so the connection is
-    // the boundary. Nothing to scope on the client.
   }
 
   async provision(tenant: TenantModelContract): Promise<void> {

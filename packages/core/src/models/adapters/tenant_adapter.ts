@@ -132,15 +132,16 @@ export default class TenantAdapter extends DefaultLucidAdapter {
         )
       }
       const roClient = this.db.connection(roName)
-      driver.enforce(roClient, tenantId)
+      driver.enforce?.(roClient, tenantId)
       return roClient
     }
 
-    // Give the driver a chance to apply its tenant boundary to the resolved
-    // client (a no-op for connection-isolated drivers; the explicit contract
-    // point for row-scoping ones). See IsolationDriver.enforce.
+    // Give the driver its OPTIONAL synchronous per-query hook on the resolved
+    // client. Omitted by every shipped driver (the connection or the
+    // withTenantScope mixin is the boundary), so this is a no-op unless a custom
+    // driver implements it. See IsolationDriver.enforce.
     const client = this.db.connection(name)
-    driver.enforce(client, tenantId)
+    driver.enforce?.(client, tenantId)
     return client
   }
 

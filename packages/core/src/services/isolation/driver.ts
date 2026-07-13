@@ -174,17 +174,22 @@ export interface IsolationDriver {
   readonly contractVersion?: number
 
   /**
-   * Apply this driver's tenant boundary to a client the adapter just resolved
-   * for `tenantId`, called synchronously on every model-query routing. For
-   * connection-isolated drivers (schema-pg, database-pg, sqlite-memory) the
-   * connection *is* the boundary, so this is a documented no-op. Row-scoping
-   * drivers enforce the boundary at query time (the `withTenantScope()` mixin)
-   * and, optionally, per transaction via `withTenantRls()`, so there is nothing
-   * to stamp synchronously here either, but every driver declares the hook so
-   * the responsibility is explicit in the contract and a custom driver cannot
-   * forget it.
+   * OPTIONAL hook: stamp something on a client the adapter just resolved for
+   * `tenantId`, called synchronously on every model-query routing. This is NOT
+   * how the shipped drivers enforce their tenant boundary, so none of them
+   * implement it:
+   *   - connection-isolated drivers (schema-pg, database-pg, sqlite-memory) —
+   *     the per-tenant connection *is* the boundary; there is nothing to stamp.
+   *   - row-scoping (rowscope-pg) — the boundary is applied at query time by the
+   *     `withTenantScope()` mixin and, when a hard boundary is required, per
+   *     transaction via `withTenantRls()`; nothing is stamped synchronously.
+   *
+   * It exists only as an escape hatch for a custom driver that genuinely needs a
+   * synchronous per-query touch on the client (an unusual design). Because the
+   * adapter calls it as `driver.enforce?.(client, tenantId)`, omitting it is the
+   * norm, not a gap.
    */
-  enforce(client: QueryClientContract, tenantId: string): void
+  enforce?(client: QueryClientContract, tenantId: string): void
 
   /**
    * Destroy the tenant's data. By default removes it; pass `{ keepData: true }`
