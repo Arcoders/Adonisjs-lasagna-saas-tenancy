@@ -1,5 +1,5 @@
 import { resolveTenantId } from '../extensions/request.js'
-import { isSafeIdentifier } from '../services/isolation/identifier.js'
+import { guardedSafeIdentifier } from '../isthmus/guarded_identifier.js'
 import { tenancy } from '../tenancy.js'
 import { getConfig } from '../config.js'
 import { consumeRateLimit } from '../services/rate_limiter.js'
@@ -119,8 +119,11 @@ export default class RateLimitMiddleware {
     // would inject key structure, an arbitrary string would let a caller mint or
     // pollute buckets. A non-safe (or absent) id degrades to the shared per-IP
     // `global` bucket rather than an attacker-chosen tenant attribution.
+    // `guardedSafeIdentifier` emits `guard.tenant_identifier` for a PRESENT-but-
+    // unsafe id (a forged attribution, audited not silently dropped); an absent
+    // id — the ordinary untenanted route — degrades quietly.
     const resolved = this.currentTenantId() ?? resolveTenantId(request)
-    const tenantId = isSafeIdentifier(resolved) ? resolved : 'global'
+    const tenantId = guardedSafeIdentifier(resolved, 'rate-limit tenant id') ? resolved : 'global'
     const key = `${prefix}:${tenantId}:${ip}`
 
     // The sliding-window counter (pipeline + ioredis outage detection) is the

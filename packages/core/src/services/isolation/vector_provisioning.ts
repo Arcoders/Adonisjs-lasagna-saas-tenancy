@@ -1,6 +1,6 @@
 import { getConfig } from '../../config.js'
 import { getActiveDriver } from './active_driver.js'
-import { assertSafeIdentifier } from './identifier.js'
+import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
 import { resolveTenantRepository } from '../resolve_tenant_repository.js'
 import { PGVECTOR_EXTENSION, PGVECTOR_EXTENSION_SCHEMA } from './pgvector.js'
 import type { IsolationDriver } from './driver.js'

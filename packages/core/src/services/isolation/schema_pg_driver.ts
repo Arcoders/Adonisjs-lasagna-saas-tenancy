@@ -11,7 +11,7 @@ import type {
   TableLocation,
 } from './driver.js'
 import { assertCachedConnectionIdentity } from './connection_identity_seal.js'
-import { assertSafeIdentifier } from './identifier.js'
+import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
 import { PGVECTOR_EXTENSION_SCHEMA } from './pgvector.js'
 import { runTenantMigrations } from './tenant_migration_runner.js'
 import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'

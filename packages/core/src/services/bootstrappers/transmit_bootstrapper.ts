@@ -1,7 +1,7 @@
 import type { BootstrapperContext, TenantBootstrapper } from '../bootstrapper_registry.js'
 import { emitIsthmusEvent } from '../../isthmus/audit.js'
 import { tenancy } from '../../tenancy.js'
-import { assertSafeIdentifier } from '../isolation/identifier.js'
+import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
 
 /**
  * Lazy resolver for `@adonisjs/transmit`. The package never imports it

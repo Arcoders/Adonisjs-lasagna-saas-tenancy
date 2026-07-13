@@ -10,7 +10,7 @@ import type {
   ProvisionableDriver,
   TableLocation,
 } from './driver.js'
-import { assertSafeIdentifier } from './identifier.js'
+import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
 import { runTenantMigrations } from './tenant_migration_runner.js'
 
 /**

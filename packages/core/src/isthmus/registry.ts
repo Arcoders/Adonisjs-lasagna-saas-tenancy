@@ -71,9 +71,9 @@ export const ISTHMUS_REGISTRY = [
       kind: 'inherent-risk',
       ref: 'tenant ids are interpolated into quoted PG DDL (CREATE SCHEMA/DROP DATABASE) and Redis key segments; a homoglyph or quote reaches raw SQL',
     },
-    guardFile: 'src/services/isolation/identifier.ts',
-    reviewed: '2026-07-02',
-    nextReview: '2027-01-02',
+    guardFile: 'src/isthmus/guarded_identifier.ts',
+    reviewed: '2026-07-13',
+    nextReview: '2027-01-13',
   },
   {
     id: 'guard.plugin_authorizer',

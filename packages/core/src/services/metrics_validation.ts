@@ -1,5 +1,5 @@
 import { emitIsthmusEvent } from '../isthmus/audit.js'
-import { assertSafeIdentifier } from './isolation/identifier.js'
+import { assertSafeIdentifier } from '../isthmus/guarded_identifier.js'
 
 /**
  * Pure, dependency-free validation for `MetricsService.emitMetric()`. Kept out of

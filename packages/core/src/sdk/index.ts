@@ -38,13 +38,17 @@ export { resolveSatelliteDependencies, satisfiesRange } from './dependencies.js'
 export type { DependencyResolution } from './dependencies.js'
 
 /**
- * Pure tenant-id validators a satellite needs whenever it interpolates a tenant
- * id into SQL/DDL or reads one off a request/handshake. Bare-safe (no booted
- * import), so they are usable from a satellite's own unit runner. This is the
- * stable home for satellite authors. (`assertSafeIdentifier` is also on
+ * Tenant-id validators a satellite needs whenever it interpolates a tenant id
+ * into SQL/DDL or reads one off a request/handshake. `isUuidV4` is a pure
+ * predicate; `assertSafeIdentifier` refuses an unsafe id and audits the refusal
+ * (it emits `guard.tenant_identifier` before it throws — the satellite's DDL
+ * gets the same audit trail the kernel drivers do). Both are bare-safe (no
+ * booted import), so they are usable from a satellite's own unit runner. This is
+ * the stable home for satellite authors. (`assertSafeIdentifier` is also on
  * `/services` for in-app custom-driver authors.)
  */
-export { isUuidV4, assertSafeIdentifier } from '../services/isolation/identifier.js'
+export { isUuidV4 } from '../services/isolation/identifier.js'
+export { assertSafeIdentifier } from '../isthmus/guarded_identifier.js'
 
 /**
  * Build a SQL-safe `"schema"."table"` reference for a table in the shared backoffice

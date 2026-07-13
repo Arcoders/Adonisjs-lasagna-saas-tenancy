@@ -1,5 +1,5 @@
 import { emitIsthmusEvent } from '../../isthmus/audit.js'
-import { assertSafeIdentifier } from './identifier.js'
+import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
 
 /**
  * PostgreSQL Row-Level Security (RLS) helpers for the `rowscope-pg` driver.

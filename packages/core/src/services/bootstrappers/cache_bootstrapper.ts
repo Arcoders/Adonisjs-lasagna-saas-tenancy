@@ -1,7 +1,7 @@
 import type { BootstrapperContext, TenantBootstrapper } from '../bootstrapper_registry.js'
 import { getCache } from '../../utils/cache.js'
 import { tenancy } from '../../tenancy.js'
-import { assertSafeIdentifier } from '../isolation/identifier.js'
+import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
 
 type CacheNamespace = ReturnType<ReturnType<typeof getCache>['namespace']>
 type NamespaceFactory = (namespace: string) => CacheNamespace

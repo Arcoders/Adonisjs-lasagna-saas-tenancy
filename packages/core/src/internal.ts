@@ -28,7 +28,8 @@
  * seam for the shared test harness, and the Isthmus emit/registry re-exports
  * that core's own integration specs consume.
  */
-export { assertSafeIdentifier, isUuidV4 } from './services/isolation/identifier.js'
+export { isUuidV4 } from './services/isolation/identifier.js'
+export { assertSafeIdentifier } from './isthmus/guarded_identifier.js'
 export { getActiveDriver } from './services/isolation/active_driver.js'
 export { isProvisionableDriver } from './services/isolation/driver.js'
 export { splitSqlStatementsTagged } from './utils/sql_splitter.js'

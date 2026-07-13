@@ -190,7 +190,7 @@ export type IsthmusPillar = 'guard' | 'seal' | 'audit';
 // @public
 export type IsthmusSeverity = 'critical' | 'high' | 'warn' | 'info';
 
-// @public (undocumented)
+// @public
 export function isUuidV4(value: string): boolean;
 
 // @public

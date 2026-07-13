@@ -1,4 +1,4 @@
-import { assertSafeIdentifier } from '../services/isolation/identifier.js'
+import { assertSafeIdentifier } from '../isthmus/guarded_identifier.js'
 import { getConfig } from '../config.js'
 
 /**

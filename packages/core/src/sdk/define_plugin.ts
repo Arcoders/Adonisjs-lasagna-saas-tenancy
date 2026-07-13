@@ -251,7 +251,7 @@ export function definePlugin(spec: PluginSpec): SatelliteProviderConstructor {
       const specs = await this.#resolveSection('provisionExtensions', spec.provisionExtensions)
       if (specs.length === 0) return
       try {
-        const { assertSafeIdentifier } = await import('../services/isolation/identifier.js')
+        const { assertSafeIdentifier } = await import('../isthmus/guarded_identifier.js')
         for (const ext of specs) {
           assertSafeIdentifier(ext.name, 'extension name')
           if (ext.schema !== undefined) assertSafeIdentifier(ext.schema, 'extension schema')

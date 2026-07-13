@@ -10,7 +10,7 @@ import type {
   MigrateResult,
   TableLocation,
 } from './driver.js'
-import { assertSafeIdentifier } from './identifier.js'
+import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
 import { DEFAULT_RLS_GUC } from './rls.js'
 
 async function lucid() {

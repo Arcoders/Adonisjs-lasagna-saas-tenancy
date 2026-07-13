@@ -3,7 +3,7 @@ import type { CommandOptions } from '@adonisjs/core/types/ace'
 import db from '@adonisjs/lucid/services/db'
 import app from '@adonisjs/core/services/app'
 import { getConfig } from '../config.js'
-import { assertSafeIdentifier } from '../services/isolation/identifier.js'
+import { assertSafeIdentifier } from '../isthmus/guarded_identifier.js'
 
 export default class SetupBackoffice extends BaseCommand {
   static readonly commandName = 'backoffice:setup'

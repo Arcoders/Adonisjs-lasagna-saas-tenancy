@@ -9,7 +9,7 @@ import {
   __setIsthmusDispatcherForTests,
 } from '../../../../src/isthmus/audit.js'
 import { ISTHMUS_REGISTRY, type IsthmusGuardId } from '../../../../src/isthmus/registry.js'
-import { assertSafeIdentifier } from '../../../../src/services/isolation/identifier.js'
+import { assertSafeIdentifier } from '../../../../src/isthmus/guarded_identifier.js'
 import CrossDomainRedirectService from '../../../../src/services/cross_domain_redirect_service.js'
 import { assertConfigBounds } from '../../../../src/providers/assert_config_bounds.js'
 import { assertResolverChain } from '../../../../src/providers/resolver_chain.js'

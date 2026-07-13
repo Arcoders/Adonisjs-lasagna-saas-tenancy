@@ -2,7 +2,7 @@ import { BentoCache, bentostore } from 'bentocache'
 import { memoryDriver } from 'bentocache/drivers/memory'
 import { redisDriver, redisBusDriver } from 'bentocache/drivers/redis'
 import { getConfig } from '../config.js'
-import { assertSafeIdentifier } from '../services/isolation/identifier.js'
+import { assertSafeIdentifier } from '../isthmus/guarded_identifier.js'
 
 /**
  * Configuration shape consumed by buildCacheStack when assembling the package

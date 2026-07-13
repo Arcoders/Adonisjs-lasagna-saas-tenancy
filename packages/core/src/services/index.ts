@@ -123,7 +123,8 @@ export {
 // validate them the same way the shipped drivers do (see the
 // custom-isolation-driver cookbook), so the validator is part of this
 // surface. Also available via the `/internal` subpath.
-export { assertSafeIdentifier, isUuidV4 } from './isolation/identifier.js'
+export { isUuidV4 } from './isolation/identifier.js'
+export { assertSafeIdentifier } from '../isthmus/guarded_identifier.js'
 export {
   TenantResolverRegistry,
   HeaderResolver,
