@@ -3,6 +3,7 @@ import { setConfig } from '../../../../src/config.js'
 import { testConfig } from '../../../helpers/config.js'
 import SchemaPgDriver from '../../../../src/services/isolation/schema_pg_driver.js'
 import IsolationConfigException from '../../../../src/exceptions/isolation_config_exception.js'
+import TenantConnectionLimitException from '../../../../src/exceptions/tenant_connection_limit_exception.js'
 
 /**
  * AD-01 — the driver owns the read-only firewall clone.
@@ -131,6 +132,37 @@ test.group('AD-01 — read-only firewall clone lifecycle', (group) => {
     assert.isFalse(
       mockDb.registered.has(driver.readOnlyConnectionName(UUID)),
       'no clone is built from a mis-pinned primary'
+    )
+  })
+
+  test('the clone honors the absolute ceiling: a new clone past it is refused (503)', ({
+    assert,
+  }) => {
+    // The clone is a second real connection, so it counts against the pool budget
+    // and must not push it past the absolute ceiling.
+    setConfig({
+      ...testConfig,
+      isolation: { ...(testConfig.isolation as any), maxTenantConnectionsHardCeiling: 1 },
+    })
+    const UUID_B = '22222222-2222-4222-8222-222222222222'
+    const mockDb = makeDb()
+    const driver = driverOver(mockDb)
+    for (const id of [UUID, UUID_B]) {
+      mockDb.manager.add(driver.connectionName(id), {
+        searchPath: [driver.schemaName(id)],
+        connection: { user: 'app' },
+      })
+    }
+    // First clone: the driver's LRU is empty (0 < ceiling 1) → admitted.
+    driver.ensureReadOnlyClient(UUID, mockDb as any, { user: 'plugin_ro' })
+    // Second clone for a different tenant: LRU at the ceiling (1, in-grace) → refused.
+    assert.throws(
+      () => driver.ensureReadOnlyClient(UUID_B, mockDb as any, { user: 'plugin_ro' }),
+      TenantConnectionLimitException
+    )
+    assert.isFalse(
+      mockDb.registered.has(driver.readOnlyConnectionName(UUID_B)),
+      'no second clone is opened past the ceiling'
     )
   })
 })

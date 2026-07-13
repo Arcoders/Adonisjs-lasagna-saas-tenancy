@@ -1,6 +1,6 @@
 import type { ApplicationService } from '@adonisjs/core/types'
 import { Database } from '@adonisjs/lucid/database'
-import { setConfig } from '../config.js'
+import { getConfig, setConfig } from '../config.js'
 import { assertConfigBounds } from './assert_config_bounds.js'
 import { assertPluginLimits } from './assert_plugin_limits.js'
 import { resolutionSafetyAudit } from './resolution_safety.js'
@@ -210,6 +210,28 @@ export default class MultitenancyProvider {
         scopeColumn
       )
       assertRowScopeRlsPresent(rows, tables, scopeColumn)
+    }
+
+    // F1 observable boot warning: the absolute connection ceiling is the tier
+    // ABOVE the soft cap. Set BELOW maxTenantConnections it breaks the pool — new
+    // tenants are refused (503) before the size ever exceeds the cap, so the
+    // in-use-aware LRU never runs to shed idle connections, and requests are
+    // refused while evictable connections sit open. Deferred to app.booted for the
+    // logger, like the rowscope hint above.
+    if (choice === 'schema-pg' || choice === 'database-pg') {
+      const iso = getConfig().isolation
+      const ceiling = iso.maxTenantConnectionsHardCeiling
+      if (ceiling !== undefined && ceiling < iso.maxTenantConnections) {
+        this.#warnWhenBooted((logger) =>
+          logger.warn(
+            `multitenancy: isolation.maxTenantConnectionsHardCeiling (${ceiling}) is below ` +
+              `maxTenantConnections (${iso.maxTenantConnections}). The absolute ceiling is the tier ABOVE ` +
+              `the soft cap; set below it, the pool is refused (503) before the LRU ever evicts an idle ` +
+              `connection, so new tenants can be refused while evictable connections stay open. Set the ` +
+              `ceiling as generous headroom ABOVE maxTenantConnections.`
+          )
+        )
+      }
     }
 
     // Resolve the resolver registry singleton: the adapter takes it as a

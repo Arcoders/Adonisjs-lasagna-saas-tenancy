@@ -31,6 +31,7 @@ export interface NumericConfigField {
 export const NUMERIC_CONFIG_FIELDS: readonly NumericConfigField[] = [
   // --- Enforced: identical bounds to the pre-registry assertConfigBounds. ---
   { path: 'isolation.maxTenantConnections', enforce: true, min: 1 },
+  { path: 'isolation.maxTenantConnectionsHardCeiling', enforce: true, min: 1 },
   { path: 'isolation.evictionGracePeriodMs', enforce: true, min: 0 },
   { path: 'tenantReadReplicas.maxReplicaConnections', enforce: true, min: 1 },
   { path: 'circuitBreaker.threshold', enforce: true, min: 1, max: 100 },

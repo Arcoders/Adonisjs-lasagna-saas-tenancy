@@ -117,4 +117,24 @@ export interface IsolationConfig {
    * connections strictly under `max_connections`. Default false.
    */
   enforceConnectionCap?: boolean
+  /**
+   * For `schema-pg`/`database-pg`: an ABSOLUTE upper bound on open tenant
+   * connections — the second tier above `maxTenantConnections`. Unset by default
+   * (no ceiling).
+   *
+   * `maxTenantConnections` is a SOFT target: with `enforceConnectionCap: false`
+   * (the default) a burst of concurrently-active tenants lets the pool grow past
+   * it, trending toward the active-tenant count and, unchecked, toward PostgreSQL
+   * `max_connections`. This ceiling is the last-resort backstop: once the pool
+   * reaches it, `connect()` refuses a NEW request-path tenant connection with
+   * `TenantConnectionLimitException` (HTTP 503) REGARDLESS of `enforceConnectionCap`,
+   * so even an availability-favouring deployment can never exhaust the database.
+   * Operational paths (provisioning, migrations) bypass it, as they do the soft
+   * cap.
+   *
+   * Set it generously ABOVE `maxTenantConnections` (headroom for burst) but safely
+   * under `max_connections * poolMax`. Leave it unset only if another layer
+   * (PgBouncer, `enforceConnectionCap`) already bounds server connections.
+   */
+  maxTenantConnectionsHardCeiling?: number
 }

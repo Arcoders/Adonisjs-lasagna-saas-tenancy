@@ -25,6 +25,14 @@ export interface ConnectionLruOptions {
    */
   hardCap?: () => boolean
   /**
+   * Absolute upper bound on open connections, read lazily. When it returns a
+   * number, admitting a connection at/above it is ALWAYS refused (see
+   * {@link ConnectionLru.atHardCeiling}) — independent of `hardCap` and the grace
+   * window — the last-resort backstop against unbounded pool growth. `undefined`
+   * (the default) means no ceiling.
+   */
+  hardCeiling?: () => number | undefined
+  /**
    * Close + unregister a connection by name. Return `false` to decline the close
    * (the connection has a query in flight and must stay open); the registry then
    * keeps it with a refreshed heartbeat so it is not retried until it goes idle.
@@ -63,6 +71,7 @@ export default class ConnectionLru {
   // before its `manager.has()` check, or it would re-adopt a closing pool.
   readonly #pendingReleases = new Map<string, Promise<void>>()
   #lastOverCapWarnAt = 0
+  #lastCeilingWarnAt = 0
 
   constructor(private readonly opts: ConnectionLruOptions) {}
 
@@ -116,15 +125,65 @@ export default class ConnectionLru {
    * are still under cap, this returns false and the caller admits as usual.
    * Callers (the per-tenant drivers) translate `true` into a 503.
    */
-  atHardLimit(): boolean {
-    if (!this.opts.hardCap?.()) return false
-    if (this.#map.size < this.opts.cap()) return false
+  /**
+   * True when the pool is at/over `threshold` AND no connection is evictable
+   * (every one is still inside the grace window, i.e. genuinely in use). When an
+   * idle victim exists this returns false so the caller admits and `evictIfNeeded`
+   * reclaims the idle slot: the pool bounds itself by SHEDDING idle connections,
+   * refusing only when it is full of active ones. Refusing without this
+   * victim check would lock the pool at the threshold — idle connections would
+   * never be shed (eviction runs only on a successful admit) and new tenants would
+   * be refused forever.
+   */
+  #atCapacityWithNoVictim(threshold: number): boolean {
+    if (this.#map.size < threshold) return false
     const graceMs = this.opts.graceMs()
     const now = this.#now()
     for (const [, touchedAt] of this.#map) {
       if (now - touchedAt > graceMs) return false // an evictable victim exists
     }
     return true
+  }
+
+  atHardLimit(): boolean {
+    if (!this.opts.hardCap?.()) return false
+    return this.#atCapacityWithNoVictim(this.opts.cap())
+  }
+
+  /**
+   * The SECOND tier: true when admitting a NEW connection must be refused because
+   * the absolute `hardCeiling` is reached and nothing is evictable. Unlike
+   * {@link atHardLimit} (the soft cap, gated on `hardCap`), this is ALWAYS on — it
+   * holds independent of `enforceConnectionCap` — so even an availability-favouring
+   * pool can never grow without bound. Like the soft cap it yields to an idle,
+   * evictable victim (a reclaimable slot), so it refuses only when the pool is full
+   * of ACTIVE connections at the ceiling; that keeps idle connections from locking
+   * the pool. No ceiling configured → always false. Emits a throttled warning when
+   * it bites so the backstop is observable. Callers translate `true` into a 503.
+   */
+  atHardCeiling(): boolean {
+    const ceiling = this.opts.hardCeiling?.()
+    if (ceiling === undefined) return false
+    const atCeiling = this.#atCapacityWithNoVictim(ceiling)
+    if (atCeiling) this.#warnAtCeiling(ceiling)
+    return atCeiling
+  }
+
+  #warnAtCeiling(ceiling: number): void {
+    const now = this.#now()
+    // Throttle: one warning per minute is enough to alert ops without flooding.
+    if (now - this.#lastCeilingWarnAt < 60_000) return
+    this.#lastCeilingWarnAt = now
+    const open = this.#map.size
+    const label = this.opts.label
+    void lazyLogger().then((logger) =>
+      logger?.warn(
+        { ceiling, open, owner: label },
+        `${label}: the absolute connection ceiling (${ceiling}) is reached; refusing new ` +
+          `tenant connections with 503 to protect the database. Raise ` +
+          `isolation.maxTenantConnectionsHardCeiling, add PgBouncer, or scale out.`
+      )
+    )
   }
 
   /**

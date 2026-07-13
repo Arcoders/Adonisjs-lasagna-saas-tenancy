@@ -99,6 +99,20 @@ N+1. Turn it on when you front PostgreSQL with **PgBouncer**, or whenever a
 bounded server-connection budget matters more than serving every burst. Size
 `max_connections` for the cap, not for your tenant count.
 
+### The absolute ceiling (`maxTenantConnectionsHardCeiling`)
+
+If you keep the availability-favouring default (`enforceConnectionCap: false`)
+but still want a last-resort backstop, set
+`isolation.maxTenantConnectionsHardCeiling` to a value **generously above**
+`maxTenantConnections`. It is a second, absolute tier: once the pool reaches it,
+`connect()` refuses a new request-path tenant connection with a `503` **whether
+or not `enforceConnectionCap` is on**, so a burst can grow past the soft cap for
+availability yet can never march all the way to PostgreSQL's `max_connections`
+and take the database down. Operational paths (provisioning, migrations) bypass
+it, exactly as they bypass the soft cap. Setting it *below* `maxTenantConnections`
+is a misconfiguration (the pool would be refused before the LRU ever evicts an
+idle connection); the provider logs a boot warning if you do.
+
 ::: tip Use a connection pooler
 At higher tenant counts, front Postgres with **PgBouncer** (transaction
 pooling) so the package's per-tenant connections map onto a much smaller set of

@@ -57,6 +57,7 @@ export default abstract class PooledPgDriver implements ProvisionableDriver {
       cap: () => getConfig().isolation.maxTenantConnections,
       graceMs: () => getConfig().isolation.evictionGracePeriodMs,
       hardCap: () => getConfig().isolation.enforceConnectionCap ?? false,
+      hardCeiling: () => getConfig().isolation.maxTenantConnectionsHardCeiling,
       release: async (name) => {
         const { db } = await this.lucid()
         if (!db.manager.has(name)) return true
@@ -134,6 +135,14 @@ export default abstract class PooledPgDriver implements ProvisionableDriver {
       )
     }
     if (!manager.has(roName) && typeof manager.add === 'function') {
+      // The clone is a SECOND real PG connection (separate pool), so it counts
+      // against the pool budget. Honor the same admission tiers as connect(), or
+      // untrusted plugin traffic would push the pool past the cap/ceiling one clone
+      // at a time. Refuse (fail-closed) rather than open connection N+1 for
+      // untrusted code; an already-registered clone (checked above) still serves.
+      if (this.#lru.atHardCeiling() || this.#lru.atHardLimit()) {
+        throw new TenantConnectionLimitException()
+      }
       // The primary must already be registered (context entry established it); its
       // config is the template for the clone.
       const primaryConfig = manager.get?.(primaryName)?.config
@@ -180,12 +189,15 @@ export default abstract class PooledPgDriver implements ProvisionableDriver {
       return db.connection(name)
     }
 
-    // Hard-cap admission control (opt-in) guards the request-serving path. The
-    // provisioning/reset/migration paths call connect() too and pass
-    // bypassHardCap, so a momentarily full request-path budget can't refuse tenant
-    // onboarding (which would also leave freshly created storage orphaned). No-op
-    // unless enforceConnectionCap.
-    if (!opts.bypassHardCap && this.#lru.atHardLimit()) {
+    // Admission control on the request-serving path. Provisioning/reset/migration
+    // pass bypassHardCap so onboarding is never refused by request-path backpressure
+    // (which would also orphan freshly created storage). Two tiers:
+    //   - the absolute ceiling (F1): ALWAYS refuses at/above
+    //     maxTenantConnectionsHardCeiling, so an availability-favouring pool can
+    //     never grow toward PostgreSQL max_connections;
+    //   - the soft cap: refuses only under enforceConnectionCap when no connection
+    //     is evictable.
+    if (!opts.bypassHardCap && (this.#lru.atHardCeiling() || this.#lru.atHardLimit())) {
       throw new TenantConnectionLimitException()
     }
 

@@ -12,6 +12,7 @@ function makeLru(
     failRelease?: boolean
     declineRelease?: boolean
     hardCap?: boolean
+    hardCeiling?: number
   } = {}
 ) {
   const released: string[] = []
@@ -21,6 +22,7 @@ function makeLru(
     cap: () => opts.cap ?? 2,
     graceMs: () => opts.graceMs ?? 1000,
     hardCap: () => opts.hardCap ?? false,
+    hardCeiling: () => opts.hardCeiling,
     release: async (name) => {
       if (opts.failRelease) throw new Error('release failed')
       // Simulate a connection with a query still in flight: the driver declines.
@@ -169,5 +171,53 @@ test.group('ConnectionLru — hard cap admission (enforceConnectionCap)', () => 
     advance(5000) // 'a' aged past the grace window → evictable
     lru.touch('b')
     assert.isFalse(lru.atHardLimit(), 'a stale victim can be evicted to make room')
+  })
+})
+
+test.group('ConnectionLru — absolute hard ceiling (F1)', () => {
+  test('no ceiling configured: never at the ceiling, even far over cap', ({ assert }) => {
+    const { lru } = makeLru({ cap: 2 }) // hardCeiling undefined
+    for (const n of ['a', 'b', 'c', 'd', 'e']) lru.touch(n)
+    assert.isFalse(lru.atHardCeiling())
+  })
+
+  test('below the ceiling: admission is allowed', ({ assert }) => {
+    const { lru } = makeLru({ cap: 2, hardCeiling: 4 })
+    lru.touch('a')
+    lru.touch('b')
+    lru.touch('c') // 3 < ceiling 4
+    assert.isFalse(lru.atHardCeiling())
+  })
+
+  test('at/above the ceiling: refused ALWAYS, regardless of hardCap (soft cap off)', ({
+    assert,
+  }) => {
+    // hardCap is OFF (availability-favouring), yet the absolute ceiling still bites.
+    const { lru } = makeLru({ cap: 10, hardCap: false, hardCeiling: 3 })
+    lru.touch('a')
+    lru.touch('b')
+    lru.touch('c') // size == ceiling
+    assert.isTrue(
+      lru.atHardCeiling(),
+      'the absolute ceiling holds even with enforceConnectionCap off'
+    )
+    assert.isFalse(lru.atHardLimit(), 'the soft cap does not bite (hardCap off, under cap)')
+  })
+
+  test('yields to an idle victim (no lockup); refuses only when all are in-use', ({ assert }) => {
+    // Like the soft cap, the ceiling sheds an idle connection to make room rather
+    // than lock the pool. It refuses only when every connection at the ceiling is
+    // still in use (evictIfNeeded could not free a slot).
+    const { lru, advance } = makeLru({ cap: 10, hardCap: false, graceMs: 1000, hardCeiling: 2 })
+    lru.touch('a')
+    advance(5000) // 'a' is idle/evictable
+    lru.touch('b') // size == ceiling, but 'a' is a reclaimable victim
+    assert.isFalse(
+      lru.atHardCeiling(),
+      'an idle connection can be evicted to admit a new one — the ceiling never locks the pool'
+    )
+
+    lru.touch('a') // now BOTH are within grace → nothing evictable
+    assert.isTrue(lru.atHardCeiling(), 'refuses only when the pool is full of ACTIVE connections')
   })
 })

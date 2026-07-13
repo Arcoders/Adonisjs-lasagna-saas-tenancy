@@ -74,6 +74,7 @@ isolation: { driver: 'schema-pg' }
 | `isolation.maxTenantConnections` | `number` | `50` | LRU budget for open tenant connections (`schema-pg`/`database-pg`). Keep `cap × pool max` under PG's `max_connections`. |
 | `isolation.evictionGracePeriodMs` | `number` | `30000` | A connection touched more recently than this is in-use and never evicted — set above your p99 request duration. |
 | `isolation.enforceConnectionCap` | `boolean` | `false` | Turn the LRU budget into a hard cap: refuse new tenant connections with a 503 (`TenantConnectionLimitException`) instead of exceeding it. |
+| `isolation.maxTenantConnectionsHardCeiling` | `number?` | unset | Absolute upper bound above `maxTenantConnections`: once the pool reaches it, `connect()` refuses a new request-path tenant connection with a 503 **regardless of `enforceConnectionCap`**, so an availability-favouring pool can never exhaust PG's `max_connections`. Set it generously above the soft cap; operational paths (provisioning, migrations) bypass it. |
 
 ## Resilience (degradation policy)
 
