@@ -43,7 +43,7 @@ test.group('BUILT_IN_ISOLATION_DRIVERS', (group) => {
       ...cfg,
       isolation: { ...(cfg.isolation ?? {}), tenantDatabasePrefix: 'app_db_' },
     } as MultitenancyConfig
-    const driver = BUILT_IN_ISOLATION_DRIVERS['database-pg']!(withPrefix) as {
+    const driver = BUILT_IN_ISOLATION_DRIVERS['database-pg']!(withPrefix) as unknown as {
       databaseName(id: string): string
     }
     assert.equal(driver.databaseName('42'), 'app_db_42')
