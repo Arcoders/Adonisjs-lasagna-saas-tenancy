@@ -1,72 +1,24 @@
 import { getConfig } from '../../config.js'
 import type { TenantModelContract } from '../../types/contracts.js'
-import { ISOLATION_CONTRACT_VERSION } from './driver.js'
-import type {
-  DestroyOptions,
-  IsolationDriverName,
-  MigrateOptions,
-  MigrateResult,
-  ProvisionableDriver,
-  TableLocation,
-} from './driver.js'
+import type { DestroyOptions, IsolationDriverName, TableLocation } from './driver.js'
 import { assertCachedConnectionIdentity } from './connection_identity_seal.js'
 import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
 import { PGVECTOR_EXTENSION_SCHEMA } from './pgvector.js'
-import { runTenantMigrations } from './tenant_migration_runner.js'
-import TenantConnectionLimitException from '../../exceptions/tenant_connection_limit_exception.js'
-import IsolationConfigException from '../../exceptions/isolation_config_exception.js'
-import ConnectionLru from './connection_lru.js'
-import { connectionHasActiveQuery } from './pool_in_use.js'
-
-/**
- * Lazily resolve `db` so unit tests that only exercise pure helpers
- * (connectionName/schemaName) don't drag the Lucid runtime, nor the
- * `await app.booted(...)` inside `@adonisjs/lucid/services/db`, into
- * the test process. Read replicas use the same pattern.
- */
-async function lucid() {
-  const [{ default: db }, { default: app }, { MigrationRunner }] = await Promise.all([
-    import('@adonisjs/lucid/services/db'),
-    import('@adonisjs/core/services/app'),
-    import('@adonisjs/lucid/migration'),
-  ])
-  return { db, app, MigrationRunner }
-}
+import PooledPgDriver from './pooled_pg_driver.js'
 
 /**
  * Default isolation driver: each tenant gets its own PostgreSQL schema
  * (`tenant_<uuid>`) on a shared database. Connections are registered
  * lazily into Lucid's manager with a `searchPath` pointing at the
- * tenant's schema. An LRU bound caps how many simultaneous tenant
- * connections can stay open in the pool.
+ * tenant's schema. The shared {@link PooledPgDriver} base owns the bounded
+ * connection pool and the connect/disconnect/markUsed/migrate flow; this class
+ * supplies the schema-specific config, seal, DDL, and placement.
  */
-export default class SchemaPgDriver implements ProvisionableDriver {
+export default class SchemaPgDriver extends PooledPgDriver {
   readonly name: IsolationDriverName = 'schema-pg'
-  readonly contractVersion = ISOLATION_CONTRACT_VERSION
-  readonly #templateConnectionName: string
-  readonly #lru = new ConnectionLru({
-    label: 'SchemaPgDriver',
-    cap: () => getConfig().isolation.maxTenantConnections,
-    graceMs: () => getConfig().isolation.evictionGracePeriodMs,
-    hardCap: () => getConfig().isolation.enforceConnectionCap ?? false,
-    release: async (name) => {
-      const { db } = await lucid()
-      if (!db.manager.has(name)) return true
-      // Keep a connection that still has a query running; the LRU will retry it
-      // once it goes idle.
-      if (connectionHasActiveQuery(db.manager, name)) return false
-      await db.manager.release(name)
-      return true
-    },
-  })
 
   constructor(opts: { templateConnectionName?: string } = {}) {
-    this.#templateConnectionName = opts.templateConnectionName ?? 'tenant'
-  }
-
-  connectionName(tenantId: string): string {
-    assertSafeIdentifier(tenantId, 'tenant id')
-    return `${getConfig().tenantConnectionNamePrefix}${tenantId}`
+    super({ ...opts, label: 'SchemaPgDriver' })
   }
 
   schemaName(tenant: TenantModelContract | string): string {
@@ -85,9 +37,44 @@ export default class SchemaPgDriver implements ProvisionableDriver {
     }
   }
 
+  protected buildTenantConfig(template: any, tenant: TenantModelContract): any {
+    // The tenant's own schema stays FIRST (all tenant objects resolve there), with
+    // the shared pgvector `extensions` schema appended so a bare `vector(N)` column
+    // and operator class resolve without putting `public` (which holds central data)
+    // on the tenant path. The schema is absent for non-pgvector hosts; PostgreSQL
+    // silently ignores a non-existent schema in search_path, so this is a no-op there.
+    return {
+      ...template,
+      searchPath: [this.schemaName(tenant), PGVECTOR_EXTENSION_SCHEMA],
+    }
+  }
+
+  protected verifyCachedConnection(
+    tenant: TenantModelContract,
+    cachedConfig: unknown,
+    name: string
+  ): void {
+    // schema-pg keys the seal on the connection's searchPath (the field
+    // buildTenantConfig sets per tenant).
+    const existing = cachedConfig as { searchPath?: unknown } | undefined
+    const expected = this.schemaName(tenant)
+    const actual = Array.isArray(existing?.searchPath)
+      ? existing.searchPath[0]
+      : existing?.searchPath
+    assertCachedConnectionIdentity({
+      driverLabel: 'SchemaPgDriver',
+      tenantId: tenant.id,
+      connection: name,
+      identityKind: 'searchPath',
+      expected,
+      actualDisplay: JSON.stringify(existing?.searchPath),
+      matches: actual === expected,
+    })
+  }
+
   async provision(tenant: TenantModelContract): Promise<void> {
     const schema = this.schemaName(tenant)
-    const { db } = await lucid()
+    const { db } = await this.lucid()
     await db.rawQuery(`CREATE SCHEMA IF NOT EXISTS "${schema}"`)
     await this.connect(tenant, { bypassHardCap: true })
   }
@@ -96,110 +83,16 @@ export default class SchemaPgDriver implements ProvisionableDriver {
     const schema = this.schemaName(tenant)
     await this.disconnect(tenant)
     if (opts.keepData) return
-    const { db } = await lucid()
+    const { db } = await this.lucid()
     await db.rawQuery(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
   }
 
   async reset(tenant: TenantModelContract): Promise<void> {
     const schema = this.schemaName(tenant)
     await this.disconnect(tenant)
-    const { db } = await lucid()
+    const { db } = await this.lucid()
     await db.rawQuery(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
     await db.rawQuery(`CREATE SCHEMA "${schema}"`)
     await this.connect(tenant, { bypassHardCap: true })
-  }
-
-  /** Refresh the in-use grace window for a tenant's connection on every query. */
-  markUsed(tenantId: string): void {
-    const name = this.connectionName(tenantId)
-    if (this.#lru.has(name)) this.#lru.touch(name)
-  }
-
-  async connect(tenant: TenantModelContract, opts: { bypassHardCap?: boolean } = {}) {
-    const { db } = await lucid()
-    const name = this.connectionName(tenant.id)
-
-    // If this connection was just evicted, wait for its pool to finish draining
-    // before deciding it's still registered. Otherwise we'd re-adopt a closing
-    // pool and queries would fail mid-flight.
-    await this.#lru.settlePending(name)
-
-    if (db.manager.has(name)) {
-      // Verify the cached connection is still pinned to THIS tenant's schema
-      // before serving it (the shared cross-tenant identity seal). schema-pg keys
-      // on the connection's searchPath.
-      const existing = db.manager.get(name)?.config as any
-      const expected = this.schemaName(tenant)
-      const actual = Array.isArray(existing?.searchPath)
-        ? existing.searchPath[0]
-        : existing?.searchPath
-      assertCachedConnectionIdentity({
-        driverLabel: 'SchemaPgDriver',
-        tenantId: tenant.id,
-        connection: name,
-        identityKind: 'searchPath',
-        expected,
-        actualDisplay: JSON.stringify(existing?.searchPath),
-        matches: actual === expected,
-      })
-      this.#lru.touch(name)
-      return db.connection(name)
-    }
-
-    // Hard-cap admission control (opt-in) guards the request-serving path. The
-    // provisioning/reset paths call connect() too and pass bypassHardCap, so a
-    // momentarily full request-path budget can't refuse tenant onboarding (which
-    // would also leave the freshly created schema orphaned). No-op unless
-    // enforceConnectionCap.
-    if (!opts.bypassHardCap && this.#lru.atHardLimit()) {
-      throw new TenantConnectionLimitException()
-    }
-
-    const template = db.manager.get(this.#templateConnectionName)?.config
-    if (!template) {
-      throw new IsolationConfigException(
-        `SchemaPgDriver: template connection "${this.#templateConnectionName}" not found in db.manager. ` +
-          `Configure it in config/database.ts.`
-      )
-    }
-
-    // The tenant's own schema stays FIRST (all tenant objects resolve there), with
-    // the shared pgvector `extensions` schema appended so a bare `vector(N)` column
-    // and operator class resolve without putting `public` (which holds central data)
-    // on the tenant path. The schema is absent for non-pgvector hosts; PostgreSQL
-    // silently ignores a non-existent schema in search_path, so this is a no-op there.
-    db.manager.add(name, {
-      ...template,
-      searchPath: [this.schemaName(tenant), PGVECTOR_EXTENSION_SCHEMA],
-    } as any)
-
-    this.#lru.touch(name)
-    this.#lru.evictIfNeeded()
-
-    return db.connection(name)
-  }
-
-  async disconnect(tenant: TenantModelContract): Promise<void> {
-    const { db } = await lucid()
-    const name = this.connectionName(tenant.id)
-    this.#lru.delete(name)
-    // If an eviction is already draining this pool, wait for it instead of
-    // racing it with a second release (idempotent in Lucid, but the await
-    // keeps the manager state deterministic for the `has()` check below).
-    await this.#lru.settlePending(name)
-    if (db.manager.has(name)) {
-      // `release` both closes the pool and unregisters the connection from
-      // the manager. `close` only ends the pool, so `manager.has()` would
-      // still report true, leaking entries across `provision/destroy` cycles.
-      await db.manager.release(name)
-    }
-  }
-
-  async migrate(tenant: TenantModelContract, opts: MigrateOptions): Promise<MigrateResult> {
-    // Self-connect (bypassing the hard cap) so migrate() works regardless of
-    // whether the caller pre-connected, matching database-pg / sqlite. An
-    // operational migration must never be refused by request-path backpressure.
-    await this.connect(tenant, { bypassHardCap: true })
-    return runTenantMigrations(this.connectionName(tenant.id), opts)
   }
 }
