@@ -47,8 +47,25 @@ export default class DefaultLucidAdapter implements AdapterContract {
       : this.modelConstructorClient(modelConstructor, instance.$options)
   }
 
+  /**
+   * The write/refresh query builder for a model instance, keyed by action. A
+   * single seam (not in upstream's port) so a subclass can schema-qualify the
+   * write path the way `query()` qualifies reads — `insert`/`update`/`delete`/
+   * `refresh` all bypass `query()`, so without this each would resolve its schema
+   * through the connection's search_path. The base is behavior-identical; it just
+   * centralizes the `$getQueryFor` call. See `TenantAdapter.queryForInstance`.
+   */
+  protected queryForInstance(
+    instance: LucidRow,
+    action: 'insert' | 'update' | 'delete' | 'refresh'
+  ): any {
+    // `$getQueryFor` is overloaded per literal action; the union widens past both
+    // overloads, so erase it (the method returns `any` regardless, as elsewhere here).
+    return instance.$getQueryFor(action as 'insert', this.modelClient(instance))
+  }
+
   async insert(instance: LucidRow, attributes: any) {
-    const query = instance.$getQueryFor('insert', this.modelClient(instance))
+    const query = this.queryForInstance(instance, 'insert')
 
     const Model = instance.constructor as LucidModel
     const result = await query.insert(attributes).reporterData({ model: Model.name })
@@ -64,20 +81,18 @@ export default class DefaultLucidAdapter implements AdapterContract {
   }
 
   async update(instance: LucidRow, dirty: any) {
-    await instance.$getQueryFor('update', this.modelClient(instance)).update(dirty)
+    await this.queryForInstance(instance, 'update').update(dirty)
   }
 
   async delete(instance: LucidRow) {
-    await instance.$getQueryFor('delete', this.modelClient(instance)).del()
+    await this.queryForInstance(instance, 'delete').del()
   }
 
   async refresh(instance: LucidRow) {
     const Model = instance.constructor as LucidModel
     const primaryKeyColumnName = this.getPrimaryKeyColumnName(Model)
 
-    const freshModelInstance = await instance
-      .$getQueryFor('refresh', this.modelClient(instance))
-      .first()
+    const freshModelInstance = await this.queryForInstance(instance, 'refresh').first()
 
     if (!freshModelInstance) {
       throw new Exception(

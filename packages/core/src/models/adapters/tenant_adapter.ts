@@ -1,5 +1,5 @@
 import type { Database } from '@adonisjs/lucid/database'
-import type { LucidModel, ModelAdapterOptions } from '@adonisjs/lucid/types/model'
+import type { LucidModel, LucidRow, ModelAdapterOptions } from '@adonisjs/lucid/types/model'
 import { getConfig } from '../../config.js'
 import IsolationConfigException from '../../exceptions/isolation_config_exception.js'
 import { pluginScope } from '../../services/plugin_execution_scope.js'
@@ -44,6 +44,30 @@ export default class TenantAdapter extends DefaultLucidAdapter {
       return builder.withSchema(getConfig().backofficeSchemaName)
     }
     return builder
+  }
+
+  /**
+   * Schema-qualify a backoffice model's write/refresh query, SYMMETRIC with the
+   * read qualification in `query()`. `insert`/`update`/`delete`/`refresh` bypass
+   * `query()`, so without this a backoffice ORM write resolves its schema through
+   * the `backoffice` connection's search_path — which the package never sets, only
+   * the host does. A host that mis- or un-sets it would silently write to the
+   * wrong schema while reads (already pinned) still target `backoffice`, so the
+   * divergence reads as data loss. Explicit `.withSchema` pins every backoffice
+   * write to `backoffice.<table>` independent of search_path, closing the
+   * read/write asymmetry. `backoffice.<table>` is what the raw-SQL satellite
+   * writers already emit, so this brings the ORM path in line with them.
+   */
+  protected override queryForInstance(
+    instance: LucidRow,
+    action: 'insert' | 'update' | 'delete' | 'refresh'
+  ): any {
+    const query = super.queryForInstance(instance, action)
+    const modelConstructor = instance.constructor as unknown as LucidModel
+    if (resolveIsolationKind(modelConstructor) === 'backoffice') {
+      return query.withSchema(getConfig().backofficeSchemaName)
+    }
+    return query
   }
 
   override modelConstructorClient(modelConstructor: LucidModel, options?: ModelAdapterOptions) {

@@ -205,6 +205,7 @@ export class DefaultLucidAdapter implements AdapterContract {
     modelConstructorClient(modelConstructor: LucidModel, options?: ModelAdapterOptions): QueryClientContract;
     // (undocumented)
     query(modelConstructor: LucidModel, options?: ModelAdapterOptions): any;
+    protected queryForInstance(instance: LucidRow, action: 'insert' | 'update' | 'delete' | 'refresh'): any;
     // (undocumented)
     refresh(instance: LucidRow): Promise<void>;
     // (undocumented)
@@ -773,6 +774,7 @@ export class TenantAdapter extends DefaultLucidAdapter {
     // (undocumented)
     modelConstructorClient(modelConstructor: LucidModel, options?: ModelAdapterOptions): QueryClientContract;
     query(modelConstructor: LucidModel, options?: ModelAdapterOptions): any;
+    protected queryForInstance(instance: LucidRow, action: 'insert' | 'update' | 'delete' | 'refresh'): any;
 }
 
 // @public

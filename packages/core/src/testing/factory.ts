@@ -40,16 +40,22 @@ export async function createTestTenant(
   const customDomain = overrides.customDomain ?? null
 
   const db = await getDb()
-  await db.connection(getConfig().backofficeConnectionName).table('tenants').insert({
-    id,
-    name,
-    email,
-    status,
-    custom_domain: customDomain,
-    created_at: new Date(),
-    updated_at: new Date(),
-    deleted_at: null,
-  })
+  // Pin the write to the backoffice schema explicitly (AD-08), so this shipped test
+  // helper doesn't depend on the backoffice connection's search_path being set.
+  await db
+    .connection(getConfig().backofficeConnectionName)
+    .table('tenants')
+    .withSchema(getConfig().backofficeSchemaName)
+    .insert({
+      id,
+      name,
+      email,
+      status,
+      custom_domain: customDomain,
+      created_at: new Date(),
+      updated_at: new Date(),
+      deleted_at: null,
+    })
 
   return { id, name, email, status, customDomain }
 }
