@@ -114,6 +114,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
 
     // Customer already established in USD (e.g. from a prior subscription).
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = 'cus_existing'
     cus.currency = 'usd'
@@ -147,6 +148,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     } as unknown as TenantModelContract
 
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = 'cus_existing_usd'
     cus.currency = 'usd'

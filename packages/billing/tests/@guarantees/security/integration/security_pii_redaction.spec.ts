@@ -113,6 +113,7 @@ test.group('PII redaction (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
@@ -120,6 +121,7 @@ test.group('PII redaction (integration)', (group) => {
     // Pre-existing subscription so the ordering guard's stale branch fires.
     const subId = `sub_${randomUUID().slice(0, 8)}`
     const stale = new BillingSubscription()
+    stale.provider = 'stripe'
     stale.providerSubscriptionId = subId
     stale.tenantId = tenant.id
     stale.status = 'active'
@@ -226,6 +228,7 @@ test.group('PII redaction (integration)', (group) => {
     const eventId = 'evt_failed_classify'
     const row = new (await import('@adonisjs-lasagna/billing')).BillingProcessedEvent()
     row.eventId = eventId
+    row.provider = 'stripe'
     row.eventType = 'customer.subscription.created'
     row.status = 'pending'
     row.attempts = 0

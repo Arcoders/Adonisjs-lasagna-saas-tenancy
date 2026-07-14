@@ -67,6 +67,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
 
     const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
@@ -104,6 +105,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
 
     const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
@@ -143,6 +145,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
 
     for (const t of [tenantA, tenantB]) {
       const cus = new BillingCustomer()
+      cus.provider = 'stripe'
       cus.tenantId = t.id
       cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
       await cus.save()
@@ -197,12 +200,14 @@ test.group('Metered/usage-based billing (integration)', (group) => {
 
     const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     // Pre-seed the audit row in the post-blip state.
     const orphan = new BillingUsageEvent()
+    orphan.provider = 'stripe'
     orphan.id = randomUUID()
     orphan.tenantId = tenant.id
     orphan.meterEventName = 'api_request'
@@ -238,6 +243,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     } as unknown as TenantModelContract
 
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()
@@ -398,6 +404,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()

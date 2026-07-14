@@ -114,6 +114,7 @@ test.group('Fiscal invoice snapshot (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const customerId = `cus_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = customerId
     await cus.save()
@@ -173,6 +174,7 @@ test.group('Fiscal invoice snapshot (integration)', (group) => {
     cleanupTenants.push(tenant.id)
 
     const snap = new BillingInvoiceSnapshot()
+    snap.provider = 'stripe'
     snap.id = randomUUID()
     snap.provider = 'stripe'
     snap.providerInvoiceId = 'in_read_1'
@@ -190,6 +192,7 @@ test.group('Fiscal invoice snapshot (integration)', (group) => {
     const other = await createTestTenant()
     cleanupTenants.push(other.id)
     const otherSnap = new BillingInvoiceSnapshot()
+    otherSnap.provider = 'stripe'
     otherSnap.id = randomUUID()
     otherSnap.provider = 'stripe'
     otherSnap.providerInvoiceId = 'in_other'

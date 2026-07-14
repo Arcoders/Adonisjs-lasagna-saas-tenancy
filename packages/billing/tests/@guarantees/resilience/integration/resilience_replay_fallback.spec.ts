@@ -84,6 +84,7 @@ test.group('BillingService.retrieveEvent — local payload fallback (integration
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
@@ -151,6 +152,7 @@ test.group('BillingService.retrieveEvent — local payload fallback (integration
 
     // Ledger row exists but payload is null (legacy / hand-dispatched).
     const row = new BillingProcessedEvent()
+    row.provider = 'stripe'
     row.eventId = 'evt_no_payload'
     row.eventType = 'customer.subscription.updated'
     row.status = 'pending'

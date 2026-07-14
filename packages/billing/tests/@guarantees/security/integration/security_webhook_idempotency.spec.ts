@@ -82,6 +82,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     // Seed a customer mapping so the (unused-here) downstream resolution
     // works; the duplicate guard happens in the controller before that.
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
     await cus.save()
@@ -193,6 +194,7 @@ test.group('Webhook idempotency (integration)', (group) => {
       id: 'evt_retry_after_outage',
     })
     const ledger = new BillingProcessedEvent()
+    ledger.provider = 'stripe'
     ledger.eventId = event.id
     ledger.eventType = event.type
     ledger.status = 'pending'
@@ -234,6 +236,7 @@ test.group('Webhook idempotency (integration)', (group) => {
       id: 'evt_inflight',
     })
     const ledger = new BillingProcessedEvent()
+    ledger.provider = 'stripe'
     ledger.eventId = event.id
     ledger.eventType = event.type
     ledger.status = 'pending'
@@ -263,6 +266,7 @@ test.group('Webhook idempotency (integration)', (group) => {
       id: 'evt_already_done',
     })
     const ledger = new BillingProcessedEvent()
+    ledger.provider = 'stripe'
     ledger.eventId = event.id
     ledger.eventType = event.type
     ledger.status = 'completed'
@@ -299,6 +303,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
@@ -365,6 +370,7 @@ test.group('Webhook idempotency (integration)', (group) => {
       id: 'evt_claimed',
     })
     const ledger = new BillingProcessedEvent()
+    ledger.provider = 'stripe'
     ledger.eventId = event.id
     ledger.eventType = event.type
     ledger.status = 'processing' // a live worker holds the claim
@@ -388,6 +394,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
@@ -404,6 +411,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     await billing.__setStripeForTests(mock)
 
     const ledger = new BillingProcessedEvent()
+    ledger.provider = 'stripe'
     ledger.eventId = event.id
     ledger.eventType = event.type
     ledger.status = 'processing'
@@ -477,6 +485,7 @@ test.group('Webhook idempotency (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()

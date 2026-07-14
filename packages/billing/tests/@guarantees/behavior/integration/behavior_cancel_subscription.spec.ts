@@ -78,11 +78,13 @@ test.group('BillingService.cancelSubscription (integration)', (group) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()
 
     const sub = new BillingSubscription()
+    sub.provider = 'stripe'
     sub.providerSubscriptionId = `sub_${randomUUID().slice(0, 8)}`
     sub.tenantId = tenant.id
     sub.status = 'active'

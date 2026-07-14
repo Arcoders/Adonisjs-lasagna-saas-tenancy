@@ -223,6 +223,7 @@ test.group('Stripe Test Clocks — real billing cycle', (group) => {
 
     // Local mirror: syncSubscription resolves the tenant by providerCustomerId.
     const mirror = new BillingCustomer()
+    mirror.provider = 'stripe'
     mirror.tenantId = tenant.id
     mirror.provider = 'stripe'
     mirror.providerCustomerId = customer.id

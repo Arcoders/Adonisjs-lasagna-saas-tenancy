@@ -19,7 +19,10 @@ export default class extends BaseSchema {
       table.uuid('tenant_id').nullable()
       table.integer('attempts').notNullable().defaultTo(0)
       table.text('last_error').nullable()
-      table.enum('status', ['pending', 'completed', 'failed']).notNullable().defaultTo('pending')
+      table
+        .enum('status', ['pending', 'processing', 'completed', 'failed'])
+        .notNullable()
+        .defaultTo('pending')
       table.jsonb('payload').nullable()
       table.index(['status', 'processed_at'])
       table.index(['event_type'])

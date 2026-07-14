@@ -97,6 +97,7 @@ test.group('BillingService.changePlan (integration)', (group) => {
 
   async function seedCustomer(tenantId: string): Promise<void> {
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenantId
     cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()
@@ -110,6 +111,7 @@ test.group('BillingService.changePlan (integration)', (group) => {
 
   async function seedSub(tenantId: string, opts: SeedSubOpts = {}): Promise<string> {
     const sub = new BillingSubscription()
+    sub.provider = 'stripe'
     sub.providerSubscriptionId = opts.providerSubscriptionId ?? `sub_${randomUUID().slice(0, 8)}`
     sub.tenantId = tenantId
     sub.status = (opts.status ?? 'active') as never

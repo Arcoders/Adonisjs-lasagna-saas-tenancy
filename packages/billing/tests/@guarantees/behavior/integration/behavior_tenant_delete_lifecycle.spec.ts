@@ -64,12 +64,14 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
 
     const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = t.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     const providerSubscriptionId = `sub_${randomUUID().slice(0, 8)}`
     const sub = new BillingSubscription()
+    sub.provider = 'stripe'
     sub.providerSubscriptionId = providerSubscriptionId
     sub.tenantId = t.id
     sub.status = 'active'
@@ -194,6 +196,7 @@ test.group('Tenant destroy billing listener (integration)', (group) => {
     // Seed a second active subscription for the same tenant.
     const subB = `sub_${randomUUID().slice(0, 8)}`
     const second = new BillingSubscription()
+    second.provider = 'stripe'
     second.providerSubscriptionId = subB
     second.tenantId = tenant.id
     second.status = 'active'

@@ -47,6 +47,7 @@ test.group('tenant:billing:replay (integration)', (group) => {
 
   async function seedFailed(eventId: string, attempts = 5): Promise<void> {
     const row = new BillingProcessedEvent()
+    row.provider = 'stripe'
     row.eventId = eventId
     row.eventType = 'customer.subscription.created'
     row.status = 'failed'
@@ -84,6 +85,7 @@ test.group('tenant:billing:replay (integration)', (group) => {
 
     // Mix in a non-failed row to confirm it's NOT replayed.
     const completed = new BillingProcessedEvent()
+    completed.provider = 'stripe'
     completed.eventId = `evt_done_${randomUUID().slice(0, 6)}`
     completed.eventType = 'customer.subscription.created'
     completed.status = 'completed'

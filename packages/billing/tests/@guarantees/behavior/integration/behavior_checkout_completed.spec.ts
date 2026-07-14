@@ -202,6 +202,7 @@ test.group('checkout.session.completed (integration)', (group) => {
 
     // Pre-existing mapping.
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = 'cus_original_A'
     await cus.save()
