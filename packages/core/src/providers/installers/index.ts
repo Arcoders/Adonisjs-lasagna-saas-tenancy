@@ -20,7 +20,7 @@ export { createInstallerContext } from './installer.js'
  * installer's `ready()`-armed teardown flow back through `addDisposer` for a LIFO
  * shutdown.
  *
- * The only hard within-boot ordering edge is FoundationWiring -> everything (its
+ * The only hard within-boot ordering edge is that FoundationWiring must precede everything (its
  * `setConfig` is the precondition for every later `getConfig()`), so it goes
  * first. IsolationWiring precedes ResolutionWiring so the adapter is attached
  * early, but that pairing is order-free (the adapter reads both registries

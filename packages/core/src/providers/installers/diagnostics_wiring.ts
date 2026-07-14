@@ -9,7 +9,7 @@ import type { InstallerContext, ProviderInstaller } from './installer.js'
 /**
  * Read/inspect plane: the readiness health service, the preflight doctor, and the
  * compliance reporter. The Doctor/Compliance factories eagerly register their
- * built-in checks/controls inside the closure — that runs at first `make()`, not
+ * built-in checks/controls inside the closure, which runs at first `make()`, not
  * at register().
  */
 export const diagnosticsWiring: ProviderInstaller = {

@@ -139,7 +139,7 @@ export function opAmtKey(day: string, quota: string): string {
  *   ARGV[1] tenant limit (-1 = unlimited)   ARGV[2] op limit (-1 = disabled)
  *   ARGV[3] worstCase (>0)   ARGV[4] holdId   ARGV[5] now(ms)
  *   ARGV[6] reservationTtl(ms)   ARGV[7] containerTtl(ms)
- *   -> {1, tEff, oEff} placed | {0, tEff, oEff, 't'|'g'} refused | {-1} duplicate id
+ *   returns {1, tEff, oEff} placed | {0, tEff, oEff, 't'|'g'} refused | {-1} duplicate id
  */
 export const QUOTA_RESERVE_LUA = `
 local tLimit = tonumber(ARGV[1])
@@ -217,7 +217,7 @@ return {1, tEff + worst, oEff + worst}
  *   KEYS[4] op committed       KEYS[5] op holds       KEYS[6] op amt
  *   ARGV[1] cumulativeUsed   ARGV[2] now(ms)   ARGV[3] reservationTtl(ms)
  *   ARGV[4] committedTtl(sec)   ARGV[5] opEnabled(1|0)   ARGV[6] holdId
- *   -> {delta, newSettled, worst} | {-1, 0, 0} if the hold is gone
+ *   returns {delta, newSettled, worst} | {-1, 0, 0} if the hold is gone
  */
 export const QUOTA_SETTLE_LUA = `
 local used   = tonumber(ARGV[1]) or 0
@@ -273,7 +273,7 @@ return {delta, used, worst}
  *   KEYS[1] tenant holds   KEYS[2] tenant amt
  *   KEYS[3] op holds       KEYS[4] op amt
  *   ARGV[1] holdId   ARGV[2] opEnabled(1|0)
- *   -> {freed}
+ *   returns {freed}
  */
 export const QUOTA_RELEASE_LUA = `
 local holdId = ARGV[1]

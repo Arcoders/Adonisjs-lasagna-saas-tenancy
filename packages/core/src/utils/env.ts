@@ -21,7 +21,7 @@ export function isProductionNodeEnv(): boolean {
  * The resolution-safety gate fails CLOSED everywhere EXCEPT these known-safe
  * envs: an unrecognized value (`staging`, unset, a typo) is treated like
  * production for that gate, so an insecure resolution posture cannot boot there
- * on a warning alone. Same rationale as `isProductionNodeEnv` — kept as a plain
+ * on a warning alone. Same rationale as `isProductionNodeEnv`: kept as a plain
  * env read (no app import) so it stays usable from a bare unit runner. At boot
  * the provider passes `app.inDev || app.inTest` explicitly; this is the fallback.
  */

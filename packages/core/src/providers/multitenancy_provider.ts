@@ -4,8 +4,8 @@ import { INSTALLERS, createInstallerContext, type InstallerContext } from './ins
 /**
  * The multitenancy provider is a thin orchestrator over an ordered array of
  * per-subsystem installers ({@link INSTALLERS}). Each installer owns its slice of
- * the AdonisJS lifecycle — the singleton registrations, the boot-time wiring, the
- * start-time asserts, the ready-time arming — so this class holds no subsystem
+ * the AdonisJS lifecycle (the singleton registrations, the boot-time wiring, the
+ * start-time asserts, the ready-time arming), so this class holds no subsystem
  * logic of its own. It iterates the installers in array order for
  * register/boot/start/ready, and generalizes the old `#disposers` registry (PLD-6)
  * via `ctx.addDisposer`, which shutdown() runs LIFO.
@@ -57,7 +57,7 @@ export default class MultitenancyProvider {
    *    subscriptions are detached before the singletons they reference are torn
    *    down.
    * 2. Close the long-lived libuv handles our singletons own (see
-   *    {@link closeOwnedHandles}) — chiefly `TenantQueueService`'s per-tenant
+   *    {@link closeOwnedHandles}), chiefly `TenantQueueService`'s per-tenant
    *    BullMQ queues, whose ioredis sockets would otherwise keep the event loop
    *    alive after terminate() and hang the process until SIGKILL.
    * 3. Invalidate module-level caches that hold references to container

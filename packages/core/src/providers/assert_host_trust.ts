@@ -3,7 +3,7 @@ import { chainTrusts } from '../services/resolvers/resolver_trust.js'
 
 /**
  * True when the resolution path derives the tenant from the request HOST (a
- * `trust: 'host'` resolver — subdomain / custom domain). Under a permissive proxy
+ * `trust: 'host'` resolver, meaning subdomain or custom domain). Under a permissive proxy
  * trust these read `X-Forwarded-Host`, which an upstream hop (or the client, if
  * no trusted proxy strips it) can set freely, so without a host allowlist a
  * request can be steered onto another tenant's host. Classified from each

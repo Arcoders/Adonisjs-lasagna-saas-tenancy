@@ -18,7 +18,7 @@ export interface BootLogger {
  *    `app.booted()`, where the container logger is guaranteed to exist (provider
  *    boot() runs before the eager logger binding materializes).
  *  - {@link InstallerContext.addDisposer} registers a teardown that the provider
- *    runs LIFO in `shutdown()` — the generalization of the old `#disposers`
+ *    runs LIFO in `shutdown()`. This generalizes the old `#disposers`
  *    registry (PLD-6): any installer that arms something in `ready()` captures its
  *    teardown here.
  *
@@ -40,7 +40,7 @@ export interface InstallerContext {
  * register-only support plane (resilience, audit) implements just `register`, a
  * start-only surface (http extensions) just `start`.
  *
- * `register` is SYNCHRONOUS — AdonisJS runs provider `register()` synchronously
+ * `register` is SYNCHRONOUS: AdonisJS runs provider `register()` synchronously
  * (as do @adonisjs/core's AppServiceProvider and @adonisjs/lucid's DatabaseServiceProvider),
  * and singleton factories are lazy, so there is nothing to await. The later phases
  * may be async. The provider iterates the installers in array order for

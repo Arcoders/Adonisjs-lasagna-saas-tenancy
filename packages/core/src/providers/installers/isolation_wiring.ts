@@ -41,7 +41,7 @@ export const isolationWiring: ProviderInstaller = {
 
     // Register the configured isolation driver into the registry made above.
     // The adapter reads the registry lazily on each query, so registering the
-    // driver before the adapter is wired below is convenience, not a
+    // driver before the adapter is wired below is a convenience rather than a
     // requirement: the load-bearing constraints are that the driver is
     // registered before start()'s assertConfiguredDriverRegistered and before
     // the first tenant query. Built-in construction is a data-driven lookup
@@ -96,7 +96,7 @@ export const isolationWiring: ProviderInstaller = {
     }
 
     // F1 observable boot warning: the absolute connection ceiling is the tier
-    // ABOVE the soft cap. Set BELOW maxTenantConnections it breaks the pool — new
+    // ABOVE the soft cap. Set BELOW maxTenantConnections it breaks the pool: new
     // tenants are refused (503) before the size ever exceeds the cap, so the
     // in-use-aware LRU never runs to shed idle connections, and requests are
     // refused while evictable connections sit open. Deferred to app.booted for the
@@ -122,8 +122,8 @@ export const isolationWiring: ProviderInstaller = {
     // rather than by which adapter subclass was attached, so the base classes
     // are thin shims that just set the marker (see models/base/isolation_kind).
     // Its resolver-registry dependency is the singleton OBJECT (present since
-    // register()), consumed lazily per query, so constructing it here — before
-    // ResolutionWiring seeds the chain — is safe (documented convenience).
+    // register()), consumed lazily per query, so constructing it here, before
+    // ResolutionWiring seeds the chain, is safe (documented convenience).
     const resolvers = await app.container.make(TenantResolverRegistry)
     const unifiedAdapter = new TenantAdapter(db, drivers, resolvers)
     TenantBaseModel.$adapter = unifiedAdapter

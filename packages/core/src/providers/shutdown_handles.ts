@@ -8,7 +8,7 @@ import TenantQueueService from '../services/tenant_queue_service.js'
  * SIGKILLs it after the termination grace period.
  *
  * `MultitenancyProvider.shutdown()` delegates here. The logic lives in its own
- * module — with no eager-boot static imports of its own — so the regression spec
+ * module (with no eager-boot static imports of its own) so the regression spec
  * can drive it against a fake container without standing up an Ignitor (the same
  * reason `shutdown_caches.ts` is extracted).
  *

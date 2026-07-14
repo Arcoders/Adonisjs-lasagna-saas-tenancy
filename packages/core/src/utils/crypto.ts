@@ -49,7 +49,7 @@ function v1Key(appKey: string): Buffer {
   return createHash('sha256').update(appKey).digest()
 }
 
-/** v2 data key: HKDF-SHA256(APP_KEY, KEY_SALT, info=context) -> 32 bytes. */
+/** v2 data key: HKDF-SHA256(APP_KEY, KEY_SALT, info=context), which yields 32 bytes. */
 function v2Key(appKey: string, context: string): Buffer {
   return Buffer.from(
     hkdfSync(HKDF_HASH, Buffer.from(appKey, 'utf8'), KEY_SALT, Buffer.from(context, 'utf8'), 32)

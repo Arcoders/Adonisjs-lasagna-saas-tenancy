@@ -45,8 +45,8 @@ declare module '@adonisjs/core/http' {
  * Cached registry handle. The provider seeds the registry at boot, so a cache
  * miss here means we're being called before boot finished; the resolution
  * helpers then build a registry on demand from the current config (via
- * {@link buildResolverRegistry}), so there is one resolution authority — the
- * chain — and never a divergent legacy switch.
+ * {@link buildResolverRegistry}), so there is one resolution authority (the
+ * chain) and never a divergent legacy switch.
  */
 let cachedResolverRegistry: TenantResolverRegistry | undefined
 
@@ -175,8 +175,8 @@ export async function primeResolvedTenant(tenant: TenantModelContract): Promise<
 
 /**
  * The active resolver registry for the SYNCHRONOUS resolution path: the one the
- * provider seeded at boot ({@link setResolverRegistry}), or — before boot and in
- * unit tests that never boot — one built on demand from the current config so a
+ * provider seeded at boot ({@link setResolverRegistry}), or (before boot and in
+ * unit tests that never boot) one built on demand from the current config so a
  * solitary `resolverStrategy` still resolves through the real chain. There is no
  * separate legacy switch to fall to any more: resolution has ONE authority (the
  * chain), and the host-allowlist / UUID-border math lives in the resolvers alone.
@@ -201,8 +201,8 @@ export async function resolveTenant(request: HttpRequest): Promise<TenantResolve
 /**
  * THE tenant-id resolver: one chain-aware authority the adapter routes by,
  * `request.tenant()` resolves through (its sync half), and rate-limit / metrics
- * attribute by — so a `resolverChain` deployment attributes to the tenant routing
- * actually serves, not whatever a chain-blind switch would pick. Walks the
+ * attribute by, so a `resolverChain` deployment attributes to the tenant routing
+ * actually serves, rather than whatever a chain-blind switch would pick. Walks the
  * registry chain synchronously; a `domain` hit yields no sync id (it needs an
  * async repository lookup) and degrades to `undefined`.
  *
@@ -210,7 +210,7 @@ export async function resolveTenant(request: HttpRequest): Promise<TenantResolve
  * non-UUID header/subdomain/path value never becomes an attribution key) and is
  * lowercase-canonical, so the sync attribution decision and the routed connection
  * agree on exactly one id. Exposed on the root barrel as the package's single
- * request→tenant-id helper.
+ * helper from request to tenant id.
  */
 export function resolveTenantId(request: HttpRequest): string | undefined {
   const result = syncResolverRegistry().resolveSync(request)

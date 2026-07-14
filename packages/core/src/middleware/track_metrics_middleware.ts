@@ -89,7 +89,7 @@ export default class TrackMetricsMiddleware {
   protected async record(ctx: HttpContext, options: TrackMetricsOptions): Promise<void> {
     // Attribution: prefer the canonical id the guard already established
     // (`tenancy.currentId()`, always a validated tenant id), then `resolveTenantId`
-    // — the SAME chain-aware authority routing uses — so a `resolverChain`
+    // (the SAME chain-aware authority routing uses), so a `resolverChain`
     // deployment records the row under the tenant actually served. Defense-in-depth:
     // it re-reads a client-controlled header/segment and a CUSTOM resolver may mint
     // a non-UUID id, so a non-`SAFE_IDENT` value is forged or injects `:` key

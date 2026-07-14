@@ -3,7 +3,7 @@ import type { InstallerContext, ProviderInstaller } from './installer.js'
 
 /**
  * The per-tenant job queue. `TenantQueueService` is instance-stateful (holds a
- * per-tenant Queue map), so it MUST be a singleton — dispatch reuses connections
+ * per-tenant Queue map), so it MUST be a singleton: dispatch reuses connections
  * and destroy/stats see a consistent map. It is the only core singleton owning a
  * libuv handle (per-tenant BullMQ/ioredis sockets), which the provider drains in
  * shutdown via `closeOwnedHandles`.

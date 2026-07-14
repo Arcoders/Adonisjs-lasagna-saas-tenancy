@@ -39,7 +39,7 @@ export const resolutionWiring: ProviderInstaller = {
     // Seed the resolver registry into the request module cache so the chain-aware
     // resolveTenantId (rate-limit, metrics attribution) has a GUARANTEED synchronous
     // hit from the first request without rebuilding the chain from config on the hot
-    // path. Attribution then follows the SAME chain routing serves — the fix for the
+    // path. Attribution then follows the SAME chain routing serves, which fixes the
     // cross-tenant rate-limit/metrics misattribution (TRES-01).
     setResolverRegistry(resolvers)
 
@@ -73,7 +73,7 @@ export const resolutionWiring: ProviderInstaller = {
    * module, which resolves to `undefined` mid-boot. It is resolved defensively so
    * a stripped-down container without an emitter can't break startup. The teardown
    * is captured via `ctx.addDisposer` so shutdown() removes these lifecycle
-   * listeners again — without it a ready()/shutdown() cycle (repeated boots in one
+   * listeners again. Without it, a ready()/shutdown() cycle (repeated boots in one
    * process) leaks one listener set per cycle and the emitter's listener count
    * climbs unbounded.
    */

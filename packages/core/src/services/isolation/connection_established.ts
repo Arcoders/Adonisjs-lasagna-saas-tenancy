@@ -6,8 +6,8 @@ import IsolationConfigException from '../../exceptions/isolation_config_exceptio
  * Fail closed with a typed, actionable error if a tenant's connection was never
  * established, instead of letting Lucid throw an opaque "connection is not
  * registered" when the adapter asks for it. Single-sourced across the drivers that
- * own a per-tenant connection — schema-pg/database-pg (via `PooledPgDriver`) and
- * sqlite-memory — so the message and the guard cannot drift between them. Drivers
+ * own a per-tenant connection (schema-pg/database-pg via `PooledPgDriver`, and
+ * sqlite-memory) so the message and the guard cannot drift between them. Drivers
  * whose connection is always registered (rowscope-pg's shared connection) don't
  * call it. A real Database always exposes a manager; a bare unit-test double
  * without one skips the check (the driver's own routing still covers it).

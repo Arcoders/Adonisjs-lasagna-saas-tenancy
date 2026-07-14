@@ -106,8 +106,8 @@ export default class RateLimitMiddleware {
     // is enabled behind a proxy.
     const ip = request.ip()
     // Attribution: prefer the canonical id the guard already resolved
-    // (`tenancy.currentId()`), then `resolveTenantId` — the SAME chain-aware
-    // authority routing uses — for routes where rate-limit runs before (or
+    // (`tenancy.currentId()`), then `resolveTenantId` (the SAME chain-aware
+    // authority routing uses) for routes where rate-limit runs before (or
     // without) the guard. Attributing by the routing authority is what keeps a
     // `resolverChain` deployment from bucketing under a DIFFERENT tenant than the
     // one served (or collapsing everyone into the per-IP 'global' bucket), which
@@ -115,13 +115,13 @@ export default class RateLimitMiddleware {
     //
     // Defense-in-depth: `resolveTenantId` re-reads a client-controlled
     // header/segment, and a CUSTOM resolver may mint a non-UUID id, so it must be
-    // a `SAFE_IDENT` before it can become a bucket key — a value carrying `:`
+    // a `SAFE_IDENT` before it can become a bucket key: a value carrying `:`
     // would inject key structure, an arbitrary string would let a caller mint or
     // pollute buckets. A non-safe (or absent) id degrades to the shared per-IP
     // `global` bucket rather than an attacker-chosen tenant attribution.
     // `guardedSafeIdentifier` emits `guard.tenant_identifier` for a PRESENT-but-
     // unsafe id (a forged attribution, audited not silently dropped); an absent
-    // id — the ordinary untenanted route — degrades quietly.
+    // id (the ordinary untenanted route) degrades quietly.
     const resolved = this.currentTenantId() ?? resolveTenantId(request)
     const tenantId = guardedSafeIdentifier(resolved, 'rate-limit tenant id') ? resolved : 'global'
     const key = `${prefix}:${tenantId}:${ip}`

@@ -28,7 +28,7 @@ function knownResolverNames(config: MultitenancyConfig): Set<string> {
  * The canonical resolver chain as a list of NAMES: the configured `resolverChain`
  * (each inline instance mapped to its `name`) when non-empty, otherwise the
  * solitary `resolverStrategy` as a one-element chain. This is the single place the
- * package answers "which resolvers run, in what order" — the boot wiring
+ * package answers "which resolvers run, in what order". The boot wiring
  * ({@link wireResolverChain}) and the host-trust audit both read it, so a lone
  * `resolverStrategy` and an explicit `resolverChain` collapse to one shape and the
  * "no chain configured" branch never has to be re-derived per call site.
@@ -95,8 +95,8 @@ export function wireResolverChain(
  * Build a fully-seeded {@link TenantResolverRegistry} from config, with no
  * container or Ignitor: the built-ins plus any host-provided inline instances are
  * registered and the canonical chain is set. This is the pure resolution
- * authority — the same wiring the provider applies to the container singleton at
- * boot — usable from a unit test that never boots the app, and the fallback the
+ * authority (the same wiring the provider applies to the container singleton at
+ * boot), usable from a unit test that never boots the app, and the fallback the
  * request path builds on demand before the provider has seeded the singleton (so
  * a solitary `resolverStrategy` still resolves through the chain, never a
  * divergent legacy switch).

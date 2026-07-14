@@ -17,8 +17,8 @@ export const schedulerWiring: ProviderInstaller = {
    * Arm plugin schedules as native @adonisjs/queue schedules. Runs in ready()
    * (after every provider boot(), so all schedule registrations are final AND the
    * queue backend is initialized). As its own installer it always runs, regardless
-   * of whether the opt-in resolution cache is enabled — the property the old inline
-   * ordering ("scheduler.start BEFORE the cache early-return") preserved. Fail-closed
+   * of whether the opt-in resolution cache is enabled. That keeps the property the old
+   * inline ordering ("scheduler.start BEFORE the cache early-return") preserved. Fail-closed
    * in the worker/console process (a declared schedule that can't be armed aborts the
    * deploy); fail-open in the web process (the worker arms the shared schedule anyway,
    * so a queue-backend blip must not fail web readiness). No-op unless a plugin

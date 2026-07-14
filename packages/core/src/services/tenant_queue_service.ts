@@ -221,7 +221,7 @@ export default class TenantQueueService {
    * releasing the ioredis connection each one owns, and clear the map + LRU
    * bookkeeping. The provider's `shutdown()` calls this so a SIGTERM'd worker or
    * web process doesn't leave a Redis socket keeping the event loop alive past
-   * `app.terminate()` (the classic graceful-shutdown hang → SIGKILL-after-grace).
+   * `app.terminate()` (the classic graceful-shutdown hang that ends in a SIGKILL once the grace period expires).
    *
    * Non-destructive, unlike {@link destroy}: it does NOT `obliterate` the
    * tenant's `bull:` keys. A queued job must survive a graceful restart; this

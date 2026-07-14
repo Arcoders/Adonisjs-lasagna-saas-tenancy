@@ -20,7 +20,7 @@ import { isIP } from 'node:net'
  *
  * Lives in core (not the admin surface) because both the admin controllers and
  * `SsoService` (OIDC discovery) rely on it; keeping it here avoids a
- * core -> admin import.
+ * core-to-admin import.
  *
  * NOTE: this is a SYNTACTIC check on the host as written. A hostname that
  * *resolves* to a private IP (DNS rebinding / split-horizon) passes here. For

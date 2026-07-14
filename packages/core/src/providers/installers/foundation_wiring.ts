@@ -58,7 +58,7 @@ function assertConfigShape(
  *     mistakes.
  *  2. `assertConfigBounds` range-checks numeric/secret tunables and runs the
  *     fail-CLOSED resolution-safety gate outside a recognized dev/test env.
- *  3. `setConfig` commits the immutable module singleton — the "setConfig first"
+ *  3. `setConfig` commits the immutable module singleton. This is the "setConfig first"
  *     invariant: `getConfig()` throws until this runs.
  *
  * The app is the single authority for which environment we are in: the

@@ -135,9 +135,9 @@ export function resolveSatelliteDependencies(
   const rangeMismatches: DependencyResolution['rangeMismatches'] = []
 
   // Build the working set (closure) keyed by package name, and the edges
-  // dependency -> dependent.
+  // that point from each dependency to its dependent.
   const nodes = new Map<string, DiscoveredSatellite>()
-  const deps = new Map<string, Set<string>>() // node -> set of its dependency package names
+  const deps = new Map<string, Set<string>>() // maps each node to the set of its dependency package names
 
   const queue: DiscoveredSatellite[] = []
   const enqueue = (sat: DiscoveredSatellite) => {

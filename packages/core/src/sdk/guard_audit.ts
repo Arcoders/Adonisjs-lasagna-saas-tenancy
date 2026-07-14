@@ -100,9 +100,10 @@ export interface GuardEmitOptions {
   /**
    * Whether to broadcast the fire-and-forget `IsthmusGuardTripped` event.
    * Defaults to true. Set false to record the trip on the counters (and the
-   * per-tenant metric bridge) WITHOUT dispatching an event — for a high-volume,
-   * lower-stakes degrade signal that belongs on a counter you alert on, not a
-   * per-event broadcast. A count-only trip touches no dispatch window, so it can
+   * per-tenant metric bridge) WITHOUT dispatching an event. Use this for a
+   * high-volume, lower-stakes degrade signal that belongs on a counter you alert
+   * on rather than a per-event broadcast. A count-only trip touches no dispatch
+   * window, so it can
    * never consume its severity's dispatch budget and crowd out a co-severity
    * guard's events.
    */

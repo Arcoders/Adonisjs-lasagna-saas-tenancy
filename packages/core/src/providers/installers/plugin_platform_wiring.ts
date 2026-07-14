@@ -12,7 +12,7 @@ import type { InstallerContext, ProviderInstaller } from './installer.js'
 /**
  * The plugin/extension platform: the host- and plugin-populated Map-backed
  * registries (all singletons so a plugin's boot-time registrations are visible
- * where core consumes them — the authorizer chain in TenantGuardMiddleware, the
+ * where core consumes them: the authorizer chain in TenantGuardMiddleware, the
  * middleware registry when installRouterMacros pre-resolves each scope, the
  * capability registry at consume time), the declarative hook loader, and the
  * fail-closed surface-cap enforcement.

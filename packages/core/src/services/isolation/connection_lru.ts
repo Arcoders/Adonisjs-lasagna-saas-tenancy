@@ -27,9 +27,9 @@ export interface ConnectionLruOptions {
   /**
    * Absolute upper bound on open connections, read lazily. When it returns a
    * number, admitting a connection at/above it is ALWAYS refused (see
-   * {@link ConnectionLru.atHardCeiling}) — independent of `hardCap` and the grace
-   * window — the last-resort backstop against unbounded pool growth. `undefined`
-   * (the default) means no ceiling.
+   * {@link ConnectionLru.atHardCeiling}), independent of `hardCap` and the grace
+   * window. This is the last-resort backstop against unbounded pool growth.
+   * `undefined` (the default) means no ceiling.
    */
   hardCeiling?: () => number | undefined
   /**
@@ -131,7 +131,7 @@ export default class ConnectionLru {
    * idle victim exists this returns false so the caller admits and `evictIfNeeded`
    * reclaims the idle slot: the pool bounds itself by SHEDDING idle connections,
    * refusing only when it is full of active ones. Refusing without this
-   * victim check would lock the pool at the threshold — idle connections would
+   * victim check would lock the pool at the threshold: idle connections would
    * never be shed (eviction runs only on a successful admit) and new tenants would
    * be refused forever.
    */
@@ -153,13 +153,14 @@ export default class ConnectionLru {
   /**
    * The SECOND tier: true when admitting a NEW connection must be refused because
    * the absolute `hardCeiling` is reached and nothing is evictable. Unlike
-   * {@link atHardLimit} (the soft cap, gated on `hardCap`), this is ALWAYS on — it
-   * holds independent of `enforceConnectionCap` — so even an availability-favouring
+   * {@link atHardLimit} (the soft cap, gated on `hardCap`), this is ALWAYS on: it
+   * holds independent of `enforceConnectionCap`, so even an availability-favouring
    * pool can never grow without bound. Like the soft cap it yields to an idle,
    * evictable victim (a reclaimable slot), so it refuses only when the pool is full
    * of ACTIVE connections at the ceiling; that keeps idle connections from locking
-   * the pool. No ceiling configured → always false. Emits a throttled warning when
-   * it bites so the backstop is observable. Callers translate `true` into a 503.
+   * the pool. With no ceiling configured it always returns false. Emits a throttled
+   * warning when it bites so the backstop is observable. Callers translate `true`
+   * into a 503.
    */
   atHardCeiling(): boolean {
     const ceiling = this.opts.hardCeiling?.()

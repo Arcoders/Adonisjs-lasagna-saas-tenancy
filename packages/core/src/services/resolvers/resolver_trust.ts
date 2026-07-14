@@ -7,8 +7,8 @@ import type { ResolverTrust, TenantResolver } from './resolver.js'
  * resolution path is. Both the membership-gate (IDOR) check and the host-trust
  * check read the {@link ResolverTrust} of the resolvers that actually run, so the
  * two hand-kept name sets they used to carry (`CLIENT_CONTROLLED`,
- * `HOST_STRATEGIES`) collapse into the single `trust` field a resolver declares —
- * a new built-in or a custom resolver is classified by construction, never by
+ * `HOST_STRATEGIES`) collapse into the single `trust` field a resolver declares.
+ * A new built-in or a custom resolver is classified by construction, never by
  * remembering to append its name to a list in another file.
  */
 
@@ -22,7 +22,7 @@ function isResolverInstance(value: unknown): value is TenantResolver {
   )
 }
 
-/** Built-in name → declared trust. Built at import from the frozen built-in set. */
+/** Maps a built-in name to its declared trust. Built at import from the frozen built-in set. */
 const BUILTIN_TRUST: ReadonlyMap<string, ResolverTrust> = new Map(
   builtInResolvers.map((r) => [r.name, r.trust ?? 'client'])
 )
@@ -45,7 +45,7 @@ export function entryTrust(
   // instance that happens to reuse it: `wireResolverChain` registers the
   // built-ins FIRST, so a same-named host instance is dropped and the BUILT-IN
   // actually runs. Classify by the resolver that runs, not by the shadowed
-  // instance's declared trust — else a trust-less instance named `subdomain`
+  // instance's declared trust. Otherwise a trust-less instance named `subdomain`
   // would run the host-based built-in yet escape the host-trust audit.
   const builtin = BUILTIN_TRUST.get(name)
   if (builtin) return builtin

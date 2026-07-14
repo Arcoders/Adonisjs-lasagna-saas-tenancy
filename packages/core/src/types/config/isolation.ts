@@ -119,7 +119,7 @@ export interface IsolationConfig {
   enforceConnectionCap?: boolean
   /**
    * For `schema-pg`/`database-pg`: an ABSOLUTE upper bound on open tenant
-   * connections — the second tier above `maxTenantConnections`. Unset by default
+   * connections, the second tier above `maxTenantConnections`. Unset by default
    * (no ceiling).
    *
    * `maxTenantConnections` is a SOFT target: with `enforceConnectionCap: false`

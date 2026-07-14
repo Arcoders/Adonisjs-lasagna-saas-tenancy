@@ -41,7 +41,7 @@ export type { DependencyResolution } from './dependencies.js'
  * Tenant-id validators a satellite needs whenever it interpolates a tenant id
  * into SQL/DDL or reads one off a request/handshake. `isUuidV4` is a pure
  * predicate; `assertSafeIdentifier` refuses an unsafe id and audits the refusal
- * (it emits `guard.tenant_identifier` before it throws — the satellite's DDL
+ * (it emits `guard.tenant_identifier` before it throws, so the satellite's DDL
  * gets the same audit trail the kernel drivers do). Both are bare-safe (no
  * booted import), so they are usable from a satellite's own unit runner. This is
  * the stable home for satellite authors. (`assertSafeIdentifier` is also on

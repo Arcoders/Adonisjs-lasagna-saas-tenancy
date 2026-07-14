@@ -59,8 +59,8 @@ export class HeaderResolver extends SyncTenantResolver {
     const value = request.header(key)
     // UUID policy at the resolver border: the header is client-controlled, so a
     // value that is not a canonical tenant id MUST NOT become a hit. It falls
-    // THROUGH (miss) so a later resolver in the chain can still match, and — the
-    // security point — an unsafe value (a `:` that would inject Redis-key
+    // THROUGH (miss) so a later resolver in the chain can still match. The
+    // security point is that an unsafe value (a `:` that would inject Redis-key
     // structure into a rate-limit/metrics bucket) never leaves this method as an
     // id. Only a well-formed UUID v4 passes.
     return value && isUuidV4(value) ? ResolverHit.id(value) : ResolverHit.miss()

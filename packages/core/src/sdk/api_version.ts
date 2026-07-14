@@ -1,7 +1,7 @@
 import type { SatelliteManifest } from './manifest.js'
 
 /**
- * Version surfaces — there is NO umbrella version.
+ * Version surfaces: there is NO umbrella version.
  *
  * Lasagna's public contract is versioned along independent axes, each bumped only
  * for a change an author building against THAT axis could observe. There is
@@ -10,23 +10,24 @@ import type { SatelliteManifest } from './manifest.js'
  * tweak posing as an ABI bump, or hiding behind one) and desensitizes the compat
  * warning of whichever axis it was folded into.
  *
- *  - {@link SATELLITE_API_VERSION} (this file): the Satellite ABI — the core
+ *  - {@link SATELLITE_API_VERSION} (this file): the Satellite ABI, the core
  *    registries/manifest/lifecycle a satellite self-registers into. Declared via
  *    `package.json#lasagnaSatellite.satelliteApi`; gated at configure + boot.
  *  - `PLUGIN_API_CONTRACT_VERSION` (./plugin_api_version.js): the `definePlugin`
  *    facade contract. Declared via `definePlugin({ pluginApiVersion })`, mirrored
  *    in `package.json#lasagnaSatellite.pluginApiVersion`.
- *  - per-surface `*_CONTRACT_VERSION` (one per extension registry — resolver,
+ *  - per-surface `*_CONTRACT_VERSION` (one per extension registry: resolver,
  *    isolation, capability, authorizer, …): the shape of THAT registry's entry +
  *    protocol. Declared via the entry's `contractVersion`, compared by
  *    `assertContractCompat` (./contract_version.js) at registration.
  *  - the published (marketing) npm `version`: never conflated with any of the above.
  *
- * `nativeAddons` is NOT a version — it is a boolean capability flag (does the
- * plugin ship a `.node` addon?) mirrored the same facade↔manifest way and enforced
- * fail-closed at boot by `assertNativeAddonsSandboxable`. `check-abi-boot-assertion`
- * pins the boot-time literals of these surfaces against the manifest so they cannot
- * drift; `check-extension-contracts` pins the per-surface constants.
+ * `nativeAddons` is NOT a version. It is a boolean capability flag (does the
+ * plugin ship a `.node` addon?) mirrored between the facade and manifest the same
+ * way and enforced fail-closed at boot by `assertNativeAddonsSandboxable`.
+ * `check-abi-boot-assertion` pins the boot-time literals of these surfaces against
+ * the manifest so they cannot drift; `check-extension-contracts` pins the
+ * per-surface constants.
  */
 
 /**

@@ -25,8 +25,8 @@ function isCanonicalForm(value: string): boolean {
 
 /**
  * This module is a pure, zero-import leaf: the identifier POLICY (the regexes,
- * the NFKC rule) and its predicates, nothing more. The observable guard — the
- * throw that refuses an unsafe id and the Isthmus emit that audits it — lives
+ * the NFKC rule) and its predicates, nothing more. The observable guard (the
+ * throw that refuses an unsafe id and the Isthmus emit that audits it) lives
  * one layer up in `isthmus/guarded_identifier.ts`, so the dependency arrow
  * points from the guard down to this policy, never the reverse. Interpolation
  * sites import the throwing `assertSafeIdentifier` from there; this leaf stays
@@ -40,7 +40,7 @@ export function isUuidV4(value: string): boolean {
 /**
  * Whether `value` is a safe identifier: a string matching the strict policy
  * ({@link SAFE_IDENT}) in canonical (NFKC) form. Accepts the set the drivers
- * require — UUID v4 and opaque alphanumeric host ids up to 63 chars — and
+ * require (UUID v4 and opaque alphanumeric host ids up to 63 chars) and
  * rejects anything carrying a `:` key separator, a quote, or a homoglyph.
  *
  * This is the pure predicate. At an attribution seam (Redis metric keys,

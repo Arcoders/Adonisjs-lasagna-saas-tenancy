@@ -13,8 +13,8 @@ import DefaultLucidAdapter from './default_lucid_adapter.js'
  * Routes Lucid model queries to the right per-tenant connection by asking the
  * active `IsolationDriver` for the connection name. The adapter is the thin seam
  * between two owners: tenant-id resolution and the ContextSeal live in
- * {@link TenantContextResolver}; connection ownership — the pool, the read-only
- * firewall clone, and the "is this tenant connection established?" check — lives in
+ * {@link TenantContextResolver}; connection ownership (the pool, the read-only
+ * firewall clone, and the "is this tenant connection established?" check) lives in
  * the driver. So the routing path is: resolve the id, ask the driver for a client,
  * return it. An explicit `options.client`/`connection` short-circuits both.
  */
@@ -50,7 +50,7 @@ export default class TenantAdapter extends DefaultLucidAdapter {
    * Schema-qualify a backoffice model's write/refresh query, SYMMETRIC with the
    * read qualification in `query()`. `insert`/`update`/`delete`/`refresh` bypass
    * `query()`, so without this a backoffice ORM write resolves its schema through
-   * the `backoffice` connection's search_path — which the package never sets, only
+   * the `backoffice` connection's search_path, which the package never sets, only
    * the host does. A host that mis- or un-sets it would silently write to the
    * wrong schema while reads (already pinned) still target `backoffice`, so the
    * divergence reads as data loss. Explicit `.withSchema` pins every backoffice
@@ -93,7 +93,7 @@ export default class TenantAdapter extends DefaultLucidAdapter {
     // UNTRUSTED plugin code is on the stack and a read-only role is configured, route
     // this query to the tenant's SELECT-only clone so a write is denied by Postgres,
     // not a JS proxy. The DRIVER owns that clone (it builds, pools, and releases it);
-    // the adapter only asks for it, synchronously, and fails CLOSED — untrusted code
+    // the adapter only asks for it, synchronously, and fails CLOSED: untrusted code
     // MUST route to the SELECT-only clone or be denied, never fall through to the
     // writable primary. A driver with no per-tenant PG pool (rowscope-pg,
     // sqlite-memory) offers no firewall, so the query is denied rather than routed to

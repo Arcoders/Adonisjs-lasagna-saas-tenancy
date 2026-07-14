@@ -50,7 +50,7 @@ export default class DefaultLucidAdapter implements AdapterContract {
   /**
    * The write/refresh query builder for a model instance, keyed by action. A
    * single seam (not in upstream's port) so a subclass can schema-qualify the
-   * write path the way `query()` qualifies reads — `insert`/`update`/`delete`/
+   * write path the way `query()` qualifies reads. `insert`/`update`/`delete`/
    * `refresh` all bypass `query()`, so without this each would resolve its schema
    * through the connection's search_path. The base is behavior-identical; it just
    * centralizes the `$getQueryFor` call. See `TenantAdapter.queryForInstance`.

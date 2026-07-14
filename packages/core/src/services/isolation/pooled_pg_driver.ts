@@ -27,18 +27,18 @@ import {
 /**
  * Shared base for the two PostgreSQL drivers that own a per-tenant Lucid
  * connection pool: `schema-pg` (one schema per tenant) and `database-pg` (one
- * database per tenant). Everything that is IDENTICAL between them lives here —
- * the bounded, in-use-aware {@link ConnectionLru}, the connect/disconnect/
+ * database per tenant). Everything that is IDENTICAL between them lives here: the
+ * bounded, in-use-aware {@link ConnectionLru}, the connect/disconnect/
  * markUsed/migrate flow, the hard-cap admission check, and the cached-connection
- * identity seal — so `markUsed`, the eviction/settle race handling, and the
- * firewall against re-adopting a draining pool are implemented ONCE.
+ * identity seal. That keeps `markUsed`, the eviction/settle race handling, and the
+ * firewall against re-adopting a draining pool implemented ONCE.
  *
  * A subclass supplies only what genuinely differs, through two hooks plus its
  * own DDL:
  *   - {@link buildTenantConfig}: turn the template connection config into this
  *     tenant's config (schema-pg sets `searchPath`, database-pg overrides
  *     `connection.database`).
- *   - {@link verifyCachedConnection}: the identity seal — assert a cached
+ *   - {@link verifyCachedConnection}: the identity seal, which asserts a cached
  *     connection is still pinned to THIS tenant before serving it (schema-pg
  *     keys on `searchPath`, database-pg on `connection.database`).
  * plus `provision` / `destroy` / `reset` / `tableLocation` / `name`.
@@ -232,7 +232,7 @@ export default abstract class PooledPgDriver implements ProvisionableDriver {
     const { db } = await this.lucid()
     // Release the primary AND its read-only firewall clone (whenever one was
     // established). The clone shares this pool, so leaving it registered leaks a
-    // pool per tenant across provision/destroy cycles — the FD leak the
+    // pool per tenant across provision/destroy cycles. That is the FD leak the
     // driver-owned clone closes.
     for (const name of [this.connectionName(tenant.id), this.readOnlyConnectionName(tenant.id)]) {
       this.#lru.delete(name)

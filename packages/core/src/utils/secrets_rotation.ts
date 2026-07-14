@@ -14,18 +14,18 @@ export type SecretRotation =
 /**
  * Classify a stored secret for re-encryption to `(current key, target context)`.
  *
- * The migration is two-axis: an APP_KEY rotation (old key -> current key) AND the
+ * The migration is two-axis: an APP_KEY rotation (old key to current key) AND the
  * move from the legacy shared default context to a per-class context. A stored
  * value may sit at any combination of those axes, or be a plaintext-era value.
  * We try the cheapest "already done" check first, then recover the plaintext from
  * whichever combination wrote it, newest-most-likely first:
  *
- *   1. (current key, target context)  -> already migrated, skip
- *   2. plaintext (no ciphertext prefix) -> recover as-is, encrypt it now
- *   3. (current key, default context)  -> context migration only
- *   4. (old key, target context)       -> key rotation only
- *   5. (old key, default context)      -> both axes
- *   else                               -> failed (wrong APP_KEY generation)
+ *   1. (current key, target context): already migrated, skip
+ *   2. plaintext (no ciphertext prefix): recover as-is, encrypt it now
+ *   3. (current key, default context): context migration only
+ *   4. (old key, target context): key rotation only
+ *   5. (old key, default context): both axes
+ *   else: failed (wrong APP_KEY generation)
  *
  * `decryptWithAppKey` with no context argument uses the crypto default context,
  * so the legacy-context attempts pass no third argument. When no distinct old key

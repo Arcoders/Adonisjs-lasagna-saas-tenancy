@@ -41,7 +41,7 @@ export default class CircuitBreakerService {
   /**
    * Lightweight fail-fast markers, DECOUPLED from the heavy opossum breakers.
    * Keyed by tenant id, the value is the epoch-ms deadline until which the
-   * tenant fails fast (mirrors opossum's OPEN→HALF_OPEN `resetTimeout` window).
+   * tenant fails fast (mirrors opossum's OPEN to HALF_OPEN `resetTimeout` window).
    *
    * This is what lets {@link isOpen}/{@link run} answer "is this tenant tripped?"
    * synchronously WITHOUT the opossum object, so a heavy OPEN breaker can be
@@ -110,7 +110,7 @@ export default class CircuitBreakerService {
 
     // `circuitBreaker` is resolved: `setConfig` merges CONFIG_DEFAULTS, so every
     // field is present even for an untyped or partial config. That is what keeps
-    // the guarded request path — which fires the breaker on every request — from
+    // the guarded request path (which fires the breaker on every request) from
     // throwing when a host omits or half-fills the block.
     const cfg = getConfig().circuitBreaker
     const resetTimeout = cfg.resetTimeout
@@ -198,8 +198,8 @@ export default class CircuitBreakerService {
   /**
    * Keep the breaker map bounded. When at/over capacity, shut down and drop the
    * oldest breakers (Map preserves insertion order) until the map is back under
-   * the cap. CLOSED breakers re-create cheaply. OPEN breakers are ALSO shed here
-   * — the memory pressure a fleet-wide outage creates is precisely a map full of
+   * the cap. CLOSED breakers re-create cheaply. OPEN breakers are ALSO shed here:
+   * the memory pressure a fleet-wide outage creates is precisely a map full of
    * OPEN breakers, each holding two rolling-stats intervals; their fail-fast
    * decision is preserved by the lightweight {@link markers} entry, so the heavy
    * opossum object goes while isOpen()/run() keep fast-failing.

@@ -13,9 +13,9 @@ import { tenancy } from '../tenancy.js'
  * The single authority for "which tenant is active right now?", shared by the
  * `TenantAdapter` (routing every model query) and any other synchronous caller.
  * It folds what used to be three private adapter methods plus a per-request memo
- * symbol into one place, and consults ONE cached value — the tenant that
+ * symbol into one place, and consults ONE cached value: the tenant that
  * `request.tenant()` resolved (`memoizedTenantId`, which covers async `domain`
- * resolution) — falling back to the synchronous resolver chain.
+ * resolution), falling back to the synchronous resolver chain.
  *
  * Resolution order for {@link currentId}:
  *   1. `tenancy.currentId()`, set by `tenancy.run(tenant, fn)` in queue jobs,
@@ -36,7 +36,7 @@ export default class TenantContextResolver {
    * Throws {@link MissingTenantHeaderException} when neither yields a valid UUID.
    *
    * With `{ seal: true }` (the ContextSeal, an Isthmus invariant): on the guarded
-   * HTTP path BOTH sources are present — the guard wraps `next()` in
+   * HTTP path BOTH sources are present, because the guard wraps `next()` in
    * `tenancy.runForRequest`, so the scope and the request resolve the same tenant and
    * this is a string compare. When they DISAGREE (code inside a tenant-resolving
    * request entered `tenancy.run(otherTenant)`, context confusion), fail closed
@@ -74,7 +74,7 @@ export default class TenantContextResolver {
   /**
    * The HTTP side of the ContextSeal compare: the id the guard/macro already
    * resolved (`request.tenant()`, which covers async `domain` resolution), falling
-   * back to the synchronous resolver chain. No per-request memo of its own — the
+   * back to the synchronous resolver chain. No per-request memo of its own: the
    * single cached value is `memoizedTenantId`; the sync chain is a pure, cheap
    * re-read, and a `null`/central result was never worth caching (the guard may
    * memoize the tenant later in the same request).

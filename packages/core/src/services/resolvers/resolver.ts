@@ -12,7 +12,7 @@ import { isUuidV4 } from '../isolation/identifier.js'
  * v2 (current): added the optional {@link TenantResolver.trust} classification
  * (drives the resolution-safety audit) and the optional
  * {@link TenantResolver.resolveSync} synchronous entry point (the routing chain
- * requires it — see {@link TenantResolverRegistry.setChain}). Both are optional,
+ * requires it; see {@link TenantResolverRegistry.setChain}). Both are optional,
  * so a v1 resolver still registers; a v1 resolver placed in the routing chain
  * without `resolveSync`, however, now fails closed at `setChain`.
  */
@@ -74,10 +74,10 @@ export interface TenantResolver {
    * Synchronous resolution for the routing/attribution path (the `TenantAdapter`,
    * rate-limit, and metrics all resolve without awaiting). A resolver that can
    * decide synchronously implements this, and {@link TenantResolverRegistry.resolveSync}
-   * calls it directly — no Promise sniffing. A resolver WITHOUT `resolveSync` is
+   * calls it directly, with no Promise sniffing. A resolver WITHOUT `resolveSync` is
    * async-only and cannot participate in synchronous routing; placing it in the
    * chain fails closed at {@link TenantResolverRegistry.setChain} (else
-   * `request.tenant()` would resolve a tenant the sync path never sees — a
+   * `request.tenant()` would resolve a tenant the sync path never sees, which is a
    * split-brain).
    */
   resolveSync?(request: HttpRequest): TenantResolveResult

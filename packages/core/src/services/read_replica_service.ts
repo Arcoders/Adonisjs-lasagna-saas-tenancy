@@ -136,7 +136,7 @@ export default class ReadReplicaService {
     const connName = this.connectionName(tenant.id, idx)
 
     // If this replica connection was just evicted, wait for its pool to finish
-    // draining before deciding it is still registered — otherwise we would
+    // draining before deciding it is still registered. Otherwise we would
     // re-adopt a closing pool and queries would fail mid-flight. Mirrors the
     // per-tenant driver connect() path.
     await this.#lru.settlePending(connName)

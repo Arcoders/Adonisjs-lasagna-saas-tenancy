@@ -15,7 +15,7 @@ import CapabilityTrustException from '../exceptions/capability_trust_exception.j
  *
  * Stays at 1. The `sensitive?` trust flag was added ADDITIVELY: a provision that never
  * sets it behaves exactly as before, and one that opts in gets the `TRUSTED_SATELLITES`
- * gate for free. An additive change must NOT bump the integer — `assertContractCompat`
+ * gate for free. An additive change must NOT bump the integer: `assertContractCompat`
  * WARNS every extension built against an older version, so a spurious bump floods that
  * channel with false alarms and desensitizes operators to the genuinely breaking bumps
  * (isolation's v2 `tableLocation` requirement) that need the warning read.

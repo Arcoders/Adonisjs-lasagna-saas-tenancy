@@ -31,8 +31,8 @@ export default class TenantResolverRegistry extends ExtensionRegistry<string, Te
   }
 
   /**
-   * Every resolver must implement the async entry point `resolve(request)` — the
-   * chain walk and `request.tenant()` call it. A resolver missing it registers fine
+   * Every resolver must implement the async entry point `resolve(request)`, which the
+   * chain walk and `request.tenant()` both call. A resolver missing it registers fine
    * and then crashes the first time the async path walks the chain; gate it at boot
    * (EXT-2), unconditional, so the omission fails loudly at registration. `resolveSync`
    * stays optional here (async-only resolvers are legitimate off the routing chain);
@@ -66,7 +66,7 @@ export default class TenantResolverRegistry extends ExtensionRegistry<string, Te
    *   - an unknown name is a config typo;
    *   - an async-only resolver (no `resolveSync`) cannot serve the synchronous
    *     routing/attribution path, so the sync path would skip it and resolve a
-   *     different tenant than the async `request.tenant()` — a split-brain. We
+   *     different tenant than the async `request.tenant()`, a split-brain. We
    *     refuse it here, naming the offender, instead of shipping that divergence.
    */
   setChain(names: string[]): this {
@@ -119,12 +119,12 @@ export default class TenantResolverRegistry extends ExtensionRegistry<string, Te
   /**
    * Synchronous chain walk for code paths that cannot await, notably
    * `TenantAdapter`, rate-limit, and metrics. Calls each resolver's explicit
-   * `resolveSync` — no Promise sniffing — and the first non-undefined hit wins.
+   * `resolveSync` (no Promise sniffing) and the first non-undefined hit wins.
    * A resolver without `resolveSync` is async-only and is skipped here (never
    * called nor awaited). For a config-wired chain this branch is unreachable:
    * `setChain` refuses to admit an async-only resolver, so the sync path and the
    * async `resolve()` agree on the tenant. The skip is the backstop for the one
-   * remaining way in — a post-boot `register(name, { override: true })` that
+   * remaining way in: a post-boot `register(name, { override: true })` that
    * swaps a chained resolver for an async-only one without re-running setChain.
    */
   resolveSync(request: HttpRequest): TenantResolveResult {
