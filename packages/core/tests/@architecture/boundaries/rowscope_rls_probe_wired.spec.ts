@@ -5,14 +5,15 @@ import { fileURLToPath } from 'node:url'
 /**
  * WS-5 / rowscope-acknowledgment-flag-no-verification (anti-regression lock).
  *
- * The boot probe only protects anyone if the provider actually runs it when
- * `rowScopeRls === true`. This pins that wiring so a refactor can't drop it back
- * to trusting the flag. The probe's DECISION is unit-tested in rls_boot_probe.spec.ts.
+ * The boot probe only protects anyone if the isolation installer (the provider's
+ * boot-phase slice for isolation) actually runs it when `rowScopeRls === true`.
+ * This pins that wiring so a refactor can't drop it back to trusting the flag. The
+ * probe's DECISION is unit-tested in rls_boot_probe.spec.ts.
  *
- * RED (pre-fix): the provider never referenced the probe.
+ * RED (pre-fix): the isolation wiring never referenced the probe.
  */
 const PROVIDER = fileURLToPath(
-  new URL('../../../src/providers/multitenancy_provider.ts', import.meta.url)
+  new URL('../../../src/providers/installers/isolation_wiring.ts', import.meta.url)
 )
 
 test.group('architectural — rowscope RLS boot probe is wired', () => {

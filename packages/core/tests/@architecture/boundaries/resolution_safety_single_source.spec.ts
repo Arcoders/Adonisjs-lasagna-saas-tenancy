@@ -25,9 +25,9 @@ test.group('architectural — resolution safety is single-sourced', () => {
     assert,
   }) => {
     assert.match(
-      read('../../../src/providers/multitenancy_provider.ts'),
+      read('../../../src/providers/installers/resolution_wiring.ts'),
       AUDIT,
-      'provider boot warning must derive from resolutionSafetyAudit'
+      'the resolution installer boot warning must derive from resolutionSafetyAudit'
     )
     assert.match(
       read('../../../src/services/doctor/checks/membership_gate_check.ts'),
