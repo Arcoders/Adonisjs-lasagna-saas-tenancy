@@ -33,10 +33,14 @@ import { assertNotInTenantScope } from './guard.js'
  * The SQL expression that buckets the `period` date column. Whitelisted (never
  * built from user input) so it is safe to interpolate into the raw query.
  */
+// Cast every bucket to `::text` so PostgreSQL emits the ISO `YYYY-MM-DD` string
+// directly (the shape the OpenAPI `period` field documents). Returning a raw `date`
+// makes node-postgres round-trip it through a JS Date, which shifts the bucket by a
+// day under a non-UTC process timezone — a tz-dependent off-by-one that this avoids.
 const BUCKET_SQL: Record<NonNullable<AggregationOptions['period']>, string> = {
-  day: 'period',
-  week: "DATE_TRUNC('week', period)::date",
-  month: "DATE_TRUNC('month', period)::date",
+  day: 'period::text',
+  week: "DATE_TRUNC('week', period)::date::text",
+  month: "DATE_TRUNC('month', period)::date::text",
 }
 
 /**
@@ -290,7 +294,7 @@ export default class ReportingService {
   async #aggregateFromRollup(since: string, until: string): Promise<ReportAggregate[]> {
     const { conn, schema } = this.backoffice()
     const result = await conn.rawQuery(
-      `SELECT month AS bucket,
+      `SELECT month::text AS bucket,
               SUM(request_count)::bigint   AS total_requests,
               SUM(error_count)::bigint     AS total_errors,
               SUM(bandwidth_bytes)::bigint AS total_bandwidth,
