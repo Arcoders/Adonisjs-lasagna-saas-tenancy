@@ -109,8 +109,8 @@ they carried is still reachable:
 
 | Was | Now |
 |---|---|
-| `/crypto` | The AEAD envelope primitives moved to `/internal`. A host stores a secret through `readSecret` / `writeSecret` / `SECRET_CLASS` on the root barrel and never composes the envelope itself. |
-| `/worm-ledger` | Removed from the public surface. The append-only hash-chain writer had no consumer and was never a general-purpose logging API. |
+| `/crypto` | The AEAD envelope primitives moved to `/internal`. A host stores a secret through `readSecret` / `writeSecret` / `SECRET_CLASS` on the root barrel and never composes the envelope itself; the first-party `crypto` satellite reaches the `sealV2WithKey` / `openV2WithKey` seam through `/internal`. |
+| `/worm-ledger` | Removed from the public surface. The append-only hash-chain writer moved to `/internal`, where the first-party `crypto` satellite's shred audit composes it; it is not a general-purpose logging API. |
 | `/adapters` | `DefaultLucidAdapter` and `TenantAdapter` are on the root barrel; the unused `BackofficeAdapter` was removed (the unified `TenantAdapter` routes backoffice models by their `static isolation` marker). |
 | `/helpers` | `buildTenantWorkerOptions` is on the root barrel. |
 | `/extensions/request` | `resolveTenantId` is on the root barrel. The module's `__*ForTests` seams are no longer public at all. |
@@ -158,6 +158,7 @@ The isolation substrate. Everything here is **release candidate** unless noted.
 | `@adonisjs-lasagna/backup` | Experimental | Backup / restore / clone / SQL import. |
 | `@adonisjs-lasagna/reporting` | Experimental | Cross-tenant analytics over the backoffice `tenant_metrics` table, custom named metrics, and host-defined report extensions. |
 | `@adonisjs-lasagna/ai` | Experimental | Per-tenant AI streaming gateway: the streaming spine, a pluggable provider contract (Claude / DeepSeek / Kimi), and per-chunk cost metering over the kernel rails. |
+| `@adonisjs-lasagna/crypto` | Experimental | Field-level encryption: per-(subject × category) DEKs wrapped under a pluggable KeyProvider (env / AWS KMS / HashiCorp Vault), a deterministic search HMAC, and O(1) crypto-shredding gated on governance and audited to the WORM ledger. |
 
 All five ship `0.1.0`: the first published version of each. They peer-depend on
 the core with the range `>=0.3.0 <1.0.0`, so any `0.x` core satisfies them.

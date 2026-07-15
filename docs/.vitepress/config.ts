@@ -185,6 +185,7 @@ const sidebar = [
           { text: 'Reporting', link: '/guides/satellites/reporting' },
           { text: 'AI', link: '/guides/satellites/ai' },
           { text: 'AI security', link: '/guides/satellites/ai-security' },
+          { text: 'Crypto', link: '/guides/satellites/crypto' },
           { text: 'Quotas', link: '/guides/satellites/quotas' },
           { text: 'Billing', link: '/guides/satellites/billing' },
           { text: 'Backup', link: '/guides/satellites/backup' },

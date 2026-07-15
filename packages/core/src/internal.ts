@@ -76,3 +76,10 @@ export {
   openV2WithKey,
 } from './utils/crypto.js'
 export { validateExternalHttpsUrl, validateResolvedHostIsPublic } from './utils/url.js'
+// The append-only hash-chain writer. Off the public surface in the freeze: it has
+// no third-party need and is not a general-purpose logging API. The `crypto`
+// satellite's shred audit is the one first-party consumer, composing it here for
+// its fail-closed two-phase ledger. Imports only `node:` builtins, so it stays
+// app.booted-safe.
+export { default as WormLedgerWriter } from './services/worm_ledger_writer.js'
+export type { WormDb } from './services/worm_ledger_writer.js'
