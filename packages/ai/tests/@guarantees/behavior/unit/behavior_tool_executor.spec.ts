@@ -8,6 +8,7 @@ import ToolExecutorService, {
 import AIException from '../../../../src/exceptions/ai_exception.js'
 import type { AIToolHostDefinition, AIToolsConfig, ToolContext } from '../../../../src/define_config.js'
 import type { AIToolCall } from '../../../../src/types/ai_provider_contract.js'
+import type { AiToolAuditEvent } from '../../../../src/gateway/audit_seam.js'
 
 const tenant = { id: 't1' } as unknown as TenantModelContract
 const ctx = {} as unknown as HttpContext
@@ -20,6 +21,8 @@ function makeExecutor(
     runScoped: overrides.runScoped ?? (async (_t, fn) => fn()),
     activeScopeTenantId: overrides.activeScopeTenantId ?? (() => 't1'),
     getToolsConfig: overrides.getToolsConfig ?? (() => overrides.toolsConfig ?? { acknowledgeUnauthorizedTools: true }),
+    ...(overrides.toolAudit ? { toolAudit: overrides.toolAudit } : {}),
+    ...(overrides.emitMetric ? { emitMetric: overrides.emitMetric } : {}),
   })
 }
 
@@ -50,7 +53,7 @@ test.group('tool_executor — read-tool happy path', () => {
     let ranScoped = false
     const svc = makeExecutor({ runScoped: async (_t, fn) => ((ranScoped = true), fn()) })
     const exec = svc.forRequest(ctx, tenant, [readTool(async () => ({ count: 4 }))])
-    const turn = await exec.execute(call('count'), sig)
+    const turn = await exec.execute(call('count'), sig, 1)
 
     assert.isTrue(ranScoped)
     assert.equal(turn.role, 'tool')
@@ -74,7 +77,7 @@ test.group('tool_executor — read-tool happy path', () => {
         }),
       ]
     )
-    await exec.execute(call('count'), sig)
+    await exec.execute(call('count'), sig, 1)
     assert.deepEqual(seen?.filter, { status: 'active' })
   })
 })
@@ -83,7 +86,7 @@ test.group('tool_executor — the security gate order', () => {
   test('an unknown tool is refused with tool_unknown (fatal)', async ({ assert }) => {
     const svc = makeExecutor()
     const exec = svc.forRequest(ctx, tenant, [readTool(async () => ({}))])
-    const err = await reject(exec.execute(call('ghost'), sig))
+    const err = await reject(exec.execute(call('ghost'), sig, 1))
     assert.instanceOf(err, AIException)
     assert.equal((err as AIException).aiCode, 'tool_unknown')
   })
@@ -100,7 +103,7 @@ test.group('tool_executor — the security gate order', () => {
     }
     const svc = makeExecutor()
     const exec = svc.forRequest(ctx, tenant, [action])
-    const err = await reject(exec.execute(call('delete_all'), sig))
+    const err = await reject(exec.execute(call('delete_all'), sig, 1))
     assert.instanceOf(err, AIException)
     assert.equal((err as AIException).aiCode, 'tool_action_disabled')
   })
@@ -129,7 +132,7 @@ test.group('tool_executor — the security gate order', () => {
         }),
       ]
     )
-    const err = await reject(exec.execute(call('count'), sig))
+    const err = await reject(exec.execute(call('count'), sig, 1))
     assert.instanceOf(err, AIException)
     assert.equal((err as AIException).aiCode, 'tenant_scope_mismatch')
     assert.isFalse(scopeBound, 'the scope must not be bound once the re-assert fails')
@@ -139,7 +142,7 @@ test.group('tool_executor — the security gate order', () => {
   test('an undefined active scope trusts the caller (no re-assert failure)', async ({ assert }) => {
     const svc = makeExecutor({ activeScopeTenantId: () => undefined })
     const exec = svc.forRequest(ctx, tenant, [readTool(async () => ({ ok: 1 }))])
-    const turn = await exec.execute(call('count'), sig)
+    const turn = await exec.execute(call('count'), sig, 1)
     assert.include(turn.content, '{"ok":1}')
   })
 })
@@ -158,7 +161,7 @@ test.group('tool_executor — resilience', () => {
         }),
       ]
     )
-    const turn = await exec.execute(call('count'), sig)
+    const turn = await exec.execute(call('count'), sig, 1)
     assert.equal(turn.role, 'tool')
     assert.equal(turn.toolCallId, 'c1')
     assert.include(turn.content, 'tool_execution_failed')
@@ -180,7 +183,7 @@ test.group('tool_executor — resilience', () => {
         }),
       ]
     )
-    const turn = await exec.execute(call('count'), sig)
+    const turn = await exec.execute(call('count'), sig, 1)
     assert.equal(turn.role, 'tool')
     assert.include(turn.content, 'tool_execution_failed')
   })
@@ -194,9 +197,91 @@ test.group('tool_executor — resilience', () => {
       getToolsConfig: () => ({ acknowledgeUnauthorizedTools: true, toolTimeoutMs: 20 }),
     })
     const exec = svc.forRequest(ctx, tenant, [readTool(() => new Promise<never>(() => {}))])
-    const turn = await exec.execute(call('count'), sig)
+    const turn = await exec.execute(call('count'), sig, 1)
     assert.equal(turn.role, 'tool')
     assert.include(turn.content, 'tool_execution_failed')
+  })
+})
+
+test.group('tool_executor — observability (audit + metrics)', () => {
+  function recordingAudit() {
+    const events: AiToolAuditEvent[] = []
+    return { toolAudit: { append: (e: AiToolAuditEvent) => void events.push(e) }, events }
+  }
+  function recordingMetrics() {
+    const names: string[] = []
+    return { emitMetric: (_t: string, name: string) => void names.push(name), names }
+  }
+
+  test('a completed call audits completed + meters calls/latency, carrying the principalHash', async ({
+    assert,
+  }) => {
+    const { toolAudit, events } = recordingAudit()
+    const { emitMetric, names } = recordingMetrics()
+    const svc = makeExecutor({ toolAudit, emitMetric })
+    const exec = svc.forRequest(ctx, tenant, [readTool(async () => ({ count: 4 }))], 'phash')
+    await exec.execute(call('count'), sig, 3)
+
+    assert.lengthOf(events, 1)
+    assert.include(events[0], {
+      tenantId: 't1',
+      principalHash: 'phash',
+      toolName: 'count',
+      mode: 'read',
+      outcome: 'completed',
+      reason: null,
+      round: 3,
+    })
+    assert.include(names, 'ai_tool_calls')
+    assert.include(names, 'ai_tool_latency_ms')
+  })
+
+  test('a denied (unknown) call audits denied + meters denials', async ({ assert }) => {
+    const { toolAudit, events } = recordingAudit()
+    const { emitMetric, names } = recordingMetrics()
+    const svc = makeExecutor({ toolAudit, emitMetric })
+    const exec = svc.forRequest(ctx, tenant, [readTool(async () => ({}))], 'phash')
+    await reject(exec.execute(call('ghost'), sig, 1))
+
+    assert.include(events[0], { outcome: 'denied', reason: 'tool_unknown', toolName: 'ghost', mode: 'read' })
+    assert.include(names, 'ai_tool_denied')
+  })
+
+  test('a failing handler audits failed + meters errors', async ({ assert }) => {
+    const { toolAudit, events } = recordingAudit()
+    const { emitMetric, names } = recordingMetrics()
+    const svc = makeExecutor({ toolAudit, emitMetric })
+    const exec = svc.forRequest(ctx, tenant, [
+      readTool(async () => {
+        throw new Error('backend down')
+      }),
+    ])
+    await exec.execute(call('count'), sig, 2)
+
+    assert.include(events[0], { outcome: 'failed', reason: 'tool_execution_failed', round: 2 })
+    assert.include(names, 'ai_tool_errors')
+  })
+
+  test('a scope breach audits the error outcome, not a denial', async ({ assert }) => {
+    const { toolAudit, events } = recordingAudit()
+    const svc = makeExecutor({ toolAudit, activeScopeTenantId: () => 'another-tenant' })
+    const exec = svc.forRequest(ctx, tenant, [readTool(async () => ({}))])
+    await reject(exec.execute(call('count'), sig, 1))
+
+    assert.include(events[0], { outcome: 'error', reason: 'tenant_scope_mismatch' })
+  })
+
+  test('a throwing audit sink never fails the tool call (best-effort)', async ({ assert }) => {
+    const svc = makeExecutor({
+      toolAudit: {
+        append: () => {
+          throw new Error('audit down')
+        },
+      },
+    })
+    const exec = svc.forRequest(ctx, tenant, [readTool(async () => ({ ok: 1 }))])
+    const turn = await exec.execute(call('count'), sig, 1)
+    assert.include(turn.content, '{"ok":1}')
   })
 })
 

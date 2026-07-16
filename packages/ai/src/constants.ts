@@ -317,3 +317,15 @@ export const MAX_TOOL_DEFS = 64
  * never inlined.
  */
 export const AI_TOOL_FENCE_TAG = 'tool_result'
+
+/**
+ * Per-tenant integer metric names for tool calling (WS-AI-11), emitted best-effort
+ * through the executor's / loop's `emitMetric` seam (never on the reject path). Guard
+ * trips already bridge `ai_guard_rejections`; these give per-outcome and latency
+ * visibility. Fixed names, never inlined.
+ */
+export const AI_TOOL_CALLS_METRIC = 'ai_tool_calls'
+export const AI_TOOL_ERRORS_METRIC = 'ai_tool_errors'
+export const AI_TOOL_DENIALS_METRIC = 'ai_tool_denied'
+export const AI_TOOL_BUDGET_EXHAUSTED_METRIC = 'ai_tool_budget_exhausted'
+export const AI_TOOL_LATENCY_METRIC = 'ai_tool_latency_ms'

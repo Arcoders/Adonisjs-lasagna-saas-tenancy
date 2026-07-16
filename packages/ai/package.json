@@ -19,6 +19,7 @@
     ".": "./build/src/index.js",
     "./provider": "./build/providers/ai_provider.js",
     "./routes": "./build/src/routes.js",
+    "./tools": "./build/src/tools.js",
     "./commands": "./build/src/commands/main.js",
     "./testing": "./build/src/testing/index.js"
   },
@@ -29,6 +30,9 @@
       ],
       "routes": [
         "./build/src/routes.d.ts"
+      ],
+      "tools": [
+        "./build/src/tools.d.ts"
       ],
       "commands": [
         "./build/src/commands/main.d.ts"

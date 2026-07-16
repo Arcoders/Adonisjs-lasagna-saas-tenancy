@@ -1,6 +1,6 @@
 import AIException from '../exceptions/ai_exception.js'
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
-import type { StreamProducer } from './stream_extension.js'
+import type { StreamProducer, EmitMetric } from './stream_extension.js'
 import type {
   AIMessage,
   AIProviderContract,
@@ -10,6 +10,7 @@ import type {
   StreamFragment,
 } from '../types/ai_provider_contract.js'
 import {
+  AI_TOOL_BUDGET_EXHAUSTED_METRIC,
   DEFAULT_AI_MAX_TOOL_ROUNDS,
   DEFAULT_MAX_TOOLS_PER_ROUND,
   MAX_AI_TOOL_ROUNDS,
@@ -29,10 +30,11 @@ import {
  * ends the stream. A handler that merely fails (threw while running) does NOT
  * throw here: the executor returns a bounded error result turn so the model can
  * react and the loop continues. `signal` is the composed pump signal; the
- * executor composes the per-tool timeout on top of it.
+ * executor composes the per-tool timeout on top of it. `round` (1-based) is passed
+ * through for the executor's `op: 'tool'` audit row.
  */
 export interface ToolLoopExecutor {
-  execute(call: AIToolCall, signal: AbortSignal): Promise<AIMessage>
+  execute(call: AIToolCall, signal: AbortSignal, round: number): Promise<AIMessage>
 }
 
 /** The per-round rate-limit hook (invariant 2). Called before rounds >= 2; a throw ends the loop in-band. */
@@ -68,6 +70,8 @@ export interface ToolLoopDeps {
   readonly surfaceToolArgs?: boolean | undefined
   /** Structured drop/telemetry log (satisfied by the app logger). Optional; default no-op. */
   readonly log?: ((message: string) => void) | undefined
+  /** Per-tenant integer metrics; used for `ai_tool_budget_exhausted`. Optional; default no-op. */
+  readonly emitMetric?: EmitMetric | undefined
 }
 
 /**
@@ -153,6 +157,7 @@ export function buildToolLoopProducer(deps: ToolLoopDeps): StreamProducer {
           tenantId: deps.tenantId,
           metadata: { reason: 'max_rounds' },
         })
+        bumpBudgetMetric(deps)
         throw new AIException(
           'tool_budget_exhausted',
           'the tool loop reached its maximum number of rounds'
@@ -182,12 +187,13 @@ export function buildToolLoopProducer(deps: ToolLoopDeps): StreamProducer {
             tenantId: deps.tenantId,
             metadata: { reason: 'max_calls' },
           })
+          bumpBudgetMetric(deps)
           throw new AIException(
             'tool_budget_exhausted',
             'the request reached its maximum total number of tool calls'
           )
         }
-        const resultTurn = await deps.executor.execute(call, signal)
+        const resultTurn = await deps.executor.execute(call, signal, round)
         messages.push(resultTurn)
       }
       // Loop to round + 1 with the extended message history.
@@ -214,4 +220,13 @@ function resolveCeiling(value: number | undefined, fallback: number, ceiling: nu
   const v = value ?? fallback
   if (!Number.isInteger(v) || v < 1) return Math.min(fallback, ceiling)
   return Math.min(v, ceiling)
+}
+
+/** Best-effort `ai_tool_budget_exhausted` metric beside the guard trip; never breaks the throw. */
+function bumpBudgetMetric(deps: ToolLoopDeps): void {
+  try {
+    deps.emitMetric?.(deps.tenantId, AI_TOOL_BUDGET_EXHAUSTED_METRIC, 1)
+  } catch {
+    /* metrics are best-effort */
+  }
 }
