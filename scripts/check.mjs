@@ -46,6 +46,7 @@ const GUARDS = [
   'check-ai-invariant-2.mjs',
   'check-ai-invariant-4.mjs',
   'check-ai-invariant-5.mjs',
+  'check-ai-invariant-7.mjs',
   'check-ai-invariant-8.mjs',
   'check-ai-no-prompt-logging-for-training.mjs',
   'check-ai-no-provider-prompt-cache.mjs',

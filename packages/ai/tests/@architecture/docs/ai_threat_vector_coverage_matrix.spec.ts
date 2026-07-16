@@ -120,10 +120,14 @@ const MATRIX: VectorCoverage[] = [
     vector: 12,
     name: 'Tool / agent confused-deputy',
     invariant: 'I7',
-    redSpec: null,
-    chaosSpec: null,
-    reason:
-      'Tools and agents are post-1.0 (WS-AI-11). The I7 contract is fixed but unimplemented, so there is no tool-call path to attack in 1.0; the row is tracked here so it cannot be forgotten when WS-AI-11 lands.',
+    // WS-AI-11 landed, so this row is no longer a forward contract. The red spec is
+    // the gate itself (default-deny registry, per-tool authorization, and the I7
+    // re-assert of the AMBIENT scope before `tenancy.run` binds — the actual
+    // confused-deputy check). The chaos slot is the executor's fault behaviors: a
+    // handler that ignores its abort signal, one that throws, and a failing audit
+    // sink each degrade without breaking the pump or the scope.
+    redSpec: `${AI}/behavior/unit/behavior_tool_gate.spec.ts`,
+    chaosSpec: `${AI}/behavior/unit/behavior_tool_executor.spec.ts`,
   },
   {
     vector: 13,
