@@ -14,6 +14,7 @@ import AIProviderRegistry from './services/ai_provider_registry.js'
 import TenantLivenessWatcher from './services/tenant_liveness_watcher.js'
 import AiRateLimiter from './services/ai_rate_limiter.js'
 import ConversationMemoryService from './services/conversation_memory_service.js'
+import ToolExecutorService from './services/tool_executor.js'
 import {
   PgChatAuditSink,
   PgEmbeddingAuditSink,
@@ -83,7 +84,15 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
         // host that configured config.ai.memory pays for it (the service itself
         // no-ops via `.enabled` if a stale reference is ever passed).
         memory: aiConfig?.memory ? await app.container.make(ConversationMemoryService) : undefined,
-        // Per-tenant metrics sink for `ai_output_redacted` (the optional redactOutput hook).
+        // The tool executor (WS-AI-11), resolved lazily like memory: only a host
+        // that configured config.ai.tools pays for it; absent leaves chat tool-free
+        // with zero overhead (the plain provider.stream closure runs unchanged).
+        tools: aiConfig?.tools ? await app.container.make(ToolExecutorService) : undefined,
+        // The tool loop's drop/telemetry log (a maxToolsPerRound drop is logged,
+        // never silently capped). Routed to the app logger's warn.
+        log: (message) => logger.warn(message),
+        // Per-tenant metrics sink for `ai_output_redacted` (redactOutput) and the
+        // tool loop's `ai_tool_budget_exhausted`.
         emitMetric: (tenantId, name, value) => metrics.emitMetric(tenantId, name, value),
         config: aiConfig,
       })

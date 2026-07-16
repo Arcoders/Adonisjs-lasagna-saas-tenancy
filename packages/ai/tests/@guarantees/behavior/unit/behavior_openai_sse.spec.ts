@@ -98,7 +98,12 @@ test.group('openai_sse', () => {
           {
             delta: {
               tool_calls: [
-                { index: 0, id: 'call_1', type: 'function', function: { name: 'count_bookings', arguments: '' } },
+                {
+                  index: 0,
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'count_bookings', arguments: '' },
+                },
               ],
             },
           },

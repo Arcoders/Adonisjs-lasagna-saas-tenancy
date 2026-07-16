@@ -6,7 +6,11 @@ import ToolExecutorService, {
   type ToolExecutorDeps,
 } from '../../../../src/services/tool_executor.js'
 import AIException from '../../../../src/exceptions/ai_exception.js'
-import type { AIToolHostDefinition, AIToolsConfig, ToolContext } from '../../../../src/define_config.js'
+import type {
+  AIToolHostDefinition,
+  AIToolsConfig,
+  ToolContext,
+} from '../../../../src/define_config.js'
 import type { AIToolCall } from '../../../../src/types/ai_provider_contract.js'
 import type { AiToolAuditEvent } from '../../../../src/gateway/audit_seam.js'
 
@@ -20,7 +24,9 @@ function makeExecutor(
   return new ToolExecutorService({
     runScoped: overrides.runScoped ?? (async (_t, fn) => fn()),
     activeScopeTenantId: overrides.activeScopeTenantId ?? (() => 't1'),
-    getToolsConfig: overrides.getToolsConfig ?? (() => overrides.toolsConfig ?? { acknowledgeUnauthorizedTools: true }),
+    getToolsConfig:
+      overrides.getToolsConfig ??
+      (() => overrides.toolsConfig ?? { acknowledgeUnauthorizedTools: true }),
     ...(overrides.toolAudit ? { toolAudit: overrides.toolAudit } : {}),
     ...(overrides.emitMetric ? { emitMetric: overrides.emitMetric } : {}),
   })
@@ -65,18 +71,16 @@ test.group('tool_executor — read-tool happy path', () => {
   test('the authorizeTool filter reaches the handler context', async ({ assert }) => {
     let seen: ToolContext | undefined
     const svc = makeExecutor({
-      getToolsConfig: () => ({ authorizeTool: () => ({ kind: 'allow', filter: { status: 'active' } }) }),
+      getToolsConfig: () => ({
+        authorizeTool: () => ({ kind: 'allow', filter: { status: 'active' } }),
+      }),
     })
-    const exec = svc.forRequest(
-      ctx,
-      tenant,
-      [
-        readTool(async (_args, context) => {
-          seen = context
-          return {}
-        }),
-      ]
-    )
+    const exec = svc.forRequest(ctx, tenant, [
+      readTool(async (_args, context) => {
+        seen = context
+        return {}
+      }),
+    ])
     await exec.execute(call('count'), sig, 1)
     assert.deepEqual(seen?.filter, { status: 'active' })
   })
@@ -122,16 +126,12 @@ test.group('tool_executor — the security gate order', () => {
       activeScopeTenantId: () => 'another-tenant',
       runScoped: async (_t, fn) => ((scopeBound = true), fn()),
     })
-    const exec = svc.forRequest(
-      ctx,
-      tenant,
-      [
-        readTool(async () => {
-          handlerRan = true
-          return {}
-        }),
-      ]
-    )
+    const exec = svc.forRequest(ctx, tenant, [
+      readTool(async () => {
+        handlerRan = true
+        return {}
+      }),
+    ])
     const err = await reject(exec.execute(call('count'), sig, 1))
     assert.instanceOf(err, AIException)
     assert.equal((err as AIException).aiCode, 'tenant_scope_mismatch')
@@ -152,15 +152,11 @@ test.group('tool_executor — resilience', () => {
     assert,
   }) => {
     const svc = makeExecutor()
-    const exec = svc.forRequest(
-      ctx,
-      tenant,
-      [
-        readTool(async () => {
-          throw new Error('backend down')
-        }),
-      ]
-    )
+    const exec = svc.forRequest(ctx, tenant, [
+      readTool(async () => {
+        throw new Error('backend down')
+      }),
+    ])
     const turn = await exec.execute(call('count'), sig, 1)
     assert.equal(turn.role, 'tool')
     assert.equal(turn.toolCallId, 'c1')
@@ -174,15 +170,11 @@ test.group('tool_executor — resilience', () => {
     // throw an AIException on a transient failure; that must NOT abort the whole
     // stream — it degrades like any other handler failure so the loop continues.
     const svc = makeExecutor()
-    const exec = svc.forRequest(
-      ctx,
-      tenant,
-      [
-        readTool(async () => {
-          throw new AIException('rate_limited', 'nested provider is busy')
-        }),
-      ]
-    )
+    const exec = svc.forRequest(ctx, tenant, [
+      readTool(async () => {
+        throw new AIException('rate_limited', 'nested provider is busy')
+      }),
+    ])
     const turn = await exec.execute(call('count'), sig, 1)
     assert.equal(turn.role, 'tool')
     assert.include(turn.content, 'tool_execution_failed')
@@ -243,7 +235,12 @@ test.group('tool_executor — observability (audit + metrics)', () => {
     const exec = svc.forRequest(ctx, tenant, [readTool(async () => ({}))], 'phash')
     await reject(exec.execute(call('ghost'), sig, 1))
 
-    assert.include(events[0], { outcome: 'denied', reason: 'tool_unknown', toolName: 'ghost', mode: 'read' })
+    assert.include(events[0], {
+      outcome: 'denied',
+      reason: 'tool_unknown',
+      toolName: 'ghost',
+      mode: 'read',
+    })
     assert.include(names, 'ai_tool_denied')
   })
 

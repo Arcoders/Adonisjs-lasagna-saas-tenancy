@@ -1,6 +1,9 @@
 import { test } from '@japa/runner'
 import TenantLivenessWatcher from '../../../../src/services/tenant_liveness_watcher.js'
 import AIException from '../../../../src/exceptions/ai_exception.js'
+import { fakeHttpContext } from '../../../helpers/fake_http_context.js'
+import { buildToolChat, fakeTenant, toolChatBody } from '../../../helpers/tool_chat_doubles.js'
+import { MAX_CONCURRENT_TOOL_LOOPS_PER_TENANT } from '../../../../src/constants.js'
 
 test.group('security — per-tenant tool-loop concurrency cap (Phase 2a)', () => {
   test('refuses the (N+1)th concurrent acquire with a 429 too_many_concurrent', ({ assert }) => {
@@ -61,5 +64,85 @@ test.group('security — per-tenant tool-loop concurrency cap (Phase 2a)', () =>
     assert.equal((err as AIException).aiCode, 'too_many_concurrent')
     // The message does not falsely claim there are three concurrent tool loops.
     assert.notMatch((err as AIException).message, /concurrent AI tool loops/i)
+  })
+})
+
+/**
+ * The cap is only a rail if the controller actually passes one (Phase 9c). A tool
+ * request must acquire CAPPED and be refused pre-commit at the ceiling; a plain
+ * chat must keep acquiring uncapped, so wiring the cap cannot regress ordinary
+ * chat into a 429 under load.
+ */
+test.group('security — the chat controller wires the cap onto a tool request', () => {
+  test('a tool request at the cap is refused 429 pre-commit, before any upstream call', async ({
+    assert,
+  }) => {
+    const liveness = new TenantLivenessWatcher()
+    const { controller, provider } = buildToolChat({
+      liveness,
+      tools: { maxConcurrentPerTenant: 1 },
+    })
+    // One stream of this tenant is already in flight.
+    liveness.acquire(fakeTenant.id)
+
+    const { ctx, res, responseFacade } = fakeHttpContext({
+      tenant: fakeTenant,
+      body: toolChatBody,
+    })
+    await controller.chat(ctx)
+
+    assert.equal(responseFacade.sentStatus, 429)
+    assert.deepEqual(responseFacade.sentBody, { error: 'too_many_concurrent' })
+    assert.isFalse(res.flushed, 'the refusal is pre-commit, so a real status reaches the client')
+    assert.lengthOf(provider.calls, 0, 'a refused loop costs nothing upstream')
+  })
+
+  test('a plain chat is never capped, however busy the tenant is', async ({ assert }) => {
+    const liveness = new TenantLivenessWatcher()
+    const { controller, provider } = buildToolChat({
+      liveness,
+      toolFree: true,
+      rounds: [[{ data: 'hola', tokens: 2 }]],
+    })
+    for (let i = 0; i < 40; i++) liveness.acquire(fakeTenant.id)
+
+    const { ctx, res, responseFacade } = fakeHttpContext({
+      tenant: fakeTenant,
+      body: toolChatBody,
+    })
+    await controller.chat(ctx)
+
+    assert.isUndefined(responseFacade.sentStatus)
+    assert.isTrue(res.flushed, 'plain chat streams regardless of the tenant in-flight count')
+    assert.lengthOf(provider.calls, 1)
+  })
+
+  test('a tool request below the cap streams, and disposes its handle', async ({ assert }) => {
+    const liveness = new TenantLivenessWatcher()
+    const { controller } = buildToolChat({ liveness, tools: { maxConcurrentPerTenant: 2 } })
+    liveness.acquire(fakeTenant.id).dispose()
+
+    const { ctx, res } = fakeHttpContext({ tenant: fakeTenant, body: toolChatBody })
+    await controller.chat(ctx)
+
+    assert.isTrue(res.flushed)
+    assert.equal(liveness.watchedTenantCount(), 0, 'the loop released its slot')
+  })
+
+  test('a greedy maxConcurrentPerTenant is clamped to the hard ceiling', async ({ assert }) => {
+    // A host asking for 9999 concurrent loops gets the ceiling, so the config can
+    // never widen the rail past what the connection pool can survive.
+    const liveness = new TenantLivenessWatcher()
+    const { controller, provider } = buildToolChat({
+      liveness,
+      tools: { maxConcurrentPerTenant: 9999 },
+    })
+    for (let i = 0; i < MAX_CONCURRENT_TOOL_LOOPS_PER_TENANT; i++) liveness.acquire(fakeTenant.id)
+
+    const { ctx, responseFacade } = fakeHttpContext({ tenant: fakeTenant, body: toolChatBody })
+    await controller.chat(ctx)
+
+    assert.equal(responseFacade.sentStatus, 429)
+    assert.lengthOf(provider.calls, 0)
   })
 })

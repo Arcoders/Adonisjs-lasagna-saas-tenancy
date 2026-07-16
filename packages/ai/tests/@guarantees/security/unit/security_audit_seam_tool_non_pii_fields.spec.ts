@@ -1,7 +1,8 @@
 import { test } from '@japa/runner'
 import { PgToolAuditSink } from '../../../../src/gateway/audit_sinks.js'
 import type { AiToolAuditEvent } from '../../../../src/gateway/audit_seam.js'
-import AiAuditWriter, {
+import type AiAuditWriter from '../../../../src/services/ai_audit_writer.js'
+import {
   auditChecksum,
   canonicalAuditFields,
   type AiAuditRow,

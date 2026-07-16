@@ -84,9 +84,7 @@ export function validateToolInput(
     return reconstructAndValidate(tool.inputSchema, parsed, 'arguments') as Record<string, unknown>
   } catch (error) {
     const message =
-      error instanceof ToolInputError
-        ? error.message
-        : 'the tool arguments are invalid'
+      error instanceof ToolInputError ? error.message : 'the tool arguments are invalid'
     emitAiGuardEvent('guard.ai_tool_input_invalid', {
       ...(opts.tenantId !== undefined ? { tenantId: opts.tenantId } : {}),
       metadata: { tool: tool.name.slice(0, 64) },

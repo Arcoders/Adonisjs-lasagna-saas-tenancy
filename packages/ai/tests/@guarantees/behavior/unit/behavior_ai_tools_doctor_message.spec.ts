@@ -98,9 +98,7 @@ test.group('ai_tools doctor check', () => {
     assert.include(issues[0].message, 'still refuses')
   })
 
-  test('the check reads config at run time (live posture, not registration time)', ({
-    assert,
-  }) => {
+  test('the check reads config at run time (live posture, not registration time)', ({ assert }) => {
     let current = ai({ registry: [readTool] })
     const check = aiToolsCheck(() => current)
     assert.equal(check.run()[0]?.severity, 'warn')

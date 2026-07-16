@@ -1,6 +1,14 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type StreamExtensionService from './stream_extension.js'
-import { httpStreamTarget, type StreamResult, type EmitMetric } from './stream_extension.js'
+import {
+  httpStreamTarget,
+  type StreamResult,
+  type StreamProducer,
+  type EmitMetric,
+} from './stream_extension.js'
+import { buildToolLoopProducer, resolveMaxRounds, type ToolLoopExecutor } from './tool_loop.js'
+import { advertisedTools, resolveToolRegistry } from './tool_gate.js'
+import type ToolExecutorService from '../services/tool_executor.js'
 import type AIProviderRegistry from '../services/ai_provider_registry.js'
 import type TenantLivenessWatcher from '../services/tenant_liveness_watcher.js'
 import type AiRateLimiter from '../services/ai_rate_limiter.js'
@@ -34,9 +42,21 @@ import AIException, { httpStatusForAiCode } from '../exceptions/ai_exception.js'
 import { assertNever } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import type RetrievalService from '../services/retrieval_service.js'
 import type { VectorMatch } from '../services/vector_store_service.js'
-import type { AiConfig, AIRetrievalConfig, RetrievalScope, RedactOutput } from '../define_config.js'
+import type {
+  AiConfig,
+  AIRetrievalConfig,
+  AIToolHostDefinition,
+  AIToolsConfig,
+  RetrievalScope,
+  RedactOutput,
+} from '../define_config.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
-import type { AIMessage, AIStreamRequest, StreamFragment } from '../types/ai_provider_contract.js'
+import type {
+  AIMessage,
+  AIStreamRequest,
+  AIToolDefinition,
+  StreamFragment,
+} from '../types/ai_provider_contract.js'
 import {
   AI_FRAGMENT_MAX_CHARS,
   AI_IDEMPOTENCY_MAX_BYTES,
@@ -44,6 +64,8 @@ import {
   AI_TOKENS_QUOTA,
   DEFAULT_AI_MAX_PROMPT_CHARS,
   DEFAULT_AI_MAX_TOKENS,
+  DEFAULT_MAX_CONCURRENT_TOOL_LOOPS_PER_TENANT,
+  MAX_CONCURRENT_TOOL_LOOPS_PER_TENANT,
   DEFAULT_MAX_CONTEXT_CHARS,
   DEFAULT_MAX_CONTEXT_ITEMS,
   DEFAULT_MAX_QUERY_CHARS,
@@ -95,6 +117,32 @@ export interface AiChatControllerDeps {
    * completed exchange.
    */
   memory?: ConversationMemoryService | undefined
+  /**
+   * The tool executor (WS-AI-11). Present only when the host configured
+   * `config.ai.tools`; absent leaves chat tool-free with ZERO overhead (the
+   * plain `provider.stream` closure runs byte-for-byte as before). When present
+   * AND the per-tenant registry advertises at least one read tool, the request
+   * runs the multi-round tool loop inside the same single pump.
+   */
+  tools?: ToolExecutorService | undefined
+  /**
+   * Structured drop/telemetry log for the tool loop (satisfied by the app
+   * logger's `warn`). Used only to surface a `maxToolsPerRound` drop (never a
+   * silent cap). Optional; defaults to no-op.
+   */
+  log?: ((message: string) => void) | undefined
+}
+
+/**
+ * A resolved tool-loop plan for one request (WS-AI-11): the FULL registry the
+ * executor gates a call against, the read-only subset advertised to the model,
+ * and the tools config block carrying the loop bounds. Absent means plain chat.
+ */
+interface ToolLoopPlan {
+  readonly fullSet: AIToolHostDefinition[]
+  readonly advertised: AIToolDefinition[]
+  readonly toolsConfig: AIToolsConfig
+  readonly executor: ToolLoopExecutor
 }
 
 /**
@@ -247,9 +295,59 @@ export default class AiChatController {
       throw error
     }
 
+    // 5d. Tool-loop planning (WS-AI-11). Only when the host opted into tools AND
+    //     the executor is wired (the route injects it solely then), so a non-tool
+    //     chat pays ZERO overhead. Resolve the per-tenant registry behind the
+    //     default-deny gate; when it advertises at least one read tool this request
+    //     becomes a multi-round tool loop, and the per-request executor is bound
+    //     now (cheap, side-effect-free). A `resolveTools` throw is a fail-closed
+    //     preflight refusal (before any byte), mapped to its pinned status like the
+    //     other preflights.
+    let toolPlan: ToolLoopPlan | undefined
+    if (this.deps.tools && ai?.tools) {
+      try {
+        const fullSet = await resolveToolRegistry(ctx, tenant, ai.tools)
+        const advertised = advertisedTools(fullSet)
+        if (advertised.length > 0) {
+          // Phase 0's conditionally-required capability: a tool loop against a
+          // provider that does not declare `capabilities.tools` fails CLOSED
+          // (403 provider_not_allowed), rather than advertising tools the provider
+          // will silently drop and answering as if tool calling were unavailable.
+          if (provider.capabilities.tools !== true) {
+            throw new AIException(
+              'provider_not_allowed',
+              'the selected provider does not support tool calling'
+            )
+          }
+          toolPlan = {
+            fullSet,
+            advertised,
+            toolsConfig: ai.tools,
+            executor: this.deps.tools.forRequest(ctx, tenant, fullSet, principalHash),
+          }
+        }
+      } catch (error) {
+        if (await this.#failChatPreflight(ctx, auditBase, error)) return
+        throw error
+      }
+    }
+
     // 6. The stream itself: the liveness handle (also covering the RAG query
     //    embed), a recording tee for the idempotency cache, the spine for the rest.
-    const liveness = this.deps.liveness.acquire(tenant.id)
+    //    A tool loop is admitted only under the per-tenant in-flight cap (Phase
+    //    2a): the (N+1)th concurrent stream is refused pre-commit with a 429
+    //    `too_many_concurrent`, so a flood of expensive multi-round loops cannot
+    //    starve the connection pool. Plain chat acquires uncapped and never throws.
+    let liveness: { signal: AbortSignal; dispose: () => void }
+    try {
+      liveness = this.deps.liveness.acquire(
+        tenant.id,
+        toolPlan ? { maxConcurrent: resolveMaxConcurrent(toolPlan.toolsConfig) } : {}
+      )
+    } catch (error) {
+      if (await this.#failChatPreflight(ctx, auditBase, error)) return
+      throw error
+    }
     const recorder = recordingStreamTarget(httpStreamTarget(ctx), {
       maxBytes: AI_IDEMPOTENCY_MAX_BYTES,
     })
@@ -303,23 +401,58 @@ export default class AiChatController {
       if (mintedSessionToken) ctx.response.response.setHeader('X-Ai-Session', mintedSessionToken)
 
       const request: AIStreamRequest = { messages, model: body.model, maxTokens: worstCase }
-      result = await this.deps.stream.stream(
-        recorder.target,
-        (signal) => provider.stream(request, signal),
-        {
-          label: 'ai:chat',
-          tenant,
-          quota: AI_TOKENS_QUOTA,
-          worstCase,
-          timeoutMs: ai?.timeoutMs,
-          heartbeatMs: ai?.heartbeatMs,
-          lastEventId: ctx.request.header('last-event-id'),
-          livenessSignal: liveness.signal,
-          validateFragment: fragmentGate,
-          provider: provider.name,
-          model: body.model,
-        }
-      )
+
+      // The producer + reservation. A tool request runs the multi-round loop
+      // INSIDE this same single pump (one reservation = perRound × maxRounds, one
+      // commit, monotonic ids, aggregated StreamResult), so the aggregate budget
+      // is enforced for free by the pipeline's `budgetExhausted` at that worst
+      // case. A plain chat keeps the byte-for-byte provider.stream closure and the
+      // single per-request reservation.
+      let produce: StreamProducer = (signal) => provider.stream(request, signal)
+      let reservationWorstCase = worstCase
+      if (toolPlan) {
+        const maxRounds = resolveMaxRounds(toolPlan.toolsConfig.maxRounds)
+        reservationWorstCase = worstCase * maxRounds
+        produce = buildToolLoopProducer({
+          tenantId: tenant.id,
+          provider,
+          baseRequest: request,
+          tools: toolPlan.advertised,
+          executor: toolPlan.executor,
+          perRoundMaxTokens: worstCase,
+          maxRounds,
+          maxToolsPerRound: toolPlan.toolsConfig.maxToolsPerRound,
+          maxToolCallsPerRequest: toolPlan.toolsConfig.maxToolCallsPerRequest,
+          surfaceToolArgs: toolPlan.toolsConfig.surfaceToolArgs,
+          // Invariant 2 (per-round rate limit): rounds >= 2 consult the limiter so
+          // the denial-of-wallet rail counts every upstream call. A denial throws
+          // an AIException; headers are already flushed, so the spine renders it as
+          // an in-band `event: error` frame and the last text stands.
+          onBeforeRound: async () => {
+            await (this.deps.rateLimiter ?? DISABLED_AI_RATE_LIMITER).check({
+              op: 'chat',
+              tenantId: tenant.id,
+              fingerprint: provider.keyFingerprint ?? provider.name,
+            })
+          },
+          log: this.deps.log,
+          emitMetric: this.deps.emitMetric,
+        })
+      }
+
+      result = await this.deps.stream.stream(recorder.target, produce, {
+        label: 'ai:chat',
+        tenant,
+        quota: AI_TOKENS_QUOTA,
+        worstCase: reservationWorstCase,
+        timeoutMs: ai?.timeoutMs,
+        heartbeatMs: ai?.heartbeatMs,
+        lastEventId: ctx.request.header('last-event-id'),
+        livenessSignal: liveness.signal,
+        validateFragment: fragmentGate,
+        provider: provider.name,
+        model: body.model,
+      })
     } finally {
       liveness.dispose()
     }
@@ -709,6 +842,23 @@ function parseFrameId(frame: string): number | null {
 function resolveWorstCase(requested: number | undefined, ai: AiConfig | undefined): number {
   const ceiling = ai?.maxTokens ?? DEFAULT_AI_MAX_TOKENS
   return requested === undefined ? ceiling : Math.min(requested, ceiling)
+}
+
+/**
+ * The per-tenant in-flight admission cap for a tool loop (Phase 2a): the config
+ * value clamped to the hard ceiling, defaulting when unset or malformed. Matches
+ * the clamp discipline the loop/executor apply to their own bounds, and is only
+ * ever consumed here (the liveness watcher receives an already-validated cap).
+ */
+function resolveMaxConcurrent(toolsConfig: AIToolsConfig): number {
+  const value = toolsConfig.maxConcurrentPerTenant
+  if (value === undefined || !Number.isInteger(value) || value < 1) {
+    return Math.min(
+      DEFAULT_MAX_CONCURRENT_TOOL_LOOPS_PER_TENANT,
+      MAX_CONCURRENT_TOOL_LOOPS_PER_TENANT
+    )
+  }
+  return Math.min(value, MAX_CONCURRENT_TOOL_LOOPS_PER_TENANT)
 }
 
 /**

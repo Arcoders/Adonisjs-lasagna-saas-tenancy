@@ -96,7 +96,7 @@ export interface ToolLoopDeps {
  * plain `provider.stream` closure with zero overhead.
  */
 export function buildToolLoopProducer(deps: ToolLoopDeps): StreamProducer {
-  const maxRounds = resolveCeiling(deps.maxRounds, DEFAULT_AI_MAX_TOOL_ROUNDS, MAX_AI_TOOL_ROUNDS)
+  const maxRounds = resolveMaxRounds(deps.maxRounds)
   const maxToolsPerRound = resolveCeiling(
     deps.maxToolsPerRound,
     DEFAULT_MAX_TOOLS_PER_ROUND,
@@ -220,6 +220,16 @@ function resolveCeiling(value: number | undefined, fallback: number, ceiling: nu
   const v = value ?? fallback
   if (!Number.isInteger(v) || v < 1) return Math.min(fallback, ceiling)
   return Math.min(v, ceiling)
+}
+
+/**
+ * The effective max-rounds ceiling: the config value clamped to the hard cap.
+ * Exported so the controller sizes the aggregate quota reservation
+ * (`perRound × maxRounds`) with the EXACT clamp the loop enforces internally,
+ * keeping the reservation and the loop's own round ceiling from ever drifting.
+ */
+export function resolveMaxRounds(value: number | undefined): number {
+  return resolveCeiling(value, DEFAULT_AI_MAX_TOOL_ROUNDS, MAX_AI_TOOL_ROUNDS)
 }
 
 /** Best-effort `ai_tool_budget_exhausted` metric beside the guard trip; never breaks the throw. */

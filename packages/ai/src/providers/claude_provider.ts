@@ -8,6 +8,7 @@ import {
 } from './provider_constants.js'
 import type { AIProviderConfig, AIProviderName } from '../define_config.js'
 import type {
+  AICapabilities,
   AIMessage,
   AIStreamRequest,
   AIToolDefinition,
@@ -21,6 +22,11 @@ import type {
  */
 export default class ClaudeProvider extends HttpAiProvider {
   readonly name: AIProviderName = 'claude'
+  // Claude serializes tool definitions and tool turns (toAnthropicTool /
+  // toAnthropicMessage), so it declares the optional tool-calling capability.
+  // The chat controller refuses a tool loop against a provider that does not
+  // (Phase 0's conditionally-required capability), never a silent drop.
+  override readonly capabilities: AICapabilities = { streaming: true, tools: true }
 
   constructor(cfg: AIProviderConfig, deps: AIProviderDeps = defaultAiProviderDeps) {
     super(cfg, deps, DEFAULT_CLAUDE_MODEL)
@@ -83,16 +89,19 @@ export function toAnthropicMessage(message: AIMessage): unknown {
   if (message.role === 'tool') {
     return {
       role: 'user',
-      content: [
-        { type: 'tool_result', tool_use_id: message.toolCallId, content: message.content },
-      ],
+      content: [{ type: 'tool_result', tool_use_id: message.toolCallId, content: message.content }],
     }
   }
   if (message.role === 'assistant' && message.toolCalls && message.toolCalls.length > 0) {
     const content: unknown[] = []
     if (message.content.length > 0) content.push({ type: 'text', text: message.content })
     for (const call of message.toolCalls) {
-      content.push({ type: 'tool_use', id: call.id, name: call.name, input: parseToolInput(call.arguments) })
+      content.push({
+        type: 'tool_use',
+        id: call.id,
+        name: call.name,
+        input: parseToolInput(call.arguments),
+      })
     }
     return { role: 'assistant', content }
   }

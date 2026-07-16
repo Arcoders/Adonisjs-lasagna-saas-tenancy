@@ -43,11 +43,47 @@ export default class AIProviderRegistry {
       )
     }
 
+    this.assertShape(provider)
+
     this.#providers.set(provider.name, provider)
     if (opts.activate || !this.#activeName) {
       this.#activeName = provider.name
     }
     return this
+  }
+
+  /**
+   * The EXT-3 shape gate backing the v2 contract bump. `assertContractCompat` only
+   * WARNS a provider built against an older contract, so on its own a v1 provider
+   * claiming a v2 capability would boot and then crash mid-stream. This converts
+   * that into a register-time failure.
+   *
+   * What v2 actually changed for a provider: `AIMessage.role` widened to include
+   * `'tool'`, and an assistant turn may now carry `toolCalls`. Every added member is
+   * optional, so a v1 provider object still satisfies the v2 interface and stays
+   * welcome — the satellite simply never hands it a tool turn, because the chat
+   * controller refuses a tool loop against a provider whose `capabilities.tools` is
+   * not `true`. That leaves exactly one incoherent shape: a provider that CLAIMS
+   * `capabilities.tools` while declaring a pre-v2 contract. Tool support IS the v2
+   * contract, so such a provider cannot have known the tool wire shapes; honoring
+   * its claim would route it tool turns it has no way to parse. It fails closed here
+   * instead, at registration, where the operator can act on it.
+   */
+  assertShape(provider: AIProviderContract): void {
+    if (provider.capabilities?.tools !== true) return
+    const declared = provider.contractVersion ?? 0
+    if (declared < 2) {
+      // No Isthmus guard: this is a boot-time misconfiguration an operator fixes,
+      // not a request-path refusal. `ai_streaming_capability` names the streaming
+      // gate specifically, and the tool matrix is deliberately scoped to its six
+      // request-path guards, so neither is honest to reuse or worth widening here.
+      throw new Error(
+        `ai provider "${provider.name}" declares capabilities.tools but was built against ` +
+          `contract v${declared || '(unversioned)'}; tool calling is contract v2+. Declare ` +
+          `contractVersion: ${AI_CONTRACT_VERSION} once it handles role:'tool' turns and ` +
+          `assistant toolCalls, or drop capabilities.tools.`
+      )
+    }
   }
 
   /** Switch the active provider to the named one. Throws if not registered. */

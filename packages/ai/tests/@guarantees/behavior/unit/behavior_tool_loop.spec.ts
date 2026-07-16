@@ -197,7 +197,10 @@ test.group('tool_loop (through the streaming spine)', () => {
 
   test('surfaceToolArgs includes the arguments in the client notice', async ({ assert }) => {
     const provider = new MockAIProvider({
-      rounds: [[toolCall('c1', 'count_bookings', '{"status":"active"}')], [{ data: 'ok', tokens: 0 }]],
+      rounds: [
+        [toolCall('c1', 'count_bookings', '{"status":"active"}')],
+        [{ data: 'ok', tokens: 0 }],
+      ],
     })
     const { target, result } = runLoop(provider, new FakeExecutor(), { surfaceToolArgs: true })
     await result

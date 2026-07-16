@@ -9,6 +9,7 @@ import {
 } from './provider_constants.js'
 import type { AIProviderConfig, AIProviderName } from '../define_config.js'
 import type {
+  AICapabilities,
   AIMessage,
   AIStreamRequest,
   AIToolDefinition,
@@ -30,6 +31,11 @@ export interface OpenAICompatibleParams {
  */
 export default class OpenAICompatibleProvider extends HttpAiProvider {
   readonly name: AIProviderName
+  // The OpenAI-compatible dialect serializes tool definitions and tool turns
+  // (toOpenAiTool / toOpenAiMessage), so DeepSeek, Kimi and self-hosted backends
+  // declare the optional tool-calling capability. The chat controller refuses a
+  // tool loop against a provider that does not (Phase 0), never a silent drop.
+  override readonly capabilities: AICapabilities = { streaming: true, tools: true }
   readonly #baseUrl: string
 
   constructor(

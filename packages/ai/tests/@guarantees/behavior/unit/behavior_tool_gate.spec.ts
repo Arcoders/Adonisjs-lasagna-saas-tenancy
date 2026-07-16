@@ -41,6 +41,27 @@ test.group('tool_gate — resolveToolRegistry (default-deny)', () => {
       ['a', 'b', 'c']
     )
   })
+
+  test('a throwing resolveTools denies with a typed refusal, never a 500', async ({ assert }) => {
+    // The host resolver IS the per-tenant policy decision. One that cannot decide
+    // must not degrade to "no tools" (an ungrounded answer as though tool calling
+    // were unavailable) nor escape untyped to the framework's 500 renderer.
+    let error: unknown
+    try {
+      await resolveToolRegistry(ctx, tenant, {
+        registry: [tool('a')],
+        resolveTools: async () => {
+          throw new Error('the tenant tool policy backend is down')
+        },
+      })
+    } catch (caught) {
+      error = caught
+    }
+    assert.instanceOf(error, AIException)
+    assert.equal((error as AIException).aiCode, 'tool_denied')
+    assert.equal((error as AIException).httpStatus, 403)
+    assert.notMatch((error as AIException).message, /policy backend/i, 'no internals leak')
+  })
 })
 
 test.group('tool_gate — advertisedTools', () => {
@@ -82,7 +103,9 @@ test.group('tool_gate — authorizeToolScope (fail-closed)', () => {
     )
   })
 
-  test('allow passes the filter through; deny, throw and invalid all reject', async ({ assert }) => {
+  test('allow passes the filter through; deny, throw and invalid all reject', async ({
+    assert,
+  }) => {
     assert.deepEqual(
       await authorizeToolScope(ctx, tenant, 'read', {
         authorizeTool: () => ({ kind: 'allow', filter: { s: 1 } }),
@@ -105,9 +128,8 @@ test.group('tool_gate — authorizeToolScope (fail-closed)', () => {
     await assert.rejects(
       () =>
         authorizeToolScope(ctx, tenant, 'read', {
-          authorizeTool: () => ({ bad: true }) as unknown as ReturnType<
-            NonNullable<AIToolsConfig['authorizeTool']>
-          >,
+          authorizeTool: () =>
+            ({ bad: true }) as unknown as ReturnType<NonNullable<AIToolsConfig['authorizeTool']>>,
         }),
       /not authorized/
     )

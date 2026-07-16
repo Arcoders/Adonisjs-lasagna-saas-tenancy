@@ -87,7 +87,12 @@ const SURFACES = [
     constant: 'CAPABILITY_CONTRACT_VERSION',
     file: 'packages/core/src/services/capability_registry.ts',
   },
-  { key: 'ai', constant: 'AI_CONTRACT_VERSION', file: 'packages/ai/src/sdk/contract_version.ts' },
+  {
+    key: 'ai',
+    constant: 'AI_CONTRACT_VERSION',
+    file: 'packages/ai/src/sdk/contract_version.ts',
+    shapeGate: 'packages/ai/src/services/ai_provider_registry.ts',
+  },
   {
     key: 'crypto',
     constant: 'CRYPTO_CONTRACT_VERSION',

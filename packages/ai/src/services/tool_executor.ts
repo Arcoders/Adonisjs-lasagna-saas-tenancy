@@ -239,7 +239,11 @@ export default class ToolExecutorService {
  * fence. Role separation (a `tool` turn, never a trusted instruction turn) is the
  * real defense; the fence is defense-in-depth. Pure, so it unit-tests alone.
  */
-export function buildToolResultTurn(toolCallId: string, result: unknown, maxChars: number): AIMessage {
+export function buildToolResultTurn(
+  toolCallId: string,
+  result: unknown,
+  maxChars: number
+): AIMessage {
   const serialized = serializeToolResult(result)
   const open = `<${AI_TOOL_FENCE_TAG}>`
   const close = `</${AI_TOOL_FENCE_TAG}>`

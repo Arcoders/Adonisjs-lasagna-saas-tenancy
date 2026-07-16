@@ -22,7 +22,10 @@ export function checkAIProviderConformance(provider: AIProviderContract): string
       'provider.capabilities.streaming must be true (the registry presence gate rejects otherwise)'
     )
   }
-  if (provider.capabilities?.tools !== undefined && typeof provider.capabilities.tools !== 'boolean') {
+  if (
+    provider.capabilities?.tools !== undefined &&
+    typeof provider.capabilities.tools !== 'boolean'
+  ) {
     problems.push('provider.capabilities.tools, when present, must be a boolean')
   }
   if (typeof provider.verifyConfig !== 'function') {

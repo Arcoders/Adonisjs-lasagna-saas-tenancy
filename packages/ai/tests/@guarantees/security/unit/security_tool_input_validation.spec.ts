@@ -63,8 +63,7 @@ test.group('security — tool input validation (prototype-safe, dependency-free)
     // `'toString' in out` would be true via the prototype chain; the model omitted
     // it, so a hasOwn check must still reject the missing required property.
     assert.throws(
-      () =>
-        validateToolInput('{}', objSchema({ toString: { type: 'string' } }, ['toString']), {}),
+      () => validateToolInput('{}', objSchema({ toString: { type: 'string' } }, ['toString']), {}),
       /required property/
     )
   })
@@ -108,7 +107,8 @@ test.group('security — tool input validation (prototype-safe, dependency-free)
       /must be a number/
     )
     assert.throws(
-      () => validateToolInput('{"s":"z"}', objSchema({ s: { type: 'string', enum: ['a', 'b'] } }), {}),
+      () =>
+        validateToolInput('{"s":"z"}', objSchema({ s: { type: 'string', enum: ['a', 'b'] } }), {}),
       /allowed values/
     )
     assert.throws(
@@ -116,7 +116,12 @@ test.group('security — tool input validation (prototype-safe, dependency-free)
       /required property/
     )
     assert.throws(
-      () => validateToolInput('{"s":"toolong"}', objSchema({ s: { type: 'string', maxLength: 3 } }), {}),
+      () =>
+        validateToolInput(
+          '{"s":"toolong"}',
+          objSchema({ s: { type: 'string', maxLength: 3 } }),
+          {}
+        ),
       /maxLength/
     )
     assert.throws(
@@ -127,8 +132,7 @@ test.group('security — tool input validation (prototype-safe, dependency-free)
 
   test('an unsupported schema keyword fails closed (use parseInput for those)', ({ assert }) => {
     assert.throws(
-      () =>
-        validateToolInput('{"s":"a"}', objSchema({ s: { type: 'string', pattern: '^a' } }), {}),
+      () => validateToolInput('{"s":"a"}', objSchema({ s: { type: 'string', pattern: '^a' } }), {}),
       /unsupported schema keyword/
     )
   })
@@ -136,7 +140,10 @@ test.group('security — tool input validation (prototype-safe, dependency-free)
   test('a valid input passes and reconstructs only declared keys', ({ assert }) => {
     const args = validateToolInput(
       '{"status":"active","limit":5,"ghost":"x"}',
-      objSchema({ status: { type: 'string', enum: ['active', 'closed'] }, limit: { type: 'integer' } }),
+      objSchema({
+        status: { type: 'string', enum: ['active', 'closed'] },
+        limit: { type: 'integer' },
+      }),
       {}
     )
     assert.deepEqual(args, { status: 'active', limit: 5 })

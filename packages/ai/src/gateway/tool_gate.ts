@@ -21,6 +21,13 @@ import { MAX_TOOL_DEFS } from '../constants.js'
  * the dynamic `resolveTools` combine, first-wins by name; malformed entries are
  * dropped. This is the full set (read AND action) the executor gates a call
  * against; the advertised subset ({@link advertisedTools}) is what reaches the model.
+ *
+ * A `resolveTools` THROW is a refusal, not a 500 and not a silent tool-free chat:
+ * the host's resolver is the per-tenant policy decision, so a resolver that cannot
+ * decide (its policy backend is down) must not be read as "this tenant gets no
+ * tools" — that would answer ungrounded as though tool calling were unavailable.
+ * It denies with the pinned `tool_denied`, mirroring how `authorizeToolScope` and
+ * `resolveRetrievalScope` treat their own host hooks failing.
  */
 export async function resolveToolRegistry(
   ctx: HttpContext,
@@ -38,7 +45,23 @@ export async function resolveToolRegistry(
     }
   }
   add(toolsConfig.registry)
-  if (toolsConfig.resolveTools) add(await toolsConfig.resolveTools(ctx, tenant))
+  if (toolsConfig.resolveTools) {
+    let resolved: readonly AIToolHostDefinition[] | undefined
+    try {
+      resolved = await toolsConfig.resolveTools(ctx, tenant)
+    } catch (error) {
+      emitAiGuardEvent('guard.ai_tool_denied', {
+        tenantId: tenant.id,
+        metadata: { reason: 'resolver_error' },
+      })
+      throw new AIException(
+        'tool_denied',
+        'Refusing the tool call: the per-tenant tool resolver failed',
+        { cause: error }
+      )
+    }
+    add(resolved)
+  }
   return out
 }
 
@@ -51,7 +74,11 @@ export function advertisedTools(fullSet: readonly AIToolHostDefinition[]): AIToo
   return fullSet
     .filter((tool) => tool.mode !== 'action')
     .slice(0, MAX_TOOL_DEFS)
-    .map((tool) => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema }))
+    .map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+    }))
 }
 
 /**

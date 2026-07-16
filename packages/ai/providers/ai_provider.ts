@@ -52,6 +52,7 @@ import ConversationMemoryService, {
   deriveMemoryMacKey,
 } from '../src/services/conversation_memory_service.js'
 import AiComplianceService from '../src/services/ai_compliance_service.js'
+import ToolExecutorService from '../src/services/tool_executor.js'
 import {
   aiDataResidencyControl,
   aiEmbeddingRetentionControl,
@@ -292,6 +293,27 @@ export default definePlugin({
         async (resolver) => new PgToolAuditSink(await resolver.make(AiAuditWriter))
       )
     }
+    // The tool executor (WS-AI-11). Stateful only through its injected seams — the
+    // SAME tenancy pair the vector store / audit writer take (`tenancy.run` /
+    // `tenancy.currentId`) — so it is a container singleton resolved via
+    // container.make, never new-ed ad hoc. It reads config.ai.tools at execution
+    // time (per-request bounds), meters the per-outcome / latency integer metrics,
+    // and writes one best-effort op:'tool' audit row per call when audit is on
+    // (a disabled-audit host never registers PgToolAuditSink, so pass none). The
+    // chat controller resolves it lazily — only when config.ai.tools is present —
+    // and drives it through `forRequest`.
+    app.container.singleton(ToolExecutorService, async (resolver) => {
+      const metrics = await resolver.make(MetricsService)
+      const auditOn =
+        app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai?.audit?.enabled !== false
+      return new ToolExecutorService({
+        runScoped: (tenant, fn) => tenancy.run(tenant, fn),
+        activeScopeTenantId: () => tenancy.currentId(),
+        getToolsConfig: () => app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai?.tools,
+        toolAudit: auditOn ? await resolver.make(PgToolAuditSink) : undefined,
+        emitMetric: (tenantId, name, value) => metrics.emitMetric(tenantId, name, value),
+      })
+    })
     // The WS-AI-9 compliance orchestrator. Composes the purge seams (memory +
     // vector + idempotency epoch) into GDPR-grade erasure, records the admin
     // action via the KERNEL audit best-effort, and runs vector work inside

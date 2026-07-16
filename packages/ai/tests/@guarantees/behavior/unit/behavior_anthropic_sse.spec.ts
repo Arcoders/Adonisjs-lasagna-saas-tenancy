@@ -132,7 +132,9 @@ test.group('anthropic_sse', () => {
       `event: message_delta\ndata: ${JSON.stringify({ delta: { stop_reason: 'tool_use' } })}\n\n`,
       'event: message_stop\ndata: {}\n\n'
     )
-    const calls = (await collect(parseAnthropicStream(source))).filter((f) => f.event === 'tool_call')
+    const calls = (await collect(parseAnthropicStream(source))).filter(
+      (f) => f.event === 'tool_call'
+    )
     assert.lengthOf(calls, 0)
   })
 })

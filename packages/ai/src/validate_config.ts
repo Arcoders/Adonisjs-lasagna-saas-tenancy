@@ -164,10 +164,7 @@ function assertToolsConfig(tools: AIToolsConfig | undefined): void {
     if (typeof tools.actionTools !== 'object' || tools.actionTools === null) {
       fail('[ai] config.ai.tools.actionTools, when set, must be an object { enabled? }')
     }
-    if (
-      tools.actionTools.enabled !== undefined &&
-      typeof tools.actionTools.enabled !== 'boolean'
-    ) {
+    if (tools.actionTools.enabled !== undefined && typeof tools.actionTools.enabled !== 'boolean') {
       fail('[ai] config.ai.tools.actionTools.enabled, when set, must be a boolean')
     }
   }

@@ -145,7 +145,16 @@ const budgetLoop = (alwaysCalls: boolean) =>
     tenantId: 'tenant-1',
     provider: new MockAIProvider({
       rounds: alwaysCalls
-        ? [[{ data: '', tokens: 0, event: 'tool_call', toolCall: { id: 'c', name: 'read', arguments: '{}' } }]]
+        ? [
+            [
+              {
+                data: '',
+                tokens: 0,
+                event: 'tool_call',
+                toolCall: { id: 'c', name: 'read', arguments: '{}' },
+              },
+            ],
+          ]
         : [[{ data: 'answer', tokens: 0 }]],
     }),
     baseRequest: { messages: [{ role: 'user', content: 'hi' }] },
@@ -383,7 +392,13 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
   'guard.ai_tool_action_disabled': {
     trip: () =>
       assertActionAllowed(
-        { name: 'delete_all', description: 'd', inputSchema: {}, mode: 'action', handler: async () => ({}) },
+        {
+          name: 'delete_all',
+          description: 'd',
+          inputSchema: {},
+          mode: 'action',
+          handler: async () => ({}),
+        },
         'tenant-1'
       ),
     expectThrow: /action \(mutating\) tools are disabled/,
