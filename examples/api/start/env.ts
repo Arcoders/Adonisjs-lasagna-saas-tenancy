@@ -15,9 +15,16 @@ export default await Env.create(new URL('../', import.meta.url), {
   DB_USER: Env.schema.string(),
   DB_PASSWORD: Env.schema.string.optional(),
   DB_DATABASE: Env.schema.string(),
+  // Streaming read replica host. Optional: local dev runs a single Postgres
+  // and falls back to DB_HOST; the deploy e2e stack points it at the real
+  // standby so replica routing is exercised end to end.
+  DB_REPLICA_HOST: Env.schema.string.optional({ format: 'host' }),
 
   REDIS_HOST: Env.schema.string({ format: 'host' }),
   REDIS_PORT: Env.schema.number(),
+  // Optional: local dev runs an open Redis; the deploy e2e stack (and any
+  // real deployment) runs requirepass, so the demo must wire it through.
+  REDIS_PASSWORD: Env.schema.string.optional(),
 
   QUEUE_REDIS_HOST: Env.schema.string({ format: 'host' }),
   QUEUE_REDIS_PORT: Env.schema.number(),
@@ -35,7 +42,15 @@ export default await Env.create(new URL('../', import.meta.url), {
   AWS_ACCESS_KEY_ID: Env.schema.string.optional(),
   AWS_SECRET_ACCESS_KEY: Env.schema.string.optional(),
 
-  DEMO_ADMIN_TOKEN: Env.schema.string(),
+  // Opt-in: when true, the afterMigrate hook seeds a demo user inside every
+  // tenant schema it migrates. Default absent = off, so a real deployment
+  // never grows well-known credentials by accident. The e2e stacks enable it.
+  DEMO_SEED_TENANT_USERS: Env.schema.boolean.optional(),
+
+  // Billing provider selection. Optional: defaults to 'stripe' in config. Lets a
+  // deploy pick a provider without a code change (and lets the satellite boot
+  // e2e point it at a bogus driver to prove fail-fast boot).
+  BILLING_DRIVER: Env.schema.string.optional(),
 
   // ─── Mail (MailCatcher in dev/test, real SMTP in production) ─────
   MAILCATCHER_HOST: Env.schema.string.optional({ format: 'host' }),

@@ -1,0 +1,39 @@
+{
+  "name": "@adonisjs-lasagna/saas-tenancy-benchmarks",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Performance benchmark suite + 1.0.0 baseline for @adonisjs-lasagna/saas-tenancy. Not published.",
+  "scripts": {
+    "bench": "npm run bench:micro && npm run bench:db && npm run bench:mem && npm run bench:http",
+    "bench:micro": "tsx --expose-gc src/micro/index.ts",
+    "bench:db": "tsx src/db/index.ts",
+    "bench:mem": "tsx src/memory/index.ts",
+    "bench:http": "tsx src/http/index.ts",
+    "bench:isolation": "tsx src/http/isolation_index.ts",
+    "bench:soak": "tsx src/soak/index.ts",
+    "bench:resilience": "tsx src/resilience/index.ts",
+    "bench:seed": "tsx src/harness/seed_cli.ts",
+    "bench:report": "tsx src/harness/report.ts",
+    "bench:check": "tsx src/harness/baseline.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@adonisjs-lasagna/saas-tenancy": "*",
+    "@adonisjs/core": "^7.0.0",
+    "@adonisjs/lucid": "^22.0.0",
+    "@adonisjs/queue": "^0.6.0",
+    "@adonisjs/redis": "^10.0.0",
+    "luxon": "^3.0.0",
+    "pg": "^8.13.0",
+    "reflect-metadata": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/autocannon": "^7.12.0",
+    "@types/luxon": "^3.0.0",
+    "@types/node": "^24.0.0",
+    "autocannon": "^8.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "~6.0"
+  }
+}

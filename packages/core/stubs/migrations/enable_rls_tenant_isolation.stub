@@ -1,0 +1,83 @@
+{{{
+  exports({ to: app.migrationsPath(`${Date.now()}_enable_rls_tenant_isolation.ts`) })
+}}}
+import { BaseSchema } from '@adonisjs/lucid/schema'
+
+/**
+ * Defense-in-depth for the \`rowscope-pg\` driver: PostgreSQL Row-Level Security.
+ *
+ * The \`withTenantScope\` mixin injects \`WHERE tenant_id = ?\`, but a hand-written
+ * top-level \`orWhere\` can compose a query the mixin cannot retroactively group,
+ * leaking another tenant's rows. RLS closes that gap at the database — the
+ * policy below is enforced for EVERY query, regardless of how it is written.
+ *
+ * The policy reads a per-transaction setting, \`app.tenant_id\`, which your app
+ * sets with \`withTenantRls()\` / \`setTenantRlsGuc()\` from
+ * \`@adonisjs-lasagna/saas-tenancy\`. When the setting is unset (or reset to ''
+ * on a reused pooled connection), \`nullif(...)\` makes the predicate NULL so it
+ * matches no rows (fail-closed) — a forgotten scope returns nothing.
+ *
+ * EDIT the constants below to match your app:
+ *   - TABLES         → every tenant-scoped table (mirror \`isolation.rowScopeTables\`).
+ *   - TENANT_COLUMN  → your tenant id column   (mirror \`isolation.rowScopeColumn\`).
+ *   - GUC            → only if you pass a custom \`gucName\` to withTenantRls()/
+ *                      setTenantRlsGuc(); it MUST match, or the policy reads an
+ *                      unset setting and every query silently returns nothing.
+ *
+ * Notes:
+ *   - FORCE ROW LEVEL SECURITY is required because the table OWNER bypasses RLS
+ *     otherwise, and apps usually connect as the owner. A role with BYPASSRLS or
+ *     SUPERUSER still bypasses it — run your app's runtime role WITHOUT those.
+ *   - \`tenant_id::text = ...\` compares as text, so it works for both \`uuid\` and
+ *     \`text\` id columns.
+ *   - The tenant column is set NOT NULL: a NULL-scoped row is invisible to the
+ *     fail-closed policy, so it would be an unowned, unreachable row. The boot
+ *     probe refuses to start when \`rowScopeRls\` is true and the column is
+ *     nullable. SET NOT NULL fails if existing rows hold NULL here — backfill
+ *     them before running this migration.
+ */
+const SCHEMA = 'public'
+const TABLES = ['posts', 'comments', 'invoices'] // TODO: your rowScopeTables
+const TENANT_COLUMN = 'tenant_id'
+const GUC = 'app.tenant_id'
+const POLICY = 'tenant_isolation'
+
+export default class extends BaseSchema {
+  async up() {
+    for (const table of TABLES) {
+      const ref = \`"\${SCHEMA}"."\${table}"\`
+      // Fail with a clear message (not a cryptic "relation does not exist") if a
+      // hand-edited TABLES entry is wrong. Don't silently skip — a missing table
+      // would otherwise ship UNPROTECTED while looking like it succeeded.
+      this.schema.raw(
+        \`DO $$ BEGIN \` +
+          \`IF to_regclass('\${ref}') IS NULL THEN \` +
+          \`RAISE EXCEPTION 'enable_rls_tenant_isolation: table % not found — does TABLES match isolation.rowScopeTables?', '\${ref}'; \` +
+          \`END IF; END $$;\`
+      )
+      this.schema.raw(\`ALTER TABLE \${ref} ENABLE ROW LEVEL SECURITY\`)
+      this.schema.raw(\`ALTER TABLE \${ref} FORCE ROW LEVEL SECURITY\`)
+      // The scoped column must be NOT NULL so an unowned (NULL-scoped) row can
+      // never exist. The boot probe enforces this when rowScopeRls is true.
+      this.schema.raw(\`ALTER TABLE \${ref} ALTER COLUMN "\${TENANT_COLUMN}" SET NOT NULL\`)
+      this.schema.raw(\`DROP POLICY IF EXISTS \${POLICY} ON \${ref}\`)
+      this.schema.raw(
+        \`CREATE POLICY \${POLICY} ON \${ref} \` +
+          \`USING ("\${TENANT_COLUMN}"::text = nullif(current_setting('\${GUC}', true), '')) \` +
+          \`WITH CHECK ("\${TENANT_COLUMN}"::text = nullif(current_setting('\${GUC}', true), ''))\`
+      )
+    }
+  }
+
+  async down() {
+    for (const table of TABLES) {
+      const ref = \`"\${SCHEMA}"."\${table}"\`
+      this.schema.raw(\`DROP POLICY IF EXISTS \${POLICY} ON \${ref}\`)
+      this.schema.raw(\`ALTER TABLE \${ref} NO FORCE ROW LEVEL SECURITY\`)
+      this.schema.raw(\`ALTER TABLE \${ref} DISABLE ROW LEVEL SECURITY\`)
+      // Revert the NOT NULL added in up(). A NOT NULL tenant column is generally
+      // safe to keep, but down() mirrors up() so the migration is reversible.
+      this.schema.raw(\`ALTER TABLE \${ref} ALTER COLUMN "\${TENANT_COLUMN}" DROP NOT NULL\`)
+    }
+  }
+}

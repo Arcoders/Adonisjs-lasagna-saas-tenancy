@@ -1,4 +1,4 @@
-import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy'
+import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy/models/satellites'
 import {
   TenantCreated,
   TenantActivated,
@@ -15,16 +15,19 @@ import {
 import type { EmitterService } from '@adonisjs/core/types'
 
 /**
- * Append-only audit log of every lifecycle event the package emits. The 11
- * events covered here are exactly those exported by
- * `@adonisjs-lasagna/saas-tenancy/events`. The `/demo/audit` endpoint reads
- * these rows back so the e2e suite can prove the wiring end-to-end.
+ * Append-only audit log of the core tenant lifecycle events. These 11 handlers
+ * cover created / activated / suspended / provisioned / deleted / updated /
+ * migrated / backed-up / restored / cloned / quota-exceeded. The package also
+ * emits TenantAnonymized, TenantEnteredMaintenance, TenantExitedMaintenance and
+ * QuotaTracked, which this demo intentionally does not record. The
+ * `/demo/audit` endpoint reads these rows back so the e2e suite can prove the
+ * wiring end-to-end.
  *
  * Each `before*` failure is materialised in the package as a thrown error,
  * not an event, so listeners only ever see successful transitions.
  *
  * The emitter is passed in by `AppProvider.boot()` rather than imported as a
- * service singleton — the magic import resolves to `undefined` until the
+ * service singleton. The magic import resolves to `undefined` until the
  * `app.booted()` hook fires, which is *after* provider `boot()` runs.
  */
 async function record(
@@ -73,7 +76,7 @@ export default class AuditListener {
     )
 
     emitter.on(TenantCloned, ({ source, destination, result }) =>
-      // Logged against the destination — that's the new tenant the event
+      // Logged against the destination, the new tenant the event
       // materialises.
       record(destination.id, 'tenant.cloned', {
         sourceId: source.id,

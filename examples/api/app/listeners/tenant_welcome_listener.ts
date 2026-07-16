@@ -1,6 +1,8 @@
 import { TenantActivated } from '@adonisjs-lasagna/saas-tenancy/events'
 import { BrandingService } from '@adonisjs-lasagna/saas-tenancy/services'
 import TenantWelcomeMail from '#app/mailers/tenant_welcome_mail'
+import app from '@adonisjs/core/services/app'
+import logger from '@adonisjs/core/services/logger'
 import type { EmitterService } from '@adonisjs/core/types'
 
 /**
@@ -13,7 +15,7 @@ import type { EmitterService } from '@adonisjs/core/types'
  * spinning up a queue worker subprocess. Production consumers should swap
  * to `sendLater`; the queued path is exercised by the dedicated mail spec.
  *
- * Mail subsystem failures are swallowed deliberately — the welcome email
+ * Mail subsystem failures are swallowed deliberately. The welcome email
  * is best-effort and must not block tenant activation. The test suite
  * detects an unreachable MailCatcher and skips its assertions.
  */
@@ -38,8 +40,15 @@ export default class TenantWelcomeListener {
             }
           )
         )
-      } catch {
-        // Mail subsystem absent or unreachable — non-fatal.
+      } catch (error) {
+        // Mail subsystem absent or unreachable, which is non-fatal. Surface a hint in
+        // dev (e.g. MailCatcher not running); stay silent and unblocking in prod.
+        if (app.inDev) {
+          logger.warn(
+            { err: error, tenantId: tenant.id },
+            '[mail] welcome email failed (non-fatal) — is MailCatcher running?'
+          )
+        }
       }
     })
   }

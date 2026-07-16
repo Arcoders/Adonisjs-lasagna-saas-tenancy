@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a defect in Lasagna (core or a satellite)
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please do **not** report security issues here — see
+        the security policy link below. For cross-tenant data leakage, resolver
+        hijack, or fail-open-under-outage, email the maintainer privately first.
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      description: Which package is affected?
+      options:
+        - "@adonisjs-lasagna/saas-tenancy (core)"
+        - "@adonisjs-lasagna/billing"
+        - "@adonisjs-lasagna/backup"
+        - "@adonisjs-lasagna/sso"
+        - "@adonisjs-lasagna/admin"
+        - "@adonisjs-lasagna/websockets"
+        - "@adonisjs-lasagna/reporting"
+        - "Not sure"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      description: The exact version from your package-lock / node_modules.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: driver
+    attributes:
+      label: Isolation driver
+      description: Which isolation driver is active (config.isolation.driver)?
+      options:
+        - schema-pg
+        - database-pg
+        - rowscope-pg
+        - sqlite-memory
+        - Not applicable
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: AdonisJS + Node versions
+      placeholder: "AdonisJS 7.x, Node 24.x, PostgreSQL 16"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal steps (ideally a repo or a failing test) that reproduce the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      description: What you expected to happen, and what actually happened (with any error + stack).
+    validations:
+      required: true

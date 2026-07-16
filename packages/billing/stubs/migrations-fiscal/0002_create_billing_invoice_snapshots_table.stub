@@ -1,0 +1,44 @@
+{{{
+  exports({ to: app.migrationsPath(`${Date.now()}_create_billing_invoice_snapshots_table.ts`) })
+}}}
+import { BaseSchema } from '@adonisjs/lucid/schema'
+
+/**
+ * Fiscal feature (opt-in). An append-only read model of provider invoices for
+ * reporting and reconciliation only — the provider stays the system of record.
+ * There is NO local invoice numbering and NO tax calculation: rows record what
+ * the provider charged (\`subtotal\`, \`tax\`, \`total\` in integer minor units),
+ * populated from \`invoice.finalized\` / \`invoice.payment_succeeded\` webhooks when
+ * \`config.billing.fiscal.enabled\` is set.
+ *
+ * \`UNIQUE (provider, provider_invoice_id)\` makes the populate idempotent: a
+ * webhook redelivery trips the constraint and the dispatcher swallows the
+ * unique-violation, so the row is written at most once. Published only when you
+ * enable billing fiscal features at configure time. Reversible.
+ */
+export default class extends BaseSchema {
+  protected tableName = 'billing_invoice_snapshots'
+
+  async up() {
+    this.schema.withSchema('backoffice').createTable(this.tableName, (table) => {
+      table.uuid('id').primary()
+      table.string('provider').notNullable()
+      table.string('provider_invoice_id').notNullable()
+      table.uuid('tenant_id').nullable()
+      table.string('currency').notNullable()
+      table.bigInteger('subtotal_cents').notNullable().defaultTo(0)
+      table.bigInteger('tax_cents').notNullable().defaultTo(0)
+      table.bigInteger('total_cents').notNullable().defaultTo(0)
+      table.string('status').notNullable()
+      table.string('pdf_url').nullable()
+      table.timestamp('issued_at', { useTz: true }).nullable()
+      table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(this.now())
+      table.unique(['provider', 'provider_invoice_id'])
+      table.index(['tenant_id', 'issued_at'])
+    })
+  }
+
+  async down() {
+    this.schema.withSchema('backoffice').dropTable(this.tableName)
+  }
+}

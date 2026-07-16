@@ -1,0 +1,93 @@
+{
+  "name": "@adonisjs-lasagna/backup",
+  "version": "0.1.0",
+  "description": "Per-tenant backup, restore, clone, SQL import and retention for @adonisjs-lasagna/saas-tenancy (pg_dump/pg_restore, optional S3, the tenant:backup* / tenant:clone / tenant:import ace commands, and a doctor backup-recency check)",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy.git",
+    "directory": "packages/backup"
+  },
+  "bugs": {
+    "url": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "saas-tenancy",
+    "multitenancy",
+    "backup",
+    "restore",
+    "clone"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build"
+  ],
+  "exports": {
+    ".": "./build/src/index.js",
+    "./provider": "./build/providers/backup_provider.js",
+    "./commands": "./build/src/commands/main.js"
+  },
+  "typesVersions": {
+    "*": {
+      "provider": ["./build/providers/backup_provider.d.ts"],
+      "commands": ["./build/src/commands/main.d.ts"]
+    }
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "adonisjs": {
+    "configure": "./build/configure.js",
+    "commands": [
+      "./build/src/commands/main.js"
+    ]
+  },
+  "lasagnaSatellite": {
+    "name": "backup",
+    "satelliteApi": 1,
+    "pluginApiVersion": 1,
+    "minMergedCoverage": { "lines": 70, "functions": 69, "branches": 81 },
+    "aliases": ["backup"],
+    "provider": "@adonisjs-lasagna/backup/provider",
+    "commands": "@adonisjs-lasagna/backup/commands",
+    "env": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION", "BACKUP_S3_BUCKET"],
+    "install": [
+      "npm install @adonisjs-lasagna/backup",
+      "npm install @aws-sdk/client-s3   # only for the s3 storage driver (optional peer)"
+    ],
+    "configSnippet": "backup: {\n  storagePath: app.tmpPath('backups'),\n  metadataTtl: 60 * 60 * 24 * 30,\n  pgConnection: {\n    host: env.get('DB_HOST'),\n    port: Number(env.get('DB_PORT')),\n    user: env.get('DB_USER'),\n    password: env.get('DB_PASSWORD', ''),\n    database: env.get('DB_DATABASE'),\n  },\n  // s3: { enabled: true, bucket: env.get('BACKUP_S3_BUCKET'), region: env.get('AWS_REGION'),\n  //   accessKeyId: env.get('AWS_ACCESS_KEY_ID'), secretAccessKey: env.get('AWS_SECRET_ACCESS_KEY') },\n},",
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/backup"
+  },
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/backup-unit tsx bin/test.ts",
+    "test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/backup-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
+    "@adonisjs/core": "^7.0.0",
+    "@adonisjs/lucid": "^22.0.0",
+    "@adonisjs/queue": ">=0.6.0 <1",
+    "@adonisjs/redis": "^10.0.0",
+    "@aws-sdk/client-s3": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@adonisjs/redis": {
+      "optional": true
+    },
+    "@aws-sdk/client-s3": {
+      "optional": true
+    }
+  }
+}

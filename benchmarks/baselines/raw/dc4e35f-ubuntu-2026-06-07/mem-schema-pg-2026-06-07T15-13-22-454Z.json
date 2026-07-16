@@ -1,0 +1,251 @@
+{
+  "suite": "mem",
+  "env": {
+    "driver": "schema-pg",
+    "node": "v24.16.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
+    "cpuCount": 4,
+    "totalMemGB": 16.8,
+    "commit": "dc4e35f",
+    "pgVersion": "PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "timestamp": "2026-06-07T15:13:22.454Z"
+  },
+  "results": [
+    {
+      "name": "N=100 tenants",
+      "group": "connection_budget",
+      "samples": 0,
+      "opsPerSec": 0,
+      "ns": {
+        "mean": 0,
+        "median": 0,
+        "p75": 0,
+        "p99": 0,
+        "p999": 0,
+        "min": 0,
+        "max": 0,
+        "stddev": 0
+      },
+      "meta": {
+        "tenants": 100,
+        "cap": 50,
+        "tenantConnectionsOpen": 50,
+        "totalConnectionsOpen": 51,
+        "pgBackends": 51,
+        "pgBackendsScope": "current-database",
+        "rssMB": 242.3,
+        "heapUsedMB": 46.4,
+        "withinBudget": "PASS"
+      }
+    },
+    {
+      "name": "N=500 tenants",
+      "group": "connection_budget",
+      "samples": 0,
+      "opsPerSec": 0,
+      "ns": {
+        "mean": 0,
+        "median": 0,
+        "p75": 0,
+        "p99": 0,
+        "p999": 0,
+        "min": 0,
+        "max": 0,
+        "stddev": 0
+      },
+      "meta": {
+        "tenants": 500,
+        "cap": 50,
+        "tenantConnectionsOpen": 50,
+        "totalConnectionsOpen": 51,
+        "pgBackends": 51,
+        "pgBackendsScope": "current-database",
+        "rssMB": 359.3,
+        "heapUsedMB": 76.2,
+        "withinBudget": "PASS"
+      }
+    },
+    {
+      "name": "N=2000 tenants",
+      "group": "connection_budget",
+      "samples": 0,
+      "opsPerSec": 0,
+      "ns": {
+        "mean": 0,
+        "median": 0,
+        "p75": 0,
+        "p99": 0,
+        "p999": 0,
+        "min": 0,
+        "max": 0,
+        "stddev": 0
+      },
+      "meta": {
+        "tenants": 2000,
+        "cap": 50,
+        "tenantConnectionsOpen": 50,
+        "totalConnectionsOpen": 51,
+        "pgBackends": 51,
+        "pgBackendsScope": "current-database",
+        "rssMB": 477,
+        "heapUsedMB": 74,
+        "withinBudget": "PASS"
+      }
+    },
+    {
+      "name": "N=100 burst (grace=30000ms, default)",
+      "group": "connection_budget_burst",
+      "samples": 0,
+      "opsPerSec": 0,
+      "ns": {
+        "mean": 0,
+        "median": 0,
+        "p75": 0,
+        "p99": 0,
+        "p999": 0,
+        "min": 0,
+        "max": 0,
+        "stddev": 0
+      },
+      "meta": {
+        "tenants": 100,
+        "cap": 50,
+        "openDuringBurst": 100,
+        "pgBackends": 101,
+        "rssMB": 477.1,
+        "capBounds": "cap-exceeded",
+        "openVsCap": "100/50"
+      }
+    },
+    {
+      "name": "saturation probe (to N=150, max_connections=300)",
+      "group": "connection_budget_burst",
+      "samples": 0,
+      "opsPerSec": 0,
+      "ns": {
+        "mean": 0,
+        "median": 0,
+        "p75": 0,
+        "p99": 0,
+        "p999": 0,
+        "min": 0,
+        "max": 0,
+        "stddev": 0
+      },
+      "meta": {
+        "cap": 50,
+        "maxConnections": 300,
+        "maxOpenReached": 150,
+        "firstFailureAtN": "none-within-N",
+        "errorClass": "none",
+        "recovered": "yes",
+        "recoveredWithinMs": 9,
+        "failClosedCheck": "PASS"
+      }
+    },
+    {
+      "name": "hard cap (enforceConnectionCap=true, N=150, cap=50)",
+      "group": "connection_budget_burst",
+      "samples": 0,
+      "opsPerSec": 0,
+      "ns": {
+        "mean": 0,
+        "median": 0,
+        "p75": 0,
+        "p99": 0,
+        "p999": 0,
+        "min": 0,
+        "max": 0,
+        "stddev": 0
+      },
+      "meta": {
+        "cap": 50,
+        "tenants": 150,
+        "openWithHardCap": 50,
+        "opened": 50,
+        "rejected": 100,
+        "hardCapCheck": "PASS"
+      }
+    },
+    {
+      "name": "K=100 schemas × 4 tables (probe via search_path)",
+      "group": "catalog_bloat",
+      "samples": 0,
+      "opsPerSec": 0,
+      "ns": {
+        "mean": 0,
+        "median": 0,
+        "p75": 0,
+        "p99": 0,
+        "p999": 0,
+        "min": 0,
+        "max": 0,
+        "stddev": 0
+      },
+      "meta": {
+        "schemas": 100,
+        "tablesPerSchema": 4,
+        "pgClassRows": 4428,
+        "planSearchPathMedianNs": 304810,
+        "planSearchPathP99Ns": 382776,
+        "planQualifiedMedianNs": 282990,
+        "queryMedianNs": 248816,
+        "queryP99Ns": 347750
+      }
+    },
+    {
+      "name": "K=1000 schemas × 4 tables (probe via search_path)",
+      "group": "catalog_bloat",
+      "samples": 0,
+      "opsPerSec": 0,
+      "ns": {
+        "mean": 0,
+        "median": 0,
+        "p75": 0,
+        "p99": 0,
+        "p999": 0,
+        "min": 0,
+        "max": 0,
+        "stddev": 0
+      },
+      "meta": {
+        "schemas": 1000,
+        "tablesPerSchema": 4,
+        "pgClassRows": 22428,
+        "planSearchPathMedianNs": 293970,
+        "planSearchPathP99Ns": 402383,
+        "planQualifiedMedianNs": 281046,
+        "queryMedianNs": 270887,
+        "queryP99Ns": 336870
+      }
+    },
+    {
+      "name": "K=5000 schemas × 4 tables (probe via search_path)",
+      "group": "catalog_bloat",
+      "samples": 0,
+      "opsPerSec": 0,
+      "ns": {
+        "mean": 0,
+        "median": 0,
+        "p75": 0,
+        "p99": 0,
+        "p999": 0,
+        "min": 0,
+        "max": 0,
+        "stddev": 0
+      },
+      "meta": {
+        "schemas": 5000,
+        "tablesPerSchema": 4,
+        "pgClassRows": 102428,
+        "planSearchPathMedianNs": 252612,
+        "planSearchPathP99Ns": 293700,
+        "planQualifiedMedianNs": 260548,
+        "queryMedianNs": 250920,
+        "queryP99Ns": 342741
+      }
+    }
+  ]
+}

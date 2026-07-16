@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    # TEMP: run CI on this branch while it bakes. Revert before merging.
+    branches: [master, main, LASAGNA-090706/soft]
   pull_request:
     branches: [master, main]
 
@@ -10,50 +11,366 @@ jobs:
   lint-and-typecheck:
     name: Lint & Typecheck
     runs-on: ubuntu-latest
+    # Narrows this job's token to exactly what it needs: read the checkout, and
+    # upsert the docs:doctor PR comment below. Job-scoped on purpose, so the other
+    # jobs keep their default token. No other step here uses GITHUB_TOKEN for more
+    # (upload-artifact v4 uses its own runtime token; npm/knip/audit/publint none).
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
+          cache: npm
 
-      # Repo .npmrc sets `ignore-scripts=true` for local-dev safety. CI is a
-      # controlled environment and tsx/esbuild rely on the postinstall fallback
-      # to fetch the platform binary (`@esbuild/<os>-<arch>`) when optional-dep
-      # resolution doesn't pick it up — so we re-enable scripts here.
+      # Fail fast with a clear message if a workspace package (e.g. a new
+      # satellite) was added without regenerating the lockfile — otherwise
+      # `npm ci` below dies with a confusing "Missing: <pkg> from lock file".
+      - name: Verify lockfile has every workspace
+        run: node scripts/check-lockfile-workspaces.mjs
+
       - name: Install dependencies
-        env:
-          npm_config_ignore_scripts: 'false'
-        run: npm install --legacy-peer-deps --include=optional
+        run: npm ci --include=optional
 
-      - name: Typecheck
+      # .npmrc keeps install scripts off for supply-chain safety. esbuild (used
+      # by tsx and vitepress) needs its postinstall to place the platform
+      # binary, so rebuild only that package with scripts enabled. Far narrower
+      # than re-enabling scripts for the whole tree on a token-bearing runner.
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
+
+      # Build core first, then the extracted satellites, BEFORE typecheck. The
+      # core's integration + fixture specs import the satellites by package name
+      # (`@adonisjs-lasagna/billing`, etc.), which TypeScript resolves to each
+      # package's emitted `build/*.d.ts` — so those must exist before `tsc
+      # --noEmit` runs. Order matters: core -> sso -> billing -> admin (admin
+      # imports `@adonisjs-lasagna/sso`; all import the core). backup only needs
+      # core. Building each package also typechecks its own source.
+      - name: Build (core)
+        run: npm run build
+
+      - name: Build satellite packages (sso, billing, admin, backup, websockets, reporting, ai)
+        run: npm run build:sso && npm run build:billing && npm run build:admin && npm run build:backup && npm run build:websockets && npm run build:reporting && npm run build:ai
+
+      # The dev-only satellite-test-kit is imported by core's bin/test.integration.ts
+      # (and each satellite's), which core's tsconfig typechecks. Build it before the
+      # typecheck step so its build/*.d.ts resolves. Depends on core (built above).
+      - name: Build satellite-test-kit (dev-only integration harness)
+        run: npm run build:test-kit
+
+      # Every `@adonisjs-lasagna/*` import in the docs must resolve to a real export
+      # (catches a doc that imports from the wrong subpath or a renamed export). Runs
+      # after the builds above so it type-checks against the published build/*.d.ts.
+      - name: Docs code-fence import gate
+        run: node scripts/check-docs-code.mjs
+
+      # Every `docs/<page>.md` path referenced outside the docs markdown (scripts,
+      # workflows, the benchmark harness, tests, source JSDoc, READMEs/CHANGELOGs)
+      # must resolve. The dead-link gate only covers links INSIDE docs/, so this is
+      # what stops a docs move from silently breaking a script or a CI job.
+      - name: Docs path guard
+        run: node scripts/check-doc-paths.mjs
+
+      # Lasagna is PostgreSQL-only and AdonisJS-only, by design. This guard fails
+      # if any tracked file reframes either decision as a deferral or implies
+      # framework portability, which the prose-blind dead-link and integrity
+      # gates can't catch.
+      - name: Positioning guard
+        run: node scripts/check-positioning.mjs
+
+      # One gate for every workspace with a typecheck script (--workspaces
+      # --if-present), so adding a package or example can't reopen the gap
+      # the demo app fell into when nothing ran its typecheck. Must run AFTER
+      # the builds above: satellites, demo and benchmarks all resolve
+      # @adonisjs-lasagna/* through each package's build/*.d.ts.
+      - name: Typecheck (all workspaces)
         run: npm run typecheck
 
-      - name: Build
-        run: npm run build
+      # Lint is a hard gate. The baseline of pre-existing findings was cleared
+      # (eslint rules + prettier); CRLF-only prettier diffs don't surface here
+      # because the Linux checkout is LF (.gitattributes `eol=lf`).
+      - name: Lint
+        run: npm run lint
+
+      # Versions AND each package README's stability badge must agree with the
+      # stability labels in docs/reference/stability.md (experimental -> 0.x,
+      # release candidate/stable -> >=1.0.0; the README badge mirrors the matrix
+      # label). Labels are parsed from the doc, so relabeling without re-versioning
+      # — or without updating the README badge — fails here.
+      - name: Stability labels vs. versions
+        run: node scripts/check-stability-versions.mjs
+
+      # Every README link must resolve: relative links from the README's own
+      # directory (the way GitHub and npm render them) and docs-site links to a
+      # real docs page. The dead-link gate only covers links INSIDE docs/.
+      - name: README link guard
+        run: node scripts/check-readme-links.mjs
+
+      # The core + root README structural counts (doctor checks, admin endpoints,
+      # typed events) are pinned to their source of truth so they can't drift.
+      - name: README count guard
+        run: node scripts/check-readme-counts.mjs
+
+      # Every satellite labeled `release candidate` must clear the graduation gate
+      # (own coverage gate, ABI-versioned manifest, configure hook, CHANGELOG, doc
+      # page, version >= 1.0.0), so a satellite can't carry the RC label without
+      # the artifacts that make it honest.
+      - name: Satellite graduation gate
+        run: node scripts/check-satellite-graduation.mjs
+
+      # Every extension surface must declare a CONTRACT_VERSION, document it in
+      # the extensibility standard page, and the demo must declare contractVersion
+      # on the extensions it registers — so a surface can't ship unversioned.
+      - name: Extension-contract gate
+        run: node scripts/check-extension-contracts.mjs
+
+      # Aggregate source-scan gate: runs every fast guard (the ones above plus
+      # backoffice-isolation, routes-options-naming, billing-provider-neutral,
+      # billing-driver-name-canonical, abi-boot-assertion, satellite-config-wiring,
+      # peer-ranges, publish-coverage, contributing-gates, community-health). The
+      # same command contributors run locally (`npm run check`).
+      - name: Source-scan gates (npm run check)
+        run: npm run check
+
+      # api-extractor golden-diff (Documentation Coverage Tier-1 gate, blocking).
+      # Each opted-in package commits etc/<pkg>.api.md; this regenerates and diffs
+      # it, failing on a public-API change that did not update the report. The fix
+      # is one command, printed on failure. Per-package opt-in: a package without
+      # an api-extractor.json is skipped. Needs the builds above (it reads
+      # build/src/index.d.ts).
+      - name: API report gate (api-extractor golden-diff)
+        run: node scripts/check-api-report.mjs
+
+      # Documentation Coverage (advisory, non-blocking). Builds the bidirectional
+      # code<->docs graph, runs the deterministic Tier-1 gate (conservative
+      # defaults: dead-member=warn, coverage floor 0, so it never blocks on day 1)
+      # and the Tier-2 impact report, and posts a job summary. Zero network, zero
+      # secret — works on forks. The gate is promoted to blocking later via
+      # per-check severity + a baseline (see docs/dev/doc-coverage-rfc.md). Runs
+      # against source via tsx; no build needed (it builds its own TS program).
+      - name: Documentation coverage (docs:doctor, advisory)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          node scripts/check-doc-coverage.mjs --summary >> "$GITHUB_STEP_SUMMARY"
+          node scripts/check-doc-coverage.mjs | tee doc-coverage-report.txt
+
+      # Mirror the report into one marked PR comment (RFC §7), upserted so re-runs
+      # edit it in place instead of stacking. Same-repo PRs only: a fork PR gets a
+      # read-only token AND is excluded by the guard, so it keeps the job-summary
+      # form above. gh CLI (the repo's GitHub-API idiom, no new action dependency);
+      # the marker is read by jq from the env, so the HTML comment never passes
+      # through shell quoting. continue-on-error so a transient API hiccup or 403
+      # can never redden the gate (the blocking gate stays the api-extractor diff).
+      - name: Documentation coverage PR comment (idempotent upsert)
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MARKER: '<!-- doc-coverage-report -->'
+        run: |
+          [ -f doc-coverage-report.txt ] || { echo "no report to post"; exit 0; }
+          { echo "$MARKER"; echo '## docs:doctor'; echo; echo '~~~'; cat doc-coverage-report.txt; echo '~~~'; } > doc-coverage-comment.md
+          id=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+            --jq 'map(select(.body | startswith(env.MARKER))) | .[0].id // empty')
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${id}" -F body=@doc-coverage-comment.md >/dev/null
+            echo "updated comment $id"
+          else
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" -F body=@doc-coverage-comment.md >/dev/null
+            echo "created comment"
+          fi
 
       - name: Test (unit) + coverage
         run: npm run test:coverage
 
-      - name: Upload unit coverage
+      # Satellite packages with decorated models or app.booted-sensitive source
+      # run their own unit suites from the package cwd (their tsconfig + a
+      # package-local japa runner), so they are not part of the core unit run.
+      - name: Test (satellite package units)
+        run: |
+          npm run test:coverage --workspace @adonisjs-lasagna/billing
+          npm run test:coverage --workspace @adonisjs-lasagna/backup
+          npm run test:coverage --workspace @adonisjs-lasagna/sso
+          npm run test:coverage --workspace @adonisjs-lasagna/admin
+          npm run test:coverage --workspace @adonisjs-lasagna/websockets
+          npm run test:coverage --workspace @adonisjs-lasagna/reporting
+          npm run test:coverage --workspace @adonisjs-lasagna/ai
+
+      # Satellite ABI compatibility (B5): the reference third-party satellite
+      # is built + tested against the freshly-built core above. Its typecheck
+      # (in the all-workspaces step) compiles against core's public `.d.ts`, and
+      # its unit suite exercises the SDK/registries at runtime — so a breaking
+      # change to the Satellite ABI fails here, not silently in a consumer.
+      - name: Build + test the reference satellite (ABI compat)
+        run: |
+          npm run build:template
+          npm run test --workspace @adonisjs-lasagna/satellite-template
+
+      # The starter scaffolder encodes the golden install path as data. Its unit
+      # suite pins that plan (peers configured before core, config/database.ts
+      # written after) and the two install defects the generated config closes.
+      # The suite never spawns a process, so it needs no database and no network;
+      # the win32 npm invocation is covered by injecting the platform instead.
+      - name: Build + test the starter scaffolder
+        run: |
+          npm run build:starter
+          npm run test --workspace create-lasagna-saas
+
+      # The shared integration harness underwrites core + every satellite, so it
+      # carries its own unit suite (the pure exit-code/glob/spec-import logic +
+      # the boot-safety metatest) behind a self-contained coverage floor
+      # (.c8rc check-coverage). Runs against source via tsx; its V8 is
+      # deliberately NOT uploaded to the merged aggregate — the kit is dev-only
+      # and must not move the repo-wide gate.
+      - name: Test (satellite-test-kit unit) + coverage
+        run: npm run test:coverage --workspace @adonisjs-lasagna/satellite-test-kit
+
+      # Raw V8 so the coverage-report job can re-report it with source-map
+      # remapping back to src/*.ts.
+      - name: Upload raw unit coverage (V8)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: coverage-unit
-          path: coverage/lcov.info
+          name: c8-raw-unit
+          path: coverage/.v8/unit
           if-no-files-found: warn
 
-      # Surfaces unused exports / orphaned files / unused deps. `--no-exit-code`
-      # so the report is informational; flip to required once the baseline
-      # is enforced.
+      # Each satellite's UNIT V8 (written by its test:coverage to
+      # coverage/.v8/<sat>-unit above). The coverage-report job merges these with
+      # each satellite's integration V8 so check-satellite-coverage.mjs can gate a
+      # real per-satellite MERGED number. One flat artifact per satellite (like the
+      # integration uploads) so they extract flat into the shared temp dir.
+      - name: Upload raw satellite unit coverage (V8) — sso
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-sso-unit
+          path: coverage/.v8/sso-unit
+          if-no-files-found: warn
+
+      - name: Upload raw satellite unit coverage (V8) — backup
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-backup-unit
+          path: coverage/.v8/backup-unit
+          if-no-files-found: warn
+
+      - name: Upload raw satellite unit coverage (V8) — admin
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-admin-unit
+          path: coverage/.v8/admin-unit
+          if-no-files-found: warn
+
+      - name: Upload raw satellite unit coverage (V8) — billing
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-billing-unit
+          path: coverage/.v8/billing-unit
+          if-no-files-found: warn
+
+      - name: Upload raw satellite unit coverage (V8) — websockets
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-websockets-unit
+          path: coverage/.v8/websockets-unit
+          if-no-files-found: warn
+
+      - name: Upload raw satellite unit coverage (V8) — reporting
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-reporting-unit
+          path: coverage/.v8/reporting-unit
+          if-no-files-found: warn
+
+      - name: Upload raw satellite unit coverage (V8) — ai
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-ai-unit
+          path: coverage/.v8/ai-unit
+          if-no-files-found: warn
+
+      # Full report (unused exports / orphaned files / deps) stays informational.
       - name: Knip (unused-code report)
         run: npm run knip
 
-      # Production-only audit so we don't trip on devDependency-only CVEs that
-      # never ship to consumers. `high` level matches the publish-gate bar.
+      # Blocking: fails on an unused dependency so dead deps like gsap / motion /
+      # tailwindcss can't creep back in. Scoped to the dependency issue type via
+      # `--include dependencies`; unused exports and files stay informational above.
+      - name: Knip (unused-dependency gate)
+        run: npm run knip:deps
+
+      # Production-only audit (moderate+) so we don't trip on devDependency-only
+      # CVEs that never ship to consumers. Runs scripts/audit-gate.mjs, which wraps
+      # `npm audit --omit=dev` and fails on any moderate-or-higher advisory except
+      # the GHSA ids explicitly reviewed + allowlisted in that script (each with a
+      # justification and a removal condition).
       - name: npm audit (production deps)
         run: npm run audit:prod
+
+      # Package-contract gate (B5): publint validates each publishable package's
+      # exports/files map, and arethetypeswrong proves every declared subpath
+      # resolves to types + JS under node10 / node16 / bundler. (This caught the
+      # satellites' missing `typesVersions` for their /provider + /commands
+      # subpaths.) The ESM-only "cjs-resolves-to-esm" rule is expected — these
+      # packages are `"type": "module"` — so it is ignored. Runs after the builds
+      # above, since both tools inspect build/ through the exports map.
+      - name: Package contracts (publint + types resolution)
+        run: |
+          set -e
+          for pkg in core sso billing admin backup websockets reporting ai; do
+            echo "== @adonisjs-lasagna/$pkg =="
+            ( cd "packages/$pkg" \
+              && npx -y publint@0.3.21 \
+              && npx -y @arethetypeswrong/cli@0.18.3 --pack --ignore-rules cjs-resolves-to-esm )
+          done
+
+  doc-coverage-cross-os:
+    # Proves the Documentation Coverage engine is cross-OS deterministic: the same
+    # suite (contract-hash path-freeness, CRLF front-matter parity, stable graph
+    # output, the golden fixture, and the RFC self-check) runs on both Linux and
+    # Windows. The path + CRLF normalization in the engine is what makes the graph
+    # and the contract hashes byte-identical regardless of the runner's filesystem.
+    name: doc-coverage tests (cross-OS)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      # tsx runs the tests through esbuild; its platform binary needs the scoped
+      # postinstall that .npmrc otherwise suppresses. Use an env block (not a bash
+      # inline prefix) so the step also works under PowerShell on the Windows leg.
+      - name: Rebuild esbuild (scoped install script)
+        env:
+          npm_config_ignore_scripts: 'false'
+        run: npm rebuild esbuild
+
+      - name: doc-coverage tests (property + golden + CRLF + RFC-status)
+        run: npm run test --workspace @adonisjs-lasagna/doc-coverage
 
   test-integration:
     name: Integration Tests
@@ -61,7 +378,10 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        # pgvector image (drop-in superset of postgres:16) so the pgvector
+        # provisioning tier (SEAM-5) exercises CREATE EXTENSION vector; specs
+        # self-skip when the extension is unavailable.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -91,6 +411,14 @@ jobs:
         ports:
           - 8080:8080
 
+      # Official stripe-mock for stripe_mock_smoke.spec.ts — validates the
+      # StripeDriver's SDK call-sites against the current Stripe API schema
+      # without credentials. Pinned like the other service images.
+      stripe-mock:
+        image: stripe/stripe-mock:v0.185.0
+        ports:
+          - 12111:12111
+
     env:
       TZ: UTC
       NODE_ENV: test
@@ -112,9 +440,21 @@ jobs:
       CACHE_REDIS_HOST: 127.0.0.1
       CACHE_REDIS_PORT: 6379
       CACHE_REDIS_DB: 2
-      # Optional Stripe test-mode key (sk_test_…) for stripe_real_smoke.spec.ts.
-      # Unset → spec skips visibly. Add via Settings → Secrets → Actions.
+      # stripe-mock endpoint for stripe_mock_smoke.spec.ts (Layer 2 call-site
+      # contract). Always available in CI via the service above; unset locally
+      # → the spec self-skips.
+      STRIPE_MOCK_HOST: 127.0.0.1
+      STRIPE_MOCK_PORT: 12111
+      # Stripe is the primary provider, so its real-API smokes
+      # (stripe_real_smoke + stripe_test_clock_smoke) run on this BLOCKING gate.
+      # Keep STRIPE_TEST_API_KEY (sk_test_…) set so they execute; they self-skip
+      # only when it's absent (e.g. forks without secrets).
       STRIPE_TEST_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
+      # Paddle / Lemon Squeezy are optional/secondary: their keys are deliberately
+      # NOT set here, so those smokes self-skip on the blocking gate. They run in
+      # the dedicated "Paddle / Lemon Squeezy real-API smokes (non-blocking)"
+      # step below (continue-on-error), so a secondary-provider outage can't fail
+      # the build. STRIPE_MOCK_* stays — stripe-mock is a deterministic container.
       # MinIO (S3) for backup_s3.spec.ts. Unset → spec skips.
       BACKUP_S3_ENDPOINT: http://127.0.0.1:9000
       BACKUP_S3_BUCKET: lasagna-test
@@ -124,19 +464,54 @@ jobs:
       # mock-oauth2-server for sso_oidc_real.spec.ts. `default` = mock's
       # placeholder issuer path for unspecified issuers.
       MOCK_OIDC_BASE_URL: http://127.0.0.1:8080/default
+      # Least-privilege role for the rowscope RLS enforcement proof. The default
+      # DB user is the image bootstrap SUPERUSER, which BYPASSes RLS — so without
+      # this the proof self-skips and ships false-green. Created below; the
+      # fixture's `rls_probe` connection picks these up.
+      RLS_DB_USER: rls_ci
+      RLS_DB_PASSWORD: rls_ci
+      # Least-privilege SELECT-only role for the S3 plugin read-only proof. The
+      # fixture's `plugin_ro` connection picks these up; the role is created below
+      # with `default_transaction_read_only = on` so a write is denied by Postgres.
+      PLUGIN_RO_DB_USER: plugin_ro
+      PLUGIN_RO_DB_PASSWORD: plugin_ro
+      # This job HAS a real Postgres service, so the AI real-PG proofs are
+      # mandatory here: they must EXECUTE, never self-skip. The satellite real-PG
+      # helpers read this flag and turn a would-be self-skip (PG unreachable, role
+      # lacks CREATEDB) into a hard failure — the fail-loud twin of RLS_DB_USER,
+      # so a broken/hardened runner can't ship those proofs green.
+      REQUIRE_REAL_PG: '1'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
+          cache: npm
 
       - name: Install dependencies
+        run: npm ci --include=optional
+
+      # .npmrc keeps install scripts off for supply-chain safety. esbuild (used
+      # by tsx and vitepress) needs its postinstall to place the platform
+      # binary, so rebuild only that package with scripts enabled. Far narrower
+      # than re-enabling scripts for the whole tree on a token-bearing runner.
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
+
+      # better-sqlite3 is an optional peer dependency, so npm does not install
+      # it with the tree above. The sqlite-memory storage spec needs it; build
+      # it here so that spec runs for real. Best-effort: the spec self-skips if
+      # this ever fails (e.g. no prebuilt binary for the runner's Node ABI).
+      # Scoped scripts: this installs only better-sqlite3 (+ its prebuild
+      # helper), which needs its install script to place the native binary.
+      # Far narrower than re-enabling scripts for the whole `npm ci` tree.
+      - name: Install better-sqlite3 (optional peer for the sqlite-memory spec)
         env:
           npm_config_ignore_scripts: 'false'
-        run: npm install --legacy-peer-deps --include=optional
+        run: npm install better-sqlite3@^11 --no-save --include=optional || true
 
       # Run MinIO directly (Actions services can't pass `server /data`).
       - name: Start MinIO (S3-compatible)
@@ -165,19 +540,352 @@ jobs:
           done
           echo "mock-oidc failed to become ready"; exit 1
 
+      # psql for the role-creation step below. Don't rely on the runner image's
+      # preinstalled client (the e2e job installs it explicitly for the same
+      # reason — image contents rotate).
+      - name: Install postgresql-client
+        timeout-minutes: 5
+        run: |
+          # The runner's default apt mirror (azure.archive.ubuntu.com) is
+          # periodically unreachable, and apt then hangs retrying it for the
+          # whole job. Bound the retries and per-connection timeouts so this
+          # step fails fast, or falls through to the other mirrors in the
+          # runner's mirrorlist, instead of stalling for over an hour.
+          sudo apt-get -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      # Create a NOSUPERUSER NOBYPASSRLS role so rowscope_rls.spec.ts runs its
+      # enforcement proof for real instead of self-skipping under the bootstrap
+      # superuser. The fixture's `rls_probe` connection authenticates as this
+      # role (via RLS_DB_USER/RLS_DB_PASSWORD); the spec's setup GRANTs table
+      # access to PUBLIC so the role can read/write within the policy.
+      - name: Create least-privilege RLS role
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d multitenancy_test -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'rls_ci') THEN
+              CREATE ROLE rls_ci LOGIN PASSWORD 'rls_ci' NOSUPERUSER NOBYPASSRLS;
+            END IF;
+          END $$;
+          GRANT CONNECT ON DATABASE multitenancy_test TO rls_ci;
+          GRANT USAGE ON SCHEMA public TO rls_ci;
+          SQL
+
+      # Least-privilege SELECT-only role for the S3 read-only firewall proof. It
+      # is NOSUPERUSER NOBYPASSRLS and — the point — `default_transaction_read_only
+      # = on`, so a write is denied by Postgres even when the role is granted
+      # INSERT. The fixture's `plugin_ro` connection authenticates as it (via
+      # PLUGIN_RO_DB_USER/PLUGIN_RO_DB_PASSWORD); the proof self-skips when the
+      # connection resolves to a writable role (the local default).
+      - name: Create least-privilege plugin read-only role
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d multitenancy_test -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'plugin_ro') THEN
+              CREATE ROLE plugin_ro LOGIN PASSWORD 'plugin_ro' NOSUPERUSER NOBYPASSRLS;
+            END IF;
+          END $$;
+          GRANT CONNECT ON DATABASE multitenancy_test TO plugin_ro;
+          GRANT USAGE ON SCHEMA public TO plugin_ro;
+          ALTER ROLE plugin_ro SET default_transaction_read_only = on;
+          SQL
+
       - name: Test (integration) + coverage
         run: npm run test:integration:coverage
 
-      - name: Upload integration coverage
+      # Fault-injection / chaos tier (@integration/fault_injection): slow,
+      # deliberately destructive specs. Non-gating by design — it runs only on a
+      # `[chaos]` commit/PR title, and continue-on-error so a chaos failure never
+      # blocks the merge. PG/Redis and the build are already up from the step above.
+      - name: Test (fault injection) — chaos tier
+        if: contains(github.event.head_commit.message, '[chaos]') || contains(github.event.pull_request.title, '[chaos]')
+        continue-on-error: true
+        run: npm run test:fault:run --workspace @adonisjs-lasagna/saas-tenancy
+
+      # Satellite integration tiers boot through the shared satellite-test-kit,
+      # proving the harness end to end on a real satellite. The step above ran
+      # build:all, so the kit + every satellite build are already in place; this
+      # reuses core's canonical fixture. sso is the first consumer; more satellites
+      # join here as their tiers land (Phase 2). Coverage is report-only here
+      # (--check-coverage=false); merging these V8 dumps into the aggregate gate is
+      # the remaining Phase 6 wiring.
+      - name: Test (satellite integration) + coverage — sso
+        run: npm run test:integration:coverage --workspace @adonisjs-lasagna/sso
+
+      # backup's integration tier: CloneService lifecycle (real PG) + the S3
+      # roundtrip against MinIO (backup_s3 self-skips without BACKUP_S3_ENDPOINT,
+      # which is set above). Reuses core's canonical fixture via the kit.
+      - name: Test (satellite integration) + coverage — backup
+        run: npm run test:integration:coverage --workspace @adonisjs-lasagna/backup
+
+      # admin's integration tier: the REST + OpenAPI satellite endpoints
+      # (audit-logs, webhooks, feature-flags, branding, sso, metrics, quotas)
+      # against real PG/Redis, mounted by core's canonical fixture via the kit.
+      - name: Test (satellite integration) + coverage — admin
+        run: npm run test:integration:coverage --workspace @adonisjs-lasagna/admin
+
+      # billing's integration tier (the largest): the webhook pipeline,
+      # subscription/usage/dunning flows, the billing ace commands, the
+      # mock-driver contract, and the stripe-mock / real-API smokes. Reuses
+      # core's canonical fixture (billing provider + Stripe webhook route) via
+      # the kit. The *_real_smoke specs self-skip without their secrets;
+      # stripe_mock_smoke uses the stripe-mock service container above.
+      - name: Test (satellite integration) + coverage — billing
+        run: npm run test:integration:coverage --workspace @adonisjs-lasagna/billing
+
+      # reporting's integration tier: the raw-SQL aggregation (day/week/month
+      # buckets, top-N, custom-metric aggregation), the controller, and the chaos
+      # suite (cross-tenant guard, SQL-injection neutralization, MVCC consistency,
+      # soft-deleted hydration, PG-outage clean-failure) against real PG/Redis via
+      # core's canonical fixture + the kit (which provisions tenant_custom_metrics).
+      - name: Test (satellite integration) + coverage — reporting
+        run: npm run test:integration:coverage --workspace @adonisjs-lasagna/reporting
+
+      # ai's integration tier: the streaming spine (StreamExtensionService) driven
+      # through core's canonical fixture with a real HttpContext + the provider
+      # transport fixture-origin spec, plus the fail-open-finally chaos and the
+      # observability + performance specs, against real PG/Redis via the kit.
+      - name: Test (satellite integration) + coverage — ai
+        run: npm run test:integration:coverage --workspace @adonisjs-lasagna/ai
+
+      # Consumer canary: boot the shared harness from a fresh satellite (the
+      # reference template) against core's fixture. A kit change that breaks a
+      # real consumer fails here on an isolated, fast signal instead of buried in
+      # a satellite's full suite. `:run`, not `:coverage` — it is a boot canary,
+      # deliberately out of the merged-coverage path. The kit build it imports is
+      # produced by build:all in the core integration step above.
+      - name: Test (satellite-template canary) — kit harness boots for a fresh consumer
+        run: npm run test:integration:run --workspace @adonisjs-lasagna/satellite-template
+
+      # Optional/secondary providers run here, NEVER on the blocking step above.
+      # `continue-on-error` keeps a Paddle/Lemon Squeezy outage or upstream change
+      # from reddening the gate — the failure shows as a red step, not a red job.
+      # Keys absent (the default — no sandbox secrets configured yet) → the
+      # Paddle/LS smokes self-skip → step passes trivially. (Stripe is excluded;
+      # it runs on the blocking gate above.)
+      - name: Paddle / Lemon Squeezy real-API smokes (non-blocking)
+        continue-on-error: true
+        env:
+          # Narrow the suite to the optional-provider (Paddle/LS) real smokes only.
+          BILLING_OPTIONAL_SMOKES_ONLY: '1'
+          PADDLE_TEST_API_KEY: ${{ secrets.PADDLE_TEST_API_KEY }}
+          PADDLE_TEST_PRICE_ID: ${{ secrets.PADDLE_TEST_PRICE_ID }}
+          PADDLE_TEST_WEBHOOK_SECRET: ${{ secrets.PADDLE_TEST_WEBHOOK_SECRET }}
+          LEMONSQUEEZY_TEST_API_KEY: ${{ secrets.LEMONSQUEEZY_TEST_API_KEY }}
+          LEMONSQUEEZY_TEST_STORE_ID: ${{ secrets.LEMONSQUEEZY_TEST_STORE_ID }}
+          LEMONSQUEEZY_TEST_VARIANT_ID: ${{ secrets.LEMONSQUEEZY_TEST_VARIANT_ID }}
+        run: npm run test:integration:run --workspace @adonisjs-lasagna/billing
+
+      # Raw V8, not lcov: the integration suite runs against build/*.js, so its
+      # per-run lcov undercounts src. The coverage-report job re-reports this
+      # raw data with the build source maps to attribute it back to src/*.ts.
+      - name: Upload raw integration coverage (V8)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: coverage-integration
-          path: coverage/lcov.info
+          name: c8-raw-integration
+          path: coverage/.v8/integration
+          if-no-files-found: warn
+
+      # Satellite integration V8 dumps, merged into the aggregate gate alongside
+      # core's so a satellite's src coverage moves with its specs when they leave
+      # core's integration run (Phase 2). One artifact per satellite tier.
+      - name: Upload raw satellite integration coverage (V8)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-sso-integration
+          path: coverage/.v8/sso-integration
+          if-no-files-found: warn
+
+      - name: Upload raw satellite integration coverage (V8) — backup
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-backup-integration
+          path: coverage/.v8/backup-integration
+          if-no-files-found: warn
+
+      - name: Upload raw satellite integration coverage (V8) — admin
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-admin-integration
+          path: coverage/.v8/admin-integration
+          if-no-files-found: warn
+
+      - name: Upload raw satellite integration coverage (V8) — billing
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-billing-integration
+          path: coverage/.v8/billing-integration
+          if-no-files-found: warn
+
+      - name: Upload raw satellite integration coverage (V8) — reporting
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-reporting-integration
+          path: coverage/.v8/reporting-integration
+          if-no-files-found: warn
+
+      - name: Upload raw satellite integration coverage (V8) — ai
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-ai-integration
+          path: coverage/.v8/ai-integration
           if-no-files-found: warn
 
   test-e2e-demo:
     name: E2E (demo app)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # pgvector image (drop-in superset of postgres:16) so the AI e2e that need
+        # the `vector` extension run here; the non-AI demo e2e are unaffected, and
+        # the AI e2e self-skip on any plain-postgres runner (WS-AI-8).
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: lasagna_demo
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U app -d lasagna_demo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 56379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      mailcatcher:
+        image: schickling/mailcatcher
+        ports:
+          - 1025:1025
+          - 1080:1080
+
+    env:
+      TZ: UTC
+      NODE_ENV: development
+      HOST: 127.0.0.1
+      PORT: 3333
+      APP_KEY: a-32-character-long-secret-key!!
+      LOG_LEVEL: error
+      TENANT_HEADER_KEY: x-tenant-id
+      APP_DOMAIN: localhost
+      DB_HOST: 127.0.0.1
+      DB_PORT: 55432
+      DB_USER: app
+      DB_PASSWORD: app
+      DB_DATABASE: lasagna_demo
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 56379
+      QUEUE_REDIS_HOST: 127.0.0.1
+      QUEUE_REDIS_PORT: 56379
+      QUEUE_REDIS_DB: 1
+      CACHE_REDIS_HOST: 127.0.0.1
+      CACHE_REDIS_PORT: 56379
+      CACHE_REDIS_DB: 2
+      BACKUP_STORAGE_PATH: ./storage/backups
+      # The webhook-delivery e2e posts to an in-process listener on 127.0.0.1;
+      # exempt loopback from the SSRF guard for the demo run. Off in production,
+      # and even when on it only allows loopback (private/metadata stay blocked).
+      WEBHOOKS_ALLOW_LOOPBACK_TARGETS: 'true'
+      # The auth_realms e2e logs in as the hook-seeded per-tenant demo user,
+      # so tenant migrations must seed it here. Default-off everywhere else;
+      # the deploy smoke stack deliberately leaves it unset to prove that.
+      DEMO_SEED_TENANT_USERS: 'true'
+      MAILCATCHER_HOST: 127.0.0.1
+      MAILCATCHER_PORT: 1025
+      MAIL_FROM_ADDRESS: demo@example.test
+      MAIL_FROM_NAME: Demo Multitenancy
+      # Optional Stripe test key (sk_test_…) for the gated pricing-validation
+      # step below. Unset → the step self-skips. Add via Settings → Secrets.
+      STRIPE_TEST_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      # `pg_dump` / `pg_restore` / `psql` on PATH so backups_real.spec.ts +
+      # the import / clone tests run instead of skipping. The suite skips
+      # gracefully when these are absent, but we want them green in CI.
+      - name: Install postgresql-client
+        timeout-minutes: 5
+        run: |
+          # The runner's default apt mirror (azure.archive.ubuntu.com) is
+          # periodically unreachable, and apt then hangs retrying it for the
+          # whole job. Bound the retries and per-connection timeouts so this
+          # step fails fast, or falls through to the other mirrors in the
+          # runner's mirrorlist, instead of stalling for over an hour.
+          sudo apt-get -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      # .npmrc keeps install scripts off for supply-chain safety. esbuild (used
+      # by tsx and vitepress) needs its postinstall to place the platform
+      # binary, so rebuild only that package with scripts enabled. Far narrower
+      # than re-enabling scripts for the whole tree on a token-bearing runner.
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
+
+      # Demo's `@adonisjs-lasagna/saas-tenancy` and `@adonisjs-lasagna/admin`
+      # are workspace symlinks that resolve through each package's `build/`, so
+      # a fresh build of both is mandatory before the e2e suite imports them.
+      - name: Build packages
+        run: npm run build:all
+
+      - name: Backoffice setup (creates backoffice schema + tenants table)
+        working-directory: examples/api
+        run: npx tsx ace.ts backoffice:setup
+
+      # Gated pricing validation against the real Stripe test API. Self-skips
+      # when STRIPE_TEST_API_KEY is unset (same opt-in shape as the
+      # *_real_smoke specs). Proves the plan/price config is internally
+      # consistent and the provider key is valid in test mode before a deploy.
+      - name: Billing pricing validation (gated, Stripe test mode)
+        if: ${{ env.STRIPE_TEST_API_KEY != '' }}
+        working-directory: examples/api
+        env:
+          STRIPE_API_KEY: ${{ env.STRIPE_TEST_API_KEY }}
+        run: npx tsx ace.ts tenant:billing:pricing:validate --json
+
+      # Runs the whole e2e suite, which auto-includes the hardening specs under
+      # tests/@integration/e2e/hardening/** (isolation under concurrency, quota
+      # atomicity, circuit-breaker fail-fast, audit immutability, SSO replay,
+      # concurrent provisioning, admin/OpenAPI conformance, doctor --json) via the
+      # `tests/@integration/e2e/**/*.spec.ts` suite glob — no separate job needed.
+      - name: Run e2e suite (includes hardening/**)
+        working-directory: examples/api
+        run: npx tsx ace.ts test e2e
+
+  test-e2e-websockets:
+    name: E2E (websockets demo)
     runs-on: ubuntu-latest
 
     services:
@@ -234,43 +942,389 @@ jobs:
       CACHE_REDIS_PORT: 56379
       CACHE_REDIS_DB: 2
       BACKUP_STORAGE_PATH: ./storage/backups
-      DEMO_ADMIN_TOKEN: demo-admin-token-change-me
       MAILCATCHER_HOST: 127.0.0.1
       MAILCATCHER_PORT: 1025
       MAIL_FROM_ADDRESS: demo@example.test
       MAIL_FROM_NAME: Demo Multitenancy
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
-
-      # `pg_dump` / `pg_restore` / `psql` on PATH so backups_real.spec.ts +
-      # the import / clone tests run instead of skipping. The suite skips
-      # gracefully when these are absent, but we want them green in CI.
-      - name: Install postgresql-client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends postgresql-client
+          cache: npm
 
       - name: Install dependencies
-        env:
-          npm_config_ignore_scripts: 'false'
-        run: npm install --legacy-peer-deps --include=optional
+        run: npm ci --include=optional
 
-      # Demo's `@adonisjs-lasagna/saas-tenancy` is a workspace symlink that
-      # resolves through `build/`, so a fresh build is mandatory before the
-      # e2e suite imports from it.
-      - name: Build package
-        run: npm run build
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
+
+      # socket.io is an optional peer of @adonisjs-lasagna/websockets and
+      # socket.io-client drives the test. @socket.io/redis-adapter is the optional
+      # multi-node fan-out peer the severance integration spec wires. Installed
+      # here (not committed to the lockfile) so the WS e2e + the multi-node
+      # integration tier run for real here while the general e2e job self-skips
+      # them. Pure JS, no install scripts needed.
+      - name: Install socket.io (server + client + redis adapter) for the WS tests
+        run: npm install socket.io@^4 socket.io-client@^4 @socket.io/redis-adapter@^8 --no-save --include=optional
+
+      - name: Build packages
+        run: npm run build:all
 
       - name: Backoffice setup (creates backoffice schema + tenants table)
         working-directory: examples/api
         run: npx tsx ace.ts backoffice:setup
 
-      - name: Run e2e suite
+      - name: Run websockets e2e spec
         working-directory: examples/api
-        run: npx tsx ace.ts test e2e
+        run: npx tsx ace.ts test e2e --files tests/@integration/e2e/websockets.spec.ts
+
+      # Multi-node severance (Phase 4 chaos): two real socket.io servers wired
+      # like the cookbook's multi-node recipe (Redis adapter + pub/sub severance
+      # bridge), proving a suspend on one node severs the tenant fleet-wide. Boots
+      # no Ignitor — a plain Japa runner over the websockets package's own
+      # tests/integration/**. Uses this job's Redis (REDIS_HOST/PORT) and the
+      # socket peers installed above; self-skips if they are absent.
+      #
+      # Runs under c8 (test:integration:coverage) so this tier's V8 reaches the
+      # per-satellite merged-coverage gate in coverage-report. The integration
+      # specs run against src via tsx, so c8 attributes directly to
+      # packages/websockets/src/** (no build/ source-map hop needed).
+      - name: Test (websockets multi-node integration)
+        run: npm run test:integration:coverage --workspace @adonisjs-lasagna/websockets
+
+      - name: Upload raw websockets integration coverage (V8)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c8-raw-websockets-integration
+          path: coverage/.v8/websockets-integration
+          if-no-files-found: warn
+
+  # The only job that installs this package the way a stranger does: from the
+  # packed tarball, into an app scaffolded by `npm init adonisjs`. Every other
+  # gate resolves @adonisjs-lasagna/saas-tenancy through the workspace symlink,
+  # which hides a whole class of defect — a configure hook the root entry never
+  # exports, a stub that ships but cannot render, a stub calling an Application
+  # method that does not exist, a missing migration. All four shipped at once,
+  # with the other 46 gates green.
+  clean-install:
+    name: Clean install (packed tarball into a fresh app)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7.0.5-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      # The generated app runs `npm install` from the public registry, so this job
+      # needs network. It builds core, packs it, and drives the golden path from
+      # `configure` to a provisioned tenant schema.
+      - name: Clean-install smoke
+        env:
+          PG_HOST: 127.0.0.1
+          PG_PORT: 5432
+          PG_USER: postgres
+          PG_PASSWORD: postgres
+          PG_DATABASE: lasagna_clean_install
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+        run: bash scripts/clean-install-smoke.sh
+
+  deploy-validate:
+    name: Deploy assets (static validation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      # Catches interpolation typos and schema drift in the compose files
+      # without booting anything. The prod file needs an env file because it
+      # requires APP_KEY/DB_*/REDIS_PASSWORD at interpolation time.
+      - name: Validate docker compose files
+        run: |
+          cp deploy/docker-compose.prod.example.env .env.compose-check
+          docker compose -f deploy/docker-compose.prod.yml --env-file .env.compose-check config -q
+          docker compose -f deploy/docker-compose.e2e.yml config -q
+
+      - name: Helm lint
+        run: helm lint deploy/charts/lasagna-app
+
+      # kubeconform validates the rendered manifests against the upstream
+      # Kubernetes JSON schemas — `helm template` alone accepts YAML the API
+      # server would reject. Pinned so the gate stays deterministic.
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar xz kubeconform
+          sudo mv kubeconform /usr/local/bin/kubeconform
+          kubeconform -v
+
+      - name: Helm template + kubeconform (default values)
+        run: helm template smoke deploy/charts/lasagna-app | kubeconform -strict -summary
+
+      - name: Helm template + kubeconform (production values)
+        run: |
+          helm template smoke deploy/charts/lasagna-app \
+            -f deploy/charts/lasagna-app/values.production.yaml \
+            | kubeconform -strict -summary
+
+  deploy-e2e:
+    name: Deploy E2E (compose stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      # Build once with the GHA layer cache (the npm-install layer survives
+      # source-only changes), then hand the tag to the smoke script so
+      # compose doesn't rebuild.
+      - name: Build demo image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: examples/api/Dockerfile
+          load: true
+          tags: lasagna-demo:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Boots deploy/docker-compose.e2e.yml (pg primary + streaming replica,
+      # password-protected redis, 2 app replicas + queue worker, nginx) and
+      # proves the deployment claims end to end: probes through the proxy,
+      # queue-driven tenant provisioning, isolation via nginx, replica reads,
+      # primary-outage -> 503 -> recovery, and fail-fast on missing APP_KEY.
+      # The script dumps compose logs itself on failure before tearing down.
+      - name: Run deploy smoke
+        env:
+          LASAGNA_DEMO_IMAGE: lasagna-demo:ci
+        run: bash deploy/scripts/deploy-smoke.sh
+
+  coverage-report:
+    name: Aggregate coverage (unit + integration)
+    runs-on: ubuntu-latest
+    # Runs once both coverage producers succeed. It re-reports the raw V8
+    # coverage from both suites through a single `c8 report`, which remaps each
+    # script back to src/*.ts via source maps — so the integration suite (run
+    # against build/) finally counts toward src instead of reading as ~0.
+    needs: [lint-and-typecheck, test-integration, test-e2e-websockets]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      # .npmrc keeps install scripts off for supply-chain safety. esbuild (used
+      # by tsx and vitepress) needs its postinstall to place the platform
+      # binary, so rebuild only that package with scripts enabled. Far narrower
+      # than re-enabling scripts for the whole tree on a token-bearing runner.
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
+
+      # build/ + its .map files must exist at the same path the integration run
+      # executed from, so c8 can resolve each build/*.js back to src/*.ts. Both
+      # core and admin are rebuilt so the admin package's source maps resolve too.
+      - name: Build (for source-map remapping)
+        run: npm run build:all
+
+      # Both artifacts extract into the same temp dir; V8 dump filenames are
+      # unique, so they merge rather than collide.
+      - name: Download raw unit coverage (V8)
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-unit
+          path: coverage/.v8/all
+
+      - name: Download raw integration coverage (V8)
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-integration
+          path: coverage/.v8/all
+
+      # Satellite integration V8, merged into the same temp dir so each
+      # satellite's src counts toward the aggregate gate now that its specs run in
+      # the satellite's own tier instead of core's integration suite.
+      - name: Download raw satellite integration coverage (V8)
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-sso-integration
+          path: coverage/.v8/all
+
+      - name: Download raw satellite integration coverage (V8) — backup
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-backup-integration
+          path: coverage/.v8/all
+
+      - name: Download raw satellite integration coverage (V8) — admin
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-admin-integration
+          path: coverage/.v8/all
+
+      - name: Download raw satellite integration coverage (V8) — billing
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-billing-integration
+          path: coverage/.v8/all
+
+      - name: Download raw satellite integration coverage (V8) — reporting
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-reporting-integration
+          path: coverage/.v8/all
+
+      - name: Download raw satellite integration coverage (V8) — ai
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-ai-integration
+          path: coverage/.v8/all
+
+      # websockets integration V8 is produced by the test-e2e-websockets job (a
+      # different job than test-integration above), now run under c8. This is why
+      # test-e2e-websockets is in this job's needs:.
+      - name: Download raw satellite integration coverage (V8) — websockets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-websockets-integration
+          path: coverage/.v8/all
+
+      # Satellite UNIT V8, merged into the same temp dir so each satellite's
+      # MERGED (unit+integration) src coverage is what check-satellite-coverage.mjs
+      # gates below. websockets now contributes both tiers: its unit V8 here plus
+      # its integration V8 from the test-e2e-websockets job above.
+      - name: Download raw satellite unit coverage (V8) — sso
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-sso-unit
+          path: coverage/.v8/all
+
+      - name: Download raw satellite unit coverage (V8) — backup
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-backup-unit
+          path: coverage/.v8/all
+
+      - name: Download raw satellite unit coverage (V8) — admin
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-admin-unit
+          path: coverage/.v8/all
+
+      - name: Download raw satellite unit coverage (V8) — billing
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-billing-unit
+          path: coverage/.v8/all
+
+      - name: Download raw satellite unit coverage (V8) — websockets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-websockets-unit
+          path: coverage/.v8/all
+
+      - name: Download raw satellite unit coverage (V8) — reporting
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-reporting-unit
+          path: coverage/.v8/all
+
+      - name: Download raw satellite unit coverage (V8) — ai
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: c8-raw-ai-unit
+          path: coverage/.v8/all
+
+      - name: Aggregate coverage report (unit + integration, remapped to src)
+        run: npm run coverage:report
+
+      # Blocking gate on the merged unit+integration coverage. These floors come
+      # from a real CI run, not the unit floors: the merged report covers a
+      # different file set than the unit run (executed files vs the unit run's
+      # `all: true` set), so its percentages differ — branches in particular read
+      # LOWER here than in the unit gate. Keep a small margin under the measured
+      # numbers and re-check after a run before ratcheting further.
+      - name: Coverage gate (aggregate)
+        # Re-measured after the satellite test-tier migration (each satellite's
+        # integration V8 now merges in here, see the downloads above). Numbers
+        # come from a full merged run: lines ~82.7%, functions ~78.9%, branches
+        # ~78.5%. Functions dipped a touch from the old ~79.7% because the admin
+        # pure-helper extraction added functions the integration tier only
+        # partially exercises, so its floor stays at 78. Keep a small margin
+        # under the measured numbers and re-check a real run before ratcheting.
+        # NOTE: these numbers predate the per-satellite gate work, which also
+        # merges each satellite's UNIT V8 into this lcov (including websockets
+        # src, new to the aggregate). The shift is expected to be small and
+        # net-positive, but re-measure on the next full run before ratcheting.
+        env:
+          COV_MIN_LINES: '81' # measured ~82.7%
+          COV_MIN_FUNCTIONS: '78' # measured ~78.9%
+          COV_MIN_BRANCHES: '78' # measured ~78.5%
+        run: node scripts/coverage-gate.mjs coverage/lcov.info
+
+      # Per-satellite MERGED coverage gate: buckets coverage/lcov.info by
+      # packages/<sat>/src and checks each RC satellite against the floor it
+      # declares in package.json (lasagnaSatellite.minMergedCoverage). This is
+      # the honest "is this satellite RC-worthy" number, because it counts the
+      # integration tier, which is where controller-heavy satellites (admin) are
+      # actually exercised.
+      #
+      # ENFORCING (a drop below any floor fails this step). Each floor was
+      # ratcheted to ~3-6 points under its measured merged actual (lines stays
+      # >= 60, the graduation bar). The margin absorbs run-to-run jitter from the
+      # conditional real-API smokes (Stripe/IdP) and small-denominator function
+      # counts. Re-measure and re-ratchet after a run that legitimately moves the
+      # numbers; never lower a floor to paper over a regression.
+      - name: Per-satellite merged coverage gate
+        run: node scripts/check-satellite-coverage.mjs coverage/lcov.info
+
+      - name: Upload combined coverage
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-combined
+          path: coverage/lcov.info
+          if-no-files-found: warn

@@ -1,0 +1,168 @@
+name: Benchmark correctness gate
+
+# Per-PR gate for the DETERMINISTIC half of the benchmark suite. Unlike the
+# absolute performance numbers in benchmark.yml (host-dependent, noisy, run
+# manual + weekly), these are PASS/FAIL correctness assertions that hold on any
+# machine: a cross-tenant leak is a leak everywhere. So they make a sound merge
+# gate. No throughput numbers are gated here, only a `*Check=FAIL` fails the PR.
+#
+# What it asserts (all three drivers):
+#   - tenant isolation under concurrency on the real request path (bench:isolation)
+#   - write-path isolation under churn (writeIsolationCheck, via bench:db)
+#   - the hard connection cap + clean saturation/recovery (hardCapCheck /
+#     failClosedCheck, via bench:mem)
+# plus a negative self-test proving the isolation detector is not a no-op.
+on:
+  pull_request:
+  workflow_dispatch:
+
+# A new push to the same PR cancels the in-flight gate run.
+concurrency:
+  group: bench-correctness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  correctness:
+    name: Correctness gates (isolation, write-iso, hard-cap)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Postgres is started as a step (not a service) for the same reason as the
+    # perf workflow: the budget/saturation scenarios push past the stock 100-client
+    # cap, so we mount benchmarks/postgres.bench.conf (max_connections=300).
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TZ: UTC
+      # development (not test) so the rate-limit middleware runs its real Redis
+      # pipeline instead of the test-env bypass.
+      NODE_ENV: development
+      BENCH_CI: '1'
+      HOST: 127.0.0.1
+      APP_KEY: a-32-character-long-secret-key!!
+      LOG_LEVEL: error
+      TENANT_HEADER_KEY: x-tenant-id
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: lasagna_bench
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: '6379'
+      QUEUE_REDIS_HOST: 127.0.0.1
+      QUEUE_REDIS_PORT: '6379'
+      QUEUE_REDIS_DB: '1'
+      CACHE_REDIS_HOST: 127.0.0.1
+      CACHE_REDIS_PORT: '6379'
+      CACHE_REDIS_DB: '2'
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Start Postgres (bench tuning, max_connections=300)
+        run: |
+          docker run -d --name bench-postgres \
+            -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=lasagna_bench \
+            -p 5432:5432 \
+            -v "$GITHUB_WORKSPACE/benchmarks/postgres.bench.conf:/etc/postgresql/postgresql.conf:ro" \
+            postgres:16-alpine -c config_file=/etc/postgresql/postgresql.conf
+          echo "Waiting for Postgres to accept connections…"
+          for i in $(seq 1 30); do
+            if docker exec bench-postgres pg_isready -U postgres -d lasagna_bench >/dev/null 2>&1; then
+              echo "Postgres ready (max_connections=$(docker exec bench-postgres psql -U postgres -tAc 'show max_connections'))"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Postgres did not become ready in time"; docker logs bench-postgres; exit 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      # .npmrc keeps install scripts off; the bench tiers run via tsx, which
+      # needs esbuild's postinstall to place the platform binary. Rebuild only
+      # that one package with scripts enabled.
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
+
+      # The bench fixture imports the built core via the workspace symlink, so a
+      # fresh build of the core is mandatory.
+      - name: Build core
+        run: npm run build
+
+      # Isolation under concurrency on the real request path, per driver. The
+      # script exits 1 on isolationCheck=FAIL, so a leak fails the PR here.
+      - name: Isolation assertion — per driver (hard gate)
+        run: |
+          for driver in schema-pg database-pg rowscope-pg; do
+            echo "::group::isolation $driver"
+            BENCH_DRIVER=$driver npm run bench:isolation
+            echo "::endgroup::"
+          done
+
+      # Same assertion under the production framework path, to catch anything that
+      # only manifests with NODE_ENV=production (the default tiers run development).
+      - name: Isolation assertion — production mode (schema-pg)
+        run: BENCH_DRIVER=schema-pg BENCH_HTTP_NODE_ENV=production npm run bench:isolation
+
+      # Write-path isolation under churn (writeIsolationCheck lives in the churn
+      # bench inside bench:db). Throughput output is ignored by the gate.
+      - name: Write-path isolation under churn — per driver
+        run: |
+          for driver in schema-pg database-pg rowscope-pg; do
+            echo "::group::write-iso $driver"
+            BENCH_DRIVER=$driver npm run bench:db
+            echo "::endgroup::"
+          done
+
+      # Hard connection cap + clean saturation/recovery (hardCapCheck /
+      # failClosedCheck live in the budget-burst bench inside bench:mem).
+      - name: Hard cap + saturation/recovery — per driver
+        run: |
+          for driver in schema-pg database-pg rowscope-pg; do
+            echo "::group::mem $driver"
+            BENCH_DRIVER=$driver npm run bench:mem
+            echo "::endgroup::"
+          done
+
+      # The gate: scans the latest result of every suite/driver and exits 1 on any
+      # `*Check=FAIL` (isolation, write-iso, hard-cap, saturation). The throughput
+      # comparison against ci-ubuntu stays informational (BENCH_GATE_ENFORCE unset),
+      # so noisy runner numbers never fail the PR.
+      - name: Correctness gate (any *Check=FAIL fails the PR)
+        run: npm run bench:check
+
+      # Negative self-test, LAST on purpose: it plants a cross-tenant mismatch and
+      # the bench must exit non-zero. We invert that, so the step passes only when
+      # the detector catches the planted leak. Run after the gate above so its
+      # deliberate FAIL result is never scanned by bench:check.
+      - name: Isolation leak self-test (detector must catch a planted leak)
+        run: |
+          if BENCH_DRIVER=schema-pg BENCH_ISO_SELFTEST=1 npm run bench:isolation; then
+            echo "::error::Isolation self-test PASSED but was expected to FAIL; the leak detector is a no-op."
+            exit 1
+          fi
+          echo "Isolation self-test failed as designed: the leak detector works."
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: correctness-results
+          path: benchmarks/results/
+          if-no-files-found: warn

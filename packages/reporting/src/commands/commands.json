@@ -1,0 +1,66 @@
+{
+  "commands": [
+    {
+      "commandName": "tenant:report:generate",
+      "description": "Generate and print a cross-tenant usage report",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "period",
+          "flagName": "period",
+          "required": false,
+          "type": "string",
+          "description": "Aggregation period: day | week | month"
+        },
+        {
+          "name": "since",
+          "flagName": "since",
+          "required": false,
+          "type": "string",
+          "description": "Start date (ISO YYYY-MM-DD). Default: 30 days ago"
+        },
+        {
+          "name": "until",
+          "flagName": "until",
+          "required": false,
+          "type": "string",
+          "description": "End date (ISO YYYY-MM-DD). Default: today"
+        },
+        {
+          "name": "top",
+          "flagName": "top",
+          "required": false,
+          "type": "number",
+          "description": "Top N tenants to list"
+        },
+        {
+          "name": "format",
+          "flagName": "format",
+          "required": false,
+          "type": "string",
+          "description": "Output format: table | json | csv"
+        },
+        {
+          "name": "out",
+          "flagName": "out",
+          "required": false,
+          "type": "string",
+          "description": "Write output to a file instead of stdout"
+        },
+        {
+          "name": "extension",
+          "flagName": "extension",
+          "required": false,
+          "type": "string",
+          "description": "Run a registered report extension by name instead of the built-in report"
+        }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "report_generator.js"
+    }
+  ],
+  "version": 1
+}

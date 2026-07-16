@@ -1,0 +1,54 @@
+import { BaseCommand, flags } from '@adonisjs/core/ace'
+import type { CommandOptions } from '@adonisjs/core/types/ace'
+import app from '@adonisjs/core/services/app'
+import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
+import TenantQueueService from '../services/tenant_queue_service.js'
+
+export default class TenantQueueStats extends BaseCommand {
+  static readonly commandName = 'tenant:queue:stats'
+  static readonly description = 'Show BullMQ queue statistics for one or all tenant queues'
+  static readonly options: CommandOptions = { startApp: true }
+
+  @flags.array({ alias: 't', flagName: 'tenant', description: 'Filter by tenant ID(s)' })
+  declare tenant?: string[]
+
+  async run() {
+    const repo = await resolveTenantRepository()
+    const service = await app.container.make(TenantQueueService)
+
+    // Cursor-paginated (keyset) iteration instead of one unbounded `SELECT *`, so
+    // `queue:stats` stays memory-safe on a large tenant base.
+    const wanted = this.tenant?.length ? new Set(this.tenant) : null
+    const tenants: Array<{ id: string }> = []
+    await repo.each(
+      (t) => {
+        if (!wanted || wanted.has(t.id)) tenants.push(t)
+      },
+      { statuses: ['active', 'suspended'] }
+    )
+
+    if (tenants.length === 0) {
+      this.logger.info('No tenants found.')
+      return
+    }
+
+    const stats = await Promise.all(tenants.map((t) => service.getStats(t.id)))
+
+    const table = this.ui.table()
+    table.head(['Tenant ID', 'Queue Name', 'Waiting', 'Active', 'Completed', 'Failed', 'Delayed'])
+
+    for (const stat of stats) {
+      table.row([
+        stat.tenantId,
+        stat.queueName,
+        String(stat.waiting),
+        String(stat.active),
+        String(stat.completed),
+        stat.failed > 0 ? this.colors.red(String(stat.failed)) : String(stat.failed),
+        String(stat.delayed),
+      ])
+    }
+
+    table.render()
+  }
+}

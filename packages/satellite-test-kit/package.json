@@ -1,0 +1,30 @@
+{
+  "name": "@adonisjs-lasagna/satellite-test-kit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dev-only shared integration-test harness for @adonisjs-lasagna/saas-tenancy and its satellites: one Ignitor + DDL bootstrap + exit-code recompute, owned in a single place. Never published.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "exports": {
+    ".": "./build/src/index.js",
+    "./testing": "./build/src/helpers.js"
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/test-kit-unit tsx bin/test.ts"
+  },
+  "dependencies": {
+    "fast-glob": "^3.3.3"
+  },
+  "devDependencies": {
+    "@adonisjs-lasagna/saas-tenancy": "*"
+  }
+}

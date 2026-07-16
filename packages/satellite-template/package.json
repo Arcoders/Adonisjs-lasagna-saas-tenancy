@@ -1,0 +1,62 @@
+{
+  "name": "@adonisjs-lasagna/satellite-template",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Reference template for building a packaged Lasagna satellite. Not published — it exists so the public satellite contract is compiled + tested against a fresh consumer in CI.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build",
+    "stubs"
+  ],
+  "exports": {
+    ".": "./build/src/index.js",
+    "./provider": "./build/providers/example_provider.js",
+    "./commands": "./build/src/commands/main.js"
+  },
+  "typesVersions": {
+    "*": {
+      "provider": [
+        "./build/providers/example_provider.d.ts"
+      ],
+      "commands": [
+        "./build/src/commands/main.d.ts"
+      ]
+    }
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "adonisjs": {
+    "configure": "./build/configure.js",
+    "commands": [
+      "./build/src/commands/main.js"
+    ]
+  },
+  "lasagnaSatellite": {
+    "name": "example-widgets",
+    "satelliteApi": 1,
+    "pluginApiVersion": 1,
+    "minMergedCoverage": { "lines": 60, "functions": 60, "branches": 60 },
+    "migrations": "stubs/migrations",
+    "provider": "@adonisjs-lasagna/satellite-template/provider",
+    "commands": "@adonisjs-lasagna/satellite-template/commands",
+    "permissions": ["scheduler", "data_change:ExampleWidget"],
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/cookbook/creating-a-satellite"
+  },
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts",
+    "test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
+    "@adonisjs/core": "^7.0.0",
+    "@adonisjs/lucid": "^22.0.0",
+    "luxon": "^3.0.0"
+  }
+}

@@ -1,0 +1,38 @@
+{{{
+  exports({ to: app.migrationsPath(`${Date.now()}_widen_tenant_audit_logs_actor_id_to_text.ts`) })
+}}}
+import { BaseSchema } from '@adonisjs/lucid/schema'
+
+/**
+ * Widen \`tenant_audit_logs.actor_id\` from \`uuid\` to \`text\`.
+ *
+ * \`actor_id\` records the operator who performed a privileged action, resolved
+ * from the host's \`resolveAdminActor\` hook or a CLI \`--admin\` flag. That is an
+ * opaque identity: a UUID, an integer-as-string, or an email. The original
+ * \`uuid\` column rejected any non-UUID id, and since the audit write is
+ * best-effort the failed INSERT was swallowed, leaving destructive actions
+ * (tenant destroy, impersonation) with no forensic record. Widening to text lets
+ * every operator id be persisted faithfully.
+ *
+ * Note: the table has BEFORE UPDATE/DELETE/TRUNCATE append-only triggers, but
+ * those fire on DML, not on this DDL \`ALTER COLUMN\`, so the change applies
+ * cleanly. New installs already get a \`text\` column from the create migration.
+ */
+export default class extends BaseSchema {
+  async up() {
+    this.schema.raw(
+      \`ALTER TABLE "backoffice"."tenant_audit_logs"
+         ALTER COLUMN "actor_id" TYPE varchar(255) USING "actor_id"::text\`
+    )
+  }
+
+  async down() {
+    // Reversible only if every stored actor_id happens to be a valid UUID; the
+    // cast will raise otherwise, which is the correct fail-loud behaviour for a
+    // narrowing migration.
+    this.schema.raw(
+      \`ALTER TABLE "backoffice"."tenant_audit_logs"
+         ALTER COLUMN "actor_id" TYPE uuid USING "actor_id"::uuid\`
+    )
+  }
+}

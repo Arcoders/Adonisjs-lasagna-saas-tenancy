@@ -1,0 +1,398 @@
+import { parsePluginPermissions, serializePluginPermissions } from './plugin_permissions.js'
+
+/**
+ * The declarative manifest a packaged satellite publishes under the
+ * `"lasagnaSatellite"` key of its `package.json`. It is read at configure time
+ * as plain JSON. The satellite package is NEVER imported or executed during
+ * discovery, so reading a manifest is side-effect-free and safe even for a
+ * package whose runtime requires a booted AdonisJS app.
+ *
+ * Only `name` is required. Everything else is optional and degrades gracefully:
+ * a satellite with no `migrations` is a config-only feature; one with no
+ * `provider` ships no AdonisJS provider (e.g. a service resolved on demand).
+ */
+export interface SatelliteManifest {
+  /** Display + interactive label. Kebab-case by convention (e.g. `feature-flags`). */
+  name: string
+
+  /**
+   * The Satellite ABI version this package was built against (a positive
+   * integer; see `SATELLITE_API_VERSION`). `configure` refuses to wire a
+   * satellite that needs a newer ABI than the installed core provides, and
+   * warns on an older or undeclared one. Optional for backward compatibility:
+   * a satellite that omits it is treated as "unverified" (warn, not fail).
+   */
+  satelliteApi?: number
+
+  /**
+   * The Plugin API (facade) contract version this package's provider was built
+   * against (a positive integer; see `PLUGIN_API_CONTRACT_VERSION`). INDEPENDENT of
+   * `satelliteApi`: a `definePlugin()` provider declares it via
+   * `definePlugin({ pluginApiVersion })`, and this manifest field MIRRORS that code
+   * literal so a reader (and the `check-abi-boot-assertion` guard) can verify the two
+   * agree. Previously referenced by JSDoc but never modeled here. Declaring it makes
+   * the mirror real instead of phantom. Omitted by a raw (non-facade) provider.
+   */
+  pluginApiVersion?: number
+
+  /**
+   * The satellite's per-package merged-coverage floors, enforced by the merged
+   * coverage gate (`check-publish-coverage` / the per-satellite CI job). An object of
+   * percentage numbers; any subset of `lines` / `functions` / `branches` /
+   * `statements`. Modeled here so a reader/guard can inspect it as part of the typed
+   * manifest rather than only as raw `package.json` JSON.
+   */
+  minMergedCoverage?: SatelliteCoverageFloors
+
+  /**
+   * Legacy / short names accepted by `configure --with=<alias>` in addition to
+   * the full package name. Lets `--with=billing` keep resolving to
+   * `@adonisjs-lasagna/billing` after the migrations move out of core.
+   */
+  aliases?: string[]
+
+  /**
+   * Directory of `.stub` migration files, relative to the package root. The
+   * stubs use the same `{{{ exports({ to: app.migrationsPath(...) }) }}}` header
+   * core's own stubs use, so they publish through `codemods.makeUsingStub`.
+   * Must be a relative path inside the package (absolute paths and `..`
+   * segments are rejected by `readSatelliteManifest`).
+   */
+  migrations?: string
+
+  /**
+   * Directory of PER-TENANT migration files, relative to the package root.
+   * Unlike `migrations` (central/backoffice `.stub`s published into the
+   * host and run once via `migration:run`), these are RUNNABLE migration files
+   * that ship inside the package (e.g. `build/tenant_migrations`) and are
+   * discovered at `tenant:migrate` time and folded into the run via
+   * `MigrateOptions.extraMigrationPaths`, so they execute per tenant into the
+   * placement the active isolation driver reports, straight from `node_modules`
+   * with no host copy step. Same relative-path validation as `migrations`. A
+   * satellite that stores per-tenant rows (e.g. embeddings) ships them here,
+   * never as a shared `backoffice` table.
+   */
+  perTenantMigrations?: string
+
+  /**
+   * Core satellite bundles this satellite needs published first (e.g. billing
+   * needs `quotas` for `tenant_plans`). Auto-resolved on the core-orchestrated
+   * `--with=` path; printed as a prerequisite by the package's own configure hook.
+   */
+  requires?: string[]
+
+  /**
+   * Other satellite PACKAGES this one depends on (e.g. a CRM that needs
+   * `@adonisjs-lasagna/notifications`). Unlike `requires` (core feature
+   * bundles), these are npm packages. `configure` pulls each dependency into the
+   * selection, orders it BEFORE this satellite (so its provider boots first), and
+   * fails on a missing dependency or a dependency cycle. The optional semver
+   * `range` is checked best-effort against the installed version. Accepts a bare
+   * package-name string as shorthand for `{ pkg }`.
+   */
+  dependsOn?: SatelliteDependency[]
+
+  /** Subpath of the satellite's AdonisJS provider, added to `adonisrc.ts`. */
+  provider?: string
+
+  /** Subpath of the satellite's ace commands loader, added to `adonisrc.ts`. */
+  commands?: string
+
+  /** Required environment variables, printed as an install reminder. */
+  env?: string[]
+
+  /** Install commands (peer packages etc.), printed as an install reminder. */
+  install?: string[]
+
+  /** A config block the host pastes into `config/multitenancy.ts` (never patched). */
+  configSnippet?: string
+
+  /** Docs URL printed alongside the install reminder. */
+  docs?: string
+
+  /**
+   * Sensitive capabilities this satellite requests, in canonical wire form
+   * (`scheduler` · `data_change:users,orders` · `network:external` · `db:write`).
+   * `configure` shows these to the operator for explicit consent before wiring
+   * the satellite. Must match the `definePlugin({ permissions })` the
+   * provider declares. The `check-plugin-permissions` guard fails on drift.
+   */
+  permissions?: string[]
+
+  /**
+   * Set by `configure`'s package-lock scan (or declared by the author) when the
+   * satellite pulls in native (`.node`) addons. A native addon evades the worker
+   * Permission Model, so such a satellite is treated as fully-trusted and must be
+   * installed with an explicit acknowledgement.
+   */
+  nativeAddons?: boolean
+}
+
+/** Per-package merged-coverage floors (percentages), any subset of the four metrics. */
+export interface SatelliteCoverageFloors {
+  lines?: number
+  functions?: number
+  branches?: number
+  statements?: number
+}
+
+/** A declared dependency on another satellite package. */
+export interface SatelliteDependency {
+  /** The npm package name of the satellite this one depends on. */
+  pkg: string
+  /** Optional semver range, checked best-effort against the installed version. */
+  range?: string
+}
+
+/** A satellite discovered in the host app's dependency tree. */
+export interface DiscoveredSatellite {
+  /** The npm package name (the key in the host's dependencies). */
+  packageName: string
+  /** Absolute path to the package root (the dir containing its package.json). */
+  root: string
+  /** The installed package version (from its package.json), if readable. */
+  version?: string | undefined
+  /** The parsed, validated manifest. */
+  manifest: SatelliteManifest
+}
+
+/**
+ * Parse `dependsOn`: an array whose entries are either a bare package-name
+ * string (`"@me/dep"`) or an object `{ pkg, range? }`. Invalid entries are
+ * dropped with a warning; an empty/invalid result yields `undefined`.
+ */
+function parseDependsOn(
+  value: unknown,
+  pkgName: string,
+  onWarn: (m: string) => void
+): SatelliteDependency[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) {
+    onWarn(`[lasagna] ${pkgName}: "lasagnaSatellite.dependsOn" must be an array — dropping it`)
+    return undefined
+  }
+  const out: SatelliteDependency[] = []
+  for (const entry of value) {
+    if (typeof entry === 'string' && entry.length > 0) {
+      out.push({ pkg: entry })
+    } else if (
+      entry &&
+      typeof entry === 'object' &&
+      typeof (entry as any).pkg === 'string' &&
+      (entry as any).pkg.length > 0
+    ) {
+      const dep: SatelliteDependency = { pkg: (entry as any).pkg }
+      if (typeof (entry as any).range === 'string' && (entry as any).range.length > 0) {
+        dep.range = (entry as any).range
+      }
+      out.push(dep)
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: a "lasagnaSatellite.dependsOn" entry must be a package name ` +
+          `string or { pkg, range? } — dropping ${JSON.stringify(entry)}`
+      )
+    }
+  }
+  return out.length > 0 ? out : undefined
+}
+
+/**
+ * Parse `minMergedCoverage`: an object whose known keys (`lines`, `functions`,
+ * `branches`, `statements`) are percentage numbers in [0, 100]. Unknown keys and
+ * non-numeric values are ignored; an object with no usable key yields `undefined`.
+ */
+function parseCoverageFloors(value: unknown): SatelliteCoverageFloors | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const obj = value as Record<string, unknown>
+  const out: SatelliteCoverageFloors = {}
+  for (const key of ['lines', 'functions', 'branches', 'statements'] as const) {
+    const v = obj[key]
+    if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100) out[key] = v
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
+function cleanStringArray(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) return undefined
+  const out = value.filter((v): v is string => typeof v === 'string' && v.length > 0)
+  return out.length > 0 ? out : undefined
+}
+
+/**
+ * A relative path is "safe" when it does not escape the package root: not
+ * absolute, no `..` segment, no leading drive letter / UNC. Rejecting these
+ * stops a crafted manifest from making `configure` read or copy files from
+ * outside the satellite package.
+ */
+export function isSafeRelativePath(p: string): boolean {
+  if (typeof p !== 'string' || p.length === 0) return false
+  if (p.startsWith('/') || p.startsWith('\\')) return false
+  if (/^[a-zA-Z]:/.test(p)) return false // Windows drive
+  const segments = p.split(/[\\/]/)
+  return !segments.includes('..')
+}
+
+/**
+ * Parse + validate the `lasagnaSatellite` key of a parsed `package.json`.
+ * Returns `null` when the key is absent or has no usable `name`. Invalid
+ * optional fields are dropped (with a warning via `onWarn`) rather than failing
+ * the whole manifest. Pure: no fs, no logger import (so it is safe to call from
+ * unit tests and from the configure hook alike: pass `command.logger.warning`
+ * as `onWarn` there).
+ */
+export function readSatelliteManifest(
+  pkgJson: unknown,
+  onWarn: (message: string) => void = () => {}
+): SatelliteManifest | null {
+  if (!pkgJson || typeof pkgJson !== 'object') return null
+  const raw = (pkgJson as Record<string, unknown>).lasagnaSatellite
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+
+  const obj = raw as Record<string, unknown>
+  const pkgName =
+    typeof (pkgJson as Record<string, unknown>).name === 'string'
+      ? ((pkgJson as Record<string, unknown>).name as string)
+      : '<unknown package>'
+
+  if (typeof obj.name !== 'string' || obj.name.length === 0) {
+    onWarn(`[lasagna] ${pkgName}: "lasagnaSatellite.name" is required — ignoring the manifest`)
+    return null
+  }
+
+  const manifest: SatelliteManifest = { name: obj.name }
+
+  if (obj.migrations !== undefined) {
+    if (typeof obj.migrations === 'string' && isSafeRelativePath(obj.migrations)) {
+      manifest.migrations = obj.migrations
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: "lasagnaSatellite.migrations" must be a relative path inside ` +
+          `the package — dropping it`
+      )
+    }
+  }
+
+  if (obj.perTenantMigrations !== undefined) {
+    if (
+      typeof obj.perTenantMigrations === 'string' &&
+      isSafeRelativePath(obj.perTenantMigrations)
+    ) {
+      manifest.perTenantMigrations = obj.perTenantMigrations
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: "lasagnaSatellite.perTenantMigrations" must be a relative path ` +
+          `inside the package — dropping it`
+      )
+    }
+  }
+
+  const aliases = cleanStringArray(obj.aliases)
+  if (aliases) manifest.aliases = aliases
+  const requires = cleanStringArray(obj.requires)
+  if (requires) manifest.requires = requires
+  const env = cleanStringArray(obj.env)
+  if (env) manifest.env = env
+  const install = cleanStringArray(obj.install)
+  if (install) manifest.install = install
+
+  const dependsOn = parseDependsOn(obj.dependsOn, pkgName, onWarn)
+  if (dependsOn) manifest.dependsOn = dependsOn
+
+  if (obj.satelliteApi !== undefined) {
+    if (
+      typeof obj.satelliteApi === 'number' &&
+      Number.isInteger(obj.satelliteApi) &&
+      obj.satelliteApi > 0
+    ) {
+      manifest.satelliteApi = obj.satelliteApi
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: "lasagnaSatellite.satelliteApi" must be a positive integer — ` +
+          `dropping it`
+      )
+    }
+  }
+
+  if (obj.pluginApiVersion !== undefined) {
+    if (
+      typeof obj.pluginApiVersion === 'number' &&
+      Number.isInteger(obj.pluginApiVersion) &&
+      obj.pluginApiVersion > 0
+    ) {
+      manifest.pluginApiVersion = obj.pluginApiVersion
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: "lasagnaSatellite.pluginApiVersion" must be a positive integer — ` +
+          `dropping it`
+      )
+    }
+  }
+
+  if (obj.minMergedCoverage !== undefined) {
+    const floors = parseCoverageFloors(obj.minMergedCoverage)
+    if (floors) {
+      manifest.minMergedCoverage = floors
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: "lasagnaSatellite.minMergedCoverage" must be an object of ` +
+          `percentage numbers (lines/functions/branches/statements) — dropping it`
+      )
+    }
+  }
+
+  // `provider` / `commands` are written verbatim into the host's `adonisrc.ts`
+  // and imported (executed) on every boot. Validate them the same way as
+  // `migrations`: a non-string is dropped silently, but a string that escapes
+  // the package (absolute path or a `..` segment) is dropped with a warning so a
+  // crafted manifest can't point the host's provider import outside the package.
+  for (const key of ['provider', 'commands'] as const) {
+    const val = obj[key]
+    if (typeof val !== 'string') continue
+    if (isSafeRelativePath(val)) {
+      manifest[key] = val
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: "lasagnaSatellite.${key}" must be a safe module specifier ` +
+          `(no absolute path, no ".." segment) — dropping it`
+      )
+    }
+  }
+
+  if (typeof obj.configSnippet === 'string') manifest.configSnippet = obj.configSnippet
+  if (typeof obj.docs === 'string') manifest.docs = obj.docs
+
+  if (obj.permissions !== undefined) {
+    if (Array.isArray(obj.permissions)) {
+      const wire = obj.permissions.filter((v): v is string => typeof v === 'string')
+      const parsed = parsePluginPermissions(wire, (dropped) =>
+        onWarn(
+          `[lasagna] ${pkgName}: "lasagnaSatellite.permissions" entry ${JSON.stringify(dropped)} ` +
+            `is not a recognized permission — dropping it`
+        )
+      )
+      // Store the CANONICAL wire form so a satellite that declares an equivalent
+      // but non-canonical string still matches the guard's spec-side comparison.
+      if (parsed.length > 0) manifest.permissions = serializePluginPermissions(parsed)
+    } else {
+      onWarn(`[lasagna] ${pkgName}: "lasagnaSatellite.permissions" must be an array — dropping it`)
+    }
+  }
+
+  if (obj.nativeAddons !== undefined) {
+    if (typeof obj.nativeAddons === 'boolean') {
+      manifest.nativeAddons = obj.nativeAddons
+    } else {
+      onWarn(
+        `[lasagna] ${pkgName}: "lasagnaSatellite.nativeAddons" must be a boolean — dropping it`
+      )
+    }
+  }
+
+  // Drop the explicit-undefined keys so the returned object is clean.
+  for (const k of ['aliases', 'requires', 'env', 'install'] as const) {
+    if (manifest[k] === undefined) delete manifest[k]
+  }
+
+  return manifest
+}

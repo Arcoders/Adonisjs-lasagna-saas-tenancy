@@ -1,0 +1,88 @@
+{
+  "name": "@adonisjs-lasagna/reporting",
+  "version": "0.1.0",
+  "description": "Cross-tenant analytics & reporting for @adonisjs-lasagna/saas-tenancy: aggregated usage metrics, top-N tenant rankings, and period summaries over the backoffice schema.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy.git",
+    "directory": "packages/reporting"
+  },
+  "bugs": {
+    "url": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "saas-tenancy",
+    "multitenancy",
+    "reporting",
+    "analytics",
+    "metrics"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build"
+  ],
+  "exports": {
+    ".": "./build/src/index.js",
+    "./provider": "./build/providers/reporting_provider.js",
+    "./commands": "./build/src/commands/main.js",
+    "./testing": "./build/src/testing/index.js"
+  },
+  "typesVersions": {
+    "*": {
+      "provider": [
+        "./build/providers/reporting_provider.d.ts"
+      ],
+      "commands": [
+        "./build/src/commands/main.d.ts"
+      ],
+      "testing": [
+        "./build/src/testing/index.d.ts"
+      ]
+    }
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "adonisjs": {
+    "configure": "./build/configure.js",
+    "commands": [
+      "./build/src/commands/main.js"
+    ]
+  },
+  "lasagnaSatellite": {
+    "name": "reporting",
+    "satelliteApi": 1,
+    "pluginApiVersion": 1,
+    "minMergedCoverage": {
+      "lines": 96,
+      "functions": 97,
+      "branches": 93
+    },
+    "provider": "@adonisjs-lasagna/reporting/provider",
+    "commands": "@adonisjs-lasagna/reporting/commands",
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/reporting"
+  },
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/reporting-unit tsx bin/test.ts",
+    "test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/reporting-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
+    "@adonisjs/core": "^7.0.0",
+    "@adonisjs/lucid": "^22.0.0",
+    "luxon": "^3.0.0"
+  }
+}

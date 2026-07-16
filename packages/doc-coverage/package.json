@@ -1,0 +1,27 @@
+{
+  "name": "@adonisjs-lasagna/doc-coverage",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dev-only deterministic documentation-drift engine: the bidirectional code-to-docs graph, coverage metric, and the docs:doctor CLI. Zero-LLM, zero-network. Never published. Seed of the future @docdrift/core.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "exports": {
+    ".": "./build/src/index.js"
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test \"tests/**/*.test.ts\"",
+    "doctor": "tsx bin/docs_doctor.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "~6.0"
+  }
+}

@@ -6,6 +6,10 @@ export default defineConfig({
     () => import('@adonisjs/lucid/commands'),
     () => import('@adonisjs/queue/commands'),
     () => import('@adonisjs-lasagna/saas-tenancy/commands'),
+    () => import('@adonisjs-lasagna/backup/commands'),
+    () => import('@adonisjs-lasagna/billing/commands'),
+    () => import('@adonisjs-lasagna/reporting/commands'),
+    () => import('@adonisjs-lasagna/ai/commands'),
   ],
 
   providers: [
@@ -20,7 +24,13 @@ export default defineConfig({
     () => import('@adonisjs/queue/queue_provider'),
     () => import('@adonisjs/mail/mail_provider'),
     () => import('@adonisjs/core/providers/vinejs_provider'),
+    () => import('@adonisjs/auth/auth_provider'),
     () => import('@adonisjs-lasagna/saas-tenancy/providers/multitenancy_provider'),
+    () => import('@adonisjs-lasagna/backup/provider'),
+    () => import('@adonisjs-lasagna/billing/provider'),
+    () => import('@adonisjs-lasagna/websockets/provider'),
+    () => import('@adonisjs-lasagna/reporting/provider'),
+    () => import('@adonisjs-lasagna/ai/provider'),
     () => import('#app/providers/app_provider'),
   ],
 
@@ -28,13 +38,14 @@ export default defineConfig({
     () => import('#start/env'),
     () => import('#start/kernel'),
     () => import('#start/routes'),
+    () => import('#start/socket'),
   ],
 
   tests: {
     suites: [
       {
         name: 'e2e',
-        files: ['tests/e2e/**/*.spec.ts'],
+        files: ['tests/@integration/e2e/**/*.spec.ts'],
         timeout: 30_000,
       },
     ],

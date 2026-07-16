@@ -1,20 +1,50 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { PhCheck, PhX, PhMinus, PhTrophy, PhMagnifyingGlass } from '@phosphor-icons/vue'
+import {
+  PhCheck,
+  PhX,
+  PhMinus,
+  PhQuestion,
+  PhTrophy,
+  PhMagnifyingGlass,
+} from '@phosphor-icons/vue'
 import data from '../../../data/comparison.json'
+
+type Mark = 'yes' | 'partial' | 'no' | 'unknown'
 
 interface Row {
   category: string
   feature: string
-  lasagna: 'yes' | 'partial' | 'no'
-  stancl: 'yes' | 'partial' | 'no'
+  lasagna: Mark
+  stancl: Mark
+  nestjs: Mark
   advantage?: 'lasagna' | 'stancl'
   lasagnaNote?: string
   stancanNote?: string
+  nestjsNote?: string
+}
+
+interface Source {
+  label: string
+  url: string
+  accessed: string
 }
 
 const rows = data.rows as Row[]
 const categories = data.categories as { id: string; label: string }[]
+
+// The three compared packages, in column order. Driving the value cells from
+// this list keeps the per-package markup (mark + note + accessible name) in one
+// place instead of three copy-pasted blocks.
+const PACKAGES = [
+  { key: 'lasagna', label: 'Lasagna', note: 'lasagnaNote' },
+  { key: 'stancl', label: 'stancl/tenancy', note: 'stancanNote' },
+  { key: 'nestjs', label: 'NestJS', note: 'nestjsNote' },
+] as const
+
+const nodeLabel = (data as { comparedNode?: string }).comparedNode ?? 'NestJS'
+const nestjsSources = ((data as { sources?: { nestjs?: Source[] } }).sources?.nestjs ??
+  []) as Source[]
 
 const activeCategory = ref<string>('all')
 const onlyAdvantage = ref<'all' | 'lasagna' | 'stancl' | 'parity'>('all')
@@ -28,13 +58,17 @@ const filtered = computed<Row[]>(() => {
     if (onlyAdvantage.value === 'parity' && r.advantage) return false
     if (search.value.trim()) {
       const q = search.value.toLowerCase()
-      const hay = `${r.feature} ${r.lasagnaNote ?? ''} ${r.stancanNote ?? ''}`.toLowerCase()
+      const hay =
+        `${r.feature} ${r.lasagnaNote ?? ''} ${r.stancanNote ?? ''} ${r.nestjsNote ?? ''}`.toLowerCase()
       if (!hay.includes(q)) return false
     }
     return true
   })
 })
 
+// Win / parity counts are deliberately two-way (Lasagna vs stancl): stancl is the
+// true peer the page is built around. The NestJS column is Node-ecosystem context
+// and does not feed these stats (see the caption under the cards).
 const stats = computed(() => {
   const total = rows.length
   const lasagnaWins = rows.filter((r) => r.advantage === 'lasagna').length
@@ -45,6 +79,20 @@ const stats = computed(() => {
 
 function categoryLabel(id: string): string {
   return categories.find((c) => c.id === id)?.label ?? id
+}
+
+// Accessible name for a value mark, so screen readers announce each otherwise
+// icon-only cell (the SVG glyphs carry no text on their own).
+function markText(m: Mark): string {
+  return m === 'unknown' ? 'unknown, not established by the sources' : m
+}
+
+// The glyph for a mark. Keeps the icon choice in one place for all three columns.
+function markIcon(m: Mark) {
+  if (m === 'yes') return PhCheck
+  if (m === 'partial') return PhMinus
+  if (m === 'unknown') return PhQuestion
+  return PhX
 }
 </script>
 
@@ -69,6 +117,10 @@ function categoryLabel(id: string): string {
           <span class="ct-stat__label">stancl advantage</span>
         </div>
       </div>
+      <p class="ct-stats-note">
+        Win / parity counts compare Lasagna with <code>stancl/tenancy</code>; the
+        NestJS column is Node-ecosystem context.
+      </p>
 
       <div class="ct-filters">
         <div class="ct-search">
@@ -121,11 +173,16 @@ function categoryLabel(id: string): string {
       </div>
     </header>
 
-    <div class="ct-table" role="table" aria-label="Lasagna vs stancl/tenancy feature comparison">
+    <div
+      class="ct-table"
+      role="table"
+      aria-label="Lasagna vs stancl/tenancy vs NestJS feature comparison"
+    >
       <div class="ct-row ct-row--head" role="row">
         <div role="columnheader" class="ct-col-feature">Feature</div>
         <div role="columnheader" class="ct-col-package">Lasagna</div>
         <div role="columnheader" class="ct-col-package">stancl/tenancy</div>
+        <div role="columnheader" class="ct-col-package">NestJS<sup>*</sup></div>
         <div role="columnheader" class="ct-col-cat">Area</div>
       </div>
 
@@ -148,22 +205,20 @@ function categoryLabel(id: string): string {
           </span>
         </div>
 
-        <div role="cell" class="ct-col-package">
-          <span :class="['ct-mark', `ct-mark--${r.lasagna}`]">
-            <PhCheck v-if="r.lasagna === 'yes'" :size="14" weight="bold" />
-            <PhMinus v-else-if="r.lasagna === 'partial'" :size="14" weight="bold" />
-            <PhX v-else :size="14" weight="bold" />
+        <div
+          v-for="p in PACKAGES"
+          :key="p.key"
+          role="cell"
+          class="ct-col-package"
+        >
+          <span
+            :class="['ct-mark', `ct-mark--${r[p.key]}`]"
+            role="img"
+            :aria-label="`${p.label}: ${markText(r[p.key])}`"
+          >
+            <component :is="markIcon(r[p.key])" :size="14" weight="bold" />
           </span>
-          <span v-if="r.lasagnaNote" class="ct-note">{{ r.lasagnaNote }}</span>
-        </div>
-
-        <div role="cell" class="ct-col-package">
-          <span :class="['ct-mark', `ct-mark--${r.stancl}`]">
-            <PhCheck v-if="r.stancl === 'yes'" :size="14" weight="bold" />
-            <PhMinus v-else-if="r.stancl === 'partial'" :size="14" weight="bold" />
-            <PhX v-else :size="14" weight="bold" />
-          </span>
-          <span v-if="r.stancanNote" class="ct-note">{{ r.stancanNote }}</span>
+          <span v-if="r[p.note]" class="ct-note">{{ r[p.note] }}</span>
         </div>
 
         <div role="cell" class="ct-col-cat">{{ categoryLabel(r.category) }}</div>
@@ -173,11 +228,32 @@ function categoryLabel(id: string): string {
         No features match the current filters.
       </div>
     </div>
+
+    <footer class="ct-sources">
+      <p>
+        <sup>*</sup> The <strong>NestJS</strong> column reflects
+        {{ nodeLabel }}: the most-used community package
+        (<code>nestjs-tenancy</code>, MongoDB) plus common DIY TypeORM/Postgres
+        patterns. NestJS ships no first-party multi-tenancy.
+        <span class="ct-mark ct-mark--unknown ct-mark--inline" aria-hidden="true"
+          ><PhQuestion :size="12" weight="bold"
+        /></span>
+        marks a capability the sources don't establish either way.
+      </p>
+      <p v-if="nestjsSources.length">
+        Sources:
+        <template v-for="(s, i) in nestjsSources" :key="s.url">
+          <a :href="s.url" target="_blank" rel="noopener">{{ s.label }}</a>
+          <span class="ct-src-date"> (accessed {{ s.accessed }})</span
+          ><span v-if="i < nestjsSources.length - 1">; </span>
+        </template>
+      </p>
+    </footer>
   </section>
 </template>
 
 <style scoped>
-.ct-root { margin: 2rem 0; color: var(--lg-text); }
+.ct-root { margin: 2rem 0; color: var(--vp-c-text-1); }
 
 .ct-header {
   display: grid;
@@ -192,30 +268,35 @@ function categoryLabel(id: string): string {
 }
 @media (min-width: 700px) { .ct-stats { grid-template-columns: repeat(4, 1fr); } }
 .ct-stat {
-  background-color: var(--lg-surface);
-  border: 1px solid var(--lg-line);
+  background-color: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
   border-radius: 12px;
   padding: 0.85rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
 }
-.ct-stat--lg { border-color: var(--lg-accent); }
-.ct-stat--st { border-color: var(--lg-accent-2); }
+.ct-stat--lg { border-color: var(--vp-c-brand-1); }
+.ct-stat--st { border-color: var(--vp-c-border); }
 .ct-stat__num {
-  font-family: var(--lg-font-serif);
   font-size: 1.7rem;
   font-weight: 600;
-  color: var(--lg-text);
+  color: var(--vp-c-text-1);
   line-height: 1;
 }
-.ct-stat--lg .ct-stat__num { color: var(--lg-accent); }
-.ct-stat--st .ct-stat__num { color: var(--lg-accent-2); }
+.ct-stat--lg .ct-stat__num { color: var(--vp-c-brand-1); }
+.ct-stat--st .ct-stat__num { color: var(--vp-c-text-1); }
 .ct-stat__label {
   font-size: 0.78rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lg-text-muted);
+  color: var(--vp-c-text-2);
+}
+.ct-stats-note {
+  margin: -0.4rem 0 0;
+  font-size: 0.82rem;
+  color: var(--vp-c-text-2);
+  line-height: 1.4;
 }
 
 .ct-filters {
@@ -229,11 +310,11 @@ function categoryLabel(id: string): string {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  border: 1px solid var(--lg-line);
+  border: 1px solid var(--vp-c-divider);
   border-radius: 999px;
   padding: 0.4rem 0.85rem;
-  background-color: var(--lg-surface);
-  color: var(--lg-text-muted);
+  background-color: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-2);
 }
 .ct-search input {
   border: 0;
@@ -241,14 +322,14 @@ function categoryLabel(id: string): string {
   background: transparent;
   flex: 1 1 auto;
   font: inherit;
-  color: var(--lg-text);
+  color: var(--vp-c-text-1);
 }
-.ct-search input::placeholder { color: var(--lg-text-muted); }
+.ct-search input::placeholder { color: var(--vp-c-text-2); }
 
 .ct-segment {
   display: inline-flex;
-  background-color: var(--lg-surface);
-  border: 1px solid var(--lg-line);
+  background-color: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
   border-radius: 999px;
   padding: 3px;
   gap: 2px;
@@ -256,7 +337,7 @@ function categoryLabel(id: string): string {
 .ct-seg-btn {
   background: transparent;
   border: 0;
-  color: var(--lg-text-muted);
+  color: var(--vp-c-text-2);
   font: inherit;
   font-size: 0.85rem;
   padding: 0.32rem 0.85rem;
@@ -265,8 +346,8 @@ function categoryLabel(id: string): string {
   transition: background-color 200ms ease, color 200ms ease;
 }
 .ct-seg-btn.is-active {
-  background-color: var(--lg-accent);
-  color: var(--lg-bg);
+  background-color: var(--vp-c-brand-1);
+  color: #fff;
 }
 
 .ct-cats {
@@ -276,50 +357,50 @@ function categoryLabel(id: string): string {
 }
 .ct-cat {
   background-color: transparent;
-  color: var(--lg-text-muted);
-  border: 1px solid var(--lg-line);
+  color: var(--vp-c-text-2);
+  border: 1px solid var(--vp-c-divider);
   border-radius: 999px;
   padding: 0.3rem 0.75rem;
   font-size: 0.82rem;
   cursor: pointer;
   transition: all 180ms ease;
-  font-family: var(--lg-font-sans);
 }
-.ct-cat:hover { color: var(--lg-text); border-color: var(--lg-line-strong); }
+.ct-cat:hover { color: var(--vp-c-text-1); border-color: var(--vp-c-border); }
 .ct-cat.is-active {
-  background-color: var(--lg-accent-2);
-  color: var(--lg-bg);
-  border-color: var(--lg-accent-2);
+  background-color: var(--vp-c-text-1);
+  color: var(--vp-c-bg);
+  border-color: var(--vp-c-text-1);
 }
 
 .ct-table {
-  border: 1px solid var(--lg-line);
+  border: 1px solid var(--vp-c-divider);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: var(--lg-shadow-card);
-  background-color: var(--lg-surface);
+  background-color: var(--vp-c-bg-soft);
 }
 .ct-row {
   display: grid;
-  grid-template-columns: minmax(220px, 2fr) minmax(140px, 1.2fr) minmax(140px, 1.2fr) minmax(120px, 1fr);
+  grid-template-columns:
+    minmax(190px, 1.8fr) minmax(118px, 1fr) minmax(118px, 1fr)
+    minmax(118px, 1fr) minmax(110px, 0.9fr);
   gap: 0.5rem;
   padding: 0.85rem 1rem;
   align-items: start;
-  border-top: 1px solid var(--lg-line);
+  border-top: 1px solid var(--vp-c-divider);
 }
 .ct-row:first-child { border-top: 0; }
 .ct-row--head {
-  background-color: rgba(194, 106, 75, 0.06);
-  font-family: var(--lg-font-mono);
+  background-color: var(--vp-c-bg-alt);
+  font-family: var(--vp-font-family-mono);
   font-size: 0.74rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--lg-text-muted);
+  color: var(--vp-c-text-2);
   padding-top: 0.6rem;
   padding-bottom: 0.6rem;
 }
-.ct-row--win-lasagna { background-color: rgba(194, 106, 75, 0.04); }
-.ct-row--win-stancl  { background-color: rgba(42, 107, 124, 0.04); }
+.ct-row--win-lasagna { background-color: var(--vp-c-brand-soft); }
+.ct-row--win-stancl  { background-color: var(--vp-c-bg-alt); }
 
 .ct-col-feature { display: flex; flex-direction: column; gap: 0.2rem; }
 .ct-feat-name {
@@ -327,9 +408,9 @@ function categoryLabel(id: string): string {
   align-items: center;
   gap: 0.4rem;
   font-weight: 500;
-  color: var(--lg-text);
+  color: var(--vp-c-text-1);
 }
-.ct-trophy--lg { color: var(--lg-accent); }
+.ct-trophy--lg { color: var(--vp-c-brand-1); }
 .ct-col-package {
   display: flex;
   flex-direction: column;
@@ -344,19 +425,25 @@ function categoryLabel(id: string): string {
   border-radius: 999px;
   flex: none;
 }
-.ct-mark--yes      { background-color: var(--lg-accent); color: var(--lg-bg); }
-.ct-mark--partial  { background-color: var(--lg-accent-2-soft); color: var(--lg-bg); }
-.ct-mark--no       { background-color: rgba(46, 42, 38, 0.12); color: var(--lg-text-muted); }
+.ct-mark--yes      { background-color: var(--vp-c-brand-1); color: #fff; }
+.ct-mark--partial  { background-color: var(--vp-c-brand-soft); color: var(--vp-c-brand-1); }
+.ct-mark--no       { background-color: var(--vp-c-bg-alt); color: var(--vp-c-text-2); }
+.ct-mark--unknown  {
+  background-color: transparent;
+  border: 1px dashed var(--vp-c-divider);
+  color: var(--vp-c-text-3);
+}
+.ct-mark--inline { width: 18px; height: 18px; vertical-align: middle; }
 .ct-note {
   font-size: 0.82rem;
-  color: var(--lg-text-muted);
+  color: var(--vp-c-text-2);
   line-height: 1.35;
 }
 
 .ct-col-cat {
   font-size: 0.82rem;
-  color: var(--lg-text-muted);
-  font-family: var(--lg-font-mono);
+  color: var(--vp-c-text-2);
+  font-family: var(--vp-font-family-mono);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -364,21 +451,32 @@ function categoryLabel(id: string): string {
 .ct-empty {
   padding: 2rem;
   text-align: center;
-  color: var(--lg-text-muted);
+  color: var(--vp-c-text-2);
 }
+
+.ct-sources {
+  margin-top: 0.9rem;
+  font-size: 0.82rem;
+  color: var(--vp-c-text-2);
+  line-height: 1.5;
+}
+.ct-sources p { margin: 0.35rem 0; }
+.ct-sources a { color: var(--vp-c-brand-1); }
+.ct-src-date { color: var(--vp-c-text-3); }
 
 @media (max-width: 800px) {
   .ct-row {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     grid-template-areas:
-      'feature feature'
-      'lasagna stancl'
-      'cat     cat';
+      'feature feature feature'
+      'lasagna stancl nestjs'
+      'cat     cat    cat';
   }
   .ct-row--head { display: none; }
   .ct-col-feature { grid-area: feature; }
   .ct-col-package:nth-of-type(2) { grid-area: lasagna; }
   .ct-col-package:nth-of-type(3) { grid-area: stancl; }
+  .ct-col-package:nth-of-type(4) { grid-area: nestjs; }
   .ct-col-cat { grid-area: cat; }
 }
 </style>

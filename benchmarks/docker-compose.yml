@@ -1,0 +1,38 @@
+# Dedicated, throwaway services for the benchmark suite ONLY.
+#
+# Deliberately on non-default host ports + a dedicated DB name so a `docker
+# compose up` here never collides with the integration suite (postgres 5432 /
+# multitenancy_test), the demo e2e suite (postgres 55432 / lasagna_demo), or a
+# stock local Postgres on 5432.
+#
+# The Postgres tuning in postgres.bench.conf (fsync=off, raised max_connections)
+# trades durability for throughput. That is acceptable here precisely because
+# this database is disposable bench scratch space and nothing else. Never point
+# a real or shared database at this config.
+services:
+  postgres:
+    image: postgres:16-alpine
+    command: ['postgres', '-c', 'config_file=/etc/postgresql/postgresql.conf']
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lasagna_bench
+    ports:
+      - '5544:5432'
+    volumes:
+      - ./postgres.bench.conf:/etc/postgresql/postgresql.conf:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d lasagna_bench']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6390:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 3s
+      timeout: 3s
+      retries: 20

@@ -1,0 +1,32 @@
+{
+  "commands": [
+    {
+      "commandName": "example:widget:list",
+      "description": "List a tenant's example widgets (satellite template demo)",
+      "help": "",
+      "namespace": "example",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "json",
+          "flagName": "json",
+          "required": false,
+          "type": "boolean",
+          "description": "Emit JSON instead of a table"
+        }
+      ],
+      "args": [
+        {
+          "name": "tenantId",
+          "argumentName": "tenant-id",
+          "required": true,
+          "description": "Tenant id",
+          "type": "string"
+        }
+      ],
+      "options": { "startApp": true },
+      "filePath": "example_widget_list.js"
+    }
+  ],
+  "version": 1
+}

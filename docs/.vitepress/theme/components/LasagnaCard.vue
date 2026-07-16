@@ -1,12 +1,12 @@
 <script setup lang="ts">
 /**
- * The base surface element. Variants:
+ * Simple surface card used on the marketing pages (why / showcase / sponsor).
+ * Variants tweak the top accent; styling uses VitePress tokens so it tracks
+ * the active theme.
  *
- *  - `default`: thin top wave, neutral surface.
- *  - `accent`: terracotta wave + tinted background.
- *  - `feature`: larger wave, slightly elevated, used on landing pages.
- *
- * Authors typically pass body content + an optional `<template #title>`.
+ *  - `default`: neutral top border.
+ *  - `accent`:  terracotta top border.
+ *  - `feature`: thicker terracotta top border, for landing pages.
  */
 withDefaults(
   defineProps<{
@@ -30,43 +30,27 @@ withDefaults(
 
 <style scoped>
 .lg-card {
-  background-color: var(--lg-surface);
-  border: 1px solid var(--lg-line);
+  background-color: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-top: 3px solid var(--vp-c-divider);
   border-radius: 12px;
-  box-shadow: var(--lg-shadow-card);
-  position: relative;
-  overflow: hidden;
   margin: 1rem 0;
 }
-.lg-card::before {
-  content: '';
-  display: block;
-  height: 6px;
-  background: linear-gradient(
-    90deg,
-    var(--lg-accent) 0%,
-    var(--lg-accent-2) 50%,
-    var(--lg-accent) 100%
-  );
-  -webkit-mask: url('../assets/patterns/wave.svg') repeat-x center / 24px 6px;
-          mask: url('../assets/patterns/wave.svg') repeat-x center / 24px 6px;
-}
 .lg-card--accent {
-  background-color: rgba(194, 106, 75, 0.04);
-  border-color: var(--lg-accent-soft);
+  border-top-color: var(--vp-c-brand-1);
 }
-.lg-card--feature::before {
-  height: 10px;
+.lg-card--feature {
+  border-top-width: 4px;
+  border-top-color: var(--vp-c-brand-1);
 }
 .lg-card__body {
   padding: 1.25rem 1.5rem 1.5rem;
 }
 .lg-card__title {
-  font-family: var(--lg-font-serif);
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: 600;
   margin: 0 0 0.5rem;
-  color: var(--lg-text);
+  color: var(--vp-c-text-1);
 }
 .lg-card__title:first-child {
   margin-top: 0;

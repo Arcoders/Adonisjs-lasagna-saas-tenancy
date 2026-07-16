@@ -1,0 +1,93 @@
+import { BaseCommand, args, flags } from '@adonisjs/core/ace'
+import type { CommandOptions } from '@adonisjs/core/types/ace'
+import app from '@adonisjs/core/services/app'
+import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
+import ImpersonationService from '../services/impersonation_service.js'
+import CrossDomainRedirectService from '../services/cross_domain_redirect_service.js'
+
+export default class TenantImpersonate extends BaseCommand {
+  static readonly commandName = 'tenant:impersonate'
+  static readonly description =
+    'Issue an admin impersonation token for a target user inside a tenant'
+  static readonly options: CommandOptions = { startApp: true }
+
+  @args.string({ description: 'Tenant ID' })
+  declare tenantId: string
+
+  @args.string({ description: 'Target user ID inside the tenant' })
+  declare userId: string
+
+  @flags.string({ description: 'Acting admin id (free-form, recorded in the audit log)' })
+  declare admin: string
+
+  @flags.number({ description: 'Session duration in seconds (default 900)' })
+  declare duration: number
+
+  @flags.string({ description: 'Optional reason recorded in the audit trail' })
+  declare reason: string
+
+  @flags.string({
+    description: 'Path to embed in the printed redirect URL (default /)',
+  })
+  declare path: string
+
+  @flags.boolean({
+    description:
+      'Also print the raw impersonation token (a live credential). Off by default so ' +
+      'it does not linger in terminal scrollback / CI logs; the redirect URL already ' +
+      'carries it for the operator to use.',
+  })
+  declare showToken: boolean
+
+  async run() {
+    const repo = await resolveTenantRepository()
+
+    try {
+      const tenant = await repo.findByIdOrFail(this.tenantId)
+      const svc = await app.container.make(ImpersonationService)
+      const result = await svc.start({
+        tenantId: tenant.id,
+        targetUserId: this.userId,
+        adminId: this.admin ?? 'cli',
+        adminType: 'admin',
+        durationSeconds: this.duration,
+        reason: this.reason ?? null,
+      })
+
+      const redirect = await app.container.make(CrossDomainRedirectService)
+      const path = this.path ?? '/'
+      const sep = path.includes('?') ? '&' : '?'
+      const url = redirect.toTenant(tenant, `${path}${sep}__impersonate=${result.token}`)
+
+      this.logger.success(`Impersonation token issued for tenant "${tenant.name}".`)
+      // A live impersonation token is a bearer credential. Do not splatter the raw
+      // value across the terminal by default (scrollback, CI job logs, screen shares);
+      // print a short fingerprint for audit correlation and reveal the full token only
+      // when the operator explicitly opts in with --show-token. The redirect URL below
+      // still carries it because that is the artifact the operator uses to sign in.
+      if (this.showToken) {
+        this.logger.info(`token:      ${result.token}`)
+      } else {
+        this.logger.info(
+          `token:      ${maskToken(result.token)} (pass --show-token to reveal the raw token)`
+        )
+      }
+      this.logger.info(`session id: ${result.sessionId}`)
+      this.logger.info(`expires:    ${new Date(result.expiresAt).toISOString()}`)
+      this.logger.info(`url:        ${url}`)
+    } catch (error) {
+      this.logger.error(`Failed to issue impersonation token: ${error.message}`)
+      this.exitCode = 1
+    }
+  }
+}
+
+/**
+ * Reduce a live token to a short, non-reversible fingerprint for logs: the leading
+ * session-id segment plus a length hint, never the HMAC signature. Enough to
+ * correlate with the audit trail without leaving a usable credential on screen.
+ */
+function maskToken(token: string): string {
+  const head = token.slice(0, 8)
+  return `${head}…(${token.length} chars)`
+}

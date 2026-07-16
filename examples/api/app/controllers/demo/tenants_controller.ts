@@ -1,11 +1,15 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { inject } from '@adonisjs/core'
 import TenantsService from '#app/services/tenants_service'
-import { createTenantValidator } from '#app/validators/tenants_validator'
+import {
+  createTenantValidator,
+  destroyTenantQueryValidator,
+} from '#app/validators/tenants_validator'
+import { currentTenant } from '#app/helpers/current_tenant'
 
 /**
- * A friendlier façade over the package's admin endpoints — uses the same
- * jobs and lifecycle methods, but exposes simpler shapes for demo curls.
+ * A friendlier façade over the package's admin endpoints. It uses the same jobs
+ * and lifecycle methods, but exposes simpler shapes for demo curls.
  *
  * Lives alongside `multitenancyAdminRoutes()` (mounted at `/admin`) to
  * demonstrate both styles. Real apps usually pick one.
@@ -49,7 +53,8 @@ export default class TenantsController {
    * the retention window). Default queues UninstallTenant which drops it.
    */
   async destroy({ params, request, response }: HttpContext) {
-    if (request.input('keepSchema') === 'true') {
+    const { keepSchema } = await request.validateUsing(destroyTenantQueryValidator)
+    if (keepSchema) {
       const tenant = await this.tenants.softDelete(params.id)
       return response.ok({
         id: tenant.id,
@@ -63,7 +68,7 @@ export default class TenantsController {
 
   /** Schema-isolation probe: returns the tenant's named connection. */
   async connection({ request, response }: HttpContext) {
-    const tenant = await request.tenant()
+    const tenant = await currentTenant(request)
     return response.ok({
       tenantId: tenant.id,
       connectionName: tenant.getConnection().connectionName,

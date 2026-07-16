@@ -1,0 +1,109 @@
+import { Job } from '@adonisjs/queue'
+import logger from '@adonisjs/core/services/logger'
+import { DateTime } from 'luxon'
+import BillingProcessedEvent from '../models/satellites/billing_processed_event.js'
+import BillingUsageEvent from '../models/satellites/billing_usage_event.js'
+import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
+
+/**
+ * Core cleanup routine. Reused by the queue job AND the `billing_cleanup`
+ * ace command. Keeping the logic outside `Job.execute()` lets the
+ * command instantiate it directly without the `payload` setter dance.
+ *
+ * Idempotent: runs in batches and re-queries each loop, so concurrent
+ * runs of the same retention sweep never delete the same row twice.
+ *
+ * Prunes:
+ *   - `billing_processed_events` with `status='completed'` older than TTL
+ *     (the provider's max retry window, so older events can never legitimately
+ *     be re-delivered)
+ *   - `billing_usage_events` with `status='sent'` older than TTL
+ *     (already accepted by the provider; the audit row was useful while
+ *     reportedAt was null. `failed` and `pending` rows are NOT
+ *     auto-pruned. They're operator concerns surfaced by
+ *     `billing_doctor`)
+ */
+export async function runBillingCleanup(opts: { batchSize?: number } = {}): Promise<{
+  deleted: number
+  meterDeleted: number
+  cutoff: string
+}> {
+  const cfg = getConfig().billing
+  const ttlDays = cfg?.webhook?.idempotencyTtlDays ?? 90
+  const cutoff = DateTime.utc().minus({ days: ttlDays })
+  const batchSize = opts.batchSize ?? 1000
+
+  let totalDeleted = 0
+  while (true) {
+    // backoffice-scope-exempt: a global maintenance sweep reclaiming expired idempotency rows across ALL tenants by TTL, never a per-tenant read.
+    const ids = await BillingProcessedEvent.query()
+      .where('status', 'completed')
+      .where('processedAt', '<', cutoff.toSQL()!)
+      .limit(batchSize)
+      .select('eventId')
+
+    if (ids.length === 0) break
+
+    // backoffice-scope-exempt: deletes the just-selected expired rows (batched by id).
+    await BillingProcessedEvent.query()
+      .whereIn(
+        'eventId',
+        ids.map((r) => r.eventId)
+      )
+      .delete()
+    totalDeleted += ids.length
+    if (ids.length < batchSize) break
+  }
+
+  let totalMeterDeleted = 0
+  while (true) {
+    // backoffice-scope-exempt: a global maintenance sweep reclaiming expired usage rows across ALL tenants by TTL, never a per-tenant read.
+    const meterIds = await BillingUsageEvent.query()
+      .where('status', 'sent')
+      .where('reportedAt', '<', cutoff.toSQL()!)
+      .limit(batchSize)
+      .select('id')
+
+    if (meterIds.length === 0) break
+
+    // backoffice-scope-exempt: deletes the just-selected expired rows (batched by id).
+    await BillingUsageEvent.query()
+      .whereIn(
+        'id',
+        meterIds.map((r) => r.id)
+      )
+      .delete()
+    totalMeterDeleted += meterIds.length
+    if (meterIds.length < batchSize) break
+  }
+
+  logger.info(
+    {
+      deleted: totalDeleted,
+      meter_deleted: totalMeterDeleted,
+      cutoff: cutoff.toISO(),
+    },
+    'billing.cleanup.completed'
+  )
+  return {
+    deleted: totalDeleted,
+    meterDeleted: totalMeterDeleted,
+    cutoff: cutoff.toISO()!,
+  }
+}
+
+/**
+ * Purges `billing_processed_events` rows whose `status='completed'` and
+ * `processed_at` is older than the configured retention window
+ * (default 90 days, which matches the provider's max retry window, so older events
+ * can never legitimately be re-delivered).
+ *
+ * Idempotent. Safe to run on a daily cron via `tenant:billing:cleanup`.
+ */
+export default class BillingCleanupJob extends Job<{ batchSize?: number }> {
+  static options = { name: 'lasagna.BillingCleanupJob' }
+
+  async execute(): Promise<void> {
+    await runBillingCleanup(this.payload ?? {})
+  }
+}

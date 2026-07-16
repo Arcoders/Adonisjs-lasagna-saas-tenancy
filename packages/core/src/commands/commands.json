@@ -1,0 +1,551 @@
+{
+  "commands": [
+    {
+      "commandName": "backoffice:setup",
+      "description": "Create backoffice schema in database",
+      "help": "",
+      "namespace": "backoffice",
+      "aliases": [],
+      "flags": [],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "setup_backoffice.js"
+    },
+    {
+      "commandName": "tenant:list",
+      "description": "List all tenants with their current status",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "all", "flagName": "all", "required": false, "type": "boolean", "description": "Include soft-deleted tenants" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "list_tenants.js"
+    },
+    {
+      "commandName": "tenant:create",
+      "description": "Create a new tenant and queue schema provisioning",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id recorded in the audit log (default: system)" }
+      ],
+      "args": [
+        { "name": "name", "argumentName": "name", "required": true, "description": "Tenant name", "type": "string" },
+        { "name": "email", "argumentName": "email", "required": true, "description": "Tenant contact email", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "create_tenant.js"
+    },
+    {
+      "commandName": "tenant:activate",
+      "description": "Activate a suspended or failed tenant",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id recorded in the audit log (default: system)" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to activate", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "activate_tenant.js"
+    },
+    {
+      "commandName": "tenant:suspend",
+      "description": "Suspend a tenant (blocks all API access)",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id recorded in the audit log (default: system)" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to suspend", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "suspend_tenant.js"
+    },
+    {
+      "commandName": "tenant:destroy",
+      "description": "Soft-delete a tenant and tear down its schema",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "alias": "y", "description": "Skip confirmation prompt" },
+        { "name": "keepSchema", "flagName": "keep-schema", "required": false, "type": "boolean", "description": "Soft-delete only — preserve the tenant schema for the retention window" },
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id recorded in the audit log (default: system)" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to destroy", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "destroy_tenant.js"
+    },
+    {
+      "commandName": "migration:tenant:run",
+      "description": "Migrate the tenant schema",
+      "help": "",
+      "namespace": "migration",
+      "aliases": [],
+      "flags": [
+        { "name": "tenantsIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant(s) id(s) to migrate" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "View SQL without running" },
+        { "name": "disableLocks", "flagName": "disable-locks", "required": false, "type": "boolean", "description": "Disable migration locks" },
+        { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Verbose output" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "run_tenant_migrations.js"
+    },
+    {
+      "commandName": "migration:tenant:rollback",
+      "description": "Rollback the last tenant migration",
+      "help": "",
+      "namespace": "migration",
+      "aliases": [],
+      "flags": [
+        { "name": "tenantsIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant(s) id(s) to rollback" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "View SQL without running" },
+        { "name": "disableLocks", "flagName": "disable-locks", "required": false, "type": "boolean", "description": "Disable migration locks" },
+        { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Verbose output" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "rollback_tenant_migrations.js"
+    },
+    {
+      "commandName": "tenant:migrate",
+      "description": "Run migrations for one or all tenant schemas (alias for migration:tenant:run)",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenantsIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant ID(s) to migrate" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Print SQL without executing" },
+        { "name": "disableLocks", "flagName": "disable-locks", "required": false, "type": "boolean", "description": "Disable migration locks" },
+        { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Verbose output" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_migrate.js"
+    },
+    {
+      "commandName": "tenant:migrate:rollback",
+      "description": "Rollback last migration for one or all tenant schemas",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenantsIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant ID(s) to rollback" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Print SQL without executing" },
+        { "name": "disableLocks", "flagName": "disable-locks", "required": false, "type": "boolean", "description": "Disable migration locks" },
+        { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Verbose output" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_migrate_rollback.js"
+    },
+    {
+      "commandName": "tenant:migrate:fresh",
+      "description": "Drop and recreate per-tenant storage, then re-run migrations. DESTRUCTIVE.",
+      "help": "Use --force to skip the confirmation prompt. Use --seed to run db:seed after migrations.",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenantsIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant ID(s) to refresh. Omit to refresh every tenant" },
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "alias": "y", "description": "Skip the confirmation prompt" },
+        { "name": "seed", "flagName": "seed", "required": false, "type": "boolean", "description": "Run seeders after migrations finish for each tenant" },
+        { "name": "disableLocks", "flagName": "disable-locks", "required": false, "type": "boolean", "description": "Disable migration locks" },
+        { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Verbose output" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_migrate_fresh.js"
+    },
+    {
+      "commandName": "tenant:queue:stats",
+      "description": "Show BullMQ queue statistics for one or all tenant queues",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenant", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Filter by tenant ID(s)" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_queue_stats.js"
+    },
+    {
+      "commandName": "tenant:webhooks:retry",
+      "description": "Process pending webhook retries for all tenants",
+      "help": "Run this every minute via cron: * * * * * node ace tenant:webhooks:retry",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_webhooks_retry.js"
+    },
+    {
+      "commandName": "tenant:secrets:reencrypt",
+      "description": "Re-encrypt stored secrets after an APP_KEY rotation (reads the previous key from OLD_APP_KEY)",
+      "help": "OLD_APP_KEY=<previous key> node ace tenant:secrets:reencrypt — APP_KEY must already hold the new key. Idempotent; use --dry-run first.",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report what would be re-encrypted without writing" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_secrets_reencrypt.js"
+    },
+    {
+      "commandName": "tenant:vector:provision",
+      "description": "Install the pgvector extension under the privileged provisioning connection (per tenant database on database-pg, once on the shared database otherwise)",
+      "help": "Run before any embeddings migration: node ace tenant:vector:provision. Idempotent; use --dry-run first. Needs a privileged connection (isolation.provisionConnectionName).",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report what would be provisioned without running CREATE EXTENSION" },
+        { "name": "tenantIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant id(s) to provision (database-pg only). If omitted, all tenants" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_vector_provision.js"
+    },
+    {
+      "commandName": "tenant:webhooks:encrypt-secrets",
+      "description": "Encrypt any plaintext webhook signing secrets at rest (one-time upgrade; idempotent)",
+      "help": "Run once after upgrading to fail-closed webhook signing: node ace tenant:webhooks:encrypt-secrets. Idempotent; use --dry-run first.",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report what would be encrypted without writing" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_webhooks_encrypt_secrets.js"
+    },
+    {
+      "commandName": "tenant:metrics:flush",
+      "description": "Flush Redis metric counters to the database for all tenants",
+      "help": "Run daily via cron: 0 1 * * * node ace tenant:metrics:flush",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [],
+      "args": [
+        { "name": "period", "argumentName": "period", "required": false, "description": "Period to flush (YYYY-MM-DD). Defaults to today (UTC)", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_metrics_flush.js"
+    },
+    {
+      "commandName": "tenant:metrics:rollup",
+      "description": "Recompute the per-tenant monthly rollup of tenant_metrics (for fast whole-month reporting)",
+      "help": "Idempotent; run after a month closes, e.g. 0 2 1 * * node ace tenant:metrics:rollup",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "since", "flagName": "since", "required": false, "type": "string", "description": "Start date (ISO YYYY-MM-DD). Default: the first recorded metric" },
+        { "name": "until", "flagName": "until", "required": false, "type": "string", "description": "End date (ISO YYYY-MM-DD). Default: the end of the last completed month" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_metrics_rollup.js"
+    },
+    {
+      "commandName": "tenant:feature-flag:set",
+      "description": "Create or update a tenant feature flag",
+      "help": "Requires Redis (invalidates the shared cache). Example: node ace tenant:feature-flag:set <id> beta true --config='{\"rollout\":25}' --expires-at=2026-12-31T23:59:59Z",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "config", "flagName": "config", "required": false, "type": "string", "description": "Optional JSON object stored alongside the flag" },
+        { "name": "expiresAt", "flagName": "expires-at", "required": false, "type": "string", "description": "Optional ISO 8601 instant after which the flag evaluates as disabled" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID", "type": "string" },
+        { "name": "flag", "argumentName": "flag", "required": true, "description": "Flag name", "type": "string" },
+        { "name": "enabled", "argumentName": "enabled", "required": true, "description": "Enabled state: true|false (also accepts 1|0)", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_feature_flag_set.js"
+    },
+    {
+      "commandName": "tenant:feature-flag:get",
+      "description": "Print one tenant feature flag as JSON (null when unset)",
+      "help": "Reads the database directly. Example: node ace tenant:feature-flag:get <id> beta",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID", "type": "string" },
+        { "name": "flag", "argumentName": "flag", "required": true, "description": "Flag name", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_feature_flag_get.js"
+    },
+    {
+      "commandName": "tenant:feature-flag:list",
+      "description": "List all feature flags for a tenant",
+      "help": "Reads the database directly. Use --json for a machine-readable array.",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit a JSON array instead of a table" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_feature_flag_list.js"
+    },
+    {
+      "commandName": "tenant:feature-flag:delete",
+      "description": "Delete a tenant feature flag",
+      "help": "Requires Redis (invalidates the shared cache). Prompts unless --force.",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "description": "Skip the confirmation prompt" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID", "type": "string" },
+        { "name": "flag", "argumentName": "flag", "required": true, "description": "Flag name", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_feature_flag_delete.js"
+    },
+    {
+      "commandName": "tenant:doctor",
+      "description": "Diagnose tenancy state — schema drift, migrations, circuits, queues, backups, stalled provisioning, failed tenants",
+      "help": "Use --check=list to list available checks. Use --fix to auto-repair fixable issues.",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenant", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Limit checks to one or more tenant IDs" },
+        { "name": "check", "flagName": "check", "required": false, "type": "array", "description": "Run only the named check(s); pass --check=list to print available checks" },
+        { "name": "fix", "flagName": "fix", "required": false, "type": "boolean", "description": "Apply auto-fix for fixable issues" },
+        { "name": "interactive", "flagName": "interactive", "required": false, "type": "boolean", "alias": "i", "description": "With --fix, confirm before fixing each check" },
+        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit a JSON report on stdout instead of the table" },
+        { "name": "watch", "flagName": "watch", "required": false, "type": "boolean", "alias": "w", "description": "Re-run continuously and redraw a compact dashboard every --interval ms" },
+        { "name": "interval", "flagName": "interval", "required": false, "type": "number", "description": "Refresh interval in ms when --watch is set (default 5000, min 1000)" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_doctor.js"
+    },
+    {
+      "commandName": "tenant:seed",
+      "description": "Run Lucid seeders against one or more tenant schemas (delegates to db:seed per tenant)",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenant", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant ID(s) to seed; omit to seed every active tenant" },
+        { "name": "files", "flagName": "files", "required": false, "type": "array", "alias": "f", "description": "Cherry-pick seeder file(s) by relative path; passed through to db:seed" },
+        { "name": "continueOnError", "flagName": "continue-on-error", "required": false, "type": "boolean", "description": "Keep seeding remaining tenants when one fails" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_seed.js"
+    },
+    {
+      "commandName": "tenant:repl",
+      "description": "Open a REPL with tenant, db, audit, metrics and the rest of the satellite services preloaded",
+      "help": "",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to load into the REPL context", "type": "string" }
+      ],
+      "options": { "startApp": true, "staysAlive": true },
+      "filePath": "tenant_repl.js"
+    },
+    {
+      "commandName": "tenant:exec",
+      "description": "Run any ace command inside one or more tenant contexts",
+      "help": "Examples: node ace tenant:exec list:routes; node ace tenant:exec --tenant=abc make:migration users; node ace tenant:exec --status=active db:seed",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenantsIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant ID(s) to target. Omit to iterate every tenant" },
+        { "name": "statuses", "flagName": "status", "required": false, "type": "array", "description": "Filter by status (active|provisioning|suspended|failed|deleted)" },
+        { "name": "includeDeleted", "flagName": "include-deleted", "required": false, "type": "boolean", "description": "Include soft-deleted tenants in the iteration" },
+        { "name": "limit", "flagName": "limit", "required": false, "type": "number", "description": "Stop after N tenants" },
+        { "name": "batchSize", "flagName": "batch-size", "required": false, "type": "number", "description": "Cursor batch size for whole-population iteration (default 100)" },
+        { "name": "continueOnError", "flagName": "continue-on-error", "required": false, "type": "boolean", "description": "Keep going when a tenant fails" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Print which tenants would run without executing" }
+      ],
+      "args": [
+        { "name": "command", "argumentName": "command", "required": true, "description": "Ace command to run for each tenant", "type": "string" },
+        { "name": "commandArgs", "argumentName": "commandArgs", "required": false, "description": "Arguments and flags forwarded to the inner command", "type": "spread" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_exec.js"
+    },
+    {
+      "commandName": "tenant:maintenance",
+      "description": "Toggle maintenance mode for a tenant (independent of suspended status)",
+      "help": "Examples: node ace tenant:maintenance <id> --message=\"Back at 18:00 UTC\"; node ace tenant:maintenance <id> --off",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "off", "flagName": "off", "required": false, "type": "boolean", "description": "Exit maintenance mode (default: enter)" },
+        { "name": "message", "flagName": "message", "required": false, "type": "string", "description": "Optional message shown in the 503 response" },
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id recorded in the audit log (default: system)" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to toggle", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_maintenance.js"
+    },
+    {
+      "commandName": "tenant:impersonate",
+      "description": "Issue an admin impersonation token for a target user inside a tenant",
+      "help": "Example: node ace tenant:impersonate <tenantId> <userId> --admin=admin-42 --duration=900 --reason=\"support ticket #1234\"",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id (recorded in the audit log)" },
+        { "name": "duration", "flagName": "duration", "required": false, "type": "number", "description": "Session duration in seconds (default 900)" },
+        { "name": "reason", "flagName": "reason", "required": false, "type": "string", "description": "Optional reason recorded in audit trail" },
+        { "name": "path", "flagName": "path", "required": false, "type": "string", "description": "Path embedded in the printed redirect URL (default /)" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID", "type": "string" },
+        { "name": "userId", "argumentName": "userId", "required": true, "description": "Target user ID inside the tenant", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_impersonate.js"
+    },
+    {
+      "commandName": "tenant:purge-expired",
+      "description": "Drop schemas of soft-deleted tenants whose retention window has elapsed. Idempotent — safe to run from cron.",
+      "help": "Suggested cron: 0 3 * * * node ace tenant:purge-expired --force",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "retentionDays", "flagName": "retention-days", "required": false, "type": "number", "description": "Override config.softDelete.retentionDays for this run" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Report what would be purged without dropping anything" },
+        { "name": "includeOrphans", "flagName": "include-orphans", "required": false, "type": "boolean", "description": "Also drop schemas of soft-deleted tenants still within retention (recovers orphans from a failed tenant:destroy)" },
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "alias": "y", "description": "Skip the confirmation prompt" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_purge_expired.js"
+    },
+    {
+      "commandName": "tenant:reprovision",
+      "description": "Re-run provisioning for a failed or stuck-provisioning tenant",
+      "help": "Example: node ace tenant:reprovision <tenantId> --force",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "alias": "y", "description": "Skip confirmation prompt" },
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id recorded in the audit log (default: system)" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to reprovision", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_reprovision.js"
+    },
+    {
+      "commandName": "tenant:satellite:remove",
+      "description": "Print a safe checklist for removing a packaged satellite (does not auto-edit adonisrc.ts or drop data)",
+      "help": "Example: node ace tenant:satellite:remove @adonisjs-lasagna/billing",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [],
+      "args": [
+        { "name": "package", "argumentName": "package", "required": true, "description": "The satellite package name (or manifest alias) to remove", "type": "string" }
+      ],
+      "options": { "startApp": false },
+      "filePath": "tenant_satellite_remove.js"
+    },
+    {
+      "commandName": "tenant:audit:export",
+      "description": "Export the immutable audit log as JSON or CSV (for auditors / GDPR data access & portability)",
+      "help": "Examples: node ace tenant:audit:export --tenant=<id> --from=2026-01-01 --to=2026-06-30 --format=csv --out=audit.csv",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenant", "flagName": "tenant", "required": false, "type": "string", "description": "Tenant ID to export. Omit to export every tenant (incl. system rows)." },
+        { "name": "from", "flagName": "from", "required": false, "type": "string", "description": "ISO 8601 lower bound on created_at (inclusive)" },
+        { "name": "to", "flagName": "to", "required": false, "type": "string", "description": "ISO 8601 upper bound on created_at (inclusive)" },
+        { "name": "format", "flagName": "format", "required": false, "type": "string", "description": "Output format: json | csv" },
+        { "name": "out", "flagName": "out", "required": false, "type": "string", "description": "Write to this file instead of stdout (overwritten if it exists)" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_audit_export.js"
+    },
+    {
+      "commandName": "tenant:gdpr:anonymize",
+      "description": "Run the host-provided anonymizer for a tenant (GDPR Art.17 erasure-by-anonymization) and record it in the audit log",
+      "help": "Requires config.compliance.anonymize. Example: node ace tenant:gdpr:anonymize <id> --reason=\"DSAR #1234\" --dry-run",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "Invoke the anonymizer in dry-run mode (no writes) and report the count" },
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "alias": "y", "description": "Skip the confirmation prompt" },
+        { "name": "reason", "flagName": "reason", "required": false, "type": "string", "description": "Reason recorded in the audit log (e.g. a DSAR ticket id)" }
+      ],
+      "args": [
+        { "name": "tenantId", "argumentName": "tenantId", "required": true, "description": "Tenant ID to anonymize", "type": "string" }
+      ],
+      "options": { "startApp": true },
+      "filePath": "tenant_gdpr_anonymize.js"
+    },
+    {
+      "commandName": "tenant:compliance:report",
+      "description": "Report compliance posture (SOC2/GDPR/ISO/HIPAA controls) by introspecting config and database state",
+      "help": "Examples: node ace tenant:compliance:report --json; node ace tenant:compliance:report --framework=gdpr --strict; node ace tenant:compliance:report --control=list",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "framework", "flagName": "framework", "required": false, "type": "string", "description": "Filter controls by framework: soc2 | gdpr | iso | hipaa | all (default all)" },
+        { "name": "control", "flagName": "control", "required": false, "type": "array", "description": "Run only the named control(s); pass --control=list to print available controls" },
+        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit a JSON report on stdout instead of the table" },
+        { "name": "strict", "flagName": "strict", "required": false, "type": "boolean", "description": "Exit 1 when any control reports action-needed (for CI gating)" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_compliance_report.js"
+    },
+    {
+      "commandName": "lasagna:health-check",
+      "description": "Supply-chain health check: npm audit of the dependency tree plus install-script and native-addon risk flags for installed satellites",
+      "help": "",
+      "namespace": "lasagna",
+      "aliases": [],
+      "flags": [],
+      "args": [],
+      "options": { "startApp": false },
+      "filePath": "health_check.js"
+    },
+    {
+      "commandName": "plugin:doctor",
+      "description": "Diagnose the installed plugin/satellite platform posture — ABI compatibility, native-addon sandbox risk, the TRUSTED_SATELLITES allowlist, and the read-only firewall",
+      "help": "",
+      "namespace": "plugin",
+      "aliases": [],
+      "flags": [
+        { "name": "json", "flagName": "json", "required": false, "type": "boolean", "description": "Emit a JSON report on stdout instead of the table" }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "plugin_doctor.js"
+    }
+  ],
+  "version": 1
+}

@@ -8,7 +8,16 @@ import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
 
 export class TenantAuditLogSchema extends BaseModel {
-  static $columns = ['action', 'actorId', 'actorType', 'createdAt', 'id', 'ipAddress', 'metadata', 'tenantId'] as const
+  static $columns = [
+    'action',
+    'actorId',
+    'actorType',
+    'createdAt',
+    'id',
+    'ipAddress',
+    'metadata',
+    'tenantId',
+  ] as const
   $columns = TenantAuditLogSchema.$columns
   @column()
   declare action: string
@@ -29,7 +38,18 @@ export class TenantAuditLogSchema extends BaseModel {
 }
 
 export class TenantBrandingSchema extends BaseModel {
-  static $columns = ['createdAt', 'emailFooter', 'fromEmail', 'fromName', 'id', 'logoUrl', 'primaryColor', 'supportUrl', 'tenantId', 'updatedAt'] as const
+  static $columns = [
+    'createdAt',
+    'emailFooter',
+    'fromEmail',
+    'fromName',
+    'id',
+    'logoUrl',
+    'primaryColor',
+    'supportUrl',
+    'tenantId',
+    'updatedAt',
+  ] as const
   $columns = TenantBrandingSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
@@ -54,7 +74,15 @@ export class TenantBrandingSchema extends BaseModel {
 }
 
 export class TenantFeatureFlagSchema extends BaseModel {
-  static $columns = ['config', 'createdAt', 'enabled', 'flag', 'id', 'tenantId', 'updatedAt'] as const
+  static $columns = [
+    'config',
+    'createdAt',
+    'enabled',
+    'flag',
+    'id',
+    'tenantId',
+    'updatedAt',
+  ] as const
   $columns = TenantFeatureFlagSchema.$columns
   @column()
   declare config: any | null
@@ -73,7 +101,15 @@ export class TenantFeatureFlagSchema extends BaseModel {
 }
 
 export class TenantMetricSchema extends BaseModel {
-  static $columns = ['bandwidthBytes', 'createdAt', 'errorCount', 'id', 'period', 'requestCount', 'tenantId'] as const
+  static $columns = [
+    'bandwidthBytes',
+    'createdAt',
+    'errorCount',
+    'id',
+    'period',
+    'requestCount',
+    'tenantId',
+  ] as const
   $columns = TenantMetricSchema.$columns
   @column()
   declare bandwidthBytes: bigint | number
@@ -92,7 +128,19 @@ export class TenantMetricSchema extends BaseModel {
 }
 
 export class TenantSsoConfigSchema extends BaseModel {
-  static $columns = ['clientId', 'clientSecret', 'createdAt', 'enabled', 'id', 'issuerUrl', 'provider', 'redirectUri', 'scopes', 'tenantId', 'updatedAt'] as const
+  static $columns = [
+    'clientId',
+    'clientSecret',
+    'createdAt',
+    'enabled',
+    'id',
+    'issuerUrl',
+    'provider',
+    'redirectUri',
+    'scopes',
+    'tenantId',
+    'updatedAt',
+  ] as const
   $columns = TenantSsoConfigSchema.$columns
   @column()
   declare clientId: string
@@ -119,7 +167,18 @@ export class TenantSsoConfigSchema extends BaseModel {
 }
 
 export class TenantWebhookDeliverySchema extends BaseModel {
-  static $columns = ['attempt', 'createdAt', 'event', 'id', 'nextRetryAt', 'payload', 'responseBody', 'status', 'statusCode', 'webhookId'] as const
+  static $columns = [
+    'attempt',
+    'createdAt',
+    'event',
+    'id',
+    'nextRetryAt',
+    'payload',
+    'responseBody',
+    'status',
+    'statusCode',
+    'webhookId',
+  ] as const
   $columns = TenantWebhookDeliverySchema.$columns
   @column()
   declare attempt: number
@@ -144,7 +203,16 @@ export class TenantWebhookDeliverySchema extends BaseModel {
 }
 
 export class TenantWebhookSchema extends BaseModel {
-  static $columns = ['createdAt', 'enabled', 'events', 'id', 'secret', 'tenantId', 'updatedAt', 'url'] as const
+  static $columns = [
+    'createdAt',
+    'enabled',
+    'events',
+    'id',
+    'secret',
+    'tenantId',
+    'updatedAt',
+    'url',
+  ] as const
   $columns = TenantWebhookSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
@@ -165,7 +233,17 @@ export class TenantWebhookSchema extends BaseModel {
 }
 
 export class TenantSchema extends BaseModel {
-  static $columns = ['createdAt', 'customDomain', 'deletedAt', 'email', 'id', 'metadata', 'name', 'status', 'updatedAt'] as const
+  static $columns = [
+    'createdAt',
+    'customDomain',
+    'deletedAt',
+    'email',
+    'id',
+    'metadata',
+    'name',
+    'status',
+    'updatedAt',
+  ] as const
   $columns = TenantSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime

@@ -1,8 +1,10 @@
 # Contributing
 
-Hey, thanks for thinking about contributing! This package is a community effort and we genuinely appreciate every issue, suggestion, and pull request that comes in. Whether you're fixing a typo or adding a whole new feature, you're helping make multi-tenancy on AdonisJS a little bit better for everyone.
+Hey, thanks for thinking about contributing. Issues, suggestions, and pull requests are all welcome, whether it's a one-line typo fix or a whole new feature.
 
-This guide walks you through getting set up, making your changes, and getting them merged. If anything here is unclear or out of date, please open an issue and let us know.
+This guide covers getting set up, making changes, and getting them merged. If anything here is unclear or out of date, open an issue.
+
+By participating, you agree to abide by the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ---
 
@@ -68,14 +70,46 @@ export CACHE_REDIS_HOST=127.0.0.1 CACHE_REDIS_PORT=6379 CACHE_REDIS_DB=2
 export APP_KEY=a-32-character-long-secret-key!! HOST=127.0.0.1 PORT=3333 LOG_LEVEL=error TENANT_HEADER_KEY=x-tenant-id
 ```
 
-Before pushing, also run:
+### Checks CI will run
+
+Run these before pushing — CI runs all of them and a PR cannot merge until they
+pass, so saving yourself the round-trip helps:
 
 ```bash
-npm run typecheck    # confirms TypeScript is happy
+npm run lint         # ESLint + Prettier (prettier/prettier is an error, not a warning)
+npm run typecheck    # tsc --noEmit across every workspace (run npm run build:all first)
 npm run build        # confirms the package compiles cleanly
+npm test             # unit suite
+npm run knip:deps    # dependency hygiene (run whenever a package.json dep/peer changed)
+npm run test:integrity  # every command, config option, and package is documented
+npm run check        # the fast source-scan gates (stability, positioning, satellite wiring,
+                     #   peer ranges, publish coverage, community health, …)
+npm run check:full   # build:all + check + the doc code-fence gate + a full typecheck in one
+                     #   pass — the build-dependent gates `npm run check` cannot run on its own
 ```
 
-CI will run all three, so saving yourself the round-trip helps.
+`npm run lint` is **required**, not optional: `prettier/prettier` is configured
+as an ESLint error, so an unformatted file fails CI.
+
+#### Gates that need a build or external services
+
+A few CI gates are not in `npm run check` because they need a build or live
+services. `npm run check:full` covers the build-dependent ones (the doc code-fence
+gate and a full typecheck). The rest need infrastructure and are worth running when
+you touch the relevant code:
+
+```bash
+npm run test:docs-code              # type-checks every docs/ code fence (needs build:all)
+npm run test:integration:coverage   # integration suite (needs Postgres + Redis)
+BENCH_DRIVER=schema-pg npm run bench:isolation   # tenant-isolation assertion + error-rate ceiling
+```
+
+Run `npm run bench:isolation` (per driver: `schema-pg` / `database-pg` /
+`rowscope-pg`) whenever you change tenant isolation, connection handling, request
+middleware, or the circuit breaker. It boots a real fixture server, fires
+concurrent cross-tenant reads, and fails if any read leaks or more than 5% of
+requests error. It needs the throwaway stack in `benchmarks/docker-compose.yml`
+(`docker compose -f benchmarks/docker-compose.yml up -d`).
 
 ---
 
@@ -83,8 +117,8 @@ CI will run all three, so saving yourself the round-trip helps.
 
 We try to keep things simple:
 
-- **TypeScript everywhere.** All source code lives in `src/`. Tests in `tests/`.
-- **Follow the existing style.** ESLint and Prettier are set up. Run `npm run lint` if you want to check, or just let your editor's Prettier plugin handle it on save.
+- **TypeScript everywhere.** This is an npm-workspaces monorepo: the core package lives in `packages/core/` (source in `packages/core/src/`, tests in `packages/core/tests/`) and each satellite in `packages/<name>/`. The reference app is `examples/api/`.
+- **Follow the existing style.** ESLint and Prettier are set up. Run `npm run lint` before pushing — `prettier/prettier` is an ESLint error, so an unformatted file fails CI (it is not optional). Your editor's Prettier-on-save keeps it green as you go.
 - **Naming.** Files are `snake_case.ts`. Classes are `PascalCase`. Functions and variables are `camelCase`.
 - **Add tests for what you change.** Bug fixes deserve a regression test. New features need their own tests covering the happy path and obvious edge cases.
 - **Keep it focused.** One PR should do one thing. If you find yourself fixing five unrelated issues, please split them into separate PRs.
@@ -117,9 +151,28 @@ That's the whole process. Don't overthink it.
 
 ---
 
+## Releasing (Changesets)
+
+Releases are automated with [Changesets](https://github.com/changesets/changesets). You never
+hand-bump a version or edit a `CHANGELOG.md`.
+
+- **When you change published behaviour** of any package (the core or a satellite), run
+  `npx changeset`, pick the affected package(s) and bump level, and commit the generated file
+  with your PR. Docs/CI-only changes don't need one.
+- **On merge to `master`**, [`release.yml`](.github/workflows/release.yml) either opens a
+  "version packages" PR (when changesets are pending) or, when none are pending, runs
+  `changeset publish` to ship any package whose version isn't on npm yet. Publishing is
+  idempotent and happens in dependency order (core before its satellites).
+- **Prereleases:** `npx changeset pre enter next`, land changesets, then
+  `npx changeset pre exit` — these publish under the `next` dist-tag.
+- [`publish.yml`](.github/workflows/publish.yml) is a manual break-glass fallback
+  (`workflow_dispatch`) for recovering a partial publish; don't use it for normal releases.
+
+---
+
 ## A note on scope
 
-This package focuses on schema-based multi-tenancy for AdonisJS with PostgreSQL. We're cautious about adding features that drift from that scope (for example, supporting other databases, building general SaaS billing tools, or auth flows beyond SSO). If you're not sure whether your idea fits, open an issue first and we can talk it through.
+This package focuses on schema-based multi-tenancy for AdonisJS with PostgreSQL. By design it supports only PostgreSQL and only AdonisJS, and we're cautious about adding features that drift from that scope (for example, supporting other databases or non-AdonisJS frameworks, building general SaaS billing tools, or auth flows beyond SSO). If you're not sure whether your idea fits, open an issue first and we can talk it through.
 
 ---
 

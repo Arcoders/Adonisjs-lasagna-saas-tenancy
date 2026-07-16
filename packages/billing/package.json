@@ -1,0 +1,96 @@
+{
+  "name": "@adonisjs-lasagna/billing",
+  "version": "0.1.0",
+  "description": "Multi-provider billing for @adonisjs-lasagna/saas-tenancy: Stripe, Paddle & Lemon Squeezy drivers behind one contract — webhook pipeline, subscriptions, metered usage, dunning, and the billing ace commands",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy.git",
+    "directory": "packages/billing"
+  },
+  "bugs": {
+    "url": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "saas-tenancy",
+    "multitenancy",
+    "billing",
+    "payments",
+    "stripe",
+    "paddle",
+    "lemonsqueezy"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build",
+    "stubs"
+  ],
+  "exports": {
+    ".": "./build/src/index.js",
+    "./provider": "./build/providers/billing_provider.js",
+    "./commands": "./build/src/commands/main.js"
+  },
+  "typesVersions": {
+    "*": {
+      "provider": ["./build/providers/billing_provider.d.ts"],
+      "commands": ["./build/src/commands/main.d.ts"]
+    }
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "adonisjs": {
+    "configure": "./build/configure.js",
+    "commands": [
+      "./build/src/commands/main.js"
+    ]
+  },
+  "lasagnaSatellite": {
+    "name": "billing",
+    "satelliteApi": 1,
+    "pluginApiVersion": 1,
+    "minMergedCoverage": { "lines": 86, "functions": 88, "branches": 80 },
+    "aliases": ["billing"],
+    "migrations": "stubs/migrations",
+    "requires": ["quotas"],
+    "provider": "@adonisjs-lasagna/billing/provider",
+    "commands": "@adonisjs-lasagna/billing/commands",
+    "env": ["STRIPE_API_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_API_VERSION"],
+    "install": [
+      "npm install @adonisjs-lasagna/billing",
+      "npm install stripe@^22   # only for the Stripe driver (optional peer)"
+    ],
+    "configSnippet": "ignorePaths: ['/admin', '/api/webhooks', '/health', '/webhooks/billing'],\nbilling: {\n  driver: 'stripe',   // 'stripe' | 'paddle' | 'lemonsqueezy'\n  stripe: {\n    apiKey: env.get('STRIPE_API_KEY'),\n    webhookSecret: env.get('STRIPE_WEBHOOK_SECRET'),\n  },\n  products: { prod_starter: 'starter', prod_pro: 'pro' },  // map provider product/price ids\n  defaultPlan: 'starter',\n},",
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/cookbook/stripe-quotas"
+  },
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/billing-unit tsx bin/test.ts",
+    "test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/billing-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
+    "@adonisjs/core": "^7.0.0",
+    "@adonisjs/lucid": "^22.0.0",
+    "@adonisjs/queue": ">=0.6.0 <1",
+    "@adonisjs/redis": "^10.0.0",
+    "luxon": "^3.0.0",
+    "stripe": "^22.0.0"
+  },
+  "peerDependenciesMeta": {
+    "stripe": {
+      "optional": true
+    }
+  }
+}

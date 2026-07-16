@@ -1,0 +1,10 @@
+{
+  "name": "@mini/widgets",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./build/src/index.js",
+    "./services": "./build/src/services/index.js"
+  }
+}

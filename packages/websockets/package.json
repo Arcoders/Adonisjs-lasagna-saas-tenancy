@@ -1,0 +1,82 @@
+{
+  "name": "@adonisjs-lasagna/websockets",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-tenant WebSockets for @adonisjs-lasagna/saas-tenancy: socket.io with per-tenant handshake resolution, per-event tenant-context binding, and tenant-scoped rooms",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy.git",
+    "directory": "packages/websockets"
+  },
+  "bugs": {
+    "url": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "saas-tenancy",
+    "multitenancy",
+    "websockets",
+    "socket.io",
+    "realtime"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build"
+  ],
+  "exports": {
+    ".": "./build/src/index.js",
+    "./provider": "./build/providers/websockets_provider.js"
+  },
+  "typesVersions": {
+    "*": {
+      "provider": ["./build/providers/websockets_provider.d.ts"]
+    }
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "adonisjs": {
+    "configure": "./build/configure.js"
+  },
+  "lasagnaSatellite": {
+    "name": "websockets",
+    "satelliteApi": 1,
+    "pluginApiVersion": 1,
+    "minMergedCoverage": { "lines": 97, "functions": 95, "branches": 88 },
+    "aliases": ["ws"],
+    "provider": "@adonisjs-lasagna/websockets/provider",
+    "env": [],
+    "install": [
+      "npm install @adonisjs-lasagna/websockets socket.io",
+      "npm install @socket.io/redis-adapter   # only for multi-node fan-out (optional)"
+    ],
+    "configSnippet": "websockets: {\n  path: '/socket.io',\n  cors: { origin: true, credentials: true },\n  handshake: { authKey: 'tenantId' },  // browsers send io(url, { auth: { tenantId } })\n  // authorize(socket, tenant) { /* verify the connecting user belongs to tenant */ return true },\n},",
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/cookbook/multi-tenant-websockets"
+  },
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/websockets-unit tsx bin/test.ts",
+    "test:integration:run": "tsx bin/test.integration.ts",
+    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/websockets-integration tsx bin/test.integration.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
+    "@adonisjs/core": "^7.0.0",
+    "socket.io": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "socket.io": {
+      "optional": true
+    }
+  }
+}

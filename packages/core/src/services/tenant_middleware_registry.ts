@@ -1,0 +1,94 @@
+import type { HttpContext } from '@adonisjs/core/http'
+import type { NextFn } from '@adonisjs/core/types/http'
+import ExtensionRegistry from './extension_registry.js'
+import type { MiddlewareName } from '../sdk/brands.js'
+import PluginMiddlewareException from '../exceptions/plugin_middleware_exception.js'
+
+/**
+ * The tenant-middleware contract version: the shape of {@link TenantMiddlewareEntry}.
+ * Bump as a MAJOR for a backward-incompatible change. INDEPENDENT of `satelliteApi`,
+ * the facade `pluginApiVersion`, and the published version (plan: pluggable
+ * request-path surface gets its own constant).
+ */
+export const TENANT_MIDDLEWARE_CONTRACT_VERSION = 1
+
+/** The three route scopes a plugin middleware can attach to, mirroring the
+ *  `router.tenant() / central() / universal()` helpers. */
+export type TenantMiddlewareScope = 'tenant' | 'central' | 'universal'
+
+/** A middleware handle. Either a bare `(ctx, next)` function or an object with a
+ *  `handle(ctx, next)` method. Neither shape reaches `route.use()` raw: the router
+ *  macros adapt both into the plain-function form the route executor invokes as
+ *  `fn(ctx, next)` (an object would be executed as ParsedNamedMiddleware, whose
+ *  handle receives the container resolver first). */
+export type TenantMiddlewareHandle = (ctx: HttpContext, next: NextFn) => unknown | Promise<unknown>
+export type TenantMiddleware = TenantMiddlewareHandle | { handle: TenantMiddlewareHandle }
+
+/**
+ * A registered tenant middleware. Discriminated by `kind`, all fields
+ * `readonly`. `name` is branded (minted via `middlewareName()`), so a raw string
+ * cannot reach this slot. Runs AFTER the core scope middleware (guard / central /
+ * universal), so `request.tenant()` is already resolved when it executes.
+ */
+export interface TenantMiddlewareEntry {
+  readonly kind: 'middleware'
+  readonly name: MiddlewareName
+  readonly middleware: TenantMiddleware
+  /** Which route scope to attach to. Defaults to `tenant`. */
+  readonly scope?: TenantMiddlewareScope
+  /** Ascending run order within a scope; ties break by registration order. Defaults to 0. */
+  readonly order?: number
+  /** Contract version this middleware was built against (see {@link TENANT_MIDDLEWARE_CONTRACT_VERSION}). */
+  readonly contractVersion?: number
+}
+
+/**
+ * Registry of plugin-injected route middleware. Bound as a container singleton by
+ * `MultitenancyProvider`; plugins register entries in their `boot()`. Map-backed
+ * (stateful): resolve via `container.make`, never `new`.
+ *
+ * `installRouterMacros` (core `start()`, after every `boot()`) pre-resolves each
+ * scope through {@link resolve} and closes over the instances, so a plugin's
+ * middleware is stacked onto `router.tenant()/central()/universal()` groups AFTER
+ * the core scope middleware and BEFORE the host's own `.use()` chain.
+ */
+export default class TenantMiddlewareRegistry extends ExtensionRegistry<
+  MiddlewareName,
+  TenantMiddlewareEntry
+> {
+  protected readonly surfaceLabel = 'tenant middleware'
+
+  protected override get surfaceContractVersion(): number {
+    return TENANT_MIDDLEWARE_CONTRACT_VERSION
+  }
+
+  protected override collisionError(name: MiddlewareName): Error {
+    return new PluginMiddlewareException(
+      `A tenant middleware named "${name}" is already registered.`,
+      { plugin: name }
+    )
+  }
+
+  register(entry: TenantMiddlewareEntry): this {
+    const name = this.assertRegistrable(entry)
+    this.entries.set(name, entry)
+    return this
+  }
+
+  list(): readonly MiddlewareName[] {
+    return [...this.entries.keys()]
+  }
+
+  /**
+   * The middleware attached to a scope, ordered by ascending `order` (default 0);
+   * the Map preserves registration order and Array#sort is stable, so equal
+   * `order` keeps registration order. Returns an empty array for a scope no plugin
+   * targeted, byte-identical to the pre-seam router behavior.
+   */
+  resolve(scope: TenantMiddlewareScope): readonly TenantMiddleware[] {
+    return [...this.entries.values()]
+      .filter((e) => (e.scope ?? 'tenant') === scope)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((e) => e.middleware)
+  }
+}

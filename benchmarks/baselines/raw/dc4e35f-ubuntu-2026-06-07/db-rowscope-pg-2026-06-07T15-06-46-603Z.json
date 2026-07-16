@@ -1,0 +1,234 @@
+{
+  "suite": "db",
+  "env": {
+    "driver": "rowscope-pg",
+    "node": "v24.16.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
+    "cpuCount": 4,
+    "totalMemGB": 16.8,
+    "commit": "dc4e35f",
+    "pgVersion": "PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "timestamp": "2026-06-07T15:06:46.603Z"
+  },
+  "results": [
+    {
+      "name": "SELECT by id",
+      "group": "driver_query",
+      "samples": 150,
+      "opsPerSec": 2137.3641170762567,
+      "ns": {
+        "mean": 481937.79333333333,
+        "median": 467866,
+        "p75": 498924,
+        "p99": 702385,
+        "p999": 726359,
+        "min": 397133,
+        "max": 726359,
+        "stddev": 56284.48426748964
+      }
+    },
+    {
+      "name": "INSERT",
+      "group": "driver_query",
+      "samples": 150,
+      "opsPerSec": 2418.356291595728,
+      "ns": {
+        "mean": 431100.1066666667,
+        "median": 413504,
+        "p75": 462696,
+        "p99": 630840,
+        "p999": 850551,
+        "min": 353391,
+        "max": 850551,
+        "stddev": 70135.15274811878
+      }
+    },
+    {
+      "name": "2-table self JOIN (limit 20)",
+      "group": "driver_query",
+      "samples": 150,
+      "opsPerSec": 1007.8643656451289,
+      "ns": {
+        "mean": 1075226.6,
+        "median": 992197,
+        "p75": 1061817,
+        "p99": 1915726,
+        "p999": 2988553,
+        "min": 912557,
+        "max": 2988553,
+        "stddev": 235849.47190468753
+      }
+    },
+    {
+      "name": "cold-tenant first query (n/a for rowscope)",
+      "group": "driver_query",
+      "samples": 1,
+      "opsPerSec": 0,
+      "ns": {
+        "mean": 0,
+        "median": 0,
+        "p75": 0,
+        "p99": 0,
+        "p999": 0,
+        "min": 0,
+        "max": 0,
+        "stddev": 0
+      },
+      "meta": {
+        "note": "rowscope shares one connection; no per-tenant cold cost"
+      }
+    },
+    {
+      "name": "cap=25 single-tenant SELECT (baseline)",
+      "group": "connection_churn",
+      "samples": 300,
+      "opsPerSec": 2290.8090450304335,
+      "ns": {
+        "mean": 448351.2266666667,
+        "median": 436527,
+        "p75": 459760,
+        "p99": 695491,
+        "p999": 785601,
+        "min": 394118,
+        "max": 785601,
+        "stddev": 48126.068635220516
+      },
+      "meta": {
+        "cap": 25
+      }
+    },
+    {
+      "name": "cap=25 churn read+write (M=50, C=16)",
+      "group": "connection_churn",
+      "samples": 2000,
+      "opsPerSec": 260.9111068031788,
+      "ns": {
+        "mean": 3958971.9195,
+        "median": 3832723,
+        "p75": 4058438,
+        "p99": 6619740,
+        "p999": 8416562,
+        "min": 808713,
+        "max": 13095984,
+        "stddev": 570104.8650943552
+      },
+      "meta": {
+        "cap": 25,
+        "tenants": 50,
+        "concurrency": 16,
+        "baselineP99ns": 695491,
+        "churnP99ns": 6619740,
+        "p99DegradationPct": 851.8,
+        "tenantConnectionsOpen": 0,
+        "pgBackends": 3,
+        "writeOps": 400,
+        "crossTenantLeaks": 0,
+        "leakageCheck": "PASS",
+        "crossTenantWriteLeaks": 0,
+        "writeIsolationCheck": "PASS"
+      }
+    },
+    {
+      "name": "cap=50 single-tenant SELECT (baseline)",
+      "group": "connection_churn",
+      "samples": 300,
+      "opsPerSec": 2429.95059910432,
+      "ns": {
+        "mean": 416380.61,
+        "median": 411531,
+        "p75": 425686,
+        "p99": 491203,
+        "p999": 560792,
+        "min": 384549,
+        "max": 560792,
+        "stddev": 22719.034656088857
+      },
+      "meta": {
+        "cap": 50
+      }
+    },
+    {
+      "name": "cap=50 churn read+write (M=100, C=16)",
+      "group": "connection_churn",
+      "samples": 2000,
+      "opsPerSec": 277.2430068223959,
+      "ns": {
+        "mean": 3657257.5925,
+        "median": 3606944,
+        "p75": 3774835,
+        "p99": 5029212,
+        "p999": 6337798,
+        "min": 562486,
+        "max": 6387491,
+        "stddev": 391629.00566890556
+      },
+      "meta": {
+        "cap": 50,
+        "tenants": 100,
+        "concurrency": 16,
+        "baselineP99ns": 491203,
+        "churnP99ns": 5029212,
+        "p99DegradationPct": 923.9,
+        "tenantConnectionsOpen": 0,
+        "pgBackends": 3,
+        "writeOps": 400,
+        "crossTenantLeaks": 0,
+        "leakageCheck": "PASS",
+        "crossTenantWriteLeaks": 0,
+        "writeIsolationCheck": "PASS"
+      }
+    },
+    {
+      "name": "cap=100 single-tenant SELECT (baseline)",
+      "group": "connection_churn",
+      "samples": 300,
+      "opsPerSec": 2396.064703331249,
+      "ns": {
+        "mean": 422225.06,
+        "median": 417351,
+        "p75": 433982,
+        "p99": 543076,
+        "p999": 550541,
+        "min": 378739,
+        "max": 550541,
+        "stddev": 26776.601038775127
+      },
+      "meta": {
+        "cap": 100
+      }
+    },
+    {
+      "name": "cap=100 churn read+write (M=200, C=16)",
+      "group": "connection_churn",
+      "samples": 2000,
+      "opsPerSec": 285.0058426197737,
+      "ns": {
+        "mean": 3549431.8985,
+        "median": 3508700,
+        "p75": 3696097,
+        "p99": 4361653,
+        "p999": 4778510,
+        "min": 483472,
+        "max": 4867119,
+        "stddev": 305368.79200067295
+      },
+      "meta": {
+        "cap": 100,
+        "tenants": 200,
+        "concurrency": 16,
+        "baselineP99ns": 543076,
+        "churnP99ns": 4361653,
+        "p99DegradationPct": 703.1,
+        "tenantConnectionsOpen": 0,
+        "pgBackends": 3,
+        "writeOps": 400,
+        "crossTenantLeaks": 0,
+        "leakageCheck": "PASS",
+        "crossTenantWriteLeaks": 0,
+        "writeIsolationCheck": "PASS"
+      }
+    }
+  ]
+}

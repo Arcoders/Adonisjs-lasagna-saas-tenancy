@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end runner — brings up Docker infra, runs the Japa e2e suite,
+# End-to-end runner: brings up Docker infra, runs the Japa e2e suite,
 # tears down. Single command for adopters: `npm run test:e2e`.
 #
 # Flags:
@@ -19,6 +19,13 @@ cd "$(dirname "$0")/.."
 if [[ ! -f .env ]]; then
   echo "[e2e] .env missing — copying from .env.example"
   cp .env.example .env
+fi
+
+# A .env predating the two-auth-realms change lacks the seed flag the
+# auth_realms e2e depends on; this script owns .env provisioning, so top it up.
+if ! grep -q '^DEMO_SEED_TENANT_USERS=' .env; then
+  echo "[e2e] adding DEMO_SEED_TENANT_USERS=true to .env (required by the auth_realms e2e)"
+  printf '\nDEMO_SEED_TENANT_USERS=true\n' >> .env
 fi
 
 cleanup() {
@@ -54,7 +61,7 @@ until docker compose exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; do
   sleep 1
 done
 
-# MailCatcher is optional — the e2e mail.spec.ts skips gracefully if it isn't
+# MailCatcher is optional. The e2e mail.spec.ts skips gracefully if it isn't
 # reachable, so a probe failure here only emits a warning instead of aborting.
 echo "[e2e] waiting for mailcatcher (optional)"
 DEADLINE=$((SECONDS + 20))

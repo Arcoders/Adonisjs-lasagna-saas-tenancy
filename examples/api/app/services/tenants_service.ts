@@ -5,8 +5,10 @@ import Tenant, { type DemoMeta } from '#app/models/backoffice/tenant'
 export interface CreateTenantInput {
   name: string
   email: string
-  plan?: DemoMeta['plan']
-  tier?: DemoMeta['tier']
+  // `| undefined` (not just `?`) so the validator's optional enum output passes
+  // under exactOptionalPropertyTypes; both default in `create()` below.
+  plan?: DemoMeta['plan'] | undefined
+  tier?: DemoMeta['tier'] | undefined
 }
 
 /**
@@ -65,7 +67,7 @@ export default class TenantsService {
     return tenant
   }
 
-  /** Queues UninstallTenant — the job drops the schema. */
+  /** Queues UninstallTenant. The job drops the schema. */
   async destroy(id: string) {
     const tenant = await Tenant.findOrFail(id)
     await UninstallTenant.dispatch({ tenantId: tenant.id })

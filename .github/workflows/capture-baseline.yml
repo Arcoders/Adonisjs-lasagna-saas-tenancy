@@ -1,0 +1,254 @@
+name: Capture 1.0.0 baseline
+
+# Two ways to run. workflow_dispatch (the Actions UI button) only appears once
+# this file is on the default branch. To capture from a feature branch WITHOUT
+# merging to master, push a tag matching capture-baseline* instead:
+#   git tag capture-baseline-3      # trailing number = runs to aggregate; omit for 5
+#   git push origin capture-baseline-3
+# A tag push runs the workflow as it exists at that commit (on the feature
+# branch), and the PR base is auto-detected as the branch holding the tag.
+#
+# Either way it captures the canonical, quotable 1.0.0 performance baseline on a
+# Linux runner (so the generated docs drop their "provisional dev-box" caveat),
+# then opens a PR with the committed baseline + raw snapshot + regenerated docs.
+#
+# It runs the FULL-SIZE sweep `runs` times and aggregates the throughput tiers
+# into a median (bench:report --runs), which is exactly what that flag exists for
+# — smoothing shared-runner CPU variance. The memory/budget/catalog tier runs
+# once: its numbers are structural (connection counts, pg_class rows), not
+# throughput variance, so a median over N would add cost without changing them.
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: 'Full-size throughput sweeps to aggregate (median of N). 5 is slow; lower it for a quick capture.'
+        type: number
+        default: 5
+  # No-merge path: push a tag like `capture-baseline` or `capture-baseline-3`.
+  push:
+    tags:
+      - 'capture-baseline*'
+
+# Needed so the job can push a branch and open the PR.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  capture:
+    name: Capture canonical baseline (ubuntu)
+    runs-on: ubuntu-latest
+
+    # Postgres is started as a step (not a service) so the budget/catalog tiers
+    # can push past the stock 100-connection cap — same as benchmark.yml.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TZ: UTC
+      # development (not test) so the rate-limit middleware runs its real Redis
+      # pipeline instead of the test-env bypass.
+      NODE_ENV: development
+      BENCH_CI: '1'
+      HOST: 127.0.0.1
+      APP_KEY: a-32-character-long-secret-key!!
+      LOG_LEVEL: error
+      TENANT_HEADER_KEY: x-tenant-id
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: lasagna_bench
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: '6379'
+      QUEUE_REDIS_HOST: 127.0.0.1
+      QUEUE_REDIS_PORT: '6379'
+      QUEUE_REDIS_DB: '1'
+      CACHE_REDIS_HOST: 127.0.0.1
+      CACHE_REDIS_PORT: '6379'
+      CACHE_REDIS_DB: '2'
+      # Full-size representative sweep (NOT the CI-sized regression baseline).
+      # database-pg self-limits its budget counts to <= 200 in the bench, so the
+      # 2000 here only applies to schema-pg/rowscope-pg.
+      BENCH_DB_TENANTS: '50'
+      BENCH_DB_ROWS: '1000'
+      BENCH_CHURN_CAPS: '25,50,100'
+      BENCH_CHURN_CONCURRENCY: '16'
+      BENCH_CHURN_OPS: '2000'
+      BENCH_BUDGET_COUNTS: '100,500,2000'
+      BENCH_CATALOG_COUNTS: '100,1000,5000'
+      BENCH_HTTP_TENANTS: '50'
+      BENCH_HTTP_ROWS: '200'
+      BENCH_HTTP_CONNECTIONS: '25'
+      BENCH_HTTP_DURATION: '10'
+
+    steps:
+      # fetch-depth: 0 so `git branch --contains` can resolve the PR base for a
+      # tag push (needs the remote-tracking branches).
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve run count and PR base branch
+        run: |
+          # runs: dispatch input, else the trailing number of the tag
+          # (capture-baseline-3 -> 3), else 5.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RUNS="${{ github.event.inputs.runs }}"
+          else
+            RUNS="$(printf '%s' "${{ github.ref_name }}" | sed -n 's/^capture-baseline-\?\([0-9]\+\)$/\1/p')"
+          fi
+          RUNS="${RUNS:-5}"
+          echo "RUNS=$RUNS" >> "$GITHUB_ENV"
+
+          # PR base: the branch we ran on (dispatch), else the branch that holds
+          # the tagged commit (tag push). Exclude the bot's own capture/* branches
+          # (they also contain the commit); fall back to the repo default branch.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BASE_BRANCH="${{ github.ref_name }}"
+          else
+            BASE_BRANCH="$(git branch -r --contains "${GITHUB_SHA}" 2>/dev/null \
+              | sed 's#^[[:space:]]*origin/##' \
+              | grep -v '^HEAD' \
+              | grep -v '^capture/baseline' \
+              | head -n1)"
+            if [ -z "$BASE_BRANCH" ]; then
+              BASE_BRANCH="${{ github.event.repository.default_branch }}"
+              echo "::warning::Could not detect the branch for ${GITHUB_SHA}; PR will target '$BASE_BRANCH'."
+            fi
+          fi
+          echo "BASE_BRANCH=$BASE_BRANCH" >> "$GITHUB_ENV"
+          echo "runs=$RUNS  base=$BASE_BRANCH"
+
+      - name: Start Postgres (bench tuning, max_connections=300)
+        run: |
+          docker run -d --name bench-postgres \
+            -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=lasagna_bench \
+            -p 5432:5432 \
+            -v "$GITHUB_WORKSPACE/benchmarks/postgres.bench.conf:/etc/postgresql/postgresql.conf:ro" \
+            postgres:16-alpine -c config_file=/etc/postgresql/postgresql.conf
+          echo "Waiting for Postgres…"
+          for i in $(seq 1 30); do
+            if docker exec bench-postgres pg_isready -U postgres -d lasagna_bench >/dev/null 2>&1; then
+              echo "Postgres ready (max_connections=$(docker exec bench-postgres psql -U postgres -tAc 'show max_connections'))"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Postgres did not become ready"; docker logs bench-postgres; exit 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      # .npmrc keeps install scripts off; the bench tiers run via tsx, which
+      # needs esbuild's postinstall to place the platform binary. Rebuild only
+      # that one package with scripts enabled.
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
+
+      # The bench fixture imports the built core via the workspace symlink, so a
+      # fresh build is mandatory. The satellites are not used.
+      - name: Build core
+        run: npm run build
+
+      - name: Run full-size sweep (throughput x N, memory x1)
+        run: |
+          echo "Aggregating over $RUNS throughput run(s)"
+          for run in $(seq 1 "$RUNS"); do
+            echo "::group::run $run/$RUNS — micro"
+            npm run bench:micro
+            echo "::endgroup::"
+            for driver in schema-pg database-pg rowscope-pg; do
+              echo "::group::run $run/$RUNS — $driver (db + http)"
+              BENCH_DRIVER=$driver npm run bench:db
+              BENCH_DRIVER=$driver npm run bench:http
+              echo "::endgroup::"
+            done
+          done
+          # Memory/budget/catalog once per driver (structural metrics).
+          for driver in schema-pg database-pg rowscope-pg; do
+            echo "::group::mem $driver"
+            BENCH_DRIVER=$driver npm run bench:mem
+            echo "::endgroup::"
+          done
+
+      - name: Aggregate and write 1.0.0 baseline + regenerate docs
+        run: |
+          npm run bench:report -- --runs="$RUNS" --write-baseline=1.0.0
+
+      - name: Snapshot raw result JSONs
+        run: |
+          commit=$(git rev-parse --short HEAD)
+          day=$(date -u +%Y-%m-%d)
+          dir="benchmarks/baselines/raw/${commit}-ubuntu-${day}"
+          mkdir -p "$dir"
+          for suite in micro db http mem; do
+            cp benchmarks/results/${suite}-*.json "$dir"/ 2>/dev/null || true
+          done
+          echo "RAW_DIR=$dir" >> "$GITHUB_ENV"
+          echo "Raw snapshot: $dir ($(ls -1 "$dir" | wc -l) files)"
+
+      # Always available, even if PR creation is disabled for Actions on this repo.
+      - name: Upload baseline + raw + docs (artifact)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: baseline-1.0.0
+          path: |
+            benchmarks/baselines/1.0.0.json
+            benchmarks/baselines/raw/
+            docs/guides/performance.md
+            docs/guides/scaling-limits.md
+          if-no-files-found: warn
+
+      - name: Open PR with the captured baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          commit=$(git rev-parse --short HEAD)
+          day=$(date -u +%Y-%m-%d)
+          branch="capture/baseline-1.0.0-${commit}-${day}"
+          env_json=$(node -e "process.stdout.write(JSON.stringify(require('./benchmarks/baselines/1.0.0.json').capturedEnv ?? {}, null, 2))")
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add benchmarks/baselines/1.0.0.json "$RAW_DIR" docs/guides/performance.md docs/guides/scaling-limits.md
+          git commit -m "perf(benchmarks): capture canonical 1.0.0 baseline on ubuntu" \
+            -m "Full-size sweep aggregated over $RUNS throughput runs on ubuntu-latest (memory tier once). Replaces the placeholder baselines/1.0.0.json, commits the raw snapshot, and regenerates docs/guides/performance.md (the provisional dev-box caveat drops on Linux)."
+          git push -u origin "$branch"
+
+          {
+            echo "Automated capture of the **1.0.0** performance baseline on \`ubuntu-latest\`."
+            echo
+            echo "Captured environment:"
+            echo '```json'
+            echo "$env_json"
+            echo '```'
+            echo
+            echo "Contents:"
+            echo "- \`benchmarks/baselines/1.0.0.json\` — median of $RUNS throughput runs (mem once), with IQR + run count per metric"
+            echo "- raw snapshot under \`$RAW_DIR\`"
+            echo "- regenerated \`docs/guides/performance.md\` and \`scaling-limits.md\` (provisional caveat dropped)"
+            echo
+            echo "Targets \`$BASE_BRANCH\` (auto-detected). Before merging: paste the captured env into the **Canonical reference machine** block in \`benchmarks/README.md\`, and link \`$RAW_DIR\` from \`benchmarks/results/PERFORMANCE_ASSESSMENT.md\`."
+          } > pr-body.md
+
+          gh pr create --base "$BASE_BRANCH" --head "$branch" \
+            --title "perf(benchmarks): canonical 1.0.0 baseline (ubuntu)" \
+            --body-file pr-body.md \
+            || echo "::warning::PR creation failed (enable 'Allow GitHub Actions to create and approve pull requests' in repo settings, or open a PR from branch '$branch'). The baseline is also in the 'baseline-1.0.0' artifact."

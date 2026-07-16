@@ -10,6 +10,10 @@ on:
         description: 'Run full-size sweeps (slower; the representative capture, NOT the like-for-like gate baseline)'
         type: boolean
         default: false
+      run_soak:
+        description: 'Also run the soak job (long-running; off by default on dispatch)'
+        type: boolean
+        default: false
   schedule:
     - cron: '0 6 * * 1' # Mondays 06:00 UTC
 
@@ -59,7 +63,7 @@ jobs:
       CACHE_REDIS_DB: '2'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       # Raised max_connections (300) so the cap=100 churn sweep × tenant poolMax
       # plus central/backoffice connections stays under the limit. Mounts the same
@@ -108,14 +112,19 @@ jobs:
           fi
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
+          cache: npm
 
       - name: Install dependencies
-        env:
-          npm_config_ignore_scripts: 'false'
-        run: npm install --legacy-peer-deps --include=optional
+        run: npm ci --include=optional
+
+      # .npmrc keeps install scripts off; the bench tiers run via tsx, which
+      # needs esbuild's postinstall to place the platform binary. Rebuild only
+      # that one package with scripts enabled.
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
 
       # The bench fixture imports the built core via the workspace symlink, so a
       # fresh build of the core is mandatory. The satellites are not used.
@@ -134,8 +143,28 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: Tier 4 — memory + budget (schema-pg)
-        run: BENCH_DRIVER=schema-pg npm run bench:mem
+      # Hard gate: a single cross-tenant leak fails the job (the script exits 1
+      # on isolationCheck=FAIL). Runs on the real request path under concurrency.
+      - name: Isolation assertion — per driver (hard gate)
+        run: |
+          for driver in schema-pg database-pg rowscope-pg; do
+            echo "::group::isolation $driver"
+            BENCH_DRIVER=$driver npm run bench:isolation
+            echo "::endgroup::"
+          done
+
+      # Same assertion under the production framework path, to catch anything that
+      # only manifests with NODE_ENV=production (the default tiers run development).
+      - name: Isolation assertion — production mode (schema-pg)
+        run: BENCH_DRIVER=schema-pg BENCH_HTTP_NODE_ENV=production npm run bench:isolation
+
+      - name: Tier 4 — memory + budget + catalog, per driver
+        run: |
+          for driver in schema-pg database-pg rowscope-pg; do
+            echo "::group::mem $driver"
+            BENCH_DRIVER=$driver npm run bench:mem
+            echo "::endgroup::"
+          done
 
       - name: Regenerate report
         run: npm run bench:report
@@ -147,10 +176,162 @@ jobs:
 
       - name: Upload results + generated report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-results
           path: |
             benchmarks/results/
-            docs/docs/performance.md
+            docs/guides/performance.md
+          if-no-files-found: warn
+
+  # Fault injection needs to stop/start the backing services, which GitHub
+  # service containers don't allow — so Postgres and Redis are run as named,
+  # controllable containers and the bench drives `docker stop/start` on them.
+  # Runs on the weekly schedule and on manual dispatch; it deliberately breaks
+  # dependencies, so it is never wired into the per-PR path.
+  resilience:
+    name: Resilience (fault injection)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    env:
+      TZ: UTC
+      NODE_ENV: development
+      BENCH_CI: '1'
+      BENCH_RESILIENCE: '1'
+      BENCH_REDIS_CONTAINER: bench-redis
+      BENCH_PG_CONTAINER: bench-postgres
+      HOST: 127.0.0.1
+      APP_KEY: a-32-character-long-secret-key!!
+      LOG_LEVEL: error
+      TENANT_HEADER_KEY: x-tenant-id
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: lasagna_bench
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: '6379'
+      QUEUE_REDIS_HOST: 127.0.0.1
+      QUEUE_REDIS_PORT: '6379'
+      QUEUE_REDIS_DB: '1'
+      CACHE_REDIS_HOST: 127.0.0.1
+      CACHE_REDIS_PORT: '6379'
+      CACHE_REDIS_DB: '2'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: 'Start Postgres (controllable container: bench-postgres)'
+        run: |
+          docker run -d --name bench-postgres \
+            -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=lasagna_bench \
+            -p 5432:5432 \
+            -v "$GITHUB_WORKSPACE/benchmarks/postgres.bench.conf:/etc/postgresql/postgresql.conf:ro" \
+            postgres:16-alpine -c config_file=/etc/postgresql/postgresql.conf
+          for i in $(seq 1 30); do
+            docker exec bench-postgres pg_isready -U postgres -d lasagna_bench >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          echo "Postgres not ready"; docker logs bench-postgres; exit 1
+      - name: 'Start Redis (controllable container: bench-redis)'
+        run: |
+          docker run -d --name bench-redis -p 6379:6379 redis:7-alpine
+          for i in $(seq 1 30); do
+            docker exec bench-redis redis-cli ping >/dev/null 2>&1 && exit 0
+            sleep 1
+          done
+          echo "Redis not ready"; docker logs bench-redis; exit 1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      # .npmrc keeps install scripts off; the bench tiers run via tsx, which
+      # needs esbuild's postinstall to place the platform binary. Rebuild only
+      # that one package with scripts enabled.
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
+      - name: Build core
+        run: npm run build
+      - name: Resilience tier (schema-pg)
+        run: BENCH_DRIVER=schema-pg npm run bench:resilience
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: resilience-results
+          path: benchmarks/results/
+          if-no-files-found: warn
+
+  # Long-running stability. On the weekly schedule, and on dispatch only when
+  # `run_soak=true`. Kept short here (BENCH_SOAK_HOURS); raise it for a real soak.
+  soak:
+    name: Soak (stability)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_soak)
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TZ: UTC
+      NODE_ENV: development
+      BENCH_CI: '1'
+      BENCH_SOAK_HOURS: '0.25'
+      HOST: 127.0.0.1
+      APP_KEY: a-32-character-long-secret-key!!
+      LOG_LEVEL: error
+      TENANT_HEADER_KEY: x-tenant-id
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: lasagna_bench
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: '6379'
+      QUEUE_REDIS_HOST: 127.0.0.1
+      QUEUE_REDIS_PORT: '6379'
+      QUEUE_REDIS_DB: '1'
+      CACHE_REDIS_HOST: 127.0.0.1
+      CACHE_REDIS_PORT: '6379'
+      CACHE_REDIS_DB: '2'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Start Postgres (bench tuning, max_connections=300)
+        run: |
+          docker run -d --name bench-postgres \
+            -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=lasagna_bench \
+            -p 5432:5432 \
+            -v "$GITHUB_WORKSPACE/benchmarks/postgres.bench.conf:/etc/postgresql/postgresql.conf:ro" \
+            postgres:16-alpine -c config_file=/etc/postgresql/postgresql.conf
+          for i in $(seq 1 30); do
+            docker exec bench-postgres pg_isready -U postgres -d lasagna_bench >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          echo "Postgres not ready"; docker logs bench-postgres; exit 1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      # .npmrc keeps install scripts off; the bench tiers run via tsx, which
+      # needs esbuild's postinstall to place the platform binary. Rebuild only
+      # that one package with scripts enabled.
+      - name: Rebuild esbuild (scoped install script)
+        run: npm_config_ignore_scripts=false npm rebuild esbuild
+      - name: Build core
+        run: npm run build
+      - name: Soak tier (schema-pg)
+        run: BENCH_DRIVER=schema-pg npm run bench:soak
+      - name: Upload soak series
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: soak-results
+          path: benchmarks/results/
           if-no-files-found: warn

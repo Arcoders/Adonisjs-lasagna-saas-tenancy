@@ -1,35 +1,89 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": [
-    "src/index.ts",
-    "src/admin/index.ts",
-    "src/commands/main.ts",
-    "src/events/index.ts",
-    "src/exceptions/index.ts",
-    "src/extensions/request.ts",
-    "src/health/index.ts",
-    "src/jobs/index.ts",
-    "src/middleware/index.ts",
-    "src/models/adapters/index.ts",
-    "src/models/base/index.ts",
-    "src/models/satellites/index.ts",
-    "src/providers/multitenancy_provider.ts",
-    "src/services/index.ts",
-    "src/testing/index.ts",
-    "src/types/index.ts",
-    "configure.ts",
-    "bin/test.ts",
-    "bin/test.integration.ts",
-    "tests/**/*.spec.ts",
-    "tests/fixtures/**/*.ts"
-  ],
-  "project": ["src/**/*.ts", "configure.ts", "bin/**/*.ts", "tests/**/*.ts"],
   "ignoreDependencies": [
     "@aws-sdk/client-s3",
-    "better-sqlite3",
-    "@adonisjs/drive",
-    "@adonisjs/mail",
-    "@adonisjs/session"
+    "jose",
+    "@adonisjs-lasagna/sso",
+    "@microsoft/api-extractor",
+    "ajv"
   ],
-  "ignoreExportsUsedInFile": true
+  "ignoreExportsUsedInFile": true,
+  "workspaces": {
+    ".": {
+      "entry": [
+        "docs/.vitepress/config.ts",
+        "docs/.vitepress/theme/index.ts",
+        "docs/.vitepress/theme/**/*.vue",
+        "docs/scripts/*.mjs",
+        "scripts/*.mjs"
+      ],
+      "project": [
+        "docs/.vitepress/**/*.ts",
+        "docs/.vitepress/**/*.vue",
+        "docs/scripts/*.mjs",
+        "scripts/*.mjs"
+      ],
+      "ignoreDependencies": [
+        "@adonisjs/queue",
+        "@adonisjs/redis",
+        "stripe",
+        "@phosphor-icons/vue"
+      ]
+    },
+    "packages/core": {
+      "entry": [
+        "src/index.ts",
+        "src/internal.ts",
+        "src/commands/main.ts",
+        "src/events/index.ts",
+        "src/exceptions/index.ts",
+        "src/extensions/request.ts",
+        "src/health/index.ts",
+        "src/jobs/index.ts",
+        "src/middleware/index.ts",
+        "src/models/adapters/index.ts",
+        "src/models/base/index.ts",
+        "src/models/satellites/index.ts",
+        "src/providers/multitenancy_provider.ts",
+        "src/services/index.ts",
+        "src/testing/index.ts",
+        "src/types/index.ts",
+        "configure.ts",
+        "tests/**/*.spec.ts",
+        "tests/fixtures/**/*.ts"
+      ],
+      "project": ["src/**/*.ts", "bin/**/*.ts", "tests/**/*.ts"]
+    },
+    "examples/api": {
+      "entry": [
+        "adonisrc.ts",
+        "bin/**/*.ts",
+        "start/**/*.ts",
+        "config/**/*.ts",
+        "database/**/*.ts",
+        "app/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "project": ["**/*.ts"],
+      "ignoreDependencies": ["pg"]
+    },
+    "benchmarks": {
+      "entry": [
+        "src/*/index.ts",
+        "src/harness/*.ts",
+        "src/**/*.bench.ts",
+        "src/http/*.ts"
+      ],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["pg"]
+    },
+    "packages/satellite-test-kit": {
+      "entry": ["src/index.ts", "src/helpers.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/doc-coverage": {
+      "entry": ["src/index.ts", "bin/docs_doctor.ts", "tests/**/*.test.ts"],
+      "project": ["src/**/*.ts", "bin/**/*.ts", "tests/**/*.ts"]
+    }
+  }
 }

@@ -1,0 +1,83 @@
+{
+  "name": "@adonisjs-lasagna/sso",
+  "version": "0.1.0",
+  "description": "Per-tenant OIDC/SSO for @adonisjs-lasagna/saas-tenancy (discovery, auth URL, callback verification, config model)",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy.git",
+    "directory": "packages/sso"
+  },
+  "bugs": {
+    "url": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "saas-tenancy",
+    "multitenancy",
+    "sso",
+    "oidc"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build",
+    "stubs"
+  ],
+  "exports": {
+    ".": "./build/src/index.js",
+    "./provider": "./build/providers/sso_provider.js"
+  },
+  "typesVersions": {
+    "*": {
+      "provider": ["./build/providers/sso_provider.d.ts"]
+    }
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "adonisjs": {
+    "configure": "./build/configure.js"
+  },
+  "lasagnaSatellite": {
+    "name": "sso",
+    "satelliteApi": 1,
+    "pluginApiVersion": 1,
+    "minMergedCoverage": { "lines": 98, "functions": 73, "branches": 97 },
+    "aliases": ["sso"],
+    "migrations": "stubs/migrations",
+    "provider": "@adonisjs-lasagna/sso/provider",
+    "install": [
+      "npm install @adonisjs-lasagna/sso",
+      "npm install jose   # optional: only for JWKS id-token verification"
+    ],
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/sso"
+  },
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/sso-unit tsx bin/test.ts",
+    "test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/sso-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
+    "@adonisjs/core": "^7.0.0",
+    "@adonisjs/lucid": "^22.0.0",
+    "@adonisjs/redis": "^10.0.0",
+    "jose": "^6.0.0",
+    "luxon": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "jose": {
+      "optional": true
+    }
+  }
+}

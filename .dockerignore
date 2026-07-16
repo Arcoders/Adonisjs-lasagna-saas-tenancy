@@ -1,0 +1,14 @@
+# Keep the deploy-e2e image context lean. Build output (build/) is NOT
+# excluded by accident of omission — it is rebuilt inside the image, and
+# excluding stale host artifacts keeps the layer deterministic.
+**/node_modules
+**/build
+.git
+coverage
+benchmarks/results
+docs/.vitepress/cache
+docs/.vitepress/dist
+examples/api/storage
+**/*.log
+.env
+**/.env

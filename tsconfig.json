@@ -7,13 +7,13 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "outDir": "./build",
-    "rootDir": "./",
+    "inlineSources": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "useUnknownInCatchVariables": false
-  },
-  "include": ["src/**/*.ts", "index.ts", "configure.ts", "tests/**/*.ts", "bin/**/*.ts"]
+    "useUnknownInCatchVariables": false,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true
+  }
 }

@@ -4,11 +4,10 @@ import { DateTime } from 'luxon'
 
 /**
  * A trivial tenant-scoped model. Lives in `tenant_<uuid>.notes` thanks to
- * TenantBaseModel routing. Use this to prove schema isolation:
- *
- *   POST /demo/notes  → writes to tenant_A.notes
- *   GET  /demo/notes  → reads from the same schema
- *   Switch x-tenant-id header → completely separate row set.
+ * TenantBaseModel routing. Use it to prove schema isolation: a POST to
+ * /demo/notes writes to tenant_A.notes and a GET reads back from the same
+ * schema, while switching the x-tenant-id header exposes a completely
+ * separate row set.
  */
 export default class Note extends TenantBaseModel {
   static table = 'notes'

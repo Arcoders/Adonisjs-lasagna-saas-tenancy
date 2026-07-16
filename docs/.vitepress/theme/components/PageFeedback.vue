@@ -113,18 +113,15 @@ async function send(extra: Record<string, unknown>) {
 .lg-feedback {
   margin: 3rem 0 0;
   padding: 1.25rem 1.5rem;
-  border-top: 1px solid var(--lg-line);
-  border-bottom: 1px solid var(--lg-line);
-  background: color-mix(in oklab, var(--lg-accent) 4%, var(--lg-bg));
-  border-radius: 0;
+  border-top: 1px solid var(--vp-c-divider);
+  border-bottom: 1px solid var(--vp-c-divider);
 }
 
 .lg-feedback__title {
   margin: 0 0 0.65rem;
-  font-family: var(--lg-font-serif);
   font-size: 1rem;
   font-weight: 600;
-  color: var(--lg-text);
+  color: var(--vp-c-text-1);
 }
 
 .lg-feedback__buttons,
@@ -135,28 +132,26 @@ async function send(extra: Record<string, unknown>) {
 
 .lg-feedback__btn {
   appearance: none;
-  background: var(--lg-bg);
-  border: 1px solid var(--lg-line-strong);
-  color: var(--lg-text);
-  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  color: var(--vp-c-text-1);
+  font: inherit;
   font-size: 0.85rem;
   font-weight: 500;
   padding: 0.45rem 1rem;
   border-radius: 6px;
   cursor: pointer;
-  transition: background 200ms ease, border-color 200ms ease;
+  transition: border-color 200ms ease, color 200ms ease;
 }
 
 .lg-feedback__btn:hover {
-  background: color-mix(in oklab, var(--lg-accent) 14%, var(--lg-bg));
-  border-color: var(--lg-accent);
-  color: var(--lg-accent);
+  border-color: var(--vp-c-brand-1);
+  color: var(--vp-c-brand-1);
 }
 
 .lg-feedback__thanks {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.82rem;
-  color: var(--lg-text-muted);
+  font-size: 0.85rem;
+  color: var(--vp-c-text-2);
 }
 
 .lg-feedback__form {
@@ -166,32 +161,31 @@ async function send(extra: Record<string, unknown>) {
 }
 
 .lg-feedback__label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.78rem;
-  color: var(--lg-text-muted);
+  font-size: 0.82rem;
+  color: var(--vp-c-text-2);
 }
 
 .lg-feedback__textarea {
   width: 100%;
   padding: 0.5rem 0.65rem;
-  background: var(--lg-bg);
-  border: 1px solid var(--lg-line);
+  background: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-divider);
   border-radius: 6px;
-  color: var(--lg-text);
-  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--vp-c-text-1);
+  font: inherit;
   font-size: 0.85rem;
   resize: vertical;
 }
 
 .lg-feedback__textarea:focus {
-  outline: 2px solid var(--lg-accent);
+  outline: 2px solid var(--vp-c-brand-1);
   outline-offset: 2px;
-  border-color: var(--lg-accent);
+  border-color: var(--vp-c-brand-1);
 }
 
 .lg-feedback__error {
   margin: 0.5rem 0 0;
-  color: var(--lg-accent);
+  color: var(--vp-c-brand-1);
   font-size: 0.82rem;
 }
 </style>

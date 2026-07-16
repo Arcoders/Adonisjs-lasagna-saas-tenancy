@@ -1,107 +1,62 @@
 ---
 title: Sponsor Lasagna
-description: How to support the development of @adonisjs-lasagna/saas-tenancy via GitHub Sponsors or Polar.sh.
+description: Lasagna is free and MIT-licensed, with no sponsorship program yet. The best ways to help are good issues, pull requests, and satellites. Reach the maintainer directly by email.
 ---
 
 # Sponsor Lasagna
 
-Lasagna is, and will remain, **fully open source under the MIT
-licence**. Every feature ships in the public package; no premium
-tier, no locked features, no "sponsor edition". The whole point of
-this section is to give people who already get value out of the
-package a way to keep it healthy.
+**There is no sponsorship program right now.** Lasagna is built and funded by
+Unreallab, the startup behind it, because we run it in production ourselves. You
+do not need to pay anything to use it or to get help with it.
 
-If your team relies on Lasagna in production, or if a feature here
-saved you a sprint of in-house work, sponsoring funds the next
-sprint of maintenance. That's it.
+## What we promise about the licence
 
-## Why sponsor?
+Being precise here matters more than being sweeping, because a promise you cannot
+keep is worse than one you never made.
 
-Three honest reasons:
+- **What ships MIT stays MIT.** Every line already published under the MIT licence
+  stays that way, in this repository, forever. We will not relicense it, paywall
+  it, or move it behind a "sponsor edition".
+- **Some of what Unreallab builds on top will stay internal.** A hosted service, an
+  operator dashboard, the tooling we run our own business on. That is how the work
+  on the open package gets paid for.
+- **Any future paid surface is new code.** It will be source-available from its
+  first commit, and it will never be a relicense of anything that was already
+  public. If that ever stops being true, this paragraph is the receipt.
 
-<LasagnaCard variant="default" title="Predictable maintenance">
+Not everything in this repository is published to npm, either. `admin` and
+`websockets` live here, MIT-licensed and readable, but we do not publish them
+because maintaining a package on npm is a promise about breakage, and we are not
+ready to make it for those two. Vendor them if you want them.
 
-Sponsorship pays for the time it takes to triage issues quickly,
-review community PRs the same week they land, and keep the doctor
-checks current with new versions of `@adonisjs/lucid` and BullMQ.
-The first ten sponsors directly fund weekly office hours on Discord.
+## The best way to support Lasagna today
 
-</LasagnaCard>
+If money is not the ask, attention is. These are the things that genuinely
+move the project forward:
 
-<LasagnaCard variant="default" title="Roadmap visibility">
+- **File good issues.** A reproducible bug report is worth more than a
+  donation; it makes the package better for everyone who comes after you.
+- **Send a pull request.** Fixes, docs, and tests are all welcome.
+- **Tell us it broke.** Nobody has installed this from npm and told us what
+  happened. The first person who does is worth more than a hundred stars.
+- **Build and share a satellite.** Lasagna keeps a small stable core and
+  leaves the feature surface above it open: satellites are a public extension
+  point, not a closed list. If you build something your project needs, publish
+  it as a satellite package and every other adopter can install it, no PR to
+  core required. [Start with the satellite guide](/guides/cookbook/creating-a-satellite).
 
-Sponsors see the next-quarter roadmap before it hits the public
-backlog. Your name lands at the top of the issues we triage. You can
-veto features that would bloat the package; saying "no" is a
-maintainer's most expensive vote and we want yours informed.
+## Hit a problem? Reach out
 
-</LasagnaCard>
-
-<LasagnaCard variant="default" title="Direct line to the maintainer">
-
-A private channel in Discord. A response within 48 hours on
-production issues. No SLA, no contract; just the same line of
-support a sponsor of any modern OSS project gets.
-
-</LasagnaCard>
-
-## How to sponsor
-
-Two equally good options. Pick the platform you already have a
-relationship with:
-
-- **GitHub Sponsors**; recurring monthly tiers, billed via your
-  existing GitHub billing.
-- **Polar.sh**; same idea, with a richer event/issue layer if your
-  team wants to fund specific issues directly.
-
-Links land here once the GitHub Sponsors profile and Polar.sh page
-are set up (both are part of the v2.0.0 stable launch).
-
-<Callout type="tip" title="Corporate sponsor?">
-
-If your company wants to sponsor at a tier that includes a logo on
-this page and the README, the simplest route is the GitHub Sponsors
-"company" tier (or its Polar equivalent). Drop the maintainer a line
-via the
+I would genuinely be glad to help. If you run into any issue, open one on the
 [GitHub repo](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues/new)
-to negotiate placement.
+or email me directly, and I will be happy to help you resolve it and keep
+pushing this project forward.
 
-</Callout>
+- Email: [ismaelhaytamtanane@gmail.com](mailto:ismaelhaytamtanane@gmail.com)
 
-## What sponsorships do **not** unlock
+## Thanks
 
-Worth saying out loud:
-
-- They do **not** unlock proprietary features. Every sponsor sees the
-  same source tree as a free user.
-- They do **not** entitle anyone to override licence terms. The MIT
-  licence applies uniformly.
-- They do **not** create implied warranty or support contracts.
-  Production-grade support contracts are a separate conversation
-  (and currently we don't offer them; too small a team).
-
-## Once you're a sponsor
-
-You'll get:
-
-- A `sponsor` role and access to `#sponsors-only` in the Discord.
-- Your name (or company logo) listed under "Sponsors" on this page,
-  ordered by tier.
-- Early access to release candidates.
-- An invite to the quarterly roadmap call.
-
-The first ten sponsors also get permanent shoutouts in the v2.0.0
-stable release notes.
-
-## Other ways to help (if money isn't an option)
-
-We mean this; funding is one of many ways to make a project
-healthier:
-
-- **File good issues.** Reproducible bug reports save hours.
-- **Review PRs.** A second pair of eyes on a community PR is gold.
-- **Write a blog post.** Tag `#adonisjs-lasagna` and we'll repost it
-  from the official channel once we have one.
-- **Submit a showcase.** [See the showcase page](/showcase); even
-  one real-app submission helps every adopter who comes after you.
+A special thank-you to **Harminder Virk**
+([thetutlage](https://github.com/thetutlage)) for creating and stewarding the
+wonderful AdonisJS v7 ecosystem. Lasagna stands on that foundation; none of
+this would exist without the work he and the AdonisJS community put in.

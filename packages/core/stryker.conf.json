@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-js/master/packages/api/schema/stryker-core.json",
+  "_comment": "Mutation testing for the two highest-value logic units: quota enforcement and tenant resolution. Report-only — the 80% target is surfaced, not enforced (break: null), so a first run never fails CI. Run from packages/core with `npx stryker run` (unit specs run against source via bin/test.ts; bring Redis up on 127.0.0.1:56379 if you include quota_service paths that touch it).",
+  "packageManager": "npm",
+  "testRunner": "command",
+  "commandRunner": {
+    "command": "npm test"
+  },
+  "coverageAnalysis": "off",
+  "tsconfigFile": "tsconfig.json",
+  "mutate": ["src/services/quota_service.ts", "src/services/resolvers/**/*.ts"],
+  "reporters": ["html", "clear-text", "progress"],
+  "htmlReporter": {
+    "fileName": "reports/mutation/quota-resolvers.html"
+  },
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": null
+  },
+  "timeoutMS": 60000
+}

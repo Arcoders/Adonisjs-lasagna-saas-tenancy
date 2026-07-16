@@ -1,0 +1,76 @@
+{
+  "name": "@adonisjs-lasagna/ai",
+  "version": "0.1.0",
+  "description": "AI streaming gateway for Lasagna: a per-tenant, cost-metered, SSRF-pinned streaming spine with a pluggable provider contract (Claude, DeepSeek, Kimi).",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build",
+    "stubs"
+  ],
+  "exports": {
+    ".": "./build/src/index.js",
+    "./provider": "./build/providers/ai_provider.js",
+    "./routes": "./build/src/routes.js",
+    "./commands": "./build/src/commands/main.js",
+    "./testing": "./build/src/testing/index.js"
+  },
+  "typesVersions": {
+    "*": {
+      "provider": [
+        "./build/providers/ai_provider.d.ts"
+      ],
+      "routes": [
+        "./build/src/routes.d.ts"
+      ],
+      "commands": [
+        "./build/src/commands/main.d.ts"
+      ],
+      "testing": [
+        "./build/src/testing/index.d.ts"
+      ]
+    }
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "adonisjs": {
+    "configure": "./build/configure.js",
+    "commands": [
+      "./build/src/commands/main.js"
+    ]
+  },
+  "lasagnaSatellite": {
+    "name": "ai",
+    "satelliteApi": 1,
+    "pluginApiVersion": 1,
+    "migrations": "stubs/migrations",
+    "perTenantMigrations": "build/tenant_migrations",
+    "minMergedCoverage": {
+      "lines": 60,
+      "functions": 60,
+      "branches": 60
+    },
+    "provider": "@adonisjs-lasagna/ai/provider",
+    "commands": "@adonisjs-lasagna/ai/commands",
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/ai"
+  },
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/ai-unit tsx bin/test.ts",
+    "test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/ai-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
+    "@adonisjs/core": "^7.0.0"
+  }
+}

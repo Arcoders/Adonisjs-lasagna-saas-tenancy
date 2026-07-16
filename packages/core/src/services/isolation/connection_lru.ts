@@ -1,0 +1,269 @@
+const lazyLogger = () =>
+  import('@adonisjs/core/services/logger').then((m) => m.default).catch(() => null)
+
+/** Default cap on simultaneously-open tenant connections in Lucid's manager. */
+export const DEFAULT_MAX_TENANT_CONNECTIONS = 50
+
+/**
+ * Default in-use grace window (ms). A connection touched more recently than
+ * this is treated as serving a request and is never evicted, even over cap.
+ * Set comfortably above your p99 request duration.
+ */
+export const DEFAULT_EVICTION_GRACE_MS = 30_000
+
+export interface ConnectionLruOptions {
+  /** Human-readable owner for log lines (e.g. `'SchemaPgDriver'`). */
+  label: string
+  /** Max entries before eviction kicks in. Read lazily so config changes apply. */
+  cap: () => number
+  /** In-use grace window in ms. Read lazily. */
+  graceMs: () => number
+  /**
+   * When this returns true, the cap is a HARD cap: callers should refuse a new
+   * connection (see `atHardLimit`) instead of exceeding it. Read lazily.
+   * Defaults to false (the legacy "exceed the cap rather than sever" behavior).
+   */
+  hardCap?: () => boolean
+  /**
+   * Absolute upper bound on open connections, read lazily. When it returns a
+   * number, admitting a connection at/above it is ALWAYS refused (see
+   * {@link ConnectionLru.atHardCeiling}), independent of `hardCap` and the grace
+   * window. This is the last-resort backstop against unbounded pool growth.
+   * `undefined` (the default) means no ceiling.
+   */
+  hardCeiling?: () => number | undefined
+  /**
+   * Close + unregister a connection by name. Return `false` to decline the close
+   * (the connection has a query in flight and must stay open); the registry then
+   * keeps it with a refreshed heartbeat so it is not retried until it goes idle.
+   * Returning `true` or nothing means it was closed.
+   */
+  release: (name: string) => Promise<void | boolean>
+  /** Clock source. Defaults to `Date.now`; injectable for deterministic tests. */
+  now?: () => number
+}
+
+/**
+ * Bounded, in-use-aware registry of open tenant connections.
+ *
+ * The previous per-driver LRU evicted the oldest entry purely by last-`connect()`
+ * time, with no notion of "currently serving a request". Under more than `cap`
+ * concurrent distinct tenants, that could `release()` a connection whose request
+ * was still in flight, severing the pool mid-query (the cross-tenant data-loss
+ * symptom seen under load).
+ *
+ * Two guards now keep an active connection alive. First, the grace window:
+ * `touch()` stamps a connection on every query, and a connection touched within
+ * `graceMs` is never a victim. Second, the authoritative one: before it actually
+ * closes a stale victim, the driver checks the knex pool's checked-out count
+ * ({@link connectionHasActiveQuery}). If a query is still running on it (even a
+ * single long query that outlived the grace window), the release is declined and
+ * the connection goes back into the registry. So eviction only ever closes a
+ * genuinely idle pool. When every candidate is busy the registry lets the pool
+ * exceed `cap` briefly and warns, which beats killing live work.
+ */
+export default class ConnectionLru {
+  readonly #map = new Map<string, number>()
+  // In-flight release() promises keyed by connection name. A connection being
+  // evicted is deleted from #map immediately but its pool drains asynchronously;
+  // until that settles, the entry is still registered (state 'closing') in
+  // Lucid's manager. `connect()` must await any pending release for a name
+  // before its `manager.has()` check, or it would re-adopt a closing pool.
+  readonly #pendingReleases = new Map<string, Promise<void>>()
+  #lastOverCapWarnAt = 0
+  #lastCeilingWarnAt = 0
+
+  constructor(private readonly opts: ConnectionLruOptions) {}
+
+  /**
+   * Resolve once any in-flight release for `name` has settled. No-op when none
+   * is pending. Callers await this before deciding whether the connection is
+   * still registered.
+   */
+  async settlePending(name: string): Promise<void> {
+    const pending = this.#pendingReleases.get(name)
+    if (pending) await pending
+  }
+
+  /**
+   * True while an eviction's `release()` for `name` is still draining its pool
+   * (the connection is 'closing': `manager.has()` may still report it, but its
+   * pool is being torn down). A synchronous caller that cannot `settlePending`
+   * uses this to avoid re-adopting a draining pool.
+   */
+  hasPendingRelease(name: string): boolean {
+    return this.#pendingReleases.has(name)
+  }
+
+  #now(): number {
+    return (this.opts.now ?? Date.now)()
+  }
+
+  has(name: string): boolean {
+    return this.#map.has(name)
+  }
+
+  get size(): number {
+    return this.#map.size
+  }
+
+  delete(name: string): void {
+    this.#map.delete(name)
+  }
+
+  /** Mark `name` as most-recently-used (re-inserts to move it to the tail). */
+  touch(name: string): void {
+    this.#map.delete(name)
+    this.#map.set(name, this.#now())
+  }
+
+  /**
+   * True only when admitting a NEW connection should be refused: the hard cap is
+   * enabled, the registry is at/over `cap`, and every open connection is still
+   * inside the grace window (so `evictIfNeeded` could not free a slot without
+   * severing an in-flight request). When a stale, evictable victim exists, or we
+   * are still under cap, this returns false and the caller admits as usual.
+   * Callers (the per-tenant drivers) translate `true` into a 503.
+   */
+  /**
+   * True when the pool is at/over `threshold` AND no connection is evictable
+   * (every one is still inside the grace window, i.e. genuinely in use). When an
+   * idle victim exists this returns false so the caller admits and `evictIfNeeded`
+   * reclaims the idle slot: the pool bounds itself by SHEDDING idle connections,
+   * refusing only when it is full of active ones. Refusing without this
+   * victim check would lock the pool at the threshold: idle connections would
+   * never be shed (eviction runs only on a successful admit) and new tenants would
+   * be refused forever.
+   */
+  #atCapacityWithNoVictim(threshold: number): boolean {
+    if (this.#map.size < threshold) return false
+    const graceMs = this.opts.graceMs()
+    const now = this.#now()
+    for (const [, touchedAt] of this.#map) {
+      if (now - touchedAt > graceMs) return false // an evictable victim exists
+    }
+    return true
+  }
+
+  atHardLimit(): boolean {
+    if (!this.opts.hardCap?.()) return false
+    return this.#atCapacityWithNoVictim(this.opts.cap())
+  }
+
+  /**
+   * The SECOND tier: true when admitting a NEW connection must be refused because
+   * the absolute `hardCeiling` is reached and nothing is evictable. Unlike
+   * {@link atHardLimit} (the soft cap, gated on `hardCap`), this is ALWAYS on: it
+   * holds independent of `enforceConnectionCap`, so even an availability-favouring
+   * pool can never grow without bound. Like the soft cap it yields to an idle,
+   * evictable victim (a reclaimable slot), so it refuses only when the pool is full
+   * of ACTIVE connections at the ceiling; that keeps idle connections from locking
+   * the pool. With no ceiling configured it always returns false. Emits a throttled
+   * warning when it bites so the backstop is observable. Callers translate `true`
+   * into a 503.
+   */
+  atHardCeiling(): boolean {
+    const ceiling = this.opts.hardCeiling?.()
+    if (ceiling === undefined) return false
+    const atCeiling = this.#atCapacityWithNoVictim(ceiling)
+    if (atCeiling) this.#warnAtCeiling(ceiling)
+    return atCeiling
+  }
+
+  #warnAtCeiling(ceiling: number): void {
+    const now = this.#now()
+    // Throttle: one warning per minute is enough to alert ops without flooding.
+    if (now - this.#lastCeilingWarnAt < 60_000) return
+    this.#lastCeilingWarnAt = now
+    const open = this.#map.size
+    const label = this.opts.label
+    void lazyLogger().then((logger) =>
+      logger?.warn(
+        { ceiling, open, owner: label },
+        `${label}: the absolute connection ceiling (${ceiling}) is reached; refusing new ` +
+          `tenant connections with 503 to protect the database. Raise ` +
+          `isolation.maxTenantConnectionsHardCeiling, add PgBouncer, or scale out.`
+      )
+    )
+  }
+
+  /**
+   * Fire-and-forget: when over cap, evict the oldest connection that is NOT
+   * within the in-use grace window. No-op (with a throttled warning) when
+   * every connection is recently touched.
+   */
+  evictIfNeeded(): void {
+    const cap = this.opts.cap()
+    if (this.#map.size <= cap) return
+
+    const graceMs = this.opts.graceMs()
+    const now = this.#now()
+
+    // Map preserves insertion order and `touch()` re-inserts, so the oldest
+    // entries come first. Pick the first one outside the grace window.
+    let victim: string | undefined
+    for (const [name, touchedAt] of this.#map) {
+      if (now - touchedAt > graceMs) {
+        victim = name
+        break
+      }
+    }
+
+    if (victim === undefined) {
+      // Everything is in the grace window, so likely all in use. Letting the
+      // pool exceed the cap for a moment beats severing an active request.
+      this.#warnOverCap(cap)
+      return
+    }
+
+    this.#map.delete(victim)
+    const name = victim
+    // Track the in-flight release so a concurrent connect() for this same name
+    // awaits the pool drain instead of re-adopting the closing connection.
+    // Don't swallow: a failed release leaves a pool entry registered in the
+    // manager (the LRU and the manager then disagree about open connections).
+    const releasing = Promise.resolve(this.opts.release(name))
+      .then((closed) => {
+        // The driver declined because a query is still in flight on this
+        // connection. Put it back with a fresh heartbeat so a long query is
+        // never severed and we don't pick it again until it goes idle.
+        if (closed === false) this.#map.set(name, this.#now())
+      })
+      .catch(async (err: unknown) => {
+        const logger = await lazyLogger()
+        logger?.warn(
+          {
+            connection: name,
+            err: (err as Error)?.message ?? String(err),
+            owner: this.opts.label,
+          },
+          `${this.opts.label}: failed to release evicted connection; pool entry may linger`
+        )
+      })
+      .finally(() => {
+        // Only clear if we're still the current pending release for this name
+        // (a later re-add + re-evict could have replaced it).
+        if (this.#pendingReleases.get(name) === releasing) {
+          this.#pendingReleases.delete(name)
+        }
+      })
+    this.#pendingReleases.set(name, releasing)
+  }
+
+  #warnOverCap(cap: number): void {
+    const now = this.#now()
+    // Throttle: one warning per minute is enough to alert ops without flooding.
+    if (now - this.#lastOverCapWarnAt < 60_000) return
+    this.#lastOverCapWarnAt = now
+    const open = this.#map.size
+    const label = this.opts.label
+    void lazyLogger().then((logger) =>
+      logger?.warn(
+        { cap, open, owner: label },
+        `${label}: all ${open} connections are within the in-use grace window; ` +
+          `exceeding the cap (${cap}) to avoid severing an active request. ` +
+          `Raise the connection cap or scale out if this persists.`
+      )
+    )
+  }
+}

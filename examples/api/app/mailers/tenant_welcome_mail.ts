@@ -17,7 +17,7 @@ interface BrandingInfo {
 /**
  * Welcome email rendered with the tenant's branding row. Fired from the
  * `TenantActivated` listener in `start/routes.ts`. Each tenant's email
- * carries their own from-address, primary colour, and support URL — the
+ * carries their own from-address, primary colour, and support URL. The
  * cross-tenant isolation test in `tests/e2e/mail.spec.ts` verifies that
  * one tenant's branding never leaks into another's email.
  *
@@ -25,7 +25,10 @@ interface BrandingInfo {
  * assert its presence without parsing tokens.
  */
 export default class TenantWelcomeMail extends BaseMail {
-  constructor(public tenant: TenantInfo, public branding: BrandingInfo) {
+  constructor(
+    public tenant: TenantInfo,
+    public branding: BrandingInfo
+  ) {
     super()
   }
 

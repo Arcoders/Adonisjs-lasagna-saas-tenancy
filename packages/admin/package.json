@@ -1,0 +1,80 @@
+{
+  "name": "@adonisjs-lasagna/admin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Admin REST API + OpenAPI/Swagger for @adonisjs-lasagna/saas-tenancy (tenant CRUD, impersonation, and satellite management)",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy.git",
+    "directory": "packages/admin"
+  },
+  "bugs": {
+    "url": "https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "saas-tenancy",
+    "multitenancy",
+    "admin",
+    "openapi"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build"
+  ],
+  "exports": {
+    ".": "./build/src/index.js",
+    "./provider": "./build/providers/admin_provider.js"
+  },
+  "typesVersions": {
+    "*": {
+      "provider": ["./build/providers/admin_provider.d.ts"]
+    }
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "adonisjs": {
+    "configure": "./build/configure.js"
+  },
+  "lasagnaSatellite": {
+    "name": "admin",
+    "satelliteApi": 1,
+    "pluginApiVersion": 1,
+    "minMergedCoverage": { "lines": 91, "functions": 87, "branches": 75 },
+    "aliases": ["admin"],
+    "provider": "@adonisjs-lasagna/admin/provider",
+    "install": [
+      "npm install @adonisjs-lasagna/admin"
+    ],
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/admin"
+  },
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/admin-unit tsx bin/test.ts",
+    "test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/admin-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
+    "@adonisjs-lasagna/sso": ">=0.1.0 <1.0.0",
+    "@adonisjs/core": "^7.0.0",
+    "@adonisjs/lucid": "^22.0.0",
+    "luxon": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@adonisjs-lasagna/sso": {
+      "optional": true
+    }
+  }
+}

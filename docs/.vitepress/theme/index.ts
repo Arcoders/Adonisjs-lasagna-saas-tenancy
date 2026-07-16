@@ -5,49 +5,47 @@ import { h } from 'vue'
 
 import LasagnaCard from './components/LasagnaCard.vue'
 import Callout from './components/Callout.vue'
-import CodeLayer from './components/CodeLayer.vue'
-import ZelligeStar from './components/ZelligeStar.vue'
-import HomeLayered from './components/HomeLayered.vue'
-import LayeredHero from './components/LayeredHero.vue'
 import ComparisonTable from './components/ComparisonTable.vue'
-import LayerStack from './components/LayerStack.vue'
 import Terminal from './components/Terminal.vue'
-import WebhookStateMachine from './components/WebhookStateMachine.vue'
 import PageFeedback from './components/PageFeedback.vue'
+
+// Landing-page sections, injected into VitePress's native home slots (below).
+// They are not referenced from markdown, so they need no global registration.
+import HomeHero from './components/HomeHero.vue'
+import TrustBand from './components/TrustBand.vue'
+import HomeOrbit from './components/HomeOrbit.vue'
+import HomeArchitecture from './components/HomeArchitecture.vue'
+import HomeExtend from './components/HomeExtend.vue'
+import HomeCta from './components/HomeCta.vue'
 
 import './style.css'
 
 /**
  * Custom Lasagna theme. We extend the default VitePress layout (so search,
- * sidebar, and dark-mode toggle keep working) and drop the Zellige surface
- * treatments through `style.css` and the components below.
+ * sidebar, and dark-mode toggle keep working) and layer a single accent and
+ * two typefaces on top through `style.css`.
  *
- * Pages can opt into the marketing landing layout by setting frontmatter:
- *
- *   ---
- *   layout: home
- *   lasagnaHome: true
- *   ---
- *
- * That keeps VitePress's nav + footer chrome but replaces the body with
- * the bespoke `<HomeLayered>` component via the `home-hero-before` slot
- * (and emptying every other default-home slot).
+ * The landing page keeps VitePress's `layout: home`, but every section is
+ * custom: the native hero is replaced with `HomeHero` (eyebrow, headline,
+ * install line, CTAs, and the layered-stack visual) via `home-hero-before`,
+ * nulling the native hero slots. The flat feature grid is gone (no `features:`
+ * frontmatter): the `home-features-before` slot renders the compatibility band
+ * and the `HomeOrbit` core-and-satellites visual, and `home-features-after`
+ * adds the architecture diagram, the extensible-by-contract band, and the CTA.
  */
 const LasagnaLayout = () => {
   const { frontmatter } = useData()
-  if (frontmatter.value.lasagnaHome) {
+
+  if (frontmatter.value.layout === 'home') {
     return h(DefaultTheme.Layout, null, {
-      'home-hero-before': () => h(HomeLayered),
-      'home-hero-info-before': () => null,
+      'home-hero-before': () => h(HomeHero),
       'home-hero-info': () => null,
-      'home-hero-info-after': () => null,
-      'home-hero-actions-after': () => null,
       'home-hero-image': () => null,
-      'home-hero-after': () => null,
-      'home-features-before': () => null,
-      'home-features-after': () => null,
+      'home-features-before': () => [h(TrustBand), h(HomeOrbit)],
+      'home-features-after': () => [h(HomeArchitecture), h(HomeExtend), h(HomeCta)],
     })
   }
+
   // Mount the feedback widget on every non-home page via the doc-after slot.
   return h(DefaultTheme.Layout, null, {
     'doc-after': () => h(PageFeedback),
@@ -60,13 +58,7 @@ export default {
   enhanceApp({ app }) {
     app.component('LasagnaCard', LasagnaCard)
     app.component('Callout', Callout)
-    app.component('CodeLayer', CodeLayer)
-    app.component('ZelligeStar', ZelligeStar)
-    app.component('LayeredHero', LayeredHero)
-    app.component('HomeLayered', HomeLayered)
     app.component('ComparisonTable', ComparisonTable)
-    app.component('LayerStack', LayerStack)
     app.component('Terminal', Terminal)
-    app.component('WebhookStateMachine', WebhookStateMachine)
   },
 } satisfies Theme

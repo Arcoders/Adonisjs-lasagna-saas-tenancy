@@ -1,0 +1,22 @@
+{
+  "all": true,
+  "src": ["src"],
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "src/**/*.d.ts",
+    "src/commands/commands.json",
+    "src/types/**",
+    "build/**",
+    "bin/**",
+    "tests/**",
+    "examples/**"
+  ],
+  "reporter": ["text-summary", "lcov"],
+  "report-dir": "./coverage",
+  "clean": true,
+  "check-coverage": true,
+  "lines": 67,
+  "branches": 86,
+  "functions": 75,
+  "statements": 67
+}

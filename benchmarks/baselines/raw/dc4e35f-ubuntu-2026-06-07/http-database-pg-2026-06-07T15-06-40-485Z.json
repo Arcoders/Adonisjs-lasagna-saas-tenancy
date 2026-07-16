@@ -1,0 +1,126 @@
+{
+  "suite": "http",
+  "env": {
+    "driver": "database-pg",
+    "node": "v24.16.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
+    "cpuCount": 4,
+    "totalMemGB": 16.8,
+    "commit": "dc4e35f",
+    "pgVersion": "PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "timestamp": "2026-06-07T15:06:40.485Z"
+  },
+  "results": [
+    {
+      "name": "ceiling (no tenancy)",
+      "group": "http",
+      "samples": 193955,
+      "opsPerSec": 17634,
+      "ns": {
+        "mean": 1200000,
+        "median": 1000000,
+        "p75": 1000000,
+        "p99": 4000000,
+        "p999": 6000000,
+        "min": 1000000,
+        "max": 69000000,
+        "stddev": 660000
+      },
+      "meta": {
+        "reqPerSec": 17634,
+        "latencyP50ms": 1,
+        "latencyP90ms": 2,
+        "latencyP99ms": 4,
+        "latencyMaxms": 69,
+        "non2xx": 0,
+        "errors": 0,
+        "timeouts": 0
+      }
+    },
+    {
+      "name": "tenant read (guarded)",
+      "group": "http",
+      "samples": 6831,
+      "opsPerSec": 621,
+      "ns": {
+        "mean": 39670000,
+        "median": 39000000,
+        "p75": 41000000,
+        "p99": 53000000,
+        "p999": 110000000,
+        "min": 31000000,
+        "max": 123000000,
+        "stddev": 5370000
+      },
+      "meta": {
+        "reqPerSec": 621,
+        "latencyP50ms": 39,
+        "latencyP90ms": 45,
+        "latencyP99ms": 53,
+        "latencyMaxms": 123,
+        "non2xx": 0,
+        "errors": 0,
+        "timeouts": 0
+      }
+    },
+    {
+      "name": "tenant read (no guard)",
+      "group": "http",
+      "samples": 7127,
+      "opsPerSec": 648,
+      "ns": {
+        "mean": 38020000,
+        "median": 37000000,
+        "p75": 39000000,
+        "p99": 48000000,
+        "p999": 82000000,
+        "min": 13000000,
+        "max": 114000000,
+        "stddev": 3550000
+      },
+      "meta": {
+        "reqPerSec": 648,
+        "latencyP50ms": 37,
+        "latencyP90ms": 41,
+        "latencyP99ms": 48,
+        "latencyMaxms": 114,
+        "non2xx": 0,
+        "errors": 0,
+        "timeouts": 0
+      }
+    },
+    {
+      "name": "tenant read (guard + rate-limit)",
+      "group": "http",
+      "samples": 5907,
+      "opsPerSec": 537,
+      "ns": {
+        "mean": 45960000,
+        "median": 46000000,
+        "p75": 48000000,
+        "p99": 56000000,
+        "p999": 118000000,
+        "min": 20000000,
+        "max": 143000000,
+        "stddev": 4770000
+      },
+      "meta": {
+        "reqPerSec": 537,
+        "latencyP50ms": 46,
+        "latencyP90ms": 50,
+        "latencyP99ms": 56,
+        "latencyMaxms": 143,
+        "non2xx": 0,
+        "errors": 0,
+        "timeouts": 0
+      }
+    }
+  ],
+  "meta": {
+    "tenants": 50,
+    "connections": 25,
+    "durationSec": 10
+  }
+}

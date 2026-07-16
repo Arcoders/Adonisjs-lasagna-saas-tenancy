@@ -100,6 +100,11 @@ services:
 
   app:
     build:
+      # This file is a TEMPLATE: copy deploy/ into your application repo,
+      # where `..` resolves to your AdonisJS app root (the Dockerfile runs
+      # `node ace build`). Inside this monorepo that context is the repo
+      # root — not an app — so the runnable, CI-tested variant of this
+      # topology is docker-compose.e2e.yml.
       context: ..
       dockerfile: deploy/Dockerfile
     image: lasagna-app:latest
@@ -108,7 +113,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    environment:
+    environment: &app-env
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3333
@@ -122,6 +127,17 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # The config scaffolded by `node ace configure` reads these for the
+      # queue and cache Redis connections and DEFAULTS TO 127.0.0.1 when they
+      # are unset — inside a container that is the container itself, not the
+      # redis service, and provisioning jobs would silently never reach the
+      # worker. Point them at the shared Redis explicitly.
+      QUEUE_REDIS_HOST: redis
+      QUEUE_REDIS_PORT: 6379
+      QUEUE_REDIS_DB: 1
+      CACHE_REDIS_HOST: redis
+      CACHE_REDIS_PORT: 6379
+      CACHE_REDIS_DB: 2
       LOG_LEVEL: info
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3333/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -134,6 +150,27 @@ services:
       resources:
         limits:
           memory: 768M
+    restart: unless-stopped
+
+  # Tenant provisioning (and the package's other background jobs) ride on
+  # BullMQ — without a worker process, every `tenant:create` sits in
+  # `provisioning` forever. Scale workers independently of HTTP replicas.
+  worker:
+    image: lasagna-app:latest
+    command: ['node', 'ace', 'queue:work']
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Same env as the app — one anchor, so the two blocks cannot drift. A
+    # worker pointed at a different queue Redis than the app enqueues to is
+    # the silent version of having no worker at all.
+    environment: *app-env
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     restart: unless-stopped
 
   nginx:
