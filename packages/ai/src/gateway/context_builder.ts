@@ -150,10 +150,12 @@ function leadingSystemCount(messages: readonly AIMessage[]): number {
  * Reconstruct the assistant's full text from the recorded SSE frames of a
  * completed stream (WS-AI-4 persist). Content frames are concatenated verbatim
  * (a fragment's own newlines are one `data:` line each, per the SSE writer, so
- * they rejoin with `\n`); the control frames (`event: error`, `event: done`) are
- * skipped, and heartbeats are already excluded by the recorder. Deterministic
- * inverse of `SseWriter.formatFrame`, pinned by a write-then-reconstruct round-trip
- * spec, so the persisted turn is exactly what the client received.
+ * they rejoin with `\n`); the control frames (`event: error`, `event: done`) and
+ * the `tool_call` notices (WS-AI-11 — a redacted `{name,id}` marker, not the
+ * assistant's natural-language answer) are skipped, and heartbeats are already
+ * excluded by the recorder. Deterministic inverse of `SseWriter.formatFrame`,
+ * pinned by a write-then-reconstruct round-trip spec, so the persisted memory turn
+ * is exactly the answer the client received, never tool activity.
  */
 export function reconstructAssistantText(frames: readonly string[]): string {
   let text = ''
@@ -161,7 +163,7 @@ export function reconstructAssistantText(frames: readonly string[]): string {
     const lines = frame.split('\n')
     const eventLine = lines.find((line) => line.startsWith('event: '))
     const event = eventLine ? eventLine.slice('event: '.length) : ''
-    if (event === 'error' || event === 'done') continue
+    if (event === 'error' || event === 'done' || event === 'tool_call') continue
     const dataLines = lines
       .filter((line) => line.startsWith('data: '))
       .map((line) => line.slice('data: '.length))

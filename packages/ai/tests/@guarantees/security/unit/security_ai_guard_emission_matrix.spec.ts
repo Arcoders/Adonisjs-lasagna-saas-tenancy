@@ -19,6 +19,14 @@ import {
   resolveRetrievalScope,
 } from '../../../../src/gateway/access_gate.js'
 import { validateIdempotencyKeyHeader } from '../../../../src/gateway/idempotency.js'
+import {
+  assertActionAllowed,
+  assertActiveToolScope,
+  authorizeToolScope,
+  resolveKnownTool,
+} from '../../../../src/gateway/tool_gate.js'
+import { validateToolInput } from '../../../../src/gateway/tool_input.js'
+import { buildToolLoopProducer } from '../../../../src/gateway/tool_loop.js'
 import { assertAiMountAllowed } from '../../../../src/routes/mount_gate.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
 import AiRateLimiter from '../../../../src/services/ai_rate_limiter.js'
@@ -117,6 +125,36 @@ async function drain(iterable: AsyncIterable<unknown>): Promise<void> {
 
 const okResponse = () => new Response(null, { status: 200 })
 
+/** A minimal read tool for the tool-gate recipes. */
+const readToolDef = () => ({
+  name: 'read',
+  description: 'a read tool',
+  inputSchema: {},
+  handler: async () => ({ ok: true }),
+})
+
+/** A number-argument schema for the input-validation recipe. */
+const numberSchema = {
+  name: 'read',
+  inputSchema: { type: 'object', properties: { n: { type: 'number' } }, required: ['n'] },
+}
+
+/** Build a one-round tool loop that "always" calls a tool, so maxRounds:1 trips the budget guard. */
+const budgetLoop = (alwaysCalls: boolean) =>
+  buildToolLoopProducer({
+    tenantId: 'tenant-1',
+    provider: new MockAIProvider({
+      rounds: alwaysCalls
+        ? [[{ data: '', tokens: 0, event: 'tool_call', toolCall: { id: 'c', name: 'read', arguments: '{}' } }]]
+        : [[{ data: 'answer', tokens: 0 }]],
+    }),
+    baseRequest: { messages: [{ role: 'user', content: 'hi' }] },
+    tools: [{ name: 'read', description: 'd', inputSchema: {} }],
+    executor: { execute: async () => ({ role: 'tool', content: 'x', toolCallId: 'c' }) },
+    perRoundMaxTokens: 100,
+    maxRounds: 1,
+  })(new AbortController().signal)
+
 const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
   'guard.ai_provider_allowlist': {
     trip: () =>
@@ -186,11 +224,11 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
   'guard.ai_streaming_capability': {
     trip: () =>
       new AIProviderRegistry().register(
-        new MockAIProvider({ name: 'claude', contractVersion: 1, streaming: false })
+        new MockAIProvider({ name: 'claude', contractVersion: 2, streaming: false })
       ),
     expectThrow: /does not declare capabilities\.streaming/,
     happy: () =>
-      new AIProviderRegistry().register(new MockAIProvider({ name: 'claude', contractVersion: 1 })),
+      new AIProviderRegistry().register(new MockAIProvider({ name: 'claude', contractVersion: 2 })),
   },
   'guard.ai_config_invalid': {
     trip: () => assertAiConfig({ allowedProviders: [] } as unknown as AiConfig),
@@ -310,6 +348,50 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
     trip: () => complianceForMatrix(true).autoPurge(tenant, 'tenant_deleted'),
     expectThrow: null,
     happy: () => complianceForMatrix(false).autoPurge(tenant, 'tenant_deleted'),
+  },
+  'guard.ai_tool_unknown': {
+    trip: () => resolveKnownTool([], 'ghost-tool', 'tenant-1'),
+    expectThrow: /unknown tool/,
+    happy: () => resolveKnownTool([readToolDef()], 'read', 'tenant-1'),
+  },
+  'guard.ai_tool_denied': {
+    trip: () =>
+      authorizeToolScope({} as never, tenant, 'read', {
+        authorizeTool: () => {
+          throw new Error('acl backend down')
+        },
+      }),
+    expectThrow: /not authorized/,
+    happy: () =>
+      authorizeToolScope({} as never, tenant, 'read', { authorizeTool: () => ({ kind: 'allow' }) }),
+  },
+  'guard.ai_tool_input_invalid': {
+    trip: () => validateToolInput('{"n":"not-a-number"}', numberSchema, { tenantId: 'tenant-1' }),
+    expectThrow: /Refusing the tool call/,
+    happy: () => validateToolInput('{"n":5}', numberSchema, { tenantId: 'tenant-1' }),
+  },
+  'guard.ai_tool_scope_mismatch': {
+    trip: () => assertActiveToolScope('someone-else', 'tenant-1'),
+    expectThrow: /does not match the active tenancy scope/,
+    happy: () => assertActiveToolScope('tenant-1', 'tenant-1'),
+  },
+  'guard.ai_tool_budget_exhausted': {
+    trip: () => drain(budgetLoop(true)),
+    expectThrow: /maximum number of rounds/,
+    happy: () => drain(budgetLoop(false)),
+  },
+  'guard.ai_tool_action_disabled': {
+    trip: () =>
+      assertActionAllowed(
+        { name: 'delete_all', description: 'd', inputSchema: {}, mode: 'action', handler: async () => ({}) },
+        'tenant-1'
+      ),
+    expectThrow: /action \(mutating\) tools are disabled/,
+    happy: () =>
+      assertActionAllowed(
+        { name: 'read', description: 'd', inputSchema: {}, handler: async () => ({}) },
+        'tenant-1'
+      ),
   },
 }
 

@@ -4,6 +4,7 @@ import type {
   TenantAccessAuthorizer,
   TenantModelContract,
 } from '@adonisjs-lasagna/saas-tenancy/types'
+import type { AIToolDefinition } from './types/ai_provider_contract.js'
 
 /**
  * The shipped AI provider names. `(string & {})` keeps autocomplete for the
@@ -220,6 +221,101 @@ export type RedactOutput = (
 ) => string | null
 
 /**
+ * How {@link AIToolsConfig.authorizeTool} scopes a single tool call (WS-AI-11). A
+ * discriminated union so the intent is explicit and exhaustive: `deny` refuses the
+ * call, `allow` runs it, and an `allow` may carry a `filter` that narrows WHAT the
+ * tool may see (handed to the handler as {@link ToolContext.filter}, e.g. a
+ * per-user row scope). Fail-closed everywhere it is consumed: an absent hook or an
+ * invalid return is a deny unless the host opts into
+ * {@link AIToolsConfig.acknowledgeUnauthorizedTools}. Mirrors {@link RetrievalScope}.
+ */
+export type ToolScope =
+  | { readonly kind: 'allow'; readonly filter?: Record<string, unknown> }
+  | { readonly kind: 'deny' }
+
+/**
+ * The context a tool handler runs in. `tenant` and `ctx` are the request's
+ * resolved tenant and HTTP context; the handler runs INSIDE `tenancy.run(tenant)`
+ * (so a `TenantBaseModel` query hits the right schema) with the active scope
+ * re-asserted first (the I7 defense: a tool cannot query another tenant). `signal`
+ * aborts on client disconnect, the request deadline, OR the per-tool timeout.
+ * `filter` is the optional narrowing returned by `authorizeTool`.
+ */
+export interface ToolContext {
+  readonly tenant: TenantModelContract
+  readonly ctx: HttpContext
+  readonly signal: AbortSignal
+  readonly filter?: Record<string, unknown>
+}
+
+/**
+ * A tool the host makes available to the model. Extends the wire-facing
+ * {@link AIToolDefinition} (name / description / inputSchema / mode) with the
+ * server-side executable surface: the `handler`, an optional per-tool
+ * `requiresConfirmation` (action tools, Phase 3a), and an optional host
+ * `parseInput` validator (e.g. a vine schema, the app's OWN dependency, never the
+ * satellite's) that supersedes the shipped JSON-Schema-subset checker. `mode:
+ * 'action'` marks a mutating tool, a hard-gated capability refused until it is
+ * explicitly enabled and confirmed (Phase 3a); read tools are the zero-config default.
+ */
+export interface AIToolHostDefinition extends AIToolDefinition {
+  readonly handler: (args: Record<string, unknown>, context: ToolContext) => Promise<unknown>
+  readonly requiresConfirmation?: boolean
+  readonly parseInput?: (raw: unknown) => unknown
+}
+
+/** Resolve the tools available to THIS request (per-tenant default-deny). Absent ⇒ the static registry, or none. */
+export type AIToolResolver = (
+  ctx: HttpContext,
+  tenant: TenantModelContract
+) => AIToolHostDefinition[] | Promise<AIToolHostDefinition[]>
+
+/** The per-tool authorization hook, mirroring {@link RetrievalFilter}. Fail-closed (throw / invalid ⇒ deny). */
+export type AIToolAuthorizer = (
+  ctx: HttpContext,
+  tenant: TenantModelContract,
+  toolName: string
+) => ToolScope | Promise<ToolScope>
+
+/**
+ * The tool / function-calling block (WS-AI-11), present when a host opts into
+ * tool calling. Default-deny throughout: with no `registry`/`resolveTools` the
+ * model is offered no tools; with tools present but no `authorizeTool` and no
+ * `acknowledgeUnauthorizedTools`, every tool call is refused. Action (mutating)
+ * tools are OFF behind `actionTools.enabled` and refused until the confirmation
+ * flow (Phase 3a). Every `max*`/`*Ms` bound is a named-constant default, clamped
+ * to a hard ceiling.
+ */
+export interface AIToolsConfig {
+  /** A static tool registry. Combined with `resolveTools` when both are present. */
+  registry?: AIToolHostDefinition[]
+  /** Per-request, per-tenant tool resolution (default-deny). Absent ⇒ the static registry, or none. */
+  resolveTools?: AIToolResolver
+  /** The per-tool authorization hook. Absent ⇒ deny unless `acknowledgeUnauthorizedTools`. */
+  authorizeTool?: AIToolAuthorizer
+  /** Opt into running READ tools with NO `authorizeTool` wired (tenant isolation still holds). Ignored by action tools. */
+  acknowledgeUnauthorizedTools?: boolean
+  /** The action-tool kill-switch. Default OFF; action tools are refused until enabled AND confirmed (Phase 3a). */
+  actionTools?: { enabled?: boolean }
+  /** Max provider rounds. Default 4, clamped to 8. */
+  maxRounds?: number
+  /** Max tool calls executed per round. Default 4, clamped to 8. */
+  maxToolsPerRound?: number
+  /** Max total tool calls across one request. Default and hard cap 16. */
+  maxToolCallsPerRequest?: number
+  /** Per-tool execution deadline in ms. Default 5000, clamped to 30000. */
+  toolTimeoutMs?: number
+  /** Max characters of a fenced tool result. Default 4000, clamped to 16000. */
+  maxToolResultChars?: number
+  /** Max characters of a tool call's raw arguments (bounded before JSON.parse). Default 8000, clamped to 16000. */
+  maxToolArgsChars?: number
+  /** Max concurrent in-flight streams admitting a tool loop, per tenant. Default 8, clamped to 32. */
+  maxConcurrentPerTenant?: number
+  /** Surface tool-call arguments in the client `tool_call` notice. Default false (name + id only). */
+  surfaceToolArgs?: boolean
+}
+
+/**
  * AI satellite config. Opt-in via `--with=ai` and declaring `config.ai`.
  * Provider-agnostic: allow-list the providers a tenant may use, fill in the
  * matching per-provider block, and pick a default. Every value is optional with
@@ -330,6 +426,11 @@ export interface AiConfig {
   acknowledgeUnscopedRetrieval?: boolean
   /** The append-only audit block. On by default; set `enabled: false` to opt out. */
   audit?: AIAuditConfig
+  /**
+   * The tool / function-calling block (WS-AI-11). Present when the host opts into
+   * letting the model call server-defined tools. Default-deny; see {@link AIToolsConfig}.
+   */
+  tools?: AIToolsConfig
   /**
    * Per-tenant data residency / no-train posture (#7 / #15). When set, a request
    * whose selected provider (chat) or embedding backend (embed / retrieve) is

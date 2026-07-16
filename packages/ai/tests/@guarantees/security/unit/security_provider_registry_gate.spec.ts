@@ -30,7 +30,7 @@ test.group('AIProviderRegistry: streaming-presence gate', () => {
   test('accepts a streaming provider (equal contract version is silent)', ({ assert }) => {
     const registry = new AIProviderRegistry()
     assert.doesNotThrow(() =>
-      registry.register(new MockAIProvider({ name: 'claude', contractVersion: 1 }))
+      registry.register(new MockAIProvider({ name: 'claude', contractVersion: 2 }))
     )
     assert.isTrue(registry.has('claude'))
   })
@@ -38,8 +38,8 @@ test.group('AIProviderRegistry: streaming-presence gate', () => {
   test('throws for a provider declaring a newer contract version', ({ assert }) => {
     const registry = new AIProviderRegistry()
     assert.throws(
-      () => registry.register(new MockAIProvider({ name: 'future', contractVersion: 2 })),
-      /requires extension contract v2/
+      () => registry.register(new MockAIProvider({ name: 'future', contractVersion: 3 })),
+      /requires extension contract v3/
     )
   })
 

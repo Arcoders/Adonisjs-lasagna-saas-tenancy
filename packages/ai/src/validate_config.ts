@@ -6,8 +6,20 @@ import type {
   AIProviderConfig,
   AIProviderName,
   AIRetrievalConfig,
+  AIToolHostDefinition,
+  AIToolsConfig,
 } from './define_config.js'
-import { DEFAULT_AI_PROVIDER, MAX_EMBEDDING_DIM } from './constants.js'
+import {
+  DEFAULT_AI_PROVIDER,
+  MAX_AI_TOOL_ROUNDS,
+  MAX_CONCURRENT_TOOL_LOOPS_PER_TENANT,
+  MAX_EMBEDDING_DIM,
+  MAX_TOOL_ARGS_CHARS,
+  MAX_TOOL_CALLS_PER_REQUEST,
+  MAX_TOOL_RESULT_CHARS,
+  MAX_TOOL_TIMEOUT_MS,
+  MAX_TOOLS_PER_ROUND,
+} from './constants.js'
 import { emitAiGuardEvent } from './isthmus/ai_guard_audit.js'
 
 /** The built-in providers that require a matching config block when allow-listed. */
@@ -114,6 +126,110 @@ export function assertAiConfig(config: AiConfig | undefined): void {
   assertRetrievalConfig(config.retrieval)
   assertMemoryConfig(config.memory)
   assertAuditConfig(config.audit)
+  assertToolsConfig(config.tools)
+}
+
+/**
+ * The tool / function-calling block (WS-AI-11), when present: the hooks are
+ * functions, each static `registry` entry is a well-formed tool definition, and
+ * every bound is a positive integer no larger than its hard ceiling. The loop and
+ * executor also clamp these defensively at runtime, but validating here makes an
+ * out-of-bounds or mistyped value a loud boot abort rather than a silent clamp on
+ * the first stream. `registry` and `resolveTools` may coexist. The fail-closed
+ * default-deny authorization posture (an absent `authorizeTool`) is a runtime
+ * concern the `ai_tools` doctor check surfaces, not a config error.
+ */
+function assertToolsConfig(tools: AIToolsConfig | undefined): void {
+  if (tools === undefined) return
+  if (typeof tools !== 'object' || tools === null) {
+    fail('[ai] config.ai.tools, when set, must be an object')
+  }
+
+  if (tools.resolveTools !== undefined && typeof tools.resolveTools !== 'function') {
+    fail('[ai] config.ai.tools.resolveTools, when set, must be a function (ctx, tenant)')
+  }
+  if (tools.authorizeTool !== undefined && typeof tools.authorizeTool !== 'function') {
+    fail('[ai] config.ai.tools.authorizeTool, when set, must be a function (ctx, tenant, toolName)')
+  }
+  if (
+    tools.acknowledgeUnauthorizedTools !== undefined &&
+    typeof tools.acknowledgeUnauthorizedTools !== 'boolean'
+  ) {
+    fail('[ai] config.ai.tools.acknowledgeUnauthorizedTools, when set, must be a boolean')
+  }
+  if (tools.surfaceToolArgs !== undefined && typeof tools.surfaceToolArgs !== 'boolean') {
+    fail('[ai] config.ai.tools.surfaceToolArgs, when set, must be a boolean')
+  }
+  if (tools.actionTools !== undefined) {
+    if (typeof tools.actionTools !== 'object' || tools.actionTools === null) {
+      fail('[ai] config.ai.tools.actionTools, when set, must be an object { enabled? }')
+    }
+    if (
+      tools.actionTools.enabled !== undefined &&
+      typeof tools.actionTools.enabled !== 'boolean'
+    ) {
+      fail('[ai] config.ai.tools.actionTools.enabled, when set, must be a boolean')
+    }
+  }
+  if (tools.registry !== undefined) {
+    if (!Array.isArray(tools.registry)) {
+      fail('[ai] config.ai.tools.registry, when set, must be an array of tool definitions')
+    }
+    tools.registry.forEach(assertToolDefinition)
+  }
+
+  assertBoundedInteger('tools.maxRounds', tools.maxRounds, MAX_AI_TOOL_ROUNDS)
+  assertBoundedInteger('tools.maxToolsPerRound', tools.maxToolsPerRound, MAX_TOOLS_PER_ROUND)
+  assertBoundedInteger(
+    'tools.maxToolCallsPerRequest',
+    tools.maxToolCallsPerRequest,
+    MAX_TOOL_CALLS_PER_REQUEST
+  )
+  assertBoundedInteger('tools.toolTimeoutMs', tools.toolTimeoutMs, MAX_TOOL_TIMEOUT_MS)
+  assertBoundedInteger('tools.maxToolResultChars', tools.maxToolResultChars, MAX_TOOL_RESULT_CHARS)
+  assertBoundedInteger('tools.maxToolArgsChars', tools.maxToolArgsChars, MAX_TOOL_ARGS_CHARS)
+  assertBoundedInteger(
+    'tools.maxConcurrentPerTenant',
+    tools.maxConcurrentPerTenant,
+    MAX_CONCURRENT_TOOL_LOOPS_PER_TENANT
+  )
+}
+
+/**
+ * A static `registry` tool definition: a non-empty `name`, a non-empty
+ * `description`, an object `inputSchema` (the JSON Schema shipped to the model), a
+ * `handler` function, and — when set — a `mode` of `'read'` or `'action'`, a
+ * boolean `requiresConfirmation`, and a `parseInput` function. Dynamic
+ * (`resolveTools`) tools are validated at request time by `resolveToolRegistry`,
+ * which drops a malformed entry rather than aborting the boot.
+ */
+function assertToolDefinition(tool: unknown, index: number): void {
+  if (typeof tool !== 'object' || tool === null) {
+    fail(`[ai] config.ai.tools.registry[${index}] must be a tool definition object`)
+  }
+  const t = tool as Partial<AIToolHostDefinition>
+  const at = `config.ai.tools.registry[${index}]`
+  if (typeof t.name !== 'string' || t.name.length === 0) {
+    fail(`[ai] ${at}.name must be a non-empty string`)
+  }
+  if (typeof t.description !== 'string' || t.description.length === 0) {
+    fail(`[ai] ${at} (${t.name}).description must be a non-empty string`)
+  }
+  if (typeof t.inputSchema !== 'object' || t.inputSchema === null || Array.isArray(t.inputSchema)) {
+    fail(`[ai] ${at} (${t.name}).inputSchema must be an object (a JSON Schema)`)
+  }
+  if (typeof t.handler !== 'function') {
+    fail(`[ai] ${at} (${t.name}).handler must be a function (args, ctx) => Promise`)
+  }
+  if (t.mode !== undefined && t.mode !== 'read' && t.mode !== 'action') {
+    fail(`[ai] ${at} (${t.name}).mode, when set, must be 'read' or 'action'`)
+  }
+  if (t.requiresConfirmation !== undefined && typeof t.requiresConfirmation !== 'boolean') {
+    fail(`[ai] ${at} (${t.name}).requiresConfirmation, when set, must be a boolean`)
+  }
+  if (t.parseInput !== undefined && typeof t.parseInput !== 'function') {
+    fail(`[ai] ${at} (${t.name}).parseInput, when set, must be a function (raw) => args`)
+  }
 }
 
 /**

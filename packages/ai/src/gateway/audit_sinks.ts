@@ -7,6 +7,8 @@ import type {
   AiEmbeddingAuditSink,
   AiRetrievalAuditEvent,
   AiRetrievalAuditSink,
+  AiToolAuditEvent,
+  AiToolAuditSink,
 } from './audit_seam.js'
 
 /**
@@ -92,5 +94,61 @@ export class PgRetrievalAuditSink implements AiRetrievalAuditSink {
       occurredAt: event.occurredAt,
     }
     await this.writer.append(row)
+  }
+}
+
+export class PgToolAuditSink implements AiToolAuditSink {
+  constructor(private readonly writer: AiAuditWriter) {}
+
+  async append(event: AiToolAuditEvent): Promise<void> {
+    // LOAD-BEARING chain-integrity reuse (WS-AI-11). `canonicalAuditFields` in
+    // ai_audit_writer.ts is a POSITIONAL array: adding an element would rebreak
+    // every historical row's checksum. So a tool row must NOT introduce a new
+    // column — it reuses three neutral fields that no tool row otherwise needs:
+    //   toolName -> model      (a tool row's "model" IS the invoked tool name)
+    //   round    -> matchCount (the loop round, reusing retrieval's match counter)
+    //   mode     -> provider   ('read' | 'action'; a tool row has no LLM provider)
+    // These are DELIBERATE, checksum-preserving reuses, NOT literal model / provider
+    // / match-count values. `op: 'tool'` is the sole discriminator: do not read
+    // model / provider / matchCount on a `tool` row as an LLM model, provider, or
+    // match count. Documented in ai-tools.md and pinned by
+    // security_audit_seam_tool_non_pii_fields. Neither the arguments nor the result
+    // is ever mapped in (they are non-PII-frozen out of the event upstream).
+    const row: AiAuditRow = {
+      tenantId: event.tenantId,
+      op: 'tool',
+      outcome: toRowOutcome(event.outcome),
+      reason: event.reason,
+      principalHash: event.principalHash,
+      sourceHash: null,
+      provider: event.mode,
+      model: event.toolName,
+      tokens: event.tokens,
+      fragments: 0,
+      embeddingsCount: 0,
+      dimension: 0,
+      matchCount: event.round,
+      idempotentReplay: false,
+      occurredAt: event.occurredAt,
+    }
+    await this.writer.append(row)
+  }
+}
+
+/**
+ * Map a tool-event outcome onto the shared row's 3-value outcome, keeping the
+ * precise category in `reason` (so the row's `outcome` enum — and its column CHECK,
+ * if a host adds one — never has to grow): a refusal that never ran is a
+ * preflight-style refusal, a handler that ran then broke is an abort.
+ */
+function toRowOutcome(outcome: AiToolAuditEvent['outcome']): AiAuditRow['outcome'] {
+  switch (outcome) {
+    case 'completed':
+      return 'completed'
+    case 'denied':
+      return 'failed_preflight'
+    case 'failed':
+    case 'error':
+      return 'aborted'
   }
 }

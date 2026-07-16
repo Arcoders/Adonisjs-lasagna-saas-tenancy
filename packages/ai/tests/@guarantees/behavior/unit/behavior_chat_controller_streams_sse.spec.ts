@@ -41,7 +41,7 @@ function buildDeps(
   const { svc } = makeService(quota)
   const provider = new MockAIProvider({
     name: 'claude',
-    contractVersion: 1,
+    contractVersion: 2,
     fragments: [
       { data: 'hola', tokens: 2 },
       { data: 'mundo', tokens: 3 },

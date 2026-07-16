@@ -41,7 +41,7 @@ function buildDeps(redis: FakeRedisLists, store?: AiIdempotencyStore) {
   const { svc } = makeService(quota)
   const provider = new MockAIProvider({
     name: 'claude',
-    contractVersion: 1,
+    contractVersion: 2,
     fragments: [{ data: 'hi', tokens: 1 }],
   })
   const registry = new AIProviderRegistry()

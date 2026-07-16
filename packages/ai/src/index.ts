@@ -26,6 +26,8 @@ export type {
   AIMessage,
   AIProviderContract,
   AIStreamRequest,
+  AIToolCall,
+  AIToolDefinition,
   StreamFragment,
 } from './types/ai_provider_contract.js'
 export type {

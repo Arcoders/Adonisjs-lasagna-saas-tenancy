@@ -6,6 +6,11 @@ import type { AIEmbeddingProviderContract } from '../types/ai_embedding_contract
  * authors can gate their own provider in a unit spec: assert the returned list
  * is empty. It checks the load-bearing shape (a name, the streaming capability
  * the registry gates on, and the two required methods) without a network.
+ *
+ * Tool / function calling (`capabilities.tools`) is an OPTIONAL capability that
+ * adds no new required method: a provider serves tools through the same
+ * `stream()`, so this only type-checks the flag when present. A provider that
+ * omits it (or sets it `false`) is conformant and simply serves no tools.
  */
 export function checkAIProviderConformance(provider: AIProviderContract): string[] {
   const problems: string[] = []
@@ -16,6 +21,9 @@ export function checkAIProviderConformance(provider: AIProviderContract): string
     problems.push(
       'provider.capabilities.streaming must be true (the registry presence gate rejects otherwise)'
     )
+  }
+  if (provider.capabilities?.tools !== undefined && typeof provider.capabilities.tools !== 'boolean') {
+    problems.push('provider.capabilities.tools, when present, must be a boolean')
   }
   if (typeof provider.verifyConfig !== 'function') {
     problems.push('provider.verifyConfig must be a function')

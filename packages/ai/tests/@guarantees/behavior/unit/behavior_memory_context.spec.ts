@@ -140,4 +140,20 @@ test.group('behavior — reconstructAssistantText', () => {
   test('no content frames yields an empty string', ({ assert }) => {
     assert.equal(reconstructAssistantText(['event: done\ndata: x\n\n']), '')
   })
+
+  test('skips tool_call notices (WS-AI-11: memory holds the answer, never tool activity)', async ({
+    assert,
+  }) => {
+    // A round that streamed some text, emitted a redacted tool_call notice, then
+    // finished the answer. Persisted memory must be the natural-language answer
+    // only — never the {name,id} tool marker.
+    const frames = await framesFor([
+      { data: 'Tienes ' },
+      { data: '{"name":"count_bookings","id":"c1"}', event: 'tool_call' },
+      { data: '4 reservas.' },
+    ])
+    const text = reconstructAssistantText(frames)
+    assert.equal(text, 'Tienes 4 reservas.')
+    assert.notInclude(text, 'count_bookings')
+  })
 })

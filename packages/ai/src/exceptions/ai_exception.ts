@@ -31,6 +31,13 @@ export const AI_ERROR_CODES = [
   'memory_session_invalid',
   // compliance / residency
   'residency_denied',
+  // tool / function calling (WS-AI-11)
+  'tool_unknown',
+  'tool_denied',
+  'tool_input_invalid',
+  'tool_action_disabled',
+  'tool_budget_exhausted',
+  'too_many_concurrent',
 ] as const
 
 export type AIErrorCode = (typeof AI_ERROR_CODES)[number]
@@ -73,6 +80,16 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   // A request whose provider/embedding egress is not allowed by the tenant's
   // residency posture (#7/#15) is a permanent 403, like the other authz gates.
   residency_denied: 403,
+  // Tool-calling refusals: an unknown tool or invalid model-generated arguments
+  // are permanent 400s; a denied authorization and a disabled action tool are
+  // 403s like the other authz gates. The loop ceiling is 402 like over_budget (a
+  // spend cap), and too many concurrent tool loops for one tenant is a 429.
+  tool_unknown: 400,
+  tool_denied: 403,
+  tool_input_invalid: 400,
+  tool_action_disabled: 403,
+  tool_budget_exhausted: 402,
+  too_many_concurrent: 429,
 }
 
 /**
@@ -118,6 +135,17 @@ const FATAL_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
   // entry here would wrongly make it retryable (a client would retry the very egress
   // residency exists to block).
   'residency_denied',
+  // An unknown tool, a denied authorization, invalid model arguments and a disabled
+  // action tool are all permanent refusals: the same request re-run is refused
+  // identically. The tool-loop ceiling is deterministic too. The per-tenant
+  // concurrency cap is fatal on purpose (anti-flood): a client must back off, not
+  // hammer retries that would worsen the very flood it defends.
+  'tool_unknown',
+  'tool_denied',
+  'tool_input_invalid',
+  'tool_action_disabled',
+  'tool_budget_exhausted',
+  'too_many_concurrent',
 ])
 
 /**

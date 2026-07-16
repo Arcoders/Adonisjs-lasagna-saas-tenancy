@@ -37,6 +37,7 @@ import {
   PgChatAuditSink,
   PgEmbeddingAuditSink,
   PgRetrievalAuditSink,
+  PgToolAuditSink,
 } from '../src/gateway/audit_sinks.js'
 import AIException from '../src/exceptions/ai_exception.js'
 import StreamExtensionService from '../src/gateway/stream_extension.js'
@@ -65,6 +66,7 @@ import {
 } from '../src/services/ai_retrieval_gate_check.js'
 import { aiAuditCheck } from '../src/services/ai_audit_check.js'
 import { aiMemoryCheck } from '../src/services/ai_memory_check.js'
+import { aiToolsCheck, aiToolsPosture } from '../src/services/ai_tools_check.js'
 import { setAiGuardMetricSink } from '../src/isthmus/ai_guard_audit.js'
 import ClaudeProvider from '../src/providers/claude_provider.js'
 import { DeepSeekProvider, KimiProvider } from '../src/providers/openai_compatible_provider.js'
@@ -282,6 +284,13 @@ export default definePlugin({
         PgRetrievalAuditSink,
         async (resolver) => new PgRetrievalAuditSink(await resolver.make(AiAuditWriter))
       )
+      // The tool-execution audit sink (WS-AI-11). Registered here so it resolves
+      // when the tool loop is wired live (Phase 9); it maps `op: 'tool'` rows onto
+      // the same fail-closed, hash-chained writer as chat / embed / retrieval.
+      app.container.singleton(
+        PgToolAuditSink,
+        async (resolver) => new PgToolAuditSink(await resolver.make(AiAuditWriter))
+      )
     }
     // The WS-AI-9 compliance orchestrator. Composes the purge seams (memory +
     // vector + idempotency epoch) into GDPR-grade erasure, records the admin
@@ -360,6 +369,14 @@ export default definePlugin({
     doctor.register(
       aiMemoryCheck(() => app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
     )
+    // Keep the tool-calling posture visible (WS-AI-11, I7): with tools offered but
+    // no per-tool authorizeTool ACL, tool calling is fail-closed (refused) until the
+    // host wires the hook or acknowledges the tenant-wide posture; the check also
+    // flags an enabled-but-inert action-tool flag. The check always reports the live
+    // posture; the boot warning fires only for the refused case (see aiToolsPosture).
+    doctor.register(
+      aiToolsCheck(() => app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
+    )
     // Keep the WS-AI-9 purge posture visible (read-only): Redis reachability for
     // memory/cache erasure + a keyPrefix note. It never bumps the epoch.
     doctor.register(
@@ -387,6 +404,11 @@ export default definePlugin({
       if (retrievalPosture?.severity === 'warn') {
         const logger = await app.container.make('logger')
         logger.warn(`[ai] ${retrievalPosture.message}`)
+      }
+      const toolsPosture = aiToolsPosture(config.ai)
+      if (toolsPosture?.severity === 'warn') {
+        const logger = await app.container.make('logger')
+        logger.warn(`[ai] ${toolsPosture.message}`)
       }
     }
 

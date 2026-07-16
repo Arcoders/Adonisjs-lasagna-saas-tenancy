@@ -54,7 +54,7 @@ function buildController(sink: AiGatewayAuditSink) {
   registry.register(
     new MockAIProvider({
       name: 'claude',
-      contractVersion: 1,
+      contractVersion: 2,
       fragments: [{ data: COMPLETION, tokens: 4 }],
     }),
     { activate: true }

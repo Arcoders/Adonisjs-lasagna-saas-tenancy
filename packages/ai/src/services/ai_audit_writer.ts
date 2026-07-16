@@ -76,14 +76,17 @@ export interface AiAuditWriterDeps {
 }
 
 /**
- * The non-PII fields a choke point supplies (the union of the three frozen audit
+ * The non-PII fields a choke point supplies (the union of the four frozen audit
  * events). Principal and source are one-way SHA-256 hashes; no prompt, response,
- * query, or document text is ever carried. Fields not applicable to an `op` take
- * a neutral default (0 / false / null).
+ * query, document, or tool-argument/result text is ever carried. Fields not
+ * applicable to an `op` take a neutral default (0 / false / null). A `tool` row
+ * (WS-AI-11) reuses neutral fields rather than adding columns, so the positional
+ * checksum chain in {@link canonicalAuditFields} stays byte-identical — see the
+ * load-bearing mapping note on `PgToolAuditSink`.
  */
 export interface AiAuditRow {
   readonly tenantId: string
-  readonly op: 'chat' | 'embedding' | 'retrieval'
+  readonly op: 'chat' | 'embedding' | 'retrieval' | 'tool'
   readonly outcome: 'completed' | 'aborted' | 'failed_preflight'
   readonly reason: string | null
   readonly principalHash: string | null

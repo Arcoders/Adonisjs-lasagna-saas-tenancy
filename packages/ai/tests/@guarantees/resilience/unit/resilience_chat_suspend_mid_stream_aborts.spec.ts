@@ -43,7 +43,7 @@ function fakeEmitter() {
 function suspendingProvider(onFirstFragment: () => void): AIProviderContract {
   return {
     name: 'claude',
-    contractVersion: 1,
+    contractVersion: 2,
     capabilities: { streaming: true },
     async verifyConfig() {},
     async *stream(_request, signal): AsyncIterable<StreamFragment> {

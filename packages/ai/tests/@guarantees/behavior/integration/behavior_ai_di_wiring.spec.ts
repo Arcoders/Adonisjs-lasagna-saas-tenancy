@@ -37,7 +37,7 @@ test.group('ai provider DI wiring (integration)', () => {
     assert.instanceOf(service, StreamExtensionService)
 
     const registry = await app.container.make(AIProviderRegistry)
-    registry.register(new MockAIProvider({ name: 'claude', contractVersion: 1 }))
+    registry.register(new MockAIProvider({ name: 'claude', contractVersion: 2 }))
     assert.isTrue(registry.has('claude'))
   })
 

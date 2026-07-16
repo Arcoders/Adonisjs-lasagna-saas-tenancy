@@ -224,3 +224,96 @@ export const AI_AUDIT_LOCK_PREFIX = 'ai_audit:'
  * request. Matches the kernel's `DESTINATION_TIMEOUT_MS`.
  */
 export const AI_AUDIT_ANCHOR_TIMEOUT_MS = 2_000
+
+// --- Tool / function calling (WS-AI-11) ---
+// The tool loop's ceilings. Each DEFAULT_* is `config.ai.tools.*`-overridable and
+// clamped to its MAX_* hard cap; a value at a call site is always one of these.
+
+/**
+ * Default number of provider rounds one tool loop may run (a round is one model
+ * turn plus its tool executions). The loop stops when the model answers without
+ * calling a tool, and trips `tool_budget_exhausted` if it is still calling at the
+ * ceiling. Tunable via `config.ai.tools.maxRounds`, clamped to {@link MAX_AI_TOOL_ROUNDS}.
+ */
+export const DEFAULT_AI_MAX_TOOL_ROUNDS = 4
+
+/** Hard ceiling on the tool-loop round count, regardless of config. */
+export const MAX_AI_TOOL_ROUNDS = 8
+
+/**
+ * Default cap on tool calls executed in a single round. A round that asks for
+ * more executes the first N and logs the drop (never a silent cap). Tunable via
+ * `config.ai.tools.maxToolsPerRound`, clamped to {@link MAX_TOOLS_PER_ROUND}.
+ */
+export const DEFAULT_MAX_TOOLS_PER_ROUND = 4
+
+/** Hard ceiling on tool calls per round, regardless of config. */
+export const MAX_TOOLS_PER_ROUND = 8
+
+/**
+ * Hard cap on total tool calls across all rounds of one request (a second stop
+ * beside `maxRounds`). Config may lower it but never raise it above this ceiling.
+ */
+export const MAX_TOOL_CALLS_PER_REQUEST = 16
+
+/**
+ * Default cap on a tenant's TOTAL concurrent in-flight AI streams, evaluated when
+ * a tool loop tries to start (Phase 2a). A tool-loop request is admitted only
+ * while the tenant's live stream count is below this; at or above it the loop is
+ * refused pre-commit with a 429 `too_many_concurrent`, so a flood of expensive
+ * multi-round loops cannot starve the tenant's connection pool or drain its
+ * wallet. The count is a conservative superset: plain chat / embed / retrieve
+ * acquire uncapped and count toward it but are never themselves refused. Named
+ * for its purpose (bounding tool-loop concurrency) though it gates on total
+ * in-flight. Per-process / per-pod, matching the liveness-abort posture. Tunable
+ * via `config.ai.tools.maxConcurrentPerTenant`, clamped to
+ * {@link MAX_CONCURRENT_TOOL_LOOPS_PER_TENANT}.
+ */
+export const DEFAULT_MAX_CONCURRENT_TOOL_LOOPS_PER_TENANT = 8
+
+/** Hard ceiling on concurrent tool loops per tenant, regardless of config. */
+export const MAX_CONCURRENT_TOOL_LOOPS_PER_TENANT = 32
+
+/**
+ * Default per-tool execution deadline in ms. The handler runs under a signal that
+ * aborts at this deadline (composed with the request signal), so one slow tool
+ * cannot stall the loop past it. Tunable via `config.ai.tools.toolTimeoutMs`,
+ * clamped to {@link MAX_TOOL_TIMEOUT_MS}.
+ */
+export const DEFAULT_TOOL_TIMEOUT_MS = 5_000
+
+/** Hard ceiling on a per-tool timeout, regardless of config. */
+export const MAX_TOOL_TIMEOUT_MS = 30_000
+
+/**
+ * Default cap on the characters of a fenced tool result re-injected as a
+ * `role: 'tool'` turn. A longer result is truncated (never streamed raw), so a
+ * hostile or verbose tool cannot blow the prompt budget. Tunable via
+ * `config.ai.tools.maxToolResultChars`, clamped to {@link MAX_TOOL_RESULT_CHARS}.
+ */
+export const DEFAULT_MAX_TOOL_RESULT_CHARS = 4_000
+
+/** Hard ceiling on a tool result's characters, regardless of config. */
+export const MAX_TOOL_RESULT_CHARS = 16_000
+
+/**
+ * Default cap on the raw `arguments` JSON text of one tool call, enforced BEFORE
+ * `JSON.parse` so an adversarial mega-payload is rejected before it is parsed.
+ * Tunable via `config.ai.tools.maxToolArgsChars`, clamped to {@link MAX_TOOL_ARGS_CHARS}.
+ */
+export const DEFAULT_MAX_TOOL_ARGS_CHARS = 8_000
+
+/** Hard ceiling on a tool call's raw argument characters, regardless of config. */
+export const MAX_TOOL_ARGS_CHARS = 16_000
+
+/** Hard cap on the number of tools advertised to the model in one request. Not host-tunable. */
+export const MAX_TOOL_DEFS = 64
+
+/**
+ * The fence tag wrapping a tool result re-injected into the model context. A tool
+ * result is untrusted data (it could carry indirect prompt injection), so it is
+ * fenced in a `role: 'tool'` turn and any occurrence of this token inside the
+ * result is neutralized, exactly like the retrieved-context fence. Fixed constant,
+ * never inlined.
+ */
+export const AI_TOOL_FENCE_TAG = 'tool_result'

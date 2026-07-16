@@ -36,7 +36,7 @@ function spyIdempotency() {
 function buildController(config: AiConfig, idempotency: AiIdempotencyService) {
   const { svc } = makeService()
   const registry = new AIProviderRegistry()
-  registry.register(new MockAIProvider({ name: 'claude', contractVersion: 1 }), {
+  registry.register(new MockAIProvider({ name: 'claude', contractVersion: 2 }), {
     activate: true,
   })
   return new AiChatController({

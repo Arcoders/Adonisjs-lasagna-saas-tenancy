@@ -8,7 +8,12 @@ import {
   OPENAI_CHAT_COMPLETIONS_PATH,
 } from './provider_constants.js'
 import type { AIProviderConfig, AIProviderName } from '../define_config.js'
-import type { AIStreamRequest, StreamFragment } from '../types/ai_provider_contract.js'
+import type {
+  AIMessage,
+  AIStreamRequest,
+  AIToolDefinition,
+  StreamFragment,
+} from '../types/ai_provider_contract.js'
 
 /** The built-in identity of an OpenAI-compatible provider (its name + public endpoint + model). */
 export interface OpenAICompatibleParams {
@@ -51,9 +56,17 @@ export default class OpenAICompatibleProvider extends HttpAiProvider {
   protected requestBody(request: AIStreamRequest, model: string): unknown {
     return {
       model,
-      messages: request.messages,
+      messages: request.messages.map(toOpenAiMessage),
       stream: true,
       ...(request.maxTokens !== undefined ? { max_tokens: request.maxTokens } : {}),
+      // Tool fields are added only when the request carries tools, so a plain
+      // chat call serializes byte-for-byte as before (zero overhead).
+      ...(request.tools && request.tools.length > 0
+        ? {
+            tools: request.tools.map(toOpenAiTool),
+            tool_choice: toOpenAiToolChoice(request.toolChoice),
+          }
+        : {}),
       stream_options: { include_usage: true },
     }
   }
@@ -87,4 +100,45 @@ export class KimiProvider extends OpenAICompatibleProvider {
       deps
     )
   }
+}
+
+/** Map an {@link AIToolDefinition} to the OpenAI `tools[]` function shape. Pure. */
+export function toOpenAiTool(tool: AIToolDefinition): unknown {
+  return {
+    type: 'function',
+    function: { name: tool.name, description: tool.description, parameters: tool.inputSchema },
+  }
+}
+
+/** Map the contract `toolChoice` to OpenAI's `tool_choice`, defaulting to `'auto'`. Pure. */
+export function toOpenAiToolChoice(choice: AIStreamRequest['toolChoice']): unknown {
+  if (choice === 'none') return 'none'
+  if (choice && typeof choice === 'object') {
+    return { type: 'function', function: { name: choice.name } }
+  }
+  return 'auto'
+}
+
+/**
+ * Map an {@link AIMessage} to OpenAI's message shape. Plain messages pass through
+ * as `{ role, content }`. An assistant tool-call turn carries `tool_calls[]`
+ * (each `function.arguments` staying the raw JSON string), and a `role: 'tool'`
+ * result becomes `{ role: 'tool', tool_call_id, content }`. Pure.
+ */
+export function toOpenAiMessage(message: AIMessage): unknown {
+  if (message.role === 'tool') {
+    return { role: 'tool', tool_call_id: message.toolCallId, content: message.content }
+  }
+  if (message.role === 'assistant' && message.toolCalls && message.toolCalls.length > 0) {
+    return {
+      role: 'assistant',
+      content: message.content,
+      tool_calls: message.toolCalls.map((call) => ({
+        id: call.id,
+        type: 'function',
+        function: { name: call.name, arguments: call.arguments },
+      })),
+    }
+  }
+  return { role: message.role, content: message.content }
 }

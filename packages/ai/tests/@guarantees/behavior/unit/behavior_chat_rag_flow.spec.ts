@@ -27,7 +27,7 @@ function capturingProvider(): { provider: AIProviderContract; seen: AIMessage[][
   const seen: AIMessage[][] = []
   const provider: AIProviderContract = {
     name: 'claude',
-    contractVersion: 1,
+    contractVersion: 2,
     capabilities: { streaming: true },
     async verifyConfig() {},
     async *stream(request) {

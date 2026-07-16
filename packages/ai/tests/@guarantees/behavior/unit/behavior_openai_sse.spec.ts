@@ -90,4 +90,58 @@ test.group('openai_sse', () => {
     const kimi = await collect(parseOpenAiStream(byteSource(contentChunk('x'), 'data: [DONE]\n\n')))
     assert.deepEqual(deepseek, kimi)
   })
+
+  test('accumulates streamed delta.tool_calls into a tool_call fragment', async ({ assert }) => {
+    const source = byteSource(
+      `data: ${JSON.stringify({
+        choices: [
+          {
+            delta: {
+              tool_calls: [
+                { index: 0, id: 'call_1', type: 'function', function: { name: 'count_bookings', arguments: '' } },
+              ],
+            },
+          },
+        ],
+      })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"status":' } }] } }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '"active"}' } }] } }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] })}\n\n`,
+      'data: [DONE]\n\n'
+    )
+    const calls = (await collect(parseOpenAiStream(source))).filter((f) => f.event === 'tool_call')
+    assert.lengthOf(calls, 1)
+    assert.equal(calls[0]?.tokens, 0)
+    assert.deepEqual(calls[0]?.toolCall, {
+      id: 'call_1',
+      name: 'count_bookings',
+      arguments: '{"status":"active"}',
+    })
+  })
+
+  test('discards a tool call that never received an id and name', async ({ assert }) => {
+    const source = byteSource(
+      `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{}' } }] } }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] })}\n\n`,
+      'data: [DONE]\n\n'
+    )
+    const calls = (await collect(parseOpenAiStream(source))).filter((f) => f.event === 'tool_call')
+    assert.lengthOf(calls, 0)
+  })
+
+  test('a null tool_calls element is skipped, not crashed', async ({ assert }) => {
+    // A hostile / buggy upstream can emit a null element; it must be skipped like any
+    // malformed frame rather than throw out of the pump (accumulateToolCalls runs on
+    // every frame, so this guards plain chat too).
+    const source = byteSource(
+      `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [null] } }] })}\n\n`,
+      contentChunk('ok'),
+      'data: [DONE]\n\n'
+    )
+    const fragments = await collect(parseOpenAiStream(source))
+    assert.deepEqual(
+      fragments.filter((f) => f.event !== 'usage').map((f) => f.data),
+      ['ok']
+    )
+  })
 })

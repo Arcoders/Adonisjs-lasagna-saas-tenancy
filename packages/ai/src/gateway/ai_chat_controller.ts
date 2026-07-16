@@ -800,6 +800,13 @@ function invalid(message: string): never {
  * call. Messages are required and non-empty; the combined content length is
  * bounded by `maxPromptChars`; the tunables must be well-typed. Error
  * messages name the field, never echo content (G3).
+ *
+ * Tool-calling front door (WS-AI-11): `role` is checked against `MESSAGE_ROLES`
+ * (`system|user|assistant`) and `content` must be a non-empty string, and only
+ * those two keys are read. So a client can never submit an `assistant.toolCalls`
+ * turn or a `role: 'tool'` result: every tool turn is server-authored mid-loop,
+ * which structurally closes the forged-tool-result / confused-deputy surface here
+ * rather than relying on a downstream check.
  */
 function parseChatBody(raw: unknown, ai: AiConfig | undefined): ChatBody {
   if (typeof raw !== 'object' || raw === null) {

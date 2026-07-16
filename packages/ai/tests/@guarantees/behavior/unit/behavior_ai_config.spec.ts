@@ -322,3 +322,99 @@ test.group('assertAiConfig — the embedding block (WS-AI-3)', () => {
     )
   })
 })
+
+test.group('assertAiConfig — the tools block (WS-AI-11)', () => {
+  const readTool = (over: Record<string, unknown> = {}) => ({
+    name: 'count_bookings',
+    description: 'count bookings by status',
+    inputSchema: { type: 'object', properties: {} },
+    handler: async () => ({ count: 0 }),
+    ...over,
+  })
+  const withTools = (tools: Record<string, unknown>): AiConfig =>
+    ({ ...validClaudeOnly(), tools }) as unknown as AiConfig
+
+  test('a valid tools block (registry + hooks + bounds) passes', ({ assert }) => {
+    assert.doesNotThrow(() =>
+      assertAiConfig(
+        withTools({
+          registry: [readTool()],
+          resolveTools: async () => [readTool({ name: 'other' })],
+          authorizeTool: () => ({ kind: 'allow' }),
+          acknowledgeUnauthorizedTools: false,
+          actionTools: { enabled: false },
+          maxRounds: 4,
+          toolTimeoutMs: 5000,
+          maxConcurrentPerTenant: 8,
+          surfaceToolArgs: true,
+        })
+      )
+    )
+  })
+
+  test('an omitted tools block passes', ({ assert }) => {
+    assert.doesNotThrow(() => assertAiConfig(validClaudeOnly()))
+  })
+
+  test('rejects a non-object tools block', ({ assert }) => {
+    assert.throws(() => assertAiConfig(withTools('nope' as unknown as Record<string, unknown>)), /config\.ai\.tools, when set, must be an object/)
+  })
+
+  test('rejects mistyped hooks and flags', ({ assert }) => {
+    assert.throws(() => assertAiConfig(withTools({ resolveTools: 'x' })), /resolveTools, when set, must be a function/)
+    assert.throws(() => assertAiConfig(withTools({ authorizeTool: 1 })), /authorizeTool, when set, must be a function/)
+    assert.throws(
+      () => assertAiConfig(withTools({ acknowledgeUnauthorizedTools: 'yes' })),
+      /acknowledgeUnauthorizedTools, when set, must be a boolean/
+    )
+    assert.throws(() => assertAiConfig(withTools({ surfaceToolArgs: 1 })), /surfaceToolArgs, when set, must be a boolean/)
+    assert.throws(() => assertAiConfig(withTools({ actionTools: true })), /actionTools, when set, must be an object/)
+    assert.throws(
+      () => assertAiConfig(withTools({ actionTools: { enabled: 'on' } })),
+      /actionTools\.enabled, when set, must be a boolean/
+    )
+  })
+
+  test('rejects a non-array registry and a malformed tool entry', ({ assert }) => {
+    assert.throws(() => assertAiConfig(withTools({ registry: {} })), /registry, when set, must be an array/)
+    assert.throws(() => assertAiConfig(withTools({ registry: [readTool({ name: '' })] })), /\.name must be a non-empty string/)
+    assert.throws(
+      () => assertAiConfig(withTools({ registry: [readTool({ description: '' })] })),
+      /\.description must be a non-empty string/
+    )
+    assert.throws(
+      () => assertAiConfig(withTools({ registry: [readTool({ inputSchema: [] })] })),
+      /\.inputSchema must be an object/
+    )
+    assert.throws(
+      () => assertAiConfig(withTools({ registry: [readTool({ handler: 'nope' })] })),
+      /\.handler must be a function/
+    )
+    assert.throws(
+      () => assertAiConfig(withTools({ registry: [readTool({ mode: 'write' })] })),
+      /\.mode, when set, must be 'read' or 'action'/
+    )
+    assert.throws(
+      () => assertAiConfig(withTools({ registry: [readTool({ parseInput: 3 })] })),
+      /\.parseInput, when set, must be a function/
+    )
+  })
+
+  test('rejects a bound above its ceiling or non-integer', ({ assert }) => {
+    assert.throws(() => assertAiConfig(withTools({ maxRounds: 9 })), /tools\.maxRounds must be a positive integer <= 8/)
+    assert.throws(() => assertAiConfig(withTools({ maxToolsPerRound: 9 })), /tools\.maxToolsPerRound must be a positive integer <= 8/)
+    assert.throws(
+      () => assertAiConfig(withTools({ maxToolCallsPerRequest: 17 })),
+      /tools\.maxToolCallsPerRequest must be a positive integer <= 16/
+    )
+    assert.throws(() => assertAiConfig(withTools({ toolTimeoutMs: 30001 })), /tools\.toolTimeoutMs must be a positive integer <= 30000/)
+    assert.throws(() => assertAiConfig(withTools({ maxToolResultChars: 16001 })), /tools\.maxToolResultChars must be a positive integer <= 16000/)
+    assert.throws(() => assertAiConfig(withTools({ maxToolArgsChars: 16001 })), /tools\.maxToolArgsChars must be a positive integer <= 16000/)
+    assert.throws(
+      () => assertAiConfig(withTools({ maxConcurrentPerTenant: 33 })),
+      /tools\.maxConcurrentPerTenant must be a positive integer <= 32/
+    )
+    assert.throws(() => assertAiConfig(withTools({ maxRounds: 2.5 })), /tools\.maxRounds must be a positive integer <= 8/)
+    assert.throws(() => assertAiConfig(withTools({ maxRounds: 0 })), /tools\.maxRounds must be a positive integer <= 8/)
+  })
+})

@@ -45,7 +45,7 @@ function buildController(deps: {
 }) {
   const { svc } = makeService(deps.quota ?? new FakeQuota(), deps.breaker ?? new FakeBreaker())
   const registry = new AIProviderRegistry()
-  registry.register(deps.provider ?? new MockAIProvider({ name: 'claude', contractVersion: 1 }), {
+  registry.register(deps.provider ?? new MockAIProvider({ name: 'claude', contractVersion: 2 }), {
     activate: true,
   })
   return new AiChatController({
@@ -106,7 +106,7 @@ test.group('chat controller pre-flight statuses', () => {
   test('a provider 429 before the first byte answers 429', async ({ assert }) => {
     const rateLimited: AIProviderContract = {
       name: 'claude',
-      contractVersion: 1,
+      contractVersion: 2,
       capabilities: { streaming: true },
       async verifyConfig() {},
 
@@ -127,7 +127,7 @@ test.group('chat controller pre-flight statuses', () => {
   test('a model outside the allow-list answers 403, not a retryable 503', async ({ assert }) => {
     const notAllowed: AIProviderContract = {
       name: 'claude',
-      contractVersion: 1,
+      contractVersion: 2,
       capabilities: { streaming: true },
       async verifyConfig() {},
 
@@ -151,7 +151,7 @@ test.group('chat controller pre-flight statuses', () => {
   test('a BYOK endpoint block answers 400, not a retryable 503', async ({ assert }) => {
     const blocked: AIProviderContract = {
       name: 'claude',
-      contractVersion: 1,
+      contractVersion: 2,
       capabilities: { streaming: true },
       async verifyConfig() {},
 
@@ -176,7 +176,7 @@ test.group('chat controller pre-flight statuses', () => {
       consume: async () => ({ count: 99 }),
       policy: { limit: 1, windowSeconds: 60 },
     })
-    const provider = new MockAIProvider({ name: 'claude', contractVersion: 1 })
+    const provider = new MockAIProvider({ name: 'claude', contractVersion: 2 })
     const controller = buildController({ quota, rateLimiter, provider })
     const { ctx, res, responseFacade } = fakeHttpContext({ tenant: fakeTenant, body: chatBody })
 
@@ -255,7 +255,7 @@ test.group('chat controller pre-flight statuses', () => {
   test('an access-gate denial propagates as the 403 exception', async ({ assert }) => {
     const { svc } = makeService()
     const registry = new AIProviderRegistry()
-    registry.register(new MockAIProvider({ name: 'claude', contractVersion: 1 }), {
+    registry.register(new MockAIProvider({ name: 'claude', contractVersion: 2 }), {
       activate: true,
     })
     const controller = new AiChatController({

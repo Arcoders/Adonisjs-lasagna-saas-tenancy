@@ -52,7 +52,7 @@ function buildDeps(opts: BuildOptions) {
   const { svc } = makeService(quota)
   const provider = new MockAIProvider({
     name: 'claude',
-    contractVersion: 1,
+    contractVersion: 2,
     fragments: opts.fragments,
   })
   const registry = new AIProviderRegistry()

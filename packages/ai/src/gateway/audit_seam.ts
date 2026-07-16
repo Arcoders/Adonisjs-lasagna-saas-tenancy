@@ -94,6 +94,41 @@ export const noopRetrievalAuditSink: AiRetrievalAuditSink = {
   append: () => {},
 }
 
+/**
+ * The tool-execution choke point's attribution event (WS-AI-11). A PARALLEL event,
+ * not an extension of the chat/embed/retrieval ones, frozen by its own spec: a tool
+ * call carries a `toolName`, a `mode`, and the loop `round` the others do not. Every
+ * field is non-PII (I5, G1): `principalHash` is a one-way SHA-256, `toolName`/`mode`/
+ * `round` are the tool identity and loop position, and NEITHER the model-generated
+ * arguments NOR the tool's result ever appears (both are bounded/fenced elsewhere and
+ * never audited). The `outcome` distinguishes a refusal (`denied`) from a handler
+ * failure (`failed`/`error`), with the precise code in `reason`.
+ */
+export interface AiToolAuditEvent {
+  readonly tenantId: string
+  readonly principalHash: string | null
+  /** The invoked tool's registered name (never its arguments). */
+  readonly toolName: string
+  readonly mode: 'read' | 'action'
+  readonly outcome: 'completed' | 'denied' | 'failed' | 'error'
+  /** The refusal / failure code (e.g. 'tool_denied', 'tool_execution_failed'), never a result value. */
+  readonly reason: string | null
+  /** The 1-based tool-loop round this call ran in. */
+  readonly round: number
+  /** LLM tokens the tool itself consumed (0 for a plain data tool; generation is metered by chat). */
+  readonly tokens: number
+  readonly occurredAt: string
+}
+
+export interface AiToolAuditSink {
+  append(event: AiToolAuditEvent): Promise<void> | void
+}
+
+/** The default tool-audit sink; the live PgToolAuditSink is wired when the loop goes live (Phase 9). */
+export const noopToolAuditSink: AiToolAuditSink = {
+  append: () => {},
+}
+
 /** One-way principal attribution: SHA-256 hex, never the raw identifier. */
 export function hashAuditPrincipal(principal: string | null): string | null {
   if (principal === null) return null

@@ -20,7 +20,7 @@ import type { AiConfig } from '../../../../src/define_config.js'
 test.group('idempotency store outage (controller)', () => {
   test('a throwing store degrades to fresh streams, never an error', async ({ assert }) => {
     const events: AiGatewayAuditEvent[] = []
-    const provider = new MockAIProvider({ name: 'claude', contractVersion: 1 })
+    const provider = new MockAIProvider({ name: 'claude', contractVersion: 2 })
     const registry = new AIProviderRegistry()
     registry.register(provider, { activate: true })
     const controller = new AiChatController({
