@@ -52,8 +52,8 @@ test.group('billingHealthCheck (integration)', (group) => {
 
   test('verify() rejects an empty webhook secret (boot guard)', async ({ assert }) => {
     // Config validation lives in the driver's verifyConfig() (run at boot via
-    // BillingService.verify()), not the runtime health check — the latter is a
-    // liveness probe, so an empty webhook secret must be rejected there.
+    // BillingService.verify()), not the runtime health check. That check is a
+    // liveness probe, so an empty webhook secret must be rejected at boot.
     setConfig({
       ...testConfig,
       plans: {
@@ -94,11 +94,13 @@ test.group('billingHealthCheck (integration)', (group) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()
 
     const sub = new BillingSubscription()
+    sub.provider = 'stripe'
     sub.providerSubscriptionId = `sub_${randomUUID().slice(0, 8)}`
     sub.tenantId = tenant.id
     sub.status = 'active'
@@ -113,8 +115,9 @@ test.group('billingHealthCheck (integration)', (group) => {
     sub.raw = {}
     await sub.save()
 
-    // Most recent completed event is 30min old → fail.
+    // Most recent completed event is 30min old, so the check fails.
     const evt = new BillingProcessedEvent()
+    evt.provider = 'stripe'
     evt.eventId = `evt_${randomUUID().slice(0, 8)}`
     evt.eventType = 'customer.subscription.created'
     evt.status = 'completed'
@@ -135,8 +138,8 @@ test.group('billingHealthCheck (integration)', (group) => {
     setupBillingConfig({ defaultPlan: 'starter' })
     const billing = await app.container.make(BillingService)
     const mock = new MockStripe('whsec_test_billing_helper')
-    // Sleep just past the exported threshold — if someone bumps the
-    // threshold without updating the test, the magic number break here.
+    // Sleep just past the exported threshold. If someone bumps the
+    // threshold without updating the test, the magic number breaks here.
     mock.balance.retrieve = async () => {
       await new Promise((r) => setTimeout(r, SLOW_API_THRESHOLD_MS + 100))
       return { object: 'balance', available: [], pending: [] }

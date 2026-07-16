@@ -186,7 +186,7 @@ test.group('Lemon Squeezy webhook mapper → neutral', () => {
     assert.equal(inv.subscriptionId, '42')
     assert.equal(inv.amountDue, 999)
     assert.equal(inv.currency, 'usd')
-    // LS carries no attempt count — the dispatcher's local counter drives dunning.
+    // LS carries no attempt count, so the dispatcher's local counter drives dunning.
     assert.equal(inv.attemptCount, 0)
   })
 })

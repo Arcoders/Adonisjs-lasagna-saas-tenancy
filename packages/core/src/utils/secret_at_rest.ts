@@ -25,7 +25,7 @@ import { encrypt, decryptStrict } from './crypto.js'
 export const SECRET_CLASS = {
   ssoClientSecret: 'sso:client_secret:v2',
   webhookSecret: 'webhook:secret:v2',
-  // AI conversation memory (WS-AI-4, I2). Its own context so the HKDF data key
+  // AI conversation memory keeps its own encryption context, so the HKDF data key
   // never overlaps another secret class. Deliberately NOT in SECRET_AT_REST_COLUMNS:
   // memory lives in Redis under a TTL, not a backoffice column, so it rotates via
   // the enc_v2 keyId dual-key read (OLD_APP_KEY grace window), never the column walker.

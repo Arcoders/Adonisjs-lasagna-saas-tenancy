@@ -7,14 +7,14 @@ import { setupBillingConfig } from '../../../helpers/helpers.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
- * Layer 2 — call-site contract. A REAL Stripe SDK pointed at the official
+ * Layer 2: call-site contract. A REAL Stripe SDK pointed at the official
  * stripe-mock server (no credentials, no network to Stripe) is injected into
  * the active StripeDriver through the existing test seam, then the driver's
  * own SDK call-sites are exercised.
  *
  * stripe-mock is STATELESS and returns canned, schema-valid fixtures, so this
- * asserts call-site SHAPE — the endpoint + params are valid against the current
- * Stripe API schema, and the responses parse — not business behaviour. It
+ * asserts call-site SHAPE (the endpoint + params are valid against the current
+ * Stripe API schema, and the responses parse), not business behaviour. It
  * catches the drift the hand-written MockStripe can't (a renamed method, a
  * removed/renamed param) without needing test-mode credentials.
  *
@@ -84,20 +84,20 @@ test.group('Stripe driver call-site contract (stripe-mock)', (group) => {
     })
     assert.isString(portal.url, 'billingPortal.sessions.create returned a url')
 
-    // billing.meterEvents.create (resolves void → the call-site was accepted)
+    // billing.meterEvents.create (resolves void, so the call-site was accepted)
     await driver.reportUsage!('cus_123', { eventName: 'api_request' }, 1, {
       idempotencyKey: 'stripe-mock-smoke-1',
       timestampSeconds: Math.floor(Date.now() / 1000),
     })
 
-    // events.retrieve → neutral event (the tamper-guard re-fetch path)
+    // events.retrieve maps to a neutral event (the tamper-guard re-fetch path)
     const event = await driver.retrieveEvent!('evt_123')
     assert.isNotNull(event, 'events.retrieve mapped to a neutral event')
 
     // balance.retrieve (billing:doctor / health check)
     await driver.healthCheck!()
 
-    // checkout.sessions.create — the Checkout Session `url` is nullable in the
+    // checkout.sessions.create: the Checkout Session `url` is nullable in the
     // schema, so stripe-mock's fixture may omit it and the driver raises its own
     // `api_error` guard. Either outcome proves the call-site is valid; only an
     // unexpected (non-BillingException) error should fail the test.

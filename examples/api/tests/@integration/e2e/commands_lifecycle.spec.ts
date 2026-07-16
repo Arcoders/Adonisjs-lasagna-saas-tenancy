@@ -54,10 +54,10 @@ test.group('e2e — tenant lifecycle CLI commands', (group) => {
   })
 
   test('tenant:import loads a .sql dump into the tenant schema', async ({ client, assert }) => {
-    const { id } = await createInstalledTenant(client) // migrated → `notes` table exists
+    const { id } = await createInstalledTenant(client) // migrated, so the `notes` table exists
     const tenant = await Tenant.findOrFail(id)
     const file = join(tmpdir(), `lasagna-import-${randomUUID()}.sql`)
-    // No schema prefix needed — search_path is already at tenant_<uuid>.
+    // No schema prefix needed, since search_path is already at tenant_<uuid>.
     await writeFile(
       file,
       [
@@ -112,7 +112,7 @@ test.group('e2e — tenant lifecycle CLI commands', (group) => {
       t.deletedAt = DateTime.now().minus({ days: 40 })
       await t.save()
     }
-    // Soft-deleted yesterday — must be left alone.
+    // Soft-deleted yesterday, so it must be left alone.
     const recent = await createInstalledTenant(client, { migrate: false })
     {
       const t = await Tenant.findOrFail(recent.id)
@@ -167,7 +167,7 @@ test.group('e2e — tenant lifecycle CLI commands', (group) => {
     assert.exists(retryAfter, 'maintenance 503 must carry a Retry-After header')
     assert.isFalse(Number.isNaN(Number(retryAfter)), 'Retry-After must be numeric seconds')
 
-    // Exit maintenance — flips the column. Not asserting route-reachable here:
+    // Exit maintenance, which flips the column. Not asserting route-reachable here:
     // the gate is cached for schemaCacheTtl and bust-on-exit needs a host-wired
     // listener (out of scope for this demo).
     assert.equal(await runAce('tenant:maintenance', [id, '--off']), 0)
@@ -336,7 +336,7 @@ test.group('e2e — tenant lifecycle CLI audit attribution', (group) => {
     const { id } = await createInstalledTenant(client, { migrate: false })
     await runAce('tenant:suspend', [id, '--admin', ADMIN_UUID])
     const before = await cliAuditCount(id, 'admin:tenant:suspend')
-    // Already suspended → the command returns early and audits nothing.
+    // Already suspended, so the command returns early and audits nothing.
     await runAce('tenant:suspend', [id, '--admin', ADMIN_UUID])
     assert.equal(await cliAuditCount(id, 'admin:tenant:suspend'), before)
   })

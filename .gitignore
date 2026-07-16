@@ -18,7 +18,13 @@ benchmarks/results/
 
 # Temp dir for the docs code-fence import gate (scripts/check-docs-code.mjs)
 .docs-code-tmp/
-docs/.vitepress/
+
+# VitePress generated output only. The theme source under docs/.vitepress/theme/
+# IS tracked; a blanket `docs/.vitepress/` rule silently drops any NEW theme file
+# (existing ones survive only because git ignores untracked files, not tracked ones).
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+docs/.vitepress/*.timestamp-*.mjs
 
 # doc-coverage: the graph is generated, never committed (RFC §5). The cache is
 # keyed by a src+docs content hash and is always safe to delete.

@@ -22,12 +22,12 @@ export interface TenantJobPayload {
  *   - `tenancy.currentId()` returns the tenant id.
  *
  * `tenancy.run()` already binds the log context AND the bootstrappers, so do NOT
- * wrap `perform()` in `logCtx.run()` yourself — that double-wraps the context.
+ * wrap `perform()` in `logCtx.run()` yourself. That double-wraps the context.
  *
  * A job whose payload omits `tenantId` is treated as global: `perform()` runs
  * with no tenant scope. This is normal for cross-tenant maintenance jobs.
  *
- * Do not override `execute()` — that bypasses the automatic context. Built-in
+ * Do not override `execute()`. That bypasses the automatic context. Built-in
  * jobs that must run *before* their schema exists (provisioning) deliberately
  * do not extend this base; they manage a lighter log-only context by hand.
  *

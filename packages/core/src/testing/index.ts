@@ -15,4 +15,6 @@ export { setRequestTenant, withTenant } from './with_tenant.js'
 
 export { createTestAuthzContext } from './authz_context.js'
 
+export { __resetConfigForTests } from './config_reset.js'
+
 // `signWebhookPayload` + `MockStripe` moved to `@adonisjs-lasagna/billing`.

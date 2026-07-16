@@ -60,9 +60,10 @@ export const AI_IDEMPOTENCY_KEY_MAX_LENGTH = 200
 export const AI_TOKENS_QUOTA = 'aiTokens'
 
 /**
- * Hard per-fragment size bound for the interim output gate (I8's byte-cap
- * slice; semantic output validation is WS-AI-5). A single fragment over the
- * bound aborts the stream as `fragment_rejected` without writing the bytes.
+ * Hard per-fragment size bound for the interim output gate (the byte-cap slice
+ * of the output bound; semantic output validation is a retrieval-layer concern).
+ * A single fragment over the bound aborts the stream as `fragment_rejected`
+ * without writing the bytes.
  */
 export const AI_FRAGMENT_MAX_CHARS = 16_384
 
@@ -70,16 +71,18 @@ export const AI_FRAGMENT_MAX_CHARS = 16_384
  * Per-tenant counter of chat output fragments a host `config.ai.redactOutput`
  * hook changed or aborted. Content-free (a count, never the text): it makes the
  * host's optional output-redaction policy observable. Redaction is host-owned
- * defense-in-depth, never the isolation control (I4/I8 remain the guarantee).
+ * defense-in-depth, never the isolation control (tenant isolation and the output
+ * bound remain the guarantee).
  */
 export const AI_OUTPUT_REDACTED_METRIC = 'ai_output_redacted'
 
 /**
- * The per-tenant embeddings table (WS-AI-3, I1). A fixed module constant, never
- * a `tenant_<id>`-interpolated name: the row lives in whatever schema/database
- * the active isolation driver reports via `tableLocation(tenant)`, and the bare
- * table name resolves there through the tenant connection's search_path. Used in
- * both the migration DDL and the vector store's parameterized raw SQL.
+ * The per-tenant embeddings table backing the vector store. A fixed module
+ * constant, never a `tenant_<id>`-interpolated name: the row lives in whatever
+ * schema/database the active isolation driver reports via `tableLocation(tenant)`,
+ * and the bare table name resolves there through the tenant connection's
+ * search_path. Used in both the migration DDL and the vector store's
+ * parameterized raw SQL.
  */
 export const AI_EMBEDDINGS_TABLE = 'ai_embeddings'
 
@@ -159,7 +162,7 @@ export const DEFAULT_MAX_CONTEXT_ITEMS = 8
 export const DEFAULT_MAX_CONTEXT_CHARS = 8_000
 
 /**
- * Conversation memory (WS-AI-4, I2). The Redis key prefix for a session's turn
+ * Conversation memory. The Redis key prefix for a session's turn
  * list. The full key is `ai:mem:<tenantId>:<userMac>:<sessionMac>`: the tenant
  * segment scopes a purge, the userMac segment scopes a per-user (GDPR) erasure,
  * and the sessionMac addresses one conversation. Fixed constant, never inlined.
@@ -197,7 +200,7 @@ export const DEFAULT_MEMORY_MAX_CHARS = 8_000
 export const DEFAULT_MEMORY_TTL_MS = 86_400_000
 
 /**
- * The append-only AI audit table (WS-AI-7, I5). A fixed module constant living in
+ * The append-only AI audit table. A fixed module constant living in
  * the shared `backoffice` schema, so it survives `tenant:purge-expired` (which
  * drops the tenant schema) and the tenant request role cannot DROP it. Used both
  * in the published migration DDL and the writer's schema-qualified raw SQL, always
@@ -214,7 +217,7 @@ export const AI_AUDIT_TABLE = 'ai_audit_logs'
 export const AI_AUDIT_LOCK_PREFIX = 'ai_audit:'
 
 /**
- * Per-destination deadline for external audit anchoring (WS-AI-7, #6). After the
+ * Per-destination deadline for external audit anchoring (#6). After the
  * canonical row commits, each row is fanned out best-effort to the host's audit
  * destinations (the kernel `AuditLogDestinationRegistry`); a slow or throwing
  * destination is bounded and isolated, never affecting the committed row or the

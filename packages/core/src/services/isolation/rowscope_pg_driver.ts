@@ -1,4 +1,3 @@
-import type { QueryClientContract } from '@adonisjs/lucid/types/database'
 import { getConfig } from '../../config.js'
 import type { TenantModelContract } from '../../types/contracts.js'
 import { ISOLATION_CONTRACT_VERSION } from './driver.js'
@@ -10,7 +9,7 @@ import type {
   MigrateResult,
   TableLocation,
 } from './driver.js'
-import { assertSafeIdentifier } from './identifier.js'
+import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
 import { DEFAULT_RLS_GUC } from './rls.js'
 
 async function lucid() {
@@ -27,7 +26,7 @@ async function lucid() {
  * Trade-offs vs schema-pg / database-pg:
  *   - Cheapest provisioning: nothing happens at tenant create time.
  *   - Lower OS-level isolation; a missing scope leaks across tenants.
- *   - Migrations are central — `migrate()` is a no-op here.
+ *   - Migrations are central: `migrate()` is a no-op here.
  *
  * `destroy()` and `reset()` walk the configured `rowScopeTables` list and
  * run `DELETE FROM <table> WHERE <column> = ?` per table. Tables not on
@@ -49,7 +48,7 @@ export default class RowScopePgDriver implements IsolationDriver {
   ) {
     // rowscope-pg has no per-tenant connection: every tenant shares the
     // central connection. Fall back to the configured centralConnectionName
-    // rather than a literal — the provider wires it from config at boot, and
+    // rather than a literal. The provider wires it from config at boot, and
     // getConfig() is always available by the time this driver is constructed
     // (boot runs setConfig() first; tests seed it via setupTestConfig()).
     this.#centralConnectionName = opts.centralConnectionName ?? getConfig().centralConnectionName
@@ -74,7 +73,7 @@ export default class RowScopePgDriver implements IsolationDriver {
   tableLocation(tenant: TenantModelContract): TableLocation {
     // rowscope-pg has NO per-tenant namespace: placement is the shared
     // connection, the scope column, and the RLS predicate metadata. There is no
-    // schema/database to qualify, and reporting one would be the exact I1 leak
+    // schema/database to qualify, and reporting one would be the exact cross-tenant leak
     // this seam exists to prevent. connectionName() returns the shared central
     // name WITHOUT asserting the id, so assert defensively here so a malformed
     // id never travels inside a placement value (logs, DDL builders, hooks).
@@ -86,19 +85,10 @@ export default class RowScopePgDriver implements IsolationDriver {
       rls,
       connectionName: this.connectionName(tenant.id),
     }
-    // rlsGuc is present if and only if rls is on. The SEAM-2 rowscope central
+    // rlsGuc is present if and only if rls is on. The rowscope central
     // migration creates the policy keyed on this GUC; the accessor only reports
     // which setting that policy reads.
     return rls ? { ...base, rlsGuc: DEFAULT_RLS_GUC } : base
-  }
-
-  enforce(_client: QueryClientContract, _tenantId: string): void {
-    // No-op here: row scoping is applied at query time by the
-    // `withTenantScope()` model mixin (reading `tenancy.currentId()`) and, when
-    // a hard boundary is required, per transaction via `withTenantRls()` /
-    // `setTenantRlsGuc()`. There is nothing to stamp on the shared client
-    // synchronously. rowscope-pg owns no per-tenant storage, so it is a plain
-    // IsolationDriver, NOT a ProvisionableDriver — it has no `provision()`.
   }
 
   async destroy(tenant: TenantModelContract, opts: DestroyOptions = {}): Promise<void> {

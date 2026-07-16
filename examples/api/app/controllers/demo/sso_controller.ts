@@ -4,9 +4,9 @@ import { SsoService } from '@adonisjs-lasagna/sso'
 import { updateSsoValidator } from '#app/validators/sso_validator'
 
 /**
- * Read / write tenant SSO config. The `clientSecret` is never echoed back —
- * we expose a `hasClientSecret` boolean so callers can tell whether one is
- * stored without leaking the value.
+ * Read / write tenant SSO config. The `clientSecret` is never echoed back. We
+ * expose a `hasClientSecret` boolean so callers can tell whether one is stored
+ * without leaking the value.
  */
 @inject()
 export default class SsoController {

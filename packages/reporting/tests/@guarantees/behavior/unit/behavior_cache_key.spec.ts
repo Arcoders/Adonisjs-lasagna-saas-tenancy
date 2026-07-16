@@ -54,7 +54,7 @@ test.group('reportingCacheKey', () => {
     assert.equal(a, b)
   })
 
-  // CHAOS: the cache is GLOBAL (cross-tenant) — the key must never be tenant-scoped.
+  // CHAOS: the cache is GLOBAL (cross-tenant), so the key must never be tenant-scoped.
   test('the key never contains a tenant: prefix', ({ assert }) => {
     const k = reportingCacheKey({
       period: 'day',

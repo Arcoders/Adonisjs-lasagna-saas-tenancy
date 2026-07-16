@@ -2,10 +2,9 @@ import { createHash } from 'node:crypto'
 import { getConfig } from '../config.js'
 import type { TenantModelContract } from '../types/contracts.js'
 import type { ReadReplicaHost } from '../types/config.js'
-import ConnectionLru, {
-  DEFAULT_EVICTION_GRACE_MS,
-  DEFAULT_MAX_TENANT_CONNECTIONS,
-} from './isolation/connection_lru.js'
+import ConnectionLru from './isolation/connection_lru.js'
+import { connectionHasActiveQuery } from './isolation/pool_in_use.js'
+import { CONFIG_DEFAULTS } from '../config_defaults.js'
 
 const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default).catch(() => null)
 
@@ -14,12 +13,12 @@ const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default
  * Pure for `random`/`round-robin` (in-memory cursor), deterministic for
  * `sticky` (hash of tenantId).
  *
- * Returns `null` when read replicas are not configured — callers should
+ * Returns `null` when read replicas are not configured. Callers should
  * fall back to the primary connection.
  *
  * Read-your-writes note: `round-robin` and `random` spread a single tenant's
  * sequential reads across hosts, so a read immediately after a write may hit a
- * lagging replica. Use `sticky` (hash of tenant id → one host) when a tenant
+ * lagging replica. Use `sticky` (hash of tenant id maps to one host) when a tenant
  * needs consistent reads, and route read-after-write paths to the primary.
  *
  * Replica connections are created on demand and capped by an in-use-aware LRU
@@ -41,19 +40,26 @@ const STICKY_HASH_CACHE_MAX = 10_000
  */
 export default class ReadReplicaService {
   #cursor = 0
-  // Memoized SHA-1 → uint32 per tenant for the `sticky` strategy. The hash is
+  // Memoized SHA-1 hashed to a uint32 per tenant for the `sticky` strategy. The hash is
   // independent of host count, so we cache the raw 32-bit value and apply the
-  // modulo per call — a host-pool change still routes correctly without
+  // modulo per call, so a host-pool change still routes correctly without
   // re-hashing on every read.
   readonly #stickyHashCache = new Map<string, number>()
   readonly #lru = new ConnectionLru({
     label: 'ReadReplicaService',
     cap: () =>
-      getConfig().tenantReadReplicas?.maxReplicaConnections ?? DEFAULT_MAX_TENANT_CONNECTIONS,
-    graceMs: () => getConfig().isolation?.evictionGracePeriodMs ?? DEFAULT_EVICTION_GRACE_MS,
+      getConfig().tenantReadReplicas?.maxReplicaConnections ??
+      CONFIG_DEFAULTS.tenantReadReplicas.maxReplicaConnections,
+    graceMs: () => getConfig().isolation.evictionGracePeriodMs,
     release: async (name) => {
       const db = await lazyDb()
-      if (db?.manager.has(name)) await db.manager.release(name)
+      if (!db?.manager.has(name)) return true
+      // Keep a replica connection that still has a query running (an in-flight
+      // analytics read); the LRU retries it once it goes idle. Mirrors the
+      // per-tenant driver closures so eviction never severs live work.
+      if (connectionHasActiveQuery(db.manager, name)) return false
+      await db.manager.release(name)
+      return true
     },
   })
 
@@ -76,7 +82,7 @@ export default class ReadReplicaService {
       if (hash === undefined) {
         hash = createHash('sha1').update(tenantId).digest().readUInt32BE(0)
         // Simple bound: drop the whole memo when it grows too large rather than
-        // tracking per-entry recency — the hash recomputes cheaply on the next miss.
+        // tracking per-entry recency. The hash recomputes cheaply on the next miss.
         if (this.#stickyHashCache.size >= STICKY_HASH_CACHE_MAX) this.#stickyHashCache.clear()
         this.#stickyHashCache.set(tenantId, hash)
       }
@@ -129,6 +135,12 @@ export default class ReadReplicaService {
     const host = cfg.hosts[idx]!
     const connName = this.connectionName(tenant.id, idx)
 
+    // If this replica connection was just evicted, wait for its pool to finish
+    // draining before deciding it is still registered. Otherwise we would
+    // re-adopt a closing pool and queries would fail mid-flight. Mirrors the
+    // per-tenant driver connect() path.
+    await this.#lru.settlePending(connName)
+
     if (!db.manager.has(connName)) {
       // Ensure the primary tenant connection exists so we can clone its config.
       const { getActiveDriver } = await import('./isolation/active_driver.js')
@@ -148,7 +160,7 @@ export default class ReadReplicaService {
       const baseConnection: any = primary?.connection ?? {}
       // Clone the FULL primary config and override only host/credentials with
       // the replica's. Spreading `primary` carries over pool sizing, ssl,
-      // wrapIdentifier, and — critically — the TOP-LEVEL `searchPath`.
+      // wrapIdentifier, and (critically) the TOP-LEVEL `searchPath`.
       //
       // `searchPath` MUST stay at the top level: knex reads `config.searchPath`,
       // not `config.connection.searchPath`. The previous bug nested it inside
@@ -181,7 +193,7 @@ export default class ReadReplicaService {
   }
 
   /**
-   * Reset the round-robin cursor — mainly useful in tests for determinism.
+   * Reset the round-robin cursor. Mainly useful in tests for determinism.
    */
   resetCursor(): void {
     this.#cursor = 0

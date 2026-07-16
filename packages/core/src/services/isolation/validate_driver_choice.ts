@@ -3,7 +3,7 @@ import IsolationConfigException from '../../exceptions/isolation_config_exceptio
 /**
  * Fails the boot when `config.isolation.driver` names a driver nobody
  * registered. `IsolationDriverChoice` admits custom names (the registry is
- * open by design), so a typo compiles — without this check it would surface
+ * open by design), so a typo compiles. Without this check it would surface
  * only on the first tenant query, as a generic "no active driver" error
  * that never mentions the misconfigured value.
  *

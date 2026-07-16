@@ -15,7 +15,7 @@ export default class QuotasController {
       // Most common cause: `config.plans` not configured. Translate the
       // expected "plan not declared" exception to a stable 503 hint;
       // anything else is logged server-side and surfaces as a generic
-      // 503 — we don't want stack traces or DB column names leaking
+      // 503. We don't want stack traces or DB column names leaking
       // into the admin response.
       const isPlanConfigError =
         typeof err?.message === 'string' &&

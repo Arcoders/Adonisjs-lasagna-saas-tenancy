@@ -8,7 +8,7 @@ import {
 } from '@adonisjs-lasagna/backup'
 
 /**
- * HARDENING — backup/restore concurrency lock.
+ * HARDENING: backup/restore concurrency lock.
  *
  * Backup, restore, clone, and import now run under a per-tenant Redis lock
  * (`withTenantOperationLock`, used inside BackupService/CloneService/

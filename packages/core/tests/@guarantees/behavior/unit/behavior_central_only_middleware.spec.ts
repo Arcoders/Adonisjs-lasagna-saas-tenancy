@@ -58,7 +58,7 @@ test.group('CentralOnlyMiddleware', (group) => {
     const m = new CentralOnlyMiddleware()
     const err = await catchError(() =>
       m.handle(
-        { request: makeRequest({ headers: { host: 'acme.example.com' } }) } as any,
+        { request: makeRequest({ headers: { host: `${UUID}.example.com` } }) } as any,
         async () => {}
       )
     )

@@ -31,6 +31,7 @@ test.group('tenant:billing:dlq:list (integration)', (group) => {
     over: Partial<{ attempts: number; provider: string; eventType: string }> = {}
   ): Promise<void> {
     const row = new BillingProcessedEvent()
+    row.provider = 'stripe'
     row.eventId = eventId
     row.provider = over.provider ?? 'stripe'
     row.eventType = over.eventType ?? 'customer.subscription.created'

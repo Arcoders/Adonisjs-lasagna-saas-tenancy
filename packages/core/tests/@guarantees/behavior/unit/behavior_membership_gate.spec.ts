@@ -18,10 +18,17 @@ test.group('membership_gate — strategy classification', () => {
     assert.isTrue(isClientControlledStrategy('request-data'))
   })
 
-  test('subdomain / domain-or-subdomain / unknown custom are not', ({ assert }) => {
+  test('subdomain / domain-or-subdomain are host-based, not client-controlled', ({ assert }) => {
     assert.isFalse(isClientControlledStrategy('subdomain'))
     assert.isFalse(isClientControlledStrategy('domain-or-subdomain'))
-    assert.isFalse(isClientControlledStrategy('my-custom-server-resolver'))
+  })
+
+  test('an unclassified custom resolver fails SAFE to client-controlled (F4)', ({ assert }) => {
+    // A custom resolver the audit cannot classify (no declared trust) is treated
+    // as the riskiest class, so it still trips the IDOR membership-gate nudge —
+    // closing the blind spot where an unclassified resolver silently disabled the
+    // hard-fail. The host opts out with trust:'server' (or a wired gate).
+    assert.isTrue(isClientControlledStrategy('my-custom-server-resolver'))
   })
 
   test('a chain is client-controlled when ANY member is', ({ assert }) => {

@@ -1,7 +1,7 @@
 import { checkSatelliteApiCompat, SATELLITE_API_VERSION } from '../sdk/api_version.js'
 import type { DiagnosisIssue } from './doctor/types.js'
 
-/** A satellite as the plugin doctor sees it — the slice of its manifest that matters. */
+/** A satellite as the plugin doctor sees it, the slice of its manifest that matters. */
 export interface PluginDoctorSatellite {
   readonly packageName: string
   /** The manifest `name` (the slug the TRUSTED_SATELLITES allowlist matches). */
@@ -17,7 +17,7 @@ export interface PluginDoctorInput {
   readonly satellites: readonly PluginDoctorSatellite[]
   /** The operator's TRUSTED_SATELLITES allowlist (plugin names). */
   readonly trusted: readonly string[]
-  /** Whether `config.plugins.readOnly` is set (the S3 Postgres firewall). */
+  /** Whether `config.plugins.readOnly` is set (the Postgres firewall). */
   readonly readOnlyConfigured: boolean
   /** Core's Satellite ABI; injectable for tests, defaults to {@link SATELLITE_API_VERSION}. */
   readonly coreSatelliteApi?: number
@@ -29,14 +29,14 @@ export interface PluginDoctorReport {
 }
 
 /**
- * A PARALLEL doctor for the plugin/satellite PLATFORM posture — NOT the tenant-state
+ * A PARALLEL doctor for the plugin/satellite PLATFORM posture, NOT the tenant-state
  * `DoctorService` (whose per-tenant DB checks are the wrong shape here). Pure and
  * stateless: it maps the installed satellite manifests plus the runtime trust and
  * firewall configuration to actionable diagnoses, with no booted app and no DB. The
  * `plugin:doctor` command gathers the input (discoverSatellites + getConfig +
  * TRUSTED_SATELLITES) and renders the report.
  *
- * It deliberately does NOT introspect plugin SPECS — those are not available at
+ * It deliberately does NOT introspect plugin SPECS: those are not available at
  * runtime without loading providers, and the manifest↔spec coherence plus the
  * "declared permissions ⊇ seams used" checks are the CI guard's job
  * (`check-plugin-permissions`). This doctor is about the DEPLOYED posture an operator
@@ -70,7 +70,7 @@ export default class PluginDoctorService {
     }
   }
 
-  /** Each satellite's declared Satellite ABI against this core's — fail is an error. */
+  /** Each satellite's declared Satellite ABI against this core's. A fail is an error. */
   #abi(input: PluginDoctorInput): DiagnosisIssue[] {
     const core = input.coreSatelliteApi ?? SATELLITE_API_VERSION
     const out: DiagnosisIssue[] = []
@@ -99,7 +99,7 @@ export default class PluginDoctorService {
     return out
   }
 
-  /** A native-addon satellite cannot be sandboxed by the worker Permission Model (S4b). */
+  /** A native-addon satellite cannot be sandboxed by the worker Permission Model. */
   #nativeAddons(input: PluginDoctorInput): DiagnosisIssue[] {
     return input.satellites
       .filter((s) => s.nativeAddons === true)
@@ -129,7 +129,7 @@ export default class PluginDoctorService {
       }))
   }
 
-  /** Untrusted plugins share the app DB role unless the read-only firewall (S3) is set. */
+  /** Untrusted plugins share the app DB role unless the read-only firewall is set. */
   #readOnlyPosture(input: PluginDoctorInput): DiagnosisIssue[] {
     if (input.satellites.length === 0 || input.readOnlyConfigured) return []
     const untrusted = input.satellites.filter((s) => !input.trusted.includes(s.name))
@@ -152,7 +152,7 @@ export default class PluginDoctorService {
    * Standing disclosure of the declared permissions the installed satellites hold.
    * Every permission kind in the model (`scheduler`, `data_change:<Model>`,
    * `network:external`, `db:write`) is a sensitive, consent-gated capability, so ALL
-   * of them are surfaced — narrowing to a subset would let a plugin holding, say,
+   * of them are surfaced. Narrowing to a subset would let a plugin holding, say,
    * `data_change:User` (observe every write to the tenant's User model) read as clean.
    */
   #declaredPermissions(input: PluginDoctorInput): DiagnosisIssue[] {

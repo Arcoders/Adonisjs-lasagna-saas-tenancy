@@ -18,11 +18,11 @@ import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite
 import type Stripe from 'stripe'
 
 /**
- * B3/B4: when fiscal features are enabled, `invoice.payment_succeeded` writes an
+ * When fiscal features are enabled, `invoice.payment_succeeded` writes an
  * append-only `billing_invoice_snapshots` row carrying the provider's tax
  * breakdown (we never compute tax). When fiscal is disabled, nothing is written.
- * Driven through the real webhook chain (POST signed → controller → job →
- * dispatcher), like the other dispatcher specs.
+ * Driven through the real webhook chain (a signed POST reaches the controller,
+ * which dispatches the job), like the other dispatcher specs.
  */
 test.group('Fiscal invoice snapshot (integration)', (group) => {
   const cleanupTenants: string[] = []
@@ -114,6 +114,7 @@ test.group('Fiscal invoice snapshot (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const customerId = `cus_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = customerId
     await cus.save()
@@ -173,6 +174,7 @@ test.group('Fiscal invoice snapshot (integration)', (group) => {
     cleanupTenants.push(tenant.id)
 
     const snap = new BillingInvoiceSnapshot()
+    snap.provider = 'stripe'
     snap.id = randomUUID()
     snap.provider = 'stripe'
     snap.providerInvoiceId = 'in_read_1'
@@ -190,6 +192,7 @@ test.group('Fiscal invoice snapshot (integration)', (group) => {
     const other = await createTestTenant()
     cleanupTenants.push(other.id)
     const otherSnap = new BillingInvoiceSnapshot()
+    otherSnap.provider = 'stripe'
     otherSnap.id = randomUUID()
     otherSnap.provider = 'stripe'
     otherSnap.providerInvoiceId = 'in_other'

@@ -8,16 +8,16 @@
     <title>Quota warning</title>
   </head>
   <body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #1f2933;">
-    <h1 style="margin-top: 0;">You're hitting your {{ quota }} limit</h1>
+    <h1 style="margin-top: 0;">You're hitting your {{ '{{' }} quota }} limit</h1>
 
-    <p>Hi {{ tenantName }},</p>
+    <p>Hi {{ '{{' }} tenantName }},</p>
 
     <p>
       Your account has used
-      <strong>{{ current }} / {{ limit }}</strong>
-      {{ quota }} this period.
+      <strong>{{ '{{' }} current }} / {{ '{{' }} limit }}</strong>
+      {{ '{{' }} quota }} this period.
       The latest request would have pushed you to
-      {{ current + attempted }} — over your plan's limit, so it was rejected.
+      {{ '{{' }} current + attempted }} — over your plan's limit, so it was rejected.
     </p>
 
     <p>

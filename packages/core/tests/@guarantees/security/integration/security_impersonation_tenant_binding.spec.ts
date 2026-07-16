@@ -10,11 +10,12 @@ const SECRET = 'c'.repeat(64)
 /**
  * Tenant binding is the isolation-critical half of impersonation: a token
  * issued for tenant A must never attach an A-scoped context to a request that
- * resolved to tenant B. The check lives in `ImpersonationMiddleware`
- * (`activeTenantId !== verified.tenantId → 401`) and only fires when a tenant
- * context is already active. The `/guarded-impersonation-check` fixture route
- * runs the tenant guard first (seeding `tenancy.currentId()`), then
- * impersonation, so this exercises the real ordering an app would deploy.
+ * resolved to tenant B. The check lives in `ImpersonationMiddleware`, where a
+ * mismatch between `activeTenantId` and `verified.tenantId` rejects with 401,
+ * and only fires when a tenant context is already active. The
+ * `/guarded-impersonation-check` fixture route runs the tenant guard first
+ * (seeding `tenancy.currentId()`), then impersonation, so this exercises the
+ * real ordering an app would deploy.
  */
 test.group('ImpersonationMiddleware — tenant binding (integration)', (group) => {
   let originalConfig: ReturnType<typeof getConfig>

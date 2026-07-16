@@ -1,7 +1,7 @@
 /**
  * OpenAPI 3.1 spec for the reporting dashboard + report-extension endpoints.
  * Built declaratively and rooted at `prefix` so a unit test can cross-check it
- * against the routes. Pure — imports nothing app-dependent.
+ * against the routes. Pure. Imports nothing app-dependent.
  */
 
 export interface ReportingOpenApiDocument {

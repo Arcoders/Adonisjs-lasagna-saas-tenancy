@@ -8,9 +8,10 @@ import IsolationDriverRegistry from '../../../../src/services/isolation/registry
 /**
  * WS-5 / driver-contract-leaky-rowscope-noops (adapter side).
  *
- * Splitting out `enforce` only helps if the adapter actually calls it on the
- * client it resolved for the active tenant. This pins that call: the adapter
- * invokes `driver.enforce(client, tenantId)` exactly once, with the resolved
+ * `enforce` is an OPTIONAL hook (AD-06). When a custom driver DOES implement it,
+ * the adapter must still call it on the client it resolved for the active
+ * tenant. This pins that call for a driver that provides one: the adapter
+ * invokes `driver.enforce?.(client, tenantId)` exactly once, with the resolved
  * client and the active tenant id, before handing the client back.
  *
  * RED (pre-fix): the adapter returned the client without an enforce hook.

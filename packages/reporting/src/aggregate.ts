@@ -2,7 +2,7 @@ import type { ReportAggregate, TopTenantMetric } from './types.js'
 
 /**
  * errors / requests, clamped to [0, 1]. Returns 0 when there were no requests
- * (no division by zero). Pure — the unit tests pin this math.
+ * (no division by zero). Pure. The unit tests pin this math.
  */
 export function errorRate(errors: number, requests: number): number {
   if (!(requests > 0)) return 0

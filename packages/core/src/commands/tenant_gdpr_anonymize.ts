@@ -10,7 +10,7 @@ import TenantAnonymized from '../events/tenant_anonymized.js'
 /**
  * Run the host-provided anonymizer for a tenant (GDPR Art.17 erasure-by-
  * anonymization) and record the exercise in the immutable audit log. The PII
- * logic lives in `config.compliance.anonymize` — the package never touches your
+ * logic lives in `config.compliance.anonymize`. The package never touches your
  * models. Without that seam the command fails loudly: that means your
  * implementation is missing, not that the command is broken.
  */
@@ -73,7 +73,7 @@ export default class TenantGdprAnonymize extends BaseCommand {
 
     // A dry run is a preview: run the anonymizer in dry mode and report the
     // count, but write NO audit row and dispatch NO event. Those signal a real
-    // erasure — emitting them on a preview would fire side-effecting listeners
+    // erasure. Emitting them on a preview would fire side-effecting listeners
     // and pollute the append-only (un-prunable) audit log on every preview.
     if (this.dryRun) {
       try {
@@ -120,7 +120,7 @@ export default class TenantGdprAnonymize extends BaseCommand {
       const suffix = typeof affected === 'number' ? ` (${affected} record(s))` : ''
       this.logger.success(`Anonymized PII for "${tenant.name}"${suffix}.`)
     } catch (error: any) {
-      // The attempt itself is evidence worth keeping — record the failure too.
+      // The attempt itself is evidence worth keeping, so record the failure too.
       await this.#record(audit, tenant.id, {
         reason: this.reason ?? null,
         outcome: 'failed',
@@ -134,7 +134,7 @@ export default class TenantGdprAnonymize extends BaseCommand {
   /**
    * Best-effort audit write for a real (non-dry) run. The data operation may
    * already have happened irreversibly, so a missing/unreachable audit table
-   * must not flip the command to a misleading failure — warn loudly instead.
+   * must not flip the command to a misleading failure. Warn loudly instead.
    */
   async #record(audit: AuditLogService, tenantId: string, metadata: Record<string, unknown>) {
     try {

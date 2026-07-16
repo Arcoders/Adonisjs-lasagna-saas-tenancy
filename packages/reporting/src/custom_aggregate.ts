@@ -4,7 +4,7 @@ import type { CustomMetricBreakdown } from './types.js'
 /**
  * The whitelisted SQL aggregation functions for custom metrics. The chosen
  * function name is interpolated into the raw query, so it MUST come from this
- * map — never from user input. `resolveCustomAggregation` folds any value down to
+ * map, never from user input. `resolveCustomAggregation` folds any value down to
  * a safe member (default `sum`).
  *
  * Pure and dependency-free (only the pure `aggregate.js` helpers) so it stays
@@ -34,7 +34,7 @@ export function resolveCustomAggregation(value: unknown): CustomAggregation {
 
 /**
  * The SQL function for an aggregation value, resolved through the whitelist. A
- * stray/malicious value can never inject SQL — it collapses to `SUM`.
+ * stray/malicious value can never inject SQL: it collapses to `SUM`.
  */
 export function aggregationSql(value: unknown): string {
   return CUSTOM_AGG_SQL[resolveCustomAggregation(value)]

@@ -15,7 +15,7 @@ import type { AiConfig, RedactOutput } from '../../../../src/define_config.js'
 import type { StreamFragment } from '../../../../src/types/ai_provider_contract.js'
 
 /**
- * WS-AI-10 hardening — the `redactOutput` coherence proofs (the enterprise
+ * The `redactOutput` coherence proofs (the enterprise
  * "no-gap" core). Because redaction sits at the single fragment choke point
  * upstream of the recording tee, the redacted bytes are what the client, the
  * idempotency cache, AND conversation memory all see. Driven through the REAL

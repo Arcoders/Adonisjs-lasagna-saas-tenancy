@@ -33,7 +33,7 @@ export interface BuildUrlOptions {
  * `MultitenancyConfig.baseDomain`; when a tenant has a `customDomain`, that
  * takes precedence over the subdomain form.
  *
- * This service does NOT perform redirects itself — it constructs the URL
+ * This service does NOT perform redirects itself. It constructs the URL
  * string, leaving the call site to use `response.redirect(url)` or whatever
  * mechanism is appropriate.
  */
@@ -142,7 +142,7 @@ function assertSafePort(port: number): number {
 
 /**
  * Reject any path containing CR/LF (header smuggling) or starting with `//`
- * (protocol-relative URL → bypasses the explicit host we just validated).
+ * (a protocol-relative URL, which would bypass the explicit host we just validated).
  */
 function normalizeRedirectPath(path: string): string {
   if (typeof path !== 'string') {

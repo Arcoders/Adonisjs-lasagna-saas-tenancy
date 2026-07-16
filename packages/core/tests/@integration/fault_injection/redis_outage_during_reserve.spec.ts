@@ -13,20 +13,20 @@ import { AI_TAG } from '../../helpers/tags.js'
  * Fault-injection tier: a real Redis failure AT the reserve write.
  *
  * The resilience-tier unit spec (resilience_quota_reserve_fail_closed) proves the
- * policy — reserve is fail-closed by construction — with a stubbed outage. This
+ * policy (reserve is fail-closed by construction) with a stubbed outage. This
  * complements it against the booted app and REAL Redis: the reserve EVAL is made
  * to reject with a realistic connection error (mid-operation, after the limit
  * lookup), and we assert two things a unit test cannot: (1) the real
  * ResilienceService classifies it and rethrows DependencyUnavailableException
  * (a 503, never an unheld reservation), and (2) the REAL Redis is left with zero
- * holds for the tenant — the failed reserve leaked nothing. A recovery case then
+ * holds for the tenant. The failed reserve leaked nothing. A recovery case then
  * proves the tenant reserves/settles/releases cleanly once Redis is healthy,
  * with no residue from the failed attempt.
  *
  * Injection follows the fault-tier stance: through the `protected requireRedis()`
  * seam on a subclass, so no shared singleton is mutated. requireRedis returns a
  * client whose `eval` rejects (the reserve write) while every other Redis access
- * — including this spec's own state assertions — uses the healthy singleton.
+ * (including this spec's own state assertions) uses the healthy singleton.
  */
 function fakeTenant(id: string): TenantModelContract {
   return { id, name: `q-${id}` } as unknown as TenantModelContract

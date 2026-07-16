@@ -1,4 +1,4 @@
-import { assertContractCompat } from '../sdk/contract_version.js'
+import ExtensionRegistry from './extension_registry.js'
 
 /**
  * The webhook payload-transformer contract version: the shape of
@@ -30,44 +30,25 @@ export interface WebhookPayloadTransformer {
  * When empty (the default), `WebhookService` skips transformation entirely, so
  * the delivered + signed body is byte-identical to a build without this surface.
  */
-export default class WebhookTransformerRegistry {
-  readonly #transformers = new Map<string, WebhookPayloadTransformer>()
+export default class WebhookTransformerRegistry extends ExtensionRegistry<
+  string,
+  WebhookPayloadTransformer
+> {
+  protected readonly surfaceLabel = 'webhook transformer'
 
-  /** The transformer-contract version this surface implements. */
-  get contractVersion(): number {
+  protected override get surfaceContractVersion(): number {
     return WEBHOOKS_CONTRACT_VERSION
   }
 
   register(transformer: WebhookPayloadTransformer): this {
-    if (!transformer.name || typeof transformer.name !== 'string') {
-      throw new Error('WebhookTransformerRegistry: a transformer must have a non-empty name.')
-    }
-    if (this.#transformers.has(transformer.name)) {
-      throw new Error(
-        `WebhookTransformerRegistry: a transformer named "${transformer.name}" is already registered.`
-      )
-    }
-    assertContractCompat(
-      transformer.contractVersion,
-      WEBHOOKS_CONTRACT_VERSION,
-      `webhook transformer "${transformer.name}"`
-    )
-    this.#transformers.set(transformer.name, transformer)
+    const name = this.assertRegistrable(transformer)
+    this.entries.set(name, transformer)
     return this
   }
 
   /** Registered transformers, in registration order. */
   list(): readonly WebhookPayloadTransformer[] {
-    return [...this.#transformers.values()]
-  }
-
-  has(name: string): boolean {
-    return this.#transformers.has(name)
-  }
-
-  clear(): this {
-    this.#transformers.clear()
-    return this
+    return [...this.entries.values()]
   }
 
   /**
@@ -78,7 +59,7 @@ export default class WebhookTransformerRegistry {
    */
   apply(event: string, payload: Record<string, unknown>): Record<string, unknown> {
     let current = payload
-    for (const transformer of this.#transformers.values()) {
+    for (const transformer of this.entries.values()) {
       const next = transformer.transform(event, current)
       if (!next || typeof next !== 'object' || Array.isArray(next)) {
         throw new Error(

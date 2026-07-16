@@ -7,7 +7,7 @@ import TenantQueueService from './tenant_queue_service.js'
 
 // Lazy logger so importing this service never triggers `@adonisjs/core`'s
 // top-level `await app.booted(...)` outside an Ignitor (which throws). Same
-// pattern as CircuitBreakerService / TenantQueueService — keeps the module
+// pattern as CircuitBreakerService / TenantQueueService. Keeps the module
 // importable from unit tests without an Ignitor.
 const lazyLogger = () =>
   import('@adonisjs/core/services/logger').then((m) => m.default).catch(() => null)
@@ -17,7 +17,7 @@ const lazyLogger = () =>
  * provisioning / suspended / failed / deleted tenant has no business running
  * scheduled work, so the status filter gives that skip for free (a schedule can
  * widen it via `statuses`). `as const satisfies` so the list stays a subset of
- * the real status union and can never drift (E2).
+ * the real status union and can never drift.
  */
 export const SCHEDULER_ACTIVE_STATUSES = ['active'] as const satisfies readonly TenantStatus[]
 
@@ -25,10 +25,10 @@ export const SCHEDULER_ACTIVE_STATUSES = ['active'] as const satisfies readonly 
 const CRON_JOBID_BUCKET_MS = 60_000
 
 /**
- * One registered schedule. Discriminated by `kind` (E1), every field `readonly`,
+ * One registered schedule. Discriminated by `kind`, every field `readonly`,
  * `name` branded (minted via `scheduleName()`), so a raw string cannot reach the
  * slot that becomes a schedule id / job id. Exactly one of `cron` / `everyMs`
- * must be set — `register()` fails closed otherwise.
+ * must be set. `register()` fails closed otherwise.
  *
  * A tick fans out over ACTIVE tenants and dispatches `job` (a per-tenant BullMQ
  * job name) to each one's queue via {@link TenantQueueService}. The scheduler
@@ -81,7 +81,7 @@ export interface SchedulerTickResult {
  * one native schedule per registered entry pointing at the global tick job, and
  * the host's `queue:work` worker fires it. That worker claims a due schedule
  * ATOMICALLY (`claimDueSchedule`), so the schedule is claimed and the tick
- * DISPATCHED once per interval across every pod — no advisory lock is needed. The
+ * DISPATCHED once per interval across every pod. No advisory lock is needed. The
  * dispatched tick BODY still runs at-least-once (retry / stall recovery), so the
  * per-tenant dispatch carries a best-effort deterministic `jobId` for dedup; the
  * real correctness for critical work is a reconciling schedule (see
@@ -92,7 +92,7 @@ export default class TenantSchedulerService {
 
   /**
    * Register a schedule. Fails closed (aborting boot) on a duplicate name or when
-   * the cron/interval is not EXACTLY one of `cron` / `everyMs` — a schedule with
+   * the cron/interval is not EXACTLY one of `cron` / `everyMs`. A schedule with
    * neither would never fire and one with both is ambiguous.
    */
   register(schedule: TenantSchedule): this {
@@ -148,7 +148,7 @@ export default class TenantSchedulerService {
    * No-op when no schedules are registered.
    *
    * `failClosed` (default true) controls what an arm failure does. In the worker /
-   * console process — the one that actually RUNS schedules — it is true: a declared
+   * console process (the one that actually RUNS schedules) it is true: a declared
    * schedule that cannot be armed aborts the deploy rather than silently never
    * running. In the `web` process it is passed false: the schedule row is persisted
    * in the shared queue backend, so the worker arms it anyway; failing the web pod's
@@ -168,7 +168,7 @@ export default class TenantSchedulerService {
             { plugin: String(schedule.name), phase: 'schedules', cause: error }
           )
         }
-        // web process: don't take the pod down for a queue-backend blip — the
+        // web process: don't take the pod down for a queue-backend blip. The
         // worker's fail-closed arm is the real deploy gate. Log loud, keep booting.
         ;(await lazyLogger())?.error(
           {
@@ -207,7 +207,7 @@ export default class TenantSchedulerService {
    * dispatching its per-tenant job to each. Called by the global tick job.
    *
    * Fail-OPEN per tenant: a single tenant's dispatch failure is caught INSIDE the
-   * `each` callback (a throw there aborts the whole cursor — see
+   * `each` callback (a throw there aborts the whole cursor, see
    * `TenantRepositoryContract.each`), logged with context, and the fan-out
    * continues. A catastrophic failure (the enumeration itself throws) propagates
    * as a {@link SchedulerTickException} so the worker retries the whole tick.
@@ -244,7 +244,7 @@ export default class TenantSchedulerService {
             dispatched++
           } catch (error) {
             // Fail-open: keep the fan-out going. This catch MUST stay inside the
-            // callback — `each` aborts iteration on a thrown callback, so without
+            // callback. `each` aborts iteration on a thrown callback, so without
             // it one bad tenant would silently starve every later tenant.
             failed++
             ;(await lazyLogger())?.error(

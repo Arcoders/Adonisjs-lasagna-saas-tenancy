@@ -4,7 +4,7 @@ import { ComplianceReportService } from '@adonisjs-lasagna/saas-tenancy/services
 import { runAce } from '../_helpers.js'
 
 /**
- * HARDENING — `tenant:compliance:report` introspects real posture.
+ * HARDENING: `tenant:compliance:report` introspects real posture.
  *
  * The report is a registry of controls (like tenant:doctor's checks). We assert
  * the machine-readable shape and real detection via the service (the demo has

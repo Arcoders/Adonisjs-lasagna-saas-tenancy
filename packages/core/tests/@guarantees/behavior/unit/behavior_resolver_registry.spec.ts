@@ -1,6 +1,10 @@
 import { test } from '@japa/runner'
 import TenantResolverRegistry from '../../../../src/services/resolvers/registry.js'
-import { ResolverHit, type TenantResolver } from '../../../../src/services/resolvers/resolver.js'
+import {
+  RESOLVER_CONTRACT_VERSION,
+  ResolverHit,
+  type TenantResolver,
+} from '../../../../src/services/resolvers/resolver.js'
 
 function fakeResolver(
   name: string,
@@ -8,8 +12,12 @@ function fakeResolver(
 ): TenantResolver {
   return {
     name,
-    contractVersion: 1,
+    contractVersion: RESOLVER_CONTRACT_VERSION,
+    // A synchronous resolver: resolve and resolveSync agree, so it is chain-eligible.
     resolve() {
+      return returns
+    },
+    resolveSync() {
       return returns
     },
   }
@@ -82,14 +90,12 @@ test.group('TenantResolverRegistry — chain', () => {
 })
 
 test.group('TenantResolverRegistry — resolveSync', () => {
-  const asyncResolver = (
-    name: string,
-    returns: ReturnType<typeof ResolverHit.id>
-  ): TenantResolver => ({
+  const asyncOnlyResolver = (name: string): TenantResolver => ({
     name,
-    contractVersion: 1,
+    contractVersion: RESOLVER_CONTRACT_VERSION,
+    // No resolveSync: an async-only resolver, which cannot serve the sync path.
     async resolve() {
-      return returns
+      return ResolverHit.id('x')
     },
   })
 
@@ -102,19 +108,14 @@ test.group('TenantResolverRegistry — resolveSync', () => {
     assert.deepEqual(reg.resolveSync({} as any), { type: 'id', tenantId: 'match' })
   })
 
-  test('skips async resolvers and uses the next synchronous hit', ({ assert }) => {
+  test('setChain fails closed on an async-only resolver (no split-brain)', ({ assert }) => {
+    // TRES-06: an async-only resolver cannot be placed in the routing chain. The
+    // old behavior silently skipped it on the sync path; now setChain refuses it
+    // so request.tenant() and the sync attribution path can never diverge.
     const reg = new TenantResolverRegistry()
-    reg.register(asyncResolver('async', ResolverHit.id('async-hit')))
+    reg.register(asyncOnlyResolver('async'))
     reg.register(fakeResolver('sync', ResolverHit.id('sync-hit')))
-    reg.setChain(['async', 'sync'])
-    assert.deepEqual(reg.resolveSync({} as any), { type: 'id', tenantId: 'sync-hit' })
-  })
-
-  test('returns undefined when the only chain entry is async (no sync hit)', ({ assert }) => {
-    const reg = new TenantResolverRegistry()
-    reg.register(asyncResolver('async', ResolverHit.id('x')))
-    reg.setChain(['async'])
-    assert.isUndefined(reg.resolveSync({} as any))
+    assert.throws(() => reg.setChain(['async', 'sync']), /async-only/)
   })
 
   test('returns undefined when nothing in the chain matches synchronously', ({ assert }) => {

@@ -1,5 +1,5 @@
 /**
- * `--init-anchors` bootstrap (RFC §B4). Proposes front-matter `code:` blocks for
+ * `--init-anchors` bootstrap (RFC deliverable B4). Proposes front-matter `code:` blocks for
  * each doc page from the edges already derived automatically (fence imports +
  * resolved GitHub URLs), so the day-1 graph is not empty and the strongest,
  * gate-trusted `declared:manual` edges can be seeded by review rather than typed
@@ -8,7 +8,7 @@
 import type { DocGraph } from './types.js'
 
 export function initAnchors(graph: DocGraph): string {
-  // doc-page -> set of derived symbol targets.
+  // doc-page to its set of derived symbol targets.
   const byPage = new Map<string, Set<string>>()
   for (const e of graph.edges) {
     if (e.provenance !== 'derived:auto') continue

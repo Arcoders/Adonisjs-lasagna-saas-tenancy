@@ -1,6 +1,31 @@
 import { test } from '@japa/runner'
 import TrackMetricsMiddleware from '../../../../src/middleware/track_metrics_middleware.js'
+import {
+  setResolverRegistry,
+  __resetResolverRegistryCacheForTests,
+} from '../../../../src/extensions/request.js'
+import TenantResolverRegistry from '../../../../src/services/resolvers/registry.js'
+import {
+  RESOLVER_CONTRACT_VERSION,
+  ResolverHit,
+  type TenantResolver,
+} from '../../../../src/services/resolvers/resolver.js'
 import { setupTestConfig } from '../../../helpers/config.js'
+
+/** Seed a boot-like resolver chain of one custom synchronous resolver returning `id`. */
+function seedResolver(name: string, resolve: TenantResolver['resolve']): void {
+  const registry = new TenantResolverRegistry()
+  // The routing chain requires resolveSync; the middleware tests always pass a
+  // synchronous resolve, so it doubles as resolveSync.
+  registry.register({
+    name,
+    contractVersion: RESOLVER_CONTRACT_VERSION,
+    resolve,
+    resolveSync: resolve as NonNullable<TenantResolver['resolveSync']>,
+  })
+  registry.setChain([name])
+  setResolverRegistry(registry)
+}
 
 function makeRequest(headers: Record<string, string> = {}) {
   const lower: Record<string, string> = {}
@@ -64,6 +89,9 @@ const TID = 'ctx-tenant'
 test.group('TrackMetricsMiddleware', (group) => {
   group.each.setup(() => {
     setupTestConfig()
+  })
+  group.each.teardown(() => {
+    __resetResolverRegistryCacheForTests()
   })
 
   test('records exactly one request on a 2xx response', async ({ assert }) => {
@@ -154,16 +182,50 @@ test.group('TrackMetricsMiddleware', (group) => {
   }) => {
     const fake = new FakeMetrics()
     const m = new TestableTrackMetrics(fake, undefined)
+    const tenant = '11111111-1111-4111-8111-111111111111'
 
     await m.handle(
       {
-        request: makeRequest({ 'x-tenant-id': 'header-tenant' }),
+        request: makeRequest({ 'x-tenant-id': tenant }),
         response: makeResponse(200),
       } as any,
       async () => {}
     )
 
-    assert.equal(fake.increments[0]?.tenantId, 'header-tenant')
+    assert.equal(fake.increments[0]?.tenantId, tenant)
+  })
+
+  // TRES-02: the row is recorded under the tenant the resolver CHAIN serves, not
+  // the raw header. A chain-blind regression would record tenant B's traffic
+  // under tenant A in backoffice.tenant_metrics.
+  test('records under the tenant the resolver chain serves, not the raw header', async ({
+    assert,
+  }) => {
+    const served = '11111111-1111-4111-8111-111111111111'
+    const header = '22222222-2222-4222-8222-222222222222'
+    seedResolver('chain-served', () => ResolverHit.id(served))
+    const fake = new FakeMetrics()
+    const m = new TestableTrackMetrics(fake, undefined)
+
+    await m.handle(
+      { request: makeRequest({ 'x-tenant-id': header }), response: makeResponse(200) } as any,
+      async () => {}
+    )
+
+    assert.equal(fake.increments[0]?.tenantId, served)
+  })
+
+  // The resolver UUID border only guards the BUILT-IN resolvers; a custom resolver
+  // can mint any id. The seam guard (isSafeIdentifier) is the last line: an id
+  // carrying ':' must never forge a row in backoffice.tenant_metrics.
+  test('drops a custom resolver id carrying ":" (seam guard)', async ({ assert }) => {
+    seedResolver('evil', () => ResolverHit.id('victim:2026-06-28:requests'))
+    const fake = new FakeMetrics()
+    const m = new TestableTrackMetrics(fake, undefined)
+
+    await m.handle({ request: makeRequest(), response: makeResponse(200) } as any, async () => {})
+
+    assert.lengthOf(fake.increments, 0, 'an unsafe custom id must not be recorded')
   })
 
   // SECURITY (#2/#14): a client-controlled tenant id that is not a SAFE_IDENT
@@ -202,19 +264,22 @@ test.group('TrackMetricsMiddleware', (group) => {
     assert.lengthOf(fake.bandwidth, 0)
   })
 
-  test('still records a clean opaque host id (no false positives)', async ({ assert }) => {
+  test('records a valid UUID resolved from the header (no false-positive drop)', async ({
+    assert,
+  }) => {
     const fake = new FakeMetrics()
     const m = new TestableTrackMetrics(fake, undefined)
+    const tenant = '22222222-2222-4222-8222-222222222222'
 
     await m.handle(
       {
-        request: makeRequest({ 'x-tenant-id': 'acme-prod-01' }),
+        request: makeRequest({ 'x-tenant-id': tenant }),
         response: makeResponse(200),
       } as any,
       async () => {}
     )
 
-    assert.equal(fake.increments[0]?.tenantId, 'acme-prod-01')
+    assert.equal(fake.increments[0]?.tenantId, tenant)
   })
 
   test('short-circuits in test env unless bypassInTestEnv is false', async ({ assert }) => {

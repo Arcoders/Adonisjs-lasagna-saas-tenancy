@@ -13,13 +13,13 @@ import { setupTestConfig, testConfig } from '../../../helpers/config.js'
 import { AI_TAG } from '../../../helpers/tags.js'
 
 /**
- * WS2 observability — the domain telemetry emitted by reserve/settle/release,
+ * Observability: the domain telemetry emitted by reserve/settle/release,
  * asserted at the TelemetryService seam (no OTel SDK needed). Two contracts are
  * enforced behaviorally rather than by a fragile source regex:
  *   - span NAMES come from OBS_SPAN and events from OBS_EVENT (the stable
  *     dashboard/alert contract);
- *   - every attribute key is in OBS_ATTR_ALLOWLIST — ids/counts/outcomes only,
- *     never tenant content (G3). A future `setAttribute('prompt', …)` fails here.
+ *   - every attribute key is in OBS_ATTR_ALLOWLIST: ids/counts/outcomes only,
+ *     never tenant content. A future `setAttribute('prompt', …)` fails here.
  *
  * settle is per-fragment (hot): it records an event on the ACTIVE span, never its
  * own span, so we capture addEventOnActive separately.

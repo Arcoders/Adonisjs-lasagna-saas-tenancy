@@ -14,9 +14,9 @@ import {
  * The facade wires the ABI backstops (the Satellite ABI + the facade-contract
  * version) inside its own `boot()`, so this file declares only what reporting
  * actually does. Reporting is read-only and backoffice-scoped: it owns no
- * tenant-lifecycle hooks and no request-path seams, so it uses no Lote A section —
+ * tenant-lifecycle hooks and no request-path seams, so it uses no Lote A section,
  * just the lifecycle hooks. Core is resolved through the container, never `new`-ed;
- * the dependency only goes satellite → core.
+ * the dependency only goes from satellite to core.
  */
 export default definePlugin({
   name: 'reporting',
@@ -42,13 +42,13 @@ export default definePlugin({
 
   /**
    * `ready` runs after `boot`, so the emitter (which resolves via `app.booted()`)
-   * is guaranteed to exist — wiring it in `boot()` would race that and silently
+   * is guaranteed to exist. Wiring it in `boot()` would race that and silently
    * skip the subscription.
    *
    * When `config.reporting.cache.invalidateOnFlush` is set, clear the GLOBAL
    * `reporting` dashboard cache on every `MetricsFlushed` event, so a cached
    * dashboard refreshes the moment `tenant:metrics:flush` lands. Off by default
-   * (pair it with `cacheTtlMs > 0`). Always the global namespace — never a tenant
+   * (pair it with `cacheTtlMs > 0`). Always the global namespace, never a tenant
    * scope. (A surgical `.delete(key)` can't cover the rolling-window key space a
    * flush touches, so we clear the whole namespace.) `.clear()` is best-effort.
    */
@@ -65,7 +65,7 @@ export default definePlugin({
           .clear()
           .catch(() => {})
       } catch {
-        // best-effort — never let cache invalidation break the emitter
+        // best-effort: never let cache invalidation break the emitter
       }
     })
   },

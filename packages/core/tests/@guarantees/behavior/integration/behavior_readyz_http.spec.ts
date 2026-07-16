@@ -12,8 +12,8 @@ import { HealthService, registerDefaultChecks } from '@adonisjs-lasagna/saas-ten
  *   - the provider registers backoffice_db (critical), redis (critical) and
  *     circuit_breakers (non-critical) at boot;
  *   - a failing NON-critical check degrades the report but keeps the 200;
- *   - a failing CRITICAL check flips the aggregate to fail → 503;
- *   - when every check fails the report is fail → 503 (legacy rule);
+ *   - a failing CRITICAL check flips the aggregate to fail and returns 503;
+ *   - when every check fails the report is fail and returns 503 (legacy rule);
  *   - /healthz mirrors /readyz.
  *
  * Routes are mounted in the fixture at /ops (tests/fixtures/start/routes.ts).
@@ -116,7 +116,7 @@ test.group('Health probes over HTTP (integration)', (group) => {
     assert.equal(res.body().status, 'fail')
   })
 
-  // SECURITY (#5): /readyz and /healthz are public (k8s probes), so the body
+  // SECURITY: /readyz and /healthz are public (k8s probes), so the body
   // is the binary up/down projection, not the full report whose per-check
   // `meta` carries OPEN-circuit tenant ids and `message` carries raw DB/Redis
   // error strings. An anonymous caller must not be able to enumerate tenants or
@@ -133,7 +133,7 @@ test.group('Health probes over HTTP (integration)', (group) => {
     }))
 
     const res = await client.get('/ops/readyz')
-    res.assertStatus(200) // non-critical failure → degraded, still 200
+    res.assertStatus(200) // non-critical failure reads degraded, still 200
     const check = res.body().checks.synthetic_soft
     assert.equal(check.status, 'fail', 'the up/down signal is preserved')
     assert.isUndefined(check.meta, 'meta (tenant ids) must NOT reach the public probe')

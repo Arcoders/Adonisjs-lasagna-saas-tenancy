@@ -7,7 +7,7 @@ export interface SchedulerTickContext extends PluginExceptionContext {
 }
 
 /**
- * Thrown when a scheduler tick fails CATASTROPHICALLY — the tenant enumeration
+ * Thrown when a scheduler tick fails CATASTROPHICALLY: the tenant enumeration
  * itself throws, not a single tenant's dispatch. A per-tenant dispatch failure is
  * caught inside the fan-out loop (log + metric + continue, fail-open), so it never
  * reaches here; this is the fail-closed path for a broken tick, which lets the

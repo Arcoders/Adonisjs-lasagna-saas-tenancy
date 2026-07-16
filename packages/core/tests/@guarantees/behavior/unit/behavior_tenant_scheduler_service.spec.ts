@@ -8,11 +8,11 @@ import { schedulerJobId } from '../../../../src/sdk/plugin_keys.js'
 import type { TenantStatus } from '../../../../src/types/contracts.js'
 
 /**
- * The tenant scheduler (SEAM-1). Guarantees: registration fails closed on a
+ * The tenant scheduler. Guarantees: registration fails closed on a
  * duplicate or an ambiguous cron/interval; `start()` arms one native schedule per
  * entry (or fails closed if it cannot); `runTick` fans out over ONLY the matching
  * tenant statuses, dispatches a deterministic best-effort `jobId` per tenant, and
- * is FAIL-OPEN per tenant — a single tenant's dispatch failure is caught inside
+ * is FAIL-OPEN per tenant: a single tenant's dispatch failure is caught inside
  * the `each` callback (a throw there would abort the whole cursor) so the fan-out
  * continues. A catastrophic enumeration failure surfaces as SchedulerTickException.
  *
@@ -137,11 +137,11 @@ test.group('TenantSchedulerService — registration', () => {
         }),
       /exactly one of "cron" or "everyMs"/
     )
-    // cron only — ok
+    // cron only is fine
     assert.doesNotThrow(() =>
       svc.register({ kind: 'schedule', name: scheduleName('c'), job: 'j', cron: '0 2 * * *' })
     )
-    // everyMs only — ok
+    // everyMs only is fine
     assert.doesNotThrow(() =>
       svc.register({ kind: 'schedule', name: scheduleName('d'), job: 'j', everyMs: 5000 })
     )
@@ -209,7 +209,7 @@ test.group('TenantSchedulerService — start (arming)', () => {
     const svc = new TestScheduler()
     svc.armError = new Error('queue blip')
     svc.register(intervalSchedule())
-    // The web process must NOT fail readiness on a queue-backend blip — the worker
+    // The web process must NOT fail readiness on a queue-backend blip. The worker
     // arms the shared schedule. So failClosed:false logs and returns, never throws.
     await assert.doesNotReject(() => svc.start({ failClosed: false }))
   })
@@ -274,7 +274,7 @@ test.group('TenantSchedulerService — runTick fan-out', () => {
     const result = await svc.runTick('sync')
     assert.equal(result.dispatched, 2)
     assert.equal(result.failed, 1)
-    // t1 AND t3 still dispatched — t2's failure did not starve the later tenants
+    // t1 AND t3 still dispatched. t2's failure did not starve the later tenants
     assert.deepEqual(
       svc.dispatches.map((d) => d.tenantId),
       ['t1', 't3']

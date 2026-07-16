@@ -3,7 +3,7 @@ import redis from '@adonisjs/redis/services/main'
 import { randomUUID } from 'node:crypto'
 
 /**
- * HARDENING — SSO state replay protection.
+ * HARDENING: SSO state replay protection.
  *
  * The SSO satellite consumes the OIDC `state` with an atomic Redis GETDEL
  * (packages/sso/src/sso_service.ts): the first caller to observe the value wins
@@ -15,7 +15,7 @@ import { randomUUID } from 'node:crypto'
  * mock IdP, exactly one fulfilled) is
  * packages/core/tests/integration/services/sso_oidc_flow.spec.ts:313. The demo
  * app does not expose OIDC callbacks over HTTP, so here we prove the underlying
- * primitive directly against the app's live Redis — deterministically, with no
+ * primitive directly against the app's live Redis, deterministically, with no
  * mock-IdP dependency, so it can never flake.
  */
 test.group('hardening — SSO state replay protection (atomic GETDEL)', () => {
@@ -24,7 +24,7 @@ test.group('hardening — SSO state replay protection (atomic GETDEL)', () => {
     const stateValue = JSON.stringify({ tenantId: randomUUID(), nonce: randomUUID() })
     await redis.set(stateKey, stateValue, 'EX', 60)
 
-    // Race two GETDELs on the same key — the exact contention two simultaneous
+    // Race two GETDELs on the same key, the exact contention two simultaneous
     // OIDC callbacks would create.
     const [first, second] = await Promise.all([redis.getdel(stateKey), redis.getdel(stateKey)])
 
@@ -35,7 +35,7 @@ test.group('hardening — SSO state replay protection (atomic GETDEL)', () => {
     assert.lengthOf(losers, 1, 'the replayed consumer must observe null (state already consumed)')
     assert.equal(winners[0], stateValue, 'the winning consumer reads the original state payload')
 
-    // The key is gone — a third replay attempt also gets nothing.
+    // The key is gone, so a third replay attempt also gets nothing.
     assert.isNull(await redis.get(stateKey), 'state must be deleted after first consumption')
   })
 })

@@ -23,19 +23,18 @@ import ReportUsageBatchJob from '../src/jobs/report_usage_batch_job.js'
 /**
  * Provider for `@adonisjs-lasagna/billing`, built with the {@link definePlugin}
  * facade. Register it in `adonisrc.ts` alongside the core `MultitenancyProvider`.
- * It does what the core provider used to do for billing — but inverted, so the
+ * It does what the core provider used to do for billing, but inverted, so the
  * core never imports billing. The facade wires the ABI backstops (Satellite ABI +
  * plugin-API contract) inside its own `boot()`; this file declares the hooks:
  *
- *  - `bind`      — bind the driver registry, `BillingService`, and the event
- *                  listeners as container singletons (resolved, never `new`-ed
- *                  per event).
- *  - `boot`      — seed + validate the billing driver eagerly (fail at boot, not
- *                  at the first webhook).
- *  - `start`     — register the billing jobs with the @adonisjs/queue Locator and
- *                  subscribe the quota / usage / payment / tenant-delete listeners
- *                  to core events + lifecycle hooks.
- *  - `shutdown`  — drain the in-memory metering aggregator.
+ *  - `bind`: bind the driver registry, `BillingService`, and the event listeners
+ *    as container singletons (resolved, never `new`-ed per event).
+ *  - `boot`: seed + validate the billing driver eagerly (fail at boot, not at
+ *    the first webhook).
+ *  - `start`: register the billing jobs with the @adonisjs/queue Locator and
+ *    subscribe the quota / usage / payment / tenant-delete listeners to core
+ *    events + lifecycle hooks.
+ *  - `shutdown`: drain the in-memory metering aggregator.
  */
 export default definePlugin({
   name: 'billing',
@@ -93,7 +92,7 @@ export default definePlugin({
   },
 
   async shutdown(app) {
-    // Drain the in-memory metering aggregator — losing buckets here would
+    // Drain the in-memory metering aggregator. Losing buckets here would
     // silently under-report usage to Stripe. Only drain when the listener is
     // actually wired (config.usageMapping present).
     try {
@@ -103,7 +102,7 @@ export default definePlugin({
         await listener.drainAll()
       }
     } catch {
-      // Best-effort drain — never block shutdown on a metering hiccup.
+      // Best-effort drain; never block shutdown on a metering hiccup.
     }
   },
 })
@@ -216,7 +215,7 @@ async function wireBillingListeners(
     }
   }
 
-  // Tenant hard-delete cleanup. Always wired when billing is configured — there's
+  // Tenant hard-delete cleanup. Always wired when billing is configured: there's
   // no reason to leave a Stripe subscription billing the platform for a tenant
   // that no longer exists. The listener honours `config.billing.onTenantDelete`
   // for the policy choice.

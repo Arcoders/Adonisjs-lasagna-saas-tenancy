@@ -14,19 +14,19 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 // per-tenant concurrency low (~2-3) and total open connections well under
 // Postgres max_connections (10 pools is also under the soft LRU bound, and
 // enforceConnectionCap is off by default). This budget assumes the other
-// isolation specs release their tenant pools in teardown (driver.destroy ->
-// disconnect, as cross_tenant_e2e does); these 10 pools stack on any a prior
-// group leaves open.
+// isolation specs release their tenant pools in teardown (driver.destroy
+// disconnects, as cross_tenant_e2e does); these 10 pools stack on anything a
+// prior group leaves open.
 const TENANT_COUNT = 10
 const WRITES_PER_TENANT = 100
 const CONCURRENCY = 25
 
 /**
- * Concern 4: the high-volume sibling of cross_tenant_e2e.spec.ts. Same shape
+ * The high-volume sibling of cross_tenant_e2e.spec.ts. Same shape
  * (one private `posts` table per tenant schema, concurrent interleaved writes,
  * direct-DB read-back + HTTP read-back), scaled to ~1000 writes to stress the
  * schema-pg per-tenant pool routing under sustained contention. A single leaked
- * row — a request scoped to tenant A landing in tenant B's schema — fails the run.
+ * row (a request scoped to tenant A landing in tenant B's schema) fails the run.
  */
 test.group('Cross-tenant isolation fuzz (~1000 writes)', (group) => {
   let driver: SchemaPgDriver

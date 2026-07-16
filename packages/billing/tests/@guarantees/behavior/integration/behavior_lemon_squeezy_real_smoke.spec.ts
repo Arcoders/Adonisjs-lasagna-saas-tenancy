@@ -22,10 +22,10 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
  * mock + unit mapper specs can't see.
  *
  * Extra knobs:
- *   - LEMONSQUEEZY_TEST_WEBHOOK_SECRET — signs the round-trip body (any value;
+ *   - LEMONSQUEEZY_TEST_WEBHOOK_SECRET: signs the round-trip body (any value;
  *     the driver verifies against the same configured secret). Defaults to a
  *     fixed string so the round-trip runs without it.
- *   - LEMONSQUEEZY_TEST_VARIANT_ID — a catalog variant id; enables the live
+ *   - LEMONSQUEEZY_TEST_VARIANT_ID: a catalog variant id; enables the live
  *     checkout-session test.
  *
  * Cleanup is best-effort and per-run unique emails avoid collisions.
@@ -161,7 +161,7 @@ test.group('Lemon Squeezy real-API smoke (test mode)', (group) => {
     // Drain against the REAL test-mode store. Tolerates zero rows: an empty
     // store still proves auth, the filter[store_id] / page[number] params, the
     // JSON:API lastPage loop, and toSubscription mapping against the live
-    // surface — what the stubbed lemon_squeezy_driver.spec.ts cannot. Capped so
+    // surface, which the stubbed lemon_squeezy_driver.spec.ts cannot. Capped so
     // a populated store can't make the smoke run unbounded.
     let count = 0
     for await (const sub of driver.listSubscriptions!()) {
@@ -177,8 +177,8 @@ test.group('Lemon Squeezy real-API smoke (test mode)', (group) => {
     )
 
   test('live checkout session (needs LEMONSQUEEZY_TEST_VARIANT_ID)', async ({ assert }) => {
-    // LS can't resolve price→product, so the variant id must be allowlisted
-    // directly in config.billing.products (the fast path).
+    // LS can't resolve a price to its product, so the variant id must be
+    // allowlisted directly in config.billing.products (the fast path).
     configureLemonSqueezy({ [VARIANT_ID!]: 'pro' })
     const billing = await app.container.make(BillingService)
     await billing.__resetForTests()

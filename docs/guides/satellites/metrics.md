@@ -82,7 +82,7 @@ See [reporting → Scaling the metrics table](/guides/satellites/reporting).
 RANGE-partition it by `period` without touching the package: the flush upsert's
 `ON CONFLICT (tenant_id, period)` already includes the partition key `period`,
 which Postgres requires (every unique/PK constraint on a partitioned table must
-contain the partition column — so don't drop `period` from that constraint).
+contain the partition column, so don't drop `period` from that constraint).
 
 ## Reading
 

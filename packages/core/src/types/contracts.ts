@@ -31,8 +31,8 @@ export type TenantMetadata = Record<string, unknown>
  * Contract every tenant model implementation must satisfy.
  *
  * v2 dropped `getConnection`/`closeConnection`/`install`/`uninstall`/
- * `migrate`/`dropSchemaIfExists`/`invalidateCache` from this contract —
- * those concerns now live on `IsolationDriver`. Implementations can keep
+ * `migrate`/`dropSchemaIfExists`/`invalidateCache` from this contract.
+ * Those concerns now live on `IsolationDriver`. Implementations can keep
  * those methods around for their own use, but the package never calls
  * them.
  */
@@ -54,7 +54,7 @@ export interface TenantModelContract<TMeta extends object = TenantMetadata> {
   readonly isDeleted: boolean
   /**
    * Maintenance mode is independent of `status`. A tenant can be `active`
-   * AND in maintenance — useful for scheduled migrations, billing
+   * AND in maintenance, useful for scheduled migrations, billing
    * cutovers, etc., without flipping the lifecycle status.
    *
    * Implementations that don't expose this column should default
@@ -98,8 +98,8 @@ export interface TenantRepositoryContract<TMeta extends object = TenantMetadata>
    * Optional aggregate: counts of tenants grouped by status, computed in the
    * database (`GROUP BY status`) WITHOUT hydrating any rows.
    *
-   * When implemented, ops paths that only need counts — notably the `/metrics`
-   * collector — use this instead of `all()`, turning an O(n-tenants) full-table
+   * When implemented, ops paths that only need counts (notably the `/metrics`
+   * collector) use this instead of `all()`, turning an O(n-tenants) full-table
    * load on every Prometheus scrape into a single O(1) aggregate. Implementations
    * that omit it keep working: callers fall back to `all()` and count in memory.
    *

@@ -3,10 +3,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 /**
- * E1 rigor guard for the `/plugin` public surface. The plan wants this surface
- * "a prueba de balas — cero any, cero !". Enforcement has two clean, per-file
- * legs (the compiler-flag leg — a scoped tsconfig with exactOptionalPropertyTypes
- * / noImplicitOverride — was dropped: those flags leak into transitively-imported
+ * Rigor guard for the `/plugin` public surface. The plan wants this surface
+ * "a prueba de balas: cero any, cero !". Enforcement has two clean, per-file
+ * legs (the compiler-flag leg, a scoped tsconfig with exactOptionalPropertyTypes
+ * / noImplicitOverride, was dropped because those flags leak into transitively-imported
  * shared files and conflict with the repo's exception conventions):
  *
  *   1. an eslint override in eslint.config.js sets `no-explicit-any` +

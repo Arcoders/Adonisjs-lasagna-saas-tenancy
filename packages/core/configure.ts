@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url'
 import { access } from 'node:fs/promises'
 import {
   filterAlreadyPublished,
+  finalizeNewMigrations,
   listExistingMigrations,
+  snapshotMigrationDir,
   discoverSatellites,
   indexSatellites,
   publishSatellite,
@@ -17,6 +19,51 @@ import { resolveSatelliteDependencies } from './src/sdk/dependencies.js'
 import type { DiscoveredSatellite } from './src/sdk/manifest.js'
 
 const stubsRoot = join(dirname(fileURLToPath(import.meta.url)), '..', 'stubs')
+
+/**
+ * The files every install needs, whatever features it opts into. Each is written
+ * only when absent, so `configure` stays re-run safe: a host that has edited its
+ * repository keeps its edits.
+ *
+ * `path` is relative to the app root and must agree with the `exports({ to: … })`
+ * line inside the matching stub. `behavior_configure_publish.spec.ts` pins that.
+ */
+export const CORE_SCAFFOLD: { path: string; stub: string }[] = [
+  { path: 'app/models/backoffice/tenant.ts', stub: 'models/tenant.stub' },
+  { path: 'app/repositories/tenant_repository.ts', stub: 'repositories/tenant_repository.stub' },
+  { path: 'providers/tenancy_provider.ts', stub: 'providers/tenancy_provider.stub' },
+]
+
+/**
+ * Every environment variable the published `config/multitenancy.ts` reads.
+ * AdonisJS types `env.get()` off the host's `start/env.ts`, so a key that is not
+ * declared there is a compile error in the very file `configure` just wrote.
+ *
+ * All optional: the config stub supplies a default for each. `defineEnvValidations`
+ * skips keys the host already declares, so re-running is safe and a host that
+ * already validates `DB_HOST` as required keeps its stricter rule.
+ *
+ * Any `env.get('X', …)` added to config/multitenancy.stub must be added here too;
+ * `check-stub-render.mjs` does not see this, but the clean-app CI gate does.
+ */
+export const ENV_VALIDATIONS: Record<string, string> = {
+  TENANT_RESOLVER: 'Env.schema.string.optional()',
+  TENANT_HEADER_KEY: 'Env.schema.string.optional()',
+  TENANT_SCHEMA_PREFIX: 'Env.schema.string.optional()',
+  APP_DOMAIN: 'Env.schema.string.optional()',
+  DB_HOST: 'Env.schema.string.optional()',
+  DB_PORT: 'Env.schema.number.optional()',
+  DB_USER: 'Env.schema.string.optional()',
+  DB_PASSWORD: 'Env.schema.string.optional()',
+  DB_DATABASE: 'Env.schema.string.optional()',
+  QUEUE_REDIS_HOST: 'Env.schema.string.optional()',
+  QUEUE_REDIS_PORT: 'Env.schema.number.optional()',
+  QUEUE_REDIS_DB: 'Env.schema.number.optional()',
+  CACHE_REDIS_HOST: 'Env.schema.string.optional()',
+  CACHE_REDIS_PORT: 'Env.schema.number.optional()',
+  CACHE_REDIS_DB: 'Env.schema.number.optional()',
+  BACKUP_STORAGE_PATH: 'Env.schema.string.optional()',
+}
 
 /**
  * Each entry maps a core satellite feature name to the migration stubs that
@@ -65,7 +112,7 @@ export const OPT_IN_BUNDLES: Record<string, string[]> = {
   // both the per-tenant and the cross-tenant-sweep paths. Request with
   // `--with=rls-backoffice`.
   'rls-backoffice': ['enable_rls_backoffice_isolation'],
-  // Per-tenant maintenance mode adds an `is_maintenance` column to the host's
+  // Per-tenant maintenance mode adds a `maintenance` column to the host's
   // central `tenants` table. It alters host-owned schema rather than creating a
   // backoffice satellite table, so it is opt-in (never auto-published) and
   // requested explicitly with `--with=maintenance`.
@@ -154,7 +201,7 @@ export interface ApiCompatPartition {
  * BEFORE any of their code is wired into the host. A satellite that needs a
  * NEWER ABI than this core provides is refused; a satellite that depends on a
  * refused one is refused too (the input is dependency-first, so the dependency
- * has always been seen by the time its dependent is processed — this also
+ * has always been seen by the time its dependent is processed, which also
  * catches transitive chains). An OLDER or undeclared ABI is accepted with a
  * warning.
  *
@@ -201,7 +248,7 @@ export function partitionSatellitesByApiCompat(
 }
 
 /**
- * Fail-closed install consent (S1): a satellite that declares permissions is only
+ * Fail-closed install consent: a satellite that declares permissions is only
  * published if the operator grants them. `--accept-permissions` (or
  * `LASAGNA_ACCEPT_PERMISSIONS=1`) grants non-interactively for CI; otherwise, on a
  * TTY, the operator is shown the concrete capabilities and prompted. A
@@ -226,9 +273,9 @@ async function permissionsGranted(
 }
 
 /**
- * Fail-closed native-addon acknowledgement (S4b): a satellite that ships native
- * (`.node`) addons cannot be sandboxed by the worker Permission Model — a native
- * addon evades `--permission` entirely — so it must be installed as fully-trusted
+ * Fail-closed native-addon acknowledgement: a satellite that ships native
+ * (`.node`) addons cannot be sandboxed by the worker Permission Model (a native
+ * addon evades `--permission` entirely), so it must be installed as fully-trusted
  * with an explicit `--allow-native` (or `LASAGNA_ALLOW_NATIVE_ADDONS=1`), or on a
  * TTY an explicit confirmation. A non-interactive install without the flag
  * refuses, so a scripted install can't silently pull in an un-sandboxable plugin.
@@ -266,24 +313,63 @@ export default async function configure(command: Configure) {
 
   const codemods = await command.createCodemods()
 
-  // Register the core provider and commands in adonisrc.ts
+  // Register the core provider and commands in adonisrc.ts. `tenancy_provider`
+  // (published below) binds TENANT_REPOSITORY and is registered first, so the
+  // symbol is bound before the core provider boots.
   await codemods.updateRcFile((rcFile: any) => {
+    rcFile.addProvider('#providers/tenancy_provider')
     rcFile.addProvider('@adonisjs-lasagna/saas-tenancy/providers/multitenancy_provider')
     rcFile.addCommand('@adonisjs-lasagna/saas-tenancy/commands')
   })
 
+  // Declare the env vars the config below reads, BEFORE publishing it: `env.get()`
+  // is typed off start/env.ts, so an undeclared key is a compile error in the file
+  // we are about to write. Best-effort: a host with a non-standard env.ts should
+  // get a hint, not a failed install.
+  try {
+    await (codemods as any).defineEnvValidations({
+      variables: ENV_VALIDATIONS,
+      leadingComment: 'Multitenancy (@adonisjs-lasagna/saas-tenancy)',
+    })
+  } catch (error) {
+    command.logger.warning(
+      `could not add env validations to start/env.ts (${error.message}). ` +
+        `Declare these keys yourself or config/multitenancy.ts will not typecheck: ` +
+        Object.keys(ENV_VALIDATIONS).join(', ')
+    )
+  }
+
   // Publish config file
   await codemods.makeUsingStub(stubsRoot, 'config/multitenancy.stub', {})
 
-  // Publish tenant model stub only if it doesn't already exist
-  const modelPath = command.app.makePath('app/models/backoffice/tenant.ts')
-  if (!(await fileExists(modelPath))) {
-    await codemods.makeUsingStub(stubsRoot, 'models/tenant.stub', {})
-  } else {
-    command.logger.info('skipping app/models/backoffice/tenant.ts — already exists')
+  // The three files a working install needs, each published only if absent so a
+  // re-run never clobbers the host's edits: the tenant model, the repository the
+  // package resolves through TENANT_REPOSITORY, and the provider that binds it.
+  for (const scaffold of CORE_SCAFFOLD) {
+    const target = command.app.makePath(scaffold.path)
+    if (await fileExists(target)) {
+      command.logger.info(`skipping ${scaffold.path} — already exists`)
+      continue
+    }
+    await codemods.makeUsingStub(stubsRoot, scaffold.stub, {})
   }
 
-  // Discover installed external satellites once (reads package.json only — never
+  // The `tenants` table is not a feature. It is the table every command and
+  // `request.tenant()` pivot on, so its migration is published unconditionally,
+  // before the "no features selected" early return below.
+  const migrationsDir = resolveMigrationsDir(command)
+  const { toPublish: tenantsTable } = filterAlreadyPublished(
+    ['create_tenants_table'],
+    await listExistingMigrations(migrationsDir)
+  )
+  if (tenantsTable.length > 0) {
+    await codemods.makeUsingStub(stubsRoot, 'migrations/create_tenants_table.stub', {})
+    command.logger.info('published core migration: create_tenants_table')
+  } else {
+    command.logger.info('skipped already-published migration: create_tenants_table')
+  }
+
+  // Discover installed external satellites once (reads package.json only, never
   // imports a satellite).
   const satellites = await discoverSatellites(hostRoot, warn)
   const satIndex = indexSatellites(satellites)
@@ -291,7 +377,7 @@ export default async function configure(command: Configure) {
   // Decide what to publish.
   //   1. Explicit --with=audit,@scope/pkg wins (core features + external satellites).
   //   2. Else if interactive (TTY): prompt the operator (core + installed externals),
-  //      with NOTHING preselected — every satellite is experimental, so publishing
+  //      with NOTHING preselected: every satellite is experimental, so publishing
   //      one is an explicit opt-in, not a default.
   //   3. Else (CI / piped): publish NOTHING beyond the core config + tenant model
   //      (already emitted above). The core satellites are experimental and their
@@ -397,7 +483,7 @@ export default async function configure(command: Configure) {
   // Gate external satellites on the Satellite ABI version BEFORE wiring any of
   // their code into the host. A satellite that needs a newer ABI than this core
   // provides is refused (and `configure` exits non-zero); an older / undeclared
-  // one warns but proceeds. Pure check — see `checkSatelliteApiCompat`.
+  // one warns but proceeds. Pure check. See `checkSatelliteApiCompat`.
   //
   // `selectedExternal` is in dependency-first order here, so when we refuse a
   // satellite we also refuse anything that depends on it: wiring a dependent
@@ -436,12 +522,12 @@ export default async function configure(command: Configure) {
     if (externalBatchFailed) {
       command.logger.error('no external satellites were configured (see the errors above)')
     } else {
-      command.logger.info('no features selected — only core config + tenant model published')
+      command.logger.info(
+        'no features selected — only the core config, scaffold and tenants migration published'
+      )
     }
     return
   }
-
-  const migrationsDir = resolveMigrationsDir(command)
 
   // Publish the selected core migration stubs, skipping any already present.
   if (selectedCore.length > 0) {
@@ -449,9 +535,18 @@ export default async function configure(command: Configure) {
     const existing = await listExistingMigrations(migrationsDir)
     const { toPublish, skipped } = filterAlreadyPublished(resolved, existing)
 
+    // Snapshotted AFTER the `tenants` migration above, whose fixed zero prefix is
+    // load-bearing (`--with=maintenance` ALTERs that table) and must not be re-stamped.
+    // `resolved` carries the bundle's dependency order (`tenant_webhooks` before the
+    // `tenant_webhook_deliveries` whose foreign key points at it), and
+    // `finalizeNewMigrations` seals that order into the timestamps, which is the only
+    // thing `migration:run` reads.
+    const before = await snapshotMigrationDir(migrationsDir)
     for (const name of toPublish) {
       await codemods.makeUsingStub(stubsRoot, `migrations/${name}.stub`, {})
     }
+    await finalizeNewMigrations(migrationsDir, before, toPublish)
+
     if (skipped.length > 0) {
       command.logger.info(
         `skipped already-published migrations (re-run safe): ${skipped.join(', ')}`
@@ -557,7 +652,7 @@ function resolveMigrationsDir(command: Configure): string {
 /**
  * Surface the config block each selected core feature needs. Most satellites
  * (audit, feature_flags, webhooks, branding) are zero-config and print nothing.
- * We never AST-patch the host's config — the operator pastes.
+ * We never AST-patch the host's config. The operator pastes.
  */
 function postPublishConfigReminders(command: Configure, selected: string[]): void {
   const log = command.logger
@@ -593,7 +688,7 @@ function postPublishConfigReminders(command: Configure, selected: string[]): voi
   if (has('maintenance')) {
     log.log('')
     log.log('— Maintenance mode — additional setup —')
-    log.log('The published migration ALTERS your central `tenants` table (adds is_maintenance).')
+    log.log('The published migration ALTERS your central `tenants` table (adds maintenance).')
     log.log('Add an optional config/multitenancy.ts block to customise the response:')
     log.log('  maintenance: { retryAfterSeconds: 600, defaultMessage: "Back soon" },')
   }
@@ -601,7 +696,7 @@ function postPublishConfigReminders(command: Configure, selected: string[]): voi
 
 /**
  * Post-publish hint for the RLS hardening migration. The stub ships with
- * placeholder table names on purpose — running it as-is would fail — so make
+ * placeholder table names on purpose (running it as-is would fail), so make
  * the required edit loud rather than letting `migration:run` blow up later.
  */
 function postPublishRls(command: Configure): void {

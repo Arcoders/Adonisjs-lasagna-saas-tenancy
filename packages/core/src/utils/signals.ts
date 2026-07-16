@@ -5,8 +5,8 @@ import type { HttpContext } from '@adonisjs/core/http'
  * them aborts, carrying that signal's reason. Absent entries are dropped, so a
  * caller passes a heterogeneous list (an internal timeout, a caller signal, a
  * liveness signal, a disconnect signal) without pre-checking each. Zero live
- * signals -> undefined (nothing to abort on); exactly one -> that signal
- * unwrapped (no needless `AbortSignal.any` layer); two or more -> `AbortSignal.any`.
+ * signals give undefined (nothing to abort on); exactly one gives that signal
+ * unwrapped (no needless `AbortSignal.any` layer); two or more give `AbortSignal.any`.
  *
  * This is the single `AbortSignal.any` composition point in the kernel. safeFetch
  * and executeExtension both route through it, so signal composition is defined
@@ -37,7 +37,7 @@ export function composeSignals(signals: Array<AbortSignal | undefined>): AbortSi
  *
  * `writableEnded` means the handler has CALLED `res.end()` (the producer is done),
  * which is the correct boundary here: we abort the producer only while it is still
- * producing. It is deliberately not `writableFinished` (fully flushed) — once
+ * producing. It is deliberately not `writableFinished` (fully flushed). Once
  * `end()` is called there is nothing left to abort, so a disconnect during the
  * final flush needs no signal. A handler that streams without a pre-emptive
  * `end()` (the SSE case this seam serves) never sees that window.

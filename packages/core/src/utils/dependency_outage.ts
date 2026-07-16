@@ -8,7 +8,7 @@
  * `extensions/request.ts`: once a tenant is connected, a request can still hit a
  * backend that dies mid-flight (a failover, an admin `pg_terminate_backend`, a
  * crash). Such an error must surface as a clean, retry-able 503
- * `DependencyUnavailableException` rather than an opaque 500 — but a unique
+ * `DependencyUnavailableException` rather than an opaque 500, but a unique
  * violation or a check-constraint failure must pass straight through to the
  * host's handler untouched. The allowlist below is deliberately narrow: only
  * signatures that unambiguously mean "the connection/server is gone".
@@ -32,7 +32,7 @@ const OUTAGE_ERRNO = new Set([
 /**
  * Driver/ORM-level error codes that mean the connection could not be
  * established or is gone. Lucid raises `E_UNMANAGED_DB_CONNECTION` when a
- * connection name is not registered — which is what surfaces when a tenant's
+ * connection name is not registered, which is what surfaces when a tenant's
  * `connect()` failed (or never ran) and a later probe/query tries to use the
  * pool. It is a connection-infrastructure failure, not an application bug, so it
  * belongs with the outage signatures even though Lucid tags it with a 500.

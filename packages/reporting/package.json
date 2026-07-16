@@ -1,6 +1,6 @@
 {
   "name": "@adonisjs-lasagna/reporting",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Cross-tenant analytics & reporting for @adonisjs-lasagna/saas-tenancy: aggregated usage metrics, top-N tenant rankings, and period summaries over the backoffice schema.",
   "type": "module",
   "license": "MIT",
@@ -80,7 +80,7 @@
     "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/reporting-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
   },
   "peerDependencies": {
-    "@adonisjs-lasagna/saas-tenancy": "^1.0.0",
+    "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
     "@adonisjs/core": "^7.0.0",
     "@adonisjs/lucid": "^22.0.0",
     "luxon": "^3.0.0"

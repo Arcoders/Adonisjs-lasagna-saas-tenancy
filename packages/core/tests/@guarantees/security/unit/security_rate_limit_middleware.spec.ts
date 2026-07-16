@@ -2,7 +2,32 @@ import { test } from '@japa/runner'
 import RateLimitMiddleware from '../../../../src/middleware/rate_limit_middleware.js'
 import RateLimitUnavailableException from '../../../../src/exceptions/rate_limit_unavailable_exception.js'
 import TooManyRequestsException from '../../../../src/exceptions/too_many_requests_exception.js'
+import {
+  setResolverRegistry,
+  __resetResolverRegistryCacheForTests,
+} from '../../../../src/extensions/request.js'
+import TenantResolverRegistry from '../../../../src/services/resolvers/registry.js'
+import {
+  RESOLVER_CONTRACT_VERSION,
+  ResolverHit,
+  type TenantResolver,
+} from '../../../../src/services/resolvers/resolver.js'
 import { setupTestConfig } from '../../../helpers/config.js'
+
+/** Seed a boot-like resolver chain of one custom synchronous resolver returning `id`. */
+function seedResolver(name: string, resolve: TenantResolver['resolve']): void {
+  const registry = new TenantResolverRegistry()
+  // The routing chain requires resolveSync; the middleware tests always pass a
+  // synchronous resolve, so it doubles as resolveSync.
+  registry.register({
+    name,
+    contractVersion: RESOLVER_CONTRACT_VERSION,
+    resolve,
+    resolveSync: resolve as NonNullable<TenantResolver['resolveSync']>,
+  })
+  registry.setChain([name])
+  setResolverRegistry(registry)
+}
 
 function makeRequest(headers: Record<string, string> = {}) {
   const lower: Record<string, string> = {}
@@ -69,9 +94,9 @@ class CountingPipeline {
   }
 }
 
-// ioredis does NOT reject exec() when the backend is down — it RESOLVES with
+// ioredis does NOT reject exec() when the backend is down. It RESOLVES with
 // per-command [error, value] tuples. This is the real Redis-outage shape that
-// the older middleware mistook for success (reading count=0 → fail-open).
+// the older middleware mistook for success (reading count=0 and failing open).
 class ResolvedWithErrorsPipeline {
   zremrangebyscore() {
     return this
@@ -168,7 +193,7 @@ test.group('RateLimitMiddleware', (group) => {
     assert,
   }) => {
     // The real ioredis outage shape: exec() resolves with [error, null] tuples
-    // instead of rejecting. Must NOT be mistaken for success (count=0 → open).
+    // instead of rejecting. Must NOT be mistaken for success (count=0 read as open).
     const m = new ResolvedErrorsRedisRateLimit()
     let nextCalled = false
 
@@ -244,7 +269,7 @@ test.group('RateLimitMiddleware', (group) => {
   test('short-circuits in test env unless bypassInTestEnv is set', async ({ assert }) => {
     // The Redis stub would throw if reached. With isTestEnv=true and no
     // bypassInTestEnv flag, the middleware MUST short-circuit before
-    // touching the backend — proving the test bypass is wired up.
+    // touching the backend, proving the test bypass is wired up.
     const m = new TestEnvForcedRateLimit()
     let nextCalled = false
 
@@ -285,16 +310,55 @@ class KeyCapturingRateLimit extends RateLimitMiddleware {
   }
 }
 
-// P3-2: attribution must prefer the canonical id the guard resolved
-// (tenancy.currentId()) over the sync legacy resolver — under domain-based
+// Attribution must prefer the canonical id the guard resolved
+// (tenancy.currentId()) over the sync legacy resolver. Under domain-based
 // strategies the resolver comes up empty and would collapse every tenant into
 // one shared per-IP 'global' bucket.
 test.group('RateLimitMiddleware — tenant attribution (P3-2)', (group) => {
   group.each.setup(() => {
     setupTestConfig()
   })
+  group.each.teardown(() => {
+    __resetResolverRegistryCacheForTests()
+  })
 
   const opts = { limit: 10, windowSeconds: 60, bypassInTestEnv: true }
+
+  // TRES-02: the bucket must be keyed by the tenant the resolver CHAIN serves, not
+  // the raw header. A chain-blind regression (keying off `x-tenant-id`) would pass
+  // every other test here but would bucket tenant B's flood under tenant A.
+  test('attributes by the resolver chain, not the raw header', async ({ assert }) => {
+    const served = '11111111-1111-4111-8111-111111111111'
+    const header = '22222222-2222-4222-8222-222222222222'
+    seedResolver('chain-served', () => ResolverHit.id(served))
+    const m = new KeyCapturingRateLimit(undefined)
+    await m.handle(
+      { request: makeRequest({ 'x-tenant-id': header }), response: makeResponse() } as any,
+      async () => {},
+      opts
+    )
+    assert.equal(m.capturedKey, `rl:${served}:127.0.0.1`)
+  })
+
+  // The resolver UUID border only guards the BUILT-IN resolvers; a custom resolver
+  // can mint any id. The middleware's own `isSafeIdentifier` seam guard is the last
+  // line of defense: an id carrying ':' must never key a bucket verbatim.
+  test('a custom resolver id carrying ":" degrades to the global bucket (seam guard)', async ({
+    assert,
+  }) => {
+    seedResolver('evil', () => ResolverHit.id('victim:rl:127.0.0.1'))
+    const m = new KeyCapturingRateLimit(undefined)
+    await m.handle(
+      { request: makeRequest(), response: makeResponse() } as any,
+      async () => {},
+      opts
+    )
+    assert.equal(
+      m.capturedKey,
+      'rl:global:127.0.0.1',
+      'unsafe custom id must not be keyed verbatim'
+    )
+  })
 
   test('prefers the active tenancy context id over the request resolver', async ({ assert }) => {
     const m = new KeyCapturingRateLimit('ctx-tenant')
@@ -308,12 +372,13 @@ test.group('RateLimitMiddleware — tenant attribution (P3-2)', (group) => {
 
   test('falls back to the sync resolver when no tenancy context is active', async ({ assert }) => {
     const m = new KeyCapturingRateLimit(undefined)
+    const tenant = '11111111-1111-4111-8111-111111111111'
     await m.handle(
-      { request: makeRequest({ 'x-tenant-id': 'header-tenant' }), response: makeResponse() } as any,
+      { request: makeRequest({ 'x-tenant-id': tenant }), response: makeResponse() } as any,
       async () => {},
       opts
     )
-    assert.equal(m.capturedKey, 'rl:header-tenant:127.0.0.1')
+    assert.equal(m.capturedKey, `rl:${tenant}:127.0.0.1`)
   })
 
   test("collapses to the shared 'global' bucket only when nothing resolves", async ({ assert }) => {

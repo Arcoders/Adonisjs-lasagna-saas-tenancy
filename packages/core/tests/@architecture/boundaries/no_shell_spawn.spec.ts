@@ -13,8 +13,8 @@ import { walkTsFiles } from '../../helpers/walk_ts_files.js'
  * The spec walks the core and backup `src/` trees and asserts:
  *   1. no `spawn()` / `spawnSync()` options object passes `shell: true`
  *      (or any truthy `shell:` value), and
- *   2. `child_process.exec` / `execSync` — which ALWAYS run through a
- *      shell — are never imported.
+ *   2. `child_process.exec` / `execSync` (which ALWAYS run through a
+ *      shell) are never imported.
  *
  * `execFile` is deliberately allowed: like spawn, it takes an argv array
  * and no shell.
@@ -30,7 +30,7 @@ const ROOTS = [
 
 // A `shell:` property with anything but an explicit `false` inside the two
 // statements following a spawn/spawnSync call. Conservative on purpose: a
-// future `shell: someVar` is flagged too — make it a literal `false` or
+// future `shell: someVar` is flagged too. Make it a literal `false` or
 // restructure.
 const SHELL_TRUE = /shell\s*:(?!\s*false\b)/
 const SPAWN_CALL = /\bspawn(?:Sync)?\(/
@@ -56,7 +56,7 @@ test.group('Architectural: child processes never get a shell', () => {
         const lines = src.split('\n')
         lines.forEach((line, i) => {
           if (isComment(line) || !SPAWN_CALL.test(line)) return
-          // Inspect the call line plus a short window after it — option
+          // Inspect the call line plus a short window after it. Option
           // objects in this codebase open on the call line and close
           // within a handful of lines. Comment lines are excluded so prose
           // that *mentions* `shell: true` can't trip the detector.

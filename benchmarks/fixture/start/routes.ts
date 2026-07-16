@@ -53,14 +53,14 @@ router
   .prefix('tenant')
   .use(middleware.tenantGuard())
 
-// Same read, guard removed — diff vs /tenant/notes prices the guard middleware.
+// Same read, guard removed. The diff vs /tenant/notes prices the guard middleware.
 router.get('/noguard/notes', async ({ request, response }) => {
   const tenant = await request.tenant()
   const notes = await readRecentNotes(tenant)
   return response.ok({ tenantId: tenant.id, notes })
 })
 
-// Same read, guard + rate-limit — diff vs /tenant/notes prices the rate-limit
+// Same read, guard + rate-limit. The diff vs /tenant/notes prices the rate-limit
 // Redis pipeline. Generous limit so the limiter never trips during a load run.
 router
   .get('/ratelimited/notes', async ({ request, response }) => {

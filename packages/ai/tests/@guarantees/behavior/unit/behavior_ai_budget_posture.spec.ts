@@ -8,7 +8,7 @@ import type { MultitenancyConfigWithAi } from '../../../../src/define_config.js'
  * limits.aiTokens nor plans.operatorCeiling.aiTokens, the kernel reserve is
  * inert and the AI endpoint runs unmetered. A host that budgets via a dynamic
  * getPlan is invisible to a static read, so that case is an info, never a warn
- * (a hard block would false-positive it) — the whole reason the boot side does
+ * (a hard block would false-positive it). That is the whole reason the boot side does
  * not refuse to mount.
  */
 

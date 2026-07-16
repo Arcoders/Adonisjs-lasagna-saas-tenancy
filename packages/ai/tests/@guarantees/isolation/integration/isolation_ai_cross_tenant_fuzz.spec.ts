@@ -12,12 +12,12 @@ import ConversationMemoryService from '../../../../src/services/conversation_mem
 import { ensureVectorExtension, tenantSearchPath } from '../../../helpers/pgvector.js'
 
 /**
- * WS-AI-8 / 1D — a property-based cross-tenant fuzz over the AI stores, mirroring
+ * A property-based cross-tenant fuzz over the AI stores, mirroring
  * the kernel's isolation_cross_tenant_fuzz: N tenants, their embed + memory ops
  * interleaved under bounded concurrency in a deterministically-shuffled order, then
  * a full read-back proving each tenant sees ONLY its own rows and turns. One foreign
  * row or turn fails the run. A final deterministic tombstone check proves a turn that
- * began before a concurrent purge does not resurrect (WS-AI-9 E5) on real Redis.
+ * began before a concurrent purge does not resurrect on real Redis.
  * Self-skips when pgvector/Redis are unavailable, runs in CI.
  */
 const N = 6
@@ -142,8 +142,8 @@ test.group(
       const template = db.manager.get(primary)?.config
       for (const t of tenants) {
         // Append the extensions schema (never `public`) so the bare pgvector
-        // `vector` TYPE resolves while `ai_embeddings` still resolves tenant-first
-        // — matching the production per-tenant connection. Create the table ON that
+        // `vector` TYPE resolves while `ai_embeddings` still resolves tenant-first,
+        // matching the production per-tenant connection. Create the table ON that
         // connection so its `vector(N)` column resolves the same way the migration does.
         db.manager.add(t.conn, { ...template, searchPath: tenantSearchPath(t.schema) } as never)
         await client.rawQuery(`CREATE SCHEMA IF NOT EXISTS "${t.schema}"`)

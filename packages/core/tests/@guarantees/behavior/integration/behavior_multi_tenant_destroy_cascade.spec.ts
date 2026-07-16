@@ -10,7 +10,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 /**
- * I1 — Multi-tenant destroy cascade (no cross-tenant collateral).
+ * Multi-tenant destroy cascade (no cross-tenant collateral).
  *
  * Three tenants are provisioned and each gets rows in two backoffice satellite
  * tables plus a row in its own per-tenant schema. A satellite-style
@@ -19,10 +19,10 @@ import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
  * by the tenant id the hook receives.
  *
  * Destroying tenant #2 runs the documented destroy sequence
- * (commands/destroy_tenant.ts:46-62): before('destroy') hook -> driver.destroy
- * (DROP SCHEMA CASCADE) -> after('destroy'). The headline assertion is that #1
- * and #3 are completely untouched (their backoffice rows and per-tenant schemas
- * survive), so a destroy never leaks into a sibling tenant.
+ * (commands/destroy_tenant.ts:46-62): the before('destroy') hook, then
+ * driver.destroy (DROP SCHEMA CASCADE), then after('destroy'). The headline
+ * assertion is that #1 and #3 are completely untouched (their backoffice rows
+ * and per-tenant schemas survive), so a destroy never leaks into a sibling tenant.
  */
 async function findTenantModel(id: string): Promise<TenantModelContract> {
   const Tenant = (await import('../../../fixtures/app/models/tenant.js')).default

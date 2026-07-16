@@ -12,13 +12,14 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
  * Fault-injection tier (non-gating): the Isthmus audit path under a hostile
- * emitter and under sustained load. The invariant it defends: the reject path
- * is decoupled from the audit path — a blocking or throwing listener cannot
- * delay or break an HTTP response, and a flood cannot exhaust anything but its
- * own per-severity dispatch budget (every drop still counted).
+ * emitter and under sustained load. The invariant it defends: the reject path is
+ * decoupled from the audit path. A blocking or throwing listener cannot delay or
+ * break an HTTP response, and a flood cannot exhaust anything but its own
+ * per-severity dispatch budget (every drop still counted).
  *
- * Imports follow the @integration convention (public subpaths → compiled build),
- * so the in-process trips bump the SAME counter instance the booted app reads.
+ * Imports follow the @integration convention (public subpaths resolve to the
+ * compiled build), so the in-process trips bump the SAME counter instance the
+ * booted app reads.
  */
 
 const LISTENER_DELAY_MS = 2000
@@ -102,7 +103,7 @@ test.group('Isthmus audit chaos (fault injection)', (group) => {
       res.assertStatus(500)
 
       await new Promise<void>((resolve) => setImmediate(resolve))
-      // A follow-up request still works — the process survived the throw.
+      // A follow-up request still works. The process survived the throw.
       const ok = await client.get('/context-seal/query').header('x-tenant-id', tenantA.id)
       ok.assertStatus(200)
     } finally {

@@ -5,9 +5,9 @@ import { createNoteValidator } from '#app/validators/notes_validator'
 import { currentTenant } from '#app/helpers/current_tenant'
 
 /**
- * Demonstrates schema isolation, contextual logging (via NotesService →
+ * Demonstrates schema isolation, contextual logging (NotesService logs through
  * tenantLogger), and quota enforcement (the route is wrapped in
- * `enforceQuota('apiCallsPerDay')` — see start/routes.ts). Tenant narrowing
+ * `enforceQuota('apiCallsPerDay')`, see start/routes.ts). Tenant narrowing
  * happens once in `currentTenant()`; for the generic
  * `request.tenant<DemoMeta>()` style see billing_controller.ts.
  */

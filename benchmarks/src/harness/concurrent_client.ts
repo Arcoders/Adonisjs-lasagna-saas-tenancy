@@ -2,7 +2,7 @@
  * A tiny, dependency-free concurrent HTTP client for the correctness tiers.
  *
  * autocannon (used by the throughput tier) pre-renders requests and does NOT
- * let you correlate a specific request with its specific response — which is
+ * let you correlate a specific request with its specific response, which is
  * exactly what an isolation assertion needs ("the response to a request for
  * tenant A must contain only tenant A's data"). So those tiers drive load with
  * this client instead: `workers` parallel loops, each pulling the next index

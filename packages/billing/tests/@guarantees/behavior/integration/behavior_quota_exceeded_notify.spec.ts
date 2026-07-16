@@ -11,7 +11,7 @@ import { setupBillingConfig } from '../../../helpers/helpers.js'
  * The quota-exceeded notification dedupe is advisory and must FAIL OPEN: a Redis
  * outage downgrades to "no dedupe" rather than throwing or dropping the warning.
  * These cases pin every branch of the dedupe gate (off / first / deduped /
- * Redis-error / no-Redis) using deterministic doubles — no real Redis, no mail
+ * Redis-error / no-Redis) using deterministic doubles: no real Redis, no mail
  * transport. Failure is injected through the `resolveRedis` seam (a subclass),
  * never by mutating the shared `@adonisjs/redis` singleton, so nothing leaks
  * into sibling specs that share this Ignitor.
@@ -85,10 +85,10 @@ test.group('QuotaExceededBillingListener — advisory dedupe fails open (integra
     const tenantId = randomUUID()
 
     await listener.handle(quotaEvent('apiRequests', tenantId))
-    await listener.handle(quotaEvent('apiRequests', tenantId)) // same key → deduped
+    await listener.handle(quotaEvent('apiRequests', tenantId)) // same key, deduped
     assert.equal(listener.dispatched, 1)
 
-    await listener.handle(quotaEvent('storage', tenantId)) // different quota → new key
+    await listener.handle(quotaEvent('storage', tenantId)) // different quota, new key
     assert.equal(listener.dispatched, 2)
   })
 
@@ -100,7 +100,7 @@ test.group('QuotaExceededBillingListener — advisory dedupe fails open (integra
 
     // Scoped spy: capture warnings for this test, still passing them through to
     // the real logger. Restored by deleting the own-property override so the
-    // prototype method is visible again — no bound shadow left on the shared
+    // prototype method is visible again, with no bound shadow left on the shared
     // logger singleton.
     const warnings: string[] = []
     const origWarn = (logger as any).warn

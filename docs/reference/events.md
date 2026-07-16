@@ -144,7 +144,7 @@ short metadata values, never raw input beyond a truncated identifier.
 
 Emitted after a model wrapped in the [`TracksDataChanges`](/guides/data-change-hooks)
 mixin commits a write, so plugins (search, analytics, realtime) can react to writes.
-The payload is deliberately PII-free — it names WHAT changed, never the values — and
+The payload is deliberately PII-free (it names WHAT changed, never the values), and
 a rolled-back write emits nothing.
 
 | Event | Payload | Dispatched by |

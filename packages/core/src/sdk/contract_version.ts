@@ -1,7 +1,7 @@
 import type { SatelliteApiCompat } from './api_version.js'
 
 /**
- * Per-surface extension contract versioning — the same idea as the Satellite
+ * Per-surface extension contract versioning, the same idea as the Satellite
  * ABI ({@link ./api_version.js}) but one level down: an *extension* (a report,
  * a billing driver, an audit destination, …) declares the `contractVersion` it
  * was built against, and the satellite that hosts the surface compares it to
@@ -9,12 +9,12 @@ import type { SatelliteApiCompat } from './api_version.js'
  *
  * Semantics are deliberately identical to `checkSatelliteApiCompat` so authors
  * only learn one rule:
- *  - extension needs a NEWER contract than the surface provides → `fail` (the
+ *  - extension needs a NEWER contract than the surface provides: `fail` (the
  *    surface is missing API the extension relies on).
- *  - extension built for an OLDER contract → `warn` (the surface may have
+ *  - extension built for an OLDER contract: `warn` (the surface may have
  *    changed under it; it still runs, degraded).
- *  - equal → `ok`.
- *  - absent → `warn` (unversioned; compatibility unverified).
+ *  - equal: `ok`.
+ *  - absent: `warn` (unversioned; compatibility unverified).
  *
  * This module is a sibling of `api_version.ts`, NOT a refactor of it: that
  * function's exact messages and signature are frozen by the `/sdk` ABI contract
@@ -23,7 +23,7 @@ import type { SatelliteApiCompat } from './api_version.js'
  */
 export type ContractCompatLevel = 'ok' | 'warn' | 'fail'
 
-/** The bare three-way decision, without any message — the only logic shared. */
+/** The bare three-way decision, without any message, the only logic shared. */
 export function compareContractVersion(
   declared: number | undefined,
   current: number
@@ -81,7 +81,7 @@ export function checkContractCompat(
  *
  * Synchronous and side-effect-light on purpose: registries call it inside their
  * `register()` (which is sync and must stay unit-testable without a booted
- * app), and validation happens at the point of registration — NOT in the
+ * app), and validation happens at the point of registration, NOT in the
  * satellite provider `boot()`, because hosts register their extensions in their
  * own provider `boot()`, which can run after the satellite's.
  */

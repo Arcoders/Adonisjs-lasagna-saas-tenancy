@@ -2,7 +2,7 @@ import { BaseCommand, args, flags } from '@adonisjs/core/ace'
 import ExampleWidgetService from '../example_widget_service.js'
 
 /**
- * `node ace example:widget:list <tenantId>` — a minimal satellite command. The
+ * `node ace example:widget:list <tenantId>`: a minimal satellite command. The
  * shape (decorated args/flags, `startApp: true`, resolving the service from the
  * container) mirrors the core `tenant:*` commands.
  */

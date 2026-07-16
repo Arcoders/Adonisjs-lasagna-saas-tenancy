@@ -46,8 +46,8 @@ export default {
   },
   // `backup` / `billing` are satellite config blocks. This fixture's config
   // object is intentionally untyped (consumed via the AdonisJS config registry),
-  // so the blocks are plain runtime values here — the coexistence fixture
-  // registers the billing + backup providers (see adonisrc.ts), and the billing
+  // so the blocks are plain runtime values here. The coexistence fixture
+  // registers the billing and backup providers (see adonisrc.ts), and the billing
   // provider reads this block at boot to register its driver. Their TYPES live in
   // each satellite (contributed to MultitenancyConfig via SatelliteConfigRegistry
   // augmentation); core's own source never declares them.

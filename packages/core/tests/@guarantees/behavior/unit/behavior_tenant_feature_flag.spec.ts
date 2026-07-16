@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import { readFile } from 'node:fs/promises'
 
 /**
- * Metadata-only spec — see `create_tenant.spec.ts` for why the command modules
+ * Metadata-only spec. See `create_tenant.spec.ts` for why the command modules
  * are not imported here. We verify the four `tenant:feature-flag:*` commands
  * are registered in `commands.json` with the right contract and re-exported
  * from the barrel.

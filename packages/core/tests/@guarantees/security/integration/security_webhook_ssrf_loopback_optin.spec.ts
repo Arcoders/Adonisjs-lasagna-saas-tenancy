@@ -10,7 +10,7 @@ process.env.APP_KEY = process.env.APP_KEY ?? 'test-app-key-for-webhooks-tests!'
  * and refuses it (proven across every notation in
  * webhook_ssrf_service_level.spec.ts). This spec proves the opt-in narrows to
  * exactly what the docs promise: with the flag on, a *loopback* target delivers,
- * but private (RFC 1918), CGN and cloud-metadata ranges STAY blocked — so the
+ * but private (RFC 1918), CGN and cloud-metadata ranges STAY blocked, so the
  * flag can never be escalated into a metadata SSRF. It also proves only the
  * exact string "true" opts in. Guards the security.md / quickstart claim and the
  * demo e2e job, which sets the flag to deliver to an in-process 127.0.0.1

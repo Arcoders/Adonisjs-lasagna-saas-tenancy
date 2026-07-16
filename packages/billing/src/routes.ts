@@ -7,7 +7,7 @@ import { resolveBillingWebhookPath } from './webhook_path.js'
 export interface MultitenancyBillingRoutesOptions {
   /**
    * Webhook path. Defaults to `config.billing.webhook.path` or
-   * `'/webhooks/billing'` (provider-neutral — billing supports Stripe, Paddle,
+   * `'/webhooks/billing'` (provider-neutral: billing supports Stripe, Paddle,
    * and Lemon Squeezy). MUST be in `config.ignorePaths` so TenantGuard doesn't
    * try to resolve a tenant for it (the job resolves the tenant from the
    * provider customer id once the event is decoded).
@@ -23,14 +23,14 @@ export interface MultitenancyBillingRoutesOptions {
  * multitenancyBillingRoutes()
  * ```
  *
- * Wires the verification middleware (active-driver signature check) → the
+ * Wires the verification middleware (active-driver signature check) ahead of the
  * controller, which stamps an idempotency row and dispatches the heavy work to
  * `ProcessBillingEventJob`.
  *
  * NOTE: when `config.billing.webhook.enforceIpAllowlist` is on, the allowlist
  * check uses `request.ip()`. Behind a proxy/load balancer you MUST configure
  * AdonisJS `http.trustProxy` so `request.ip()` resolves the real client IP from
- * `X-Forwarded-For` — otherwise every request looks like it comes from the proxy
+ * `X-Forwarded-For`. Otherwise every request looks like it comes from the proxy
  * and the allowlist either blocks everything or trusts a spoofable header.
  * Signature verification is the primary control; the allowlist is defence in
  * depth.

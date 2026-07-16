@@ -15,10 +15,10 @@ import {
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**
- * BillingService.syncSubscription is the keystone routine — every
+ * BillingService.syncSubscription is the keystone routine: every
  * webhook event lands here. We test:
- *   - creation flow → tenant_plans gets the mapped plan, sub row written
- *   - status change (active → canceled) downgrades to defaultPlan
+ *   - creation flow: tenant_plans gets the mapped plan, sub row written
+ *   - status change (active to canceled) downgrades to defaultPlan
  *   - unmapped product falls back to defaultPlan (never throws)
  */
 test.group('BillingService.syncSubscription (integration)', (group) => {
@@ -47,6 +47,7 @@ test.group('BillingService.syncSubscription (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
@@ -133,7 +134,7 @@ test.group('BillingService.syncSubscription (integration)', (group) => {
     let tenantPlan = await TenantPlan.find(tenantId)
     assert.equal(tenantPlan?.planName, 'pro')
 
-    // Now cancel — pass `downgrade: true` (matches the dispatcher's
+    // Now cancel. Pass `downgrade: true` (matches the dispatcher's
     // handling for `customer.subscription.deleted`).
     const canceledSub = buildNeutralSubscription({
       customer: providerCustomerId,
@@ -192,7 +193,7 @@ test.group('BillingService.syncSubscription (integration)', (group) => {
     // name removed from config.plans.definitions while subscriptions
     // referencing it still exist in Stripe) would leave the local
     // mirror reflecting the new plan but the QuotaService still on
-    // the old one — tenant billed at upgrade rate but limited at
+    // the old one: tenant billed at upgrade rate but limited at
     // downgrade rate. The fix flipped the order so a failing
     // assignPlan() short-circuits before row.save().
     const { providerCustomerId } = await seedCustomer()
@@ -227,7 +228,7 @@ test.group('BillingService.syncSubscription (integration)', (group) => {
       /plan "pro" is not declared/
     )
 
-    // The mirror MUST NOT exist — row.save() runs after assignPlan.
+    // The mirror MUST NOT exist: row.save() runs after assignPlan.
     const mirror = await BillingSubscription.find(subId)
     assert.isNull(mirror, 'mirror must not be written when assignPlan fails')
   })
@@ -235,7 +236,7 @@ test.group('BillingService.syncSubscription (integration)', (group) => {
   test('upgrade mid-cycle: subscription.updated swaps product → plan changes (T-3)', async ({
     assert,
   }) => {
-    // T-3 from the audit. Tenant is on 'pro'; Stripe sends a
+    // From the audit. Tenant is on 'pro'; Stripe sends a
     // subscription.updated with a new product mapped to 'team'. The
     // mirror, the TenantPlan, and QuotaService should all converge on
     // 'team' after a single event.
@@ -306,7 +307,7 @@ test.group('BillingService.syncSubscription (integration)', (group) => {
     mirror = await BillingSubscription.find(subId)
     assert.equal(mirror?.status, 'paused')
 
-    // The plan stays — the host's middleware can refuse requests on
+    // The plan stays. The host's middleware can refuse requests on
     // status != 'active' if it wants to enforce a hard pause.
     assert.equal(mirror?.planName, 'pro')
     const tpDuringPause = await TenantPlan.find(tenantId)
@@ -333,7 +334,7 @@ test.group('BillingService.syncSubscription (integration)', (group) => {
     const subId = `sub_cape_${randomUUID().slice(0, 8)}`
 
     // Tenant schedules a cancellation. The subscription is STILL active
-    // until the period actually ends — only the flag flips.
+    // until the period actually ends. Only the flag flips.
     await billing.syncSubscription(
       buildNeutralSubscription({
         id: subId,
@@ -356,7 +357,7 @@ test.group('BillingService.syncSubscription (integration)', (group) => {
     assert.isNotNull(mirror?.canceledAt)
     assert.equal((await TenantPlan.find(tenantId))?.planName, 'pro')
 
-    // Tenant changes their mind — the flag is cleared on the next update.
+    // Tenant changes their mind. The flag is cleared on the next update.
     await billing.syncSubscription(
       buildNeutralSubscription({
         id: subId,
@@ -393,7 +394,7 @@ test.group('BillingService.syncSubscription (integration)', (group) => {
     )
     assert.equal((await TenantPlan.find(tenantId))?.planName, 'pro')
 
-    // Period ends → Stripe fires customer.subscription.deleted. Routed
+    // The period ends and Stripe fires customer.subscription.deleted. Routed
     // through syncSubscription with downgrade:true (the dispatcher's
     // handling for deletions), so it lands on defaultPlan.
     await billing.syncSubscription(

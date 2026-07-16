@@ -1,5 +1,5 @@
 /**
- * `npm run bench:seed` — provision + seed the active driver's tenants directly,
+ * `npm run bench:seed` provisions and seeds the active driver's tenants directly,
  * so the HTTP tier (which serves a separate process) finds data already in the
  * database. The DB/memory tiers seed themselves in-process; this CLI is for the
  * HTTP tier and for ad-hoc local setup.

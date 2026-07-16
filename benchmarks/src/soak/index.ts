@@ -1,5 +1,5 @@
 /**
- * Soak tier — long-running stability. Boots the fixture headless, provisions a
+ * Soak tier: long-running stability. Boots the fixture headless, provisions a
  * fixed tenant set, then drives a continuous mixed read/write churn at
  * concurrency for `BENCH_SOAK_HOURS`, sampling RSS/heap/external, live pg
  * backends and (Linux) open fds every `BENCH_SOAK_INTERVAL_S`. Emits a time

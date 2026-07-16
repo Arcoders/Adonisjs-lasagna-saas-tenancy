@@ -24,7 +24,7 @@ let runInScope: (tenantId: string, fn: () => unknown | Promise<unknown>) => Prom
 
 /**
  * Test seam: override the tenant-scope runner. Returns a restore function.
- * @internal — not re-exported from any barrel.
+ * @internal not re-exported from any barrel.
  */
 export function __setDataChangeScopeRunnerForTests(
   fn: (tenantId: string, run: () => unknown | Promise<unknown>) => Promise<void>
@@ -38,13 +38,13 @@ export function __setDataChangeScopeRunnerForTests(
 
 /**
  * Wire a plugin's `onDataChange` subscriptions to the {@link TenantDataChanged}
- * event (SEAM-5). Called from the facade's `ready()` (after the emitter is fully
+ * event. Called from the facade's `ready()` (after the emitter is fully
  * constructed). Each subscription becomes a listener that applies the declared
  * model/operation filters and runs `handle` FAIL-OPEN: a throwing or slow
  * subscriber never breaks the write (the emit is already decoupled after-commit),
- * and its failure is logged AND counted on a per-tenant metric — never swallowed.
+ * and its failure is logged AND counted on a per-tenant metric, never swallowed.
  *
- * Kept out of `define_plugin.ts` (the E1 no-any surface) so the emitter juggling
+ * Kept out of `define_plugin.ts` (the no-any surface) so the emitter juggling
  * lives in one place; the facade just resolves the section and hands it here.
  */
 export async function subscribeDataChange(
@@ -65,7 +65,7 @@ export async function subscribeDataChange(
       try {
         // Re-establish the tenant scope before invoking the subscriber. The emit is
         // decoupled (after-commit, fire-and-forget), so by the time it runs the
-        // ambient tenancy scope from the originating request/job may be gone — or,
+        // ambient tenancy scope from the originating request/job may be gone, or
         // worse, be a DIFFERENT tenant's scope. Running handle() inside
         // tenancy.run(change.tenantId) makes the subscriber's own tenant-model
         // queries route to the correct schema and carry the right log context,
@@ -105,7 +105,7 @@ async function runSubscriberInScope(
 }
 
 /** Log + count a subscriber failure. The write already committed and the emit is
- *  decoupled, so this is pure observability — it never rethrows into the emitter. */
+ *  decoupled, so this is pure observability: it never rethrows into the emitter. */
 async function reportSubscriberFailure(
   plugin: string,
   change: TenantDataChangePayload,

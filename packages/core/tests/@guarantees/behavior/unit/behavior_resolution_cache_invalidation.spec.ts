@@ -10,7 +10,7 @@ import { TenantSuspended, TenantActivated } from '../../../../src/events/index.j
  * Backs the resolution-cache invalidation wiring that
  * `MultitenancyProvider.ready()` installs. The provider class itself can't be
  * imported in the unit environment (its graph pulls a service that
- * top-level-awaits app boot), so — as with `resetModuleCaches` — the spec
+ * top-level-awaits app boot), so (as with `resetModuleCaches`) the spec
  * exercises the extracted function the provider calls.
  *
  * Regression context: this wiring used to run in `boot()` against the
@@ -107,5 +107,28 @@ test.group('wireResolutionCacheInvalidation', () => {
     // And after teardown, a replayed event is a no-op.
     emitter.emit(TenantActivated, { tenant: { id: 'tenant-x' } })
     assert.lengthOf(cache.deleted, 0)
+  })
+
+  test('repeated wire/teardown cycles keep the listener count flat (no leak)', ({ assert }) => {
+    // PLD-6: models the provider's ready()/shutdown() disposer registry across
+    // several cycles — each ready() wires the listeners and captures the teardown;
+    // each shutdown() runs the disposers LIFO. Without the provider capturing and
+    // running that teardown, every cycle would leak a full listener set and the
+    // emitter's count would climb unbounded (repeated boots in one process).
+    const emitter = fakeEmitter()
+    const cache = spyCache()
+    const disposers: Array<() => void> = []
+
+    for (let cycle = 0; cycle < 4; cycle++) {
+      disposers.push(wireResolutionCacheInvalidation(emitter as never, cache))
+      assert.equal(
+        emitter.listenerCount(),
+        RESOLUTION_CACHE_INVALIDATING_EVENTS.length,
+        'a ready() wires exactly one listener set'
+      )
+      for (const dispose of disposers.reverse()) dispose()
+      disposers.length = 0
+      assert.equal(emitter.listenerCount(), 0, 'shutdown() removes every listener it wired')
+    }
   })
 })

@@ -1,46 +1,17 @@
-import type { MultitenancyConfig } from './types/config.js'
+import type { MultitenancyConfig, ResolvedMultitenancyConfig } from './types/config.js'
 import { isProductionNodeEnv } from './utils/env.js'
-
-/**
- * Stash the config singleton on a `Symbol.for(...)` key on `globalThis` so
- * src/ and build/ instances of this module share state. Without this, the
- * package self-references its own build/ output via the `exports` map
- * (`@adonisjs-lasagna/saas-tenancy/...` → `./build/src/...`), while
- * integration specs and the package's own internal imports from `'./...'`
- * resolve to a SECOND copy of this module under src/. Each copy would have
- * its own `let _config = null`, so the provider booting from build/ would
- * leave src/'s `_config` permanently null — and any code reading from src/
- * (`request.tenant()` macro, billing middleware/job/listener, etc.) would
- * throw "saas-tenancy not configured" on the first call.
- *
- * `Symbol.for` is registry-keyed, so the same key resolves to the same
- * symbol across realms / module instances. The store is shared.
- */
-const STORE_KEY = Symbol.for('@adonisjs-lasagna/saas-tenancy/config-singleton')
-
-interface ConfigStore {
-  current: MultitenancyConfig | null
-  /** Monotonic version, bumped on every successful set (the envelope). */
-  version: number
-}
-
-function getStore(): ConfigStore {
-  const g = globalThis as unknown as Record<symbol, ConfigStore | undefined>
-  let store = g[STORE_KEY]
-  if (!store) {
-    store = { current: null, version: 0 }
-    g[STORE_KEY] = store
-  }
-  return store
-}
+import { getStore } from './config_store.js'
+import { resolveConfig } from './config_defaults.js'
 
 /**
  * Recursively freeze the config so a consumer cannot mutate the shared singleton
  * out from under concurrent requests (`getConfig().isolation.driver = ...`). Plain
  * objects and arrays are frozen deep; functions (e.g. `authorizeTenantAccess`) are
- * frozen shallowly so they stay callable; primitives pass through. Already-frozen
- * branches are skipped so a config that reuses a shared sub-object is cheap and
- * cycle-safe.
+ * frozen shallowly so they stay callable; primitives pass through. Class instances
+ * (a stateful custom resolver in `resolverChain`/`resolvers`, documented to hit a
+ * cache or remote service) are left untouched so they keep owning their own state.
+ * Already-frozen branches are skipped so a config that reuses a shared sub-object
+ * is cheap and cycle-safe.
  */
 function deepFreeze<T>(value: T): T {
   if (value === null || value === undefined) return value
@@ -49,7 +20,11 @@ function deepFreeze<T>(value: T): T {
     for (const item of value) deepFreeze(item)
     return Object.freeze(value)
   }
-  if (typeof value === 'object') {
+  // Recurse into PLAIN objects only. A class instance (`constructor !== Object`)
+  // is left alone: freezing a stateful custom resolver would violate its
+  // ownership and can break a resolver that mutates its own fields to cache or
+  // batch. Only the framework's plain config tree is sealed against mutation.
+  if (typeof value === 'object' && (value as object).constructor === Object) {
     for (const key of Object.keys(value)) deepFreeze((value as Record<string, unknown>)[key])
     return Object.freeze(value)
   }
@@ -58,46 +33,48 @@ function deepFreeze<T>(value: T): T {
 }
 
 /**
- * Identity helper that anchors the user's `config/multitenancy.ts` to the
- * MultitenancyConfig type. Same pattern as `@adonisjs/lucid` and `@adonisjs/auth`:
- * runtime is a passthrough, the value is type-checked at the call site so
- * IDE autocomplete and `tsc` catch shape errors before boot.
+ * Anchors the user's `config/multitenancy.ts` to the MultitenancyConfig INPUT
+ * type and resolves it against the single `CONFIG_DEFAULTS`. Same input→resolved
+ * pattern as `@adonisjs/lucid` and `@adonisjs/auth`: the value is type-checked at
+ * the call site (IDE autocomplete + `tsc` catch shape errors before boot) and the
+ * returned {@link ResolvedMultitenancyConfig} has the always-present tunables
+ * filled in. `setConfig` re-resolves idempotently, so an app that writes an
+ * untyped config object without calling this still gets a resolved `getConfig()`.
  */
-export function defineConfig(config: MultitenancyConfig): MultitenancyConfig {
-  return config
+export function defineConfig(config: MultitenancyConfig): ResolvedMultitenancyConfig {
+  return resolveConfig(config)
 }
 
-export function setConfig(config: MultitenancyConfig): void {
+export function setConfig(config: MultitenancyConfig, options?: { inProduction?: boolean }): void {
   const store = getStore()
   // In production a second set is refused: swapping the isolation config out from
   // under in-flight requests is never intentional (a double boot, a stray call),
   // and silently honouring it could re-point tenants at the wrong schema. Outside
   // production the call is permitted so test suites can re-seed per case.
-  if (store.current !== null && isProductionNodeEnv()) {
+  //
+  // "In production" is the app's own verdict when the provider calls this
+  // (`app.inProduction`, the single authority); the NODE_ENV read is the fallback
+  // for direct callers (tests, tooling) that have no booted app in hand.
+  const inProduction = options?.inProduction ?? isProductionNodeEnv()
+  if (store.current !== null && inProduction) {
     throw new Error(
       '@adonisjs-lasagna/saas-tenancy: setConfig was called a second time in production. ' +
         'The multitenancy configuration is set once at boot and is immutable thereafter.'
     )
   }
-  store.current = deepFreeze(config)
-  store.version += 1
+  // Resolve here (not only in `defineConfig`) so the store is the single choke
+  // point: an app that wrote an untyped config object, or a test that seeds a
+  // partial one, still yields a fully-resolved `getConfig()`. `resolveConfig` is
+  // idempotent, so re-resolving a config that already went through `defineConfig`
+  // is a no-op.
+  store.current = deepFreeze(resolveConfig(config))
 }
 
-/** Current config version (0 before the first set). The {version, config} envelope. */
-export function getConfigVersion(): number {
-  return getStore().version
-}
+// `__resetConfigForTests` used to live here. It now sits on the `/testing`
+// barrel (src/testing/config_reset.ts): this module is public at `/config`, so
+// a test-only reset exported from it was a test seam on the app-facing surface.
 
-/**
- * Test-only: clear the config singleton so `getConfig()` throws again, used to
- * exercise the "config unreadable" fail-closed paths. Mirrors
- * `__configureTenancyForTests`; never call it from runtime code.
- */
-export function __resetConfigForTests(): void {
-  getStore().current = null
-}
-
-export function getConfig(): MultitenancyConfig {
+export function getConfig(): ResolvedMultitenancyConfig {
   const store = getStore()
   if (!store.current) {
     throw new Error(

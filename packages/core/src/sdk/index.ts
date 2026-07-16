@@ -2,9 +2,9 @@
  * Public surface for building packaged Lasagna satellites. See the
  * "Creating a satellite" cookbook for the full guide.
  *
- *  - `SatelliteManifest` / `readSatelliteManifest` — the declarative
+ *  - `SatelliteManifest` / `readSatelliteManifest`: the declarative
  *    `package.json#lasagnaSatellite` contract.
- *  - `SatelliteProviderContract` — the provider lifecycle a satellite implements.
+ *  - `SatelliteProviderContract`: the provider lifecycle a satellite implements.
  *  - the configure toolkit (`discoverSatellites`, `publishSatellite`,
  *    `registerSatelliteInRcFile`, `printSatelliteManifest`, …) used by both
  *    core's `configure` and a satellite's own `adonisjs.configure` hook.
@@ -22,7 +22,7 @@ export {
 export type { SatelliteApiCompat } from './api_version.js'
 
 /**
- * Per-surface extension contract versioning — one level below the Satellite
+ * Per-surface extension contract versioning, one level below the Satellite
  * ABI. A satellite's extension registry calls `assertContractCompat` in its
  * `register()` to reject incompatible extensions at registration time. Pure +
  * bare-safe, so it works from a satellite's own unit runner.
@@ -38,13 +38,17 @@ export { resolveSatelliteDependencies, satisfiesRange } from './dependencies.js'
 export type { DependencyResolution } from './dependencies.js'
 
 /**
- * Pure tenant-id validators a satellite needs whenever it interpolates a tenant
- * id into SQL/DDL or reads one off a request/handshake. Bare-safe (no booted
- * import), so they are usable from a satellite's own unit runner — this is the
- * stable home for satellite authors. (`assertSafeIdentifier` is also on
+ * Tenant-id validators a satellite needs whenever it interpolates a tenant id
+ * into SQL/DDL or reads one off a request/handshake. `isUuidV4` is a pure
+ * predicate; `assertSafeIdentifier` refuses an unsafe id and audits the refusal
+ * (it emits `guard.tenant_identifier` before it throws, so the satellite's DDL
+ * gets the same audit trail the kernel drivers do). Both are bare-safe (no
+ * booted import), so they are usable from a satellite's own unit runner. This is
+ * the stable home for satellite authors. (`assertSafeIdentifier` is also on
  * `/services` for in-app custom-driver authors.)
  */
-export { isUuidV4, assertSafeIdentifier } from '../services/isolation/identifier.js'
+export { isUuidV4 } from '../services/isolation/identifier.js'
+export { assertSafeIdentifier } from '../isthmus/guarded_identifier.js'
 
 /**
  * Build a SQL-safe `"schema"."table"` reference for a table in the shared backoffice
@@ -88,7 +92,7 @@ export {
  * builds ONE `createGuardAudit(...)` from its own registry, inheriting the
  * kernel's limiter/dispatcher/counter discipline and the shared `ISTHMUS_BUDGETS`
  * (so the whole fleet stays tuned together on a kernel retune). This is the
- * stable home for the machinery — a satellite never needs the unstable
+ * stable home for the machinery. A satellite never needs the unstable
  * `/internal` re-exports for it. Bare-safe (the default dispatcher resolves the
  * public event lazily). The public event stays `IsthmusGuardTripped` on
  * `/events`; the vocabulary types stay on `/types`.
@@ -121,6 +125,6 @@ export type {
  * Exhaustiveness helper for closed discriminated unions. A satellite calls it in
  * the `default:` arm of a `switch` so a new, unhandled variant is a COMPILE error
  * (the argument stops being assignable to `never`); at runtime it throws. This is
- * the one shared copy — satellites no longer ship their own.
+ * the one shared copy. Satellites no longer ship their own.
  */
 export { assertNever } from './assert_never.js'

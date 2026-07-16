@@ -7,7 +7,7 @@ import { useRealInstallTenantDispatch } from '#tests/bootstrap'
 
 // Exercises Install/UninstallTenant through a real `queue:work` subprocess
 // (not installInline, not job.execute) so worker-wiring regressions
-// — job-name resolution, payload hydration, hook ordering — surface here.
+// (job-name resolution, payload hydration, hook ordering) surface here.
 // Needs Postgres + Redis.
 interface QueueWorker {
   child: ChildProcess

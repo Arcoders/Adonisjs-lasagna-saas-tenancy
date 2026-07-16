@@ -12,12 +12,12 @@ import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
- * SEAM-5 GATING integration: the data-change mixin's after-commit / rollback
- * guarantee against REAL Postgres — the property the unit test can only stub. A
- * committed write EMITS `TenantDataChanged`; a rolled-back write emits NOTHING.
- * Runs on the schema-pg fixture; the integration runner guarantees Postgres, so
- * there is no per-spec skip. Validated in CI (PG up); mirrors
- * behavior_tenant_context's tenant/schema setup.
+ * A gating integration test for the data-change mixin's after-commit vs
+ * rollback guarantee against REAL Postgres, the property the unit test can only
+ * stub. A committed write EMITS `TenantDataChanged`; a rolled-back write emits
+ * NOTHING. Runs on the schema-pg fixture, and the integration runner guarantees
+ * Postgres, so there is no per-spec skip. Mirrors behavior_tenant_context's
+ * tenant/schema setup.
  */
 test.group('data-change mixin — after-commit vs rollback (real Postgres)', (group) => {
   let driver: SchemaPgDriver
@@ -83,7 +83,7 @@ test.group('data-change mixin — after-commit vs rollback (real Postgres)', (gr
           note.body = 'doomed'
           note.useTransaction(trx)
           await note.save()
-          // abort → ROLLBACK; the after-commit emit must never fire
+          // Abort to force a ROLLBACK. The after-commit emit must never fire.
           throw new Error('intentional rollback')
         })
         .catch(() => {})
@@ -94,7 +94,7 @@ test.group('data-change mixin — after-commit vs rollback (real Postgres)', (gr
   })
 
   test('end-to-end: a real subscriber receives a committed change', async ({ assert }) => {
-    // The prueba-de-uso: the mixin's REAL emit reaches a REAL subscriber (the same
+    // The usage proof: the mixin's REAL emit reaches a REAL subscriber (the same
     // path `definePlugin({ onDataChange })` wires) against live Postgres.
     const received: Array<{ model: string; operation: string; tenantId: string }> = []
     const off = emitter.on(TenantDataChanged, (e: any) => {

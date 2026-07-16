@@ -12,14 +12,18 @@ import { isProvisionableDriver } from '../../../src/services/isolation/driver.js
  *
  * The single `IsolationDriver` interface forced every driver to implement
  * provisioning, so rowscope-pg shipped a `provision()` no-op that lied (returned
- * success while creating nothing). The contract is now split: enforcement
- * (`enforce`) is required of all drivers, and storage creation (`provision`)
- * lives on the optional `ProvisionableDriver`. A driver that owns no per-tenant
- * storage simply does not implement provision, and `isProvisionableDriver()`
- * tells callers which capability is present.
+ * success while creating nothing). The contract is now split: storage creation
+ * (`provision`) lives on the optional `ProvisionableDriver`. A driver that owns
+ * no per-tenant storage simply does not implement provision, and
+ * `isProvisionableDriver()` tells callers which capability is present.
  *
- * RED (pre-fix): no driver declared `enforce`; rowscope faked `provision`;
- * `isProvisionableDriver` did not exist (the import fails to resolve).
+ * `enforce` (AD-06) is likewise OPTIONAL: it is a synchronous per-query hook, not
+ * how any shipped driver enforces its boundary (that is the connection or the
+ * `withTenantScope()` mixin), so none of them implement it. The adapter calls it
+ * as `driver.enforce?.()`, so omitting it is the norm.
+ *
+ * RED (pre-fix): rowscope faked `provision`; `isProvisionableDriver` did not
+ * exist (the import fails to resolve).
  */
 test.group('architectural — isolation driver contract', (group) => {
   group.each.setup(() => setConfig({ ...testConfig }))
@@ -31,10 +35,14 @@ test.group('architectural — isolation driver contract', (group) => {
     'rowscope-pg': new RowScopePgDriver(),
   })
 
-  test('every driver declares enforce() and a numeric contractVersion', ({ assert }) => {
+  test('every driver declares a numeric contractVersion; enforce is optional and unimplemented', ({
+    assert,
+  }) => {
     for (const [name, d] of Object.entries(allDrivers())) {
-      assert.isFunction((d as any).enforce, `${name} must declare enforce()`)
       assert.isNumber((d as any).contractVersion, `${name} must declare contractVersion`)
+      // AD-06: enforce is an optional hook; no shipped driver implements it
+      // (the connection or the withTenantScope mixin is the boundary).
+      assert.isUndefined((d as any).enforce, `${name} must not ship an enforce() no-op`)
     }
   })
 

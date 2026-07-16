@@ -8,7 +8,7 @@ import {
  * SSRF guard. The function returns `null` when the URL is safe to fetch from
  * a server-side context, or a stable error code otherwise. The admin
  * controllers (webhooks, SSO) and SsoService.discover() all gate
- * server-side fetches through this — every production-relevant rejection
+ * server-side fetches through this, so every production-relevant rejection
  * path needs explicit coverage.
  */
 test.group('validateExternalHttpsUrl — SSRF guard', () => {
@@ -80,7 +80,7 @@ test.group('validateExternalHttpsUrl — SSRF guard', () => {
   test('rejects IPv4 octets out of range (URL parser throws first → url_invalid)', ({ assert }) => {
     // Modern Node URL parser rejects out-of-range octets at parse time, so
     // the `url_invalid_ipv4` branch fires only on engines that still accept
-    // them. Either rejection is acceptable for our threat model — what
+    // them. Either rejection is acceptable for our threat model. What
     // matters is that nothing in this shape ever returns `null`.
     assert.isNotNull(validateExternalHttpsUrl('https://999.0.0.1/'))
     assert.isNotNull(validateExternalHttpsUrl('https://256.256.256.256/'))
@@ -96,7 +96,7 @@ test.group('validateExternalHttpsUrl — SSRF guard', () => {
 
   test('rejects IPv4-mapped IPv6 in any notation (hex or dotted)', ({ assert }) => {
     // `new URL` canonicalises the dotted tail to hex (`::ffff:7f00:1`), which the
-    // old dotted-only regex never matched — this was a real loopback SSRF bypass.
+    // old dotted-only regex never matched. This was a real loopback SSRF bypass.
     assert.equal(validateExternalHttpsUrl('https://[::ffff:7f00:1]/'), 'url_blocks_loopback')
     assert.equal(validateExternalHttpsUrl('https://[::ffff:127.0.0.1]/'), 'url_blocks_loopback')
     assert.equal(validateExternalHttpsUrl('https://[::ffff:10.0.0.1]/'), 'url_blocks_private')
@@ -118,7 +118,7 @@ test.group('validateExternalHttpsUrl — SSRF guard', () => {
     assert.equal(validateExternalHttpsUrl('https://255.255.255.255/'), 'url_blocks_reserved')
   })
 
-  // SECURITY (#7): IPv6 transition prefixes tunnel an IPv4 the host's
+  // SECURITY: IPv6 transition prefixes tunnel an IPv4 the host's
   // NAT64/6to4/Teredo gateway routes to, including cloud metadata, so they
   // must be blocked even though the embedded IPv4 isn't visible as a v4 literal.
   test('rejects IPv6 transition prefixes that tunnel private/metadata IPv4 (NAT64/6to4/Teredo)', ({

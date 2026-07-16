@@ -1,5 +1,5 @@
 /**
- * Output formatting (RFC §7). Human text mirrors Ismael's mockup; `--json` is for
+ * Output formatting (RFC section 7). Human text mirrors Ismael's mockup; `--json` is for
  * automation; the job-summary form is GitHub-flavoured markdown. Tier 1 is the
  * gate, Tier 2 is advisory; the split is always visible.
  */

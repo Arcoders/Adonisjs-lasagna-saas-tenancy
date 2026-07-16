@@ -5,9 +5,10 @@ import { resolveTenantRepository, AuditLogService } from '@adonisjs-lasagna/saas
 import { getAdminActorResolver } from '../admin_actor.js'
 
 // `validateExternalHttpsUrl` lives in core (both admin and SsoService need it).
-// Re-exported here so the admin controllers keep importing it from
-// `./helpers.js` unchanged.
-export { validateExternalHttpsUrl } from '@adonisjs-lasagna/saas-tenancy'
+// It sits on `/internal` rather than the root barrel: a host app never validates
+// an issuer URL by hand. Re-exported here so the admin controllers keep importing
+// it from `./helpers.js` unchanged.
+export { validateExternalHttpsUrl } from '@adonisjs-lasagna/saas-tenancy/internal'
 
 // The pure, container-free helpers live in `./pure.js` (no core barrel import)
 // so they can be unit tested without booting an Ignitor. Re-exported here so the
@@ -17,7 +18,7 @@ export { clamp, isNonEmptyString } from './pure.js'
 /**
  * Resolve `params.id` to a tenant or short-circuit with a 404. Returns the
  * tenant on success and `null` on failure (the response has already been
- * sent — the caller must `return`).
+ * sent, so the caller must `return`).
  */
 export async function loadTenantOr404(ctx: HttpContext): Promise<TenantModelContract | null> {
   const repo = await resolveTenantRepository()
@@ -38,7 +39,7 @@ export async function loadTenantOr404(ctx: HttpContext): Promise<TenantModelCont
  * the whole call is wrapped so a missing resolver, a container miss, or a
  * throwing audit write all degrade to a swallowed no-op (same posture as
  * `ImpersonationService`'s audit). The metadata must carry ids and flags only,
- * never secrets — `audit_coverage.spec.ts` enforces that statically.
+ * never secrets. `audit_coverage.spec.ts` enforces that statically.
  *
  * `actorType` is always `'admin'` on the REST path. A null actor (no resolver,
  * or a resolver that returned null) still writes a row with `actorId: null`: a

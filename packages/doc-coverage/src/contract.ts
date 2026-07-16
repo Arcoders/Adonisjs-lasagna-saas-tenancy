@@ -1,5 +1,5 @@
 /**
- * The contract hash (RFC §8, D3) and the JSDoc contract (D2). Proven in the
+ * The contract hash (RFC section 8, D3) and the JSDoc contract (D2). Proven in the
  * Step-0 spike on the real `QuotaService`.
  *
  * The hash input is the symbol's *contract*: signature param names + types +

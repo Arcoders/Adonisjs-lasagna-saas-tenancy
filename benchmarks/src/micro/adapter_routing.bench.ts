@@ -12,10 +12,10 @@ import { FIXED_TENANT_ID } from './setup.js'
 const GROUP = 'adapter_routing'
 
 /**
- * Prices `TenantAdapter.modelConstructorClient` — the per-query routing call.
+ * Prices `TenantAdapter.modelConstructorClient`, the per-query routing call.
  * The warm path is seeded via `tenancy.currentId()` (the test-only injector
- * gives a fake log context returning a fixed UUID), so it runs the
- * `currentId → driver.connectionName → db.connection` branch with no HTTP
+ * gives a fake log context returning a fixed UUID), so it runs the branch from
+ * `currentId` through `driver.connectionName` to `db.connection` with no HTTP
  * context and no app. The `db` is stubbed to return the connection name, so we
  * isolate the routing cost, not Lucid's connection lookup.
  */
@@ -32,7 +32,7 @@ export function runAdapterRouting(): BenchResult[] {
   // Seed the active tenant id without an app or HTTP request.
   __configureTenancyForTests({ logCtx: { currentTenantId: () => FIXED_TENANT_ID } as any })
 
-  const tenantCtor = {} as any // no static `connection` → routes by tenant id
+  const tenantCtor = {} as any // no static `connection`, so it routes by tenant id
   const explicitCtor = { connection: 'public' } as any // fast path baseline
 
   const results = [

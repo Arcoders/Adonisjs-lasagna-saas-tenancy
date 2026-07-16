@@ -7,7 +7,7 @@ import { defineConfig, transports } from '@adonisjs/mail'
  * SES, Mailgun, Resend, etc.).
  *
  * Captured messages are visible at http://localhost:1080 and at the JSON API
- * `http://localhost:1080/messages` — the e2e mail.spec.ts uses the latter.
+ * `http://localhost:1080/messages`. The e2e mail.spec.ts uses the latter.
  */
 export default defineConfig({
   default: 'smtp',

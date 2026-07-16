@@ -5,10 +5,10 @@ import { CircuitBreakerService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { createInstalledTenant, dropAllTenants, waitFor } from '../_helpers.js'
 
 /**
- * HARDENING — circuit breaker isolation, fail-fast, and persistence.
+ * HARDENING: circuit breaker isolation, fail-fast, and persistence.
  *
  * `TenantGuardMiddleware` checks `CircuitBreakerService.isOpen(tenantId)` on
- * every tenant-scoped request and throws `CircuitOpenException` (→ 503
+ * every tenant-scoped request and throws `CircuitOpenException` (a 503
  * CIRCUIT_OPEN) when the tenant's breaker is OPEN. The breaker is a per-tenant
  * Opossum instance held on the singleton service, and every state transition is
  * persisted to Redis under `cb:state:<tenantId>` so it survives a restart.

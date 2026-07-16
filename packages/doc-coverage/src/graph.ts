@@ -1,5 +1,5 @@
 /**
- * The graph builder (RFC §3, Deliverable B1). Creates one TS program over every
+ * The graph builder (RFC section 3, deliverable B1). Creates one TS program over every
  * public barrel of every configured package, extracts code nodes (with barrel
  * resolution + contract hashes), then extracts doc nodes + edges and stitches in
  * the declared `@doc` anchors. Output is a deterministic, sorted `DocGraph`.
@@ -95,7 +95,7 @@ export function buildGraph(config: DocCoverageConfig): BuildResult {
     freshnessIgnore.push(...result.freshnessIgnore)
   }
 
-  // Declared `@doc` anchors -> documents edges (doc-section/page -> symbol).
+  // Declared `@doc` anchors become documents edges (doc-section/page to symbol).
   const docNodeIds = new Set(docNodes.map((n) => n.id))
   for (const anchor of docAnchors) {
     const targetId = normalizeDocTarget(anchor.doc)

@@ -54,13 +54,13 @@ export interface IsolationConfig {
    * `WHERE tenant_id = ?`, but a hand-written top-level `orWhere` can compose a
    * query the mixin cannot retroactively group and leak another tenant's rows.
    * The fix is the `enable_rls_tenant_isolation` migration plus routing writes
-   * through `withTenantRls()` — see docs/data-isolation/rowscope-pg.
+   * through `withTenantRls()`. See docs/data-isolation/rowscope-pg.
    *
    * Leave this `false`/unset and the provider logs a one-time WARNING at boot
    * that `rowscope-pg` is running on mixin-only (convention) isolation. Set it
    * to `true` once you have shipped the RLS migration to assert the enforced
    * backstop is present and silence the warning. This is an acknowledgment flag,
-   * not a runtime check — it records that you made the call deliberately.
+   * not a runtime check: it records that you made the call deliberately.
    */
   rowScopeRls?: boolean
   /**
@@ -68,7 +68,7 @@ export interface IsolationConfig {
    * when a scoped model query runs outside both `tenancy.run()` and
    * `unscoped()`.
    *
-   *  - `'strict'` (default): throw. The safe choice — a forgotten
+   *  - `'strict'` (default): throw. The safe choice: a forgotten
    *    `tenancy.run()` in a job/script becomes a loud failure instead of
    *    a silent cross-tenant query.
    *  - `'allowGlobal'`: log nothing, skip the scope. Backwards-compatible
@@ -84,7 +84,7 @@ export interface IsolationConfig {
    * a connection used within `evictionGracePeriodMs`.
    *
    * SIZING WARNING: this is a SOFT cap by default. Open connections scale with
-   * concurrently ACTIVE tenants, not with this number — a burst of N active
+   * concurrently ACTIVE tenants, not with this number: a burst of N active
    * tenants opens ~N pools (none are evictable inside the grace window), and
    * exhausting PostgreSQL `max_connections` takes down the whole database, not
    * just the burst. Size `max_connections` for your peak concurrent-tenant
@@ -117,4 +117,24 @@ export interface IsolationConfig {
    * connections strictly under `max_connections`. Default false.
    */
   enforceConnectionCap?: boolean
+  /**
+   * For `schema-pg`/`database-pg`: an ABSOLUTE upper bound on open tenant
+   * connections, the second tier above `maxTenantConnections`. Unset by default
+   * (no ceiling).
+   *
+   * `maxTenantConnections` is a SOFT target: with `enforceConnectionCap: false`
+   * (the default) a burst of concurrently-active tenants lets the pool grow past
+   * it, trending toward the active-tenant count and, unchecked, toward PostgreSQL
+   * `max_connections`. This ceiling is the last-resort backstop: once the pool
+   * reaches it, `connect()` refuses a NEW request-path tenant connection with
+   * `TenantConnectionLimitException` (HTTP 503) REGARDLESS of `enforceConnectionCap`,
+   * so even an availability-favouring deployment can never exhaust the database.
+   * Operational paths (provisioning, migrations) bypass it, as they do the soft
+   * cap.
+   *
+   * Set it generously ABOVE `maxTenantConnections` (headroom for burst) but safely
+   * under `max_connections * poolMax`. Leave it unset only if another layer
+   * (PgBouncer, `enforceConnectionCap`) already bounds server connections.
+   */
+  maxTenantConnectionsHardCeiling?: number
 }

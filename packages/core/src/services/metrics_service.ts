@@ -63,7 +63,7 @@ export default class MetricsService {
    * Seam so specs can inject a Redis stub. Production returns the lazily-bound
    * `@adonisjs/redis` singleton. EVERY Redis access in this service routes
    * through here (increment, emit, flush) so a stub injected in a test sees all
-   * of them — not just `emitMetric`.
+   * of them, not just `emitMetric`.
    */
   protected getRedis(): typeof redis {
     return redis
@@ -85,13 +85,13 @@ export default class MetricsService {
 
   /**
    * Record a host-defined named metric (e.g. `emitMetric(t, 'rental_bookings', 1)`
-   * or `emitMetric(t, 'revenue_cents', 1299)`). Rides the same Redis→backoffice
+   * or `emitMetric(t, 'revenue_cents', 1299)`). Rides the same Redis-to-backoffice
    * pipeline as the built-in counters: counters land under a `custom_metrics:`
    * key and are bulk-upserted to `backoffice.tenant_custom_metrics` by
    * {@link flushCustomMetrics} (which the `tenant:metrics:flush` command runs).
    *
    * Name and value are validated **fail-loud** (a bad name/value is a bug). The
-   * Redis write is **fail-open** — a backend error never breaks the caller, and
+   * Redis write is **fail-open**: a backend error never breaks the caller, and
    * `MetricRecorded` is dispatched only when the value was actually recorded.
    */
   async emitMetric(tenantId: string, name: string, value = 1): Promise<void> {
@@ -127,7 +127,7 @@ export default class MetricsService {
 
   /**
    * Flush the built-in `metrics:*` counters for a period into
-   * `backoffice.tenant_metrics`. Delegates the SCAN → MGET → chunked upsert to
+   * `backoffice.tenant_metrics`. Delegates the SCAN, MGET, and chunked upsert to
    * the flusher, passing the seam-resolved Redis handle.
    */
   async flush(period?: string): Promise<void> {
@@ -154,7 +154,7 @@ export default class MetricsService {
    * daily `tenant_metrics` base, one upsert per month bucket so each statement's
    * working set stays bounded. Idempotent (`ON CONFLICT … DO UPDATE` overwrites,
    * never accumulates), so it is safe to re-run from cron. Omitted bounds default
-   * to "first metric → last completed month" (the open month is excluded so a
+   * to "first metric through last completed month" (the open month is excluded so a
    * partial month never lands in the rollup). A no-op on an empty base table.
    * Run by the `tenant:metrics:rollup` command.
    */
@@ -207,6 +207,6 @@ function warnMetrics(kind: string, err: unknown, ctx: Record<string, unknown>): 
   try {
     console.warn(`[multitenancy] metrics ${kind}:`, (err as any)?.message ?? err, ctx)
   } catch {
-    // ignore — logging must never throw out of a fail-open path
+    // ignore: logging must never throw out of a fail-open path
   }
 }

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { createInstalledTenant, dropAllTenants, runAce } from '../_helpers.js'
 
 /**
- * HARDENING — `tenant:gdpr:anonymize` runs the host seam and records evidence.
+ * HARDENING: `tenant:gdpr:anonymize` runs the host seam and records evidence.
  *
  * The demo wires `config.compliance.anonymize` to redact every Note inside
  * tenancy.run(tenant) (examples/api/config/multitenancy.ts). We assert the full

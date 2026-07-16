@@ -6,8 +6,8 @@ description: From npm install to a live tenant in five minutes.
 # Quickstart
 
 The fastest path from `npm install` to a live, schema-isolated tenant.
-The configure command does most of the wiring; you fill in your database
-connections and one repository binding. Target: under ten minutes.
+The configure command does the wiring; you fill in your database
+connections. Target: under ten minutes.
 
 <Terminal src="/casts/quickstart.cast.json" />
 
@@ -25,48 +25,70 @@ npm install @adonisjs-lasagna/saas-tenancy
 node ace configure @adonisjs-lasagna/saas-tenancy --with=audit,webhooks
 ```
 
+`configure` writes four things you now own, and never overwrites them on a re-run:
+
+| File | What it is |
+|---|---|
+| `config/multitenancy.ts` | Every knob, documented inline |
+| `app/models/backoffice/tenant.ts` | Your tenant model |
+| `app/repositories/tenant_repository.ts` | How the package reads tenants |
+| `providers/tenancy_provider.ts` | Binds the repository to `TENANT_REPOSITORY` |
+
+Plus the migration that creates the central `tenants` table, and one migration
+per feature you passed to `--with`.
+
 ## 2. Database connections
+
+`searchPath` is a sibling of `connection`, not a key inside it. Nesting it
+typechecks nowhere and silently leaves you on the `public` schema.
 
 ```ts
 // config/database.ts
 export default defineConfig({
+  connection: 'public',
   connections: {
-    public: { client: 'pg', connection: { ...baseConn, searchPath: 'public' } },
-    backoffice: { client: 'pg', connection: { ...baseConn, searchPath: 'backoffice' } },
-    // tenant_<uuid> connections register at runtime.
+    public: { client: 'pg', connection: baseConn, searchPath: ['public'] },
+    backoffice: { client: 'pg', connection: baseConn, searchPath: ['backoffice'] },
+    // The template the isolation driver clones for each tenant_<uuid> connection.
+    // Without it, provisioning fails. The names must match config/multitenancy.ts.
+    tenant: { client: 'pg', connection: baseConn, searchPath: ['public'] },
   },
 })
 ```
 
 ## 3. Bootstrap the backoffice
 
+Creates the `backoffice` schema, then runs its migrations, starting with the
+`tenants` table:
+
 ```bash
 node ace backoffice:setup
 ```
 
-## 4. Bind the tenant repository
+## 4. Check the tenant repository
+
+The package never imports your `Tenant` model. It resolves this class from the
+container instead, so everything that touches a tenant goes through code you
+can read and change:
 
 ```ts
-// providers/app_provider.ts
-import { TENANT_REPOSITORY } from '@adonisjs-lasagna/saas-tenancy'
-
-export default class AppProvider {
-  async boot() {
-    this.app.container.singleton(TENANT_REPOSITORY, async () => {
-      const { default: Tenant } = await import('#models/backoffice/tenant')
-      return {
-        findById: (id) => Tenant.query().whereNull('deleted_at').where('id', id).first(),
-        findByDomain: (host) => Tenant.query().whereNull('deleted_at').where('custom_domain', host).first(),
-        all: (filters = {}) => {
-          const q = Tenant.query().whereNull('deleted_at')
-          if (filters.status) q.where('status', filters.status)
-          return q
-        },
-      }
-    })
+// app/repositories/tenant_repository.ts — written by configure
+export default class TenantRepository implements TenantRepositoryContract {
+  async findById(id: string, includeDeleted = false) {
+    const query = Tenant.query().where('id', id)
+    if (!includeDeleted) query.whereNull('deleted_at')
+    return query.first()
   }
+
+  // findByIdOrFail, findByDomain, all, whereIn, each, create — and the optional
+  // countByStatus, which keeps /metrics O(1) instead of loading every tenant.
 }
 ```
+
+Nothing to do here unless your tenants table differs from the one the migration
+created. If it does, rewrite the queries and keep the method names: the package
+calls them by name. The full contract is in
+[Installation](/start/installation#_4-the-tenant-repository).
 
 ## 5. Create your first tenant
 

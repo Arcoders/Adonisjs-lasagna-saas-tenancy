@@ -2,7 +2,7 @@
  * Pure, app-free SSO helpers: no Redis, no network, no decorated models, so
  * they unit-test without a booted app. `sso_service.ts` delegates to these.
  * Keeping them in their own module is what lets a test import them in
- * isolation — importing the service itself pulls in the Redis service
+ * isolation. Importing the service itself pulls in the Redis service
  * singleton, which requires an Ignitor.
  */
 

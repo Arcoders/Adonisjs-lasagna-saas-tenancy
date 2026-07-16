@@ -1,4 +1,4 @@
-import { assertContractCompat } from '../sdk/contract_version.js'
+import ExtensionRegistry from './extension_registry.js'
 import type { AuditActorType } from '../models/satellites/tenant_audit_log.js'
 
 /**
@@ -45,46 +45,27 @@ export interface AuditLogDestination {
  * `MultitenancyProvider`; the host registers destinations in its provider
  * `boot()`. Map-backed (stateful): resolve via `container.make`, never `new`.
  *
- * Empty by default — the DB table writer is the only destination and behavior is
+ * Empty by default. The DB table writer is the only destination and behavior is
  * unchanged.
  */
-export default class AuditLogDestinationRegistry {
-  readonly #destinations = new Map<string, AuditLogDestination>()
+export default class AuditLogDestinationRegistry extends ExtensionRegistry<
+  string,
+  AuditLogDestination
+> {
+  protected readonly surfaceLabel = 'audit destination'
 
-  /** The destination-contract version this surface implements. */
-  get contractVersion(): number {
+  protected override get surfaceContractVersion(): number {
     return AUDIT_CONTRACT_VERSION
   }
 
   register(destination: AuditLogDestination): this {
-    if (!destination.name || typeof destination.name !== 'string') {
-      throw new Error('AuditLogDestinationRegistry: a destination must have a non-empty name.')
-    }
-    if (this.#destinations.has(destination.name)) {
-      throw new Error(
-        `AuditLogDestinationRegistry: a destination named "${destination.name}" is already registered.`
-      )
-    }
-    assertContractCompat(
-      destination.contractVersion,
-      AUDIT_CONTRACT_VERSION,
-      `audit destination "${destination.name}"`
-    )
-    this.#destinations.set(destination.name, destination)
+    const name = this.assertRegistrable(destination)
+    this.entries.set(name, destination)
     return this
   }
 
   /** Registered destinations, in registration order. */
   list(): readonly AuditLogDestination[] {
-    return [...this.#destinations.values()]
-  }
-
-  has(name: string): boolean {
-    return this.#destinations.has(name)
-  }
-
-  clear(): this {
-    this.#destinations.clear()
-    return this
+    return [...this.entries.values()]
   }
 }

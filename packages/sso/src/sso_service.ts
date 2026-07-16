@@ -98,14 +98,14 @@ function defaultDeps(): SsoServiceDeps {
       // allowLoopback is derived from the TARGET, not hardcoded true. It is enabled
       // only when the target hostname is ITSELF loopback (an in-process test IdP on
       // 127.0.0.1). A public hostname that resolves to loopback via DNS rebinding is
-      // then rejected by safeFetch's own pin instead of being trusted — the previous
+      // then rejected by safeFetch's own pin instead of being trusted. The previous
       // unconditional `allowLoopback: true` disabled that pin for the token POST,
       // which carries the decrypted OIDC client_secret. Production issuers are never
       // loopback (the SsoController rejects a loopback issuerUrl from admin input),
       // and discovery already range-checks token_endpoint/jwks_uri via
       // validateResolvedHostIsPublic, so this only affects the rebind edge.
       const target = String(input)
-      const { safeFetch } = await import('@adonisjs-lasagna/saas-tenancy')
+      const { safeFetch } = await import('@adonisjs-lasagna/saas-tenancy/safe-fetch')
       const method = init?.method
       const headers = init?.headers as Record<string, string> | undefined
       const body = init?.body as string | URLSearchParams | undefined
@@ -131,7 +131,8 @@ function defaultDeps(): SsoServiceDeps {
       return TenantSsoConfig.updateOrCreate({ tenantId }, attrs)
     },
     async validateHostIsPublic(url) {
-      const { validateResolvedHostIsPublic } = await import('@adonisjs-lasagna/saas-tenancy')
+      const { validateResolvedHostIsPublic } =
+        await import('@adonisjs-lasagna/saas-tenancy/internal')
       return validateResolvedHostIsPublic(url)
     },
     async encryptSecret(value) {
@@ -165,7 +166,7 @@ export default class SsoService {
   readonly #deps: SsoServiceDeps
 
   /**
-   * SsoService IS the built-in `oidc` identity provider — it satisfies
+   * SsoService IS the built-in `oidc` identity provider. It satisfies
    * {@link IdentityProviderContract}. `name`/`contractVersion` let it be
    * introspected like any host driver; alternates live on
    * `identityProviderRegistry`.
@@ -222,7 +223,7 @@ export default class SsoService {
 
   async buildAuthUrl(config: TenantSsoConfig): Promise<string> {
     // Pluggable providers: a non-oidc tenant config delegates to a host driver
-    // that owns its own flow end to end. Dormant by default — `upsertConfig`
+    // that owns its own flow end to end. Dormant by default. `upsertConfig`
     // always writes `provider: 'oidc'`, so the OIDC path below is unchanged.
     const provider = config.provider ?? 'oidc'
     if (provider !== 'oidc') {
@@ -263,7 +264,7 @@ export default class SsoService {
   ): Promise<{ tenantId: string; claims: IdTokenClaims }> {
     // Atomic GETDEL: Redis returns the value AND removes the key in a
     // single command. Without this, a TOCTOU between GET and DEL would
-    // let two concurrent callbacks with the same `state` both pass —
+    // let two concurrent callbacks with the same `state` both pass,
     // a CSRF/replay vector in OIDC. Requires Redis >= 6.2.
     const raw = await this.#deps.redis.getdel(`sso:state:${state}`)
     if (!raw) throw new Error('Invalid or expired SSO state')
@@ -279,7 +280,7 @@ export default class SsoService {
     const { tenantId, nonce } = parsed
 
     // Defense in depth: this method is the built-in OIDC driver's callback and
-    // only ever processes states it wrote (always `provider: 'oidc'`; absent ⇒
+    // only ever processes states it wrote (always `provider: 'oidc'`; absent means
     // a pre-versioning OIDC state). A state tagged for another provider belongs
     // to that driver's own callback and must not be replayed through OIDC here.
     if (parsed.provider && parsed.provider !== 'oidc') {
@@ -341,7 +342,7 @@ export default class SsoService {
    * separately because jose's `jwtVerify` doesn't know about OIDC nonce.
    *
    * Resolves `jose` through the injectable seam (default: a dynamic import) so
-   * apps that don't use SSO never pay the dependency cost — the optional peer is
+   * apps that don't use SSO never pay the dependency cost. The optional peer is
    * only required when this path runs.
    */
   async #verifyIdToken(opts: {
@@ -417,7 +418,7 @@ export default class SsoService {
         // discovery doc MUST match the URL used to fetch it (modulo a trailing
         // slash). Without this check, an attacker who compromises the discovery
         // host can substitute any iss value and still pass
-        // jose.jwtVerify({ issuer: discovery.issuer }) — turning the signature
+        // jose.jwtVerify({ issuer: discovery.issuer }), turning the signature
         // check into a self-consistency check rather than a trust check anchored
         // at admin-configured input.
         const declaredIssuer = doc.issuer.replace(/\/$/, '')
@@ -434,7 +435,7 @@ export default class SsoService {
         // server-side by handleCallback() and #verifyIdToken(), so apply the
         // same SSRF guard the admin controller applies to the issuer URL itself.
         //
-        // Skip when the issuer itself is loopback — if you've already opted into
+        // Skip when the issuer itself is loopback: if you've already opted into
         // an in-process IdP (typically only test fixtures do), enforcing
         // public-https on its endpoints would just block the test without
         // changing the threat model. The SsoController never accepts a loopback

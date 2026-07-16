@@ -16,7 +16,7 @@ const replicaLagCheck: DoctorCheck = {
     const cfg = getConfig()
     const replicas = cfg.tenantReadReplicas
     if (!replicas || replicas.hosts.length === 0) {
-      // No replicas configured — nothing to check; not an issue.
+      // No replicas configured, nothing to check; not an issue.
       return []
     }
 
@@ -66,7 +66,7 @@ const replicaLagCheck: DoctorCheck = {
         const conn = db.connection(probeName)
         const result = await conn.rawQuery(
           // CASE handles a primary that has never seen a replay (returns NULL).
-          // We cap NULL → 0 so we can tell "primary mistakenly registered" apart
+          // We cap NULL to 0 so we can tell "primary mistakenly registered" apart
           // from "real lag", but still emit a separate signal below.
           `SELECT
              pg_is_in_recovery() AS is_replica,
@@ -102,7 +102,7 @@ const replicaLagCheck: DoctorCheck = {
           })
         }
       } catch (error: any) {
-        // We deliberately drop the raw error message — pg-driver errors
+        // We deliberately drop the raw error message. pg-driver errors
         // can include credentials (`password=…`, full DSN) and we don't
         // want those landing in `--json` doctor output, log shippers, or
         // the /admin/multitenancy/health/report response.

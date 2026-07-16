@@ -10,7 +10,7 @@ import { repoRoot } from '../../../../satellite-test-kit/src/repo_root.js'
  * The "registered" set is the source of truth that ace itself reads: each
  * package's `src/commands/commands.json` manifest (the same file copied into
  * `build/` and loaded by the kernel). The "documented" set is the raw markdown
- * of docs/reference/commands.md — a command counts as documented when its exact
+ * of docs/reference/commands.md. A command counts as documented when its exact
  * `commandName` appears anywhere on the page (it's always inside an inline-code
  * span, e.g. `tenant:create <name> <email>`).
  *
@@ -25,7 +25,7 @@ const COMMANDS_DOC = join(REPO_ROOT, 'docs', 'reference', 'commands.md')
 
 /**
  * Commands intentionally absent from the public CLI reference. Keep this list
- * short and justified — it is the live debt ledger, not a dumping ground.
+ * short and justified. It is the live debt ledger, not a dumping ground.
  */
 const ALLOWED_UNDOCUMENTED = new Set<string>([
   // The satellite template ships a teaching-only example command; it is

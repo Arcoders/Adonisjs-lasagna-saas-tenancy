@@ -20,10 +20,13 @@ const stages: Stage[] = [
   { title: 'TenantAdapter', sub: 'picks the connection' },
 ]
 
+// All four shipped drivers. `sqlite-memory` is testing-only and says so, rather
+// than being omitted: the hero advertises four, so this must show four.
 const drivers = [
   { name: 'schema-pg', target: 'tenant_<uuid> schema' },
   { name: 'database-pg', target: 'tenant database' },
   { name: 'rowscope-pg', target: 'shared schema + tenant_id' },
+  { name: 'sqlite-memory', target: 'in-process, tests only' },
 ]
 </script>
 
@@ -32,7 +35,7 @@ const drivers = [
     <div class="ha__inner">
       <header class="ha__head">
         <p class="ha__eyebrow">How it works</p>
-        <h2 class="ha__title">From request to the right schema</h2>
+        <h2 class="ha__title">From request to the right connection</h2>
         <p class="ha__lede">
           Every request is resolved to a tenant once, then the active isolation
           driver decides which connection serves the query. Your code only ever
@@ -180,9 +183,16 @@ const drivers = [
   padding: 0;
   list-style: none;
 }
+/* Four drivers: two-up on tablets, four-up once there is room, so the fourth
+   never strands itself on a row of its own. */
 @media (min-width: 720px) {
   .ha__drivers {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 980px) {
+  .ha__drivers {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 .ha__driver {

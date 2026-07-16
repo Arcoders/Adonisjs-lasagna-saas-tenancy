@@ -15,7 +15,7 @@ import type Stripe from 'stripe'
 
 /**
  * `tenant:billing:sync` paginates Stripe.subscriptions.list and reapplies
- * `BillingService.syncSubscription` for every drift. Idempotent — on a
+ * `BillingService.syncSubscription` for every drift. Idempotent: on a
  * clean state it scans + reports zero repaired.
  *
  * We avoid running the actual ace command bin path (the harness already
@@ -60,12 +60,14 @@ test.group('tenant:billing:sync (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
 
     const subId = `sub_${randomUUID().slice(0, 8)}`
     const sub = new BillingSubscription()
+    sub.provider = 'stripe'
     sub.providerSubscriptionId = subId
     sub.tenantId = tenant.id
     sub.status = 'active'
@@ -130,6 +132,7 @@ test.group('tenant:billing:sync (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
@@ -137,6 +140,7 @@ test.group('tenant:billing:sync (integration)', (group) => {
     // Both sides agree on "active".
     const subId = `sub_${randomUUID().slice(0, 8)}`
     const local = new BillingSubscription()
+    local.provider = 'stripe'
     local.providerSubscriptionId = subId
     local.tenantId = tenant.id
     local.status = 'active'
@@ -192,6 +196,7 @@ test.group('tenant:billing:sync (integration)', (group) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()
@@ -228,6 +233,7 @@ test.group('tenant:billing:sync (integration)', (group) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()
@@ -255,12 +261,13 @@ test.group('tenant:billing:sync (integration)', (group) => {
     assert,
   }) => {
     // A custom driver that cannot enumerate subscriptions. The forward pass
-    // (provider → mirror) must be skipped with a warning rather than crashing,
-    // while the driver-neutral reverse pass (orphaned plans → defaultPlan)
+    // (provider to mirror) must be skipped with a warning rather than crashing,
+    // while the driver-neutral reverse pass (orphaned plans to defaultPlan)
     // still recovers drift.
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()
@@ -313,6 +320,7 @@ test.group('tenant:billing:sync (integration)', (group) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()

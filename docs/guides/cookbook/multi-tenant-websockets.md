@@ -19,8 +19,14 @@ with the same isolation guarantees as the rest of the package:
 
 ## Install
 
+<Callout type="warning" title="Not published to npm">
+`@adonisjs-lasagna/websockets` lives in the Lasagna repository and is not
+published. Vendor `packages/websockets` into your app, or depend on it through a
+git reference. See the [WebSockets satellite](/guides/satellites/websockets).
+</Callout>
+
 ```sh
-npm install @adonisjs-lasagna/websockets socket.io
+npm install socket.io
 node ace configure @adonisjs-lasagna/websockets
 ```
 

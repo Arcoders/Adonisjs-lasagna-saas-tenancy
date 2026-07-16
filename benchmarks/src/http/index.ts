@@ -1,5 +1,5 @@
 /**
- * Tier 3 — HTTP end-to-end. Self-contained: seed the active driver in-process,
+ * Tier 3: HTTP end-to-end. Self-contained: seed the active driver in-process,
  * spawn the fixture HTTP server as a child (warming it before measuring), run
  * the autocannon scenarios, then tear the server down.
  *
@@ -53,7 +53,7 @@ try {
 }
 
 // 2) Spawn the HTTP server child with the same driver + DB env. The seed app
-// registered the tenant connections in ITS manager, then exited — so hand the
+// registered the tenant connections in ITS manager, then exited, so hand the
 // child the seeded ids via BENCH_WARM_TENANT_IDS and let its provider's ready()
 // hook re-register them in the serving process (otherwise every tenant route 500s).
 const server = spawn(process.execPath, ['--import', 'tsx', SERVER_ENTRY], {

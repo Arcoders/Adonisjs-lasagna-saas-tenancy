@@ -11,11 +11,11 @@ import { createTestTenant, destroyTestTenant, updateTenantStatus } from '../../.
  * each one is pinned over real HTTP against the fixture's guarded
  * /tenant/ping route:
  *
- *   - suspended            → 403 E_TENANT_SUSPENDED
- *   - soft-deleted         → 403 E_TENANT_SUSPENDED (same path, no enumeration)
- *   - provisioning         → 503 E_TENANT_NOT_READY (the provision-to-active race)
- *   - maintenance flag on  → 503 E_TENANT_MAINTENANCE
- *   - circuit breaker OPEN → 503 E_CIRCUIT_OPEN, and 200 again after reset
+ *   - suspended: 403 E_TENANT_SUSPENDED
+ *   - soft-deleted: 403 E_TENANT_SUSPENDED (same path, no enumeration)
+ *   - provisioning: 503 E_TENANT_NOT_READY (the provision-to-active race)
+ *   - maintenance flag on: 503 E_TENANT_MAINTENANCE
+ *   - circuit breaker OPEN: 503 E_CIRCUIT_OPEN, and 200 again after reset
  */
 test.group('Tenant lifecycle state → typed HTTP responses (integration)', (group) => {
   const cleanupIds: string[] = []

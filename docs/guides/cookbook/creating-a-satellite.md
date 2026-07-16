@@ -210,9 +210,40 @@ export default class extends BaseSchema {
 }
 ```
 
-The `${Date.now()}` prefix in the `exports` header is what makes publishing
-idempotent: the configure command skips a stub whose table is already present in
-the host's migrations directory, so re-running it never writes a duplicate.
+Publishing is idempotent: the configure command matches your stub's *name* against
+the host's migrations directory and skips one it already wrote, so re-running it
+never emits a duplicate. The `${Date.now()}` prefix in the `exports` header is only
+a placeholder. The toolkit owns the final filename and re-stamps it on the way out.
+
+### Migrations that depend on each other
+
+`migration:run` runs migrations in filename order, so the timestamp prefix decides
+which of your tables exists when. Two stubs published in the same millisecond tie on
+that timestamp, and a tie falls back to alphabetical order, which has nothing to do
+with your foreign keys.
+
+So the toolkit publishes your stubs in `readdir().sort()` order and re-stamps them
+into that order. Number a stub whenever its migration needs another of yours to have
+run first:
+
+```
+stubs/migrations/
+  0001_create_crm_accounts_table.stub
+  0002_create_crm_contacts_table.stub     # FK -> crm_accounts
+  0003_add_status_to_crm_contacts.stub    # ALTER crm_contacts
+```
+
+The `NNNN_` prefix orders the files on disk and stops there. It never reaches the
+host, and it is not part of the migration's identity, so numbering a stub you have
+already shipped does not republish it for hosts that ran it under the old name.
+
+<Callout type="warning">
+A directory with two or more stubs must number **all** of them. One unnumbered stub
+among numbered siblings jumps to the front of the sort, because digits sort before
+letters. The `check-migration-order` CI guard enforces this, and also reads the
+`createTable` / `alterTable` / `inTable` / raw `ALTER TABLE` statements in your stubs
+to prove the order you declared actually satisfies them.
+</Callout>
 
 ## The configure hook
 

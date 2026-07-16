@@ -22,8 +22,8 @@ import type {
  *
  * `resolution_safety.ts` is deliberately NOT a separate entry: it is a pure
  * detector (it returns findings, dispatches nothing), single-sourced and
- * pinned by its own spec. Its enforcement point — the production hard-fail in
- * `assertConfigBounds` — is what rejects, so that is what the registry names
+ * pinned by its own spec. Its enforcement point, the production hard-fail in
+ * `assertConfigBounds`, is what rejects, so that is what the registry names
  * (`guard.resolution_safety`).
  */
 
@@ -32,7 +32,7 @@ type IsoDate = `${number}-${number}-${number}`
 
 /**
  * Event taxonomy: `isthmus:<pillar>:<class>:<outcome>` for every new event.
- * The one grandfathered name is `scope:bypass` — it shipped before the
+ * The one grandfathered name is `scope:bypass`: it shipped before the
  * taxonomy (see SCOPE_BYPASS_ACTION in models/scope_bypass_audit.ts) and
  * renaming a public event would break subscribed hosts.
  */
@@ -71,9 +71,9 @@ export const ISTHMUS_REGISTRY = [
       kind: 'inherent-risk',
       ref: 'tenant ids are interpolated into quoted PG DDL (CREATE SCHEMA/DROP DATABASE) and Redis key segments; a homoglyph or quote reaches raw SQL',
     },
-    guardFile: 'src/services/isolation/identifier.ts',
-    reviewed: '2026-07-02',
-    nextReview: '2027-01-02',
+    guardFile: 'src/isthmus/guarded_identifier.ts',
+    reviewed: '2026-07-13',
+    nextReview: '2027-01-13',
   },
   {
     id: 'guard.plugin_authorizer',
@@ -348,7 +348,7 @@ export const ISTHMUS_REGISTRY = [
     nextReview: '2027-01-02',
   },
   {
-    id: 'seal.connection_search_path',
+    id: 'seal.connection_identity',
     pillar: 'seal',
     bugClass: 'cross-tenant-connection',
     failMode: 'closed',
@@ -357,11 +357,11 @@ export const ISTHMUS_REGISTRY = [
     severity: 'critical',
     evidence: {
       kind: 'inherent-risk',
-      ref: 'a name collision or stale registration would serve a connection pinned to another tenant schema — a silent cross-tenant leak',
+      ref: 'a name collision or stale registration would serve a cached connection pinned to another tenant (schema-pg checks searchPath, database-pg checks the database) — a silent cross-tenant leak',
     },
-    guardFile: 'src/services/isolation/schema_pg_driver.ts',
-    reviewed: '2026-07-02',
-    nextReview: '2027-01-02',
+    guardFile: 'src/services/isolation/connection_identity_seal.ts',
+    reviewed: '2026-07-12',
+    nextReview: '2027-01-12',
   },
   {
     id: 'seal.scope_required',
@@ -407,9 +407,9 @@ export const ISTHMUS_REGISTRY = [
       kind: 'invariant',
       ref: 'I1: never route tenant A queries under tenant B context — when the tenancy scope and the request resolve different tenants, refuse to route',
     },
-    guardFile: 'src/models/adapters/tenant_adapter.ts',
-    reviewed: '2026-07-02',
-    nextReview: '2027-01-02',
+    guardFile: 'src/services/tenant_context_resolver.ts',
+    reviewed: '2026-07-13',
+    nextReview: '2027-01-13',
   },
   {
     id: 'audit.scope_bypass',
@@ -429,7 +429,7 @@ export const ISTHMUS_REGISTRY = [
   },
 ] as const satisfies readonly IsthmusRegistryEntryShape[]
 
-/** Compile-time id union — emitIsthmusEvent(id) cannot reference an unregistered guard. */
+/** Compile-time id union: emitIsthmusEvent(id) cannot reference an unregistered guard. */
 export type IsthmusGuardId = (typeof ISTHMUS_REGISTRY)[number]['id']
 export type IsthmusRegistryEntry = (typeof ISTHMUS_REGISTRY)[number]
 

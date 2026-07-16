@@ -6,7 +6,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 /**
  * Exercises the shipped in-memory MockBillingDriver end to end. It's re-exported
  * from the package index (so it loads during the integration run) but nothing
- * else calls its methods there — driving it here keeps the test double itself
+ * else calls its methods there. Driving it here keeps the test double itself
  * covered by the aggregate report, and double-checks the contract it advertises.
  */
 const tenant = {

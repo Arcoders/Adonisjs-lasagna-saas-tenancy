@@ -16,15 +16,15 @@ const DEFAULT_FLUSH_MS = 10_000
  * (tenant, meter) and flushes a single `ReportUsageBatchJob` per bucket
  * every `batchFlushMs` (default 10s).
  *
- * Why batched: on a high-traffic tenant, `track` may fire 1000s of times/s
- * — synchronously hitting Stripe's meter API would saturate rate limits
+ * Why batched: on a high-traffic tenant, `track` may fire 1000s of times/s.
+ * Synchronously hitting Stripe's meter API would saturate rate limits
  * within seconds. Aggregating in-memory and flushing per bucket keeps us
  * comfortably below the 100-events/s default.
  *
  * Why in-memory (not Redis): the worst-case loss on a process crash is
  * one bucket's worth (~10s) of usage data. The DB row in
  * `billing_usage_events` lands ONLY after the flush succeeds, so we never
- * "report and lose audit" — we either lose both or persist both. For
+ * "report and lose audit": we either lose both or persist both. For
  * higher durability needs, a v1.1 enhancement would buffer to a Redis
  * sorted-set that workers atomically drain.
  *
@@ -55,7 +55,7 @@ export default class UsageAutoBridgeListener {
         quantity: event.amount,
       })
       // Schedule the flush. If a timer already exists for this key
-      // (rare race), do not replace it — it'll flush on its existing
+      // (rare race), do not replace it. It'll flush on its existing
       // schedule and pick up everything we just accumulated.
       const flushMs = mapping.batchFlushMs ?? DEFAULT_FLUSH_MS
       const timer = setTimeout(() => this.flush(key), flushMs)
@@ -83,7 +83,7 @@ export default class UsageAutoBridgeListener {
       // Stamp a STABLE, UNIQUE-per-flush idempotency key at dispatch time. This
       // is the fix for two metering-integrity bugs:
       //  - under-reporting: a wall-clock minute bucket made every flush within
-      //    the same minute (default flush is 10s → up to 6/min) collapse onto
+      //    the same minute (default flush is 10s, so up to 6/min) collapse onto
       //    ONE key, so the provider deduped 5 of every 6 batches away. A unique
       //    key per flush makes each batch count.
       //  - double-billing: deriving the key from Date.now() at JOB-EXECUTION time

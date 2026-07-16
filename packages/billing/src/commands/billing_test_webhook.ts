@@ -37,8 +37,8 @@ const TEMPLATES: Record<string, () => Record<string, unknown>> = {
 
 /**
  * Generate and POST a signed synthetic Stripe event to the local webhook.
- * Invaluable in CI / debugging — exercises the full middleware → controller
- * → job pipeline without going through `stripe listen`.
+ * Invaluable in CI / debugging: it exercises the full middleware, controller,
+ * and job pipeline without going through `stripe listen`.
  *
  *   node ace tenant:billing:test-webhook customer.subscription.created
  *

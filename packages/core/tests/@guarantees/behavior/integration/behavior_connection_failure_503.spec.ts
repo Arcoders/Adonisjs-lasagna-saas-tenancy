@@ -8,7 +8,7 @@ import TenantRepository from '../../../fixtures/app/repositories/tenant_reposito
 
 /**
  * A tenant backend outage must surface as a clean 503 `E_DEPENDENCY_UNAVAILABLE`
- * on the request path — not a raw 500, and (for the universal route) not a silent
+ * on the request path, not a raw 500, and (for the universal route) not a silent
  * degrade to central mode that would serve a tenant-targeted request without its
  * own data context. Two outage shapes are covered:
  *
@@ -40,7 +40,7 @@ test.group('Tenant backend outage → 503 fail-closed (integration)', (group) =>
   /**
    * Run `fn` with TENANT_REPOSITORY bound to a repository whose lookups throw,
    * then restore the fixture's original transient factory (a fresh instance per
-   * make, matching fixture_provider.ts) — not a captured singleton.
+   * make, matching fixture_provider.ts), not a captured singleton.
    */
   async function withThrowingRepository(fn: () => Promise<void>): Promise<void> {
     app.container.bind(TENANT_REPOSITORY as any, () => ({

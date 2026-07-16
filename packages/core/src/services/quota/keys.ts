@@ -2,8 +2,8 @@ import { DateTime } from 'luxon'
 
 /**
  * Pure Redis key builders + the atomic consume script for {@link QuotaService}.
- * Extracted so the key formats — which `reset()` depends on via a wildcard
- * `SCAN quota:<id>:*` and which the consume/getUsage round-trip must agree on —
+ * Extracted so the key formats (which `reset()` depends on via a wildcard
+ * `SCAN quota:<id>:*` and which the consume/getUsage round-trip must agree on)
  * are directly unit-testable and can never silently drift.
  */
 
@@ -16,9 +16,9 @@ export const ROLLING_TTL_SECONDS = 60 * 60 * 48
  *   ARGV[1] = limit (integer; caller guarantees finite)
  *   ARGV[2] = amount to increment by
  *   ARGV[3] = TTL seconds
- * Returns `{allowed, value}`: `allowed=1` → incremented, `value` is the new
- * total; `allowed=0` → would exceed, `value` is the unchanged pre-increment
- * counter.
+ * Returns `{allowed, value}`: `allowed=1` means incremented and `value` is the new
+ * total; `allowed=0` means it would exceed and `value` is the unchanged
+ * pre-increment counter.
  */
 export const QUOTA_CONSUME_LUA = `
 local current = tonumber(redis.call('GET', KEYS[1]) or '0')
@@ -61,7 +61,7 @@ export function snapshotKey(tenantId: string, quota: string): string {
 /**
  * Wildcard matching every quota key owned by one tenant (rolling counters,
  * snapshots, reservation holds, amounts). `reset()` SCANs this to drop a tenant's
- * state. Tenant-scoped by construction — it embeds `tenantId`, so it can never
+ * state. Tenant-scoped by construction: it embeds `tenantId`, so it can never
  * match the shared `quota:op:*` operator-ceiling keys.
  */
 export function tenantKeyPattern(tenantId: string): string {
@@ -69,7 +69,7 @@ export function tenantKeyPattern(tenantId: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Reservation holds (reserve/settle/release) — the AI-streaming cost seam.
+// Reservation holds (reserve/settle/release): the AI-streaming cost seam.
 //
 // A reservation HOLDS a worst-case amount against the budget BEFORE a streaming
 // provider call, then settles the actual usage as it arrives and releases the
@@ -139,7 +139,7 @@ export function opAmtKey(day: string, quota: string): string {
  *   ARGV[1] tenant limit (-1 = unlimited)   ARGV[2] op limit (-1 = disabled)
  *   ARGV[3] worstCase (>0)   ARGV[4] holdId   ARGV[5] now(ms)
  *   ARGV[6] reservationTtl(ms)   ARGV[7] containerTtl(ms)
- *   -> {1, tEff, oEff} placed | {0, tEff, oEff, 't'|'g'} refused | {-1} duplicate id
+ *   returns {1, tEff, oEff} placed | {0, tEff, oEff, 't'|'g'} refused | {-1} duplicate id
  */
 export const QUOTA_RESERVE_LUA = `
 local tLimit = tonumber(ARGV[1])
@@ -217,7 +217,7 @@ return {1, tEff + worst, oEff + worst}
  *   KEYS[4] op committed       KEYS[5] op holds       KEYS[6] op amt
  *   ARGV[1] cumulativeUsed   ARGV[2] now(ms)   ARGV[3] reservationTtl(ms)
  *   ARGV[4] committedTtl(sec)   ARGV[5] opEnabled(1|0)   ARGV[6] holdId
- *   -> {delta, newSettled, worst} | {-1, 0, 0} if the hold is gone
+ *   returns {delta, newSettled, worst} | {-1, 0, 0} if the hold is gone
  */
 export const QUOTA_SETTLE_LUA = `
 local used   = tonumber(ARGV[1]) or 0
@@ -273,7 +273,7 @@ return {delta, used, worst}
  *   KEYS[1] tenant holds   KEYS[2] tenant amt
  *   KEYS[3] op holds       KEYS[4] op amt
  *   ARGV[1] holdId   ARGV[2] opEnabled(1|0)
- *   -> {freed}
+ *   returns {freed}
  */
 export const QUOTA_RELEASE_LUA = `
 local holdId = ARGV[1]

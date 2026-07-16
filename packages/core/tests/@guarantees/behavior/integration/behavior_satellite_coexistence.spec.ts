@@ -115,7 +115,7 @@ test.group('Satellite coexistence (integration)', (group) => {
   })
 
   group.each.teardown(async () => {
-    // tenant_plans + stripe_* hold FK refs to tenants — clear them before the
+    // tenant_plans + stripe_* hold FK refs to tenants, so clear them before the
     // tenant rows go.
     await clearBillingTables()
     while (tenants.length) await cleanupTenant(tenants.pop()!)
@@ -145,7 +145,7 @@ test.group('Satellite coexistence (integration)', (group) => {
     // quotas
     const quota = await app.container.make(QuotaService)
     await quota.assignPlan(t.id, 'pro')
-    // billing (MockStripe — auto-creates the Stripe customer mirror)
+    // billing (MockStripe auto-creates the Stripe customer mirror)
     const billing = await app.container.make(BillingService)
     await billing.__setStripeForTests(new MockStripe('whsec_test_billing_helper'))
     await billing.createCheckoutSession(asTenant(t), {

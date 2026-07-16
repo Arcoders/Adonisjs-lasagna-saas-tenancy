@@ -3,11 +3,11 @@ import db from '@adonisjs/lucid/services/db'
 import { createInstalledTenant, dropAllTenants } from '../_helpers.js'
 
 /**
- * WS-AI-8 / 3D — a poisoned RAG document cannot cross a tenant boundary or drive a
- * cross-tenant action. Tenant A ingests a document whose CONTENT is an injection;
+ * A poisoned RAG document cannot cross a tenant boundary or drive a cross-tenant
+ * action. Tenant A ingests a document whose CONTENT is an injection;
  * A's retrieval surfaces it (its own corpus), a chat-with-retrieve as A still
- * streams a normal 200 (the retrieved text is fenced as user-role DATA, #10/I4),
- * and tenant B — retrieving and chatting normally — never sees A's poisoned row.
+ * streams a normal 200 (the retrieved text is fenced as user-role DATA),
+ * and tenant B, retrieving and chatting normally, never sees A's poisoned row.
  * The role-fence itself is pinned unit-side (security_chat_rag_context_integrity);
  * this proves the isolation holds end to end. Self-skips without pgvector.
  */

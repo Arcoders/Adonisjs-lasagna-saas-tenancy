@@ -43,8 +43,8 @@ export default class TenantRepository implements TenantRepositoryContract {
   }
 
   /**
-   * Counts grouped by status, computed in the database — at most one row per
-   * status, never the full table. The package's `/metrics` collector prefers
+   * Counts grouped by status, computed in the database (at most one row per
+   * status, never the full table). The package's `/metrics` collector prefers
    * this over `all()` so a Prometheus scrape stays O(1) regardless of how many
    * tenants exist.
    */
@@ -82,7 +82,7 @@ export default class TenantRepository implements TenantRepositoryContract {
       }
       if (batch.length < batchSize) break
       // The break above returns on any short batch, so reaching here proves
-      // `batch` holds exactly `batchSize` (>= 1) rows — the last one exists.
+      // `batch` holds exactly `batchSize` (>= 1) rows: the last one exists.
       lastId = batch[batch.length - 1]!.id
     }
   }

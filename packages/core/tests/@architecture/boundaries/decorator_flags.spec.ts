@@ -31,7 +31,7 @@ function effectiveCompilerOptions(configPath: string): Record<string, any> {
 }
 
 // Configs that compile (or typecheck) Lucid models and MUST resolve both flags.
-// Includes the tsconfig.build.json variants — those are what `npm run build`
+// Includes the tsconfig.build.json variants. Those are what `npm run build`
 // actually invokes, and they extend the PACKAGE config, not root directly.
 const MUST_HAVE_DECORATORS = [
   'packages/core/tsconfig.json',
@@ -43,7 +43,7 @@ const MUST_HAVE_DECORATORS = [
   'packages/backup/tsconfig.json',
   'packages/satellite-template/tsconfig.json',
   'packages/satellite-test-kit/tsconfig.json',
-  // Standalone (do NOT extend root) — they keep their own copy of the flags.
+  // Standalone (do NOT extend root). They keep their own copy of the flags.
   'examples/api/tsconfig.json',
   'benchmarks/tsconfig.json',
 ]

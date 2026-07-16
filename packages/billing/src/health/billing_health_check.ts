@@ -15,13 +15,13 @@ const STALE_PROCESSING_WARN_MIN = 5
 const STALE_PROCESSING_FAIL_MIN = 15
 
 /**
- * Health check for the billing satellite. Provider-agnostic — probes the active
+ * Health check for the billing satellite. Provider-agnostic. Probes the active
  * driver via its optional `healthCheck()` and reports:
  *
- *   - `pass` — driver reachable (or no probe available), and (when subs exist)
+ *   - `pass`: driver reachable (or no probe available), and (when subs exist)
  *     a webhook processed within the last 5 minutes.
- *   - `pass` + `degraded` — probe > 3s, OR last processed 5–15 min ago.
- *   - `fail` — driver probe failed, OR last processed > 15 min with active subs.
+ *   - `pass` + `degraded`: probe > 3s, OR last processed 5–15 min ago.
+ *   - `fail`: driver probe failed, OR last processed > 15 min with active subs.
  *
  * Skips quietly (`pass`, `meta.skipped`) when `config.billing` is unset.
  */
@@ -59,7 +59,7 @@ export const billingHealthCheck: HealthCheckFn = async (): Promise<CheckResult> 
     }
   }
 
-  // Webhook freshness — only relevant when there's something to process.
+  // Webhook freshness, only relevant when there's something to process.
   // backoffice-scope-exempt: a fleet-wide health probe counting active subscriptions across ALL tenants to decide whether webhook staleness is worth reporting.
   const activeSubsCount = await BillingSubscription.query()
     .whereIn('status', ['active', 'past_due', 'trialing'])

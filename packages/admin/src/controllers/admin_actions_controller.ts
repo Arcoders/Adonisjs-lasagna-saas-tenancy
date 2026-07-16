@@ -13,7 +13,7 @@ export interface AdminActionsControllerOptions {
 /**
  * Dispatches host-registered {@link AdminAction}s. Mounted behind the admin auth
  * middleware (the whole admin group is fail-closed). An unknown or unsafe
- * `:name` is a 404 — never a registry lookup on untrusted input.
+ * `:name` is a 404, never a registry lookup on untrusted input.
  */
 export default class AdminActionsController {
   constructor(private options: AdminActionsControllerOptions = {}) {}
@@ -30,7 +30,7 @@ export default class AdminActionsController {
 
     // Attribute the invocation of a host-registered action. A custom action can
     // mutate anything, and its effects are opaque to the package, so we record
-    // only WHO ran WHICH action by name — never the request body or the result.
+    // only WHO ran WHICH action by name, never the request body or the result.
     await auditAdminAction(ctx, 'admin:action:dispatch', null, { name })
 
     const ip = typeof ctx.request.ip === 'function' ? ctx.request.ip() : undefined

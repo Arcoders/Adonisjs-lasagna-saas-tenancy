@@ -149,7 +149,7 @@ test.group('rollup_source — chooseAggregateSource (path + chaos)', () => {
     )
   })
   test('18. META: the open-month rule is the deciding factor', ({ assert }) => {
-    // Same inputs as #10, but advance "today" so June is now closed → it flips to
+    // Same inputs as #10, but advance "today" so June is now closed and it flips to
     // rollup. Proves the open-month constraint (not some other rule) gates #10.
     const openMonthInputs: RollupCoverageInput = {
       since: '2026-01-01',

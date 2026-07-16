@@ -1,13 +1,13 @@
 import { getConfig } from '../../config.js'
 import { getActiveDriver } from './active_driver.js'
-import { assertSafeIdentifier } from './identifier.js'
+import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
 import { resolveTenantRepository } from '../resolve_tenant_repository.js'
 import { PGVECTOR_EXTENSION, PGVECTOR_EXTENSION_SCHEMA } from './pgvector.js'
 import type { IsolationDriver } from './driver.js'
 import type { TenantRepositoryContract } from '../../types/contracts.js'
 
 /**
- * pgvector provisioning (SEAM-5). The vector store needs the PostgreSQL `vector`
+ * pgvector provisioning. The vector store needs the PostgreSQL `vector`
  * extension before any embeddings table can declare a `vector(N)` column.
  * `CREATE EXTENSION` requires superuser (or a specifically granted role), so it
  * is treated as an operator/provisioning step run under a PRIVILEGED connection
@@ -41,7 +41,7 @@ const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default
  * default location.
  *
  * Both identifiers are interpolated into DDL (they cannot be bind parameters), so
- * the caller MUST have run {@link assertSafeIdentifier} on them first —
+ * the caller MUST have run {@link assertSafeIdentifier} on them first.
  * {@link provisionExtension} does.
  */
 export async function installExtension(
@@ -66,7 +66,7 @@ export async function installExtension(
 let provisionSeq = 0
 
 /**
- * A PostgreSQL extension a plugin declares its tenants need (SEAM-7). Wired via
+ * A PostgreSQL extension a plugin declares its tenants need. Wired via
  * `definePlugin({ provisionExtensions })`, which registers an `after('provision')`
  * hook that installs it into each newly-provisioned tenant's storage. The name and
  * optional schema are validated as safe DDL identifiers before any `CREATE`.
@@ -116,7 +116,7 @@ export function provisionConnectionName(): string {
   return cfg.isolation?.provisionConnectionName ?? cfg.centralConnectionName
 }
 
-/** Summary of a {@link provisionExtension} run — the vector summary plus the
+/** Summary of a {@link provisionExtension} run: the vector summary plus the
  *  extension name (so a multi-extension caller can tell runs apart). */
 export interface ExtensionProvisionSummary extends VectorProvisionSummary {
   /** The extension this summary is for. */
@@ -124,9 +124,9 @@ export interface ExtensionProvisionSummary extends VectorProvisionSummary {
 }
 
 /**
- * Install a PostgreSQL extension where the active driver stores tenant data
- * (SEAM-7). The generic engine behind {@link provisionVectorExtension}: it
- * validates the identifiers, then dispatches by driver — per tenant database for
+ * Install a PostgreSQL extension where the active driver stores tenant data.
+ * The generic engine behind {@link provisionVectorExtension}: it
+ * validates the identifiers, then dispatches by driver: per tenant database for
  * `database-pg`, once on the shared database for `schema-pg`/`rowscope-pg`, and
  * skipped for `sqlite-memory` / unknown drivers.
  *
@@ -140,7 +140,7 @@ export async function provisionExtension(
   deps: VectorProvisionDeps = {}
 ): Promise<ExtensionProvisionSummary> {
   // Both go into raw DDL (they cannot be bind parameters), so validate BEFORE any
-  // connection work — a hostile/typo'd name fails fast, not mid-DDL.
+  // connection work, so a hostile/typo'd name fails fast, not mid-DDL.
   assertSafeIdentifier(spec.name, 'extension name')
   if (spec.schema !== undefined) assertSafeIdentifier(spec.schema, 'extension schema')
   const name = spec.name
@@ -300,7 +300,7 @@ export async function provisionVectorExtension(
  * schema-only `searchPath`), registers a throwaway Lucid connection, and
  * releases it afterwards, mirroring how `DatabasePgDriver` targets a tenant db.
  * Exported so a plugin's own provisioning path can reuse the privileged-clone
- * machinery (SEAM-7).
+ * machinery.
  */
 export async function withProvisionConnection(
   db: any,

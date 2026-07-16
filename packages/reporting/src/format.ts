@@ -16,7 +16,7 @@ export function isReportFormat(value: unknown): value is ReportFormat {
 }
 
 /**
- * Render a report payload as a human table, JSON, or CSV. Pure — the unit tests
+ * Render a report payload as a human table, JSON, or CSV. Pure. The unit tests
  * pin every branch, including CSV escaping and formula-injection neutralization,
  * so the riskiest output path (untrusted-ish metric names landing in a
  * spreadsheet) is covered.

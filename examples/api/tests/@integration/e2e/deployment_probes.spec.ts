@@ -5,7 +5,7 @@ import { ADMIN_HEADERS } from './_helpers.js'
 // nginx /healthz bypass) all point at these four endpoints, so this spec pins
 // what an orchestrator actually sees from the demo app: statuses, the
 // auto-registered default checks, criticality flags, and the guarantee that
-// probe paths never resolve a tenant (config.ignorePaths) — a probe must not
+// probe paths never resolve a tenant (config.ignorePaths). A probe must not
 // start failing because a caller sent a junk tenant header.
 test.group('e2e — deployment probes', () => {
   test('GET /livez returns 200 without touching dependencies', async ({ client, assert }) => {
@@ -48,7 +48,7 @@ test.group('e2e — deployment probes', () => {
     assert.equal(healthz.body().status, ready.body().status)
   })
 
-  // /metrics is fail-closed in the demo (gated by x-admin-token); a real
+  // /metrics is fail-closed in the demo (gated by the backoffice realm); a real
   // Prometheus scrape job carries the credential as a request header too.
   test('GET /metrics serves Prometheus text exposition', async ({ client, assert }) => {
     const res = await client.get('/metrics').headers(ADMIN_HEADERS)

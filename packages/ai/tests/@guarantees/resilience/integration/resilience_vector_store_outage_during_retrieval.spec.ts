@@ -14,7 +14,7 @@ import MockEmbeddingProvider from '../../../../src/testing/mock_embedding_provid
 import { AI_TOKENS_QUOTA } from '../../../../src/constants.js'
 
 /**
- * WS-AI-8 / 1A — a vector-store outage during retrieval fails CLOSED without
+ * A vector-store outage during retrieval fails CLOSED without
  * leaking a cost reservation. The RetrievalService reserves the worst-case
  * aiTokens on REAL Redis, embeds the query, then searches; when the store search
  * throws (a dropped embeddings connection / a missing table), the read must

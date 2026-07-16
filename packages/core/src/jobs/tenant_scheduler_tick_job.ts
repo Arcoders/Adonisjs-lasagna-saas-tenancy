@@ -14,9 +14,9 @@ interface TenantSchedulerTickPayload {
  * `@adonisjs/queue` scheduler, armed by {@link TenantSchedulerService.start},
  * dispatches this job on the schedule's cadence; the host's `queue:work` worker
  * claims the due schedule atomically, so it is DISPATCHED once per interval across
- * every pod (the tick body itself runs at-least-once — retry / stall recovery).
+ * every pod (the tick body itself runs at-least-once: retry / stall recovery).
  *
- * It does NOT extend `TenantJob` — a tick is not scoped to one tenant; it fans
+ * It does NOT extend `TenantJob`. A tick is not scoped to one tenant; it fans
  * out over every ACTIVE tenant inside `runTick`. Registered on the `@adonisjs/queue`
  * Locator by the provider's `#registerQueueJobs()` (via `jobs/index.ts`).
  */
@@ -26,7 +26,7 @@ export default class TenantSchedulerTickJob extends Job<TenantSchedulerTickPaylo
   // `maxRetries` is set explicitly: the boringnode default is 0, so without it a
   // tick that fails to enumerate tenants (a transient DB blip) would fail
   // PERMANENTLY and skip the whole interval. With it, the worker retries the tick
-  // so that interval's fan-out still happens — the reconciling recovery the docs
+  // so that interval's fan-out still happens, the reconciling recovery the docs
   // promise. Per-tenant dispatch stays fail-open, so a retry only re-runs the
   // enumeration, not already-succeeded per-tenant work (deduped best-effort by
   // the per-tenant jobId within the period).

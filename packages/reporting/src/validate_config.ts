@@ -35,7 +35,7 @@ export interface ReportingConfig {
   /**
    * Execution guards applied to host report extensions (the
    * `GET {prefix}/reports/extension/:name` route and the CLI `--extension` flag).
-   * Both off by default — an unconfigured surface runs extensions unguarded.
+   * Both off by default. An unconfigured surface runs extensions unguarded.
    *
    *  - `timeoutMs`: a RESPONSE deadline. The extension's `AbortSignal` fires at
    *    the deadline; cooperative extensions unwind, others keep running in the
@@ -63,7 +63,7 @@ export function defineReportingConfig(config: ReportingConfig): ReportingConfig 
  * Eager, pure validation of the `reporting` config block so a bad shape fails at
  * boot (in `ReportingProvider.boot`) rather than at the first query. `undefined`
  * passes (the block is optional); only a present-but-wrong shape throws. Kept off
- * the public barrel — an internal seam imported by the provider.
+ * the public barrel: an internal seam imported by the provider.
  */
 export function assertReportingConfig(config: ReportingConfig | undefined): void {
   if (config === undefined || config === null) return

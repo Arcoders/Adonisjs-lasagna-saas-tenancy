@@ -1,6 +1,6 @@
 /**
- * Isolation tier entry. Same shape as http/index.ts (seed in-process → spawn the
- * fixture server → assert), but seeds tenant-identifiable rows and runs the
+ * Isolation tier entry. Same shape as http/index.ts (seed in-process, spawn the
+ * fixture server, then assert), but seeds tenant-identifiable rows and runs the
  * concurrent isolation assertion instead of throughput.
  *
  *   docker compose -f benchmarks/docker-compose.yml up -d
@@ -79,8 +79,8 @@ try {
   // is not a no-op. Do NOT persist that result: a later `bench:check` scans the
   // newest file per suite via latestBySuiteDriver and would fail the gate on this
   // negative control. CI INVERTS this mode's exit code, so the contract is
-  // strict: exit 1 means exactly "the detector caught the planted leak" — and
-  // NOTHING else may exit 1 here, or a degraded/errored run would rubber-stamp
+  // strict: exit 1 means exactly "the detector caught the planted leak". NOTHING
+  // else may exit 1 here, or a degraded/errored run would rubber-stamp
   // the detector. A scenario with zero observed mismatches (e.g. the requests
   // mostly errored, so the content check never ran) is INCONCLUSIVE and exits 0,
   // which the inverted CI step reads as the self-test failing.
@@ -115,7 +115,7 @@ try {
       console.error('ISOLATION CHECK FAILED — cross-tenant data observed.')
       exitCode = 1
     }
-    // An isolation PASS built mostly on errored requests is vacuous — too few
+    // An isolation PASS built mostly on errored requests is vacuous: too few
     // 200s were actually content-checked. Fail rather than certify it.
     const degraded = results.some((r) => r.meta?.errorRateCheck === 'FAIL')
     if (degraded) {

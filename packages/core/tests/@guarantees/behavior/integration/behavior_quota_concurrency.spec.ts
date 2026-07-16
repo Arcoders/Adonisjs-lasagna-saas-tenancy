@@ -15,7 +15,7 @@ function fakeTenant(id: string): TenantModelContract {
  * Proves the documented atomicity guarantee for QuotaService.consume():
  * the check-and-increment is a single Redis EVAL (Lua), so N parallel
  * callers against limit L produce EXACTLY L successes and N-L
- * QuotaExceededException — no race window, no under- or over-grant
+ * QuotaExceededException, with no race window and no under- or over-grant
  * (why.md "Quota atomicity", security.md "Atomic quota enforcement").
  */
 test.group('QuotaService.consume — concurrency (integration)', (group) => {
@@ -64,7 +64,7 @@ test.group('QuotaService.consume — concurrency (integration)', (group) => {
     ).length
     const otherErrors = rejected.length - quotaExceeded
 
-    // Every rejection MUST be a QuotaExceededException — anything else is
+    // Every rejection MUST be a QuotaExceededException. Anything else is
     // an unrelated bug (Redis dropped, dispatch threw, etc.).
     assert.equal(
       otherErrors,

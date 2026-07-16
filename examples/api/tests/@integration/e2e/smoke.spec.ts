@@ -4,7 +4,7 @@ import type { DemoMeta } from '#app/models/backoffice/tenant'
 import { ADMIN_HEADERS } from './_helpers.js'
 
 /**
- * Smoke tests — one assertion per public surface that doesn't require a fully
+ * Smoke tests: one assertion per public surface that doesn't require a fully
  * provisioned tenant in PG. The DB-backed routes (notes, audit, etc.) are
  * exercised by the README's curl recipes, not here.
  */
@@ -49,7 +49,7 @@ test.group('smoke — health endpoints', () => {
   })
 
   // /metrics is fail-closed (it leaks tenant enumeration + KPIs) and the demo
-  // gates it with the same x-admin-token as the admin API.
+  // gates it with the same backoffice bearer as the admin API.
   test('/metrics returns prometheus text exposition', async ({ assert, client }) => {
     const response = await client.get('/metrics').headers(ADMIN_HEADERS)
     response.assertStatus(200)

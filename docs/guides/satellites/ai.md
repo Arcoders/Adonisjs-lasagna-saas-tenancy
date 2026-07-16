@@ -449,14 +449,14 @@ token is HMAC-bound to the tenant **and** the resolved principal
 forged, cross-user or cross-tenant token that does not verify against the *current*
 principal is a 400 `memory_session_invalid`, before any load or persist, so a
 client cannot supply or guess a session to reach another principal's history. The
-token is a bearer credential for that session — treat it like one: a browser client
+token is a bearer credential for that session, so treat it like one: a browser client
 must expose it with `Access-Control-Expose-Headers: X-Ai-Session`, and pairing the
 turn with an `Idempotency-Key` lets a dropped connection replay (and re-learn the
 token) instead of duplicating a turn.
 
 **Memory is data, not instructions.** Prior turns are replayed with their original
 `user` / `assistant` roles, after any leading system prompt, never as a system
-directive — so a poisoned memory turn cannot rewrite the model's instructions
+directive, so a poisoned memory turn cannot rewrite the model's instructions
 (#1, #10). The block is bounded to `maxTurns` exchanges and the char budget left
 under `maxPromptChars` (memory is injected after retrieval, which keeps priority),
 so the assembled prompt never overflows (#2, #8). The oldest exchanges drop first.
@@ -466,7 +466,7 @@ so the assembled prompt never overflows (#2, #8). The oldest exchanges drop firs
 a per-session Redis list, atomically appended so concurrent turns never lose each
 other. A read that cannot decrypt (a store outage, corruption, or an `APP_KEY`
 rotation past the `OLD_APP_KEY` dual-key grace window) degrades to *no* memory and
-the chat proceeds, bounded by the TTL — it never fails an otherwise-serviceable
+the chat proceeds, bounded by the TTL. It never fails an otherwise-serviceable
 request. Persist and rotation failures are surfaced as the `ai_memory_persist_failed`,
 `ai_memory_unreadable` and `ai_memory_decrypt_previous_used` tenant metrics (never
 content). The `ai_memory` doctor check flags an enabled-but-no-principal (inert)

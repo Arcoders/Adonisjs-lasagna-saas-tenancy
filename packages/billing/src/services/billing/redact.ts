@@ -4,7 +4,7 @@ import type { BillingEventType, BillingWebhookEvent } from '../../contracts/type
  * Redaction for the neutral billing event model.
  *
  * Neutral events are built by each driver's mapper from a named allowlist of
- * fields (ids, amounts, timestamps, status, period bounds) — they never carry
+ * fields (ids, amounts, timestamps, status, period bounds): they never carry
  * card data, emails, names, or addresses. The single PII vector is the
  * provider's `raw` payload preserved on subscription events, so
  * `toReplayablePayload` strips exactly that before the event is persisted to the
@@ -67,7 +67,7 @@ export function redactBillingEvent(event: BillingWebhookEvent): RedactedBillingE
  * Build the replayable payload persisted in `billing_processed_events.payload`,
  * so `BillingService.retrieveEvent()` can reconstruct the event when the
  * provider can no longer return it (aged out / a driver without event
- * retrieval). Strips the provider `raw` blob from subscription events — every
+ * retrieval). Strips the provider `raw` blob from subscription events. Every
  * other neutral field is structural and safe.
  */
 export function toReplayablePayload(event: BillingWebhookEvent): Record<string, unknown> {

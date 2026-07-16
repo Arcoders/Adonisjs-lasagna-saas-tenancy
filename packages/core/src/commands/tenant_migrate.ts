@@ -97,8 +97,8 @@ export default class TenantMigrate extends BaseCommand {
   }
 
   /**
-   * Per-tenant migration directories contributed by installed satellites
-   * (SEAM-2). Re-runs `discoverSatellites` (manifests read as JSON, no satellite
+   * Per-tenant migration directories contributed by installed satellites.
+   * Re-runs `discoverSatellites` (manifests read as JSON, no satellite
    * code imported) and resolves each `perTenantMigrations` to an absolute dir, so
    * the drivers fold them into every tenant's run via `extraMigrationPaths`. The
    * dirs are the same for all tenants, so this resolves once before the loop.

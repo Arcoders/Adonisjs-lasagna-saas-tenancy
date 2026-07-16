@@ -16,7 +16,7 @@ export interface MetricsFlushedPayload {
 /**
  * Emitted by the `tenant:metrics:flush` command after BOTH the built-in and custom
  * counters have been flushed to the backoffice tables. Lets read-side caches react
- * to fresh data — the `reporting` satellite optionally subscribes to clear its
+ * to fresh data. The `reporting` satellite optionally subscribes to clear its
  * dashboard cache. Best-effort: a throwing listener never fails the flush.
  */
 export default class MetricsFlushed extends BaseEvent {

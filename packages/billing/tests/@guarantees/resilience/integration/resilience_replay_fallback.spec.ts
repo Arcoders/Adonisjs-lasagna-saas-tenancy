@@ -22,13 +22,13 @@ import {
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**
- * §B1 regression — `BillingService.retrieveEvent()` falls back to the
+ * Regression: `BillingService.retrieveEvent()` falls back to the
  * controller-persisted replayable payload when Stripe can no longer return
  * the event (the `tenant:billing:replay`-of-an-aged-out-event case).
  *
  * The strong assertion: the tenant lands on the MAPPED plan (`pro`), not
  * the `starter` default. A lossy reconstruction (missing `items.price.product`)
- * would silently fall back to defaultPlan — so `pro` proves the rebuilt
+ * would silently fall back to defaultPlan, so `pro` proves the rebuilt
  * event carried the structural fields `syncSubscription` needs.
  */
 test.group('BillingService.retrieveEvent — local payload fallback (integration)', (group) => {
@@ -84,6 +84,7 @@ test.group('BillingService.retrieveEvent — local payload fallback (integration
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
@@ -109,7 +110,7 @@ test.group('BillingService.retrieveEvent — local payload fallback (integration
     })
     const event = buildEvent('customer.subscription.updated', sub, { id: 'evt_replay_agedout' })
 
-    // Deliberately DO NOT `mock.injectEvent(event)` → `events.retrieve` will
+    // Deliberately DO NOT `mock.injectEvent(event)`, so `events.retrieve` will
     // throw, simulating an event that aged out of Stripe's retrieval window.
 
     // 1) Real receive path: the controller persists the replayable payload.
@@ -126,8 +127,8 @@ test.group('BillingService.retrieveEvent — local payload fallback (integration
     assert.isNotNull(ledger, 'controller wrote the ledger row + payload')
     assert.isObject(ledger?.payload, 'payload persisted')
 
-    // 2) Process inline. The job calls retrieveEvent → Stripe throws →
-    //    fallback reconstructs from the persisted payload → syncSubscription.
+    // 2) Process inline. The job calls retrieveEvent, Stripe throws, the
+    //    fallback reconstructs from the persisted payload, then syncSubscription.
     await flushJobs()
 
     // 3) Faithful reconstruction proof: mapped plan, not the default.
@@ -151,6 +152,7 @@ test.group('BillingService.retrieveEvent — local payload fallback (integration
 
     // Ledger row exists but payload is null (legacy / hand-dispatched).
     const row = new BillingProcessedEvent()
+    row.provider = 'stripe'
     row.eventId = 'evt_no_payload'
     row.eventType = 'customer.subscription.updated'
     row.status = 'pending'

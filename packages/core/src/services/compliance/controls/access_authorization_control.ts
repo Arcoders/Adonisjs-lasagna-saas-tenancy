@@ -4,7 +4,7 @@ import type { ComplianceControl } from '../types.js'
  * Is the tenant-access membership gate wired? Tenant resolution is trust-the-input;
  * without `authorizeTenantAccess` (or an equivalent host middleware) a swapped
  * tenant id is the classic cross-tenant IDOR. We can only see the package hook,
- * so an unset hook is action-needed — the host may still gate it elsewhere.
+ * so an unset hook is action-needed. The host may still gate it elsewhere.
  */
 const accessAuthorizationControl: ComplianceControl = {
   id: 'access-authorization',

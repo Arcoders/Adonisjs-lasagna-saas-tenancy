@@ -1,8 +1,8 @@
 /**
- * Pure supply-chain audit helpers for the `lasagna:health-check` command (S2).
+ * Pure supply-chain audit helpers for the `lasagna:health-check` command.
  * The command shells `npm audit --json` and reads each installed satellite's
  * package.json; these functions turn that raw data into a report. Kept pure (no
- * fs, no child_process) so they are unit-tested directly — the command wrapper is
+ * fs, no child_process) so they are unit-tested directly. The command wrapper is
  * a thin shell around them.
  */
 
@@ -68,7 +68,7 @@ export function parseNpmAudit(raw: unknown): AuditReport {
 }
 
 /**
- * Count vulnerabilities at or above a severity threshold — the number a caller
+ * Count vulnerabilities at or above a severity threshold, the number a caller
  * uses to decide the command's exit code (a supply-chain gate should fail on a
  * `high`/`critical`, not on informational advisories).
  */
@@ -79,7 +79,7 @@ export function countAtOrAbove(report: AuditReport, threshold: Severity): number
 
 /**
  * True when a package.json declares an install lifecycle script
- * (`preinstall` / `install` / `postinstall`) — the vector `--ignore-scripts`
+ * (`preinstall` / `install` / `postinstall`): the vector `--ignore-scripts`
  * blocks. A satellite with one is flagged so the operator installs it with
  * `--ignore-scripts` and reviews the script.
  */

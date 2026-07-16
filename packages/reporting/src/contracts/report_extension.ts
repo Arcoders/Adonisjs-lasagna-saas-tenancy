@@ -13,7 +13,7 @@ export interface ReportExtensionFilters {
  *
  * Built-in reporting reads the shared backoffice schema and never enters a
  * tenant scope. An extension that fans out across tenant schemas is the host's
- * responsibility — bound it with the `TenantQueueService.statsForTenants`-style
+ * responsibility: bound it with the `TenantQueueService.statsForTenants`-style
  * concurrency pattern and mind the connection budget (see docs/guides/scaling-limits.md).
  */
 export interface ReportExtension {
@@ -29,8 +29,8 @@ export interface ReportExtension {
    */
   readonly contractVersion?: number
   /**
-   * Run the report. `signal` aborts when the configured `timeoutMs` elapses —
-   * thread it into your `fetch`/queries so a slow report can unwind instead of
+   * Run the report. `signal` aborts when the configured `timeoutMs` elapses.
+   * Thread it into your `fetch`/queries so a slow report can unwind instead of
    * holding a connection past the deadline (the timeout is a response deadline,
    * not forced cancellation). Optional and backward-compatible: ignore it and
    * the report simply isn't cancellable.

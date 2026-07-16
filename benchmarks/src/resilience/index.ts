@@ -1,12 +1,12 @@
 /**
- * Resilience tier — fault injection + recovery. Boots the served fixture, then
+ * Resilience tier: fault injection and recovery. Boots the served fixture, then
  * kills Redis and Postgres (via `docker stop/start`) and asserts the package's
  * REAL failure policy per dependency, plus recovery:
  *
- *   - Redis down + rate-limited route → 503 (RateLimitUnavailableException;
+ *   - Redis down on a rate-limited route returns 503 (RateLimitUnavailableException;
  *     fail-closed is the default). A 200 would be a silent fail-open leak.
  *     The non-rate-limited tenant route must stay 200 (Redis-independent).
- *   - Postgres down + tenant route → 503 (DependencyUnavailableException). The
+ *   - Postgres down on a tenant route returns 503 (DependencyUnavailableException). The
  *     tenant path fails closed: `request.tenant()` maps an unreachable tenant
  *     registry / connection to a clean 503 instead of a raw Lucid 500. A 500
  *     here is now a regression. Recovery after restart is also asserted.
@@ -98,8 +98,8 @@ async function waitForReady(timeoutMs = 30_000): Promise<void> {
   throw new Error(`Bench server did not become ready on ${BASE_URL}`)
 }
 
-// Skip cleanly (report-as-skipped) when not opted in or Docker is unavailable —
-// same convention as the real-API Stripe smoke spec.
+// Skip cleanly (report-as-skipped) when not opted in or Docker is unavailable,
+// the same convention as the real-API Stripe smoke spec.
 if (!sizes.resilience.enabled) {
   console.log('Resilience tier skipped (set BENCH_RESILIENCE=1 to run). No result written.')
   process.exit(0)
@@ -126,7 +126,7 @@ try {
 // Reaching here means the seed above succeeded, so `tenantIds` has 5 entries.
 const tenant = tenantIds[0]!
 
-// 2) Spawn the serving fixture (development → rate-limit middleware runs).
+// 2) Spawn the serving fixture (development mode, so the rate-limit middleware runs).
 const server = spawn(process.execPath, ['--import', 'tsx', SERVER_ENTRY], {
   env: {
     ...process.env,
@@ -152,7 +152,7 @@ try {
   const tenantDuringRedisDown = await status('/tenant/notes', tenant) // Redis-independent
   docker('start', redisContainer)
   // Recovered once the limiter responds with anything other than its fail-closed
-  // 503 (a 200, or a 429 because the pre-outage burst still fills the window —
+  // 503 (a 200, or a 429 because the pre-outage burst still fills the window,
   // both prove Redis is reachable again). Requiring strictly 200 would misread a
   // lingering 429 as "never recovered".
   const rlRecoveredMs = await pollUntil(

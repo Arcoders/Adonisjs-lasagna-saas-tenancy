@@ -3,13 +3,13 @@ import Tenant from '#app/models/backoffice/tenant'
 import { createInstalledTenant, dropAllTenants } from '../_helpers.js'
 
 /**
- * HARDENING — cross-tenant isolation under HTTP concurrency.
+ * HARDENING: cross-tenant isolation under HTTP concurrency.
  *
  * Three tenants write to their own `notes` table at the same time, with all
  * requests interleaved in a single Promise.all so the per-tenant connections
  * are genuinely contended. Afterwards we read each tenant's schema DIRECTLY
  * (bypassing the application/service layer) and assert that every row belongs to
- * that tenant and the count matches exactly what it wrote — zero cross-reads.
+ * that tenant and the count matches exactly what it wrote: zero cross-reads.
  *
  * The package's load-bearing proof is
  * packages/core/tests/integration/isolation/cross_tenant_e2e.spec.ts (5 tenants
@@ -72,7 +72,7 @@ test.group('hardening — cross-tenant isolation under concurrency', (group) => 
 
     // Pooled-connection reuse: read A, then B, then A again on the reused
     // connections. A's second read must be identical to its first and share no
-    // rows with B — proving per-tenant connections don't bleed under reuse.
+    // rows with B, proving per-tenant connections don't bleed under reuse.
     const connA = (await Tenant.findOrFail(a.id)).getConnection()
     const connB = (await Tenant.findOrFail(b.id)).getConnection()
     const a1 = (await connA.rawQuery('SELECT title FROM notes')).rows.map((r: any) => r.title)

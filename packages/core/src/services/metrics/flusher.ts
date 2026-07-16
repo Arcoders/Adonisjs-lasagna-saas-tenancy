@@ -6,7 +6,7 @@ import { getConfig } from '../../config.js'
 /**
  * The Redis surface the flush path needs. Structural on purpose: this module
  * never imports `@adonisjs/redis/services/main` (whose top-level `await
- * app.booted()` would drag the eager binding into module init) — the live
+ * app.booted()` would drag the eager binding into module init). The live
  * handle is passed in from `MetricsService.getRedis()`, and a test can inject a
  * fake that only implements `scan` + `mget`.
  */
@@ -33,8 +33,8 @@ async function scanKeys(redis: FlushRedis, pattern: string): Promise<string[]> {
 
 /**
  * Flush the built-in `metrics:*` counters for a period into
- * `backoffice.tenant_metrics`, one row per (tenant, period). SCAN -> chunked
- * MGET -> chunked upsert; a no-op when no counters exist.
+ * `backoffice.tenant_metrics`, one row per (tenant, period). SCAN, then chunked
+ * MGET, then chunked upsert; a no-op when no counters exist.
  */
 export async function flushBuiltInCounters(redis: FlushRedis, target: string): Promise<void> {
   const pattern = `metrics:*:${target}:*`
@@ -106,7 +106,7 @@ async function bulkUpsert(
 /**
  * Flush the host-defined `custom_metrics:*` counters for a period into
  * `backoffice.tenant_custom_metrics`, one row per (tenant, period, name). Same
- * SCAN -> chunked MGET -> chunked upsert shape as {@link flushBuiltInCounters}.
+ * SCAN, chunked MGET, chunked upsert shape as {@link flushBuiltInCounters}.
  */
 export async function flushCustomCounters(redis: FlushRedis, target: string): Promise<void> {
   const pattern = `custom_metrics:*:${target}:*`

@@ -86,7 +86,7 @@ export default class SsoController {
     // issuerUrl is fetched server-side by SsoService (discovery + JWKS), so
     // it MUST clear the SSRF guard: https only, no loopback / RFC 1918 /
     // link-local / cloud-metadata hosts. redirectUri is only echoed to the
-    // IdP — the package never fetches it — so the loose http(s) check is OK.
+    // IdP (the package never fetches it), so the loose http(s) check is OK.
     const issuerErr = validateExternalHttpsUrl(issuerUrl)
     if (issuerErr) return ctx.response.badRequest({ error: `issuerUrl_${issuerErr}` })
     if (!isHttpsUrl(redirectUri)) return ctx.response.badRequest({ error: 'redirectUri_invalid' })
@@ -102,7 +102,7 @@ export default class SsoController {
       redirectUri,
       ...(Array.isArray(scopes) ? { scopes } : {}),
     })
-    // Metadata is non-secret config identity only — the clientSecret in scope
+    // Metadata is non-secret config identity only: the clientSecret in scope
     // above must NEVER reach the audit log (audit_coverage.spec.ts enforces it).
     await auditAdminAction(ctx, 'admin:sso:update', tenant.id, {
       provider: config.provider,

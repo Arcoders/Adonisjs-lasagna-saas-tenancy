@@ -9,7 +9,7 @@ import type { PluginLimitsConfig } from '../../../../src/types/config.js'
  * Fail-closed cap enforcement for the plugin request-path surfaces. The
  * load-bearing guarantee: a surface whose registered count EXCEEDS its configured
  * cap aborts boot with a typed PluginBootException; a count at-or-below the cap
- * passes, and an omitted cap (or an omitted block) is unlimited — byte-identical
+ * passes, and an omitted cap (or an omitted block) is unlimited, byte-identical
  * to the pre-cap behavior. Pure, so it runs without an Ignitor (mirrors
  * assertConfigBounds).
  */

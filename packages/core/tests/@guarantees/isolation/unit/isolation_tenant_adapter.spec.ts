@@ -2,6 +2,7 @@ import { test } from '@japa/runner'
 import { HttpContext } from '@adonisjs/core/http'
 import TenantAdapter from '../../../../src/models/adapters/tenant_adapter.js'
 import MissingTenantHeaderException from '../../../../src/exceptions/missing_tenant_header_exception.js'
+import { __resetResolverRegistryCacheForTests } from '../../../../src/extensions/request.js'
 import { setConfig } from '../../../../src/config.js'
 import { testConfig } from '../../../helpers/config.js'
 import IsolationDriverRegistry from '../../../../src/services/isolation/registry.js'
@@ -259,8 +260,8 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
     assert,
   }) => {
     // Pre-Isthmus, tenancy silently won this disagreement and routed tenant A
-    // queries under tenant B's context — the exact context-confusion bug class
-    // the ContextSeal exists to stop (invariant I1).
+    // queries under tenant B's context, the exact context-confusion bug class
+    // the ContextSeal exists to stop (the core isolation invariant).
     const tenancyMod = await import('../../../../src/tenancy.js')
     const TenantLogContext = (await import('../../../../src/services/tenant_log_context.js'))
       .default
@@ -274,7 +275,7 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
       registry: new BootstrapperRegistry(),
     })
 
-    // HTTP says one tenant, tenancy.run says another — refuse to route.
+    // HTTP says one tenant, tenancy.run says another, so refuse to route.
     ;(HttpContext as any).get = () => ({
       request: makeRequest({ headers: { 'x-tenant-id': UUID1 } }),
     })
@@ -293,10 +294,11 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
     assert.lengthOf(db.calls, 0, 'the mismatched query must never reach a connection')
   })
 
-  test('ContextSeal: the HTTP comparand is resolved once per request (memoized)', async ({
+  test('ContextSeal: the seal reads the request.tenant() memo, never re-resolving the request', async ({
     assert,
   }) => {
     const tenancyMod = await import('../../../../src/tenancy.js')
+    const { __setMemoizedTenant } = await import('../../../../src/extensions/request.js')
     const TenantLogContext = (await import('../../../../src/services/tenant_log_context.js'))
       .default
     const BootstrapperRegistry = (await import('../../../../src/services/bootstrapper_registry.js'))
@@ -323,13 +325,21 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
     const adapter = new TenantAdapter(db as any, makeRegistry())
 
     const fakeTenant = { id: UUID2 } as any
+    // request.tenant() resolved the tenant (the guarded path). The seal's comparand
+    // comes from that single memoized value, so across every query in the request the
+    // synchronous resolver chain is never walked again — the memo IS the cache.
+    __setMemoizedTenant(request as any, fakeTenant)
     await tenancyMod.tenancy.run(fakeTenant, async () => {
       adapter.modelConstructorClient({} as any)
       adapter.modelConstructorClient({} as any)
       adapter.modelConstructorClient({} as any)
     })
 
-    assert.equal(headerReads, 1, 'the seal must not re-resolve the request on every query')
+    assert.equal(
+      headerReads,
+      0,
+      'the seal reads the memoized request.tenant() id, never re-resolving'
+    )
     assert.equal(db.lastCall, `tenant_${UUID2}`)
   })
 
@@ -360,7 +370,7 @@ test.group('TenantAdapter — tenancy.run() integration', (group) => {
     // connection (typically `central`/`backoffice`) must NOT be
     // silently rerouted to whatever tenant scope happens to be active.
     // Without this, a CentralBaseModel query inside `tenancy.run(t, ...)`
-    // could land in the tenant schema — a cross-schema bug.
+    // could land in the tenant schema, a cross-schema bug.
     const tenancyMod = await import('../../../../src/tenancy.js')
     const TenantLogContext = (await import('../../../../src/services/tenant_log_context.js'))
       .default
@@ -441,10 +451,10 @@ test.group('TenantAdapter — ContextSeal (Isthmus) deep behavior', (group) => {
     const adapter = new TenantAdapter(db as any, makeRegistry())
 
     await tenancyMod.tenancy.run({ id: UUID1 } as any, async () => {
-      adapter.modelConstructorClient({} as any) // agrees → routes
+      adapter.modelConstructorClient({} as any) // agrees, so routes
       assert.equal(db.lastCall, `tenant_${UUID1}`)
       await tenancyMod.tenancy.run({ id: UUID2 } as any, async () => {
-        // Inner scope disagrees with the request (still UUID1) → trips.
+        // Inner scope disagrees with the request (still UUID1), so it trips.
         let threw: any
         try {
           adapter.modelConstructorClient({} as any)
@@ -484,7 +494,7 @@ test.group('TenantAdapter — ContextSeal (Isthmus) deep behavior', (group) => {
     const adapter = new TenantAdapter(db as any, makeRegistry())
 
     await tenancyMod.tenancy.run({ id: UUID2 } as any, async () => {
-      // Comparand null → seal inert, routes by the scope.
+      // Comparand null, so the seal is inert and routes by the scope.
       adapter.modelConstructorClient({} as any)
       assert.equal(db.lastCall, `tenant_${UUID2}`)
 
@@ -504,7 +514,7 @@ test.group('TenantAdapter — ContextSeal (Isthmus) deep behavior', (group) => {
     const { __setMemoizedTenant } = await import('../../../../src/extensions/request.js')
 
     // Header says A, but request.tenant() (domain resolution) memoized B, and
-    // the scope is B → the comparand is B, so it AGREES and routes B.
+    // the scope is B, so the comparand is B, so it AGREES and routes B.
     const request: any = makeRequest({ headers: { 'x-tenant-id': UUID1 } })
     __setMemoizedTenant(request, { id: UUID2 } as any)
     ;(HttpContext as any).get = () => ({ request })
@@ -538,7 +548,7 @@ test.group('TenantAdapter — ContextSeal (Isthmus) deep behavior', (group) => {
     })
     await settle()
 
-    // The memo caches the comparand, never the verdict — every query re-checks.
+    // The memo caches the comparand, never the verdict. Every query re-checks.
     assert.lengthOf(captured, 3)
     assert.lengthOf(db.calls, 0)
   })
@@ -570,42 +580,43 @@ test.group('TenantAdapter — ContextSeal (Isthmus) deep behavior', (group) => {
   })
 })
 
-test.group('TenantAdapter — legacyAdapterFallback flag (B1)', (group) => {
+test.group('TenantAdapter — model-query routing via the resolver chain (B1)', (group) => {
   let originalGet: typeof HttpContext.get
 
   group.each.setup(() => {
+    // Reset the module-level registry cache so the "no registry wired in" test
+    // deterministically rebuilds the chain from config rather than reusing a chain
+    // another spec seeded via setResolverRegistry.
+    __resetResolverRegistryCacheForTests()
     originalGet = HttpContext.get
     ;(HttpContext as any).get = () => null
   })
 
   group.each.teardown(() => {
     ;(HttpContext as any).get = originalGet
+    __resetResolverRegistryCacheForTests()
   })
 
   // A custom resolver that reads a non-standard header and is registered in the
-  // chain. The legacy strategy switch never knows about it.
+  // chain — the kind of resolver a plain `resolverStrategy` switch never knew about.
   function customChain() {
     const reg = new TenantResolverRegistry()
+    const resolveHeader = (request: any) => {
+      const v = request.header('x-custom-tenant')
+      return v ? ResolverHit.id(v) : ResolverHit.miss()
+    }
     reg.register({
       name: 'custom-header',
-      contractVersion: 1,
-      resolve: (request: any) => {
-        const v = request.header('x-custom-tenant')
-        return v ? ResolverHit.id(v) : ResolverHit.miss()
-      },
+      contractVersion: 2,
+      resolve: resolveHeader,
+      resolveSync: resolveHeader,
     })
     reg.setChain(['custom-header'])
     return reg
   }
 
-  test('legacyAdapterFallback:false routes a model query via the custom resolver chain', ({
-    assert,
-  }) => {
-    setConfig({
-      ...testConfig,
-      resolverStrategy: 'header',
-      resolver: { legacyAdapterFallback: false },
-    })
+  test('routes a model query via the injected custom resolver chain', ({ assert }) => {
+    setConfig({ ...testConfig, resolverStrategy: 'header' })
     ;(HttpContext as any).get = () => ({
       request: makeRequest({ headers: { 'x-custom-tenant': UUID1 } }),
     })
@@ -617,39 +628,14 @@ test.group('TenantAdapter — legacyAdapterFallback flag (B1)', (group) => {
     assert.equal(
       db.lastCall,
       `tenant_${UUID1}`,
-      'with the flag off, the custom resolver in the chain must route the query'
+      'the custom resolver in the chain must route the query'
     )
   })
 
-  test('legacyAdapterFallback:true (opt-in) ignores the custom chain and uses resolverStrategy', ({
-    assert,
-  }) => {
-    setConfig({
-      ...testConfig,
-      resolverStrategy: 'header',
-      resolver: { legacyAdapterFallback: true },
-    })
-    // Both headers present: legacy reads x-tenant-id, the custom chain would
-    // read x-custom-tenant. The legacy id must win.
-    ;(HttpContext as any).get = () => ({
-      request: makeRequest({ headers: { 'x-tenant-id': UUID1, 'x-custom-tenant': UUID2 } }),
-    })
-    const db = makeMockDb()
-    const adapter = new TenantAdapter(db as any, makeRegistry(), customChain())
-
-    adapter.modelConstructorClient({} as any)
-
-    assert.equal(
-      db.lastCall,
-      `tenant_${UUID1}`,
-      'the historical path must keep using resolverStrategy, not the custom chain'
-    )
-  })
-
-  test('no resolver block uses the unified chain (flag defaults to false in 1.0)', ({ assert }) => {
+  test('the custom resolver in the chain wins over the header strategy', ({ assert }) => {
     setConfig({ ...testConfig, resolverStrategy: 'header' })
-    // Both headers present: the 1.0 default consults the custom chain
-    // (x-custom-tenant), not the legacy resolverStrategy switch (x-tenant-id).
+    // Both headers present: the chain consults the custom resolver
+    // (x-custom-tenant), never a chain-blind resolverStrategy switch (x-tenant-id).
     ;(HttpContext as any).get = () => ({
       request: makeRequest({ headers: { 'x-tenant-id': UUID1, 'x-custom-tenant': UUID2 } }),
     })
@@ -661,20 +647,17 @@ test.group('TenantAdapter — legacyAdapterFallback flag (B1)', (group) => {
     assert.equal(
       db.lastCall,
       `tenant_${UUID2}`,
-      'the 1.0 default routes via the resolver chain, so the custom resolver wins'
+      'routing goes through the resolver chain, so the custom resolver wins'
     )
   })
 
-  test('legacyAdapterFallback:false with no resolvers passed falls back to legacy resolution', ({
+  test('with no registry wired in, delegates to the module authority built from config', ({
     assert,
   }) => {
-    // Defensive: the adapter only consults the chain when a registry was wired
-    // in. Without one, it must still resolve via the legacy strategy.
-    setConfig({
-      ...testConfig,
-      resolverStrategy: 'header',
-      resolver: { legacyAdapterFallback: false },
-    })
+    // The adapter uses its injected registry when present; without one it delegates
+    // to the module-level `resolveTenantId`, which builds the chain from config
+    // (here a solitary `resolverStrategy: 'header'`) — one authority, no legacy switch.
+    setConfig({ ...testConfig, resolverStrategy: 'header' })
     ;(HttpContext as any).get = () => ({
       request: makeRequest({ headers: { 'x-tenant-id': UUID1 } }),
     })
@@ -727,7 +710,7 @@ test.group('TenantAdapter — domain-or-subdomain resolver strategy', (group) =>
     const db = makeMockDb()
     const adapter = new TenantAdapter(db as any, makeRegistry())
 
-    // No tenant id is extractable — the synchronous adapter path can't
+    // No tenant id is extractable, and the synchronous adapter path can't
     // do the async findByDomain lookup, so the request must fail closed.
     assert.throws(
       () => adapter.modelConstructorClient({} as any),

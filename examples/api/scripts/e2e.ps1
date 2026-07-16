@@ -1,4 +1,4 @@
-# End-to-end runner (PowerShell) — Windows-native variant of e2e.sh.
+# End-to-end runner (PowerShell), the Windows-native variant of e2e.sh.
 # Usage: npm run test:e2e:win  (or pwsh ./scripts/e2e.ps1)
 #
 # Flags:
@@ -12,6 +12,13 @@ Set-Location -Path (Join-Path $PSScriptRoot "..")
 if (-not (Test-Path ".env")) {
   Write-Host "[e2e] .env missing — copying from .env.example"
   Copy-Item ".env.example" ".env"
+}
+
+# A .env predating the two-auth-realms change lacks the seed flag the
+# auth_realms e2e depends on; this script owns .env provisioning, so top it up.
+if (-not (Select-String -Path ".env" -Pattern "^DEMO_SEED_TENANT_USERS=" -Quiet)) {
+  Write-Host "[e2e] adding DEMO_SEED_TENANT_USERS=true to .env (required by the auth_realms e2e)"
+  Add-Content -Path ".env" -Value "`nDEMO_SEED_TENANT_USERS=true"
 }
 
 function Cleanup {
@@ -51,7 +58,7 @@ try {
     Start-Sleep -Seconds 1
   }
 
-  # MailCatcher is optional — the e2e mail.spec.ts skips gracefully if it
+  # MailCatcher is optional. The e2e mail.spec.ts skips gracefully if it
   # isn't reachable, so a probe failure here only emits a warning.
   Write-Host "[e2e] waiting for mailcatcher (optional)"
   $deadline = (Get-Date).AddSeconds(20)

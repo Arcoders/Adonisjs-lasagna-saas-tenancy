@@ -3,9 +3,9 @@
 All notable changes to `@adonisjs-lasagna/ai` are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.0.0]
+## [0.1.0]
 
-**Introduced the AI satellite at release candidate**: the streaming spine and the
+**Introduced the AI satellite as experimental**: the streaming spine and the
 provider abstraction that a future AI gateway calls through.
 
 Added:

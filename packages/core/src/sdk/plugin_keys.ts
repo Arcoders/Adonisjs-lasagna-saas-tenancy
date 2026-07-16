@@ -1,7 +1,7 @@
 import type { ScheduleName } from './brands.js'
 
 /**
- * Single source for the plugin-platform scheduler identifiers (E2 — "nothing
+ * Single source for the plugin-platform scheduler identifiers ("nothing
  * wired"): the deterministic native schedule id (`lasagna.scheduler.<name>`) and
  * the tick job name (`lasagna.TenantSchedulerTick`). Both are `lasagna.`-namespaced,
  * so the `check-plugin-keys` guard fails the build if either literal is constructed
@@ -33,7 +33,7 @@ const SCHEDULE_ID_PREFIX = 'lasagna.scheduler.'
  * Deterministic id for the native `@adonisjs/queue` schedule backing a registered
  * plugin schedule. Deterministic (a pure function of the schedule name) so
  * `start()` UPSERTS the same schedule row on every pod and every redeploy instead
- * of creating a duplicate — the boringnode adapter keys its upsert on this id.
+ * of creating a duplicate. The boringnode adapter keys its upsert on this id.
  */
 export function schedulerScheduleId(name: ScheduleName): string {
   return `${SCHEDULE_ID_PREFIX}${name}`
@@ -41,7 +41,7 @@ export function schedulerScheduleId(name: ScheduleName): string {
 
 /**
  * Best-effort BullMQ dedup id for a single tenant's dispatch inside one tick.
- * `<schedule>:<tenantId>:<period>` — the `period` is a coarse time bucket, so a
+ * `<schedule>:<tenantId>:<period>`, where the `period` is a coarse time bucket, so a
  * tick that is RETRIED by the worker within the same bucket re-dispatches the
  * same id and BullMQ drops the duplicate. It is deliberately best-effort: BullMQ
  * retains a completed id only for `removeOnComplete` jobs, so the real

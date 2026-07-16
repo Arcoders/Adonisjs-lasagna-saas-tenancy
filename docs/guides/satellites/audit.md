@@ -71,7 +71,7 @@ await audit.log({
 
 ```bash
 # REST: /admin/multitenancy/tenants/<id>/audit-logs?from=2026-04-01&to=2026-04-30
-curl -H "x-admin-token: $TOKEN" \
+curl -H "Authorization: Bearer $TOKEN" \
   "https://app.example.com/admin/multitenancy/tenants/$ID/audit-logs?from=2026-04-01&to=2026-04-30"
 ```
 

@@ -10,9 +10,9 @@ import { createTestTenant, destroyTestTenant, updateTenantStatus } from '../../.
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
- * S2-1: drives a tenant through every lifecycle stage the package
- * exposes — provision → seed data → suspend → destroy → recreate
- * with the same UUID — and asserts at each transition that the
+ * Drives a tenant through every lifecycle stage the package
+ * exposes (provision, seed data, suspend, destroy, then recreate
+ * with the same UUID) and asserts at each transition that the
  * observable state matches the documented contract.
  *
  * The recreate-with-same-UUID phase is the load-bearing one: it
@@ -88,7 +88,7 @@ test.group('Tenant lifecycle E2E (provision → suspend → destroy → recreate
 
     // ----- 4. SUSPEND -----
     await updateTenantStatus(tenantRow.id, 'suspended')
-    // Suspending is a backoffice flag — it does NOT touch the schema.
+    // Suspending is a backoffice flag. It does NOT touch the schema.
     // The seeded rows must still be there for the subsequent unsuspend.
     const seededRows = await db
       .connection(`tenant_${tenantRow.id}`)

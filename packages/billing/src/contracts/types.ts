@@ -3,7 +3,7 @@
  *
  * Every billing driver (Stripe, Paddle, Lemon Squeezy, ...) maps its native
  * SDK shapes onto these. The dispatcher and `BillingService` only ever see
- * neutral types — provider quirks live entirely inside each driver's mapper.
+ * neutral types. Provider quirks live entirely inside each driver's mapper.
  *
  * Timestamps are epoch **seconds** (the unit Stripe uses natively and the unit
  * `BillingService`/the dispatcher already feed to `DateTime.fromSeconds`).
@@ -45,9 +45,9 @@ export type BillingCapability =
   | 'subscription_cancel_immediate'
   /**
    * The driver can enumerate the provider's subscriptions, so
-   * `tenant:billing:sync` can run its forward pass (provider → local mirror) for
+   * `tenant:billing:sync` can run its forward pass (provider to local mirror) for
    * drift recovery. A driver without it can still be reconciled by the
-   * driver-neutral reverse pass (orphaned `tenant_plans` → defaultPlan), but
+   * driver-neutral reverse pass (orphaned `tenant_plans` to defaultPlan), but
    * `sync`/`doctor` warn that forward drift-recovery is unavailable rather than
    * implying coverage. Built-in for Stripe, Paddle, and Lemon Squeezy.
    */
@@ -64,7 +64,7 @@ export type BillingCapability =
 
 /**
  * Neutral subscription status. Identical to the original
- * `StripeSubscriptionStatus` set — drivers map their native statuses onto it
+ * `StripeSubscriptionStatus` set. Drivers map their native statuses onto it
  * (Paddle `active|trialing|past_due|paused|canceled`, Lemon Squeezy
  * `on_trial|active|past_due|unpaid|cancelled|expired`, ...).
  */
@@ -152,7 +152,7 @@ export interface Invoice {
   /**
    * Fiscal snapshot fields (integer minor units), populated by the mapper when
    * the provider supplies them (Stripe Tax / Paddle / Lemon Squeezy). These are
-   * what the provider charged — we never compute tax. `null` when the provider
+   * what the provider charged. We never compute tax. `null` when the provider
    * doesn't break it out. Consumed by the opt-in invoice read model and carried
    * on payment events for reporting.
    */
@@ -198,7 +198,7 @@ export type BillingEventType =
   | 'unknown'
 
 interface BillingWebhookEventBase {
-  /** Provider event id — the idempotency key for the processed-events ledger. */
+  /** Provider event id: the idempotency key for the processed-events ledger. */
   id: string
   /** Epoch seconds the provider stamped on the event. */
   createdAt: number

@@ -14,7 +14,7 @@ import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite
 /**
  * `tenant:billing:sweep` / `runBillingSweep` drives the two time-based,
  * provider-agnostic chores that don't ride a webhook:
- *   1. Trial-ending notices — the Paddle / Lemon Squeezy fallback for Stripe's
+ *   1. Trial-ending notices: the Paddle / Lemon Squeezy fallback for Stripe's
  *      native `trial_will_end`, deduped against `trial_ending_notified_at`.
  *   2. Grace-period dunning downgrades scheduled via `dunning_downgrade_at`.
  */
@@ -47,11 +47,13 @@ test.group('Billing sweep (integration)', (group) => {
     const tenant = await createTestTenant()
     cleanupTenants.push(tenant.id)
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()
 
     const sub = new BillingSubscription()
+    sub.provider = 'stripe'
     sub.providerSubscriptionId = `sub_${randomUUID().slice(0, 8)}`
     sub.tenantId = tenant.id
     sub.status = (over.status ?? 'trialing') as never

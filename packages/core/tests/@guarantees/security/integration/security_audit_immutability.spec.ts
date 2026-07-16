@@ -4,11 +4,11 @@ import { TenantAuditLog } from '@adonisjs-lasagna/saas-tenancy/models/satellites
 import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 /**
- * S1-2: enforces that audit rows are append-only at the DATABASE
- * level, not just by convention. The migration stub installs PG
- * triggers that raise on UPDATE/DELETE; the integration bootstrap
- * mirrors them. If a host app strips the triggers (or runs against
- * an old schema), this test fails loudly.
+ * Enforces that audit rows are append-only at the DATABASE level, not
+ * just by convention. The migration stub installs PG triggers that raise
+ * on UPDATE/DELETE, and the integration bootstrap mirrors them. If a host
+ * app strips the triggers (or runs against an old schema), this test
+ * fails loudly.
  */
 test.group('tenant_audit_logs — append-only enforcement', (group) => {
   const cleanup: string[] = []
@@ -16,8 +16,8 @@ test.group('tenant_audit_logs — append-only enforcement', (group) => {
   group.each.teardown(async () => {
     while (cleanup.length) {
       const id = cleanup.pop()!
-      // INSERT on audit logs is allowed — clean up via a privileged path
-      // that bypasses the DELETE trigger. We disable the trigger for the
+      // INSERT on audit logs is allowed, so cleanup goes through a privileged
+      // path that bypasses the DELETE trigger. We disable the trigger for the
       // lifetime of this transaction, delete the rows, and restore.
       await db.rawQuery(
         'ALTER TABLE backoffice.tenant_audit_logs DISABLE TRIGGER tenant_audit_logs_no_delete'

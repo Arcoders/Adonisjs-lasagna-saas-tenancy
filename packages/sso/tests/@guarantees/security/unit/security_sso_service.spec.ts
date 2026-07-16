@@ -6,15 +6,15 @@ import { identityProviderRegistry } from '../../../../src/identity_provider.js'
 import { SSO_CONTRACT_VERSION } from '../../../../src/constants.js'
 
 /**
- * Unit suite for the security-critical SSO flow (B-SSO).
+ * Unit suite for the security-critical SSO flow.
  *
  * `SsoService` concentrates the OIDC guards: the atomic GETDEL of the CSRF
  * state, the SSRF checks on issuer/token_endpoint/jwks_uri, the
  * discovery issuer-mismatch check, and the id_token nonce check. The
  * integration suite (mock-oauth2-server in core) proves the happy path
  * end-to-end, but it would not catch a refactor that quietly dropped one of
- * these guards. These tests pin each guard against injected fakes — no DB, no
- * Redis, no real IdP — so a regression turns a test red instead of opening a
+ * these guards. These tests pin each guard against injected fakes (no DB, no
+ * Redis, no real IdP), so a regression turns a test red instead of opening a
  * hole.
  */
 
@@ -180,7 +180,7 @@ test.group('SsoService — state GETDEL (CSRF/replay guard)', () => {
   })
 })
 
-// SECURITY (Clase B / #9, #10): the SSRF guard validates the URL, but a 3xx the
+// SECURITY: the SSRF guard validates the URL, but a 3xx the
 // validated endpoint returns is chosen by an attacker-influenced party and would
 // reach internals past the guard if followed. Both server-side fetches pin
 // redirect:'manual' and reject any 3xx; the issuer is also validated at write.
@@ -222,8 +222,8 @@ test.group('SsoService — redirect-following SSRF (Clase B)', () => {
   test('upsertConfig refuses to STORE a non-loopback issuer that fails the SSRF guard', async ({
     assert,
   }) => {
-    // Non-loopback issuer + a validator that flags it → must throw before the DB
-    // is ever touched, so a private/metadata issuer can never be persisted.
+    // A non-loopback issuer plus a validator that flags it must throw before the
+    // DB is ever touched, so a private/metadata issuer can never be persisted.
     const svc = makeService({ validateHostIsPublic: async () => 'rfc1918' })
     await assert.rejects(
       () =>
@@ -240,7 +240,7 @@ test.group('SsoService — redirect-following SSRF (Clase B)', () => {
   test('upsertConfig persists a public issuer that passes the SSRF guard', async ({ assert }) => {
     let saved: PersistedSsoConfigAttrs & { tenantId: string }
     const svc = makeService({
-      validateHostIsPublic: async () => null, // public → check passes, falls through to persist
+      validateHostIsPublic: async () => null, // public, so the check passes and falls through to persist
       over: {
         persistConfig: async (tenantId, attrs) => {
           saved = { tenantId, ...attrs }
@@ -520,7 +520,7 @@ test.group('SsoService — pluggable identity providers', (group) => {
 
   test('the OIDC callback refuses a state tagged for another provider', async ({ assert }) => {
     // A state written for a non-oidc driver must not be replayed through the
-    // OIDC callback — that driver owns its own callback. Seed such a state and
+    // OIDC callback. That driver owns its own callback. Seed such a state and
     // confirm the GETDEL'd value is rejected before any token exchange.
     const { redis } = fakeRedis({
       'sso:state:S1': JSON.stringify({ tenantId: 't-1', nonce: 'n', provider: 'saml' }),

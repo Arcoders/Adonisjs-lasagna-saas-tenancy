@@ -9,7 +9,7 @@
  * `IsolationDriverRegistry`, resolver registry, or resolution-cache instance,
  * leading to stale-state surprises in test runs that reuse the container or in
  * production hot-reload paths. Every module that memoizes such a reference must
- * be reset here — leaving one out is exactly the kind of footgun this function
+ * be reset here. Leaving one out is exactly the kind of footgun this function
  * exists to prevent.
  */
 export async function resetModuleCaches(): Promise<void> {

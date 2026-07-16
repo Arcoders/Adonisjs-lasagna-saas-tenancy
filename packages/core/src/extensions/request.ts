@@ -10,20 +10,15 @@ import RequestMacroCollisionException from '../exceptions/request_macro_collisio
 import { macroName, type MacroName } from '../sdk/brands.js'
 import TenantSuspendedException from '../exceptions/tenant_suspended_exception.js'
 import DependencyUnavailableException from '../exceptions/dependency_unavailable_exception.js'
-import InvalidTenantIdentifierException from '../exceptions/invalid_tenant_identifier_exception.js'
 import { getConfig } from '../config.js'
-import { hostMatchesExpectedSuffix } from '../services/resolvers/builtins.js'
-import type { ResolverCacheConfig } from '../types/config.js'
+import type { ResolvedResolverCacheConfig } from '../types/config.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import TelemetryService from '../services/telemetry_service.js'
 import { isDependencyOutageError } from '../utils/dependency_outage.js'
-import { isUuidV4, isSafeIdentifier } from '../services/isolation/identifier.js'
-import { isProductionNodeEnv } from '../utils/env.js'
+import { isUuidV4 } from '../services/isolation/identifier.js'
+import { buildResolverRegistry } from '../providers/resolver_chain.js'
 import TenantResolverRegistry from '../services/resolvers/registry.js'
-import TenantResolutionCache, {
-  DEFAULT_RESOLUTION_CACHE_MAX,
-  DEFAULT_RESOLUTION_CACHE_TTL_MS,
-} from '../services/tenant_resolution_cache.js'
+import TenantResolutionCache from '../services/tenant_resolution_cache.js'
 import type { TenantResolveResult } from '../services/resolvers/resolver.js'
 import { HttpRequest } from '@adonisjs/core/http'
 import app from '@adonisjs/core/services/app'
@@ -47,9 +42,11 @@ declare module '@adonisjs/core/http' {
 }
 
 /**
- * Cached registry handle. The provider seeds the registry at boot, so a
- * cache miss here means we're being called before boot finished — fall
- * back to the synchronous strategy switch so unit tests still work.
+ * Cached registry handle. The provider seeds the registry at boot, so a cache
+ * miss here means we're being called before boot finished; the resolution
+ * helpers then build a registry on demand from the current config (via
+ * {@link buildResolverRegistry}), so there is one resolution authority (the
+ * chain) and never a divergent legacy switch.
  */
 let cachedResolverRegistry: TenantResolverRegistry | undefined
 
@@ -65,6 +62,17 @@ async function getResolverRegistry(): Promise<TenantResolverRegistry | undefined
 
 export function __resetResolverRegistryCacheForTests(): void {
   cachedResolverRegistry = undefined
+}
+
+/**
+ * Seed the resolver registry into the module cache at boot, the same way the
+ * provider seeds `TenantResolutionCache` / `TenantLogContext`. This gives
+ * {@link resolveTenantId} a GUARANTEED synchronous hit on the very first request,
+ * so rate-limit and metrics attribute by the same chain routing serves, never a
+ * config rebuild on the hot path.
+ */
+export function setResolverRegistry(registry: TenantResolverRegistry | undefined): void {
+  cachedResolverRegistry = registry
 }
 
 /**
@@ -88,7 +96,7 @@ export function __resetResolutionCacheRefForTests(): void {
 }
 
 /**
- * Test-only: inject a resolution cache directly, skipping the container — so the
+ * Test-only: inject a resolution cache directly, skipping the container, so the
  * caching hot path can be exercised in a unit test without booting the app.
  */
 export function __setResolutionCacheForTests(cache: TenantResolutionCache | undefined): void {
@@ -101,7 +109,7 @@ export function __setResolutionCacheForTests(cache: TenantResolutionCache | unde
  *
  * When the cache is disabled (or unavailable before boot), this falls straight
  * through to `repo.findById(id, includeDeleted)` honouring the caller's
- * `includeDeleted` — so the cache-off path is byte-for-byte the legacy behaviour
+ * `includeDeleted`, so the cache-off path is byte-for-byte the legacy behaviour
  * (the guard passes `true`, the universal middleware passes `false`).
  *
  * When the cache IS enabled, a single entry per tenant is shared across call
@@ -115,7 +123,7 @@ export async function findTenantByIdCached(
   id: string,
   includeDeleted: boolean = true
 ): Promise<TenantModelContract | null> {
-  let cacheCfg: ResolverCacheConfig | undefined
+  let cacheCfg: ResolvedResolverCacheConfig | undefined
   try {
     cacheCfg = getConfig().resolver?.cache
   } catch {
@@ -137,16 +145,11 @@ async function findThenCache(
   repo: TenantRepositoryContract,
   id: string,
   cache: TenantResolutionCache,
-  cacheCfg: Pick<ResolverCacheConfig, 'ttlMs' | 'maxEntries'>
+  cacheCfg: Pick<ResolvedResolverCacheConfig, 'ttlMs' | 'maxEntries'>
 ): Promise<TenantModelContract | null> {
   const tenant = await repo.findById(id, true)
   if (tenant) {
-    cache.set(
-      id,
-      tenant,
-      cacheCfg.ttlMs ?? DEFAULT_RESOLUTION_CACHE_TTL_MS,
-      cacheCfg.maxEntries ?? DEFAULT_RESOLUTION_CACHE_MAX
-    )
+    cache.set(id, tenant, cacheCfg.ttlMs, cacheCfg.maxEntries)
   }
   return tenant
 }
@@ -159,7 +162,7 @@ async function findThenCache(
  * DB a second time for the same tenant. No-op when the cache is disabled.
  */
 export async function primeResolvedTenant(tenant: TenantModelContract): Promise<void> {
-  let cacheCfg: ResolverCacheConfig | undefined
+  let cacheCfg: ResolvedResolverCacheConfig | undefined
   try {
     cacheCfg = getConfig().resolver?.cache
   } catch {
@@ -167,89 +170,51 @@ export async function primeResolvedTenant(tenant: TenantModelContract): Promise<
   }
   if (!cacheCfg?.enabled) return
   const cache = await getResolutionCache()
-  cache?.set(
-    tenant.id,
-    tenant,
-    cacheCfg.ttlMs ?? DEFAULT_RESOLUTION_CACHE_TTL_MS,
-    cacheCfg.maxEntries ?? DEFAULT_RESOLUTION_CACHE_MAX
-  )
+  cache?.set(tenant.id, tenant, cacheCfg.ttlMs, cacheCfg.maxEntries)
 }
 
 /**
- * Synchronous fallback used when the resolver registry hasn't been seeded
- * yet (typically only inside the `TenantAdapter` query path before the
- * provider has booted, or in unit tests that don't boot the app). Mirrors
- * the v1 strategy switch verbatim.
+ * The active resolver registry for the SYNCHRONOUS resolution path: the one the
+ * provider seeded at boot ({@link setResolverRegistry}), or (before boot and in
+ * unit tests that never boot) one built on demand from the current config so a
+ * solitary `resolverStrategy` still resolves through the real chain. There is no
+ * separate legacy switch to fall to any more: resolution has ONE authority (the
+ * chain), and the host-allowlist / UUID-border math lives in the resolvers alone.
  */
-function legacyResolveTenantId(request: HttpRequest): string | undefined {
-  const { resolverStrategy, tenantHeaderKey, baseDomain } = getConfig()
-
-  if (resolverStrategy === 'subdomain' || resolverStrategy === 'domain-or-subdomain') {
-    const hostname = request.hostname()
-    const host = hostname?.split(':')[0] ?? ''
-    // Mirror the registry resolvers' host allowlist on the legacy path too, so a
-    // spoofed X-Forwarded-Host is refused regardless of which path resolves.
-    if (!hostMatchesExpectedSuffix(host)) return undefined
-    const suffix = baseDomain.startsWith('.') ? baseDomain : `.${baseDomain}`
-    if (host.endsWith(suffix)) {
-      const sub = host.slice(0, host.length - suffix.length)
-      return sub || undefined
-    }
-    if (host === baseDomain) return undefined
-    // Dev-only leftmost-label fallback (mirrors SubdomainResolver). Production
-    // refuses an off-baseDomain host rather than guessing a tenant from it.
-    if (isProductionNodeEnv()) return undefined
-    const labels = host.split('.')
-    return labels.length > 1 ? labels[0] : undefined
-  }
-
-  if (resolverStrategy === 'path') {
-    const segment = request.url(false).split('/').find(Boolean)
-    return segment || undefined
-  }
-
-  if (resolverStrategy === 'request-data') {
-    for (const raw of [request.qs()?.['tenant_id'], request.input('tenant_id')]) {
-      if (raw === undefined || raw === null) continue
-      // Present but not a string: fail closed (matches RequestDataResolver).
-      if (typeof raw !== 'string') throw new InvalidTenantIdentifierException()
-      if (raw.length > 0 && isUuidV4(raw)) return raw
-    }
-    return undefined
-  }
-
-  // header (default). Validate the client-controlled header against the same
-  // `SAFE_IDENT` policy the drivers enforce before any id reaches SQL or a Redis
-  // key: a header carrying `:` (key-structure injection) or other unsafe chars
-  // must resolve to "no tenant" (fail-closed) rather than flow downstream into
-  // an attribution key. UUIDs and opaque alphanumeric host ids still pass.
-  const header = request.header(tenantHeaderKey)
-  return isSafeIdentifier(header) ? header : undefined
+function syncResolverRegistry(): TenantResolverRegistry {
+  return cachedResolverRegistry ?? buildResolverRegistry(getConfig())
 }
 
 /**
- * Returns the tenant id as a string, OR a `{ domain }` envelope, OR
- * `undefined`. Used by the `request.tenant()` macro and by
- * `TenantAdapter`. Async because resolvers may go async; the legacy
- * sync path is preserved for `TenantAdapter`'s synchronous call site
- * via {@link resolveTenantIdSync}.
+ * Returns the tenant id as a string, OR a `{ domain }` envelope, OR `undefined`.
+ * Used by the `request.tenant()` macro. Async because resolvers may go async; the
+ * synchronous call sites (`TenantAdapter`, rate-limit, metrics) use the sync twin
+ * {@link resolveTenantId}. Both walk the same registry chain, so a `domain`
+ * envelope (which needs an async repository lookup) is the only thing the sync
+ * path cannot see.
  */
 export async function resolveTenant(request: HttpRequest): Promise<TenantResolveResult> {
-  const registry = await getResolverRegistry()
-  if (registry && registry.chain().length > 0) {
-    return registry.resolve(request)
-  }
-  const id = legacyResolveTenantId(request)
-  return id ? { type: 'id', tenantId: id } : undefined
+  const registry = (await getResolverRegistry()) ?? buildResolverRegistry(getConfig())
+  return registry.resolve(request)
 }
 
 /**
- * Synchronous tenant-id resolver. Kept for `TenantAdapter`, which needs
- * to decide a connection name in a sync codepath. The new resolvers are
- * async-friendly — async work belongs to `resolveTenant()`.
+ * THE tenant-id resolver: one chain-aware authority the adapter routes by,
+ * `request.tenant()` resolves through (its sync half), and rate-limit / metrics
+ * attribute by, so a `resolverChain` deployment attributes to the tenant routing
+ * actually serves, rather than whatever a chain-blind switch would pick. Walks the
+ * registry chain synchronously; a `domain` hit yields no sync id (it needs an
+ * async repository lookup) and degrades to `undefined`.
+ *
+ * Every id it returns has already passed the UUID border in the resolvers (a
+ * non-UUID header/subdomain/path value never becomes an attribution key) and is
+ * lowercase-canonical, so the sync attribution decision and the routed connection
+ * agree on exactly one id. Exposed on the root barrel as the package's single
+ * helper from request to tenant id.
  */
 export function resolveTenantId(request: HttpRequest): string | undefined {
-  return legacyResolveTenantId(request)
+  const result = syncResolverRegistry().resolveSync(request)
+  return result?.type === 'id' ? result.tenantId : undefined
 }
 
 const TENANT_MEMO_KEY = Symbol('resolved_tenant')
@@ -294,7 +259,7 @@ export function dependencyUnavailable(
  * True when an error already carries a decided HTTP status (an AdonisJS
  * exception with a numeric `.status`). The tenant lookup/connect catch sites
  * use this to pass such errors through untouched and wrap everything else as a
- * 503 — the fail-closed-vs-pass-through contract lives here so a `statusCode`
+ * 503. The fail-closed-vs-pass-through contract lives here so a `statusCode`
  * vs `status` typo can't drift across the four call sites that depend on it.
  */
 export function hasDecidedHttpStatus(err: unknown): err is { status: number } {
@@ -308,7 +273,7 @@ export function hasDecidedHttpStatus(err: unknown): err is { status: number } {
 /**
  * Map an error raised during the tenant resolve/connect phase (registry lookup,
  * circuit probe, driver connect) to the fail-closed response. A dependency
- * outage maps to a retry-able 503 EVEN IF it carries an HTTP status — Lucid tags
+ * outage maps to a retry-able 503 EVEN IF it carries an HTTP status. Lucid tags
  * an unregistered-connection error (`E_UNMANAGED_DB_CONNECTION`, raised when a
  * tenant's pool was never established) with a 500, but it is a transient
  * connection-infrastructure failure, not a permanent decision. Any OTHER decided
@@ -324,8 +289,8 @@ export function mapTenantConnectError(operation: string, err: unknown, tenantId?
 
 /**
  * Map an error raised while a tenant request was running its handler (the
- * query phase, after connect succeeded). A backend severed mid-flight — a
- * failover, an admin `pg_terminate_backend`, a crash — otherwise bubbles a raw
+ * query phase, after connect succeeded). A backend severed mid-flight (a
+ * failover, an admin `pg_terminate_backend`, a crash) otherwise bubbles a raw
  * Lucid 500 that reads as non-retryable, even though Postgres has already rolled
  * the transaction back. An outage maps to a clean, retry-able 503 even if it
  * carries a status; everything else (an ordinary constraint violation, an
@@ -369,8 +334,8 @@ export function mapTenantQueryError(err: unknown, tenantId?: string): unknown {
           throw new MissingTenantHeaderException()
         }
       } catch (err) {
-        // Respect an error that already declares an HTTP status — a 400 missing
-        // header, a 404 not-found, a 500 config fault: the layer that threw it
+        // Respect an error that already declares an HTTP status (a 400 missing
+        // header, a 404 not-found, a 500 config fault): the layer that threw it
         // already decided the right response. A connection-infrastructure outage
         // (even one Lucid tags with a 500) maps to a clean, retry-able 503; any
         // other registry failure (central DB unreachable) likewise fails closed
@@ -385,7 +350,7 @@ export function mapTenantQueryError(err: unknown, tenantId?: string): unknown {
       if (!tenant) throw new TenantNotFoundException()
 
       // Fail closed on lifecycle, BEFORE connecting: a soft-deleted or
-      // suspended tenant must not be served — nor have a pool opened for it —
+      // suspended tenant must not be served (nor have a pool opened for it)
       // just because a route group forgot the guard middleware. The guard still
       // runs its own richer checks (provisioning/failed, maintenance bypass,
       // circuit breaker); this is the order-independent floor underneath them.
@@ -425,10 +390,10 @@ function assertTenantActive(
 }
 
 /**
- * SEAM-4 — a plugin-registered `request.<name>()` macro. Discriminated by `kind`
- * (E1). `name` is branded (minted via `macroName()`). `resolve` computes the
- * value from the request; `requireTenant` fails closed if no tenant is resolved.
- * Versioned under the umbrella ABI (no per-surface contract constant).
+ * A plugin-registered `request.<name>()` macro. Discriminated by `kind`. `name`
+ * is branded (minted via `macroName()`). `resolve` computes the value from the
+ * request; `requireTenant` fails closed if no tenant is resolved. Versioned under
+ * the umbrella ABI (no per-surface contract constant).
  */
 export interface TenantRequestMacroSpec<T = unknown> {
   readonly kind: 'requestMacro'
@@ -444,14 +409,14 @@ const registeredRequestMacros = new Map<string, symbol>()
  * Install a `request.<name>()` macro that mirrors the built-in `tenant()` macro:
  * memoized per-request under a private `Symbol` (so repeated reads don't
  * recompute), fail-closed when `requireTenant` and no tenant resolves, and
- * COLLISION-checked — a name already taken by `tenant()`, another plugin's macro,
+ * COLLISION-checked: a name already taken by `tenant()`, another plugin's macro,
  * or an existing request property throws a {@link RequestMacroCollisionException}
  * rather than silently shadowing. Called by the `definePlugin` facade for each
  * `requestMacros` entry; also usable directly.
  */
 export function registerTenantRequestMacro(spec: TenantRequestMacroSpec): void {
-  // Re-validate the slug (idempotent — a definePlugin entry already minted it, a
-  // direct caller may not have): it becomes a prototype property and a Symbol tag.
+  // Re-validate the slug (idempotent, since a definePlugin entry already minted it
+  // while a direct caller may not have): it becomes a prototype property and a Symbol tag.
   const name = macroName(spec.name)
   const proto = HttpRequest.prototype as unknown as Record<string, unknown>
   if (registeredRequestMacros.has(name) || typeof proto[name] === 'function') {

@@ -2,7 +2,7 @@ import { DateTime } from 'luxon'
 
 /**
  * Pure helpers for the monthly metrics rollup. Dependency-free (luxon only) so
- * they unit-test without a booted app — the SQL string and the recompute window
+ * they unit-test without a booted app. The SQL string and the recompute window
  * are the branchy bits; `MetricsService.recomputeMonthlyRollup` is the thin glue
  * that binds + runs.
  */
@@ -12,7 +12,7 @@ import { DateTime } from 'luxon'
  * one `(tenant, month)` row per tenant. `??.??` are identifier placeholders
  * (target schema.table, then source schema.table); `?` are the parameterized
  * date bounds. The conflict clause OVERWRITES with `EXCLUDED.*` (full recompute)
- * rather than `+= EXCLUDED` — so re-running over the same range is a no-op, never
+ * rather than `+= EXCLUDED`, so re-running over the same range is a no-op, never
  * a double-count. The month bucket is the whitelisted `DATE_TRUNC('month', …)`.
  */
 export function buildMonthlyRollupSql(): string {
@@ -62,7 +62,7 @@ export function monthBuckets(since: string, until: string): string[] {
 
 /**
  * The `[lo, hi]` daily bounds to recompute for one month bucket, clamped to the
- * overall window — so an explicit mid-month `since`/`until` only rolls up the days
+ * overall window, so an explicit mid-month `since`/`until` only rolls up the days
  * inside the window, and whole interior months cover the full month.
  */
 export function monthChunkBounds(
@@ -76,11 +76,11 @@ export function monthChunkBounds(
 }
 
 /**
- * Last day of the month BEFORE `asOf`'s month, `yyyy-MM-dd` — the upper bound of
+ * Last day of the month BEFORE `asOf`'s month, `yyyy-MM-dd`: the upper bound of
  * the default recompute window. Excluding the current (still-being-flushed) month
  * keeps a partial open month out of the rollup, which (with the read-side
  * open-month rule) means the dashboard serves the open month live until it closes
- * and a later run rolls it up. e.g. asOf 2026-06-24 → 2026-05-31.
+ * and a later run rolls it up. e.g. asOf 2026-06-24 yields 2026-05-31.
  */
 export function endOfLastCompletedMonth(asOf: string): string {
   return DateTime.fromISO(asOf, { zone: 'utc' })
@@ -91,7 +91,7 @@ export function endOfLastCompletedMonth(asOf: string): string {
 
 /**
  * Resolve the recompute window. Explicit `since`/`until` are honored verbatim
- * (a host may deliberately backfill — even the open month, which the read side
+ * (a host may deliberately backfill, even the open month, which the read side
  * still refuses to serve). Omitted bounds default to: `since` = first-of-month of
  * the earliest metric, `until` = end of the last COMPLETED month. Returns `null`
  * when there's nothing to roll up (empty table and no explicit `since`), so the

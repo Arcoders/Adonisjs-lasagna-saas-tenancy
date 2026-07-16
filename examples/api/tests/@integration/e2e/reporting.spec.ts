@@ -27,7 +27,7 @@ test.group('e2e — reporting: metrics pipeline + dashboard + extensions', (grou
   }) => {
     const { id } = await createInstalledTenant(client)
 
-    // A tenant-scoped request — TrackMetricsMiddleware (bypassInTestEnv: false)
+    // A tenant-scoped request. TrackMetricsMiddleware (bypassInTestEnv: false)
     // records it against the tenant.
     const note = await client.get('/demo/notes').header('x-tenant-id', id)
     note.assertStatus(200)
@@ -35,7 +35,7 @@ test.group('e2e — reporting: metrics pipeline + dashboard + extensions', (grou
     // Emit a host-defined custom metric the same request would.
     await new MetricsService().emitMetric(id, 'notes_created', 1)
 
-    // Flush Redis counters → backoffice (both built-in and custom).
+    // Flush Redis counters into the backoffice (both built-in and custom).
     assert.equal(await runAce('tenant:metrics:flush'), 0)
 
     // The admin dashboard reads them back.

@@ -12,13 +12,13 @@ import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
- * ISOLATION — cross-tenant data-change attribution against REAL Postgres. The
+ * Cross-tenant data-change attribution against REAL Postgres. The
  * sibling resilience spec proves after-commit vs rollback for a SINGLE tenant; the
  * unit spec proves attribution against fakes. Neither proves the cross-tenant
  * NEGATIVE: that a change committed inside tenant B is delivered tagged with B (never
  * A), so a subscriber that scopes to its own tenant NEVER acts on another tenant's
  * change. This drives two real provisioned tenants and a real emitter subscriber and
- * asserts the change carries the ORIGINATING tenant's id — the property the W0
+ * asserts the change carries the ORIGINATING tenant's id, the property the
  * `onDataChange`/`tenancy.run` scope fix depends on.
  */
 test.group('data-change cross-tenant attribution (real Postgres)', (group) => {

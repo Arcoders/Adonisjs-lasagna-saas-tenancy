@@ -10,7 +10,7 @@ import { createInstalledTenant, dropAllTenants, runAce } from './_helpers.js'
  * either stop at the first failure (default) or walk past it and still process
  * every healthy tenant, always surfacing the failure as a non-zero exit. We
  * exercise it through `tenant:seed`, which runs `db:seed` (the demo's
- * notes_seeder) against each tenant connection — a real, observable side effect.
+ * notes_seeder) against each tenant connection, a real, observable side effect.
  * A tenant provisioned but NOT migrated has no `notes` table, so its seed fails
  * deterministically while its healthy siblings succeed.
  *
@@ -32,7 +32,7 @@ test.group('e2e — CLI failure robustness (tenant:seed --continue-on-error)', (
     client,
     assert,
   }) => {
-    const a = await createInstalledTenant(client) // migrated → notes exists
+    const a = await createInstalledTenant(client) // migrated, so notes exists
     const b = await createInstalledTenant(client)
 
     assert.equal(await runAce('tenant:seed'), 0, 'all-healthy seed exits 0')
@@ -45,7 +45,7 @@ test.group('e2e — CLI failure robustness (tenant:seed --continue-on-error)', (
     assert,
   }) => {
     const healthyA = await createInstalledTenant(client)
-    // Provisioned (active) but never migrated: no `notes` table → its seed fails.
+    // Provisioned (active) but never migrated: no `notes` table, so its seed fails.
     const broken = await createInstalledTenant(client, { migrate: false })
     const healthyC = await createInstalledTenant(client)
 
@@ -92,7 +92,7 @@ test.group('e2e — CLI failure robustness (tenant:exec)', (group) => {
   test('--dry-run runs nothing and exits 0', async ({ client, assert }) => {
     await createInstalledTenant(client, { migrate: false })
     // The inner command is never executed under --dry-run, so a name that does
-    // not exist is fine — a 0 exit proves nothing ran.
+    // not exist is fine. A 0 exit proves nothing ran.
     assert.equal(await runAce('tenant:exec', ['--dry-run', 'this:never:runs']), 0)
   })
 

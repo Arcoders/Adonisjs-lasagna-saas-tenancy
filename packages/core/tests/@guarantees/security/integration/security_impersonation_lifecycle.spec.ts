@@ -14,10 +14,10 @@ class FakeAuditLog {
 }
 
 /**
- * S1-4: full impersonation lifecycle against the real BentoCache → Redis
- * stack. The unit spec only covers token format/signature; this one
- * exercises start → verify → first-use audit → revoke → expire and
- * proves each transition flips verify() correctly.
+ * Full impersonation lifecycle against the real BentoCache-backed Redis
+ * stack. The unit spec only covers token format and signature; this one
+ * exercises start, verify, first-use audit, revoke, and expire, and proves
+ * each transition flips verify() correctly.
  */
 test.group('ImpersonationService — lifecycle (integration)', (group) => {
   let originalConfig: ReturnType<typeof getConfig>

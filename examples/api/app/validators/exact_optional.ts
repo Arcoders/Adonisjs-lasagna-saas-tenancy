@@ -18,7 +18,7 @@
  * compile error). The cast is purely a compile-time bridge; `vine.object`
  * receives the identical object at runtime.
  *
- * Usage — name the schema map and cast it with its own `typeof`:
+ * To use it, name the schema map and cast it with its own `typeof`:
  *
  * ```ts
  * const schema = { title: vine.string(), body: vine.string().optional() }

@@ -21,7 +21,7 @@ import {
 import type { TenantRequestMacroSpec } from '../extensions/request.js'
 
 /**
- * E8 — typed section builders. Each one is the ergonomic way to author a seam
+ * Typed section builders. Each one is the ergonomic way to author a seam
  * entry: the author passes a plain `name` string and the callback, and the
  * builder (1) mints the branded name through its guard (`assertSafeIdentifier`
  * runs, so a hostile name throws here at authoring time), (2) stamps the `kind`
@@ -32,7 +32,7 @@ import type { TenantRequestMacroSpec } from '../extensions/request.js'
  * shape, so `definePlugin` consumes it unchanged.
  */
 
-/** Build a fail-closed tenant-access authorizer entry (SEAM-3). */
+/** Build a fail-closed tenant-access authorizer entry. */
 export function authorizer(spec: {
   readonly name: string
   readonly authorize: TenantAuthorizer
@@ -50,7 +50,7 @@ export function authorizer(spec: {
   }
 }
 
-/** Build a route-middleware entry stacked onto a tenant/central/universal scope (SEAM-2). */
+/** Build a route-middleware entry stacked onto a tenant/central/universal scope. */
 export function middleware(spec: {
   readonly name: string
   readonly middleware: TenantMiddleware
@@ -72,7 +72,7 @@ export function middleware(spec: {
 }
 
 /**
- * Build a tenant schedule (SEAM-1). Exactly one of `cron` / `everyMs` must be set
+ * Build a tenant schedule. Exactly one of `cron` / `everyMs` must be set
  * (the registry fails closed otherwise). `job` is the per-tenant BullMQ job name
  * fanned out to each active tenant. The scheduler is on the umbrella ABI, so there
  * is no `contractVersion` to default.
@@ -102,7 +102,7 @@ export function schedule(spec: {
   }
 }
 
-/** Build a `request.<name>()` macro spec (SEAM-4). The resolved type `T` flows
+/** Build a `request.<name>()` macro spec. The resolved type `T` flows
  *  through so `request.<name>()` is typed at the augmentation site. */
 export function requestMacro<T>(spec: {
   readonly name: string

@@ -1,4 +1,4 @@
-import type { QueryClientContract } from '@adonisjs/lucid/types/database'
+import type { Database } from '@adonisjs/lucid/database'
 import { getConfig } from '../../config.js'
 import type { TenantModelContract } from '../../types/contracts.js'
 import { ISOLATION_CONTRACT_VERSION } from './driver.js'
@@ -10,7 +10,8 @@ import type {
   ProvisionableDriver,
   TableLocation,
 } from './driver.js'
-import { assertSafeIdentifier } from './identifier.js'
+import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
+import { assertTenantConnectionEstablished } from './connection_established.js'
 import { runTenantMigrations } from './tenant_migration_runner.js'
 
 /**
@@ -32,12 +33,12 @@ async function lucid() {
  * DB on first connect); destroy releases the Lucid connection so the OS
  * reclaims the in-memory pages.
  *
- * Limitations (intentional — this is a TEST driver):
+ * Limitations (intentional, this is a TEST driver):
  *   - No backup/restore. The `tenant:backup` command will refuse to run when
  *     this driver is active.
  *   - No read replicas.
  *   - No persistence across process restarts.
- *   - SQLite SQL dialect ≠ PostgreSQL — schema features (CTEs in DML, JSONB,
+ *   - SQLite SQL dialect ≠ PostgreSQL, so schema features (CTEs in DML, JSONB,
  *     RETURNING semantics) may behave differently. Use this driver for fast
  *     unit/integration suites; rely on the PG drivers for production parity.
  *
@@ -54,6 +55,13 @@ export default class SqliteMemoryDriver implements ProvisionableDriver {
     return `${getConfig().tenantConnectionNamePrefix}${tenantId}`
   }
 
+  /** Fail closed with a typed error if this tenant's connection was never
+   *  established, matching the PG drivers (sqlite-memory also owns a per-tenant
+   *  connection). Single-sourced in `assertTenantConnectionEstablished`. */
+  assertConnected(tenantId: string, db: Database): void {
+    assertTenantConnectionEstablished(tenantId, this.connectionName(tenantId), db)
+  }
+
   tableLocation(tenant: TenantModelContract): TableLocation {
     // The in-memory database selected by the connection IS the namespace; there
     // is no schema or database to qualify. connectionName() asserts the id.
@@ -63,11 +71,6 @@ export default class SqliteMemoryDriver implements ProvisionableDriver {
     }
   }
 
-  enforce(_client: QueryClientContract, _tenantId: string): void {
-    // No-op: each tenant gets its own in-memory database, so the connection is
-    // the boundary. Nothing to scope on the client.
-  }
-
   async provision(tenant: TenantModelContract): Promise<void> {
     // Touch the connection so the in-memory DB is created and registered.
     await this.connect(tenant)
@@ -75,7 +78,7 @@ export default class SqliteMemoryDriver implements ProvisionableDriver {
 
   async destroy(tenant: TenantModelContract, opts: DestroyOptions = {}): Promise<void> {
     await this.disconnect(tenant)
-    // `keepData` is meaningless for in-memory storage — releasing the
+    // `keepData` is meaningless for in-memory storage. Releasing the
     // connection drops the data either way. We honor the flag for API
     // symmetry with the PG drivers but log nothing.
     void opts
@@ -91,6 +94,11 @@ export default class SqliteMemoryDriver implements ProvisionableDriver {
     const name = this.connectionName(tenant.id)
 
     if (db.manager.has(name)) {
+      // No identity seal here (unlike schema-pg/database-pg): the connection name,
+      // derived from the validated tenant id, IS the whole identity. There is no
+      // shared searchPath or database field a stale registration could re-point at
+      // another tenant, and the in-memory database is bound to this connection
+      // alone. A name collision is impossible for distinct valid tenant ids.
       return db.connection(name)
     }
 

@@ -1,6 +1,7 @@
 {
   "name": "@adonisjs-lasagna/admin",
-  "version": "1.0.0",
+  "version": "0.1.0",
+  "private": true,
   "description": "Admin REST API + OpenAPI/Swagger for @adonisjs-lasagna/saas-tenancy (tenant CRUD, impersonation, and satellite management)",
   "type": "module",
   "license": "MIT",
@@ -65,8 +66,8 @@
     "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/admin-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
   },
   "peerDependencies": {
-    "@adonisjs-lasagna/saas-tenancy": "^1.0.0",
-    "@adonisjs-lasagna/sso": "^1.0.0",
+    "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
+    "@adonisjs-lasagna/sso": ">=0.1.0 <1.0.0",
     "@adonisjs/core": "^7.0.0",
     "@adonisjs/lucid": "^22.0.0",
     "luxon": "^3.0.0"

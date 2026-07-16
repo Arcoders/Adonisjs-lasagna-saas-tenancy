@@ -14,14 +14,14 @@ import type { IsthmusSeverity } from '../../../src/types/isthmus.js'
  *
  *  1. No registered-but-mute guard: every non-audit entry's `guardFile` exists
  *     and contains an `emitIsthmusEvent(` call. (Audit-pillar entries ARE
- *     emitters — the template constructs the registry consolidates — so the
- *     requirement does not apply to them.)
+ *     emitters: they are the template constructs the registry consolidates, so
+ *     the requirement does not apply to them.)
  *  2. No orphan emit: every `emitIsthmusEvent('<id>'` call in src references a
  *     registered id. The compile-time `IsthmusGuardId` union already enforces
  *     this for typed call sites; this textual pass is the belt-and-braces that
  *     also holds for the `.mjs` readers of the same file.
- *  3. Thinness: every entry carries non-empty evidence and ISO review dates —
- *     no speculative guards, and the 6-month review always has a date to act on.
+ *  3. Thinness: every entry carries non-empty evidence and ISO review dates.
+ *     No speculative guards, and the 6-month review always has a date to act on.
  *  4. Every severity has a finite positive dispatch budget (a security control
  *     must never let its own telemetry become a load amplifier, and no severity
  *     may be accidentally unlimited).
@@ -103,8 +103,8 @@ test.group('architectural — the Isthmus contract', () => {
   test('the CI gate regexes still parse every registry entry (parse-drift pin)', ({ assert }) => {
     // These two regexes are COPIES of the ones scripts/check-isthmus.mjs uses to
     // read registry.ts textually (it can't import TS). They are field-order
-    // dependent (id → guardFile → nextReview; evidence.kind → ref). A field
-    // reorder or shape change in registry.ts silently skews the CI Index — this
+    // dependent (id, then guardFile, then nextReview; evidence.kind, then ref). A field
+    // reorder or shape change in registry.ts silently skews the CI Index. This
     // pins the parse so that drift fails the unit suite first. Keep in sync with
     // check-isthmus.mjs:entryRe / evidenceRe.
     const entryRe =

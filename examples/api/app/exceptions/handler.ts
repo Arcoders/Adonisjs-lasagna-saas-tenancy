@@ -12,7 +12,7 @@ import {
   QuotaExceededException,
 } from '@adonisjs-lasagna/saas-tenancy/exceptions'
 
-// TENANT_503_DIAG=1 → append JSONL records for every 5xx (and unmapped
+// When TENANT_503_DIAG=1, append JSONL records for every 5xx (and unmapped
 // errors) to TENANT_503_DIAG_LOG (default storage/503-diag.log).
 const diagPath = (() => {
   if (process.env.TENANT_503_DIAG !== '1') return null
@@ -26,7 +26,7 @@ async function diag(line: Record<string, unknown>) {
     await mkdir(dirname(diagPath), { recursive: true })
     await appendFile(diagPath, JSON.stringify({ at: new Date().toISOString(), ...line }) + '\n')
   } catch {
-    /* diagnostic only — never break the response */
+    /* diagnostic only, never break the response */
   }
 }
 

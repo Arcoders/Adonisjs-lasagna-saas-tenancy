@@ -1,11 +1,13 @@
 import type { QueryClientContract } from '@adonisjs/lucid/types/database'
+import type { Database } from '@adonisjs/lucid/database'
 import type { MigratorOptions } from '@adonisjs/lucid/types/migrator'
 import type { TenantModelContract } from '../../types/contracts.js'
+import type { PluginReadOnlyConfig } from '../../types/config.js'
 
 /**
  * The four shipped driver names, plus any custom name a host registers via
  * `IsolationDriverRegistry.register()` (the registry keys drivers by
- * `driver.name` at runtime, so the type must not close the set — see the
+ * `driver.name` at runtime, so the type must not close the set; see the
  * custom-isolation-driver cookbook). `(string & {})` keeps editor
  * autocomplete for the built-ins while admitting custom names.
  */
@@ -34,10 +36,10 @@ export type MigrateOptions = Omit<MigratorOptions, 'connectionName'> & {
   /**
    * Additional per-tenant migration source directories to fold into this run,
    * on top of the connection's own configured `migrations.paths`. Reserved for
-   * the per-tenant satellite-migration wiring (SEAM-2): a satellite registers
+   * the per-tenant satellite-migration wiring: a satellite registers
    * its per-tenant migration directory and `tenant:migrate` threads it here.
    * The shipped drivers do not consume it yet; it is declared on the contract
-   * now, riding the v2 bump, so SEAM-2 can wire it later without a second
+   * now, riding the v2 bump, so that wiring can land later without a second
    * breaking change against a moving shape.
    */
   extraMigrationPaths?: string[]
@@ -150,46 +152,51 @@ export interface TableLocationConnection {
  * the answer to: "where does this tenant's data live, how do I get a Lucid
  * client to it, and how is the tenant boundary enforced on that client?".
  *
- * Storage *creation* is deliberately NOT here — a driver that shares one set of
+ * Storage *creation* is deliberately NOT here. A driver that shares one set of
  * tables across tenants (rowscope-pg) owns no per-tenant storage to provision,
  * and must not be forced to ship a `provision()` no-op that lies. That capability
  * lives on {@link ProvisionableDriver}; use {@link isProvisionableDriver} to
  * branch on it.
  *
  * Shipped drivers:
- *   - `schema-pg`     — one PostgreSQL schema per tenant (default, provisionable)
- *   - `database-pg`   — one PostgreSQL database per tenant (provisionable)
- *   - `rowscope-pg`   — shared schema, `tenant_id` column, scoping via the
- *                       `withTenantScope()` mixin (NOT provisionable)
- *   - `sqlite-memory` — in-memory per-tenant SQLite for tests (provisionable)
+ *   - `schema-pg`: one PostgreSQL schema per tenant (default, provisionable)
+ *   - `database-pg`: one PostgreSQL database per tenant (provisionable)
+ *   - `rowscope-pg`: shared schema, `tenant_id` column, scoping via the
+ *     `withTenantScope()` mixin (NOT provisionable)
+ *   - `sqlite-memory`: in-memory per-tenant SQLite for tests (provisionable)
  */
 export interface IsolationDriver {
   readonly name: IsolationDriverName
 
   /**
    * Contract version this driver was built against (see
-   * {@link ISOLATION_CONTRACT_VERSION}). Omitted on legacy drivers — the
+   * {@link ISOLATION_CONTRACT_VERSION}). Omitted on legacy drivers, where the
    * registry warns rather than fails when it is absent.
    */
   readonly contractVersion?: number
 
   /**
-   * Apply this driver's tenant boundary to a client the adapter just resolved
-   * for `tenantId`, called synchronously on every model-query routing. For
-   * connection-isolated drivers (schema-pg, database-pg, sqlite-memory) the
-   * connection *is* the boundary, so this is a documented no-op. Row-scoping
-   * drivers enforce the boundary at query time (the `withTenantScope()` mixin)
-   * and, optionally, per transaction via `withTenantRls()`, so there is nothing
-   * to stamp synchronously here either — but every driver declares the hook so
-   * the responsibility is explicit in the contract and a custom driver cannot
-   * forget it.
+   * OPTIONAL hook: stamp something on a client the adapter just resolved for
+   * `tenantId`, called synchronously on every model-query routing. This is NOT
+   * how the shipped drivers enforce their tenant boundary, so none of them
+   * implement it:
+   *   - connection-isolated drivers (schema-pg, database-pg, sqlite-memory):
+   *     the per-tenant connection *is* the boundary; there is nothing to stamp.
+   *   - row-scoping (rowscope-pg): the boundary is applied at query time by the
+   *     `withTenantScope()` mixin and, when a hard boundary is required, per
+   *     transaction via `withTenantRls()`; nothing is stamped synchronously.
+   *
+   * It exists only as an escape hatch for a custom driver that genuinely needs a
+   * synchronous per-query touch on the client (an unusual design). Because the
+   * adapter calls it as `driver.enforce?.(client, tenantId)`, omitting it is the
+   * norm, not a gap.
    */
-  enforce(client: QueryClientContract, tenantId: string): void
+  enforce?(client: QueryClientContract, tenantId: string): void
 
   /**
    * Destroy the tenant's data. By default removes it; pass `{ keepData: true }`
-   * for the recycle-bin pattern. Every driver can tear a tenant down —
-   * schema-pg drops the schema, rowscope-pg deletes the scoped rows — so this
+   * for the recycle-bin pattern. Every driver can tear a tenant down (schema-pg
+   * drops the schema, rowscope-pg deletes the scoped rows), so this
    * stays on the core contract.
    */
   destroy(tenant: TenantModelContract, opts?: DestroyOptions): Promise<void>
@@ -206,7 +213,7 @@ export interface IsolationDriver {
    * storage. Implementations are expected to memoize within a connection
    * pool so repeated calls within a request reuse the same client.
    *
-   * `bypassHardCap` skips the opt-in connection-cap admission check — operational
+   * `bypassHardCap` skips the opt-in connection-cap admission check: operational
    * paths (provisioning, migrations, seeding) must not be refused by request-path
    * backpressure. Drivers without a per-tenant pool ignore it.
    */
@@ -250,9 +257,48 @@ export interface IsolationDriver {
   markUsed?(tenantId: string): void
 
   /**
+   * OPTIONAL, and synchronous: fail closed if this tenant's primary connection was
+   * never established. The adapter routes to a connection it does NOT register;
+   * establishing it is the job of context entry (`request.tenant()` / `tenancy.run()`,
+   * which call `connect()`). A query that reaches routing with no registered
+   * connection (a cold worker, an LRU eviction, a custom entry point that forgot to
+   * enter context) would let Lucid throw an opaque "connection is not registered";
+   * this throws a typed, actionable error at the boundary instead. Only a driver with
+   * a per-tenant connection pool (schema-pg, database-pg) needs it, since it owns the
+   * pool and the single `db.manager` cast. A driver whose connection is always
+   * registered (rowscope-pg's shared connection, sqlite-memory) omits it, and the
+   * check is a no-op there.
+   */
+  assertConnected?(tenantId: string, db: Database): void
+
+  /**
+   * OPTIONAL, and synchronous: resolve the SELECT-only firewall connection for a
+   * tenant. It is a clone of the already-registered primary, authenticated as the
+   * read-only role, so Postgres (not a JS proxy) denies a write from untrusted
+   * plugin code. Called by `TenantAdapter` when untrusted plugin code is on the
+   * stack and `plugins.readOnly` is configured.
+   *
+   * The driver OWNS this clone: it builds/registers it on first use, tracks it in
+   * the SAME connection pool as the primary (so it counts against the cap and is
+   * touched on use), and releases it on `disconnect` (closing the per-tenant pool
+   * leak an adapter-owned clone had). Only drivers with a per-tenant PG pool
+   * (schema-pg, database-pg) implement it; a driver that omits it has no firewall
+   * to offer, and the adapter fails CLOSED (denies the query) rather than routing
+   * untrusted code to a writable or shared connection.
+   *
+   * `db` is passed by the adapter because resolution is synchronous. Fails closed
+   * (throws) if the clone cannot be established.
+   */
+  ensureReadOnlyClient?(
+    tenantId: string,
+    db: Database,
+    role: PluginReadOnlyConfig
+  ): QueryClientContract
+
+  /**
    * Run migrations against the tenant's storage. For drivers without
    * per-tenant storage (rowscope-pg) this returns `{ executed: 0,
-   * noop: true }` — central migrations are the canonical source.
+   * noop: true }`, since central migrations are the canonical source.
    */
   migrate(tenant: TenantModelContract, opts: MigrateOptions): Promise<MigrateResult>
 }

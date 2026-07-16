@@ -203,7 +203,7 @@ test.group('BackupService — S3 roundtrip (real backend)', (group) => {
     assert.lengthOf(plan.kept, 2, 'retention must keep `keepLast` backups')
     assert.lengthOf(plan.purged, 3, 'the surplus must be purged')
 
-    // The S3 truth must match the plan — purged files gone, kept files present.
+    // The S3 truth must match the plan: purged files gone, kept files present.
     for (const purged of plan.purged) {
       assert.isFalse(
         await objectExists(client!, t.id, purged.file),

@@ -1,5 +1,5 @@
 /**
- * Public vocabulary of the Isthmus — the consolidation layer that names,
+ * Public vocabulary of the Isthmus, the consolidation layer that names,
  * registers, and instruments the package's fail-closed guards. Hosts consume
  * these types when subscribing to the `IsthmusGuardTripped` event; the registry
  * and the emit machinery themselves are internal (see `src/isthmus/`).
@@ -26,7 +26,7 @@ export type IsthmusEvidenceKind = 'cve' | 'incident' | 'inherent-risk' | 'invari
 /**
  * Why a dispatch was dropped: `rate_limited` (the per-severity window budget
  * was exhausted) or `no_emitter` (no booted app / the emitter was unavailable).
- * Counters are never dropped — only the event dispatch is.
+ * Counters are never dropped, only the event dispatch is.
  */
 export type IsthmusDropReason = 'rate_limited' | 'no_emitter'
 

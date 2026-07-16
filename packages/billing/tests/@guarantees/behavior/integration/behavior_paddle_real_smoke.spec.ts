@@ -22,10 +22,10 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
  *
  * Two extra knobs widen coverage when present (the basic run only needs the
  * API key):
- *   - PADDLE_TEST_WEBHOOK_SECRET — signs the round-trip body (any value works;
+ *   - PADDLE_TEST_WEBHOOK_SECRET: signs the round-trip body (any value works;
  *     the driver verifies against the same configured secret). Defaults to a
  *     fixed string so the round-trip runs with just the API key.
- *   - PADDLE_TEST_PRICE_ID — a catalog price id; enables the live
+ *   - PADDLE_TEST_PRICE_ID: a catalog price id; enables the live
  *     price-lookup + checkout-session test.
  *
  * Cleanup is best-effort: Paddle sandbox customers/transactions can't be hard
@@ -164,7 +164,7 @@ test.group('Paddle real-API smoke (sandbox)', (group) => {
     // Drain against the REAL sandbox. Tolerates zero rows: an empty sandbox
     // still proves auth, the `/subscriptions` query params, the
     // meta.pagination.next loop, and toSubscription mapping against the live
-    // surface — exactly what the stubbed paddle_driver.spec.ts cannot. Cap the
+    // surface, exactly what the stubbed paddle_driver.spec.ts cannot. Cap the
     // drain so a populated sandbox can't make the smoke run unbounded.
     let count = 0
     for await (const sub of driver.listSubscriptions!()) {

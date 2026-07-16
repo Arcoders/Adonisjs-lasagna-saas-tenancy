@@ -11,7 +11,7 @@
  * The contents here may change between minors to follow the satellites' needs.
  *
  * Stability policy (the keep-vs-hide decision): `/internal` REMAINS a
- * published-but-unstable subpath, and the rule that keeps it honest is —
+ * published-but-unstable subpath, and the rule that keeps it honest is that
  * anything a third-party satellite legitimately needs must ALSO live on a
  * stable surface, so no one is forced onto this subpath. As of the W4 dedup,
  * every stable-need helper has a stable home and first-party satellites import
@@ -28,7 +28,8 @@
  * seam for the shared test harness, and the Isthmus emit/registry re-exports
  * that core's own integration specs consume.
  */
-export { assertSafeIdentifier, isUuidV4 } from './services/isolation/identifier.js'
+export { isUuidV4 } from './services/isolation/identifier.js'
+export { assertSafeIdentifier } from './isthmus/guarded_identifier.js'
 export { getActiveDriver } from './services/isolation/active_driver.js'
 export { isProvisionableDriver } from './services/isolation/driver.js'
 export { splitSqlStatementsTagged } from './utils/sql_splitter.js'
@@ -41,7 +42,7 @@ export { createResolverStateBaseline } from './testing/resolver_baseline.js'
 export type { ResolverStateBaseline } from './testing/resolver_baseline.js'
 // The Isthmus (guard registry + severity-graded audit emit). Internal on
 // purpose: the public surface is the IsthmusGuardTripped event on /events, the
-// vocabulary types on /types, and — for a satellite that ships its own guards —
+// vocabulary types on /types, and (for a satellite that ships its own guards)
 // the `createGuardAudit` factory + `ISTHMUS_BUDGETS` on /sdk. The kernel
 // registry and its bound emit helpers may evolve with the guards, so they stay
 // here for core's own integration specs (which import emitIsthmusEvent /
@@ -58,3 +59,20 @@ export {
 } from './isthmus/audit.js'
 export type { IsthmusCountersSnapshot, IsthmusEmitOptions } from './isthmus/audit.js'
 export { NO_SILENT_GUARD_ALLOWLIST } from './isthmus/no_silent_guard_allowlist.js'
+// The envelope primitives and the SSRF guard. Taken off the root barrel in the
+// surface freeze: a host app stores a secret through `readSecret` / `writeSecret`
+// / `SECRET_CLASS` (still public on the root) and never needs the primitives
+// underneath. `decryptWithAppKey` is the app-key rotation seam, and the two URL
+// validators guard SSO issuer and webhook URLs. First-party callers only: `ai`
+// rotates provider keys, core's own services compose the rest. Both modules
+// import nothing but `node:` builtins, so /internal stays app.booted-safe.
+export {
+  encrypt,
+  decrypt,
+  decryptStrict,
+  decryptWithAppKey,
+  isEncrypted,
+  sealV2WithKey,
+  openV2WithKey,
+} from './utils/crypto.js'
+export { validateExternalHttpsUrl, validateResolvedHostIsPublic } from './utils/url.js'

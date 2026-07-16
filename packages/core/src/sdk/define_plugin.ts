@@ -17,9 +17,9 @@ import PluginBootException from '../exceptions/plugin_boot_exception.js'
 /**
  * The union of every entry a boot-phase section can yield. The `boot()`
  * dispatcher `switch`es over `kind` exhaustively (`default: assertNever`), so
- * ADDING a seam whose entry is not handled is a COMPILE error — the E1 closed-union
- * guarantee. Grows additively per lote (Lote A: the four request-path kinds; Lote B
- * adds schedule; C adds data-change).
+ * ADDING a seam whose entry is not handled is a COMPILE error (the closed-union
+ * guarantee). Grows additively per phase (phase A: the four request-path kinds;
+ * B adds schedule; C adds data-change).
  */
 type PluginBootEntry =
   | TenantAuthorizerEntry
@@ -30,7 +30,7 @@ type PluginBootEntry =
 
 /**
  * A declarative section of a {@link PluginSpec}. ALWAYS a function of the app
- * (never a bare value — the plan's obj#3 removes the value overload so the type
+ * (never a bare value, since the plan removes the value overload so the type
  * has one shape), so a section can read config or resolve a dependency lazily and
  * stay app.booted-safe until `boot()` actually runs it.
  */
@@ -42,8 +42,8 @@ export type PluginSection<T> = (app: ApplicationService) => T | Promise<T>
  * collapses the ABI ceremony (the two `assert*CompatAtBoot` calls) that every
  * hand-written provider repeats today.
  *
- * `PluginSpec` grows ADDITIVELY per lote — Lote A ships the request-path fields
- * (`authorizers`, and, as their seams land in this same lote, `middleware` /
+ * `PluginSpec` grows ADDITIVELY per phase. Phase A ships the request-path fields
+ * (`authorizers`, and, as their seams land in this same phase, `middleware` /
  * `requestMacros` / `provides`); B and C add theirs. A field that has no seam yet
  * simply is not on the interface.
  */
@@ -61,7 +61,7 @@ export interface PluginSpec {
 
   /**
    * Sensitive capabilities this plugin declares it needs, populated ONLY through
-   * the `permission.*` builders. Surfaced at install for operator consent (S1)
+   * the `permission.*` builders. Surfaced at install for operator consent
    * and cross-checked against `package.json#lasagnaSatellite.permissions` by the
    * `check-plugin-permissions` guard. Declaration is disclosure, not enforcement
    * (see {@link PluginPermission}); it must stay coherent with the manifest.
@@ -71,29 +71,29 @@ export interface PluginSpec {
   /**
    * Set when the plugin ships native (`.node`) addons. A native addon evades the
    * worker's Node Permission Model, so `boot()` fails closed if this plugin runs
-   * in a sandboxed worker (`--permission`) without `--allow-addons` (S4b). Keep it
+   * in a sandboxed worker (`--permission`) without `--allow-addons`. Keep it
    * in sync with `package.json#lasagnaSatellite.nativeAddons`.
    */
   readonly nativeAddons?: boolean
 
-  // --- Lote A seams (request-path) ---
-  /** Tenant-access authorizers, appended to the fail-closed authorizer chain (SEAM-3). */
+  // --- Phase A seams (request-path) ---
+  /** Tenant-access authorizers, appended to the fail-closed authorizer chain. */
   readonly authorizers?: PluginSection<readonly TenantAuthorizerEntry[]>
-  /** Route middleware stacked onto tenant/central/universal groups (SEAM-2). */
+  /** Route middleware stacked onto tenant/central/universal groups. */
   readonly middleware?: PluginSection<readonly TenantMiddlewareEntry[]>
-  /** `request.<name>()` macros mirrored on the request (SEAM-4). */
+  /** `request.<name>()` macros mirrored on the request. */
   readonly requestMacros?: PluginSection<readonly TenantRequestMacroSpec[]>
   /** Capabilities this plugin provides for optional cross-plugin composition. */
   readonly provides?: PluginSection<readonly CapabilityProvision[]>
 
-  // --- Lote B seams (workers) ---
-  /** Periodic ticks that fan out over active tenants (SEAM-1). */
+  // --- Phase B seams (workers) ---
+  /** Periodic ticks that fan out over active tenants. */
   readonly schedules?: PluginSection<readonly TenantSchedule[]>
-  /** Postgres extensions installed into each tenant's storage on provision (SEAM-7). */
+  /** Postgres extensions installed into each tenant's storage on provision. */
   readonly provisionExtensions?: PluginSection<readonly ProvisionExtensionSpec[]>
 
-  // --- Lote C seam (events) ---
-  /** React to committed tenant-model writes, isolated from the write (SEAM-5). */
+  // --- Phase C seam (events) ---
+  /** React to committed tenant-model writes, isolated from the write. */
   readonly onDataChange?: PluginSection<readonly TenantDataChangeSubscription[]>
 
   // --- lifecycle escape hatches (map onto the provider phases) ---
@@ -117,7 +117,7 @@ export interface PluginSpec {
  *  - `start()` / `ready()` / `shutdown()` run their hooks.
  *
  * Any section resolver or lifecycle hook that throws is wrapped in a
- * {@link PluginBootException} attributed to `{ plugin, phase }` — fail-closed,
+ * {@link PluginBootException} attributed to `{ plugin, phase }`, fail-closed,
  * aborting the deploy rather than leaving the plugin half-loaded.
  *
  * This module is app.booted-safe (no static import of a booted-touching service);
@@ -143,7 +143,7 @@ export function definePlugin(spec: PluginSpec): SatelliteProviderConstructor {
       assertSatelliteApiCompatAtBoot({ satelliteApi: spec.satelliteApi }, label)
       assertPluginApiCompatAtBoot(spec.pluginApiVersion, label)
 
-      // S4b: a native-addon plugin cannot run in a Permission-Model worker without
+      // A native-addon plugin cannot run in a Permission-Model worker without
       // --allow-addons. Inert in the API process (no --permission); aborts a
       // sandboxed worker deploy. No-op unless the plugin declares native addons.
       if (spec.nativeAddons) {
@@ -216,7 +216,7 @@ export function definePlugin(spec: PluginSpec): SatelliteProviderConstructor {
         case 'capability': {
           const { default: CapabilityRegistry } = await import('../services/capability_registry.js')
           // Thread the plugin's own name so the registry can allowlist-gate a
-          // `sensitive` provision against TRUSTED_SATELLITES (S5). Ordinary
+          // `sensitive` provision against TRUSTED_SATELLITES. Ordinary
           // provisions ignore it.
           ;(await this.app.container.make(CapabilityRegistry)).register(entry, name)
           return
@@ -239,7 +239,7 @@ export function definePlugin(spec: PluginSpec): SatelliteProviderConstructor {
 
     /**
      * Register an `after('provision')` hook that installs each declared Postgres
-     * extension into a newly-provisioned tenant's storage (SEAM-7). Identifiers are
+     * extension into a newly-provisioned tenant's storage. Identifiers are
      * validated HERE, at boot, so a typo'd / hostile extension name fails the deploy
      * rather than the first tenant provision. The hook is fail-open by the
      * HookRegistry after-hook contract (a throw is logged, not propagated), so a
@@ -251,7 +251,7 @@ export function definePlugin(spec: PluginSpec): SatelliteProviderConstructor {
       const specs = await this.#resolveSection('provisionExtensions', spec.provisionExtensions)
       if (specs.length === 0) return
       try {
-        const { assertSafeIdentifier } = await import('../services/isolation/identifier.js')
+        const { assertSafeIdentifier } = await import('../isthmus/guarded_identifier.js')
         for (const ext of specs) {
           assertSafeIdentifier(ext.name, 'extension name')
           if (ext.schema !== undefined) assertSafeIdentifier(ext.schema, 'extension schema')
@@ -280,10 +280,10 @@ export function definePlugin(spec: PluginSpec): SatelliteProviderConstructor {
     }
 
     /**
-     * Subscribe the plugin's `onDataChange` handlers to the TenantDataChanged event
-     * (SEAM-5). Runs in `ready()` (the emitter is fully constructed only then). The
-     * subscription wiring — filters + fail-open + per-tenant failure metric — lives
-     * in `plugin_data_change.ts` so this E1 no-any surface stays a typed call.
+     * Subscribe the plugin's `onDataChange` handlers to the TenantDataChanged event.
+     * Runs in `ready()` (the emitter is fully constructed only then). The
+     * subscription wiring (filters + fail-open + per-tenant failure metric) lives
+     * in `plugin_data_change.ts` so this no-any surface stays a typed call.
      */
     async #subscribeDataChange(): Promise<void> {
       if (!spec.onDataChange) return

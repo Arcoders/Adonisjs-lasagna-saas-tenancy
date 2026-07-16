@@ -4,7 +4,7 @@ import { setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { TenantResolverRegistry } from '@adonisjs-lasagna/saas-tenancy/services'
 
 /**
- * HARDENING — forwarded-host tenant hop (WS-3).
+ * HARDENING: forwarded-host tenant hop.
  *
  * A host-based resolver (subdomain / domain-or-subdomain) derives the tenant
  * from the request host. Under a permissive proxy trust the host can be set via
@@ -55,8 +55,10 @@ test.group('hardening — forwarded-host tenant hop', (group) => {
     })
     registry.setChain(['subdomain'])
 
-    const allowed = await registry.resolve(fakeRequest('acme.tenants.example'))
-    assert.deepEqual(allowed, { type: 'id', tenantId: 'acme' })
+    // An allowlisted host with a canonical UUID subdomain resolves the tenant.
+    const tenant = '11111111-1111-4111-8111-111111111111'
+    const allowed = await registry.resolve(fakeRequest(`${tenant}.tenants.example`))
+    assert.deepEqual(allowed, { type: 'id', tenantId: tenant })
 
     // Spoofed X-Forwarded-Host pointing at a different apex must not resolve.
     const spoofed = await registry.resolve(fakeRequest('victim.evil.example'))

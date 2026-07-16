@@ -11,14 +11,14 @@ import { join } from 'node:path'
  * with one required env var removed and asserts a non-zero exit that names
  * the missing variable.
  *
- * Deployed images carry no .env file — config arrives purely through the
- * environment — so each child gets ENV_PATH pointed at an empty directory.
+ * Deployed images carry no .env file (config arrives purely through the
+ * environment), so each child gets ENV_PATH pointed at an empty directory.
  * Without that, the Adonis env loader would read examples/api/.env from cwd
  * and quietly fill the hole this spec is creating.
  *
  * Package-level boot validations (impersonation secret length, admin routes
  * without middleware, isolation driver choice) are covered by the core
- * integration suite — this spec covers the app-level env contract.
+ * integration suite. This spec covers the app-level env contract.
  */
 interface BootResult {
   code: number | null
@@ -76,7 +76,7 @@ test.group('e2e — misconfigured boot fails fast', () => {
   const cases: Array<{ varName: string; port: string }> = [
     { varName: 'APP_KEY', port: '3471' },
     { varName: 'DB_HOST', port: '3472' },
-    { varName: 'DEMO_ADMIN_TOKEN', port: '3473' },
+    { varName: 'TENANT_HEADER_KEY', port: '3473' },
   ]
 
   for (const { varName, port } of cases) {

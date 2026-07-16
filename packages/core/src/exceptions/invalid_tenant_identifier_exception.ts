@@ -2,7 +2,7 @@ import { Exception } from '@adonisjs/core/exceptions'
 
 /**
  * Raised when a tenant identifier is PRESENT in the request but malformed in a
- * way that signals tampering rather than absence — e.g. a `request-data`
+ * way that signals tampering rather than absence. For example, a `request-data`
  * tenant_id supplied as an array or object (`?tenant_id[]=a&tenant_id[]=b`)
  * instead of a string. Absence is a normal miss (fall through / 400 downstream);
  * a present-but-non-string value fails closed with this 400 so a type-confusion

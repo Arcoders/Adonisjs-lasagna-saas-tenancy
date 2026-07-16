@@ -32,7 +32,7 @@ export type AdminRouteMiddleware = AdminMiddlewareEntry | AdminMiddlewareEntry[]
 
 /**
  * Hook that resolves the acting admin's id from the authenticated request.
- * Required when wiring impersonation endpoints — the package refuses to
+ * Required when wiring impersonation endpoints. The package refuses to
  * trust an `adminId` field from the request body, since that would let any
  * caller falsify the audit trail. Return `null` to deny.
  *
@@ -56,14 +56,14 @@ export interface MultitenancyAdminRoutesOptions {
    *
    * REQUIRED. The admin API exposes destructive routes (tenant destroy,
    * impersonation, SSO config), so it refuses to mount without auth: omitting
-   * this throws at startup. To intentionally mount the routes public — only
+   * this throws at startup. To intentionally mount the routes public, only
    * ever behind a trusted network boundary (a private VPC, an authenticating
-   * gateway, or local tests) — pass `false` explicitly.
+   * gateway, or local tests), pass `false` explicitly.
    */
   middleware?: AdminRouteMiddleware | false
   /**
    * REQUIRED if you mount the impersonation endpoints. Must extract the
-   * acting admin id from the authenticated context — typically
+   * acting admin id from the authenticated context, typically
    * `({ auth }) => auth.user?.id`. NEVER read it from the request body.
    * Without this hook, the impersonation endpoint returns 501.
    */
@@ -72,7 +72,7 @@ export interface MultitenancyAdminRoutesOptions {
    * When `true` (default), the OpenAPI spec endpoint (`/openapi.json`)
    * and Swagger UI (`/docs`) inherit `middleware`. The spec is a complete
    * map of the admin surface (impersonation paths, destructive routes,
-   * SSO config) — leaving it public lets attackers enumerate the API
+   * SSO config). Leaving it public lets attackers enumerate the API
    * without triggering auth failures, so we gate it by default.
    *
    * Pass `false` if you publish the spec intentionally (developer
@@ -81,7 +81,7 @@ export interface MultitenancyAdminRoutesOptions {
   docsAuth?: boolean
   /**
    * Optional execution guards for host-registered admin actions (the
-   * `POST {prefix}/actions/:name` route). Both off by default — actions run
+   * `POST {prefix}/actions/:name` route). Both off by default. Actions run
    * unguarded. `timeoutMs` is a response deadline (fires the action's
    * `AbortSignal`); `rateLimit` is a Redis-backed sliding window per
    * `(action, ip)`.
@@ -162,7 +162,7 @@ export function multitenancyAdminRoutes(options: MultitenancyAdminRoutesOptions 
   // Fail closed: the admin surface includes destructive routes, so it must not
   // mount silently public. Require explicit auth, or an explicit `false` opt-out.
   // Only `false` is the public opt-out; every other "effectively absent" value
-  // is rejected — `undefined`, `null`, an empty string, and an EMPTY ARRAY. The
+  // is rejected: `undefined`, `null`, an empty string, and an EMPTY ARRAY. The
   // empty array is the dangerous one: `authEnabled ? [auth] : []` would
   // otherwise mount the admin API public silently while looking guarded.
   if (isAbsentAdminMiddleware(middleware)) {
@@ -198,7 +198,7 @@ export function multitenancyAdminRoutes(options: MultitenancyAdminRoutesOptions 
     router.delete('/impersonations/by-id/:sessionId', (ctx) => c.stopImpersonation(ctx))
     router.get('/health/report', (ctx) => c.healthReport(ctx))
 
-    // Satellite resources — one controller each. Instantiated per-call so
+    // Satellite resources: one controller each. Instantiated per-call so
     // they pick up container-bound dependencies on every request (a wash in
     // performance for admin volume).
     const audit = new AuditLogsController()

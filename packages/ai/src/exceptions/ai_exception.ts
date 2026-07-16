@@ -15,21 +15,21 @@ export const AI_ERROR_CODES = [
   'config_missing',
   'byok_endpoint_blocked',
   'invalid_request',
-  // WS-AI-3 vector store
+  // vector store
   'rowscope_unsupported',
   'dimension_mismatch',
   'embedding_quota_exhausted',
   'tenant_scope_mismatch',
-  // WS-AI-3 ingestion
+  // ingestion
   'doc_fetch_blocked',
   'ingestion_denied',
-  // WS-AI-5 retrieval
+  // retrieval
   'retrieval_denied',
-  // WS-AI-7 audit
+  // audit
   'audit_write_failed',
-  // WS-AI-4 memory
+  // memory
   'memory_session_invalid',
-  // WS-AI-9 compliance / residency
+  // compliance / residency
   'residency_denied',
 ] as const
 
@@ -50,7 +50,7 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   config_missing: 500,
   byok_endpoint_blocked: 400,
   invalid_request: 400,
-  // WS-AI-3 vector store: a rowscope tenant / a dimension mismatch / a malformed
+  // vector store: a rowscope tenant / a dimension mismatch / a malformed
   // request are permanent 4xx; over the storage cap is 402 (like over_budget); a
   // tenant-scope-seal breach is a 500 (an internal invariant, never a client fault).
   rowscope_unsupported: 400,
@@ -61,7 +61,7 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   // ingestion authorizer is a 403, like the access gate.
   doc_fetch_blocked: 400,
   ingestion_denied: 403,
-  // A denied retrievalFilter (G2 per-user document ACL) is a 403, like the
+  // A denied retrievalFilter (the per-user document ACL) is a 403, like the
   // access and ingestion gates.
   retrieval_denied: 403,
   // An audit row that cannot be written is a fail-closed 503 (the action must
@@ -79,8 +79,8 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
  * The pinned HTTP status for an AI error code. This is the single source of
  * truth for status mapping: the gateway resolves a pre-flight failure to a
  * status through here rather than a parallel hand-maintained table, so a fatal
- * typed refusal thrown before the first byte (provider_not_allowed -> 403,
- * byok_endpoint_blocked -> 400) keeps its own status instead of drifting into a
+ * typed refusal thrown before the first byte (provider_not_allowed stays 403,
+ * byok_endpoint_blocked stays 400) keeps its own status instead of drifting into a
  * retryable 503. Total over `AIErrorCode` by construction.
  */
 export function httpStatusForAiCode(code: AIErrorCode): number {
@@ -99,7 +99,7 @@ const FATAL_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
   'config_missing',
   'byok_endpoint_blocked',
   'invalid_request',
-  // WS-AI-3: none of these become correct on a retry — a rowscope host cannot use
+  // The vector-store codes never become correct on a retry: a rowscope host cannot use
   // the vector store, a dimension mismatch is a config fault, the storage cap is a
   // plan limit, and a scope-seal breach is a bug.
   'rowscope_unsupported',
@@ -113,17 +113,17 @@ const FATAL_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
   'retrieval_denied',
   // A forged/malformed session token will not become valid on a retry.
   'memory_session_invalid',
-  // WS-AI-9 E9: FATAL_CODES is a plain Set (NOT compile-forced by the union), so
-  // this entry is added by hand — a residency denial is a permanent policy refusal,
-  // and a missing entry here would wrongly make it retryable (a client would retry
-  // the very egress residency exists to block).
+  // FATAL_CODES is a plain Set (NOT compile-forced by the union), so this entry is
+  // added by hand. A residency denial is a permanent policy refusal, and a missing
+  // entry here would wrongly make it retryable (a client would retry the very egress
+  // residency exists to block).
   'residency_denied',
 ])
 
 /**
  * The satellite's error type. It never carries an upstream provider body, key
  * fragment, prompt or response text: `message` is always a short, log-safe
- * string, so routing it to a client or a log cannot leak a secret (I6 / G9). A
+ * string, so routing it to a client or a log cannot leak a secret. A
  * raw cause may be attached for structured logs, redacted at the log layer.
  */
 export default class AIException extends Exception {

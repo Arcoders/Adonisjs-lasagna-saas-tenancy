@@ -64,7 +64,7 @@ export default class DestroyTenant extends BaseCommand {
           await driver.destroy(tenant)
         } catch (dropErr: any) {
           // Partial failure: the tenant is already soft-deleted (so it is
-          // unreachable — isolation is intact), but the schema drop failed,
+          // unreachable, and isolation stays intact), but the schema drop failed,
           // leaving an ORPHAN schema. Don't bury it in the generic catch with a
           // bare error: tell the operator it is recoverable WITHOUT waiting out
           // the retention window, and record the partial state in the audit log.

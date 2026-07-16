@@ -18,7 +18,7 @@ const defaultConnectionOptions = {
   },
 } as const
 
-// Pool caps stay small + aggressive idle-close: PG's default max_connections
+// Pool caps stay small with aggressive idle-close: PG's default max_connections
 // is 100, and Knex's default of 10/connection saturates that under
 // cross_tenant_e2e's 5 tenants × 20 concurrent writes (SQLSTATE 53300).
 const sharedPool = { pool: { min: 0, max: 8, idleTimeoutMillis: 10_000 } } as const
@@ -49,7 +49,7 @@ export default defineConfig({
     },
     // Least-privilege connection used ONLY by rowscope_rls.spec.ts to execute
     // the RLS enforcement proof. Defaults to the main DB user (a superuser in
-    // local/default setups → the spec self-skips). CI sets RLS_DB_USER to a
+    // local/default setups, so the spec self-skips). CI sets RLS_DB_USER to a
     // NOSUPERUSER NOBYPASSRLS role so the proof actually runs. Lazy pool
     // (min: 0) so the role only ever connects when that spec uses it.
     rls_probe: {
@@ -66,7 +66,7 @@ export default defineConfig({
     },
     // Same least-privilege role as `rls_probe`, but pinned to a SINGLE physical
     // backend (min=max=1) so a transaction and a later bare query provably reuse
-    // the same connection — the setup needed to prove the transaction-local GUC
+    // the same connection, the setup needed to prove the transaction-local GUC
     // does not leak across requests on a pooled connection. Used only by
     // rowscope_rls.spec.ts's no-leak case.
     rls_probe_single: {
@@ -83,7 +83,7 @@ export default defineConfig({
     },
     // SELECT-only role used ONLY by the S3 read-only firewall proof
     // (security_plugin_read_only_role.spec.ts). Defaults to the main DB user (a
-    // writable superuser locally → the spec self-skips). CI sets PLUGIN_RO_DB_USER
+    // writable superuser locally, so the spec self-skips). CI sets PLUGIN_RO_DB_USER
     // to a role with `default_transaction_read_only = on`, so a write is denied.
     // Lazy pool (min: 0) so the role only connects when that spec runs.
     plugin_ro: {

@@ -14,7 +14,7 @@ import TenantProvisioned from '../events/tenant_provisioned.js'
  * this, such a tenant was a dead end: the install job had already run and the
  * status floor (`TenantNotReadyException`) keeps serving it a 503 forever.
  *
- * Re-runs the same provision step the install job does — `driver.provision` is
+ * Re-runs the same provision step the install job does. `driver.provision` is
  * idempotent (a second call on an already-provisioned schema must not throw), so
  * this is safe whether the schema was partly created or not. Refuses an active
  * tenant (no-op) and a soft-deleted one (use tenant:destroy/purge instead).

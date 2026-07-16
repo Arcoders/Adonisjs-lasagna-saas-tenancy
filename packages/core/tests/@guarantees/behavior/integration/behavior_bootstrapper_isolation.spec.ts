@@ -97,7 +97,7 @@ test.group('e2e — bootstrapper cross-tenant isolation', (group) => {
       assert.equal(readA, 'A-value', 'A must read its own value')
       assert.equal(readB, 'B-value', "B must not see A's value under the same key")
 
-      // Delete from A — must not affect B.
+      // Delete from A. B must not be affected.
       await tenancy.run(a, async () => tenantCache().delete({ key: 'shared' }))
       const afterDeleteA = await tenancy.run(a, async () => tenantCache().get({ key: 'shared' }))
       const afterDeleteB = await tenancy.run(b, async () => tenantCache().get({ key: 'shared' }))
@@ -132,8 +132,8 @@ test.group('e2e — bootstrapper cross-tenant isolation', (group) => {
         writeUnderPrefix('B-content')
       )
 
-      // tenantPrefix returns a logical key prefix (Drive/S3 semantics) —
-      // always forward slashes, regardless of platform.
+      // tenantPrefix returns a logical key prefix (Drive/S3 semantics).
+      // Always forward slashes, regardless of platform.
       assert.equal(prefixA, `tenants/${a.id}/`, 'prefix A shape')
       assert.equal(prefixB, `tenants/${b.id}/`, 'prefix B shape')
       assert.notEqual(prefixA, prefixB)
@@ -209,7 +209,7 @@ test.group('e2e — bootstrapper cross-tenant isolation', (group) => {
       assert.equal(wireB, `tenants/${b.id}/chat/lobby`)
       assert.notEqual(wireA, wireB, 'two tenants must never collide on the same logical channel')
 
-      // Path traversal must be rejected — otherwise the wire name could
+      // Path traversal must be rejected. Otherwise the wire name could
       // land inside another tenant's prefix.
       await tenancy.run(a, async () => {
         assert.throws(
@@ -245,7 +245,7 @@ test.group('e2e — bootstrapper cross-tenant isolation', (group) => {
         )
       )
 
-      // Each scope must read back its own value — AsyncLocalStorage keeps
+      // Each scope must read back its own value. AsyncLocalStorage keeps
       // tenancy.currentId() accurate across the awaits above.
       for (const r of results) {
         assert.equal(

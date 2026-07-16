@@ -3,9 +3,9 @@
 All notable changes to `@adonisjs-lasagna/reporting` are documented here. This
 project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.0.0] — 2026-06-24
+## [0.1.0] — 2026-07-10
 
-**Graduated to release candidate** and grew into an extensible analytics platform.
+**Shipped as experimental** and grew into an extensible analytics platform.
 
 Added:
 - **Custom named metrics.** Host code calls `metrics.emitMetric(tenantId, name, value)`
@@ -51,12 +51,10 @@ Notes:
 - The package now ships a README (badge, install, fail-closed routes mount, service
   usage, custom-metric extensions, and the `tenant:report:generate` command).
 
-Requires the core metrics pipeline; new installs run the
+Requires PostgreSQL 13+ (`DATE_TRUNC`) and the core metrics pipeline; new installs run the
 `create_tenant_custom_metrics_table` migration (a core stub).
 
-## [0.1.0] — 2026-06-23
-
-Initial **experimental** release. Cross-tenant analytics over the backoffice
+Cross-tenant analytics over the backoffice
 `tenant_metrics` table:
 
 - `ReportingService.getAggregate()` — totals + error rate per day/week/month bucket.
@@ -66,11 +64,6 @@ Initial **experimental** release. Cross-tenant analytics over the backoffice
 - `tenant:report:generate` ace command and a mountable `multitenancyReportingRoutes()`
   dashboard endpoint.
 
-**Stability: experimental.** The API may change in a minor release until the
-satellite graduates to RC. Requires PostgreSQL 13+ (`DATE_TRUNC`) and the core
-metrics pipeline (`tenant_metrics` in the backoffice schema).
-
 Known limitations:
-- No pre-computed rollup tables (live aggregation only); a future optimization.
 - `iterateTenantsByUsage` reads one grouped row per tenant into memory; fine for
   typical fleets, batching is a future improvement.

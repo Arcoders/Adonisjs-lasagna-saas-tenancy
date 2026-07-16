@@ -45,7 +45,7 @@ export type PurgeScope = 'tenant' | 'user' | 'source'
 export type PurgeStepName = 'epoch' | 'memory' | 'embeddings'
 export type PurgeStepStatus = 'ok' | 'failed' | 'skipped'
 
-/** One step of a purge, with its outcome — the honest, PII-free unit of the summary (E22). */
+/** One step of a purge, with its outcome: the honest, PII-free unit of the summary. */
 export interface PurgeStep {
   readonly step: PurgeStepName
   readonly status: PurgeStepStatus
@@ -128,8 +128,9 @@ export default class AiComplianceService {
 
   /**
    * Per-user right-to-erasure. Memory keys off the RAW principal; embeddings key
-   * off its SHA-256 `actor` hash — the E1 asymmetry, so one value must NOT feed
-   * both (or one erasure silently no-ops). The caller passes the raw principal.
+   * off its SHA-256 `actor` hash. The two stores deliberately key off different
+   * forms, so one value must NOT feed both (or one erasure silently no-ops).
+   * The caller passes the raw principal.
    */
   async purgeUser(
     tenant: TenantModelContract,
@@ -181,7 +182,7 @@ export default class AiComplianceService {
    * The tenant-lifecycle auto-purge (E6/E19). Redis-resident data ONLY (cache
    * epoch + memory): on `tenant_deleted` the schema is already dropped (so no
    * vector call), and on `tenant_anonymized` embeddings are kept by design
-   * (decision 1). NON-throwing — the core command already committed — but a
+   * (decision 1). NON-throwing (the core command already committed), but a
    * failure emits `guard.ai_auto_purge_failed` + a metric so it is never silent.
    */
   async autoPurge(
@@ -246,7 +247,7 @@ export default class AiComplianceService {
   /**
    * The `bumpEpoch` gate (decision 5): the cache-epoch rotation runs FIRST and
    * must succeed before any store is deleted. If it failed, the deletes are not
-   * attempted — a clean abort (nothing half-done) that the operator retries, so
+   * attempted: a clean abort (nothing half-done) that the operator retries, so
    * a purge never starts without first making pre-purge responses unreachable.
    */
   #gateOpen(steps: PurgeStep[]): boolean {

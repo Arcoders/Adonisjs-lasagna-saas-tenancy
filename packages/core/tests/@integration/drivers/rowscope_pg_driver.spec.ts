@@ -73,7 +73,7 @@ test.group('RowScopePgDriver + withTenantScope (integration)', (group) => {
     const connB = await driver.connect(tenantB)
 
     // Lucid wraps the underlying pool with a fresh QueryClient instance
-    // per call, so === is too strict — what we care about is that BOTH
+    // per call, so === is too strict. What we care about is that BOTH
     // tenants resolve to the same connection NAME (= same pool). That's
     // the rowscope contract: no per-tenant connection.
     assert.equal((connA as any).connectionName, 'public')
@@ -84,7 +84,7 @@ test.group('RowScopePgDriver + withTenantScope (integration)', (group) => {
       'both tenants must share the central connection — no per-tenant pool'
     )
 
-    // And the client must actually work — a noop query exercises the
+    // And the client must actually work. A noop query exercises the
     // pool path Lucid sets up under the hood.
     const result = await connA.rawQuery('SELECT 1 as one')
     const rows = Array.isArray(result.rows) ? result.rows : (result as any).rows
@@ -94,7 +94,7 @@ test.group('RowScopePgDriver + withTenantScope (integration)', (group) => {
   test('connect() with no explicit name falls back to the central connection', async ({
     assert,
   }) => {
-    // No centralConnectionName passed — the driver must resolve it from
+    // No centralConnectionName passed. The driver must resolve it from
     // getConfig().centralConnectionName ('public' in the fixture), not the
     // old 'tenant' literal which the fixture never defines.
     const driver = new RowScopePgDriver()
@@ -197,7 +197,7 @@ test.group('withTenantScope mixin (integration)', (group) => {
       await TestPost.create({ title: 'a1' })
     })
     await tenancy.run(fakeTenant(tenantB), async () => {
-      // Same title that tenant A's query will OR on — a leak would surface it.
+      // Same title that tenant A's query will OR on. A leak would surface it.
       await TestPost.create({ title: 'mid' })
     })
 
@@ -205,7 +205,7 @@ test.group('withTenantScope mixin (integration)', (group) => {
       const rows = await TestPost.query().where((q) =>
         q.where('title', 'a1').orWhere('title', 'mid').orWhere('title', 'zzz')
       )
-      // (a1 OR mid OR zzz) AND tenant_id = A → only tenant A's a1.
+      // (a1 OR mid OR zzz) AND tenant_id = A yields only tenant A's a1.
       assert.lengthOf(rows, 1)
       assert.isTrue(
         rows.every((r) => r.tenant_id === tenantA),
@@ -264,8 +264,8 @@ test.group('withTenantScope mixin (integration)', (group) => {
     // Lucid does NOT fire before('fetch') for builder UPDATE/DELETE
     // (knex method isn't 'select'); the guard is the wrapped static
     // query() factory injecting the tenant predicate at construction
-    // (scoping.ts). This proves the UPDATE half against real Lucid + PG —
-    // security.md's "no silent cross-tenant write".
+    // (scoping.ts). This proves the UPDATE half against real Lucid + PG,
+    // matching security.md's "no silent cross-tenant write".
     const tenantA = randomUUID()
     const tenantB = randomUUID()
 

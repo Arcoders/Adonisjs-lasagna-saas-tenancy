@@ -30,8 +30,8 @@ export const AUDIT_EXPORT_COLUMNS = [
 ] as const satisfies ReadonlyArray<keyof AuditExportRecord>
 
 /**
- * Project an audit model row onto the flat export record. Pure — no app/db
- * access — so it unit-tests against a hand-built row without an Ignitor.
+ * Project an audit model row onto the flat export record. Pure (no app/db
+ * access), so it unit-tests against a hand-built row without an Ignitor.
  */
 export function auditRowToRecord(row: TenantAuditLog): AuditExportRecord {
   return {

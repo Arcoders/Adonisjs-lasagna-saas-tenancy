@@ -61,7 +61,7 @@ design choices.
 - **Billing is not a fiscal system of record.** The payment provider (Stripe, Paddle, Lemon
   Squeezy) is the source of truth for charges, invoices, and tax; the satellite keeps a mirror
   for plan assignment, dunning, and metered billing. The opt-in fiscal features snapshot the
-  provider's tax/invoice data for reporting only — no invoice numbering, no tax engine, no
+  provider's tax/invoice data for reporting only: no invoice numbering, no tax engine, no
   fiscal-compliance enforcement. Reconcile against your provider for accounting. See
   [Billing](/guides/satellites/billing).
 

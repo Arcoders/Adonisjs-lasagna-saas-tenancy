@@ -49,7 +49,7 @@ export default class TenantMigrateRollback extends BaseCommand {
     const hooks = await app.container.make(HookRegistry)
     const driver = await getActiveDriver()
     // Fold in the satellite per-tenant migration dirs exactly as `tenant:migrate`
-    // does — otherwise a rollback cannot find a satellite migration's `down()`
+    // does. Otherwise a rollback cannot find a satellite migration's `down()`
     // (e.g. the AI `ai_embeddings` migration recorded in the ledger) and chokes on
     // a "migration source is missing" for the whole batch.
     const extraMigrationPaths = await this.#satellitePerTenantMigrationDirs()
@@ -96,7 +96,7 @@ export default class TenantMigrateRollback extends BaseCommand {
   }
 
   /**
-   * Per-tenant migration directories contributed by installed satellites (SEAM-2),
+   * Per-tenant migration directories contributed by installed satellites,
    * mirroring `tenant:migrate` so a rollback folds the SAME dirs and can find every
    * satellite migration's `down()`. Manifests are read as JSON (no satellite code
    * imported); the dirs are identical for all tenants, so this resolves once.

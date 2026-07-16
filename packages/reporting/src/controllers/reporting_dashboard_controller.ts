@@ -19,7 +19,7 @@ export interface ReportingControllerOptions {
   /** When > 0, dashboard responses are cached in the global `reporting`
    *  namespace for this many ms. Off by default. */
   cacheTtlMs?: number | undefined
-  /** Max allowed since→until span in days (default 366). Over-wide/inverted → 400. */
+  /** Max allowed span from since to until, in days (default 366). An over-wide or inverted range is a 400. */
   maxRangeDays?: number | undefined
 }
 
@@ -54,7 +54,7 @@ export default class ReportingDashboardController {
       }
     }
 
-    // Both bounds present + valid → enforce the max-range safety cap.
+    // Both bounds present + valid, so enforce the max-range safety cap.
     if (since && until) {
       try {
         assertWindowWithinMax(String(since), String(until), this.options.maxRangeDays ?? 366)
@@ -118,7 +118,7 @@ export default class ReportingDashboardController {
   }) {
     const ttl = this.options.cacheTtlMs ?? 0
     if (ttl > 0) {
-      // Global (backoffice) namespace — reporting data is cross-tenant by design,
+      // Global (backoffice) namespace: reporting data is cross-tenant by design,
       // so this is NEVER a tenant-scoped cache.
       return getCache()
         .namespace('reporting')
@@ -144,7 +144,7 @@ export default class ReportingDashboardController {
       svc.getCustomMetricsBreakdown({ since: params.since, until: params.until }),
       svc.getDataAsOf(),
     ])
-    // `dataAsOf` is the latest FLUSHED period — how current the report is. It rides
+    // `dataAsOf` is the latest FLUSHED period (how current the report is). It rides
     // inside the cached payload (so it's as stale as cacheTtlMs; a flush clears the
     // cache when invalidation is on).
     return { aggregate, topTenants, customMetrics, dataAsOf }

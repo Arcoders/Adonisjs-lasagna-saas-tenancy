@@ -26,7 +26,7 @@ import { assertSafeIdentifier } from '@adonisjs-lasagna/saas-tenancy/sdk'
  *  - fail-CLOSED: the operation is refused with
  *    `TenantOperationLockUnavailableException` (503). Right for the DESTRUCTIVE
  *    ops (restore / clone / import), where an unserialised overlap can corrupt a
- *    schema irreversibly — a clean refusal beats silent corruption.
+ *    schema irreversibly. A clean refusal beats silent corruption.
  */
 
 const lazyRedis = () =>

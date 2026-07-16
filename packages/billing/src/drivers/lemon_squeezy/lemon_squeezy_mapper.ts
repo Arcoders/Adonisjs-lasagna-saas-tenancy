@@ -6,7 +6,7 @@ import type {
   SubscriptionStatus,
 } from '../../contracts/types.js'
 
-/** ISO-8601 string → epoch seconds, or null. */
+/** ISO-8601 string to epoch seconds, or null. */
 export function isoToSeconds(iso: string | null | undefined): number | null {
   if (!iso) return null
   const ms = Date.parse(iso)
@@ -14,8 +14,8 @@ export function isoToSeconds(iso: string | null | undefined): number | null {
 }
 
 /**
- * Lemon Squeezy subscription status → neutral status. `recognized: false` flags
- * a status string LS added that we don't map yet — the default is the
+ * Lemon Squeezy subscription status to neutral status. `recognized: false` flags
+ * a status string LS added that we don't map yet. The default is the
  * fail-closed `incomplete` (no entitlement) and `syncSubscription` keeps an
  * existing row's known status rather than trusting the guess.
  */
@@ -39,7 +39,7 @@ function mapStatus(status: string): { status: SubscriptionStatus; recognized: bo
   }
 }
 
-/** Lemon Squeezy `meta.event_name` → canonical taxonomy. */
+/** Lemon Squeezy `meta.event_name` to canonical taxonomy. */
 export function mapEventType(name: string): BillingEventType {
   switch (name) {
     case 'subscription_created':
@@ -107,7 +107,7 @@ export function toInvoice(data: LsResource | undefined): Invoice {
     currency: (attr<string>(data, 'currency') ?? 'usd').toLowerCase(),
     // Lemon Squeezy webhooks carry no dunning attempt count. Report 0 ("none
     // from the provider") and let the dispatcher's provider-independent counter
-    // drive escalation — see `handlePaymentFailed`.
+    // drive escalation. See `handlePaymentFailed`.
     attemptCount: 0,
     nextPaymentAttempt: null,
     // LS invoice amounts are integer cents.

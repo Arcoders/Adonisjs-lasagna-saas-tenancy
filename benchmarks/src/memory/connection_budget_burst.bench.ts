@@ -19,7 +19,7 @@ const PROD_GRACE_MS = 30_000
 /**
  * The HONEST budget bench. Unlike `connection_budget.bench.ts` (which shrinks
  * the eviction grace to 50ms so the cap binds), this one keeps the PRODUCTION
- * default grace (30s) and drives a concurrent burst across distinct tenants —
+ * default grace (30s) and drives a concurrent burst across distinct tenants,
  * the realistic shape. Under that grace the in-use-aware LRU refuses to evict
  * anything recently touched and the pool grows toward N, NOT toward the cap.
  *

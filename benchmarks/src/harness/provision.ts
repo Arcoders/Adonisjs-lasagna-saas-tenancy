@@ -99,7 +99,7 @@ export interface SeedResult {
 
 /**
  * Provision `count` tenants for the active driver. Returns their ids/refs.
- * Does NOT seed rows (call seedNotes for that) — separated so the churn /
+ * Does NOT seed rows (call seedNotes for that). It's separated so the churn /
  * budget tiers can provision without paying the seed cost when they don't
  * need rows.
  */
@@ -217,7 +217,7 @@ export async function seedAll(
 /**
  * Register tenant connections into THIS process's Lucid manager and open each
  * pool. The HTTP server is spawned separately from the seed process, so it must
- * re-register the seeded tenants before requests can route to them — otherwise
+ * re-register the seeded tenants before requests can route to them. Otherwise
  * `TenantAdapter` calls `db.connection('tenant_<id>')` against a manager that
  * never had it added and every tenant route 500s. `select 1` forces the pool
  * open (with the right search_path) so the first measured request isn't a

@@ -2,7 +2,7 @@ import InMemoryStore from './in_memory_store.js'
 import type { Widget, WidgetStore } from '../types.js'
 
 /**
- * In-memory `WidgetStore` for tests — the "second implementation that proves the
+ * In-memory `WidgetStore` for tests, the "second implementation that proves the
  * abstraction". It runs with no database, so a satellite author can unit-test
  * the service contract, controllers, and listeners hermetically. Built on the
  * small, copyable `InMemoryStore<T>` helper shipped in this template

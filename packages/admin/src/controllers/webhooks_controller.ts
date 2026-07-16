@@ -20,7 +20,7 @@ function serialize(w: TenantWebhook) {
     events: w.events,
     enabled: w.enabled,
     // We never expose the encrypted secret. Whether one is configured is
-    // disclosed via a boolean — useful for UIs that want to show "secret set".
+    // disclosed via a boolean, useful for UIs that want to show "secret set".
     hasSecret: !!w.secret,
     createdAt: w.createdAt?.toISO?.() ?? null,
     updatedAt: w.updatedAt?.toISO?.() ?? null,
@@ -78,7 +78,7 @@ export default class WebhooksController {
       secretGenerated: !!generatedSecret,
     })
     // When the service generated the secret, this response is the ONE place
-    // the plaintext is ever disclosed — it is stored encrypted and cannot be
+    // the plaintext is ever disclosed. It is stored encrypted and cannot be
     // read back later. Callers must persist it to verify signatures.
     return ctx.response.created({
       data: serialize(hook),

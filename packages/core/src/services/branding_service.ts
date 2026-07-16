@@ -54,7 +54,7 @@ export default class BrandingService {
    * `tenancy.run(tenant, fn)` scope (jobs, commands, tests). Mirrors the
    * `tenantMailer()` idiom.
    *
-   * Throws when called outside a tenant scope — there is no id to resolve.
+   * Throws when called outside a tenant scope: there is no id to resolve.
    */
   async getCurrent(): Promise<TenantBranding | null> {
     const id = tenancy.currentId()

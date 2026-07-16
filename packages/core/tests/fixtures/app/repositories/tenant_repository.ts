@@ -41,7 +41,7 @@ export default class TenantRepository implements TenantRepositoryContract {
   async countByStatus(
     options: { includeDeleted?: boolean } = {}
   ): Promise<Partial<Record<TenantStatus, number>>> {
-    // GROUP BY in the database — returns at most one row per status, never the
+    // GROUP BY in the database returns at most one row per status, never the
     // full table. The /metrics collector uses this to stay O(1) per scrape.
     const query = Tenant.query().select('status').count('* as total').groupBy('status')
     if (!options.includeDeleted) query.whereNull('deleted_at')

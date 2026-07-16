@@ -4,7 +4,7 @@ import type { TenantStatus } from '../types/contracts.js'
 
 /**
  * Lazily resolve the Lucid `db` service. Importing it at module top-level fires
- * its `await app.booted(...)`, which throws outside an Ignitor — that would make
+ * its `await app.booted(...)`, which throws outside an Ignitor. That would make
  * the whole `/testing` barrel unloadable in a hermetic unit test (a satellite
  * author importing one helper would crash on an unrelated one). The DB is only
  * touched at call time, which is always inside a booted app, so deferring the
@@ -40,16 +40,22 @@ export async function createTestTenant(
   const customDomain = overrides.customDomain ?? null
 
   const db = await getDb()
-  await db.connection(getConfig().backofficeConnectionName).table('tenants').insert({
-    id,
-    name,
-    email,
-    status,
-    custom_domain: customDomain,
-    created_at: new Date(),
-    updated_at: new Date(),
-    deleted_at: null,
-  })
+  // Pin the write to the backoffice schema explicitly (AD-08), so this shipped test
+  // helper doesn't depend on the backoffice connection's search_path being set.
+  await db
+    .connection(getConfig().backofficeConnectionName)
+    .table('tenants')
+    .withSchema(getConfig().backofficeSchemaName)
+    .insert({
+      id,
+      name,
+      email,
+      status,
+      custom_domain: customDomain,
+      created_at: new Date(),
+      updated_at: new Date(),
+      deleted_at: null,
+    })
 
   return { id, name, email, status, customDomain }
 }

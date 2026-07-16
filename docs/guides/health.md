@@ -184,7 +184,7 @@ multitenancy_uptime_seconds                     gauge
 
 The `multitenancy_quota_ceiling_*` series appear only for quotas that declare an
 `plans.operatorCeiling`. They are **operator-level**, labelled by `quota` and
-never by `tenant_id` — the per-tenant series would be a cardinality bomb, so
+never by `tenant_id`. The per-tenant series would be a cardinality bomb, so
 per-tenant budget detail lives in traces and logs, not the scrape. Each is
 derived at collect time from the shared operator keys in Redis (bounded by the
 number of ceiling-enforced quotas, never a per-tenant scan). Alert on
@@ -287,7 +287,7 @@ The kernel already instruments its cost seam with `addEvent`/`addLink` helpers o
 per fragment, so a streaming loop does not explode trace volume. `executeExtension`
 opens an `extension.execute` span whose `outcome` classifies the terminal state
 (`completed` / `timeout` / `aborted` / `rate_limited` / `error`). Every span and
-event carries ids, counts, and outcomes only — never prompt or response content.
+event carries ids, counts, and outcomes only, never prompt or response content.
 The span names are a stable contract single-sourced in `services/observability/names.ts`.
 
 ## Related

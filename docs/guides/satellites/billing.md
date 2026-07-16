@@ -30,7 +30,7 @@ charges, invoices, and tax. Lasagna keeps a mirror to drive plan assignment,
 webhook processing, dunning, and metered billing; the opt-in
 [fiscal features](#fiscal-features-opt-in) snapshot the provider's tax/invoice
 data for **reporting only**. Lasagna does not generate invoice numbers, compute
-tax, or enforce fiscal compliance — for accounting and audits, reconcile against
+tax, or enforce fiscal compliance. For accounting and audits, reconcile against
 your provider's dashboard.
 :::
 
@@ -261,7 +261,7 @@ The Stripe driver uses the official SDK. The Paddle and Lemon Squeezy drivers
 call their REST APIs directly and verify webhooks natively (`Paddle-Signature`
 `ts;h1` HMAC, and `X-Signature` HMAC-SHA256 respectively). Reconcile
 (`tenant:billing:sync`) is driver-neutral: its forward pass works for every
-driver that advertises the `subscription_list` capability — Stripe, Paddle and
+driver that advertises the `subscription_list` capability. Stripe, Paddle and
 Lemon Squeezy all do.
 
 ### Writing a billing driver
@@ -677,7 +677,7 @@ The package and the queue split responsibility cleanly:
   `BillingException` (`authentication_failed`, `permission_denied`,
   `invalid_stripe_request`, a `plan_unmapped`-class config error) is
   short-circuited: the ledger row goes straight to `status='failed'`
-  and `BillingEventDeadLettered` fires immediately — retrying a
+  and `BillingEventDeadLettered` fires immediately. Retrying a
   non-transient error only wastes attempts. A retryable error
   (`network_error`, `rate_limited`, `api_error`, `queue_unavailable`)
   is re-thrown so the queue retries it.
@@ -797,7 +797,7 @@ provider **test** environment, self-skipping when no test key is configured
 ```
 
 It exits non-zero on a product mapped to an undefined plan, a tenant stranded on
-a removed plan, or an invalid/unreachable key — so a bad config fails the
+a removed plan, or an invalid/unreachable key, so a bad config fails the
 pipeline rather than the first live webhook. Provider price resolution is
 warn-only (Lemon Squeezy has no `price_lookup` capability, and `products` keys
 are usually product ids), so it never produces a false failure.
@@ -883,7 +883,7 @@ extension (created by the migration if absent).
 ## Fiscal features (opt-in)
 
 Multi-country tax snapshots and an append-only invoice read model, for reporting
-and reconciliation. **The provider stays the system of record** — there is no
+and reconciliation. **The provider stays the system of record**. There is no
 local invoice numbering and no tax engine. We only record what the provider
 charged. Everything here is opt-in, in two steps:
 
@@ -915,7 +915,7 @@ charged. Everything here is opt-in, in two steps:
    ```
 
 When `fiscal.enabled` is false (the default), none of the below runs and the
-extra column/table are never written — so installs that don't opt in pay nothing.
+extra column/table are never written, so installs that don't opt in pay nothing.
 
 **What you get:**
 
@@ -948,7 +948,7 @@ Append-only read model. Written only when `fiscal.enabled`.
 ### Read-through invoice endpoints
 
 The package exports `BillingInvoiceController` (`index` + `pdf`). Mount it behind
-your own auth + tenant middleware — the package never auto-registers
+your own auth + tenant middleware. The package never auto-registers
 unauthenticated tenant-data routes. Both actions scope every query to
 `request.tenant()`.
 
@@ -1286,7 +1286,7 @@ The forward pass needs the active driver's `subscription_list`
 capability (Stripe, Paddle and Lemon Squeezy all have it; a custom
 driver may not). `tenant:billing:doctor` reports a `reconciliation`
 check that warns when the active driver can't enumerate
-subscriptions — in that case only the reverse pass runs and provider
+subscriptions. In that case only the reverse pass runs and provider
 → mirror drift must be recovered from the provider dashboard.
 
 ::: tip What's actually tested
@@ -1297,7 +1297,7 @@ Stripe (the primary provider) is exercised end-to-end on the blocking
 CI gate, including its `listSubscriptions` path. The Paddle and Lemon
 Squeezy `listSubscriptions` smokes assert auth, pagination, and neutral
 mapping (tolerating an empty sandbox) but run in a **non-blocking** CI
-lane, so a secondary-provider outage can't fail the build — see the
+lane, so a secondary-provider outage can't fail the build. See the
 satellite's `*_real_smoke.spec.ts`.
 :::
 

@@ -6,7 +6,7 @@ import { createInstalledTenant, dropAllTenants } from './_helpers.js'
  * E2E coverage of the feature flags / branding / SSO satellites via the demo
  * HTTP controllers added in `app/controllers/demo/`. Service-level coverage
  * (CRUD edge cases, cache behaviour, encryption-at-rest) lives in
- * `tests/integration/services/` — this file only exercises the wiring at
+ * `tests/integration/services/`. This file only exercises the wiring at
  * the HTTP layer.
  */
 test.group('e2e — satellites: feature flags, branding, SSO (HTTP)', (group) => {
@@ -185,7 +185,7 @@ test.group('e2e — satellites: feature flags, branding, SSO (HTTP)', (group) =>
     const row = await TenantSsoConfig.query().where('tenant_id', id).firstOrFail()
     assert.equal(row.clientId, 'cid')
     // The package's SsoService stores the secret as-is today (encrypt-at-rest
-    // is intentionally not applied — see services/sso_service.ts). The check
+    // is intentionally not applied, see services/sso_service.ts). The check
     // here confirms the row exists with the expected client id.
     assert.isString(row.clientSecret)
   })

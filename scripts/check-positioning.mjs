@@ -21,7 +21,7 @@
  *
  * Run it locally and in CI: `node scripts/check-positioning.mjs`.
  */
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { join, extname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -99,6 +99,10 @@ let scanned = 0
 for (const rel of tracked) {
   if (SKIP_FILES.has(basename(rel))) continue
   if (!SCAN_EXT.has(extname(rel))) continue
+  // `git ls-files` reads the index, so a file deleted in the working tree but not
+  // yet staged is still listed. Skip it: it ships as deleted, and reading it would
+  // crash the guard with ENOENT instead of reporting anything.
+  if (!existsSync(join(ROOT, rel))) continue
 
   const lines = readFileSync(join(ROOT, rel), 'utf8').split('\n')
   scanned++

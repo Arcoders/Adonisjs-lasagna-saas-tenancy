@@ -34,7 +34,7 @@ export default class AppProvider {
    * with no network. `AiProvider.register()` runs before this provider's `boot()`
    * (it is listed earlier in adonisrc), so both registries are bound and makeable
    * here. The chat mock activates as the `mock` provider named in `config.ai`; the
-   * embedding mock overrides the configured default via the WS-AI-8 registry so
+   * embedding mock overrides the configured default via the embedding registry so
    * `/ai/embed` and `/ai/retrieve` never dial a real embeddings endpoint.
    */
   private async registerAiMockProviders() {
@@ -154,7 +154,7 @@ export default class AppProvider {
   private bindContainerServices() {
     // The TENANT_REPOSITORY symbol is typed as `unique symbol` by the package
     // but the container's `bind` overloads accept untyped Symbol values via
-    // its any-keyed overload — cast at the binding site only.
+    // its any-keyed overload. Cast at the binding site only.
     this.app.container.bind(TENANT_REPOSITORY as any, () => new TenantRepository())
 
     this.app.container.singleton(CircuitBreakerService, () => new CircuitBreakerService())

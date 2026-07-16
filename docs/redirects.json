@@ -31,7 +31,7 @@
   "/docs/known-limitations": "/reference/known-limitations",
   "/docs/contributing": "/reference/contributing",
   "/docs/release-notes": "/reference/release-notes",
-  "/docs/upgrade-to-1.0": "/reference/upgrade-to-1.0",
+  "/docs/upgrade-to-1.0": "/reference/upgrade-to-0.3",
   "/why": "/start/why",
   "/quickstart": "/start/quickstart",
   "/security": "/guides/security",
@@ -75,5 +75,8 @@
   "/docs/satellites/webhooks": "/guides/satellites/webhooks",
   "/docs/satellites/websockets": "/guides/satellites/websockets",
   "/testing/TESTING": "/guides/testing",
-  "/testing/COVERAGE_MATRIX": "/guides/testing"
+  "/testing/COVERAGE_MATRIX": "/guides/testing",
+  "/guides/satellites/crypto": "/guides/satellites/",
+  "/docs/satellites/crypto": "/guides/satellites/",
+  "/reference/upgrade-to-1.0": "/reference/upgrade-to-0.3"
 }

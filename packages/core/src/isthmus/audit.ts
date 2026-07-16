@@ -8,8 +8,8 @@ import { isthmusEntry, type IsthmusGuardId } from './registry.js'
  * The limiter mechanics, the counter discipline, the fire-and-forget dispatch
  * contract, and the 10s window all live in `sdk/guard_audit.ts` (single source,
  * consumed identically by the AI and crypto satellite audits). The three
- * cross-cutting invariants — counters first, everything dropped is counted, the
- * reject path is untouchable — are pinned there and by this package's specs.
+ * cross-cutting invariants (counters first, everything dropped is counted, the
+ * reject path is untouchable) are pinned there and by this package's specs.
  *
  * The kernel audit takes NO metric bridge: kernel guard trips surface through
  * the shared `IsthmusGuardTripped` event and the `multitenancy_isthmus_*`
@@ -18,7 +18,7 @@ import { isthmusEntry, type IsthmusGuardId } from './registry.js'
  */
 const audit = createGuardAudit<IsthmusGuardId>({ lookup: isthmusEntry })
 
-/** @see ISTHMUS_BUDGETS — re-exported from its single source for the kernel's consumers. */
+/** @see ISTHMUS_BUDGETS. Re-exported from its single source for the kernel's consumers. */
 export { ISTHMUS_BUDGETS }
 
 /**
@@ -30,7 +30,7 @@ export const allowIsthmusEvent = audit.allow
 /**
  * Record a guard trip: bump the counters, then dispatch the public
  * `IsthmusGuardTripped` event (best-effort, rate-limited, fire-and-forget).
- * Synchronous and it NEVER throws — call it on the line BEFORE the guard's
+ * Synchronous and it NEVER throws. Call it on the line BEFORE the guard's
  * throw, never after. Must not read getConfig(): config-phase guards trip
  * before setConfig() runs.
  */

@@ -15,7 +15,7 @@ import type { EmitterService } from '@adonisjs/core/types'
  * spinning up a queue worker subprocess. Production consumers should swap
  * to `sendLater`; the queued path is exercised by the dedicated mail spec.
  *
- * Mail subsystem failures are swallowed deliberately — the welcome email
+ * Mail subsystem failures are swallowed deliberately. The welcome email
  * is best-effort and must not block tenant activation. The test suite
  * detects an unreachable MailCatcher and skips its assertions.
  */
@@ -41,7 +41,7 @@ export default class TenantWelcomeListener {
           )
         )
       } catch (error) {
-        // Mail subsystem absent or unreachable — non-fatal. Surface a hint in
+        // Mail subsystem absent or unreachable, which is non-fatal. Surface a hint in
         // dev (e.g. MailCatcher not running); stay silent and unblocking in prod.
         if (app.inDev) {
           logger.warn(

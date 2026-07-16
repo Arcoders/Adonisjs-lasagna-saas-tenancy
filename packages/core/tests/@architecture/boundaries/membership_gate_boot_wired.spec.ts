@@ -9,16 +9,18 @@ import { fileURLToPath } from 'node:url'
  * A client-controlled resolver strategy with no `authorizeTenantAccess` is a
  * cross-tenant IDOR that, before this fix, produced ZERO runtime signal. The
  * robust fix logs one WARN at provider boot (and exposes the same verdict via
- * the `membership_gate` doctor check + a production hard-fail). All three derive
+ * the `membership_gate` doctor check + a fail-closed hard-fail). All three derive
  * from `resolutionSafetyAudit`. This anti-regression lock proves the boot wiring
- * stays in place: the provider must consult `resolutionSafetyAudit` and route
- * each finding's message to `bootLogger?.warn(...)`.
+ * stays in place: the resolution installer (the provider's boot-phase slice for
+ * tenant resolution) must consult `resolutionSafetyAudit` and route each finding's
+ * message to the logger (deferred to app.booted so a warning is never silently
+ * dropped).
  *
- * RED (pre-fix): the provider never references `resolutionSafetyAudit`.
+ * RED (pre-fix): the resolution wiring never references `resolutionSafetyAudit`.
  */
 
 const PROVIDER = fileURLToPath(
-  new URL('../../../src/providers/multitenancy_provider.ts', import.meta.url)
+  new URL('../../../src/providers/installers/resolution_wiring.ts', import.meta.url)
 )
 
 test.group('architectural — resolution-safety boot warning is wired', () => {
@@ -32,8 +34,8 @@ test.group('architectural — resolution-safety boot warning is wired', () => {
     // Each finding's message must reach the logger, not be computed and dropped.
     assert.match(
       src,
-      /resolutionRisks[\s\S]{0,300}?bootLogger\?\.warn\(\s*risk\.message\s*\)/,
-      'each resolution-safety finding must be logged via bootLogger.warn'
+      /resolutionRisks[\s\S]{0,300}?logger\.warn\(risk\.message\)/,
+      'each resolution-safety finding must be logged via logger.warn'
     )
   })
 

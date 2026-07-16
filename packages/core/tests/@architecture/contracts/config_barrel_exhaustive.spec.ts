@@ -24,8 +24,8 @@ import type {
 
 /**
  * The config types were split into `types/config/*.ts` re-exported from the
- * `config.ts` barrel. Every consumer — the package root, the `./types` subpath,
- * and the satellites — imports them from that single barrel, so dropping a
+ * `config.ts` barrel. Every consumer (the package root, the `./types` subpath,
+ * and the satellites) imports them from that single barrel, so dropping a
  * re-export during a future split would dangle imports across the workspace.
  * This guard fails to COMPILE the moment that happens (the type-only import
  * above stops resolving), enforced by `npm run typecheck`, long before a

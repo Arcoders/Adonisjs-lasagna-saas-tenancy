@@ -8,7 +8,7 @@ import { QUOTA_CEILING_GAUGE } from '../services/observability/names.js'
 
 /**
  * Operator-global ceiling utilisation for one quota, derived at scrape from live
- * Redis. Labelled by `quota` only — never `tenant_id` (a cardinality bomb);
+ * Redis. Labelled by `quota` only, never `tenant_id` (a cardinality bomb);
  * per-tenant budget detail lives in traces/logs, not the scrape.
  */
 export interface QuotaCeilingStat {

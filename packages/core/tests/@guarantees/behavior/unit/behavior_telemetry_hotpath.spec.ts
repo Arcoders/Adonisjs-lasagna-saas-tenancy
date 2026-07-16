@@ -16,7 +16,7 @@ import {
 } from '../../../../src/services/isolation/active_driver.js'
 
 /**
- * WS-10 / no-otel-instrumentation-in-hot-path.
+ * OTel instrumentation in the tenant activation hot path.
  *
  * `TelemetryService` exists, but before this fix nothing in the tenant
  * activation hot path opened a span or stamped `tenant.id`. A host that wires a
@@ -74,7 +74,7 @@ test.group('OTel hot-path instrumentation — tenancy.run', (group) => {
     const tenant = { id: '22222222-2222-4222-8222-222222222222' } as any
     await tenancy.run(tenant, async () => {
       // A span opened by code running inside the scope must parent onto the
-      // tenancy span — proving the hot path establishes a real active context,
+      // tenancy span, proving the hot path establishes a real active context,
       // not just a detached attribute.
       await TelemetryService.withSpan('inner.work', {}, async () => 'x')
     })

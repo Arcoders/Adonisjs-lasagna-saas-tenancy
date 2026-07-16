@@ -1,5 +1,5 @@
 /**
- * The `docs:doctor` CLI (RFC §7). Exit codes: 0 clean, 1 a blocking gate finding,
+ * The `docs:doctor` CLI (RFC section 7). Exit codes: 0 clean, 1 a blocking gate finding,
  * 2 a tool/internal error, so CI can tell "docs drifted" from "the tool broke".
  *
  *   docs:doctor [--since <ref>] [--package <name>] [--json | --summary]

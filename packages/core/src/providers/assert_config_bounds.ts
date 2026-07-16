@@ -1,9 +1,10 @@
 import type { MultitenancyConfig } from '../types/config.js'
 import { emitIsthmusEvent } from '../isthmus/audit.js'
-import { isProductionNodeEnv } from '../utils/env.js'
+import { isDevOrTestNodeEnv } from '../utils/env.js'
 import { resolutionSafetyAudit } from './resolution_safety.js'
 import { assertResolverChain } from './resolver_chain.js'
 import { SECRET_CONFIG_FIELDS } from './secret_config_fields.js'
+import { NUMERIC_CONFIG_FIELDS } from './numeric_config_fields.js'
 
 /**
  * Range-check the numeric tunables at boot. The provider's `#assertConfigShape`
@@ -26,7 +27,10 @@ function readConfigPath(config: MultitenancyConfig, path: string): unknown {
     )
 }
 
-export function assertConfigBounds(config: MultitenancyConfig): void {
+export function assertConfigBounds(
+  config: MultitenancyConfig,
+  options?: { inDevOrTest?: boolean }
+): void {
   const fail = (path: string, rule: string, value: unknown): never => {
     // Single chokepoint for every bounds violation, so one emit covers them all.
     emitIsthmusEvent('guard.config_bounds', { metadata: { path, rule } })
@@ -43,68 +47,33 @@ export function assertConfigBounds(config: MultitenancyConfig): void {
     }
   }
 
-  atLeast(config.isolation?.maxTenantConnections, 'isolation.maxTenantConnections', 1)
-  atLeast(config.isolation?.evictionGracePeriodMs, 'isolation.evictionGracePeriodMs', 0)
-
-  atLeast(
-    config.tenantReadReplicas?.maxReplicaConnections,
-    'tenantReadReplicas.maxReplicaConnections',
-    1
-  )
-
-  const cb = config.circuitBreaker
-  if (cb) {
-    inRange(cb.threshold, 'circuitBreaker.threshold', 1, 100)
-    atLeast(cb.resetTimeout, 'circuitBreaker.resetTimeout', 1)
-    atLeast(cb.rollingCountTimeout, 'circuitBreaker.rollingCountTimeout', 1)
-    // 0 is a valid opossum value: it disables the minimum-volume gate so the
-    // breaker can trip from the first request. Only negatives are wrong.
-    atLeast(cb.volumeThreshold, 'circuitBreaker.volumeThreshold', 0)
-    atLeast(cb.maxTrackedCircuits, 'circuitBreaker.maxTrackedCircuits', 1)
+  // Numeric bounds, single-sourced from NUMERIC_CONFIG_FIELDS so every tunable
+  // clears the same bar at boot and a new one cannot ship unbounded (the
+  // `numeric_fields_bounded` guard requires every numeric leaf to be registered
+  // or exempt). A field is checked only when present (an omitted tunable keeps
+  // its documented default). Exempt (`enforce: false`) fields are skipped.
+  for (const field of NUMERIC_CONFIG_FIELDS) {
+    if (!field.enforce) continue
+    const value = readConfigPath(config, field.path) as number | undefined
+    if (value == null) continue
+    if (field.max !== undefined) inRange(value, field.path, field.min!, field.max)
+    else atLeast(value, field.path, field.min!)
   }
 
-  const q = config.queue
-  if (q) {
-    atLeast(q.attempts, 'queue.attempts', 1)
-    atLeast(q.defaultConcurrency, 'queue.defaultConcurrency', 1)
-    atLeast(q.maxOpenQueues, 'queue.maxOpenQueues', 1)
-    atLeast(q.queueIdleGraceMs, 'queue.queueIdleGraceMs', 0)
-  }
-
-  atLeast(config.resolver?.cache?.ttlMs, 'resolver.cache.ttlMs', 1)
-  atLeast(config.resolver?.cache?.maxEntries, 'resolver.cache.maxEntries', 1)
-
-  // Plugin-platform request-path caps. These validate the CONFIGURED numbers are
-  // sane (a 0/negative cap is a deploy mistake). The actual count enforcement —
-  // registered entries vs cap — happens in the provider's start(), once every
-  // plugin has registered (see assert_plugin_limits.ts).
-  const pl = config.plugins?.limits
-  if (pl) {
-    atLeast(pl.maxAuthorizers, 'plugins.limits.maxAuthorizers', 1)
-    atLeast(pl.maxMiddleware, 'plugins.limits.maxMiddleware', 1)
-    atLeast(pl.maxCapabilities, 'plugins.limits.maxCapabilities', 1)
-    atLeast(pl.maxSchedules, 'plugins.limits.maxSchedules', 1)
-    atLeast(pl.authorizerDeadlineMs, 'plugins.limits.authorizerDeadlineMs', 1)
-  }
-
+  // Cross-field invariant that a per-field bound cannot express: the hard upper
+  // bound must not sit below the default.
   const imp = config.impersonation
-  if (imp) {
-    atLeast(imp.defaultDuration, 'impersonation.defaultDuration', 60)
-    atLeast(imp.maxDuration, 'impersonation.maxDuration', 60)
-    if (
-      imp.defaultDuration != null &&
-      imp.maxDuration != null &&
-      imp.maxDuration < imp.defaultDuration
-    ) {
-      fail('impersonation.maxDuration', '>= impersonation.defaultDuration', imp.maxDuration)
-    }
+  if (
+    imp?.defaultDuration != null &&
+    imp?.maxDuration != null &&
+    imp.maxDuration < imp.defaultDuration
+  ) {
+    fail('impersonation.maxDuration', '>= impersonation.defaultDuration', imp.maxDuration)
   }
 
   // A resolverChain entry that names no built-in / inline resolver is a deploy
   // mistake that would otherwise pick the wrong (or no) tenant; fail at boot.
   assertResolverChain(config)
-
-  atLeast(config.maintenance?.retryAfterSeconds, 'maintenance.retryAfterSeconds', 1)
 
   // Secret-strength floors, single-sourced from SECRET_CONFIG_FIELDS so every
   // standing secret (impersonation HMAC, maintenance bypass token, and any future
@@ -133,11 +102,17 @@ export function assertConfigBounds(config: MultitenancyConfig): void {
   // Resolution-safety gate. Two high-severity cross-tenant exposures are enforced
   // through one audit: a client-controlled strategy with no membership gate
   // (IDOR) and a host strategy with no expectedHostSuffix allowlist (spoofable
-  // tenant-hop). In production we fail closed at boot on any finding; in dev the
-  // provider logs the same messages as warnings (it has the container logger).
-  // Acknowledgement (authorizeTenantAccess / acknowledgeNoMembershipGate) is
-  // honored inside the audit, so an accepted posture produces no finding.
-  if (isProductionNodeEnv()) {
+  // tenant-hop). The gate fails CLOSED everywhere EXCEPT a recognized dev/test
+  // env: production, staging, an unknown NODE_ENV, or unset all hard-fail at boot
+  // on any finding, so an insecure resolution posture never ships on a warning
+  // alone. In dev/test the provider logs the same messages as warnings instead
+  // (it has the container logger). "dev/test" is the app's own verdict when the
+  // provider calls this (`app.inDev || app.inTest`); the NODE_ENV read is the
+  // fallback for direct callers. Acknowledgement (authorizeTenantAccess /
+  // acknowledgeNoMembershipGate) is honored inside the audit, so an accepted
+  // posture produces no finding.
+  const inDevOrTest = options?.inDevOrTest ?? isDevOrTestNodeEnv()
+  if (!inDevOrTest) {
     const risks = resolutionSafetyAudit(config)
     if (risks.length > 0) {
       emitIsthmusEvent('guard.resolution_safety', {

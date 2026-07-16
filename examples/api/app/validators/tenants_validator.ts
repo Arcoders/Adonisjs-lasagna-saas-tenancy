@@ -6,10 +6,10 @@ import type { ExactOptionalProps } from './exact_optional.js'
  * `'free'` / `'standard'` in the service layer.
  *
  * NB: the demo-side `.test`-suffix rule is intentionally left to the
- * `beforeProvision` hook in `config/multitenancy.ts` — it's a business
- * rule, not a shape rule. Keeping the validator focused on shape lets the
- * hook test (which proves the hook fires and flips status=failed) keep
- * working as documented.
+ * `beforeProvision` hook in `config/multitenancy.ts`. It's a business rule,
+ * not a shape rule. Keeping the validator focused on shape lets the hook
+ * test (which proves the hook fires and flips status=failed) keep working
+ * as documented.
  */
 const createTenantSchema = {
   name: vine.string().trim().minLength(2).maxLength(100),

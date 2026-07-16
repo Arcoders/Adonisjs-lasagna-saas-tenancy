@@ -7,10 +7,10 @@ export interface PluginBootContext extends PluginExceptionContext {
 }
 
 /**
- * Thrown when a plugin's `boot()`/`ready()`/`start()` hook — or one of its
- * declarative section resolvers — throws while the facade is wiring it.
+ * Thrown when a plugin's `boot()`/`ready()`/`start()` hook (or one of its
+ * declarative section resolvers) throws while the facade is wiring it.
  * Fail-closed: it aborts the deploy attributed to `{ plugin, phase }` rather than
- * leaving the plugin half-loaded (E4/E5). The original error rides as `cause`.
+ * leaving the plugin half-loaded. The original error rides as `cause`.
  */
 export default class PluginBootException extends PluginException {
   static status = 500

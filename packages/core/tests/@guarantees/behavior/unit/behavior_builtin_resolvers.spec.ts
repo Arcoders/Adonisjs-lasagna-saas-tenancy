@@ -47,6 +47,25 @@ test.group('HeaderResolver', (group) => {
     assert.isUndefined(r.resolve(makeRequest({})))
   })
 
+  // F7: the client-controlled header must be a canonical UUID; anything else
+  // (an opaque slug, a `:`-carrying value) falls through instead of forging an id.
+  test('misses on a non-UUID header (UUID border)', ({ assert }) => {
+    const r = new HeaderResolver()
+    for (const bad of ['acme', 'acme_prod-01', 'victim:key:parts']) {
+      assert.isUndefined(r.resolve(makeRequest({ headers: { 'x-tenant-id': bad } })))
+    }
+  })
+
+  // F8: a mixed-case UUID collapses onto one canonical (lowercase) id.
+  test('canonicalizes a mixed-case UUID header to lowercase', ({ assert }) => {
+    const r = new HeaderResolver()
+    const upper = 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA'
+    assert.deepEqual(r.resolve(makeRequest({ headers: { 'x-tenant-id': upper } })), {
+      type: 'id',
+      tenantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    })
+  })
+
   test('honors a custom tenantHeaderKey', ({ assert }) => {
     setupTestConfig({ tenantHeaderKey: 'x-workspace' })
     const r = new HeaderResolver()
@@ -58,10 +77,17 @@ test.group('HeaderResolver', (group) => {
 test.group('SubdomainResolver', (group) => {
   group.each.setup(() => setupTestConfig({ baseDomain: 'example.com' }))
 
-  test('extracts the subdomain when host ends with baseDomain', ({ assert }) => {
+  test('extracts a UUID subdomain when host ends with baseDomain', ({ assert }) => {
     const r = new SubdomainResolver()
-    const result = r.resolve(makeRequest({ headers: { host: `acme.example.com` } }))
-    assert.deepEqual(result, { type: 'id', tenantId: 'acme' })
+    const result = r.resolve(makeRequest({ headers: { host: `${UUID}.example.com` } }))
+    assert.deepEqual(result, { type: 'id', tenantId: UUID })
+  })
+
+  // F7: the label becomes a tenant id, so a non-UUID subdomain misses (a fallback
+  // resolver in the chain can still match) rather than forging an id.
+  test('misses on a non-UUID subdomain label (UUID border)', ({ assert }) => {
+    const r = new SubdomainResolver()
+    assert.isUndefined(r.resolve(makeRequest({ headers: { host: 'acme.example.com' } })))
   })
 
   test('returns miss for the bare base domain (apex)', ({ assert }) => {
@@ -69,15 +95,15 @@ test.group('SubdomainResolver', (group) => {
     assert.isUndefined(r.resolve(makeRequest({ headers: { host: 'example.com' } })))
   })
 
-  test('falls back to leftmost label when host does not end with baseDomain (dev only)', ({
+  test('falls back to a UUID leftmost label when host does not end with baseDomain (dev only)', ({
     assert,
   }) => {
     const prev = process.env.NODE_ENV
     process.env.NODE_ENV = 'development'
     try {
       const r = new SubdomainResolver()
-      const result = r.resolve(makeRequest({ headers: { host: 'acme.test.local' } }))
-      assert.deepEqual(result, { type: 'id', tenantId: 'acme' })
+      const result = r.resolve(makeRequest({ headers: { host: `${UUID}.test.local` } }))
+      assert.deepEqual(result, { type: 'id', tenantId: UUID })
     } finally {
       process.env.NODE_ENV = prev
     }
@@ -108,9 +134,9 @@ test.group('SubdomainResolver', (group) => {
   test('with expectedHostSuffix set, an allowlisted host still resolves', ({ assert }) => {
     setupTestConfig({ baseDomain: 'example.com', resolver: { expectedHostSuffix: 'example.com' } })
     const r = new SubdomainResolver()
-    assert.deepEqual(r.resolve(makeRequest({ headers: { host: 'acme.example.com' } })), {
+    assert.deepEqual(r.resolve(makeRequest({ headers: { host: `${UUID}.example.com` } })), {
       type: 'id',
-      tenantId: 'acme',
+      tenantId: UUID,
     })
   })
 
@@ -147,15 +173,31 @@ test.group('PathResolver', (group) => {
     const r = new PathResolver()
     assert.isUndefined(r.resolve(makeRequest({ url: '/' })))
   })
+
+  // F7: a non-UUID first segment (a route prefix, a slug) is not a tenant id.
+  test('misses on a non-UUID first segment (UUID border)', ({ assert }) => {
+    const r = new PathResolver()
+    assert.isUndefined(r.resolve(makeRequest({ url: '/orders/123' })))
+  })
 })
 
 test.group('DomainOrSubdomainResolver', (group) => {
   group.each.setup(() => setupTestConfig({ baseDomain: 'app.test' }))
 
-  test('returns subdomain when host is *.baseDomain', ({ assert }) => {
+  test('returns a UUID subdomain id when host is *.baseDomain', ({ assert }) => {
+    const r = new DomainOrSubdomainResolver()
+    const result = r.resolve(makeRequest({ headers: { host: `${UUID}.app.test` } }))
+    assert.deepEqual(result, { type: 'id', tenantId: UUID })
+  })
+
+  // F7: a non-UUID label under baseDomain is not a subdomain id — it falls
+  // through to the resolver's own custom-domain branch (`findByDomain(host)`).
+  test('a non-UUID subdomain under baseDomain falls through to a {domain} envelope', ({
+    assert,
+  }) => {
     const r = new DomainOrSubdomainResolver()
     const result = r.resolve(makeRequest({ headers: { host: 'acme.app.test' } }))
-    assert.deepEqual(result, { type: 'id', tenantId: 'acme' })
+    assert.deepEqual(result, { type: 'domain', domain: 'acme.app.test' })
   })
 
   test('returns a {domain} envelope for a non-baseDomain host', ({ assert }) => {

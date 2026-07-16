@@ -13,15 +13,16 @@ const SEVERITY_COLOR: Record<DiagnosisSeverity, 'cyan' | 'yellow' | 'red'> = {
 }
 
 /**
- * `plugin:doctor` — diagnose the installed plugin/satellite PLATFORM posture (S6).
+ * `plugin:doctor` diagnoses the installed plugin/satellite PLATFORM posture.
  * It reads the discovered satellite manifests plus the runtime trust and firewall
  * configuration and reports ABI drift, native-addon sandbox risk, a stale
  * `TRUSTED_SATELLITES` allowlist, a missing read-only firewall, and which plugins
  * hold declared (consent-gated) permissions. The checking logic is the pure `PluginDoctorService`;
  * this command is the thin shell that gathers the input and renders the report.
  *
- * It does NOT re-check manifest↔spec coherence — that is the `check-plugin-permissions`
- * CI guard's job (the specs are not available at runtime). Exit code 1 on any error.
+ * It does NOT re-check whether the manifest and spec agree. That is the
+ * `check-plugin-permissions` CI guard's job (the specs are not available at runtime).
+ * Exit code 1 on any error.
  */
 export default class PluginDoctor extends BaseCommand {
   static readonly commandName = 'plugin:doctor'

@@ -3,11 +3,11 @@ import { qualifyBackofficeTable } from '../../../../src/utils/backoffice_table.j
 import { readBooleanEnvFlag } from '../../../../src/utils/env.js'
 
 /**
- * Wave 1 / nada cableado. `qualifyBackofficeTable` is the single place raw-SQL writers
- * (WORM ledger, AI audit) turn the configured backoffice schema + a table name into a
- * SQL-safe `"schema"."table"` reference, so nobody hardcodes `backoffice.<table>` and a
- * renamed schema is honored. It MUST validate both identifiers so neither can escape
- * the quoting.
+ * `qualifyBackofficeTable` is the single place raw-SQL writers (WORM ledger, AI
+ * audit) turn the configured backoffice schema and a table name into a SQL-safe
+ * `"schema"."table"` reference, so nobody hardcodes `backoffice.<table>` and a
+ * renamed schema is honored. It MUST validate both identifiers so neither can
+ * escape the quoting.
  */
 test.group('qualifyBackofficeTable', () => {
   test('quotes and qualifies a normal schema + table', ({ assert }) => {
@@ -27,7 +27,7 @@ test.group('qualifyBackofficeTable', () => {
  * `readBooleanEnvFlag` is the single strict parse for a SECURITY/SAFETY opt-in flag:
  * true ONLY for the exact word `true` (case/whitespace-insensitive), so a security
  * exemption (SSRF loopback, live-key-in-dev) is opened only by a deliberate,
- * unambiguous act — a stray `1`/`yes`/`on` must NOT enable it (that would be a silent
+ * unambiguous act. A stray `1`/`yes`/`on` must NOT enable it (that would be a silent
  * loosening). A typo or absence stays false.
  */
 test.group('readBooleanEnvFlag', () => {

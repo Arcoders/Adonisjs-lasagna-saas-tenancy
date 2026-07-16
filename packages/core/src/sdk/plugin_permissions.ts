@@ -4,18 +4,18 @@ import { isSafeIdentifier } from '../services/isolation/identifier.js'
 
 /**
  * A sensitive capability a plugin DECLARES it needs. It is shown to the operator
- * at install for explicit consent (S1) and cross-checked manifest↔spec by the
- * `check-plugin-permissions` guard, so the disclosure and the code cannot drift.
+ * at install for explicit consent and cross-checked between manifest and spec by
+ * the `check-plugin-permissions` guard, so the disclosure and the code cannot drift.
  *
- * Declaration is DISCLOSURE, not enforcement — the actual containment is layered
+ * Declaration is DISCLOSURE, not enforcement. The actual containment is layered
  * elsewhere and does not trust this list: an untrusted plugin is routed to a
- * read-only DB connection whether or not it declared `db:write` (S3, Postgres-
- * enforced); egress is contained by the worker's network policy (S4); the
- * `scheduler` / `data_change` seams themselves land in Lote B/C. The value here
+ * read-only DB connection whether or not it declared `db:write` (Postgres-
+ * enforced); egress is contained by the worker's network policy; the
+ * `scheduler` / `data_change` seams themselves land in phases B and C. The value here
  * is an honest, consented install: the operator sees what a plugin intends to do.
  *
  * A discriminated union (never a bare `string[]`) so adding a sensitive
- * capability is a typed, exhaustively-handled change — the serializer's
+ * capability is a typed, exhaustively-handled change. The serializer's
  * `assertNever` makes an unhandled kind a compile error.
  */
 export type PluginPermission =
@@ -104,22 +104,22 @@ export function parsePluginPermissions(
 }
 
 /**
- * Typed builders — the ONLY sanctioned way to populate `definePlugin({
+ * Typed builders, the ONLY sanctioned way to populate `definePlugin({
  * permissions })`, so the declared set is always well-formed and stays coherent
  * with the manifest wire form. `dataChange` mints every model through the
  * identifier guard (a hostile model name throws at authoring time). Mirrors the
- * E8 section builders.
+ * section builders.
  */
 export const permission = {
-  /** The plugin registers a scheduled tick (Lote B). */
+  /** The plugin registers a scheduled tick (phase B). */
   scheduler: (): PluginPermission => ({ kind: 'scheduler' }),
-  /** The plugin subscribes to writes on the named models (Lote C). */
+  /** The plugin subscribes to writes on the named models (phase C). */
   dataChange: (...models: string[]): PluginPermission => ({
     kind: 'data_change',
     models: models.map((m) => modelName(m)),
   }),
   /** The plugin makes outbound network calls to hosts outside the cluster. */
   networkExternal: (): PluginPermission => ({ kind: 'network_external' }),
-  /** The plugin writes to the tenant database (needs operator trust — S3). */
+  /** The plugin writes to the tenant database (needs operator trust). */
   dbWrite: (): PluginPermission => ({ kind: 'db_write' }),
 } as const

@@ -6,7 +6,7 @@
 // satellite's real-PG helper self-skips when Postgres is unreachable LOCALLY, so a
 // dev without infra is not blocked. But a CI job that has declared real Postgres
 // mandatory sets `REQUIRE_REAL_PG=1`; when it is set, the helper must turn a
-// would-be self-skip into a HARD failure instead — otherwise a PG-less,
+// would-be self-skip into a HARD failure instead. Otherwise a PG-less,
 // non-CREATEDB, or otherwise hardened runner ships the crown-jewel real-PG proofs
 // green by silently skipping them (green ≠ verified).
 

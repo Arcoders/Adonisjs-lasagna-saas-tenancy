@@ -199,7 +199,7 @@ test.group('SsoService — OIDC flow with fake IdP', (group) => {
   test('token exchange fails closed when the stored client_secret is not ciphertext for its class', async ({
     assert,
   }) => {
-    // WS-1: a pre-upgrade row whose client_secret is plaintext (or was encrypted
+    // A pre-upgrade row whose client_secret is plaintext (or was encrypted
     // under the legacy shared context) must fail the strict, class-bound read
     // rather than be sent as the token-exchange credential. The happy-path test
     // above is the positive control (a correctly-classed ciphertext succeeds).
@@ -394,7 +394,7 @@ test.group('SsoService — OIDC flow with fake IdP', (group) => {
 
       badIdp.setDiscoveryIssuer('https://attacker.example/')
       // BentoCache's getOrSet wraps factory exceptions in a generic
-      // "Factory has thrown an error" — walk the cause chain to assert
+      // "Factory has thrown an error", so walk the cause chain to assert
       // on the underlying message we throw from discover().
       let caught: unknown = null
       try {
@@ -421,7 +421,7 @@ test.group('SsoService — OIDC flow with fake IdP', (group) => {
     const url = await svc.buildAuthUrl(cfg)
     const { state } = extractStateAndNonce(url)
 
-    idp.setIdToken('') // empty → service must reject
+    idp.setIdToken('') // empty, so the service must reject
 
     await assert.rejects(() => svc.handleCallback(state, 'fake-code'), /id_token/i)
     await redis.del(`sso:state:${state}`).catch(() => {})

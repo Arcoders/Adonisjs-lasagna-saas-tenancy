@@ -22,7 +22,7 @@ import type Stripe from 'stripe'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
- * Layer 3 — real billing cycle via Stripe Test Clocks. The one thing the
+ * Layer 3: real billing cycle via Stripe Test Clocks. The one thing the
  * hand-built event fixtures can't exercise is the passage of time: renewals,
  * period advance, and a failed renewal that drives dunning. Test Clocks let us
  * simulate a month in seconds against the real Stripe test API, then replay the
@@ -54,7 +54,7 @@ async function pullEvent(
   return null
 }
 
-/** Advancing a clock is async — poll until it reports `ready`. */
+/** Advancing a clock is async, so poll until it reports `ready`. */
 async function waitForClockReady(
   stripe: Stripe,
   clockId: string,
@@ -210,7 +210,7 @@ test.group('Stripe Test Clocks — real billing cycle', (group) => {
     })
     // Attaching the shared `pm_card_visa` token clones it into a real, customer-
     // scoped PaymentMethod (pm_…). Reuse that concrete id for the default and on
-    // the subscription — passing the shared token string again makes Stripe
+    // the subscription. Passing the shared token string again makes Stripe
     // resolve a *fresh* unattached clone ("customer does not have payment method
     // pm_…"), which is exactly what broke this smoke when Stripe stopped
     // deduplicating the token per customer.
@@ -221,8 +221,9 @@ test.group('Stripe Test Clocks — real billing cycle', (group) => {
       invoice_settings: { default_payment_method: paymentMethod.id },
     })
 
-    // Local mirror — syncSubscription resolves the tenant by providerCustomerId.
+    // Local mirror: syncSubscription resolves the tenant by providerCustomerId.
     const mirror = new BillingCustomer()
+    mirror.provider = 'stripe'
     mirror.tenantId = tenant.id
     mirror.provider = 'stripe'
     mirror.providerCustomerId = customer.id
@@ -262,7 +263,7 @@ test.group('Stripe Test Clocks — real billing cycle', (group) => {
       ctx = await provisionOnClock(stripe, runId)
       const sinceCreate = Math.floor(Date.now() / 1000) - 120
 
-      // Initial subscription.created → mirror active on smoke_pro.
+      // Initial subscription.created marks the mirror active on smoke_pro.
       const created = await pullEvent(
         stripe,
         sinceCreate,

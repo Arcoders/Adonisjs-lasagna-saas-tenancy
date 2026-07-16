@@ -3,15 +3,16 @@ import { randomUUID } from 'node:crypto'
 import { ADMIN_HEADERS, createInstalledTenant, dropAllTenants } from '../_helpers.js'
 
 /**
- * HARDENING / surface — Admin REST API + OpenAPI 3.1 conformance.
+ * HARDENING surface: the admin REST API and its OpenAPI 3.1 conformance.
  *
  * The admin API is mounted at `/admin` (examples/api/start/routes.ts) and serves
- * an OpenAPI 3.1 document at `/admin/openapi.json`, generated at runtime
- * (packages/admin/src/openapi.ts — there is no static spec file). This suite
+ * an OpenAPI 3.1 document at `/admin/openapi.json`, generated at runtime by
+ * packages/admin/src/openapi.ts, so there is no static spec file. This suite
  * asserts the document is well-formed 3.1, that the satellite endpoints it
  * declares actually respond, that auth is enforced (fail-closed), and that an
- * unknown tenant yields 404. The router⇄spec cross-check at the unit level is
- * packages/core/tests/unit/admin/openapi.spec.ts; this is the live companion.
+ * unknown tenant yields 404. The cross-check between the router and the spec at
+ * the unit level is packages/core/tests/unit/admin/openapi.spec.ts; this is the
+ * live companion.
  */
 test.group('hardening — admin API & OpenAPI conformance', (group) => {
   group.setup(() => dropAllTenants())
@@ -89,7 +90,7 @@ test.group('hardening — admin API & OpenAPI conformance', (group) => {
     }
 
     // Show-style satellite endpoints are declared but may be empty (404) when
-    // unconfigured — both are conformant. They must never 401/500 with a token.
+    // unconfigured, and both are conformant. They must never 401/500 with a token.
     for (const path of ['branding', 'sso', 'metrics']) {
       const res = await client.get(`/admin/tenants/${id}/${path}`).headers(ADMIN_HEADERS)
       assert.oneOf(

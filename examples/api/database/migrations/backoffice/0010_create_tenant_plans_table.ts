@@ -1,7 +1,7 @@
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
 /**
- * Source-of-truth for `tenant → plan` assignments. Read by
+ * Source-of-truth for tenant-to-plan assignments. Read by
  * `QuotaService.getAssignedPlan` (with BentoCache 60s) when
  * `config.plans.getPlan` is undefined, and written by `assignPlan`
  * (manual assignment, or `source='stripe'` from the billing satellite).

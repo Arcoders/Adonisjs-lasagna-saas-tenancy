@@ -8,10 +8,10 @@ import { getConfig, setConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '../../../helpers/config.js'
 
 /**
- * §1.1 / Fase B — QuotaService routes Redis through ResilienceService, so a
- * Redis outage is handled per `config.resilience.redis.quota`:
- *   - fail-open (default): consume() returns 0 (skips enforcement) + emits
- *     DependencyDegraded — no longer a SILENT no-op.
+ * QuotaService routes Redis through ResilienceService, so a Redis outage is
+ * handled per `config.resilience.redis.quota`:
+ *   - fail-open (default): consume() returns 0 (skips enforcement) and emits
+ *     DependencyDegraded, no longer a SILENT no-op.
  *   - fail-closed: consume() throws DependencyUnavailableException (503).
  *
  * The outage is injected through the `protected requireRedis()` seam.
@@ -54,14 +54,14 @@ test.group('QuotaService resilience policy (integration)', (group) => {
   test('fail-open (default): consume returns 0 + emits DependencyDegraded on Redis outage', async ({
     assert,
   }) => {
-    configure() // no resilience block → quota defaults to fail-open
+    configure() // no resilience block, so quota defaults to fail-open
     const svc = new OutageQuotaService()
     const tenant = { id: randomUUID() } as any
 
     const result = await svc.consume(tenant, 'apiRequests', 1)
     assert.equal(result, 0, 'fail-open returns 0 instead of throwing')
 
-    // The DependencyDegraded dispatch is best-effort/async — give it a tick.
+    // The DependencyDegraded dispatch is best-effort and async, so give it a tick.
     await new Promise((r) => setTimeout(r, 40))
     assert.lengthOf(captured, 1)
     assert.equal(captured[0]!.payload.dependency, 'redis')

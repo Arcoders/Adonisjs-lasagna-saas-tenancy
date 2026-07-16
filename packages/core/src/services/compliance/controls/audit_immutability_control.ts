@@ -9,7 +9,7 @@ const TRIGGERS = [
 /**
  * Are the append-only triggers actually installed on `backoffice.tenant_audit_logs`?
  * Joins the catalog by name (no `regclass` cast) so a missing table yields zero
- * rows instead of throwing — an absent audit satellite reads as action-needed.
+ * rows instead of throwing. An absent audit satellite reads as action-needed.
  */
 const auditImmutabilityControl: ComplianceControl = {
   id: 'audit-immutability',
@@ -27,7 +27,7 @@ const auditImmutabilityControl: ComplianceControl = {
     const schema = config.backofficeSchemaName
     const conn = db.connection(config.backofficeConnectionName)
     // `nspname` is compared as a string value (not an identifier slot), so it
-    // binds as a `?` parameter — and it MUST be the configured schema, not a
+    // binds as a `?` parameter, and it MUST be the configured schema, not a
     // hardcoded 'backoffice', or a host that renamed the backoffice schema gets
     // a false "missing trigger" verdict on this compliance control.
     const result = await conn.rawQuery(

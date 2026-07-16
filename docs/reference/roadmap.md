@@ -16,9 +16,11 @@ scope, see [Known limitations](/reference/known-limitations).
   candidate**: feature-complete and green in CI against real Postgres and
   Redis, hardened against the failure modes documented in
   [Security](/guides/security).
-- The **satellite packages** (billing, SSO, admin, backup, websockets,
-  reporting) are **release candidates**: each cleared the graduation gate (frozen
-  Satellite ABI, its own merged coverage floor, doc page, CHANGELOG).
+- The **published satellite packages** (billing, SSO, backup, reporting, AI) are
+  **release candidates**: each cleared the graduation gate (frozen Satellite ABI,
+  its own merged coverage floor, doc page, CHANGELOG). `admin` and `websockets`
+  live in the repository but are **not published to npm**, so they carry no
+  stability promise.
 - The **in-core opt-in features** (quotas, webhooks, metrics, audit logs,
   branding, feature flags, impersonation) are **experimental**: usable and
   tested, but their surface may shift within a minor release.
@@ -82,4 +84,4 @@ with a changelog note. Pin your version and read the
 
 - [Stability](/reference/stability); label definitions and the feature matrix.
 - [Known limitations](/reference/known-limitations); what is intentionally not here.
-- [Upgrade to 1.0](/reference/upgrade-to-1.0); the mechanical changes from 0.x.
+- [Upgrade to 0.3](/reference/upgrade-to-0.3); the mechanical changes from 0.2.x.

@@ -5,7 +5,7 @@ import FeatureFlagService from '../services/feature_flag_service.js'
 
 /**
  * Delete a tenant feature flag. Goes through FeatureFlagService so the shared
- * cache is invalidated — this command needs Redis reachable. Prompts for
+ * cache is invalidated. This command needs Redis reachable. Prompts for
  * confirmation unless --force.
  */
 export default class TenantFeatureFlagDelete extends BaseCommand {

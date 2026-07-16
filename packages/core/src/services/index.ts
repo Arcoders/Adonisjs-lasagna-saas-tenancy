@@ -1,7 +1,7 @@
 export { resolveTenantRepository } from './resolve_tenant_repository.js'
-// The S5 core-access funnel + its guarded db accessor (labeled in-process friction;
-// see resolve_database.ts / .github/SECURITY.md — the Postgres read-only role is the
-// real boundary). `assertCoreAccessAllowed` is the single throw site for both.
+// The core-access funnel + its guarded db accessor (labeled in-process friction;
+// see resolve_database.ts / .github/SECURITY.md, where the Postgres read-only role is
+// the real boundary). `assertCoreAccessAllowed` is the single throw site for both.
 export { resolveDatabase } from './resolve_database.js'
 export { assertCoreAccessAllowed } from './plugin_core_access.js'
 export { mapTenants } from './map_tenants.js'
@@ -49,9 +49,9 @@ export type { WebhookPayloadTransformer } from './webhook_transformer_registry.j
 // Expose the shared BentoCache instance so apps that namespace their
 // own cache keys (and integration tests that need to seed sessions
 // directly) don't have to dig into internal paths. `cacheFor(tenant)`
-// is the safer default — it returns a namespace already prefixed with
+// is the safer default: it returns a namespace already prefixed with
 // the tenant id so cross-tenant key collisions are impossible.
-// `buildCacheStack` is the same factory the singleton runs through —
+// `buildCacheStack` is the same factory the singleton runs through,
 // exported so tests and hosts needing an isolated instance exercise the
 // real wiring instead of copying it.
 export { getCache, cacheFor, buildCacheStack } from '../utils/cache.js'
@@ -89,7 +89,7 @@ export { default as HookRegistry } from './hook_registry.js'
 // augmentable `LasagnaCapabilities` interface. The author-facing types + the
 // provide-side `CAPABILITY_CONTRACT_VERSION` live on the `/plugin` surface.
 export { default as CapabilityRegistry } from './capability_registry.js'
-// The tenant scheduler (SEAM-1). A plugin registers ticks via a
+// The tenant scheduler. A plugin registers ticks via a
 // `definePlugin({ schedules })` section; a host resolves this singleton to
 // inspect (`list()`) or drive a tick (`runTick`). The author-facing `TenantSchedule`
 // type + the `schedule()` builder live on the `/plugin` surface.
@@ -123,7 +123,8 @@ export {
 // validate them the same way the shipped drivers do (see the
 // custom-isolation-driver cookbook), so the validator is part of this
 // surface. Also available via the `/internal` subpath.
-export { assertSafeIdentifier, isUuidV4 } from './isolation/identifier.js'
+export { isUuidV4 } from './isolation/identifier.js'
+export { assertSafeIdentifier } from '../isthmus/guarded_identifier.js'
 export {
   TenantResolverRegistry,
   HeaderResolver,
@@ -133,9 +134,10 @@ export {
   RequestDataResolver,
   ResolverHit,
   RESOLVER_CONTRACT_VERSION,
+  SyncTenantResolver,
   builtInResolvers,
 } from './resolvers/index.js'
-export type { TenantResolver, TenantResolveResult } from './resolvers/index.js'
+export type { TenantResolver, TenantResolveResult, ResolverTrust } from './resolvers/index.js'
 export type {
   IsolationDriver,
   ProvisionableDriver,

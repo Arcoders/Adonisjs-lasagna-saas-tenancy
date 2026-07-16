@@ -23,18 +23,18 @@ import type { NextFn } from '@adonisjs/core/types/http'
  * call `next()` so the same handler can serve both contexts.
  *
  * Unlike `TenantGuardMiddleware`, this middleware does not throw on a missing,
- * invalid, or genuinely absent tenant — it silently degrades to "central" mode.
+ * invalid, or genuinely absent tenant. It silently degrades to "central" mode.
  * Suspended / deleted / not-ready tenants are also passed through as if they
  * didn't exist; the route handler decides what to render without a tenant.
  *
  * What it does NOT swallow: when a tenant IS named (a valid id/domain) but
- * loading or connecting it fails for an infrastructure reason — the registry
- * lookup throws (central DB down), the driver connect fails (tenant DB down),
- * the hard cap is hit, or a 500-class misconfiguration surfaces — it fails
- * closed (the underlying 503/500) rather than degrading. Serving a
- * tenant-targeted request in central mode would hand it a request without its
- * own data context, the isolation footgun this package exists to prevent. A
- * lookup that simply returns null (tenant doesn't exist) still degrades.
+ * loading or connecting it fails for an infrastructure reason, it fails closed
+ * (the underlying 503/500) rather than degrading: the registry lookup throws
+ * (central DB down), the driver connect fails (tenant DB down), the hard cap is
+ * hit, or a 500-class misconfiguration surfaces. Serving a tenant-targeted
+ * request in central mode would hand it a request without its own data context,
+ * the isolation footgun this package exists to prevent. A lookup that simply
+ * returns null (tenant doesn't exist) still degrades.
  */
 export default class UniversalMiddleware {
   async handle({ request }: HttpContext, next: NextFn) {
@@ -90,7 +90,7 @@ export default class UniversalMiddleware {
       // down, etc.). Degrading to central here would serve a tenant-targeted
       // request without its data context, so fail closed instead. An outage maps
       // to a 503 (even one Lucid tags with a 500); any other decided status is
-      // respected — consistent with `request.tenant()`. (A genuinely absent
+      // respected, consistent with `request.tenant()`. (A genuinely absent
       // tenant returns null below and still degrades to central, per the "as if
       // it didn't exist" contract.)
       throw mapTenantConnectError(
@@ -107,7 +107,7 @@ export default class UniversalMiddleware {
     // Connect BEFORE probing the breaker, mirroring the guarded path (where
     // `request.tenant()` connects first). The breaker probe runs `SELECT 1` on
     // the tenant's connection NAME, which only exists once `connect()` has
-    // registered it — running the probe first would fail every tenant's first
+    // registered it. Running the probe first would fail every tenant's first
     // request with an unregistered-connection error. A connect failure (Postgres
     // down, an unregistered-connection 500, the hard-cap limit) fails closed as
     // the appropriate status instead of degrading to central.
@@ -119,13 +119,13 @@ export default class UniversalMiddleware {
       // closed rather than degrade to central. An outage (Postgres down, an
       // unregistered-connection 500, etc.) maps to a clean 503; a genuinely
       // decided status (the hard-cap 503, a 500-class config fault) passes
-      // through — consistent with `request.tenant()`.
+      // through, consistent with `request.tenant()`.
       throw mapTenantConnectError('tenant.connect', err, tenant.id)
     }
 
     // Drive the tenant breaker so universal-route traffic trips it too: a named
     // tenant whose DB stops responding must fail closed (503), never degrade to
-    // central — that would serve a tenant-targeted request without its data.
+    // central. That would serve a tenant-targeted request without its data.
     const cbService = await app.container.make(CircuitBreakerService)
     try {
       await cbService.run(tenant.id)

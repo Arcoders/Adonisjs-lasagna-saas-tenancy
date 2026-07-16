@@ -15,14 +15,15 @@ const fileExists = (p: string) =>
     .catch(() => false)
 
 /**
- * `node ace configure @adonisjs-lasagna/billing` — publish the billing
- * satellite's migrations + the quota-warning mailer/view, register its provider
- * + commands in `adonisrc.ts`, and print the install reminder. Reads its own
+ * `node ace configure @adonisjs-lasagna/billing` publishes the billing
+ * satellite's migrations + the quota-warning mailer/view, registers its provider
+ * + commands in `adonisrc.ts`, and prints the install reminder. Reads its own
  * `package.json#lasagnaSatellite` manifest, the same source of truth core's
  * `configure --with=@adonisjs-lasagna/billing` path uses.
  */
 export default async function configure(command: Configure) {
-  // build/configure.js → package root is one level up from build/.
+  // This file runs as build/configure.js, so the package root is one level up
+  // from build/.
   const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
   const stubsRoot = join(pkgRoot, 'stubs')
   const pkgJson = JSON.parse(await readFile(join(pkgRoot, 'package.json'), 'utf8'))
@@ -45,7 +46,7 @@ export default async function configure(command: Configure) {
   const codemods = await command.createCodemods()
 
   // Migrations (idempotent, namespaced by package). billing requires the core
-  // `quotas` bundle for tenant_plans — the manifest declares it; this hook
+  // `quotas` bundle for tenant_plans. The manifest declares it; this hook
   // prints the prerequisite.
   const { published, skipped } = await publishSatellite(
     codemods,
@@ -60,7 +61,7 @@ export default async function configure(command: Configure) {
   // Fiscal features (opt-in): country_code + billing_invoice_snapshots. Their
   // stubs live OUTSIDE the manifest's `migrations` dir, so neither the core
   // `--with=` path nor the base publish above ever includes them. Publish only
-  // when the operator opts in — set LASAGNA_BILLING_FISCAL=1 (CI / non-TTY) or
+  // when the operator opts in: set LASAGNA_BILLING_FISCAL=1 (CI / non-TTY) or
   // answer the prompt (default no) on an interactive run. Reuses the shared
   // publisher with a manifest clone pointing at the fiscal stub dir, so it
   // inherits the same namespacing + re-run idempotency as the base migrations.

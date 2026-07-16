@@ -8,7 +8,7 @@ const conn = () => db.connection('backoffice')
 const seeded = new Set<string>()
 
 // The `month` date column comes back from knex as a JS Date (local midnight), not a
-// string — normalize it to `yyyy-MM` for assertions.
+// string. Normalize it to `yyyy-MM` for assertions.
 const ym = (m: unknown): string =>
   m instanceof Date ? DateTime.fromJSDate(m).toFormat('yyyy-MM') : String(m).slice(0, 7)
 
@@ -161,7 +161,7 @@ test.group('MetricsService.recomputeMonthlyRollup (integration)', (group) => {
     await seedDaily(t, lastMonth.plus({ days: 4 }).toFormat('yyyy-MM-dd'), { requests: 11 })
     await seedDaily(t, thisMonth.plus({ days: 1 }).toFormat('yyyy-MM-dd'), { requests: 99 })
 
-    // since pinned to last month; until omitted → defaults to end of last completed month.
+    // since pinned to last month; until omitted, so it defaults to the end of the last completed month.
     await svc.recomputeMonthlyRollup({ since: lastMonth.toFormat('yyyy-MM-dd') })
 
     const rows = await monthlyRows([t])

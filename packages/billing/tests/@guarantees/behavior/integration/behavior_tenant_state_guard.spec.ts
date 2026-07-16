@@ -14,10 +14,10 @@ import {
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**
- * A7: a late or replayed provider event must not resurrect a DELETED tenant's
+ * A late or replayed provider event must not resurrect a DELETED tenant's
  * plan/quota. A hard delete drops the customer mirror (and `syncSubscription`
  * already throws `tenant_not_resolvable`), but a soft status flip can leave the
- * mirror in place — so the tenant-state guard checks the host tenant's
+ * mirror in place, so the tenant-state guard checks the host tenant's
  * lifecycle status and no-ops for `deleted`.
  */
 test.group('Tenant-state guard on subscription sync (integration)', (group) => {
@@ -47,6 +47,7 @@ test.group('Tenant-state guard on subscription sync (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
@@ -77,6 +78,7 @@ test.group('Tenant-state guard on subscription sync (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()

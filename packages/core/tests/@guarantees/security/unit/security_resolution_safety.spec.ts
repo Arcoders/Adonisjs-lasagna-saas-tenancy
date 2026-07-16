@@ -116,4 +116,30 @@ test.group('resolutionSafetyAudit — production hard-fail', () => {
       )
     })
   })
+
+  test('an unrecognized env (staging) also fails closed on the IDOR posture (F5)', ({ assert }) => {
+    // F5: the gate fails CLOSED everywhere except a recognized dev/test env, so
+    // staging (neither prod nor dev/test) must hard-fail rather than boot on a
+    // warning. This is the blind spot the old production-only gate left open.
+    withNodeEnv('staging', () => {
+      assert.throws(
+        () => assertConfigBounds(config({ resolverStrategy: 'header' })),
+        /IDOR|membership gate|authorizeTenantAccess/i
+      )
+    })
+  })
+
+  test('an unset NODE_ENV also fails closed on the IDOR posture (F5)', ({ assert }) => {
+    const prev = process.env.NODE_ENV
+    delete process.env.NODE_ENV
+    try {
+      assert.throws(
+        () => assertConfigBounds(config({ resolverStrategy: 'header' })),
+        /IDOR|membership gate|authorizeTenantAccess/i
+      )
+    } finally {
+      if (prev === undefined) delete process.env.NODE_ENV
+      else process.env.NODE_ENV = prev
+    }
+  })
 })

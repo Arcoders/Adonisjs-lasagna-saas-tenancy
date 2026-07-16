@@ -1,6 +1,6 @@
 import type { BootstrapperContext, TenantBootstrapper } from '../bootstrapper_registry.js'
 import { tenancy } from '../../tenancy.js'
-import { assertSafeIdentifier } from '../isolation/identifier.js'
+import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
 
 /**
  * The constant string namespace that prefixes every per-tenant session key built
@@ -15,10 +15,10 @@ export const TENANT_SESSION_PREFIX = 'tenants/'
  * Build a `TenantBootstrapper` that:
  *
  *   1. Validates the active tenant id at scope entry (it lands inside
- *      session keys — a malformed id can collide / poison other tenants'
+ *      session keys, and a malformed id can collide / poison other tenants'
  *      slots).
  *   2. Exposes a `tenantSessionKey(key)` helper that namespaces session
- *      writes — useful when one logged-in user can switch between
+ *      writes, useful when one logged-in user can switch between
  *      tenants on the same domain and we want each tenant's session
  *      data to be addressable independently.
  *
@@ -77,8 +77,8 @@ export function tenantSessionKey(key: string): string {
  * take a key (`commit`, `regenerate`, `flush`, …) forward verbatim.
  *
  * The `ctx` parameter is loosely typed as `unknown` so this file does
- * not depend on `@adonisjs/session`'s type augmentation of HttpContext —
- * session is an optional peer dependency.
+ * not depend on `@adonisjs/session`'s type augmentation of HttpContext.
+ * Session is an optional peer dependency.
  */
 export function tenantSession(ctx: unknown): {
   get<T = unknown>(key: string, defaultValue?: T): T

@@ -4,16 +4,16 @@ import { randomUUID } from 'node:crypto'
 import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 
 /**
- * S1-5: header-vs-domain precedence under CustomDomainMiddleware.
+ * Header-vs-domain precedence under CustomDomainMiddleware.
  *
  * Secure-by-default mode (this spec; `/custom-domain-strict-check` mounts
  * `customDomain()` with NO options): if both a matching `Host` and an
  * `x-tenant-id` header are present and they DISAGREE, the request is rejected
- * with 400 — the verified domain is authoritative. If only one signal is
+ * with 400. The verified domain is authoritative. If only one signal is
  * present, the middleware behaves as before.
  *
  * Legacy mode (opt-in via `strict: false`, where an explicit header wins over a
- * matching `Host` — a tenant-hop vector) is covered by the separate
+ * matching `Host`, a tenant-hop vector) is covered by the separate
  * custom_domain_middleware spec against `/custom-domain-check`.
  */
 test.group('CustomDomainMiddleware — strict mode (header/domain precedence)', () => {
@@ -101,7 +101,7 @@ test.group('CustomDomainMiddleware — strict mode (header/domain precedence)', 
         .header('x-tenant-id', tenant.id)
 
       // No domain claim exists for that host, so there's nothing to
-      // mismatch against — header-based routing remains valid.
+      // mismatch against, and header-based routing remains valid.
       res.assertStatus(200)
       assert.equal((res.body() as any).tenantId, tenant.id)
     } finally {

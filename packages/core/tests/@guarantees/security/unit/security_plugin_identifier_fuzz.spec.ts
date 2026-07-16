@@ -9,7 +9,7 @@ import {
 import { __resetIsthmusCounters, snapshotIsthmusCounters } from '../../../../src/isthmus/audit.js'
 
 /**
- * E6 fuzz — the branded-name minters are the plugin surface's proof-of-safety.
+ * Identifier fuzz: the branded-name minters are the plugin surface's proof-of-safety.
  * A value of type PluginName / AuthorizerName / MiddlewareName / MacroName /
  * CapabilityKey EXISTS only because it passed `assertSafeIdentifier` at mint time
  * (see brands.ts: `mint()` is the ONE sanctioned assertion site). So anything an
@@ -18,7 +18,7 @@ import { __resetIsthmusCounters, snapshotIsthmusCounters } from '../../../../src
  * reach that slot.
  *
  * This spec drives a hostile identifier corpus through EVERY minter and asserts
- * each REJECTS it — so a key-delimiter, a DDL escape, a statement terminator,
+ * each REJECTS it, so a key-delimiter, a DDL escape, a statement terminator,
  * path traversal, a shell metacharacter, over-length, or a homoglyph that NFKC
  * would fold onto an ASCII id can never be minted into a brand. The guard's OWN
  * corpus is exercised in behavior_identifier.spec.ts; this pins that every plugin
@@ -57,9 +57,9 @@ const HOSTILE = [
   '*', // glob wildcard
   '', // empty
   'a'.repeat(64), // over the PG NAMEDATALEN-1 (63) limit
-  'tenant_℀', // U+2100 — NFKC folds toward "a/c"
-  '\u{1D538}', // 𝔸 — folds to ASCII "A"
-  '１２３', // fullwidth digits — fold to 123
+  'tenant_℀', // U+2100, NFKC folds toward "a/c"
+  '\u{1D538}', // 𝔸 folds to ASCII "A"
+  '１２３', // fullwidth digits fold to 123
   'á', // "a" + combining acute accent (non-canonical form)
 ] as const
 

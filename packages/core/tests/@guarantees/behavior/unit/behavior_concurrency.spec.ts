@@ -60,7 +60,7 @@ test.group('boundedBatch — concurrency bound', () => {
     assert.isAtMost(t.peak(), 10)
   }).timeout(30_000)
 
-  // META: prove the batching barrier is load-bearing — an unbounded Promise.all
+  // META: prove the batching barrier is load-bearing. An unbounded Promise.all
   // over the same tracked worker reaches peak = N, while boundedBatch stays <= width.
   test('META: an unbounded baseline reaches full concurrency, boundedBatch does not', async ({
     assert,

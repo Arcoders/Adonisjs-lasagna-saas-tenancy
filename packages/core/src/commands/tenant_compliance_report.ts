@@ -13,7 +13,7 @@ const STATUS_COLOR: Record<ControlStatus, 'green' | 'yellow' | 'cyan'> = {
 /**
  * Report compliance posture by introspecting config + database state. The control
  * set is a registry (like tenant:doctor's checks) so satellites can contribute
- * their own controls. NOT a certification — it shows which controls Lasagna
+ * their own controls. NOT a certification. It shows which controls Lasagna
  * gives you evidence for and what stays the host's job.
  */
 export default class TenantComplianceReport extends BaseCommand {

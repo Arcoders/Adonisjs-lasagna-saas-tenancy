@@ -1,5 +1,5 @@
 /**
- * Tier 1 — micro hot-paths. Pure CPU, no app, no DB. Run with `--expose-gc`
+ * Tier 1: micro hot-paths. Pure CPU, no app, no DB. Run with `--expose-gc`
  * (the bench:micro script passes it) so the runner can GC between samples.
  */
 import { installBenchConfig } from './setup.js'

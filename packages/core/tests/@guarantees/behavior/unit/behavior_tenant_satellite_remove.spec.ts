@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import { readFile } from 'node:fs/promises'
 
 /**
- * Metadata-only spec — see `create_tenant.spec.ts` for the rationale behind not
+ * Metadata-only spec. See `create_tenant.spec.ts` for the rationale behind not
  * importing the command module here. Execution coverage lives in the e2e suite.
  */
 test.group('tenant:satellite:remove — command metadata', () => {

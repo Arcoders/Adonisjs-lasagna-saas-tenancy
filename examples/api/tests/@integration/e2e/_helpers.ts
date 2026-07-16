@@ -11,8 +11,40 @@ import Tenant from '#app/models/backoffice/tenant'
 
 const execFileP = promisify(execFile)
 
-export const ADMIN_TOKEN = process.env.DEMO_ADMIN_TOKEN ?? 'demo-admin-token-change-me'
-export const ADMIN_HEADERS = { 'x-admin-token': ADMIN_TOKEN }
+// Filled once by seedOperatorAndMintAdminToken() in the e2e suite setup
+// (tests/bootstrap.ts). Specs keep importing the same object and read it at
+// request time, so the late mutation is safe; only a module-scope SPREAD of
+// it would capture the pre-seed emptiness.
+export const ADMIN_HEADERS: Record<string, string> = {}
+
+let seededOperatorId: string | null = null
+
+// Upserts the demo operator (the backoffice realm's identity) and mints the
+// bearer the whole e2e run uses against /admin, /metrics and the reporting
+// dashboard. Must run after backoffice:setup has created backoffice_users;
+// both e2e scripts and both CI jobs do that before the suite starts.
+export async function seedOperatorAndMintAdminToken(): Promise<void> {
+  const { default: BackofficeUser } = await import('#app/models/backoffice/backoffice_user')
+  const { DEMO_OPERATOR } = await import('#app/helpers/demo_credentials')
+  const user = await BackofficeUser.updateOrCreate(
+    { email: DEMO_OPERATOR.email },
+    { password: DEMO_OPERATOR.password, fullName: DEMO_OPERATOR.fullName }
+  )
+  const token = await BackofficeUser.accessTokens.create(user)
+  if (!token.value) {
+    throw new Error('unreachable: accessTokens.create() always returns a token value')
+  }
+  ADMIN_HEADERS.authorization = `Bearer ${token.value.release()}`
+  seededOperatorId = user.id
+}
+
+/** The seeded operator's uuid, for audit-attribution asserts. */
+export function operatorId(): string {
+  if (!seededOperatorId) {
+    throw new Error('operatorId() called before seedOperatorAndMintAdminToken()')
+  }
+  return seededOperatorId
+}
 
 export async function runAce(command: string, args: string[] = []): Promise<number> {
   const cmd = await ace.exec(command, args)
@@ -56,7 +88,7 @@ export async function installInline(id: string): Promise<'active' | 'failed'> {
       await TenantActivated.dispatch(tenant as any)
       return 'active'
     } catch {
-      // Close before dropping — otherwise the pool keeps sessions whose
+      // Close before dropping. Otherwise the pool keeps sessions whose
       // search_path points at a just-dropped schema, surfacing as random
       // 503s several specs later.
       await tenant.closeConnection().catch(() => {})

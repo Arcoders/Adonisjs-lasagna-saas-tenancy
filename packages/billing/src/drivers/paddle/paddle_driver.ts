@@ -47,7 +47,7 @@ function codeForStatus(status: number): BillingErrorCode {
  * contract, so they are reported unsupported (the service throws a clear
  * `unsupported_by_driver` rather than faking them).
  *
- * NOTE: exercise against the Paddle sandbox before production — the
+ * NOTE: exercise against the Paddle sandbox before production. The
  * `*_real.spec.ts` smoke test covers this when `PADDLE_TEST_API_KEY` is set.
  */
 export default class PaddleDriver implements BillingProviderContract {

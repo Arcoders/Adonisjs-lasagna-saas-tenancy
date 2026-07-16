@@ -84,3 +84,56 @@ test.group('UniversalMiddleware — hard connection cap (integration)', (group) 
     }
   })
 })
+
+/**
+ * F1 — the absolute ceiling (isolation.maxTenantConnectionsHardCeiling) is the
+ * tier ABOVE the soft cap: it refuses a new tenant connection with 503 EVEN WHEN
+ * enforceConnectionCap is off (the availability-favouring default), so an
+ * unbounded-by-default pool can never grow toward PostgreSQL max_connections.
+ */
+test.group('UniversalMiddleware — absolute connection ceiling (F1, integration)', (group) => {
+  let savedConfig: any
+
+  group.each.setup(async () => {
+    savedConfig = getConfig()
+    // enforceConnectionCap is OFF (the soft cap never bites), yet the absolute
+    // ceiling of 1 must still refuse the second tenant. cap == ceiling == 1 keeps
+    // the two tiers coherent (no ceiling-below-cap boot warning).
+    setConfig({
+      ...savedConfig,
+      isolation: {
+        ...(savedConfig.isolation ?? {}),
+        enforceConnectionCap: false,
+        maxTenantConnections: 1,
+        maxTenantConnectionsHardCeiling: 1,
+        evictionGracePeriodMs: 60_000,
+      },
+    })
+    await clearTenantConnections()
+  })
+
+  group.each.teardown(async () => {
+    await clearTenantConnections()
+    setConfig(savedConfig)
+  })
+
+  test('the absolute ceiling refuses with 503 even with enforceConnectionCap off', async ({
+    client,
+  }) => {
+    const a = await createTestTenant({ status: 'active' })
+    const b = await createTestTenant({ status: 'active' })
+    try {
+      const ra = await client.get('/universal/ping').header('x-tenant-id', a.id)
+      ra.assertStatus(200)
+
+      // The pool is at the ceiling (1). Unlike the soft cap, the ceiling holds
+      // regardless of enforceConnectionCap, so B is refused with a 503.
+      const rb = await client.get('/universal/ping').header('x-tenant-id', b.id)
+      rb.assertStatus(503)
+      rb.assertBodyContains({ code: 'E_TENANT_CONNECTION_LIMIT' })
+    } finally {
+      await destroyTestTenant(a.id)
+      await destroyTestTenant(b.id)
+    }
+  })
+})

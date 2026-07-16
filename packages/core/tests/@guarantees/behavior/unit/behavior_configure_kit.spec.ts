@@ -15,7 +15,7 @@ import {
   satelliteMigrationDirs,
 } from '../../../../src/sdk/configure_kit.js'
 
-/* ════════════════════════ Layer 1 — manifest parser ════════════════════════ */
+/* ════════════════════════ Layer 1: manifest parser ════════════════════════ */
 
 test.group('satellite — readSatelliteManifest', () => {
   test('returns null when the key is absent or not a plain object', ({ assert }) => {
@@ -72,7 +72,7 @@ test.group('satellite — readSatelliteManifest', () => {
         ?.satelliteApi,
       2
     )
-    // absent → undefined, no warning
+    // absent: undefined, no warning
     const noWarn: string[] = []
     assert.isUndefined(
       readSatelliteManifest({ name: '@me/s', lasagnaSatellite: { name: 's' } }, (w) =>
@@ -80,7 +80,7 @@ test.group('satellite — readSatelliteManifest', () => {
       )?.satelliteApi
     )
     assert.lengthOf(noWarn, 0)
-    // invalid (0, negative, float, non-number) → dropped + warned, manifest survives
+    // invalid (0, negative, float, non-number): dropped + warned, manifest survives
     for (const bad of [0, -1, 1.5, '1', null, {}]) {
       const warnings: string[] = []
       const m = readSatelliteManifest(
@@ -209,7 +209,7 @@ test.group('satellite — readSatelliteManifest', () => {
     assert.deepEqual(m2?.dependsOn, [{ pkg: '@me/ok' }])
     assert.isAbove(warnings.length, 0)
 
-    // non-array → dropped with a warning
+    // non-array: dropped with a warning
     const warn2: string[] = []
     const m3 = readSatelliteManifest(
       { name: '@me/sat', lasagnaSatellite: { name: 'sat', dependsOn: 'nope' } },
@@ -232,9 +232,9 @@ test.group('satellite — readSatelliteManifest', () => {
         install: [{}, 'npm i'],
       },
     })
-    assert.isUndefined(m?.aliases) // empty → undefined
+    assert.isUndefined(m?.aliases) // empty becomes undefined
     assert.deepEqual(m?.requires, ['quotas', 'plans']) // non-strings filtered
-    assert.isUndefined(m?.env) // non-array → undefined
+    assert.isUndefined(m?.env) // non-array becomes undefined
     assert.deepEqual(m?.install, ['npm i'])
   })
 
@@ -264,7 +264,7 @@ test.group('satellite — readSatelliteManifest', () => {
   })
 })
 
-/* ════════════════════════ Layer 2 — discovery + toolkit ════════════════════ */
+/* ════════════════════════ Layer 2: discovery + toolkit ════════════════════ */
 
 // Build a temp host app with a node_modules tree so discovery runs for real.
 async function scaffoldHost(): Promise<{ root: string; cleanup: () => Promise<void> }> {
@@ -322,7 +322,7 @@ test.group('satellite — discoverSatellites', (group) => {
   }) => {
     const found = await discoverSatellites(host.root)
     const names = found.map((s) => s.packageName).sort()
-    // @fake/sat appears in both deps + devDeps → discovered exactly once.
+    // @fake/sat appears in both deps + devDeps, so it is discovered exactly once.
     assert.deepEqual(names, ['@fake/devsat', '@fake/sat'])
     const sat = found.find((s) => s.packageName === '@fake/sat')!
     assert.equal(sat.manifest.name, 'fake')
@@ -429,8 +429,8 @@ test.group('satellite — publishSatellite', (group) => {
   group.each.teardown(async () => host.cleanup())
 
   // A codemods double that records its makeUsingStub calls AND writes exactly
-  // what a stub's `exports({ to })` emits — `<ts>_<basename>.ts` into the host
-  // migrations dir — so publishSatellite's read-back + namespacing runs for real.
+  // what a stub's `exports({ to })` emits (`<ts>_<basename>.ts` into the host
+  // migrations dir), so publishSatellite's read-back + namespacing runs for real.
   function writingCodemods(migrationsDir: string) {
     const stubCalls: Array<{ stubsRoot: string; stubPath: string }> = []
     let n = 0
@@ -471,7 +471,7 @@ test.group('satellite — publishSatellite', (group) => {
       `namespaced: ${files1.join(', ')}`
     )
 
-    // Re-run sees its own published files and skips both — no duplicates.
+    // Re-run sees its own published files and skips both, no duplicates.
     const codemods2 = writingCodemods(migrationsDir)
     const second = await publishSatellite(codemods2, sat, migrationsDir)
     assert.deepEqual(second.published, [])
@@ -588,7 +588,7 @@ test.group('satellite — publishSatellite namespacing (B2)', () => {
     const dir = await mkdtemp(join(tmpdir(), 'lasagna-ns2-'))
     try {
       const { migrationsDir, sat } = await scaffold(dir, 'create_legacy_table')
-      // simulate a pre-B2 install: a legacy file with no slug prefix
+      // simulate a pre-namespacing install: a legacy file with no slug prefix
       await writeFile(join(migrationsDir, '1700000000000_create_legacy_table.ts'), '// legacy')
 
       const res = await publishSatellite(writingCodemods(migrationsDir), sat, migrationsDir)

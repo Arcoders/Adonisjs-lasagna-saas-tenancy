@@ -12,7 +12,7 @@ import { runIntegrationSuite, guaranteeGlobs } from '@adonisjs-lasagna/satellite
 // BILLING_OPTIONAL_SMOKES_ONLY=1 narrows the suite to the OPTIONAL/secondary
 // provider real-API smokes (live Paddle + Lemon Squeezy). CI runs those in a
 // dedicated non-blocking step so a secondary-provider outage can't fail the
-// build. Stripe is the primary provider: its real smokes are NOT in this lane —
+// build. Stripe is the primary provider: its real smokes are NOT in this lane,
 // they run on the blocking gate as part of the default full-suite run.
 const OPTIONAL_SMOKE_GLOBS = [
   'tests/@guarantees/**/integration/**/*paddle_real_smoke.spec.ts',

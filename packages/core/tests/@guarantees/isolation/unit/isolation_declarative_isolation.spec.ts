@@ -74,4 +74,66 @@ test.group('declarative isolation — static isolation seam', (group) => {
 
     assert.isFalse(called)
   })
+
+  // AD-08: writes (insert/update/delete/refresh) bypass query(), so they must be
+  // schema-qualified through the queryForInstance seam or a backoffice write would
+  // follow the connection's search_path — the read/write asymmetry that let a
+  // mis-configured search_path silently write backoffice rows to the wrong schema.
+  function writeProbe() {
+    const schemas: string[] = []
+    const builder: any = {
+      withSchema: (s: string) => {
+        schemas.push(s)
+        return builder
+      },
+      insert: () => ({ reporterData: () => Promise.resolve([]) }),
+      update: () => Promise.resolve(),
+      del: () => Promise.resolve(),
+      first: () => Promise.resolve(undefined),
+    }
+    const db = { connection: () => ({}) }
+    return { schemas, builder, db }
+  }
+
+  function fakeInstance(isolation: string, connection: string, builder: any) {
+    return {
+      constructor: { name: 'Probe', isolation, connection, selfAssignPrimaryKey: true },
+      $trx: undefined,
+      $options: { connection },
+      $getQueryFor: () => builder,
+    } as any
+  }
+
+  test('the unified adapter schema-qualifies a backoffice-marked model on WRITES', async ({
+    assert,
+  }) => {
+    const { schemas, builder, db } = writeProbe()
+    const adapter = new TenantAdapter(db as any, new IsolationDriverRegistry())
+    const instance = fakeInstance('backoffice', 'backoffice', builder)
+
+    await adapter.insert(instance, { name: 'x' })
+    await adapter.update(instance, { name: 'y' })
+    await adapter.delete(instance)
+
+    assert.deepEqual(schemas, [
+      testConfig.backofficeSchemaName,
+      testConfig.backofficeSchemaName,
+      testConfig.backofficeSchemaName,
+    ])
+  })
+
+  test('the unified adapter does NOT schema-qualify a tenant-marked model on WRITES', async ({
+    assert,
+  }) => {
+    const { schemas, builder, db } = writeProbe()
+    const adapter = new TenantAdapter(db as any, new IsolationDriverRegistry())
+    // Explicit connection so this exercises only the schema branch, not driver routing.
+    const instance = fakeInstance('tenant', 'public', builder)
+
+    await adapter.insert(instance, { name: 'x' })
+    await adapter.update(instance, { name: 'y' })
+    await adapter.delete(instance)
+
+    assert.deepEqual(schemas, [])
+  })
 })

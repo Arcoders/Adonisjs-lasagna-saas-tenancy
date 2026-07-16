@@ -8,8 +8,8 @@ import type { SatelliteProviderContract } from '../../../../src/sdk/contract.js'
 import type { ApplicationService } from '@adonisjs/core/types'
 
 /**
- * Backwards-compatibility PINS (E7). These two fixtures are FROZEN: they capture
- * the v1 public shapes a satellite ships against — the `definePlugin` facade and
+ * Backwards-compatibility PINS. These two fixtures are FROZEN: they capture
+ * the v1 public shapes a satellite ships against, namely the `definePlugin` facade and
  * the raw `SatelliteProviderContract` escape hatch. Later lotes grow `PluginSpec`
  * additively (schedules, onDataChange, permissions, …); this spec must keep
  * passing UNCHANGED, which proves that growth never forces an existing v1 plugin
@@ -53,7 +53,7 @@ test.group('plugin backcompat — v1 definePlugin facade keeps booting', () => {
     const registry = new AuthorizerRegistry()
     const calls: string[] = []
 
-    // The canonical v1 plugin. DO NOT edit this literal — it is the frozen shape
+    // The canonical v1 plugin. DO NOT edit this literal. It is the frozen shape
     // a satellite published against Lote A. It uses only fields that existed in
     // v1: name, satelliteApi, pluginApiVersion, one authorizer section, and the
     // lifecycle hooks.

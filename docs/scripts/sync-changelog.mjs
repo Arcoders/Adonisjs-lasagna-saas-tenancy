@@ -11,7 +11,9 @@ const REDIRECTS_PATH = resolve(__dirname, '../redirects.json')
 // The satellites version independently and keep their own canonical changelogs.
 // Surface them as a linked index (name + current version) rather than inlining
 // every entry, so the page stays focused on the core's substantive changelog.
-const SATELLITES = ['sso', 'billing', 'admin', 'backup']
+// The five PUBLISHED satellites only: `admin` and `websockets` are private, so
+// listing them here pointed readers at packages npm cannot install.
+const SATELLITES = ['sso', 'billing', 'backup', 'reporting', 'ai']
 
 const raw = readFileSync(CHANGELOG_PATH, 'utf8')
 

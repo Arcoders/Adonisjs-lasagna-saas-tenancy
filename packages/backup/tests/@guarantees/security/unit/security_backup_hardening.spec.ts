@@ -12,7 +12,7 @@ import {
 import { evaluateBackupEncryption } from '../../../../src/doctor/backup_encryption_check.js'
 
 /**
- * Unit coverage for the B-BACKUP hardening: the SQL-import literal-rewrite
+ * Unit coverage for the backup hardening: the SQL-import literal-rewrite
  * refusal, the symlink guard, the lock fail-closed behaviour for destructive
  * operations, and the at-rest encryption advisory. These run in-process (no DB,
  * no Redis, no psql).
@@ -83,7 +83,7 @@ test.group('B-BACKUP — symlink guard', (group) => {
 
 test.group('B-BACKUP — operation lock fail-closed for destructive ops', () => {
   // In a bare unit runner `@adonisjs/redis/services/main` is unavailable, so the
-  // lock takes its Redis-down branch — exactly the condition failClosed governs.
+  // lock takes its Redis-down branch, exactly the condition failClosed governs.
   test('fails closed (throws) when Redis is unavailable and failClosed is set', async ({
     assert,
   }) => {

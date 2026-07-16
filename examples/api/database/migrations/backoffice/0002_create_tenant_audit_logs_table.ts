@@ -17,7 +17,7 @@ export default class extends BaseSchema {
       table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(this.now())
 
       // Composite index matching AuditLogService.listForTenant (filter tenant_id,
-      // order by created_at desc) — serves both the filter and the sort, and a
+      // order by created_at desc). It serves both the filter and the sort, and a
       // tenant-prefixed lookup still uses it.
       table.index(['tenant_id', 'created_at'], 'tenant_audit_logs_tenant_created_idx')
     })
@@ -51,7 +51,7 @@ export default class extends BaseSchema {
         FOR EACH ROW EXECUTE FUNCTION backoffice.tenant_audit_logs_no_mutate();
       `)
       // TRUNCATE bypasses per-row triggers, so it needs its own statement-level
-      // guard — without it a single TRUNCATE would erase the whole history.
+      // guard. Without it a single TRUNCATE would erase the whole history.
       await db.rawQuery(`
         DROP TRIGGER IF EXISTS tenant_audit_logs_no_truncate ON backoffice.tenant_audit_logs;
         CREATE TRIGGER tenant_audit_logs_no_truncate

@@ -19,11 +19,11 @@ async function findTenant(id: string): Promise<TenantModelContract> {
 }
 
 /**
- * S2-3: ReadReplicaService.resolve() against real Postgres. Validates
- * the replica connection is correctly built (host override, search
- * path preserved) and that an unreachable replica fails loudly rather
- * than silently routing to the primary — the package does NOT do
- * automatic failover, by design, and consumers must know that.
+ * ReadReplicaService.resolve() against real Postgres. Validates the replica
+ * connection is correctly built (host override, search path preserved) and that
+ * an unreachable replica fails loudly rather than silently routing to the
+ * primary. The package does NOT do automatic failover, by design, and consumers
+ * must know that.
  */
 test.group('ReadReplicaService — resolve() against real PG', (group) => {
   let originalConfig: ReturnType<typeof getConfig>
@@ -58,13 +58,12 @@ test.group('ReadReplicaService — resolve() against real PG', (group) => {
   test('resolve() returns a connection whose search_path targets the tenant schema (real reachable replica)', async ({
     assert,
   }) => {
-    // Single-host test: use the same PG we already have as a "fake
-    // replica" — the host is reachable. The point of this test is to prove
-    // the replica connection inherits the tenant's search_path. A bug that
-    // nests `searchPath` under `connection` (which knex ignores) silently
-    // routes every read to the default `public` schema — a cross-tenant
-    // leak. A bare `SELECT 1` would NOT catch that; reading a table that
-    // only exists inside the tenant schema does.
+    // Single-host test: use the same PG we already have as a "fake replica" with
+    // a reachable host. The point of this test is to prove the replica
+    // connection inherits the tenant's search_path. A bug that nests `searchPath`
+    // under `connection` (which knex ignores) silently routes every read to the
+    // default `public` schema, a cross-tenant leak. A bare `SELECT 1` would NOT
+    // catch that; reading a table that only exists inside the tenant schema does.
     // Reuse the configured primary DB host/port as a "fake replica" target. Read
     // from env (the fixture's database.ts uses the same DB_HOST/DB_PORT) so this
     // does not depend on a `backup` config block, which now lives in the backup
@@ -87,7 +86,7 @@ test.group('ReadReplicaService — resolve() against real PG', (group) => {
     const replicaConn = `tenant_${t.id}_read_0`
     cleanup.push({ tenantId: t.id, connNames: [replicaConn, `tenant_${t.id}`] })
 
-    // Create a table + row INSIDE the tenant schema via the PRIMARY tenant
+    // Create a table and row INSIDE the tenant schema via the PRIMARY tenant
     // connection (its search_path already points at tenant_<uuid>).
     const primary = await driver.connect(tenant)
     await primary.rawQuery(
@@ -138,7 +137,7 @@ test.group('ReadReplicaService — resolve() against real PG', (group) => {
 
     const conn = await svc.resolve(tenant)
     assert.isNotNull(conn, 'resolve must return a connection regardless of replica health')
-    // The query is what surfaces the failure — there is NO automatic
+    // The query is what surfaces the failure. There is NO automatic
     // failover to the primary. Apps that need failover must catch this
     // and retry against the primary themselves.
     let caughtErr: any = null
@@ -183,7 +182,7 @@ test.group('ReadReplicaService — resolve() against real PG', (group) => {
     assert.equal(b, c)
 
     // Different tenant must (eventually, for at least *some* pair)
-    // route somewhere different — otherwise sticky is broken or the
+    // route somewhere different. Otherwise sticky is broken or the
     // hash is degenerate. We can't assert "always different" because a
     // hash collision is mathematically possible, but in 100 trials the
     // distribution must show at least 2 distinct indices overall.
@@ -222,5 +221,66 @@ test.group('ReadReplicaService — resolve() against real PG', (group) => {
     const svc = new ReadReplicaService()
     assert.isNull(svc.pickIndex(randomUUID()))
     assert.isNull(svc.pickHost(randomUUID()))
+  })
+
+  test('an in-flight replica query is NOT severed when eviction pressure hits its connection (F2)', async ({
+    assert,
+  }) => {
+    const baseConn = {
+      host: process.env.DB_HOST ?? '127.0.0.1',
+      port: Number(process.env.DB_PORT ?? 5432),
+    }
+    // Disable the grace window so the in-use-aware release closure is the ONLY
+    // thing that can protect an active replica connection, and cap replica
+    // connections at 1 so a second resolve() forces eviction of the first.
+    setConfig({
+      ...originalConfig,
+      isolation: {
+        ...(originalConfig.isolation ?? { driver: 'schema-pg' }),
+        driver: 'schema-pg',
+        evictionGracePeriodMs: 0,
+      },
+      tenantReadReplicas: {
+        strategy: 'round-robin',
+        hosts: [{ host: baseConn.host, port: baseConn.port, name: 'fake-replica-self' }],
+        maxReplicaConnections: 1,
+      },
+    })
+
+    const ta = await createTestTenant({ status: 'provisioning' })
+    const tb = await createTestTenant({ status: 'provisioning' })
+    const a = await findTenant(ta.id)
+    const b = await findTenant(tb.id)
+    await driver.provision(a)
+    await driver.provision(b)
+    const aRead = `tenant_${ta.id}_read_0`
+    const bRead = `tenant_${tb.id}_read_0`
+    cleanup.push({ tenantId: ta.id, connNames: [aRead, `tenant_${ta.id}`] })
+    cleanup.push({ tenantId: tb.id, connNames: [bRead, `tenant_${tb.id}`] })
+
+    const svc = new ReadReplicaService()
+    const aConn = await svc.resolve(a)
+    assert.isNotNull(aConn, 'A replica connection must resolve')
+
+    // Hold a query in flight on A's replica so it is genuinely "in use". Race a
+    // short timeout so the query is actually scheduled onto the pool first.
+    const sleep = aConn!.rawQuery('SELECT pg_sleep(3)')
+    await Promise.race([
+      sleep.then(() => 'done' as const).catch(() => 'err' as const),
+      new Promise<'scheduled'>((r) => setTimeout(() => r('scheduled'), 300)),
+    ])
+
+    // Resolving B's replica pushes the LRU over its cap of 1 with the grace
+    // window disabled, so eviction targets A's (older) connection. Because A has
+    // a query in flight, the in-use-aware release must DECLINE and keep A open.
+    await svc.resolve(b)
+    await new Promise((r) => setImmediate(r))
+
+    assert.isTrue(
+      db.manager.has(aRead),
+      'an in-flight replica query must not be severed by eviction pressure'
+    )
+
+    await sleep.catch(() => {})
   })
 })

@@ -119,7 +119,7 @@ export const readReplicasCheck: HealthCheckFn = async (): Promise<CheckResult> =
  * The provider calls this once in `boot()`. It skips any name that is already
  * registered, and since host providers boot after this package's, a host can
  * override a default with `addCheck` (same name replaces) or drop it with
- * `removeCheck` from its own `boot()` — the change sticks, nothing re-registers
+ * `removeCheck` from its own `boot()`: the change sticks, nothing re-registers
  * behind its back.
  */
 export function registerDefaultChecks(svc: HealthService): HealthService {

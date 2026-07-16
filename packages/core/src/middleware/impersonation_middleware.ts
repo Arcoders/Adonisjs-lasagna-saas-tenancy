@@ -15,8 +15,8 @@ const DEFAULT_COOKIE = '__impersonation'
 
 /**
  * Verifies an impersonation token (header or cookie) and attaches the
- * derived context to `ctx.impersonation`. Invalid tokens throw 401 —
- * soft failure would let attackers probe with random tokens.
+ * derived context to `ctx.impersonation`. Invalid tokens throw 401.
+ * Soft failure would let attackers probe with random tokens.
  */
 export default class ImpersonationMiddleware {
   // Method seam (not constructor injection) because the named-middleware

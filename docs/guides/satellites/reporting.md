@@ -13,7 +13,7 @@ pipeline writes, plus any **custom named metrics** your app emits, and it lets
 you register your own **report extensions**.
 
 Aggregating in the shared `backoffice` schema is **isolation-safe by
-construction** — these queries never enter a tenant's `search_path`. A built-in
+construction**. These queries never enter a tenant's `search_path`. A built-in
 `assertNotInTenantScope()` guard refuses to run if called inside `tenancy.run()`,
 so a reporting query can never leak cross-tenant data into a tenant context.
 
@@ -27,13 +27,13 @@ node ace configure @adonisjs-lasagna/reporting
 ```
 
 The configure hook registers the provider. Reporting reads `tenant_metrics` (and,
-for custom metrics, `tenant_custom_metrics`) in the backoffice schema — run the
+for custom metrics, `tenant_custom_metrics`) in the backoffice schema. Run the
 core migrations so those tables exist.
 
 ## The metrics pipeline (wire it once)
 
-Reporting reads three real metrics — `request_count`, `error_count`,
-`bandwidth_bytes` — but **the host owns emission**. Two opt-in pieces feed them:
+Reporting reads three real metrics (`request_count`, `error_count`,
+`bandwidth_bytes`), but **the host owns emission**. Two opt-in pieces feed them:
 
 1. Register the auto-metrics middleware so every request is counted:
 
@@ -52,7 +52,7 @@ Reporting reads three real metrics — `request_count`, `error_count`,
    its instance context at runtime. To scope it to some routes instead, register it
    as a named middleware and apply `middleware.trackMetrics()` on a group. It records
    one request, an error on a `>= 500` response, and the response bandwidth against the
-   resolved tenant. Recording is **fail-open** — a metrics backend hiccup never breaks
+   resolved tenant. Recording is **fail-open**. A metrics backend hiccup never breaks
    a request.
 
 2. Schedule the flush so Redis counters land in the backoffice tables:
@@ -90,12 +90,12 @@ const asOf = await reporting.getDataAsOf()
 `since`/`until` (ISO `YYYY-MM-DD`, default last 30 days), `limit` (top-N cap,
 default 50, max 1000).
 
-`getDataAsOf()` is a standalone `Promise<string | null>` you can call directly — the same
+`getDataAsOf()` is a standalone `Promise<string | null>` you can call directly, the same
 value the dashboard payload reports as `dataAsOf` (see [Data freshness](#data-freshness)),
 handy for a freshness banner or a staleness gate outside the dashboard.
 
-Call these from a backoffice context — a queue job, a scheduled task, or an admin
-endpoint — never inside `tenancy.run()` (the guard throws).
+Call these from a backoffice context (a queue job, a scheduled task, or an admin
+endpoint), never inside `tenancy.run()` (the guard throws).
 
 ## Custom metrics
 
@@ -103,7 +103,7 @@ Track your own domain metrics (bookings, revenue, jobs, …) the same isolation-
 way the built-ins work: **emit a named metric**, and reporting aggregates it
 cross-tenant from the backoffice schema. No per-tenant table fan-out, no raw SQL.
 
-Emit wherever it makes sense in your app (values are integers — use minor units
+Emit wherever it makes sense in your app (values are integers, so use minor units
 like cents for money):
 
 ```ts
@@ -129,7 +129,7 @@ Metric names must be safe identifiers (`/^[a-zA-Z0-9_-]{1,63}$/`); the aggregati
 is whitelisted, so neither can inject SQL. Emitting an `emitMetric` dispatches a
 `MetricRecorded` event other satellites can subscribe to.
 
-Optionally declare metadata (a label + default aggregation) in config — it's
+Optionally declare metadata (a label + default aggregation) in config. It's
 metadata only; **unregistered names still aggregate** (default `SUM`):
 
 ```ts
@@ -186,7 +186,7 @@ only the built-in aggregations.
 
 When an extension must read inside each tenant's schema, use `mapTenants` from
 `@adonisjs-lasagna/saas-tenancy/services`. It runs your function inside each
-tenant's `tenancy.run` scope with **bounded concurrency** (default 10 — keep it
+tenant's `tenancy.run` scope with **bounded concurrency** (default 10, keep it
 well under `maxTenantConnections`) and **error isolation**: one tenant failing is
 collected into `errors`, not thrown, so a single bad tenant never aborts the
 report.
@@ -216,7 +216,7 @@ class SlowTenantsReport implements ReportExtension {
 }
 ```
 
-`mapTenants` accepts tenant **models** (not ids — `tenancy.run` needs the model);
+`mapTenants` accepts tenant **models** (not ids, `tenancy.run` needs the model);
 if you only have ids, resolve them first with `resolveTenantRepository`. Pass
 `{ continueOnError: false }` to fail fast on the first tenant error instead.
 
@@ -319,9 +319,9 @@ multitenancyReportingRoutes({
 `{ data: { aggregate, topTenants, customMetrics, dataAsOf } }`. Invalid `period`,
 non-ISO `since`/`until`, or an over-wide/inverted window return `400`.
 
-Caching is **global** (cross-tenant) by design — never tenant-scoped. It's a stale
+Caching is **global** (cross-tenant) by design, never tenant-scoped. It's a stale
 window: within `cacheTtlMs`, a repeated query is served from cache. To keep the
-view fresh, opt into event-driven invalidation — the dashboard cache is cleared the
+view fresh, opt into event-driven invalidation. The dashboard cache is cleared the
 moment `tenant:metrics:flush` lands:
 
 ```ts
@@ -336,7 +336,7 @@ reporting: {
 Reports reflect **flushed** data only. The metrics pipeline buffers counters in
 Redis and `tenant:metrics:flush` writes them to the backoffice tables; reporting
 reads those tables, never Redis. So the newest data a report can show is the last
-flushed period — surfaced as `dataAsOf` (the latest `period` present, or `null`
+flushed period, surfaced as `dataAsOf` (the latest `period` present, or `null`
 when empty) in the dashboard payload. There is **no Redis fallback** by design (it
 would expose partial, per-tenant data and reintroduce cross-tenant fan-out). Run
 the flush on a tight enough schedule for your freshness needs; the opt-in
@@ -406,7 +406,7 @@ the period bucket, which is partition-pruning friendly. RANGE-partition
 `tenant_metrics` (and `tenant_custom_metrics`) by `period` so the planner only
 scans the partitions a window touches. This is host-managed (the package ships a
 plain table); the existing `UNIQUE(tenant_id, period)` already includes the
-partition key, which Postgres requires — don't reorder it. See
+partition key, which Postgres requires. Don't reorder it. See
 [Scaling limits](/guides/scaling-limits).
 
 ## Prepared for future iterations

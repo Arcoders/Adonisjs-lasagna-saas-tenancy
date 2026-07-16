@@ -10,9 +10,9 @@ import {
 import { FakeRedisLists } from '../../../helpers/fake_redis_lists.js'
 
 /**
- * Per-user, per-tenant memory isolation (WS-AI-4, I2 / G6). A session token is
+ * Per-user, per-tenant memory isolation. A session token is
  * HMAC-bound to (tenant, principal); a forged, cross-user or cross-tenant token
- * cannot verify, so it can never reach another principal's memory — the refusal
+ * cannot verify, so it can never reach another principal's memory. The refusal
  * is a fail-closed 400 that trips guard.ai_memory_session_invalid.
  */
 

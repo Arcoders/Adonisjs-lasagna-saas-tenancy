@@ -141,7 +141,7 @@ export default class QuotaService {
    * Returns the plan name + definition currently applied to a tenant.
    *
    * Resolution order:
-   *   1. `config.plans.getPlan(tenant)` if defined — host callback wins.
+   *   1. `config.plans.getPlan(tenant)` if defined (the host callback wins).
    *   2. Storage-backed `tenant_plans` row when `config.plans.storage` is
    *      `'tenant_plans'` (or `'auto'` and the table exists). Cached 60s in
    *      BentoCache; cross-process invalidation runs through the redis bus
@@ -170,14 +170,14 @@ export default class QuotaService {
   }
 
   /**
-   * Persist a tenant→plan mapping. Source-of-truth for billing-driven plan
+   * Persist a tenant-to-plan mapping. Source-of-truth for billing-driven plan
    * changes; the Stripe webhook job calls this after `syncSubscription`.
    *
    * Idempotent: re-assigning the same plan is a no-op (no cache churn). A
    * different plan upserts and invalidates the cache so the next read sees
    * the new plan immediately.
    *
-   * Validates that `planName` exists in `config.plans.definitions` — guards
+   * Validates that `planName` exists in `config.plans.definitions`, which guards
    * against a Stripe product that drifted out of config.
    */
   async assignPlan(
@@ -229,7 +229,7 @@ export default class QuotaService {
 
   /**
    * Reads the persisted plan name for a tenant, honouring `expires_at`
-   * (an expired row is treated as missing — caller falls back to
+   * (an expired row is treated as missing, so the caller falls back to
    * `defaultPlan`). Returns `null` when storage is disabled or the row
    * doesn't exist.
    *
@@ -274,7 +274,7 @@ export default class QuotaService {
   /**
    * Increment the per-day counter (default mode). The key is dated by the UTC
    * calendar day (`#periodToday`), so it is a fixed daily bucket that resets at
-   * 00:00 UTC, not a sliding 24h window — a tenant can spend the limit on each
+   * 00:00 UTC, not a sliding 24h window. A tenant can spend the limit on each
    * side of midnight UTC. The 48h TTL only garbage-collects the previous day's
    * key. Use this for per-day allowances like API calls per day.
    */
@@ -290,8 +290,8 @@ export default class QuotaService {
       run: async () => {
         const redis = await this.requireRedis()
         // INCRBY + EXPIRE in one pipeline so a crash between them can't leave a
-        // TTL-less counter key lingering. (Bounded anyway — the key is
-        // date-scoped — but a clean atomic pair costs nothing.)
+        // TTL-less counter key lingering. (Bounded anyway, since the key is
+        // date-scoped, but a clean atomic pair costs nothing.)
         const results = (await redis
           .pipeline()
           .incrby(key, amount)
@@ -304,7 +304,7 @@ export default class QuotaService {
         const [[incrErr, next], [expireErr]] = results
         if (incrErr) throw incrErr
         // Surface an EXPIRE-only failure too: the increment stuck but the key
-        // has no TTL — silent acceptance would leave a counter that never
+        // has no TTL. Silently accepting it would leave a counter that never
         // resets while reporting success.
         if (expireErr) throw expireErr
         return Number(next) || 0
@@ -321,7 +321,7 @@ export default class QuotaService {
 
   /**
    * Set a snapshot value (e.g. seats, storageMb). Snapshot values are not
-   * incremented automatically — the user reports them when they change.
+   * incremented automatically. The user reports them when they change.
    * Snapshots have no TTL.
    */
   async setUsage(tenant: TenantModelContract, quota: string, value: number): Promise<void> {
@@ -365,14 +365,14 @@ export default class QuotaService {
   /**
    * Atomic check-and-increment on the rolling-day counter. Either the
    * counter is incremented in full and the new value is returned, or
-   * the limit would be exceeded and `QuotaExceededException` is thrown
-   * — never both, never partial.
+   * the limit would be exceeded and `QuotaExceededException` is thrown.
+   * Never both, never partial.
    *
    * Atomicity is guaranteed by a single `EVAL` (Lua) round-trip to
    * Redis: GET, compare against the configured limit, then `INCRBY`
    * + `EXPIRE` only when the new total fits. Redis is single-threaded
    * for script execution, so concurrent callers serialize on the
-   * server side — no over-grant under burst.
+   * server side, with no over-grant under burst.
    *
    * Notes:
    *   - The counter is a fixed UTC calendar-day bucket (the key is dated
@@ -392,7 +392,7 @@ export default class QuotaService {
   async consume(tenant: TenantModelContract, quota: string, amount: number = 1): Promise<number> {
     const limit = await this.getLimit(tenant, quota)
     if (!Number.isFinite(limit)) {
-      // Unlimited plan — just track and return.
+      // Unlimited plan, so we just track and return.
       return await this.track(tenant, quota, amount)
     }
 
@@ -403,7 +403,7 @@ export default class QuotaService {
       operation: 'quota.consume',
       policy,
       tenantId: tenant.id,
-      // fail-open: Redis down → skip enforcement, allow the consumption.
+      // fail-open: when Redis is down, skip enforcement and allow the consumption.
       fallback: () => null,
       run: async () =>
         (await (
@@ -458,14 +458,14 @@ export default class QuotaService {
    * return the remainder with {@link release} in a `finally`. The hold is a Redis
    * key scored by its absolute expiry, so a process that crashes between reserve
    * and settle/release has its budget reclaimed automatically when the TTL
-   * elapses — there is no reaper process and no scalar counter that could leak.
+   * elapses. There is no reaper process and no scalar counter that could leak.
    *
    * FAIL-CLOSED BY CONSTRUCTION. Unlike {@link consume} (which honours
    * `resilience.redis.quota`, defaulting fail-open to favour availability), a
    * reservation gates an expensive provider call: if Redis is unreachable we
    * cannot prove the budget, so we refuse with a 503
    * (`DependencyUnavailableException`) rather than let the cost race through
-   * unheld. This is deliberately NOT configurable — a fail-open reservation would
+   * unheld. This is deliberately NOT configurable. A fail-open reservation would
    * reintroduce the very cost-race the seam closes.
    *
    * When neither a per-tenant limit nor an operator ceiling applies to the quota,
@@ -505,7 +505,7 @@ export default class QuotaService {
         const opEnforced = Number.isFinite(oLimit)
 
         // Nothing to enforce: no per-tenant limit and no operator ceiling. Mirrors
-        // consume()'s "unlimited plan" path — return an inert handle, touch no Redis.
+        // consume()'s "unlimited plan" path: return an inert handle, touch no Redis.
         if (!tenantEnforced && !opEnforced) {
           span.setAttribute(OBS_ATTR.outcome, RESERVE_OUTCOME.ok)
           return {
@@ -611,14 +611,14 @@ export default class QuotaService {
    * Best-effort (fail-open): the budget guarantee is the up-front `reserve` hold,
    * and the hold's TTL reclaims anything a missed settle leaves behind, so a
    * transient Redis blip must never break the streaming `finally`. A hold already
-   * reclaimed by TTL (a crashed then resumed stream) settles nothing — a crashed
+   * reclaimed by TTL (a crashed then resumed stream) settles nothing, so a crashed
    * stream is never over-charged.
    *
    * Safe against a forged/tampered handle by construction: every key below is
    * built from the handle's own (tenantId, day, quota) via the `*Key` builders,
    * and the hold is a member named by `reservation.id`. A handle whose tenantId
    * (or quota/day/id) was swapped addresses a different namespace, so the hold is
-   * not found and the Lua settles nothing — no cross-tenant charge is possible.
+   * not found and the Lua settles nothing. No cross-tenant charge is possible.
    * `check-quota-key-tenant-scoped.mjs` + `security_quota_handle_tamper.spec.ts`
    * pin this so a refactor cannot regress it.
    */
@@ -656,7 +656,7 @@ export default class QuotaService {
     })
 
     // Per-fragment: hot. Record the committed delta as an EVENT on whatever span
-    // is active (the caller's stream span, or none) — never a span per fragment,
+    // is active (the caller's stream span, or none), never a span per fragment,
     // which would explode trace volume. `res` is [delta, newSettled, worst], or
     // null when a fail-open Redis blip swallowed the settle.
     if (Array.isArray(res)) {

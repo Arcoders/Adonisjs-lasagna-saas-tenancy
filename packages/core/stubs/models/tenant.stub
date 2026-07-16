@@ -1,5 +1,5 @@
 {{{
-  exports({ to: app.appPath('models/backoffice/tenant.ts') })
+  exports({ to: app.modelsPath('backoffice/tenant.ts') })
 }}}
 import { column, computed } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
@@ -7,7 +7,6 @@ import { BackofficeBaseModel } from '@adonisjs-lasagna/saas-tenancy/base-models'
 import type { TenantStatus } from '@adonisjs-lasagna/saas-tenancy/types'
 import { getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import db from '@adonisjs/lucid/services/db'
-import cache from '@adonisjs/cache/services/main'
 
 export default class Tenant extends BackofficeBaseModel {
   static readonly table = 'tenants'
@@ -44,12 +43,15 @@ export default class Tenant extends BackofficeBaseModel {
 
   @computed()
   get schemaName(): string {
-    return `${getConfig().tenantSchemaPrefix}${this.id.replace(/-/g, '_')}`
+    // Must match SchemaPgDriver, which appends the raw uuid. Rewriting the dashes
+    // to underscores here would name a schema that does not exist, so uninstall()
+    // would DROP the wrong one and leave this tenant's data behind.
+    return \`\${getConfig().tenantSchemaPrefix}\${this.id}\`
   }
 
   @computed()
   get connectionName(): string {
-    return `${getConfig().tenantConnectionNamePrefix}${this.id}`
+    return \`\${getConfig().tenantConnectionNamePrefix}\${this.id}\`
   }
 
   @computed()
@@ -83,15 +85,22 @@ export default class Tenant extends BackofficeBaseModel {
   }
 
   async getConnection() {
-    const { tenantConnectionNamePrefix } = getConfig()
-    const connName = `${tenantConnectionNamePrefix}${this.id}`
+    const { tenantConnectionNamePrefix, centralConnectionName } = getConfig()
+    const connName = \`\${tenantConnectionNamePrefix}\${this.id}\`
     if (!db.manager.has(connName)) {
+      // The central connection is the template; only the schema changes. Narrow
+      // on the client first: Lucid types a connection's config as the union over
+      // every driver, and the pg branch is the only one we can clone. Note that
+      // searchPath is a sibling of the connection object, not a member of it.
+      // Lucid reads it off the connection NODE; nesting it silently does nothing.
+      const central = db.getRawConnection(centralConnectionName)?.config
+      if (central?.client !== 'pg') {
+        throw new Error('Tenant schemas need a pg central connection, got: ' + central?.client)
+      }
       db.manager.add(connName, {
         client: 'pg',
-        connection: {
-          ...db.getRawConnection('pg')?.config?.connection,
-          searchPath: this.schemaName,
-        },
+        connection: central.connection,
+        searchPath: [this.schemaName],
       })
     }
     return db.connection(connName)
@@ -99,7 +108,7 @@ export default class Tenant extends BackofficeBaseModel {
 
   async closeConnection() {
     const { tenantConnectionNamePrefix } = getConfig()
-    const connName = `${tenantConnectionNamePrefix}${this.id}`
+    const connName = \`\${tenantConnectionNamePrefix}\${this.id}\`
     if (db.manager.has(connName)) {
       await db.manager.close(connName)
     }
@@ -107,7 +116,7 @@ export default class Tenant extends BackofficeBaseModel {
 
   async install() {
     const conn = await this.getConnection()
-    await conn.rawQuery(`CREATE SCHEMA IF NOT EXISTS "${this.schemaName}"`)
+    await conn.rawQuery(\`CREATE SCHEMA IF NOT EXISTS "\${this.schemaName}"\`)
     // Run tenant migrations here
   }
 
@@ -115,7 +124,7 @@ export default class Tenant extends BackofficeBaseModel {
     await this.closeConnection()
     const { centralConnectionName } = getConfig()
     await db.connection(centralConnectionName).rawQuery(
-      `DROP SCHEMA IF EXISTS "${this.schemaName}" CASCADE`
+      \`DROP SCHEMA IF EXISTS "\${this.schemaName}" CASCADE\`
     )
   }
 
@@ -150,7 +159,13 @@ export default class Tenant extends BackofficeBaseModel {
     await this.invalidateCache()
   }
 
-  async invalidateCache() {
-    await cache.delete(`tenant:${this.id}`)
-  }
+  /**
+   * Called whenever this tenant's status changes. The package never calls it and
+   * \`TenantRepositoryContract\` does not require it: caching tenant rows is your
+   * decision, so this is left empty on purpose.
+   *
+   * If you cache tenants (\`@adonisjs/cache\`, \`@adonisjs/redis\`, an in-memory map),
+   * evict the entry here.
+   */
+  async invalidateCache() {}
 }

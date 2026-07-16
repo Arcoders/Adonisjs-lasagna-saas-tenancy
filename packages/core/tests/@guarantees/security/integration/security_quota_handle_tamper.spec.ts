@@ -19,7 +19,7 @@ import { AI_TAG } from '../../../helpers/tags.js'
  * by the handle's `id`. A handle whose tenantId (or quota, or day, or id) has
  * been swapped therefore addresses a DIFFERENT Redis namespace: the hold is not
  * found there, the Lua returns its "already reaped" sentinel, and nothing is
- * charged — not to the victim tenant (whose keys were never touched) nor to the
+ * charged, neither to the victim tenant (whose keys were never touched) nor to the
  * attacker's tenant (whose namespace has no such hold). There is no cross-tenant
  * charge, and the victim's real hold is left intact. The control case proves the
  * assertions are not vacuous: an *untampered* handle settles and releases for

@@ -2,19 +2,19 @@ import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 
 /**
- * S3 red-team, the real firewall: proves that the read-only Postgres role the
+ * The real firewall red-team: proves that the read-only Postgres role the
  * tenant adapter routes untrusted plugins to actually DENIES writes at the
- * database level — not a JS proxy. The adapter routing (untrusted → the cloned
- * read-only connection) is unit-proven in
+ * database level, not via a JS proxy. The adapter routing (untrusted plugins
+ * go to the cloned read-only connection) is unit-proven in
  * security_plugin_read_only_routing.spec.ts; this proves the role that connection
  * authenticates as refuses a write even when granted INSERT/UPDATE/DELETE, because
  * it runs with `default_transaction_read_only = on`.
  *
  * Runs on the `plugin_ro` connection, which CI authenticates as that role (via
  * PLUGIN_RO_DB_USER/PLUGIN_RO_DB_PASSWORD). Self-skips when the connection
- * resolves to a WRITABLE role (the local default), and — like the rowscope RLS
- * proof — fails LOUD rather than skipping when PLUGIN_RO_DB_USER is set but the
- * role turns out writable, so the guarantee can never ship false-green.
+ * resolves to a WRITABLE role (the local default). Like the rowscope RLS proof,
+ * it fails LOUD rather than skipping when PLUGIN_RO_DB_USER is set but the role
+ * turns out writable, so the guarantee can never ship false-green.
  */
 
 const TABLE = 'lasagna_plugin_ro_test'
@@ -47,8 +47,8 @@ test.group('plugin read-only role (integration)', (group) => {
     await admin.rawQuery(`CREATE TABLE ${TABLE} (id serial PRIMARY KEY, note text)`)
     await admin.table(TABLE).insert({ note: 'seed' })
     // Grant BOTH read and write, so the denial below is the read-only ROLE, not a
-    // missing privilege — that is exactly the guarantee (a granted write is still
-    // refused because the plugin's transactions are read-only).
+    // missing privilege. That is exactly the guarantee: a granted write is still
+    // refused because the plugin's transactions are read-only.
     await admin.rawQuery(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${TABLE} TO PUBLIC`)
     await admin.rawQuery(`GRANT USAGE, SELECT ON SEQUENCE ${TABLE}_id_seq TO PUBLIC`)
   })

@@ -11,14 +11,14 @@ import type { RouteMiddleware } from './routes.js'
  * opt-out.
  *
  * Only an explicit `false` is the public opt-out. Every other "effectively
- * absent" value is rejected — `undefined`, `null`, an empty string, and an
+ * absent" value is rejected: `undefined`, `null`, an empty string, and an
  * EMPTY ARRAY. The empty array is the dangerous one: a caller building the list
  * dynamically (`authEnabled ? [auth] : []`) would otherwise mount `/metrics`
  * public silently while looking like it passed a guard. `false` must be written
  * out to go public, on purpose.
  *
- * Lives in its own module — deliberately free of any `@adonisjs/core/services/
- * router` import — so the rule can be unit-tested without dragging in the router
+ * Lives in its own module (deliberately free of any `@adonisjs/core/services/
+ * router` import) so the rule can be unit-tested without dragging in the router
  * service (which `await app.booted(...)`s at module evaluation and throws
  * outside an Ignitor).
  */

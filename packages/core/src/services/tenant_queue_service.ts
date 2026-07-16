@@ -1,6 +1,6 @@
 import { Queue, type JobsOptions, type QueueOptions } from 'bullmq'
 import { getConfig } from '../config.js'
-import ConnectionLru, { DEFAULT_EVICTION_GRACE_MS } from './isolation/connection_lru.js'
+import ConnectionLru from './isolation/connection_lru.js'
 
 // Lazy logger so importing this service never triggers `@adonisjs/core`'s
 // top-level `await app.booted(...)` outside an Ignitor (which throws). Matches
@@ -8,9 +8,6 @@ import ConnectionLru, { DEFAULT_EVICTION_GRACE_MS } from './isolation/connection
 // keeps the module importable from unit tests.
 const lazyLogger = () =>
   import('@adonisjs/core/services/logger').then((m) => m.default).catch(() => null)
-
-/** Default cap on simultaneously-open per-tenant queue handles. */
-export const DEFAULT_MAX_OPEN_QUEUES = 100
 
 /** Default fan-out width when collecting stats for an explicit tenant list. */
 export const DEFAULT_STATS_CONCURRENCY = 10
@@ -36,7 +33,7 @@ export interface TenantQueueStats {
 /**
  * Per-tenant BullMQ queue access.
  *
- * Registered as a container singleton by `MultitenancyProvider` — resolve it
+ * Registered as a container singleton by `MultitenancyProvider`. Resolve it
  * with `app.container.make(TenantQueueService)` rather than `new`-ing it.
  * The dispatch path keeps a persistent `Queue` per tenant (each owns an ioredis
  * connection); constructing a fresh service per call would leak one connection
@@ -58,8 +55,8 @@ export default class TenantQueueService {
   // evicted, so an in-flight dispatch is never severed.
   readonly #lru = new ConnectionLru({
     label: 'TenantQueueService',
-    cap: () => getConfig().queue.maxOpenQueues ?? DEFAULT_MAX_OPEN_QUEUES,
-    graceMs: () => getConfig().queue.queueIdleGraceMs ?? DEFAULT_EVICTION_GRACE_MS,
+    cap: () => getConfig().queue.maxOpenQueues,
+    graceMs: () => getConfig().queue.queueIdleGraceMs,
     release: async (tenantId) => {
       // Delete synchronously (before the await) so a concurrent getOrCreate for
       // the same tenant re-creates a fresh handle instead of handing back the
@@ -173,7 +170,7 @@ export default class TenantQueueService {
 
   /**
    * Stats for an explicit set of tenants. Prefer this over {@link getAllStats}
-   * when you have the tenant list (e.g. the /metrics collector) — it reflects
+   * when you have the tenant list (e.g. the /metrics collector). It reflects
    * ALL tenants, not just the ones this process happened to dispatch to.
    *
    * Each tenant's counts come from a short-lived handle ({@link withTempQueue}),
@@ -219,8 +216,33 @@ export default class TenantQueueService {
     await queue.add(jobName, payload, opts)
   }
 
+  /**
+   * Close every persistent dispatch-path queue handle this process holds open,
+   * releasing the ioredis connection each one owns, and clear the map + LRU
+   * bookkeeping. The provider's `shutdown()` calls this so a SIGTERM'd worker or
+   * web process doesn't leave a Redis socket keeping the event loop alive past
+   * `app.terminate()` (the classic graceful-shutdown hang that ends in a SIGKILL once the grace period expires).
+   *
+   * Non-destructive, unlike {@link destroy}: it does NOT `obliterate` the
+   * tenant's `bull:` keys. A queued job must survive a graceful restart; this
+   * only drops the in-process connection, not the durable queue.
+   *
+   * Snapshots then clears the map synchronously (before any await) so a
+   * concurrent `getOrCreate` racing the shutdown builds a fresh handle rather
+   * than getting back one that is closing, mirroring the LRU release path. Closes
+   * concurrently and swallows per-queue errors: one queue failing to close must
+   * not strand the others' sockets open, which is exactly the hang this exists to
+   * prevent.
+   */
+  async closeAll(): Promise<void> {
+    const open = [...this.queues.entries()]
+    this.queues.clear()
+    for (const [tenantId] of open) this.#lru.delete(tenantId)
+    await Promise.all(open.map(([, queue]) => queue.close().catch(() => {})))
+  }
+
   async destroy(tenantId: string): Promise<void> {
-    // Obliterate UNCONDITIONALLY — never depend on whether this process's
+    // Obliterate UNCONDITIONALLY. Never depend on whether this process's
     // in-memory map happens to hold the queue. The worker running an uninstall
     // may have restarted since install created the handle, so a map-only
     // destroy would silently orphan the tenant's `bull:` keys in Redis (and a
@@ -236,7 +258,7 @@ export default class TenantQueueService {
       )
     } finally {
       // Close in finally: if obliterate() throws, the Queue (and its ioredis
-      // connection) must still be released — the map delete below drops our
+      // connection) must still be released. The map delete below drops our
       // only reference to it.
       await queue.close().catch(() => {})
       this.queues.delete(tenantId)

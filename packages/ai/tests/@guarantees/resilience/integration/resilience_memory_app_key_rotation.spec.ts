@@ -8,10 +8,10 @@ import ConversationMemoryService, {
 } from '../../../../src/services/conversation_memory_service.js'
 
 /**
- * WS-AI-8 / T4 — APP_KEY rotation for enc_v2 conversation memory, on REAL Redis.
+ * APP_KEY rotation for enc_v2 conversation memory, on REAL Redis.
  * A turn written under the OLD key is still readable during the grace window via
  * `decryptMemoryPrevious` (and that read is signalled by the previous-key metric);
- * once the grace key is gone, the turn is dropped fail-SAFE AND the H1
+ * once the grace key is gone, the turn is dropped fail-SAFE AND the
  * `ai_memory_undecryptable` metric fires, so a botched rotation that silently drops
  * every historical turn is visible to operators, not just warn-logged. Self-skips
  * when Redis is unavailable, runs in CI.
@@ -84,7 +84,7 @@ test.group(
           'the grace-key read is signalled'
         )
 
-        // Grace expired: no previous key. The turn drops fail-safe AND the H1 metric fires.
+        // Grace expired: no previous key. The turn drops fail-safe AND the undecryptable metric fires.
         const droppedMetrics: string[] = []
         const svcNoGrace = service({}, droppedMetrics)
         assert.lengthOf(

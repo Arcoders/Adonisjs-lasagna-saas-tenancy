@@ -2,11 +2,8 @@ name: CI
 
 on:
   push:
-    # TEMP (plugin-platform A→S→B→C branch review): run the full CI matrix on the
-    # crypto-satellite branch so the whole plugin-platform stack is exercised on the
-    # branch before merging. REVERT this extra branch entry (crypto-satellite) before
-    # merging to master. (The ws-ai-3 entry is a stale leftover from an earlier review.)
-    branches: [master, main, LASAGNA-020726/ws-ai-3-vector-store, LASAGNA-040726/crypto-satellite]
+    # TEMP: run CI on this branch while it bakes. Revert before merging.
+    branches: [master, main, LASAGNA-090706/soft]
   pull_request:
     branches: [master, main]
 
@@ -56,8 +53,8 @@ jobs:
       - name: Build (core)
         run: npm run build
 
-      - name: Build satellite packages (sso, billing, admin, backup, websockets, reporting, ai, crypto)
-        run: npm run build:sso && npm run build:billing && npm run build:admin && npm run build:backup && npm run build:websockets && npm run build:reporting && npm run build:ai && npm run build:crypto
+      - name: Build satellite packages (sso, billing, admin, backup, websockets, reporting, ai)
+        run: npm run build:sso && npm run build:billing && npm run build:admin && npm run build:backup && npm run build:websockets && npm run build:reporting && npm run build:ai
 
       # The dev-only satellite-test-kit is imported by core's bin/test.integration.ts
       # (and each satellite's), which core's tsconfig typechecks. Build it before the
@@ -204,7 +201,6 @@ jobs:
           npm run test:coverage --workspace @adonisjs-lasagna/websockets
           npm run test:coverage --workspace @adonisjs-lasagna/reporting
           npm run test:coverage --workspace @adonisjs-lasagna/ai
-          npm run test:coverage --workspace @adonisjs-lasagna/crypto
 
       # Satellite ABI compatibility (B5): the reference third-party satellite
       # is built + tested against the freshly-built core above. Its typecheck
@@ -215,6 +211,16 @@ jobs:
         run: |
           npm run build:template
           npm run test --workspace @adonisjs-lasagna/satellite-template
+
+      # The starter scaffolder encodes the golden install path as data. Its unit
+      # suite pins that plan (peers configured before core, config/database.ts
+      # written after) and the two install defects the generated config closes.
+      # The suite never spawns a process, so it needs no database and no network;
+      # the win32 npm invocation is covered by injecting the platform instead.
+      - name: Build + test the starter scaffolder
+        run: |
+          npm run build:starter
+          npm run test --workspace create-lasagna-saas
 
       # The shared integration harness underwrites core + every satellite, so it
       # carries its own unit suite (the pure exit-code/glob/spec-import logic +
@@ -296,14 +302,6 @@ jobs:
           path: coverage/.v8/ai-unit
           if-no-files-found: warn
 
-      - name: Upload raw satellite unit coverage (V8) — crypto
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: c8-raw-crypto-unit
-          path: coverage/.v8/crypto-unit
-          if-no-files-found: warn
-
       # Full report (unused exports / orphaned files / deps) stays informational.
       - name: Knip (unused-code report)
         run: npm run knip
@@ -332,7 +330,7 @@ jobs:
       - name: Package contracts (publint + types resolution)
         run: |
           set -e
-          for pkg in core sso billing admin backup websockets reporting ai crypto; do
+          for pkg in core sso billing admin backup websockets reporting ai; do
             echo "== @adonisjs-lasagna/$pkg =="
             ( cd "packages/$pkg" \
               && npx -y publint@0.3.21 \
@@ -477,11 +475,11 @@ jobs:
       # with `default_transaction_read_only = on` so a write is denied by Postgres.
       PLUGIN_RO_DB_USER: plugin_ro
       PLUGIN_RO_DB_PASSWORD: plugin_ro
-      # This job HAS a real Postgres service, so the crypto/AI real-PG proofs are
+      # This job HAS a real Postgres service, so the AI real-PG proofs are
       # mandatory here: they must EXECUTE, never self-skip. The satellite real-PG
       # helpers read this flag and turn a would-be self-skip (PG unreachable, role
       # lacks CREATEDB) into a hard failure — the fail-loud twin of RLS_DB_USER,
-      # so a broken/hardened runner can't ship the crypto crown-jewel proofs green.
+      # so a broken/hardened runner can't ship those proofs green.
       REQUIRE_REAL_PG: '1'
 
     steps:
@@ -655,14 +653,6 @@ jobs:
       - name: Test (satellite integration) + coverage — ai
         run: npm run test:integration:coverage --workspace @adonisjs-lasagna/ai
 
-      # crypto's integration tier: the wrapped-DEK store + shred + WORM ledger + the
-      # @encrypted/@searchable decorators against real Postgres via the kit, across
-      # every placement (schema-pg, a real second database for database-pg, and the
-      # shared rowscope table with its RLS stub). The database-pg + rowscope specs
-      # self-skip if the CI role cannot CREATEDB / set the RLS GUC.
-      - name: Test (satellite integration) + coverage — crypto
-        run: npm run test:integration:coverage --workspace @adonisjs-lasagna/crypto
-
       # Consumer canary: boot the shared harness from a fresh satellite (the
       # reference template) against core's fixture. A kit change that breaks a
       # real consumer fails here on an isolated, fast signal instead of buried in
@@ -753,18 +743,6 @@ jobs:
           path: coverage/.v8/ai-integration
           if-no-files-found: warn
 
-      # crypto integration V8 (written by test:integration:coverage to
-      # coverage/.v8/crypto-integration in the "— crypto" step above). The
-      # coverage-report job merges this with crypto's unit V8 so
-      # check-satellite-coverage.mjs gates a real per-satellite MERGED number.
-      - name: Upload raw satellite integration coverage (V8) — crypto
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: c8-raw-crypto-integration
-          path: coverage/.v8/crypto-integration
-          if-no-files-found: warn
-
   test-e2e-demo:
     name: E2E (demo app)
     runs-on: ubuntu-latest
@@ -830,7 +808,10 @@ jobs:
       # exempt loopback from the SSRF guard for the demo run. Off in production,
       # and even when on it only allows loopback (private/metadata stay blocked).
       WEBHOOKS_ALLOW_LOOPBACK_TARGETS: 'true'
-      DEMO_ADMIN_TOKEN: demo-admin-token-change-me
+      # The auth_realms e2e logs in as the hook-seeded per-tenant demo user,
+      # so tenant migrations must seed it here. Default-off everywhere else;
+      # the deploy smoke stack deliberately leaves it unset to prove that.
+      DEMO_SEED_TENANT_USERS: 'true'
       MAILCATCHER_HOST: 127.0.0.1
       MAILCATCHER_PORT: 1025
       MAIL_FROM_ADDRESS: demo@example.test
@@ -961,7 +942,6 @@ jobs:
       CACHE_REDIS_PORT: 56379
       CACHE_REDIS_DB: 2
       BACKUP_STORAGE_PATH: ./storage/backups
-      DEMO_ADMIN_TOKEN: demo-admin-token-change-me
       MAILCATCHER_HOST: 127.0.0.1
       MAILCATCHER_PORT: 1025
       MAIL_FROM_ADDRESS: demo@example.test
@@ -1023,6 +1003,69 @@ jobs:
           name: c8-raw-websockets-integration
           path: coverage/.v8/websockets-integration
           if-no-files-found: warn
+
+  # The only job that installs this package the way a stranger does: from the
+  # packed tarball, into an app scaffolded by `npm init adonisjs`. Every other
+  # gate resolves @adonisjs-lasagna/saas-tenancy through the workspace symlink,
+  # which hides a whole class of defect — a configure hook the root entry never
+  # exports, a stub that ships but cannot render, a stub calling an Application
+  # method that does not exist, a missing migration. All four shipped at once,
+  # with the other 46 gates green.
+  clean-install:
+    name: Clean install (packed tarball into a fresh app)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7.0.5-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      # The generated app runs `npm install` from the public registry, so this job
+      # needs network. It builds core, packs it, and drives the golden path from
+      # `configure` to a provisioned tenant schema.
+      - name: Clean-install smoke
+        env:
+          PG_HOST: 127.0.0.1
+          PG_PORT: 5432
+          PG_USER: postgres
+          PG_PASSWORD: postgres
+          PG_DATABASE: lasagna_clean_install
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+        run: bash scripts/clean-install-smoke.sh
 
   deploy-validate:
     name: Deploy assets (static validation)
@@ -1180,12 +1223,6 @@ jobs:
           name: c8-raw-ai-integration
           path: coverage/.v8/all
 
-      - name: Download raw satellite integration coverage (V8) — crypto
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: c8-raw-crypto-integration
-          path: coverage/.v8/all
-
       # websockets integration V8 is produced by the test-e2e-websockets job (a
       # different job than test-integration above), now run under c8. This is why
       # test-e2e-websockets is in this job's needs:.
@@ -1239,12 +1276,6 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: c8-raw-ai-unit
-          path: coverage/.v8/all
-
-      - name: Download raw satellite unit coverage (V8) — crypto
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: c8-raw-crypto-unit
           path: coverage/.v8/all
 
       - name: Aggregate coverage report (unit + integration, remapped to src)

@@ -6,7 +6,7 @@ import { ADMIN_HEADERS, createInstalledTenant, dropAllTenants } from './_helpers
 
 /**
  * The end-to-end answer to "I installed some satellites, can I add billing
- * later without breaking the rest?" — exercised over HTTP. A single tenant
+ * later without breaking the rest?", exercised over HTTP. A single tenant
  * drives feature flags, branding, webhooks, audit (written by the lifecycle
  * listener during install), metrics and billing in one session, and we assert
  * each works and none clobbers another. Billing uses MockStripe injected into

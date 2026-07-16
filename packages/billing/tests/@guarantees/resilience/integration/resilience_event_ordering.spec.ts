@@ -46,6 +46,7 @@ test.group('Webhook ordering guard (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
@@ -88,6 +89,7 @@ test.group('Webhook ordering guard (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()
@@ -107,7 +109,7 @@ test.group('Webhook ordering guard (integration)', (group) => {
       tNow
     )
 
-    // 3s earlier — within the 5s jitter tolerance — should be accepted.
+    // 3s earlier (within the 5s jitter tolerance) should be accepted.
     const result = await billing.syncSubscription(
       buildNeutralSubscription({
         id: subId,

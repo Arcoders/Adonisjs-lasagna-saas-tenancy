@@ -1,6 +1,7 @@
 {
   "name": "@adonisjs-lasagna/websockets",
-  "version": "1.0.0",
+  "version": "0.1.0",
+  "private": true,
   "description": "Multi-tenant WebSockets for @adonisjs-lasagna/saas-tenancy: socket.io with per-tenant handshake resolution, per-event tenant-context binding, and tenant-scoped rooms",
   "type": "module",
   "license": "MIT",
@@ -69,7 +70,7 @@
     "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/websockets-integration tsx bin/test.integration.ts"
   },
   "peerDependencies": {
-    "@adonisjs-lasagna/saas-tenancy": "^1.0.0",
+    "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
     "@adonisjs/core": "^7.0.0",
     "socket.io": "^4.0.0"
   },

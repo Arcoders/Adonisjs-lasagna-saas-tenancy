@@ -69,7 +69,7 @@ export default class BillingSubscription extends BackofficeBaseModel {
   @column()
   declare dunningAttempts: number
 
-  /** Event id of the last counted `payment.failed` — the per-event idempotency guard. */
+  /** Event id of the last counted `payment.failed`, the per-event idempotency guard. */
   @column()
   declare dunningLastEventId: string | null
 

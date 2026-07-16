@@ -11,10 +11,10 @@ export default class extends BaseSchema {
       table.uuid('id').primary().defaultTo(this.db.rawQuery('gen_random_uuid()').knexQuery)
       table.uuid('tenant_id').nullable()
       table.string('actor_type').notNullable()
-      // `actor_id` is a free-form operator identity from the host's
-      // `resolveAdminActor` hook (or a CLI `--admin` flag): it may be a UUID, an
+      // \`actor_id\` is a free-form operator identity from the host's
+      // \`resolveAdminActor\` hook (or a CLI \`--admin\` flag): it may be a UUID, an
       // integer-as-string, or an email. It is not a tenant id, so it must be
-      // `text`, not `uuid`. A uuid column silently rejected every non-uuid id,
+      // \`text\`, not \`uuid\`. A uuid column silently rejected every non-uuid id,
       // and because the audit write is best-effort the INSERT failure was
       // swallowed, erasing attribution for the most privileged actions.
       table.string('actor_id').nullable()
@@ -37,7 +37,7 @@ export default class extends BaseSchema {
     // erase evidence. Triggers fire on every UPDATE/DELETE regardless
     // of role (unlike REVOKE, which the table owner can bypass).
     this.defer(async (db) => {
-      await db.rawQuery(`
+      await db.rawQuery(\`
         CREATE OR REPLACE FUNCTION backoffice.tenant_audit_logs_no_mutate()
         RETURNS TRIGGER AS $$
         BEGIN
@@ -45,28 +45,28 @@ export default class extends BaseSchema {
             USING ERRCODE = 'insufficient_privilege';
         END;
         $$ LANGUAGE plpgsql;
-      `)
-      await db.rawQuery(`
+      \`)
+      await db.rawQuery(\`
         DROP TRIGGER IF EXISTS tenant_audit_logs_no_update ON backoffice.tenant_audit_logs;
         CREATE TRIGGER tenant_audit_logs_no_update
         BEFORE UPDATE ON backoffice.tenant_audit_logs
         FOR EACH ROW EXECUTE FUNCTION backoffice.tenant_audit_logs_no_mutate();
-      `)
-      await db.rawQuery(`
+      \`)
+      await db.rawQuery(\`
         DROP TRIGGER IF EXISTS tenant_audit_logs_no_delete ON backoffice.tenant_audit_logs;
         CREATE TRIGGER tenant_audit_logs_no_delete
         BEFORE DELETE ON backoffice.tenant_audit_logs
         FOR EACH ROW EXECUTE FUNCTION backoffice.tenant_audit_logs_no_mutate();
-      `)
+      \`)
       // TRUNCATE bypasses per-row triggers, so it needs its own
-      // statement-level guard. Without this, a `TRUNCATE TABLE`
+      // statement-level guard. Without this, a \`TRUNCATE TABLE\`
       // would erase the entire audit history in one shot.
-      await db.rawQuery(`
+      await db.rawQuery(\`
         DROP TRIGGER IF EXISTS tenant_audit_logs_no_truncate ON backoffice.tenant_audit_logs;
         CREATE TRIGGER tenant_audit_logs_no_truncate
         BEFORE TRUNCATE ON backoffice.tenant_audit_logs
         FOR EACH STATEMENT EXECUTE FUNCTION backoffice.tenant_audit_logs_no_mutate();
-      `)
+      \`)
     })
   }
 

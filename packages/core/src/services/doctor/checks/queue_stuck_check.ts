@@ -75,7 +75,7 @@ const queueStuckCheck: DoctorCheck = {
         }
 
         // Stalled detection: any job in `active` state whose `processedOn`
-        // timestamp is older than `stalledMs` is considered stuck — typically
+        // timestamp is older than `stalledMs` is considered stuck, typically
         // because the worker that picked it up died without releasing it.
         if (activeJobs.length > 0) {
           const now = Date.now()

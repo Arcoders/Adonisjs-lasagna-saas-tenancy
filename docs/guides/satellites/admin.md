@@ -5,6 +5,15 @@ description: REST admin API for tenants, impersonation and satellite management,
 
 # Admin
 
+<Callout type="warning" title="Not published to npm">
+This package lives in the Lasagna repository and is not published. `npm install
+@adonisjs-lasagna/admin` will 404. To use it today, vendor the `packages/admin`
+directory into your app or depend on it through a git reference. It is documented
+here because the code is real, MIT, and exercised by the demo app's end-to-end
+suite; it is unpublished because maintaining it as a public package is a promise
+we are not yet ready to make.
+</Callout>
+
 A REST admin API for managing tenants (CRUD, suspend, restore, maintenance),
 impersonation, and the satellite resources (audit logs, webhooks, feature flags,
 branding, SSO, metrics, quotas), with a generated OpenAPI 3.1 spec and Swagger UI.
@@ -21,7 +30,7 @@ optional actor resolver whose values only your app knows. Its configure hook is
 guidance-only and never edits your routes file:
 
 ```bash
-npm install @adonisjs-lasagna/admin
+# Not on npm — vendor packages/admin, or add a git dependency.
 node ace configure @adonisjs-lasagna/admin   # prints the mount snippet; edits nothing
 ```
 

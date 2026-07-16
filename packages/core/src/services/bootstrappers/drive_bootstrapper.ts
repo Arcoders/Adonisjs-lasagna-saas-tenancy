@@ -1,6 +1,6 @@
 import type { BootstrapperContext, TenantBootstrapper } from '../bootstrapper_registry.js'
 import { tenancy } from '../../tenancy.js'
-import { assertSafeIdentifier } from '../isolation/identifier.js'
+import { assertSafeIdentifier } from '../../isthmus/guarded_identifier.js'
 
 /**
  * Lazily resolve `@adonisjs/drive` so the package never imports it eagerly:
@@ -13,7 +13,7 @@ async function lazyDrive(): Promise<{
   }
 }> {
   // The string literal is a `Function`-typed dynamic import so TypeScript
-  // doesn't try to resolve the module at compile time — `@adonisjs/drive`
+  // doesn't try to resolve the module at compile time. `@adonisjs/drive`
   // is an OPTIONAL peer dependency and is not present in this package's
   // own node_modules.
   const specifier = '@adonisjs/drive/services/main'
@@ -34,7 +34,7 @@ export const TENANT_DRIVE_PREFIX = 'tenants/'
 /**
  * Disk methods that take a `key` (relative path) as the first argument.
  * The wrapper prepends the per-tenant prefix to that argument and forwards
- * everything else as-is. Anything not in this set is forwarded untouched —
+ * everything else as-is. Anything not in this set is forwarded untouched,
  * so configuration getters, signed-URL options, etc. keep working.
  */
 const KEYED_METHODS = new Set([
@@ -59,7 +59,7 @@ const KEYED_METHODS = new Set([
 ])
 
 /**
- * Build a `TenantBootstrapper` that — at scope entry — does nothing, and
+ * Build a `TenantBootstrapper` that, at scope entry, does nothing, and
  * exposes a wrapped disk via `tenantDisk()` that automatically prefixes
  * every key with `tenants/{tenant.id}/`.
  *
@@ -146,7 +146,7 @@ export async function tenantDisk(diskName?: string): Promise<any> {
       }
       return function (this: unknown, ...args: unknown[]) {
         // First arg is always the key; subsequent args (destination key,
-        // options) keep their semantics. `copy` and `move` take TWO keys —
+        // options) keep their semantics. `copy` and `move` take TWO keys,
         // both belong to the tenant, so we prefix both.
         if (args.length > 0 && typeof args[0] === 'string') {
           args[0] = `${prefix}${stripLeadingSlash(args[0])}`

@@ -1,7 +1,7 @@
 /**
- * `npm run bench:report` — aggregate the newest result per suite/driver into
+ * `npm run bench:report` aggregates the newest result per suite/driver into
  * the generated docs page (docs/guides/performance.md) and, with
- * `--write-baseline=<name>`, snapshot a flat baseline index for the gate.
+ * `--write-baseline=<name>`, snapshots a flat baseline index for the gate.
  *
  * Run on the canonical reference box for the 1.0.0 numbers:
  *   npm run bench:report -- --write-baseline=1.0.0
@@ -102,7 +102,7 @@ function maxMeta(
  * throughput is materially understated. The canonical Linux capture drops it.
  *
  * The "smoke sizes" clause is data-driven: it appears only while the heavy
- * tiers are actually small, and disappears once a full sweep is present — so a
+ * tiers are actually small, and disappears once a full sweep is present, so a
  * full-size dev-box run still flags Docker inflation but stops claiming the
  * curves are smoke-sized.
  */

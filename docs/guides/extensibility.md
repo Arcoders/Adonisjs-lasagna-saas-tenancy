@@ -83,7 +83,6 @@ because that is what it is.
 | [plugin](/guides/plugins) | route middleware | `TenantMiddlewareRegistry` | `TENANT_MIDDLEWARE_CONTRACT_VERSION` |
 | [plugin](/guides/plugins) | cross-plugin capabilities | `CapabilityRegistry` | `CAPABILITY_CONTRACT_VERSION` |
 | [ai](/guides/satellites/ai) | AI providers | `AIProviderRegistry` | `AI_CONTRACT_VERSION` |
-| [crypto](/guides/satellites/crypto) | key providers | `KeyProviderRegistry` | `CRYPTO_CONTRACT_VERSION` |
 
 `reporting`, `audit`, `feature-flags`, and `webhooks` registries are container
 singletons (resolve via `container.make`). `admin` and `sso` ship only a minimal
@@ -92,7 +91,7 @@ boot and binds nothing), so their registries stay module-level singletons you
 import directly. `billing`
 selects its active driver from `config.billing.driver`; `websockets` reads its
 hook from config. The `isolation` and `resolution` registries live in core and
-are also container singletons — a custom `IsolationDriver` or `TenantResolver`
+are also container singletons. A custom `IsolationDriver` or `TenantResolver`
 declares `contractVersion: ISOLATION_CONTRACT_VERSION` / `RESOLVER_CONTRACT_VERSION`
 and the registry refuses one built for a newer core (older/absent only warn).
 

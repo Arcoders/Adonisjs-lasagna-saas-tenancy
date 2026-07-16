@@ -73,7 +73,7 @@ test.group('CloneService — full lifecycle E2E', (group) => {
     assert.equal(result.rowsCopied, 3)
     assert.equal((destination as any).status, 'active', 'destination must flip to active')
 
-    // clone() disconnects the destination — re-register here, same as
+    // clone() disconnects the destination. Re-register here, same as
     // request.tenant() would on the next request.
     await driver.connect(destination)
     const destConn = db.connection(`tenant_${destination.id}`)

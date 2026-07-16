@@ -11,7 +11,7 @@ function fromAutocannon(name: string, r: autocannon.Result): BenchResult {
     name,
     group: GROUP,
     samples: r.requests?.total ?? 0,
-    opsPerSec: reqPerSec, // higher is better — what the regression gate compares
+    opsPerSec: reqPerSec, // higher is better, what the regression gate compares
     ns: {
       mean: msToNs(r.latency?.average),
       median: msToNs(r.latency?.p50),
@@ -46,8 +46,8 @@ export async function runHttpLoad(baseUrl: string, tenantIds: string[]): Promise
   const duration = sizes.http.durationSec
 
   // autocannon only re-renders a header per request if that header key already
-  // exists in the top-level `headers` — it pre-renders the request bytes once
-  // otherwise. So we seed a placeholder `x-tenant-id` in `headers` and have
+  // exists in the top-level `headers`. Otherwise it pre-renders the request
+  // bytes once. So we seed a placeholder `x-tenant-id` in `headers` and have
   // setupRequest *mutate that existing key's value* per request. Spreading a
   // fresh `req.headers` (or relying on setupRequest alone, with no placeholder)
   // silently drops the header and every tenant request 400s with
@@ -83,7 +83,7 @@ export async function runHttpLoad(baseUrl: string, tenantIds: string[]): Promise
 
   // Fail loudly if a scenario was essentially all error responses. A mostly-non-2xx
   // run measures the rate of 500s, not tenant reads (e.g. tenant connections not
-  // registered in the serving process) — never write that out as a throughput number.
+  // registered in the serving process). Never write that out as a throughput number.
   for (const r of results) {
     const non2xx = Number(r.meta?.non2xx ?? 0)
     if (r.samples > 0 && non2xx / r.samples > 0.05) {

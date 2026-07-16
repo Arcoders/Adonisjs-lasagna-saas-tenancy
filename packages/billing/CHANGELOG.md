@@ -6,12 +6,15 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.0] — 2026-06-19
+## [0.1.0] — 2026-07-10
 
-Graduated to `release candidate` and versioned `1.0.0` (see the stability matrix).
-The API is considered final; `release candidate` (not `stable`) reflects the two
-still-open items shared with the core, an independent security review and
-production mileage.
+Shipped as `experimental` at `0.1.0` (see the stability matrix). The API carries no
+semver promise and may change in any minor. Two items are still open, shared with
+the core: an independent security review and production mileage. The Stripe billing
+pipeline (shipped inside `@adonisjs-lasagna/saas-tenancy` since 0.2.0) was extracted
+into its own package so a CVE in the Stripe SDK no longer forces a core bump and so
+billing versions independently. It depends on the core as a peer (`>=0.3.0 <1.0.0`);
+`stripe` is an optional peer dependency.
 
 ### Breaking changes
 
@@ -147,12 +150,22 @@ production mileage.
 
 ### Fixed
 
+- **`configure @adonisjs-lasagna/billing` no longer publishes an ALTER before the
+  CREATE it depends on.** The satellite's stubs are published in sorted order, and
+  `add_processing_status_to_billing_processed_events` sorts ahead of
+  `create_billing_processed_events_table`. On a clean install `migration:run` therefore
+  tried to `ALTER TABLE backoffice.billing_processed_events` before that table existed,
+  and aborted. Only new installs were affected: the four-value status enum the ALTER
+  adds is already present in the create migration. The stubs are now numbered `0001_`
+  through `0006_`, which is the publish order. The ordinal is stripped before the
+  migration reaches the host, so an install that already ran these migrations does not
+  republish them.
 - **Type resolution for the `/provider` and `/commands` subpath exports.** These
   subpaths were declared in `exports` but had no matching `typesVersions` entries, so
   a consumer on `node10`-style module resolution could not resolve their type
   declarations (surfaced by `arethetypeswrong`). Added `typesVersions` mirroring the
   core package.
-- **README refreshed for the 1.0 launch.** Badge corrected to release candidate;
+- **README refreshed for this release.** Badge corrected to experimental;
   configure-first install documented; added a Configuration section (driver block,
   `products`/`defaultPlan`, and the webhook `ignorePaths` requirement).
 - **Quota-exceeded notification now fails open on a Redis outage.** The advisory
@@ -164,22 +177,6 @@ production mileage.
   fail-open / dedupe / degraded tests; the fragile real Stripe Test Clock smoke now
   also soft-skips Stripe-side infra failures while still blocking on genuine
   renewal/dunning regressions (the skip-vs-fail classifier is unit-tested).
-
-**Stability: release candidate.** The API is frozen under the 1.x promise, with the
-honest caveat that a correction forced by the pending security review or production
-mileage may land in a 1.x minor with a loud changelog entry.
-
-## [0.1.0] — 2026-06-08
-
-Initial standalone release, versioned `0.x` to match its `experimental` stability
-label (see the stability matrix): the surface may change in any minor. The Stripe billing pipeline (shipped inside
-`@adonisjs-lasagna/saas-tenancy` since 0.2.0) was extracted into its own package so a CVE in
-the Stripe SDK no longer forces a core bump and so billing versions independently. It depends
-on the core as a peer (`^1.0.0`); `stripe` is an optional peer dependency.
-
-**Stability: experimental.** The API is covered by tests but may change in a minor release.
-Pin the version and read this changelog before upgrading. See the
-[stability matrix](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/stability.md).
 
 ### Added
 
@@ -207,3 +204,8 @@ Pin the version and read this changelog before upgrading. See the
 `MockStripe`, and `signWebhookPayload` moved here. Update imports to `@adonisjs-lasagna/billing`
 and register `@adonisjs-lasagna/billing/provider` and `@adonisjs-lasagna/billing/commands` in
 `adonisrc.ts`. The Stripe config types stay in `@adonisjs-lasagna/saas-tenancy/types`.
+
+**Stability: experimental.** The API carries no semver promise and may change in any
+minor, with the honest caveat that a correction forced by the pending security review
+or production mileage lands with a loud changelog entry. See the
+[stability matrix](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/stability.md).

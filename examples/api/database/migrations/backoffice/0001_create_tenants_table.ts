@@ -5,8 +5,8 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
  * tenants by id; this table is the source of truth.
  *
  * `metadata` is a JSONB column matching the `DemoMeta` interface in
- * app/models/backoffice/tenant.ts. The package never reads it directly —
- * it's consumed via the resolvers in config/multitenancy.ts (`plans.getPlan`,
+ * app/models/backoffice/tenant.ts. The package never reads it directly.
+ * It's consumed via the resolvers in config/multitenancy.ts (`plans.getPlan`,
  * `backup.retention.getTier`).
  */
 export default class extends BaseSchema {

@@ -1,9 +1,9 @@
-import { assertSafeIdentifier } from '../services/isolation/identifier.js'
+import { assertSafeIdentifier } from '../isthmus/guarded_identifier.js'
 import { pluginName, type PluginName } from './brands.js'
 
 /**
  * The operator's trusted-plugin allowlist, read once from the `TRUSTED_SATELLITES`
- * environment variable. This is the SINGLE source of the trust boundary the S5
+ * environment variable. This is the SINGLE source of the trust boundary the
  * in-process friction gates on: a plugin whose registration name appears here is
  * "trusted" (it runs with the same reach as core), everything else is "untrusted"
  * (the core-access proxies deny it and the read-only Postgres route contains it).
@@ -11,7 +11,7 @@ import { pluginName, type PluginName } from './brands.js'
  * The value is a comma- and/or whitespace-separated list of plugin names, e.g.
  * `TRUSTED_SATELLITES="reporting, analytics search"`. Every entry is minted through
  * {@link pluginName} (the same identifier guard the plugin surface uses everywhere),
- * so a malformed entry can never smuggle an unsafe token into the allowlist — it is
+ * so a malformed entry can never smuggle an unsafe token into the allowlist: it is
  * DROPPED, loudly nowhere but harmlessly (an untrusted default is fail-closed).
  *
  * Reading env for a SECURITY allowlist goes through here and nowhere else (the
@@ -34,7 +34,7 @@ function parse(raw: string): readonly PluginName[] {
     } catch {
       // Drop a malformed entry rather than fail the process: an operator typo in
       // the allowlist must not brick the deploy, and the fail-closed default
-      // (absence ⇒ untrusted) means a dropped entry can only REMOVE reach, never
+      // (an absent entry is untrusted) means a dropped entry can only REMOVE reach, never
       // grant it. The minter already emitted `guard.plugin_extension_identifier` on
       // the reject, so the drop is observable, not silent.
     }
@@ -44,7 +44,7 @@ function parse(raw: string): readonly PluginName[] {
 
 /**
  * The current trusted-plugin allowlist as branded names. Empty (nothing trusted)
- * when `TRUSTED_SATELLITES` is unset or blank — the fail-closed default.
+ * when `TRUSTED_SATELLITES` is unset or blank, the fail-closed default.
  */
 export function trustedSatellites(): readonly PluginName[] {
   const raw = process.env[TRUSTED_SATELLITES_ENV] ?? ''
@@ -56,8 +56,8 @@ export function trustedSatellites(): readonly PluginName[] {
  * Whether `name` is on the operator's trusted allowlist. Total and fail-closed:
  * an unset allowlist, or a name not on it, is UNTRUSTED. Accepts a plain string
  * (canonicalized through the identifier guard before comparison) so a caller with
- * a raw name — the register-side capability trust check, which runs at boot with
- * no execution scope — can ask without minting a brand first.
+ * a raw name (the register-side capability trust check, which runs at boot with
+ * no execution scope) can ask without minting a brand first.
  */
 export function isTrustedSatellite(name: PluginName | string): boolean {
   let canonical: string

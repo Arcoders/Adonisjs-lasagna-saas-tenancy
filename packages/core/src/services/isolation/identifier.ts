@@ -1,5 +1,3 @@
-import { emitIsthmusEvent } from '../../isthmus/audit.js'
-
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 /**
@@ -13,8 +11,8 @@ const SAFE_IDENT = /^[a-zA-Z0-9_-]{1,63}$/
 /**
  * Defense-in-depth: a safe identifier must ALSO be in canonical NFKC form.
  *
- * NFKC folds compatibility/homoglyph characters onto ASCII (`℀`→`a/c`, `𝔸`→`A`,
- * fullwidth digits → ASCII digits). The correct posture for a tenant identifier
+ * NFKC folds compatibility/homoglyph characters onto ASCII (`℀` becomes `a/c`,
+ * `𝔸` becomes `A`, fullwidth digits become ASCII digits). The correct posture for a tenant identifier
  * is to REJECT a non-canonical input, never to fold it: folding `tenant_℀` to
  * `tenant_A` would COLLIDE with a legitimate `tenant_A` schema, which is exactly
  * the homoglyph-collision risk this guards against. The ASCII-only `SAFE_IDENT`
@@ -26,40 +24,29 @@ function isCanonicalForm(value: string): boolean {
 }
 
 /**
- * Reject anything that could escape a quoted identifier in PostgreSQL DDL.
- * We never want to interpolate an unsafe string into `CREATE SCHEMA "…"`,
- * `DROP DATABASE "…"`, or any other identifier slot, so this check is the
- * first line of defense — call it at the entry of every driver method that
- * uses `tenant.id` in raw SQL.
- *
- * Allows UUID v4 (the canonical id) and opaque alphanumeric ids of up to
- * 63 chars. Doubled `"` is the PG escape for embedded quotes inside a
- * quoted identifier, so a single `"` in the input would corrupt the DDL —
- * we reject before reaching SQL.
+ * This module is a pure, zero-import leaf: the identifier POLICY (the regexes,
+ * the NFKC rule) and its predicates, nothing more. The observable guard (the
+ * throw that refuses an unsafe id and the Isthmus emit that audits it) lives
+ * one layer up in `isthmus/guarded_identifier.ts`, so the dependency arrow
+ * points from the guard down to this policy, never the reverse. Interpolation
+ * sites import the throwing `assertSafeIdentifier` from there; this leaf stays
+ * importable from anywhere (including a bare unit runner) with no side effects.
  */
-export function assertSafeIdentifier(value: string, kind: string = 'identifier'): void {
-  if (typeof value !== 'string' || !SAFE_IDENT.test(value) || !isCanonicalForm(value)) {
-    emitIsthmusEvent('guard.tenant_identifier', {
-      metadata: { kind, value: String(value).slice(0, 64) },
-    })
-    throw new Error(
-      `Refusing to use unsafe ${kind} "${value}" in DDL. ` +
-        `Tenant ids must match /^[a-zA-Z0-9_-]{1,63}$/ in canonical (NFKC) form (UUID v4 satisfies this).`
-    )
-  }
-}
 
 export function isUuidV4(value: string): boolean {
   return typeof value === 'string' && UUID_V4.test(value)
 }
 
 /**
- * Non-throwing twin of {@link assertSafeIdentifier}. Use it at attribution
- * seams (Redis metric keys, rate-limit buckets, log context) where a resolved
- * tenant id must never carry a `:` delimiter or any other character that could
- * inject key structure, but where the safe response is to drop/degrade rather
- * than throw. Accepts the same set as the drivers require: UUID v4 and opaque
- * alphanumeric host ids up to 63 chars; rejects the `:` used as a key separator.
+ * Whether `value` is a safe identifier: a string matching the strict policy
+ * ({@link SAFE_IDENT}) in canonical (NFKC) form. Accepts the set the drivers
+ * require (UUID v4 and opaque alphanumeric host ids up to 63 chars) and
+ * rejects anything carrying a `:` key separator, a quote, or a homoglyph.
+ *
+ * This is the pure predicate. At an attribution seam (Redis metric keys,
+ * rate-limit buckets) where the safe response is to drop/degrade rather than
+ * throw AND a rejection must be audited, use `guardedSafeIdentifier` from
+ * `isthmus/guarded_identifier.ts` instead, which emits on the reject path.
  */
 export function isSafeIdentifier(value: unknown): value is string {
   return typeof value === 'string' && SAFE_IDENT.test(value) && isCanonicalForm(value)

@@ -7,7 +7,7 @@ import type { IsolationDriver } from '../../../../src/services/isolation/driver.
 /**
  * `IsolationDriverChoice` is an open union (custom drivers), so a typo in
  * `config.isolation.driver` compiles. The provider's start() must turn that
- * into a boot failure that names the bad value — not a generic "no active
+ * into a boot failure that names the bad value, not a generic "no active
  * driver" on the first tenant query.
  */
 function fakeDriver(name: string): IsolationDriver {

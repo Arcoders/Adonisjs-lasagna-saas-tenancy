@@ -10,10 +10,10 @@ import {
 } from '../_helpers.js'
 
 /**
- * HARDENING — tenant provisioning & lifecycle.
+ * HARDENING: tenant provisioning & lifecycle.
  *
- * Covers the create → provision → soft-delete (with retention) → purge and the
- * restore paths, asserting the physical schema (`tenant_<uuid>`) appears and
+ * Covers the create, provision, soft-delete (with retention), purge, and restore
+ * paths, asserting the physical schema (`tenant_<uuid>`) appears and
  * disappears at the right moments and that a restored tenant keeps its data.
  * Clone / backup / import are exercised by the existing
  * @integration/e2e/backups_real.spec.ts and commands_lifecycle.spec.ts rather

@@ -7,7 +7,7 @@ import {
 import IsolationConfigException from '../../../../src/exceptions/isolation_config_exception.js'
 
 /**
- * WS-5 / rowscope-acknowledgment-flag-no-verification.
+ * Boot-time verification behind the `rowScopeRls` flag.
  *
  * `rowScopeRls: true` claims RLS is the backstop; this helper proves it. A scoped
  * table must have RLS ENABLED, FORCED, at least one policy, AND a NOT NULL scoped
@@ -91,10 +91,11 @@ test.group('assertRowScopeRlsPresent', () => {
 })
 
 /**
- * Wave 0 / RLS false-green: `rowScopeRls: true` with an EMPTY `rowScopeTables` used
- * to skip the catalog probe entirely (`if (tables.length > 0)`) — the claim reported
- * protected while nothing was verified. `assertRowScopeTablesDeclared` fails closed
- * on that empty list so the escapable mixin can never be the silent-only boundary.
+ * Guards against a false-green in the RLS check: `rowScopeRls: true` with an EMPTY
+ * `rowScopeTables` used to skip the catalog probe entirely (`if (tables.length > 0)`),
+ * so the claim reported protected while nothing was verified.
+ * `assertRowScopeTablesDeclared` fails closed on that empty list so the escapable
+ * mixin can never be the silent-only boundary.
  */
 test.group('assertRowScopeTablesDeclared (empty-list false-green guard)', () => {
   test('throws IsolationConfigException when rowScopeTables is empty', ({ assert }) => {

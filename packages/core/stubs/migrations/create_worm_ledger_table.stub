@@ -11,18 +11,18 @@ export default class extends BaseSchema {
       table.uuid('id').primary().defaultTo(this.db.rawQuery('gen_random_uuid()').knexQuery)
       table.uuid('tenant_id').notNullable()
 
-      // Per-tenant monotonic sequence + hash chain. `checksum` is
-      // sha256(canonical(row, seq) + '\n' + prev_checksum) computed in the writer,
+      // Per-tenant monotonic sequence + hash chain. \`checksum\` is
+      // sha256(canonical(row, seq) + '\\n' + prev_checksum) computed in the writer,
       // so a deletion, reorder, or in-place rewrite that slips past the triggers (a
       // superuser who disabled them) breaks the chain and verify() reports it.
-      // `UNIQUE(tenant_id, seq)` backs the advisory-locked writer.
+      // \`UNIQUE(tenant_id, seq)\` backs the advisory-locked writer.
       table.bigInteger('seq').notNullable()
       table.specificType('checksum', 'char(64)').notNullable()
       table.specificType('prev_checksum', 'char(64)').nullable()
 
-      // Non-PII payload only. `subject_hash` is a one-way digest of the data
-      // subject (never the raw id); `action` namespaces the event
-      // (e.g. 'crypto:shred:pending'); `metadata` holds non-PII structured extras.
+      // Non-PII payload only. \`subject_hash\` is a one-way digest of the data
+      // subject (never the raw id); \`action\` namespaces the event
+      // (e.g. 'crypto:shred:pending'); \`metadata\` holds non-PII structured extras.
       // No prompt, response, document, or raw subject text is ever stored, so
       // keeping the ledger forever leaks nothing (the WORM <-> shred reconciliation).
       table.string('action').notNullable()
@@ -47,7 +47,7 @@ export default class extends BaseSchema {
     // bypasses). This is why the two-phase shred marks COMMITTED by APPENDING a
     // second row, never by UPDATE-ing the PENDING one.
     this.defer(async (db) => {
-      await db.rawQuery(`
+      await db.rawQuery(\`
         CREATE OR REPLACE FUNCTION backoffice.worm_ledger_no_mutate()
         RETURNS TRIGGER AS $$
         BEGIN
@@ -55,27 +55,27 @@ export default class extends BaseSchema {
             USING ERRCODE = 'insufficient_privilege';
         END;
         $$ LANGUAGE plpgsql;
-      `)
-      await db.rawQuery(`
+      \`)
+      await db.rawQuery(\`
         DROP TRIGGER IF EXISTS worm_ledger_no_update ON backoffice.worm_ledger;
         CREATE TRIGGER worm_ledger_no_update
         BEFORE UPDATE ON backoffice.worm_ledger
         FOR EACH ROW EXECUTE FUNCTION backoffice.worm_ledger_no_mutate();
-      `)
-      await db.rawQuery(`
+      \`)
+      await db.rawQuery(\`
         DROP TRIGGER IF EXISTS worm_ledger_no_delete ON backoffice.worm_ledger;
         CREATE TRIGGER worm_ledger_no_delete
         BEFORE DELETE ON backoffice.worm_ledger
         FOR EACH ROW EXECUTE FUNCTION backoffice.worm_ledger_no_mutate();
-      `)
+      \`)
       // TRUNCATE bypasses per-row triggers, so it needs its own statement-level
       // guard. Without this a single TRUNCATE would erase the whole ledger.
-      await db.rawQuery(`
+      await db.rawQuery(\`
         DROP TRIGGER IF EXISTS worm_ledger_no_truncate ON backoffice.worm_ledger;
         CREATE TRIGGER worm_ledger_no_truncate
         BEFORE TRUNCATE ON backoffice.worm_ledger
         FOR EACH STATEMENT EXECUTE FUNCTION backoffice.worm_ledger_no_mutate();
-      `)
+      \`)
     })
   }
 

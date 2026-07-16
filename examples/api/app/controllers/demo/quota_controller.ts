@@ -5,8 +5,8 @@ import { trackQuotaValidator } from '#app/validators/quota_validator'
 import type { DemoMeta } from '#app/models/backoffice/tenant'
 
 /**
- * - GET  /demo/quota/state  → resolved plan + limits + current usage
- * - POST /demo/quota/track  → bump a rolling counter (does not enforce)
+ * - `GET  /demo/quota/state` returns the resolved plan, its limits, and current usage.
+ * - `POST /demo/quota/track` bumps a rolling counter (does not enforce).
  *
  * The blocking variant lives on `POST /demo/notes` via the
  * `enforceQuota('apiCallsPerDay')` middleware in `start/routes.ts`.

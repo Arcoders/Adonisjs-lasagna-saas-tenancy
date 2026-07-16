@@ -131,27 +131,33 @@ const tenant = await request.tenant({ allowInactive: true })
 
 ## Custom resolvers
 
-Implement the `TenantResolver` contract. A resolver declares its `name`, a
-`contractVersion`, and a `resolve()` that returns a `ResolverHit`:
+Extend `SyncTenantResolver`: declare a `name`, a `trust`, and a `resolveSync()`
+that returns a `ResolverHit`. The base supplies the current `contractVersion` and
+an async-compatible `resolve()` that forwards to `resolveSync`, so your resolver
+is eligible for the routing chain by construction (the chain requires a
+synchronous entry point — a purely async resolver is refused at boot).
 
 ```ts
 import {
-  TenantResolver,
+  SyncTenantResolver,
   ResolverHit,
-  RESOLVER_CONTRACT_VERSION,
 } from '@adonisjs-lasagna/saas-tenancy/services'
 
-class HeaderTokenResolver implements TenantResolver {
+class HeaderTokenResolver extends SyncTenantResolver {
   readonly name = 'header-token'
-  readonly contractVersion = RESOLVER_CONTRACT_VERSION
-  resolve(request) {
+  // 'client' (attacker-supplied), 'host', or 'server' — drives the
+  // resolution-safety audit. Omitting it defaults to 'client' (fail-safe), which
+  // trips the IDOR membership-gate nudge; declare 'server' if the id is derived
+  // server-side and cannot be forged.
+  readonly trust = 'client' as const
+  resolveSync(request) {
     const id = decodeTenantFromToken(request.header('authorization'))
     return id ? ResolverHit.id(id) : ResolverHit.miss()
   }
 }
 ```
 
-The simplest way to wire it is inline in config — no provider needed. Pass the
+The simplest way to wire it is inline in config, no provider needed. Pass the
 instance directly in `resolverChain`, or in the `resolvers` bag so a string in
 the chain can name it:
 
@@ -177,7 +183,7 @@ registry.register(new HeaderTokenResolver())
 
 Set `resolverChain` to try multiple strategies in order; first one to
 return a hit wins. Entries are built-in names, names from `resolvers`, or inline
-`TenantResolver` instances — an unknown string name fails at boot:
+`TenantResolver` instances. An unknown string name fails at boot:
 
 ```ts
 export default defineConfig({
@@ -197,27 +203,22 @@ needs a synchronous id. When a query happens inside an active tenant context
 (after the guard's `request.tenant()` ran, or inside `tenancy.run()`), the
 adapter uses that context's id and everything is consistent.
 
-When a model query runs with **no** active context, the adapter falls back to
-resolving the id from the request, and `config.resolver.legacyAdapterFallback`
-controls how:
+When a model query runs with **no** active context, the adapter resolves the id
+from the request through the same chain-aware authority `request.tenant()` uses,
+so a custom resolver (or a chain) routes those fallback queries too. There is one
+resolution path, not a separate legacy switch to opt into:
 
 ```ts
 export default defineConfig({
   resolverChain: ['my-jwt-resolver', 'header'],
-  resolver: {
-    // false (default): the adapter consults the resolver chain synchronously,
-    //   so a custom resolver routes model queries too.
-    // true: restores the 0.x behavior — the adapter uses only `resolverStrategy`
-    //   on this fallback; custom chain resolvers are not consulted there.
-    legacyAdapterFallback: false,
-  },
 })
 ```
 
 The diagram below traces the full branch order the adapter follows for a model
 query, including the escape hatches that bypass resolution entirely. An id taken
 from the active context routes straight to a connection; an id recovered from the
-request fallback is validated as a UUID v4 first.
+request runs the resolver chain synchronously, and every resolver only returns a
+canonical UUID v4 (a non-UUID header, subdomain, or path segment falls through).
 
 ```mermaid
 flowchart TB
@@ -227,22 +228,17 @@ flowchart TB
   CTX -->|yes| CONN["connection =<br/>tenantConnectionNamePrefix + id"]
   CTX -->|no| HTTP{"Inside an HTTP request?"}
   HTTP -->|no| ERR["MissingTenantHeaderException"]
-  HTTP -->|yes| LEG{"resolver.legacyAdapterFallback"}
-  LEG -->|"false (default)"| CHAIN["resolveSync over the chain,<br/>async resolvers are skipped"]
-  LEG -->|true| STRAT["resolverStrategy only<br/>(0.x behavior)"]
+  HTTP -->|yes| CHAIN["resolveSync over the chain,<br/>async resolvers are skipped"]
   CHAIN --> V{"Valid UUID v4?"}
-  STRAT --> V
   V -->|yes| CONN
   V -->|"no, or nothing resolved"| ERR
 ```
 
 <Callout type="tip" title="When this matters">
 If you rely on a <em>custom</em> resolver (or a chain) and you query tenant
-models outside the request guard, the default already routes those fallback
-queries through the same chain as <code>request.tenant()</code>. Set
-<code>legacyAdapterFallback: true</code> only to restore the 0.x behavior, where
-those fallback queries used only <code>resolverStrategy</code>. A domain-based
-resolver still needs an async repository lookup, so route those flows through
+models outside the request guard, those fallback queries route through the same
+chain as <code>request.tenant()</code> automatically. A domain-based resolver
+still needs an async repository lookup, so route those flows through
 <code>request.tenant()</code> first.
 </Callout>
 

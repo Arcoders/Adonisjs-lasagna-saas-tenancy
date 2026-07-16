@@ -54,8 +54,8 @@ test.group('Checkout + portal helpers (integration)', (group) => {
       successUrl: 'https://app.example.com/dashboard?ok=1',
       cancelUrl: 'https://app.example.com/pricing',
       // Mock auto-derives `prod_pro_monthly` from this priceId, which is
-      // not in cfg.products (`prod_pro`). The flag bypasses the allowlist
-      // — this test exercises checkout plumbing, not C-5 validation.
+      // not in cfg.products (`prod_pro`). The flag bypasses the allowlist,
+      // so this test exercises checkout plumbing, not allowlist validation.
       allowUnknownPrices: true,
     })
 
@@ -114,6 +114,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
 
     // Customer already established in USD (e.g. from a prior subscription).
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = 'cus_existing'
     cus.currency = 'usd'
@@ -147,6 +148,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     } as unknown as TenantModelContract
 
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = 'cus_existing_usd'
     cus.currency = 'usd'
@@ -278,7 +280,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     mock.injectPrice('price_anything', 'prod_unknown')
     await billing.__setStripeForTests(mock)
 
-    // No throw — the flag opts out of the strict check.
+    // No throw: the flag opts out of the strict check.
     const session = await billing.createCheckoutSession(fakeTenant, {
       priceId: 'price_anything',
       successUrl: 'https://app.example.com/ok',
@@ -314,7 +316,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
       priceId: 'price_x',
       successUrl: 'https://x',
       cancelUrl: 'https://x',
-      // Mock auto-derives `prod_x` which isn't in cfg.products — the
+      // Mock auto-derives `prod_x`, which isn't in cfg.products. The
       // test is about client_reference_id, not allowlist semantics.
       allowUnknownPrices: true,
     })

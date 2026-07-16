@@ -6,11 +6,11 @@ import { pluginScope } from '../../../../src/services/plugin_execution_scope.js'
 import { pluginName } from '../../../../src/sdk/brands.js'
 
 /**
- * S5 — the core-access funnel. When UNTRUSTED plugin code is on the stack, the
+ * The core-access funnel. When UNTRUSTED plugin code is on the stack, the
  * sanctioned accessors for core singletons (`resolveTenantRepository`,
  * `resolveDatabase`) deny the lookup with a 403 BEFORE the handle is resolved.
  * Core's own code and trusted plugins pass through. This is labeled friction, not a
- * boundary (a direct import evades it) — the read-only Postgres role is the wall.
+ * boundary (a direct import evades it): the read-only Postgres role is the wall.
  */
 
 const untrusted = { plugin: pluginName('sketchy'), trusted: false }

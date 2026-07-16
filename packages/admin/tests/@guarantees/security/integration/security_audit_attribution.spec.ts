@@ -319,7 +319,7 @@ test.group('Admin REST — audit attribution', (group) => {
     disable1.assertStatus(200)
     assert.equal(await count(tenantId, 'admin:sso:disable'), 1)
 
-    // Already disabled → no-op, no second row.
+    // Already disabled, so this is a no-op: no second row.
     const disable2 = await client
       .post(`${PREFIX}/tenants/${tenantId}/sso/disable`)
       .header('x-admin-id', ADMIN_ID)

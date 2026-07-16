@@ -1,12 +1,12 @@
 /**
- * `@adonisjs-lasagna/saas-tenancy/plugin` — the ONE import a satellite author
+ * `@adonisjs-lasagna/saas-tenancy/plugin` is the ONE import a satellite author
  * needs to build a plugin with the {@link definePlugin} facade. It re-exports the
  * facade, the section types, the plugin-surface brands + their smart
  * constructors, the facade contract version, and each seam's public types, so a
  * plugin file is a single `import { definePlugin, authorizerName } from
  * '@adonisjs-lasagna/saas-tenancy/plugin'`.
  *
- * The barrel grows additively per lote alongside `PluginSpec`. It is
+ * The barrel grows additively per phase alongside `PluginSpec`. It is
  * app.booted-safe: every module reachable from here loads without an Ignitor
  * (registry classes are pulled lazily inside the facade's `boot()`).
  */
@@ -23,7 +23,7 @@ export type { PluginSpec, PluginSection } from './define_plugin.js'
 export type { SatelliteProviderContract, SatelliteProviderConstructor } from './contract.js'
 
 /**
- * Typed section builders (E8). The ergonomic way to author a seam entry: pass a
+ * Typed section builders. The ergonomic way to author a seam entry: pass a
  * plain `name` + callback and the builder mints the branded name, stamps `kind`,
  * and defaults `contractVersion`. `authorizer()` / `middleware()` /
  * `requestMacro()` / `defineCapability()` replace hand-writing the raw
@@ -47,7 +47,7 @@ export { assertNever } from './assert_never.js'
  * The underlying `Branded<B>` helper stays deliberately un-exported: it is opaque
  * (its brand is a private `unique symbol`), so consumers only ever name the
  * concrete aliases below, never the helper. The api-extractor golden carries one
- * benign `ae-forgotten-export` note for it — do NOT "fix" it by exporting the
+ * benign `ae-forgotten-export` note for it. Do NOT "fix" it by exporting the
  * `unique symbol`, which would only widen the surface with an unusable primitive.
  */
 export {
@@ -70,7 +70,7 @@ export type {
 } from './brands.js'
 
 /**
- * Declared plugin permissions (S1 install consent). Populate `definePlugin({
+ * Declared plugin permissions (install consent). Populate `definePlugin({
  * permissions })` ONLY through the `permission.*` builders so the declared set
  * stays well-formed and coherent with the manifest wire form the operator
  * consents to. Declaration is disclosure, not enforcement (see the guide).
@@ -78,19 +78,19 @@ export type {
 export { permission } from './plugin_permissions.js'
 export type { PluginPermission } from './plugin_permissions.js'
 
-/** SEAM-3 — the tenant-access authorizer chain (fail-closed). */
+/** The tenant-access authorizer chain (fail-closed). */
 export { AUTHORIZER_CONTRACT_VERSION } from '../services/authorizer_registry.js'
 export type {
   AuthorizerDecision,
   TenantAuthorizer,
   TenantAuthorizerEntry,
 } from '../services/authorizer_registry.js'
-/** The tenant a `TenantAuthorizer` receives (plus its status/metadata shapes) —
+/** The tenant a `TenantAuthorizer` receives (plus its status/metadata shapes),
  *  re-exported so an author can type a stand-alone authorize function outside the
  *  inline builder. These are the same public tenant types the root barrel exports. */
 export type { TenantModelContract, TenantStatus, TenantMetadata } from '../types/contracts.js'
 
-/** SEAM-2 — route middleware injected into tenant/central/universal groups. */
+/** Route middleware injected into tenant/central/universal groups. */
 export { TENANT_MIDDLEWARE_CONTRACT_VERSION } from '../services/tenant_middleware_registry.js'
 export type {
   TenantMiddleware,
@@ -99,16 +99,16 @@ export type {
   TenantMiddlewareEntry,
 } from '../services/tenant_middleware_registry.js'
 
-/** SEAM-4 — `request.<name>()` macros (umbrella ABI; no per-surface constant). */
+/** `request.<name>()` macros (umbrella ABI; no per-surface constant). */
 export type { TenantRequestMacroSpec } from '../extensions/request.js'
 
-/** SEAM-1 — periodic ticks fanned out over active tenants (umbrella ABI). */
+/** Periodic ticks fanned out over active tenants (umbrella ABI). */
 export type { TenantSchedule } from '../services/tenant_scheduler_service.js'
 
-/** SEAM-7 — Postgres extensions provisioned into each tenant's storage (umbrella ABI). */
+/** Postgres extensions provisioned into each tenant's storage (umbrella ABI). */
 export type { ProvisionExtensionSpec } from '../services/isolation/vector_provisioning.js'
 
-/** SEAM-5 — react to committed tenant-model writes (umbrella ABI). The mixin that
+/** React to committed tenant-model writes (umbrella ABI). The mixin that
  *  EMITS these lives at `@adonisjs-lasagna/saas-tenancy/mixins`. */
 export type {
   TenantDataChangeSubscription,
@@ -116,7 +116,7 @@ export type {
   TenantDataChangeOperation,
 } from '../events/tenant_data_changed.js'
 
-/** Capability registry — optional, degradable cross-plugin composition. Augment
+/** Capability registry: optional, degradable cross-plugin composition. Augment
  *  `LasagnaCapabilities` from your plugin to type `consume(key)`. */
 export { CAPABILITY_CONTRACT_VERSION } from '../services/capability_registry.js'
 export type { CapabilityProvision } from '../services/capability_registry.js'

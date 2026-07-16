@@ -1,8 +1,8 @@
 /**
  * Connection + memory introspection for the budget/churn/memory tiers. The
  * pool walk mirrors the doctor's connection_pool_check
- * (packages/core/src/services/doctor/checks/connection_pool_check.ts):
- * `db.manager.connections` → per-node `connection.pool.numUsed()/numFree()/max`.
+ * (packages/core/src/services/doctor/checks/connection_pool_check.ts): read
+ * `db.manager.connections`, then each node's `connection.pool.numUsed()/numFree()/max`.
  */
 
 type DbService = any

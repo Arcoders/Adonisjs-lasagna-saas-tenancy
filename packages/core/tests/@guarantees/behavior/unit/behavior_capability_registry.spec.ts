@@ -89,7 +89,7 @@ test.group('CapabilityRegistry — sensitive capability trust gate (S5)', () => 
   test('an ordinary (non-sensitive) capability ignores the allowlist', ({ assert }) => {
     withEnv(undefined, () => {
       const reg = new CapabilityRegistry()
-      // No providerName, nothing trusted — a plain provision still registers.
+      // No providerName, nothing trusted: a plain provision still registers.
       assert.doesNotThrow(() => reg.register(provision('email', { send() {} })))
       assert.isTrue(reg.has(capabilityKey('email')))
     })
@@ -102,7 +102,7 @@ test.group('CapabilityRegistry — sensitive capability trust gate (S5)', () => 
       const reg = new CapabilityRegistry()
       const api = { readKeys() {} }
       reg.register(sensitive('secret_keys', api), pluginName('reporting'))
-      // Consumed from core (no plugin scope) → returns the api.
+      // A consume from core (no plugin scope) returns the api.
       assert.strictEqual(reg.consume(capabilityKey('secret_keys')), api)
     })
   })
@@ -149,7 +149,7 @@ test.group('CapabilityRegistry — sensitive capability trust gate (S5)', () => 
         assert.equal(trustCounter(), 0, 'a trusted consume must not trip the guard')
 
         // An untrusted plugin scope is denied (fail-closed, not degraded-to-undefined)
-        // AND the consume-side guard fires — the audit signal, separate from the throw
+        // AND the consume-side guard fires: the audit signal, separate from the throw
         // (a mutation that drops only the emit while keeping the throw is caught here).
         let threw: any
         pluginScope.run({ plugin: pluginName('sketchy'), trusted: false }, () => {

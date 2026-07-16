@@ -19,7 +19,7 @@ so code that "works" under the `header` strategy breaks silently under
 const id = request.header('x-tenant-id')
 
 // ✅ honours the configured strategy + UUID validation
-import { resolveTenantId } from '@adonisjs-lasagna/saas-tenancy/extensions/request'
+import { resolveTenantId } from '@adonisjs-lasagna/saas-tenancy'
 const id = resolveTenantId(request)
 ```
 
@@ -29,9 +29,9 @@ need the full tenant model.
 ## `getConfig()` throws before the provider boots
 
 `getConfig()` reads a module-level singleton that `MultitenancyProvider.boot()`
-populates via `setConfig()`. Call it **before** boot — at the top level of a
+populates via `setConfig()`. Call it **before** boot (at the top level of a
 module that loads during `register()`, or in a unit test that never booted an
-Ignitor — and it throws `multitenancy config not set`.
+Ignitor) and it throws `multitenancy config not set`.
 
 ```ts
 // ❌ runs at import time, before the provider booted → throws

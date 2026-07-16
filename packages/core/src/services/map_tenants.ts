@@ -14,7 +14,7 @@ import type { TenantModelContract } from '../types/contracts.js'
 export interface MapTenantsOptions {
   /**
    * Peak tenants processed at once (default 10). Each one enters a `tenancy.run`
-   * scope, which touches a tenant connection — keep this comfortably under
+   * scope, which touches a tenant connection. Keep this comfortably under
    * `config.isolation.maxTenantConnections` (default 50), leaving headroom for
    * request traffic, or you risk LRU eviction churn (or 503s under a hard cap).
    */
@@ -42,7 +42,7 @@ export interface MapTenantsResult<T> {
 
 /**
  * Run `fn` inside each tenant's schema scope with bounded concurrency and error
- * isolation — the safe primitive a report extension (or any host job) needs to
+ * isolation. This is the safe primitive a report extension (or any host job) needs to
  * fan a query out across many tenants without hand-rolling `tenancy.run`,
  * batching, and per-tenant try/catch.
  *

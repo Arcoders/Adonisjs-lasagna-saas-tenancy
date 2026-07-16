@@ -20,7 +20,6 @@ const SATELLITES = [
   { key: 'backup', index: 'packages/backup/src/index.ts', define: 'defineBackupConfig', type: 'MultitenancyConfigWithBackup' },
   { key: 'websockets', index: 'packages/websockets/src/index.ts', define: 'defineWebSocketsConfig', type: 'MultitenancyConfigWithWebsockets' },
   { key: 'ai', index: 'packages/ai/src/index.ts', define: 'defineAiConfig', type: 'MultitenancyConfigWithAi' },
-  { key: 'crypto', index: 'packages/crypto/src/index.ts', define: 'defineCryptoConfig', type: 'MultitenancyConfigWithCrypto' },
 ]
 
 /** Pure rule: which of {define, type} are missing from the barrel source. */

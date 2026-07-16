@@ -2,7 +2,13 @@ import { test } from '@japa/runner'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { BrandingService } from '@adonisjs-lasagna/saas-tenancy/services'
 import { useRealInstallTenantDispatch } from '#tests/bootstrap'
-import { createInstalledTenant, dropAllTenants, installInline, waitFor } from './_helpers.js'
+import {
+  ADMIN_HEADERS,
+  createInstalledTenant,
+  dropAllTenants,
+  installInline,
+  waitFor,
+} from './_helpers.js'
 
 const MAILCATCHER_HOST = process.env.MAILCATCHER_HOST ?? '127.0.0.1'
 const MAILCATCHER_HTTP = `http://${MAILCATCHER_HOST}:1080`
@@ -57,7 +63,7 @@ interface QueueWorker {
 
 /**
  * Spawn `node ace queue:work` as a subprocess. Used only by the queue
- * integration test in this file — the rest of the e2e suite bypasses the
+ * integration test in this file. The rest of the e2e suite bypasses the
  * queue with `installInline`. Returns a handle with a `stop()` method.
  */
 async function startQueueWorker(): Promise<QueueWorker> {
@@ -195,7 +201,7 @@ test.group('e2e — mail (MailCatcher)', (group) => {
     // Create the tenant row WITHOUT activating yet, so the welcome email
     // hasn't fired with the default branding. Upsert branding, then run
     // installInline so TenantActivated fires once with branding already
-    // persisted — single email, deterministic content.
+    // persisted: single email, deterministic content.
     const create = await client.post('/demo/tenants').json({
       name: 'Branded Tenant',
       email: 'branded@e2e.test',
@@ -250,7 +256,7 @@ test.group('e2e — mail (MailCatcher)', (group) => {
 
     // Create both tenants without activating, upsert each one's branding,
     // THEN activate. Each tenant fires exactly one TenantActivated event
-    // with its own branding in place — no race with the queue or the cache.
+    // with its own branding already in place, so no race with the queue or the cache.
     const c1 = await client.post('/demo/tenants').json({
       name: 'OneCo',
       email: 't1@e2e.test',
@@ -337,7 +343,7 @@ test.group('e2e — mail (MailCatcher)', (group) => {
       )
       assert.exists(msg)
       assert.match(msg.subject, /Welcome/)
-      // Confirm the test actually exercised the queued path — the listener
+      // Confirm the test actually exercised the queued path. The listener
       // calls mail.sendLater() unconditionally, so any received mail proves
       // the queue worker picked it up.
       void t
@@ -356,7 +362,7 @@ test.group('e2e — mail (MailCatcher)', (group) => {
     }
 
     // Override env so the listener resolves an SMTP host pointing at a closed
-    // port. The mail listener uses a top-level try/catch — the host process
+    // port. The mail listener uses a top-level try/catch, so the host process
     // must remain healthy.
     const originalHost = process.env.MAILCATCHER_HOST
     const originalPort = process.env.MAILCATCHER_PORT
@@ -367,11 +373,11 @@ test.group('e2e — mail (MailCatcher)', (group) => {
         name: 'OutageTest',
         email: 'outage@e2e.test',
       })
-      // The host must still respond after the failed listener.
-      const ping = await client
-        .get(`/admin/tenants/${id}`)
-        .header('x-admin-token', process.env.DEMO_ADMIN_TOKEN ?? 'demo-admin-token-change-me')
-      assert.oneOf(ping.status(), [200, 401], 'host process should still answer after mail outage')
+      // The host must still respond after the failed listener. ADMIN_HEADERS
+      // carries the suite's valid backoffice bearer, so anything but a 200
+      // means the mail outage bled into the admin realm.
+      const ping = await client.get(`/admin/tenants/${id}`).headers(ADMIN_HEADERS)
+      ping.assertStatus(200)
     } finally {
       if (originalHost !== undefined) process.env.MAILCATCHER_HOST = originalHost
       if (originalPort !== undefined) process.env.MAILCATCHER_PORT = originalPort
@@ -381,7 +387,7 @@ test.group('e2e — mail (MailCatcher)', (group) => {
 
   /**
    * Email status webhook ingestion (e.g. Postmark / SendGrid `delivered`,
-   * `bounced`, `spam_complaint` events) is NOT part of the package today —
+   * `bounced`, `spam_complaint` events) is NOT part of the package today.
    * MailCatcher itself has no such webhook. The plan for a future test:
    *
    *   1. Add a `POST /demo/mail/events` route that accepts a signed payload

@@ -8,7 +8,7 @@ import { DateTime } from 'luxon'
  * `MetricsService.recomputeMonthlyRollup()` (the `tenant:metrics:rollup` command)
  * and read by the `reporting` satellite's opt-in dual-read to serve whole-month,
  * fully-closed windows from a ~30x-smaller table than the daily base. Lives in the
- * shared backoffice schema — aggregating it is isolation-safe by construction.
+ * shared backoffice schema. Aggregating it is isolation-safe by construction.
  */
 export default class TenantMetricMonthly extends BackofficeBaseModel {
   static readonly table = 'tenant_metrics_monthly'

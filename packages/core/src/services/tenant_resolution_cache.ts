@@ -34,7 +34,7 @@ interface Entry {
  *
  * Scope and guarantees:
  *   - **Per process.** Each pod keeps its own cache; there is no shared L2. This
- *     is intentional — the win is the in-process repeat-lookup, and it avoids
+ *     is intentional. The win is the in-process repeat-lookup, and it avoids
  *     serializing a live Lucid model across a wire.
  *   - **Bounded.** A Map is used as an LRU (insertion-order eviction on `set`,
  *     recency refresh on `get`) capped at `maxEntries`, so a huge tenant base

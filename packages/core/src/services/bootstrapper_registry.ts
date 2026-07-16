@@ -1,4 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
+import ExtensionRegistry from './extension_registry.js'
 import type { TenantModelContract } from '../types/contracts.js'
 
 /**
@@ -22,45 +23,38 @@ export interface TenantBootstrapper {
   leave?(ctx: BootstrapperContext): void | Promise<void>
 }
 
-export default class BootstrapperRegistry {
-  readonly #items = new Map<string, TenantBootstrapper>()
+export default class BootstrapperRegistry extends ExtensionRegistry<string, TenantBootstrapper> {
   readonly #order: string[] = []
 
+  protected readonly surfaceLabel = 'bootstrapper'
+
   register(bootstrapper: TenantBootstrapper): this {
-    if (this.#items.has(bootstrapper.name)) {
-      throw new Error(
-        `BootstrapperRegistry: bootstrapper "${bootstrapper.name}" already registered`
-      )
-    }
-    this.#items.set(bootstrapper.name, bootstrapper)
-    this.#order.push(bootstrapper.name)
+    const name = this.assertRegistrable(bootstrapper)
+    this.entries.set(name, bootstrapper)
+    this.#order.push(name)
     return this
   }
 
-  unregister(name: string): boolean {
-    if (!this.#items.delete(name)) return false
+  override unregister(name: string): boolean {
+    if (!super.unregister(name)) return false
     const idx = this.#order.indexOf(name)
     if (idx >= 0) this.#order.splice(idx, 1)
     return true
   }
 
-  has(name: string): boolean {
-    return this.#items.has(name)
+  override clear(): this {
+    super.clear()
+    this.#order.length = 0
+    return this
   }
 
   list(): readonly string[] {
     return [...this.#order]
   }
 
-  clear(): this {
-    this.#items.clear()
-    this.#order.length = 0
-    return this
-  }
-
   async runEnter(ctx: BootstrapperContext): Promise<void> {
     for (const name of this.#order) {
-      const b = this.#items.get(name)
+      const b = this.entries.get(name)
       if (!b) continue
       await b.enter(ctx)
     }
@@ -79,7 +73,7 @@ export default class BootstrapperRegistry {
     let completed = 0
     try {
       for (const name of this.#order) {
-        const b = this.#items.get(name)
+        const b = this.entries.get(name)
         if (!b) continue
         await b.enter(ctx)
         completed++
@@ -93,7 +87,7 @@ export default class BootstrapperRegistry {
   async #runLeaveUpTo(ctx: BootstrapperContext, count: number): Promise<void> {
     for (let i = Math.min(count, this.#order.length) - 1; i >= 0; i--) {
       const name = this.#order[i]!
-      const b = this.#items.get(name)
+      const b = this.entries.get(name)
       if (!b?.leave) continue
       try {
         await b.leave(ctx)

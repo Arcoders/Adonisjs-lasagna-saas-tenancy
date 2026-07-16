@@ -9,7 +9,7 @@ export interface Widget {
 /**
  * The satellite's service contract. Defining it as an interface is what lets the
  * in-memory test double (`InMemoryWidgetStore`) be a drop-in second
- * implementation — the "second implementation proves the abstraction" pattern.
+ * implementation: the "second implementation proves the abstraction" pattern.
  */
 export interface WidgetStore {
   create(input: { tenantId: string; name: string }): Promise<Widget>

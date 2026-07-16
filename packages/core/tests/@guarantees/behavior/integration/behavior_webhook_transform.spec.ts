@@ -6,7 +6,7 @@ import {
   WebhookTransformerRegistry,
   WEBHOOKS_CONTRACT_VERSION,
 } from '@adonisjs-lasagna/saas-tenancy/services'
-import { encrypt } from '@adonisjs-lasagna/saas-tenancy'
+import { encrypt } from '@adonisjs-lasagna/saas-tenancy/internal'
 import {
   TenantWebhook,
   TenantWebhookDelivery,
@@ -56,7 +56,7 @@ test.group('WebhookService — payload transformers (integration)', (group) => {
   async function makeWebhook(tenantId: string) {
     const hook = await TenantWebhook.create({
       tenantId,
-      // Loopback → the SSRF guard fails the delivery, but `deliver()` persists
+      // Loopback, so the SSRF guard fails the delivery, but `deliver()` persists
       // the (transformed) payload BEFORE `send()` runs, which is what we assert.
       url: 'http://127.0.0.1:1/never-listens',
       events: ['user.created'],

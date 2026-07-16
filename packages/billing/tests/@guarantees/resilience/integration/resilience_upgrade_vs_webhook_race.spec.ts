@@ -14,18 +14,18 @@ import {
 import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite-test-kit/testing'
 
 /**
- * A5: a user upgrade followed by a LATE, stale webhook for the prior plan must
+ * A user upgrade followed by a LATE, stale webhook for the prior plan must
  * not roll the tenant back. `event_ordering.spec.ts` proves the guard at the
- * `status` field; this proves it end-to-end at the plan/quota level — the thing
+ * `status` field; this proves it end-to-end at the plan/quota level, the thing
  * a customer actually feels.
  *
- * Scenario: tenant upgrades pro → team (newer `subscription.upsert`, t=now).
+ * Scenario: tenant upgrades pro to team (newer `subscription.upsert`, t=now).
  * A stale `subscription.upsert` for the OLD period (t=now-30s, prod_pro) is
  * re-delivered out of order. The `last_event_at - 5s` ordering guard must drop
  * it, leaving both the mirror and `tenant_plans` on `team`.
  *
  * It passes today (the guard holds), so no optimistic-locking `version` column
- * is introduced — per the plan, that only lands if a race test actually fails.
+ * is introduced. Per the plan, that only lands if a race test actually fails.
  */
 test.group('Upgrade vs. stale webhook race (integration)', (group) => {
   const cleanupTenants: string[] = []
@@ -53,6 +53,7 @@ test.group('Upgrade vs. stale webhook race (integration)', (group) => {
     cleanupTenants.push(tenant.id)
     const providerCustomerId = `cus_test_${randomUUID().slice(0, 8)}`
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenant.id
     cus.providerCustomerId = providerCustomerId
     await cus.save()

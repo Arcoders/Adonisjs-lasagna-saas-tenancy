@@ -1,5 +1,5 @@
 /**
- * Tier 2 — DB per-driver query latency + connection churn. Boots the bench
+ * Tier 2: DB per-driver query latency + connection churn. Boots the bench
  * fixture headless (the drivers need a booted app), runs against real Postgres
  * for the driver selected by BENCH_DRIVER.
  *

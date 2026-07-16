@@ -6,9 +6,9 @@ import PluginException from './plugin_exception.js'
  * allowlist by name) or untrusted plugin code tries to `consume` one (at runtime,
  * checked against the active plugin execution scope). A 403.
  *
- * A capability is "sensitive" only when its provision opts in (`sensitive: true`) —
- * ordinary, freely-composable capabilities are unaffected. Like every S5 control
- * this is labeled friction (an installed plugin has full in-process reach); it
+ * A capability is "sensitive" only when its provision opts in (`sensitive: true`).
+ * Ordinary, freely-composable capabilities are unaffected. Like the platform's other
+ * trust controls this is labeled friction (an installed plugin has full in-process reach); it
  * makes the trusted-vs-untrusted split explicit at the composition seam rather than
  * pretending a JS proxy is a sandbox. See `.github/SECURITY.md`.
  */

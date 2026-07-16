@@ -72,7 +72,7 @@ test.group('SchemaPgDriver.connect() pins searchPath on the cached fast path', (
     db.manager.add(nameA, { ...(template as any), searchPath: [schemaB] } as any)
 
     // Capture the Isthmus emission alongside the throw: the seal
-    // (seal.connection_search_path) must be OBSERVABLE, not just fail-closed.
+    // (seal.connection_identity) must be OBSERVABLE, not just fail-closed.
     const tripped: InstanceType<typeof IsthmusGuardTripped>[] = []
     const emitter = await app.container.make('emitter')
     const listener = (event: InstanceType<typeof IsthmusGuardTripped>) => tripped.push(event)
@@ -93,7 +93,7 @@ test.group('SchemaPgDriver.connect() pins searchPath on the cached fast path', (
     assert.equal(err.code, 'E_ISOLATION_CONFIG')
     assert.match(err.message, /searchPath/)
 
-    const seal = tripped.filter((e) => e.payload.id === 'seal.connection_search_path')
+    const seal = tripped.filter((e) => e.payload.id === 'seal.connection_identity')
     assert.isAtLeast(seal.length, 1, 'the cross-tenant connection refusal must emit its event')
     assert.equal(seal[0]!.payload.severity, 'critical')
     assert.equal(seal[0]!.payload.event, 'isthmus:seal:connection:mismatch')

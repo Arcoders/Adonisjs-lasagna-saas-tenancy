@@ -14,7 +14,7 @@ export default class BillingUsageEvent extends BackofficeBaseModel {
 
   // The id column is `uuid` in Postgres with a `gen_random_uuid()` default,
   // but Lucid would default to generating a `cuid()` for string PKs and pass
-  // that to INSERT — Postgres rejects "invalid input syntax for type uuid".
+  // that to INSERT. Postgres rejects "invalid input syntax for type uuid".
   // `selfAssignPrimaryKey = true` tells Lucid the caller owns the value;
   // `BillingService.reportUsage` sets `randomUUID()` before save.
   static selfAssignPrimaryKey = true

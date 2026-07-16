@@ -14,8 +14,8 @@ export interface PluginSurfaceCounts {
 
 /**
  * Fail-closed cap enforcement for the plugin request-path surfaces (authorizers,
- * route middleware, capabilities). Runs in the provider's `start()` — after every
- * provider `boot()`, so every plugin registration is final — and aborts the deploy
+ * route middleware, capabilities). Runs in the provider's `start()` (after every
+ * provider `boot()`, so every plugin registration is final) and aborts the deploy
  * with a {@link PluginBootException} when a surface's registered count exceeds its
  * configured cap. That is the point of the caps: a runaway or hostile plugin that
  * registers thousands of authorizers can't quietly bloat the per-request chain;

@@ -8,7 +8,7 @@ import { repoRoot } from '../../../../../satellite-test-kit/src/repo_root.js'
  * Every assertion here pins a real drift that already happened once (events.md
  * billing field renamed to `subscriptionId`, the impersonation default, an ace
  * command missing from the reference, etc.). These pages are synced by hand, so
- * without a test they rot silently — this is the cheap automated backstop.
+ * without a test they rot silently. This is the cheap automated backstop.
  */
 
 const corePath = (rel: string) => join(repoRoot(import.meta.url), 'packages', 'core', rel)

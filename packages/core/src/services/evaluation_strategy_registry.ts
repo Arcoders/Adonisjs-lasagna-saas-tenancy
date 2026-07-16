@@ -1,5 +1,5 @@
 import { DateTime } from 'luxon'
-import { assertContractCompat } from '../sdk/contract_version.js'
+import ExtensionRegistry from './extension_registry.js'
 import type { FeatureFlagRecord } from './feature_flag_service.js'
 
 /**
@@ -20,7 +20,7 @@ export interface FeatureFlagEvaluationContext {
 /**
  * A host-registered decision function for a feature flag. Selected per-flag via
  * the flag's `config.strategy` name. Evaluated PER CALL against the stored
- * record plus the caller's context — a context-aware strategy (rollout %,
+ * record plus the caller's context. A context-aware strategy (rollout %,
  * per-user) must never be cached as a boolean, or one user's decision would leak
  * to another. The record map cache stays at the data level only.
  */
@@ -53,36 +53,30 @@ export const DEFAULT_EVALUATION_STRATEGY: EvaluationStrategy = {
  * provider `boot()`. Map-backed (stateful): resolve via `container.make`, never
  * `new`. Pre-seeded with the reserved `default` strategy.
  */
-export default class EvaluationStrategyRegistry {
-  readonly #strategies = new Map<string, EvaluationStrategy>([
-    ['default', DEFAULT_EVALUATION_STRATEGY],
-  ])
+export default class EvaluationStrategyRegistry extends ExtensionRegistry<
+  string,
+  EvaluationStrategy
+> {
+  protected readonly surfaceLabel = 'feature-flag strategy'
 
-  /** The strategy-contract version this surface implements. */
-  get contractVersion(): number {
+  constructor() {
+    super()
+    // Pre-seed the reserved built-in so `resolve()`/`get('default')` hit it.
+    this.entries.set('default', DEFAULT_EVALUATION_STRATEGY)
+  }
+
+  protected override get surfaceContractVersion(): number {
     return FEATURE_FLAGS_CONTRACT_VERSION
   }
 
   register(strategy: EvaluationStrategy): this {
-    if (!strategy.name || typeof strategy.name !== 'string') {
-      throw new Error('EvaluationStrategyRegistry: a strategy must have a non-empty name.')
-    }
-    if (strategy.name === 'default') {
+    if (strategy?.name === 'default') {
       throw new Error(
         'EvaluationStrategyRegistry: "default" is reserved for the built-in strategy.'
       )
     }
-    if (this.#strategies.has(strategy.name)) {
-      throw new Error(
-        `EvaluationStrategyRegistry: a strategy named "${strategy.name}" is already registered.`
-      )
-    }
-    assertContractCompat(
-      strategy.contractVersion,
-      FEATURE_FLAGS_CONTRACT_VERSION,
-      `feature-flag strategy "${strategy.name}"`
-    )
-    this.#strategies.set(strategy.name, strategy)
+    const name = this.assertRegistrable(strategy)
+    this.entries.set(name, strategy)
     return this
   }
 
@@ -92,25 +86,28 @@ export default class EvaluationStrategyRegistry {
    * the reserved default or was not registered. Useful for hot-reload paths and
    * for tests that need to undo a registration so it does not leak into the next.
    */
-  unregister(name: string): boolean {
+  override unregister(name: string): boolean {
     if (name === 'default') return false
-    return this.#strategies.delete(name)
+    return super.unregister(name)
+  }
+
+  /** Clear all strategies, then re-seed the reserved `default` so it is never lost. */
+  override clear(): this {
+    super.clear()
+    this.entries.set('default', DEFAULT_EVALUATION_STRATEGY)
+    return this
   }
 
   get(name: string): EvaluationStrategy | undefined {
-    return this.#strategies.get(name)
+    return this.entries.get(name)
   }
 
   /** The named strategy, or the built-in default when unknown/omitted. */
   resolve(name?: string): EvaluationStrategy {
-    return (name ? this.#strategies.get(name) : undefined) ?? DEFAULT_EVALUATION_STRATEGY
-  }
-
-  has(name: string): boolean {
-    return this.#strategies.has(name)
+    return (name ? this.entries.get(name) : undefined) ?? DEFAULT_EVALUATION_STRATEGY
   }
 
   list(): readonly string[] {
-    return [...this.#strategies.keys()]
+    return [...this.entries.keys()]
   }
 }

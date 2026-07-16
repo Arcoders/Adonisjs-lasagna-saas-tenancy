@@ -1,5 +1,5 @@
 /**
- * The freshness checkpoint (RFC §6, §8). D3 fires when a symbol's contract hash
+ * The freshness checkpoint (RFC sections 6 and 8). D3 fires when a symbol's contract hash
  * changed since its linked doc was last reviewed. "Last reviewed" is recorded
  * here: a committed map of `<symbol-id>|<doc-page>` to the contract hash that was
  * current when a maintainer accepted that pairing. A comment-only source edit
@@ -12,7 +12,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 
 export interface FreshnessCheckpoint {
   version: number
-  /** `<symbol-id>|<doc-page>` -> the contract hash current at the last review. */
+  /** `<symbol-id>|<doc-page>` to the contract hash current at the last review. */
   reviewed: Record<string, string>
 }
 

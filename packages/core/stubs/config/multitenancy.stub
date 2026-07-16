@@ -20,9 +20,9 @@ export default defineConfig({
 
   // Optional performance knob. By default the guard looks the tenant up in the
   // central DB on EVERY request. Enabling this caches the resolved tenant per
-  // pod for `ttlMs` and invalidates it immediately on lifecycle events
+  // pod for \`ttlMs\` and invalidates it immediately on lifecycle events
   // (suspend/activate/update/delete/maintenance). Cross-pod status changes
-  // propagate within `ttlMs`. Treat `request.tenant()` as read-only when on.
+  // propagate within \`ttlMs\`. Treat \`request.tenant()\` as read-only when on.
   // resolver: {
   //   cache: { enabled: true, ttlMs: 10_000, maxEntries: 10_000 },
   // },
@@ -31,7 +31,7 @@ export default defineConfig({
   // Paths that bypass TenantGuardMiddleware. Any inbound endpoint that
   // doesn't carry a resolvable tenant must live here — Stripe webhook is
   // the obvious case (the tenant is resolved later from the event's
-  // customer id). If you change `billing.webhook.path` from the default,
+  // customer id). If you change \`billing.webhook.path\` from the default,
   // update this list to match.
   ignorePaths: ['/admin', '/api/webhooks', '/health', '/webhooks/billing'],
 
@@ -58,28 +58,29 @@ export default defineConfig({
     },
   },
 
-  // Optional — only needed if you install `@adonisjs-lasagna/backup`. Safe to
-  // delete this whole block if you don't use per-tenant backup/restore/clone.
-  backup: {
-    storagePath: env.get('BACKUP_STORAGE_PATH', './storage/backups'),
-    metadataTtl: 60 * 60 * 24 * 30,
-    pgConnection: {
-      host: env.get('DB_HOST', '127.0.0.1'),
-      port: env.get('DB_PORT', 5432),
-      user: env.get('DB_USER', 'postgres'),
-      password: env.get('DB_PASSWORD', ''),
-      database: env.get('DB_DATABASE', 'postgres'),
-    },
-    // Optional — remove if not using S3 backup storage
-    // s3: {
-    //   enabled: true,
-    //   bucket: env.get('BACKUP_S3_BUCKET', ''),
-    //   region: env.get('BACKUP_S3_REGION', 'us-east-1'),
-    //   endpoint: env.get('BACKUP_S3_ENDPOINT', ''),   // leave empty for AWS
-    //   accessKeyId: env.get('BACKUP_S3_KEY_ID', ''),
-    //   secretAccessKey: env.get('BACKUP_S3_SECRET', ''),
-    // },
-  },
+  // Uncomment after \`npm install @adonisjs-lasagna/backup\`. That satellite is what
+  // contributes \`backup\` to MultitenancyConfig, so this block only typechecks once
+  // it is installed; shipping it enabled would break every bare install.
+  // backup: {
+  //   storagePath: env.get('BACKUP_STORAGE_PATH', './storage/backups'),
+  //   metadataTtl: 60 * 60 * 24 * 30,
+  //   pgConnection: {
+  //     host: env.get('DB_HOST', '127.0.0.1'),
+  //     port: env.get('DB_PORT', 5432),
+  //     user: env.get('DB_USER', 'postgres'),
+  //     password: env.get('DB_PASSWORD', ''),
+  //     database: env.get('DB_DATABASE', 'postgres'),
+  //   },
+  //   // Optional — remove if not using S3 backup storage
+  //   // s3: {
+  //   //   enabled: true,
+  //   //   bucket: env.get('BACKUP_S3_BUCKET', ''),
+  //   //   region: env.get('BACKUP_S3_REGION', 'us-east-1'),
+  //   //   endpoint: env.get('BACKUP_S3_ENDPOINT', ''),   // leave empty for AWS
+  //   //   accessKeyId: env.get('BACKUP_S3_KEY_ID', ''),
+  //   //   secretAccessKey: env.get('BACKUP_S3_SECRET', ''),
+  //   // },
+  // },
 
   // BentoCache (L1 memory + L2 Redis). Uses a dedicated Redis DB to avoid
   // key collisions with the queue Redis DB.

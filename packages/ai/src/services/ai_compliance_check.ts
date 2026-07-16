@@ -9,7 +9,7 @@ export interface AiComplianceCheckDeps {
 
 /**
  * The `ai_compliance` doctor check (WS-AI-9): the purge posture an operator must
- * see before relying on right-to-erasure. It is strictly READ-ONLY — it PINGs
+ * see before relying on right-to-erasure. It is strictly READ-ONLY: it PINGs
  * Redis and reads `options.keyPrefix`, but NEVER bumps the epoch (that would
  * invalidate live replay caches as a side effect of a health check). It warns
  * when Redis is unreachable (memory purge + the cache-epoch bump cannot run) and

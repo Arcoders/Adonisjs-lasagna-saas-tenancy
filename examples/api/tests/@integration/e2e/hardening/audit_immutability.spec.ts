@@ -3,7 +3,7 @@ import db from '@adonisjs/lucid/services/db'
 import { randomUUID } from 'node:crypto'
 
 /**
- * HARDENING — audit log immutability.
+ * HARDENING: audit log immutability.
  *
  * The package's audit log (`backoffice.tenant_audit_logs`) is append-only. The
  * guarantee is enforced in PostgreSQL itself: BEFORE UPDATE / BEFORE DELETE row
@@ -17,11 +17,11 @@ import { randomUUID } from 'node:crypto'
  * (packages/core/stubs/migrations/create_tenant_audit_logs_table.stub) and the
  * demo's own migration now mirrors them. To stay fire-proof on a database that
  * was migrated before that change, the suite re-asserts the triggers
- * idempotently in setup — the same runtime-provisioning pattern the package's
+ * idempotently in setup, the same runtime-provisioning pattern the package's
  * own integration bootstrap uses. CREATE OR REPLACE / DROP IF EXISTS make this
  * a no-op when they already exist.
  *
- * NOTE: probe rows are intentionally NOT deleted afterwards — DELETE is exactly
+ * NOTE: probe rows are intentionally NOT deleted afterwards. DELETE is exactly
  * what the table forbids, and an unbounded append-only log is the design. Each
  * run tags its rows with a unique tenant id so they never collide.
  */

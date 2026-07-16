@@ -3,10 +3,10 @@ import db from '@adonisjs/lucid/services/db'
 import { createInstalledTenant, dropAllTenants } from '../_helpers.js'
 
 /**
- * WS-AI-8 / 3C — a prompt-injection attempt is harmless end to end. The user turn
- * carrying an injection payload is handled as an ordinary user message and streams
- * a normal 200; it cannot promote itself to a system directive or reach another
- * tenant's data (harmless-by-isolation, I4). The role-separation invariant itself
+ * A prompt-injection attempt is harmless end to end. The user turn carrying an
+ * injection payload is handled as an ordinary user message and streams a normal
+ * 200; it cannot promote itself to a system directive or reach another tenant's
+ * data, so it stays harmless by isolation. The role-separation invariant itself
  * is pinned unit-side (security_context_builder_role_separation); this proves the
  * full HTTP path does not error or leak on a hostile prompt. Self-skips without pgvector.
  */
@@ -56,7 +56,7 @@ test.group('AI e2e — injection is harmless (3C)', (group) => {
 
     res.assertStatus(200)
     // The injection is inert: it is a user turn, never a system directive, and there
-    // is no other tenant data in context (I4). The stream completed without a 5xx.
+    // is no other tenant data in context. The stream completed without a 5xx.
     assert.notEqual(res.status(), 500, 'a hostile prompt must not error the gateway')
   }).skip(() => !ready, 'pgvector not available; runs in CI on pgvector/pgvector:pg16')
 })

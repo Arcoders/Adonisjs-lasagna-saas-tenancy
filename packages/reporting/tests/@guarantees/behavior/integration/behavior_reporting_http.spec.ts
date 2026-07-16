@@ -114,7 +114,7 @@ test.group('ReportingDashboardController.dashboard (integration)', (group) => {
   })
 
   // CHAOS / caching: a cached response is served stale within TTL; a different
-  // query is a miss and reflects fresh data — proving the cache is correct and
+  // query is a miss and reflects fresh data, proving the cache is correct and
   // scoped by params (and global, never tenant-scoped).
   test('caches by params: stale within TTL, miss on different params', async ({ assert }) => {
     const t = randomUUID()
@@ -136,7 +136,7 @@ test.group('ReportingDashboardController.dashboard (integration)', (group) => {
     )
     assert.equal(cachedTotal, 10, 'served the stale cached result within TTL')
 
-    // Different params → cache miss → fresh data (sees both rows).
+    // Different params are a cache miss and return fresh data (sees both rows).
     const fresh = makeCtx({ period: 'day', since: `${Y}-07-01`, until: `${Y}-08-31` })
     await controller.dashboard(fresh.ctx)
     const freshTotal = fresh.captured.body.data.aggregate.reduce(

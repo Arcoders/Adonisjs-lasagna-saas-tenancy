@@ -11,15 +11,15 @@ import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
- * The Isthmus ContextSeal, end-to-end over real HTTP + PG (invariant I1: never
- * route tenant A's queries under tenant B's context):
+ * The Isthmus ContextSeal, end-to-end over real HTTP + PG (the core isolation
+ * invariant: never route tenant A's queries under tenant B's context):
  *
  *  - a guarded request whose handler enters `tenancy.run(otherTenant)` before a
  *    model query gets the typed E_ISTHMUS_TENANT_MISMATCH 500 AND the critical
- *    `isthmus:seal:tenant:mismatch` event — never the other tenant's data;
+ *    `isthmus:seal:tenant:mismatch` event, never the other tenant's data;
  *  - the normal guarded path (scope agrees with the request) is byte-for-byte
  *    unaffected;
- *  - the job path (`tenancy.run` with no HttpContext) is inert — the seal only
+ *  - the job path (`tenancy.run` with no HttpContext) is inert: the seal only
  *    exists where two context sources can disagree.
  */
 

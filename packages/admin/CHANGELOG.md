@@ -6,18 +6,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.0] — 2026-06-19
+## [0.1.0] — 2026-07-10
 
-Graduated to `release candidate` and versioned `1.0.0` (see the stability matrix).
+Shipped as `experimental` at `0.1.0` (see the stability matrix).
 Admin also became a first-class satellite: a `lasagnaSatellite` manifest at the
 frozen Satellite ABI and a guidance-only `adonisjs.configure` hook that prints the
-mount snippet (it never edits your routes file).
+mount snippet (it never edits your routes file). The REST admin API was extracted
+from `@adonisjs-lasagna/saas-tenancy` so the admin surface versions independently and
+is only installed by apps that mount it. It depends on the core (`>=0.3.0 <1.0.0`)
+and on `@adonisjs-lasagna/sso` (`>=0.1.0 <1.0.0`) as peers.
 
 - **SSO peer is now lazy (no hard coupling).** `@adonisjs-lasagna/sso` was imported
   at module load, so admin failed to load when sso was not installed despite
   declaring it optional. The SSO controller now imports sso lazily and the SSO
   endpoints return **501** when it is absent; the rest of the admin API works
-  without it. The `sso` peer range moved to `^1.0.0`.
+  without it. The `sso` peer range moved to `>=0.1.0 <1.0.0`.
 - **Access model documented.** Clarified the CSRF responsibility (delegated to the
   host), the Swagger/OpenAPI gating (`docsAuth`), and the fail-closed mount in the
   docs.
@@ -40,22 +43,6 @@ mount snippet (it never edits your routes file).
   `info.version` now mirrors `package.json`. The `@adonisjs-lasagna/sso` peer is marked
   optional in the manifest.
 
-**Stability: release candidate.** The API is frozen under the 1.x promise, with the
-honest caveat that a correction forced by the pending security review or production
-mileage may land in a 1.x minor with a loud changelog entry.
-
-## [0.1.0] — 2026-06-08
-
-Initial standalone release, versioned `0.x` to match its `experimental` stability
-label (see the stability matrix): the surface may change in any minor. The REST admin API was extracted from
-`@adonisjs-lasagna/saas-tenancy` so the admin surface versions independently and is only
-installed by apps that mount it. It depends on the core (`^1.0.0`) and on
-`@adonisjs-lasagna/sso` (`^0.1.0`) as peers.
-
-**Stability: experimental.** The API is covered by tests but may change in a minor release.
-Pin the version and read this changelog before upgrading. See the
-[stability matrix](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/stability.md).
-
 ### Added
 
 - `AdminController` and `multitenancyAdminRoutes`: tenant CRUD, impersonation, and satellite
@@ -73,5 +60,11 @@ Pin the version and read this changelog before upgrading. See the
 
 ### Migration from core
 
-`@adonisjs-lasagna/saas-tenancy/admin` is a deprecated throwing shim for one minor, then
-drops. Install `@adonisjs-lasagna/admin` and import `multitenancyAdminRoutes` from it.
+`@adonisjs-lasagna/saas-tenancy/admin` is gone from the core's `exports` map, so importing
+it fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`. There is no shim. Install
+`@adonisjs-lasagna/admin` and import `multitenancyAdminRoutes` from it.
+
+**Stability: experimental.** The API carries no semver promise and may change in any
+minor, with the honest caveat that a correction forced by the pending security review
+or production mileage lands with a loud changelog entry. See the
+[stability matrix](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/stability.md).

@@ -46,7 +46,7 @@ export default class CustomDomainMiddleware {
     // Secure by default: the verified domain is authoritative. Opt out only by
     // passing `strict: false` explicitly (the legacy header-wins behavior).
     const strict = options.strict ?? true
-    // Use the configured tenant header so the Host->tenant hand-off matches what
+    // Use the configured tenant header so the Host-to-tenant hand-off matches what
     // the resolver reads downstream (getConfig().tenantHeaderKey), rather than a
     // fixed 'x-tenant-id'. Raw Node headers are lower-cased, so the auto-fill
     // writes the lower-cased key (the default is already lower-case).
@@ -73,7 +73,7 @@ export default class CustomDomainMiddleware {
 
     if (!tenant) {
       // No tenant claims this Host. If the caller also sent a header,
-      // we let it through unchanged — that's how header-based routing
+      // we let it through unchanged. That's how header-based routing
       // works for hosts the package doesn't manage. In strict mode this
       // is still acceptable: a request without a domain claim cannot
       // mismatch a domain.
@@ -81,7 +81,7 @@ export default class CustomDomainMiddleware {
     }
 
     if (headerTenantId && strict && headerTenantId !== tenant.id) {
-      // Both signals are present and they disagree. Reject — the safer
+      // Both signals are present and they disagree. Reject: the safer
       // failure mode is "no service" rather than "service for whichever
       // side the attacker controls".
       throw new TenantHeaderDomainMismatchException()

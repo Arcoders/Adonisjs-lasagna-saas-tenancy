@@ -14,6 +14,7 @@ import {
   PhCreditCard,
   PhCloudArrowUp,
   PhChartPieSlice,
+  PhSparkle,
 } from '@phosphor-icons/vue'
 
 /**
@@ -23,9 +24,9 @@ import {
  * A compact medallion echo of the hero's lasagna slab sits at the centre; two
  * orbit rings carry meaning (inner = capabilities bundled with core, outer =
  * installable @adonisjs-lasagna/* packages). Satellites are fixed, labelled
- * chips; "aliveness" comes from a drifting aura, a slow radar sweep, flowing
- * ring dashes, and signal particles travelling each connector inward, so
- * nothing the eye must read ever moves.
+ * chips; "aliveness" comes from a drifting aura, flowing ring dashes, and
+ * signal particles travelling each connector inward, so nothing the eye must
+ * read ever moves.
  *
  * SSR-safe: positions are computed deterministically with Math in setup (no
  * browser APIs). All motion is gated:
@@ -45,6 +46,15 @@ interface Sat {
   href: string
   /** The one-liner shown in the caption card; omitted for core-resident pieces. */
   cmd?: string
+  /**
+   * Fixed angle on the ring, in degrees (0 = right, positive = clockwise).
+   * When omitted the satellite is spaced evenly among its ring's members.
+   * The outer ring pins every angle so that adding a package never reshuffles
+   * the others, and so the two shortest labels keep the horizontal extremes.
+   */
+  deg?: number
+  /** The newest satellite: a persistent hairline, a tinted token, and a badge. */
+  featured?: boolean
 }
 interface Placed extends Sat {
   x: number
@@ -133,18 +143,23 @@ const bundled: Sat[] = [
   },
 ]
 
-// Outer ring — installable packages (`@adonisjs-lasagna/*`). Order is tuned so
-// the short labels (SSO, Backup) fall on the spokes that sit closest to an inner
-// chip, keeping all twelve labels clear of one another.
+// Outer ring — installable packages (`@adonisjs-lasagna/*`). Every angle is
+// pinned rather than evenly spaced, for two reasons: the two shortest labels
+// (SSO, Backup) must hold the horizontal extremes at x≈94% and x≈6% so nothing
+// clips, and every spoke must clear the seven inner spokes (which sit 51.43°
+// apart). Even spacing satisfies neither once a sixth package lands, and it
+// reshuffles all the others every time one is added.
 const packaged: Sat[] = [
   {
-    id: 'websockets',
-    label: 'WebSockets',
+    id: 'ai',
+    label: 'AI',
     tier: 'package',
-    icon: PhPlugsConnected,
-    href: withBase('/guides/satellites/websockets'),
-    desc: 'Bidirectional socket.io, tenant-isolated per connection.',
-    cmd: 'npm i @adonisjs-lasagna/websockets',
+    icon: PhSparkle,
+    href: withBase('/guides/satellites/ai'),
+    desc: 'Per-tenant, cost-metered AI streaming with a pluggable provider contract, vector store, and RAG.',
+    cmd: 'npm i @adonisjs-lasagna/ai',
+    deg: 306,
+    featured: true,
   },
   {
     id: 'sso',
@@ -154,24 +169,9 @@ const packaged: Sat[] = [
     href: withBase('/guides/satellites/sso'),
     desc: 'Per-tenant OIDC config with JWKS-backed verification.',
     cmd: 'npm i @adonisjs-lasagna/sso',
-  },
-  {
-    id: 'reporting',
-    label: 'Reporting',
-    tier: 'package',
-    icon: PhChartPieSlice,
-    href: withBase('/guides/satellites/reporting'),
-    desc: 'Cross-tenant analytics over the backoffice schema: usage by period, top-N tenants, custom metrics, and a mountable dashboard.',
-    cmd: 'npm i @adonisjs-lasagna/reporting',
-  },
-  {
-    id: 'backup',
-    label: 'Backup',
-    tier: 'package',
-    icon: PhCloudArrowUp,
-    href: withBase('/guides/satellites/backup'),
-    desc: 'Per-tenant backup, restore, clone, and SQL import via pg_dump and pg_restore.',
-    cmd: 'npm i @adonisjs-lasagna/backup',
+    // Held just above the horizontal so the chip clears the inner Webhooks
+    // spoke at 12.86°. At +4° the two labels rendered 5px apart.
+    deg: -6,
   },
   {
     id: 'billing',
@@ -181,6 +181,37 @@ const packaged: Sat[] = [
     href: withBase('/guides/satellites/billing'),
     desc: 'Multi-provider Stripe, Paddle, and Lemon Squeezy, with idempotent webhooks and dunning.',
     cmd: 'npm i @adonisjs-lasagna/billing',
+    deg: 56,
+  },
+  {
+    id: 'websockets',
+    label: 'WebSockets',
+    tier: 'package',
+    icon: PhPlugsConnected,
+    href: withBase('/guides/satellites/websockets'),
+    desc: 'Bidirectional socket.io, tenant-isolated per connection.',
+    cmd: 'npm i @adonisjs-lasagna/websockets',
+    deg: 122,
+  },
+  {
+    id: 'backup',
+    label: 'Backup',
+    tier: 'package',
+    icon: PhCloudArrowUp,
+    href: withBase('/guides/satellites/backup'),
+    desc: 'Per-tenant backup, restore, clone, and SQL import via pg_dump and pg_restore.',
+    cmd: 'npm i @adonisjs-lasagna/backup',
+    deg: 184,
+  },
+  {
+    id: 'reporting',
+    label: 'Reporting',
+    tier: 'package',
+    icon: PhChartPieSlice,
+    href: withBase('/guides/satellites/reporting'),
+    desc: 'Cross-tenant analytics over the backoffice schema: usage by period, top-N tenants, custom metrics, and a mountable dashboard.',
+    cmd: 'npm i @adonisjs-lasagna/reporting',
+    deg: 248,
   },
 ]
 
@@ -193,7 +224,7 @@ const CORE_EDGE = 165 // connectors stop at the medallion's rim
 function place(list: Sat[], radius: number, startDeg: number, idxBase: number): Placed[] {
   const n = list.length
   return list.map((s, i) => {
-    const rad = ((startDeg + (360 / n) * i) * Math.PI) / 180
+    const rad = ((s.deg ?? startDeg + (360 / n) * i) * Math.PI) / 180
     const x = C + radius * Math.cos(rad)
     const y = C + radius * Math.sin(rad)
     const ex = C + CORE_EDGE * Math.cos(rad)
@@ -214,7 +245,8 @@ function place(list: Sat[], radius: number, startDeg: number, idxBase: number): 
   })
 }
 
-// Inner from the top; outer offset so the five packages thread the inner spokes.
+// Inner from the top, evenly spaced. The outer ring pins each angle (see above),
+// so its `startDeg` is only a fallback for a satellite that declares no `deg`.
 const innerPlaced = place(bundled, R_INNER, -90, 0)
 const outerPlaced = place(packaged, R_OUTER, -54, bundled.length)
 const all = [...innerPlaced, ...outerPlaced]
@@ -269,8 +301,8 @@ onBeforeUnmount(() => io?.disconnect())
       <p class="orbit__eyebrow">Core + satellites</p>
       <h2 id="orbit-title" class="orbit__title">One small core. Everything else orbits it.</h2>
       <p class="orbit__lede">
-        Lasagna is a stable, battle-tested tenancy engine. Audit, billing, SSO, reporting and more
-        are optional satellites: each tenant turns on what it needs, and nothing it doesn't.
+        Lasagna is a stable, battle-tested tenancy engine. Audit, billing, SSO, reporting, AI and
+        more are optional satellites: each tenant turns on what it needs, and nothing it doesn't.
       </p>
     </header>
 
@@ -285,7 +317,6 @@ onBeforeUnmount(() => io?.disconnect())
       }"
     >
       <div class="orbit__aura" aria-hidden="true" />
-      <div class="orbit__radar" aria-hidden="true" />
 
       <svg class="orbit__svg" viewBox="0 0 1000 1000" aria-hidden="true">
         <defs>
@@ -325,7 +356,11 @@ onBeforeUnmount(() => io?.disconnect())
           :id="'conn-' + s.id"
           :key="'c-' + s.id"
           class="orbit__conn"
-          :class="{ 'is-active': coreHover || activeId === s.id, 'is-dim': activeId && activeId !== s.id }"
+          :class="{
+            'is-active': coreHover || activeId === s.id,
+            'is-dim': activeId && activeId !== s.id,
+            'is-featured': s.featured,
+          }"
           stroke="url(#orbit-conn)"
           :d="s.d"
         />
@@ -335,7 +370,11 @@ onBeforeUnmount(() => io?.disconnect())
             v-for="s in all"
             :key="'p-' + s.id"
             class="orbit__particle"
-            :class="{ 'is-active': activeId === s.id, 'is-dim': activeId && activeId !== s.id }"
+            :class="{
+              'is-active': activeId === s.id,
+              'is-dim': activeId && activeId !== s.id,
+              'is-featured': s.featured,
+            }"
             :r="s.tier === 'bundled' ? 5 : 4.4"
           >
             <animateMotion :dur="s.dur" :begin="s.begin" repeatCount="indefinite">
@@ -368,7 +407,6 @@ onBeforeUnmount(() => io?.disconnect())
             class="orbit__sheet"
             :style="{ '--tone': t, '--i': i }"
           />
-          <span class="orbit__shimmer" aria-hidden="true" />
         </span>
         <span class="orbit__core-label">
           <span class="orbit__core-dot" aria-hidden="true" />Lasagna core
@@ -416,7 +454,7 @@ onBeforeUnmount(() => io?.disconnect())
             >
               <a
                 class="orbit__chip orbit__chip--package"
-                :class="{ 'is-active': activeId === s.id }"
+                :class="{ 'is-active': activeId === s.id, 'orbit__chip--featured': s.featured }"
                 :href="s.href"
                 :aria-describedby="'d-' + s.id"
                 @mouseenter="activate(s.id)"
@@ -428,6 +466,9 @@ onBeforeUnmount(() => io?.disconnect())
                   <component :is="s.icon" :size="15" weight="regular" />
                 </span>
                 <span class="orbit__chip-label">{{ s.label }}</span>
+                <!-- Decorative: the link's accessible name stays "AI". Novelty is
+                     announced through the aria-describedby target instead. -->
+                <span v-if="s.featured" class="orbit__chip-badge" aria-hidden="true">New</span>
               </a>
               <span class="orbit__sat-desc">{{ s.desc }}</span>
             </li>
@@ -445,6 +486,7 @@ onBeforeUnmount(() => io?.disconnect())
             :class="active.tier === 'bundled' ? 'is-bundled' : 'is-pkg'"
             >{{ active.tier === 'bundled' ? 'bundled with core' : 'installable package' }}</span
           >
+          <span v-if="active.featured" class="orbit__cap-new">New</span>
         </p>
         <p class="orbit__cap-desc">{{ active.desc }}</p>
         <code v-if="active.cmd" class="orbit__cap-cmd">
@@ -471,8 +513,12 @@ onBeforeUnmount(() => io?.disconnect())
     <div class="orbit__sr">
       <p>Lasagna core, always on: {{ CAPABILITIES.join('; ') }}.</p>
       <p v-for="s in all" :id="'d-' + s.id" :key="'sr-' + s.id">
-        {{ s.label }}, {{ s.tier === 'bundled' ? 'bundled with core' : 'installable package' }}:
-        {{ s.desc }}
+        {{ s.label }},
+        {{ s.tier === 'bundled' ? 'bundled with core' : 'installable package' }}<template
+          v-if="s.featured"
+        >
+          (new)</template
+        >: {{ s.desc }}
       </p>
     </div>
   </section>
@@ -531,8 +577,8 @@ onBeforeUnmount(() => io?.disconnect())
   z-index: 1;
 }
 
-/* Atmosphere: a slow multi-tone aura + a faint radar sweep, both decorative,
-   masked to the disc so the constellation dissolves into the page at its edge. */
+/* Atmosphere: a slow multi-tone aura, decorative, masked to the disc so the
+   constellation dissolves into the page at its edge. */
 .orbit__aura {
   position: absolute;
   inset: -4%;
@@ -560,29 +606,6 @@ onBeforeUnmount(() => io?.disconnect())
     transform: rotate(9deg) scale(1.06);
   }
 }
-.orbit__radar {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  border-radius: 50%;
-  pointer-events: none;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0 76%,
-    color-mix(in oklab, var(--vp-c-brand-1) 14%, transparent) 90%,
-    transparent 100%
-  );
-  -webkit-mask: radial-gradient(circle, transparent 55%, #000 58%, #000 87%, transparent 90%);
-  mask: radial-gradient(circle, transparent 55%, #000 58%, #000 87%, transparent 90%);
-  opacity: 0.5;
-  animation: orbit-spin 17s linear infinite;
-}
-@keyframes orbit-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 /* Faint static guide ring for depth between the two live rings. */
 .orbit__guide {
   fill: none;
@@ -662,6 +685,15 @@ onBeforeUnmount(() => io?.disconnect())
 }
 .orbit__particle.is-dim {
   opacity: 0.22;
+}
+/* The featured spoke carries a persistent tint at rest, and still yields to
+   focus mode: `is-dim` wins because the guard drops these rules out. */
+.orbit__conn.is-featured:not(.is-dim) {
+  opacity: 0.85;
+  stroke-width: 2;
+}
+.orbit__particle.is-featured:not(.is-dim) {
+  opacity: 1;
 }
 .orbit__moon {
   fill: color-mix(in oklab, var(--vp-c-brand-1) 80%, #fff);
@@ -774,29 +806,6 @@ onBeforeUnmount(() => io?.disconnect())
     inset 0 1px 0 rgba(255, 255, 255, 0.28),
     0 4px 10px -5px color-mix(in oklab, var(--tone) 60%, transparent);
 }
-/* A light reflection sweeping across the stacked sheets. */
-.orbit__shimmer {
-  position: absolute;
-  inset: -20% -40%;
-  background: linear-gradient(
-    74deg,
-    transparent 38%,
-    rgba(255, 255, 255, 0.55) 50%,
-    transparent 62%
-  );
-  transform: translateX(-120%);
-  animation: orbit-shimmer 5.5s ease-in-out 1.2s infinite;
-  pointer-events: none;
-}
-@keyframes orbit-shimmer {
-  0% {
-    transform: translateX(-120%);
-  }
-  26%,
-  100% {
-    transform: translateX(120%);
-  }
-}
 .orbit__core-label {
   position: relative;
   z-index: 1;
@@ -884,6 +893,33 @@ onBeforeUnmount(() => io?.disconnect())
   color: #fff;
 }
 
+/* The newest satellite. Emphasis is a hairline, a tinted token, and a badge:
+   no glow and no motion, so it reads as a label rather than an advertisement.
+   Sets no `opacity`, so the focus-mode dim rule still quiets it when another
+   satellite is engaged. */
+.orbit__chip--featured {
+  border-color: color-mix(in oklab, var(--vp-c-brand-1) 55%, var(--vp-c-divider));
+}
+.orbit__chip--featured .orbit__chip-token {
+  background: var(--vp-c-brand-soft);
+  border-color: transparent;
+  color: var(--vp-c-brand-1);
+}
+.orbit__chip-badge {
+  flex: none;
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+  padding: 0.16rem 0.34rem;
+  border-radius: 5px;
+  color: var(--vp-c-brand-1);
+  background: var(--vp-c-brand-soft);
+  border: 1px solid color-mix(in oklab, var(--vp-c-brand-1) 30%, transparent);
+}
+
 /* ─── Caption card ──────────────────────────────────────────────── */
 .orbit__caption {
   max-width: 38rem;
@@ -927,6 +963,18 @@ onBeforeUnmount(() => io?.disconnect())
 .orbit__cap-tier.is-pkg {
   color: var(--vp-c-text-2);
   border-color: var(--vp-c-divider);
+}
+.orbit__cap-new {
+  display: inline-block;
+  padding: 0.12rem 0.5rem;
+  border-radius: 6px;
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vp-c-brand-1);
+  background: var(--vp-c-brand-soft);
+  border: 1px solid color-mix(in oklab, var(--vp-c-brand-1) 22%, transparent);
 }
 .orbit__cap-desc {
   margin: 0;
@@ -1038,8 +1086,7 @@ onBeforeUnmount(() => io?.disconnect())
 
 /* ─── Mobile: vertical communication spine ──────────────────────── */
 @media (max-width: 860px) {
-  .orbit__svg,
-  .orbit__radar {
+  .orbit__svg {
     display: none;
   }
   .orbit__stage {
@@ -1058,8 +1105,11 @@ onBeforeUnmount(() => io?.disconnect())
     transform: translateX(-50%);
     animation: none;
   }
+  /* `relative`, not `static`: the halo and pulse are absolutely positioned at
+     `inset: -14%`, and under `static` they resolved against the stage rather
+     than the core, stretching far past it and scrolling the page sideways. */
   .orbit__core {
-    position: static;
+    position: relative;
     transform: none;
     width: clamp(150px, 52vw, 200px);
     aspect-ratio: 1;
@@ -1189,9 +1239,7 @@ onBeforeUnmount(() => io?.disconnect())
   .orbit__ring,
   .orbit__pulse,
   .orbit__aura,
-  .orbit__radar,
-  .orbit__halo,
-  .orbit__shimmer {
+  .orbit__halo {
     animation: none;
   }
   .orbit__stage.is-armed:not(.is-revealed) .orbit__sat,

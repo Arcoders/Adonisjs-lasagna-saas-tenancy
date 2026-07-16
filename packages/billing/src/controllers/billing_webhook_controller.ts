@@ -14,14 +14,14 @@ import type { BillingWebhookEvent } from '../contracts/types.js'
  *
  * Hot path:
  *   1. INSERT into `billing_processed_events` with ON CONFLICT DO NOTHING.
- *   2. Dispatch async to the queue — providers expect a fast 2xx, and handlers
+ *   2. Dispatch async to the queue: providers expect a fast 2xx, and handlers
  *      can take 100s of ms (DB writes + a provider re-fetch).
  *
  * Failure modes handled: duplicate delivery (ON CONFLICT no-op, but re-dispatch
  * the narrow case where the original dispatch never reached a worker), and a
  * queue outage (re-throw 5xx so the provider retries the whole delivery).
  *
- * NOT a public surface — mounted internally by `multitenancyBillingRoutes()`.
+ * NOT a public surface. Mounted internally by `multitenancyBillingRoutes()`.
  */
 export default class BillingWebhookController {
   async handle({ request, response }: HttpContext) {
@@ -56,7 +56,7 @@ export default class BillingWebhookController {
       if (existing && existing.status === 'pending' && (existing.attempts ?? 0) === 0) {
         // Prior delivery wrote the ledger row but dispatch failed (queue
         // outage). No worker has touched it (attempts=0), so re-dispatching is
-        // safe — the worker is idempotent on `status='completed'` rows.
+        // safe. The worker is idempotent on `status='completed'` rows.
         shouldDispatch = true
         logger.warn(
           { event_id: event.id, event_type: event.type, provider: event.provider },

@@ -15,14 +15,14 @@ import { sizes } from '../harness/config.js'
 
 const GROUP = 'connection_budget'
 
-// The in-use-aware LRU only evicts connections OUTSIDE the grace window — it
+// The in-use-aware LRU only evicts connections OUTSIDE the grace window. It
 // refuses to sever a connection that might be serving a request. A tight
 // synthetic provisioning loop touches every connection "just now", so under the
 // default 30s grace nothing is evictable and the pool grows to N. That is the
 // documented "exceed the cap rather than sever an active request" behavior
 // (and the churn tier proves it stays leak-free). To MEASURE steady-state cap
 // enforcement here, we shrink the grace so connections age out between touches
-// and the cap binds — which is what `peak ≈ maxTenantConnections × poolMax`
+// and the cap binds, which is what `peak ≈ maxTenantConnections × poolMax`
 // describes once traffic is no longer bursting.
 const BUDGET_GRACE_MS = 50
 
@@ -43,7 +43,7 @@ export async function runConnectionBudget(
   const cap = getConfig().isolation?.maxTenantConnections ?? 50
 
   // database-pg provisions a real database per tenant (CREATE DATABASE), so cap
-  // the swept counts to keep the run sane — the per-database backend budget is
+  // the swept counts to keep the run sane. The per-database backend budget is
   // already visible at a modest N. schema-pg/rowscope provision cheaply.
   const counts =
     driver.name === 'database-pg'

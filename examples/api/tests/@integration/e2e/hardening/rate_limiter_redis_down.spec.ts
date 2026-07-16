@@ -7,7 +7,7 @@ import { RateLimitUnavailableException } from '@adonisjs-lasagna/saas-tenancy/ex
 import { createInstalledTenant, dropAllTenants } from '../_helpers.js'
 
 /**
- * HARDENING — rate-limit middleware fault injection: Redis is DOWN.
+ * HARDENING: rate-limit middleware fault injection when Redis is DOWN.
  *
  * Documented policy (fail-CLOSED by default). From
  * packages/core/src/middleware/rate_limit_middleware.ts:97 the effective policy
@@ -31,9 +31,9 @@ import { createInstalledTenant, dropAllTenants } from '../_helpers.js'
  *
  * How Redis-down is simulated: the demo app shares one Ignitor and one real
  * Redis across the whole e2e suite, so we must NOT take down the singleton (it
- * would leak into sibling specs). Instead we use the repo's established seam —
- * the same one used by packages/core's security_rate_limit.spec.ts and
- * resilience_circuit_breaker_service_redis_down.spec.ts — subclassing the
+ * would leak into sibling specs). Instead we use the repo's established seam
+ * (the same one used by packages/core's security_rate_limit.spec.ts and
+ * resilience_circuit_breaker_service_redis_down.spec.ts): subclassing the
  * middleware so `getRedis()` rejects exactly as a refused connection would, and
  * forcing `isTestEnv()` false so the limiter runs instead of short-circuiting
  * under `app.inTest`.
@@ -89,7 +89,7 @@ test.group('hardening — rate-limit middleware fails CLOSED when Redis is down'
           nextCalled = true
         },
         // bypassInTestEnv mirrors isTestEnv() being forced false: belt-and-braces
-        // so the limiter runs. Default failOpen (unset) => global fail-closed policy.
+        // so the limiter runs. Default failOpen (unset) means global fail-closed policy.
         { limit: 5, windowSeconds: 60, bypassInTestEnv: true }
       )
     } catch (error) {
@@ -117,7 +117,7 @@ test.group('hardening — rate-limit middleware fails CLOSED when Redis is down'
     assert,
   }) => {
     // The companion of the default: rate_limit_middleware.ts:146 `if (failOpen)
-    // return next()` — an explicit per-route failOpen:true wins over the global
+    // return next()`. An explicit per-route failOpen:true wins over the global
     // fail-closed policy, so the same Redis outage is bypassed (the request still
     // succeeds, unmetered). This proves the policy knob is actually wired.
     const { id } = await createInstalledTenant(client)

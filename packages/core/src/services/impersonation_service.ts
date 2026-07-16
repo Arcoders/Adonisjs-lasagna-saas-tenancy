@@ -15,7 +15,7 @@ const MAX_DURATION = 24 * 60 * 60
  * Permissive enough to accept UUIDs, ULIDs, and bigint-as-string user ids
  * but strict enough to keep the audit trail readable and reject embedded
  * control chars or path-like values. Apps with looser id formats can pass
- * `validateTargetUserId: false` (added if/when needed) — for now we err on
+ * `validateTargetUserId: false` (added if/when needed). For now we err on
  * the side of safety.
  */
 const TARGET_USER_ID_RE = /^[a-zA-Z0-9._:@-]{1,128}$/
@@ -27,26 +27,53 @@ const TARGET_USER_ID_RE = /^[a-zA-Z0-9._:@-]{1,128}$/
  * compare (rejects tampering offline) and a cache lookup (confirms the
  * session is still alive and not revoked).
  *
- * The package never assumes anything about the host's auth model — it just
+ * The package never assumes anything about the host's auth model. It just
  * exposes the verified `ImpersonationContext`. Wiring it into `auth.user`
  * is the responsibility of the consumer.
  */
 export default class ImpersonationService {
   #auditLog?: AuditLogService | undefined
 
+  /**
+   * `auditLog` is an optional test override. In production the provider
+   * registers this service with a plain synchronous factory and the audit log
+   * is resolved lazily from the container on first {@link #audit} (see
+   * {@link #resolveAuditLog}), so nothing here needs an async factory.
+   */
   constructor(opts?: { auditLog?: AuditLogService }) {
     this.#auditLog = opts?.auditLog
   }
 
   /**
+   * Resolve the optional {@link AuditLogService}, memoizing on first success.
+   * Injected (test) instances win. Otherwise we pull the singleton from the
+   * container lazily, which is what lets the provider register this service with
+   * a uniform sync factory rather than the sole async factory among its
+   * singletons. Best-effort: a container without the binding (unit tests) just
+   * skips the audit, exactly as an unconfigured audit log did before.
+   */
+  async #resolveAuditLog(): Promise<AuditLogService | undefined> {
+    if (this.#auditLog) return this.#auditLog
+    try {
+      const { default: app } = await import('@adonisjs/core/services/app')
+      const { default: AuditLogServiceClass } = await import('./audit_log_service.js')
+      const svc = await app.container.make(AuditLogServiceClass)
+      this.#auditLog = svc
+      return svc
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
    * Start an impersonation session. Returns a wire token, the underlying
    * session id, and the absolute expiration. The session is persisted in
-   * the package cache (BentoCache → Redis L2) with TTL = duration.
+   * the package cache (BentoCache backed by the Redis L2 tier) with TTL = duration.
    */
   async start(opts: ImpersonationStartOptions): Promise<ImpersonationStartResult> {
     // Validate the secret BEFORE we touch the cache or generate session
     // data. Otherwise a misconfigured deploy leaves us hanging on Redis
-    // long enough for the request to time out — and it would be a real
+    // long enough for the request to time out, and it would be a real
     // pain to debug from a 30-second timeout instead of a clear error.
     this.#secret()
 
@@ -111,7 +138,7 @@ export default class ImpersonationService {
     }
   }
 
-  /** Revoke a session by token (idempotent — silent if already gone). */
+  /** Revoke a session by token (idempotent, silent if already gone). */
   async stop(token: string, opts: { ipAddress?: string | null } = {}): Promise<boolean> {
     const sessionId = this.#extractSessionId(token)
     if (!sessionId) return false
@@ -184,7 +211,7 @@ export default class ImpersonationService {
 
     // Audit the FIRST successful verify so the trail records when the
     // session was actually used (start vs use can be hours apart). Subsequent
-    // verifies are silent — we only need one entry per session.
+    // verifies are silent. We only need one entry per session.
     if (!session.firstVerifyAt) {
       const remainingMs = Math.max(session.expiresAt - Date.now(), 1000)
       session.firstVerifyAt = new Date().toISOString()
@@ -203,7 +230,7 @@ export default class ImpersonationService {
           },
         })
       } catch {
-        // Audit / cache write failures must not break verify — the session
+        // Audit / cache write failures must not break verify. The session
         // is still valid; we just lose the first-use audit row.
       }
     }
@@ -263,9 +290,10 @@ export default class ImpersonationService {
     ipAddress: string | null
     metadata: Record<string, unknown>
   }): Promise<void> {
-    if (!this.#auditLog) return
+    const auditLog = await this.#resolveAuditLog()
+    if (!auditLog) return
     try {
-      await this.#auditLog.log(opts)
+      await auditLog.log(opts)
     } catch {
       // Audit failures should not bring down impersonation; the operator
       // already has the wire token in hand.

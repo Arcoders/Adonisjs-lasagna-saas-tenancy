@@ -12,7 +12,7 @@ import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite
  * QuotaService.assignPlan is the package's only public write into
  * `tenant_plans`. We test:
  *   - validation against `definitions`
- *   - idempotent re-assigns (same row → no churn)
+ *   - idempotent re-assigns (same row, no churn)
  *   - cache invalidation reflects on the next read
  *   - expired rows are treated as missing (grace fallback)
  */
@@ -123,7 +123,7 @@ test.group('QuotaService.assignPlan (integration)', (group) => {
   }) => {
     // Reconfigure plans with two limit dimensions. The plan-name cache
     // is keyed per tenant (not per dimension), so a downgrade must make
-    // the next read of ANY dimension reflect the new plan — this guards
+    // the next read of ANY dimension reflect the new plan. This guards
     // against a regression that caches resolved limits per dimension.
     const cfg = getConfig()
     setConfig({

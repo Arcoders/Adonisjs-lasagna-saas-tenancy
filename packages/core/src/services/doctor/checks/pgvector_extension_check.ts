@@ -22,14 +22,14 @@ async function extensionInExpectedSchema(conn: any): Promise<boolean> {
 }
 
 /**
- * Opt-in readiness check for pgvector. Two things it verifies, backing SEAM-5's
- * privilege separation (G14):
+ * Opt-in readiness check for pgvector. Two things it verifies, both backing
+ * pgvector's privilege separation:
  *
  *   1. The app's database role is NOT a superuser. `CREATE EXTENSION` should run
  *      under a separate privileged provisioning connection, not the role that
  *      serves tenant requests, so a superuser app role is flagged as a warning.
- *   2. The `vector` extension exists — installed into the dedicated
- *      `PGVECTOR_EXTENSION_SCHEMA` — where embeddings will live: on the shared
+ *   2. The `vector` extension exists (installed into the dedicated
+ *      `PGVECTOR_EXTENSION_SCHEMA`) where embeddings will live: on the shared
  *      database for `schema-pg`/`rowscope-pg`, or in EACH tenant database for
  *      `database-pg`. A missing (or mis-located) extension is an error, since an
  *      embeddings migration declaring a bare `vector(N)` column would then fail

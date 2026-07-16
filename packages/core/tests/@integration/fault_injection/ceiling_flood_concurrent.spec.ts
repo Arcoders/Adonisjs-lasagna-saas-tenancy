@@ -11,15 +11,15 @@ import { AI_TAG } from '../../helpers/tags.js'
 
 /**
  * Fault-injection tier: an adversarial flood on the operator-global ceiling
- * (denial-of-wallet, #13). Many tenants reserve at once against a shared ceiling
+ * (denial-of-wallet). Many tenants reserve at once against a shared ceiling
  * sized to admit only a few. The behavior tier proves the both-or-neither ceiling
- * for a single reserve; this proves it holds under a concurrent BURST — the
+ * for a single reserve; this proves it holds under a concurrent BURST. The
  * single-EVAL atomicity must serialize the winners so the committed + outstanding
  * reserved never exceeds the ceiling, and the losers are refused fairly.
  *
  * The second case composes the flood with a crash: the winners never settle or
  * release (a crashed stream). Their reservation TTL must reclaim the shared
- * ceiling capacity so a later tenant can reserve again — proving the reaper works
+ * ceiling capacity so a later tenant can reserve again, proving the reaper works
  * under contention, not just for one idle hold.
  */
 function fakeTenant(id: string): TenantModelContract {
@@ -81,7 +81,7 @@ test.group('operator ceiling under a concurrent flood (fault injection, real Red
     assert,
   }) => {
     configure()
-    // ceiling 1000 / worstCase 200 => exactly 5 of the 10 concurrent reserves fit.
+    // ceiling 1000 / worstCase 200 means exactly 5 of the 10 concurrent reserves fit.
     const results = await Promise.allSettled(tenants.map((t) => svc.reserve(t, QUOTA, 200)))
     const won = results.filter((r) => r.status === 'fulfilled')
     const lost = results.filter((r) => r.status === 'rejected')
@@ -118,7 +118,7 @@ test.group('operator ceiling under a concurrent flood (fault injection, real Red
     await assert.rejects(() => svc.reserve(latecomer, QUOTA, 200), QuotaExceededException)
 
     // After the TTL elapses, the crashed holds are reapable; the latecomer's
-    // reserve reaps them and succeeds — the shared capacity was reclaimed.
+    // reserve reaps them and succeeds. The shared capacity was reclaimed.
     await new Promise((r) => setTimeout(r, 350))
     const r = await svc.reserve(latecomer, QUOTA, 200)
     assert.isNotEmpty(r.id, 'ceiling capacity reclaimed after the crashed holds expired')

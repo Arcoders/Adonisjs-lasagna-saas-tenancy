@@ -13,11 +13,18 @@ import { readFileSync, existsSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { stripJsComments } from './lib/strip-js-comments.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const r = (p) => join(ROOT, p)
 
-/** Each extension surface, the constant that versions it, and where it lives. */
+/**
+ * Each extension surface: the constant that versions it (`constant`) and the file the
+ * constant lives in (`file`). A surface that has reached a breaking version (> 1) must
+ * additionally declare `shapeGate` — the registry file whose `assertShape` override
+ * enforces the newly-required member (EXT-3), or `null` when the surface is a config
+ * hook with no registration seam. Below v2 `shapeGate` is optional.
+ */
 const SURFACES = [
   {
     key: 'reporting',
@@ -55,11 +62,13 @@ const SURFACES = [
     key: 'isolation',
     constant: 'ISOLATION_CONTRACT_VERSION',
     file: 'packages/core/src/services/isolation/driver.ts',
+    shapeGate: 'packages/core/src/services/isolation/registry.ts',
   },
   {
     key: 'resolver',
     constant: 'RESOLVER_CONTRACT_VERSION',
     file: 'packages/core/src/services/resolvers/resolver.ts',
+    shapeGate: 'packages/core/src/services/resolvers/registry.ts',
   },
   // Plugin-platform request-path seams (Lote A): each hosts host/third-party code
   // and versions independently of satelliteApi and the definePlugin facade.
@@ -79,11 +88,6 @@ const SURFACES = [
     file: 'packages/core/src/services/capability_registry.ts',
   },
   { key: 'ai', constant: 'AI_CONTRACT_VERSION', file: 'packages/ai/src/sdk/contract_version.ts' },
-  {
-    key: 'crypto',
-    constant: 'CRYPTO_CONTRACT_VERSION',
-    file: 'packages/crypto/src/sdk/contract_version.ts',
-  },
 ]
 
 /**
@@ -98,6 +102,7 @@ const DOCS = 'docs/guides/extensibility.md'
 const EXAMPLE = 'examples/api/app/providers/app_provider.ts'
 
 const errors = []
+const versions = new Map()
 
 for (const s of SURFACES) {
   if (!existsSync(r(s.file))) {
@@ -110,14 +115,54 @@ for (const s of SURFACES) {
     errors.push(`${s.key}: ${s.file} does not \`export const ${s.constant} = <n>\``)
     continue
   }
-  if (!(Number.parseInt(match[1], 10) > 0)) {
+  const value = Number.parseInt(match[1], 10)
+  if (!(value > 0)) {
     errors.push(`${s.key}: ${s.constant} must be a positive integer (got ${match[1]})`)
+  }
+  versions.set(s.constant, value)
+}
+
+// EXT-3: a contract version > 1 is a BREAKING bump, but `assertContractCompat` only
+// WARNS a plugin built against an older version — so a plugin missing the newly required
+// member boots (with a warning) and then crashes mid-request. A surface above 1 must back
+// the bump with a boot-time SHAPE gate: an `assertShape` override in its `ExtensionRegistry`
+// subclass that throws when the member is absent, converting warn-then-crash into a
+// register-time failure. So every surface that reaches v>1 MUST declare `shapeGate` — the
+// registry file whose assertShape override enforces the member, or `null` for a non-registry
+// surface (a config hook like the websockets `authorize`, which has no registration seam to
+// gate). An UNDECLARED shapeGate at v>1 is itself an error, so a future bump (core OR
+// satellite) cannot silently escape the requirement. Satellites stay on 1 today, so none
+// trip this yet — but the first one to bump must declare its shapeGate.
+for (const s of SURFACES) {
+  const version = versions.get(s.constant)
+  if (version === undefined || version <= 1) continue
+  if (!('shapeGate' in s)) {
+    errors.push(
+      `${s.key}: ${s.constant} is ${version} (a breaking bump) but declares no shapeGate. A ` +
+        `breaking bump only WARNS older plugins via assertContractCompat, so a missing required ` +
+        `member would warn-then-crash. Declare shapeGate: the registry file whose assertShape() ` +
+        `override throws when the member is absent (EXT-2), or shapeGate: null for a non-registry ` +
+        `surface (a config hook with no registration seam).`
+    )
+    continue
+  }
+  if (s.shapeGate === null) continue // a documented non-registry surface (config hook)
+  if (!existsSync(r(s.shapeGate))) {
+    errors.push(`${s.key}: shapeGate file ${s.shapeGate} not found`)
+    continue
+  }
+  // Strip comments first: a doc-comment MENTIONING assertShape must not satisfy the gate.
+  if (!/\bassertShape\s*\(/.test(stripJsComments(readFileSync(r(s.shapeGate), 'utf8')))) {
+    errors.push(
+      `${s.key}: ${s.constant} is ${version} but its shapeGate ${s.shapeGate} has no assertShape() ` +
+        `override. Add one that throws when the newly required member is absent (EXT-2).`
+    )
   }
 }
 
 // Meta-check: every `export const *_CONTRACT_VERSION` under a package's src MUST be a
 // registered surface (or an allowlisted non-surface), so a NEW extension surface can't
-// ship unguarded/undocumented — the exact gap that left AI + crypto out of this table.
+// ship unguarded/undocumented — the exact gap that once left AI out of this table.
 const known = new Set([...SURFACES.map((s) => s.constant), ...NON_SURFACE_CONTRACT_VERSIONS])
 const tracked = execSync('git ls-files -z -- "packages/**/src/**/*.ts"', {
   cwd: ROOT,

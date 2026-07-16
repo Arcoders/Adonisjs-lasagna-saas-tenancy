@@ -1,17 +1,18 @@
 import { test } from '@japa/runner'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { getConfig, __resetConfigForTests } from '../../../src/config.js'
+import { getConfig } from '../../../src/config.js'
+import { __resetConfigForTests } from '../../../src/testing/config_reset.js'
 import { setupTestConfig } from '../../helpers/config.js'
 
 /**
- * WS-10 / getconfig-preboot-trap-not-in-gotchas.
+ * The getConfig() pre-boot trap is documented.
  *
- * `getConfig()` throws before the provider's `boot()` calls `setConfig()` — a
+ * `getConfig()` throws before the provider's `boot()` calls `setConfig()`, a
  * real load-order trap (top-level call, or a unit test that never booted). The
  * gotchas page must document it. This test anchors the behavior AND pins the doc.
  *
- * RED (pre-fix): gotchas.md had no getConfig() entry.
+ * Before the fix, gotchas.md had no getConfig() entry.
  */
 const GOTCHAS = fileURLToPath(new URL('../../../../../docs/reference/gotchas.md', import.meta.url))
 

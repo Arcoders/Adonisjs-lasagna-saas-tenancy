@@ -4,23 +4,23 @@
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
 /**
- * OPT-IN defense-in-depth for the SHARED `backoffice` schema.
+ * OPT-IN defense-in-depth for the SHARED \`backoffice\` schema.
  *
  * Unlike per-tenant schemas, the backoffice schema holds every tenant's
  * satellite rows (audit logs, feature flags, webhooks, branding, metrics, plans)
- * side by side, keyed by a `tenant_id` column. The package always filters those
- * queries by `tenant_id` (enforced by the `backoffice_models_tenant_scoped`
+ * side by side, keyed by a \`tenant_id\` column. The package always filters those
+ * queries by \`tenant_id\` (enforced by the \`backoffice_models_tenant_scoped\`
  * architectural guard), but a hand-written query in your own code, or a future
  * refactor, could forget the filter and read across tenants. This migration adds
  * a PostgreSQL Row-Level Security backstop so the database enforces the boundary
  * regardless of how a query is written.
  *
- * It reads a per-transaction setting, `app.backoffice_tenant_id`, which you must
+ * It reads a per-transaction setting, \`app.backoffice_tenant_id\`, which you must
  * SET on the backoffice connection for the duration of any tenant-scoped
  * backoffice work (set it to the active tenant id; reset it to '' for the
- * genuinely cross-tenant sweeps the package marks `backoffice-scope-exempt`,
+ * genuinely cross-tenant sweeps the package marks \`backoffice-scope-exempt\`,
  * such as the webhook retry drain and the audit export). When the setting is
- * unset or '', `nullif(...)` makes the predicate NULL so it matches no rows
+ * unset or '', \`nullif(...)\` makes the predicate NULL so it matches no rows
  * (fail-closed).
  *
  * IMPORTANT: a cross-tenant sweep (retry drain, full audit export) needs the GUC
@@ -28,7 +28,7 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
  * once you have wired the GUC on both the per-tenant and the sweep paths. The
  * app's runtime role must NOT have BYPASSRLS or SUPERUSER (they skip RLS).
  *
- * EDIT `TABLES` to match the satellite tables you actually installed.
+ * EDIT \`TABLES\` to match the satellite tables you actually installed.
  */
 const SCHEMA = 'backoffice'
 const TABLES = [
@@ -48,33 +48,33 @@ const POLICY = 'backoffice_tenant_isolation'
 export default class extends BaseSchema {
   async up() {
     for (const table of TABLES) {
-      const ref = `"${SCHEMA}"."${table}"`
+      const ref = \`"\${SCHEMA}"."\${table}"\`
       // Skip a table you did not install rather than failing the whole migration:
       // the satellite tables are individually opt-in, so a missing one is normal.
       this.schema.raw(
-        `DO $$ BEGIN ` +
-          `IF to_regclass('${ref}') IS NOT NULL THEN ` +
-          `EXECUTE 'ALTER TABLE ${ref} ENABLE ROW LEVEL SECURITY'; ` +
-          `EXECUTE 'ALTER TABLE ${ref} FORCE ROW LEVEL SECURITY'; ` +
-          `EXECUTE 'DROP POLICY IF EXISTS ${POLICY} ON ${ref}'; ` +
-          `EXECUTE 'CREATE POLICY ${POLICY} ON ${ref} ` +
-          `USING (("${TENANT_COLUMN}")::text = nullif(current_setting(''${GUC}'', true), '''')) ` +
-          `WITH CHECK (("${TENANT_COLUMN}")::text = nullif(current_setting(''${GUC}'', true), ''''))'; ` +
-          `END IF; END $$;`
+        \`DO $$ BEGIN \` +
+          \`IF to_regclass('\${ref}') IS NOT NULL THEN \` +
+          \`EXECUTE 'ALTER TABLE \${ref} ENABLE ROW LEVEL SECURITY'; \` +
+          \`EXECUTE 'ALTER TABLE \${ref} FORCE ROW LEVEL SECURITY'; \` +
+          \`EXECUTE 'DROP POLICY IF EXISTS \${POLICY} ON \${ref}'; \` +
+          \`EXECUTE 'CREATE POLICY \${POLICY} ON \${ref} \` +
+          \`USING (("\${TENANT_COLUMN}")::text = nullif(current_setting(''\${GUC}'', true), '''')) \` +
+          \`WITH CHECK (("\${TENANT_COLUMN}")::text = nullif(current_setting(''\${GUC}'', true), ''''))'; \` +
+          \`END IF; END $$;\`
       )
     }
   }
 
   async down() {
     for (const table of TABLES) {
-      const ref = `"${SCHEMA}"."${table}"`
+      const ref = \`"\${SCHEMA}"."\${table}"\`
       this.schema.raw(
-        `DO $$ BEGIN ` +
-          `IF to_regclass('${ref}') IS NOT NULL THEN ` +
-          `EXECUTE 'DROP POLICY IF EXISTS ${POLICY} ON ${ref}'; ` +
-          `EXECUTE 'ALTER TABLE ${ref} NO FORCE ROW LEVEL SECURITY'; ` +
-          `EXECUTE 'ALTER TABLE ${ref} DISABLE ROW LEVEL SECURITY'; ` +
-          `END IF; END $$;`
+        \`DO $$ BEGIN \` +
+          \`IF to_regclass('\${ref}') IS NOT NULL THEN \` +
+          \`EXECUTE 'DROP POLICY IF EXISTS \${POLICY} ON \${ref}'; \` +
+          \`EXECUTE 'ALTER TABLE \${ref} NO FORCE ROW LEVEL SECURITY'; \` +
+          \`EXECUTE 'ALTER TABLE \${ref} DISABLE ROW LEVEL SECURITY'; \` +
+          \`END IF; END $$;\`
       )
     }
   }

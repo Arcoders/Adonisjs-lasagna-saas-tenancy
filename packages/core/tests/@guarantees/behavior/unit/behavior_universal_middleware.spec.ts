@@ -39,7 +39,7 @@ test.group('UniversalMiddleware', (group) => {
   }) => {
     const m = new UniversalMiddleware()
     let nextCalled = false
-    // The header IS set but the value is malformed (non-UUID) — repo lookup
+    // The header IS set but the value is malformed (non-UUID), so a repo lookup
     // would fail in production; here repo isn't bound, so we hit the catch
     // branch and proceed.
     await m.handle(

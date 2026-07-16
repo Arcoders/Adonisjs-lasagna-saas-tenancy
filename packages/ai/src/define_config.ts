@@ -19,8 +19,8 @@ export type AIProviderName = 'claude' | 'deepseek' | 'kimi' | (string & {})
  * host (never hardcoded); `baseUrl` is the BYOK / self-host override (validated
  * against the SSRF guard before use); `defaultModel` is the model used when a
  * request omits one; `allowedModels` is the per-provider model allow-list that
- * scopes G12 to model granularity. `apiVersion` pins the Anthropic version
- * header for the Claude provider and is ignored by the others.
+ * extends provider gating down to model granularity. `apiVersion` pins the
+ * Anthropic version header for the Claude provider and is ignored by the others.
  */
 export interface AIProviderConfig {
   /** Secret API key. Read from the environment (e.g. `ANTHROPIC_API_KEY`). Never logged, never placed in a prompt or error. */
@@ -29,14 +29,14 @@ export interface AIProviderConfig {
   baseUrl?: string
   /** Model used when a request does not specify one. Defaults to the provider's built-in recommended model. */
   defaultModel?: string
-  /** Per-provider model allow-list. When present, a requested model outside it is rejected (G12 model scope). */
+  /** Per-provider model allow-list. When present, a requested model outside it is rejected. */
   allowedModels?: string[]
   /** Claude only: the `anthropic-version` header value. Ignored by OpenAI-compatible providers. */
   apiVersion?: string
 }
 
 /**
- * The vector-store / embedding block (WS-AI-3). Present when a host opts into
+ * The vector-store / embedding block. Present when a host opts into
  * embeddings. It configures the single embedding provider (a generic
  * OpenAI-compatible backend by default) plus the storage shape. `dimension` is
  * baked into the `vector(N)` column at migrate time and validated to 1..2000 at
@@ -80,10 +80,10 @@ export interface AIEmbeddingConfig extends AIProviderConfig {
 
 /**
  * How a {@link RetrievalFilter} scopes a tenant's corpus to what THIS user may
- * see (G2). A discriminated union so the intent is explicit and exhaustive:
+ * see. A discriminated union so the intent is explicit and exhaustive:
  * `all` is the whole tenant corpus, `sources` an allow-list over the provenance
  * `source` key (an empty list is a valid "sees nothing"), `metadata` a jsonb
- * containment match. Tenant isolation (I1/I4) is always enforced underneath this
+ * containment match. Tenant isolation is always enforced underneath this
  * scope; it only narrows retrieval WITHIN the already tenant-scoped index.
  */
 export type RetrievalScope =
@@ -92,7 +92,7 @@ export type RetrievalScope =
   | { readonly kind: 'metadata'; readonly match: Record<string, unknown> }
 
 /**
- * The per-user document ACL hook (G2). Called with the request context and the
+ * The per-user document ACL hook. Called with the request context and the
  * resolved tenant, it returns the {@link RetrievalScope} a retrieval is narrowed
  * to. Distinct from {@link AiConfig.authorizeAIAccess} ("may this caller use AI
  * at all"): this answers "WHICH of the tenant's documents may this caller
@@ -109,15 +109,15 @@ export type RetrievalFilter = (
 ) => RetrievalScope | Promise<RetrievalScope>
 
 /**
- * The retrieval (RAG) block (WS-AI-5), present when a host opts into similarity
- * search over the vector store. `retrievalFilter` is the per-user document ACL
- * (G2); the bounds cap a retrieval request and the size of a retrieved context
+ * The retrieval (RAG) block, present when a host opts into similarity
+ * search over the vector store. `retrievalFilter` is the per-user document ACL;
+ * the bounds cap a retrieval request and the size of a retrieved context
  * block folded into a chat prompt (#8, output bounds). Retrieval reuses the
  * embedding provider from {@link AIEmbeddingConfig} to embed the query, so
  * `config.ai.embedding` must be present for retrieval to work.
  */
 export interface AIRetrievalConfig {
-  /** The per-user document ACL (G2). Absent => the whole tenant corpus (a documented honest limit). */
+  /** The per-user document ACL. Absent means the whole tenant corpus (a documented honest limit). */
   retrievalFilter?: RetrievalFilter
   /** Default number of nearest matches when a request omits one. Default 8. */
   defaultLimit?: number
@@ -132,15 +132,15 @@ export interface AIRetrievalConfig {
 }
 
 /**
- * The conversation memory block (WS-AI-4, I2), present when a host opts into
+ * The conversation memory block, present when a host opts into
  * per-(tenant,user,session) chat history. Memory is encrypted at rest (enc_v2,
  * its own secret class), TTL-bounded in Redis, and replayed into the context as
  * `user`/`assistant` turns (never `system`, so a poisoned turn cannot rewrite
  * the instructions: #1/#10). Sessions are server-minted and HMAC-bound to the
  * (tenant, {@link AiConfig.resolvePrincipal | principal}) pair, so a client
- * cannot supply or guess one to reach another principal's memory (G6); the
+ * cannot supply or guess one to reach another principal's memory; the
  * `X-Ai-Session` response header hands the token back on the first turn. Absent
- * block ⇒ chat stays stateless and `sessionId` keeps its opaque idempotency-scope
+ * block means chat stays stateless and `sessionId` keeps its opaque idempotency-scope
  * meaning. Requires a resolvable principal; without one the `ai_memory` doctor
  * check warns and memory is inert.
  */
@@ -154,7 +154,7 @@ export interface AIMemoryConfig {
 }
 
 /**
- * The append-only audit block (WS-AI-7, I5). Audit is ON by default when
+ * The append-only audit block. Audit is ON by default when
  * `config.ai` is present (attribution is a security control, so fail-closed):
  * every chat / embedding / retrieval choke point writes a non-PII, hash-chained
  * row into the append-only `backoffice.ai_audit_logs` table, and a write outage
@@ -188,9 +188,9 @@ export type ResidencyPosture =
  * cost: on chat provider selection AND on embedding egress (embed / retrieve,
  * which have no other provider choke point). It is fail-closed (mirrors
  * {@link RetrievalFilter}): a throw or a malformed return refuses remote egress
- * with a 403 `residency_denied`. Absent ⇒ residency is unconstrained (the global
+ * with a 403 `residency_denied`. Absent means residency is unconstrained (the global
  * allow-list still applies). Provider identity is checked, not endpoint
- * geography — a documented honest limit (a BYOK `baseUrl` is the host's to place).
+ * geography: a documented honest limit (a BYOK `baseUrl` is the host's to place).
  */
 export type ResidencyResolver = (
   tenant: TenantModelContract
@@ -199,13 +199,14 @@ export type ResidencyResolver = (
 /**
  * An optional host hook to redact or transform the model's streamed output, as
  * host-owned defense-in-depth (a corporate DLP / PII-redaction policy, say).
- * Called per streamed chat fragment AFTER the mandatory I8 size bound, with the
+ * Called per streamed chat fragment AFTER the mandatory output size bound, with the
  * request context, the resolved tenant, and the fragment's text; return the
  * (possibly redacted) text, or `null` to abort the stream.
  *
- * It is **never the isolation control**: I4 (tenant-pure context) and I8 (output
- * bound) are the guarantee. A redactor cannot detect a leak that I4 already makes
- * impossible, and it does not substitute for tenant isolation. It is sync and
+ * It is **never the isolation control**: the tenant-pure context and the output
+ * bound are the guarantee. A redactor cannot detect a leak that the tenant-pure
+ * context already makes impossible, and it does not substitute for tenant
+ * isolation. It is sync and
  * per-fragment on purpose (async per-token DLP would kill streaming latency), so
  * a pattern split across two fragments can be missed. A throwing or
  * non-string-returning redactor fails closed (aborts the stream), so unredacted
@@ -232,7 +233,7 @@ export interface AiConfig {
    */
   defaultProvider?: AIProviderName
   /**
-   * The per-tenant default-deny allow-list (G12). A provider is selectable only
+   * The per-tenant default-deny allow-list. A provider is selectable only
    * if it is listed here; a newly registered provider is never auto-enabled.
    * Required and non-empty when `config.ai` is present.
    */
@@ -243,11 +244,11 @@ export interface AiConfig {
   deepseek?: AIProviderConfig
   /** Kimi / Moonshot (OpenAI-compatible) provider config. Required when `kimi` is allow-listed. */
   kimi?: AIProviderConfig
-  /** The vector store / embedding block (WS-AI-3). Present when the host opts into embeddings. */
+  /** The vector store / embedding block. Present when the host opts into embeddings. */
   embedding?: AIEmbeddingConfig
-  /** The retrieval / RAG block (WS-AI-5). Present when the host opts into similarity search over the vector store. */
+  /** The retrieval / RAG block. Present when the host opts into similarity search over the vector store. */
   retrieval?: AIRetrievalConfig
-  /** The conversation memory block (WS-AI-4). Present when the host opts into per-(tenant,user,session) chat history. */
+  /** The conversation memory block. Present when the host opts into per-(tenant,user,session) chat history. */
   memory?: AIMemoryConfig
   /** SSE heartbeat interval in ms. Default 15000. Must stay below any upstream proxy idle timeout. */
   heartbeatMs?: number
@@ -256,7 +257,7 @@ export interface AiConfig {
   /** Default per-request output token cap when a request omits `maxTokens`. Becomes the reservation worst case. */
   maxTokens?: number
   /**
-   * The AI membership gate (G4), mirroring core's `authorizeTenantAccess`
+   * The AI membership gate, mirroring core's `authorizeTenantAccess`
    * contract: called by the gateway after tenant resolution and the host's
    * auth middleware, with the request context and the resolved tenant.
    * Return `false` or throw to deny with a 403. Unlike the core hook, which
@@ -279,9 +280,9 @@ export interface AiConfig {
    * response must never be shareable across unknown callers).
    *
    * MUST return a STABLE, immutable per-user id (a primary key, not a mutable
-   * email): idempotency, audit attribution AND conversation memory (WS-AI-4)
-   * all bind to it. A change correctly orphans that principal's memory (G6),
-   * bounded by the memory TTL, so a mutable value silently loses history.
+   * email): idempotency, audit attribution AND conversation memory all bind to
+   * it. A change correctly orphans that principal's memory, bounded by the memory
+   * TTL, so a mutable value silently loses history.
    */
   resolvePrincipal?: (ctx: HttpContext) => string | number | null | undefined
   /**
@@ -317,17 +318,17 @@ export interface AiConfig {
   acknowledgeUnbudgetedAiTokens?: boolean
   /**
    * Opt into tenant-wide retrieval when no `config.ai.retrieval.retrievalFilter`
-   * (per-user document ACL, G2) is wired. Retrieval is fail-closed (mirrors the
-   * G4 mount gate): without a hook AND without this flag, every `/ai/retrieve` and
+   * (per-user document ACL) is wired. Retrieval is fail-closed (mirrors the
+   * membership mount gate): without a hook AND without this flag, every `/ai/retrieve` and
    * RAG chat is refused with a 403 `retrieval_denied`. Setting this to `true`
    * ENABLES retrieval and accepts that every user of a tenant can retrieve that
    * tenant's ENTIRE corpus; the `ai_retrieval_gate` doctor check then reports the
    * accepted posture (info) instead of the refused one (warn). Tenant isolation
-   * (I1/I4) is unaffected: this is about intra-tenant, per-user document
+   * is unaffected: this is about intra-tenant, per-user document
    * authorization, which is the host's job.
    */
   acknowledgeUnscopedRetrieval?: boolean
-  /** The append-only audit block (WS-AI-7, I5). On by default; set `enabled: false` to opt out. */
+  /** The append-only audit block. On by default; set `enabled: false` to opt out. */
   audit?: AIAuditConfig
   /**
    * Per-tenant data residency / no-train posture (#7 / #15). When set, a request
@@ -345,7 +346,7 @@ export interface AiConfig {
    */
   redactOutput?: RedactOutput
   /**
-   * Per-BATCH `statement_timeout` (ms) for the WS-AI-9 batched purge. Bounds a
+   * Per-BATCH `statement_timeout` (ms) for the batched compliance purge. Bounds a
    * single lock-blocked or runaway delete batch so it fails cleanly and the loop
    * retries; it is NOT a wall clock on the whole erasure (an erasure must run to
    * completion). Default: the connection default (no per-batch timeout). Must be

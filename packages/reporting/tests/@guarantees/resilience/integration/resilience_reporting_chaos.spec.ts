@@ -69,7 +69,7 @@ test.group('ReportingService chaos: cross-tenant guard', (group) => {
       await assert.rejects(() => svc.getTopTenants(), /data-leak guard/)
       await assert.rejects(() => svc.getCustomAggregate({ name: 'bookings' }), /data-leak guard/)
       await assert.rejects(() => svc.getCustomMetricsBreakdown(), /data-leak guard/)
-      // iterateTenantsByUsage is an async generator — the guard fires on first pull.
+      // iterateTenantsByUsage is an async generator, so the guard fires on first pull.
       await assert.rejects(async () => {
         for await (const _ of svc.iterateTenantsByUsage()) void _
       }, /data-leak guard/)
@@ -91,7 +91,7 @@ test.group('ReportingService chaos: SQL injection is neutralized', (group) => {
       })
     )
 
-    // The table and the row are intact — DROP never executed.
+    // The table and the row are intact: DROP never executed.
     const rows = await conn().from('tenant_metrics').where('tenant_id', t)
     assert.lengthOf(rows, 1)
   })
@@ -188,7 +188,7 @@ test.group('ReportingService chaos: concurrency & edge data', (group) => {
   })
 })
 
-// A subclass whose backoffice connection's rawQuery rejects — proves a Postgres
+// A subclass whose backoffice connection's rawQuery rejects, proving a Postgres
 // outage fails cleanly (no hang, no partial result) without exhausting the pool.
 class OutageReporting extends ReportingService {
   protected backoffice() {
@@ -210,7 +210,7 @@ test.group('ReportingService chaos: Postgres outage fails clean', (group) => {
     const down = new OutageReporting()
     await assert.rejects(() => down.getAggregate(), /simulated PG outage/)
 
-    // A follow-up real query succeeds — the pool was not exhausted.
+    // A follow-up real query succeeds, so the pool was not exhausted.
     const t = randomUUID()
     await seedMetric(t, `${Y}-09-01`, { requests: 1 })
     const rows = await svc.getAggregate({ period: 'day', since: `${Y}-09-01`, until: `${Y}-09-01` })

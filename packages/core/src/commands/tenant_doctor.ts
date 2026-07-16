@@ -166,7 +166,7 @@ export default class TenantDoctor extends BaseCommand {
    * re-run with fix:true via the doctor's name filter (the check API applies
    * fixes during its own run, so per-check is the granularity we can offer
    * without changing the DoctorCheck contract). The exit code reflects errors
-   * left across every check — unconfirmed ones from the diagnosis pass plus
+   * left across every check: unconfirmed ones from the diagnosis pass plus
    * whatever remains in the checks we re-ran.
    */
   async #runInteractive(doctor: DoctorService) {

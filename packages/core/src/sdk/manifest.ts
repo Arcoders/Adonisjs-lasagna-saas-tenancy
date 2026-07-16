@@ -3,7 +3,7 @@ import { parsePluginPermissions, serializePluginPermissions } from './plugin_per
 /**
  * The declarative manifest a packaged satellite publishes under the
  * `"lasagnaSatellite"` key of its `package.json`. It is read at configure time
- * as plain JSON — the satellite package is NEVER imported or executed during
+ * as plain JSON. The satellite package is NEVER imported or executed during
  * discovery, so reading a manifest is side-effect-free and safe even for a
  * package whose runtime requires a booted AdonisJS app.
  *
@@ -30,7 +30,7 @@ export interface SatelliteManifest {
    * `satelliteApi`: a `definePlugin()` provider declares it via
    * `definePlugin({ pluginApiVersion })`, and this manifest field MIRRORS that code
    * literal so a reader (and the `check-abi-boot-assertion` guard) can verify the two
-   * agree. Previously referenced by JSDoc but never modeled here — declaring it makes
+   * agree. Previously referenced by JSDoc but never modeled here. Declaring it makes
    * the mirror real instead of phantom. Omitted by a raw (non-facade) provider.
    */
   pluginApiVersion?: number
@@ -61,8 +61,8 @@ export interface SatelliteManifest {
   migrations?: string
 
   /**
-   * Directory of PER-TENANT migration files, relative to the package root
-   * (SEAM-2). Unlike `migrations` (central/backoffice `.stub`s published into the
+   * Directory of PER-TENANT migration files, relative to the package root.
+   * Unlike `migrations` (central/backoffice `.stub`s published into the
    * host and run once via `migration:run`), these are RUNNABLE migration files
    * that ship inside the package (e.g. `build/tenant_migrations`) and are
    * discovered at `tenant:migrate` time and folded into the run via
@@ -114,8 +114,8 @@ export interface SatelliteManifest {
    * Sensitive capabilities this satellite requests, in canonical wire form
    * (`scheduler` · `data_change:users,orders` · `network:external` · `db:write`).
    * `configure` shows these to the operator for explicit consent before wiring
-   * the satellite (S1). Must match the `definePlugin({ permissions })` the
-   * provider declares — the `check-plugin-permissions` guard fails on drift.
+   * the satellite. Must match the `definePlugin({ permissions })` the
+   * provider declares. The `check-plugin-permissions` guard fails on drift.
    */
   permissions?: string[]
 
@@ -123,7 +123,7 @@ export interface SatelliteManifest {
    * Set by `configure`'s package-lock scan (or declared by the author) when the
    * satellite pulls in native (`.node`) addons. A native addon evades the worker
    * Permission Model, so such a satellite is treated as fully-trusted and must be
-   * installed with an explicit acknowledgement (S4b).
+   * installed with an explicit acknowledgement.
    */
   nativeAddons?: boolean
 }
@@ -238,7 +238,7 @@ export function isSafeRelativePath(p: string): boolean {
  * Returns `null` when the key is absent or has no usable `name`. Invalid
  * optional fields are dropped (with a warning via `onWarn`) rather than failing
  * the whole manifest. Pure: no fs, no logger import (so it is safe to call from
- * unit tests and from the configure hook alike — pass `command.logger.warning`
+ * unit tests and from the configure hook alike: pass `command.logger.warning`
  * as `onWarn` there).
  */
 export function readSatelliteManifest(

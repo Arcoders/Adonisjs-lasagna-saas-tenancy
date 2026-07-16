@@ -10,9 +10,9 @@ import VectorStoreService, {
 import { ensureVectorExtension, tenantSearchPath } from '../../../helpers/pgvector.js'
 
 /**
- * The WS-AI-5 retrieval proof on REAL pgvector: the retrievalFilter document ACL
- * (G2) narrows a search WITHIN a tenant (by provenance source and by jsonb
- * metadata), and never widens it. And it composes with I1: a scoped search as
+ * The retrieval proof on REAL pgvector: the retrievalFilter document ACL
+ * narrows a search WITHIN a tenant (by provenance source and by jsonb
+ * metadata), and never widens it. And it composes with tenant isolation: a scoped search as
  * tenant A can never surface tenant B's rows, even for a source key that exists
  * in both. Drives the real `<=>`, real `IN (...)` and real `@>` on per-tenant
  * schemas. Self-skips when the Postgres image lacks pgvector (local
@@ -90,7 +90,7 @@ test.group('RAG retrieval two-tenant + filter isolation (real pgvector)', (group
     db.manager.add(connB, { ...template, searchPath: tenantSearchPath(schemaB) } as never)
 
     // Create each tenant's ai_embeddings ON that tenant's connection, whose
-    // search_path appends the extensions schema — so the bare `vector(N)` type
+    // search_path appends the extensions schema, so the bare `vector(N)` type
     // resolves exactly as the production per-tenant migration does.
     for (const [schema, conn] of [
       [schemaA, connA],

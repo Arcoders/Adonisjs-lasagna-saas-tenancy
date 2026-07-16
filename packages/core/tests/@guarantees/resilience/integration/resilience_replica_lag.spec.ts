@@ -7,17 +7,17 @@ const fakeCtx = (): DoctorContext =>
   ({ tenants: [], repo: {} as any, attemptFix: false }) as DoctorContext
 
 /**
- * S2-2: replica_lag_check coverage. Real streaming replicas need a
- * standby cluster that this test environment doesn't ship, so we
- * exercise the two paths we CAN drive end-to-end:
- *   1. No replicas configured → empty issue list.
- *   2. A replica configured against an unreachable host → exactly one
- *      `replica_unreachable` issue, with the pg error code redacted
- *      to a safe regex (no DSN/credentials leak).
+ * replica_lag_check coverage. Real streaming replicas need a standby cluster
+ * that this test environment doesn't ship, so we exercise the two paths we CAN
+ * drive end-to-end:
+ *   1. No replicas configured yields an empty issue list.
+ *   2. A replica configured against an unreachable host yields exactly one
+ *      `replica_unreachable` issue, with the pg error code redacted to a safe
+ *      regex (no DSN/credentials leak).
  *
- * The "lag detected" path is left for an environment that has a real
- * standby; the production code path is exercised via the unreachable
- * branch which shares the same connection lifecycle.
+ * The "lag detected" path is left for an environment that has a real standby;
+ * the production code path is exercised via the unreachable branch which shares
+ * the same connection lifecycle.
  */
 test.group('Doctor: replica_lag — error paths (real PG, fake replica)', (group) => {
   let originalConfig: ReturnType<typeof getConfig>

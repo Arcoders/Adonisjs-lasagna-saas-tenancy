@@ -2,13 +2,13 @@
  * Single source of truth for the kernel's observability vocabulary: span names,
  * span/event attribute keys, and the Prometheus gauge names. Dashboards, alerts,
  * and the future AI satellite's `ai.stream` span link against these exact
- * strings, so they are a CONTRACT — renaming one is a breaking change and must be
+ * strings, so they are a CONTRACT. Renaming one is a breaking change and must be
  * a single, reviewable edit here (pinned by `check-observability-names.mjs`).
  *
  * Two disciplines are encoded:
  *  - Names never appear inline elsewhere; instrumentation imports them from here.
  *  - Attribute keys are a fixed, non-PII allowlist (`OBS_ATTR`). Only ids, counts,
- *    and outcomes — never tenant content. The telemetry unit spec asserts every
+ *    and outcomes, never tenant content. The telemetry unit spec asserts every
  *    emitted attribute key is in this set, so a future `setAttribute('prompt', …)`
  *    fails the suite.
  */
@@ -67,7 +67,7 @@ export const EXTENSION_OUTCOME = {
 } as const
 
 /**
- * Prometheus gauge names for the operator-global ceiling. Operator-level only —
+ * Prometheus gauge names for the operator-global ceiling. Operator-level only:
  * labelled by `quota`, NEVER by `tenant_id` (a cardinality bomb). Per-tenant
  * budget detail lives in traces/logs, not in the scrape.
  */

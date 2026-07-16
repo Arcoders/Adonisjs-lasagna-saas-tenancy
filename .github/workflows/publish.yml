@@ -73,13 +73,15 @@ jobs:
             fi
           }
 
-          # Core first so satellites resolve a published peer.
+          # Core first so satellites resolve a published peer. Only the six
+          # publishable workspaces belong here: `admin` and `websockets` are
+          # `private: true` (npm refuses them with EPRIVATE, which under
+          # `set -euo pipefail` would abort this script mid-release), and the
+          # crypto satellite was removed from the repo. `check-publish-coverage.mjs`
+          # asserts every non-private package appears below.
           publish_pkg "packages/core"
           publish_pkg "packages/sso"
           publish_pkg "packages/billing"
-          publish_pkg "packages/admin"
           publish_pkg "packages/backup"
           publish_pkg "packages/reporting"
-          publish_pkg "packages/websockets"
           publish_pkg "packages/ai"
-          publish_pkg "packages/crypto"

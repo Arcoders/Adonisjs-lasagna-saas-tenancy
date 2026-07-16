@@ -6,7 +6,7 @@ import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite
 // ghcr.io/navikt/mock-oauth2-server). Skipped unless MOCK_OIDC_BASE_URL
 // is set. Catches drift in the discovery/JWKS/token-endpoint contract
 // that the in-spec fake IdP (sso_oidc_flow.spec.ts) can't surface.
-// Full token-exchange coverage stays in sso_oidc_flow.spec.ts — the
+// Full token-exchange coverage stays in sso_oidc_flow.spec.ts, because the
 // mock can't embed our cached nonce.
 const ISSUER = process.env.MOCK_OIDC_BASE_URL
 const SHOULD_RUN = typeof ISSUER === 'string' && ISSUER.length > 0
@@ -57,7 +57,7 @@ test.group('SsoService — real OIDC server interop', (group) => {
     const jwks: any = await fetch(doc.jwks_uri).then((r) => r.json())
     assert.isArray(jwks.keys, 'JWKS must expose a `keys` array')
     assert.isAtLeast(jwks.keys.length, 1, 'JWKS must contain at least one key')
-    // Every key needs a `kty` at minimum — anything else and `jose.createRemoteJWKSet`
+    // Every key needs a `kty` at minimum. Without one, `jose.createRemoteJWKSet`
     // refuses to use it.
     for (const k of jwks.keys) {
       assert.isString(k.kty, 'every JWKS key must carry a `kty`')
@@ -93,7 +93,7 @@ test.group('SsoService — real OIDC server interop', (group) => {
     assert,
   }) => {
     await freshTenantWithSso()
-    // No state was ever stored under this random value → the CSRF guard
+    // No state was ever stored under this random value, so the CSRF guard
     // must reject it BEFORE we ever touch the IdP's token endpoint.
     await assert.rejects(
       () => svc.handleCallback('this-state-was-never-issued', 'whatever-code'),
@@ -105,7 +105,7 @@ test.group('SsoService — real OIDC server interop', (group) => {
     assert,
   }) => {
     // Pointing at a port the IdP doesn't listen on must fail the
-    // discovery fetch loudly — it's the same network failure
+    // discovery fetch loudly. It's the same network failure
     // production sees when an IdP host goes down, and the service
     // must surface it instead of producing a half-baked auth URL.
     // (`mock-oauth2-server` itself echoes whatever issuer is requested,
@@ -116,7 +116,7 @@ test.group('SsoService — real OIDC server interop', (group) => {
     await svc.upsertConfig(t.id, {
       clientId: 'client-x',
       clientSecret: 'shhh',
-      issuerUrl: 'http://127.0.0.1:1', // reserved port — always closed
+      issuerUrl: 'http://127.0.0.1:1', // reserved port, always closed
       redirectUri: 'http://app.test/cb',
     })
     const cfg = (await svc.getConfig(t.id))!

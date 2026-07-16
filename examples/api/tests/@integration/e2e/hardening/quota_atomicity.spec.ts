@@ -4,15 +4,15 @@ import Tenant from '#app/models/backoffice/tenant'
 import { createInstalledTenant, dropAllTenants } from '../_helpers.js'
 
 /**
- * HARDENING — quota atomicity under concurrency (end-to-end through HTTP).
+ * HARDENING: quota atomicity under concurrency (end-to-end through HTTP).
  *
  * `POST /demo/notes` is wrapped in `enforceQuota('apiCallsPerDay')`
  * (examples/api/start/routes.ts), and the free plan caps `apiCallsPerDay` at 50
  * (examples/api/config/multitenancy.ts). The enforcement is a single Redis EVAL
- * (Lua: GET → compare → INCRBY+EXPIRE only if it fits), so concurrent callers
+ * (Lua: GET, compare, then INCRBY+EXPIRE only if it fits), so concurrent callers
  * serialize server-side and the counter can never over-grant.
  *
- * To reproduce the documented "limit 10 → 10 succeed / 40 rejected" scenario
+ * To reproduce the documented "limit 10, 10 succeed, 40 rejected" scenario
  * against the real configured limit, we prime the tenant's usage to 40, then
  * fire 50 requests concurrently: exactly 10 must pass (40+10 = 50) and exactly
  * 40 must come back 429, with recorded usage landing on precisely 50 (no race
@@ -39,7 +39,7 @@ test.group('hardening — quota atomicity under concurrency', (group) => {
 
     const { id } = await createInstalledTenant(client, { plan: 'free' })
 
-    // Prime usage to 40 — every one of these must succeed (well under 50).
+    // Prime usage to 40. Every one of these must succeed (well under 50).
     for (let i = 0; i < PRIME; i++) {
       const r = await client
         .post('/demo/notes')
@@ -71,7 +71,7 @@ test.group('hardening — quota atomicity under concurrency', (group) => {
     )
 
     // The rejection contract: typed code + Retry-After (the demo handler maps
-    // QuotaExceededException → { error: { code: 'QUOTA_EXCEEDED', details } }).
+    // QuotaExceededException to { error: { code: 'QUOTA_EXCEEDED', details } }).
     for (const r of tooMany) {
       assert.equal(r.body().error?.code, 'QUOTA_EXCEEDED')
       assert.equal(r.headers()['retry-after'], '60')

@@ -10,10 +10,11 @@ import type { SatelliteProviderContract } from '../../../../src/sdk/contract.js'
 import type { ApplicationService } from '@adonisjs/core/types'
 
 /**
- * S4b — the native-addon boot guard. A native (.node) addon evades the worker's
+ * The native-addon boot guard. A native (.node) addon evades the worker's
  * Node Permission Model, so a plugin shipping one must not silently run in a
- * sandboxed worker. These pin the argv parse and the fail-closed matrix (sandboxed
- * + no --allow-addons + declares native → abort; every other combination → allow).
+ * sandboxed worker. These pin the argv parse and the fail-closed matrix: a
+ * sandboxed worker with no --allow-addons that declares a native addon aborts,
+ * and every other combination is allowed.
  */
 
 type Lifecycle = Required<SatelliteProviderContract>

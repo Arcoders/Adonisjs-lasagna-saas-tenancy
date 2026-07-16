@@ -116,8 +116,8 @@ test.group('ImpersonationMiddleware (integration, HTTP + real Redis)', (group) =
     const svc = await getSvc()
     const { token, sessionId } = await svc.start(baseStart)
 
-    // Force-shift the stored session's expiresAt into the past — same
-    // clock-drift simulation the unit spec uses, but here we drive it
+    // Force-shift the stored session's expiresAt into the past. This is the
+    // same clock-drift simulation the unit spec uses, but here we drive it
     // through the HTTP middleware path.
     const ns = getCache().namespace('impersonation')
     const stored = (await ns.get({ key: sessionId })) as any

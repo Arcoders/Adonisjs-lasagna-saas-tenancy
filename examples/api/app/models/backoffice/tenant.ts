@@ -19,14 +19,14 @@ import type { TenantStatus } from '@adonisjs-lasagna/saas-tenancy/types'
  *  - plan resolution (`config.plans.getPlan`)
  *  - retention tier resolution (`config.backup.retention.getTier`)
  *
- * This is the value of the generic in TenantModelContract<DemoMeta> — see
+ * This is the value of the generic in TenantModelContract<DemoMeta>. See
  * controllers/demo/billing_controller.ts for `request.tenant<DemoMeta>()` usage.
  */
 // A type alias, not an interface, and deliberately so: TypeScript gives
 // aliases an implicit index signature, which keeps DemoMeta assignable to
 // the contract's TenantMetadata (Record<string, unknown>) so values typed
-// TenantModelContract<DemoMeta> flow into package APIs without casts —
-// while object literals written against DemoMeta still get excess-property
+// TenantModelContract<DemoMeta> flow into package APIs without casts, while
+// object literals written against DemoMeta still get excess-property
 // checking (a typo like `plann:` stays a compile error). An explicit
 // `[key: string]: unknown` on an interface would buy the assignability by
 // silently giving up the typo checking.

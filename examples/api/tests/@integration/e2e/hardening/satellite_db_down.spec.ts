@@ -4,7 +4,7 @@ import { getActiveDriver, CircuitBreakerService } from '@adonisjs-lasagna/saas-t
 import { createInstalledTenant, dropAllTenants } from '../_helpers.js'
 
 /**
- * E3 — Chaos: the tenant database is unreachable during a satellite request.
+ * Chaos: the tenant database is unreachable during a satellite request.
  *
  * Core's connection_failure_503.spec.ts proves a resolved tenant whose DB is down
  * maps to a clean 503 (E_DEPENDENCY_UNAVAILABLE), never a raw 500 or a silent

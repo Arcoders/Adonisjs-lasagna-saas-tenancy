@@ -32,7 +32,7 @@ export async function resolveStorageMode(): Promise<PlanStorageMode> {
     return _storageProbe
   }
 
-  // 'auto' (or undefined) — probe the table.
+  // 'auto' (or undefined): probe the table.
   try {
     const TenantPlan = await lazyTenantPlan()
     const conn = TenantPlan.$adapter
@@ -54,7 +54,7 @@ export async function resolveStorageMode(): Promise<PlanStorageMode> {
     _storageProbe = rows[0]?.reg ? 'tenant_plans' : 'config-only'
     return _storageProbe
   } catch {
-    // The probe THREW — almost certainly a transient infra failure (pool
+    // The probe THREW, almost certainly a transient infra failure (pool
     // timeout, a backoffice failover at first read), not "table missing".
     // Do NOT memoize: latching 'config-only' here would permanently disable
     // storage-backed plans for the rest of the process even after the DB
@@ -64,7 +64,7 @@ export async function resolveStorageMode(): Promise<PlanStorageMode> {
   }
 }
 
-/** @internal — for tests only */
+/** @internal for tests only */
 export function __resetPlanStorageProbe(): void {
   _storageProbe = null
 }

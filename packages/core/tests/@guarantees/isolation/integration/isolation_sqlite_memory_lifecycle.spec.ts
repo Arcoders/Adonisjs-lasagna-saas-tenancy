@@ -7,14 +7,14 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
  * Storage-lifecycle coverage for the testing-only `sqlite-memory` driver.
  *
  * sqlite-memory is the driver the docs recommend for users' own test suites,
- * so its happy path must actually work: provision → connect → CRUD, with each
+ * so its happy path must actually work: provision, connect, then CRUD, with each
  * tenant getting its own isolated in-memory database, and destroy reclaiming
  * the pages so a re-provision starts empty. The unit spec only covers naming;
  * this drives real storage.
  *
  * It lives in the integration suite because `connect()` resolves the
  * container-bound Lucid `db` service (a booted app), but it needs no
- * PostgreSQL of its own — every query runs against in-memory SQLite. We
+ * PostgreSQL of its own. Every query runs against in-memory SQLite. We
  * instantiate the driver directly rather than through the registry, since the
  * fixture app is configured for `schema-pg`; the sqlite driver registers its
  * own connection and is independent of the active driver.

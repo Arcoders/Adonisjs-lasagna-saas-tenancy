@@ -3,15 +3,15 @@ import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 /**
- * WS-7 / admin-export-throw-shim.
+ * No /admin throw shim.
  *
  * The admin REST API moved to `@adonisjs-lasagna/admin`, but core still shipped a
  * `./admin` subpath export pointing at a `src/admin/index.ts` that throws on
  * import. Pre-publish there is no published version to keep back-compat with, so
- * the dead throw-shim and its export/typesVersions entries are removed outright
- * — importing the wrong path now fails with a clean module-not-found.
+ * the dead throw-shim and its export/typesVersions entries are removed outright.
+ * Importing the wrong path now fails with a clean module-not-found.
  *
- * RED (pre-fix): the export, the typesVersions entry, and the shim file existed.
+ * Before the fix, the export, the typesVersions entry, and the shim file existed.
  */
 const PKG = fileURLToPath(new URL('../../../package.json', import.meta.url))
 const SHIM = fileURLToPath(new URL('../../src/admin/index.ts', import.meta.url))

@@ -5,14 +5,14 @@ import {
 } from '../../../../src/sdk/api_version.js'
 
 /**
- * WS-7 / abi-contract-check-configure-time-only.
+ * The Satellite ABI contract was checked at configure time only.
  *
- * configure gates the Satellite ABI at install time, but that runs once — a later
+ * configure gates the Satellite ABI at install time, but that runs once, so a later
  * core downgrade slips past it. assertSatelliteApiCompatAtBoot is the runtime
  * backstop each satellite provider calls in boot(): throw when the satellite needs
  * a NEWER ABI than the core provides, warn when older/absent, do nothing on equal.
  *
- * RED (pre-fix): no boot-time assert helper existed.
+ * Before the fix, no boot-time assert helper existed.
  */
 test.group('assertSatelliteApiCompatAtBoot', () => {
   test('throws when the satellite needs a newer ABI than the core', ({ assert }) => {

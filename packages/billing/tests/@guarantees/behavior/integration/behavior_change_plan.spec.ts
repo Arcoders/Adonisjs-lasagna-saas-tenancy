@@ -50,8 +50,8 @@ function makeFakeDriver(caps: BillingCapability[]): FakeDriver {
 
 /**
  * Capture a rejected `BillingException`'s stable `billingCode`. Tests assert on
- * the code, never the message — the message is human text (and may be reworded),
- * the `billingCode` is the contract (see BillingException's own JSDoc).
+ * the code, never the message. The message is human text (and may be reworded),
+ * while the `billingCode` is the contract (see BillingException's own JSDoc).
  */
 async function billingCodeOf(fn: () => Promise<unknown>): Promise<string | undefined> {
   try {
@@ -97,6 +97,7 @@ test.group('BillingService.changePlan (integration)', (group) => {
 
   async function seedCustomer(tenantId: string): Promise<void> {
     const cus = new BillingCustomer()
+    cus.provider = 'stripe'
     cus.tenantId = tenantId
     cus.providerCustomerId = `cus_${randomUUID().slice(0, 8)}`
     await cus.save()
@@ -110,6 +111,7 @@ test.group('BillingService.changePlan (integration)', (group) => {
 
   async function seedSub(tenantId: string, opts: SeedSubOpts = {}): Promise<string> {
     const sub = new BillingSubscription()
+    sub.provider = 'stripe'
     sub.providerSubscriptionId = opts.providerSubscriptionId ?? `sub_${randomUUID().slice(0, 8)}`
     sub.tenantId = tenantId
     sub.status = (opts.status ?? 'active') as never
@@ -172,9 +174,9 @@ test.group('BillingService.changePlan (integration)', (group) => {
     const t = await createTestTenant()
     cleanupTenants.push(t.id)
 
-    // One customer, two active subscriptions (no unique constraint forbids it —
-    // can happen during a provider-sync race or migration). changePlan must pick
-    // the most recently updated one.
+    // One customer, two active subscriptions (no unique constraint forbids it,
+    // and it can happen during a provider-sync race or migration). changePlan
+    // must pick the most recently updated one.
     await seedCustomer(t.id)
     await seedSub(t.id, {
       providerSubscriptionId: 'sub_stale',
@@ -258,11 +260,12 @@ test.group('BillingService.changePlan (integration)', (group) => {
 })
 
 /**
- * Driver-level coverage for the *actual* `StripeDriver.changePlan` — the
+ * Driver-level coverage for the *actual* `StripeDriver.changePlan`. The
  * `FakeDriver` group above proves the service orchestration, but the real
- * provider call-site (retrieve → first item id → no-items guard → update with
- * proration + a deterministic idempotency key) is only exercised here, against
- * the in-process `MockStripe` double.
+ * provider call-site is only exercised here, against the in-process
+ * `MockStripe` double: it retrieves the subscription, takes the first item id,
+ * guards against no items, then updates with proration and a deterministic
+ * idempotency key.
  */
 test.group('StripeDriver.changePlan (MockStripe, in-process)', (group) => {
   let originalConfig: ReturnType<typeof getConfig>
@@ -294,7 +297,7 @@ test.group('StripeDriver.changePlan (MockStripe, in-process)', (group) => {
     const after = await mock.subscriptions.retrieve(sub.id)
     assert.equal(after?.items.data[0].price.id, 'price_pro_monthly', 'first item price swapped')
 
-    // A retried identical change converges (same idempotency key) — no throw, no drift.
+    // A retried identical change converges (same idempotency key): no throw, no drift.
     await driver.changePlan!(sub.id, { priceId: 'price_pro_monthly' })
     const again = await mock.subscriptions.retrieve(sub.id)
     assert.equal(again?.items.data[0].price.id, 'price_pro_monthly')

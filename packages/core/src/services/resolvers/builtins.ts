@@ -4,8 +4,9 @@ import { isProductionNodeEnv } from '../../utils/env.js'
 import InvalidTenantIdentifierException from '../../exceptions/invalid_tenant_identifier_exception.js'
 import { isUuidV4 } from '../isolation/identifier.js'
 import {
-  RESOLVER_CONTRACT_VERSION,
   ResolverHit,
+  SyncTenantResolver,
+  type ResolverTrust,
   type TenantResolveResult,
   type TenantResolver,
 } from './resolver.js'
@@ -30,7 +31,7 @@ export function expectedHostSuffixes(): string[] {
 
 /**
  * Is `host` allowed by the configured suffix allowlist? An empty allowlist
- * (the default) allows everything — the boot check warns about that posture
+ * (the default) allows everything. The boot check warns about that posture
  * separately. A host matches a suffix when it equals it or is a sub-host of it
  * (`app.com` matches `app.com` and `a.app.com`, never `app.com.evil.io`).
  */
@@ -49,13 +50,20 @@ export function hostMatchesExpectedSuffix(host: string): boolean {
  * header is present and a `ResolverHit.miss` otherwise. This is the strategy
  * most server-to-server traffic relies on.
  */
-export class HeaderResolver implements TenantResolver {
+export class HeaderResolver extends SyncTenantResolver {
   readonly name = 'header'
-  readonly contractVersion = RESOLVER_CONTRACT_VERSION
-  resolve(request: HttpRequest): TenantResolveResult {
+  // Client-controlled: the header is set freely by the caller.
+  readonly trust: ResolverTrust = 'client'
+  resolveSync(request: HttpRequest): TenantResolveResult {
     const key = getConfig().tenantHeaderKey
     const value = request.header(key)
-    return value ? ResolverHit.id(value) : ResolverHit.miss()
+    // UUID policy at the resolver border: the header is client-controlled, so a
+    // value that is not a canonical tenant id MUST NOT become a hit. It falls
+    // THROUGH (miss) so a later resolver in the chain can still match. The
+    // security point is that an unsafe value (a `:` that would inject Redis-key
+    // structure into a rate-limit/metrics bucket) never leaves this method as an
+    // id. Only a well-formed UUID v4 passes.
+    return value && isUuidV4(value) ? ResolverHit.id(value) : ResolverHit.miss()
   }
 }
 
@@ -65,10 +73,12 @@ export class HeaderResolver implements TenantResolver {
  * itself (so apex hits can be routed to a marketing site / central app
  * without trying to resolve a tenant).
  */
-export class SubdomainResolver implements TenantResolver {
+export class SubdomainResolver extends SyncTenantResolver {
   readonly name = 'subdomain'
-  readonly contractVersion = RESOLVER_CONTRACT_VERSION
-  resolve(request: HttpRequest): TenantResolveResult {
+  // Host-based: the tenant comes from the request host, which X-Forwarded-Host
+  // can spoof without an expectedHostSuffix allowlist.
+  readonly trust: ResolverTrust = 'host'
+  resolveSync(request: HttpRequest): TenantResolveResult {
     const { baseDomain } = getConfig()
     const host = hostnameOf(request)
     if (!host) return ResolverHit.miss()
@@ -78,36 +88,44 @@ export class SubdomainResolver implements TenantResolver {
     if (host === baseDomain) return ResolverHit.miss()
 
     const suffix = baseDomain.startsWith('.') ? baseDomain : `.${baseDomain}`
+    let label: string | undefined
     if (host.endsWith(suffix)) {
-      const sub = host.slice(0, host.length - suffix.length)
-      return sub ? ResolverHit.id(sub) : ResolverHit.miss()
+      label = host.slice(0, host.length - suffix.length) || undefined
+    } else if (!isProductionNodeEnv()) {
+      // Host doesn't end with baseDomain. In dev we fall back to the leftmost
+      // label so `127.0.0.1.nip.io`-style hosts still resolve. In PRODUCTION we
+      // refuse: accepting an arbitrary off-baseDomain host would let any host
+      // routed to the app pick a tenant from its leftmost label, diluting the
+      // "host must be under baseDomain" invariant.
+      const labels = host.split('.')
+      label = labels.length > 1 ? labels[0] : undefined
     }
-    // Host doesn't end with baseDomain. In dev we fall back to the leftmost
-    // label so `127.0.0.1.nip.io`-style hosts still resolve. In PRODUCTION we
-    // refuse: accepting an arbitrary off-baseDomain host would let any host
-    // routed to the app pick a tenant from its leftmost label, diluting the
-    // "host must be under baseDomain" invariant. (Downstream UUID validation
-    // already blocks non-UUID labels, but don't rely on that alone.)
-    if (isProductionNodeEnv()) return ResolverHit.miss()
-    const labels = host.split('.')
-    return labels.length > 1 ? ResolverHit.id(labels[0]!) : ResolverHit.miss()
+    // UUID policy at the border: the subdomain label becomes a tenant id, so it
+    // must be a canonical UUID v4. A non-UUID label falls through (miss) rather
+    // than returning a hit that only fails a downstream assert; this lets a
+    // fallback resolver in the chain match.
+    return label && isUuidV4(label) ? ResolverHit.id(label) : ResolverHit.miss()
   }
 }
 
 /**
  * Pulls the tenant id from the first segment of the URL path
- * (`/<tenantId>/foo` → `tenantId`). `ignorePaths` from config let apps
+ * (`/<tenantId>/foo` maps to `tenantId`). `ignorePaths` from config let apps
  * exclude prefixes like `/health` or `/admin`.
  */
-export class PathResolver implements TenantResolver {
+export class PathResolver extends SyncTenantResolver {
   readonly name = 'path'
-  readonly contractVersion = RESOLVER_CONTRACT_VERSION
-  resolve(request: HttpRequest): TenantResolveResult {
+  // Client-controlled: the first URL path segment is caller-supplied.
+  readonly trust: ResolverTrust = 'client'
+  resolveSync(request: HttpRequest): TenantResolveResult {
     const { ignorePaths } = getConfig()
     const url = request.url(false)
     if (ignorePaths?.some((p) => url.startsWith(p))) return ResolverHit.miss()
     const segment = url.split('/').find(Boolean)
-    return segment ? ResolverHit.id(segment) : ResolverHit.miss()
+    // UUID policy at the border: the first path segment becomes a tenant id, so
+    // it must be a canonical UUID v4; a non-UUID segment (a route prefix, a slug)
+    // falls through rather than forging an id that fails downstream.
+    return segment && isUuidV4(segment) ? ResolverHit.id(segment) : ResolverHit.miss()
   }
 }
 
@@ -117,28 +135,33 @@ export class PathResolver implements TenantResolver {
  * asks the repository for the tenant by domain); if the host is a
  * subdomain of `baseDomain`, fall back to subdomain extraction.
  *
- * This is the typical "either acme.app.com or acme.com" SaaS deployment
- * — host matches before subdomain math because custom domains are the
+ * This is the typical "either acme.app.com or acme.com" SaaS deployment.
+ * Host matches before subdomain math because custom domains are the
  * stronger signal.
  */
-export class DomainOrSubdomainResolver implements TenantResolver {
+export class DomainOrSubdomainResolver extends SyncTenantResolver {
   readonly name = 'domain-or-subdomain'
-  readonly contractVersion = RESOLVER_CONTRACT_VERSION
-  resolve(request: HttpRequest): TenantResolveResult {
+  // Host-based: matches a custom domain or a baseDomain subdomain off the host.
+  readonly trust: ResolverTrust = 'host'
+  resolveSync(request: HttpRequest): TenantResolveResult {
     const { baseDomain } = getConfig()
     const host = hostnameOf(request)
     if (!host) return ResolverHit.miss()
     // A host outside the allowlist is refused before either the subdomain math
-    // OR the custom-domain `findByDomain` lookup — closing the spoofed-host hop
+    // OR the custom-domain `findByDomain` lookup, closing the spoofed-host hop
     // for both branches in one place.
     if (!hostMatchesExpectedSuffix(host)) return ResolverHit.miss()
 
     const suffix = baseDomain.startsWith('.') ? baseDomain : `.${baseDomain}`
     if (host !== baseDomain && host.endsWith(suffix)) {
       const sub = host.slice(0, host.length - suffix.length)
-      if (sub) return ResolverHit.id(sub)
+      // UUID policy at the border: only a canonical UUID label is a subdomain id
+      // hit. A non-UUID label under baseDomain falls through to the custom-domain
+      // branch below (`findByDomain(host)`), the resolver's own designed
+      // fallback, rather than forging an id that fails a downstream assert.
+      if (sub && isUuidV4(sub)) return ResolverHit.id(sub)
     }
-    // Not a subdomain of baseDomain → must be a custom domain. Defer
+    // Not a subdomain of baseDomain, so it must be a custom domain. Defer
     // resolution to the repository (`findByDomain`) via the registry.
     if (host !== baseDomain) {
       return ResolverHit.domain(host)
@@ -152,10 +175,11 @@ export class DomainOrSubdomainResolver implements TenantResolver {
  * field. The config field `requestData` controls which key to read from
  * each source; both default to `tenant_id`.
  */
-export class RequestDataResolver implements TenantResolver {
+export class RequestDataResolver extends SyncTenantResolver {
   readonly name = 'request-data'
-  readonly contractVersion = RESOLVER_CONTRACT_VERSION
-  resolve(request: HttpRequest): TenantResolveResult {
+  // Client-controlled: reads a query-string or request-body field.
+  readonly trust: ResolverTrust = 'client'
+  resolveSync(request: HttpRequest): TenantResolveResult {
     const cfg = getConfig().requestData ?? {}
     const queryKey = cfg.queryKey ?? 'tenant_id'
     const bodyKey = cfg.bodyKey ?? 'tenant_id'

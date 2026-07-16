@@ -1,5 +1,5 @@
 import type { HttpRequest } from '@adonisjs/core/http'
-import { assertContractCompat } from '../../sdk/contract_version.js'
+import ExtensionRegistry from '../extension_registry.js'
 import {
   RESOLVER_CONTRACT_VERSION,
   type TenantResolver,
@@ -16,66 +16,75 @@ import {
  * based on `config.resolverStrategy`. Apps can register their own
  * resolvers via `register(resolver)` and either pick them via config
  * (`resolverStrategy: 'my-resolver'`) or chain several together via
- * `setChain(['domain-or-subdomain', 'header'])` — handy when most
+ * `setChain(['domain-or-subdomain', 'header'])`, handy when most
  * traffic arrives by domain but a fallback header is honored for
  * internal API clients.
  */
-export default class TenantResolverRegistry {
-  readonly #resolvers = new Map<string, TenantResolver>()
+export default class TenantResolverRegistry extends ExtensionRegistry<string, TenantResolver> {
   #chain: string[] = []
 
-  /** The tenant-resolver contract version this registry enforces. */
-  get contractVersion(): number {
+  protected readonly surfaceLabel = 'tenant resolver'
+  protected override readonly collisionHint = ' Pass { override: true } to replace it.'
+
+  protected override get surfaceContractVersion(): number {
     return RESOLVER_CONTRACT_VERSION
   }
 
-  register(resolver: TenantResolver, opts: { override?: boolean } = {}): this {
-    const name = resolver?.name
-    if (typeof name !== 'string' || name.length === 0) {
-      throw new Error('TenantResolverRegistry.register: resolver.name must be a non-empty string.')
-    }
-    // A duplicate name would silently shadow an existing resolver and change how
-    // tenants resolve. Refuse unless the caller explicitly overrides.
-    if (this.#resolvers.has(name) && opts.override !== true) {
+  /**
+   * Every resolver must implement the async entry point `resolve(request)`, which the
+   * chain walk and `request.tenant()` both call. A resolver missing it registers fine
+   * and then crashes the first time the async path walks the chain; gate it at boot
+   * (EXT-2), unconditional, so the omission fails loudly at registration. `resolveSync`
+   * stays optional here (async-only resolvers are legitimate off the routing chain);
+   * `setChain` is where a chained resolver's `resolveSync` requirement is enforced.
+   */
+  protected override assertShape(resolver: TenantResolver): void {
+    if (typeof resolver.resolve !== 'function') {
       throw new Error(
-        `TenantResolverRegistry: a resolver named "${name}" is already registered. ` +
-          `Pass { override: true } to replace it.`
+        `TenantResolverRegistry: resolver "${resolver.name}" does not implement resolve(request) ` +
+          `(required by resolver contract v${RESOLVER_CONTRACT_VERSION}). Implement resolve(request) ` +
+          `(extend SyncTenantResolver for a purely synchronous resolver, which supplies it).`
       )
     }
-    // A resolver built for a newer core contract would expect a surface this
-    // core does not provide: refuse it. An older/unversioned one warns.
-    assertContractCompat(
-      resolver.contractVersion,
-      RESOLVER_CONTRACT_VERSION,
-      `tenant resolver "${name}"`
-    )
-    this.#resolvers.set(name, resolver)
+  }
+
+  register(resolver: TenantResolver, opts: { override?: boolean } = {}): this {
+    const name = this.assertRegistrable(resolver, opts)
+    this.entries.set(name, resolver)
     return this
   }
 
-  unregister(name: string): boolean {
-    return this.#resolvers.delete(name)
-  }
-
-  has(name: string): boolean {
-    return this.#resolvers.has(name)
-  }
-
   list(): readonly string[] {
-    return [...this.#resolvers.keys()]
+    return [...this.entries.keys()]
   }
 
   /**
-   * Replace the resolver chain. Each entry must be a registered resolver
-   * name. Throws if any name is unknown so misconfiguration fails at boot
-   * instead of silently picking the wrong tenant in production.
+   * Replace the resolver chain. Each entry must be a registered resolver name,
+   * AND each resolver must expose `resolveSync` (be synchronous-capable). Both
+   * fail closed at boot rather than silently picking the wrong tenant in
+   * production:
+   *   - an unknown name is a config typo;
+   *   - an async-only resolver (no `resolveSync`) cannot serve the synchronous
+   *     routing/attribution path, so the sync path would skip it and resolve a
+   *     different tenant than the async `request.tenant()`, a split-brain. We
+   *     refuse it here, naming the offender, instead of shipping that divergence.
    */
   setChain(names: string[]): this {
     for (const name of names) {
-      if (!this.#resolvers.has(name)) {
+      const resolver = this.entries.get(name)
+      if (!resolver) {
         throw new Error(
           `TenantResolverRegistry: cannot put unknown resolver "${name}" in the chain. ` +
-            `Registered: ${[...this.#resolvers.keys()].join(', ') || '(none)'}`
+            `Registered: ${[...this.entries.keys()].join(', ') || '(none)'}`
+        )
+      }
+      if (typeof resolver.resolveSync !== 'function') {
+        throw new Error(
+          `TenantResolverRegistry: resolver "${name}" is async-only (no resolveSync) and ` +
+            `cannot be placed in the routing chain. The synchronous routing/attribution path ` +
+            `(model routing, rate-limit, metrics) would skip it and resolve a different tenant ` +
+            `than request.tenant() — a split-brain. Implement resolveSync(request) (extend ` +
+            `SyncTenantResolver for a purely synchronous resolver) or remove it from the chain.`
         )
       }
     }
@@ -87,8 +96,8 @@ export default class TenantResolverRegistry {
     return [...this.#chain]
   }
 
-  clear(): this {
-    this.#resolvers.clear()
+  override clear(): this {
+    super.clear()
     this.#chain = []
     return this
   }
@@ -99,7 +108,7 @@ export default class TenantResolverRegistry {
    */
   async resolve(request: HttpRequest): Promise<TenantResolveResult> {
     for (const name of this.#chain) {
-      const resolver = this.#resolvers.get(name)
+      const resolver = this.entries.get(name)
       if (!resolver) continue
       const result = await resolver.resolve(request)
       if (result !== undefined) return result
@@ -108,23 +117,22 @@ export default class TenantResolverRegistry {
   }
 
   /**
-   * Synchronous chain walk for code paths that cannot await — notably
-   * `TenantAdapter`, which has to pick a connection in a sync call. Resolvers
-   * that return a Promise (async-only) are skipped here, since they can't
-   * participate in a synchronous routing decision; the first synchronous hit
-   * wins. All built-in resolvers are synchronous, so a default config behaves
-   * exactly like `resolve()` minus the await.
+   * Synchronous chain walk for code paths that cannot await, notably
+   * `TenantAdapter`, rate-limit, and metrics. Calls each resolver's explicit
+   * `resolveSync` (no Promise sniffing) and the first non-undefined hit wins.
+   * A resolver without `resolveSync` is async-only and is skipped here (never
+   * called nor awaited). For a config-wired chain this branch is unreachable:
+   * `setChain` refuses to admit an async-only resolver, so the sync path and the
+   * async `resolve()` agree on the tenant. The skip is the backstop for the one
+   * remaining way in: a post-boot `register(name, { override: true })` that
+   * swaps a chained resolver for an async-only one without re-running setChain.
    */
   resolveSync(request: HttpRequest): TenantResolveResult {
     for (const name of this.#chain) {
-      const resolver = this.#resolvers.get(name)
-      if (!resolver) continue
-      const result = resolver.resolve(request)
-      if (result !== null && typeof (result as { then?: unknown })?.then === 'function') {
-        // Async resolver: can't be used on the synchronous path. Skip it.
-        continue
-      }
-      if (result !== undefined) return result as TenantResolveResult
+      const resolver = this.entries.get(name)
+      if (typeof resolver?.resolveSync !== 'function') continue
+      const result = resolver.resolveSync(request)
+      if (result !== undefined) return result
     }
     return undefined
   }

@@ -7,7 +7,7 @@ import type { EmitterService } from '@adonisjs/core/types'
  *
  * The package fires `BillingEventDeadLettered` once a webhook event has either
  * exhausted the queue's retries or hit a known-fatal error. The package ships
- * the *signal*; the host decides where it goes — this listener is the seam where
+ * the *signal*; the host decides where it goes. This listener is the seam where
  * you'd forward to PagerDuty / Slack / Sentry. The demo just logs at error
  * level, and pages "louder" for payment-related events (revenue at risk).
  *

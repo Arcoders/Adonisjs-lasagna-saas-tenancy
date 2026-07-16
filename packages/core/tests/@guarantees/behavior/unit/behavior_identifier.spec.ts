@@ -1,9 +1,6 @@
 import { test } from '@japa/runner'
-import {
-  assertSafeIdentifier,
-  isUuidV4,
-  isSafeIdentifier,
-} from '../../../../src/services/isolation/identifier.js'
+import { isUuidV4, isSafeIdentifier } from '../../../../src/services/isolation/identifier.js'
+import { assertSafeIdentifier } from '../../../../src/isthmus/guarded_identifier.js'
 
 test.group('assertSafeIdentifier', () => {
   test('accepts canonical UUID v4', ({ assert }) => {

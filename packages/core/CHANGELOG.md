@@ -6,22 +6,52 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.0] — 2026-06-08
+## [0.3.0] — 2026-07-10
 
-The 1.0 cut. The optional satellites move out of the core into their own
-independently-versioned packages, and the unified tenant-resolution path becomes
-the default. The core now ships only the tenancy primitives plus the leaf
-satellites (audit, feature flags, metrics, webhooks, branding, quotas,
-impersonation). See the [Upgrade to 1.0 guide](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/upgrade-to-1.0.md)
+The restructure. The optional satellites move out of the core into their own
+independently-versioned packages, the unified tenant-resolution path becomes the
+default, and the public surface is frozen. The core now ships only the tenancy
+primitives plus the leaf satellites (audit, feature flags, metrics, webhooks,
+branding, quotas, impersonation). See the
+[Upgrade to 0.3 guide](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/upgrade-to-0.3.md)
 for a copy-paste migration.
 
+This is still `0.x`. The core is a release candidate on maturity (feature
+complete, green in CI against real Postgres and Redis), but it has no production
+mileage and no independent security review, so it makes no semver promise across
+a minor. `1.0.0` is earned, not declared. The five satellite packages ship
+`0.1.0` and are labeled experimental.
+
 ### Breaking changes
+
+- **The public surface is frozen and much smaller.** The root barrel goes from 186
+  exported symbols to 95, and the `exports` map from 25 subpaths to 20. Nothing is
+  lost: every symbol pulled off the root still lives on a subpath that is still
+  published, and every symbol on a de-listed subpath still lives on the root or on
+  `/internal`. What moved:
+  - De-listed: `/crypto`, `/worm-ledger`, `/adapters`, `/helpers`,
+    `/extensions/request`. The two adapters and `buildTenantWorkerOptions` are on
+    the root barrel; `resolveTenantId` already was. `/extensions/request` was the
+    only public path to `__setMemoizedTenant` and its four sibling test seams, which
+    are now private.
+  - Off the root, onto their subpath: the four extension registries, the
+    bootstrapper helpers, the six satellite models (`/models/satellites`),
+    `safeFetch` (`/safe-fetch`), and the service type cluster (`/services`).
+  - Onto `/internal`: the AEAD envelope primitives (`encrypt`, `sealV2WithKey`,
+    `decryptWithAppKey`, …) and the SSRF URL guards. A host app stores secrets at
+    rest through `readSecret` / `writeSecret` / `SECRET_CLASS`, which stay on the
+    root barrel.
+  - `__resetConfigForTests` moved off the public `/config` subpath onto `/testing`.
+  - `/services`, `/health`, `/sdk` and `/plugin` are now labelled an **advanced**
+    tier: broad, close to the internals, and breakable in a minor. See the
+    [stability reference](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/reference/stability.md).
 
 - **Satellites are separate packages now.** Billing, SSO, the admin REST API,
   and backup/clone/restore moved out of the core. Install the ones you use and
   update imports:
   - `@adonisjs-lasagna/saas-tenancy/admin` → **`@adonisjs-lasagna/admin`**. The
-    old `/admin` subpath is a deprecated throwing shim for one minor, then drops.
+    old `/admin` subpath is gone from the `exports` map, so importing it fails
+    with `ERR_PACKAGE_PATH_NOT_EXPORTED`. There is no shim.
   - `SsoService` + `TenantSsoConfig` → **`@adonisjs-lasagna/sso`** (they were
     exported from shared barrels, so there is no shim — the symbols are removed).
   - `BillingService`, the Stripe models, the billing events/jobs,
@@ -46,13 +76,15 @@ for a copy-paste migration.
     moves to `from '@adonisjs-lasagna/billing'`. The tenant-lifecycle hook phases
     (`backup`/`restore`/`clone`) and the `TenantBackedUp` / `TenantRestored` /
     `TenantCloned` events also stay in core.
-- **`resolver.legacyAdapterFallback` now defaults to `false`.** When a model
-  query runs outside an active tenant context, `TenantAdapter` resolves the id
-  through the resolver chain synchronously (`resolveSync`) instead of the
-  `resolverStrategy`-only switch. Apps using a single built-in strategy are
-  unaffected; apps that relied on the old fallback (a custom `resolverChain`
-  whose result differs from `resolverStrategy`) set
-  `resolver: { legacyAdapterFallback: true }` to restore it.
+- **Tenant resolution unified behind the resolver chain.** A model query outside
+  an active tenant context resolves its id through the same chain
+  `request.tenant()` uses (`resolveSync`), not a separate `resolverStrategy`-only
+  switch; the `legacyAdapterFallback` opt-out is removed. Every resolver enforces
+  one UUID policy at the border: a non-UUID `header`/`subdomain`/`path` value falls
+  through instead of forging an id, and a mixed-case UUID is canonicalized to
+  lowercase (one connection, one cache entry, one rate-limit bucket). Apps using a
+  single built-in strategy are unaffected; apps that attributed tenants by opaque
+  non-UUID ids move to UUID v4 tenant ids.
 - **The admin API is fail-closed.** `multitenancyAdminRoutes` now throws at boot
   unless you pass `middleware`, or `middleware: false` to mount it public on
   purpose. (Shipped behind the extraction; see `@adonisjs-lasagna/admin`.)
@@ -131,7 +163,7 @@ for a copy-paste migration.
   take an optional `--admin=<id>` flag that attributes the append-only audit row to
   that operator; absent, the row is recorded as `system`.
 - Docs: a [Scaling limits](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/docs/guides/scaling-limits.md)
-  page and the Upgrade to 1.0 guide.
+  page and the Upgrade to 0.3 guide.
 - **Row-Level Security for `rowscope-pg`.** A new opt-in
   (`configure --with=rls`) publishes a policy migration, plus `withTenantRls()`
   and `setTenantRlsGuc()` helpers that set a transaction-local `app.tenant_id`.
@@ -269,7 +301,7 @@ for a copy-paste migration.
   work in `tenancy.run()` automatically (models, cache, drive, and logging resolve
   to the tenant), running globally when the payload carries no `tenantId`. Removes
   the manual `tenancy.run()` wrapping footgun for host and third-party jobs.
-- **`buildTenantWorkerOptions(tenantId, concurrency?)`** on a new `/helpers` subpath.
+- **`buildTenantWorkerOptions(tenantId, concurrency?)`** on the root barrel.
   Assembles the per-tenant BullMQ `WorkerOptions` (Redis connection, name,
   concurrency) needed to run a dedicated worker per tenant with its own concurrency
   ceiling, so one tenant's job burst cannot starve the others. The package stays
@@ -338,8 +370,8 @@ for a copy-paste migration.
   `dependsOn` other satellites (ordered and cycle-checked at configure time), and
   manifest `provider`/`commands` paths are validated as safe relative specifiers.
   `SATELLITE_API_VERSION` (currently `1`) plus `checkSatelliteApiCompat(...)` freeze
-  the ABI under the 1.x promise: `configure` refuses to wire a satellite that needs
-  a newer ABI than the installed core. The `/testing` barrel is now safe to import
+  the ABI on its own version line, independent of the npm version: `configure`
+  refuses to wire a satellite that needs a newer ABI than the installed core. The `/testing` barrel is now safe to import
   in a hermetic unit test (it no longer boots a DB connection at import time).
 - **`tenant:satellite:remove <package>`** prints a precise, safe checklist for
   removing a packaged satellite (the `adonisrc.ts` lines, the migrations it
@@ -545,6 +577,19 @@ for a copy-paste migration.
   named `<ts>_<pkg_slug>__<stub>.ts` intrinsically; idempotency recognizes both the
   namespaced and legacy un-namespaced forms, so existing installs are not
   re-published as duplicates.
+- **Published migrations now run in the order they were published, not in
+  alphabetical order.** Every migration stub named its own output
+  `${Date.now()}_<name>.ts`. Two stubs of one batch render in the same millisecond and
+  tie, and `migration:run` sorts by filename, so the tie fell through to the alphabet.
+  `configure --with=webhooks` could therefore emit
+  `create_tenant_webhook_deliveries_table` ahead of the `create_tenant_webhooks_table`
+  its foreign key points at, and `migration:run` failed on a table that did not exist
+  yet. The publisher now re-stamps each batch so publish order is run order, clearing
+  every timestamp already in the directory. A new `check-migration-order` CI guard
+  reads the `createTable`, `alterTable`, `inTable` and raw `ALTER TABLE` statements out
+  of every stub, and fails the build if a batch declares a dependency it publishes too
+  late. The clean-install gate now selects `--with=webhooks,maintenance`, so real
+  PostgreSQL adjudicates the foreign key.
 - **`configure --with=metrics` now publishes every metrics table.** The bundle only
   published `create_tenant_metrics_table`; `create_tenant_custom_metrics_table` and
   `create_tenant_metrics_monthly_table` were orphaned (in no bundle), so a host that
@@ -554,9 +599,8 @@ for a copy-paste migration.
   hosts re-run `configure @adonisjs-lasagna/saas-tenancy --with=metrics` (idempotent)
   then `migration:run --connection=backoffice`.
 - **README/docs accuracy.** Corrected the package README highlight counts (28 typed
-  events, 39 admin endpoints, nine doctor checks), described the satellite *packages*
-  as release candidate (only the in-core opt-in features stay experimental), and
-  pointed the reference-app snippets at the real `examples/api/docker-compose.yml`.
+  events, 39 admin endpoints, nine doctor checks), and pointed the reference-app
+  snippets at the real `examples/api/docker-compose.yml`.
   These structural counts and the README stability badges are now pinned by CI guards
   so they cannot silently drift again.
 

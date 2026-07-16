@@ -7,7 +7,7 @@ export interface CreateTestExtensionOptions {
   description?: string
   /** Defaults to the current `REPORTING_CONTRACT_VERSION` (a compatible report). */
   contractVersion?: number
-  /** The value `execute` resolves to — a constant or a function of the filters. */
+  /** The value `execute` resolves to: a constant or a function of the filters. */
   result?: unknown | ((filters: ReportExtensionFilters) => unknown)
   /** Make `execute` reject, to exercise error paths. */
   throws?: Error | string

@@ -13,7 +13,7 @@ const TENANT_COUNT = 3
 const JOBS_PER_TENANT = 30
 
 /**
- * S0-3 (case 4.2): the job-context isolation test.
+ * The job-context isolation test.
  *
  * Real BullMQ workers wrap each job invocation with `tenancy.run(tenant,
  * fn)` so `currentId()` resolves to the right tenant. This spec
@@ -25,7 +25,7 @@ const JOBS_PER_TENANT = 30
  *   1. Inside each callback, `tenancy.currentId()` matches the
  *      tenant the job was started for. (AsyncLocalStorage isolation.)
  *   2. After all jobs complete, each tenant's schema contains
- *      exactly the rows that belong to its own jobs — no cross-bleed.
+ *      exactly the rows that belong to its own jobs, no cross-bleed.
  *
  * If either fails, jobs running in production can corrupt
  * cross-tenant data; the package is unsafe to ship.

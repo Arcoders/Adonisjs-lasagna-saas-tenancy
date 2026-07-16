@@ -4,7 +4,7 @@ import { BillingService } from '@adonisjs-lasagna/billing'
 import { setConfig, getConfig } from '@adonisjs-lasagna/saas-tenancy'
 import { testConfig } from '@adonisjs-lasagna/satellite-test-kit/testing'
 // Imported via the package path (build/) so we don't pull a parallel copy of
-// the satellite's `src/` — tsx will evaluate both copies of any module it can
+// the satellite's `src/`. tsx will evaluate both copies of any module it can
 // resolve, and a duplicate model/service evaluation yields a second class
 // identity than the one the booted provider bound. Billing's boot-time guard
 // lives in the billing provider (the core never imports billing), so this is
@@ -15,10 +15,10 @@ import type { MultitenancyConfig } from '@adonisjs-lasagna/saas-tenancy/types'
 /**
  * `BillingService.verify()` is the boot-time guard against the most
  * common "wrong env" mistakes:
- *   - Test key paired with NODE_ENV=production → hard abort.
- *   - Live key in non-production env → hard abort unless
+ *   - Test key paired with NODE_ENV=production: a hard abort.
+ *   - Live key in non-production env: a hard abort unless
  *     STRIPE_ALLOW_LIVE_IN_DEV=true is set explicitly.
- *   - Misconfigured products → hard abort with the specific stripe id.
+ *   - Misconfigured products: a hard abort with the specific stripe id.
  *
  * The first group exercises `verify()` in isolation. The second group
  * exercises the SAME guard via `MultitenancyProvider.boot()` so a
@@ -72,8 +72,8 @@ test.group('BillingService.verify — mode + config validation', (group) => {
 
   test('aborts boot when sk_test_* paired with NODE_ENV=production', async ({ assert }) => {
     // Configure while still in the (non-production) test env, THEN flip to
-    // production: setConfig refuses a second set under NODE_ENV=production (WS-5
-    // config immutability), and verify() reads NODE_ENV at call time anyway.
+    // production: setConfig refuses a second set under NODE_ENV=production
+    // (config immutability), and verify() reads NODE_ENV at call time anyway.
     setBillingConfig({ apiKey: 'sk_test_abort_me' })
     process.env.NODE_ENV = 'production'
 
@@ -106,7 +106,7 @@ test.group('BillingService.verify — mode + config validation', (group) => {
 
     // The escape hatch is the operator's explicit opt-in for staging
     // environments that legitimately use live keys: verify must NOT reject.
-    // NOTE: no 2nd argument — @japa/assert treats a string there as an
+    // NOTE: no 2nd argument. @japa/assert treats a string there as an
     // error-MESSAGE MATCHER ("must not reject with this message"), which would
     // let any other rejection pass silently.
     await assert.doesNotReject(() => billing.verify())
@@ -172,7 +172,7 @@ test.group('BillingService.verify — mode + config validation', (group) => {
 
     await billing.verify()
     // A second verify() must be a no-op. (No 2nd arg: a string there is an
-    // error-message matcher, not a label — it would mask real rejections.)
+    // error-message matcher, not a label, which would mask real rejections.)
     await assert.doesNotReject(() => billing.verify())
   })
 
@@ -234,12 +234,13 @@ test.group('BillingProvider.boot — billing.verify wiring', (group) => {
       },
     } as MultitenancyConfig
 
-    // Adonis providers read `app.config`, not the package-level `setConfig`
-    // — so we have to update both for boot() to see the bad config.
+    // Adonis providers read `app.config`, not the package-level `setConfig`,
+    // so we have to update both for boot() to see the bad config.
     app.config.set('multitenancy', evilConfig)
     setConfig(evilConfig)
-    // Flip to production AFTER setConfig: WS-5 refuses a second setConfig under
-    // production; provider.boot() → verify() reads NODE_ENV at call time.
+    // Flip to production AFTER setConfig: the config-immutability guard refuses
+    // a second setConfig under production, and provider.boot() calls verify(),
+    // which reads NODE_ENV at call time.
     process.env.NODE_ENV = 'production'
 
     const provider = new BillingProvider(app as never)

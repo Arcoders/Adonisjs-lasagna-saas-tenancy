@@ -65,7 +65,7 @@ export default class CloneService {
     const driver = await getActiveDriver()
     // Clone provisions fresh per-tenant storage for the destination, so it only
     // works on a driver that owns storage. A shared-storage driver (rowscope-pg)
-    // has nothing to provision — fail clearly rather than crash on a missing method.
+    // has nothing to provision. Fail clearly rather than crash on a missing method.
     if (!isProvisionableDriver(driver)) {
       throw new Error(
         `tenant:clone requires a provisionable isolation driver (one that owns per-tenant ` +
@@ -129,11 +129,11 @@ export default class CloneService {
   ): Promise<{ tablesCopied: number; rowsCopied: number }> {
     const srcSchema = source.schemaName
     const dstSchema = dest.schemaName
-    // Re-validate identifiers — driver-derived, but embedded directly in SQL below.
+    // Re-validate identifiers: driver-derived, but embedded directly in SQL below.
     assertSafeIdentifier(srcSchema, 'source schema')
     assertSafeIdentifier(dstSchema, 'destination schema')
 
-    // Cross-schema ops go on the central pool, not the default — the default
+    // Cross-schema ops go on the central pool, not the default. The default
     // is the per-tenant template and resets connection state between
     // statements on some Linux runners.
     const conn = db.connection(getConfig().centralConnectionName)

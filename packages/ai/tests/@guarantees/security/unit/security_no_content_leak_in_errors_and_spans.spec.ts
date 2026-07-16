@@ -16,7 +16,7 @@ import type { IsthmusGuardTrippedPayload } from '@adonisjs-lasagna/saas-tenancy/
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * WS-AI-8 / 1F — no user content leaks into an error, a guard event, an audit row,
+ * No user content leaks into an error, a guard event, an audit row,
  * or a response body. Content-in-audit-rows and the seam fields are pinned elsewhere
  * (the security_audit_seam_*_non_pii and security_ai_audit_persisted_row_non_pii
  * specs); the no-log surface is pinned statically by check-ai-no-prompt-logging. This

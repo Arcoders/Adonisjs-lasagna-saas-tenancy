@@ -2,7 +2,7 @@
  * OpenAPI 3.1 spec for the multitenancy admin REST API. Built declaratively
  * so the router and the spec can be cross-checked by a test (`tests/unit/admin/openapi.spec.ts`).
  *
- * Schemas mirror the controller serializers — when you add a field to a
+ * Schemas mirror the controller serializers. When you add a field to a
  * `serialize()` function, mirror it here.
  */
 import { createRequire } from 'node:module'
@@ -378,7 +378,7 @@ const parameters = {
 
 /**
  * Build the OpenAPI spec rooted at `prefix`. The prefix is part of every
- * path key — e.g. `prefix='/admin/multitenancy'` yields
+ * path key. For example, `prefix='/admin/multitenancy'` yields
  * `/admin/multitenancy/tenants` keys.
  */
 export function getOpenAPISpec(prefix = '/admin/multitenancy'): OpenApiDocument {

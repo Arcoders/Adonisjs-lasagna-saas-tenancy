@@ -9,9 +9,9 @@ import { createTestTenant, destroyTestTenant } from '@adonisjs-lasagna/satellite
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
- * A5: the user-initiated mutation path must single-flight as tightly as the
+ * The user-initiated mutation path must single-flight as tightly as the
  * webhook path. `concurrent_ensure_customer.spec.ts` proves the low-level
- * `ensureCustomer` guard; this spec proves the user-facing entry point —
+ * `ensureCustomer` guard; this spec proves the user-facing entry point:
  * concurrent `createCheckoutSession` calls for one tenant (double-clicked
  * "Subscribe", two tabs) converge on exactly one customer row, no throw.
  *

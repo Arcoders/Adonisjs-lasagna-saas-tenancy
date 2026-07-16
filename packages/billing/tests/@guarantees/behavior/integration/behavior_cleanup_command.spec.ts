@@ -38,6 +38,7 @@ test.group('tenant:billing:cleanup (integration)', (group) => {
     for (let i = 0; i < count; i++) {
       const eventId = `evt_${randomUUID().slice(0, 8)}_${i}`
       const row = new BillingProcessedEvent()
+      row.provider = 'stripe'
       row.eventId = eventId
       row.eventType = 'customer.subscription.created'
       row.status = opts.status
@@ -69,7 +70,7 @@ test.group('tenant:billing:cleanup (integration)', (group) => {
       const row = await BillingProcessedEvent.find(id)
       assert.isNotNull(row, `${id} (10 days old) must NOT be purged`)
     }
-    // Old failed survives — purge is for completed only (audit + replay window).
+    // Old failed survives: purge is for completed only (audit + replay window).
     for (const id of oldFailed) {
       const row = await BillingProcessedEvent.find(id)
       assert.isNotNull(row, `${id} (failed, 100 days old) must NOT be purged`)
@@ -142,6 +143,7 @@ test.group('tenant:billing:cleanup (integration)', (group) => {
     for (let i = 0; i < count; i++) {
       const id = randomUUID()
       const row = new BillingUsageEvent()
+      row.provider = 'stripe'
       row.id = id
       row.tenantId = tenantId
       row.meterEventName = 'api_calls'

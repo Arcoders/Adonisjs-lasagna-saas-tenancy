@@ -1,5 +1,5 @@
 import { emitIsthmusEvent } from '../isthmus/audit.js'
-import { assertSafeIdentifier } from './isolation/identifier.js'
+import { assertSafeIdentifier } from '../isthmus/guarded_identifier.js'
 
 /**
  * Pure, dependency-free validation for `MetricsService.emitMetric()`. Kept out of
@@ -9,7 +9,7 @@ import { assertSafeIdentifier } from './isolation/identifier.js'
  *
  * Validation is **fail-loud**: a bad metric name or value is a programming error,
  * surfaced immediately, never silently dropped. (The Redis write itself is
- * fail-open — that's a runtime degradation, handled in the service.)
+ * fail-open, which is a runtime degradation handled in the service.)
  */
 
 /**

@@ -42,7 +42,6 @@ intended guard. Read config at request or job time, not at module top-level.
 | `resolverStrategy` | `'subdomain' \| 'header' \| 'path' \| 'domain-or-subdomain' \| 'request-data'` |  | How the tenant id is read from the request. |
 | `resolverChain` | `Array<string \| TenantResolver>` |  | Ordered resolvers; first hit wins. **Overrides** `resolverStrategy`. Each entry is a built-in name, the name of an instance from `resolvers`, or an inline `TenantResolver`. Unknown names fail at boot. |
 | `resolvers` | `TenantResolver[]` |  | Custom `TenantResolver` instances registered at boot so they can be referenced by name in `resolverChain`. |
-| `resolver.legacyAdapterFallback` | `boolean` | `false` | Restore the 0.x `resolverStrategy`-only fallback for model queries outside an active tenant context. See [Upgrade to 1.0](/reference/upgrade-to-1.0#_3-check-the-resolver-default). |
 | `resolver.cache.enabled` | `boolean` | `false` | Opt-in per-process cache of resolved tenants — cuts the steady-state backoffice round-trips per request from two to one. The cached tenant is the SAME instance for every concurrent request: treat it as read-only. See [Performance](/guides/performance). |
 | `resolver.cache.ttlMs` | `number` | `10000` | Freshness bound per entry; also the cross-pod staleness bound for a status change (in-process invalidation fires when the matching lifecycle event is emitted). |
 | `resolver.cache.maxEntries` | `number` | `10000` | LRU cap on simultaneously-cached tenants per process. |
@@ -75,6 +74,7 @@ isolation: { driver: 'schema-pg' }
 | `isolation.maxTenantConnections` | `number` | `50` | LRU budget for open tenant connections (`schema-pg`/`database-pg`). Keep `cap × pool max` under PG's `max_connections`. |
 | `isolation.evictionGracePeriodMs` | `number` | `30000` | A connection touched more recently than this is in-use and never evicted — set above your p99 request duration. |
 | `isolation.enforceConnectionCap` | `boolean` | `false` | Turn the LRU budget into a hard cap: refuse new tenant connections with a 503 (`TenantConnectionLimitException`) instead of exceeding it. |
+| `isolation.maxTenantConnectionsHardCeiling` | `number?` | unset | Absolute upper bound above `maxTenantConnections`: once the pool reaches it, `connect()` refuses a new request-path tenant connection with a 503 **regardless of `enforceConnectionCap`**, so an availability-favouring pool can never exhaust PG's `max_connections`. Set it generously above the soft cap; operational paths (provisioning, migrations) bypass it. |
 
 ## Resilience (degradation policy)
 

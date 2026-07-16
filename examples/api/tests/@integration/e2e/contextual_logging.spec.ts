@@ -42,14 +42,14 @@ test.group('e2e — contextual logging carries tenantId', (group) => {
     const r = await client.get('/demo/log/emit').header('x-tenant-id', id)
     r.assertStatus(200)
 
-    // pino exposes `.bindings()` on child loggers — when AdonisJS surfaces it
+    // pino exposes `.bindings()` on child loggers. When AdonisJS surfaces it
     // through the macro chain, we can directly assert the bound field.
     if (r.body().loggerBindings && typeof r.body().loggerBindings === 'object') {
       assert.equal(r.body().loggerBindings.tenantId, id)
     } else {
       // AdonisJS may not expose `.bindings()` through its logger wrapper. The
       // first test already proves the AsyncLocalStorage binding; the package
-      // contract guarantees `bind(logger)` calls `logger.child(context)` —
+      // contract guarantees `bind(logger)` calls `logger.child(context)`,
       // covered separately by the unit assertion below.
       assert.isTrue(true, 'logger bindings introspection unavailable in this AdonisJS version')
     }
@@ -71,7 +71,7 @@ test.group('e2e — contextual logging carries tenantId', (group) => {
         calls.push(bindings)
         return this
       },
-      // satisfy the LoggerLike contract — these are unused in `bind()`
+      // satisfy the LoggerLike contract (these are unused in `bind()`)
       trace() {},
       debug() {},
       info() {},

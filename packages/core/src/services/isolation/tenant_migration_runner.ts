@@ -20,7 +20,7 @@ let seq = 0
 
 /**
  * Run a tenant's migrations, folding any `opts.extraMigrationPaths` (the
- * per-tenant satellite-migration directories, SEAM-2) into the source
+ * per-tenant satellite-migration directories) into the source
  * directories the Migrator reads.
  *
  * Lucid's `Migrator` resolves its migration directories from the CONNECTION's

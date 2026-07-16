@@ -49,7 +49,7 @@ function v1Key(appKey: string): Buffer {
   return createHash('sha256').update(appKey).digest()
 }
 
-/** v2 data key: HKDF-SHA256(APP_KEY, KEY_SALT, info=context) -> 32 bytes. */
+/** v2 data key: HKDF-SHA256(APP_KEY, KEY_SALT, info=context), which yields 32 bytes. */
 function v2Key(appKey: string, context: string): Buffer {
   return Buffer.from(
     hkdfSync(HKDF_HASH, Buffer.from(appKey, 'utf8'), KEY_SALT, Buffer.from(context, 'utf8'), 32)
@@ -143,13 +143,13 @@ export function encrypt(plaintext: string, context: string = DEFAULT_CONTEXT): s
 
 /**
  * Decrypt an `enc_v2` or `enc_v1` value. A value WITHOUT a known prefix is
- * returned unchanged — a deliberate migration affordance so rows written before
+ * returned unchanged, a deliberate migration affordance so rows written before
  * encryption was added keep working. The flip side: a corrupted stored
  * ciphertext that lost its prefix would silently be treated as plaintext. Use
  * {@link decryptStrict} where the value MUST be ciphertext.
  *
  * Rotating `APP_KEY` makes every stored secret undecryptable until re-encrypted
- * (an `enc_v2` value reports a clear key-id mismatch) — run
+ * (an `enc_v2` value reports a clear key-id mismatch). Run
  * `node ace tenant:secrets:reencrypt` with `OLD_APP_KEY` set as part of any
  * rotation (see the security guide).
  */
@@ -196,11 +196,13 @@ const DEK_BYTES = 32
 
 /**
  * Seal a plaintext into the frozen `enc_v2` envelope under a CALLER-SUPPLIED
- * 32-byte DEK, instead of an APP_KEY-derived key. This is the one narrow seam
- * `@adonisjs-lasagna/crypto` needs: core's `encrypt`/`encryptV2` derive the AES
- * key internally via `v2Key = HKDF-SHA256(APP_KEY, ...)` and expose no way to
- * inject a caller's key, so per-`(subject × category)` DEK encryption cannot reuse
- * them. `sealV2WithKey` reuses the SAME AES-256-GCM primitive, the SAME
+ * 32-byte DEK, instead of an APP_KEY-derived key. This is the narrow seam a
+ * per-subject field-encryption layer needs: core's `encrypt`/`encryptV2` derive
+ * the AES key internally via `v2Key = HKDF-SHA256(APP_KEY, ...)` and expose no way
+ * to inject a caller's key, so per-`(subject × category)` DEK encryption cannot
+ * reuse them. Nothing in this repo consumes the seam today.
+ *
+ * `sealV2WithKey` reuses the SAME AES-256-GCM primitive, the SAME
  * `enc_v2:<keyId>:<iv>:<tag>:<cipher>` framing, and the SAME header-as-AAD; the
  * only differences are that the AES key is the caller's DEK and `keyId` is a
  * NON-SECRET tag the caller supplies (a tag of the DEK, or the wrapped-DEK row id)

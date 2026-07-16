@@ -36,13 +36,13 @@ export const RESOLUTION_CACHE_INVALIDATING_EVENTS = [
  * Subscribe in-process resolution-cache invalidation to every tenant-lifecycle
  * event on `emitter`, and return a teardown that removes every listener again.
  *
- * Must run with a fully-constructed emitter — i.e. only after the app is booted,
+ * Must run with a fully-constructed emitter, i.e. only after the app is booted,
  * which is why `MultitenancyProvider` calls this from `ready()` and resolves the
  * emitter via `container.make('emitter')`, NEVER from `boot()` via the
  * `@adonisjs/core/services/emitter` module. That module only assigns its default
  * export inside an `app.booted()` hook; imported during `boot()` (before the
  * booted hooks run) it resolves to `undefined`, which silently drops every
- * subscription and leaves the cache stale until the TTL — the exact regression
+ * subscription and leaves the cache stale until the TTL, the exact regression
  * this seam exists to make testable.
  */
 export function wireResolutionCacheInvalidation(

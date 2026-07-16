@@ -6,7 +6,7 @@ import type { AggregationOptions } from './types.js'
  * differing parameter maps to a different key.
  *
  * The key lives in the **global** `reporting` cache namespace (a backoffice
- * scope), never a tenant scope — reporting data is cross-tenant by design. The
+ * scope), never a tenant scope, because reporting data is cross-tenant by design. The
  * key therefore never contains a `tenant:` prefix; the unit test pins that so a
  * future change can't accidentally tenant-scope a cross-tenant result.
  */

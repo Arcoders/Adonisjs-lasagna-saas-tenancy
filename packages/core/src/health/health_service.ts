@@ -160,14 +160,14 @@ export default class HealthService {
   }
 
   /**
-   * Liveness — process is alive. Never depends on external services.
+   * Liveness: process is alive. Never depends on external services.
    */
   liveness(): { status: 'ok'; uptime: number } {
     return { status: 'ok', uptime: this.#uptime() }
   }
 
   /**
-   * Readiness — runs every registered check. `ok` if all pass, `fail` if all
+   * Readiness: runs every registered check. `ok` if all pass, `fail` if all
    * fail OR any critical check fails, `degraded` if only non-critical checks
    * fail.
    */

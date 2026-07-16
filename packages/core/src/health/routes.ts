@@ -40,13 +40,13 @@ export interface MultitenancyRoutesOptions {
    * and business metrics.
    *
    * REQUIRED when `metrics` is enabled (the default). The endpoint refuses to
-   * mount without it — pass your auth (or a network guard) here, or pass
+   * mount without it. Pass your auth (or a network guard) here, or pass
    * `metricsMiddleware: false` to intentionally mount it public (only ever
    * behind a trusted network boundary such as a private VPC or an
    * authenticating gateway). Omitting both throws at startup. This mirrors the
    * fail-closed posture of `multitenancyAdminRoutes`.
    *
-   * `/livez` and `/readyz` are intentionally left public — Kubernetes probes
+   * `/livez` and `/readyz` are intentionally left public: Kubernetes probes
    * must reach them without auth.
    */
   metricsMiddleware?: RouteMiddleware | false
@@ -60,7 +60,7 @@ export interface MultitenancyRoutesOptions {
  * multitenancyRoutes()
  * ```
  *
- * All routes are opt-in — nothing is registered unless this helper is called.
+ * All routes are opt-in: nothing is registered unless this helper is called.
  */
 export function multitenancyRoutes(options: MultitenancyRoutesOptions = {}): void {
   const { prefix = '', health = true, metrics = true, metricsMiddleware } = options

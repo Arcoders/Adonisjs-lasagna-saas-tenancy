@@ -10,7 +10,7 @@ import VectorStoreService, {
 import { ensureVectorExtension, tenantSearchPath } from '../../../helpers/pgvector.js'
 
 /**
- * The I1 proof on REAL pgvector: two tenants placed in two schemas, the same
+ * The tenant-isolation proof on REAL pgvector: two tenants placed in two schemas, the same
  * text embedded into both, and a search as tenant A can never surface tenant B's
  * rows. It drives the real VectorStoreService (real `<=>`, real `vector` column,
  * real ON CONFLICT), through per-tenant connections whose search_path is the
@@ -45,7 +45,7 @@ function tableDdl(schema: string): string {
   )`
 }
 
-/** A store whose active scope is `activeId`, routing A->schemaA, B->schemaB. */
+/** A store whose active scope is `activeId`, routing A to schemaA and B to schemaB. */
 function storeAs(activeId: string): VectorStoreService {
   const deps: VectorStoreDeps = {
     getDriver: async () => ({
@@ -88,7 +88,7 @@ test.group('vector store two-tenant isolation (real pgvector)', (group) => {
     db.manager.add(connB, { ...template, searchPath: tenantSearchPath(schemaB) } as never)
 
     // Create each tenant's ai_embeddings ON that tenant's connection, whose
-    // search_path appends the extensions schema — so the bare `vector(N)` type
+    // search_path appends the extensions schema, so the bare `vector(N)` type
     // resolves exactly as the production per-tenant migration does.
     for (const [schema, conn] of [
       [schemaA, connA],
@@ -154,7 +154,7 @@ test.group('vector store two-tenant isolation (real pgvector)', (group) => {
   test('the embeddingCount cap bites atomically at the plan limit (#18)', async ({ assert }) => {
     const store = storeAs('A')
     // Earlier tests in this group seeded tenant A's shared table, and the cap counts
-    // existing rows — reset to a known-empty table so the 2/2 bite is exact.
+    // existing rows. Reset to a known-empty table so the 2/2 bite is exact.
     await db.connection(connA).rawQuery('TRUNCATE ai_embeddings')
     await store.insert(tenantA, 'capdoc', [chunk('a', 'caphash1', [1, 1, 0, 0])], { maxCount: 2 })
     await store.insert(tenantA, 'capdoc', [chunk('b', 'caphash2', [0, 0, 1, 1])], { maxCount: 2 })

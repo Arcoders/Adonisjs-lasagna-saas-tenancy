@@ -23,7 +23,7 @@ import type { BackupMetadata, CloneResult } from '@adonisjs-lasagna/saas-tenancy
  * Lifecycle event dispatch coverage.
  *
  * The 13 typed events are emitted across commands, jobs, services and
- * the admin controller — too many call sites to drive end-to-end from
+ * the admin controller, too many call sites to drive end-to-end from
  * a single spec. Instead, we exercise the contract that every call
  * site relies on: each event class is constructible with its declared
  * payload, registered with the BaseEvent emitter, and observable via

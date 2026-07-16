@@ -5,10 +5,10 @@ import AiIdempotencyService, {
 } from '../../../../src/gateway/idempotency.js'
 
 /**
- * WS-AI-9 E3: `bumpEpoch` is the fail-closed purge gate. A store that silently
+ * `bumpEpoch` is the fail-closed purge gate. A store that silently
  * no-ops the `set` would leave the old epoch resolving and pre-purge responses
  * replayable, so the rotation is read back and confirmed. This spec proves the
- * gate throws when the write is not observable, and succeeds when it is — the
+ * gate throws when the write is not observable, and succeeds when it is. That is the
  * bite the whole "bumpEpoch first" ordering depends on.
  */
 

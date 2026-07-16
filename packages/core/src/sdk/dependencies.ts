@@ -53,7 +53,7 @@ function caretUpper([maj, min, pat]: Triple): Triple {
  * A deliberately small, dependency-free semver-range check. Supports: any
  * (`*` / `x` / `""`), exact (`1.2.3` / `=1.2.3`), comparators (`>= > <= <`),
  * caret (`^`) and tilde (`~`). Anything else (compound ranges with `||`, hyphen
- * ranges, whitespace-joined comparators) returns `null` — "cannot evaluate" —
+ * ranges, whitespace-joined comparators) returns `null` ("cannot evaluate")
  * and the caller treats it as satisfied. Pre-release / build metadata on the
  * version is ignored.
  *
@@ -89,7 +89,7 @@ export function satisfiesRange(version: string, range: string): boolean | null {
       return cmp(ver, base) >= 0 && cmp(ver, caretUpper(base)) < 0
     }
     case '~': {
-      // ~1.2.3 / ~1.2 → >=1.2.0 <1.3.0 ; ~1 → >=1.0.0 <2.0.0
+      // ~1.2.3 and ~1.2 mean >=1.2.0 <1.3.0; ~1 means >=1.0.0 <2.0.0
       const upper: Triple = minWild ? [maj + 1, 0, 0] : [maj, min + 1, 0]
       return cmp(ver, base) >= 0 && cmp(ver, upper) < 0
     }
@@ -103,7 +103,7 @@ export function satisfiesRange(version: string, range: string): boolean | null {
       return cmp(ver, base) <= 0
     case '=':
     default: {
-      // Exact, honoring x-ranges: `1.x` → major must match; `1.2.x` → major+minor.
+      // Exact, honoring x-ranges: `1.x` means major must match; `1.2.x` means major+minor.
       if (minWild) return ver[0] === maj
       if (patWild) return ver[0] === maj && ver[1] === min
       return cmp(ver, base) === 0
@@ -124,7 +124,7 @@ export interface DependencyResolution {
 
 /**
  * Resolve the dependency closure of `selected` against `index` (every installed
- * satellite, keyed by package name and alias — i.e. the output of
+ * satellite, keyed by package name and alias, i.e. the output of
  * `indexSatellites`). See the module doc for the contract.
  */
 export function resolveSatelliteDependencies(
@@ -135,9 +135,9 @@ export function resolveSatelliteDependencies(
   const rangeMismatches: DependencyResolution['rangeMismatches'] = []
 
   // Build the working set (closure) keyed by package name, and the edges
-  // dependency -> dependent.
+  // that point from each dependency to its dependent.
   const nodes = new Map<string, DiscoveredSatellite>()
-  const deps = new Map<string, Set<string>>() // node -> set of its dependency package names
+  const deps = new Map<string, Set<string>>() // maps each node to the set of its dependency package names
 
   const queue: DiscoveredSatellite[] = []
   const enqueue = (sat: DiscoveredSatellite) => {

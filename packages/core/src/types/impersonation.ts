@@ -11,7 +11,7 @@ export interface ImpersonationSession {
   tenantId: string
   /** Target user id inside the tenant context. */
   targetUserId: string
-  /** Acting admin id (free-form — opaque to the package). */
+  /** Acting admin id (free-form, opaque to the package). */
   adminId: string
   /** Logical type of the actor. Default `admin`. */
   adminType: 'admin' | 'system'

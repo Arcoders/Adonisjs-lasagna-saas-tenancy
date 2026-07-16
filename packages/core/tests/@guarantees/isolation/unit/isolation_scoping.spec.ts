@@ -9,7 +9,7 @@ import { tenancy, __configureTenancyForTests } from '../../../../src/tenancy.js'
 import BootstrapperRegistry from '../../../../src/services/bootstrapper_registry.js'
 import TenantLogContext from '../../../../src/services/tenant_log_context.js'
 import { setupTestConfig } from '../../../helpers/config.js'
-import { __resetConfigForTests } from '../../../../src/config.js'
+import { __resetConfigForTests } from '../../../../src/testing/config_reset.js'
 import type { TenantModelContract } from '../../../../src/types/contracts.js'
 
 const fakeTenant = (id = 'tenant-1') =>
@@ -182,7 +182,7 @@ test.group('withTenantScope — query hooks', (group) => {
   })
 
   // (The old "hooks no-op when no tenant scope is active" test was removed
-  // when the default became strict — see the "strict mode (default)" and
+  // when the default became strict. See the "strict mode (default)" and
   // "allowGlobal mode" groups below for the current behavior.)
 
   test('boot() is idempotent — does not register duplicate hooks', async ({ assert }) => {
@@ -262,11 +262,11 @@ test.group('withTenantScope — allowGlobal mode', (group) => {
 })
 
 /**
- * WS-5 / strict-scope-fails-open-on-getconfig-throw. When the config is
- * UNREADABLE (getConfig threw — provider not booted yet), a scope-less query
- * used to fall through to a GLOBAL query (fail-open). It must now fail closed.
+ * Strict scope must fail closed when the config is unreadable. When the config is
+ * UNREADABLE (getConfig threw because the provider is not booted yet), a scope-less
+ * query used to fall through to a GLOBAL query (fail-open). It must now fail closed.
  *
- * RED (pre-fix): with config reset, the find hook silently skipped the predicate.
+ * Before the fix, with config reset, the find hook silently skipped the predicate.
  */
 test.group('withTenantScope — fail-closed on unreadable config (WS-5)', (group) => {
   // Boot needs a readable config (it reads the scope column), so we set config,
@@ -283,7 +283,7 @@ test.group('withTenantScope — fail-closed on unreadable config (WS-5)', (group
     Scoped.boot()
 
     __resetConfigForTests() // config now unreadable at query time
-    // No active tenant context AND no readable config → fail closed, never global.
+    // No active tenant context AND no readable config, so fail closed, never global.
     assert.throws(() => hooks.find![0]!(new FakeQuery()), MissingTenantScopeException as any)
   })
 
@@ -334,7 +334,7 @@ test.group('withTenantScope — fetch-hook defense-in-depth (C2 fix)', (group) =
     const Scoped = withTenantScope(FakeBaseModel as any) as any
     Scoped.boot()
 
-    // No tenancy.run scope, no unscoped() — under strict mode (default),
+    // No tenancy.run scope, no unscoped(). Under strict mode (default),
     // Model.query().delete() in this state must throw rather than wipe
     // every tenant's rows.
     assert.throws(() => hooks.fetch![0]!(new FakeQuery()), MissingTenantScopeException as any)

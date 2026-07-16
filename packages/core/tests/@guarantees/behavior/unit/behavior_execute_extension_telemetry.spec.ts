@@ -12,7 +12,7 @@ import {
 import { AI_TAG } from '../../../helpers/tags.js'
 
 /**
- * WS2 observability — executeExtension emits one `extension.execute` span per
+ * Observability: executeExtension emits one `extension.execute` span per
  * call whose `outcome` attribute classifies the terminal state. Asserted at the
  * TelemetryService seam; the behavioral contract (return values, rejections,
  * signal threading) stays covered by behavior_execute_extension.

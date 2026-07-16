@@ -1,33 +1,28 @@
 import type { MultitenancyConfig } from '../types/config.js'
+import { chainTrusts, entryTrust } from './resolvers/resolver_trust.js'
 
 /**
- * Strategies where the tenant id arrives in attacker-controllable request data
- * (a header, a URL path segment, or a query/body field) rather than from DNS or
- * the host (subdomain / custom domain). With a client-controlled strategy a
- * swapped tenant id is a textbook cross-tenant IDOR unless an app-layer
- * membership check rejects the principal — which is exactly what
- * `authorizeTenantAccess` is for.
+ * A strategy is client-controlled when its tenant id arrives in
+ * attacker-controllable request data (a header, a URL path segment, or a
+ * query/body field) rather than from DNS or a server-side lookup. With a
+ * client-controlled strategy a swapped tenant id is a textbook cross-tenant IDOR
+ * unless an app-layer membership check rejects the principal, which is exactly
+ * what `authorizeTenantAccess` is for. Classification reads the resolver's
+ * declared {@link ResolverTrust}; an unknown/undeclared name FAILS SAFE to
+ * client-controlled (see {@link entryTrust}), so a bespoke resolver with no
+ * `trust` is flagged rather than silently trusted.
  */
-const CLIENT_CONTROLLED: ReadonlySet<string> = new Set(['header', 'path', 'request-data'])
-
 export function isClientControlledStrategy(strategy: string): boolean {
-  return CLIENT_CONTROLLED.has(strategy)
+  return entryTrust({} as MultitenancyConfig, strategy) === 'client'
 }
 
 /**
  * True when the resolution path (chain if set, else the single strategy) routes
- * through at least one client-controlled built-in. The chain holds resolver
- * names; the built-in names match the strategy names, so the same set applies.
- * Unknown custom resolver names are treated as not-client-controlled here (we
- * cannot classify a host's own resolver), so this never raises a false alarm on
- * a bespoke server-side resolver.
+ * through at least one client-controlled resolver, classified by each resolver's
+ * declared `trust` (fail-safe to client for an undeclared/custom one).
  */
 export function resolutionIsClientControlled(config: MultitenancyConfig): boolean {
-  const chain =
-    config.resolverChain && config.resolverChain.length > 0
-      ? config.resolverChain
-      : [config.resolverStrategy]
-  return chain.some((name) => typeof name === 'string' && isClientControlledStrategy(name))
+  return chainTrusts(config).some((trust) => trust === 'client')
 }
 
 const IDOR_MESSAGE =
@@ -40,7 +35,7 @@ const IDOR_MESSAGE =
 
 /**
  * Returns the IDOR warning message when the deployment is exposed to the
- * cross-tenant access described in the security guide — a client-controlled
+ * cross-tenant access described in the security guide: a client-controlled
  * resolution strategy with neither the package membership gate
  * (`authorizeTenantAccess`) nor an explicit `acknowledgeNoMembershipGate`.
  * Returns null when the posture is safe (server-controlled resolution, a wired

@@ -1,5 +1,5 @@
 import { resolveTenantId } from '../extensions/request.js'
-import { isSafeIdentifier } from '../services/isolation/identifier.js'
+import { guardedSafeIdentifier } from '../isthmus/guarded_identifier.js'
 import { tenancy } from '../tenancy.js'
 import app from '@adonisjs/core/services/app'
 import type { HttpContext } from '@adonisjs/core/http'
@@ -33,12 +33,12 @@ export interface TrackMetricsOptions {
  * downstream handler runs it records one request, an error on a >= `errorThreshold`
  * response, and the response bandwidth from `Content-Length` against the resolved
  * tenant. Counters land in Redis (via {@link MetricsService}) and are flushed to
- * `backoffice.tenant_metrics` by the `tenant:metrics:flush` command — the data the
+ * `backoffice.tenant_metrics` by the `tenant:metrics:flush` command, the data the
  * `reporting` satellite reads.
  *
  * Recording is **fail-open**: a metrics backend error never breaks the request,
  * and the downstream handler's own error always propagates untouched (only the
- * recording is swallowed). Register it like `RateLimitMiddleware` — the host adds
+ * recording is swallowed). Register it like `RateLimitMiddleware`: the host adds
  * it to its kernel or a route group; there is no config block.
  */
 export default class TrackMetricsMiddleware {
@@ -59,7 +59,7 @@ export default class TrackMetricsMiddleware {
   }
 
   /**
-   * Override hook for tests — lets a spec swap in a capturing fake. Production
+   * Override hook for tests: lets a spec swap in a capturing fake. Production
    * code lazy-imports `MetricsService` so this module stays importable without a
    * booted app (the service eagerly imports `@adonisjs/lucid/services/db`).
    */
@@ -81,19 +81,23 @@ export default class TrackMetricsMiddleware {
       try {
         await this.record(ctx, options)
       } catch {
-        // swallow — recording is best-effort
+        // swallow: recording is best-effort
       }
     }
   }
 
   protected async record(ctx: HttpContext, options: TrackMetricsOptions): Promise<void> {
     // Attribution: prefer the canonical id the guard already established
-    // (`tenancy.currentId()`, always a validated tenant id). The sync fallback
-    // re-reads a client-controlled header/segment, so a non-`SAFE_IDENT` value
-    // there is forged or injects `:` key structure. Drop it instead of letting it
-    // forge another tenant's row in `backoffice.tenant_metrics`.
+    // (`tenancy.currentId()`, always a validated tenant id), then `resolveTenantId`
+    // (the SAME chain-aware authority routing uses), so a `resolverChain`
+    // deployment records the row under the tenant actually served. Defense-in-depth:
+    // it re-reads a client-controlled header/segment and a CUSTOM resolver may mint
+    // a non-UUID id, so a non-`SAFE_IDENT` value is forged or injects `:` key
+    // structure. Drop it instead of letting it forge another tenant's row in
+    // `backoffice.tenant_metrics`. `guardedSafeIdentifier` audits a PRESENT-but-
+    // unsafe id (emits `guard.tenant_identifier`); an absent id drops quietly.
     const tenantId = this.currentTenantId() ?? resolveTenantId(ctx.request)
-    if (!tenantId || !isSafeIdentifier(tenantId)) return
+    if (!guardedSafeIdentifier(tenantId, 'metric tenant id')) return
 
     const metrics = await this.getMetrics()
     await metrics.increment(tenantId, 'requests')

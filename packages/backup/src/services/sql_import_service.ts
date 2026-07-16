@@ -30,7 +30,7 @@ export interface SqlImportOptions {
   /**
    * All-or-nothing import. When `true` (the default), the first failing
    * statement aborts the whole import and rolls back every change
-   * (transactional path), or stops psql at the first error (COPY path) — a
+   * (transactional path), or stops psql at the first error (COPY path). A
    * restore either fully applies or leaves nothing behind. Set `false` to
    * apply each statement in its own savepoint and continue past failures,
    * collecting them in `errors`; that can leave the tenant PARTIALLY
@@ -60,7 +60,7 @@ export interface SqlImportResult {
    * hides in a restore. Today: lines where the schema rewrite touched a
    * `<source>.` substring INSIDE a SQL string literal (the rewriter cannot
    * distinguish identifiers from literals without a full parser, so the value
-   * was rewritten — likely corrupting it). Re-export with `pg_dump --inserts`
+   * was rewritten, likely corrupting it). Re-export with `pg_dump --inserts`
    * or a matching schema name if any appear.
    */
   warnings: string[]
@@ -230,7 +230,7 @@ export default class SqlImportService {
 
       for (const token of tokens) {
         if (token.kind === 'copy') {
-          // Should never happen — caller routes COPY-bearing dumps to #runViaPsql
+          // Should never happen: caller routes COPY-bearing dumps to #runViaPsql
           continue
         }
 
@@ -241,7 +241,7 @@ export default class SqlImportService {
         }
 
         // Strict mode: no per-statement savepoint. The first failure throws out
-        // of the transaction callback, so Lucid rolls the whole import back —
+        // of the transaction callback, so Lucid rolls the whole import back:
         // all-or-nothing.
         if (strict) {
           await trx.rawQuery(stmt)
@@ -367,7 +367,7 @@ export default class SqlImportService {
    * On Windows, `spawn('psql', …)` does NOT honor PATHEXT, so the binary
    * has to be referenced as `psql.exe`. This avoids passing `shell: true`,
    * which would let `&`, `|`, `;`, etc. inside any arg get interpreted by
-   * cmd.exe — a command-injection vector if any spawn arg ever contained
+   * cmd.exe, a command-injection vector if any spawn arg ever contained
    * untrusted data.
    */
   #psqlBinary(): string {
@@ -478,7 +478,7 @@ export function assertRewriteLiteralSafety(opts: {
  * itself (which legitimately names `schema.table`) is still rewritten.
  *
  * Known remaining gap: a `<source>.` substring inside a SQL *string literal*
- * (outside COPY) is still rewritten — distinguishing identifiers from literals
+ * (outside COPY) is still rewritten. Distinguishing identifiers from literals
  * needs a full SQL parser. The importer cannot avoid it, but it refuses to be
  * SILENT about it: `onSuspectLiteral` fires for every line where the rewrite
  * touched a single-quoted literal, and the import surfaces those as warnings.
@@ -505,7 +505,7 @@ export function rewriteSchemaPreservingCopyData(
     }
     if (inCopyData) {
       if (line === '\\.') inCopyData = false
-      out.push(line) // data row or terminator — never rewritten
+      out.push(line) // data row or terminator, never rewritten
       continue
     }
     if (onSuspectLiteral && lineRewritesInsideLiteral(line, source)) {

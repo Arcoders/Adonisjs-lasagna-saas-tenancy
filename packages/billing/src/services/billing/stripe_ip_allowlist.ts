@@ -3,7 +3,7 @@ import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 
 /**
  * IP allowlist check for the billing webhook path. Defence-in-depth on top of
- * HMAC signature verification — useful in environments where the secret
+ * HMAC signature verification, useful in environments where the secret
  * could be exposed (multi-team monorepos, leaked .env in CI). Stripe-specific:
  * only Stripe publishes a webhook source-IP range list.
  *
@@ -12,7 +12,7 @@ import { getConfig } from '@adonisjs-lasagna/saas-tenancy/config'
  * CIDR notation, so literal-only matching would silently reject every
  * webhook on a correctly-configured allowlist.
  *
- * Backed by `node:net.BlockList` (Node ≥18) — zero deps, native CIDR
+ * Backed by `node:net.BlockList` (Node ≥18): zero deps, native CIDR
  * support, IPv4 + IPv6, IPv4-mapped IPv6 normalisation handled by the
  * runtime.
  */
@@ -24,7 +24,7 @@ interface CompiledAllowlist {
 
 let _cached: CompiledAllowlist | null = null
 
-/** @internal — for tests only. */
+/** @internal for tests only. */
 export function __resetIpAllowlistCache(): void {
   _cached = null
 }
@@ -38,7 +38,7 @@ function compile(entries: ReadonlyArray<string>): CompiledAllowlist {
     try {
       if (slashIdx >= 0) {
         // CIDR form. addSubnet validates both the address and prefix; if
-        // either is malformed it throws, which we swallow — invalid
+        // either is malformed it throws, which we swallow. Invalid
         // entries are simply ignored rather than aborting the boot.
         // Operators audit the allowlist via `tenant:billing:doctor`.
         const addr = entry.slice(0, slashIdx)

@@ -74,7 +74,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
   test('SDK call-site contract: checkout + portal + metered usage + subscriptions.list + balance.retrieve', async ({
     assert,
   }) => {
-    // Exercises the *other* Stripe SDK surfaces the package calls into —
+    // Exercises the *other* Stripe SDK surfaces the package calls into,
     // the ones the subscription-lifecycle test above doesn't touch:
     //   - stripe.checkout.sessions.create   (BillingService.createCheckoutSession)
     //   - stripe.prices.retrieve            (BillingService.#assertPriceAllowed)
@@ -132,7 +132,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       customer_mapping: { type: 'by_id', event_payload_key: 'stripe_customer_id' },
     })
 
-    // Ensure a Customer Portal configuration exists — in a fresh test
+    // Ensure a Customer Portal configuration exists. In a fresh test
     // account no default exists and `billingPortal.sessions.create` 500s.
     // Creating one when none exists makes it the account default.
     await stripe.billingPortal.configurations
@@ -141,7 +141,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
         features: { invoice_history: { enabled: true } },
       })
       .catch(() => {
-        /* a default already exists — fine */
+        /* a default already exists, fine */
       })
 
     setConfig({
@@ -191,7 +191,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       assert.equal(Number(usageRows[0].quantity), 7)
       assert.isNotNull(usageRows[0].reportedAt)
 
-      // Re-report with the SAME idempotency key — the DB-level dedupe
+      // Re-report with the SAME idempotency key. The DB-level dedupe
       // short-circuits before re-hitting Stripe; still exactly one row,
       // still 'sent'. (Stripe's own idempotency cache covered the first
       // call's `{ idempotencyKey }` param.)
@@ -347,7 +347,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
 
       // --- 6. Replay it through our webhook with our own signature ---
       // (Real Stripe SDK verifies; signature secret is the one we
-      // configured on the package — not Stripe's actual delivery secret.)
+      // configured on the package, not Stripe's actual delivery secret.)
       const body = JSON.stringify(event)
       const sig = signWebhookPayload(body, webhookSecret)
 
@@ -385,10 +385,10 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       assert.equal(tp?.planName, 'smoke_pro', 'tenant_plans assigned via QuotaService')
       assert.equal(tp?.source, 'stripe')
 
-      // --- 8. Cancel in Stripe → feed the REAL canceled subscription
-      // through syncSubscription → verify downgrade. We pass the object
+      // --- 8. Cancel in Stripe, feed the REAL canceled subscription
+      // through syncSubscription, and verify the downgrade. We pass the object
       // `subscriptions.cancel()` returns rather than polling `events.list`
-      // for the `customer.subscription.deleted` event — the latter's
+      // for the `customer.subscription.deleted` event. The latter's
       // propagation timing is variable enough to flake a smoke test, and
       // the thing we actually care about (Stripe's real cancellation
       // payload shape: `canceled_at`, `cancellation_details`, the v18
@@ -399,7 +399,7 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       // Canceling an `incomplete` sub (we created it `default_incomplete`
       // to avoid needing a payment method) terminates it as
       // `incomplete_expired`; an active one would be `canceled`. Accept
-      // either terminal status — the payload shape is what we're after.
+      // either terminal status. The payload shape is what we're after.
       const terminal = ['canceled', 'incomplete_expired']
       assert.isTrue(
         terminal.includes(canceled.status),
@@ -467,8 +467,8 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
     assert,
   }) => {
     // The "SDK call-site" test above calls `stripe.subscriptions.list` raw; this
-    // one exercises the *driver's* `listSubscriptions()` async generator — the
-    // code path `tenant:billing:sync` actually uses — against the real API,
+    // one exercises the *driver's* `listSubscriptions()` async generator (the
+    // code path `tenant:billing:sync` actually uses) against the real API,
     // closing the "generator, not raw SDK" gap. Tolerates zero rows.
     setConfig({
       ...testConfig,

@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { setConfig, getConfig, getConfigVersion } from '../../../../src/config.js'
+import { setConfig, getConfig } from '../../../../src/config.js'
 import { testConfig } from '../../../helpers/config.js'
 
 /**
@@ -8,11 +8,9 @@ import { testConfig } from '../../../helpers/config.js'
  * getConfig() returned a live, mutable reference to a process-wide singleton, so
  * any caller could `getConfig().isolation.driver = ...` and silently re-point
  * every tenant. And a second setConfig silently replaced the config at runtime.
- * The fix deep-freezes the config, refuses a second set in production, and bumps
- * a version envelope.
+ * The fix deep-freezes the config and refuses a second set in production.
  *
- * RED (pre-fix): config was mutable, a second prod set was silently accepted,
- * and there was no version.
+ * RED (pre-fix): config was mutable and a second prod set was silently accepted.
  */
 test.group('config immutability', () => {
   test('getConfig() returns a deeply frozen object', ({ assert }) => {
@@ -25,10 +23,23 @@ test.group('config immutability', () => {
     })
   })
 
-  test('setConfig bumps the version envelope', ({ assert }) => {
-    const before = getConfigVersion()
-    setConfig({ ...testConfig })
-    assert.equal(getConfigVersion(), before + 1)
+  test('a stateful resolver instance in config is left mutable (not deep-frozen)', ({ assert }) => {
+    // CFG-6: deepFreeze recurses into plain objects/arrays only. A class instance
+    // (resolverChain/resolvers accept live resolver instances documented to hit a
+    // cache or remote service) must keep owning its own state — freezing it would
+    // break a stateful custom resolver.
+    class StatefulResolver {
+      cacheHits = 0
+    }
+    const resolver = new StatefulResolver()
+    setConfig({ ...testConfig, resolvers: [resolver] } as unknown as typeof testConfig)
+    const cfg = getConfig()
+    assert.isTrue(Object.isFrozen(cfg), 'the plain config tree is still frozen')
+    assert.isFalse(Object.isFrozen(resolver), 'the resolver instance is left mutable')
+    assert.doesNotThrow(() => {
+      resolver.cacheHits += 1
+    })
+    assert.equal(resolver.cacheHits, 1)
   })
 
   test('a second setConfig is refused in production', ({ assert }) => {

@@ -26,7 +26,7 @@ import {
  *    `sessionMac` HMAC-binds the sid to a `userMac = HMAC(tenant, principal)`.
  *    {@link resolveSession} recomputes both against the CURRENT principal and
  *    `timingSafeEqual`s, so a supplied or leaked token cannot reach another
- *    principal's memory (G6) — a mismatch is a `guard.ai_memory_session_invalid`
+ *    principal's memory. A mismatch is a `guard.ai_memory_session_invalid`
  *    refusal (400), emitted before the throw.
  *  - **Race-free, bounded storage.** Each turn is an atomic `RPUSH` of one
  *    ciphertext element (no read-modify-write, so concurrent turns on one session
@@ -34,7 +34,7 @@ import {
  *
  * Reads fail SAFE, not closed: an unreadable list (a store outage, corruption, or
  * an APP_KEY rotation past the {@link ConversationMemoryDeps.decryptMemoryPrevious}
- * grace) degrades to empty memory — the chat proceeds statelessly, bounded by the
+ * grace) degrades to empty memory: the chat proceeds statelessly, bounded by the
  * TTL, rather than failing an otherwise-serviceable request. Only the session
  * token forgery check fails closed.
  *
@@ -142,12 +142,12 @@ export default class ConversationMemoryService {
     return this.#deps.config?.ttlMs ?? DEFAULT_MEMORY_TTL_MS
   }
 
-  /** HMAC that binds a session to the (tenant, principal) pair — the per-user isolation segment. */
+  /** HMAC that binds a session to the (tenant, principal) pair: the per-user isolation segment. */
   #userMac(tenantId: string, principal: string): string {
     return createHmac('sha256', this.#deps.macKey).update(`${tenantId}\n${principal}`).digest('hex')
   }
 
-  /** HMAC that binds a random sid to its userMac — the per-conversation segment. */
+  /** HMAC that binds a random sid to its userMac: the per-conversation segment. */
   #sessionMac(userMac: string, sid: string): string {
     return createHmac('sha256', this.#deps.macKey).update(`${userMac}\n${sid}`).digest('hex')
   }
@@ -239,7 +239,7 @@ export default class ConversationMemoryService {
    * Append one completed exchange. An atomic `RPUSH` of a single ciphertext
    * element (no read-modify-write, so concurrent turns never lose each other),
    * then `LTRIM` to the turn cap and a sliding `PEXPIRE`. Best-effort: a store or
-   * encrypt failure emits a metric + a metadata-only warn and NEVER throws — the
+   * encrypt failure emits a metric + a metadata-only warn and NEVER throws. The
    * response already completed, and a lost turn is bounded by the TTL.
    */
   async append(
@@ -275,7 +275,7 @@ export default class ConversationMemoryService {
         .pexpire(storageKey, this.#ttlMs())
         .exec()
       // ioredis resolves (not rejects) on a backend fault, surfacing per-command
-      // [error, value] tuples — the rate_limiter's outage shape. Treat any command
+      // [error, value] tuples (the rate_limiter's outage shape). Treat any command
       // error, or a missing result set, as a persist failure.
       if (!results) throw new Error('memory append pipeline returned no results')
       const commandError = results.find((entry: [Error | null, unknown]) => entry?.[0])?.[0]
@@ -361,7 +361,7 @@ export default class ConversationMemoryService {
    * keyPrefix-correct (WS-AI-9 E2): ioredis applies a configured `keyPrefix` to
    * writes and to `del`/`unlink` args, but NOT to a `SCAN MATCH`. So the MATCH is
    * prefixed manually, and the prefix is stripped off each returned key before
-   * `unlink` (which re-applies it) — otherwise a prefixed deployment would match
+   * `unlink` (which re-applies it). Otherwise a prefixed deployment would match
    * nothing and silently purge zero keys (a right-to-erasure that did nothing).
    * A prefix we cannot resolve throws (fail-closed), never a false zero. On a
    * mid-scan store error the partial count rides on the thrown error so the caller

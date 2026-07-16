@@ -10,7 +10,7 @@ export interface BoundedBatchOptions<I> {
   concurrency: number
   /**
    * `true` (default at the caller): an item that throws is collected into `errors`
-   * and the batch continues. `false`: the first error rejects the whole call —
+   * and the batch continues. `false`: the first error rejects the whole call,
    * but only after the in-flight slice has fully settled (no dangling rejections).
    */
   continueOnError: boolean
@@ -34,7 +34,7 @@ export async function boundedBatch<I, O>(
 
   for (let i = 0; i < items.length; i += width) {
     const slice = items.slice(i, i + width)
-    // allSettled so the whole slice resolves before we inspect — guarantees no
+    // allSettled so the whole slice resolves before we inspect. That guarantees no
     // unhandled rejection escapes even when we're about to throw.
     const settled = await Promise.allSettled(
       slice.map(async (item) => {

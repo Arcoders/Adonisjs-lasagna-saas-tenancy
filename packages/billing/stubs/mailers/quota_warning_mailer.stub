@@ -13,13 +13,13 @@ interface QuotaWarningPayload {
 }
 
 /**
- * Sent by `QuotaExceededBillingListener` when a tenant trips a hard quota
- * AND `config.billing.notifyOnQuotaExceeded === true`.
+ * Sent by \`QuotaExceededBillingListener\` when a tenant trips a hard quota
+ * AND \`config.billing.notifyOnQuotaExceeded === true\`.
  *
  * Customise:
  *   - swap the subject / from address below
- *   - replace `resources/views/emails/quota_warning.edge` with branded markup
- *   - read `this.payload.tenant` for tenant-aware tokens (name, plan, etc.)
+ *   - replace \`resources/views/emails/quota_warning.edge\` with branded markup
+ *   - read \`this.payload.tenant\` for tenant-aware tokens (name, plan, etc.)
  *
  * The listener dedupes via Redis SETNX with 24h TTL — you won't get a
  * second mail for the same (tenant, quota) within a day.
@@ -32,7 +32,7 @@ export default class QuotaWarningMailer extends BaseMail {
 
     this.message
       .to(tenant.email)
-      .subject(`You're hitting your ${quota} limit`)
+      .subject(\`You're hitting your \${quota} limit\`)
       .htmlView('emails/quota_warning', {
         tenantName: tenant.name,
         quota,

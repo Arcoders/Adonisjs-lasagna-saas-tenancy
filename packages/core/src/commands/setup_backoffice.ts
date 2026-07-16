@@ -3,7 +3,7 @@ import type { CommandOptions } from '@adonisjs/core/types/ace'
 import db from '@adonisjs/lucid/services/db'
 import app from '@adonisjs/core/services/app'
 import { getConfig } from '../config.js'
-import { assertSafeIdentifier } from '../services/isolation/identifier.js'
+import { assertSafeIdentifier } from '../isthmus/guarded_identifier.js'
 
 export default class SetupBackoffice extends BaseCommand {
   static readonly commandName = 'backoffice:setup'
@@ -30,7 +30,7 @@ export default class SetupBackoffice extends BaseCommand {
     await migrator.run()
 
     if (migrator.status === 'error') {
-      // Surface the underlying cause and the file that failed — a bare
+      // Surface the underlying cause and the file that failed. A bare
       // "migration failed" forces the operator to re-run the migration by
       // hand just to see the error.
       const failed = Object.entries(migrator.migratedFiles).find(

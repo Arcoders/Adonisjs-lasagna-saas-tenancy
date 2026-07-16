@@ -9,7 +9,7 @@ import BackupService from '../../../../src/services/backup_service.js'
 
 /**
  * A backup whose `pg_dump` dies mid-write must not leave a partial,
- * unrestorable .dump behind — otherwise a later `restore` or retention sweep
+ * unrestorable .dump behind, otherwise a later `restore` or retention sweep
  * could pick the corrupt half-file as if it were a real backup.
  *
  * This drives the cleanup without a real Postgres by substituting `runProcess`

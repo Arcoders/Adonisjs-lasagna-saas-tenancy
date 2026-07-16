@@ -1,5 +1,5 @@
 import { resolveTenantId } from '../extensions/request.js'
-import { isSafeIdentifier } from '../services/isolation/identifier.js'
+import { guardedSafeIdentifier } from '../isthmus/guarded_identifier.js'
 import { tenancy } from '../tenancy.js'
 import { getConfig } from '../config.js'
 import { consumeRateLimit } from '../services/rate_limiter.js'
@@ -29,7 +29,7 @@ export interface RateLimitOptions {
    * applies (default `'fail-closed'`): a Redis outage must not silently
    * disable rate limiting; we'd rather return 503 than let a flood
    * through. Set to `true` (per route) only if your threat model prefers
-   * availability over abuse protection on the affected route — an explicit
+   * availability over abuse protection on the affected route. An explicit
    * per-route value always wins over the global policy.
    */
   failOpen?: boolean | undefined
@@ -52,7 +52,7 @@ export interface RateLimitOptions {
  */
 export default class RateLimitMiddleware {
   /**
-   * Override hook for tests — lets a spec swap in a Redis stub that
+   * Override hook for tests: lets a spec swap in a Redis stub that
    * throws on demand. Production code lazy-loads the real `redis`
    * service from `@adonisjs/redis` so this module can be imported
    * without booting the AdonisJS app (e.g. from unit tests).
@@ -101,24 +101,29 @@ export default class RateLimitMiddleware {
     }
 
     // `request.ip()` honours X-Forwarded-For only per the app's `trustProxy`
-    // config — a misconfigured trustProxy lets a client mint fresh buckets per
+    // config. A misconfigured trustProxy lets a client mint fresh buckets per
     // spoofed XFF value. Document/verify trustProxy wherever this middleware
     // is enabled behind a proxy.
     const ip = request.ip()
     // Attribution: prefer the canonical id the guard already resolved
-    // (`tenancy.currentId()`), because the sync legacy resolver can come up
-    // empty under domain/custom-domain strategies — which would collapse every
-    // tenant into one shared per-IP 'global' bucket and let one tenant starve
-    // the others' quota. The resolver stays as the fallback for routes where
-    // rate-limit runs before (or without) the guard.
+    // (`tenancy.currentId()`), then `resolveTenantId` (the SAME chain-aware
+    // authority routing uses) for routes where rate-limit runs before (or
+    // without) the guard. Attributing by the routing authority is what keeps a
+    // `resolverChain` deployment from bucketing under a DIFFERENT tenant than the
+    // one served (or collapsing everyone into the per-IP 'global' bucket), which
+    // would let one tenant starve the others' quota.
     //
-    // The fallback re-reads a client-controlled header/segment, so it must be a
-    // `SAFE_IDENT` tenant id before it can become a bucket key: a value carrying
-    // `:` would inject key structure, and an arbitrary string would let a caller
-    // mint or pollute buckets. A non-safe (or absent) id degrades to the shared
-    // per-IP `global` bucket rather than an attacker-chosen tenant attribution.
+    // Defense-in-depth: `resolveTenantId` re-reads a client-controlled
+    // header/segment, and a CUSTOM resolver may mint a non-UUID id, so it must be
+    // a `SAFE_IDENT` before it can become a bucket key: a value carrying `:`
+    // would inject key structure, an arbitrary string would let a caller mint or
+    // pollute buckets. A non-safe (or absent) id degrades to the shared per-IP
+    // `global` bucket rather than an attacker-chosen tenant attribution.
+    // `guardedSafeIdentifier` emits `guard.tenant_identifier` for a PRESENT-but-
+    // unsafe id (a forged attribution, audited not silently dropped); an absent
+    // id (the ordinary untenanted route) degrades quietly.
     const resolved = this.currentTenantId() ?? resolveTenantId(request)
-    const tenantId = isSafeIdentifier(resolved) ? resolved : 'global'
+    const tenantId = guardedSafeIdentifier(resolved, 'rate-limit tenant id') ? resolved : 'global'
     const key = `${prefix}:${tenantId}:${ip}`
 
     // The sliding-window counter (pipeline + ioredis outage detection) is the
@@ -187,7 +192,7 @@ async function warn(kind: string, err: unknown, ctx: Record<string, unknown>): P
       return
     }
   } catch {
-    // ignore — logging must never throw out of the middleware
+    // ignore: logging must never throw out of the middleware
   }
   console.warn(`[multitenancy] rate-limit middleware ${kind}:`, (err as any)?.message ?? err, ctx)
 }

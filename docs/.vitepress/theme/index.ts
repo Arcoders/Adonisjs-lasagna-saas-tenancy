@@ -15,7 +15,6 @@ import HomeHero from './components/HomeHero.vue'
 import TrustBand from './components/TrustBand.vue'
 import HomeOrbit from './components/HomeOrbit.vue'
 import HomeArchitecture from './components/HomeArchitecture.vue'
-import HomeAdoption from './components/HomeAdoption.vue'
 import HomeExtend from './components/HomeExtend.vue'
 import HomeCta from './components/HomeCta.vue'
 
@@ -30,9 +29,9 @@ import './style.css'
  * custom: the native hero is replaced with `HomeHero` (eyebrow, headline,
  * install line, CTAs, and the layered-stack visual) via `home-hero-before`,
  * nulling the native hero slots. The flat feature grid is gone (no `features:`
- * frontmatter) — the `home-features-before` slot renders the compatibility band
+ * frontmatter): the `home-features-before` slot renders the compatibility band
  * and the `HomeOrbit` core-and-satellites visual, and `home-features-after`
- * adds the architecture diagram, adoption guide, and extend-it-yourself band.
+ * adds the architecture diagram, the extensible-by-contract band, and the CTA.
  */
 const LasagnaLayout = () => {
   const { frontmatter } = useData()
@@ -43,12 +42,7 @@ const LasagnaLayout = () => {
       'home-hero-info': () => null,
       'home-hero-image': () => null,
       'home-features-before': () => [h(TrustBand), h(HomeOrbit)],
-      'home-features-after': () => [
-        h(HomeArchitecture),
-        h(HomeAdoption),
-        h(HomeExtend),
-        h(HomeCta),
-      ],
+      'home-features-after': () => [h(HomeArchitecture), h(HomeExtend), h(HomeCta)],
     })
   }
 

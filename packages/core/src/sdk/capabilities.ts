@@ -1,6 +1,6 @@
 /**
  * Open registry of capabilities a plugin can `provide` and another can `consume`
- * for OPTIONAL, degradable composition — the type-level twin of
+ * for OPTIONAL, degradable composition, the type-level twin of
  * `SatelliteConfigRegistry`. Core declares it empty; each plugin augments it via
  *
  * ```ts

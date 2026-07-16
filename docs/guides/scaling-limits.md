@@ -87,7 +87,7 @@ default for most deployments, and it is the behaviour the 1.0 ships with.
 
 Eviction is by recency, not by tenant "noise": when the cap is reached the LRU
 drops the connection that has gone *idle* the longest, never the one that has
-sent the most queries. It is not a fair-share scheduler — a tenant with many
+sent the most queries. It is not a fair-share scheduler. A tenant with many
 concurrent requests is protected by the grace window, while a quiet tenant's
 connection is reclaimed first. Per-tenant load fairness (rate limits, worker
 concurrency) is a separate concern handled elsewhere.
@@ -98,6 +98,20 @@ when the cap is full and nothing is evictable, rather than opening connection
 N+1. Turn it on when you front PostgreSQL with **PgBouncer**, or whenever a
 bounded server-connection budget matters more than serving every burst. Size
 `max_connections` for the cap, not for your tenant count.
+
+### The absolute ceiling (`maxTenantConnectionsHardCeiling`)
+
+If you keep the availability-favouring default (`enforceConnectionCap: false`)
+but still want a last-resort backstop, set
+`isolation.maxTenantConnectionsHardCeiling` to a value **generously above**
+`maxTenantConnections`. It is a second, absolute tier: once the pool reaches it,
+`connect()` refuses a new request-path tenant connection with a `503` **whether
+or not `enforceConnectionCap` is on**, so a burst can grow past the soft cap for
+availability yet can never march all the way to PostgreSQL's `max_connections`
+and take the database down. Operational paths (provisioning, migrations) bypass
+it, exactly as they bypass the soft cap. Setting it *below* `maxTenantConnections`
+is a misconfiguration (the pool would be refused before the LRU ever evicts an
+idle connection); the provider logs a boot warning if you do.
 
 ::: tip Use a connection pooler
 At higher tenant counts, front Postgres with **PgBouncer** (transaction
@@ -174,7 +188,7 @@ documented under [reporting → Scaling the metrics table](/guides/satellites/re
   ```
 
   The existing `UNIQUE(tenant_id, period)` already includes the partition key
-  `period` (Postgres requires it) — don't reorder it, or partitioning breaks. Use
+  `period` (Postgres requires it). Don't reorder it, or partitioning breaks. Use
   attach/detach of yearly child partitions for retention.
 
 ## Read next

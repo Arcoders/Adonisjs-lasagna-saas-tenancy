@@ -3,8 +3,8 @@ import { emitIsthmusEvent } from '../isthmus/audit.js'
 import UnauthorizedCoreAccessException from '../exceptions/unauthorized_core_access_exception.js'
 
 /**
- * The S5 core-access funnel. Called at the head of every sanctioned accessor for a
- * core singleton an untrusted plugin has no business touching — the host tenant
+ * The core-access funnel. Called at the head of every sanctioned accessor for a
+ * core singleton an untrusted plugin has no business touching: the host tenant
  * repository (`resolveTenantRepository`) and the shared db handle (`resolveDatabase`).
  * When UNTRUSTED plugin code is on the stack it emits `guard.plugin_core_access` and
  * throws {@link UnauthorizedCoreAccessException}; otherwise (core's own code, or a
@@ -13,7 +13,7 @@ import UnauthorizedCoreAccessException from '../exceptions/unauthorized_core_acc
  * This is the SINGLE throw-site for the guard, so the two accessors stay clean and
  * the Isthmus registry names one file. It is labeled friction, NOT a hard boundary:
  * a plugin that imports the db service or the repository symbol directly reaches
- * around it — the Postgres read-only role (S3) is what actually denies a write.
+ * around it. The Postgres read-only role is what actually denies a write.
  *
  * `surface` is a short, developer-supplied label of what was refused (e.g.
  * `tenant-repository`, `database`); it rides the guard event metadata for triage.

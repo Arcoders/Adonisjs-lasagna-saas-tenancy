@@ -5,8 +5,8 @@ description: The TracksDataChanges mixin emits an after-commit event for each te
 
 # Data-change hooks
 
-A data-change hook lets a plugin **react to tenant-model writes** — reindex a search
-document, bump an analytics counter, broadcast a realtime update — without the model
+A data-change hook lets a plugin **react to tenant-model writes** (reindex a search
+document, bump an analytics counter, broadcast a realtime update) without the model
 ever importing the plugin. You opt a model in with the `TracksDataChanges` mixin; it
 emits a `TenantDataChanged` event after each committed write, and a plugin subscribes
 with `definePlugin({ onDataChange })`.
@@ -15,8 +15,8 @@ This is the `onDataChange` seam of [definePlugin](/guides/plugins). For the rest
 the plugin surface, start there.
 
 <Callout type="tip" title="Isolation by construction">
-The event names WHAT changed — model, table, primary key, and for an update the
-changed COLUMN NAMES — never the column values. A subscriber that needs the new
+The event names WHAT changed (model, table, primary key, and for an update the
+changed COLUMN NAMES), never the column values. A subscriber that needs the new
 values re-enters `tenancy.run(tenantId)` and re-reads the row, so tenant isolation
 holds by construction. The payload is safe to log or queue for a surrogate-key model;
 a model with a natural primary key (an email or slug) does put that key value in
@@ -25,7 +25,7 @@ a model with a natural primary key (an email or slug) does put that key value in
 
 ## Emitting: opt a model in
 
-The mixin is OFF by default — `TenantBaseModel` never emits. Wrap a model in
+The mixin is OFF by default. `TenantBaseModel` never emits. Wrap a model in
 `TracksDataChanges` to turn it on:
 
 ```ts
@@ -43,15 +43,15 @@ Now every committed `create` / `update` / `delete` on an `Order` **instance** em
 - **After-commit.** The emit is deferred to the transaction's `commit`, so a write
   that ROLLS BACK emits nothing. An autocommit write emits inline (it already
   committed). One edge: a nested transaction (a savepoint) that commits before its
-  outer transaction rolls back can still emit — the rollback guarantee is absolute
+  outer transaction rolls back can still emit. The rollback guarantee is absolute
   only for a top-level transaction.
 - **Attributed, or skipped.** The change is tagged with `tenancy.currentId()`. With
   no active tenant scope it is SKIPPED, never emitted mis-attributed.
 
 <Callout type="warning" title="Instance writes only">
 The mixin wires Lucid's per-instance hooks, so it fires for `model.save()` /
-`Model.create()` / `model.delete()`. A query-builder BULK mutation —
-`Order.query().where(...).update({...})` or `.delete()` — bypasses instance hooks
+`Model.create()` / `model.delete()`. A query-builder BULK mutation
+(`Order.query().where(...).update({...})` or `.delete()`) bypasses instance hooks
 entirely and emits NOTHING. If you rely on the hook for cache/search invalidation,
 mirror your bulk writes yourself. Filtering by `models` uses the class NAME, which a
 minified build mangles; filter on the change's `table` in a bundled deployment.
@@ -94,7 +94,7 @@ everything. Subscriptions are wired in the plugin's `ready()`.
 <Callout type="warning" title="Fail-open, never silent">
 A subscriber runs decoupled from the write (after-commit), so a slow or failing
 handler NEVER blocks or rolls back the tenant's write. A throwing handler is caught,
-logged, and counted on the per-tenant `data_change_subscriber_errors` metric — it is
+logged, and counted on the per-tenant `data_change_subscriber_errors` metric. It is
 never silently swallowed, and one plugin's failure never affects another's handler.
 </Callout>
 
@@ -114,7 +114,7 @@ interface TenantDataChangePayload {
 ## Subscribing without the facade
 
 `onDataChange` is sugar. You can subscribe to the raw event through the standard
-emitter — the same `TenantDataChanged` class, exported from `/events` and `/mixins`:
+emitter (the same `TenantDataChanged` class, exported from `/events` and `/mixins`):
 
 ```ts
 import emitter from '@adonisjs/core/services/emitter'

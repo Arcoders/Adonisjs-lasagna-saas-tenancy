@@ -13,6 +13,8 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 
 const GUARDS = [
   'check-lockfile-workspaces.mjs',
+  'check-stub-render.mjs',
+  'check-migration-order.mjs',
   'check-doc-paths.mjs',
   'check-positioning.mjs',
   'check-stability-versions.mjs',
@@ -47,17 +49,6 @@ const GUARDS = [
   'check-ai-invariant-8.mjs',
   'check-ai-no-prompt-logging-for-training.mjs',
   'check-ai-no-provider-prompt-cache.mjs',
-  'check-crypto-invariant-1.mjs',
-  'check-crypto-invariant-2.mjs',
-  'check-crypto-invariant-3.mjs',
-  'check-crypto-invariant-4.mjs',
-  'check-crypto-invariant-5.mjs',
-  'check-crypto-invariant-6.mjs',
-  'check-crypto-invariant-7.mjs',
-  'check-crypto-invariant-8.mjs',
-  'check-crypto-invariant-9.mjs',
-  'check-crypto-invariant-10.mjs',
-  'check-crypto-invariant-11.mjs',
 ]
 
 const failed = []

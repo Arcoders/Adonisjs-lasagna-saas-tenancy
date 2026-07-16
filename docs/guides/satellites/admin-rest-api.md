@@ -28,10 +28,12 @@ curl -H "Authorization: Bearer $TOKEN" \
   https://app.example.com/admin/multitenancy/tenants
 ```
 
-For a concrete starting point, the demo app ships a minimal example at
-`examples/api/app/middleware/demo_admin_auth_middleware.ts` (a header check
-against an env token). Treat it as an illustration of *where* the guard goes, not
-a production auth primitive: swap it for your real session, bearer, or mTLS check.
+For a concrete starting point, the demo app gates its mount with a real
+`@adonisjs/auth` access-tokens guard over a dedicated operator model
+(`examples/api/app/models/backoffice/backoffice_user.ts`, wired in
+`examples/api/start/routes.ts`). The [authentication guide](/guides/authentication)
+walks through that two-realm setup; session or mTLS checks slot into the same
+`middleware` seam.
 
 One footgun the boot guard closes for you: a pattern like
 `middleware: authEnabled ? [adminAuth] : []` would, when the flag is off, mount

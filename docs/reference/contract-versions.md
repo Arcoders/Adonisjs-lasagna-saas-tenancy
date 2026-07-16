@@ -51,10 +51,10 @@ level down: it answers "does this **extension** fit this **surface**?".
 | Constant | Value | Surface | Registry |
 |---|---|---|---|
 | `ISOLATION_CONTRACT_VERSION` | `2` | [custom isolation drivers](/guides/cookbook/custom-isolation-driver) | `IsolationDriverRegistry` |
-| `RESOLVER_CONTRACT_VERSION` | `1` | custom tenant resolvers | `TenantResolverRegistry` |
+| `RESOLVER_CONTRACT_VERSION` | `2` | custom tenant resolvers | `TenantResolverRegistry` |
 | `AUTHORIZER_CONTRACT_VERSION` | `1` | [tenant-access authorizers](/guides/plugins) | `AuthorizerRegistry` |
 | `TENANT_MIDDLEWARE_CONTRACT_VERSION` | `1` | [route middleware](/guides/plugins) | `TenantMiddlewareRegistry` |
-| `CAPABILITY_CONTRACT_VERSION` | `2` | [cross-plugin capabilities](/guides/plugins) | `CapabilityRegistry` |
+| `CAPABILITY_CONTRACT_VERSION` | `1` | [cross-plugin capabilities](/guides/plugins) | `CapabilityRegistry` |
 | `AUDIT_CONTRACT_VERSION` | `1` | [log destinations](/guides/satellites/audit) | `AuditLogDestinationRegistry` |
 | `FEATURE_FLAGS_CONTRACT_VERSION` | `1` | [evaluation strategies](/guides/satellites/feature-flags) | `EvaluationStrategyRegistry` |
 | `WEBHOOKS_CONTRACT_VERSION` | `1` | [payload transformers](/guides/satellites/webhooks) | `WebhookTransformerRegistry` |
@@ -69,11 +69,12 @@ level down: it answers "does this **extension** fit this **surface**?".
 | `ADMIN_CONTRACT_VERSION` | `1` | [custom actions](/guides/satellites/admin) | `adminActionRegistry` | `@adonisjs-lasagna/admin` |
 | `SSO_CONTRACT_VERSION` | `1` | [identity providers](/guides/satellites/sso) | `identityProviderRegistry` | `@adonisjs-lasagna/sso` |
 | `AI_CONTRACT_VERSION` | `1` | [AI providers](/guides/satellites/ai) | `AIProviderRegistry` | `@adonisjs-lasagna/ai` |
-| `CRYPTO_CONTRACT_VERSION` | `1` | [key providers](/guides/satellites/crypto) | `KeyProviderRegistry` | `@adonisjs-lasagna/crypto` |
 
-The two surfaces already at `2` (`ISOLATION_CONTRACT_VERSION`,
-`CAPABILITY_CONTRACT_VERSION`) each took one backward-incompatible revision; every
-other contract is still on its first, unbroken revision.
+The two surfaces at `2` (`ISOLATION_CONTRACT_VERSION`, `RESOLVER_CONTRACT_VERSION`)
+each took one backward-incompatible revision; every other contract is still on its
+first, unbroken revision. `CAPABILITY_CONTRACT_VERSION` stays at `1`: the `sensitive`
+trust flag was added additively, and an additive change does not bump the integer (see
+[When to bump](#when-to-bump)).
 
 ## When to bump
 
@@ -87,8 +88,8 @@ not bump it. When you bump one:
   the `warn` path now degrades.
 - Leave the value as the single source of truth. This page snapshots the current
   numbers for orientation; the exported constant is authoritative, so read it in
-  code (`import { CRYPTO_CONTRACT_VERSION } from '@adonisjs-lasagna/crypto'`) rather
-  than hardcoding an integer.
+  code (`import { AI_CONTRACT_VERSION } from '@adonisjs-lasagna/ai'`) rather than
+  hardcoding an integer.
 
 <Callout type="note" title="Not a contract version">
 `DEFAULT_STRIPE_API_VERSION` (billing) is a Stripe API date string, not a Lasagna

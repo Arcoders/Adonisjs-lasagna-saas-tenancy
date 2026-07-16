@@ -1,5 +1,5 @@
 /**
- * Doc-node + edge extraction (RFC §4). Walks a docs tree and turns each page
+ * Doc-node + edge extraction (RFC section 4). Walks a docs tree and turns each page
  * into doc-page / doc-section / code-fence nodes, then resolves edges to code
  * symbols by five rules, each carrying its provenance:
  *
@@ -124,9 +124,9 @@ export interface DocsOptions {
   repoRoot: string
   /** All known public paths, to validate edges against. */
   knownPublicPaths: Set<string>
-  /** name -> publicPaths, for disambiguating backtick mentions. */
+  /** name to publicPaths, for disambiguating backtick mentions. */
   nameIndex: Map<string, string[]>
-  /** repo-relative internalPath -> publicPaths declared in that file (GitHub URL resolution). */
+  /** repo-relative internalPath to publicPaths declared in that file (GitHub URL resolution). */
   fileIndex: Map<string, string[]>
   /** Doc label for the docs tree, e.g. `docs`. */
   docsLabel: string
@@ -164,7 +164,7 @@ export function buildDocNodes(opts: DocsOptions): DocsResult {
   })
 
   for (const file of walk(docsRoot)) {
-    // Normalize CRLF -> LF on read: this repo has CRLF working copies, and the
+    // Normalize CRLF to LF on read: this repo has CRLF working copies, and the
     // front-matter / heading / fence parsing below all assume LF line endings.
     // Without this, a CRLF-committed doc silently loses its `code:` anchors.
     const content = readFileSync(file, 'utf8').replace(/\r\n/g, '\n')
@@ -197,7 +197,7 @@ export function buildDocNodes(opts: DocsOptions): DocsResult {
       }
     })
 
-    // 1. front-matter `code:` -> declared:manual documents edge from the page.
+    // 1. front-matter `code:` yields a declared:manual documents edge from the page.
     for (const target of fmCode) {
       if (knownPublicPaths.has(target)) {
         addEdge({
@@ -211,7 +211,7 @@ export function buildDocNodes(opts: DocsOptions): DocsResult {
       }
     }
 
-    // 2. <!-- doc:ref pkg#Symbol --> anywhere -> declared:manual.
+    // 2. <!-- doc:ref pkg#Symbol --> anywhere yields declared:manual.
     const refRe = /<!--\s*doc:ref\s+([^\s]+)\s*-->/g
     let rm: RegExpExecArray | null
     while ((rm = refRe.exec(content)) !== null) {
@@ -229,7 +229,7 @@ export function buildDocNodes(opts: DocsOptions): DocsResult {
       }
     }
 
-    // 3. fence imports -> derived:auto exemplifies (the D1 edges).
+    // 3. fence imports yield derived:auto exemplifies (the D1 edges).
     for (const fence of extractFences(content)) {
       const fenceId = `${rel}:fence:${fence.startLine}`
       let fenceHasEdge = false
@@ -253,7 +253,7 @@ export function buildDocNodes(opts: DocsOptions): DocsResult {
       }
     }
 
-    // 4. GitHub blob URLs -> derived:auto references (file-level): attach to every
+    // 4. GitHub blob URLs yield derived:auto references (file-level): attach to every
     // known symbol declared in that exact source file.
     const urlRe = /github\.com\/[^/]+\/[^/]+\/blob\/[^/]+\/(packages\/[^\s#)"']+)/g
     let um: RegExpExecArray | null
@@ -272,7 +272,7 @@ export function buildDocNodes(opts: DocsOptions): DocsResult {
       }
     }
 
-    // 5. backtick mentions -> inferred (never gates), unique names only.
+    // 5. backtick mentions yield inferred (never gates), unique names only.
     const mentionRe = /`([A-Z][A-Za-z0-9_]{3,})`/g
     let mm: RegExpExecArray | null
     const mentioned = new Set<string>()

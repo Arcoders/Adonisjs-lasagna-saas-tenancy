@@ -54,7 +54,7 @@ test.group('IP allowlist — middleware integration', (group) => {
   /**
    * Build a minimal HttpContext-shape that the middleware actually uses.
    * Only `request.ip()`, `request.header()`, `request.raw()` and
-   * `response.unauthorized()` are exercised — anything else surfaces as
+   * `response.unauthorized()` are exercised. Anything else surfaces as
    * a TypeError (deliberate: the test fails loud on unexpected access).
    */
   interface FakeFixture {

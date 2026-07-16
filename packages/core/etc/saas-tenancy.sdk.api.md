@@ -137,6 +137,7 @@ export type GuardDispatcher = (payload: IsthmusGuardTrippedPayload) => Promise<v
 
 // @public (undocumented)
 export interface GuardEmitOptions {
+    readonly dispatch?: boolean;
     // (undocumented)
     readonly metadata?: Readonly<Record<string, string | number | boolean | null>>;
     // (undocumented)
@@ -190,7 +191,7 @@ export type IsthmusPillar = 'guard' | 'seal' | 'audit';
 // @public
 export type IsthmusSeverity = 'critical' | 'high' | 'warn' | 'info';
 
-// @public (undocumented)
+// @public
 export function isUuidV4(value: string): boolean;
 
 // @public

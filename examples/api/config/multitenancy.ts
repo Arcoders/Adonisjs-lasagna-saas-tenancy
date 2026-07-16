@@ -1,14 +1,13 @@
 import env from '#start/env'
-import type {
-  TenantResolverStrategy,
-  TenantAccessAuthorizer,
-} from '@adonisjs-lasagna/saas-tenancy/types'
+import type { TenantResolverStrategy } from '@adonisjs-lasagna/saas-tenancy/types'
+import type { DeclarativeHooks } from '@adonisjs-lasagna/saas-tenancy/services'
+import { createMembershipAuthorizer } from '#app/security/membership_authorizer'
 
 /**
  * Full configuration exercising every optional block:
  *  - lifecycle hook (beforeProvision rejects non-.test emails to demo a hook aborting provisioning)
  *  - declarative plans + quotas
- *  - read replicas (single replica = primary in this demo)
+ *  - read replicas (single replica is the primary in this demo)
  *  - backup retention with two tiers
  *  - soft-delete TTL
  */
@@ -27,19 +26,16 @@ export default {
   baseDomain: env.get('APP_DOMAIN'),
 
   // ─── Membership gate (cross-tenant IDOR firewall) ────────────────
-  // Opt-in: only requests carrying `x-test-principal-tenant` (a stand-in for an
-  // authenticated principal's tenant) are evaluated, so it stays a no-op for the rest
-  // of the demo. With the header present, the caller's tenant MUST match the resolved
-  // tenant or TenantGuardMiddleware returns 403 — closing the cross-tenant IDOR that
-  // header-based resolution otherwise opens. A real app derives the principal tenant
-  // from `auth.user`. Exercised by the crypto IDOR e2e.
-  authorizeTenantAccess: ((ctx, tenant) => {
-    const principalTenant = ctx.request.header('x-test-principal-tenant')
-    if (!principalTenant) return true
-    return principalTenant === tenant.id
-  }) satisfies TenantAccessAuthorizer,
+  // Denies any request whose credentials don't belong to the resolved tenant:
+  // a bearer token is checked against the tenant guard (the token must exist
+  // in the resolved tenant's own schema), and the e2e stand-in principal
+  // header must match the tenant id. Anonymous requests stay allowed so the
+  // demo remains explorable with bare curl. See the branch-by-branch
+  // reasoning in app/security/membership_authorizer.ts; exercised by the
+  // membership_gate and auth_realms e2e.
+  authorizeTenantAccess: createMembershipAuthorizer(),
 
-  // Health, admin and the Stripe webhook don't carry a tenant — let them
+  // Health, admin and the Stripe webhook don't carry a tenant, so let them
   // through. The webhook resolves its tenant later from the event's customer id.
   ignorePaths: ['/livez', '/readyz', '/healthz', '/metrics', '/admin', '/webhooks/billing'],
 
@@ -49,7 +45,7 @@ export default {
   // ─── Admin impersonation ─────────────────────────────────────────
   // Powers `tenant:impersonate`, the admin `/admin/impersonate` route, and
   // ImpersonationMiddleware. The secret must be ≥ 32 chars; in a real app
-  // load it from a secret manager — never commit it.
+  // load it from a secret manager. Never commit it.
   impersonation: {
     secret: 'demo-impersonation-secret-not-for-production-0123456789abcdef0123',
   },
@@ -128,18 +124,41 @@ export default {
   // `after*` hooks are best-effort and continue on error.
   hooks: {
     // Demo-only business rule, deliberately placed in the hook to show a
-    // throwing beforeProvision aborting provisioning (status flips to failed —
+    // throwing beforeProvision aborting provisioning (status flips to failed,
     // see tests/e2e/full.spec.ts). A production app would keep domain rules
     // like this in a service or validator; email shape already lives in
     // app/validators/tenants_validator.ts.
-    beforeProvision: async ({ tenant }: { tenant: { email: string } }) => {
+    beforeProvision: async ({ tenant }) => {
       if (!tenant.email.endsWith('.test')) {
         throw new Error(
           `Demo enforces *.test emails only — got "${tenant.email}". This shows beforeProvision aborting.`
         )
       }
     },
-  },
+
+    // Seeds a demo user inside each freshly migrated tenant schema so the
+    // tenant realm has someone to log in as. Gated on DEMO_SEED_TENANT_USERS
+    // (absent = off) so only the demo/e2e stacks grow well-known credentials;
+    // idempotent via updateOrCreate, and after-phase hook errors log and
+    // continue, so a concurrent-migrate race cannot fail the migration.
+    // The inProduction refusal mirrors demo:seed's: even a production deploy
+    // that copied .env.example wholesale never grows these credentials.
+    afterMigrate: async ({ tenant, direction }) => {
+      if (direction !== 'up') return
+      if (!env.get('DEMO_SEED_TENANT_USERS')) return
+      const { default: app } = await import('@adonisjs/core/services/app')
+      if (app.inProduction) return
+      const { tenancy } = await import('@adonisjs-lasagna/saas-tenancy')
+      const { default: TenantUser } = await import('#app/models/tenant_scoped/tenant_user')
+      const { DEMO_TENANT_USER } = await import('#app/helpers/demo_credentials')
+      await tenancy.run(tenant, async () => {
+        await TenantUser.updateOrCreate(
+          { email: DEMO_TENANT_USER.email },
+          { password: DEMO_TENANT_USER.password, fullName: DEMO_TENANT_USER.fullName }
+        )
+      })
+    },
+  } satisfies DeclarativeHooks,
 
   // ─── Soft-delete TTL ─────────────────────────────────────────────
   // tenant:purge-expired drops schemas older than this many days.
@@ -149,7 +168,7 @@ export default {
 
   // ─── Compliance tooling seam ─────────────────────────────────────
   // Powers `tenant:gdpr:anonymize` (GDPR Art.17 erasure-by-anonymization). The
-  // package never touches your models — YOU decide what PII is and how to mask
+  // package never touches your models. YOU decide what PII is and how to mask
   // it. This runs inside tenancy.run(tenant), so Note queries hit the tenant's
   // own schema. Honors dryRun (count, don't write) and returns { affected } for
   // the audit trail. Here Note stands in for a PII-bearing model.
@@ -179,7 +198,7 @@ export default {
   },
 
   // ─── Billing (Stripe) ────────────────────────────────────────────
-  // Added incrementally on top of the satellites above — the exact flow this
+  // Added incrementally on top of the satellites above. The exact flow this
   // demonstrates lives in docs/guides/cookbook/adding-features-incrementally.md.
   // The keys are safe placeholders: BillingService.verify() runs at boot but
   // only validates the key shape (no network), and the e2e suite injects
@@ -205,8 +224,8 @@ export default {
   // Provided by @adonisjs-lasagna/websockets. The provider attaches socket.io
   // to the HTTP server and isolates connections per tenant; start/socket.ts
   // registers the chat handlers. Browsers connect with
-  // io(url, { auth: { tenantId } }). `authorize` is the seam for real auth —
-  // the demo accepts any resolved, active tenant.
+  // io(url, { auth: { tenantId } }). `authorize` is the seam for real auth.
+  // The demo accepts any resolved, active tenant.
   websockets: {
     cors: { origin: true, credentials: true },
     handshake: { authKey: 'tenantId' },
@@ -215,7 +234,7 @@ export default {
 
   // ─── Read replica routing ────────────────────────────────────────
   // Local dev runs a single Postgres, so the "replica" falls back to the
-  // primary host — enough to demonstrate the routing API. The deploy e2e
+  // primary host, enough to demonstrate the routing API. The deploy e2e
   // stack (deploy/docker-compose.e2e.yml) sets DB_REPLICA_HOST to a real
   // streaming standby, so reads on the `_read` connection genuinely leave
   // the primary. Disable by removing this block.
@@ -260,30 +279,10 @@ export default {
     retrieval: { retrievalFilter: () => ({ kind: 'all' as const }) },
     // A demo output-redaction (DLP) hook: strip anything shaped like an SSN from
     // the model's streamed output. Host-owned defense-in-depth, NEVER the isolation
-    // control (I4/I8 remain the guarantee); the mandatory output bound still runs.
+    // control. Tenant-context purity and the mandatory output bound stay the real
+    // guarantees, and they run whether or not this hook is set.
     // Proven end to end by the ai_output_redaction e2e.
     redactOutput: (_ctx: any, _tenant: any, chunk: string) =>
       chunk.replace(/SSN-\d{3}-\d{2}-\d{4}/g, '[redacted]'),
-  },
-
-  // ─── crypto satellite (@adonisjs-lasagna/crypto) ─────────────────
-  // Field-level encryption with per-(subject × category) DEKs. The demo runs the
-  // dev-grade `env` KeyProvider (KEK derived from APP_KEY); prod binds Vault/KMS.
-  // `secureNote.secret` is the one demo encrypted field, blind-index searchable.
-  // The erasabilityResolver is the governance gate crypto CONSULTS before a shred
-  // (I7): crypto NEVER decides erasability itself. This demo policy marks the
-  // `demo-secret` category consent-based (erasable on request) and refuses every
-  // other category fail-closed — the shape a real rental fills in from its lawyer's
-  // retention table (see packages/crypto/PRODUCTION_READINESS.md §5.1). The crypto
-  // e2e drives encrypt/decrypt, blind-index search, and crypto-shred over HTTP.
-  crypto: {
-    keyProvider: 'env',
-    fields: {
-      'secureNote.secret': { category: 'demo-secret', searchable: true },
-    },
-    erasabilityResolver: (_tenant: any, _subject: string, category: string) =>
-      category === 'demo-secret'
-        ? { erasable: true, reason: 'consent' }
-        : { erasable: false, reason: `category '${category}' is not erasable on request` },
   },
 } as const

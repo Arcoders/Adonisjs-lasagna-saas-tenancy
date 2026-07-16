@@ -28,11 +28,11 @@ function indexFromConnectionName(connectionName: string): number | null {
 /**
  * Validates the three read-replica strategies.
  *
- *   sticky      — same tenant always lands on the same index (covered in
- *                 full.spec.ts). Re-asserted here for completeness with the
- *                 multi-replica config.
- *   round-robin — over N requests, all replica indices appear at least once.
- *   random      — over N requests, all replica indices appear at least once.
+ *   sticky:      same tenant always lands on the same index (covered in
+ *                full.spec.ts). Re-asserted here for completeness with the
+ *                multi-replica config.
+ *   round-robin: over N requests, all replica indices appear at least once.
+ *   random:      over N requests, all replica indices appear at least once.
  *
  * Distribution is observed via the connection name `tenant_<id>_read_<idx>`
  * returned by /demo/notes/read.

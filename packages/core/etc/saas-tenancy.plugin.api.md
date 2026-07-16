@@ -45,7 +45,7 @@ export type AuthorizerName = Branded<'AuthorizerName'>;
 export function authorizerName(raw: string): AuthorizerName;
 
 // @public
-export const CAPABILITY_CONTRACT_VERSION = 2;
+export const CAPABILITY_CONTRACT_VERSION = 1;
 
 // @public
 export type CapabilityKey = Branded<'CapabilityKey'>;
