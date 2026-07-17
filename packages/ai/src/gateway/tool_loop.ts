@@ -17,24 +17,58 @@ import {
   MAX_TOOLS_PER_ROUND,
   MAX_TOOL_CALLS_PER_REQUEST,
 } from '../constants.js'
+import { TOOL_CONFIRMATION_EVENT } from './sse_constants.js'
 
 /**
- * Executes one model-issued tool call and returns the fenced, bounded
- * `role: 'tool'` result turn to re-inject on the next round. This is the loop's
- * seam onto Phase 3's tool executor (registry lookup, per-tool authorization,
- * argument validation, `tenancy.run` scoped execution, output fencing).
+ * A human-in-the-loop confirmation challenge for one proposed action call
+ * (WS-AI-11 Phase 3a). Everything the client needs to ask the human and, on
+ * agreement, re-submit: the host-authored `summary`, the minted `token` (echoed
+ * back in the `X-Ai-Tool-Confirmation` header), and its `expiresAt`. It carries no
+ * tenant, principal, tool arguments, or model prose.
+ */
+export interface ToolConfirmationChallenge {
+  /** The model's tool-call id, correlating this challenge with its `tool_call` notice. */
+  readonly id: string
+  /** The proposed tool's registered name (never its arguments). */
+  readonly name: string
+  /** The one line the host's `summarizeArgs` produced for the human to read. */
+  readonly summary: string
+  /** The opaque confirmation token to echo back in `X-Ai-Tool-Confirmation`. */
+  readonly token: string
+  /** Absolute expiry, ms since epoch. */
+  readonly expiresAt: number
+}
+
+/**
+ * The plan-phase outcome for one model-issued tool call (WS-AI-11 Phase 3a).
+ * `run` completes the call — the fenced, bounded `role: 'tool'` result turn to
+ * re-inject next round, plus (for a confirmed action) the ledger claim and the
+ * fail-closed intent audit — but runs NO effect until invoked, which is what lets
+ * the loop scan a whole round before executing anything. `challenge` puts the
+ * action to the human and runs nothing.
  *
- * Contract: a FATAL refusal (an unknown tool, a denied authorization, invalid
- * arguments, a scope breach) THROWS an {@link AIException}; the loop lets it
- * propagate so the spine emits the code as an in-band `event: error` frame and
- * ends the stream. A handler that merely fails (threw while running) does NOT
- * throw here: the executor returns a bounded error result turn so the model can
- * react and the loop continues. `signal` is the composed pump signal; the
- * executor composes the per-tool timeout on top of it. `round` (1-based) is passed
- * through for the executor's `op: 'tool'` audit row.
+ * A FATAL refusal (an unknown tool, a denied authorization, invalid arguments, a
+ * scope breach, a presented-but-unmatched confirmation) is THROWN by `plan`, not
+ * returned; the loop lets it propagate so the spine emits the code as an in-band
+ * `event: error` frame and ends the stream — and because it throws DURING the scan,
+ * before any `run` fires, a round is never half-applied around it.
+ */
+export type ToolCallPlan =
+  | { readonly kind: 'run'; readonly run: () => Promise<AIMessage> }
+  | { readonly kind: 'challenge'; readonly challenge: ToolConfirmationChallenge }
+
+/**
+ * The loop's seam onto Phase 3's tool executor. `plan` classifies one call WITHOUT
+ * running its effect (registry lookup, per-tool authorization, argument validation,
+ * the confused-deputy re-assert, and the action confirmation decision), returning a
+ * `run` thunk or a `challenge`. `signal` is the composed pump signal; the executor
+ * composes the per-tool timeout on top of it inside `run`. `round` (1-based) is
+ * carried through for the executor's `op: 'tool'` audit row. A handler that merely
+ * fails (threw while running) does NOT surface as a throw: the `run` thunk resolves
+ * to a bounded error result turn so the model can react and the loop continues.
  */
 export interface ToolLoopExecutor {
-  execute(call: AIToolCall, signal: AbortSignal, round: number): Promise<AIMessage>
+  plan(call: AIToolCall, signal: AbortSignal, round: number): Promise<ToolCallPlan>
 }
 
 /** The per-round rate-limit hook (invariant 2). Called before rounds >= 2; a throw ends the loop in-band. */
@@ -164,7 +198,7 @@ export function buildToolLoopProducer(deps: ToolLoopDeps): StreamProducer {
         )
       }
 
-      // Enforce maxToolsPerRound: execute the first N and log the drop (no silent cap).
+      // Enforce maxToolsPerRound: plan/run the first N and log the drop (no silent cap).
       let toExecute = calls
       if (calls.length > maxToolsPerRound) {
         deps.log?.(
@@ -174,13 +208,36 @@ export function buildToolLoopProducer(deps: ToolLoopDeps): StreamProducer {
         toExecute = calls.slice(0, maxToolsPerRound)
       }
 
-      // (4) Append the assistant tool-call turn (its text, if any, plus exactly the
-      //     calls we will answer), then execute each and append its fenced result.
-      //     The assistant turn's calls MUST match the results we provide, or a
-      //     re-injected turn is malformed (a tool_use with no tool_result).
-      messages.push({ role: 'assistant', content: assistantText, toolCalls: toExecute })
+      // (4) Plan the WHOLE round before running anything. Each `plan` classifies a
+      //     call with no side effect; a fatal refusal throws HERE, during the scan,
+      //     so a bad call aborts the round before an earlier good one has run. This
+      //     is what stops a two-write round from applying the first write and only
+      //     then stopping to challenge the second.
+      const planned: ToolCallPlan[] = []
       for (const call of toExecute) {
         if (signal.aborted) return
+        planned.push(await deps.executor.plan(call, signal, round))
+      }
+
+      // (4a) Any action awaiting a human? Emit each challenge as its own
+      //      `tool_confirmation_required` frame and STOP: run nothing this round, so
+      //      the round is never half-applied around a pending confirmation. The
+      //      stream ends cleanly (the assistant text and tool-call notices stand) and
+      //      the client re-submits once the human agrees, carrying the token(s).
+      const challenges = planned.filter(isChallenge)
+      if (challenges.length > 0) {
+        for (const { challenge } of challenges) yield confirmationFrame(challenge)
+        return
+      }
+
+      // (4b) No confirmation pending: append the assistant tool-call turn (its text,
+      //      if any, plus exactly the calls we will answer), then run each and append
+      //      its fenced result. The assistant turn's calls MUST match the results, or
+      //      a re-injected turn is malformed (a tool_use with no tool_result).
+      messages.push({ role: 'assistant', content: assistantText, toolCalls: toExecute })
+      for (const plan of planned) {
+        if (signal.aborted) return
+        if (plan.kind !== 'run') continue // unreachable: challenges returned above
         totalToolCalls += 1
         if (totalToolCalls > maxToolCallsPerRequest) {
           emitAiGuardEvent('guard.ai_tool_budget_exhausted', {
@@ -193,8 +250,7 @@ export function buildToolLoopProducer(deps: ToolLoopDeps): StreamProducer {
             'the request reached its maximum total number of tool calls'
           )
         }
-        const resultTurn = await deps.executor.execute(call, signal, round)
-        messages.push(resultTurn)
+        messages.push(await plan.run())
       }
       // Loop to round + 1 with the extended message history.
     }
@@ -213,6 +269,25 @@ function toolCallNotice(call: AIToolCall, surfaceToolArgs: boolean | undefined):
     ? { name: call.name, id: call.id, arguments: call.arguments }
     : { name: call.name, id: call.id }
   return { data: JSON.stringify(payload), tokens: 0, event: 'tool_call' }
+}
+
+/** Narrow a plan to the challenge arm (a typed `filter` predicate). */
+function isChallenge(
+  plan: ToolCallPlan
+): plan is { kind: 'challenge'; challenge: ToolConfirmationChallenge } {
+  return plan.kind === 'challenge'
+}
+
+/**
+ * A `tool_confirmation_required` SSE frame carrying one challenge as JSON. It rides
+ * its own reserved event (never {@link TOOL_CONFIRMATION_EVENT}'s default sibling),
+ * so the loop's assistant-text accumulation and `reconstructAssistantText` both skip
+ * it and the live token is never folded into persisted memory. `tokens: 0` — a
+ * challenge is control, not generation. `JSON.stringify` escapes any newline in the
+ * summary, so the frame stays a single `data:` line.
+ */
+function confirmationFrame(challenge: ToolConfirmationChallenge): StreamFragment {
+  return { data: JSON.stringify(challenge), tokens: 0, event: TOOL_CONFIRMATION_EVENT }
 }
 
 /** Resolve a ceiling: default when unset/malformed, clamped to the hard cap. */

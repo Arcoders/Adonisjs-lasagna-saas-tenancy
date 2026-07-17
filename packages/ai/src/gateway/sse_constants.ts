@@ -10,3 +10,14 @@ export const DEFAULT_EVENT = 'token'
 
 /** An SSE comment frame, written as the heartbeat to hold the connection open. */
 export const HEARTBEAT_FRAME = ':\n\n'
+
+/**
+ * The SSE event carrying a human-in-the-loop action confirmation challenge
+ * (WS-AI-11 Phase 3a). Its `data:` is a JSON `{ id, name, summary, token,
+ * expiresAt }`: the client shows `summary` to the human and, on agreement,
+ * echoes `token` back in the `X-Ai-Tool-Confirmation` header. It is deliberately
+ * NOT {@link DEFAULT_EVENT}, so `reconstructAssistantText` (which allow-lists
+ * only the default event) never folds a live capability token into the persisted
+ * assistant turn.
+ */
+export const TOOL_CONFIRMATION_EVENT = 'tool_confirmation_required'

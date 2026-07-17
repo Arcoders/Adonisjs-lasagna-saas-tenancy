@@ -5,11 +5,12 @@ import type { AIToolDefinition } from '../types/ai_provider_contract.js'
 import AIException from '../exceptions/ai_exception.js'
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import {
+  mintToolConfirmation,
   verifyToolConfirmation,
   type MintedConfirmation,
   type ToolConfirmationBinding,
 } from './tool_confirmation.js'
-import { MAX_TOOL_DEFS } from '../constants.js'
+import { AI_TOOL_ARGS_SUMMARY_MAX_CHARS, MAX_TOOL_DEFS } from '../constants.js'
 
 /**
  * The tool authorization + capability gates (WS-AI-11, Phase 3), the security
@@ -176,6 +177,11 @@ const ACTION_REFUSALS: Record<string, string> = {
   no_args_summary:
     'Refusing the tool call: this action tool ships no summarizeArgs, so a human cannot be shown ' +
     'what they would be confirming',
+  summary_failed:
+    'Refusing the action: its summarizeArgs threw, so a human cannot be shown what they would be ' +
+    'confirming',
+  summary_empty:
+    'Refusing the action: its summarizeArgs produced no text for a human to read before confirming',
   // `requiresConfirmation: false` is refused rather than honored, a deliberate
   // narrowing of Phase 3a. The at-most-once fence is keyed by the confirmation
   // token's own MAC, and what makes that correct is the token's random nonce: one
@@ -193,36 +199,51 @@ const ACTION_REFUSALS: Record<string, string> = {
 }
 
 /**
- * Decide whether a human has agreed to THIS action call (WS-AI-11 Phase 3a).
- * Returns the confirmation that authorizes it; a read tool never reaches here.
- *
- * Every refusal is fail-closed and typed, and they are deliberately three different
- * codes, because from the client's side they need three different reactions:
- *
- * - `tool_action_unavailable` (503): the machinery is not wired, so the effect can
- *   be neither verified nor fenced. Nothing is wrong with the request.
- * - `tool_denied` (403): no principal resolved. A confirmation binds to a person,
- *   and one bound to nobody would be spendable by any session holding the string.
- * - `tool_confirmation_required` (428): no token was presented. This is NOT a
- *   failure, it is the first turn of every action, and the caller turns it into a
- *   challenge for the human.
- * - `tool_confirmation_invalid` (403): a token WAS presented and none authorized
- *   this call. The client believed it had permission and did not.
- *
- * The unmatched case emits `guard.ai_tool_confirmation_unmatched` at severity warn,
- * the same posture as `ai_rate_limited`: it fires in ordinary operation (the model
- * re-proposing different arguments lands here) so it is watched by rate, not per
- * event. Silence would be worse: without it, "our redaction ate the token" and "the
- * model rephrased a number" are the same non-signal forever.
+ * The plan-phase outcome of an action tool's confirmation check (WS-AI-11 Phase
+ * 3a). A `confirmed` carries the verified token (its MAC is the ledger + idempotency
+ * key); a `challenge` carries a FRESHLY minted token the loop puts to the human.
+ * The fatal cases (no machinery, no principal, a presented-but-unmatched token) are
+ * thrown, not returned.
  */
-export function assertActionConfirmed(
+export type ActionConfirmation =
+  | { readonly kind: 'confirmed'; readonly confirmation: MintedConfirmation }
+  | { readonly kind: 'challenge'; readonly minted: MintedConfirmation }
+
+/**
+ * Decide the confirmation state of THIS action call (WS-AI-11 Phase 3a). A read
+ * tool never reaches here. Returns the state; the executor's plan phase runs no
+ * effect off a `challenge`, so scanning a whole round through this cannot half-apply
+ * it.
+ *
+ * The outcomes are deliberately distinct because a client reacts to each differently:
+ *
+ * - `tool_action_unavailable` (503, thrown): the machinery is not wired, so the
+ *   effect can be neither verified nor fenced. Nothing is wrong with the request.
+ * - `tool_denied` (403, thrown): no principal resolved. A confirmation binds to a
+ *   person, and one bound to nobody would be spendable by any session holding it.
+ * - `{ kind: 'challenge' }`: no token was presented at all. This is NOT a failure,
+ *   it is the first turn of every action; the loop mints it into an SSE frame.
+ * - `tool_confirmation_invalid` (403, thrown): a token WAS presented and none
+ *   authorized this call. The client believed it had permission and did not — the
+ *   shape both a stolen-token replay and the model rephrasing its arguments land in.
+ * - `{ kind: 'confirmed' }`: a presented token authorizes this exact call.
+ *
+ * A presented-but-unmatched token is refused rather than re-challenged ON PURPOSE:
+ * re-minting on every argument drift would let a model that rephrases a number each
+ * turn loop forever asking the human, so drift instead surfaces as the
+ * `guard.ai_tool_confirmation_unmatched` warn (the same posture as `ai_rate_limited`,
+ * watched by rate not per event). Without it, "our redaction ate the token" and "the
+ * model rephrased a number" would be the same non-signal forever.
+ */
+export function resolveActionConfirmation(
   tool: AIToolHostDefinition,
   tenantId: string,
   binding: ToolConfirmationBinding | null,
   confirmations: readonly string[],
   macKey: Buffer | undefined,
-  ledgerReady: boolean
-): MintedConfirmation {
+  ledgerReady: boolean,
+  now: number = Date.now()
+): ActionConfirmation {
   if (!macKey || !ledgerReady) {
     throw new AIException(
       'tool_action_unavailable',
@@ -241,8 +262,8 @@ export function assertActionConfirmed(
     )
   }
 
-  const confirmed = verifyToolConfirmation(macKey, confirmations, binding)
-  if (confirmed) return confirmed
+  const confirmed = verifyToolConfirmation(macKey, confirmations, binding, now)
+  if (confirmed) return { kind: 'confirmed', confirmation: confirmed }
 
   if (confirmations.length > 0) {
     emitAiGuardEvent('guard.ai_tool_confirmation_unmatched', {
@@ -254,10 +275,40 @@ export function assertActionConfirmed(
       'Refusing the action: the confirmation presented does not authorize this call'
     )
   }
-  throw new AIException(
-    'tool_confirmation_required',
-    'Refusing the action: it has not been confirmed'
-  )
+  // No token at all: the genuine first turn. Mint the challenge the loop shows the
+  // human; nothing runs until they agree and re-present it.
+  return { kind: 'challenge', minted: mintToolConfirmation(macKey, binding, now) }
+}
+
+/**
+ * Render the one line a human reads before confirming this action (WS-AI-11 Phase
+ * 3a), by running the tool's host-authored `summarizeArgs` over the VALIDATED
+ * arguments. Fail-closed and bounded: a summarizer that throws, or returns anything
+ * but a non-empty string, refuses the action rather than showing the human a blank
+ * or a partial prompt they might rubber-stamp. `assertActionAllowed` has already
+ * refused an action with no summarizer, so reaching a missing one here is defensive.
+ *
+ * The summary never contains model prose: it is host code on the host's side of the
+ * boundary, which is the whole reason it is mandatory (an injection that authored its
+ * own confirmation text would turn HITL into a rubber stamp).
+ */
+export function renderActionSummary(
+  tool: AIToolHostDefinition,
+  args: Record<string, unknown>,
+  tenantId: string
+): string {
+  let text: unknown
+  try {
+    text = tool.summarizeArgs ? tool.summarizeArgs(args) : undefined
+  } catch {
+    denyAction(tenantId, tool.name, 'summary_failed')
+  }
+  if (typeof text !== 'string' || text.trim().length === 0) {
+    denyAction(tenantId, tool.name, 'summary_empty')
+  }
+  return text.length > AI_TOOL_ARGS_SUMMARY_MAX_CHARS
+    ? text.slice(0, AI_TOOL_ARGS_SUMMARY_MAX_CHARS)
+    : text
 }
 
 /**

@@ -1,17 +1,22 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
-import type { AIToolHostDefinition, AIToolsConfig } from '../define_config.js'
+import type { AIToolHostDefinition, AIToolsConfig, ToolScope } from '../define_config.js'
 import type { AIMessage, AIToolCall } from '../types/ai_provider_contract.js'
-import type { ToolLoopExecutor } from '../gateway/tool_loop.js'
+import type {
+  ToolCallPlan,
+  ToolConfirmationChallenge,
+  ToolLoopExecutor,
+} from '../gateway/tool_loop.js'
 import type { EmitMetric } from '../gateway/stream_extension.js'
 import { noopToolAuditSink, type AiToolAuditSink } from '../gateway/audit_seam.js'
 import AIException from '../exceptions/ai_exception.js'
 import {
   assertActionAllowed,
-  assertActionConfirmed,
   assertActiveToolScope,
   assertClaimUsable,
   authorizeToolScope,
+  renderActionSummary,
+  resolveActionConfirmation,
   resolveKnownTool,
 } from '../gateway/tool_gate.js'
 import { validateToolInput } from '../gateway/tool_input.js'
@@ -62,31 +67,46 @@ export interface ToolExecutorDeps {
 }
 
 /**
+ * A request-bound executor: what {@link ToolExecutorService.forRequest} returns.
+ * The tool loop drives {@link ToolLoopExecutor.plan | plan} (scan a round, then run
+ * or challenge); `execute` is the read/compat path that runs a single call to
+ * completion, throwing on a challenge (which only the loop can turn into a client
+ * frame).
+ */
+export interface RequestBoundExecutor extends ToolLoopExecutor {
+  execute(call: AIToolCall, signal: AbortSignal, round: number): Promise<AIMessage>
+}
+
+/**
  * Executes one model-issued tool call under the full WS-AI-11 security gate order
  * (Phase 3), fulfilling the loop's {@link ToolLoopExecutor} seam. Stateful only
  * through its injected seams, so it registers as a container singleton and is
  * `container.make`-resolved, never `new`-ed ad hoc.
  *
  * `forRequest` binds a request's `ctx`, `tenant` and the FULL resolved tool set
- * (read + action, so the gate can tell an unknown tool from a disabled action
- * one), returning the per-call executor the loop drives. Per call, in order:
- * resolve the tool (`tool_unknown`), refuse a disabled action (`tool_action_disabled`),
- * authorize (`tool_denied`), validate arguments (`tool_input_invalid`), re-assert the
- * ambient tenancy scope BEFORE binding (`tool_scope_mismatch`, the I7 confused-deputy
- * defense), then run the handler INSIDE `tenancy.run(tenant)` under a per-tool timeout
- * that actually unblocks the loop, and fence the result as an untrusted `role: 'tool'`
- * turn. A FATAL refusal — any of the four gate throws, or the I7 scope breach — throws
- * (the loop renders it in-band and aborts); a handler that merely fails (threw, even a
- * nested AIException, or timed out) degrades to a bounded error result so the model can
- * react and the loop continues.
+ * (read + action, so the gate can tell an unknown tool from a disabled action one),
+ * returning the {@link RequestBoundExecutor} the loop drives. `plan` runs the gate,
+ * in order — resolve the tool (`tool_unknown`), refuse a disabled action
+ * (`tool_action_disabled`), authorize (`tool_denied`), validate arguments
+ * (`tool_input_invalid`), re-assert the ambient tenancy scope (`tenant_scope_mismatch`,
+ * the I7 confused-deputy defense), then decide an action's confirmation — WITHOUT
+ * running the effect: it returns a `challenge` for the human or a `run` thunk. The
+ * thunk runs the handler INSIDE `tenancy.run(tenant)` under a per-tool timeout that
+ * actually unblocks the loop, fences the result as an untrusted `role: 'tool'` turn,
+ * and (for an action) claims the fence + writes the fail-closed intent first. A FATAL
+ * refusal throws from `plan` (the loop renders it in-band and aborts, before any
+ * earlier call's thunk has run); a handler that merely fails (threw, even a nested
+ * AIException, or timed out) degrades to a bounded error result so the loop continues.
  */
 export default class ToolExecutorService {
   constructor(private readonly deps: ToolExecutorDeps) {}
 
   /**
-   * Bind a request. `confirmations` are the tokens the client presented on THIS
-   * request (Phase 3a); an empty list is the normal read-only case and also the
-   * first turn of an action, before the human has agreed to anything.
+   * Bind a request. The loop drives {@link RequestBoundExecutor.plan}; `execute` is
+   * the read/compat shim that runs a call to completion. `confirmations` are the
+   * tokens the client presented on THIS request (Phase 3a); an empty list is the
+   * normal read-only case and also the first turn of an action, before the human has
+   * agreed to anything.
    */
   forRequest(
     ctx: HttpContext,
@@ -94,23 +114,39 @@ export default class ToolExecutorService {
     fullSet: readonly AIToolHostDefinition[],
     principalHash?: string | null,
     confirmations: readonly string[] = []
-  ): ToolLoopExecutor {
+  ): RequestBoundExecutor {
+    const plan = (call: AIToolCall, signal: AbortSignal, round: number): Promise<ToolCallPlan> =>
+      this.#planOne(ctx, tenant, fullSet, call, signal, round, principalHash ?? null, confirmations)
     return {
-      execute: (call, signal, round) =>
-        this.#executeOne(
-          ctx,
-          tenant,
-          fullSet,
-          call,
-          signal,
-          round,
-          principalHash ?? null,
-          confirmations
-        ),
+      plan,
+      execute: async (call, signal, round) => {
+        const planned = await plan(call, signal, round)
+        if (planned.kind !== 'run') {
+          // Only the tool loop turns a challenge into a client-facing SSE frame;
+          // reaching one through the direct path means an action was driven off-loop.
+          throw new AIException(
+            'tool_confirmation_required',
+            'an action tool needs confirmation, which the tool loop issues, not this path'
+          )
+        }
+        return planned.run()
+      },
     }
   }
 
-  async #executeOne(
+  /**
+   * Classify one call under the full WS-AI-11 gate WITHOUT running its effect
+   * (Phase 3a). Resolve the tool (`tool_unknown`), refuse a disabled action
+   * (`tool_action_disabled`), authorize (`tool_denied`), validate arguments
+   * (`tool_input_invalid`), re-assert the ambient tenancy scope (`tenant_scope_mismatch`,
+   * the I7 confused-deputy defense) — each a FATAL throw the loop renders in-band.
+   * Then, for an action, decide confirmation: a `challenge` to put to the human, or
+   * a verified token to run under. The returned `run` thunk carries the effect (the
+   * ledger claim, the fail-closed intent audit, the scoped+timed handler, the fenced
+   * result), so nothing mutates until the loop invokes it once the whole round is
+   * clear.
+   */
+  async #planOne(
     ctx: HttpContext,
     tenant: TenantModelContract,
     fullSet: readonly AIToolHostDefinition[],
@@ -119,7 +155,7 @@ export default class ToolExecutorService {
     round: number,
     principalHash: string | null,
     confirmations: readonly string[]
-  ): Promise<AIMessage> {
+  ): Promise<ToolCallPlan> {
     const toolsConfig = this.deps.getToolsConfig()
     const maxResultChars = clamp(
       toolsConfig?.maxToolResultChars,
@@ -145,102 +181,51 @@ export default class ToolExecutorService {
         tenantId: tenant.id,
       })
 
-      // The I7 / confused-deputy re-assertion, BEFORE `runScoped` binds the scope
+      // The I7 / confused-deputy re-assertion, BEFORE any `runScoped` binds the scope
       // (mirrors `ai_audit_writer.append` and `vector_store #target`): reading the
       // active scope here reflects the caller's AMBIENT scope, so if the request is
       // already running inside a tenancy scope it must be this tenant's. Reading it
       // inside the bind instead would compare the just-set scope to itself — a
       // tautology. It stays in THIS try so a breach is audited (outcome 'error'),
       // then rethrown as a FATAL abort. An undefined ambient scope (the normal
-      // streaming path, none bound) trusts the caller, like the two mirrored seams;
-      // the kernel ContextSeal remains the per-query backstop.
+      // streaming path, none bound) trusts the caller; the kernel ContextSeal remains
+      // the per-query backstop.
       assertActiveToolScope(this.deps.activeScopeTenantId(), tenant.id)
 
-      // An action tool needs a human to have agreed to THIS call, and the effect
-      // needs to be fenced, before anything runs. Both throw on refusal, so a write
-      // that gets past here is one somebody confirmed and nobody has run yet.
-      // Returns the claimed fence, or null for a read tool.
-      const claim = await this.#authorizeAction(
-        t,
-        tenant,
-        args,
-        principalHash,
-        confirmations,
-        round
-      )
-
-      const timeoutMs = clamp(
-        toolsConfig?.toolTimeoutMs,
-        DEFAULT_TOOL_TIMEOUT_MS,
-        MAX_TOOL_TIMEOUT_MS
-      )
-
-      // The handler runs in its OWN try so a failure degrades (never reaches the
-      // outer catch, which is exclusively for the fatal gate refusals above).
-      let failed = false
-      let result: unknown
-      try {
-        result = await this.deps.runScoped(tenant, async () => {
-          const timed = composeToolSignal(signal, timeoutMs)
-          try {
-            // Race the handler against the composed signal so a handler that IGNORES
-            // its AbortSignal cannot hang the single pump past `toolTimeoutMs` (or a
-            // client disconnect / liveness revoke): on abort the race rejects, the
-            // call degrades, and the pump / reservation / per-tenant concurrency slot
-            // are freed even though the handler keeps running detached.
-            return await runWithAbort(
-              () =>
-                t.handler(args, {
-                  tenant,
-                  ctx,
-                  signal: timed.signal,
-                  ...(scope.kind === 'allow' && scope.filter ? { filter: scope.filter } : {}),
-                  // Only a confirmed action carries one. The satellite already fences
-                  // the effect; this is for a handler whose own downstream wants an
-                  // idempotency key of its own.
-                  ...(claim ? { idempotencyKey: claim.effectKey } : {}),
-                }),
-              timed.signal
-            )
-          } finally {
-            timed.dispose()
-          }
-        })
-      } catch {
-        // A handler that threw, timed out, or was aborted (including a nested
-        // AIException a host handler may raise, e.g. a read-tool calling the
-        // satellite's own retrieval on a transient error): degrade to a bounded
-        // error result the model can react to; the loop continues (resilience).
-        failed = true
+      // An action tool needs a human to have agreed to THIS call before it runs. The
+      // decision is side-effect-free: a `challenge` mints a token but claims no fence
+      // and runs nothing, so the loop can scan a whole round before committing.
+      let confirmation: { effectKey: string } | null = null
+      if (t.mode === 'action') {
+        const decision = this.#planAction(t, tenant, args, principalHash, confirmations, call)
+        if (decision.kind === 'challenge') return decision
+        confirmation = { effectKey: decision.effectKey }
       }
 
-      if (failed) this.#metric(tenant.id, AI_TOOL_ERRORS_METRIC, 1)
-      this.#metric(tenant.id, AI_TOOL_LATENCY_METRIC, Date.now() - startedAt)
-
-      const resultTurn = failed
-        ? buildToolResultTurn(call.id, { error: 'tool_execution_failed' }, maxResultChars)
-        : buildToolResultTurn(call.id, result, maxResultChars)
-
-      // Close the fence for an action. The recorded result is the bounded, fenced
-      // turn, so a replay hands back exactly what the first attempt produced rather
-      // than re-deriving it. `settle` is fail-closed and `fail` is best-effort: see
-      // the ledger for why the two differ.
-      if (claim) {
-        if (failed)
-          await this.deps.actionLedger?.fail(tenant.id, claim.effectKey, 'tool_execution_failed')
-        else await this.deps.actionLedger?.settle(tenant.id, claim.effectKey, resultTurn.content)
+      const confirmed = confirmation
+      return {
+        kind: 'run',
+        run: () =>
+          this.#runCall(
+            ctx,
+            tenant,
+            t,
+            call,
+            args,
+            scope,
+            confirmed,
+            round,
+            principalHash,
+            maxResultChars,
+            startedAt,
+            signal
+          ),
       }
-
-      await this.#auditToolSafe(tenant.id, principalHash, call.name, t.mode ?? 'read', round, {
-        outcome: failed ? 'failed' : 'completed',
-        reason: failed ? 'tool_execution_failed' : null,
-      })
-      return resultTurn
     } catch (error) {
-      // A FATAL gate refusal (unknown / action-disabled / denied / invalid) or the
-      // I7 scope breach: meter the denial, audit it, and rethrow so the loop renders
-      // it in-band and aborts. A scope breach is the one 'error' outcome; the rest
-      // are 'denied'. The precise code rides in `reason`.
+      // A FATAL gate refusal (unknown / action-disabled / denied / invalid / a
+      // failed summary) or the I7 scope breach: meter the denial, audit it, and
+      // rethrow so the loop renders it in-band and aborts. A scope breach is the one
+      // 'error' outcome; the rest are 'denied'. The precise code rides in `reason`.
       this.#metric(tenant.id, AI_TOOL_DENIALS_METRIC, 1)
       const code = error instanceof AIException ? error.aiCode : 'error'
       await this.#auditToolSafe(tenant.id, principalHash, call.name, tool?.mode ?? 'read', round, {
@@ -252,71 +237,187 @@ export default class ToolExecutorService {
   }
 
   /**
-   * The action-tool path (Phase 3a). Returns null for a read tool, which is the
-   * whole of the read story: none of this runs.
-   *
-   * For an action tool, in this order, each step refusing rather than degrading:
-   *
-   * 1. The infrastructure must exist. No MAC key or no ledger means the effect
-   *    cannot be verified or fenced, so it must not happen.
-   * 2. The principal must resolve. A confirmation binds to a person; bound to
-   *    nobody, the token would be spendable by any session holding the string.
-   * 3. A presented token must authorize THIS call. `verifyToolConfirmation`
-   *    re-derives the binding from the request, so a token for another tenant, user,
-   *    tool or arguments simply is not this value. No token at all is NOT an error:
-   *    it is the first turn, and the loop challenges the human. A token that was
-   *    presented and did not match IS an error, because the client believed it had
-   *    permission and did not.
-   * 4. Claim the fence BEFORE running. A `replay` means this exact token already
-   *    fired: never run it again.
-   * 5. Write the audit intent FAIL-CLOSED, before the effect. This is the one place
-   *    the audit ordering inverts. A read tool audits best-effort afterwards because
-   *    losing the record of a read costs a log line. An action that mutated without
-   *    a durable record of intent is a mutation nobody can account for, so if the
-   *    intent cannot be written the action does not happen.
+   * Run one already-planned call to completion. For a confirmed action it FIRST
+   * claims the fence and writes the fail-closed intent audit (a refusal there —
+   * a replay, or the intent write failing — is fatal: meter, audit, rethrow like a
+   * gate refusal). Then it runs the handler inside `tenancy.run` under the per-tool
+   * timeout, fences the result, closes the fence, and audits the outcome. A handler
+   * that merely fails degrades to a bounded error result so the loop continues.
    */
-  async #authorizeAction(
+  async #runCall(
+    ctx: HttpContext,
+    tenant: TenantModelContract,
+    tool: AIToolHostDefinition,
+    call: AIToolCall,
+    args: Record<string, unknown>,
+    scope: ToolScope,
+    confirmation: { effectKey: string } | null,
+    round: number,
+    principalHash: string | null,
+    maxResultChars: number,
+    startedAt: number,
+    signal: AbortSignal
+  ): Promise<AIMessage> {
+    let claimedKey: string | undefined
+    if (confirmation) {
+      try {
+        claimedKey = await this.#claimAndAuditIntent(
+          tenant,
+          tool,
+          confirmation.effectKey,
+          round,
+          principalHash
+        )
+      } catch (error) {
+        this.#metric(tenant.id, AI_TOOL_DENIALS_METRIC, 1)
+        const code = error instanceof AIException ? error.aiCode : 'error'
+        await this.#auditToolSafe(tenant.id, principalHash, call.name, 'action', round, {
+          outcome: 'denied',
+          reason: code,
+        })
+        throw error
+      }
+    }
+
+    const toolsConfig = this.deps.getToolsConfig()
+    const timeoutMs = clamp(
+      toolsConfig?.toolTimeoutMs,
+      DEFAULT_TOOL_TIMEOUT_MS,
+      MAX_TOOL_TIMEOUT_MS
+    )
+
+    // The handler runs in its OWN try so a failure degrades (never reaches the plan
+    // catch, which is exclusively for the fatal gate refusals above).
+    let failed = false
+    let result: unknown
+    try {
+      result = await this.deps.runScoped(tenant, async () => {
+        const timed = composeToolSignal(signal, timeoutMs)
+        try {
+          // Race the handler against the composed signal so a handler that IGNORES
+          // its AbortSignal cannot hang the single pump past `toolTimeoutMs` (or a
+          // client disconnect / liveness revoke): on abort the race rejects, the call
+          // degrades, and the pump / reservation / per-tenant concurrency slot are
+          // freed even though the handler keeps running detached.
+          return await runWithAbort(
+            () =>
+              tool.handler(args, {
+                tenant,
+                ctx,
+                signal: timed.signal,
+                ...(scope.kind === 'allow' && scope.filter ? { filter: scope.filter } : {}),
+                // Only a confirmed action carries one. The satellite already fences
+                // the effect; this is for a handler whose own downstream wants an
+                // idempotency key of its own.
+                ...(claimedKey ? { idempotencyKey: claimedKey } : {}),
+              }),
+            timed.signal
+          )
+        } finally {
+          timed.dispose()
+        }
+      })
+    } catch {
+      // A handler that threw, timed out, or was aborted (including a nested
+      // AIException a host handler may raise, e.g. a read-tool calling the
+      // satellite's own retrieval on a transient error): degrade to a bounded error
+      // result the model can react to; the loop continues (resilience).
+      failed = true
+    }
+
+    if (failed) this.#metric(tenant.id, AI_TOOL_ERRORS_METRIC, 1)
+    this.#metric(tenant.id, AI_TOOL_LATENCY_METRIC, Date.now() - startedAt)
+
+    const resultTurn = failed
+      ? buildToolResultTurn(call.id, { error: 'tool_execution_failed' }, maxResultChars)
+      : buildToolResultTurn(call.id, result, maxResultChars)
+
+    // Close the fence for an action. The recorded result is the bounded, fenced turn,
+    // so a replay hands back exactly what the first attempt produced rather than
+    // re-deriving it. `settle` is fail-closed and `fail` is best-effort: see the
+    // ledger for why the two differ.
+    if (claimedKey) {
+      if (failed) await this.deps.actionLedger?.fail(tenant.id, claimedKey, 'tool_execution_failed')
+      else await this.deps.actionLedger?.settle(tenant.id, claimedKey, resultTurn.content)
+    }
+
+    await this.#auditToolSafe(tenant.id, principalHash, call.name, tool.mode ?? 'read', round, {
+      outcome: failed ? 'failed' : 'completed',
+      reason: failed ? 'tool_execution_failed' : null,
+    })
+    return resultTurn
+  }
+
+  /**
+   * The action-tool confirmation decision (Phase 3a), side-effect-free. Called only
+   * for `mode: 'action'`. `resolveActionConfirmation` re-derives the binding from
+   * THIS request and reads only `jti`/`exp` off the wire, so a token for another
+   * tenant, user, tool or arguments simply is not this value; it throws the fatal
+   * cases (no machinery, no principal, a presented-but-unmatched token) and returns
+   * either a `confirmed` token to run under or a `challenge` to put to the human. No
+   * token at all is NOT an error: it is the first turn, and the challenge (with its
+   * fail-closed, bounded, host-authored summary) is what the loop emits. NOTHING is
+   * claimed or audited here — the fence and the intent write live in `#runCall`, so a
+   * challenged round mutates nothing.
+   */
+  #planAction(
     tool: AIToolHostDefinition,
     tenant: TenantModelContract,
     args: Record<string, unknown>,
     principalHash: string | null,
     confirmations: readonly string[],
-    round: number
-  ): Promise<{ effectKey: string } | null> {
-    if (tool.mode !== 'action') return null
-
-    // Every decision below lives in tool_gate beside the other gates. This method
-    // owns the ORDERING and the side effects; it decides nothing itself, which is
-    // why it throws nothing itself.
-    const ledger = this.deps.actionLedger
+    call: AIToolCall
+  ):
+    | { kind: 'challenge'; challenge: ToolConfirmationChallenge }
+    | { kind: 'run'; effectKey: string } {
     const binding = principalHash
-      ? {
-          tenantId: tenant.id,
-          principalHash,
-          toolName: tool.name,
-          argsHash: hashToolArgs(args),
-        }
+      ? { tenantId: tenant.id, principalHash, toolName: tool.name, argsHash: hashToolArgs(args) }
       : null
-    const confirmed = assertActionConfirmed(
+    const decision = resolveActionConfirmation(
       tool,
       tenant.id,
       binding,
       confirmations,
       this.deps.confirmationMacKey,
-      ledger !== undefined
+      this.deps.actionLedger !== undefined
     )
+    if (decision.kind === 'confirmed')
+      return { kind: 'run', effectKey: decision.confirmation.effectKey }
+    return {
+      kind: 'challenge',
+      challenge: {
+        id: call.id,
+        name: tool.name,
+        summary: renderActionSummary(tool, args, tenant.id),
+        token: decision.minted.token,
+        expiresAt: decision.minted.expiresAt,
+      },
+    }
+  }
 
-    // `assertActionConfirmed` refuses when `ledgerReady` is false, so reaching here
-    // means the ledger is present. The compiler cannot follow that through a boolean
-    // argument, and re-testing it would add a second unreachable refusal path for
-    // the same fact.
-    const claim = await ledger!.claim(tenant.id, confirmed.effectKey, tool.name)
+  /**
+   * Claim the at-most-once fence and write the fail-closed intent audit, BEFORE the
+   * effect. A `replay` means this exact token already fired: `assertClaimUsable`
+   * throws so it never runs again. The intent write inverts the read-tool ordering
+   * (which audits best-effort afterwards): a mutation that ran with no durable record
+   * of intent is one nobody can account for, so if the intent cannot be written the
+   * action does not happen. Returns the claimed effect key (the handler's optional
+   * idempotency key).
+   */
+  async #claimAndAuditIntent(
+    tenant: TenantModelContract,
+    tool: AIToolHostDefinition,
+    effectKey: string,
+    round: number,
+    principalHash: string | null
+  ): Promise<string> {
+    // `resolveActionConfirmation` refused when the ledger was absent, so reaching here
+    // means it is present. The compiler cannot follow that through, and re-testing it
+    // would add a second unreachable refusal path for the same fact.
+    const claim = await this.deps.actionLedger!.claim(tenant.id, effectKey, tool.name)
     if (claim.kind === 'replay') this.#metric(tenant.id, AI_TOOL_ACTION_REPLAYED_METRIC, 1)
     assertClaimUsable(claim, tenant.id, tool.name)
 
-    // Fail-closed intent, BEFORE the effect. A throw here aborts the call, which is
-    // the point: the fence is already claimed, so the action cannot silently run
-    // unrecorded, and the claimed row reads as "unknown" rather than "safe".
     await (this.deps.toolAudit ?? noopToolAuditSink).append({
       tenantId: tenant.id,
       principalHash,
@@ -333,7 +434,7 @@ export default class ToolExecutorService {
     })
 
     this.#metric(tenant.id, AI_TOOL_ACTION_EXECUTED_METRIC, 1)
-    return { effectKey: confirmed.effectKey }
+    return effectKey
   }
 
   /** Best-effort per-tenant metric: a failing sink can never touch the tool call. */

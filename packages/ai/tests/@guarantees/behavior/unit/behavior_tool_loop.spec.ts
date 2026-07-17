@@ -1,5 +1,10 @@
 import { test } from '@japa/runner'
-import { buildToolLoopProducer, type ToolLoopExecutor } from '../../../../src/gateway/tool_loop.js'
+import {
+  buildToolLoopProducer,
+  type ToolCallPlan,
+  type ToolLoopExecutor,
+} from '../../../../src/gateway/tool_loop.js'
+import AIException from '../../../../src/exceptions/ai_exception.js'
 import MockAIProvider from '../../../../src/testing/mock_ai_provider.js'
 import { AI_TOKENS_QUOTA } from '../../../../src/constants.js'
 import {
@@ -9,7 +14,6 @@ import {
   makeService,
 } from '../../../helpers/stream_doubles.js'
 import type {
-  AIMessage,
   AIStreamRequest,
   AIToolCall,
   AIToolDefinition,
@@ -28,13 +32,57 @@ function usage(tokens: number): StreamFragment {
   return { data: '', tokens, event: 'usage' }
 }
 
-/** Records the calls it executed and returns a canned fenced result turn. */
+/**
+ * Every call plans to `run`; the run thunk records the call and returns a canned
+ * fenced turn. Recording in the thunk (not in `plan`) means `calls` counts what
+ * actually EXECUTED, so a challenged/aborted round leaves it untouched.
+ */
 class FakeExecutor implements ToolLoopExecutor {
   readonly calls: AIToolCall[] = []
   constructor(private readonly result = '{"ok":true}') {}
-  async execute(call: AIToolCall): Promise<AIMessage> {
-    this.calls.push(call)
-    return { role: 'tool', content: this.result, toolCallId: call.id }
+  async plan(call: AIToolCall): Promise<ToolCallPlan> {
+    return {
+      kind: 'run',
+      run: async () => {
+        this.calls.push(call)
+        return { role: 'tool', content: this.result, toolCallId: call.id }
+      },
+    }
+  }
+}
+
+/**
+ * Plans each call per a decision fn ('run' | 'challenge' | 'throw'), recording which
+ * calls actually RAN. Drives the planRound tests: a challenge mints a canned frame, a
+ * throw is the FATAL a real gate raises during the scan.
+ */
+class ScriptedExecutor implements ToolLoopExecutor {
+  readonly ran: string[] = []
+  constructor(private readonly decide: (call: AIToolCall) => 'run' | 'challenge' | 'throw') {}
+  async plan(call: AIToolCall): Promise<ToolCallPlan> {
+    const choice = this.decide(call)
+    if (choice === 'throw') {
+      throw new AIException('tool_denied', 'Refusing the tool call: not authorized')
+    }
+    if (choice === 'challenge') {
+      return {
+        kind: 'challenge',
+        challenge: {
+          id: call.id,
+          name: call.name,
+          summary: `confirm ${call.name}`,
+          token: `aitc1.${call.id}`,
+          expiresAt: 9_999_999_999_999,
+        },
+      }
+    }
+    return {
+      kind: 'run',
+      run: async () => {
+        this.ran.push(call.id)
+        return { role: 'tool', content: '{}', toolCallId: call.id }
+      },
+    }
   }
 }
 
@@ -183,7 +231,6 @@ test.group('tool_loop (through the streaming spine)', () => {
       maxRounds: 4,
       onBeforeRound: async (round) => {
         seen.push(round)
-        const { default: AIException } = await import('../../../../src/exceptions/ai_exception.js')
         throw new AIException('rate_limited', 'denied')
       },
     })
@@ -205,5 +252,66 @@ test.group('tool_loop (through the streaming spine)', () => {
     const { target, result } = runLoop(provider, new FakeExecutor(), { surfaceToolArgs: true })
     await result
     assert.include(target.output, '"arguments":"{\\"status\\":\\"active\\"}"')
+  })
+})
+
+test.group('tool_loop — planRound (Phase 3a confirmation)', () => {
+  test('an action awaiting confirmation emits a tool_confirmation_required frame and runs nothing', async ({
+    assert,
+  }) => {
+    const provider = new MockAIProvider({
+      rounds: [[toolCall('c1', 'cancel_booking', '{}')], [{ data: 'unreached', tokens: 0 }]],
+    })
+    const executor = new ScriptedExecutor((c) =>
+      c.name === 'cancel_booking' ? 'challenge' : 'run'
+    )
+    const { target, result } = runLoop(provider, executor)
+    const outcome = await result
+
+    // The frame carries the host summary + minted token; nothing executed.
+    assert.include(target.output, 'event: tool_confirmation_required')
+    assert.include(target.output, '"token":"aitc1.c1"')
+    assert.include(target.output, '"summary":"confirm cancel_booking"')
+    assert.lengthOf(executor.ran, 0)
+    // The loop returned at the challenge: the provider was never re-entered, and the
+    // stream committed cleanly (a challenge is a turn boundary, not an error).
+    assert.lengthOf(provider.calls, 1)
+    assert.equal(outcome.outcome, 'completed')
+  })
+
+  test('a round mixing a runnable call and a challenge runs neither (no half-apply)', async ({
+    assert,
+  }) => {
+    const provider = new MockAIProvider({
+      rounds: [[toolCall('c1', 'read_weather', '{}'), toolCall('c2', 'cancel_booking', '{}')]],
+    })
+    const executor = new ScriptedExecutor((c) =>
+      c.name === 'cancel_booking' ? 'challenge' : 'run'
+    )
+    const { target, result } = runLoop(provider, executor)
+    await result
+
+    // c1 planned to run but MUST NOT have: a round is never half-applied around a
+    // pending confirmation, so the confirmed re-submit runs both together next turn.
+    assert.lengthOf(executor.ran, 0)
+    assert.include(target.output, 'event: tool_confirmation_required')
+    assert.include(target.output, '"id":"c2"')
+  })
+
+  test('a fatal refusal during planning aborts the round before any earlier call runs', async ({
+    assert,
+  }) => {
+    const provider = new MockAIProvider({
+      rounds: [[toolCall('c1', 'read_weather', '{}'), toolCall('c2', 'forbidden', '{}')]],
+    })
+    const executor = new ScriptedExecutor((c) => (c.name === 'forbidden' ? 'throw' : 'run'))
+    const { target, result } = runLoop(provider, executor)
+    const outcome = await result
+
+    // The scan threw on c2 before phase 2, so c1 never ran: a fatal in a round is
+    // never half-applied either.
+    assert.lengthOf(executor.ran, 0)
+    assert.include(target.output, 'event: error\ndata: tool_denied')
+    assert.equal(outcome.outcome, 'aborted')
   })
 })

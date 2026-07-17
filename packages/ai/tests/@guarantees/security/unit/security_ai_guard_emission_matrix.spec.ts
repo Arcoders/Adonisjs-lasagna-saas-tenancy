@@ -21,9 +21,9 @@ import {
 import { validateIdempotencyKeyHeader } from '../../../../src/gateway/idempotency.js'
 import {
   assertActionAllowed,
-  assertActionConfirmed,
   assertActiveToolScope,
   authorizeToolScope,
+  resolveActionConfirmation,
   resolveKnownTool,
 } from '../../../../src/gateway/tool_gate.js'
 import {
@@ -218,7 +218,12 @@ const budgetLoop = (alwaysCalls: boolean) =>
     }),
     baseRequest: { messages: [{ role: 'user', content: 'hi' }] },
     tools: [{ name: 'read', description: 'd', inputSchema: {} }],
-    executor: { execute: async () => ({ role: 'tool', content: 'x', toolCallId: 'c' }) },
+    executor: {
+      plan: async () => ({
+        kind: 'run',
+        run: async () => ({ role: 'tool', content: 'x', toolCallId: 'c' }),
+      }),
+    },
     perRoundMaxTokens: 100,
     maxRounds: 1,
   })(new AbortController().signal)
@@ -481,7 +486,7 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
     // A token was presented and it authorizes a DIFFERENT action, the shape both an
     // attacker replaying a stolen token and a model re-proposing land in.
     trip: () =>
-      assertActionConfirmed(
+      resolveActionConfirmation(
         CONFIRM_TOOL,
         tenant.id,
         CONFIRM_BINDING,
@@ -492,7 +497,7 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
     expectThrow: /does not authorize this call/,
     // The matching token: nothing to warn about.
     happy: () =>
-      assertActionConfirmed(
+      resolveActionConfirmation(
         CONFIRM_TOOL,
         tenant.id,
         CONFIRM_BINDING,

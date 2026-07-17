@@ -6,6 +6,13 @@ import ToolExecutorService, {
   type ToolExecutorDeps,
 } from '../../../../src/services/tool_executor.js'
 import AIException from '../../../../src/exceptions/ai_exception.js'
+import {
+  deriveAiToolConfirmationMacKey,
+  hashToolArgs,
+  mintToolConfirmation,
+  type ToolConfirmationBinding,
+} from '../../../../src/gateway/tool_confirmation.js'
+import type AiActionLedger from '../../../../src/services/action_ledger.js'
 import type {
   AIToolHostDefinition,
   AIToolsConfig,
@@ -29,6 +36,8 @@ function makeExecutor(
       (() => overrides.toolsConfig ?? { acknowledgeUnauthorizedTools: true }),
     ...(overrides.toolAudit ? { toolAudit: overrides.toolAudit } : {}),
     ...(overrides.emitMetric ? { emitMetric: overrides.emitMetric } : {}),
+    ...(overrides.confirmationMacKey ? { confirmationMacKey: overrides.confirmationMacKey } : {}),
+    ...(overrides.actionLedger ? { actionLedger: overrides.actionLedger } : {}),
   })
 }
 
@@ -279,6 +288,202 @@ test.group('tool_executor — observability (audit + metrics)', () => {
     const exec = svc.forRequest(ctx, tenant, [readTool(async () => ({ ok: 1 }))])
     const turn = await exec.execute(call('count'), sig, 1)
     assert.include(turn.content, '{"ok":1}')
+  })
+})
+
+test.group('tool_executor — action tools (Phase 3a confirmation)', () => {
+  const MAC_KEY = deriveAiToolConfirmationMacKey('executor-confirmation-app-key-000000!')
+  const PRINCIPAL = 'p-hash'
+
+  /** A well-formed action tool: enabled, authorized, summarizeable, id-typed. */
+  function actionTool(ran?: { value: boolean }): AIToolHostDefinition {
+    return {
+      name: 'cancel_booking',
+      description: 'cancel a booking',
+      inputSchema: { type: 'object', properties: { id: { type: 'string' } } },
+      mode: 'action',
+      summarizeArgs: (args) => `cancel ${String(args.id)}`,
+      handler: async () => {
+        if (ran) ran.value = true
+        return { ok: true }
+      },
+    }
+  }
+
+  const ACTION_CONFIG: AIToolsConfig = {
+    actionTools: { enabled: true },
+    authorizeTool: () => ({ kind: 'allow' }),
+  }
+
+  /** A fake ledger that records claims/settles; `claim` is overridable for replay. */
+  function fakeLedger(
+    claim: () => Promise<
+      { kind: 'claimed' } | { kind: 'replay'; state: 'claimed' | 'settled' | 'failed' }
+    > = async () => ({
+      kind: 'claimed',
+    })
+  ) {
+    const claimed: string[] = []
+    const settled: string[] = []
+    const ledger = {
+      claim: async (_t: string, key: string) => {
+        claimed.push(key)
+        return claim()
+      },
+      settle: async (_t: string, key: string) => void settled.push(key),
+      fail: async () => {},
+    }
+    return { ledger: ledger as unknown as AiActionLedger, claimed, settled }
+  }
+
+  function bindingFor(args: Record<string, unknown>): ToolConfirmationBinding {
+    return {
+      tenantId: 't1',
+      principalHash: PRINCIPAL,
+      toolName: 'cancel_booking',
+      argsHash: hashToolArgs(args),
+    }
+  }
+
+  test('a fresh action plans to a challenge: host summary + minted token, no effect', async ({
+    assert,
+  }) => {
+    const ran = { value: false }
+    const { ledger, claimed } = fakeLedger()
+    const svc = makeExecutor({
+      getToolsConfig: () => ACTION_CONFIG,
+      confirmationMacKey: MAC_KEY,
+      actionLedger: ledger,
+    })
+    const exec = svc.forRequest(ctx, tenant, [actionTool(ran)], PRINCIPAL)
+    const plan = await exec.plan(call('cancel_booking', '{"id":"BK-9"}'), sig, 1)
+
+    assert.equal(plan.kind, 'challenge')
+    if (plan.kind !== 'challenge') return
+    assert.equal(plan.challenge.name, 'cancel_booking')
+    assert.equal(plan.challenge.id, 'c1')
+    // The summary is HOST code over the VALIDATED args, never model prose.
+    assert.equal(plan.challenge.summary, 'cancel BK-9')
+    assert.match(plan.challenge.token, /^aitc1\./)
+    assert.isAbove(plan.challenge.expiresAt, Date.now())
+    // A challenge runs nothing and claims no fence.
+    assert.isFalse(ran.value)
+    assert.lengthOf(claimed, 0)
+  })
+
+  test('a confirmed action plans to run; the run claims the fence and audits intent before the effect', async ({
+    assert,
+  }) => {
+    const ran = { value: false }
+    const { ledger, claimed, settled } = fakeLedger()
+    const { toolAudit, events } = (() => {
+      const evs: AiToolAuditEvent[] = []
+      return { toolAudit: { append: (e: AiToolAuditEvent) => void evs.push(e) }, events: evs }
+    })()
+    const minted = mintToolConfirmation(MAC_KEY, bindingFor({ id: 'BK-1' }))
+    const svc = makeExecutor({
+      getToolsConfig: () => ACTION_CONFIG,
+      confirmationMacKey: MAC_KEY,
+      actionLedger: ledger,
+      toolAudit,
+    })
+    const exec = svc.forRequest(ctx, tenant, [actionTool(ran)], PRINCIPAL, [minted.token])
+    const plan = await exec.plan(call('cancel_booking', '{"id":"BK-1"}'), sig, 2)
+
+    assert.equal(plan.kind, 'run')
+    if (plan.kind !== 'run') return
+    const turn = await plan.run()
+
+    assert.isTrue(ran.value)
+    assert.include(turn.content, '{"ok":true}')
+    // The fence was claimed by the token's own MAC, then settled.
+    assert.deepEqual(claimed, [minted.effectKey])
+    assert.deepEqual(settled, [minted.effectKey])
+    // Intent is written FAIL-CLOSED, before the effect's completed row.
+    assert.equal(events[0]?.outcome, 'intent')
+    assert.equal(events[0]?.reason, 'action_intent')
+    assert.equal(events[0]?.mode, 'action')
+    assert.equal(events[1]?.outcome, 'completed')
+  })
+
+  test('the direct execute shim throws on a challenge (only the loop mints a frame)', async ({
+    assert,
+  }) => {
+    const { ledger } = fakeLedger()
+    const svc = makeExecutor({
+      getToolsConfig: () => ACTION_CONFIG,
+      confirmationMacKey: MAC_KEY,
+      actionLedger: ledger,
+    })
+    const exec = svc.forRequest(ctx, tenant, [actionTool()], PRINCIPAL)
+    const err = await reject(exec.execute(call('cancel_booking', '{"id":"BK-9"}'), sig, 1))
+    assert.instanceOf(err, AIException)
+    assert.equal((err as AIException).aiCode, 'tool_confirmation_required')
+  })
+
+  test('a presented-but-unmatched token is refused invalid and audits denied', async ({
+    assert,
+  }) => {
+    const { toolAudit, events } = (() => {
+      const evs: AiToolAuditEvent[] = []
+      return { toolAudit: { append: (e: AiToolAuditEvent) => void evs.push(e) }, events: evs }
+    })()
+    const { ledger } = fakeLedger()
+    // A token minted for DIFFERENT args does not authorize this call.
+    const stale = mintToolConfirmation(MAC_KEY, bindingFor({ id: 'OTHER' }))
+    const svc = makeExecutor({
+      getToolsConfig: () => ACTION_CONFIG,
+      confirmationMacKey: MAC_KEY,
+      actionLedger: ledger,
+      toolAudit,
+    })
+    const exec = svc.forRequest(ctx, tenant, [actionTool()], PRINCIPAL, [stale.token])
+    const err = await reject(exec.plan(call('cancel_booking', '{"id":"BK-1"}'), sig, 1))
+    assert.instanceOf(err, AIException)
+    assert.equal((err as AIException).aiCode, 'tool_confirmation_invalid')
+    assert.include(events[0], {
+      outcome: 'denied',
+      reason: 'tool_confirmation_invalid',
+      mode: 'action',
+    })
+  })
+
+  test('with no confirmation machinery wired the action is unavailable (fail-closed)', async ({
+    assert,
+  }) => {
+    // The ledger is present but the MAC key is not: nothing can verify a token, so
+    // the effect can be neither confirmed nor fenced.
+    const { ledger } = fakeLedger()
+    const svc = makeExecutor({
+      getToolsConfig: () => ACTION_CONFIG,
+      actionLedger: ledger,
+    })
+    const exec = svc.forRequest(ctx, tenant, [actionTool()], PRINCIPAL)
+    const err = await reject(exec.plan(call('cancel_booking', '{"id":"BK-1"}'), sig, 1))
+    assert.instanceOf(err, AIException)
+    assert.equal((err as AIException).aiCode, 'tool_action_unavailable')
+  })
+
+  test('a replayed confirmation is refused before the effect (run throws, handler never runs)', async ({
+    assert,
+  }) => {
+    const ran = { value: false }
+    // The ledger reports this exact token already settled: at-most-once must hold.
+    const { ledger } = fakeLedger(async () => ({ kind: 'replay', state: 'settled' }))
+    const minted = mintToolConfirmation(MAC_KEY, bindingFor({ id: 'BK-1' }))
+    const svc = makeExecutor({
+      getToolsConfig: () => ACTION_CONFIG,
+      confirmationMacKey: MAC_KEY,
+      actionLedger: ledger,
+    })
+    const exec = svc.forRequest(ctx, tenant, [actionTool(ran)], PRINCIPAL, [minted.token])
+    const plan = await exec.plan(call('cancel_booking', '{"id":"BK-1"}'), sig, 1)
+    assert.equal(plan.kind, 'run')
+    if (plan.kind !== 'run') return
+    const err = await reject(plan.run())
+    assert.instanceOf(err, AIException)
+    assert.equal((err as AIException).aiCode, 'tool_confirmation_invalid')
+    assert.isFalse(ran.value)
   })
 })
 
