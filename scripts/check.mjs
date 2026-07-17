@@ -42,6 +42,7 @@ const GUARDS = [
   'check-isthmus.mjs',
   'check-no-silent-catch.mjs',
   'check-satellite-migrations.mjs',
+  'check-typecheck-covers-tests.mjs',
   'check-ai-invariant-1.mjs',
   'check-ai-invariant-2.mjs',
   'check-ai-invariant-4.mjs',
