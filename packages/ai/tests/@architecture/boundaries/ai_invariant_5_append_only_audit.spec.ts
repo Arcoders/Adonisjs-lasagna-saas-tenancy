@@ -9,7 +9,7 @@ import {
   ALLOWED_COLUMNS,
 } from '../../../../../scripts/check-ai-invariant-5.mjs'
 
-const STUB = 'packages/ai/stubs/migrations/create_ai_audit_logs_table.stub'
+const STUB = 'packages/ai/stubs/migrations/0001_create_ai_audit_logs_table.stub'
 const SINKS = 'src/gateway/audit_sinks.ts'
 
 const TRIGGERS = `

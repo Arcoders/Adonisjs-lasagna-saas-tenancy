@@ -147,6 +147,12 @@ function toRowOutcome(outcome: AiToolAuditEvent['outcome']): AiAuditRow['outcome
       return 'completed'
     case 'denied':
       return 'failed_preflight'
+    // An action's pre-effect intent maps to 'aborted' because the shared row has
+    // only three values and this is not yet a success. It reads correctly on its
+    // own: at the moment it is written the effect genuinely has not happened. The
+    // precise state rides in `reason`, and the settled row that follows is what
+    // says it landed. An intent with no follow-up is a crashed mid-effect.
+    case 'intent':
     case 'failed':
     case 'error':
       return 'aborted'

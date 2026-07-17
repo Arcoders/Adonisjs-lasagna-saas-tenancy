@@ -307,7 +307,7 @@ export default class AiChatController {
     if (this.deps.tools && ai?.tools) {
       try {
         const fullSet = await resolveToolRegistry(ctx, tenant, ai.tools)
-        const advertised = advertisedTools(fullSet)
+        const advertised = advertisedTools(fullSet, ai.tools)
         if (advertised.length > 0) {
           // Phase 0's conditionally-required capability: a tool loop against a
           // provider that does not declare `capabilities.tools` fails CLOSED

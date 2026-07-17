@@ -8,12 +8,18 @@ import { noopToolAuditSink, type AiToolAuditSink } from '../gateway/audit_seam.j
 import AIException from '../exceptions/ai_exception.js'
 import {
   assertActionAllowed,
+  assertActionConfirmed,
   assertActiveToolScope,
+  assertClaimUsable,
   authorizeToolScope,
   resolveKnownTool,
 } from '../gateway/tool_gate.js'
 import { validateToolInput } from '../gateway/tool_input.js'
+import { hashToolArgs } from '../gateway/tool_confirmation.js'
+import type AiActionLedger from './action_ledger.js'
 import {
+  AI_TOOL_ACTION_EXECUTED_METRIC,
+  AI_TOOL_ACTION_REPLAYED_METRIC,
   AI_TOOL_CALLS_METRIC,
   AI_TOOL_DENIALS_METRIC,
   AI_TOOL_ERRORS_METRIC,
@@ -42,6 +48,17 @@ export interface ToolExecutorDeps {
   toolAudit?: AiToolAuditSink | undefined
   /** Per-tenant integer metrics (core's `MetricsService.emitMetric`). Absent ⇒ no metrics. */
   emitMetric?: EmitMetric | undefined
+  /**
+   * The confirmation MAC key (Phase 3a), derived from APP_KEY. ABSENT MEANS NO
+   * ACTION TOOL CAN RUN: without it nothing can be verified, and an unverifiable
+   * mutation must not happen. Read tools never consult it.
+   */
+  confirmationMacKey?: Buffer | undefined
+  /**
+   * The at-most-once fence (Phase 3a). Absent means no action tool can run, for the
+   * same reason: an effect that cannot be fenced could fire twice.
+   */
+  actionLedger?: AiActionLedger | undefined
 }
 
 /**
@@ -66,15 +83,30 @@ export interface ToolExecutorDeps {
 export default class ToolExecutorService {
   constructor(private readonly deps: ToolExecutorDeps) {}
 
+  /**
+   * Bind a request. `confirmations` are the tokens the client presented on THIS
+   * request (Phase 3a); an empty list is the normal read-only case and also the
+   * first turn of an action, before the human has agreed to anything.
+   */
   forRequest(
     ctx: HttpContext,
     tenant: TenantModelContract,
     fullSet: readonly AIToolHostDefinition[],
-    principalHash?: string | null
+    principalHash?: string | null,
+    confirmations: readonly string[] = []
   ): ToolLoopExecutor {
     return {
       execute: (call, signal, round) =>
-        this.#executeOne(ctx, tenant, fullSet, call, signal, round, principalHash ?? null),
+        this.#executeOne(
+          ctx,
+          tenant,
+          fullSet,
+          call,
+          signal,
+          round,
+          principalHash ?? null,
+          confirmations
+        ),
     }
   }
 
@@ -85,7 +117,8 @@ export default class ToolExecutorService {
     call: AIToolCall,
     signal: AbortSignal,
     round: number,
-    principalHash: string | null
+    principalHash: string | null,
+    confirmations: readonly string[]
   ): Promise<AIMessage> {
     const toolsConfig = this.deps.getToolsConfig()
     const maxResultChars = clamp(
@@ -103,8 +136,8 @@ export default class ToolExecutorService {
       // Gate order — each throws its own AIException (+ Isthmus guard) on refusal.
       const t = resolveKnownTool(fullSet, call.name, tenant.id)
       tool = t
-      assertActionAllowed(t, tenant.id)
-      const scope = await authorizeToolScope(ctx, tenant, t.name, toolsConfig)
+      assertActionAllowed(t, tenant.id, toolsConfig)
+      const scope = await authorizeToolScope(ctx, tenant, t, toolsConfig)
       const args = validateToolInput(call.arguments, t, {
         ...(toolsConfig?.maxToolArgsChars !== undefined
           ? { maxArgsChars: toolsConfig.maxToolArgsChars }
@@ -122,6 +155,19 @@ export default class ToolExecutorService {
       // streaming path, none bound) trusts the caller, like the two mirrored seams;
       // the kernel ContextSeal remains the per-query backstop.
       assertActiveToolScope(this.deps.activeScopeTenantId(), tenant.id)
+
+      // An action tool needs a human to have agreed to THIS call, and the effect
+      // needs to be fenced, before anything runs. Both throw on refusal, so a write
+      // that gets past here is one somebody confirmed and nobody has run yet.
+      // Returns the claimed fence, or null for a read tool.
+      const claim = await this.#authorizeAction(
+        t,
+        tenant,
+        args,
+        principalHash,
+        confirmations,
+        round
+      )
 
       const timeoutMs = clamp(
         toolsConfig?.toolTimeoutMs,
@@ -149,6 +195,10 @@ export default class ToolExecutorService {
                   ctx,
                   signal: timed.signal,
                   ...(scope.kind === 'allow' && scope.filter ? { filter: scope.filter } : {}),
+                  // Only a confirmed action carries one. The satellite already fences
+                  // the effect; this is for a handler whose own downstream wants an
+                  // idempotency key of its own.
+                  ...(claim ? { idempotencyKey: claim.effectKey } : {}),
                 }),
               timed.signal
             )
@@ -166,13 +216,26 @@ export default class ToolExecutorService {
 
       if (failed) this.#metric(tenant.id, AI_TOOL_ERRORS_METRIC, 1)
       this.#metric(tenant.id, AI_TOOL_LATENCY_METRIC, Date.now() - startedAt)
+
+      const resultTurn = failed
+        ? buildToolResultTurn(call.id, { error: 'tool_execution_failed' }, maxResultChars)
+        : buildToolResultTurn(call.id, result, maxResultChars)
+
+      // Close the fence for an action. The recorded result is the bounded, fenced
+      // turn, so a replay hands back exactly what the first attempt produced rather
+      // than re-deriving it. `settle` is fail-closed and `fail` is best-effort: see
+      // the ledger for why the two differ.
+      if (claim) {
+        if (failed)
+          await this.deps.actionLedger?.fail(tenant.id, claim.effectKey, 'tool_execution_failed')
+        else await this.deps.actionLedger?.settle(tenant.id, claim.effectKey, resultTurn.content)
+      }
+
       await this.#auditToolSafe(tenant.id, principalHash, call.name, t.mode ?? 'read', round, {
         outcome: failed ? 'failed' : 'completed',
         reason: failed ? 'tool_execution_failed' : null,
       })
-      return failed
-        ? buildToolResultTurn(call.id, { error: 'tool_execution_failed' }, maxResultChars)
-        : buildToolResultTurn(call.id, result, maxResultChars)
+      return resultTurn
     } catch (error) {
       // A FATAL gate refusal (unknown / action-disabled / denied / invalid) or the
       // I7 scope breach: meter the denial, audit it, and rethrow so the loop renders
@@ -186,6 +249,91 @@ export default class ToolExecutorService {
       })
       throw error
     }
+  }
+
+  /**
+   * The action-tool path (Phase 3a). Returns null for a read tool, which is the
+   * whole of the read story: none of this runs.
+   *
+   * For an action tool, in this order, each step refusing rather than degrading:
+   *
+   * 1. The infrastructure must exist. No MAC key or no ledger means the effect
+   *    cannot be verified or fenced, so it must not happen.
+   * 2. The principal must resolve. A confirmation binds to a person; bound to
+   *    nobody, the token would be spendable by any session holding the string.
+   * 3. A presented token must authorize THIS call. `verifyToolConfirmation`
+   *    re-derives the binding from the request, so a token for another tenant, user,
+   *    tool or arguments simply is not this value. No token at all is NOT an error:
+   *    it is the first turn, and the loop challenges the human. A token that was
+   *    presented and did not match IS an error, because the client believed it had
+   *    permission and did not.
+   * 4. Claim the fence BEFORE running. A `replay` means this exact token already
+   *    fired: never run it again.
+   * 5. Write the audit intent FAIL-CLOSED, before the effect. This is the one place
+   *    the audit ordering inverts. A read tool audits best-effort afterwards because
+   *    losing the record of a read costs a log line. An action that mutated without
+   *    a durable record of intent is a mutation nobody can account for, so if the
+   *    intent cannot be written the action does not happen.
+   */
+  async #authorizeAction(
+    tool: AIToolHostDefinition,
+    tenant: TenantModelContract,
+    args: Record<string, unknown>,
+    principalHash: string | null,
+    confirmations: readonly string[],
+    round: number
+  ): Promise<{ effectKey: string } | null> {
+    if (tool.mode !== 'action') return null
+
+    // Every decision below lives in tool_gate beside the other gates. This method
+    // owns the ORDERING and the side effects; it decides nothing itself, which is
+    // why it throws nothing itself.
+    const ledger = this.deps.actionLedger
+    const binding = principalHash
+      ? {
+          tenantId: tenant.id,
+          principalHash,
+          toolName: tool.name,
+          argsHash: hashToolArgs(args),
+        }
+      : null
+    const confirmed = assertActionConfirmed(
+      tool,
+      tenant.id,
+      binding,
+      confirmations,
+      this.deps.confirmationMacKey,
+      ledger !== undefined
+    )
+
+    // `assertActionConfirmed` refuses when `ledgerReady` is false, so reaching here
+    // means the ledger is present. The compiler cannot follow that through a boolean
+    // argument, and re-testing it would add a second unreachable refusal path for
+    // the same fact.
+    const claim = await ledger!.claim(tenant.id, confirmed.effectKey, tool.name)
+    if (claim.kind === 'replay') this.#metric(tenant.id, AI_TOOL_ACTION_REPLAYED_METRIC, 1)
+    assertClaimUsable(claim, tenant.id, tool.name)
+
+    // Fail-closed intent, BEFORE the effect. A throw here aborts the call, which is
+    // the point: the fence is already claimed, so the action cannot silently run
+    // unrecorded, and the claimed row reads as "unknown" rather than "safe".
+    await (this.deps.toolAudit ?? noopToolAuditSink).append({
+      tenantId: tenant.id,
+      principalHash,
+      toolName: tool.name,
+      mode: 'action',
+      outcome: 'intent',
+      // The shared row has three outcomes, so an intent lands as 'aborted' (true at
+      // the moment it is written: the effect has not happened). The reason is what
+      // tells it apart from a real abort when reading the chain back.
+      reason: 'action_intent',
+      round,
+      tokens: 0,
+      occurredAt: new Date().toISOString(),
+    })
+
+    this.#metric(tenant.id, AI_TOOL_ACTION_EXECUTED_METRIC, 1)
+    return { effectKey: confirmed.effectKey }
   }
 
   /** Best-effort per-tenant metric: a failing sink can never touch the tool call. */

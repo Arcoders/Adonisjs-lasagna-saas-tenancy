@@ -21,10 +21,17 @@ import {
 import { validateIdempotencyKeyHeader } from '../../../../src/gateway/idempotency.js'
 import {
   assertActionAllowed,
+  assertActionConfirmed,
   assertActiveToolScope,
   authorizeToolScope,
   resolveKnownTool,
 } from '../../../../src/gateway/tool_gate.js'
+import {
+  deriveAiToolConfirmationMacKey,
+  hashToolArgs,
+  mintToolConfirmation,
+} from '../../../../src/gateway/tool_confirmation.js'
+import type { AIToolHostDefinition } from '../../../../src/define_config.js'
 import { validateToolInput } from '../../../../src/gateway/tool_input.js'
 import { buildToolLoopProducer } from '../../../../src/gateway/tool_loop.js'
 import TenantLivenessWatcher from '../../../../src/services/tenant_liveness_watcher.js'
@@ -82,6 +89,23 @@ const settle = () => new Promise<void>((resolve) => setImmediate(resolve))
 
 const LEDGER_TENANT = '11111111-1111-4111-8111-111111111111'
 const LEDGER_KEY = 'f'.repeat(64)
+
+/** A well-formed action tool + its confirmation binding, for the Phase 3a recipes. */
+const CONFIRM_KEY = deriveAiToolConfirmationMacKey('matrix-confirmation-app-key-000000!')
+const CONFIRM_TOOL: AIToolHostDefinition = {
+  name: 'cancel_booking',
+  description: 'cancel a booking',
+  inputSchema: {},
+  mode: 'action',
+  handler: async () => ({}),
+  summarizeArgs: () => 'cancel a booking',
+}
+const CONFIRM_BINDING = {
+  tenantId: 't1',
+  principalHash: 'principal-1',
+  toolName: 'cancel_booking',
+  argsHash: hashToolArgs({ id: 'BK-1' }),
+}
 
 /** An action ledger whose backoffice store is unreachable: the claim cannot be fenced. */
 function ledgerWithFailingStore(): AiActionLedger {
@@ -400,14 +424,24 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
   },
   'guard.ai_tool_denied': {
     trip: () =>
-      authorizeToolScope({} as never, tenant, 'read', {
-        authorizeTool: () => {
-          throw new Error('acl backend down')
-        },
-      }),
+      authorizeToolScope(
+        {} as never,
+        tenant,
+        { name: 'read' },
+        {
+          authorizeTool: () => {
+            throw new Error('acl backend down')
+          },
+        }
+      ),
     expectThrow: /not authorized/,
     happy: () =>
-      authorizeToolScope({} as never, tenant, 'read', { authorizeTool: () => ({ kind: 'allow' }) }),
+      authorizeToolScope(
+        {} as never,
+        tenant,
+        { name: 'read' },
+        { authorizeTool: () => ({ kind: 'allow' }) }
+      ),
   },
   'guard.ai_tool_input_invalid': {
     trip: () => validateToolInput('{"n":"not-a-number"}', numberSchema, { tenantId: 'tenant-1' }),
@@ -441,6 +475,30 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
       assertActionAllowed(
         { name: 'read', description: 'd', inputSchema: {}, handler: async () => ({}) },
         'tenant-1'
+      ),
+  },
+  'guard.ai_tool_confirmation_unmatched': {
+    // A token was presented and it authorizes a DIFFERENT action, the shape both an
+    // attacker replaying a stolen token and a model re-proposing land in.
+    trip: () =>
+      assertActionConfirmed(
+        CONFIRM_TOOL,
+        tenant.id,
+        CONFIRM_BINDING,
+        [mintToolConfirmation(CONFIRM_KEY, { ...CONFIRM_BINDING, toolName: 'other_tool' }).token],
+        CONFIRM_KEY,
+        true
+      ),
+    expectThrow: /does not authorize this call/,
+    // The matching token: nothing to warn about.
+    happy: () =>
+      assertActionConfirmed(
+        CONFIRM_TOOL,
+        tenant.id,
+        CONFIRM_BINDING,
+        [mintToolConfirmation(CONFIRM_KEY, CONFIRM_BINDING).token],
+        CONFIRM_KEY,
+        true
       ),
   },
   'guard.ai_action_ledger_unavailable': {

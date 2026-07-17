@@ -39,6 +39,7 @@ export const AI_ERROR_CODES = [
   'tool_budget_exhausted',
   'too_many_concurrent',
   // Action-tool confirmation (WS-AI-11 Phase 3a)
+  'tool_confirmation_required',
   'tool_confirmation_invalid',
   'tool_action_unavailable',
 ] as const
@@ -98,6 +99,10 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   // none, which is not an error at all but a fresh challenge. The ledger being
   // unreachable is a 503: nothing is wrong with the request, we just cannot
   // promise the effect happens only once, so we decline to make it.
+  // 428: the request is well-formed and permitted, it is just missing the one
+  // precondition that matters, a human agreeing. The client's move is to show the
+  // confirmation and re-send with the token, not to fix the request.
+  tool_confirmation_required: 428,
   tool_confirmation_invalid: 403,
   tool_action_unavailable: 503,
 }
@@ -165,6 +170,11 @@ const FATAL_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
   // once it recovers is exactly right. Two adjacent codes, opposite classifications,
   // in a Set the compiler does not check: pinned by a spec for that reason.
   'tool_confirmation_invalid',
+  // Re-sending the IDENTICAL request cannot help: it will lack a confirmation
+  // again. The client's next move is a different request, one carrying the token,
+  // so this is fatal in the sense that matters here (do not retry this), not a
+  // statement that the action is impossible.
+  'tool_confirmation_required',
 ])
 
 /**

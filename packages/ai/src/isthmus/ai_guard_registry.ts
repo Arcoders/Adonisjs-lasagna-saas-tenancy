@@ -459,6 +459,22 @@ export const AI_GUARD_REGISTRY = [
     nextReview: '2027-01-17',
   },
   {
+    id: 'guard.ai_tool_confirmation_unmatched',
+    pillar: 'guard',
+    bugClass: 'unguarded-mutation',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_tool_confirmation_unmatched:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'inherent-risk',
+      ref: 'WS-AI-11 Phase 3a: a confirmation token was presented for an action and none authorized the call, or it authorized one that already fired. Severity warn, the ai_rate_limited posture, because this fires in ordinary operation: the model re-proposing different arguments after a human confirmed the first version lands here, and so does an ordinary client retry of a spent token. It is watched by rate rather than per event. Silence would be worse than noise here: without this signal a redaction layer eating every token and a model rephrasing a number are indistinguishable, and both read as the feature quietly not working',
+    },
+    guardFile: 'src/gateway/tool_gate.ts',
+    reviewed: '2026-07-17',
+    nextReview: '2027-01-17',
+  },
+  {
     id: 'guard.ai_action_ledger_unavailable',
     pillar: 'guard',
     bugClass: 'unguarded-mutation',

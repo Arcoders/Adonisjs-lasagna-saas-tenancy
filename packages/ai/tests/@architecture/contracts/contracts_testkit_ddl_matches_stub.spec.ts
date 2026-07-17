@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 
 const HELPER = fileURLToPath(new URL('../../helpers/real_audit_pg.ts', import.meta.url))
 const STUB = fileURLToPath(
-  new URL('../../../stubs/migrations/create_ai_audit_logs_table.stub', import.meta.url)
+  new URL('../../../stubs/migrations/0001_create_ai_audit_logs_table.stub', import.meta.url)
 )
 
 const COLUMN_METHODS = [

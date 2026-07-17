@@ -28,7 +28,7 @@ test.group('AI audit two-tenant isolation (real pg)', (group) => {
   test('each tenant keeps an independent chain; a scoped verify never links across tenants', async ({
     assert,
   }) => {
-    // tenant_id is a `uuid` column (see the create_ai_audit_logs_table stub), so the
+    // tenant_id is a `uuid` column (see the 0001_create_ai_audit_logs_table stub), so the
     // ids must be real UUIDs, not readable slugs, or the append fails the uuid cast.
     const tenantA = randomUUID()
     const tenantB = randomUUID()

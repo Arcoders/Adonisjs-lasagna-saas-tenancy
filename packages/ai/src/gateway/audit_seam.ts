@@ -110,7 +110,15 @@ export interface AiToolAuditEvent {
   /** The invoked tool's registered name (never its arguments). */
   readonly toolName: string
   readonly mode: 'read' | 'action'
-  readonly outcome: 'completed' | 'denied' | 'failed' | 'error'
+  /**
+   * `intent` is the action-tool row written BEFORE the effect (Phase 3a), and it is
+   * the only outcome that is not a result. A read tool audits best-effort after,
+   * because losing the record of a read costs a log line; a mutation that ran with
+   * no durable record of intent is one nobody can account for, so the write comes
+   * first and fails closed. An `intent` with no later `completed` or `failed` is
+   * exactly what a crashed mid-effect looks like, which is the point.
+   */
+  readonly outcome: 'intent' | 'completed' | 'denied' | 'failed' | 'error'
   /** The refusal / failure code (e.g. 'tool_denied', 'tool_execution_failed'), never a result value. */
   readonly reason: string | null
   /** The 1-based tool-loop round this call ran in. */

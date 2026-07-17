@@ -10,7 +10,7 @@ const GATE = 'packages/ai/src/gateway/tool_gate.ts'
 
 /** A minimal executor source holding I7 correctly: assert, THEN bind. */
 const goodExecutor = `
-  const scope = await authorizeToolScope(ctx, tenant, t.name, toolsConfig)
+  const scope = await authorizeToolScope(ctx, tenant, t, toolsConfig)
   assertActiveToolScope(this.deps.activeScopeTenantId(), tenant.id)
   result = await this.deps.runScoped(tenant, async () => t.handler(args, context))
 `
@@ -35,7 +35,7 @@ test.group('architectural — I7 tool-scoping guard', () => {
 
   test('a handler awaited outside runScoped is an I7 violation', ({ assert }) => {
     const problems = ok(`
-      const scope = await authorizeToolScope(ctx, tenant, t.name, toolsConfig)
+      const scope = await authorizeToolScope(ctx, tenant, t, toolsConfig)
       assertActiveToolScope(this.deps.activeScopeTenantId(), tenant.id)
       result = await t.handler(args, context)
     `)
@@ -49,7 +49,7 @@ test.group('architectural — I7 tool-scoping guard', () => {
     // just-set scope to itself, so the check passes forever while checking nothing.
     // A presence-only scan would happily green-light this.
     const problems = ok(`
-      const scope = await authorizeToolScope(ctx, tenant, t.name, toolsConfig)
+      const scope = await authorizeToolScope(ctx, tenant, t, toolsConfig)
       result = await this.deps.runScoped(tenant, async () => {
         assertActiveToolScope(this.deps.activeScopeTenantId(), tenant.id)
         return t.handler(args, context)
@@ -62,7 +62,7 @@ test.group('architectural — I7 tool-scoping guard', () => {
 
   test('a deleted re-assert is an I7 violation', ({ assert }) => {
     const problems = ok(`
-      const scope = await authorizeToolScope(ctx, tenant, t.name, toolsConfig)
+      const scope = await authorizeToolScope(ctx, tenant, t, toolsConfig)
       result = await this.deps.runScoped(tenant, async () => t.handler(args, context))
     `)
     assert.lengthOf(problems, 1)
@@ -96,7 +96,7 @@ export async function resolveToolRegistry(ctx, tenant, toolsConfig) {
     // assertActiveToolScope before runScoped is not enforcing anything.
     const problems = ok(`
       // assertActiveToolScope(active, tenant.id) is called before runScoped binds.
-      const scope = await authorizeToolScope(ctx, tenant, t.name, toolsConfig)
+      const scope = await authorizeToolScope(ctx, tenant, t, toolsConfig)
       result = await this.deps.runScoped(tenant, async () => t.handler(args, context))
     `)
     assert.lengthOf(problems, 1)

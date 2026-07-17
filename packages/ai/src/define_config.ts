@@ -246,6 +246,14 @@ export interface ToolContext {
   readonly ctx: HttpContext
   readonly signal: AbortSignal
   readonly filter?: Record<string, unknown>
+  /**
+   * Present only for a confirmed action tool (WS-AI-11 Phase 3a): a stable key for
+   * THIS effect, derived from the confirmation that authorized it. The satellite
+   * already fences the effect at most once, so a handler needs this only when its
+   * own downstream (a payment provider, an external API) wants an idempotency key
+   * of its own. Never present for a read tool.
+   */
+  readonly idempotencyKey?: string
 }
 
 /**
@@ -260,7 +268,32 @@ export interface ToolContext {
  */
 export interface AIToolHostDefinition extends AIToolDefinition {
   readonly handler: (args: Record<string, unknown>, context: ToolContext) => Promise<unknown>
+  /**
+   * Skip the human confirmation for this action tool. Defaults to `true` for
+   * `mode: 'action'` (confirmation required) and is meaningless for a read tool.
+   *
+   * Setting it `false` is the sharpest edge in the package and it is deliberately
+   * awkward to reach: the tool still needs the kill-switch on, an explicit
+   * `authorizeTool` allow, a resolvable principal and the at-most-once fence. It
+   * skips only the human. Reserve it for a low-risk, reversible, narrowly-scoped
+   * mutation, and know that an indirect prompt injection can then perform it.
+   */
   readonly requiresConfirmation?: boolean
+  /**
+   * Render the one line a human reads before confirming this action. MANDATORY for
+   * `mode: 'action'`: a tool without it is refused, per tool, rather than shipped
+   * with a weaker default.
+   *
+   * The reason is security, not ergonomics. The human's decision is only as good as
+   * what they are shown, so if the model wrote that text an injection could author
+   * its own confirmation prompt and the whole flow becomes a rubber stamp. This
+   * runs on the host's side of the boundary, over the VALIDATED arguments, so no
+   * model prose can reach it. Return something a person can actually judge
+   * ("Cancel booking BK-1042 for Ana Ruiz, refunding 450 MAD"), and remember it is
+   * shown to that user: it may name their own data but must not carry anything they
+   * should not see. Bounded to {@link AI_TOOL_ARGS_SUMMARY_MAX_CHARS}.
+   */
+  readonly summarizeArgs?: (args: Record<string, unknown>) => string
   readonly parseInput?: (raw: unknown) => unknown
 }
 
@@ -282,9 +315,10 @@ export type AIToolAuthorizer = (
  * tool calling. Default-deny throughout: with no `registry`/`resolveTools` the
  * model is offered no tools; with tools present but no `authorizeTool` and no
  * `acknowledgeUnauthorizedTools`, every tool call is refused. Action (mutating)
- * tools are OFF behind `actionTools.enabled` and refused until the confirmation
- * flow (Phase 3a). Every `max*`/`*Ms` bound is a named-constant default, clamped
- * to a hard ceiling.
+ * tools are OFF behind `actionTools.enabled`, and even switched on they need a
+ * per-tool `authorizeTool` allow, a host-authored `summarizeArgs`, a resolvable
+ * principal and a human confirmation. Every `max*`/`*Ms` bound is a named-constant
+ * default, clamped to a hard ceiling.
  */
 export interface AIToolsConfig {
   /** A static tool registry. Combined with `resolveTools` when both are present. */
@@ -295,7 +329,16 @@ export interface AIToolsConfig {
   authorizeTool?: AIToolAuthorizer
   /** Opt into running READ tools with NO `authorizeTool` wired (tenant isolation still holds). Ignored by action tools. */
   acknowledgeUnauthorizedTools?: boolean
-  /** The action-tool kill-switch. Default OFF; action tools are refused until enabled AND confirmed (Phase 3a). */
+  /**
+   * The action-tool kill-switch. Default OFF: every `mode: 'action'` tool is
+   * unadvertised and refused, however it is registered. One flag turns all writes
+   * off.
+   *
+   * HONEST LIMIT: this is static app config read at boot, so flipping it needs a
+   * restart. There is no hot global off. A host that wants a runtime, per-tenant
+   * lever (a feature flag killing mutations for one company) wires it in its own
+   * `resolveTools` or `authorizeTool`, which are consulted per request.
+   */
   actionTools?: { enabled?: boolean }
   /** Max provider rounds. Default 4, clamped to 8. */
   maxRounds?: number
