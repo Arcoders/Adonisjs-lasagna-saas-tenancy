@@ -61,7 +61,7 @@ To build your own, see [Creating a satellite](/guides/cookbook/creating-a-satell
 <Callout type="note" title="Also documented in this section">
 [Backup](/guides/satellites/backup), [Admin](/guides/satellites/admin),
 [Reporting](/guides/satellites/reporting), [AI](/guides/satellites/ai),
-[AI security](/guides/satellites/ai-security) and
+[AI security](/guides/satellites/ai-security), [AI tools](/guides/satellites/ai-tools) and
 [Crypto](/guides/satellites/crypto) appear in
 this section's sidebar but aren't tenant-attached feature satellites like the ten
 above. Backup is an operational concern (`pg_dump` with retention tiers, shipped as
