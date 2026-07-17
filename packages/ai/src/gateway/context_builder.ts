@@ -1,6 +1,7 @@
 import type { AIMessage } from '../types/ai_provider_contract.js'
 import type { VectorMatch } from '../services/vector_store_service.js'
 import type { ConversationTurn } from '../services/conversation_memory_service.js'
+import { DEFAULT_EVENT } from './sse_constants.js'
 
 /**
  * The fence tag that wraps each retrieved document. A retrieved doc is
@@ -150,12 +151,23 @@ function leadingSystemCount(messages: readonly AIMessage[]): number {
  * Reconstruct the assistant's full text from the recorded SSE frames of a
  * completed stream (WS-AI-4 persist). Content frames are concatenated verbatim
  * (a fragment's own newlines are one `data:` line each, per the SSE writer, so
- * they rejoin with `\n`); the control frames (`event: error`, `event: done`) and
- * the `tool_call` notices (WS-AI-11 — a redacted `{name,id}` marker, not the
- * assistant's natural-language answer) are skipped, and heartbeats are already
- * excluded by the recorder. Deterministic inverse of `SseWriter.formatFrame`,
- * pinned by a write-then-reconstruct round-trip spec, so the persisted memory turn
- * is exactly the answer the client received, never tool activity.
+ * they rejoin with `\n`); heartbeats are already excluded by the recorder.
+ * Deterministic inverse of `SseWriter.formatFrame`, pinned by a
+ * write-then-reconstruct round-trip spec, so the persisted memory turn is exactly
+ * the answer the client received, never tool activity.
+ *
+ * Only the default event carries assistant prose, so this ALLOWS that one event
+ * rather than skipping a list of known control events. The direction matters and
+ * it is not a style choice. A recorded frame feeds two consumers: the client, and
+ * this persist path, whose output is written to encrypted memory and re-injected
+ * into the next prompt. Under a deny-list, every new control event is content
+ * until somebody remembers to add it here, and forgetting is silent. That already
+ * happened once: the `tool_call` notice was concatenated into memory until WS-AI-11
+ * Phase 8 added it to the list. An allow-list makes the next event inert by
+ * default, which is what the WS-AI-11 Phase 3a confirmation frame needs, since its
+ * data is a live signed capability. `SseWriter.writeFragment` resolves a fragment's
+ * absent event to this same default, and `tool_loop`'s own text accumulator already
+ * allow-lists the same way, so the two stay in agreement by construction.
  */
 export function reconstructAssistantText(frames: readonly string[]): string {
   let text = ''
@@ -163,7 +175,7 @@ export function reconstructAssistantText(frames: readonly string[]): string {
     const lines = frame.split('\n')
     const eventLine = lines.find((line) => line.startsWith('event: '))
     const event = eventLine ? eventLine.slice('event: '.length) : ''
-    if (event === 'error' || event === 'done' || event === 'tool_call') continue
+    if (event !== DEFAULT_EVENT) continue
     const dataLines = lines
       .filter((line) => line.startsWith('data: '))
       .map((line) => line.slice('data: '.length))

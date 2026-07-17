@@ -156,4 +156,20 @@ test.group('behavior — reconstructAssistantText', () => {
     assert.equal(text, 'Tienes 4 reservas.')
     assert.notInclude(text, 'count_bookings')
   })
+
+  test('an UNKNOWN control event is excluded without being enumerated here', async ({ assert }) => {
+    // The property that a deny-list cannot give: this event does not exist yet.
+    // Memory feeds the next prompt, so a new control frame must be inert the day
+    // it is added rather than the day someone remembers to skip it. The concrete
+    // case is the Phase 3a confirmation frame, whose data is a live signed
+    // capability: reconstructed into memory it would be re-injected into the
+    // model's context and could come back out as text.
+    const frames = await framesFor([
+      { data: 'Confirma para continuar.' },
+      { data: '{"token":"aitc1.LIVE-CAPABILITY.sig"}', event: 'some_event_added_later' },
+    ])
+    const text = reconstructAssistantText(frames)
+    assert.equal(text, 'Confirma para continuar.')
+    assert.notInclude(text, 'LIVE-CAPABILITY', 'an unrecognized event must never reach memory')
+  })
 })
