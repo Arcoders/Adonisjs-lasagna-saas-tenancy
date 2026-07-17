@@ -46,7 +46,7 @@
     "test:coverage": "npm run test:coverage --workspace @adonisjs-lasagna/saas-tenancy",
     "test:integration": "npm run build:all && npm run test:integration:run --workspace @adonisjs-lasagna/saas-tenancy",
     "test:integration:coverage": "npm run build:all && npm run test:integration:coverage --workspace @adonisjs-lasagna/saas-tenancy",
-    "test:fault": "npm run build:all && npm run test:fault:run --workspace @adonisjs-lasagna/saas-tenancy && npm run test:fault:run --workspace @adonisjs-lasagna/crypto",
+    "test:fault": "npm run build:all && npm run test:fault:run --workspace @adonisjs-lasagna/saas-tenancy && npm run test:fault:run --workspace @adonisjs-lasagna/crypto && npm run test:fault:run --workspace @adonisjs-lasagna/ai",
     "coverage:report": "c8 report --temp-directory=coverage/.v8/all --reporter=lcov --reporter=text-summary",
     "coverage:gate": "node scripts/coverage-gate.mjs",
     "check": "node scripts/check.mjs",
