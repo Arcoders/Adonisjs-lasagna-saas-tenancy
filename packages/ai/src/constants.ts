@@ -329,3 +329,75 @@ export const AI_TOOL_ERRORS_METRIC = 'ai_tool_errors'
 export const AI_TOOL_DENIALS_METRIC = 'ai_tool_denied'
 export const AI_TOOL_BUDGET_EXHAUSTED_METRIC = 'ai_tool_budget_exhausted'
 export const AI_TOOL_LATENCY_METRIC = 'ai_tool_latency_ms'
+
+/**
+ * How long a minted action-tool confirmation stays spendable (WS-AI-11 Phase 3a).
+ * Short on purpose: the token is a bearer capability for one mutation, and it
+ * cannot be revoked, so its lifetime IS its revocation. Long enough for a human to
+ * read a prompt and decide, not long enough to be worth capturing from a log.
+ */
+export const TOOL_CONFIRMATION_TTL_MS = 300_000
+
+/**
+ * How long the action ledger remembers that one confirmation already fired.
+ *
+ * MUST be >= {@link TOOL_CONFIRMATION_TTL_MS}: the record has to outlive the token
+ * that could re-present it, or a replay arriving late finds no record and fires the
+ * effect a second time. An architectural spec pins the relationship, because it is
+ * exactly the kind of constraint that rots silently when someone tunes one number.
+ *
+ * One TTL, deliberately, with no in-flight/settled split: a shorter in-flight window
+ * would reopen an at-least-once gap on the settle-failure path the ledger exists to
+ * close.
+ */
+export const TOOL_ACTION_LEDGER_TTL_MS = 900_000
+
+/**
+ * The kernel `SECRET_CLASS` this package's confirmation MAC key is derived under
+ * (`ai:tool-confirmation:v1`), so a leaked key is attributable to one domain and
+ * rotating it cannot silently widen to another.
+ */
+export const AI_TOOL_CONFIRMATION_SECRET_CLASS = 'aiToolConfirmation'
+
+/**
+ * The header carrying spent confirmation tokens. A header, not a body field, so the
+ * `parseChatBody` grammar (the structural closure that stops a client forging a tool
+ * turn) stays untouched; `Idempotency-Key` is the precedent for effect-control
+ * metadata riding beside the body. HONEST COST, documented for hosts: headers reach
+ * access logs, proxies and APM by default. The short TTL and the principal binding
+ * bound the damage; they do not remove it. Scrub this header.
+ */
+export const AI_TOOL_CONFIRMATION_HEADER = 'x-ai-tool-confirmation'
+
+/** Version prefix on a minted token, so a format change is detectable, never ambiguous. */
+export const AI_TOOL_CONFIRMATION_TOKEN_PREFIX = 'aitc1'
+
+/** Bound on one presented token, checked before any parsing or MAC work. */
+export const AI_TOOL_CONFIRMATION_TOKEN_MAX_LENGTH = 256
+
+/**
+ * Max tokens accepted on one request. Equals {@link MAX_TOOLS_PER_ROUND}: a round
+ * can never need more confirmations than it is allowed tool calls, so anything more
+ * is a client bug or someone spraying tokens at the MAC.
+ */
+export const MAX_TOOL_CONFIRMATIONS_PER_REQUEST = MAX_TOOLS_PER_ROUND
+
+/** Bound on the host-authored argument summary a human reads before confirming. */
+export const AI_TOOL_ARGS_SUMMARY_MAX_CHARS = 500
+
+/** Depth bound while canonicalizing arguments for hashing (a cyclic or deep object must not hang the pump). */
+export const AI_TOOL_ARGS_CANONICAL_MAX_DEPTH = 8
+
+/**
+ * Per-tenant integer metrics for the Phase 3a confirmation flow.
+ *
+ * `ai_tool_confirmation_unmatched` earns its place: a token was PRESENTED and did
+ * not verify, which is deliberately NOT a guard trip (the model rephrasing a number
+ * would page an operator at 3am for working as designed). Without this counter,
+ * "our redactOutput regex ate every token" and "the model re-proposed different
+ * arguments" are the same silent signal forever.
+ */
+export const AI_TOOL_CONFIRMATION_REQUIRED_METRIC = 'ai_tool_confirmation_required'
+export const AI_TOOL_CONFIRMATION_UNMATCHED_METRIC = 'ai_tool_confirmation_unmatched'
+export const AI_TOOL_ACTION_EXECUTED_METRIC = 'ai_tool_action_executed'
+export const AI_TOOL_ACTION_REPLAYED_METRIC = 'ai_tool_action_replayed'
