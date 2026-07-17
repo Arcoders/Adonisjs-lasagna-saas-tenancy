@@ -38,6 +38,9 @@ export const AI_ERROR_CODES = [
   'tool_action_disabled',
   'tool_budget_exhausted',
   'too_many_concurrent',
+  // Action-tool confirmation (WS-AI-11 Phase 3a)
+  'tool_confirmation_invalid',
+  'tool_action_unavailable',
 ] as const
 
 export type AIErrorCode = (typeof AI_ERROR_CODES)[number]
@@ -90,6 +93,13 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   tool_action_disabled: 403,
   tool_budget_exhausted: 402,
   too_many_concurrent: 429,
+  // A presented confirmation that does not authorize the action is a 403: the
+  // client sent a credential and it does not grant this. Distinct from sending
+  // none, which is not an error at all but a fresh challenge. The ledger being
+  // unreachable is a 503: nothing is wrong with the request, we just cannot
+  // promise the effect happens only once, so we decline to make it.
+  tool_confirmation_invalid: 403,
+  tool_action_unavailable: 503,
 }
 
 /**
@@ -146,6 +156,15 @@ const FATAL_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
   'tool_action_disabled',
   'tool_budget_exhausted',
   'too_many_concurrent',
+  // A presented confirmation that does not authorize the action never will: it is
+  // forged, expired, or minted for a different tenant, user, tool or arguments, and
+  // none of those change by asking again. Missing this entry would make a forged
+  // token read as "retryable", inviting a client to hammer the MAC on a mutation
+  // path. Deliberately NOT joined by `tool_action_unavailable`, which is the
+  // opposite: the ledger is down, nothing about the request is wrong, and retrying
+  // once it recovers is exactly right. Two adjacent codes, opposite classifications,
+  // in a Set the compiler does not check: pinned by a spec for that reason.
+  'tool_confirmation_invalid',
 ])
 
 /**

@@ -209,6 +209,16 @@ export const DEFAULT_MEMORY_TTL_MS = 86_400_000
 export const AI_AUDIT_TABLE = 'ai_audit_logs'
 
 /**
+ * The action-tool at-most-once ledger (WS-AI-11 Phase 3a). Shares the `backoffice`
+ * schema with the audit table for the same reasons, but is deliberately NOT
+ * append-only: a claimed row is updated once when its effect settles, so the
+ * triggers guarding the audit chain would be wrong on it. The audit row is the
+ * evidence that an action happened; this row is the fence that stops it happening
+ * twice.
+ */
+export const AI_ACTION_LEDGER_TABLE = 'ai_action_ledger'
+
+/**
  * Advisory-lock key prefix for the per-tenant audit hash chain. Each `append`
  * takes `pg_advisory_xact_lock(hashtext('ai_audit:'||tenant_id))` so a tenant's
  * `seq`+`checksum` links are serialized (released at commit); different tenants

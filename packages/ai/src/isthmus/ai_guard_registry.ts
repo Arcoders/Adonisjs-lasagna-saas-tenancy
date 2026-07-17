@@ -458,6 +458,22 @@ export const AI_GUARD_REGISTRY = [
     reviewed: '2026-07-17',
     nextReview: '2027-01-17',
   },
+  {
+    id: 'guard.ai_action_ledger_unavailable',
+    pillar: 'guard',
+    bugClass: 'unguarded-mutation',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_action_ledger_unavailable:rejected',
+    severity: 'high',
+    evidence: {
+      kind: 'invariant',
+      ref: 'WS-AI-11 Phase 3a: the at-most-once fence for a confirmed action tool could not be written, so the effect is refused. A mutation whose exactly-one-execution cannot be recorded must not be executed: the alternative is a stream that dies after the effect and before completion, whose retry mutates a second time. Severity high because it means action tools are DOWN for this tenant, which is correct but is an availability event an operator must see',
+    },
+    guardFile: 'src/services/action_ledger.ts',
+    reviewed: '2026-07-17',
+    nextReview: '2027-01-17',
+  },
 ] as const satisfies readonly AiGuardRegistryEntryShape[]
 
 /** Compile-time union of all registered AI guard ids. */

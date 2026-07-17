@@ -28,6 +28,7 @@ import {
 import { validateToolInput } from '../../../../src/gateway/tool_input.js'
 import { buildToolLoopProducer } from '../../../../src/gateway/tool_loop.js'
 import TenantLivenessWatcher from '../../../../src/services/tenant_liveness_watcher.js'
+import AiActionLedger from '../../../../src/services/action_ledger.js'
 import { assertAiMountAllowed } from '../../../../src/routes/mount_gate.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
 import AiRateLimiter from '../../../../src/services/ai_rate_limiter.js'
@@ -78,6 +79,39 @@ const memoryForMatrix = () =>
 
 const tenant = { id: 'tenant-1' } as unknown as TenantModelContract
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+const LEDGER_TENANT = '11111111-1111-4111-8111-111111111111'
+const LEDGER_KEY = 'f'.repeat(64)
+
+/** An action ledger whose backoffice store is unreachable: the claim cannot be fenced. */
+function ledgerWithFailingStore(): AiActionLedger {
+  return new AiActionLedger({
+    getDb: async () => ({
+      connection: () => ({
+        rawQuery: async () => {
+          throw new Error('read ECONNRESET')
+        },
+      }),
+    }),
+    connectionName: 'primary',
+    schemaName: 'backoffice',
+    activeScopeTenantId: () => undefined,
+  })
+}
+
+/** A healthy ledger: the claim lands and nothing trips. */
+function ledgerWithHealthyStore(): AiActionLedger {
+  return new AiActionLedger({
+    getDb: async () => ({
+      connection: () => ({
+        rawQuery: async () => ({ rowCount: 1, rows: [{ id: 'row-1' }] }),
+      }),
+    }),
+    connectionName: 'primary',
+    schemaName: 'backoffice',
+    activeScopeTenantId: () => undefined,
+  })
+}
 
 interface TripRecipe {
   /** Trips the guard; sync or async. Throws the guard's own exception, unless `expectThrow` is null. */
@@ -408,6 +442,13 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
         { name: 'read', description: 'd', inputSchema: {}, handler: async () => ({}) },
         'tenant-1'
       ),
+  },
+  'guard.ai_action_ledger_unavailable': {
+    // The at-most-once fence cannot be written, so the action is refused. Each
+    // recipe gets its own store, so the row it asserts on is its own.
+    trip: () => ledgerWithFailingStore().claim(LEDGER_TENANT, LEDGER_KEY, 'cancel_booking'),
+    expectThrow: /at-most-once record could not be written/,
+    happy: () => ledgerWithHealthyStore().claim(LEDGER_TENANT, LEDGER_KEY, 'cancel_booking'),
   },
   'guard.ai_too_many_concurrent': {
     // A tenant at its cap: the first acquire fills the only slot, the second is

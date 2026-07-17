@@ -1,0 +1,67 @@
+{{{
+  exports({ to: app.migrationsPath(`${Date.now()}_create_ai_action_ledger_table.ts`) })
+}}}
+import { BaseSchema } from '@adonisjs/lucid/schema'
+
+export default class extends BaseSchema {
+  protected tableName = 'ai_action_ledger'
+
+  async up() {
+    // The at-most-once fence for confirmed action (mutating) tools (WS-AI-11
+    // Phase 3a). One row per spent confirmation token. The response cache is
+    // side-effect-free on replay, but a stream that dies AFTER the effect fired
+    // and BEFORE it completed is never cached, so without this a retry would
+    // re-propose, re-confirm and mutate a second time. That gap exists whether or
+    // not the confirmation itself is stateless, which is why this table is the
+    // mechanism and the token is not.
+    //
+    // Lives in the shared backoffice schema, like ai_audit_logs: it must survive
+    // the tenant request role and it is a control record, not tenant data. It is
+    // NOT append-only, unlike the audit table: a claimed row is updated once when
+    // the effect settles, so the triggers that protect the audit chain would be
+    // wrong here. The audit row is the evidence; this row is the fence.
+    this.schema.withSchema('backoffice').createTable(this.tableName, (table) => {
+      table.uuid('id').primary().defaultTo(this.db.rawQuery('gen_random_uuid()').knexQuery)
+      table.uuid('tenant_id').notNullable()
+
+      // The confirmation token's own MAC. UNIQUE is the whole point: an INSERT
+      // conflict IS an atomic set-if-absent, so two concurrent claims on one token
+      // cannot both win, with no lock and no read-then-write race.
+      //
+      // Keyed by the TOKEN rather than by (tenant, principal, tool, args) on
+      // purpose. Every mint carries a fresh nonce, so one token is one effect: a
+      // conflict here can only mean this exact token already fired. Keyed by the
+      // arguments instead, a deliberate repeat of the same action (booking the
+      // same car again) would look identical to a replay and vanish silently.
+      table.specificType('effect_key', 'char(64)').notNullable()
+
+      // 'claimed' the instant the fence is taken, then 'settled' or 'failed' once
+      // the handler returns. A row stuck at 'claimed' means the process died
+      // mid-effect: the effect state is UNKNOWN, so a retry must not assume it is
+      // safe to re-run. That is why there is no auto-retry.
+      table.string('state').notNullable()
+      table.string('tool_name').notNullable()
+
+      // The recorded result a replay returns instead of re-executing. Bounded by
+      // the caller. Never the arguments.
+      table.text('result').nullable()
+
+      // The lifetime, enforced in the query rather than by a TTL, because Postgres
+      // has none. It exceeds the token's own TTL so a replay arriving inside the
+      // token's life always finds its record. Expired rows are pure garbage with
+      // no bearing on correctness: their effect keys can never recur.
+      table.timestamp('expires_at', { useTz: true }).notNullable()
+      table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(this.now())
+      table.timestamp('settled_at', { useTz: true }).nullable()
+
+      table.unique(['effect_key'], 'ai_action_ledger_effect_key_uq')
+      // The sweep that reclaims expired rows, and the per-tenant purge.
+      table.index(['expires_at'], 'ai_action_ledger_expires_idx')
+      table.index(['tenant_id'], 'ai_action_ledger_tenant_idx')
+    })
+  }
+
+  async down() {
+    this.schema.withSchema('backoffice').dropTable(this.tableName)
+  }
+}
