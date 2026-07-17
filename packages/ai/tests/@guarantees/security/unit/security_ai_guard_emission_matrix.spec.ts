@@ -27,6 +27,7 @@ import {
 } from '../../../../src/gateway/tool_gate.js'
 import { validateToolInput } from '../../../../src/gateway/tool_input.js'
 import { buildToolLoopProducer } from '../../../../src/gateway/tool_loop.js'
+import TenantLivenessWatcher from '../../../../src/services/tenant_liveness_watcher.js'
 import { assertAiMountAllowed } from '../../../../src/routes/mount_gate.js'
 import AIProviderRegistry from '../../../../src/services/ai_provider_registry.js'
 import AiRateLimiter from '../../../../src/services/ai_rate_limiter.js'
@@ -407,6 +408,22 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
         { name: 'read', description: 'd', inputSchema: {}, handler: async () => ({}) },
         'tenant-1'
       ),
+  },
+  'guard.ai_too_many_concurrent': {
+    // A tenant at its cap: the first acquire fills the only slot, the second is
+    // refused. Each recipe uses its own watcher, so the count is this test's alone.
+    trip: () => {
+      const watcher = new TenantLivenessWatcher()
+      watcher.acquire('tenant-1', { maxConcurrent: 1 })
+      return watcher.acquire('tenant-1', { maxConcurrent: 1 })
+    },
+    expectThrow: /too many concurrent AI streams/,
+    // Under the cap, and the uncapped path (plain chat / embed) which never refuses.
+    happy: () => {
+      const watcher = new TenantLivenessWatcher()
+      watcher.acquire('tenant-1', { maxConcurrent: 2 })
+      watcher.acquire('tenant-1')
+    },
   },
 }
 

@@ -442,6 +442,22 @@ export const AI_GUARD_REGISTRY = [
     reviewed: '2026-07-16',
     nextReview: '2027-01-16',
   },
+  {
+    id: 'guard.ai_too_many_concurrent',
+    pillar: 'guard',
+    bugClass: 'denial-of-wallet',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_too_many_concurrent:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'inherent-risk',
+      ref: 'WS-AI-11 Phase 2a: the per-tenant admission cap on concurrent in-flight streams, the anti-flood half of the denial-of-wallet rail. A tenant already at its cap is refused a NEW tool loop before the reserve rather than starting one. Severity warn for the same reason as its sibling ai_rate_limited: an admission cap trips in normal operation under load and is monitored by rate, not per event. Honest limit (the acquire docstring says the same): this bounds TOTAL in-flight streams, not tool loops exactly, and is per-process',
+    },
+    guardFile: 'src/services/tenant_liveness_watcher.ts',
+    reviewed: '2026-07-17',
+    nextReview: '2027-01-17',
+  },
 ] as const satisfies readonly AiGuardRegistryEntryShape[]
 
 /** Compile-time union of all registered AI guard ids. */

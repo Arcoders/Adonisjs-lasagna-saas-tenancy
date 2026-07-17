@@ -1,6 +1,7 @@
 import type { Emitter } from '@adonisjs/core/events'
 import { TenantSuspended, TenantDeleted } from '@adonisjs-lasagna/saas-tenancy/events'
 import AIException from '../exceptions/ai_exception.js'
+import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 
 /**
  * The tenant-lifecycle events that revoke in-flight AI streams (G11, the
@@ -47,6 +48,11 @@ export default class TenantLivenessWatcher {
    * never corrupts a live stream. The caller passes an already-validated positive
    * cap (Phase 5). Honest limit: this bounds total in-flight, not tool loops
    * exactly, and is per-process / per-pod, like the liveness abort.
+   *
+   * A refusal emits `guard.ai_too_many_concurrent` so this rail is observable by
+   * rate the way its sibling `guard.ai_rate_limited` already is: both halves of
+   * the denial-of-wallet defense (flood and spend) now leave the same kind of
+   * trace, and an operator can tell "the cap is biting" from "nobody is asking".
    */
   acquire(
     tenantId: string,
@@ -54,6 +60,10 @@ export default class TenantLivenessWatcher {
   ): { signal: AbortSignal; dispose: () => void } {
     let handles = this.#controllers.get(tenantId)
     if (opts.maxConcurrent !== undefined && (handles?.size ?? 0) >= opts.maxConcurrent) {
+      emitAiGuardEvent('guard.ai_too_many_concurrent', {
+        tenantId,
+        metadata: { inFlight: handles?.size ?? 0, cap: opts.maxConcurrent },
+      })
       throw new AIException(
         'too_many_concurrent',
         'too many concurrent AI streams for this tenant to start a tool loop; retry after one completes'
