@@ -105,7 +105,7 @@ test.group('RetrievalService', () => {
     // The provider saw the override...
     assert.include(h.events, 'embed:find things:req-model')
     // ...but the search filtered on the provider's effective model (bind index 1).
-    assert.equal(h.env.queries[0].bindings[1], 'eff-model')
+    assert.equal(h.env.queries[0]!.bindings[1], 'eff-model')
   })
 
   test('reserves the per-query worst case from config.maxEmbeddingTokens', async ({ assert }) => {
@@ -121,8 +121,8 @@ test.group('RetrievalService', () => {
       request({ scope: { kind: 'sources', sources: ['doc-a'] } }),
       signal()
     )
-    assert.match(h.env.queries[0].sql, /AND source IN \(\?\)/i)
-    assert.include(h.env.queries[0].bindings as unknown[], 'doc-a')
+    assert.match(h.env.queries[0]!.sql, /AND source IN \(\?\)/i)
+    assert.include(h.env.queries[0]!.bindings as unknown[], 'doc-a')
   })
 
   test('an EMPTY sources scope returns nothing and spends nothing (no reserve, no embed, no query)', async ({

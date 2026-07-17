@@ -79,7 +79,7 @@ test.group('behavior — conversation memory service', () => {
 
     const stored = redis.data.get(storageKey)!
     assert.lengthOf(stored, 1)
-    assert.match(stored[0], /^enc:/, 'the stored blob must be ciphertext')
+    assert.match(stored[0]!, /^enc:/, 'the stored blob must be ciphertext')
     assert.notInclude(stored[0], 'secret question', 'plaintext must never be stored')
     assert.notInclude(stored[0], 'secret answer')
     assert.equal(redis.ttls.get(storageKey), 1000, 'the sliding TTL is set on append')

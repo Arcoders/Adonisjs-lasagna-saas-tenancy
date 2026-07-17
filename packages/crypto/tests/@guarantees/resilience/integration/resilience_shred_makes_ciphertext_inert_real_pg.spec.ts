@@ -35,7 +35,7 @@ let routes: Record<string, TenantSchema> = {}
 test.group('crypto shred makes ciphertext inert (real pg + WORM ledger)', (group) => {
   group.setup(async () => {
     ready = await probePg()
-    if (!ready) return
+    if (!ready) return async () => {}
     routes = { [T]: await addTenantSchema(schema, conn) }
     await createWormLedger()
     return async () => {
@@ -72,8 +72,8 @@ test.group('crypto shred makes ciphertext inert (real pg + WORM ledger)', (group
           ['renter-1', CONSENT]
         )
     )
-    assert.isNotNull(dekRows[0].shredded_at, 'the row is tombstoned')
-    assert.isNull(dekRows[0].wrapped_dek, 'the only copy of the key is destroyed')
+    assert.isNotNull(dekRows[0]?.shredded_at, 'the row is tombstoned')
+    assert.isNull(dekRows[0]?.wrapped_dek, 'the only copy of the key is destroyed')
 
     // The two-phase audit landed a PENDING then a COMMITTED row in the WORM ledger.
     const ledger = rowsOfResult(
@@ -137,7 +137,7 @@ test.group('crypto shred makes ciphertext inert (real pg + WORM ledger)', (group
         )
     )
     assert.lengthOf(rows, 2, 'a tombstone plus a fresh live row')
-    assert.isNotNull(rows[0].shredded_at, 'the first row is the tombstone')
-    assert.isNull(rows[1].shredded_at, 'the second row is live')
+    assert.isNotNull(rows[0]?.shredded_at, 'the first row is the tombstone')
+    assert.isNull(rows[1]?.shredded_at, 'the second row is live')
   }).skip(() => !ready, 'postgres not available; runs in CI')
 })

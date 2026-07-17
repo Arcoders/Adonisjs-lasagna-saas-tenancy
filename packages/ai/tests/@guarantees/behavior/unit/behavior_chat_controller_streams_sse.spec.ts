@@ -60,7 +60,7 @@ function buildDeps(
     registry,
     idempotency,
     liveness,
-    rateLimiter: overrides.rateLimiter,
+    ...(overrides.rateLimiter ? { rateLimiter: overrides.rateLimiter } : {}),
     config,
   })
   return { controller, provider, quota, liveness, config }

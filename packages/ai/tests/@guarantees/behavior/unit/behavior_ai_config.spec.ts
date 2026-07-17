@@ -215,8 +215,8 @@ test.group('assertAiConfig', () => {
       () =>
         assertAiConfig({
           ...validClaudeOnly(),
-          authorizeAIAccess: true as unknown as AiConfig['authorizeAIAccess'],
-        }),
+          authorizeAIAccess: true,
+        } as unknown as AiConfig),
       /authorizeAIAccess, when set, must be a function/
     )
     assert.throws(
@@ -231,8 +231,8 @@ test.group('assertAiConfig', () => {
       () =>
         assertAiConfig({
           ...validClaudeOnly(),
-          resolvePrincipal: 'user-1' as unknown as AiConfig['resolvePrincipal'],
-        }),
+          resolvePrincipal: 'user-1',
+        } as unknown as AiConfig),
       /resolvePrincipal, when set, must be a function/
     )
   })

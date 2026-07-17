@@ -53,7 +53,7 @@ let restoreRepo: (() => void) | undefined
 test.group('crypto @encrypted/@searchable decorators (real pg)', (group) => {
   group.setup(async () => {
     ready = await probePg()
-    if (!ready) return
+    if (!ready) return async () => {}
     const routes: Record<string, TenantSchema> = { [T]: await addTenantSchema(schema, conn) }
     await createWormLedger()
     await db
@@ -95,9 +95,9 @@ test.group('crypto @encrypted/@searchable decorators (real pg)', (group) => {
         .connection(conn)
         .rawQuery(`SELECT passport_number, passport_index FROM renters WHERE id = ?`, [renter.id])
     )
-    assert.isTrue(String(raw[0].passport_number).startsWith('enc_v2:'), 'ciphertext at rest')
-    assert.notInclude(String(raw[0].passport_number), 'passport-AB1234567')
-    assert.match(String(raw[0].passport_index), /^[0-9a-f]{64}$/)
+    assert.isTrue(String(raw[0]?.passport_number).startsWith('enc_v2:'), 'ciphertext at rest')
+    assert.notInclude(String(raw[0]?.passport_number), 'passport-AB1234567')
+    assert.match(String(raw[0]?.passport_index), /^[0-9a-f]{64}$/)
 
     // A fresh load decrypts transparently.
     const loaded = await Renter.find(renter.id)
@@ -144,7 +144,7 @@ test.group('crypto @encrypted/@searchable decorators (real pg)', (group) => {
         .connection(conn)
         .rawQuery(`SELECT passport_number FROM renters WHERE id = ?`, [renter.id])
     )
-    assert.isTrue(String(raw[0].passport_number).startsWith('enc_v2:'))
+    assert.isTrue(String(raw[0]?.passport_number).startsWith('enc_v2:'))
   }).skip(() => !ready, 'postgres not available; runs in CI')
 
   test('paginate() decrypts every row (no double-decrypt throw on a mainline read)', async ({
@@ -192,8 +192,8 @@ test.group('crypto @encrypted/@searchable decorators (real pg)', (group) => {
       await db.connection(conn).rawQuery(`SELECT passport_index FROM renters WHERE id = ?`, [id])
     )
     const newIndex = await repo.blindIndex(CAT, 'passport-NEW-2')
-    assert.equal(String(raw[0].passport_index), newIndex, 'index recomputed from the new value')
-    assert.notEqual(String(raw[0].passport_index), oldIndex, 'the old index is gone')
+    assert.equal(String(raw[0]?.passport_index), newIndex, 'index recomputed from the new value')
+    assert.notEqual(String(raw[0]?.passport_index), oldIndex, 'the old index is gone')
   }).skip(() => !ready, 'postgres not available; runs in CI')
 
   test('fail-closed: with no active tenant scope, a save aborts and writes nothing', async ({
@@ -217,7 +217,7 @@ test.group('crypto @encrypted/@searchable decorators (real pg)', (group) => {
           .connection(conn)
           .rawQuery(`SELECT count(*)::int AS n FROM renters WHERE id = ?`, [renter.id])
       )
-      assert.equal(Number(raw[0].n), 0, 'no cleartext row leaked')
+      assert.equal(Number(raw[0]?.n), 0, 'no cleartext row leaked')
     } finally {
       restoreRepo?.()
     }

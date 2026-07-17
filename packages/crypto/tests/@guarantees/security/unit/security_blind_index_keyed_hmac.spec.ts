@@ -22,7 +22,9 @@ function svc(provider: KeyProvider = new EnvKeyProvider()) {
 
 /** A KeyProvider that wraps/unwraps but does not support blind indexing. */
 class NoIndexProvider implements KeyProvider {
-  readonly name = 'no-index'
+  // Typed as the contract's `string`, not the inferred 'no-index' literal, so the
+  // subclasses below can name themselves.
+  readonly name: string = 'no-index'
   async wrapDek(): Promise<WrappedDek> {
     throw new Error('unused')
   }

@@ -79,7 +79,7 @@ test.group('vector store two-tenant isolation (real pgvector)', (group) => {
       await ensureVectorExtension(client)
     } catch {
       pgvectorReady = false
-      return
+      return async () => {}
     }
     pgvectorReady = true
 
@@ -132,7 +132,7 @@ test.group('vector store two-tenant isolation (real pgvector)', (group) => {
       ['secret-of-B']
     )
     // Identical content in two tenants lands on disjoint rows (different ids).
-    assert.notEqual(aHits[0].id, bHits[0].id)
+    assert.notEqual(aHits[0]!.id, bHits[0]!.id)
     assert.equal(await storeAs('A').count(tenantA), 1)
   }).skip(() => !pgvectorReady, 'pgvector not available (local postgres:16-alpine); runs in CI')
 

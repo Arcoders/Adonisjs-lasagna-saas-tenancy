@@ -30,7 +30,7 @@ test.group('assertWebSocketsConfig', () => {
     assert.throws(
       () =>
         assertWebSocketsConfig({
-          authorize: 'nope' as unknown as WebSocketsConfig['authorize'],
+          authorize: 'nope' as unknown as NonNullable<WebSocketsConfig['authorize']>,
         }),
       '[websockets] config.websockets.authorize must be a function'
     )
@@ -49,7 +49,9 @@ test.group('assertWebSocketsConfig', () => {
     assert.throws(
       () =>
         assertWebSocketsConfig({
-          authorize: { contractVersion: 1 } as unknown as WebSocketsConfig['authorize'],
+          authorize: { contractVersion: 1 } as unknown as NonNullable<
+            WebSocketsConfig['authorize']
+          >,
         }),
       /must be a function or/
     )

@@ -178,8 +178,8 @@ test.group('Webhook idempotency (integration)', (group) => {
     // retry can pick it up via the duplicate-recovery branch.
     const rows = await BillingProcessedEvent.query().where('event_id', 'evt_queue_down')
     assert.lengthOf(rows, 1)
-    assert.equal(rows[0].status, 'pending')
-    assert.equal(rows[0].attempts, 0)
+    assert.equal(rows[0]?.status, 'pending')
+    assert.equal(rows[0]?.attempts, 0)
   })
 
   test('Stripe retry of a dispatch-failed event re-dispatches the job', async ({
@@ -348,12 +348,12 @@ test.group('Webhook idempotency (integration)', (group) => {
     // The race must not leave duplicates or inconsistency.
     const mirrors = await BillingSubscription.query().where('providerSubscriptionId', subId)
     assert.lengthOf(mirrors, 1, 'exactly one subscription mirror row')
-    assert.equal(mirrors[0].status, 'active')
-    assert.equal(mirrors[0].planName, 'pro')
+    assert.equal(mirrors[0]?.status, 'active')
+    assert.equal(mirrors[0]?.planName, 'pro')
 
     const plans = await TenantPlan.query().where('tenantId', tenant.id)
     assert.lengthOf(plans, 1, 'exactly one tenant_plans row')
-    assert.equal(plans[0].planName, 'pro')
+    assert.equal(plans[0]?.planName, 'pro')
 
     const ledger = await BillingProcessedEvent.find('evt_concurrent')
     assert.equal(ledger?.status, 'completed', 'the winner marked the event completed')

@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import { aiMemoryPosture, aiMemoryCheck } from '../../../../src/services/ai_memory_check.js'
+import type { DoctorContext } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
@@ -9,6 +10,10 @@ import type { AiConfig } from '../../../../src/define_config.js'
  */
 
 const base = { allowedProviders: ['claude'] } as AiConfig
+
+// The check reads its posture from the injected config getter and never touches the
+// run context, so an empty one is all it needs.
+const emptyCtx = { tenants: [], repo: {} as any, attemptFix: false } as DoctorContext
 
 test.group('behavior — ai_memory doctor posture', () => {
   test('memory not configured reports nothing', ({ assert }) => {
@@ -30,15 +35,15 @@ test.group('behavior — ai_memory doctor posture', () => {
     assert.equal(posture!.severity, 'info')
   })
 
-  test('the doctor check maps the posture to a diagnosis issue', ({ assert }) => {
+  test('the doctor check maps the posture to a diagnosis issue', async ({ assert }) => {
     const check = aiMemoryCheck(() => ({ ...base, memory: {} }) as AiConfig)
     assert.equal(check.name, 'ai_memory')
-    const issues = check.run()
+    const issues = await check.run(emptyCtx)
     assert.lengthOf(issues, 1)
-    assert.equal(issues[0].code, 'ai_memory_default_principal')
+    assert.equal(issues[0]!.code, 'ai_memory_default_principal')
   })
 
-  test('the check reports nothing when memory is off', ({ assert }) => {
-    assert.deepEqual(aiMemoryCheck(() => base).run(), [])
+  test('the check reports nothing when memory is off', async ({ assert }) => {
+    assert.deepEqual(await aiMemoryCheck(() => base).run(emptyCtx), [])
   })
 })

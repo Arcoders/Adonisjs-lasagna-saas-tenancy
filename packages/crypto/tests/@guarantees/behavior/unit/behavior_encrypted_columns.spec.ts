@@ -24,7 +24,7 @@ class FakeRepo implements EncryptedFieldsRepo {
     // Match the real engine's strictness (openV2WithKey throws on a non-enc_v2 value)
     // so a double-decrypt of an already-plaintext value fails loudly here too.
     if (!m) throw new Error(`decrypt: value is not enc_v2 ciphertext: '${ciphertext}'`)
-    return m[1]
+    return m[1]!
   }
   async blindIndex(
     category: string,
@@ -202,11 +202,11 @@ test.group('crypto @encrypted/@searchable: decorator metadata', () => {
   test('the decorators record the column mapping on the model', ({ assert }) => {
     const meta = collectModelEncryptionMeta(DecoratedRenter)
     assert.lengthOf(meta.encrypted, 1)
-    assert.equal(meta.encrypted[0].column, 'passportNumber')
-    assert.equal(meta.encrypted[0].category, 'identity-docs')
+    assert.equal(meta.encrypted[0]?.column, 'passportNumber')
+    assert.equal(meta.encrypted[0]?.category, 'identity-docs')
     assert.lengthOf(meta.searchable, 1)
-    assert.equal(meta.searchable[0].column, 'passportIndex')
-    assert.deepEqual(meta.searchable[0].options, { caseInsensitive: true })
+    assert.equal(meta.searchable[0]?.column, 'passportIndex')
+    assert.deepEqual(meta.searchable[0]?.options, { caseInsensitive: true })
   })
 
   test('a model with no encrypted columns collects empty metadata', ({ assert }) => {

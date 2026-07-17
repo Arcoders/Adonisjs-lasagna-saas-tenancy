@@ -31,7 +31,7 @@ test.group('architectural: KeyProvider SSRF (check-crypto-invariant-11)', () => 
     const bad = { path: OTHER, source: `const r = await fetch('https://kms.internal')` }
     const problems = auditKeyProviderSsrf([goodBase, bad])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /raw network egress/)
+    assert.match(problems[0]!, /raw network egress/)
   })
 
   test('globalThis.fetch, http.request, new Request, and raw HTTP-client imports are violations', ({
@@ -67,7 +67,7 @@ test.group('architectural: KeyProvider SSRF (check-crypto-invariant-11)', () => 
     }
     const problems = auditKeyProviderSsrf([brokenBase])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /must import and route every outbound through core safeFetch/)
+    assert.match(problems[0]!, /must import and route every outbound through core safeFetch/)
   })
 
   test('presence floor: a missing egress base fails (never a vacuous pass)', ({ assert }) => {
@@ -75,6 +75,6 @@ test.group('architectural: KeyProvider SSRF (check-crypto-invariant-11)', () => 
       { path: 'packages/crypto/src/services/env_key_provider.ts', source: `export class Env {}` },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /presence floor/)
+    assert.match(problems[0]!, /presence floor/)
   })
 })

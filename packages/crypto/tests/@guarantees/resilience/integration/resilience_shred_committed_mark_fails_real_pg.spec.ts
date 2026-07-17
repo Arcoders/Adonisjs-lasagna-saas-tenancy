@@ -54,7 +54,7 @@ function failCommitLedger(real: ShredLedger): ShredLedger {
 test.group('crypto shred: crash between PENDING and COMMITTED (real Postgres)', (group) => {
   group.setup(async () => {
     ready = await probePg()
-    if (!ready) return
+    if (!ready) return async () => {}
     originalAppKey = process.env.APP_KEY
     process.env.APP_KEY = TEST_KEY
     await createWormLedger()

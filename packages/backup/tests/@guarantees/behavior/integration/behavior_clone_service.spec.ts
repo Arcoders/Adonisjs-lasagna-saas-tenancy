@@ -39,7 +39,7 @@ test.group('CloneService — full lifecycle E2E', (group) => {
     }
   })
 
-  async function freshTenant(name?: string): Promise<TenantModelContract> {
+  async function freshTenant(name: string): Promise<TenantModelContract> {
     const t = await createTestTenant({ status: 'provisioning', name })
     cleanup.push(t.id)
     return findTenant(t.id)

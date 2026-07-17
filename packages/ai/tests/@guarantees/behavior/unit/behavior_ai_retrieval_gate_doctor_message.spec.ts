@@ -3,6 +3,7 @@ import {
   aiRetrievalGateCheck,
   aiRetrievalGatePosture,
 } from '../../../../src/services/ai_retrieval_gate_check.js'
+import type { DoctorContext } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
@@ -13,31 +14,40 @@ import type { AiConfig } from '../../../../src/define_config.js'
  * refused); an acknowledged tenant-wide opt-in is an `info`.
  */
 
-const embedding = { apiKey: 'k', baseUrl: 'https://emb.example' } as AiConfig['embedding']
+const embedding = {
+  apiKey: 'k',
+  baseUrl: 'https://emb.example',
+} as NonNullable<AiConfig['embedding']>
+
+// The check reads its posture from the injected config getter and never touches the
+// run context, so an empty one is all it needs.
+const emptyCtx = { tenants: [], repo: {} as any, attemptFix: false } as DoctorContext
 
 function ai(over: Partial<AiConfig> = {}): AiConfig {
   return { allowedProviders: ['claude'], embedding, ...over }
 }
 
 test.group('ai_retrieval_gate doctor check', () => {
-  test('no config.ai at all reports nothing (retrieval is not usable)', ({ assert }) => {
+  test('no config.ai at all reports nothing (retrieval is not usable)', async ({ assert }) => {
     assert.isNull(aiRetrievalGatePosture(undefined))
-    assert.deepEqual(aiRetrievalGateCheck(() => undefined).run(), [])
+    assert.deepEqual(await aiRetrievalGateCheck(() => undefined).run(emptyCtx), [])
   })
 
-  test('no embedding provider reports nothing (retrieval routes cannot run)', ({ assert }) => {
+  test('no embedding provider reports nothing (retrieval routes cannot run)', async ({
+    assert,
+  }) => {
     const noEmbedding = { allowedProviders: ['claude'] } as AiConfig
     assert.isNull(aiRetrievalGatePosture(noEmbedding))
-    assert.deepEqual(aiRetrievalGateCheck(() => noEmbedding).run(), [])
+    assert.deepEqual(await aiRetrievalGateCheck(() => noEmbedding).run(emptyCtx), [])
   })
 
-  test('a wired retrievalFilter is healthy (no issue)', ({ assert }) => {
+  test('a wired retrievalFilter is healthy (no issue)', async ({ assert }) => {
     const scoped = ai({ retrieval: { retrievalFilter: () => ({ kind: 'all' }) } })
     assert.isNull(aiRetrievalGatePosture(scoped))
-    assert.deepEqual(aiRetrievalGateCheck(() => scoped).run(), [])
+    assert.deepEqual(await aiRetrievalGateCheck(() => scoped).run(emptyCtx), [])
   })
 
-  test('embeddings usable but no filter and no acknowledgement is a warn (retrieval refused)', ({
+  test('embeddings usable but no filter and no acknowledgement is a warn (retrieval refused)', async ({
     assert,
   }) => {
     const unscoped = ai()
@@ -47,14 +57,14 @@ test.group('ai_retrieval_gate doctor check', () => {
     assert.include(posture!.message, 'fail-closed')
     assert.include(posture!.message, 'refused with 403')
 
-    const issues = aiRetrievalGateCheck(() => unscoped).run()
+    const issues = await aiRetrievalGateCheck(() => unscoped).run(emptyCtx)
     assert.lengthOf(issues, 1)
-    assert.equal(issues[0].code, 'ai_retrieval_gate_refused')
-    assert.equal(issues[0].severity, 'warn')
-    assert.equal(issues[0].message, posture!.message)
+    assert.equal(issues[0]!.code, 'ai_retrieval_gate_refused')
+    assert.equal(issues[0]!.severity, 'warn')
+    assert.equal(issues[0]!.message, posture!.message)
   })
 
-  test('an acknowledged tenant-wide posture is an info issue naming the consequence', ({
+  test('an acknowledged tenant-wide posture is an info issue naming the consequence', async ({
     assert,
   }) => {
     const acknowledged = ai({ acknowledgeUnscopedRetrieval: true })
@@ -62,17 +72,19 @@ test.group('ai_retrieval_gate doctor check', () => {
     assert.isNotNull(posture)
     assert.include(posture!.message, 'ENTIRE corpus')
 
-    const issues = aiRetrievalGateCheck(() => acknowledged).run()
+    const issues = await aiRetrievalGateCheck(() => acknowledged).run(emptyCtx)
     assert.lengthOf(issues, 1)
-    assert.equal(issues[0].code, 'ai_retrieval_gate_acknowledged')
-    assert.equal(issues[0].severity, 'info')
+    assert.equal(issues[0]!.code, 'ai_retrieval_gate_acknowledged')
+    assert.equal(issues[0]!.severity, 'info')
   })
 
-  test('the check reads config at run time (live posture, not registration time)', ({ assert }) => {
+  test('the check reads config at run time (live posture, not registration time)', async ({
+    assert,
+  }) => {
     let current = ai()
     const check = aiRetrievalGateCheck(() => current)
-    assert.equal(check.run()[0]?.severity, 'warn')
+    assert.equal((await check.run(emptyCtx))[0]?.severity, 'warn')
     current = ai({ retrieval: { retrievalFilter: () => ({ kind: 'all' }) } })
-    assert.deepEqual(check.run(), [])
+    assert.deepEqual(await check.run(emptyCtx), [])
   })
 })

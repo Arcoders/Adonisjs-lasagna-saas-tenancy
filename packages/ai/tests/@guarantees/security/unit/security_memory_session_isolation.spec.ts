@@ -44,8 +44,8 @@ test.group('security — memory session isolation', () => {
 
     const error = assert.throws(() => m.resolveSession(forged, T1, 'user-a'))
     assert.instanceOf(error, AIException)
-    assert.equal((error as AIException).aiCode, 'memory_session_invalid')
-    assert.equal((error as AIException).httpStatus, 400)
+    assert.equal((error as unknown as AIException).aiCode, 'memory_session_invalid')
+    assert.equal((error as unknown as AIException).httpStatus, 400)
   })
 
   test("a principal cannot replay another principal's token (G6)", ({ assert }) => {
@@ -105,8 +105,8 @@ test.group('security — memory session guard emission', (group) => {
     }
     await settle()
     assert.lengthOf(captured, 1)
-    assert.equal(captured[0].id, 'guard.ai_memory_session_invalid')
-    assert.equal(captured[0].severity, 'high')
-    assert.equal(captured[0].tenantId, T1)
+    assert.equal(captured[0]!.id, 'guard.ai_memory_session_invalid')
+    assert.equal(captured[0]!.severity, 'high')
+    assert.equal(captured[0]!.tenantId, T1)
   })
 })

@@ -7,7 +7,9 @@ import type { KeyProvider, WrappedDek } from '../../../../src/types/key_provider
 function fakeProvider(name: string, contractVersion?: number): KeyProvider {
   return {
     name,
-    contractVersion,
+    // Present the key only when a version was given: the contract's `contractVersion`
+    // is optional-without-undefined, so an explicit undefined is not a valid provider.
+    ...(contractVersion !== undefined ? { contractVersion } : {}),
     async wrapDek(): Promise<WrappedDek> {
       return { kekId: 'k', ciphertext: 'enc_v2:k:iv:tag:ct' }
     },

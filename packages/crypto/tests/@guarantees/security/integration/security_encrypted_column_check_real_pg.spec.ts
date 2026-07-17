@@ -49,7 +49,7 @@ async function insertValue(value: string | null): Promise<void> {
 test.group('crypto encrypted-column CHECK on real Postgres (write backstop)', (group) => {
   group.setup(async () => {
     ready = await probePg()
-    if (!ready) return
+    if (!ready) return async () => {}
     T = randomUUID()
     placement = await addTenantSchema(schema, conn)
     // A host-style model table with the guarded encrypted column, plus the CHECK the

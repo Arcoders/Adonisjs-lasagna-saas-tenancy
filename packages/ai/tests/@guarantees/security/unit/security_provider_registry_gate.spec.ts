@@ -136,7 +136,7 @@ test.group('AIProviderRegistry: per-tenant selection (default-deny)', () => {
       /not allow-listed/
     )
     assert.instanceOf(err, AIException)
-    assert.equal((err as AIException).aiCode, 'provider_not_allowed')
+    assert.equal((err as unknown as AIException).aiCode, 'provider_not_allowed')
   })
 
   test('forTenant throws provider_unavailable when the selected provider is unregistered', ({
@@ -144,7 +144,7 @@ test.group('AIProviderRegistry: per-tenant selection (default-deny)', () => {
   }) => {
     const registry = new AIProviderRegistry()
     const err = assert.throws(() => registry.forTenant(tenant, configWith()), /not registered/)
-    assert.equal((err as AIException).aiCode, 'provider_unavailable')
+    assert.equal((err as unknown as AIException).aiCode, 'provider_unavailable')
   })
 
   test('resolveTenantProviderSelection throws config_missing without a config block', ({
@@ -154,7 +154,7 @@ test.group('AIProviderRegistry: per-tenant selection (default-deny)', () => {
       () => resolveTenantProviderSelection(tenant, undefined),
       /ai config block is absent/
     )
-    assert.equal((err as AIException).aiCode, 'config_missing')
+    assert.equal((err as unknown as AIException).aiCode, 'config_missing')
   })
 
   test('resolveTenantProviderSelection returns the provider and its default model', ({

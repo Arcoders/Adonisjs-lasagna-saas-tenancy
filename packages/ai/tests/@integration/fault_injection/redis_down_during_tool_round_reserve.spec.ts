@@ -240,7 +240,7 @@ test.group('a Redis outage on a tool round rate limit (real Postgres + Redis)', 
       await redis.ping()
     } catch {
       ready = false
-      return
+      return async () => {}
     }
     ready = true
 

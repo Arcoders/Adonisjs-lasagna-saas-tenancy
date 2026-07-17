@@ -108,11 +108,11 @@ test.group('chat RAG context integrity', (group) => {
 
     await controller.chat(ctx)
 
-    const messages = seen[0]
+    const messages = seen[0]!
     // The only system message is the host's; no system turn carries the payload.
     const systemTurns = messages.filter((m) => m.role === 'system')
     assert.lengthOf(systemTurns, 1)
-    assert.equal(systemTurns[0].content, 'You are a support agent')
+    assert.equal(systemTurns[0]!.content, 'You are a support agent')
     // The payload rode in on a USER turn, fenced, with the forged close neutralized.
     const dataTurn = messages.find((m) => m.role === 'user' && m.content.includes('DAN'))
     assert.isDefined(dataTurn)
@@ -140,7 +140,7 @@ test.group('chat RAG context integrity', (group) => {
 
     await controller.chat(ctx)
 
-    const assembled = seen[0].reduce((n, m) => n + m.content.length, 0)
+    const assembled = seen[0]!.reduce((n, m) => n + m.content.length, 0)
     assert.isAtMost(assembled, 500, 'the retrieved block was trimmed to fit the prompt budget')
   })
 

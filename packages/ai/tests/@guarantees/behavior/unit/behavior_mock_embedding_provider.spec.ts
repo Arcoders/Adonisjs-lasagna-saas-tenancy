@@ -18,7 +18,7 @@ test.group('MockEmbeddingProvider', () => {
     assert.strictEqual(result.dimension, 16)
     assert.isAbove(result.tokens, 0)
     assert.lengthOf(provider.calls, 1)
-    assert.strictEqual(provider.calls[0].request, request)
+    assert.strictEqual(provider.calls[0]!.request, request)
   })
 
   test('is deterministic: same text yields the same vector across instances', async ({

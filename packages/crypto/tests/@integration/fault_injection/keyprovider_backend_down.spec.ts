@@ -58,7 +58,7 @@ test.group(
   (group) => {
     group.setup(async () => {
       ready = await probePg()
-      if (!ready) return
+      if (!ready) return () => {}
       originalAppKey = process.env.APP_KEY
       process.env.APP_KEY = TEST_KEY
       return () => {

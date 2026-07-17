@@ -87,7 +87,9 @@ function buildDeps(opts: BuildOptions) {
     liveness: new TenantLivenessWatcher(),
     config,
     memory,
-    emitMetric: (tenantId, name, value) => metrics.push({ tenantId, name, value }),
+    emitMetric: (tenantId, name, value) => {
+      metrics.push({ tenantId, name, value })
+    },
   })
   return { controller, provider, quota, metrics }
 }
@@ -195,7 +197,7 @@ test.group('redactOutput coherence — conversation memory', () => {
     await controller.chat(t2.ctx)
 
     assert.deepEqual(
-      provider.calls[1].request.messages,
+      provider.calls[1]!.request.messages,
       [
         { role: 'user', content: 'first' },
         { role: 'assistant', content: 'hi [redacted]' },

@@ -4,7 +4,7 @@ import {
   reconstructAssistantText,
 } from '../../../../src/gateway/context_builder.js'
 import SseWriter from '../../../../src/gateway/sse_writer.js'
-import type { AIMessage } from '../../../../src/types/ai_provider_contract.js'
+import type { AIMessage, StreamFragment } from '../../../../src/types/ai_provider_contract.js'
 import type { ConversationTurn } from '../../../../src/services/conversation_memory_service.js'
 import { FakeSseSink } from '../../../helpers/fake_sse_sink.js'
 
@@ -114,10 +114,15 @@ test.group('behavior — injectMemoryTurns', () => {
 })
 
 test.group('behavior — reconstructAssistantText', () => {
-  async function framesFor(fragments: Array<{ data: string; event?: string }>): Promise<string[]> {
+  // The SSE serialization only reads data + event, so the cases supply just that
+  // subset and we complete it to a valid StreamFragment (tokens is metering metadata
+  // writeFragment never touches) at the write boundary.
+  async function framesFor(
+    fragments: Array<Pick<StreamFragment, 'data' | 'event'>>
+  ): Promise<string[]> {
     const sink = new FakeSseSink()
     const writer = new SseWriter(sink)
-    for (const fragment of fragments) await writer.writeFragment(fragment)
+    for (const fragment of fragments) await writer.writeFragment({ tokens: 0, ...fragment })
     return sink.writes
   }
 
@@ -131,7 +136,7 @@ test.group('behavior — reconstructAssistantText', () => {
   test('skips control frames (error / done)', async ({ assert }) => {
     const sink = new FakeSseSink()
     const writer = new SseWriter(sink)
-    await writer.writeFragment({ data: 'answer' })
+    await writer.writeFragment({ data: 'answer', tokens: 0 })
     await writer.writeErrorEvent('over_budget')
     sink.write('event: done\ndata: {"outcome":"completed"}\n\n')
     assert.equal(reconstructAssistantText(sink.writes), 'answer')

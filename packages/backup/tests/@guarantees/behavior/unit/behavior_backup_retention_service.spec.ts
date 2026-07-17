@@ -3,7 +3,7 @@ import BackupRetentionService from '../../../../src/services/backup_retention_se
 import type BackupService from '../../../../src/services/backup_service.js'
 import type { BackupMetadata } from '../../../../src/services/backup_service.js'
 import { buildTestTenant } from '@adonisjs-lasagna/saas-tenancy/internal'
-import { setupTestConfig, testConfig } from '../../../helpers/config.js'
+import { setupTestConfig, testBackupConfig } from '../../../helpers/config.js'
 
 interface FakeBackupServiceCalls {
   listed: string[]
@@ -45,7 +45,7 @@ function setupRetention(
 ) {
   setupTestConfig({
     backup: {
-      ...testConfig.backup,
+      ...testBackupConfig,
       retention: {
         defaultTier,
         tiers,
@@ -66,7 +66,7 @@ test.group('BackupRetentionService — getTierFor', () => {
   test('honors per-tenant getTier when provided', async ({ assert }) => {
     setupTestConfig({
       backup: {
-        ...testConfig.backup,
+        ...testBackupConfig,
         retention: {
           defaultTier: 'standard',
           tiers: {
@@ -141,7 +141,7 @@ test.group('BackupRetentionService — shouldBackup', () => {
   test('respects per-tier intervalHours', async ({ assert }) => {
     setupTestConfig({
       backup: {
-        ...testConfig.backup,
+        ...testBackupConfig,
         retention: {
           defaultTier: 'standard',
           tiers: {

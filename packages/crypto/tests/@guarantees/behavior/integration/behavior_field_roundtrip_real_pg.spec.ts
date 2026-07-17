@@ -32,7 +32,7 @@ let routes: Record<string, TenantSchema> = {}
 test.group('crypto field round-trip through the real PgWrappedDekStore', (group) => {
   group.setup(async () => {
     ready = await probePg()
-    if (!ready) return
+    if (!ready) return async () => {}
     routes = { [T]: await addTenantSchema(schema, conn) }
     return async () => dropTenantSchema(schema, conn)
   })
@@ -56,7 +56,7 @@ test.group('crypto field round-trip through the real PgWrappedDekStore', (group)
           ['renter-1', CAT]
         )
     )
-    assert.equal(Number(rows[0].n), 1)
+    assert.equal(Number(rows[0]?.n), 1)
   }).skip(() => !ready, 'postgres not available; runs in CI')
 
   test('reuses one live DEK across writes of the same (subject, category)', async ({ assert }) => {
@@ -74,7 +74,7 @@ test.group('crypto field round-trip through the real PgWrappedDekStore', (group)
           ['renter-2', CAT]
         )
     )
-    assert.equal(Number(rows[0].n), 1, 'exactly one live DEK row, reused')
+    assert.equal(Number(rows[0]?.n), 1, 'exactly one live DEK row, reused')
   }).skip(() => !ready, 'postgres not available; runs in CI')
 
   test('a value for one subject cannot be read under another (fail-closed)', async ({ assert }) => {
@@ -91,7 +91,7 @@ test.group('crypto field round-trip through the real PgWrappedDekStore', (group)
   }) => {
     // The service's active scope is OTHER, but we operate on tenant T: the store
     // re-asserts the request tenant equals the active scope before the raw query.
-    const svc = serviceAs(OTHER, { routes: { ...routes, [OTHER]: routes[T] } })
+    const svc = serviceAs(OTHER, { routes: { ...routes, [OTHER]: routes[T]! } })
     await assert.rejects(
       () => svc.encryptField(tenant(T), 'renter-3', CAT, 'x'),
       /does not match the active tenancy scope/

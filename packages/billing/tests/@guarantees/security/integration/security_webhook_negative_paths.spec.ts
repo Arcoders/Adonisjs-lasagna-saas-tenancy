@@ -50,7 +50,10 @@ test.group('Webhook verification — negative paths', (group) => {
     await billing.__resetForTests()
   })
 
-  function fakeContext(opts: { signature?: string; body?: string }): HttpContext {
+  function fakeContext(opts: {
+    signature?: string | undefined
+    body?: string | undefined
+  }): HttpContext {
     return {
       request: {
         ip: () => '127.0.0.1',
@@ -69,7 +72,7 @@ test.group('Webhook verification — negative paths', (group) => {
   /** Run the middleware, capturing any thrown error + whether next() ran. */
   async function run(
     ctx: HttpContext
-  ): Promise<{ billingCode?: string; message: string; nextCalled: boolean }> {
+  ): Promise<{ billingCode?: string | undefined; message: string; nextCalled: boolean }> {
     let nextCalled = false
     const next = (async () => {
       nextCalled = true

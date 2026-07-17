@@ -50,7 +50,7 @@ test.group('architectural: encrypted-model surface', () => {
     ].join('\n')
     const problems = auditEncryptedModelSurface([{ path: MODEL_PATH, source }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /age.*number.*ciphertext string/)
+    assert.match(problems[0]!, /age.*number.*ciphertext string/)
   })
 
   test('a Buffer / array / Date typed encrypted column is refused', ({ assert }) => {
@@ -89,7 +89,7 @@ test.group('architectural: encrypted-model surface', () => {
     ].join('\n')
     const problems = auditEncryptedModelSurface([{ path: DEF_PATH, source: def }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /encrypted\(\) must apply lucidColumn/)
+    assert.match(problems[0]!, /encrypted\(\) must apply lucidColumn/)
   })
 
   test('a searchable() without serializeAs: null is a leak violation', ({ assert }) => {
@@ -103,7 +103,7 @@ test.group('architectural: encrypted-model surface', () => {
     ].join('\n')
     const problems = auditEncryptedModelSurface([{ path: DEF_PATH, source: def }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /serializeAs: null/)
+    assert.match(problems[0]!, /serializeAs: null/)
   })
 
   test('a token in a comment / JSDoc is not a false positive', ({ assert }) => {
@@ -138,7 +138,7 @@ test.group('architectural: encrypted-model surface', () => {
     ].join('\n')
     const problems = auditEncryptedModelSurface([{ path: MODEL_PATH, source }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /amount.*number.*ciphertext string/)
+    assert.match(problems[0]!, /amount.*number.*ciphertext string/)
   })
 
   test('empty file set is vacuously ok', ({ assert }) => {

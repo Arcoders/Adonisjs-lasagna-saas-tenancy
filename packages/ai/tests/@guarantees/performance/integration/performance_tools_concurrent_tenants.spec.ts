@@ -74,7 +74,7 @@ test.group('tool execution across concurrent tenants (real Postgres)', (group) =
       await client.rawQuery('SELECT 1')
     } catch {
       ready = false
-      return
+      return async () => {}
     }
     ready = true
 

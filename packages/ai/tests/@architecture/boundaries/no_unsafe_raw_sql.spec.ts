@@ -23,8 +23,8 @@ const ROOTS = ['src', 'tenant_migrations'].map((d) =>
 const TEMPLATE_RAW_SQL = /\.(?:rawQuery|raw)\(\s*`[^`]*\$\{[\s\S]*?`/g
 const SAFE_SQL_MARKER = /\/\/\s*safe-sql:/i
 
-function findInterpolatedRawSql(src) {
-  const hits = []
+function findInterpolatedRawSql(src: string): number[] {
+  const hits: number[] = []
   const re = new RegExp(TEMPLATE_RAW_SQL.source, 'g')
   let m
   while ((m = re.exec(src)) !== null) {
@@ -33,7 +33,7 @@ function findInterpolatedRawSql(src) {
   return hits
 }
 
-function lineHasMarker(src, lineNumber) {
+function lineHasMarker(src: string, lineNumber: number) {
   const lines = src.split('\n')
   return lines
     .slice(Math.max(0, lineNumber - 2), lineNumber + 1)

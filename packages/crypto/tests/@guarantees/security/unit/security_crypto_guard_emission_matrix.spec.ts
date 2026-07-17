@@ -226,10 +226,10 @@ test.group('crypto guard emission matrix: trip and happy', (group) => {
       }
 
       assert.lengthOf(captured, 1, `${id}: expected exactly one dispatch`)
-      assert.equal(captured[0].id, id)
-      assert.equal(captured[0].severity, entry.severity)
-      assert.equal(captured[0].event, entry.event)
-      assert.equal(captured[0].pillar, 'guard')
+      assert.equal(captured[0]?.id, id)
+      assert.equal(captured[0]?.severity, entry.severity)
+      assert.equal(captured[0]?.event, entry.event)
+      assert.equal(captured[0]?.pillar, 'guard')
 
       const snapshot = snapshotCryptoGuardCounters()
       assert.equal(

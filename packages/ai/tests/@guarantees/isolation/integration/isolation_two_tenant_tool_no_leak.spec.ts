@@ -92,7 +92,7 @@ test.group('two-tenant tool isolation (real Postgres)', (group) => {
       await client.rawQuery('SELECT 1')
     } catch {
       ready = false
-      return
+      return async () => {}
     }
     ready = true
 

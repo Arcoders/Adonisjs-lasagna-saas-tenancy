@@ -59,7 +59,7 @@ test.group('architectural: domain separation', () => {
       { path: PROVIDER, source: GOOD_PROVIDER },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /hkdfSync appears outside the KeyProvider/)
+    assert.match(problems[0]!, /hkdfSync appears outside the KeyProvider/)
   })
 
   test('a shared field key derived in an internal helper (imported as `dek`) is a violation', ({
@@ -79,7 +79,7 @@ test.group('architectural: domain separation', () => {
       { path: INTERNAL, source: internal },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /derive\.ts: hkdfSync appears outside the KeyProvider/)
+    assert.match(problems[0]!, /derive\.ts: hkdfSync appears outside the KeyProvider/)
   })
 
   test('a field seal keyed by a shared (non-DEK) key is a violation', ({ assert }) => {
@@ -138,7 +138,7 @@ test.group('architectural: domain separation', () => {
       { path: PROVIDER, source: provider },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /feed 'category' into its hkdfSync info/)
+    assert.match(problems[0]!, /feed 'category' into its hkdfSync info/)
   })
 
   test('a category-bound info via a helper that itself drops category is a violation', ({
@@ -158,6 +158,6 @@ test.group('architectural: domain separation', () => {
       { path: PROVIDER, source: provider },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /feed 'category' into its hkdfSync info/)
+    assert.match(problems[0]!, /feed 'category' into its hkdfSync info/)
   })
 })

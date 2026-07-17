@@ -49,7 +49,7 @@ function restoreEnv(): void {
 test.group('crypto KEK rotation (rekek) on real Postgres', (group) => {
   group.setup(async () => {
     ready = await probePg()
-    if (!ready) return
+    if (!ready) return async () => {}
     originalAppKey = process.env.APP_KEY
     return async () => {
       restoreEnv()
@@ -57,7 +57,7 @@ test.group('crypto KEK rotation (rekek) on real Postgres', (group) => {
   })
 
   group.each.setup(async () => {
-    if (!ready) return
+    if (!ready) return async () => {}
     // A fresh tenant schema + a fresh APP_KEY baseline per test, so tests never
     // leak generation state into each other.
     T = randomUUID()
@@ -142,16 +142,16 @@ test.group('crypto KEK rotation (rekek) on real Postgres', (group) => {
     const failedPass = await rekek.rekekTenant(tenant(T))
     assert.equal(failedPass.failed, 1)
     assert.equal(failedPass.rotated, 0)
-    assert.equal(failedPass.failures[0].subjectId, 'renter-x')
+    assert.equal(failedPass.failures[0]?.subjectId, 'renter-x')
     // Fail-closed: the row is left untouched at its old generation (nothing bricked).
-    assert.equal((await store.listLive(tenant(T)))[0].kekId, strandedKekId)
+    assert.equal((await store.listLive(tenant(T)))[0]?.kekId, strandedKekId)
 
     // Recover: expose the previous key via OLD_APP_KEY and re-run; it re-wraps.
     process.env.OLD_APP_KEY = prevKey
     const recovered = await rekek.rekekTenant(tenant(T))
     assert.equal(recovered.rotated, 1)
     assert.equal(recovered.failed, 0)
-    assert.equal((await store.listLive(tenant(T)))[0].kekId, await keyProvider.currentKekId(T))
+    assert.equal((await store.listLive(tenant(T)))[0]?.kekId, await keyProvider.currentKekId(T))
     // The data survived the whole ordeal.
     delete process.env.OLD_APP_KEY
     assert.equal(await crypto.decryptField(tenant(T), 'renter-x', CAT, ct), 'passport-ZZ0000000')

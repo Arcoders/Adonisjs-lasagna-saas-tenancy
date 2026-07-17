@@ -141,7 +141,7 @@ test.group('AI cost governor bites on real Redis (integration)', (group) => {
 
     assert.equal(result.outcome, 'failed_preflight')
     if (result.outcome === 'failed_preflight') assert.equal(result.error, 'over_budget')
-    assert.equal(await redis.zcard(opKeys()[1]), 0, 'the operator hold was not committed')
+    assert.equal(await redis.zcard(opKeys()[1]!), 0, 'the operator hold was not committed')
   })
 })
 

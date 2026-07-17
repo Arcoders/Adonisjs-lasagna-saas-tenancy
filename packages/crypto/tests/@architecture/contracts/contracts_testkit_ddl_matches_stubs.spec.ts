@@ -42,7 +42,7 @@ function rawSqlColumns(source: string): string[] {
   const body = source.match(/CREATE TABLE\s+\S+\s*\(([\s\S]*?)\n\s*\)/)?.[1] ?? ''
   const types = 'uuid|text|char|bigint|integer|boolean|jsonb|timestamptz|date|varchar'
   const col = new RegExp(`^\\s*([a-z_]+)\\s+(?:${types})`, 'gim')
-  return [...body.matchAll(col)].map((m) => m[1]).filter((c) => c !== 'constraint')
+  return [...body.matchAll(col)].map((m) => m[1]!).filter((c) => c !== 'constraint')
 }
 
 /** Column names a Lucid schema-builder stub defines in its up() body. */
@@ -50,7 +50,7 @@ function schemaBuilderColumns(source: string): string[] {
   const up = source.split(/async up\(\)/)[1]?.split(/async down\(\)/)[0] ?? ''
   const methods = 'uuid|string|text|boolean|jsonb|integer|bigInteger|specificType|timestamp|date'
   const col = new RegExp(`table\\.(?:${methods})\\('([a-z_]+)'`, 'g')
-  return [...up.matchAll(col)].map((m) => m[1])
+  return [...up.matchAll(col)].map((m) => m[1]!)
 }
 
 interface AssertLike {

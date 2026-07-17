@@ -56,7 +56,7 @@ function buildController(deps: {
       macKey: deriveAiIdempotencyMacKey('test-app-key'),
     }),
     liveness: new TenantLivenessWatcher(),
-    rateLimiter: deps.rateLimiter,
+    ...(deps.rateLimiter ? { rateLimiter: deps.rateLimiter } : {}),
     config: { allowedProviders: ['claude'], authorizeAIAccess: () => true } as AiConfig,
   })
 }

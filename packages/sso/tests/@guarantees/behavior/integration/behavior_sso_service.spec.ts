@@ -97,8 +97,8 @@ test.group('SsoService (integration)', (group) => {
 
     const rows = await TenantSsoConfig.query().where('tenant_id', t.id)
     assert.lengthOf(rows, 1, 'no duplicate rows')
-    assert.equal(rows[0].clientId, 'second')
-    assert.equal(rows[0].issuerUrl, 'https://second.okta.com')
+    assert.equal(rows[0]?.clientId, 'second')
+    assert.equal(rows[0]?.issuerUrl, 'https://second.okta.com')
   })
 
   test('SSO config is isolated between tenants', async ({ assert }) => {

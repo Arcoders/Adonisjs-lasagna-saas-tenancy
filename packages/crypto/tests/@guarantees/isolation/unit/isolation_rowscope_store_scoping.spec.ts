@@ -86,8 +86,8 @@ test.group('isolation: rowscope store scoping (unit)', () => {
 
     assert.equal(client.txCount, 0)
     assert.lengthOf(client.calls, 1)
-    assert.notInclude(client.calls[0].sql, 'tenant_id')
-    assert.deepEqual(client.calls[0].bindings, ['subject-1', 'identity-docs'])
+    assert.notInclude(client.calls[0]?.sql, 'tenant_id')
+    assert.deepEqual(client.calls[0]?.bindings, ['subject-1', 'identity-docs'])
   })
 
   test('rowscope (rls off): appends AND tenant_id = ?, no transaction', async ({ assert }) => {
@@ -97,9 +97,9 @@ test.group('isolation: rowscope store scoping (unit)', () => {
 
     assert.equal(client.txCount, 0)
     assert.lengthOf(client.calls, 1)
-    assert.include(client.calls[0].sql, 'AND tenant_id = ?')
+    assert.include(client.calls[0]?.sql, 'AND tenant_id = ?')
     // subject, category, then the tenant scope bind (append order).
-    assert.deepEqual(client.calls[0].bindings, ['subject-1', 'identity-docs', 'tenant-1'])
+    assert.deepEqual(client.calls[0]?.bindings, ['subject-1', 'identity-docs', 'tenant-1'])
   })
 
   test('rowscope (rls on): sets the GUC in a transaction before the scoped query', async ({
@@ -112,11 +112,11 @@ test.group('isolation: rowscope store scoping (unit)', () => {
     assert.equal(client.txCount, 1)
     assert.lengthOf(client.calls, 2)
     // First: set_config(guc, tenant, is_local=true), all bound.
-    assert.include(client.calls[0].sql, 'set_config')
-    assert.deepEqual(client.calls[0].bindings, ['app.tenant_id', 'tenant-1'])
+    assert.include(client.calls[0]?.sql, 'set_config')
+    assert.deepEqual(client.calls[0]?.bindings, ['app.tenant_id', 'tenant-1'])
     // Then: the scoped SELECT.
-    assert.include(client.calls[1].sql, 'AND tenant_id = ?')
-    assert.deepEqual(client.calls[1].bindings, ['subject-1', 'identity-docs', 'tenant-1'])
+    assert.include(client.calls[1]?.sql, 'AND tenant_id = ?')
+    assert.deepEqual(client.calls[1]?.bindings, ['subject-1', 'identity-docs', 'tenant-1'])
   })
 
   test('rowscope INSERT stamps the scope column + value', async ({ assert }) => {
@@ -130,7 +130,7 @@ test.group('isolation: rowscope store scoping (unit)', () => {
     })
 
     assert.lengthOf(client.calls, 1)
-    const { sql, bindings } = client.calls[0]
+    const { sql, bindings } = client.calls[0]!
     assert.match(sql, /INSERT INTO .*\(subject_id, category, wrapped_dek, kek_id, tenant_id\)/)
     assert.include(sql, '(?, ?, ?, ?, ?)')
     assert.deepEqual(bindings, ['subject-1', 'identity-docs', 'enc_v2:...', 'env-abc', 'tenant-1'])
@@ -142,7 +142,7 @@ test.group('isolation: rowscope store scoping (unit)', () => {
     await store.listLive(T, { afterId: 'cursor-9', limit: 100 })
 
     assert.lengthOf(client.calls, 1)
-    const { sql, bindings } = client.calls[0]
+    const { sql, bindings } = client.calls[0]!
     assert.include(sql, 'id > ?')
     assert.include(sql, 'tenant_id = ?')
     // cursor, tenant scope, then limit.

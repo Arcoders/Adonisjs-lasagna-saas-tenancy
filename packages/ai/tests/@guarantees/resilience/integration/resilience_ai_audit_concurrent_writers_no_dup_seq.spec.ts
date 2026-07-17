@@ -58,7 +58,7 @@ test.group('AI audit concurrent writers keep a contiguous chain (T3, real pg)', 
       'SELECT count(*) AS c, count(DISTINCT seq) AS d FROM backoffice.ai_audit_logs WHERE tenant_id = ?',
       [tenantId]
     )
-    const row = rowsOfResult(res)[0]
+    const row = rowsOfResult(res)[0]!
     assert.equal(Number(row.c), N)
     assert.equal(
       Number(row.d),

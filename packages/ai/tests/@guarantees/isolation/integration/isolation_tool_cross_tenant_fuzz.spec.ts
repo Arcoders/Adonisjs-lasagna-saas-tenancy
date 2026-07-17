@@ -117,7 +117,7 @@ test.group('tool cross-tenant fuzz (real Postgres, interleaved)', (group) => {
       await client.rawQuery('SELECT 1')
     } catch {
       ready = false
-      return
+      return async () => {}
     }
     ready = true
 

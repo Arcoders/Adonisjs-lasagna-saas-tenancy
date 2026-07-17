@@ -58,7 +58,7 @@ async function seedRow(tenantId: string, subjectId: string): Promise<void> {
 test.group('crypto wrapped-DEK rowscope RLS ENFORCED under least-privilege (real pg)', (group) => {
   group.setup(async () => {
     const ready = await probePg()
-    if (!ready) return
+    if (!ready) return async () => {}
 
     // Does the probe role actually get RLS enforced? Superusers and BYPASSRLS
     // roles are exempt even under FORCE ROW LEVEL SECURITY. Check the role that

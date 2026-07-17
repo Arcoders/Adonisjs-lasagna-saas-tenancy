@@ -51,9 +51,9 @@ test.group('providers: SSRF boundary', () => {
     await collect(
       new DeepSeekProvider({ apiKey: 'k' }, deps).stream(request, new AbortController().signal)
     )
-    assert.isUndefined(calls[0].opts.trustedHost)
-    assert.isUndefined(calls[0].opts.allowLoopback)
-    assert.isTrue(calls[0].opts.streaming)
+    assert.isUndefined(calls[0]!.opts.trustedHost)
+    assert.isUndefined(calls[0]!.opts.allowLoopback)
+    assert.isTrue(calls[0]!.opts.streaming)
   })
 
   test('a pin rejection of a BYOK endpoint surfaces as byok_endpoint_blocked', async ({

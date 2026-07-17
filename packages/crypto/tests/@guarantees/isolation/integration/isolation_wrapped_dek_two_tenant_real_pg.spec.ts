@@ -34,7 +34,7 @@ let routes: Record<string, TenantSchema> = {}
 test.group('crypto wrapped-DEK two-tenant isolation (real pg)', (group) => {
   group.setup(async () => {
     ready = await probePg()
-    if (!ready) return
+    if (!ready) return async () => {}
     routes = {
       [A]: await addTenantSchema(schemaA, connA),
       [B]: await addTenantSchema(schemaB, connB),
@@ -63,10 +63,10 @@ test.group('crypto wrapped-DEK two-tenant isolation (real pg)', (group) => {
     // Each schema holds its own rows.
     const nA = rowsOfResult(
       await db.connection(connA).rawQuery(`SELECT count(*)::int AS n FROM crypto_wrapped_deks`)
-    )[0].n
+    )[0]?.n
     const nB = rowsOfResult(
       await db.connection(connB).rawQuery(`SELECT count(*)::int AS n FROM crypto_wrapped_deks`)
-    )[0].n
+    )[0]?.n
     assert.equal(Number(nA), 1)
     assert.equal(Number(nB), 0)
   }).skip(() => !ready, 'postgres not available; runs in CI')

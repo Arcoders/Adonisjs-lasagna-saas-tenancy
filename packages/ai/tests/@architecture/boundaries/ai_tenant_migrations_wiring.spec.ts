@@ -23,24 +23,24 @@ test.group('architectural — per-tenant migration wiring guard', () => {
     const dropped = { ...tsconfig, include: ['src/**/*.ts', 'providers/**/*.ts', 'configure.ts'] }
     const problems = auditManifestMigrations('ai', 'build/tenant_migrations', dropped, listOne)
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /does not cover "tenant_migrations"/)
+    assert.match(problems[0]!, /does not cover "tenant_migrations"/)
   })
 
   test('trips when the source dir is missing entirely', ({ assert }) => {
     const problems = auditManifestMigrations('ai', 'build/tenant_migrations', tsconfig, () => null)
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /source dir "tenant_migrations" is missing/)
+    assert.match(problems[0]!, /source dir "tenant_migrations" is missing/)
   })
 
   test('trips when the source dir holds no .ts migration', ({ assert }) => {
     const problems = auditManifestMigrations('ai', 'build/tenant_migrations', tsconfig, () => [])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /holds no .ts migration/)
+    assert.match(problems[0]!, /holds no .ts migration/)
   })
 
   test('trips when the declared output is not under the tsconfig outDir', ({ assert }) => {
     const problems = auditManifestMigrations('ai', 'dist/tenant_migrations', tsconfig, listOne)
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /not under the tsconfig outDir/)
+    assert.match(problems[0]!, /not under the tsconfig outDir/)
   })
 })

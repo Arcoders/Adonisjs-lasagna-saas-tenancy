@@ -56,7 +56,7 @@ function interfaceKeys(source: string, name: string): string[] {
     const opens = (line.match(/\{/g) ?? []).length
     const closes = (line.match(/\}/g) ?? []).length
     const m = d === 0 ? line.match(/^\s*(\w+)\??\s*:/) : null
-    if (m) keys.push(m[1])
+    if (m) keys.push(m[1]!)
     d += opens - closes
   }
   return keys

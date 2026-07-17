@@ -35,7 +35,7 @@ const COLUMN_METHODS = [
 function schemaBuilderColumns(source: string): string[] {
   const up = source.split(/async up\(\)/)[1]?.split(/async down\(\)/)[0] ?? ''
   const col = new RegExp(`table\\.(?:${COLUMN_METHODS.join('|')})\\('([a-z_]+)'`, 'g')
-  return [...up.matchAll(col)].map((m) => m[1])
+  return [...up.matchAll(col)].map((m) => m[1]!)
 }
 
 test.group('AI test-kit DDL stays in sync with the shipped migration stub', () => {

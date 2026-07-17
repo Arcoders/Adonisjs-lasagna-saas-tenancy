@@ -195,7 +195,7 @@ test.group('behavior — AiComplianceService (WS-AI-9)', (group) => {
     lockStore.add('ai:purge:lock:tenant-c') // a purge is already holding the lock
     const summary = await svc.purgeTenant(tenant)
     assert.isFalse(summary.ok)
-    assert.equal(summary.steps[0].code, 'purge_in_progress')
+    assert.equal(summary.steps[0]!.code, 'purge_in_progress')
   })
 
   test('a best-effort kernel-audit failure never flips the purge', async ({ assert }) => {

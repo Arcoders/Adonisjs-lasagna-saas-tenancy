@@ -43,7 +43,7 @@ async function createRentersTable(): Promise<void> {
 test.group('crypto blind-index equality query (real pg)', (group) => {
   group.setup(async () => {
     ready = await probePg()
-    if (!ready) return
+    if (!ready) return async () => {}
     routes = { [T]: await addTenantSchema(schema, conn) }
     await createRentersTable()
     await createWormLedger()

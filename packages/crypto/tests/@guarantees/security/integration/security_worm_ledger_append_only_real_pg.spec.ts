@@ -36,7 +36,7 @@ let ready = false
 test.group('crypto WORM ledger append-only enforcement (real pg)', (group) => {
   group.setup(async () => {
     ready = await probePg()
-    if (!ready) return
+    if (!ready) return async () => {}
     await createWormLedger()
     return async () => dropWormLedger()
   })

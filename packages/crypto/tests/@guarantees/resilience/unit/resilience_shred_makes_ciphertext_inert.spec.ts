@@ -51,7 +51,7 @@ test.group('crypto shred: makes ciphertext inert', (group) => {
     // The two-phase audit recorded exactly one PENDING + one COMMITTED.
     assert.lengthOf(ledger.pending, 1)
     assert.lengthOf(ledger.committed, 1)
-    assert.equal(ledger.pending[0].category, 'marketing')
+    assert.equal(ledger.pending[0]?.category, 'marketing')
   })
 
   test('the SubjectShredded event carries the identity and time, never the key', async ({
@@ -67,7 +67,7 @@ test.group('crypto shred: makes ciphertext inert', (group) => {
     const result = await service.shred(T, S, 'marketing')
 
     assert.lengthOf(events, 1)
-    const event = events[0]
+    const event = events[0]!
     assert.deepEqual(
       { tenantId: event.tenantId, subjectId: event.subjectId, category: event.category },
       { tenantId: 'tenant-1', subjectId: S, category: 'marketing' }

@@ -145,7 +145,10 @@ test.group('admin pure — parseExpiresAt', () => {
     const result = parseExpiresAt('2030-01-01T00:00:00.000Z')
     assert.isTrue(result.ok)
     if (result.ok) {
-      assert.instanceOf(result.value, DateTime)
+      // Not assert.instanceOf: chai types its second argument as a public
+      // constructor, and luxon's DateTime constructor is private. The native
+      // operator is what instanceOf runs anyway, and it typechecks.
+      assert.isTrue(result.value instanceof DateTime, 'expected a DateTime')
       assert.equal(result.value?.toUTC().toISO(), '2030-01-01T00:00:00.000Z')
     }
   })

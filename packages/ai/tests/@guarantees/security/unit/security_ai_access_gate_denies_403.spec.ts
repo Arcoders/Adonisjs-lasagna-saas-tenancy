@@ -55,9 +55,9 @@ test.group('AI access gate', (group) => {
     assert.instanceOf(threw, TenantAccessForbiddenException)
     assert.equal((threw as TenantAccessForbiddenException).status, 403)
     assert.lengthOf(captured, 1)
-    assert.equal(captured[0].id, 'guard.ai_access')
-    assert.equal(captured[0].tenantId, 'tenant-1')
-    assert.equal(captured[0].metadata.reason, 'denied')
+    assert.equal(captured[0]!.id, 'guard.ai_access')
+    assert.equal(captured[0]!.tenantId, 'tenant-1')
+    assert.equal(captured[0]!.metadata.reason, 'denied')
   })
 
   test('an async hook resolving false denies the same way', async ({ assert }) => {
@@ -94,7 +94,7 @@ test.group('AI access gate', (group) => {
     assert.equal((threw as TenantAccessForbiddenException).status, 403)
     assert.equal((threw as Error).cause, backendDown)
     assert.lengthOf(captured, 1)
-    assert.equal(captured[0].metadata.reason, 'hook_error')
+    assert.equal(captured[0]!.metadata.reason, 'hook_error')
   })
 
   test('a hook returning true passes without emitting', async ({ assert }) => {
@@ -122,7 +122,7 @@ test.group('AI access gate', (group) => {
 
     assert.instanceOf(threw, TenantAccessForbiddenException)
     assert.lengthOf(captured, 1)
-    assert.equal(captured[0].metadata.reason, 'no_gate')
+    assert.equal(captured[0]!.metadata.reason, 'no_gate')
   })
 
   test('an absent ai block denies (nothing to authorize against)', async ({ assert }) => {

@@ -43,7 +43,7 @@ test.group('architectural: singular live DEK (partial UNIQUE)', () => {
       { path: PATH, source: 'CREATE TABLE t ( subject_id text, category text )' },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /PARTIAL/)
+    assert.match(problems[0]!, /PARTIAL/)
   })
 
   test('a plain (non-partial) UNIQUE (subject_id, category) is a violation', ({ assert }) => {
@@ -115,7 +115,7 @@ test.group('architectural: singular live DEK (partial UNIQUE)', () => {
     )
     const problems = auditOperationLock([{ path: SERVICE, source }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /shred\(\.\.\.\) must run under the per-tenant operation lock/)
+    assert.match(problems[0]!, /shred\(\.\.\.\) must run under the per-tenant operation lock/)
   })
 
   test('a provision that does NOT take the lock is a violation', ({ assert }) => {
@@ -125,6 +125,6 @@ test.group('architectural: singular live DEK (partial UNIQUE)', () => {
     )
     const problems = auditOperationLock([{ path: SERVICE, source }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /#provisionUnderLock/)
+    assert.match(problems[0]!, /#provisionUnderLock/)
   })
 })

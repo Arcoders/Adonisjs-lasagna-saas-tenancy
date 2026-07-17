@@ -40,7 +40,7 @@ test.group('architectural — I7 tool-scoping guard', () => {
       result = await t.handler(args, context)
     `)
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /MUST run inside the active tenancy scope/)
+    assert.match(problems[0]!, /MUST run inside the active tenancy scope/)
   })
 
   test('the re-assert INSIDE the bind is caught as the tautology it is', ({ assert }) => {
@@ -56,8 +56,8 @@ test.group('architectural — I7 tool-scoping guard', () => {
       })
     `)
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /must be called BEFORE runScoped/)
-    assert.match(problems[0], /tautology/)
+    assert.match(problems[0]!, /must be called BEFORE runScoped/)
+    assert.match(problems[0]!, /tautology/)
   })
 
   test('a deleted re-assert is an I7 violation', ({ assert }) => {
@@ -66,7 +66,7 @@ test.group('architectural — I7 tool-scoping guard', () => {
       result = await this.deps.runScoped(tenant, async () => t.handler(args, context))
     `)
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /no assertActiveToolScope/)
+    assert.match(problems[0]!, /no assertActiveToolScope/)
   })
 
   test('a dropped per-call authorization is an I7 violation', ({ assert }) => {
@@ -75,7 +75,7 @@ test.group('architectural — I7 tool-scoping guard', () => {
       result = await this.deps.runScoped(tenant, async () => t.handler(args, context))
     `)
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /authorized per call/)
+    assert.match(problems[0]!, /authorized per call/)
   })
 
   test('a registry that falls back instead of denying is an I7 violation', ({ assert }) => {
@@ -88,7 +88,7 @@ export async function resolveToolRegistry(ctx, tenant, toolsConfig) {
 `
     )
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /must return \[\] when config\.ai\.tools is absent/)
+    assert.match(problems[0]!, /must return \[\] when config\.ai\.tools is absent/)
   })
 
   test('a comment describing the rule does not satisfy it', ({ assert }) => {
@@ -100,7 +100,7 @@ export async function resolveToolRegistry(ctx, tenant, toolsConfig) {
       result = await this.deps.runScoped(tenant, async () => t.handler(args, context))
     `)
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /no assertActiveToolScope/)
+    assert.match(problems[0]!, /no assertActiveToolScope/)
   })
 
   test('a moved executor fails loudly rather than silently passing', ({ assert }) => {
@@ -108,6 +108,6 @@ export async function resolveToolRegistry(ctx, tenant, toolsConfig) {
     // that finds nothing and reports OK is worse than no scan at all.
     const problems = auditToolScoping([{ path: GATE, source: goodGate }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /missing/)
+    assert.match(problems[0]!, /missing/)
   })
 })

@@ -17,8 +17,8 @@ test.group('security — per-tenant tool-loop concurrency cap (Phase 2a)', () =>
       /too many concurrent/i
     )
     assert.instanceOf(err, AIException)
-    assert.equal((err as AIException).aiCode, 'too_many_concurrent')
-    assert.equal((err as AIException).httpStatus, 429)
+    assert.equal((err as unknown as AIException).aiCode, 'too_many_concurrent')
+    assert.equal((err as unknown as AIException).httpStatus, 429)
   })
 
   test('a refused acquire creates no handle; disposing one frees a slot', ({ assert }) => {
@@ -61,9 +61,9 @@ test.group('security — per-tenant tool-loop concurrency cap (Phase 2a)', () =>
       () => watcher.acquire('t1', { maxConcurrent: 3 }),
       /too many concurrent AI streams/i
     )
-    assert.equal((err as AIException).aiCode, 'too_many_concurrent')
+    assert.equal((err as unknown as AIException).aiCode, 'too_many_concurrent')
     // The message does not falsely claim there are three concurrent tool loops.
-    assert.notMatch((err as AIException).message, /concurrent AI tool loops/i)
+    assert.notMatch((err as unknown as AIException).message, /concurrent AI tool loops/i)
   })
 })
 

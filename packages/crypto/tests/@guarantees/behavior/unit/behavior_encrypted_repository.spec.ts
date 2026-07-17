@@ -21,7 +21,8 @@ function makeRepo(
     keyProvider: new EnvKeyProvider(),
     store: new InMemoryWrappedDekStore(),
     erasabilityResolver: opts.erasabilityResolver,
-    ledger: opts.ledger,
+    // `ledger` is optional-without-undefined; present it only when given.
+    ...(opts.ledger ? { ledger: opts.ledger } : {}),
   })
   const repo = new EncryptedRepository({ crypto, resolveCurrentTenant: async () => t })
   return { repo, crypto }

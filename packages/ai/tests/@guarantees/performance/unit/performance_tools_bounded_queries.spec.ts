@@ -50,7 +50,9 @@ function recordingExecutor(fullSet: AIToolHostDefinition[]) {
         audits.push(event)
       },
     },
-    emitMetric: (_tenantId, name, value) => metrics.push({ name, value }),
+    emitMetric: (_tenantId, name, value) => {
+      metrics.push({ name, value })
+    },
   })
   return { audits, metrics, executor: service.forRequest(ctx, fakeTenant, fullSet, 'p-hash') }
 }

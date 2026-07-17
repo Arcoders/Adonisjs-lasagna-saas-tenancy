@@ -18,7 +18,7 @@
   "main": "./build/src/plan.js",
   "types": "./build/src/plan.d.ts",
   "scripts": {
-    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "tsx bin/test.ts"
   },

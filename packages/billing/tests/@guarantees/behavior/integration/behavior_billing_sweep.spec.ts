@@ -85,8 +85,8 @@ test.group('Billing sweep (integration)', (group) => {
       const first = await runBillingSweep()
       assert.equal(first.trialNotices, 1)
       assert.lengthOf(captured, 1)
-      assert.equal(captured[0].subscriptionId, seed.subId)
-      assert.isAtLeast(captured[0].daysLeft, 1)
+      assert.equal(captured[0]?.subscriptionId, seed.subId)
+      assert.isAtLeast(captured[0]!.daysLeft, 1)
 
       const sub = await BillingSubscription.find(seed.subId)
       assert.isNotNull(sub?.trialEndingNotifiedAt, 'flag stamped')

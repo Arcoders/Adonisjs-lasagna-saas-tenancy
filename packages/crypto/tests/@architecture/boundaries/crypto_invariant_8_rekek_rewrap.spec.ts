@@ -53,7 +53,7 @@ test.group('architectural: KEK rotation re-wraps DEKs', () => {
     ].join('\n')
     const problems = auditRekekWalker([{ path: WALKER_PATH, source }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /wrapDek/)
+    assert.match(problems[0]!, /wrapDek/)
   })
 
   test('a missing walker file is a violation (the re-wrap walker is required)', ({ assert }) => {
@@ -61,7 +61,7 @@ test.group('architectural: KEK rotation re-wraps DEKs', () => {
       { path: 'packages/crypto/src/services/crypto_service.ts', source: REWRAP_ONLY },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /was not found/)
+    assert.match(problems[0]!, /was not found/)
   })
 
   test('a doc-comment naming openV2WithKey is not a false positive', ({ assert }) => {

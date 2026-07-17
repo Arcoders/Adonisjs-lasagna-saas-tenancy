@@ -44,7 +44,10 @@ export const erasable =
 /** A resolver that refuses erasure (a legal hold), optionally with a retention date. */
 export const notErasable =
   (reason = 'legal-obligation', retentionUntil?: Date): ErasabilityResolver =>
-  () => ({ erasable: false, reason, retentionUntil })
+  () =>
+    // Omit the key entirely when there is no retention date. The verdict contract
+    // takes `Date | null`, so carrying an explicit undefined is not a legal verdict.
+    retentionUntil ? { erasable: false, reason, retentionUntil } : { erasable: false, reason }
 
 /** A resolver that decides erasability by category (the worked example: consent vs legal-obligation). */
 export const byCategory =
@@ -82,13 +85,16 @@ export function makeService(
   } = {}
 ) {
   const store = new InMemoryWrappedDekStore()
+  // ledger/emitShredded/withLock are optional-without-undefined on the deps, so
+  // include each only when the caller supplied it rather than passing an explicit
+  // undefined.
   const service = new CryptoService({
     keyProvider: new EnvKeyProvider(),
     store,
     erasabilityResolver: opts.erasabilityResolver,
-    ledger: opts.ledger,
-    emitShredded: opts.emitShredded,
-    withLock: opts.withLock,
+    ...(opts.ledger ? { ledger: opts.ledger } : {}),
+    ...(opts.emitShredded ? { emitShredded: opts.emitShredded } : {}),
+    ...(opts.withLock ? { withLock: opts.withLock } : {}),
   })
   return { service, store }
 }

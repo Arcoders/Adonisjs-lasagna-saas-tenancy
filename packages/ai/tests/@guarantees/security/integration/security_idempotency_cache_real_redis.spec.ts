@@ -27,7 +27,7 @@ test.group('idempotency cache on real Redis (integration)', (group) => {
   let service: AiIdempotencyService
 
   group.setup(async () => {
-    new AiProvider(app).register()
+    new AiProvider(app).register?.()
     service = await app.container.make(AiIdempotencyService)
   })
 

@@ -40,7 +40,7 @@ function makeFakeDriver(caps: BillingCapability[]): FakeDriver {
       throw new Error('not used')
     },
     async cancelSubscription(id: string, opts?: { atPeriodEnd?: boolean }) {
-      cancelCalls.push({ id, opts })
+      cancelCalls.push(opts === undefined ? { id } : { id, opts })
     },
   } as FakeDriver
 }

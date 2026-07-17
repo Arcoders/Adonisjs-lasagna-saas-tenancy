@@ -70,7 +70,10 @@ test.group('idempotency key scoping', () => {
     const svc = service()
     assert.equal(
       svc.entryKey({ ...base, sessionId: null }, '0'),
-      svc.entryKey({ ...base, sessionId: undefined }, '0')
+      // The type's optional sessionId does not admit an explicit undefined under
+      // exactOptionalPropertyTypes, but the runtime normalizes undefined and null
+      // identically, which is exactly what this test pins, so pass it deliberately.
+      svc.entryKey({ ...base, sessionId: undefined } as unknown as AiIdempotencyScope, '0')
     )
   })
 

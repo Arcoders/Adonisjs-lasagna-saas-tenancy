@@ -28,16 +28,16 @@ const CAT = 'identity-docs'
 
 let ready = false
 
-async function countRows(where = '', bindings: unknown[] = []): Promise<number> {
+async function countRows(where = '', bindings: string[] = []): Promise<number> {
   const sql = `SELECT count(*)::int AS n FROM crypto_wrapped_deks ${where}`
   const res = await db.connection(centralConn()).rawQuery(sql, bindings)
-  return Number(rowsOfResult(res)[0].n)
+  return Number(rowsOfResult(res)[0]?.n)
 }
 
 test.group('crypto wrapped-DEK rowscope two-tenant isolation (real pg)', (group) => {
   group.setup(async () => {
     ready = await probePg()
-    if (!ready) return
+    if (!ready) return async () => {}
     await addRowscopeTable()
     return async () => {
       await dropRowscopeTable()
@@ -143,7 +143,7 @@ let rlsReady = false
 test.group('crypto wrapped-DEK rowscope RLS smoke (real pg)', (group) => {
   group.setup(async () => {
     rlsReady = await probePg()
-    if (!rlsReady) return
+    if (!rlsReady) return async () => {}
     await addRowscopeTable({ rls: true })
     return async () => {
       await dropRowscopeTable()

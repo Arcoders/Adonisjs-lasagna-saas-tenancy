@@ -36,13 +36,13 @@ async function countIn(conn: string): Promise<number> {
   const res = await db
     .connection(conn)
     .rawQuery(`SELECT count(*)::int AS n FROM crypto_wrapped_deks`)
-  return Number(rowsOfResult(res)[0].n)
+  return Number(rowsOfResult(res)[0]?.n)
 }
 
 test.group('crypto wrapped-DEK database-pg placement (real pg)', (group) => {
   group.setup(async () => {
     ready = (await probePg()) && (await hasCreateDb())
-    if (!ready) return
+    if (!ready) return async () => {}
     routes = {
       [A]: await addTenantDatabase(dbA, connA),
       [B]: await addTenantDatabase(dbB, connB),

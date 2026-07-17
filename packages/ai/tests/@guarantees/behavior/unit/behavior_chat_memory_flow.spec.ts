@@ -93,7 +93,7 @@ test.group('chat controller — conversation memory flow', () => {
 
     const token = t1.res.headers['x-ai-session']
     assert.isString(token, 'turn 1 hands back a session token')
-    assert.deepEqual(provider.calls[0].request.messages, [{ role: 'user', content: 'first' }])
+    assert.deepEqual(provider.calls[0]!.request.messages, [{ role: 'user', content: 'first' }])
 
     const t2 = fakeHttpContext({
       tenant: fakeTenant,
@@ -103,7 +103,7 @@ test.group('chat controller — conversation memory flow', () => {
     await controller.chat(t2.ctx)
 
     assert.deepEqual(
-      provider.calls[1].request.messages,
+      provider.calls[1]!.request.messages,
       [
         { role: 'user', content: 'first' },
         { role: 'assistant', content: 'hi' },

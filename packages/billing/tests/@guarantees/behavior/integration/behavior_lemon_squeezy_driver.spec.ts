@@ -129,7 +129,7 @@ test.group('LemonSqueezyDriver (stubbed fetch)', (group) => {
 
     assert.deepEqual(ids, ['1', '2'])
     assert.equal(urls.length, 2, 'followed pagination to the last page')
-    const firstUrl = decodeURIComponent(urls[0])
+    const firstUrl = decodeURIComponent(urls[0]!)
     assert.match(firstUrl, /filter\[store_id\]=42/)
     assert.match(firstUrl, /filter\[customer_id\]=7/)
   })
@@ -144,7 +144,7 @@ test.group('LemonSqueezyDriver (stubbed fetch)', (group) => {
   test('ensureCustomer POSTs to the JSON:API and maps the numeric id to a string', async ({
     assert,
   }) => {
-    let captured: { url: string; method?: string } | null = null
+    let captured: { url: string; method?: string | undefined } | null = null
     stub((url, init) => {
       captured = { url, method: init?.method }
       return jsonResponse({ data: { id: 7 } })
@@ -173,7 +173,7 @@ test.group('LemonSqueezyDriver (stubbed fetch)', (group) => {
     const customer = await new LemonSqueezyDriver().ensureCustomer(fakeTenant())
     assert.equal(customer.providerCustomerId, '7')
     assert.lengthOf(calls, 1, 'no POST — reused the existing customer')
-    assert.match(calls[0], /^GET .*filter\[email\]/)
+    assert.match(calls[0]!, /^GET .*filter\[email\]/)
   })
 
   test('ensureCustomer reuses the winner on a 422 race (POST conflicts → re-GET finds it)', async ({
@@ -223,7 +223,7 @@ test.group('LemonSqueezyDriver (stubbed fetch)', (group) => {
   })
 
   test('cancelSubscription issues a DELETE and tolerates a 204', async ({ assert }) => {
-    let captured: { url: string; method?: string } | null = null
+    let captured: { url: string; method?: string | undefined } | null = null
     stub((url, init) => {
       captured = { url, method: init?.method }
       return jsonResponse(undefined, 204)

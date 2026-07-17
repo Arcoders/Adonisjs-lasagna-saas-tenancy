@@ -22,28 +22,28 @@ test.group('architectural: no key material in logs or errors', () => {
     const source = ['throw new CryptoException(`bad`, `dek was ${dek} for ${subject}`)'].join('\n')
     const problems = auditNoKeyMaterialInSinks([{ path: P, source }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /raw key material 'dek'/)
+    assert.match(problems[0]!, /raw key material 'dek'/)
   })
 
   test('logging a KEK via toString is a violation', ({ assert }) => {
     const source = ['logger.debug(`kek=${kek.toString("hex")}`)'].join('\n')
     const problems = auditNoKeyMaterialInSinks([{ path: P, source }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /raw key material 'kek'/)
+    assert.match(problems[0]!, /raw key material 'kek'/)
   })
 
   test('console-logging APP_KEY (the value) is a violation', ({ assert }) => {
     const source = ['console.log(appKey)'].join('\n')
     const problems = auditNoKeyMaterialInSinks([{ path: P, source }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /raw key material 'appKey'/)
+    assert.match(problems[0]!, /raw key material 'appKey'/)
   })
 
   test('an index key concatenated into a warn sink is a violation', ({ assert }) => {
     const source = ["warn('index=' + indexKey)"].join('\n')
     const problems = auditNoKeyMaterialInSinks([{ path: P, source }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /raw key material 'indexKey'/)
+    assert.match(problems[0]!, /raw key material 'indexKey'/)
   })
 
   test('a multi-line error template that interpolates a key is caught', ({ assert }) => {
@@ -55,7 +55,7 @@ test.group('architectural: no key material in logs or errors', () => {
     ].join('\n')
     const problems = auditNoKeyMaterialInSinks([{ path: P, source }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /raw key material 'dek'/)
+    assert.match(problems[0]!, /raw key material 'dek'/)
   })
 
   test('a key mentioned only in a comment is not a leak', ({ assert }) => {
@@ -78,14 +78,14 @@ test.group('architectural: no key material in logs or errors', () => {
     const source = ['process.stdout.write(`${dek.toString("hex")}\\n`)'].join('\n')
     const problems = auditNoKeyMaterialInSinks([{ path: P, source }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /raw key material 'dek'/)
+    assert.match(problems[0]!, /raw key material 'dek'/)
   })
 
   test('a raw key in a bare thrown template string is a violation', ({ assert }) => {
     const source = ['throw `cannot open ${dek} for the row`'].join('\n')
     const problems = auditNoKeyMaterialInSinks([{ path: P, source }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /thrown template string references raw key material 'dek'/)
+    assert.match(problems[0]!, /thrown template string references raw key material 'dek'/)
   })
 
   test('a hardcoded key literal (the config-literal clause) is a violation', ({ assert }) => {
@@ -97,7 +97,7 @@ test.group('architectural: no key material in logs or errors', () => {
     ]) {
       const problems = auditNoKeyMaterialInSinks([{ path: P, source: decl }])
       assert.lengthOf(problems, 1, `should flag: ${decl}`)
-      assert.match(problems[0], /hardcoded key literal/)
+      assert.match(problems[0]!, /hardcoded key literal/)
     }
   })
 

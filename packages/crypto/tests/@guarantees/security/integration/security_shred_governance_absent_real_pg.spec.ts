@@ -30,7 +30,7 @@ let originalAppKey: string | undefined
 test.group('crypto shred: governance absent refuses (real Postgres)', (group) => {
   group.setup(async () => {
     ready = await probePg()
-    if (!ready) return
+    if (!ready) return async () => {}
     originalAppKey = process.env.APP_KEY
     process.env.APP_KEY = TEST_KEY
     await createWormLedger()

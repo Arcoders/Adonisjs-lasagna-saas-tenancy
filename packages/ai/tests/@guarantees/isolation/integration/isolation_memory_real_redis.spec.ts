@@ -31,7 +31,7 @@ test.group('conversation memory on real Redis (integration)', (group) => {
 
   group.setup(async () => {
     try {
-      const redis = await app.container.make('redis')
+      const redis = (await app.container.make('redis')) as { ping: () => Promise<unknown> }
       await redis.ping()
       ready = true
     } catch {

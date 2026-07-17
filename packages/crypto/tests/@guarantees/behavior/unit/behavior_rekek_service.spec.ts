@@ -20,11 +20,25 @@ function tenant(id: string): TenantModelContract {
  */
 class FakeKeyProvider implements KeyProvider {
   readonly name = 'fake'
+
+  /**
+   * Present only when the fake reports a rotation cursor, so the walker takes its
+   * cursor branch. Assigned in the constructor body on purpose: a class field
+   * initializer runs before the constructor assigns the parameter properties, so
+   * reading `reportCursor` from one always saw undefined and left this method off
+   * the provider entirely.
+   */
+  readonly currentKekId?: (tenantId: string) => Promise<string>
+
   constructor(
     private current: string,
     private known: Set<string>,
-    private readonly reportCursor = true
-  ) {}
+    reportCursor = true
+  ) {
+    if (reportCursor) {
+      this.currentKekId = async (_tenantId: string): Promise<string> => this.current
+    }
+  }
 
   async wrapDek(_tenantId: string, dek: Buffer): Promise<WrappedDek> {
     return { kekId: this.current, ciphertext: dek.toString('base64') }
@@ -36,10 +50,6 @@ class FakeKeyProvider implements KeyProvider {
     }
     return Buffer.from(wrapped.ciphertext, 'base64')
   }
-
-  currentKekId = this.reportCursor
-    ? async (_tenantId: string): Promise<string> => this.current
-    : undefined
 }
 
 /** Seed a live wrapped-DEK row at a specific KEK generation. */
@@ -82,8 +92,8 @@ test.group('behavior: KEK rotation (rekek)', () => {
     assert.equal(summary.rotated, 1)
     assert.equal(summary.failed, 1)
     assert.lengthOf(summary.failures, 1)
-    assert.equal(summary.failures[0].category, 'identity')
-    assert.equal(summary.failures[0].kekId, 'genX')
+    assert.equal(summary.failures[0]?.category, 'identity')
+    assert.equal(summary.failures[0]?.kekId, 'genX')
 
     // The rotated row now carries the current generation; its DEK bytes are
     // unchanged (the fake wrap is identity base64), so field data still decrypts.

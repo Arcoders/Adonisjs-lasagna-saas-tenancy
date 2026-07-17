@@ -64,6 +64,6 @@ test.group('tenant:billing:doctor + tenant:billing:test-webhook (integration)', 
       1,
       'the synthetic event was written to the processed-events ledger'
     )
-    assert.match(rows[0].eventId, /^evt_test_/)
+    assert.match(rows[0]!.eventId, /^evt_test_/)
   })
 })

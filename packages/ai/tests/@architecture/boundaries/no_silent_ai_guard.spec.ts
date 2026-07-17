@@ -144,8 +144,9 @@ test.group('architectural — AI guard registry contract', () => {
     for (const file of walkTsFiles(SRC_ROOT)) {
       const src = readFileSync(file, 'utf8')
       for (const match of src.matchAll(/emitAiGuardEvent\(\s*'([^']+)'/g)) {
-        if (!ids.has(match[1])) {
-          strays.push(`${relative(AI_ROOT, file).replace(/\\/g, '/')}: ${match[1]}`)
+        const id = match[1]!
+        if (!ids.has(id)) {
+          strays.push(`${relative(AI_ROOT, file).replace(/\\/g, '/')}: ${id}`)
         }
       }
     }

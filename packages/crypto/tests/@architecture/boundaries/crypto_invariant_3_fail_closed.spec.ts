@@ -105,7 +105,7 @@ test.group('architectural: fail-closed reads and the DB CHECK backstop', () => {
     const files = goodReadPath().map((f) => (f.path === MODEL_PATH ? { ...f, source: model } : f))
     const problems = auditFailClosed(files)
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /decryptModelFields contains a catch/)
+    assert.match(problems[0]!, /decryptModelFields contains a catch/)
   })
 
   test('a lenient catch in EncryptedRepository.decrypt (the choke point) is caught', ({
@@ -122,7 +122,7 @@ test.group('architectural: fail-closed reads and the DB CHECK backstop', () => {
     const files = goodReadPath().map((f) => (f.path === REPO_PATH ? { ...f, source: repo } : f))
     const problems = auditFailClosed(files)
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /decrypt contains a catch/)
+    assert.match(problems[0]!, /decrypt contains a catch/)
   })
 
   test('a lenient catch in the mixin decrypt hooks (boot) is caught', ({ assert }) => {
@@ -142,7 +142,7 @@ test.group('architectural: fail-closed reads and the DB CHECK backstop', () => {
     const files = goodReadPath().map((f) => (f.path === MIXIN_PATH ? { ...f, source: boot } : f))
     const problems = auditFailClosed(files)
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /boot contains a catch/)
+    assert.match(problems[0]!, /boot contains a catch/)
   })
 
   test('a repository that stops delegating to decryptField is caught', ({ assert }) => {
@@ -156,7 +156,7 @@ test.group('architectural: fail-closed reads and the DB CHECK backstop', () => {
     const files = goodReadPath().map((f) => (f.path === REPO_PATH ? { ...f, source: repo } : f))
     const problems = auditFailClosed(files)
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /must delegate to decryptField/)
+    assert.match(problems[0]!, /must delegate to decryptField/)
   })
 
   test('decryptField that skips openV2WithKey is a violation', ({ assert }) => {
@@ -172,7 +172,7 @@ test.group('architectural: fail-closed reads and the DB CHECK backstop', () => {
       { path: HELPER_PATH, source: GOOD_HELPER },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /STRICT openV2WithKey/)
+    assert.match(problems[0]!, /STRICT openV2WithKey/)
   })
 
   test('decryptField that catches the strict throw is a lenient carve-out violation', ({
@@ -191,13 +191,13 @@ test.group('architectural: fail-closed reads and the DB CHECK backstop', () => {
       { path: HELPER_PATH, source: GOOD_HELPER },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /catch/)
+    assert.match(problems[0]!, /catch/)
   })
 
   test('a missing CHECK helper is a violation (the write backstop is absent)', ({ assert }) => {
     const problems = auditFailClosed([{ path: SERVICE_PATH, source: GOOD_SERVICE }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /ciphertext CHECK helper/)
+    assert.match(problems[0]!, /ciphertext CHECK helper/)
   })
 
   test('a CHECK helper that only accepts enc_v2 (drops enc_v1) is a violation', ({ assert }) => {
@@ -211,7 +211,7 @@ test.group('architectural: fail-closed reads and the DB CHECK backstop', () => {
       { path: HELPER_PATH, source: helper },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /enc_v1:/)
+    assert.match(problems[0]!, /enc_v1:/)
   })
 
   test('a doc-comment naming catch / a prefix is not a false positive', ({ assert }) => {
@@ -236,6 +236,6 @@ test.group('architectural: fail-closed reads and the DB CHECK backstop', () => {
   test('a missing service file is a violation', ({ assert }) => {
     const problems = auditFailClosed([{ path: HELPER_PATH, source: GOOD_HELPER }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /strict field-decrypt path/)
+    assert.match(problems[0]!, /strict field-decrypt path/)
   })
 })

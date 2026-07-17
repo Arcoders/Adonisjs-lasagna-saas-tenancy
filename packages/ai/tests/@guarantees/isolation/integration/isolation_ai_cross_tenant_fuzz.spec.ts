@@ -52,7 +52,7 @@ function tableDdl(schema: string): string {
 }
 
 function storeFor(idx: number): VectorStoreService {
-  const t = tenants[idx]
+  const t = tenants[idx]!
   const deps: VectorStoreDeps = {
     getDriver: async () => ({
       name: 'schema-pg',
@@ -96,7 +96,7 @@ function mulberry32(seed: number): () => number {
 function shuffle<T>(items: T[], rng: () => number): T[] {
   for (let i = items.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1))
-    ;[items[i], items[j]] = [items[j], items[i]]
+    ;[items[i], items[j]] = [items[j]!, items[i]!]
   }
   return items
 }
@@ -109,7 +109,7 @@ async function runBounded<T>(
   let idx = 0
   async function worker(): Promise<void> {
     while (idx < items.length) {
-      const item = items[idx++]
+      const item = items[idx++]!
       await fn(item)
     }
   }
@@ -135,7 +135,7 @@ test.group(
           .then((r) => (r as { ping: () => Promise<unknown> }).ping())
       } catch {
         ready = false
-        return
+        return async () => {}
       }
       ready = true
 
@@ -176,7 +176,7 @@ test.group(
       shuffle(work, mulberry32(0xa1_b2_c3))
 
       await runBounded(work, CONCURRENCY, async (op) => {
-        const t = tenants[op.i]
+        const t = tenants[op.i]!
         const tag = `t${op.i}-${op.j}`
         if (op.kind === 'embed') {
           await storeFor(op.i).insert(t.tenant, `src-${op.j}`, [
@@ -228,7 +228,7 @@ test.group(
     test('a turn that began before a concurrent purge does not resurrect (tombstone, E5)', async ({
       assert,
     }) => {
-      const t = tenants[0]
+      const t = tenants[0]!
       const key = memory.mintSession(t.tenant.id, 'user-tomb').storageKey
       await memory.append(t.tenant.id, key, { user: 'pre-purge', assistant: 'a' })
       assert.lengthOf(await memory.load(t.tenant.id, key), 2)

@@ -14,8 +14,8 @@ test.group('ai doctor check registration (integration)', () => {
     assert,
   }) => {
     const provider = new AiProvider(app)
-    provider.register()
-    await provider.boot()
+    provider.register?.()
+    await provider.boot?.()
 
     const doctor = await app.container.make(DoctorService)
     const result = await doctor.run({ checks: ['ai_membership_gate'], tenants: [] })
@@ -28,8 +28,8 @@ test.group('ai doctor check registration (integration)', () => {
 
   test('boot registers ai_budget and a filtered doctor run executes it', async ({ assert }) => {
     const provider = new AiProvider(app)
-    provider.register()
-    await provider.boot()
+    provider.register?.()
+    await provider.boot?.()
 
     const doctor = await app.container.make(DoctorService)
     const result = await doctor.run({ checks: ['ai_budget'], tenants: [] })
@@ -42,8 +42,8 @@ test.group('ai doctor check registration (integration)', () => {
 
   test('boot registers ai_tools and a filtered doctor run executes it', async ({ assert }) => {
     const provider = new AiProvider(app)
-    provider.register()
-    await provider.boot()
+    provider.register?.()
+    await provider.boot?.()
 
     const doctor = await app.container.make(DoctorService)
     const result = await doctor.run({ checks: ['ai_tools'], tenants: [] })

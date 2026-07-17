@@ -203,7 +203,9 @@ export function serviceAs(activeScope: string, opts: RealServiceOpts): CryptoSer
     keyProvider: new EnvKeyProvider(),
     store,
     erasabilityResolver: opts.erasabilityResolver,
-    ledger,
+    // `ledger` is optional-without-undefined on the deps, so present it only when set
+    // rather than passing an explicit undefined.
+    ...(ledger ? { ledger } : {}),
   })
 }
 
@@ -345,7 +347,11 @@ export function rowscopeStoreAs(
   opts: { rls?: boolean; connectionName?: string } = {}
 ): PgWrappedDekStore {
   return new PgWrappedDekStore({
-    getDriver: async () => rowscopeDriver({ rls: opts.rls, connectionName: opts.connectionName }),
+    getDriver: async () =>
+      rowscopeDriver({
+        ...(opts.rls !== undefined ? { rls: opts.rls } : {}),
+        ...(opts.connectionName !== undefined ? { connectionName: opts.connectionName } : {}),
+      }),
     getDb: async () => db as unknown as CryptoDb,
     activeScopeTenantId: () => activeScope,
   })

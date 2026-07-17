@@ -424,7 +424,7 @@ test.group('provider drops mid tool_use (real Postgres)', (group) => {
       await client.rawQuery('SELECT 1')
     } catch {
       ready = false
-      return
+      return async () => {}
     }
     ready = true
 

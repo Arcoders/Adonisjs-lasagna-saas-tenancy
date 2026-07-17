@@ -56,6 +56,6 @@ test.group('AI audit anchoring is isolated from the canonical write (real pg)', 
       .rawQuery('SELECT count(*)::int AS n FROM backoffice.ai_audit_logs WHERE tenant_id = ?', [
         tenant,
       ])
-    assert.equal(Number(rowsOfResult(res)[0].n), 1)
+    assert.equal(Number(rowsOfResult(res)[0]!.n), 1)
   }).skip(() => !ready, 'postgres not available; runs in CI')
 })

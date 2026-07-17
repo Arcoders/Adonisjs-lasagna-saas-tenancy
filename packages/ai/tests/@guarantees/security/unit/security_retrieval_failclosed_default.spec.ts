@@ -114,8 +114,8 @@ test.group('retrieval fail-closed default', (group) => {
     assert.equal((threw as AIException).httpStatus, 403)
     assert.equal(state.calls, 0, 'a refused retrieval never reaches the reserve/embed machine')
     assert.lengthOf(captured, 1)
-    assert.equal(captured[0].id, 'guard.ai_retrieval_denied')
-    assert.equal(captured[0].metadata.reason, 'unscoped_unacknowledged')
+    assert.equal(captured[0]!.id, 'guard.ai_retrieval_denied')
+    assert.equal(captured[0]!.metadata.reason, 'unscoped_unacknowledged')
   })
 
   test('RAG-in-chat refuses (403 retrieval_denied) before the provider is reached', async ({
@@ -150,8 +150,8 @@ test.group('retrieval fail-closed default', (group) => {
     assert.lengthOf(seen, 0, 'the provider is never reached')
     assert.equal(state.calls, 0, 'the retrieval service is never called')
     assert.lengthOf(captured, 1)
-    assert.equal(captured[0].id, 'guard.ai_retrieval_denied')
-    assert.equal(captured[0].metadata.reason, 'unscoped_unacknowledged')
+    assert.equal(captured[0]!.id, 'guard.ai_retrieval_denied')
+    assert.equal(captured[0]!.metadata.reason, 'unscoped_unacknowledged')
   })
 
   test('the rate-limit hit is spent only AFTER the ACL passes (refused = 0, acknowledged = 1)', async ({

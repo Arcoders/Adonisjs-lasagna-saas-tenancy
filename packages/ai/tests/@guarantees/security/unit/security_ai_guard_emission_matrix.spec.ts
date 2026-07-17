@@ -589,13 +589,13 @@ test.group('AI guard emission matrix — trip + happy', (group) => {
       }
 
       assert.lengthOf(captured, 1, `${id}: expected exactly one dispatch`)
-      assert.equal(captured[0].id, id)
-      assert.equal(captured[0].severity, entry.severity)
-      assert.equal(captured[0].event, entry.event)
-      assert.equal(captured[0].pillar, 'guard')
+      assert.equal(captured[0]!.id, id)
+      assert.equal(captured[0]!.severity, entry.severity)
+      assert.equal(captured[0]!.event, entry.event)
+      assert.equal(captured[0]!.pillar, 'guard')
 
       // Metadata values stay short (the guards truncate to <= 64 chars).
-      for (const value of Object.values(captured[0].metadata)) {
+      for (const value of Object.values(captured[0]!.metadata)) {
         if (typeof value === 'string') assert.isAtMost(value.length, 64, `${id}: metadata too long`)
       }
 

@@ -187,9 +187,9 @@ test.group('Stripe real-API smoke (T-12)', (group) => {
       })
       let usageRows = await BillingUsageEvent.query().where('idempotencyKey', usageKey)
       assert.lengthOf(usageRows, 1, 'one BillingUsageEvent audit row written')
-      assert.equal(usageRows[0].status, 'sent', 'meter event reported to Stripe')
-      assert.equal(Number(usageRows[0].quantity), 7)
-      assert.isNotNull(usageRows[0].reportedAt)
+      assert.equal(usageRows[0]?.status, 'sent', 'meter event reported to Stripe')
+      assert.equal(Number(usageRows[0]?.quantity), 7)
+      assert.isNotNull(usageRows[0]?.reportedAt)
 
       // Re-report with the SAME idempotency key. The DB-level dedupe
       // short-circuits before re-hitting Stripe; still exactly one row,

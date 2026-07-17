@@ -156,7 +156,7 @@ test.group('client disconnects mid tool execution (real Postgres)', (group) => {
       await client.rawQuery('SELECT 1')
     } catch {
       ready = false
-      return
+      return async () => {}
     }
     ready = true
 

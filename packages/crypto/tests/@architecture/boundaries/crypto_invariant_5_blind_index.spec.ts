@@ -55,7 +55,7 @@ test.group('architectural: blind index is a keyed HMAC', () => {
     const source = `export function computeBlindIndex(k, v) { return v }`
     const problems = auditBlindIndex([{ path: BLIND_INDEX_PATH, source }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /createHmac/)
+    assert.match(problems[0]!, /createHmac/)
   })
 
   test('a bare createHash in any other crypto src file is a violation', ({ assert }) => {
@@ -67,7 +67,7 @@ test.group('architectural: blind index is a keyed HMAC', () => {
       },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /unkeyed digest/)
+    assert.match(problems[0]!, /unkeyed digest/)
   })
 
   test('an aliased createHash import cannot smuggle a bare-hash index past the guard', ({
@@ -123,7 +123,7 @@ test.group('architectural: blind index is a keyed HMAC', () => {
       },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /unkeyed digest/)
+    assert.match(problems[0]!, /unkeyed digest/)
   })
 
   test('an allowlisted file (the WORM ledger subject digest) may use createHash', ({ assert }) => {
@@ -144,7 +144,7 @@ test.group('architectural: blind index is a keyed HMAC', () => {
       { path: MIGRATION_PATH, source: migration(['subject_id', 'category', 'passport_salt']) },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /salt/)
+    assert.match(problems[0]!, /salt/)
   })
 
   test('a comment naming createHash is not a false positive', ({ assert }) => {

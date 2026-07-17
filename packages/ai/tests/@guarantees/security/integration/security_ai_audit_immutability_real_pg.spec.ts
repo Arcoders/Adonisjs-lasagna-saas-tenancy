@@ -52,6 +52,6 @@ test.group('AI audit append-only enforcement (real pg)', (group) => {
     const res = await client.rawQuery('SELECT tokens FROM backoffice.ai_audit_logs WHERE id = ?', [
       entry.id,
     ])
-    assert.equal(Number(rowsOfResult(res)[0].tokens), 10)
+    assert.equal(Number(rowsOfResult(res)[0]!.tokens), 10)
   }).skip(() => !ready, 'postgres not available; runs in CI')
 })

@@ -44,7 +44,7 @@ let routes: Record<string, TenantSchema> = {}
 /** Row counts for the tenant's wrapped-DEK table: total, live, tombstoned. */
 async function deks(
   where = '',
-  bindings: unknown[] = []
+  bindings: string[] = []
 ): Promise<{
   total: number
   live: number
@@ -66,7 +66,7 @@ async function deks(
 test.group('crypto shred is O(1): real PgWrappedDekStore and WORM ledger', (group) => {
   group.setup(async () => {
     ready = await probePg()
-    if (!ready) return
+    if (!ready) return async () => {}
     routes = { [T]: await addTenantSchema(schema, conn) }
     await createWormLedger()
     return async () => {
@@ -97,7 +97,10 @@ test.group('crypto shred is O(1): real PgWrappedDekStore and WORM ledger', (grou
 
     // Every ciphertext still decrypts under that shared DEK.
     for (let i = 0; i < N; i++) {
-      assert.equal(await svc.decryptField(tenant(T), 'renter-1', CAT, ciphertexts[i]), `value-${i}`)
+      assert.equal(
+        await svc.decryptField(tenant(T), 'renter-1', CAT, ciphertexts[i]!),
+        `value-${i}`
+      )
     }
   }).skip(() => !ready, 'postgres not available; runs in CI, fails loud under REQUIRE_REAL_PG')
 
@@ -128,7 +131,7 @@ test.group('crypto shred is O(1): real PgWrappedDekStore and WORM ledger', (grou
     // Every one of the N ciphertexts is now inert (the single key is gone).
     for (let i = 0; i < N; i++) {
       await assert.rejects(
-        () => svc.decryptField(tenant(T), 'renter-2', CAT, ciphertexts[i]),
+        () => svc.decryptField(tenant(T), 'renter-2', CAT, ciphertexts[i]!),
         /no live DEK/
       )
     }

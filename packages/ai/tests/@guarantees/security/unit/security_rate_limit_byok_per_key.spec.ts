@@ -92,9 +92,9 @@ test.group('AI per-key rate limiter', (group) => {
     )
 
     assert.lengthOf(captured, 1, 'a policy denial rides the guard channel')
-    assert.equal(captured[0].id, 'guard.ai_rate_limited')
-    assert.equal(captured[0].severity, 'warn')
-    assert.equal(captured[0].tenantId, 't1')
+    assert.equal(captured[0]!.id, 'guard.ai_rate_limited')
+    assert.equal(captured[0]!.severity, 'warn')
+    assert.equal(captured[0]!.tenantId, 't1')
 
     const snapshot = snapshotAiGuardCounters()
     assert.equal(snapshot.rejected.find((r) => r.id === 'guard.ai_rate_limited')?.value, 1)

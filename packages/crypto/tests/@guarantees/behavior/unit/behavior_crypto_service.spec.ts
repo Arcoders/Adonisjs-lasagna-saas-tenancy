@@ -98,7 +98,7 @@ test.group('crypto service: field round-trip under a per-(subject × category) D
     const { service } = makeService()
     const ciphertext = await service.encryptField(T, S, CAT, 'immutable')
     const parts = ciphertext.split(':')
-    const cipher = parts[4]
+    const cipher = parts[4]!
     parts[4] = cipher.slice(0, -1) + (cipher.at(-1) === '0' ? '1' : '0')
     await assert.rejects(() => service.decryptField(T, S, CAT, parts.join(':')))
   })

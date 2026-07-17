@@ -57,7 +57,7 @@ test.group('MockBillingDriver contract', () => {
       timestampSeconds: 1_700_000_000,
     })
     assert.lengthOf(d.usage, 1)
-    assert.equal(d.usage[0].quantity, 5)
+    assert.equal(d.usage[0]?.quantity, 5)
 
     await d.cancelSubscription('sub_1', { atPeriodEnd: true })
     assert.deepEqual(d.canceled[0], { id: 'sub_1', atPeriodEnd: true })

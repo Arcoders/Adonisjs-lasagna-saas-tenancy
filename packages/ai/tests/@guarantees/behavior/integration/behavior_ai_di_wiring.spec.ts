@@ -31,7 +31,7 @@ test.group('ai provider DI wiring (integration)', () => {
   test('registers a resolvable StreamExtensionService and provider registry', async ({
     assert,
   }) => {
-    new AiProvider(app).register()
+    new AiProvider(app).register?.()
 
     const service = await app.container.make(StreamExtensionService)
     assert.instanceOf(service, StreamExtensionService)
@@ -44,7 +44,7 @@ test.group('ai provider DI wiring (integration)', () => {
   test('the embedding-provider registry binds as a singleton, defaults to the configured provider, and honours a host override (2A)', async ({
     assert,
   }) => {
-    new AiProvider(app).register()
+    new AiProvider(app).register?.()
     const reg = await app.container.make(EmbeddingProviderRegistry)
     assert.instanceOf(reg, EmbeddingProviderRegistry)
 
@@ -78,7 +78,7 @@ test.group('ai provider DI wiring (integration)', () => {
   test('registers a resolvable VectorStoreService (driver + lucid.db + tenancy scope seal)', async ({
     assert,
   }) => {
-    new AiProvider(app).register()
+    new AiProvider(app).register?.()
     // Resolving proves getActiveDriver, the `lucid.db` container alias, and the
     // tenancy scope accessor are all makeable from the real booted container (the
     // DI a unit test with a fake db cannot cover).
@@ -89,7 +89,7 @@ test.group('ai provider DI wiring (integration)', () => {
   test('registers a resolvable AiAuditWriter and the three audit sinks (WS-AI-7)', async ({
     assert,
   }) => {
-    new AiProvider(app).register()
+    new AiProvider(app).register?.()
     // Audit is on by default, so the writer + the three sinks bind and resolve
     // against the real container (the writer's backoffice connection + tenancy
     // scope seam are makeable; the sinks resolve the writer).
@@ -103,7 +103,7 @@ test.group('ai provider DI wiring (integration)', () => {
   test('registers a resolvable AiComplianceService (WS-AI-9 purge orchestrator)', async ({
     assert,
   }) => {
-    new AiProvider(app).register()
+    new AiProvider(app).register?.()
     // Resolving proves its memory + vector + idempotency seams, the kernel audit
     // logger, tenancy.run and the redis lock are all makeable from the real
     // container (the DI a unit test with fakes cannot cover).
@@ -114,7 +114,7 @@ test.group('ai provider DI wiring (integration)', () => {
   test('the liveness watcher resolves and a real TenantSuspended dispatch aborts its signals', async ({
     assert,
   }) => {
-    new AiProvider(app).register()
+    new AiProvider(app).register?.()
 
     const watcher = await app.container.make(TenantLivenessWatcher)
     assert.instanceOf(watcher, TenantLivenessWatcher)

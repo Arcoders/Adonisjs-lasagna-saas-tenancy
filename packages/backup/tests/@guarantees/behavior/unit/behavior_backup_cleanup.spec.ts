@@ -30,12 +30,22 @@ function dumpFilesIn(dir: string): Promise<string[]> {
     .catch(() => [])
 }
 
+// The path the service asked pg_dump to write to. Throws rather than returning
+// undefined: if `--file <path>` ever stops being passed, these doubles are no
+// longer testing the cleanup and should say so instead of writing to nowhere.
+function fileArg(args: string[]): string {
+  const path = args[args.indexOf('--file') + 1]
+  if (!path) {
+    throw new Error(`expected pg_dump args to carry '--file <path>', got: ${args.join(' ')}`)
+  }
+  return path
+}
+
 // pg_dump that opens its --file output, writes a partial archive, then dies.
 class PartialThenFailBackup extends BackupService {
   wrotePath?: string
   protected async runProcess(_command: string, args: string[]): Promise<void> {
-    const i = args.indexOf('--file')
-    this.wrotePath = args[i + 1]
+    this.wrotePath = fileArg(args)
     await writeFile(this.wrotePath, 'PARTIAL — not a valid pg_dump custom archive')
     throw new Error('pg_dump exited with code 1: server closed the connection unexpectedly')
   }
@@ -44,8 +54,7 @@ class PartialThenFailBackup extends BackupService {
 // pg_dump that completes and leaves a (fake) full archive at --file.
 class CleanBackup extends BackupService {
   protected async runProcess(_command: string, args: string[]): Promise<void> {
-    const i = args.indexOf('--file')
-    await writeFile(args[i + 1], 'COMPLETE archive bytes')
+    await writeFile(fileArg(args), 'COMPLETE archive bytes')
   }
 }
 

@@ -149,7 +149,7 @@ test.group('VectorStoreService — storage', (group) => {
     const env = fakeVectorEnv({ dimension: 8 })
     const store = new VectorStoreService(env.deps)
     await store.search(tenant, { model: 'm', vector: vec(8) }, { limit: 5 })
-    const q = env.queries[0]
+    const q = env.queries[0]!
     assert.match(q.sql, /WHERE model = \? AND dim = \?/i)
     assert.match(q.sql, /ORDER BY embedding <=> \?::vector/i)
     assert.match(q.sql, /LIMIT \?/i)
@@ -159,7 +159,7 @@ test.group('VectorStoreService — storage', (group) => {
     const env = fakeVectorEnv({ deleted: 4 })
     const removed = await new VectorStoreService(env.deps).deleteBySource(tenant, 'poisoned-doc')
     assert.equal(removed, 4)
-    const del = env.queries[0]
+    const del = env.queries[0]!
     assert.match(del.sql, /DELETE FROM ai_embeddings WHERE source = \?/i)
     assert.deepEqual(del.bindings, ['poisoned-doc'])
   })

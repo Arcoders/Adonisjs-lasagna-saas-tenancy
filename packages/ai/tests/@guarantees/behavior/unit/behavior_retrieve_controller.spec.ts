@@ -83,9 +83,9 @@ test.group('AiRetrieveController behavior', () => {
       service
     ).retrieve(ctx)
     assert.lengthOf(requests, 1)
-    assert.deepEqual(requests[0].scope, { kind: 'sources', sources: ['kb-1'] })
-    assert.equal(requests[0].limit, 25, 'a requested limit over maxLimit is clamped')
-    assert.equal(requests[0].query, 'refund policy')
+    assert.deepEqual(requests[0]!.scope, { kind: 'sources', sources: ['kb-1'] })
+    assert.equal(requests[0]!.limit, 25, 'a requested limit over maxLimit is clamped')
+    assert.equal(requests[0]!.query, 'refund policy')
   })
 
   test('a missing query is a 400 before any retrieval', async ({ assert }) => {

@@ -258,7 +258,9 @@ test.group('BillingProvider.boot — billing.verify wiring', (group) => {
     // original verify() reason is carried as its `cause`.
     let bootError: unknown
     try {
-      await provider.boot()
+      // `boot` is optional on the erased SatelliteProviderContract this public
+      // export resolves to, but definePlugin always synthesizes it.
+      await provider.boot!()
     } catch (error) {
       bootError = error
     }

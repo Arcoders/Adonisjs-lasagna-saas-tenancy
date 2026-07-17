@@ -38,7 +38,7 @@ test.group('architectural: wrapped-DEK column allowlist', () => {
       { path: PATH, source: migration([...ALLOWED_COLUMNS, 'plaintext_dek']) },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /allowlist/)
+    assert.match(problems[0]!, /allowlist/)
   })
 
   test('a bare `dek` column is a violation', ({ assert }) => {
@@ -46,7 +46,7 @@ test.group('architectural: wrapped-DEK column allowlist', () => {
       { path: PATH, source: migration([...ALLOWED_COLUMNS, 'dek']) },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /'dek'/)
+    assert.match(problems[0]!, /'dek'/)
   })
 
   test('a missing allowlisted column is a violation', ({ assert }) => {
@@ -54,7 +54,7 @@ test.group('architectural: wrapped-DEK column allowlist', () => {
       { path: PATH, source: migration(ALLOWED_COLUMNS.filter((c) => c !== 'wrapped_dek')) },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /missing/)
+    assert.match(problems[0]!, /missing/)
   })
 
   test('the allowlist has no plaintext-DEK column name', ({ assert }) => {
@@ -78,7 +78,7 @@ test.group('architectural: wrapped-DEK column allowlist', () => {
       { path: PATH, source: migration([...ALLOWED_COLUMNS, 'tenant_id']) },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /'tenant_id'/)
+    assert.match(problems[0]!, /'tenant_id'/)
   })
 
   test('the rowscope table missing tenant_id is a violation', ({ assert }) => {
@@ -86,7 +86,7 @@ test.group('architectural: wrapped-DEK column allowlist', () => {
       { path: ROWSCOPE_PATH, source: migration(ALLOWED_COLUMNS) },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /tenant_id.*missing|missing.*tenant_id/)
+    assert.match(problems[0]!, /tenant_id.*missing|missing.*tenant_id/)
   })
 
   // `bytea` is the natural Postgres type for raw key bytes; a parser blind to it would

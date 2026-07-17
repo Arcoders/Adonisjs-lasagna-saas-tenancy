@@ -370,7 +370,7 @@ test.group('SsoService — OIDC flow with fake IdP', (group) => {
     )
     assert.equal(rejected.length, 1)
     assert.match(
-      String((rejected[0] as PromiseRejectedResult).reason?.message ?? rejected[0].reason),
+      String((rejected[0] as PromiseRejectedResult).reason?.message ?? rejected[0]?.reason),
       /invalid or expired sso state/i
     )
   })

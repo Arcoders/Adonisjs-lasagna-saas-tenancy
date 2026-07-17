@@ -48,13 +48,13 @@ test.group('VectorStoreService — retrievalFilter scope', (group) => {
     const store = new VectorStoreService(env.deps)
     const matches = await store.search(tenant, query, { limit: 5, filter: { kind: 'all' } })
 
-    const q = env.queries[0]
+    const q = env.queries[0]!
     assert.notMatch(q.sql, /source in/i)
     assert.notMatch(q.sql, /metadata @>/i)
-    assert.equal(q.bindings[1], 'm')
-    assert.equal(q.bindings[2], 8)
-    assert.equal(q.bindings[0], q.bindings[q.bindings.length - 2], 'the two vector binds match')
-    assert.equal(q.bindings[q.bindings.length - 1], 5, 'the last bind is the limit')
+    assert.equal(q.bindings[1]!, 'm')
+    assert.equal(q.bindings[2]!, 8)
+    assert.equal(q.bindings[0]!, q.bindings[q.bindings.length - 2]!, 'the two vector binds match')
+    assert.equal(q.bindings[q.bindings.length - 1]!, 5, 'the last bind is the limit')
     // The hit is mapped to a VectorMatch.
     assert.deepEqual(matches, [searchHit])
   })
@@ -69,7 +69,7 @@ test.group('VectorStoreService — retrievalFilter scope', (group) => {
       filter: { kind: 'sources', sources: ['doc-a', 'doc-b'] },
     })
 
-    const q = env.queries[0]
+    const q = env.queries[0]!
     assert.match(q.sql, /AND source IN \(\?, \?\)/i)
     // model, dim, then the two source binds, in order.
     assert.deepEqual(q.bindings.slice(1, 5), ['m', 8, 'doc-a', 'doc-b'])
@@ -96,7 +96,7 @@ test.group('VectorStoreService — retrievalFilter scope', (group) => {
       filter: { kind: 'metadata', match: { team: 'eng', level: 2 } },
     })
 
-    const q = env.queries[0]
+    const q = env.queries[0]!
     assert.match(q.sql, /AND metadata @> \?::jsonb/i)
     assert.include(q.bindings as unknown[], JSON.stringify({ team: 'eng', level: 2 }))
   })

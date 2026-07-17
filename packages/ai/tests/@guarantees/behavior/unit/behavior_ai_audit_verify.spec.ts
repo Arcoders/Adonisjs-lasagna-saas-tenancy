@@ -51,7 +51,7 @@ test.group('behavior — AiAuditWriter verify', () => {
     assert,
   }) => {
     const rows = chainRows('t1', 3)
-    rows[1].tokens = 9999 // tamper a data field without re-signing the row
+    rows[1]!.tokens = 9999 // tamper a data field without re-signing the row
     const result = await verifierOver(rows).verify()
     assert.isFalse(result.ok)
     assert.deepEqual(result.break, { tenantId: 't1', seq: 2, reason: 'checksum' })
@@ -66,7 +66,7 @@ test.group('behavior — AiAuditWriter verify', () => {
 
   test('a broken prev-link is reported', async ({ assert }) => {
     const rows = chainRows('t1', 3)
-    rows[2].prev_checksum = 'e'.repeat(64)
+    rows[2]!.prev_checksum = 'e'.repeat(64)
     const result = await verifierOver(rows).verify()
     assert.isFalse(result.ok)
     assert.deepEqual(result.break, { tenantId: 't1', seq: 3, reason: 'prev_link' })
@@ -74,7 +74,7 @@ test.group('behavior — AiAuditWriter verify', () => {
 
   test('verify scoped to one tenant ignores another tenant’s tampering', async ({ assert }) => {
     const t2 = chainRows('t2', 2)
-    t2[1].tokens = 1 // tamper t2's chain
+    t2[1]!.tokens = 1 // tamper t2's chain
     const rows = [...chainRows('t1', 2), ...t2]
     // Scoped to the intact tenant: clean.
     assert.isTrue((await verifierOver(rows).verify('t1')).ok)

@@ -98,7 +98,7 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     const rows = await BillingCustomer.query().where('tenant_id', tenant.id)
 
     assert.lengthOf(rows, 1)
-    assert.equal(rows[0].providerCustomerId, firstCustomer!.providerCustomerId)
+    assert.equal(rows[0]?.providerCustomerId, firstCustomer!.providerCustomerId)
   })
 
   test('rejects a checkout currency that conflicts with the established customer currency', async ({
@@ -322,6 +322,6 @@ test.group('Checkout + portal helpers (integration)', (group) => {
     })
 
     assert.lengthOf(captured, 1)
-    assert.equal(captured[0].client_reference_id, tenant.id)
+    assert.equal(captured[0]?.client_reference_id, tenant.id)
   })
 })

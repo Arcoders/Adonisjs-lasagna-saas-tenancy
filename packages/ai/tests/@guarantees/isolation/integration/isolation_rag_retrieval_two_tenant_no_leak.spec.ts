@@ -81,7 +81,7 @@ test.group('RAG retrieval two-tenant + filter isolation (real pgvector)', (group
       await ensureVectorExtension(client)
     } catch {
       pgvectorReady = false
-      return
+      return async () => {}
     }
     pgvectorReady = true
 
@@ -174,7 +174,7 @@ test.group('RAG retrieval two-tenant + filter isolation (real pgvector)', (group
       b.map((h) => h.content),
       ['B eng']
     )
-    assert.notEqual(a[0].id, b[0].id)
+    assert.notEqual(a[0]!.id, b[0]!.id)
   }).skip(skip, 'pgvector not available (local postgres:16-alpine); runs in CI')
 
   test('an empty sources allow-list returns nothing (a user who may see no documents)', async ({

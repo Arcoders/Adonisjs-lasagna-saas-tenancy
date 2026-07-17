@@ -191,7 +191,7 @@ test.group('AI tool handler backend down (unreachable mid-call) on real Postgres
       await client.rawQuery('SELECT 1')
     } catch {
       ready = false
-      return
+      return async () => {}
     }
     ready = true
 

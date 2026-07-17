@@ -22,35 +22,35 @@ test.group('ai_membership_gate doctor check', () => {
     }
   })
 
-  test('the acknowledged opt-out is an info issue with the shared wording', ({ assert }) => {
+  test('the acknowledged opt-out is an info issue with the shared wording', async ({ assert }) => {
     const ai = { allowedProviders: ['claude'], acknowledgeNoMembershipGate: true } as AiConfig
-    const issues = aiMembershipGateCheck(() => ai).run(doctorCtx)
+    const issues = await aiMembershipGateCheck(() => ai).run(doctorCtx)
 
     assert.lengthOf(issues, 1)
-    assert.equal(issues[0].code, 'ai_membership_gate_acknowledged')
-    assert.equal(issues[0].severity, 'info')
-    assert.equal(issues[0].message, aiMembershipGateRisk(ai))
+    assert.equal(issues[0]!.code, 'ai_membership_gate_acknowledged')
+    assert.equal(issues[0]!.severity, 'info')
+    assert.equal(issues[0]!.message, aiMembershipGateRisk(ai))
   })
 
-  test('neither hook nor acknowledgement is a warn issue naming the mount refusal', ({
+  test('neither hook nor acknowledgement is a warn issue naming the mount refusal', async ({
     assert,
   }) => {
     const ai = { allowedProviders: ['claude'] } as AiConfig
-    const issues = aiMembershipGateCheck(() => ai).run(doctorCtx)
+    const issues = await aiMembershipGateCheck(() => ai).run(doctorCtx)
 
     assert.lengthOf(issues, 1)
-    assert.equal(issues[0].code, 'ai_membership_gate_missing')
-    assert.equal(issues[0].severity, 'warn')
-    assert.match(issues[0].message, /refuse to mount/)
+    assert.equal(issues[0]!.code, 'ai_membership_gate_missing')
+    assert.equal(issues[0]!.severity, 'warn')
+    assert.match(issues[0]!.message, /refuse to mount/)
   })
 
-  test('the check reads config at run time, not at construction', ({ assert }) => {
+  test('the check reads config at run time, not at construction', async ({ assert }) => {
     let ai: AiConfig | undefined = { allowedProviders: ['claude'] } as AiConfig
     const check = aiMembershipGateCheck(() => ai)
 
-    assert.lengthOf(check.run(doctorCtx), 1)
+    assert.lengthOf(await check.run(doctorCtx), 1)
     ai = { allowedProviders: ['claude'], authorizeAIAccess: () => true } as AiConfig
-    assert.lengthOf(check.run(doctorCtx), 0)
+    assert.lengthOf(await check.run(doctorCtx), 0)
   })
 
   test('the check carries the stable name operators target with --check', ({ assert }) => {

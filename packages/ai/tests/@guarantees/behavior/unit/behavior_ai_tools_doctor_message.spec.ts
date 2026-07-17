@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import { aiToolsCheck, aiToolsPosture } from '../../../../src/services/ai_tools_check.js'
+import type { DoctorContext } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { AiConfig, AIToolHostDefinition } from '../../../../src/define_config.js'
 
 /**
@@ -11,6 +12,10 @@ import type { AiConfig, AIToolHostDefinition } from '../../../../src/define_conf
  * action-tool flag adds a separate honest `info`.
  */
 
+// The check reads its posture from the injected config getter and never touches the
+// run context, so an empty one is all it needs.
+const emptyCtx = { tenants: [], repo: {} as any, attemptFix: false } as DoctorContext
+
 const readTool: AIToolHostDefinition = {
   name: 'count_bookings',
   description: 'count bookings',
@@ -21,29 +26,29 @@ const readTool: AIToolHostDefinition = {
 function ai(tools?: Partial<AiConfig['tools']>): AiConfig {
   return {
     allowedProviders: ['claude'],
-    ...(tools ? { tools: tools as AiConfig['tools'] } : {}),
+    ...(tools ? { tools: tools as NonNullable<AiConfig['tools']> } : {}),
   }
 }
 
 test.group('ai_tools doctor check', () => {
-  test('no config.ai at all reports nothing', ({ assert }) => {
+  test('no config.ai at all reports nothing', async ({ assert }) => {
     assert.isNull(aiToolsPosture(undefined))
-    assert.deepEqual(aiToolsCheck(() => undefined).run(), [])
+    assert.deepEqual(await aiToolsCheck(() => undefined).run(emptyCtx), [])
   })
 
-  test('a tools block that offers no tools reports nothing', ({ assert }) => {
+  test('a tools block that offers no tools reports nothing', async ({ assert }) => {
     const empty = ai({ registry: [] })
     assert.isNull(aiToolsPosture(empty))
-    assert.deepEqual(aiToolsCheck(() => empty).run(), [])
+    assert.deepEqual(await aiToolsCheck(() => empty).run(emptyCtx), [])
   })
 
-  test('a wired authorizeTool is healthy (no issue)', ({ assert }) => {
+  test('a wired authorizeTool is healthy (no issue)', async ({ assert }) => {
     const scoped = ai({ registry: [readTool], authorizeTool: () => ({ kind: 'allow' }) })
     assert.isNull(aiToolsPosture(scoped))
-    assert.deepEqual(aiToolsCheck(() => scoped).run(), [])
+    assert.deepEqual(await aiToolsCheck(() => scoped).run(emptyCtx), [])
   })
 
-  test('tools offered but no hook and no acknowledgement is a warn (tool calls refused)', ({
+  test('tools offered but no hook and no acknowledgement is a warn (tool calls refused)', async ({
     assert,
   }) => {
     const unscoped = ai({ registry: [readTool] })
@@ -53,11 +58,11 @@ test.group('ai_tools doctor check', () => {
     assert.include(posture!.message, 'fail-closed')
     assert.include(posture!.message, 'refused with')
 
-    const issues = aiToolsCheck(() => unscoped).run()
+    const issues = await aiToolsCheck(() => unscoped).run(emptyCtx)
     assert.lengthOf(issues, 1)
-    assert.equal(issues[0].code, 'ai_tools_unauthorized')
-    assert.equal(issues[0].severity, 'warn')
-    assert.equal(issues[0].message, posture!.message)
+    assert.equal(issues[0]!.code, 'ai_tools_unauthorized')
+    assert.equal(issues[0]!.severity, 'warn')
+    assert.equal(issues[0]!.message, posture!.message)
   })
 
   test('a resolveTools hook counts as offering tools (warn without authorizeTool)', ({
@@ -69,20 +74,20 @@ test.group('ai_tools doctor check', () => {
     assert.equal(posture!.severity, 'warn')
   })
 
-  test('an acknowledged tenant-wide posture is an info issue', ({ assert }) => {
+  test('an acknowledged tenant-wide posture is an info issue', async ({ assert }) => {
     const acknowledged = ai({ registry: [readTool], acknowledgeUnauthorizedTools: true })
     const posture = aiToolsPosture(acknowledged)
     assert.isNotNull(posture)
     assert.equal(posture!.severity, 'info')
     assert.include(posture!.message, 'tenant-wide')
 
-    const issues = aiToolsCheck(() => acknowledged).run()
+    const issues = await aiToolsCheck(() => acknowledged).run(emptyCtx)
     assert.lengthOf(issues, 1)
-    assert.equal(issues[0].code, 'ai_tools_acknowledged')
-    assert.equal(issues[0].severity, 'info')
+    assert.equal(issues[0]!.code, 'ai_tools_acknowledged')
+    assert.equal(issues[0]!.severity, 'info')
   })
 
-  test('the action-tool flag adds a separate honest info (still refused until Phase 3a)', ({
+  test('the action-tool flag adds a separate honest info (still refused until Phase 3a)', async ({
     assert,
   }) => {
     const actionEnabled = ai({
@@ -91,18 +96,20 @@ test.group('ai_tools doctor check', () => {
       actionTools: { enabled: true },
     })
     // authorizeTool is wired, so the only issue is the action-enabled info.
-    const issues = aiToolsCheck(() => actionEnabled).run()
+    const issues = await aiToolsCheck(() => actionEnabled).run(emptyCtx)
     assert.lengthOf(issues, 1)
-    assert.equal(issues[0].code, 'ai_tools_action_enabled')
-    assert.equal(issues[0].severity, 'info')
-    assert.include(issues[0].message, 'still refuses')
+    assert.equal(issues[0]!.code, 'ai_tools_action_enabled')
+    assert.equal(issues[0]!.severity, 'info')
+    assert.include(issues[0]!.message, 'still refuses')
   })
 
-  test('the check reads config at run time (live posture, not registration time)', ({ assert }) => {
+  test('the check reads config at run time (live posture, not registration time)', async ({
+    assert,
+  }) => {
     let current = ai({ registry: [readTool] })
     const check = aiToolsCheck(() => current)
-    assert.equal(check.run()[0]?.severity, 'warn')
+    assert.equal((await check.run(emptyCtx))[0]?.severity, 'warn')
     current = ai({ registry: [readTool], authorizeTool: () => ({ kind: 'allow' }) })
-    assert.deepEqual(check.run(), [])
+    assert.deepEqual(await check.run(emptyCtx), [])
   })
 })
