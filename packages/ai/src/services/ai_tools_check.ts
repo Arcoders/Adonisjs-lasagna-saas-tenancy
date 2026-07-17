@@ -1,5 +1,5 @@
 import type { DoctorCheck, DiagnosisIssue } from '@adonisjs-lasagna/saas-tenancy/services'
-import type { AiConfig } from '../define_config.js'
+import type { AiConfig, AIToolHostDefinition } from '../define_config.js'
 
 /** A tool-calling posture reading: an issue naming the caveat, or null when nothing to report. */
 export interface AiToolsPosture {
@@ -21,7 +21,7 @@ export interface AiToolsPosture {
  *   telling the operator how to enable it.
  * - `acknowledgeUnauthorizedTools === true`: read tools run tenant-wide -> an `info`
  *   that keeps the accepted risk on the operator's radar. (Action tools ignore the
- *   acknowledgement; they need an explicit allow, and are refused until Phase 3a.)
+ *   acknowledgement; they need an explicit allow plus a human confirmation.)
  */
 export function aiToolsPosture(ai: AiConfig | undefined): AiToolsPosture | null {
   const tools = ai?.tools
@@ -61,23 +61,20 @@ export function aiToolsPosture(ai: AiConfig | undefined): AiToolsPosture | null 
  * {@link aiToolsPosture}). Config is read through the injected getter at RUN time,
  * so the check reports the live posture and unit-tests without an app.
  *
- * It reports up to two issues:
- * - the authorization posture ({@link aiToolsPosture}): a `warn` when tools are
- *   offered but refused (no hook, no acknowledgement), or an `info` for the
- *   acknowledged tenant-wide opt-in; nothing when the hook is wired or no tools
- *   are offered.
- * - an `info` when `config.ai.tools.actionTools.enabled` is set, stated honestly:
- *   action (mutating) tools are still refused unconditionally (the human-confirmation
- *   flow is not yet shipped), so the flag grants no writes today. This keeps an
- *   operator who set it from assuming mutations are live.
+ * It reports the authorization posture ({@link aiToolsPosture}) plus, when
+ * `config.ai.tools.actionTools.enabled` is set, the action-tool posture (WS-AI-11
+ * Phase 3a) via {@link aiActionToolIssues}: a `warn` when actions cannot actually
+ * run (audit off, or a static registry action tool missing `summarizeArgs` / setting
+ * `requiresConfirmation: false`), and an honest `info` when they can. A `resolveTools`
+ * hook is per-request and cannot be boot-checked, so only the static registry is read.
  */
 export function aiToolsCheck(getAiConfig: () => AiConfig | undefined): DoctorCheck {
   return {
     name: 'ai_tools',
     description:
       'Reports the AI tool-calling posture (WS-AI-11): the authorizeTool per-tool ACL, the ' +
-      'acknowledged tenant-wide opt-in, the fail-closed default (tool calls refused), and whether ' +
-      'the action-tool flag is set.',
+      'acknowledged tenant-wide opt-in, the fail-closed default (tool calls refused), and the ' +
+      'action-tool confirmation posture when actionTools.enabled is set.',
 
     run(): DiagnosisIssue[] {
       const ai = getAiConfig()
@@ -86,18 +83,89 @@ export function aiToolsCheck(getAiConfig: () => AiConfig | undefined): DoctorChe
       if (posture !== null) {
         issues.push({ code: posture.code, severity: posture.severity, message: posture.message })
       }
-      if (ai?.tools?.actionTools?.enabled === true) {
-        issues.push({
-          code: 'ai_tools_action_enabled',
-          severity: 'info',
-          message:
-            'config.ai.tools.actionTools.enabled is set, but the satellite still refuses every ' +
-            "mode:'action' (mutating) tool: the human-in-the-loop confirmation flow that gates " +
-            'writes is not yet available, so no model-driven mutation can occur regardless of this ' +
-            'flag. Read tools are unaffected.',
-        })
+      if (ai && ai.tools?.actionTools?.enabled === true) {
+        issues.push(...aiActionToolIssues(ai))
       }
       return issues
     },
   }
+}
+
+/**
+ * The action-tool posture (WS-AI-11 Phase 3a), reported only when the kill-switch is
+ * on. It surfaces the two ways a switched-on action still cannot run — the same two
+ * the gate enforces at plan time — plus an honest note when it can:
+ *
+ * - audit off: the confirmation + at-most-once machinery is wired only when audit is
+ *   on (an action's intent must be recorded before it runs), so with audit off every
+ *   action is refused `tool_action_unavailable`. A `warn`, and the per-tool nits below
+ *   are skipped because nothing can run anyway.
+ * - a static registry action tool with no `summarizeArgs`: it is unadvertised and
+ *   refused (`tool_action_disabled`), because a human cannot confirm against nothing.
+ * - a static registry action tool with `requiresConfirmation: false`: refused, because
+ *   with no confirmation there is no nonce to fence the effect by (at-most-once).
+ * - otherwise: an `info` that action tools are live behind a human confirmation, with
+ *   the honest limit (confirmation stops autonomous mutation, not prompt injection).
+ */
+export function aiActionToolIssues(ai: AiConfig): DiagnosisIssue[] {
+  const issues: DiagnosisIssue[] = []
+
+  if (ai.audit?.enabled === false) {
+    issues.push({
+      code: 'ai_tools_action_needs_audit',
+      severity: 'warn',
+      message:
+        'config.ai.tools.actionTools.enabled is set but config.ai.audit.enabled is false. An action ' +
+        'tool must durably record its intent BEFORE it runs, so the confirmation + at-most-once ' +
+        'machinery is wired only when audit is on: with audit off every action is refused ' +
+        '(tool_action_unavailable, 503). Enable audit to allow confirmed actions.',
+    })
+    return issues
+  }
+
+  // Only the STATIC registry can be inspected at boot; a resolveTools hook is dynamic.
+  const registry = Array.isArray(ai.tools?.registry) ? ai.tools.registry : []
+  const actionTools = registry.filter(
+    (tool): tool is AIToolHostDefinition => tool.mode === 'action'
+  )
+  const noSummary = actionTools
+    .filter((tool) => typeof tool.summarizeArgs !== 'function')
+    .map((tool) => tool.name)
+  const autoExecute = actionTools
+    .filter((tool) => tool.requiresConfirmation === false)
+    .map((tool) => tool.name)
+
+  if (noSummary.length > 0) {
+    issues.push({
+      code: 'ai_tools_action_no_summary',
+      severity: 'warn',
+      message:
+        `Action tool(s) [${noSummary.join(', ')}] ship no summarizeArgs, so a human cannot be shown ` +
+        'what they would confirm: each is UNADVERTISED and refused at plan time ' +
+        '(tool_action_disabled). Add a summarizeArgs that renders the one line the user reads before ' +
+        'confirming.',
+    })
+  }
+  if (autoExecute.length > 0) {
+    issues.push({
+      code: 'ai_tools_action_auto_execute',
+      severity: 'warn',
+      message:
+        `Action tool(s) [${autoExecute.join(', ')}] set requiresConfirmation:false, which is refused ` +
+        '(tool_action_disabled): with no confirmation there is no nonce to fence the effect by, so ' +
+        'at-most-once cannot be guaranteed. Remove the flag to require a human confirmation.',
+    })
+  }
+
+  issues.push({
+    code: 'ai_tools_action_enabled',
+    severity: 'info',
+    message:
+      'config.ai.tools.actionTools.enabled is set: a well-formed action (mutating) tool now runs ' +
+      'after a human confirms it (WS-AI-11 Phase 3a). HONEST LIMIT: the confirmation stops an ' +
+      'AUTONOMOUS mutation, not prompt injection — an injection can propose an action AND author ' +
+      'text urging the human to confirm it, so keep action tools narrow and reversible. Only the ' +
+      'static registry is boot-checked here; a resolveTools hook is per-request.',
+  })
+  return issues
 }

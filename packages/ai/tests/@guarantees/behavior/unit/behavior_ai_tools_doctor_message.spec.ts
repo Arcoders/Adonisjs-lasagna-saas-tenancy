@@ -23,10 +23,30 @@ const readTool: AIToolHostDefinition = {
   handler: async () => ({ count: 0 }),
 }
 
-function ai(tools?: Partial<AiConfig['tools']>): AiConfig {
+/** A well-formed action tool: mutating and carrying the human summary. */
+const actionTool: AIToolHostDefinition = {
+  name: 'cancel_booking',
+  description: 'cancel a booking',
+  inputSchema: { type: 'object', properties: { id: { type: 'string' } } },
+  mode: 'action',
+  summarizeArgs: (args) => `cancel ${String(args.id)}`,
+  handler: async () => ({ cancelled: true }),
+}
+
+/** An action tool missing summarizeArgs: unadvertised, refused at plan time. */
+const actionNoSummary: AIToolHostDefinition = {
+  name: 'delete_all',
+  description: 'delete everything',
+  inputSchema: { type: 'object', properties: {} },
+  mode: 'action',
+  handler: async () => ({ deleted: true }),
+}
+
+function ai(tools?: Partial<AiConfig['tools']>, audit?: AiConfig['audit']): AiConfig {
   return {
     allowedProviders: ['claude'],
     ...(tools ? { tools: tools as NonNullable<AiConfig['tools']> } : {}),
+    ...(audit ? { audit } : {}),
   }
 }
 
@@ -87,20 +107,78 @@ test.group('ai_tools doctor check', () => {
     assert.equal(issues[0]!.severity, 'info')
   })
 
-  test('the action-tool flag adds a separate honest info (still refused until Phase 3a)', async ({
+  test('actions enabled + audit on: an honest info that a confirmed action runs (Phase 3a)', async ({
     assert,
   }) => {
     const actionEnabled = ai({
-      registry: [readTool],
+      registry: [readTool, actionTool],
       authorizeTool: () => ({ kind: 'allow' }),
       actionTools: { enabled: true },
     })
-    // authorizeTool is wired, so the only issue is the action-enabled info.
+    // authorizeTool is wired and the action tool is well-formed: the only issue is
+    // the honest action-enabled info.
     const issues = await aiToolsCheck(() => actionEnabled).run(emptyCtx)
     assert.lengthOf(issues, 1)
     assert.equal(issues[0]!.code, 'ai_tools_action_enabled')
     assert.equal(issues[0]!.severity, 'info')
-    assert.include(issues[0]!.message, 'still refuses')
+    assert.include(issues[0]!.message, 'after a human confirms it')
+    assert.include(issues[0]!.message, 'HONEST LIMIT')
+  })
+
+  test('actions enabled but audit off: a warn that every action is refused', async ({ assert }) => {
+    const actionsNoAudit = ai(
+      {
+        registry: [actionTool],
+        authorizeTool: () => ({ kind: 'allow' }),
+        actionTools: { enabled: true },
+      },
+      { enabled: false }
+    )
+    const issues = await aiToolsCheck(() => actionsNoAudit).run(emptyCtx)
+    // The needs-audit warn short-circuits: with audit off, nothing can run, so the
+    // per-tool nits and the "live" info are moot.
+    assert.lengthOf(issues, 1)
+    assert.equal(issues[0]!.code, 'ai_tools_action_needs_audit')
+    assert.equal(issues[0]!.severity, 'warn')
+    assert.include(issues[0]!.message, 'tool_action_unavailable')
+  })
+
+  test('actions enabled but a registry action tool has no summarizeArgs: a warn naming it', async ({
+    assert,
+  }) => {
+    const missingSummary = ai({
+      registry: [actionTool, actionNoSummary],
+      authorizeTool: () => ({ kind: 'allow' }),
+      actionTools: { enabled: true },
+    })
+    const issues = await aiToolsCheck(() => missingSummary).run(emptyCtx)
+    const warn = issues.find((i) => i.code === 'ai_tools_action_no_summary')
+    assert.exists(warn, 'a missing-summary action tool must be surfaced')
+    assert.equal(warn!.severity, 'warn')
+    assert.include(warn!.message, 'delete_all')
+    assert.notInclude(warn!.message, 'cancel_booking', 'the well-formed tool is not flagged')
+    // The honest info still fires alongside (a confirmed action can run).
+    assert.exists(issues.find((i) => i.code === 'ai_tools_action_enabled'))
+  })
+
+  test('actions enabled but a registry action tool sets requiresConfirmation:false: a warn', async ({
+    assert,
+  }) => {
+    const autoExec: AIToolHostDefinition = {
+      ...actionTool,
+      name: 'auto_cancel',
+      requiresConfirmation: false,
+    }
+    const cfg = ai({
+      registry: [autoExec],
+      authorizeTool: () => ({ kind: 'allow' }),
+      actionTools: { enabled: true },
+    })
+    const issues = await aiToolsCheck(() => cfg).run(emptyCtx)
+    const warn = issues.find((i) => i.code === 'ai_tools_action_auto_execute')
+    assert.exists(warn)
+    assert.equal(warn!.severity, 'warn')
+    assert.include(warn!.message, 'auto_cancel')
   })
 
   test('the check reads config at run time (live posture, not registration time)', async ({

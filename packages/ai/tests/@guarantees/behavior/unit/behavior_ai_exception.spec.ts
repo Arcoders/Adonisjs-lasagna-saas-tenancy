@@ -1,5 +1,8 @@
 import { test } from '@japa/runner'
-import AIException, { AI_ERROR_CODES } from '../../../../src/exceptions/ai_exception.js'
+import AIException, {
+  AI_ERROR_CODES,
+  type AIErrorCode,
+} from '../../../../src/exceptions/ai_exception.js'
 
 test.group('AIException', () => {
   test('carries a stable code and a pinned HTTP status', ({ assert }) => {
@@ -27,6 +30,64 @@ test.group('AIException', () => {
       'byok_endpoint_blocked',
     ] as const) {
       assert.isFalse(new AIException(code, 'x').isRetryable(), `${code} should be fatal`)
+    }
+  })
+
+  test('every code has an explicit fatal/retryable classification (the FATAL_CODES footgun)', ({
+    assert,
+  }) => {
+    // FATAL_CODES is a hand-maintained Set the compiler does NOT check against the
+    // code union, so a new code silently defaults to retryable. Pinning every code's
+    // isRetryable() forces a deliberate classification for each — and in particular
+    // nails the three Phase 3a codes whose neighbours classify oppositely: a missing
+    // (`tool_confirmation_required`) and a bad (`tool_confirmation_invalid`)
+    // confirmation are FATAL (re-sending the identical request cannot help), while the
+    // ledger being unreachable (`tool_action_unavailable`) is RETRYABLE (nothing is
+    // wrong with the request; retry once it recovers).
+    const RETRYABLE: Record<AIErrorCode, boolean> = {
+      provider_unavailable: true,
+      provider_not_allowed: false,
+      over_budget: false,
+      rate_limited: true,
+      rate_limit_unavailable: true,
+      config_missing: false,
+      byok_endpoint_blocked: false,
+      invalid_request: false,
+      rowscope_unsupported: false,
+      dimension_mismatch: false,
+      embedding_quota_exhausted: false,
+      tenant_scope_mismatch: false,
+      doc_fetch_blocked: false,
+      ingestion_denied: false,
+      retrieval_denied: false,
+      audit_write_failed: true,
+      memory_session_invalid: false,
+      residency_denied: false,
+      tool_unknown: false,
+      tool_denied: false,
+      tool_input_invalid: false,
+      tool_action_disabled: false,
+      tool_budget_exhausted: false,
+      too_many_concurrent: false,
+      tool_confirmation_required: false,
+      tool_confirmation_invalid: false,
+      tool_action_unavailable: true,
+    }
+
+    // The table covers EXACTLY the code union, so a new code cannot ship without a
+    // deliberate fatal/retryable decision here.
+    assert.deepEqual(
+      Object.keys(RETRYABLE).sort(),
+      [...AI_ERROR_CODES].sort(),
+      'every AIErrorCode needs an explicit fatal/retryable classification'
+    )
+    // And each code's runtime classification matches the pinned one.
+    for (const code of AI_ERROR_CODES) {
+      assert.equal(
+        new AIException(code, 'x').isRetryable(),
+        RETRYABLE[code],
+        `${code} fatal/retryable classification drifted`
+      )
     }
   })
 
