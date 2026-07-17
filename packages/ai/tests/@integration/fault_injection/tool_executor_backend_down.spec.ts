@@ -285,8 +285,9 @@ test.group('AI tool handler backend down (unreachable mid-call) on real Postgres
     // What this does NOT prove: the tool is `mode: 'read'` and its handler only ever
     // SELECTs, so no write was in flight and nothing here shows transactional
     // rollback. Reading the rows back could not fail whatever the executor did. The
-    // row check is a liveness probe on the connection, not a containment proof; a
-    // real rollback proof needs an action tool, which stays hard-gated until Phase 3a.
+    // row check is a liveness probe on the connection, not a containment proof; the
+    // fail-closed-before-the-effect proof for an action tool is its sibling
+    // `tool_audit_db_down_action_fail_closed`.
     assert.deepEqual(await referencesIn(A), [A.secret])
   }).skip(() => !ready, 'Postgres unavailable')
 
