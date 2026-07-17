@@ -2,6 +2,8 @@ import AiChatController from '../../src/gateway/ai_chat_controller.js'
 import AIProviderRegistry from '../../src/services/ai_provider_registry.js'
 import TenantLivenessWatcher from '../../src/services/tenant_liveness_watcher.js'
 import ToolExecutorService from '../../src/services/tool_executor.js'
+import type AiActionLedger from '../../src/services/action_ledger.js'
+import { deriveAiToolConfirmationMacKey } from '../../src/gateway/tool_confirmation.js'
 import AiIdempotencyService, {
   deriveAiIdempotencyMacKey,
   type AiIdempotencyStore,
@@ -58,6 +60,8 @@ export interface BuildToolChatOptions {
   store?: AiIdempotencyStore
   /** Share a watcher across calls (the concurrency-cap spec). */
   liveness?: TenantLivenessWatcher
+  /** Wire the Phase 3a confirmation MAC key + an in-memory action ledger into the executor. */
+  actionMachinery?: boolean
 }
 
 export interface ToolChatHarness {
@@ -148,6 +152,12 @@ export function buildToolChat(options: BuildToolChatOptions = {}): ToolChatHarne
     },
     activeScopeTenantId: () => scopeStack.at(-1),
     getToolsConfig: () => toolsConfig,
+    ...(options.actionMachinery
+      ? {
+          confirmationMacKey: deriveAiToolConfirmationMacKey('tool-chat-doubles-app-key-000000!'),
+          actionLedger: stubActionLedger(),
+        }
+      : {}),
   })
 
   const quota = new RecordingQuota()
@@ -166,6 +176,24 @@ export function buildToolChat(options: BuildToolChatOptions = {}): ToolChatHarne
   })
 
   return { controller, provider, quota, liveness, handlerCalls, toolsConfig }
+}
+
+/**
+ * An in-memory at-most-once ledger for the controller harness. A challenge never
+ * claims it (only a confirmed run does), so a challenge test never exercises it; a
+ * confirmed run fences by the effect key exactly once.
+ */
+function stubActionLedger(): AiActionLedger {
+  const claimed = new Set<string>()
+  return {
+    claim: async (_tenantId: string, effectKey: string) => {
+      if (claimed.has(effectKey)) return { kind: 'replay', state: 'settled' }
+      claimed.add(effectKey)
+      return { kind: 'claimed' }
+    },
+    settle: async () => {},
+    fail: async () => {},
+  } as unknown as AiActionLedger
 }
 
 /** The canonical chat body + the tenant the harness resolves. */

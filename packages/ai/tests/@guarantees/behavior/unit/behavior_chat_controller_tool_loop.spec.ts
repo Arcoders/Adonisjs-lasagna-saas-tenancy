@@ -176,3 +176,117 @@ test.group('chat controller tool loop', () => {
     assert.equal(second.res.output, first.res.output, 'the replay is byte-identical')
   })
 })
+
+test.group('chat controller — Phase 3a confirmation', () => {
+  /** A well-formed action tool: enabled, authorized (default hook), id-typed, summarizeable. */
+  function cancelBooking(ran: { value: boolean }): AIToolHostDefinition {
+    return {
+      name: 'cancel_booking',
+      description: 'Cancel a booking.',
+      inputSchema: { type: 'object', properties: { id: { type: 'string' } } },
+      mode: 'action',
+      summarizeArgs: (args) => `cancel ${String(args.id)}`,
+      handler: async () => {
+        ran.value = true
+        return { cancelled: true }
+      },
+    }
+  }
+
+  test('an action the model proposes emits a tool_confirmation_required frame and runs nothing', async ({
+    assert,
+  }) => {
+    const ran = { value: false }
+    const { controller, provider } = buildToolChat({
+      actionMachinery: true,
+      tools: { registry: [cancelBooking(ran)], actionTools: { enabled: true } },
+      rounds: [[toolCallFragment('call-1', 'cancel_booking', '{"id":"BK-1"}')]],
+    })
+    const { ctx, res } = fakeHttpContext({
+      tenant: fakeTenant,
+      body: toolChatBody,
+      auth: { user: { id: 'u1' } },
+    })
+
+    await controller.chat(ctx)
+
+    // The challenge frame carries the HOST summary + a minted token; the effect never ran.
+    assert.include(res.output, 'event: tool_confirmation_required')
+    assert.include(res.output, '"summary":"cancel BK-1"')
+    assert.include(res.output, '"token":"aitc1.')
+    assert.include(res.output, '"name":"cancel_booking"')
+    assert.isFalse(ran.value, 'the handler must not run until the human confirms')
+    // The loop returned at the challenge: one provider round, a clean terminal done.
+    assert.lengthOf(provider.calls, 1)
+    assert.isTrue(res.output.endsWith('event: done\ndata: {"outcome":"completed"}\n\n'))
+  })
+
+  test('a confirming request is never served from the idempotency cache (the livelock fix)', async ({
+    assert,
+  }) => {
+    // A plain chat caches under an Idempotency-Key; a retry that ALSO carries a
+    // confirmation token must NOT be served that cache (else the same challenge frame
+    // replays forever and the executor is never reached).
+    const store = mapIdempotencyStore()
+    const base = {
+      tenant: fakeTenant,
+      body: toolChatBody,
+      auth: { user: { id: 'u1' } },
+    }
+    const { controller, provider } = buildToolChat({
+      store,
+      toolFree: true,
+      rounds: [[{ data: 'hola', tokens: 2 }]],
+    })
+
+    const first = fakeHttpContext({ ...base, headers: { 'idempotency-key': 'k1' } })
+    await controller.chat(first.ctx)
+    const roundsAfterFirst = provider.calls.length
+
+    const second = fakeHttpContext({
+      ...base,
+      headers: { 'idempotency-key': 'k1', 'x-ai-tool-confirmation': 'aitc1.jti.9999999999999.mac' },
+    })
+    await controller.chat(second.ctx)
+
+    assert.notEqual(
+      second.res.headers['x-ai-idempotent-replay'],
+      '1',
+      'a confirming request must not be cache-served'
+    )
+    assert.isAbove(provider.calls.length, roundsAfterFirst, 'it actually ran instead of replaying')
+  })
+
+  test('a confirming request is never written to the idempotency cache', async ({ assert }) => {
+    // The symmetric half: a confirming request leaves nothing cached, so a later plain
+    // retry of the same key finds no entry and runs rather than replaying.
+    const store = mapIdempotencyStore()
+    const base = {
+      tenant: fakeTenant,
+      body: toolChatBody,
+      auth: { user: { id: 'u1' } },
+    }
+    const { controller, provider } = buildToolChat({
+      store,
+      toolFree: true,
+      rounds: [[{ data: 'hola', tokens: 2 }]],
+    })
+
+    const confirming = fakeHttpContext({
+      ...base,
+      headers: { 'idempotency-key': 'k2', 'x-ai-tool-confirmation': 'aitc1.jti.9999999999999.mac' },
+    })
+    await controller.chat(confirming.ctx)
+    const roundsAfterConfirming = provider.calls.length
+
+    const plainRetry = fakeHttpContext({ ...base, headers: { 'idempotency-key': 'k2' } })
+    await controller.chat(plainRetry.ctx)
+
+    assert.notEqual(
+      plainRetry.res.headers['x-ai-idempotent-replay'],
+      '1',
+      'the confirming request cached nothing, so the retry has nothing to replay'
+    )
+    assert.isAbove(provider.calls.length, roundsAfterConfirming, 'the retry ran')
+  })
+})

@@ -33,6 +33,8 @@ import VectorStoreService, { type VectorDb } from '../src/services/vector_store_
 import EmbeddingIngestionService from '../src/services/embedding_ingestion_service.js'
 import RetrievalService from '../src/services/retrieval_service.js'
 import AiAuditWriter, { type AuditDb } from '../src/services/ai_audit_writer.js'
+import AiActionLedger, { type ActionLedgerDb } from '../src/services/action_ledger.js'
+import { deriveAiToolConfirmationMacKey } from '../src/gateway/tool_confirmation.js'
 import {
   PgChatAuditSink,
   PgEmbeddingAuditSink,
@@ -273,6 +275,19 @@ export default definePlugin({
           runExtension: executeExtension,
         })
       })
+      // The at-most-once action ledger (WS-AI-11 Phase 3a). It fences a confirmed
+      // action's effect with a claim row in the shared backoffice schema, wired the
+      // same way as the audit writer. Registered only when audit is on, because the
+      // executor consults it only for action tools and those require audit (below).
+      app.container.singleton(AiActionLedger, () => {
+        const { connectionName, schemaName } = backofficeWiring(app)
+        return new AiActionLedger({
+          getDb: async () => (await resolveLucidDb(app)) as unknown as ActionLedgerDb,
+          connectionName,
+          schemaName,
+          activeScopeTenantId: () => tenancy.currentId(),
+        })
+      })
       app.container.singleton(
         PgChatAuditSink,
         async (resolver) => new PgChatAuditSink(await resolver.make(AiAuditWriter))
@@ -306,12 +321,19 @@ export default definePlugin({
       const metrics = await resolver.make(MetricsService)
       const auditOn =
         app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai?.audit?.enabled !== false
+      // Action-tool confirmation machinery (Phase 3a) is wired ONLY when audit is on:
+      // an action's intent must be durably recorded before it runs, so with audit off
+      // the fail-closed intent write would degrade to a no-op and an action must not be
+      // able to run at all. With these two undefined every action refuses
+      // `tool_action_unavailable` (503), and a read tool is unaffected either way.
       return new ToolExecutorService({
         runScoped: (tenant, fn) => tenancy.run(tenant, fn),
         activeScopeTenantId: () => tenancy.currentId(),
         getToolsConfig: () => app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai?.tools,
         toolAudit: auditOn ? await resolver.make(PgToolAuditSink) : undefined,
         emitMetric: (tenantId, name, value) => metrics.emitMetric(tenantId, name, value),
+        confirmationMacKey: auditOn ? deriveAiToolConfirmationMacKey(requireAppKey()) : undefined,
+        actionLedger: auditOn ? await resolver.make(AiActionLedger) : undefined,
       })
     })
     // The WS-AI-9 compliance orchestrator. Composes the purge seams (memory +

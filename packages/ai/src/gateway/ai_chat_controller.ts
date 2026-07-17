@@ -8,6 +8,7 @@ import {
 } from './stream_extension.js'
 import { buildToolLoopProducer, resolveMaxRounds, type ToolLoopExecutor } from './tool_loop.js'
 import { advertisedTools, resolveToolRegistry } from './tool_gate.js'
+import { parseToolConfirmationHeader } from './tool_confirmation.js'
 import type ToolExecutorService from '../services/tool_executor.js'
 import type AIProviderRegistry from '../services/ai_provider_registry.js'
 import type TenantLivenessWatcher from '../services/tenant_liveness_watcher.js'
@@ -175,14 +176,26 @@ export default class AiChatController {
     const body = parseChatBody(ctx.request.body(), ai)
     const worstCase = resolveWorstCase(body.maxTokens, ai)
 
-    // 3. Idempotency scope: only with a well-formed header AND a resolvable
-    //    principal (a cached response must never be shareable across unknown
-    //    callers, so principal-less requests get no idempotency at all).
     const principal = resolvePrincipal(ctx, ai)
     const principalHash = hashAuditPrincipal(principal)
+
+    // Action-tool confirmation tokens (WS-AI-11 Phase 3a). The client echoes them
+    // back in X-Ai-Tool-Confirmation to authorize an action a human agreed to. Their
+    // presence SUPPRESSES the idempotency cache entirely (step 3 + step 4): the cache
+    // key MACs {tenant, principal, session, headerKey} and NOT the token, so a client
+    // that keeps its Idempotency-Key across the confirming retry — what every HTTP
+    // retry layer does — would otherwise get a cache HIT and replay the SAME challenge
+    // frame forever, never reaching the executor. No error, no metric distinguishes
+    // that livelock from working, so a confirming request must not be cacheable.
+    const confirmations = parseToolConfirmationHeader(ctx.request.header('x-ai-tool-confirmation'))
+
+    // 3. Idempotency scope: only with a well-formed header AND a resolvable principal
+    //    (a cached response must never be shareable across unknown callers, so
+    //    principal-less requests get no idempotency at all) AND no confirmation token
+    //    presented (a confirming request is never cache-served and never cached).
     const headerKey = ctx.request.header('idempotency-key')
     let scope: AiIdempotencyScope | null = null
-    if (headerKey !== undefined) {
+    if (headerKey !== undefined && confirmations.length === 0) {
       const validated = validateIdempotencyKeyHeader(headerKey, tenant.id)
       if (principal !== null) {
         scope = {
@@ -323,7 +336,13 @@ export default class AiChatController {
             fullSet,
             advertised,
             toolsConfig: ai.tools,
-            executor: this.deps.tools.forRequest(ctx, tenant, fullSet, principalHash),
+            executor: this.deps.tools.forRequest(
+              ctx,
+              tenant,
+              fullSet,
+              principalHash,
+              confirmations
+            ),
           }
         }
       } catch (error) {
