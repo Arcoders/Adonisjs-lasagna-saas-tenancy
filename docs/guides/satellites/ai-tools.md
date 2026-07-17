@@ -18,7 +18,7 @@ This page covers:
 - [authorizing](#authorizing-a-tool) each call per tenant and per user
 - the [bounds](#bounds) that cap rounds, calls, time and spend
 - what the [client sees](#what-the-client-sees) on the stream
-- [action tools](#action-tools-mutating), the honest state of mutating tools
+- [action tools](#action-tools-mutating), where a write waits for a human to confirm it
 - the [honest limits](#honest-limits)
 
 Tool calling is threat vector #12 and invariant **I7** in the
@@ -82,7 +82,7 @@ tenant's data, so every default is closed:
 |---|---|---|
 | Tools offered | **None** | No `registry` and no `resolveTools` means the model is offered nothing. Registering a tool never auto-exposes it. |
 | Authorization | **Deny** | With tools present but no `authorizeTool`, every call is refused. You opt out with `acknowledgeUnauthorizedTools`, and the `ai_tools` doctor check warns until you do. |
-| Mutating tools | **Refused** | `mode: 'action'` tools are never advertised and always refused. See [action tools](#action-tools-mutating). |
+| Mutating tools | **Human-confirmed** | `mode: 'action'` tools run only after a human confirms a signed challenge, and only with the kill-switch on, `authorizeTool` allowing, `summarizeArgs` present and audit on. See [action tools](#action-tools-mutating). |
 | Provider support | **Fail closed** | A tool request to a provider that does not declare `capabilities.tools` is a 403, never a silent drop that answers as if tools were unavailable. |
 | Arguments | **Whitelist** | Rebuilt from your `inputSchema.properties`, so an undeclared or prototype-polluting key never reaches your handler. |
 | Results | **Untrusted data** | Fenced into a `role: 'tool'` turn, never an instruction turn. |
@@ -177,25 +177,128 @@ flushed long before a tool ever ran.
 A tool that merely fails is not a stream failure. Its error degrades to a bounded
 result the model can react to, and the loop continues.
 
+A mutating tool adds one more frame the client handles: a `tool_confirmation_required`
+carrying a human-readable `summary` and a `token`. It is not an error — it is the loop
+pausing for a human. Show the summary, and on agreement re-send the request with the
+token. See [action tools](#action-tools-mutating) for the full round-trip.
+
 ## Action tools (mutating)
 
-`mode: 'action'` marks a tool that writes. **Action tools are refused
-unconditionally today.** They are never advertised to the model, and a call to one is
-denied with `tool_action_disabled`.
+`mode: 'action'` marks a tool that writes. A write never happens on the model's say-so
+alone: the satellite stops the loop, hands the client a signed confirmation to put to a
+human, and runs the tool only once that human agrees. Read tools are untouched by any
+of this.
 
-<Callout type="info" title="Why the kill-switch is still down">
-`actionTools.enabled` exists and validates, but the human-confirmation flow it gates
-(a signed confirmation token and idempotency of effect) has not shipped. Rather than
-let writes through half-guarded, the satellite refuses them. Setting `enabled: true`
-today only tells the `ai_tools` doctor check to say so; it does not enable writes.
+### What it takes to enable one
+
+An action tool is the sharpest edge in the package, so it is deliberately several locks
+deep. All of these hold, or the call is refused:
+
+- **`actionTools: { enabled: true }`** — the kill-switch, off by default. One flag turns
+  every write off, however registered. It is static app config read at boot, so flipping
+  it needs a restart; there is no hot global off (a per-tenant runtime lever is your own
+  `resolveTools` / `authorizeTool`, consulted per request).
+- **`authorizeTool` returns `allow`** — an action tool ignores
+  `acknowledgeUnauthorizedTools`. The read-tool convenience of running unauthorized never
+  extends to a write; a real hook must really say allow.
+- **`summarizeArgs`** — mandatory. It renders the one line the human reads before
+  confirming. A tool without it is refused per tool (`tool_action_disabled`) rather than
+  shipped with a weaker default, because a human confirming against nothing is a rubber
+  stamp.
+- **A resolvable principal** — the confirmation binds to a person, so an action a request
+  cannot attribute to anyone is refused.
+- **Audit on** — `config.ai.audit.enabled` must not be `false`. An action records its
+  intent before it runs, so with audit off the machinery is not wired and every action is
+  refused `tool_action_unavailable`.
+
+```ts
+// config/multitenancy.ts
+import { defineTool } from '@adonisjs-lasagna/ai/tools'
+
+tools: {
+  registry: [
+    defineTool({
+      name: 'cancel_booking',
+      description: 'Cancel a booking and refund the customer.',
+      inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+      mode: 'action',
+      // HOST code, over the VALIDATED arguments. This is exactly what the human is
+      // shown; the model never authors it, so an injection cannot write its own prompt.
+      summarizeArgs: (args) => `Cancel booking ${args.id} and refund the customer`,
+      handler: async (args) => {
+        const { default: Booking } = await import('#app/models/tenant_scoped/booking')
+        const booking = await Booking.findOrFail(args.id)
+        await booking.cancelAndRefund()
+        return { cancelled: true }
+      },
+    }),
+  ],
+  authorizeTool: (ctx, tenant, tool) => ({ kind: 'allow' }),
+  actionTools: { enabled: true },
+}
+```
+
+### The confirmation round-trip
+
+1. The model proposes the action. The loop plans the whole round, sees an unconfirmed
+   write, runs nothing, and emits a `tool_confirmation_required` frame:
+
+   ```
+   event: tool_confirmation_required
+   data: {"id":"call_01_...","name":"cancel_booking","summary":"Cancel booking BK-1042 and refund the customer","token":"aitc1...","expiresAt":1737000000000}
+   ```
+
+2. Your client shows `summary` to the human and, if they agree, sends the SAME chat
+   request again with the token echoed in a header:
+
+   ```
+   X-Ai-Tool-Confirmation: aitc1...
+   ```
+
+3. The satellite re-derives the tenant, user, tool and arguments from that request,
+   confirms they match what the token authorizes, fences the effect so it happens at most
+   once, records the intent, and runs the handler.
+
+The token is a bearer capability with a five-minute TTL. It carries no tenant, user, tool
+or argument in the clear: everything it authorizes is re-derived from the request being
+served and compared against the token's MAC, so a captured token names nothing and
+authorizes only the one action it was minted for.
+
+<Callout type="warning" title="Scrub the confirmation header from your logs">
+`X-Ai-Tool-Confirmation` is a short-lived capability, and like any bearer token in a
+header it lands in access logs, proxy logs and APM traces by default. Add it to your log
+redaction list. The five-minute TTL and the principal binding limit the blast radius;
+they do not replace scrubbing.
 </Callout>
 
-The consequence is worth stating plainly: an indirect prompt injection can make the
-model *propose* a write, but there is no path for it to perform one. Today's agency
-is read-only by construction.
+A round holding two writes challenges both together and runs neither until both are
+confirmed, so a round is never half-applied. If the model rephrases an argument between
+the challenge and the confirmation, the token no longer matches and the action is refused
+(`tool_confirmation_invalid`) rather than run against arguments the human never saw, so
+prefer a deterministic sampling temperature for conversations that reach action tools.
+
+If you want to run an action with no summarizer, or with `requiresConfirmation: false`,
+you cannot: both are refused (`tool_action_disabled`). There is no path to a model-driven
+write that a human did not see and agree to.
 
 ## Honest limits
 
+- **Confirmation stops autonomy, not injection.** A human-in-the-loop confirmation turns
+  a silent autonomous write into a click a person has to make. It does *not* stop prompt
+  injection: an injection can propose an action AND emit text engineering the human into
+  confirming it. What bounds the damage is everything around the click — `authorizeTool`
+  limits what any confirmation can reach, the host-authored `summarizeArgs` keeps model
+  prose out of the decision, the loop stops at the frame so no model text follows it, and
+  the blast radius of a narrow, reversible action tool is a review question, not a
+  mechanism. Keep action tools narrow and reversible.
+- **At-most-once, not exactly-once.** The effect ledger guarantees a confirmed action
+  fires at most once. A stream that dies after the effect but before the client sees the
+  result leaves the action done and unacknowledged; the honest failure direction is *no*
+  effect, never a double one.
+- **Erasing a user does not revoke their pending tokens.** A GDPR purge does not reach
+  into the action ledger to expire confirmation tokens already minted for that user. The
+  five-minute TTL bounds the window; this is a stated limit, deferred to the governance
+  satellite.
 - **The model chooses.** Tool calling is the model deciding what to look up. It can
   call the wrong tool, or answer without calling one. The satellite bounds what a call
   can *do*; it cannot make the model's choice correct.

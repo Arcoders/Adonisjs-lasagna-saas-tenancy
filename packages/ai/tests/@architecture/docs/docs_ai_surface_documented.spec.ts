@@ -120,9 +120,18 @@ test.group('Docs integrity: AI tools surface', () => {
 
   test('the tool error codes a host handles are documented', ({ assert }) => {
     // A host writing a client against the stream needs the codes by name: these are
-    // what arrive as an in-band `event: error`, or as a pre-flight status.
+    // what arrive as an in-band `event: error`, or as a pre-flight status. The Phase 3a
+    // action-confirmation codes are included so the mutating-tool surface cannot drift
+    // back to being undocumented once it shipped.
     const page = read(TOOLS_DOC)
-    for (const code of ['tool_denied', 'tool_action_disabled', 'tool_budget_exhausted']) {
+    for (const code of [
+      'tool_denied',
+      'tool_action_disabled',
+      'tool_budget_exhausted',
+      'tool_confirmation_required',
+      'tool_confirmation_invalid',
+      'tool_action_unavailable',
+    ]) {
       assert.include(page, code, `the guide must document the ${code} refusal`)
     }
   })
