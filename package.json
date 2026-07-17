@@ -20,8 +20,12 @@
   "workspaces": [
     "packages/*",
     "examples/api",
+    "apps/rental",
     "benchmarks"
   ],
+  "overrides": {
+    "vite": "^7.3.6"
+  },
   "scripts": {
     "build": "npm run build --workspace @adonisjs-lasagna/saas-tenancy",
     "build:sso": "npm run build --workspace @adonisjs-lasagna/sso",
