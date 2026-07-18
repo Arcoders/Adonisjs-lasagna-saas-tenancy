@@ -1,5 +1,7 @@
 export { default as schemaDriftCheck } from './schema_drift_check.js'
 export { default as migrationStateCheck } from './migration_state_check.js'
+export { default as migrationDriftCheck } from './migration_drift_check.js'
+export { default as tenantLifecycleCheck } from './tenant_lifecycle_check.js'
 export { default as circuitBreakerCheck } from './circuit_breaker_check.js'
 export { default as queueStuckCheck } from './queue_stuck_check.js'
 // `backupRecencyCheck` moved to `@adonisjs-lasagna/backup`; its provider
@@ -20,6 +22,8 @@ export { default as pgvectorExtensionCheck } from './pgvector_extension_check.js
 
 import schemaDriftCheck from './schema_drift_check.js'
 import migrationStateCheck from './migration_state_check.js'
+import migrationDriftCheck from './migration_drift_check.js'
+import tenantLifecycleCheck from './tenant_lifecycle_check.js'
 import circuitBreakerCheck from './circuit_breaker_check.js'
 import queueStuckCheck from './queue_stuck_check.js'
 import provisioningStalledCheck from './provisioning_stalled_check.js'
@@ -33,8 +37,9 @@ import type { DoctorCheck } from '../types.js'
 
 /**
  * The ordered list of default diagnostic checks the multitenancy provider registers into
- * `DoctorService` at boot, covering failed and stalled tenant provisioning, schema drift,
- * migration state, the circuit breaker, stuck queues, replica lag, connection pool usage,
+ * `DoctorService` at boot, covering failed and stalled tenant provisioning, the
+ * status/deletedAt lifecycle, schema drift, migration state and migration drift (behind
+ * head), the circuit breaker, stuck queues, replica lag, connection pool usage,
  * long-running queries, and the membership gate. The opt-in `metricsFreshnessCheck` is
  * deliberately excluded because an empty metrics table would always warn, so hosts running
  * the metrics pipeline register that one explicitly.
@@ -44,8 +49,10 @@ import type { DoctorCheck } from '../types.js'
 export const builtInChecks: DoctorCheck[] = [
   failedTenantsCheck,
   provisioningStalledCheck,
+  tenantLifecycleCheck,
   schemaDriftCheck,
   migrationStateCheck,
+  migrationDriftCheck,
   circuitBreakerCheck,
   queueStuckCheck,
   replicaLagCheck,

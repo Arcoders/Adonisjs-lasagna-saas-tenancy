@@ -152,6 +152,21 @@ export interface IsolationConfig {
    */
   operationalConnectionBudget?: number
   /**
+   * Migrate (and seed) a tenant to head as part of provisioning, BEFORE it is
+   * marked `active`. Default `false`, preserving the deliberate separation of
+   * provision and migrate for existing consumers (who migrate the fleet on their
+   * own schedule).
+   *
+   * With it `true`, the `InstallTenant` job provisions the storage, fires the
+   * provision hooks, then applies all pending migrations and runs the `after:migrate`
+   * seeders (via `healTenant`) and only THEN flips the tenant to `active`. A
+   * UI-created tenant is therefore born fully migrated + seeded and can never land in
+   * the active-but-unmigrated state that serves 500s and trips the doctor. A
+   * migration failure leaves the tenant `failed` (never a half-baked `active`).
+   * Idempotent with any separate fleet-migrate step (migrations are pending-only).
+   */
+  migrateOnProvision?: boolean
+  /**
    * For `schema-pg`/`database-pg`: opt-in connection WARM POOL (F2). Pre-opens
    * connections for a set of OPERATOR-declared hot tenants at boot, so their first
    * request skips the cold-connection cliff (connection registration + physical

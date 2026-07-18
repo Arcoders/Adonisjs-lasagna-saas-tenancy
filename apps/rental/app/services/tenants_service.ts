@@ -78,7 +78,10 @@ export default class TenantsService {
   /** Marks the company deleted but preserves its `tenant_<uuid>` schema. */
   async softDelete(id: string) {
     const tenant = await Tenant.findOrFail(id)
+    // Invariant A: deletedAt and status move together (the schema is preserved for
+    // the retention window, but the lifecycle status must read 'deleted').
     tenant.deletedAt = DateTime.now()
+    tenant.status = 'deleted'
     await tenant.save()
     return tenant
   }

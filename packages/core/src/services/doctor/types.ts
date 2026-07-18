@@ -9,12 +9,22 @@ import type { TenantModelContract, TenantRepositoryContract } from '../../types/
 export type DiagnosisSeverity = 'info' | 'warn' | 'error'
 
 /**
+ * Whether an issue is confined to a single tenant or affects the whole platform.
+ * This is what separates "one tenant needs attention" (the report stays reachable,
+ * HTTP 200) from "the infrastructure is down" (HTTP 503): a `tenant`-scoped error
+ * degrades, a `platform`-scoped error fails. When a check omits it, the doctor
+ * infers `tenant` from a present `tenantId` and `platform` otherwise.
+ */
+export type DiagnosisScope = 'platform' | 'tenant'
+
+/**
  * Describes a single problem surfaced by a doctor check during a diagnostic run.
  * Carries a stable machine-readable `code` for programmatic handling, a
  * `severity` of info, warn, or error, and a human-readable `message`. It
- * optionally records the `tenantId` the issue concerns, a `fixable` flag set
- * when the parent check can auto-repair it, and a `meta` map of extra
- * structured detail rendered in JSON output mode.
+ * optionally records the `tenantId` the issue concerns, a `scope` (platform vs
+ * tenant, driving the degraded-vs-down verdict), a `fixable` flag set when the
+ * parent check can auto-repair it, and a `meta` map of extra structured detail
+ * rendered in JSON output mode.
  */
 export interface DiagnosisIssue {
   /** Stable code for programmatic handling, e.g. `schema_missing`. */
@@ -24,6 +34,13 @@ export interface DiagnosisIssue {
   message: string
   /** Tenant the issue is about, if applicable. */
   tenantId?: string | undefined
+  /**
+   * Whether this issue is tenant-confined or platform-wide. Drives the run's
+   * tri-state verdict (a platform error fails the report; a tenant error only
+   * degrades it). Optional: when omitted the doctor infers `tenant` if `tenantId`
+   * is set, else `platform`.
+   */
+  scope?: DiagnosisScope | undefined
   /** True when the parent check declares it can auto-fix this issue. */
   fixable?: boolean
   /** Extra structured detail (rendered in --json mode). */
@@ -86,17 +103,36 @@ export interface DoctorRunOptions {
 }
 
 /**
+ * The tri-state verdict of a whole doctor run, mirroring `/readyz`: `ok` (nothing
+ * to act on), `degraded` (one or more tenant-scoped errors, but the platform is
+ * healthy), or `fail` (at least one platform-scoped error). It is what lets
+ * `/admin/health/report` answer 200-degraded for a lone tenant's problem and
+ * reserve 503 for genuine infrastructure failure.
+ */
+export type DoctorRunStatus = 'ok' | 'degraded' | 'fail'
+
+/**
  * Aggregated outcome returned by the doctor service after a diagnostic run completes. It holds
  * the per-check `DiagnosisReport` entries collected during the run alongside a `totals` tally that
  * counts how many issues were classified as info, warn, error, and how many are flagged fixable,
- * giving callers and the CLI a single object to render or inspect.
+ * plus a scope split of the errors (`platformError`/`tenantError`) and the derived tri-state
+ * `status`, giving callers and the CLI a single object to render or inspect.
  */
 export interface DoctorRunResult {
   reports: DiagnosisReport[]
+  /**
+   * The run's tri-state verdict: `fail` if any platform-scoped error, else
+   * `degraded` if any tenant-scoped error, else `ok`.
+   */
+  status: DoctorRunStatus
   totals: {
     info: number
     warn: number
     error: number
     fixable: number
+    /** Error-severity issues scoped to the platform (drive `fail`). */
+    platformError: number
+    /** Error-severity issues scoped to a single tenant (drive `degraded`). */
+    tenantError: number
   }
 }

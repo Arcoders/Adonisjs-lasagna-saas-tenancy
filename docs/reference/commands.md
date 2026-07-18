@@ -21,6 +21,7 @@ ships with: <code>node ace list:commands | grep -E 'tenant|backoffice|migration:
 | `tenant:suspend <id>` | Block all API access without dropping the schema. `--admin=<id>` attributes the audit row (default: `system`). |
 | `tenant:destroy <id>` | Soft-delete and tear down. `--force` skips prompt; `--keep-schema` preserves storage during retention; `--admin=<id>` attributes the audit row (default: `system`). If the schema drop fails after the soft-delete, the tenant is already unreachable and the orphan schema is reclaimable with `tenant:purge-expired --include-orphans`. |
 | `tenant:reprovision <id>` | Re-run provisioning for a `failed` or stuck-`provisioning` tenant (idempotent `driver.provision`, then `active`). Unlike `tenant:activate` (which only flips status), this re-creates the schema. No-op on an active tenant; refuses a soft-deleted one. `--force`, `--admin=<id>`. |
+| `tenant:heal` | Non-destructively bring tenant(s) to a healthy, fully-migrated, seeded state: provision the schema if missing, apply all pending migrations, run the `after:migrate` seeders, and recover a `failed` tenant to `active`. Provision-up-only (never drops/resets/rolls back), idempotent, quarantines to `failed` on error, and audits every heal. Unlike `tenant:reprovision`, it works on `active` tenants and also migrates + seeds. `--tenant=<id>` (repeatable; omit to heal the whole fleet), `--concurrency=N` (clamped to `isolation.operationalConnectionBudget`), `--dry-run`, `--admin=<id>`, `-y`. |
 
 ## Migrations
 
@@ -75,10 +76,23 @@ node ace plugin:doctor --json
 
 ## Doctor
 
-`tenant:doctor` is the operational health command. Nine built-in
+`tenant:doctor` is the operational health command. Thirteen built-in
 checks (plus `backup_recency` and `backup_encryption` when the backup
 satellite is installed), `--fix` to auto-recover, `--json` for CI gates,
 `--watch` for a live TUI.
+
+Each issue carries a **scope** (`platform` or `tenant`), and a run has a
+tri-state **verdict**: `fail` when any platform-scoped error is present,
+`degraded` when only tenant-scoped errors are, otherwise `ok`. The admin
+`GET /admin/health/report` maps that verdict the same way `/readyz` does — 503
+only on `fail`, 200 for `ok`/`degraded` — so one broken tenant (say, one that
+was never migrated) degrades the report without taking the whole operator
+console offline. `--fix` heals fixable tenant issues: `schema_missing`,
+`migrations_never_ran`, `migration_behind`, and `tenant_failed` all route
+through `tenant:heal` (provision-if-missing → migrate → seed → recover), while
+`lifecycle_status_divergence` reconciles a soft-deleted tenant's `status` and
+`circuit_open`/`provisioning_stalled` keep their existing repairs. Every `--fix`
+mutation is now re-read-guarded (no TOCTOU) and written to the audit log.
 
 <Terminal src="/casts/doctor.cast.json" />
 

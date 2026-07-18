@@ -1,5 +1,7 @@
 import app from '@adonisjs/core/services/app'
 import CircuitBreakerService from '../../circuit_breaker_service.js'
+import { auditCliAction } from '../../../commands/audit_cli_action.js'
+import { lazyLogger } from '../../../utils/lazy_logger.js'
 import type { DoctorCheck, DiagnosisIssue } from '../types.js'
 
 /**
@@ -23,6 +25,9 @@ const circuitBreakerCheck: DoctorCheck = {
       issues.push({
         code: 'circuit_open',
         severity: 'error',
+        // Tenant-scoped: one tenant's tripped breaker degrades the report (200), it
+        // does not fail the whole platform (503).
+        scope: 'tenant',
         message: `Circuit OPEN for tenant ${tenantId} (failures=${m.failures})`,
         tenantId,
         fixable: true,
@@ -36,6 +41,11 @@ const circuitBreakerCheck: DoctorCheck = {
         try {
           cb.reset(issue.tenantId)
           issue.meta = { ...(issue.meta ?? {}), fixed: true }
+          // Audit the reset (the old --fix mutations recorded nothing).
+          await auditCliAction(lazyLogger, {
+            tenantId: issue.tenantId,
+            action: 'tenant:doctor:circuit_reset',
+          })
         } catch (error: any) {
           issue.meta = { ...(issue.meta ?? {}), fixed: false, fixError: error?.message }
         }

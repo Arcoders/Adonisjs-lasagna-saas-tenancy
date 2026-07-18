@@ -346,6 +346,10 @@ export interface IsolationConfig {
     evictionGracePeriodMs?: number;
     maxTenantConnections?: number;
     maxTenantConnectionsHardCeiling?: number;
+    migrateOnProvision?: boolean;
+    operationalConnectionBudget?: number;
+    // Warning: (ae-forgotten-export) The symbol "PgBouncerConfig" needs to be exported by the entry point index.d.ts
+    pgBouncer?: PgBouncerConfig;
     provisionConnectionName?: string;
     rowScopeColumn?: string;
     rowScopeMode?: 'strict' | 'allowGlobal';
@@ -353,6 +357,8 @@ export interface IsolationConfig {
     rowScopeTables?: string[];
     templateConnectionName?: string;
     tenantDatabasePrefix?: string;
+    // Warning: (ae-forgotten-export) The symbol "WarmPoolConfig" needs to be exported by the entry point index.d.ts
+    warmPool?: WarmPoolConfig;
 }
 
 // Warning: (ae-forgotten-export) The symbol "IsolationDriverName" needs to be exported by the entry point index.d.ts
@@ -638,7 +644,7 @@ export interface RequestDataResolverConfig {
 export type ResolvedCircuitBreakerConfig = MultitenancyConfig['circuitBreaker'] & Required<Pick<MultitenancyConfig['circuitBreaker'], 'maxTrackedCircuits'>>;
 
 // @public
-export type ResolvedIsolationConfig = IsolationConfig & Required<Pick<IsolationConfig, 'maxTenantConnections' | 'evictionGracePeriodMs'>>;
+export type ResolvedIsolationConfig = IsolationConfig & Required<Pick<IsolationConfig, 'maxTenantConnections' | 'evictionGracePeriodMs' | 'operationalConnectionBudget' | 'migrateOnProvision'>>;
 
 // @public
 export type ResolvedMultitenancyConfig = Omit<MultitenancyConfig, 'circuitBreaker' | 'queue' | 'isolation' | 'resolver'> & {
@@ -1145,7 +1151,7 @@ export function writeSecret(plain: string, cls: SecretClass): string;
 // src/tenancy.ts:147:21 - (ae-forgotten-export) The symbol "runForRequest" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:147:21 - (ae-forgotten-export) The symbol "currentId" needs to be exported by the entry point index.d.ts
 // src/tenancy.ts:147:21 - (ae-forgotten-export) The symbol "current" needs to be exported by the entry point index.d.ts
-// src/types/config.ts:620:5 - (ae-forgotten-export) The symbol "TenantAnonymizer" needs to be exported by the entry point index.d.ts
+// src/types/config.ts:625:5 - (ae-forgotten-export) The symbol "TenantAnonymizer" needs to be exported by the entry point index.d.ts
 
 // (No @packageDocumentation comment for this package)
 

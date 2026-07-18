@@ -461,6 +461,23 @@
       "filePath": "tenant_reprovision.js"
     },
     {
+      "commandName": "tenant:heal",
+      "description": "Non-destructively bring tenant(s) to a healthy, fully-migrated, seeded state (provision-up-only)",
+      "help": "Examples: node ace tenant:heal --tenant=<id>   |   node ace tenant:heal --concurrency=4 -y",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        { "name": "tenantsIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant ID(s) to heal. If omitted, heals every non-deleted tenant." },
+        { "name": "admin", "flagName": "admin", "required": false, "type": "string", "description": "Acting admin id recorded in the audit log (default: system)" },
+        { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "List the tenants that would be healed without applying any change" },
+        { "name": "force", "flagName": "force", "required": false, "type": "boolean", "alias": "y", "description": "Skip the confirmation prompt when healing the whole fleet" },
+        { "name": "concurrency", "flagName": "concurrency", "required": false, "type": "number", "description": "Heal up to N tenants in parallel (default 1 = sequential). Clamped to the operational connection budget so it can never breach the absolute connection ceiling." }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_heal.js"
+    },
+    {
       "commandName": "tenant:satellite:remove",
       "description": "Print a safe checklist for removing a packaged satellite (does not auto-edit adonisrc.ts or drop data)",
       "help": "Example: node ace tenant:satellite:remove @adonisjs-lasagna/billing",

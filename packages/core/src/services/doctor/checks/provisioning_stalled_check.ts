@@ -1,4 +1,5 @@
 import { DateTime } from 'luxon'
+import { applyFix } from '../apply_fix.js'
 import type { DoctorCheck, DiagnosisIssue } from '../types.js'
 
 const STALL_MINUTES = 30
@@ -28,6 +29,7 @@ const provisioningStalledCheck: DoctorCheck = {
       const issue: DiagnosisIssue = {
         code: 'provisioning_stalled',
         severity: 'error',
+        scope: 'tenant',
         message: `Tenant "${tenant.name}" stuck in provisioning for ${stalledFor} minute(s)`,
         tenantId: tenant.id,
         fixable: true,
@@ -35,13 +37,19 @@ const provisioningStalledCheck: DoctorCheck = {
       }
 
       if (ctx.attemptFix) {
-        try {
-          tenant.status = 'failed'
-          await tenant.save()
-          issue.meta = { ...issue.meta, fixed: true }
-        } catch (error: any) {
-          issue.meta = { ...issue.meta, fixed: false, fixError: error?.message }
-        }
+        // Fresh re-read + guard + audit via the shared safe-fix envelope, so a
+        // concurrent provision that just completed is not clobbered back to failed.
+        await applyFix(
+          ctx,
+          issue,
+          async (fresh) => {
+            if (fresh.isProvisioning) {
+              fresh.status = 'failed'
+              await fresh.save()
+            }
+          },
+          { action: 'tenant:doctor:provisioning_quarantine' }
+        )
       }
 
       issues.push(issue)

@@ -51,6 +51,9 @@ export const CONFIG_DEFAULTS = {
     maxTenantConnections: DEFAULT_MAX_TENANT_CONNECTIONS,
     evictionGracePeriodMs: DEFAULT_EVICTION_GRACE_MS,
     operationalConnectionBudget: DEFAULT_OPERATIONAL_CONNECTION_BUDGET,
+    // Off by default: provision and migrate stay separate lifecycles unless a host
+    // opts in (a UI-onboarding app sets it true so tenants are born at head).
+    migrateOnProvision: false,
   },
   // Filled only when the host set a `resolver.cache` block (opt-in via `enabled`).
   resolver: {
@@ -118,6 +121,8 @@ export function resolveConfig(config: MultitenancyConfig): ResolvedMultitenancyC
         iso?.evictionGracePeriodMs ?? CONFIG_DEFAULTS.isolation.evictionGracePeriodMs,
       operationalConnectionBudget:
         iso?.operationalConnectionBudget ?? CONFIG_DEFAULTS.isolation.operationalConnectionBudget,
+      migrateOnProvision:
+        iso?.migrateOnProvision ?? CONFIG_DEFAULTS.isolation.migrateOnProvision,
     },
   }
 

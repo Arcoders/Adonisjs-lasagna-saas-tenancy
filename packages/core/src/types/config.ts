@@ -720,7 +720,10 @@ export type ResolvedIsolationConfig = IsolationConfig &
   Required<
     Pick<
       IsolationConfig,
-      'maxTenantConnections' | 'evictionGracePeriodMs' | 'operationalConnectionBudget'
+      | 'maxTenantConnections'
+      | 'evictionGracePeriodMs'
+      | 'operationalConnectionBudget'
+      | 'migrateOnProvision'
     >
   >
 

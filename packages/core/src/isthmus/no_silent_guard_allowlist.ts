@@ -27,4 +27,8 @@ export const NO_SILENT_GUARD_ALLOWLIST: ReadonlyArray<{ path: string; why: strin
     path: 'src/models/adapters/tenant_adapter.ts',
     why: "read-only firewall SETUP failure at the routing seam: when untrusted plugin code is on the stack but the active driver offers no per-tenant SELECT-only clone (ensureReadOnlyClient absent, e.g. rowscope-pg/sqlite-memory), the adapter denies the query fail-closed rather than route untrusted code to a writable connection. This reports a missing firewall capability THIS call, not an attack — the loud typed IsolationConfigException surfaces as the request's own error. The driver owns the firewall and its audit: the real read-only enforcement is Postgres denying the write, and the primary is identity-sealed (guard.seal.connection_identity) before any clone; an extra audit event here would duplicate what the denied request and the driver's seal already carry",
   },
+  {
+    path: 'src/services/tenant_healer.ts',
+    why: "TOCTOU correctness guard, not a security boundary: healTenant re-reads the tenant and refuses to heal one that was concurrently soft-deleted, so a heal racing a delete cannot resurrect it or write onto a dropped schema. It is not attacker-driven (heal is an operator/onboarding action), and the refusal is already surfaced by every caller — the doctor's applyHeal records meta.fixed=false + fixError, tenant:heal logs and sets a non-zero exit code, and the install job lets it fall through to the failed-quarantine catch. A dedicated Isthmus event would duplicate observability the caller already owns",
+  },
 ]

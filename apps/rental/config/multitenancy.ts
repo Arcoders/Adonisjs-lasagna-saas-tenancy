@@ -26,6 +26,15 @@ export default {
   tenantConnectionNamePrefix: 'tenant_',
   tenantSchemaPrefix: 'tenant_',
 
+  // ─── Isolation ───────────────────────────────────────────────────
+  // Migrate + seed each new company to head as part of provisioning, so a
+  // UI-created company is born fully migrated (never active-but-unmigrated, the
+  // class of bug that returned a 503 on "Run doctor"). `tenant:migrate` stays
+  // available and idempotent for the existing fleet.
+  isolation: {
+    migrateOnProvision: true,
+  },
+
   // ─── Resolution ──────────────────────────────────────────────────
   // Each rental company gets a vanity host `<slug>.localhost` stored as the
   // tenant's `custom_domain`. The chain tries `domain-or-subdomain` first (the
@@ -174,14 +183,21 @@ export default {
   },
 
   // ─── Read replica routing ────────────────────────────────────────
-  // Local dev runs a single Postgres, so the "replica" falls back to the
-  // primary host — enough to exercise the routing API. Vehicle listings read
-  // through the `_read` connection.
-  tenantReadReplicas: {
-    hosts: [{ host: env.get('DB_REPLICA_HOST', env.get('DB_HOST')), name: 'karimoto-replica-1' }],
-    strategy: 'sticky',
-    connectionSuffix: '_read',
-  },
+  // Wire a replica ONLY when DB_REPLICA_HOST is set. Local dev runs a single
+  // Postgres with no standby, so the block stays absent and the replica_lag doctor
+  // check returns [] rather than probing the primary and raising a false
+  // points-at-primary signal (WS-6 catches that case too, as belt-and-suspenders).
+  // Set DB_REPLICA_HOST to a real standby to exercise read routing; vehicle listings
+  // read through the `_read` connection.
+  ...(env.get('DB_REPLICA_HOST')
+    ? {
+        tenantReadReplicas: {
+          hosts: [{ host: env.get('DB_REPLICA_HOST')!, name: 'karimoto-replica-1' }],
+          strategy: 'sticky' as const,
+          connectionSuffix: '_read',
+        },
+      }
+    : {}),
 
   // ─── Compliance (GDPR / Law 09-08 erasure seam) ──────────────────
   // Backs `tenant:gdpr:anonymize`. Runs inside tenancy.run(tenant), so Customer

@@ -50,7 +50,9 @@ export default class DestroyTenant extends BaseCommand {
       await hooks.run('before', 'destroy', { tenant })
 
       const { DateTime } = await import('luxon')
+      // Invariant A: deletedAt and status move together (stamp + flip to 'deleted').
       tenant.deletedAt = DateTime.now()
+      tenant.status = 'deleted'
       await tenant.save()
 
       if (this.keepSchema) {

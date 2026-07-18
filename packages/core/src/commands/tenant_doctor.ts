@@ -2,7 +2,7 @@ import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import app from '@adonisjs/core/services/app'
 import DoctorService from '../services/doctor/doctor_service.js'
-import type { DiagnosisSeverity, DoctorRunResult } from '../services/doctor/types.js'
+import type { DiagnosisSeverity, DoctorRunResult, DoctorRunStatus } from '../services/doctor/types.js'
 
 const SEVERITY_COLOR: Record<DiagnosisSeverity, 'cyan' | 'yellow' | 'red'> = {
   info: 'cyan',
@@ -317,7 +317,7 @@ export default class TenantDoctor extends BaseCommand {
     table.render()
   }
 
-  #renderReports(result: { reports: any[]; totals: any }) {
+  #renderReports(result: { reports: any[]; totals: any; status?: DoctorRunStatus }) {
     const { reports, totals } = result
     if (reports.length === 0) {
       this.logger.info('No checks registered.')
@@ -362,6 +362,24 @@ export default class TenantDoctor extends BaseCommand {
       `${this.colors.red(`error: ${totals.error}`)}  ` +
       `fixable: ${totals.fixable}`
     this.logger.log(this.colors.bold('Summary  ') + summary)
+
+    if (result.status) {
+      // Tri-state verdict, mirroring /readyz and the health report: FAIL only on a
+      // platform-scoped error; a lone tenant error is DEGRADED (the platform is fine).
+      const verdict =
+        result.status === 'fail'
+          ? this.colors.red('FAIL')
+          : result.status === 'degraded'
+            ? this.colors.yellow('DEGRADED')
+            : this.colors.green('OK')
+      const split =
+        totals.platformError !== undefined
+          ? this.colors.dim(
+              `  (${totals.platformError} platform · ${totals.tenantError} tenant error(s))`
+            )
+          : ''
+      this.logger.log(this.colors.bold('Verdict  ') + verdict + split)
+    }
 
     if (!this.fix && totals.fixable > 0) {
       this.logger.log(this.colors.dim(`Re-run with --fix to apply auto-fixes.`))

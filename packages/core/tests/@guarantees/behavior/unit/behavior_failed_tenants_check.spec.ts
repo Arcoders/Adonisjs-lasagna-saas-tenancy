@@ -7,33 +7,33 @@ import { setupTestConfig } from '../../../helpers/config.js'
 test.group('failedTenantsCheck', (group) => {
   group.each.setup(() => setupTestConfig())
 
-  test('returns no issues when no tenant is in failed state', ({ assert }) => {
+  test('returns no issues when no tenant is in failed state', async ({ assert }) => {
     const repo = mockTenantRepository()
     const tenants = [
       buildTestTenant({ status: 'active' }),
       buildTestTenant({ status: 'suspended' }),
     ]
 
-    const issues = failedTenantsCheck.run({
+    const issues = (await failedTenantsCheck.run({
       tenants,
       repo,
       attemptFix: false,
-    }) as any[]
+    })) as any[]
 
     assert.lengthOf(issues, 0)
   })
 
-  test('flags tenants whose status is failed', ({ assert }) => {
+  test('flags tenants whose status is failed', async ({ assert }) => {
     const repo = mockTenantRepository()
     const a = buildTestTenant({ status: 'failed' })
     const b = buildTestTenant({ status: 'active' })
     const c = buildTestTenant({ status: 'failed' })
 
-    const issues = failedTenantsCheck.run({
+    const issues = (await failedTenantsCheck.run({
       tenants: [a, b, c],
       repo,
       attemptFix: false,
-    }) as any[]
+    })) as any[]
 
     assert.lengthOf(issues, 2)
     const ids = issues.map((i) => i.tenantId).sort()
@@ -41,6 +41,8 @@ test.group('failedTenantsCheck', (group) => {
     for (const i of issues) {
       assert.equal(i.code, 'tenant_failed')
       assert.equal(i.severity, 'error')
+      assert.equal(i.scope, 'tenant')
+      assert.isTrue(i.fixable)
     }
   })
 })

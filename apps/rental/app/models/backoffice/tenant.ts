@@ -194,7 +194,9 @@ export default class Tenant extends BackofficeBaseModel {
   async uninstall() {
     await this.closeConnection()
     await db.rawQuery(`DROP SCHEMA IF EXISTS "${this.schemaName}" CASCADE`)
+    // Invariant A: deletedAt and status move together.
     this.deletedAt = DateTime.now()
+    this.status = 'deleted'
     await this.save()
   }
 

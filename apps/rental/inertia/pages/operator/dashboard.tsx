@@ -1,18 +1,26 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from '@inertiajs/react'
 import { OperatorShell, Stat, StatusBadge } from '../../components/shells'
-import { api, ApiError } from '../../lib/api'
+import { api } from '../../lib/api'
 import type { AdminTenant, TenantStatus } from '../../types'
 
 type ListResponse = { data: AdminTenant[]; total: number }
-type DoctorTotals = { ok: number; warn: number; error: number }
-type DoctorReport = { totals: DoctorTotals }
+type RunStatus = 'ok' | 'degraded' | 'fail'
+type DoctorTotals = {
+  info: number
+  warn: number
+  error: number
+  fixable: number
+  platformError: number
+  tenantError: number
+}
+type DoctorReport = { status: RunStatus; totals: DoctorTotals }
 
 const PLANS = ['starter', 'fleet', 'enterprise']
 
 export default function OperatorDashboard() {
   const [tenants, setTenants] = useState<AdminTenant[] | null>(null)
-  const [health, setHealth] = useState<{ totals: DoctorTotals; healthy: boolean } | null>(null)
+  const [health, setHealth] = useState<{ totals: DoctorTotals; status: RunStatus } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -31,15 +39,17 @@ export default function OperatorDashboard() {
 
   const loadHealth = useCallback(async () => {
     try {
-      const res = await api.get<DoctorReport>('/admin/health/report')
-      setHealth({ totals: res.totals, healthy: true })
-    } catch (e) {
-      // 503 = the doctor found errors; still parse the body for the counts.
-      if (e instanceof ApiError && e.status === 503) {
-        setHealth({ totals: { ok: 0, warn: 0, error: 1 }, healthy: false })
-      } else {
-        setHealth(null)
-      }
+      // 200 (ok/degraded) or 503 (platform fail) — the doctor body is identical, so
+      // read it raw and trust the report's own tri-state `status` rather than the
+      // HTTP code, which only distinguishes fail from the rest.
+      const res = await fetch('/admin/health/report', {
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      })
+      const body = (await res.json()) as DoctorReport
+      setHealth({ totals: body.totals, status: body.status })
+    } catch {
+      setHealth(null)
     }
   }, [])
 
@@ -95,15 +105,27 @@ export default function OperatorDashboard() {
           label="Platform health"
           value={
             health ? (
-              <span className={`badge ${health.healthy ? 'badge--green' : 'badge--red'}`}>
+              <span
+                className={`badge ${
+                  health.status === 'fail'
+                    ? 'badge--red'
+                    : health.status === 'degraded'
+                      ? 'badge--amber'
+                      : 'badge--green'
+                }`}
+              >
                 <span className="dot" />
-                {health.healthy ? 'Healthy' : 'Attention'}
+                {health.status === 'fail'
+                  ? 'Attention'
+                  : health.status === 'degraded'
+                    ? 'Degraded'
+                    : 'Healthy'}
               </span>
             ) : (
               '—'
             )
           }
-          sub={health ? `${health.totals.ok} ok · ${health.totals.error} err` : 'doctor'}
+          sub={health ? `${health.totals.error} err · ${health.totals.warn} warn` : 'doctor'}
         />
       </div>
 

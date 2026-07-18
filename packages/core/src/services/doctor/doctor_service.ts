@@ -6,7 +6,20 @@ import type {
   DoctorRunOptions,
   DoctorRunResult,
   DiagnosisReport,
+  DiagnosisIssue,
+  DiagnosisScope,
 } from './types.js'
+
+/**
+ * The effective scope of an issue: an explicit `scope` wins; otherwise infer
+ * `tenant` from a present `tenantId` and `platform` when there is none. This
+ * keeps every existing check correct without edits (a tenant issue carries a
+ * `tenantId`, an infra issue does not) while letting a check override when the
+ * heuristic would be wrong.
+ */
+function effectiveScope(issue: DiagnosisIssue): DiagnosisScope {
+  return issue.scope ?? (issue.tenantId ? 'tenant' : 'platform')
+}
 
 /**
  * Registry and runner for tenant diagnostic checks. Holds a named map of
@@ -74,7 +87,14 @@ export default class DoctorService {
     }
 
     const reports: DiagnosisReport[] = []
-    const totals = { info: 0, warn: 0, error: 0, fixable: 0 }
+    const totals = {
+      info: 0,
+      warn: 0,
+      error: 0,
+      fixable: 0,
+      platformError: 0,
+      tenantError: 0,
+    }
 
     for (const check of checks) {
       const start = Date.now()
@@ -91,6 +111,10 @@ export default class DoctorService {
         for (const issue of issues) {
           totals[issue.severity]++
           if (issue.fixable) totals.fixable++
+          if (issue.severity === 'error') {
+            if (effectiveScope(issue) === 'platform') totals.platformError++
+            else totals.tenantError++
+          }
         }
       } catch (error: any) {
         report.error = error?.message ?? 'check threw'
@@ -100,6 +124,13 @@ export default class DoctorService {
       }
     }
 
-    return { reports, totals }
+    // Tri-state verdict, mirroring /readyz: a platform error fails the whole run;
+    // a tenant error alone only degrades it; warnings/infos leave it ok. This is
+    // what lets /admin/health/report answer 200-degraded for one tenant's problem
+    // and reserve 503 for genuine infrastructure failure.
+    const status =
+      totals.platformError > 0 ? 'fail' : totals.tenantError > 0 ? 'degraded' : 'ok'
+
+    return { reports, status, totals }
   }
 }

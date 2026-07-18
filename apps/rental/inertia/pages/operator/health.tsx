@@ -10,7 +10,8 @@ import type { AdminTenant } from '../../types'
  * Per-company queue depth comes from `GET /admin/tenants/:id/queue/stats`. */
 
 type Severity = 'info' | 'warn' | 'error'
-type Issue = { code: string; severity: Severity; message: string; fixable?: boolean }
+type Scope = 'platform' | 'tenant'
+type Issue = { code: string; severity: Severity; scope?: Scope; message: string; fixable?: boolean }
 type CheckReport = {
   check: string
   description: string
@@ -18,8 +19,25 @@ type CheckReport = {
   issues: Issue[]
   error?: string
 }
-type Totals = { info: number; warn: number; error: number; fixable: number }
-type HealthReport = { reports: CheckReport[]; totals: Totals }
+type RunStatus = 'ok' | 'degraded' | 'fail'
+type Totals = {
+  info: number
+  warn: number
+  error: number
+  fixable: number
+  platformError: number
+  tenantError: number
+}
+type HealthReport = { reports: CheckReport[]; status: RunStatus; totals: Totals }
+
+const EMPTY_TOTALS: Totals = {
+  info: 0,
+  warn: 0,
+  error: 0,
+  fixable: 0,
+  platformError: 0,
+  tenantError: 0,
+}
 
 type QueueStats = {
   tenantId: string
@@ -72,7 +90,7 @@ export default function Health() {
       setQueues(rows.filter((r): r is QueueRow => r !== null))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load health')
-      setReport({ reports: [], totals: { info: 0, warn: 0, error: 0, fixable: 0 } })
+      setReport({ reports: [], status: 'ok', totals: EMPTY_TOTALS })
       setQueues([])
     } finally {
       setLoading(false)
@@ -83,8 +101,17 @@ export default function Health() {
     load()
   }, [load])
 
-  const totals = report?.totals ?? { info: 0, warn: 0, error: 0, fixable: 0 }
-  const healthy = totals.error === 0
+  const totals = report?.totals ?? EMPTY_TOTALS
+  // Tri-state verdict, mirroring the doctor: a platform error fails (Attention), a
+  // lone tenant error only degrades (200), else Healthy. This is why one broken
+  // company no longer paints the whole console red.
+  const status: RunStatus = report?.status ?? 'ok'
+  const verdict =
+    status === 'fail'
+      ? { label: 'Attention', tone: 'badge--red' }
+      : status === 'degraded'
+        ? { label: 'Degraded', tone: 'badge--amber' }
+        : { label: 'Healthy', tone: 'badge--green' }
 
   return (
     <OperatorShell title="Health & doctor" activeHref="/health">
@@ -104,9 +131,9 @@ export default function Health() {
         <Stat
           label="Overall"
           value={
-            <span className={`badge ${healthy ? 'badge--green' : 'badge--red'}`}>
+            <span className={`badge ${verdict.tone}`}>
               <span className="dot" />
-              {healthy ? 'Healthy' : 'Attention'}
+              {verdict.label}
             </span>
           }
           sub={`${report?.reports.length ?? 0} checks`}
@@ -114,7 +141,13 @@ export default function Health() {
         <Stat
           label="Errors"
           value={totals.error}
-          sub={totals.fixable ? `${totals.fixable} fixable` : 'blocking'}
+          sub={
+            totals.error > 0
+              ? `${totals.platformError} platform · ${totals.tenantError} tenant`
+              : totals.fixable
+                ? `${totals.fixable} fixable`
+                : 'none'
+          }
         />
         <Stat label="Warnings" value={totals.warn} sub="advisory" />
         <Stat label="Info" value={totals.info} sub="notes" />
