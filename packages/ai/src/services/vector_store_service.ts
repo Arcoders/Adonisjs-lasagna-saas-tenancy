@@ -1,6 +1,6 @@
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import AIException from '../exceptions/ai_exception.js'
-import { assertNever } from '@adonisjs-lasagna/saas-tenancy/sdk'
+import { assertNever, tokenizeTenantId } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import { AI_EMBEDDINGS_TABLE } from '../constants.js'
 import type { RetrievalScope } from '../define_config.js'
 import type { TableLocation } from '@adonisjs-lasagna/saas-tenancy/services'
@@ -320,7 +320,12 @@ export default class VectorStoreService {
   ): Promise<{ client: VectorQueryClient; table: string }> {
     const active = this.deps.activeScopeTenantId()
     if (active !== undefined && active !== tenant.id) {
-      emitAiGuardEvent('guard.ai_scope_mismatch', { tenantId: tenant.id, metadata: { active } })
+      // `active` is a FOREIGN tenant id; tokenize it so the broadcast event never
+      // fans a real cross-tenant id out to plugin listeners.
+      emitAiGuardEvent('guard.ai_scope_mismatch', {
+        tenantId: tenant.id,
+        metadata: { active: tokenizeTenantId(active) },
+      })
       throw new AIException(
         'tenant_scope_mismatch',
         'Refusing a vector-store query: the request tenant does not match the active tenancy scope.'

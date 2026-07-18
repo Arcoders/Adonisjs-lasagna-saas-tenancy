@@ -3,6 +3,7 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 import type { AIToolHostDefinition, AIToolsConfig, ToolScope } from '../define_config.js'
 import type { AIToolDefinition } from '../types/ai_provider_contract.js'
 import AIException from '../exceptions/ai_exception.js'
+import { tokenizeTenantId } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import {
   mintToolConfirmation,
@@ -402,9 +403,11 @@ export async function authorizeToolScope(
  */
 export function assertActiveToolScope(active: string | undefined, tenantId: string): void {
   if (active !== undefined && active !== tenantId) {
+    // `active` is a FOREIGN tenant id; tokenize it so the broadcast event never
+    // fans a real cross-tenant id out to plugin listeners.
     emitAiGuardEvent('guard.ai_tool_scope_mismatch', {
       tenantId,
-      metadata: { active: String(active).slice(0, 64) },
+      metadata: { active: tokenizeTenantId(active) },
     })
     throw new AIException(
       'tenant_scope_mismatch',

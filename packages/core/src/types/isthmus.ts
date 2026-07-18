@@ -24,11 +24,14 @@ export type IsthmusPhase = 'config' | 'runtime'
 export type IsthmusEvidenceKind = 'cve' | 'incident' | 'inherent-risk' | 'invariant'
 
 /**
- * Why a dispatch was dropped: `rate_limited` (the per-severity window budget
- * was exhausted) or `no_emitter` (no booted app / the emitter was unavailable).
- * Counters are never dropped, only the event dispatch is.
+ * Why a dispatch was dropped or clipped: `rate_limited` (the per-severity window
+ * budget was exhausted), `no_emitter` (no booted app / the emitter was
+ * unavailable), or `metadata_bounded` (the broadcast metadata exceeded the fixed
+ * contract and was truncated before it went out). Counters are never dropped,
+ * only the event dispatch (or, for `metadata_bounded`, part of its payload) is,
+ * so a clip is still recorded here and nothing is silently lost.
  */
-export type IsthmusDropReason = 'rate_limited' | 'no_emitter'
+export type IsthmusDropReason = 'rate_limited' | 'no_emitter' | 'metadata_bounded'
 
 /** The documented reason a guard exists. Required and non-empty on every entry. */
 export interface IsthmusEvidence {

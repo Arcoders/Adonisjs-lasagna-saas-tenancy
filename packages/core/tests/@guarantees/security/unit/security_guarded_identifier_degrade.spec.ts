@@ -13,14 +13,15 @@ import type { IsthmusGuardTrippedPayload } from '../../../../src/types/isthmus.j
 
 /**
  * TS-2: `isthmus/guarded_identifier.ts` is the single owner of the
- * `guard.tenant_identifier` emit, and the two refusal paths record on the
- * surface their stakes call for. The throwing `assertSafeIdentifier` (a near-miss
- * DDL/key injection) bumps the counter AND broadcasts the event — pinned by the
- * emission matrix. The non-throwing `guardedSafeIdentifier` (a dropped
- * attribution at rate-limit/metric seams) bumps the counter but broadcasts NO
- * event (`dispatch: false`): a forged id is still visible on the Prometheus
- * counter, yet a high-volume degrade can never consume the `high` dispatch budget
- * and crowd out a co-severity security guard's events. This spec pins that split.
+ * `guard.tenant_identifier` emit. Both refusal paths bump the `rejected` counter
+ * (the kernel's primary trip surface): the throwing `assertSafeIdentifier` (a
+ * near-miss DDL/key injection, whose throw is itself the real-time signal) and
+ * the non-throwing `guardedSafeIdentifier` (a dropped attribution at
+ * rate-limit/metric seams). NEITHER broadcasts the `IsthmusGuardTripped` event:
+ * the guard is classified `dispatchPolicy: 'count-only'` (S3) because it is
+ * attacker-reachable at volume, so a flood can never consume the `high` dispatch
+ * window and crowd out a co-severity security guard's events for other tenants.
+ * A forged id stays visible on the Prometheus counter. This spec pins that.
  */
 
 const UUID = '11111111-1111-4111-8111-111111111111'
@@ -66,8 +67,8 @@ test.group('guardedSafeIdentifier — audited degrade (counter, no event)', (gro
 
     // The counter (the primary trip surface) records the forged id...
     assert.equal(rejectedOf('guard.tenant_identifier'), 1)
-    // ...but the high-volume degrade broadcasts no event, so it consumes no
-    // dispatch budget and cannot crowd out a co-severity security guard's events.
+    // ...but the count-only guard broadcasts no event, so it consumes no dispatch
+    // budget and cannot crowd out a co-severity security guard's events.
     assert.lengthOf(captured, 0)
   })
 
@@ -84,24 +85,23 @@ test.group('guardedSafeIdentifier — audited degrade (counter, no event)', (gro
     assert.lengthOf(snapshotIsthmusCounters().rejected, 0)
   })
 
-  test('the two paths agree on the counter; only the throw broadcasts an event', async ({
+  test('both paths agree on the counter; neither broadcasts (count-only classification)', async ({
     assert,
   }) => {
-    // The throwing guard (a near-miss injection) bumps the counter AND events...
+    // The throwing guard (a near-miss injection) bumps the counter; the throw is
+    // the real-time signal...
     assert.throws(
       () => assertSafeIdentifier('bad:id', 'tenant id'),
       /Refusing to use unsafe tenant id/
     )
-    // ...the degrade (a dropped attribution) bumps the same counter, no event.
+    // ...the degrade (a dropped attribution) bumps the same counter.
     assert.isFalse(guardedSafeIdentifier('bad:id', 'tenant id'))
     await settle()
 
     // Both refusals landed on the counter.
     assert.equal(rejectedOf('guard.tenant_identifier'), 2)
-    // Only the throw was broadcast as an event.
-    assert.lengthOf(captured, 1)
-    assert.equal(captured[0]!.id, 'guard.tenant_identifier')
-    assert.equal(captured[0]!.event, 'isthmus:guard:identifier:rejected')
-    assert.equal(captured[0]!.severity, 'high')
+    // Neither was broadcast: the guard is count-only, so it can never consume the
+    // shared `high` dispatch window (S3).
+    assert.lengthOf(captured, 0)
   })
 })

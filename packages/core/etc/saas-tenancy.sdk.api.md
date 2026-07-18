@@ -88,6 +88,7 @@ export function filterAlreadyPublished(stubs: string[], existing: string[]): {
 export interface GuardAuditEntry {
     // (undocumented)
     readonly bugClass: string;
+    readonly dispatchPolicy?: 'broadcast' | 'count-only';
     // (undocumented)
     readonly event: string;
     // (undocumented)
@@ -165,7 +166,7 @@ export const ISTHMUS_BUDGETS: {
 };
 
 // @public
-export type IsthmusDropReason = 'rate_limited' | 'no_emitter';
+export type IsthmusDropReason = 'rate_limited' | 'no_emitter' | 'metadata_bounded';
 
 // @public
 export interface IsthmusGuardTrippedPayload {
@@ -206,6 +207,12 @@ export interface LoggerLike {
     // (undocumented)
     warning(message: string): void;
 }
+
+// @public
+export const MAX_ISTHMUS_METADATA_KEYS = 16;
+
+// @public (undocumented)
+export const MAX_ISTHMUS_METADATA_VALUE_LENGTH = 256;
 
 // @public
 export function migrationSlug(packageName: string): string;
@@ -298,6 +305,12 @@ export interface SatelliteProviderContract {
 
 // @public
 export function satisfiesRange(version: string, range: string): boolean | null;
+
+// @public
+export const TENANT_TOKEN_PREFIX = "ttok_";
+
+// @public
+export function tokenizeTenantId(id: string): string;
 
 // (No @packageDocumentation comment for this package)
 

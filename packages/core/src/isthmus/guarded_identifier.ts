@@ -8,33 +8,32 @@ import { isSafeIdentifier } from '../services/isolation/identifier.js'
  * policy leaf stays a zero-import module and the dependency arrow points from
  * this guard layer DOWN to the predicate, never the reverse.
  *
- * Both refusal paths route their audit through here, but each records on the
- * surface its stakes call for:
+ * Both refusal paths route their audit through here, and both record the trip on
+ * the `rejected` counter, the kernel's primary trip surface:
  *  - `assertSafeIdentifier` THROWS: a driver was about to interpolate an unsafe
- *    id into DDL or a Redis key (a near-miss injection). It bumps the counter AND
- *    broadcasts the fire-and-forget `IsthmusGuardTripped` event, so a host can
- *    react in real time.
+ *    id into DDL or a Redis key (a near-miss injection). The throw aborts the
+ *    operation, so a host reacts to the exception in real time.
  *  - `guardedSafeIdentifier` DEGRADES: an attribution seam drops a forged id to
- *    the shared bucket. It records the trip on the `rejected` counter but does
- *    NOT broadcast an event (`dispatch: false`). The forged attribution is still
- *    never invisible (it surfaces on the Prometheus `multitenancy_isthmus_*`
- *    counters, the kernel's primary trip surface), while a high-volume,
- *    attacker-influenceable degrade (only reachable behind a lax CUSTOM resolver,
- *    since the built-in resolvers gate id hits on `isUuidV4`) can never consume
- *    the `high` dispatch budget and crowd out a co-severity security guard's
- *    events (SSRF, RLS, webhook). The counter carries the volume signal and the
- *    event carries the near-miss, so each trip lands on the right surface.
+ *    the shared bucket, returning false without throwing.
+ *
+ * NEITHER broadcasts the `IsthmusGuardTripped` event: `guard.tenant_identifier`
+ * is classified `dispatchPolicy: 'count-only'` in the registry (S3). It is
+ * attacker-reachable at volume (a lax CUSTOM resolver could feed unsafe ids on
+ * every request, since only the built-in resolvers gate id hits on `isUuidV4`),
+ * so broadcasting would let a flood consume the shared `high` dispatch window and
+ * suppress a co-severity security guard's alerts (SSRF, RLS, webhook) for OTHER
+ * tenants. The counter carries the signal; alert on
+ * `multitenancy_isthmus_rejected_total` for this guard.
  */
 
 /**
  * The one call site of the guard's emit. `value` is truncated for the payload.
- * `dispatch` broadcasts the event (the throwing path) or records counter-only
- * (the degrade path); see the file header for why.
+ * The registry classifies this guard count-only, so the emit records on the
+ * counters and never broadcasts (enforced in the shared emit machinery).
  */
-function emitRejection(kind: string, value: unknown, dispatch: boolean): void {
+function emitRejection(kind: string, value: unknown): void {
   emitIsthmusEvent('guard.tenant_identifier', {
     metadata: { kind, value: String(value).slice(0, 64) },
-    dispatch,
   })
 }
 
@@ -52,7 +51,7 @@ function emitRejection(kind: string, value: unknown, dispatch: boolean): void {
  */
 export function assertSafeIdentifier(value: string, kind: string = 'identifier'): void {
   if (!isSafeIdentifier(value)) {
-    emitRejection(kind, value, true)
+    emitRejection(kind, value)
     throw new Error(
       `Refusing to use unsafe ${kind} "${value}" in DDL. ` +
         `Tenant ids must match /^[a-zA-Z0-9_-]{1,63}$/ in canonical (NFKC) form (UUID v4 satisfies this).`
@@ -80,6 +79,6 @@ export function guardedSafeIdentifier(
   kind: string = 'identifier'
 ): value is string {
   if (isSafeIdentifier(value)) return true
-  if (value !== undefined && value !== null && value !== '') emitRejection(kind, value, false)
+  if (value !== undefined && value !== null && value !== '') emitRejection(kind, value)
   return false
 }

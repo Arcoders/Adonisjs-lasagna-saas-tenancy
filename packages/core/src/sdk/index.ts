@@ -97,7 +97,12 @@ export {
  * public event lazily). The public event stays `IsthmusGuardTripped` on
  * `/events`; the vocabulary types stay on `/types`.
  */
-export { createGuardAudit, ISTHMUS_BUDGETS } from './guard_audit.js'
+export {
+  createGuardAudit,
+  ISTHMUS_BUDGETS,
+  MAX_ISTHMUS_METADATA_KEYS,
+  MAX_ISTHMUS_METADATA_VALUE_LENGTH,
+} from './guard_audit.js'
 export type {
   GuardAuditEntry,
   GuardAuditInstance,
@@ -107,6 +112,15 @@ export type {
   GuardMetricSink,
   CreateGuardAuditOptions,
 } from './guard_audit.js'
+
+/**
+ * Turn a tenant id into a stable, non-reversible correlation token safe to place
+ * in a broadcast guard-tripped event's metadata. A satellite guard that carries a
+ * FOREIGN tenant id in its metadata (a scope-mismatch's `active`) tokenizes it,
+ * so the publicly-subscribable event never fans a real cross-tenant id out to
+ * plugin listeners; the precise ids stay server-side. Bare-safe.
+ */
+export { tokenizeTenantId, TENANT_TOKEN_PREFIX } from './tenant_token.js'
 
 /**
  * The Isthmus vocabulary types the guard-audit surface refers to (a satellite's
