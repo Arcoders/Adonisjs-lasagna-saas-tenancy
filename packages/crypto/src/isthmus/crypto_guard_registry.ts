@@ -164,9 +164,16 @@ export type CryptoGuardId = (typeof CRYPTO_GUARD_REGISTRY)[number]['id']
 /** A single registry entry, literal-narrowed. */
 export type CryptoGuardRegistryEntry = (typeof CRYPTO_GUARD_REGISTRY)[number]
 
+// O(1) id lookup, mirroring the kernel's `BY_ID` (packages/core/src/isthmus/
+// registry.ts) exactly. Built once at module load from the literal, so
+// `cryptoGuardEntry` on the emit hot path is a Map.get, not an O(n) scan.
+const BY_ID = new Map<CryptoGuardId, CryptoGuardRegistryEntry>(
+  CRYPTO_GUARD_REGISTRY.map((entry) => [entry.id, entry])
+)
+
 /** Look up a registry entry by id. Ids are compile-checked, so a miss is a programming error. */
 export function cryptoGuardEntry(id: CryptoGuardId): CryptoGuardRegistryEntry {
-  const entry = CRYPTO_GUARD_REGISTRY.find((candidate) => candidate.id === id)
+  const entry = BY_ID.get(id)
   if (!entry) {
     throw new Error(`[crypto] unknown crypto guard id: ${id}`)
   }

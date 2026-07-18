@@ -498,9 +498,16 @@ export type AiGuardId = (typeof AI_GUARD_REGISTRY)[number]['id']
 /** A single registry entry, literal-narrowed. */
 export type AiGuardRegistryEntry = (typeof AI_GUARD_REGISTRY)[number]
 
+// O(1) id lookup, mirroring the kernel's `BY_ID` (packages/core/src/isthmus/
+// registry.ts) exactly. Built once at module load from the literal, so
+// `aiGuardEntry` on the emit hot path is a Map.get, not an O(n) scan.
+const BY_ID = new Map<AiGuardId, AiGuardRegistryEntry>(
+  AI_GUARD_REGISTRY.map((entry) => [entry.id, entry])
+)
+
 /** Look up a registry entry by id. Ids are compile-checked, so a miss is a programming error. */
 export function aiGuardEntry(id: AiGuardId): AiGuardRegistryEntry {
-  const entry = AI_GUARD_REGISTRY.find((candidate) => candidate.id === id)
+  const entry = BY_ID.get(id)
   if (!entry) {
     throw new Error(`[ai] unknown AI guard id: ${id}`)
   }
