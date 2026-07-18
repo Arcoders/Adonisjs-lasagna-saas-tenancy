@@ -64,7 +64,7 @@ export default class TenantMigrate extends BaseCommand {
         .add(`Migrating "${tenant.name}" (${tenant.schemaName})`, async (task) => {
           try {
             task.update('Connecting...')
-            await driver.connect(tenant, { bypassHardCap: true })
+            await driver.connect(tenant, { bypassSoftCap: true })
 
             if (!this.dryRun) {
               await hooks.run('before', 'migrate', { tenant, direction: 'up' })

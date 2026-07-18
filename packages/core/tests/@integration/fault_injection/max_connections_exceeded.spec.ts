@@ -20,10 +20,11 @@ import { createTestTenant, destroyTestTenant } from '../../helpers/tenant.js'
  * connection by throwing the typed `TenantConnectionLimitException` (HTTP 503),
  * NOT by letting a raw pg error (a `too many clients` / `max_connections`
  * surprise from the server) escape. The throw site is
- * `packages/core/src/services/isolation/schema_pg_driver.ts:149`
- * (`if (!opts.bypassHardCap && this.#lru.atHardLimit()) throw new
+ * The throw site is the soft-cap tier of `PooledPgDriver.connect()`
+ * (`if (!opts.bypassSoftCap && this.#lru.atHardLimit()) throw new
  * TenantConnectionLimitException()`), gated by `ConnectionLru.atHardLimit()` in
- * `packages/core/src/services/isolation/connection_lru.ts:109`.
+ * `packages/core/src/services/isolation/connection_lru.ts`. The unbypassable
+ * absolute-ceiling tier is covered by `ceiling_absolute_under_bypass.spec.ts`.
  *
  * Imports follow the @integration convention (the public `@adonisjs-lasagna/...`
  * subpaths, which resolve to the compiled ./build via the package exports map)
@@ -112,7 +113,7 @@ test.group('SchemaPgDriver — connection budget exhausted (fault injection)', (
     const a = await createTestTenant({ status: 'active' })
     const b = await createTestTenant({ status: 'active' })
     try {
-      // A fills the single slot. provision() connects under bypassHardCap, so the
+      // A fills the single slot. provision() connects under bypassSoftCap, so the
       // schema is created and A's connection is registered and freshly touched
       // (inside the 60s grace window).
       const tenantA = { id: a.id } as unknown as TenantModelContract

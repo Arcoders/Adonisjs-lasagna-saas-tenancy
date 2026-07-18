@@ -126,15 +126,90 @@ export interface IsolationConfig {
    * (the default) a burst of concurrently-active tenants lets the pool grow past
    * it, trending toward the active-tenant count and, unchecked, toward PostgreSQL
    * `max_connections`. This ceiling is the last-resort backstop: once the pool
-   * reaches it, `connect()` refuses a NEW request-path tenant connection with
+   * reaches it, `connect()` refuses a NEW tenant connection with
    * `TenantConnectionLimitException` (HTTP 503) REGARDLESS of `enforceConnectionCap`,
    * so even an availability-favouring deployment can never exhaust the database.
-   * Operational paths (provisioning, migrations) bypass it, as they do the soft
-   * cap.
+   * It is UNBYPASSABLE: unlike the soft cap, operational paths (provisioning,
+   * migrations, seeding) do NOT bypass it, and bulk/parallel operational paths
+   * draw from a ceiling-derived `operationalConnectionBudget`, so no path can push
+   * the pool past it. Leaving it unset trades that guarantee for availability.
    *
    * Set it generously ABOVE `maxTenantConnections` (headroom for burst) but safely
    * under `max_connections * poolMax`. Leave it unset only if another layer
    * (PgBouncer, `enforceConnectionCap`) already bounds server connections.
    */
   maxTenantConnectionsHardCeiling?: number
+  /**
+   * For `schema-pg`/`database-pg`: how many connections the bulk/parallel
+   * OPERATIONAL paths (the migration worker pool, the warm pool, satellite
+   * migration temp clones) may hold open at once. Default 4.
+   *
+   * Operational work is bursty and must never crowd out request-serving
+   * connections, so keep this small. It is a SOFT budget for those paths,
+   * additionally clamped at runtime to `maxTenantConnectionsHardCeiling` (when
+   * set) so a parallel/warm operation can never push the pool past the absolute
+   * ceiling. Request-serving `connect()` calls do not draw from it.
+   */
+  operationalConnectionBudget?: number
+  /**
+   * For `schema-pg`/`database-pg`: opt-in connection WARM POOL (F2). Pre-opens
+   * connections for a set of OPERATOR-declared hot tenants at boot, so their first
+   * request skips the cold-connection cliff (connection registration + physical
+   * open) that an idle tenant otherwise pays on its first query.
+   *
+   * Off unless `enabled: true`. The tenant set is always operator-declared (a
+   * static `tenants` list or an authenticated `selectTenants` hook), NEVER derived
+   * from request input, so it cannot become an attacker-forced warm DoS. Warming
+   * runs through the capped `connect()` (bounded by `operationalConnectionBudget`
+   * and refused by the absolute ceiling), and fails closed: a warm failure is
+   * logged and skipped, never thrown into a request.
+   */
+  warmPool?: WarmPoolConfig
+  /**
+   * For `schema-pg`/`database-pg`: PgBouncer awareness (F3). Detects whether the
+   * database is fronted by a connection pooler and, in transaction-pooling mode,
+   * confirms the tenant routing path is pooler-safe. Fail-closed: detection never
+   * ASSUMES transaction pooling and never RAISES a cap or the ceiling. Off (or
+   * `mode: 'off'`) unless configured. See {@link PgBouncerConfig}.
+   */
+  pgBouncer?: PgBouncerConfig
+}
+
+/** Opt-in connection warm pool (F2). See {@link IsolationConfig.warmPool}. */
+export interface WarmPoolConfig {
+  /** Warm the declared tenants at boot. Off (no-op) unless true. */
+  enabled?: boolean
+  /**
+   * How many connections to pre-open per tenant. Default 1 (enough to erase the
+   * cold cliff). Bounded, and the absolute ceiling still caps the total.
+   */
+  count?: number
+  /**
+   * The OPERATOR-declared hot tenants to warm, by id. Ignored when `selectTenants`
+   * is set. Never populated from request input.
+   */
+  tenants?: string[]
+  /**
+   * An authenticated policy hook that returns the tenant ids to warm (an
+   * alternative to a static `tenants` list, e.g. "the top N tenants by traffic").
+   * Called once at boot, in the app's own context, never per request.
+   */
+  selectTenants?: () => string[] | Promise<string[]>
+}
+
+/** PgBouncer awareness + conservative auto-tune (F3). See {@link IsolationConfig.pgBouncer}. */
+export interface PgBouncerConfig {
+  /**
+   * `'auto'` probes the server and adapts conservatively; `'transaction'` /
+   * `'session'` assert a known pooling mode without probing; `'off'` (the default
+   * when the block is absent) disables the feature. Detection is FAIL-CLOSED: it
+   * never assumes transaction pooling unless confirmed.
+   */
+  mode?: 'auto' | 'transaction' | 'session' | 'off'
+  /**
+   * When true, a CONFIRMED transaction-pooling posture may apply a conservative
+   * auto-tune (never RAISING a cap or the ceiling beyond the configured values;
+   * detection can only confirm or tighten, never loosen). Default false.
+   */
+  autoTuneCaps?: boolean
 }

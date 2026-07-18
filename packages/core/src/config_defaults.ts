@@ -3,6 +3,7 @@ import {
   DEFAULT_MAX_TENANT_CONNECTIONS,
   DEFAULT_EVICTION_GRACE_MS,
 } from './services/isolation/connection_lru.js'
+import { DEFAULT_OPERATIONAL_CONNECTION_BUDGET } from './services/isolation/operational_budget.js'
 import {
   DEFAULT_RESOLUTION_CACHE_TTL_MS,
   DEFAULT_RESOLUTION_CACHE_MAX,
@@ -49,6 +50,7 @@ export const CONFIG_DEFAULTS = {
   isolation: {
     maxTenantConnections: DEFAULT_MAX_TENANT_CONNECTIONS,
     evictionGracePeriodMs: DEFAULT_EVICTION_GRACE_MS,
+    operationalConnectionBudget: DEFAULT_OPERATIONAL_CONNECTION_BUDGET,
   },
   // Filled only when the host set a `resolver.cache` block (opt-in via `enabled`).
   resolver: {
@@ -114,6 +116,8 @@ export function resolveConfig(config: MultitenancyConfig): ResolvedMultitenancyC
         iso?.maxTenantConnections ?? CONFIG_DEFAULTS.isolation.maxTenantConnections,
       evictionGracePeriodMs:
         iso?.evictionGracePeriodMs ?? CONFIG_DEFAULTS.isolation.evictionGracePeriodMs,
+      operationalConnectionBudget:
+        iso?.operationalConnectionBudget ?? CONFIG_DEFAULTS.isolation.operationalConnectionBudget,
     },
   }
 

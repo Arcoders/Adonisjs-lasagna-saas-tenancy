@@ -97,6 +97,7 @@
         { "name": "tenantsIds", "flagName": "tenant", "required": false, "type": "array", "alias": "t", "description": "Tenant(s) id(s) to migrate" },
         { "name": "dryRun", "flagName": "dry-run", "required": false, "type": "boolean", "description": "View SQL without running" },
         { "name": "disableLocks", "flagName": "disable-locks", "required": false, "type": "boolean", "description": "Disable migration locks" },
+        { "name": "concurrency", "flagName": "concurrency", "required": false, "type": "number", "description": "Migrate up to N tenants in parallel (default 1). Clamped to the operational connection budget" },
         { "name": "verbose", "flagName": "verbose", "required": false, "type": "boolean", "description": "Verbose output" }
       ],
       "args": [],

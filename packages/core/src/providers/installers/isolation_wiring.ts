@@ -12,6 +12,8 @@ import IsolationDriverRegistry from '../../services/isolation/registry.js'
 import { assertConfiguredDriverRegistered } from '../../services/isolation/validate_driver_choice.js'
 import { BUILT_IN_ISOLATION_DRIVERS } from '../../services/isolation/built_in_drivers.js'
 import TenantResolverRegistry from '../../services/resolvers/registry.js'
+import WarmPoolService from '../../services/isolation/warm_pool_service.js'
+import { probePgBouncerAtBoot } from '../../services/isolation/pgbouncer_probe.js'
 import type { InstallerContext, ProviderInstaller } from './installer.js'
 
 /**
@@ -27,6 +29,9 @@ export const isolationWiring: ProviderInstaller = {
 
   register(ctx: InstallerContext): void {
     ctx.app.container.singleton(IsolationDriverRegistry, () => new IsolationDriverRegistry())
+    // F2 — the connection warm pool is a stateless, container-resolved service so
+    // it can be resolved from ready() (and from a test) rather than new-ed ad hoc.
+    ctx.app.container.singleton(WarmPoolService, () => new WarmPoolService())
   },
 
   async boot(ctx: InstallerContext): Promise<void> {
@@ -140,5 +145,38 @@ export const isolationWiring: ProviderInstaller = {
     // letting the first tenant query fail with a generic "no active driver".
     const drivers = await ctx.app.container.make(IsolationDriverRegistry)
     assertConfiguredDriverRegistered(drivers, config.isolation?.driver ?? 'schema-pg')
+  },
+
+  ready(ctx: InstallerContext): void {
+    const config = ctx.app.config.get<MultitenancyConfig>('multitenancy')
+    const iso = config.isolation
+
+    // F3 — probe for a PgBouncer front once the DB is up. Fail-closed: the probe
+    // logs its finding and never raises a cap or breaks boot.
+    if (iso?.pgBouncer && iso.pgBouncer.mode !== 'off') {
+      void ctx.app.booted(async () => {
+        try {
+          await probePgBouncerAtBoot()
+        } catch {
+          // A detection probe must never fail app startup; the probe already
+          // logs and degrades internally, this only guards a pathological throw.
+        }
+      })
+    }
+
+    // F2 — warm the operator-declared hot tenants once the app is fully booted, so
+    // warming never blocks boot and the container logger exists. WarmPoolService
+    // fails closed per tenant, so nothing here can break startup.
+    if (iso?.warmPool?.enabled) {
+      void ctx.app.booted(async () => {
+        try {
+          const warmPool = await ctx.app.container.make(WarmPoolService)
+          await warmPool.warmAll()
+        } catch {
+          // WarmPoolService.warmAll never throws; this only guards a pathological
+          // container.make failure so warming can never take boot down.
+        }
+      })
+    }
   },
 }

@@ -98,7 +98,7 @@ const pgvectorExtensionCheck: DoctorCheck = {
         // recorded per tenant and never aborts the check for the others.
         if (tenant.isDeleted || tenant.status !== 'active') continue
         try {
-          const conn = await connect.call(driver, tenant, { bypassHardCap: true })
+          const conn = await connect.call(driver, tenant, { bypassSoftCap: true })
           if (!(await extensionInExpectedSchema(conn))) {
             issues.push({
               code: 'vector_extension_missing',

@@ -89,7 +89,7 @@ export default class DatabasePgDriver extends PooledPgDriver {
       // dbName has already been validated by databaseName().
       await db.rawQuery(`CREATE DATABASE "${dbName}"`)
     }
-    await this.connect(tenant, { bypassHardCap: true })
+    await this.connect(tenant, { bypassSoftCap: true })
   }
 
   async destroy(tenant: TenantModelContract, opts: DestroyOptions = {}): Promise<void> {

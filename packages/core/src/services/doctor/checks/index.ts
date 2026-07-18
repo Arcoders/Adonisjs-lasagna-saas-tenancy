@@ -10,6 +10,7 @@ export { default as replicaLagCheck } from './replica_lag_check.js'
 export { default as connectionPoolCheck } from './connection_pool_check.js'
 export { default as longRunningQueriesCheck } from './long_running_queries_check.js'
 export { default as membershipGateCheck } from './membership_gate_check.js'
+export { default as pgBouncerCheck } from './pgbouncer_check.js'
 // Opt-in: NOT added to `builtInChecks` (a fresh/empty metrics table would always
 // warn). Hosts running the metrics pipeline register it explicitly.
 export { default as metricsFreshnessCheck } from './metrics_freshness_check.js'
@@ -27,6 +28,7 @@ import replicaLagCheck from './replica_lag_check.js'
 import connectionPoolCheck from './connection_pool_check.js'
 import longRunningQueriesCheck from './long_running_queries_check.js'
 import membershipGateCheck from './membership_gate_check.js'
+import pgBouncerCheck from './pgbouncer_check.js'
 import type { DoctorCheck } from '../types.js'
 
 /**
@@ -50,4 +52,5 @@ export const builtInChecks: DoctorCheck[] = [
   connectionPoolCheck,
   longRunningQueriesCheck,
   membershipGateCheck,
+  pgBouncerCheck,
 ]
