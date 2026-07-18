@@ -26,7 +26,7 @@ ships with: <code>node ace list:commands | grep -E 'tenant|backoffice|migration:
 
 | Command | What it does |
 |---|---|
-| `migration:tenant:run` / `tenant:migrate` | Run pending migrations against one or all tenants. `--dry-run`, `--disable-locks`, `--verbose`. |
+| `migration:tenant:run` / `tenant:migrate` | Run pending migrations against one or all tenants. `--dry-run`, `--disable-locks`, `--verbose`, `--concurrency=N` (migrate up to N tenants in parallel, default 1; clamped to `isolation.operationalConnectionBudget` so it never breaches the connection ceiling; per-tenant failures are isolated and reflected in the exit code). |
 | `migration:tenant:rollback` / `tenant:migrate:rollback` | Roll back the last migration batch. |
 | `tenant:migrate:fresh` | DROP and recreate per-tenant storage, then re-run migrations. **Destructive.** `--force`, `--seed`. |
 | `tenant:seed` | `db:seed` per tenant. `--files` cherry-picks specific seeders, `--continue-on-error` keeps going. |

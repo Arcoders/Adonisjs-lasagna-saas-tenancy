@@ -93,6 +93,12 @@ third-party plugins outside `TRUSTED_SATELLITES`. `plugin:doctor` reports the st
 posture: ABI drift, native-addon risk, a stale trust allowlist, and a missing read-only
 firewall. See the [plugins guide](/guides/plugins) for authoring against these controls.
 
+A plugin can also subscribe to the process-wide `IsthmusGuardTripped` event. That event
+is a deliberate disclosure surface, and the shield treats it as one: it never carries a
+raw *foreign* tenant id (cross-tenant ids are tokenized), its metadata is bounded, and
+guards an attacker can flood are count-only so they cannot suppress another tenant's
+alerts. See the [listener trust boundary](/reference/isthmus#the-listener-trust-boundary).
+
 ## Hardening checklist for production
 
 Before going live, work through this list; every item is a host
