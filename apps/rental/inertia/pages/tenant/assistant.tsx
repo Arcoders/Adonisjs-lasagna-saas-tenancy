@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { usePage } from '@inertiajs/react'
 import { TenantShell } from '../../components/shells'
+import { AssistantMessage } from '../../components/assistant_message'
+import { FLEET_SYSTEM_PROMPT } from '../../lib/assistant_prompt'
 import type { SharedProps } from '../../types'
 
 /** `tools` records the lookups the assistant ran for this turn (WS-AI-11 notices). */
@@ -77,8 +79,13 @@ export default function Assistant() {
     const lastUserTurn = [...history].reverse().find((t) => t.role === 'user')?.content ?? ''
     // Operational questions ("how many bookings? which cars are free?") are answered
     // by the fleet tools (config.ai.tools): the model calls them with arguments per
-    // question. No pre-folded snapshot — the turns go out as-is.
-    const messages = history.map((t) => ({ role: t.role, content: t.content }))
+    // question. No pre-folded snapshot — the turns go out as-is, led by the system
+    // prompt that sets the answer format (markdown + stat/chart blocks) and tells the
+    // model each tool returns everything in one call, so it never loops the budget out.
+    const messages = [
+      { role: 'system' as const, content: FLEET_SYSTEM_PROMPT },
+      ...history.map((t) => ({ role: t.role, content: t.content })),
+    ]
     const res = await fetch('/ai/chat', {
       method: 'POST',
       credentials: 'same-origin',
@@ -226,7 +233,7 @@ function Bubble({ turn, streaming }: { turn: Turn; streaming: boolean }) {
   const awaitingTools = streaming && tools.length > 0 && turn.content === ''
   return (
     <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
-      <div style={{ maxWidth: '76%' }}>
+      <div style={{ maxWidth: isUser ? '78%' : '96%', minWidth: 0 }}>
         {tools.length > 0 && (
           <div
             className="row row--wrap muted"
@@ -244,15 +251,21 @@ function Bubble({ turn, streaming }: { turn: Turn; streaming: boolean }) {
         {(turn.content || (streaming && !awaitingTools)) && (
           <div
             style={{
-              padding: '10px 14px',
+              padding: isUser ? '10px 14px' : '12px 16px',
               borderRadius: 14,
               background: isUser ? 'var(--brand)' : 'var(--surface-2)',
               color: isUser ? '#fff' : 'var(--ink)',
-              whiteSpace: 'pre-wrap',
+              whiteSpace: isUser ? 'pre-wrap' : undefined,
               lineHeight: 1.5,
             }}
           >
-            {turn.content || '…'}
+            {isUser ? (
+              turn.content
+            ) : turn.content ? (
+              <AssistantMessage content={turn.content} />
+            ) : (
+              '…'
+            )}
           </div>
         )}
       </div>

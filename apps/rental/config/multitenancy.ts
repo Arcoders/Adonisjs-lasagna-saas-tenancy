@@ -309,10 +309,13 @@ export default {
       registry: fleetTools,
       authorizeTool: authorizeFleetTool,
       actionTools: { enabled: false },
-      // A fleet question needs a lookup and an answer; 3 rounds leaves room for one
-      // follow-up call (e.g. count, then rank) without letting a loop wander.
-      maxRounds: 3,
-      maxToolsPerRound: 2,
+      // A simple question needs a lookup and an answer, but a "give me a report" pulls
+      // several metrics at once (revenue + fleet + bookings + a ranking). 4 rounds ×
+      // 3 tools (12 calls, under the hard 16 cap) covers a multi-metric report; the
+      // system prompt's one-call-per-tool discipline keeps the loop from wandering
+      // there rather than a tight ceiling tripping tool_budget_exhausted mid-report.
+      maxRounds: 4,
+      maxToolsPerRound: 3,
     },
   },
 

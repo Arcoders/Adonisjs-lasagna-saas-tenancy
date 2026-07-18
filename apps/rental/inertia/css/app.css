@@ -635,3 +635,224 @@ h4 {
     align-items: center;
   }
 }
+
+/* ─── AI assistant — rich answers (markdown + stat tiles + charts) ─── */
+
+.md {
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+.md > *:first-child {
+  margin-top: 0;
+}
+.md > *:last-child {
+  margin-bottom: 0;
+}
+.md-p {
+  margin: 0 0 10px;
+}
+.md-h {
+  margin: 16px 0 8px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+h2.md-h {
+  font-size: 18px;
+}
+h3.md-h {
+  font-size: 16px;
+}
+h4.md-h,
+h5.md-h,
+h6.md-h {
+  font-size: 14.5px;
+  color: var(--ink-2);
+}
+.md-ul,
+.md-ol {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+.md-ul {
+  list-style: disc;
+}
+.md-ol {
+  list-style: decimal;
+}
+.md-ul li,
+.md-ol li {
+  margin: 3px 0;
+}
+.md-code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.md-pre {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+}
+.md-pre code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.md-quote {
+  margin: 0 0 12px;
+  padding: 6px 0 6px 14px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--ink-2);
+}
+.md-hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+.md-table {
+  margin: 4px 0 14px;
+}
+.md-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Stat tiles inside an answer: a touch more compact than the page KPIs. */
+.ai-stats {
+  margin: 6px 0 14px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.ai-stats .stat {
+  padding: 14px 16px;
+}
+.ai-stats .stat__value {
+  font-size: 24px;
+  margin-top: 6px;
+}
+
+/* Charts. */
+.chart {
+  margin: 8px 0 16px;
+}
+.chart__title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.chart__unit {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+/* Horizontal bars (HTML): one hue carries magnitude, value at the tip. */
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bars__row {
+  display: grid;
+  grid-template-columns: minmax(72px, 34%) 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+.bars__label {
+  font-size: 13px;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bars__track {
+  height: 12px;
+  background: var(--surface);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.bars__fill {
+  height: 100%;
+  min-width: 3px;
+  background: var(--brand);
+  border-radius: 0 4px 4px 0;
+  transition: width 0.3s ease;
+}
+.bars__value {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Line chart (SVG): 2px line, surface-ringed markers, recessive grid. */
+.linechart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.chart__grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.chart__axis {
+  fill: var(--ink-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.chart__line {
+  fill: none;
+  stroke: var(--brand);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.chart__dot {
+  fill: var(--brand);
+}
+.chart__dotring {
+  fill: var(--surface-2);
+}
+.chart__endval {
+  fill: var(--ink);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+/* Placeholder while a stat/chart block is still streaming in. */
+.chart-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 14px;
+  padding: 8px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.chart-pending__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand);
+  animation: chart-pulse 1s ease-in-out infinite;
+}
+@keyframes chart-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
