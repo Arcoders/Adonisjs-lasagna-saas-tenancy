@@ -69,6 +69,7 @@ import {
   aiRetrievalGatePosture,
 } from '../src/services/ai_retrieval_gate_check.js'
 import { aiAuditCheck } from '../src/services/ai_audit_check.js'
+import { aiInjectionCheck } from '../src/services/ai_injection_check.js'
 import { aiMemoryCheck } from '../src/services/ai_memory_check.js'
 import { aiToolsCheck, aiToolsPosture } from '../src/services/ai_tools_check.js'
 import { setAiGuardMetricSink } from '../src/isthmus/ai_guard_audit.js'
@@ -422,6 +423,14 @@ export default definePlugin({
     // there is no boot warning.
     doctor.register(
       aiMemoryCheck(() => app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
+    )
+    // Keep the input-injection posture visible (Wave 3, LLM01): info-only, reporting
+    // whether a host semantic classifier is wired (defense-in-depth, never the
+    // boundary), scanRetrieved, and the onError posture. No posture is a failure —
+    // the structural boundary (fence neutralization + role separation, I4) is always
+    // the isolation control, so this never warns.
+    doctor.register(
+      aiInjectionCheck(() => app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
     )
     // Keep the tool-calling posture visible (WS-AI-11, I7): with tools offered but
     // no per-tool authorizeTool ACL, tool calling is fail-closed (refused) until the

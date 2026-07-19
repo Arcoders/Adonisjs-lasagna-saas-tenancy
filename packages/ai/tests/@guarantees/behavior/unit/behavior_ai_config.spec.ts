@@ -460,3 +460,73 @@ test.group('assertAiConfig — the tools block (WS-AI-11)', () => {
     )
   })
 })
+
+test.group('assertAiConfig — the injection block (Wave 3)', () => {
+  const withInjection = (injection: Record<string, unknown>): AiConfig =>
+    ({ ...validClaudeOnly(), injection }) as unknown as AiConfig
+
+  test('an omitted injection block passes (structural boundary is the default)', ({ assert }) => {
+    assert.doesNotThrow(() => assertAiConfig(validClaudeOnly()))
+  })
+
+  test('a valid injection block (classifier + onError + scanRetrieved) passes', ({ assert }) => {
+    assert.doesNotThrow(() =>
+      assertAiConfig(
+        withInjection({
+          classifier: () => ({ action: 'allow' }),
+          onError: 'closed',
+          scanRetrieved: true,
+        })
+      )
+    )
+    // Every field is optional: an empty block is valid too.
+    assert.doesNotThrow(() => assertAiConfig(withInjection({})))
+  })
+
+  test('rejects a non-object injection block', ({ assert }) => {
+    assert.throws(
+      () => assertAiConfig(withInjection('nope' as unknown as Record<string, unknown>)),
+      /config\.ai\.injection, when set, must be an object/
+    )
+  })
+
+  test('rejects a non-function classifier (boot fail-closed via guard.ai_config_invalid)', ({
+    assert,
+  }) => {
+    assert.throws(
+      () => assertAiConfig(withInjection({ classifier: 'a-string' })),
+      /config\.ai\.injection\.classifier, when set, must be a function/
+    )
+  })
+
+  test("rejects an onError outside {'open','closed'}", ({ assert }) => {
+    assert.throws(
+      () => assertAiConfig(withInjection({ onError: 'maybe' })),
+      /config\.ai\.injection\.onError, when set, must be 'open' or 'closed'/
+    )
+  })
+
+  test('rejects a non-boolean scanRetrieved', ({ assert }) => {
+    assert.throws(
+      () => assertAiConfig(withInjection({ scanRetrieved: 'yes' })),
+      /config\.ai\.injection\.scanRetrieved, when set, must be a boolean/
+    )
+  })
+
+  test('never inspects the classifier RETURN value at boot (that is the request-time gate)', ({
+    assert,
+  }) => {
+    // A classifier that would throw or return garbage at request time is still a
+    // well-typed function here, so boot accepts it; the fail posture is enforced by
+    // enforceInjectionClassifier at request time, not by config validation.
+    assert.doesNotThrow(() =>
+      assertAiConfig(
+        withInjection({
+          classifier: () => {
+            throw new Error('would throw at request time')
+          },
+        })
+      )
+    )
+  })
+})

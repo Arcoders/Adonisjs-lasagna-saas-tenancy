@@ -2,12 +2,23 @@ import type { AIMessage } from '../types/ai_provider_contract.js'
 import type { VectorMatch } from '../services/vector_store_service.js'
 import type { ConversationTurn } from '../services/conversation_memory_service.js'
 import { DEFAULT_EVENT } from './sse_constants.js'
+import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 
 /**
  * The fence tag that wraps each retrieved document. A retrieved doc is
  * neutralized so it can never forge this token and "break out" of its block.
  */
 const FENCE_TAG = 'retrieved_context'
+
+/**
+ * A mutable per-request tally of fence-token forgeries the structural boundary
+ * neutralized (Wave 3), so the caller can emit ONE dedicated per-tenant
+ * `AI_INJECTION_STRUCTURAL_METRIC` after assembly. Mirrors the `RedactionStats`
+ * shape: a count, never the token or the document.
+ */
+export interface FenceNeutralizationStats {
+  neutralized: number
+}
 
 /**
  * The trusted preamble that frames the fenced blocks as untrusted DATA (#10,
@@ -43,7 +54,8 @@ const PREAMBLE =
  */
 export function buildRetrievalContext(
   matches: readonly VectorMatch[],
-  opts: { maxItems: number; maxChars: number }
+  opts: { maxItems: number; maxChars: number },
+  stats?: FenceNeutralizationStats
 ): AIMessage | null {
   const items = matches.slice(0, Math.max(0, opts.maxItems))
   if (items.length === 0) return null
@@ -58,7 +70,8 @@ export function buildRetrievalContext(
     const close = `\n</${FENCE_TAG}>`
     const remaining = opts.maxChars - content.length - open.length - close.length
     if (remaining <= 0) break
-    const body = neutralizeFence(String(match.content))
+    const { text: body, neutralized } = neutralizeFence(String(match.content))
+    if (neutralized && stats) stats.neutralized += 1
     content += open + (body.length > remaining ? body.slice(0, remaining) : body) + close
   }
 
@@ -72,9 +85,23 @@ export function buildRetrievalContext(
  * left intact: retrieved content is data, and scrubbing its prose for
  * "instructions" would be the regex-theater the design rejects; the fence + the
  * `user` role are the defense.
+ *
+ * Wave 3 makes the boundary OBSERVABLE without changing it: when (and only when) a
+ * forged token is actually rewritten, it emits `guard.ai_injection_structural` — the
+ * one deliberate NEUTRALIZE-AND-OBSERVE guard, so a corpus probing for a fence
+ * breakout stops being invisible. The rewrite still happens and the request still
+ * proceeds; role separation plus I4 remain the control. The emit is tenant-less on
+ * purpose (this pure builder holds no tenant state, and a neutralize-and-observe
+ * signal must not inflate the per-tenant `ai_guard_rejections` reject bridge); the
+ * caller emits the dedicated per-tenant counter from the returned `neutralized` flag.
  */
-function neutralizeFence(text: string): string {
-  return text.replace(new RegExp(FENCE_TAG, 'gi'), 'retrieved-context')
+function neutralizeFence(text: string): { text: string; neutralized: boolean } {
+  const replaced = text.replace(new RegExp(FENCE_TAG, 'gi'), 'retrieved-context')
+  const neutralized = replaced !== text
+  if (neutralized) {
+    emitAiGuardEvent('guard.ai_injection_structural', { metadata: { fence: FENCE_TAG } })
+  }
+  return { text: replaced, neutralized }
 }
 
 /**

@@ -22,7 +22,9 @@ import {
 import { validateToolInput } from '../gateway/tool_input.js'
 import { hashToolArgs } from '../gateway/tool_confirmation.js'
 import type AiActionLedger from './action_ledger.js'
+import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import {
+  AI_INJECTION_STRUCTURAL_METRIC,
   AI_TOOL_ACTION_EXECUTED_METRIC,
   AI_TOOL_ACTION_REPLAYED_METRIC,
   AI_TOOL_CALLS_METRIC,
@@ -328,9 +330,16 @@ export default class ToolExecutorService {
     if (failed) this.#metric(tenant.id, AI_TOOL_ERRORS_METRIC, 1)
     this.#metric(tenant.id, AI_TOOL_LATENCY_METRIC, Date.now() - startedAt)
 
+    // A tool result that forged the `</tool_result>` fence is neutralized by
+    // buildToolResultTurn; when it did, surface the dedicated per-tenant structural
+    // counter (the guard event fired tenant-less inside the neutralizer).
+    const fenceStats = { neutralized: 0 }
     const resultTurn = failed
-      ? buildToolResultTurn(call.id, { error: 'tool_execution_failed' }, maxResultChars)
-      : buildToolResultTurn(call.id, result, maxResultChars)
+      ? buildToolResultTurn(call.id, { error: 'tool_execution_failed' }, maxResultChars, fenceStats)
+      : buildToolResultTurn(call.id, result, maxResultChars, fenceStats)
+    if (fenceStats.neutralized > 0) {
+      this.#metric(tenant.id, AI_INJECTION_STRUCTURAL_METRIC, fenceStats.neutralized)
+    }
 
     // Close the fence for an action. The recorded result is the bounded, fenced turn,
     // so a replay hands back exactly what the first attempt produced rather than
@@ -491,7 +500,8 @@ export default class ToolExecutorService {
 export function buildToolResultTurn(
   toolCallId: string,
   result: unknown,
-  maxChars: number
+  maxChars: number,
+  stats?: { neutralized: number }
 ): AIMessage {
   const serialized = serializeToolResult(result)
   const open = `<${AI_TOOL_FENCE_TAG}>`
@@ -499,7 +509,8 @@ export function buildToolResultTurn(
   const budget = Math.max(0, maxChars - open.length - close.length)
   // Neutralize is length-preserving (same-length replacement), so bound first.
   const bounded = serialized.length > budget ? serialized.slice(0, budget) : serialized
-  const body = neutralizeToolFence(bounded)
+  const { text: body, neutralized } = neutralizeToolFence(bounded)
+  if (neutralized && stats) stats.neutralized += 1
   return { role: 'tool', content: `${open}${body}${close}`, toolCallId }
 }
 
@@ -514,9 +525,22 @@ function serializeToolResult(result: unknown): string {
   }
 }
 
-/** Neutralize the fence token inside a tool result (case-insensitive, length-preserving). */
-function neutralizeToolFence(text: string): string {
-  return text.replace(new RegExp(AI_TOOL_FENCE_TAG, 'gi'), 'tool-result')
+/**
+ * Neutralize the fence token inside a tool result (case-insensitive,
+ * length-preserving), so a tool result cannot forge `</tool_result>` and break out
+ * of its fenced `role: 'tool'` turn. Wave 3 makes it OBSERVABLE the same way the
+ * retrieved-context fence is: a real rewrite emits `guard.ai_injection_structural`
+ * (tenant-less; the caller emits the per-tenant counter from `neutralized`) so a
+ * tool probing for a fence breakout is no longer invisible. The neutralization
+ * behavior is unchanged; role separation stays the control.
+ */
+function neutralizeToolFence(text: string): { text: string; neutralized: boolean } {
+  const replaced = text.replace(new RegExp(AI_TOOL_FENCE_TAG, 'gi'), 'tool-result')
+  const neutralized = replaced !== text
+  if (neutralized) {
+    emitAiGuardEvent('guard.ai_injection_structural', { metadata: { fence: AI_TOOL_FENCE_TAG } })
+  }
+  return { text: replaced, neutralized }
 }
 
 /**

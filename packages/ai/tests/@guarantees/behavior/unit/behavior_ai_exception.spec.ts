@@ -54,6 +54,7 @@ test.group('AIException', () => {
       config_missing: false,
       byok_endpoint_blocked: false,
       invalid_request: false,
+      injection_detected: false,
       rowscope_unsupported: false,
       dimension_mismatch: false,
       embedding_quota_exhausted: false,

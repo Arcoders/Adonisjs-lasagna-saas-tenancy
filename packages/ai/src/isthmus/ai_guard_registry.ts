@@ -490,6 +490,38 @@ export const AI_GUARD_REGISTRY = [
     reviewed: '2026-07-17',
     nextReview: '2027-01-17',
   },
+  {
+    id: 'guard.ai_injection_structural',
+    pillar: 'guard',
+    bugClass: 'prompt-injection-structural',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_injection_structural:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'invariant',
+      ref: 'LLM01 Wave 3: the retrieved-doc / tool-result fence neutralization + role separation already CLOSES a delimiter forgery; this guard is the one deliberate NEUTRALIZE-AND-OBSERVE divergence from the reject-semantics registry — it emits when a token forgery is neutralized (never blocks), so an operator can see a corpus probing for a fence breakout. failMode closed because the breakout is structurally closed regardless of the signal; severity warn like ai_rate_limited because forgeries appear in ordinary operation and are watched by rate',
+    },
+    guardFile: 'src/gateway/context_builder.ts',
+    reviewed: '2026-07-19',
+    nextReview: '2027-01-19',
+  },
+  {
+    id: 'guard.ai_injection_detected',
+    pillar: 'guard',
+    bugClass: 'prompt-injection-semantic',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_injection_detected:rejected',
+    severity: 'high',
+    evidence: {
+      kind: 'invariant',
+      ref: 'LLM01 Wave 3: an optional host InjectionClassifier (defense-in-depth, NEVER the boundary) returned a block verdict on an input turn, refused before the reserve with a 400 injection_detected and zero spend. The classifier is not the isolation control (structural role separation plus I4 is), so its own error is fail-open by default; only a block verdict, or an onError:closed detector outage, trips this',
+    },
+    guardFile: 'src/gateway/injection_gate.ts',
+    reviewed: '2026-07-19',
+    nextReview: '2027-01-19',
+  },
 ] as const satisfies readonly AiGuardRegistryEntryShape[]
 
 /** Compile-time union of all registered AI guard ids. */

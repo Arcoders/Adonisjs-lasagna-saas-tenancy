@@ -2,6 +2,7 @@ import type {
   AiConfig,
   AIAuditConfig,
   AIEmbeddingConfig,
+  AIInjectionConfig,
   AIMemoryConfig,
   AIProviderConfig,
   AIProviderName,
@@ -124,6 +125,7 @@ export function assertAiConfig(config: AiConfig | undefined): void {
   }
   assertRateLimit(config.rateLimit)
   assertEmbeddingConfig(config.embedding)
+  assertInjectionConfig(config.injection)
   assertRetrievalConfig(config.retrieval)
   assertMemoryConfig(config.memory)
   assertAuditConfig(config.audit)
@@ -291,6 +293,34 @@ function assertResiliencePolicyBlock(name: string, block: { policy?: unknown } |
     block.policy !== 'fail-closed'
   ) {
     fail(`[ai] config.ai.resilience.${name}.policy, when set, must be 'fail-open' or 'fail-closed'`)
+  }
+}
+
+/**
+ * The injection block (Wave 3), when present: `classifier` must be a function (its
+ * RETURN shape is a request-time gate, never inspected here, per discipline point
+ * 4); `onError` must be `'open'` or `'closed'`; `scanRetrieved` must be a boolean.
+ * Every branch routes through `fail()` (the single `guard.ai_config_invalid` choke).
+ * The absent-classifier posture (structural boundary only) is the correct default,
+ * surfaced by the `ai_injection` doctor check, not a config error.
+ */
+function assertInjectionConfig(injection: AIInjectionConfig | undefined): void {
+  if (injection === undefined) return
+  if (typeof injection !== 'object' || injection === null) {
+    fail('[ai] config.ai.injection, when set, must be an object')
+  }
+  if (injection.classifier !== undefined && typeof injection.classifier !== 'function') {
+    fail('[ai] config.ai.injection.classifier, when set, must be a function (ctx, tenant, input)')
+  }
+  if (
+    injection.onError !== undefined &&
+    injection.onError !== 'open' &&
+    injection.onError !== 'closed'
+  ) {
+    fail("[ai] config.ai.injection.onError, when set, must be 'open' or 'closed'")
+  }
+  if (injection.scanRetrieved !== undefined && typeof injection.scanRetrieved !== 'boolean') {
+    fail('[ai] config.ai.injection.scanRetrieved, when set, must be a boolean')
   }
 }
 

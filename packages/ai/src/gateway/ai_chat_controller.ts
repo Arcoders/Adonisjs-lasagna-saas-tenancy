@@ -27,7 +27,9 @@ import {
   buildRetrievalContext,
   injectMemoryTurns,
   reconstructAssistantText,
+  type FenceNeutralizationStats,
 } from './context_builder.js'
+import { enforceInjectionClassifier, type InjectionInput } from './injection_gate.js'
 import type ConversationMemoryService from '../services/conversation_memory_service.js'
 import type { ResolvedMemorySession } from '../services/conversation_memory_service.js'
 import {
@@ -61,6 +63,7 @@ import type {
 import {
   AI_FRAGMENT_MAX_CHARS,
   AI_IDEMPOTENCY_MAX_BYTES,
+  AI_INJECTION_STRUCTURAL_METRIC,
   AI_OUTPUT_REDACTED_METRIC,
   AI_TOKENS_QUOTA,
   DEFAULT_AI_MAX_PROMPT_CHARS,
@@ -248,6 +251,26 @@ export default class AiChatController {
       idempotentReplay: false,
     }
 
+    // 5-injection. Input-side prompt-injection detection (Wave 3, LLM01),
+    //    defense-in-depth and NEVER the isolation control (structural role
+    //    separation plus I4 is). A host classifier's block verdict refuses each
+    //    user turn HERE — before any memory mint, rate-limit hit or reserve — so a
+    //    blocked request spends nothing and is audited failed_preflight with the
+    //    pinned 400. The classifier's own error is fail-open by default; async is
+    //    free because this runs on input, before the first streamed byte.
+    try {
+      await enforceInjectionClassifier(
+        ctx,
+        tenant,
+        ai?.injection,
+        userTurnInputs(body.messages),
+        this.deps.emitMetric
+      )
+    } catch (error) {
+      if (await this.#failChatPreflight(ctx, auditBase, error)) return
+      throw error
+    }
+
     // 5a. Conversation memory session, pre-cost. When memory is
     //     enabled AND a principal is resolvable, a supplied sessionId is validated
     //     (a forged token 400s HERE, before any reservation, via the shared
@@ -393,6 +416,7 @@ export default class AiChatController {
       let messages: AIMessage[]
       try {
         messages = await this.#applyRetrieval(
+          ctx,
           tenant,
           body,
           ai,
@@ -643,6 +667,7 @@ export default class AiChatController {
    * retrieval failure is audited `failed_preflight` and rethrown.
    */
   async #applyRetrieval(
+    ctx: HttpContext,
     tenant: TenantModelContract,
     body: ChatBody,
     ai: AiConfig | undefined,
@@ -654,6 +679,7 @@ export default class AiChatController {
     const retrieval = this.deps.retrieval
 
     const retrievalBase = { tenantId: tenant.id, actorHash: principalHash }
+    let matches: readonly VectorMatch[]
     try {
       const limit = resolveRetrieveLimit(body.retrieve.limit, ai?.retrieval)
       const result = await retrieval.retrieve(
@@ -670,7 +696,7 @@ export default class AiChatController {
         reason: null,
         occurredAt: new Date().toISOString(),
       })
-      return injectRetrievedContext(body.messages, result.matches, ai)
+      matches = result.matches
     } catch (error) {
       await this.#retrievalAuditSafe({
         ...retrievalBase,
@@ -683,6 +709,34 @@ export default class AiChatController {
       })
       throw error
     }
+
+    // Assemble the fenced block AFTER the retrieval audit, so a scanRetrieved block
+    // verdict is a chat-level failure (audited once by the caller), not a second
+    // retrieval-audit row. `fenceStats` counts fence-token forgeries the structural
+    // boundary neutralized (the guard event already fired tenant-less inside the
+    // builder); surface the dedicated per-tenant structural counter when any did.
+    const fenceStats: FenceNeutralizationStats = { neutralized: 0 }
+    const { messages, blockText } = injectRetrievedContext(body.messages, matches, ai, fenceStats)
+    if (fenceStats.neutralized > 0) {
+      try {
+        this.deps.emitMetric?.(tenant.id, AI_INJECTION_STRUCTURAL_METRIC, fenceStats.neutralized)
+      } catch {
+        /* metrics are best-effort */
+      }
+    }
+    // scanRetrieved (opt-in): run the host classifier over the assembled retrieval
+    // block as `origin: 'retrieved'`. A block throws injection_detected here, which
+    // the caller's 6a wrapper turns into a failed_preflight before the reserve.
+    if (blockText !== null && ai?.injection?.scanRetrieved) {
+      await enforceInjectionClassifier(
+        ctx,
+        tenant,
+        ai.injection,
+        [{ text: blockText, origin: 'retrieved' }],
+        this.deps.emitMetric
+      )
+    }
+    return messages
   }
 
   /**
@@ -932,8 +986,9 @@ function resolveRetrieveLimit(
 function injectRetrievedContext(
   messages: AIMessage[],
   matches: readonly VectorMatch[],
-  ai: AiConfig | undefined
-): AIMessage[] {
+  ai: AiConfig | undefined,
+  stats?: FenceNeutralizationStats
+): { messages: AIMessage[]; blockText: string | null } {
   const maxPromptChars = ai?.maxPromptChars ?? DEFAULT_AI_MAX_PROMPT_CHARS
   const retrieval = ai?.retrieval
   const maxItems = retrieval?.maxContextItems ?? DEFAULT_MAX_CONTEXT_ITEMS
@@ -941,10 +996,20 @@ function injectRetrievedContext(
   const budget = Math.max(0, maxPromptChars - existingChars)
   const maxChars = Math.min(retrieval?.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS, budget)
 
-  const block = buildRetrievalContext(matches, { maxItems, maxChars })
-  if (!block) return messages
-  if (messages.length === 0) return [block]
-  return [...messages.slice(0, -1), block, messages[messages.length - 1]!]
+  const block = buildRetrievalContext(matches, { maxItems, maxChars }, stats)
+  if (!block) return { messages, blockText: null }
+  const withBlock =
+    messages.length === 0
+      ? [block]
+      : [...messages.slice(0, -1), block, messages[messages.length - 1]!]
+  return { messages: withBlock, blockText: block.content }
+}
+
+/** Map every `user`-role turn to a classifiable input (Wave 3, `origin: 'user'`). */
+function userTurnInputs(messages: AIMessage[]): InjectionInput[] {
+  return messages
+    .filter((message) => message.role === 'user')
+    .map((message) => ({ text: message.content, origin: 'user' }))
 }
 
 /** The principal an idempotent replay may be shared with, or null for none. */

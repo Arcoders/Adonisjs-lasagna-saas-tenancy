@@ -239,6 +239,62 @@ export type RedactOutput = (
 ) => string | null
 
 /**
+ * A verdict from a host {@link InjectionClassifier}. `block` refuses the request
+ * with a 400 `injection_detected`; `allow` proceeds. `reason` is a short, log-safe
+ * string for the operator, NEVER echoed to the client (a refusal must not teach an
+ * attacker what tripped it).
+ */
+export interface InjectionVerdict {
+  readonly action: 'allow' | 'block'
+  readonly reason?: string
+}
+
+/**
+ * The INPUT-side prompt-injection detection seam (Wave 3, LLM01), symmetric to
+ * {@link RedactOutput} on the output side. A host plugs in its own semantic policy
+ * (a corporate classifier, a hosted moderation endpoint, a fine-tuned guard model);
+ * the package ships NO bundled regex ruleset as a default, because a pattern wall
+ * masquerading as protection is the theater the design rejects.
+ *
+ * It is **never the isolation control**: the boundary is structural role separation
+ * plus invariant I4 (nothing cross-tenant is ever in the context), which holds
+ * whether the classifier ran, passed, failed, or was never configured. So it runs on
+ * INPUT before any spend and CAN be `async` at zero streaming-latency cost (the
+ * deliberate contrast with the sync, per-fragment `RedactOutput`), and its own error
+ * is fail-OPEN by default: an input detector's outage cannot cause a leak, so denying
+ * every request when a moderation endpoint has a bad minute is availability damage for
+ * no security gain. A host whose threat model prefers the stricter coupling sets
+ * {@link AIInjectionConfig.onError} to `'closed'`.
+ */
+export type InjectionClassifier = (
+  ctx: HttpContext,
+  tenant: TenantModelContract,
+  input: { readonly text: string; readonly origin: 'user' | 'retrieved' | 'tool' }
+) => InjectionVerdict | Promise<InjectionVerdict>
+
+/**
+ * The optional injection block (Wave 3). Absent means the structural boundary is the
+ * only defense (the correct, no-theater default); the `ai_injection` doctor check
+ * reports whichever posture is live.
+ */
+export interface AIInjectionConfig {
+  /** The host semantic classifier. Absent ⇒ no semantic detection (structural boundary only). */
+  classifier?: InjectionClassifier
+  /**
+   * Fail posture when the classifier itself throws or returns a malformed verdict.
+   * Default `'open'` (the classifier is NOT the boundary, so its outage must not deny
+   * traffic). `'closed'` couples availability to the detector, knowingly.
+   */
+  onError?: 'open' | 'closed'
+  /**
+   * Also run the classifier over the assembled retrieved-context block (`origin:
+   * 'retrieved'`). Default false: the structural fence + `user`-role separation
+   * already contain retrieved content as data, so this is opt-in extra latency.
+   */
+  scanRetrieved?: boolean
+}
+
+/**
  * How {@link AIToolsConfig.authorizeTool} scopes a single tool call (WS-AI-11). A
  * discriminated union so the intent is explicit and exhaustive: `deny` refuses the
  * call, `allow` runs it, and an `allow` may carry a `filter` that narrows WHAT the
@@ -513,6 +569,13 @@ export interface AiConfig {
    * {@link RedactOutput}.
    */
   redactOutput?: RedactOutput
+  /**
+   * Optional INPUT-side prompt-injection detection (Wave 3, LLM01), defense-in-depth
+   * and NEVER the isolation control (structural role separation plus I4 is). A host
+   * classifier's `block` verdict refuses the request with a 400 `injection_detected`
+   * before any spend; its own error is fail-open by default. See {@link AIInjectionConfig}.
+   */
+  injection?: AIInjectionConfig
   /**
    * Per-BATCH `statement_timeout` (ms) for the batched compliance purge. Bounds a
    * single lock-blocked or runaway delete batch so it fails cleanly and the loop

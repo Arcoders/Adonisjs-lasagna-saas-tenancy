@@ -80,6 +80,38 @@ export const AI_FRAGMENT_MAX_CHARS = 16_384
  */
 export const AI_OUTPUT_REDACTED_METRIC = 'ai_output_redacted'
 
+// --- Injection defense (Wave 3) ---
+// The structural boundary (fence/delimiter neutralization + role separation) is
+// made OBSERVABLE, and a pluggable `InjectionClassifier` host seam runs on INPUT.
+// The metric names below are fixed, content-free per-tenant counters, never inlined.
+
+/**
+ * Per-tenant counter of retrieved-document / tool-result fence-token forgeries the
+ * structural boundary NEUTRALIZED (WS-AI Wave 3, LLM01). Content-free (a count,
+ * never the token or the document): it makes the already-closed structural defense
+ * observable so an operator can watch a corpus probing for a fence breakout by its
+ * rate. Mirrors {@link AI_OUTPUT_REDACTED_METRIC}: a dedicated counter beside the
+ * shared `ai_guard_rejections` bridge, because a neutralize-and-observe signal is
+ * not a rejection and must not inflate the reject counter.
+ */
+export const AI_INJECTION_STRUCTURAL_METRIC = 'ai_injection_structural'
+
+/**
+ * Per-tenant counter of requests a host `config.ai.injection.classifier` BLOCKED
+ * (Wave 3). Content-free: it makes the optional semantic detector's block rate
+ * observable so false positives are the operator's tuning signal, never the text.
+ */
+export const AI_INJECTION_DETECTED_METRIC = 'ai_injection_detected'
+
+/**
+ * Per-tenant counter of times a host injection classifier itself failed (threw or
+ * returned a malformed verdict). The classifier is NOT the isolation boundary
+ * (structural role separation plus I4 is), so its error is fail-OPEN by default and
+ * this counter is how that accepted degradation stays visible; a host that sets
+ * `onError: 'closed'` couples availability to the detector knowingly.
+ */
+export const AI_INJECTION_DETECTOR_ERROR_METRIC = 'ai_injection_detector_error'
+
 /**
  * The per-tenant embeddings table backing the vector store. A fixed module
  * constant, never a `tenant_<id>`-interpolated name: the row lives in whatever

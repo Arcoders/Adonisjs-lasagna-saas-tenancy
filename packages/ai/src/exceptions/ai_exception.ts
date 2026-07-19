@@ -15,6 +15,8 @@ export const AI_ERROR_CODES = [
   'config_missing',
   'byok_endpoint_blocked',
   'invalid_request',
+  // injection defense (Wave 3): a host InjectionClassifier returned a block verdict
+  'injection_detected',
   // vector store
   'rowscope_unsupported',
   'dimension_mismatch',
@@ -62,6 +64,9 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   config_missing: 500,
   byok_endpoint_blocked: 400,
   invalid_request: 400,
+  // A host injection classifier's block verdict is a permanent client fault, like
+  // invalid_request: the forged/manipulated input is a 400, not a retryable outage.
+  injection_detected: 400,
   // vector store: a rowscope tenant / a dimension mismatch / a malformed
   // request are permanent 4xx; over the storage cap is 402 (like over_budget); a
   // tenant-scope-seal breach is a 500 (an internal invariant, never a client fault).
@@ -149,6 +154,9 @@ const RETRYABILITY: Record<AIErrorCode, 'fatal' | 'retryable'> = {
   config_missing: 'fatal',
   byok_endpoint_blocked: 'fatal',
   invalid_request: 'fatal',
+  // A blocked request never becomes correct on a retry of the IDENTICAL input, so a
+  // block verdict is fatal (retrying the same manipulated prompt must be refused).
+  injection_detected: 'fatal',
   // The vector-store codes never become correct on a retry: a rowscope host cannot
   // use the vector store, a dimension mismatch is a config fault, the storage cap is
   // a plan limit, a scope-seal breach is a bug. A backend outage is a SEPARATE code
