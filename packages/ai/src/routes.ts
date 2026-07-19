@@ -6,6 +6,8 @@ import { assertAiMountAllowed, type MultitenancyAiRoutesOptions } from './routes
 import AiChatController from './gateway/ai_chat_controller.js'
 import AiEmbedController from './gateway/ai_embed_controller.js'
 import AiRetrieveController from './gateway/ai_retrieve_controller.js'
+import AiAuditController from './gateway/ai_audit_controller.js'
+import AiAuditReader from './services/ai_audit_reader.js'
 import StreamExtensionService from './gateway/stream_extension.js'
 import AiIdempotencyService from './gateway/idempotency.js'
 import EmbeddingIngestionService from './services/embedding_ingestion_service.js'
@@ -125,6 +127,22 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
         config: aiConfig,
       })
       return controller.retrieve(ctx)
+    })
+    // The audit read/query surface (Wave 4, 3.1): admin-gated (default-deny via
+    // config.ai.audit.authorizeAudit), tenant-scoped, SELECT-only. Mounted only when
+    // audit is on (a disabled-audit host has no chain to read); the AiAuditReader is
+    // registered only in that case, so guard the resolve.
+    router.get('/audit', async (ctx) => {
+      const aiConfig = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+      // Audit disabled ⇒ there is no chain to read; the reader is not even registered.
+      if (aiConfig?.audit?.enabled === false) {
+        return ctx.response.notFound({ error: 'ai_audit_disabled' })
+      }
+      const controller = new AiAuditController({
+        reader: await app.container.make(AiAuditReader),
+        config: aiConfig,
+      })
+      return controller.list(ctx)
     })
   })
   if (prefix) group.prefix(prefix)

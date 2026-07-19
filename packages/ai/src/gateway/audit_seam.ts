@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto'
 
 /**
- * The gateway's audit seam. TODO(WS-AI-7): the real append-only audit lands
- * there (I5: non-PII metadata into the kernel audit rails, DB-trigger
- * immutability, the fail-closed write placement). This seam exists NOW so the
- * choke point has exactly one attribution point and WS-AI-7 inherits a frozen
- * non-PII field contract instead of a habit; the default sink is a no-op.
+ * The gateway's audit seam: the ONE attribution point every choke point routes
+ * through. The real append-only audit is live (WS-AI-7): the `Pg*AuditSink`
+ * implementations in `audit_sinks.ts` map each frozen event onto the hash-chained,
+ * DB-trigger-immutable, fail-closed `AiAuditWriter`. The no-op defaults below remain
+ * only as the audit-DISABLED fallback (a host that set `config.ai.audit.enabled =
+ * false`), never the shipped default when audit is on.
  *
  * The field set is pinned by a spec (exact key set): adding a field is a
  * reviewed decision, and neither prompt nor response content can ever slip in
@@ -30,7 +31,7 @@ export interface AiGatewayAuditSink {
   append(event: AiGatewayAuditEvent): Promise<void> | void
 }
 
-/** The default sink until WS-AI-7: attribution is wired, storage is not. */
+/** The audit-disabled fallback sink: used only when `config.ai.audit.enabled` is false. */
 export const noopAuditSink: AiGatewayAuditSink = {
   append: () => {},
 }
@@ -60,7 +61,7 @@ export interface AiEmbeddingAuditSink {
   append(event: AiEmbeddingAuditEvent): Promise<void> | void
 }
 
-/** The default embed sink until WS-AI-7. */
+/** The audit-disabled fallback embed sink (live: PgEmbeddingAuditSink). */
 export const noopEmbeddingAuditSink: AiEmbeddingAuditSink = {
   append: () => {},
 }
@@ -89,7 +90,7 @@ export interface AiRetrievalAuditSink {
   append(event: AiRetrievalAuditEvent): Promise<void> | void
 }
 
-/** The default retrieval sink until WS-AI-7. */
+/** The audit-disabled fallback retrieval sink (live: PgRetrievalAuditSink). */
 export const noopRetrievalAuditSink: AiRetrievalAuditSink = {
   append: () => {},
 }
@@ -132,7 +133,7 @@ export interface AiToolAuditSink {
   append(event: AiToolAuditEvent): Promise<void> | void
 }
 
-/** The default tool-audit sink; the live PgToolAuditSink is wired when the loop goes live (Phase 9). */
+/** The audit-disabled fallback tool-audit sink (live: PgToolAuditSink). */
 export const noopToolAuditSink: AiToolAuditSink = {
   append: () => {},
 }

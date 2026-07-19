@@ -172,6 +172,63 @@ export interface AIAuditConfig {
    * to the no-op sinks) and silences the `ai_audit` doctor check.
    */
   enabled?: boolean
+  /**
+   * The read/query authorization gate for the audit consumption API (Wave 4, 3.1),
+   * a {@link TenantAccessAuthorizer}. DEFAULT-DENY and DISTINCT from
+   * {@link AiConfig.authorizeAIAccess}: "may use AI" is not "may read everyone's
+   * audit trail". Absent means the `/ai/audit` route refuses (an audit trail exposed
+   * to the wrong reader is itself a disclosure, so the safe default is deny). Return
+   * `false` or throw to deny with a 403.
+   */
+  authorizeAudit?: TenantAccessAuthorizer
+  /**
+   * The anomaly watcher (Wave 4, 3.6): sliding-window guard-trip velocity per
+   * `(tenant, principal, guard)`. Absent means the watcher runs with named-constant
+   * defaults; set to tune the window/threshold. It is a velocity heuristic on already
+   * -tripped guards, never a control itself. See {@link AIAnomalyConfig}.
+   */
+  anomaly?: AIAnomalyConfig
+  /**
+   * Optional host delivery hook for an anomaly (Wave 4, 3.6). Absent means anomalies
+   * fan to the host `AuditLogDestinationRegistry` (the same SIEM stream as every other
+   * audit signal). Fail-open and fire-and-forget: a throw is swallowed and never
+   * reaches the request that tripped the guard.
+   */
+  onAnomaly?: (anomaly: AIAnomalySummary) => void | Promise<void>
+  /**
+   * Optional in-process scheduled verify (Wave 4, 3.5). The RECOMMENDED path is
+   * host-owned: `node ace tenant:ai:audit:verify --json || alert` in your own
+   * scheduler, zero new code. If you prefer wiring the core scheduler, `schedule` is a
+   * VALIDATED cron field (never a source literal); a scheduled verify that finds a
+   * break emits `guard.ai_audit_chain_broken` (critical).
+   */
+  verify?: { schedule?: string }
+}
+
+/**
+ * Anomaly-watcher tuning (Wave 4, 3.6). Both bounds are clamped to named-constant
+ * ceilings at boot, so an out-of-range value can never widen the alarm past its cap.
+ */
+export interface AIAnomalyConfig {
+  /** Sliding window (ms) guard trips are counted over. Default 60000, clamped to 3600000. */
+  windowMs?: number
+  /** Trip count within one window that fires `guard.ai_anomaly`. Default 20, clamped to 10000. */
+  threshold?: number
+}
+
+/**
+ * The content-free summary handed to {@link AIAuditConfig.onAnomaly} and fanned to the
+ * host audit destinations on a breach. It names WHAT tripped and HOW OFTEN, never any
+ * prompt/response text: `principalHash` is the one-way hash, never a raw principal.
+ */
+export interface AIAnomalySummary {
+  readonly tenantId: string
+  readonly principalHash: string | null
+  readonly guard: string
+  readonly count: number
+  readonly windowMs: number
+  readonly firstAt: string
+  readonly lastAt: string
 }
 
 /**

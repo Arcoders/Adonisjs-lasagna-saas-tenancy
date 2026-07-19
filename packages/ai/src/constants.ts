@@ -486,3 +486,77 @@ export const AI_RESILIENCE_OP_MEMORY_LOAD = 'ai.memory.load'
 export const AI_RESILIENCE_OP_IDEMPOTENCY_LOOKUP = 'ai.idempotency.lookup'
 export const AI_RESILIENCE_OP_IDEMPOTENCY_SAVE = 'ai.idempotency.save'
 export const AI_RESILIENCE_OP_RATE_LIMIT = 'ai.rate_limit.consume'
+
+// --- Audit consumption pillar (Wave 4) ---
+// The read/query API, export, incremental verify, retention checkpoint, and anomaly
+// watcher. Every bound is a named constant here; no consumption path ever rewrites a
+// chained row (seq / checksum / prev_checksum) — it reads and appends new artifacts.
+
+/**
+ * Default page size for `AiAuditReader.query`. Small on purpose: the audit read is a
+ * forensic surface, not a bulk dump (that is `exportStream`). Tunable per request up
+ * to {@link MAX_AI_AUDIT_PAGE_SIZE}.
+ */
+export const DEFAULT_AI_AUDIT_PAGE_SIZE = 50
+
+/** Hard cap on one audit read page. Not host-tunable: it bounds one SELECT's row count. */
+export const MAX_AI_AUDIT_PAGE_SIZE = 200
+
+/**
+ * Hard `page` ceiling (the OFFSET DoS bound, mirroring the admin controller): Postgres
+ * `OFFSET` is O(n), so an unbounded `?page=10000&limit=200` reads and discards millions
+ * of rows. Deep walks use the `[from,to]` time range to switch to a `(tenant_id, seq)`
+ * range scan instead. Not host-tunable.
+ */
+export const MAX_AI_AUDIT_PAGE = 1000
+
+/**
+ * Rows per page the streaming export (`exportStream`) pulls at a time. Larger than the
+ * interactive page size because an export is a bulk, backpressure-bounded walk; the
+ * command awaits `drain` between writes, so this only bounds the in-flight batch, never
+ * the whole file. Not host-tunable.
+ */
+export const DEFAULT_AI_AUDIT_EXPORT_BATCH_SIZE = 500
+
+/**
+ * The retention checkpoint table (Wave 4, 3.4). A per-(tenant) signed high-water mark
+ * `{ last_seq, last_checksum }` an incremental verify seeds FROM. It shares the
+ * `backoffice` schema with the audit table (qualified via `qualifyBackofficeTable` with
+ * the injected schema, never a `'backoffice'` literal) but is NOT append-only: a
+ * checkpoint is upserted forward as `tenant:ai:audit:archive` advances it. Fixed constant.
+ */
+export const AI_AUDIT_CHECKPOINT_TABLE = 'ai_audit_checkpoints'
+
+/**
+ * Default sliding window for the anomaly watcher (Wave 4, 3.6): guard-trip velocity is
+ * counted per `(tenant, principal, guard)` over this window. 60s balances catching a
+ * burst against smoothing normal operation. Tunable via `config.ai.audit.anomaly.windowMs`,
+ * clamped to {@link MAX_AI_ANOMALY_WINDOW_MS}.
+ */
+export const DEFAULT_AI_ANOMALY_WINDOW_MS = 60_000
+
+/** Hard ceiling on the anomaly window (1h), regardless of config. */
+export const MAX_AI_ANOMALY_WINDOW_MS = 3_600_000
+
+/**
+ * Default trip-count threshold within one window that fires `guard.ai_anomaly`. Tunable
+ * via `config.ai.audit.anomaly.threshold`, clamped to {@link MAX_AI_ANOMALY_THRESHOLD}.
+ */
+export const DEFAULT_AI_ANOMALY_THRESHOLD = 20
+
+/** Hard ceiling on the anomaly threshold, regardless of config. */
+export const MAX_AI_ANOMALY_THRESHOLD = 10_000
+
+/**
+ * Hard cap on the number of distinct `(tenant, principal, guard)` keys the watcher
+ * tracks at once. An unbounded key space is itself a DoS (an attacker spraying distinct
+ * principal hashes would grow the map without bound), so the oldest key is evicted at
+ * this ceiling. Not host-tunable.
+ */
+export const MAX_AI_ANOMALY_TRACKED_KEYS = 10_000
+
+/** The per-tenant anomaly metric name, emitted on a threshold breach. Fixed, never inlined. */
+export const AI_ANOMALY_METRIC = 'ai_anomaly'
+
+/** The per-tenant metric emitted when a scheduled/alerting verify finds a chain break. Fixed, never inlined. */
+export const AI_AUDIT_CHAIN_BROKEN_METRIC = 'ai_audit_chain_broken'

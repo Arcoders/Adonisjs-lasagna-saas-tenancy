@@ -187,6 +187,27 @@ export interface AiAuditVerifyResult {
   readonly break?: AiAuditVerifyBreak
 }
 
+/**
+ * A signed-off point in a tenant's chain the incremental verify (Wave 4, gap 3)
+ * folds FROM instead of restarting at `seq = 0`. Persisted by `tenant:ai:audit:archive`
+ * into the `ai_audit_checkpoints` table; the seed here is that stored `{ seq, checksum }`.
+ */
+export interface AiAuditCheckpoint {
+  readonly seq: number
+  readonly checksum: string
+}
+
+/**
+ * Optional inputs to a checkpoint-aware {@link AiAuditWriter.verify}. `seedFor(tenantId)`
+ * returns the last verified checkpoint for a tenant, or undefined for a full walk. A
+ * SINGLE-tenant seeded verify also gets a real `seq > ?` SQL lower bound (so the read cost
+ * is proportional to the tail, not to all history); an all-tenants sweep consults the seed
+ * at each tenant boundary and skips the pre-checkpoint rows in the fold.
+ */
+export interface AiAuditVerifyOptions {
+  seedFor?: (tenantId: string) => AiAuditCheckpoint | undefined
+}
+
 function rowsOf(res: unknown): Array<Record<string, unknown>> {
   if (Array.isArray(res)) return res as Array<Record<string, unknown>>
   const rows = (res as { rows?: unknown } | null)?.rows
@@ -276,12 +297,26 @@ export default class AiAuditWriter {
    * catches tampering that disabled the triggers, rewrote a row, and re-enabled
    * them: the recomputed checksum no longer matches, or a deletion leaves a gap.
    */
-  async verify(tenantId?: string): Promise<AiAuditVerifyResult> {
+  async verify(tenantId?: string, opts?: AiAuditVerifyOptions): Promise<AiAuditVerifyResult> {
     const db = await this.deps.getDb()
     const client = db.connection(this.deps.connectionName)
-    const where = tenantId ? 'WHERE tenant_id = ?' : ''
-    const bindings = tenantId ? [tenantId] : []
-    // safe-sql: column list is a module constant; #table is qualified via qualifyBackofficeTable (validates the schema); tenant filter is a ? bind.
+    // A single-tenant seeded verify gets a real seq lower bound so the DB read cost is
+    // proportional to the tail, not to all history (gap 3). An all-tenants sweep cannot
+    // put a per-tenant seq bound in one query, so it reads the table ordered and seeds
+    // (and skips pre-checkpoint rows) per tenant boundary in the fold below.
+    const singleSeed = tenantId ? opts?.seedFor?.(tenantId) : undefined
+    const clauses: string[] = []
+    const bindings: unknown[] = []
+    if (tenantId) {
+      clauses.push('tenant_id = ?')
+      bindings.push(tenantId)
+    }
+    if (singleSeed) {
+      clauses.push('seq > ?')
+      bindings.push(singleSeed.seq)
+    }
+    const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''
+    // safe-sql: column list is a module constant; #table is qualified via qualifyBackofficeTable (validates the schema); every filter is a ? bind.
     const res = await client.rawQuery(
       `SELECT ${AI_AUDIT_COLUMNS.join(', ')} FROM ${this.#table} ${where} ORDER BY tenant_id ASC, seq ASC`,
       bindings
@@ -291,15 +326,25 @@ export default class AiAuditWriter {
     let prevTenant: string | undefined
     let prevSeq = 0
     let prevChecksum: string | null = null
+    let seedSeq = 0
     let checked = 0
     for (const dbRow of rows) {
       const tid = String(dbRow.tenant_id)
       const seq = Number(dbRow.seq)
       if (tid !== prevTenant) {
         prevTenant = tid
-        prevSeq = 0
-        prevChecksum = null
+        // Reset the fold at each tenant boundary, seeding from a checkpoint when one
+        // exists (the incremental walk verifies only seq > checkpoint.seq).
+        const seed = opts?.seedFor?.(tid)
+        prevSeq = seed ? seed.seq : 0
+        prevChecksum = seed ? seed.checksum : null
+        seedSeq = seed ? seed.seq : 0
       }
+      // Skip rows already covered by this tenant's checkpoint (the all-tenants sweep
+      // reads the full table; rows are seq-ascending within a tenant, so this only ever
+      // drops the leading pre-checkpoint rows). The single-tenant path already filtered
+      // them in SQL, so this is a no-op there.
+      if (seq <= seedSeq) continue
       if (seq !== prevSeq + 1) {
         return { ok: false, checked, break: { tenantId: tid, seq, reason: 'gap' } }
       }
@@ -409,7 +454,11 @@ function toAuditLogEntry(entry: AiAuditEntry): AuditLogEntry {
   return {
     id: entry.id,
     tenantId: entry.tenantId,
-    actorType: 'system',
+    // The first-class 'ai' actor (core AuditActorType), not 'system': core added it
+    // precisely so "the assistant did this" stays queryable and exportable rather
+    // than buried among framework/system rows. A SIEM rule keyed on 'system' must be
+    // updated to include 'ai' for the AI satellite's own anchored rows.
+    actorType: 'ai',
     actorId: entry.principalHash,
     action: `ai:${entry.op}`,
     metadata: {

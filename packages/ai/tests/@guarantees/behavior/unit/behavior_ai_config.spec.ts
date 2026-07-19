@@ -530,3 +530,68 @@ test.group('assertAiConfig — the injection block (Wave 3)', () => {
     )
   })
 })
+
+test.group('assertAiConfig — the audit consumption block (Wave 4)', () => {
+  const withAudit = (audit: Record<string, unknown>): AiConfig =>
+    ({ ...validClaudeOnly(), audit }) as unknown as AiConfig
+
+  test('a valid audit block (authorizeAudit + anomaly + onAnomaly + verify) passes', ({
+    assert,
+  }) => {
+    assert.doesNotThrow(() =>
+      assertAiConfig(
+        withAudit({
+          enabled: true,
+          authorizeAudit: () => true,
+          onAnomaly: () => {},
+          anomaly: { windowMs: 30_000, threshold: 50 },
+          verify: { schedule: '0 3 * * *' },
+        })
+      )
+    )
+  })
+
+  test('rejects a non-function authorizeAudit (boot fail-closed via guard.ai_config_invalid)', ({
+    assert,
+  }) => {
+    assert.throws(
+      () => assertAiConfig(withAudit({ authorizeAudit: 'yes' })),
+      /config\.ai\.audit\.authorizeAudit, when set, must be a function/
+    )
+  })
+
+  test('rejects a non-function onAnomaly and a non-object anomaly', ({ assert }) => {
+    assert.throws(
+      () => assertAiConfig(withAudit({ onAnomaly: 1 })),
+      /config\.ai\.audit\.onAnomaly, when set, must be a function/
+    )
+    assert.throws(
+      () => assertAiConfig(withAudit({ anomaly: 'x' })),
+      /config\.ai\.audit\.anomaly, when set, must be an object/
+    )
+  })
+
+  test('rejects non-positive-integer anomaly bounds', ({ assert }) => {
+    assert.throws(
+      () => assertAiConfig(withAudit({ anomaly: { windowMs: 0 } })),
+      /config\.ai\.audit\.anomaly\.windowMs must be a positive integer/
+    )
+    assert.throws(
+      () => assertAiConfig(withAudit({ anomaly: { threshold: -1 } })),
+      /config\.ai\.audit\.anomaly\.threshold must be a positive integer/
+    )
+  })
+
+  test('rejects an empty/non-string verify.schedule (a cron, never a source literal)', ({
+    assert,
+  }) => {
+    assert.throws(
+      () => assertAiConfig(withAudit({ verify: { schedule: '' } })),
+      /config\.ai\.audit\.verify\.schedule, when set, must be a non-empty cron string/
+    )
+    assert.throws(
+      () => assertAiConfig(withAudit({ verify: 'nope' })),
+      /config\.ai\.audit\.verify, when set, must be an object/
+    )
+  })
+})

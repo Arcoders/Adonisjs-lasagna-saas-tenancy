@@ -522,6 +522,38 @@ export const AI_GUARD_REGISTRY = [
     reviewed: '2026-07-19',
     nextReview: '2027-01-19',
   },
+  {
+    id: 'guard.ai_audit_chain_broken',
+    pillar: 'guard',
+    bugClass: 'audit-integrity',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_audit_chain_broken:rejected',
+    severity: 'critical',
+    evidence: {
+      kind: 'invariant',
+      ref: 'Wave 4 audit consumption (3.5): a scheduled / alerting verify found a chain break (checksum / seq gap / prev-link) — tampering that slipped past the append-only triggers. A SIGNAL guard (emits, does not throw: the verify already reported the break and exits 1), raised to critical so a broken audit chain pages an operator instead of scrolling past. failMode closed because the chain itself is the fail-closed control; the emission is alerting on an already-detected break',
+    },
+    guardFile: 'src/services/ai_audit_anomaly_watcher.ts',
+    reviewed: '2026-07-19',
+    nextReview: '2027-01-19',
+  },
+  {
+    id: 'guard.ai_anomaly',
+    pillar: 'guard',
+    bugClass: 'abnormal-guard-velocity',
+    failMode: 'open',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_anomaly:rejected',
+    severity: 'high',
+    evidence: {
+      kind: 'inherent-risk',
+      ref: 'Wave 4 audit consumption (3.6): guard-trip VELOCITY per (tenant, principal, guard) crossed the sliding-window threshold — a single principal driving a burst of scope-mismatch / rate-limit / injection trips. failMode OPEN because the watcher is an observer of already-dispatched events, off the request path (the guard it counts already did its fail-closed job): a velocity heuristic and alerting convenience layered on the real controls, never a control itself',
+    },
+    guardFile: 'src/services/ai_audit_anomaly_watcher.ts',
+    reviewed: '2026-07-19',
+    nextReview: '2027-01-19',
+  },
 ] as const satisfies readonly AiGuardRegistryEntryShape[]
 
 /** Compile-time union of all registered AI guard ids. */

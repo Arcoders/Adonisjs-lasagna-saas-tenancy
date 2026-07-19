@@ -48,6 +48,9 @@ import ConversationMemoryService from '../../../../src/services/conversation_mem
 import { enforceChatResidency } from '../../../../src/services/residency_gate.js'
 import { buildRetrievalContext } from '../../../../src/gateway/context_builder.js'
 import { enforceInjectionClassifier } from '../../../../src/gateway/injection_gate.js'
+import AiAuditAnomalyWatcher, {
+  reportScheduledVerify,
+} from '../../../../src/services/ai_audit_anomaly_watcher.js'
 import AiComplianceService from '../../../../src/services/ai_compliance_service.js'
 import { fakeVectorEnv } from '../../../helpers/fake_vector_db.js'
 import { fakeAuditEnv, sampleAuditRow } from '../../../helpers/fake_audit_db.js'
@@ -545,6 +548,39 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
       enforceInjectionClassifier({} as never, tenant, { classifier: () => ({ action: 'allow' }) }, [
         { text: 'hi', origin: 'user' },
       ]),
+  },
+  'guard.ai_audit_chain_broken': {
+    // A SIGNAL guard: a scheduled/alerting verify that found a break emits WITHOUT
+    // throwing (the verify already reported it).
+    trip: () =>
+      reportScheduledVerify({
+        ok: false,
+        checked: 2,
+        break: { tenantId: 'tenant-1', seq: 3, reason: 'checksum' },
+      }),
+    expectThrow: null,
+    // A clean verify result emits nothing.
+    happy: () => reportScheduledVerify({ ok: true, checked: 5 }),
+  },
+  'guard.ai_anomaly': {
+    // A SIGNAL guard: guard-trip velocity crossing the threshold within the window
+    // emits WITHOUT throwing (an observer off the request path).
+    trip: () => {
+      const watcher = new AiAuditAnomalyWatcher({ threshold: 3, windowMs: 60_000 })
+      const trip = { tenantId: 'tenant-1', principalHash: 'p', guard: 'guard.ai_scope_mismatch' }
+      watcher.record(trip, 1_000)
+      watcher.record(trip, 1_001)
+      watcher.record(trip, 1_002) // the 3rd trip breaches
+    },
+    expectThrow: null,
+    // Below threshold: nothing fires.
+    happy: () => {
+      const watcher = new AiAuditAnomalyWatcher({ threshold: 3, windowMs: 60_000 })
+      watcher.record(
+        { tenantId: 'tenant-1', principalHash: 'p', guard: 'guard.ai_scope_mismatch' },
+        1_000
+      )
+    },
   },
   'guard.ai_too_many_concurrent': {
     // A tenant at its cap: the first acquire fills the only slot, the second is

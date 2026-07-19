@@ -84,3 +84,50 @@ test.group('behavior — AiAuditWriter verify', () => {
     assert.equal(all.break?.tenantId, 't2')
   })
 })
+
+test.group('behavior — AiAuditWriter checkpoint-aware verify (Wave 4, 3.3)', () => {
+  /** The seed a checkpoint at `seq` yields: that row's stored checksum. */
+  const seedAt = (rows: Array<Record<string, unknown>>, seq: number) => ({
+    seq,
+    checksum: String(rows.find((r) => r.seq === seq)!.checksum),
+  })
+
+  test('an incremental verify over the tail equals a full walk (clean)', async ({ assert }) => {
+    const rows = chainRows('t1', 5)
+    const full = await verifierOver(rows).verify('t1')
+    assert.isTrue(full.ok)
+    assert.equal(full.checked, 5)
+
+    // Seed from a mid-chain checkpoint: verify only seq > 2.
+    const seed = seedAt(rows, 2)
+    const incremental = await verifierOver(rows).verify('t1', { seedFor: () => seed })
+    assert.isTrue(incremental.ok)
+    assert.equal(incremental.checked, 3, 'only the tail (seq 3,4,5) is walked')
+  })
+
+  test('an incremental verify catches a tail break at the same seq as a full walk', async ({
+    assert,
+  }) => {
+    const rows = chainRows('t1', 5)
+    rows[3]!.tokens = 9999 // tamper seq 4 (in the tail beyond the checkpoint)
+    const full = await verifierOver(rows).verify('t1')
+    assert.deepEqual(full.break, { tenantId: 't1', seq: 4, reason: 'checksum' })
+
+    const seed = seedAt(rows, 2)
+    const incremental = await verifierOver(rows).verify('t1', { seedFor: () => seed })
+    assert.deepEqual(incremental.break, { tenantId: 't1', seq: 4, reason: 'checksum' })
+  })
+
+  test('a seeded verify never writes: no INSERT/UPDATE/DELETE touches a stored row', async ({
+    assert,
+  }) => {
+    const rows = chainRows('t1', 4)
+    const env = fakeAuditEnv({ verifyRows: rows })
+    await new AiAuditWriter(env.deps).verify('t1', { seedFor: () => seedAt(rows, 1) })
+    // The reader is read-only: the fake tracked no inserts, and every query was a SELECT.
+    assert.lengthOf(env.inserts, 0)
+    for (const q of env.queries) {
+      assert.notMatch(q.sql, /\b(insert|update|delete)\b/i)
+    }
+  })
+})

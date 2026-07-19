@@ -20,7 +20,13 @@ import {
   pgvectorExtensionCheck,
   provisionVectorExtension,
 } from '@adonisjs-lasagna/saas-tenancy/services'
-import { TenantDeleted, TenantAnonymized } from '@adonisjs-lasagna/saas-tenancy/events'
+import {
+  TenantDeleted,
+  TenantAnonymized,
+  IsthmusGuardTripped,
+} from '@adonisjs-lasagna/saas-tenancy/events'
+import type { AuditLogEntry } from '@adonisjs-lasagna/saas-tenancy/services'
+import { randomUUID } from 'node:crypto'
 import { safeFetch } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
 import { tenancy, writeSecret, readSecret, SECRET_CLASS } from '@adonisjs-lasagna/saas-tenancy'
 import { decryptWithAppKey } from '@adonisjs-lasagna/saas-tenancy/internal'
@@ -34,6 +40,12 @@ import VectorStoreService, { type VectorDb } from '../src/services/vector_store_
 import EmbeddingIngestionService from '../src/services/embedding_ingestion_service.js'
 import RetrievalService from '../src/services/retrieval_service.js'
 import AiAuditWriter, { type AuditDb } from '../src/services/ai_audit_writer.js'
+import AiAuditReader from '../src/services/ai_audit_reader.js'
+import AiAuditAnomalyWatcher, {
+  wireAiAuditAnomalyWatcher,
+} from '../src/services/ai_audit_anomaly_watcher.js'
+import { AI_AUDIT_ANCHOR_TIMEOUT_MS } from '../src/constants.js'
+import type { AIAnomalySummary } from '../src/define_config.js'
 import AiActionLedger, { type ActionLedgerDb } from '../src/services/action_ledger.js'
 import { deriveAiToolConfirmationMacKey } from '../src/gateway/tool_confirmation.js'
 import {
@@ -103,6 +115,7 @@ import type { AIProviderContract } from '../src/types/ai_provider_contract.js'
 let teardownLiveness: (() => void) | undefined
 let offTenantDeleted: (() => void) | undefined
 let offTenantAnonymized: (() => void) | undefined
+let offAnomalyWatcher: (() => void) | undefined
 
 export default definePlugin({
   name: 'ai',
@@ -318,6 +331,36 @@ export default definePlugin({
         PgToolAuditSink,
         async (resolver) => new PgToolAuditSink(await resolver.make(AiAuditWriter))
       )
+      // The read/query + export side of the audit trail (Wave 4, 3.1/3.2). SELECT-only
+      // over the chain table, plus the additive checkpoint table; the SAME injected
+      // tenancy deps as the writer, so it inherits the qualified-table + re-assert
+      // discipline. Consumed by the admin-gated ai_audit_controller and the export/
+      // archive commands. Registered only when audit is on (there is nothing to read otherwise).
+      app.container.singleton(AiAuditReader, () => {
+        const { connectionName, schemaName } = backofficeWiring(app)
+        return new AiAuditReader({
+          getDb: async () => (await resolveLucidDb(app)) as unknown as AuditDb,
+          connectionName,
+          schemaName,
+          activeScopeTenantId: () => tenancy.currentId(),
+        })
+      })
+      // The anomaly watcher (Wave 4, 3.6): sliding-window guard-trip velocity. A
+      // container singleton (stateful, cross-request), subscribed to the
+      // IsthmusGuardTripped bus in ready(). Fail-open: onAnomaly if the host wired one,
+      // else fan the summary to the host audit destinations (the SIEM anchor path).
+      app.container.singleton(AiAuditAnomalyWatcher, async (resolver) => {
+        const ai = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+        const metrics = await resolver.make(MetricsService)
+        const anomalyCfg = ai?.audit?.anomaly
+        const onAnomaly = ai?.audit?.onAnomaly
+        return new AiAuditAnomalyWatcher({
+          ...(anomalyCfg?.windowMs !== undefined ? { windowMs: anomalyCfg.windowMs } : {}),
+          ...(anomalyCfg?.threshold !== undefined ? { threshold: anomalyCfg.threshold } : {}),
+          emitMetric: (tenantId, name, value) => metrics.emitMetric(tenantId, name, value),
+          ...(onAnomaly ? { onAnomaly } : { fanOut: (summary) => anchorAnomaly(app, summary) }),
+        })
+      })
     }
     // The tool executor (WS-AI-11). Stateful only through its injected seams — the
     // SAME tenancy pair the vector store / audit writer take (`tenancy.run` /
@@ -542,6 +585,21 @@ export default definePlugin({
         await compliance.autoPurge(event.tenant, 'tenant_anonymized')
       })
     }
+
+    // Anomaly watcher (Wave 4, 3.6): subscribe to the already-dispatched
+    // IsthmusGuardTripped bus and count guard-trip velocity. Only when audit is on
+    // (a disabled-audit host has no consumption pillar). Fail-open, off the request
+    // path; torn down in shutdown().
+    const aiCfg = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+    if (aiCfg && aiCfg.audit?.enabled !== false) {
+      const anomalyWatcher = await app.container.make(AiAuditAnomalyWatcher)
+      offAnomalyWatcher = wireAiAuditAnomalyWatcher(
+        emitter,
+        IsthmusGuardTripped,
+        anomalyWatcher,
+        () => Date.now()
+      )
+    }
   },
 
   async shutdown() {
@@ -551,9 +609,48 @@ export default definePlugin({
     offTenantDeleted = undefined
     offTenantAnonymized?.()
     offTenantAnonymized = undefined
+    offAnomalyWatcher?.()
+    offAnomalyWatcher = undefined
     setAiGuardMetricSink(undefined)
   },
 })
+
+/**
+ * Fan an anomaly summary to the host audit destinations (Wave 4, 3.6), reusing the
+ * same anchor path the audit writer uses: map onto the kernel `AuditLogEntry` (the
+ * first-class `ai` actor, action `ai:anomaly`, the content-free summary in metadata),
+ * time-bounded and isolated per destination. Best-effort by construction — a throw
+ * here is swallowed by the watcher's fail-open delivery wrapper.
+ */
+async function anchorAnomaly(app: ApplicationService, summary: AIAnomalySummary): Promise<void> {
+  const registry = await app.container.make(AuditLogDestinationRegistry)
+  const destinations = registry.list()
+  if (destinations.length === 0) return
+  const entry: AuditLogEntry = {
+    id: randomUUID(),
+    tenantId: summary.tenantId,
+    actorType: 'ai',
+    actorId: summary.principalHash,
+    action: 'ai:anomaly',
+    metadata: {
+      guard: summary.guard,
+      count: summary.count,
+      windowMs: summary.windowMs,
+      firstAt: summary.firstAt,
+      lastAt: summary.lastAt,
+    },
+    ipAddress: null,
+    createdAt: summary.lastAt,
+  }
+  await Promise.allSettled(
+    destinations.map((dest) =>
+      executeExtension(() => Promise.resolve(dest.write(entry)), {
+        label: `ai-anomaly:${dest.name}`,
+        timeoutMs: AI_AUDIT_ANCHOR_TIMEOUT_MS,
+      })
+    )
+  )
+}
 
 /**
  * Register the built-in providers that are allow-listed and configured. An

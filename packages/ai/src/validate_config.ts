@@ -263,6 +263,36 @@ function assertAuditConfig(audit: AIAuditConfig | undefined): void {
   if (audit.enabled !== undefined && typeof audit.enabled !== 'boolean') {
     fail('[ai] config.ai.audit.enabled, when set, must be a boolean')
   }
+  // The read/query gate (Wave 4, 3.1): a function, boot-checked for its TYPE only; its
+  // return value is the request-time fail-closed gate, never inspected here.
+  if (audit.authorizeAudit !== undefined && typeof audit.authorizeAudit !== 'function') {
+    fail(
+      '[ai] config.ai.audit.authorizeAudit, when set, must be a function (ctx, tenant) => boolean'
+    )
+  }
+  if (audit.onAnomaly !== undefined && typeof audit.onAnomaly !== 'function') {
+    fail('[ai] config.ai.audit.onAnomaly, when set, must be a function (anomaly) => void')
+  }
+  if (audit.anomaly !== undefined) {
+    if (typeof audit.anomaly !== 'object' || audit.anomaly === null) {
+      fail('[ai] config.ai.audit.anomaly, when set, must be an object { windowMs?, threshold? }')
+    }
+    assertPositiveInteger('audit.anomaly.windowMs', audit.anomaly.windowMs)
+    assertPositiveInteger('audit.anomaly.threshold', audit.anomaly.threshold)
+  }
+  if (audit.verify !== undefined) {
+    if (typeof audit.verify !== 'object' || audit.verify === null) {
+      fail('[ai] config.ai.audit.verify, when set, must be an object { schedule? }')
+    }
+    // A cron string, never a source literal. Non-empty; the scheduler validates the
+    // exact cron grammar, so here we only refuse an empty/non-string schedule.
+    if (
+      audit.verify.schedule !== undefined &&
+      (typeof audit.verify.schedule !== 'string' || audit.verify.schedule.trim().length === 0)
+    ) {
+      fail('[ai] config.ai.audit.verify.schedule, when set, must be a non-empty cron string')
+    }
+  }
 }
 
 /**
