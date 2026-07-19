@@ -120,62 +120,73 @@ export function httpStatusForAiCode(code: AIErrorCode): number {
 }
 
 /**
- * Whether a code is a transient condition worth retrying (retryable) or a fatal
- * one where retrying wastes compute (fatal). Fatal: config / allow-list / budget
- * / BYOK-endpoint rejections. Retryable: provider-down, rate-limited, and a
- * transient rate-limit-backend outage.
+ * Whether a code is a transient condition worth retrying (`'retryable'`) or a
+ * fatal one where retrying wastes compute (`'fatal'`). Unlike the hand-maintained
+ * `Set` this replaced, it is a `Record<AIErrorCode, ...>` total over the code
+ * union exactly like {@link STATUS_BY_CODE}: adding a code without classifying its
+ * retryability is now a compile error, not a silent default-to-retryable. That
+ * closes the one footgun the old design documented in-line, where the two adjacent
+ * confirmation codes classify OPPOSITELY: `tool_confirmation_invalid` /
+ * `tool_confirmation_required` are `'fatal'` (a forged or missing confirmation does
+ * not become valid by re-sending the identical request), while
+ * `tool_action_unavailable` is `'retryable'` (the ledger is down, nothing about the
+ * request is wrong, retry once it recovers). `'fatal'` also covers config /
+ * allow-list / budget / BYOK-endpoint / vector-store / scope / tool refusals.
+ * `'retryable'` covers provider-down, rate-limited, a transient rate-limit-backend
+ * outage, and an audit-DB write blip.
  */
-const FATAL_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
-  'provider_not_allowed',
-  'over_budget',
-  'config_missing',
-  'byok_endpoint_blocked',
-  'invalid_request',
-  // The vector-store codes never become correct on a retry: a rowscope host cannot use
-  // the vector store, a dimension mismatch is a config fault, the storage cap is a
-  // plan limit, and a scope-seal breach is a bug.
-  'rowscope_unsupported',
-  'dimension_mismatch',
-  'embedding_quota_exhausted',
-  'tenant_scope_mismatch',
+const RETRYABILITY: Record<AIErrorCode, 'fatal' | 'retryable'> = {
+  provider_unavailable: 'retryable',
+  provider_not_allowed: 'fatal',
+  over_budget: 'fatal',
+  rate_limited: 'retryable',
+  rate_limit_unavailable: 'retryable',
+  config_missing: 'fatal',
+  byok_endpoint_blocked: 'fatal',
+  invalid_request: 'fatal',
+  // The vector-store codes never become correct on a retry: a rowscope host cannot
+  // use the vector store, a dimension mismatch is a config fault, the storage cap is
+  // a plan limit, a scope-seal breach is a bug. A backend outage is a SEPARATE code
+  // (`vector_store_unavailable`), which is retryable.
+  rowscope_unsupported: 'fatal',
+  dimension_mismatch: 'fatal',
+  embedding_quota_exhausted: 'fatal',
+  tenant_scope_mismatch: 'fatal',
   // A blocked/unfetchable document URL and a denied ingestion are both permanent.
-  'doc_fetch_blocked',
-  'ingestion_denied',
+  doc_fetch_blocked: 'fatal',
+  ingestion_denied: 'fatal',
   // A denied retrieval authorizer is permanent, not retryable.
-  'retrieval_denied',
+  retrieval_denied: 'fatal',
+  // An audit row that cannot be written is a fail-closed 503 whose cause is usually
+  // a transient audit-DB outage, so retrying is right.
+  audit_write_failed: 'retryable',
   // A forged/malformed session token will not become valid on a retry.
-  'memory_session_invalid',
-  // FATAL_CODES is a plain Set (NOT compile-forced by the union), so this entry is
-  // added by hand. A residency denial is a permanent policy refusal, and a missing
-  // entry here would wrongly make it retryable (a client would retry the very egress
-  // residency exists to block).
-  'residency_denied',
+  memory_session_invalid: 'fatal',
+  // A residency denial is a permanent policy refusal (a client would otherwise retry
+  // the very egress residency exists to block).
+  residency_denied: 'fatal',
   // An unknown tool, a denied authorization, invalid model arguments and a disabled
   // action tool are all permanent refusals: the same request re-run is refused
   // identically. The tool-loop ceiling is deterministic too. The per-tenant
   // concurrency cap is fatal on purpose (anti-flood): a client must back off, not
   // hammer retries that would worsen the very flood it defends.
-  'tool_unknown',
-  'tool_denied',
-  'tool_input_invalid',
-  'tool_action_disabled',
-  'tool_budget_exhausted',
-  'too_many_concurrent',
-  // A presented confirmation that does not authorize the action never will: it is
-  // forged, expired, or minted for a different tenant, user, tool or arguments, and
-  // none of those change by asking again. Missing this entry would make a forged
-  // token read as "retryable", inviting a client to hammer the MAC on a mutation
-  // path. Deliberately NOT joined by `tool_action_unavailable`, which is the
-  // opposite: the ledger is down, nothing about the request is wrong, and retrying
-  // once it recovers is exactly right. Two adjacent codes, opposite classifications,
-  // in a Set the compiler does not check: pinned by a spec for that reason.
-  'tool_confirmation_invalid',
-  // Re-sending the IDENTICAL request cannot help: it will lack a confirmation
-  // again. The client's next move is a different request, one carrying the token,
-  // so this is fatal in the sense that matters here (do not retry this), not a
-  // statement that the action is impossible.
-  'tool_confirmation_required',
-])
+  tool_unknown: 'fatal',
+  tool_denied: 'fatal',
+  tool_input_invalid: 'fatal',
+  tool_action_disabled: 'fatal',
+  tool_budget_exhausted: 'fatal',
+  too_many_concurrent: 'fatal',
+  // Re-sending the IDENTICAL request cannot help: it will lack a confirmation again.
+  // The client's next move is a different request carrying the token.
+  tool_confirmation_required: 'fatal',
+  // A presented confirmation that does not authorize the action never will: forged,
+  // expired, or minted for a different tenant/user/tool/arguments. Making it read as
+  // retryable would invite a client to hammer the MAC on a mutation path.
+  tool_confirmation_invalid: 'fatal',
+  // The opposite of the two above: the ledger is unreachable, the request is fine,
+  // retrying once it recovers is exactly right.
+  tool_action_unavailable: 'retryable',
+}
 
 /**
  * The satellite's error type. It never carries an upstream provider body, key
@@ -203,6 +214,6 @@ export default class AIException extends Exception {
 
   /** Whether retrying is worthwhile (transient) or a waste (fatal). */
   isRetryable(): boolean {
-    return !FATAL_CODES.has(this.aiCode)
+    return RETRYABILITY[this.aiCode] === 'retryable'
   }
 }

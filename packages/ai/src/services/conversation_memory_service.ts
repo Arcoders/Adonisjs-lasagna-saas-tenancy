@@ -7,6 +7,7 @@ import {
   DEFAULT_MEMORY_MAX_TURNS,
   DEFAULT_MEMORY_TTL_MS,
 } from '../constants.js'
+import type { AiRedisMemory } from './redis_seam.js'
 
 /**
  * Conversation memory (WS-AI-4, I2): per-(tenant, user, session) chat history,
@@ -79,7 +80,7 @@ export interface MintedMemorySession extends ResolvedMemorySession {
  */
 export interface ConversationMemoryDeps {
   /** Raw Redis accessor (the `'redis'` binding), injected like the rate limiter's, for atomic list ops. */
-  getRedis: () => Promise<any>
+  getRedis: () => Promise<AiRedisMemory>
   /** 32-byte session-MAC key from {@link deriveMemoryMacKey}. */
   macKey: Buffer
   /** enc_v2 write for a memory blob (kernel `writeSecret(_, 'aiConversationMemory')`). */

@@ -1,10 +1,11 @@
 import type { DoctorCheck, DiagnosisIssue } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { AiConfig } from '../define_config.js'
+import type { AiRedisProbe } from './redis_seam.js'
 
 export interface AiComplianceCheckDeps {
   getAiConfig: () => AiConfig | undefined
   /** Raw Redis accessor (the `'redis'` binding), for a read-only reachability + keyPrefix probe. */
-  getRedis: () => Promise<any>
+  getRedis: () => Promise<AiRedisProbe>
 }
 
 /**
@@ -24,7 +25,7 @@ export function aiComplianceCheck(deps: AiComplianceCheckDeps): DoctorCheck {
       'keyPrefix the prefix-aware SCAN must honor so a prefixed deployment does not silently erase nothing.',
     async run(): Promise<DiagnosisIssue[]> {
       if (!deps.getAiConfig()) return []
-      let redis: { ping: () => Promise<unknown>; options?: { keyPrefix?: unknown } }
+      let redis: AiRedisProbe
       try {
         redis = await deps.getRedis()
         await redis.ping()

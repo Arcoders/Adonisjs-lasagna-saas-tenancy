@@ -33,17 +33,18 @@ test.group('AIException', () => {
     }
   })
 
-  test('every code has an explicit fatal/retryable classification (the FATAL_CODES footgun)', ({
+  test('every code has an explicit fatal/retryable classification (RETRYABILITY totality)', ({
     assert,
   }) => {
-    // FATAL_CODES is a hand-maintained Set the compiler does NOT check against the
-    // code union, so a new code silently defaults to retryable. Pinning every code's
-    // isRetryable() forces a deliberate classification for each — and in particular
-    // nails the three Phase 3a codes whose neighbours classify oppositely: a missing
-    // (`tool_confirmation_required`) and a bad (`tool_confirmation_invalid`)
-    // confirmation are FATAL (re-sending the identical request cannot help), while the
-    // ledger being unreachable (`tool_action_unavailable`) is RETRYABLE (nothing is
-    // wrong with the request; retry once it recovers).
+    // RETRYABILITY is now a Record<AIErrorCode, 'fatal'|'retryable'> total over the
+    // union, so a new code without a classification is a COMPILE error (it no longer
+    // silently defaults to retryable, the footgun the old hand-maintained Set carried).
+    // This runtime mirror still earns its place: it pins the exact isRetryable() value
+    // for each code, and in particular nails the three Phase 3a codes whose neighbours
+    // classify oppositely: a missing (`tool_confirmation_required`) and a bad
+    // (`tool_confirmation_invalid`) confirmation are FATAL (re-sending the identical
+    // request cannot help), while the ledger being unreachable (`tool_action_unavailable`)
+    // is RETRYABLE (nothing is wrong with the request; retry once it recovers).
     const RETRYABLE: Record<AIErrorCode, boolean> = {
       provider_unavailable: true,
       provider_not_allowed: false,

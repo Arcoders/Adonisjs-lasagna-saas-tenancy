@@ -4,6 +4,7 @@ import { hashAuditPrincipal } from '../gateway/audit_seam.js'
 import type ConversationMemoryService from './conversation_memory_service.js'
 import type VectorStoreService from './vector_store_service.js'
 import type AiIdempotencyService from '../gateway/idempotency.js'
+import type { AiRedisLock } from './redis_seam.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
@@ -79,7 +80,7 @@ export interface AiComplianceDeps {
   /** Whether embeddings are configured; when false the vector step is skipped (no table to purge). */
   readonly embeddingsEnabled: boolean
   /** Raw Redis accessor (the `'redis'` binding) for the per-tenant purge dedup lock (E15). */
-  readonly getRedis: () => Promise<any>
+  readonly getRedis: () => Promise<AiRedisLock>
   /** Best-effort kernel audit of the admin action (E20); absent ⇒ no audit row. */
   readonly auditLog?: (options: {
     tenantId: string

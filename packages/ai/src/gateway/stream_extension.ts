@@ -115,8 +115,8 @@ export type StreamAbortReason =
 /**
  * Why a stream never committed (resolved before headers, so a caller can set a
  * status). It is the AI error-code space: the pinned HTTP status and
- * retryability come from the exception's single-source-of-truth table
- * (`httpStatusForAiCode` / `FATAL_CODES`), so a fatal typed refusal thrown
+ * retryability come from the exception's single-source-of-truth tables
+ * (`httpStatusForAiCode` / `RETRYABILITY`), so a fatal typed refusal thrown
  * pre-commit (provider_not_allowed 403, byok_endpoint_blocked 400) keeps its own
  * status instead of collapsing to a retryable 503. The spine only ever produces
  * the pre-flight-reachable subset (over_budget, rate_limited,
@@ -162,6 +162,29 @@ export function httpStreamTarget(ctx: HttpContext): StreamTarget {
       return onRequestDisconnect(ctx)
     },
   }
+}
+
+/**
+ * The mutable state of one in-flight streamed call, threaded through the extracted
+ * `#preflight` / `#pump` / `#classifyCaught` / `#settleAndRelease` helpers so the
+ * orchestrator stays readable without turning the whole thing into one long method.
+ * The collaborators are `readonly`; the four fields the pump and catch mutate
+ * (`committed`, `heartbeat`, `reason`, `preflightError`) are the only writable ones,
+ * so the state machine is easy to follow: exactly those four move.
+ */
+interface StreamRun {
+  readonly target: StreamTarget
+  readonly writer: SseWriter
+  readonly pipeline: FragmentPipeline
+  readonly disconnect: { signal: AbortSignal; dispose: () => void }
+  readonly budget: AbortController
+  readonly composed: AbortSignal | undefined
+  readonly reservation: QuotaReservation
+  readonly heartbeatMs: number
+  committed: boolean
+  heartbeat: ReturnType<typeof setInterval> | undefined
+  reason: StreamAbortReason | undefined
+  preflightError: StreamPreflightError | undefined
 }
 
 /**
@@ -246,141 +269,196 @@ export default class StreamExtensionService {
   ): Promise<StreamResult> {
     // 1. Pre-flight, before any byte. A failure resolves failed_preflight so the
     //    caller can still set an HTTP status.
+    const pre = await this.#preflight(options)
+    if ('failed' in pre) return { outcome: 'failed_preflight', error: pre.failed }
+
+    // 2. Set up the collaborators + the four-way composed abort, then pump.
+    const run = this.#setup(target, options, pre.reservation)
+    try {
+      await this.#runExtension((signal) => this.#pump(run, produce, signal), {
+        label: options.label,
+        ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+        ...(run.composed !== undefined ? { signal: run.composed } : {}),
+      })
+      if (run.reason === undefined && run.composed?.aborted) {
+        run.reason = attributeAbort(
+          options.livenessSignal,
+          run.disconnect.signal,
+          run.budget.signal
+        )
+      }
+    } catch (error) {
+      await this.#classifyCaught(run, error)
+    } finally {
+      await this.#settleAndRelease(run)
+    }
+
+    // 3. Assemble the result from what the run recorded.
+    if (!run.committed) {
+      return { outcome: 'failed_preflight', error: run.preflightError ?? 'provider_unavailable' }
+    }
+    const base = {
+      tokensSettled: run.pipeline.cumulative,
+      fragments: run.pipeline.count,
+      lastEventId: run.writer.lastEventId,
+    }
+    return run.reason === undefined
+      ? { outcome: 'completed', ...base }
+      : { outcome: 'aborted', reason: run.reason, ...base }
+  }
+
+  /**
+   * The pre-commit gate: the breaker and the quota reservation. Either resolves a
+   * reservation to pump against, or a `failed` pre-flight error the caller maps to a
+   * status. Nothing here has flushed a byte, so a failure is always recoverable.
+   */
+  async #preflight(
+    options: StreamExtensionOptions
+  ): Promise<{ reservation: QuotaReservation } | { failed: StreamPreflightError }> {
     if (this.#breaker) {
       try {
         await this.#breaker.run(options.tenant.id)
       } catch {
-        return { outcome: 'failed_preflight', error: 'provider_unavailable' }
+        return { failed: 'provider_unavailable' }
       }
     }
-
-    let reservation: QuotaReservation
     try {
-      reservation = await this.#quota.reserve(options.tenant, options.quota, options.worstCase)
+      return {
+        reservation: await this.#quota.reserve(options.tenant, options.quota, options.worstCase),
+      }
     } catch (error) {
-      return { outcome: 'failed_preflight', error: classifyReserveError(error) }
+      return { failed: classifyReserveError(error) }
     }
+  }
 
-    // 2. Set up the collaborators + the four-way composed abort.
-    const writer = new SseWriter(target.sink, { lastEventId: options.lastEventId })
-    const pipeline = new FragmentPipeline(options.validateFragment, options.worstCase)
+  /** Build the collaborators and the four-way composed abort into a fresh run state. */
+  #setup(
+    target: StreamTarget,
+    options: StreamExtensionOptions,
+    reservation: QuotaReservation
+  ): StreamRun {
     const disconnect = target.disconnect()
     const budget = new AbortController()
-    const composed = composeSignals([options.livenessSignal, disconnect.signal, budget.signal])
-    const heartbeatMs = options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS
-
-    let heartbeat: ReturnType<typeof setInterval> | undefined
-    let committed = false
-    const commit = () => {
-      if (committed) return
-      committed = true
-      target.flushHeaders() // the commit point: after this nothing throws to the caller
-      heartbeat = setInterval(() => {
-        try {
-          writer.writeHeartbeat()
-        } catch {
-          // socket is dead; the next fragment write surfaces it and aborts
-        }
-      }, heartbeatMs)
-      if (typeof heartbeat.unref === 'function') heartbeat.unref()
+    return {
+      target,
+      writer: new SseWriter(target.sink, { lastEventId: options.lastEventId }),
+      pipeline: new FragmentPipeline(options.validateFragment, options.worstCase),
+      disconnect,
+      budget,
+      composed: composeSignals([options.livenessSignal, disconnect.signal, budget.signal]),
+      reservation,
+      heartbeatMs: options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS,
+      committed: false,
+      heartbeat: undefined,
+      reason: undefined,
+      preflightError: undefined,
     }
+  }
 
-    let reason: StreamAbortReason | undefined
-    let preflightError: StreamPreflightError | undefined
+  /**
+   * The commit point: flush the headers and start the heartbeat, exactly once.
+   * After it, nothing throws to the caller (the stream is live), so every path that
+   * writes a byte or ends cleanly calls it first.
+   */
+  #commit(run: StreamRun): void {
+    if (run.committed) return
+    run.committed = true
+    run.target.flushHeaders()
+    run.heartbeat = setInterval(() => {
+      try {
+        run.writer.writeHeartbeat()
+      } catch {
+        // socket is dead; the next fragment write surfaces it and aborts
+      }
+    }, run.heartbeatMs)
+    if (typeof run.heartbeat.unref === 'function') run.heartbeat.unref()
+  }
 
+  /**
+   * Pump the producer's fragments to the client: validate/admit, commit on the first
+   * one, write, account, settle-after-write (fail-open), and stop on a rejected
+   * fragment, a broken socket, or an exhausted budget. A clean end (including zero
+   * fragments) still commits, so an empty stream resolves completed.
+   */
+  async #pump(run: StreamRun, produce: StreamProducer, signal: AbortSignal): Promise<void> {
+    for await (const fragment of produce(signal)) {
+      if (signal.aborted) break
+      const admitted = run.pipeline.admit(fragment)
+      if (admitted === null) {
+        this.#commit(run)
+        run.reason = 'fragment_rejected'
+        break
+      }
+      this.#commit(run)
+      try {
+        await run.writer.writeFragment(admitted)
+      } catch {
+        run.reason = 'client_disconnect' // a broken socket write is a disconnect
+        break
+      }
+      run.pipeline.account(admitted)
+      // settle-after-write, fail-open: a drop between write and settle is still
+      // charged by the finally; a settle blip never aborts the stream.
+      try {
+        await this.#quota.settle(run.reservation, run.pipeline.cumulative)
+      } catch {
+        /* fail-open */
+      }
+      if (run.pipeline.budgetExhausted) {
+        run.budget.abort()
+        run.reason = 'budget'
+        break
+      }
+    }
+    // A clean end (including zero fragments) commits an empty stream so it resolves
+    // completed, not failed_preflight.
+    this.#commit(run)
+  }
+
+  /**
+   * Classify a caught error against the commit point. Pre-commit, it becomes a
+   * pre-flight error the caller maps to a status (a fatal typed refusal keeps its own
+   * code). Post-commit, a timeout is an abort reason, and any other provider error is
+   * an in-band error frame (code only, never an upstream body) then a clean close.
+   */
+  async #classifyCaught(run: StreamRun, error: unknown): Promise<void> {
+    if (!run.committed) {
+      run.preflightError = this.#isTimeoutError(error)
+        ? 'provider_unavailable'
+        : classifyProducerError(error)
+    } else if (this.#isTimeoutError(error)) {
+      run.reason = 'timeout'
+    } else {
+      run.reason = 'provider_error'
+      const code = error instanceof AIException ? error.aiCode : 'provider_error'
+      try {
+        await run.writer.writeErrorEvent(code)
+      } catch {
+        /* socket already gone */
+      }
+    }
+  }
+
+  /**
+   * The fail-open teardown: stop the heartbeat, settle the used tokens and release
+   * the remainder, and dispose the writer and disconnect wiring. A transient Redis
+   * blip on settle or release must never throw out of here (the I3 invariant), so
+   * every step swallows, and release runs exactly once.
+   */
+  async #settleAndRelease(run: StreamRun): Promise<void> {
+    if (run.heartbeat) clearInterval(run.heartbeat)
     try {
-      await this.#runExtension(
-        async (signal) => {
-          for await (const fragment of produce(signal)) {
-            if (signal.aborted) break
-            const admitted = pipeline.admit(fragment)
-            if (admitted === null) {
-              commit()
-              reason = 'fragment_rejected'
-              break
-            }
-            commit()
-            try {
-              await writer.writeFragment(admitted)
-            } catch {
-              reason = 'client_disconnect' // a broken socket write is a disconnect
-              break
-            }
-            pipeline.account(admitted)
-            // settle-after-write, fail-open: a drop between write and settle is
-            // still charged by the finally; a settle blip never aborts the stream.
-            try {
-              await this.#quota.settle(reservation, pipeline.cumulative)
-            } catch {
-              /* fail-open */
-            }
-            if (pipeline.budgetExhausted) {
-              budget.abort()
-              reason = 'budget'
-              break
-            }
-          }
-          // A clean end (including zero fragments) commits an empty stream so it
-          // resolves completed, not failed_preflight.
-          commit()
-        },
-        {
-          label: options.label,
-          ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
-          ...(composed !== undefined ? { signal: composed } : {}),
-        }
-      )
-      if (reason === undefined && composed?.aborted) {
-        reason = attributeAbort(options.livenessSignal, disconnect.signal, budget.signal)
-      }
-    } catch (error) {
-      if (!committed) {
-        // The provider failed before the first byte: map it to a status.
-        preflightError = this.#isTimeoutError(error)
-          ? 'provider_unavailable'
-          : classifyProducerError(error)
-      } else if (this.#isTimeoutError(error)) {
-        reason = 'timeout'
-      } else {
-        // A provider error mid-stream: an in-band error frame (code only, never an
-        // upstream body), then a clean close. Never throws past flushed headers.
-        reason = 'provider_error'
-        const code = error instanceof AIException ? error.aiCode : 'provider_error'
-        try {
-          await writer.writeErrorEvent(code)
-        } catch {
-          /* socket already gone */
-        }
-      }
-    } finally {
-      if (heartbeat) clearInterval(heartbeat)
-      // Fail-open final settle + release: a transient Redis blip here must never
-      // throw out of the finally (the I3 violation this guards against).
-      try {
-        await this.#quota.settle(reservation, pipeline.cumulative)
-      } catch {
-        /* fail-open */
-      }
-      try {
-        await this.#quota.release(reservation)
-      } catch {
-        /* fail-open */
-      }
-      writer.dispose()
-      disconnect.dispose()
+      await this.#quota.settle(run.reservation, run.pipeline.cumulative)
+    } catch {
+      /* fail-open */
     }
-
-    if (!committed) {
-      return { outcome: 'failed_preflight', error: preflightError ?? 'provider_unavailable' }
+    try {
+      await this.#quota.release(run.reservation)
+    } catch {
+      /* fail-open */
     }
-    const base = {
-      tokensSettled: pipeline.cumulative,
-      fragments: pipeline.count,
-      lastEventId: writer.lastEventId,
-    }
-    return reason === undefined
-      ? { outcome: 'completed', ...base }
-      : { outcome: 'aborted', reason, ...base }
+    run.writer.dispose()
+    run.disconnect.dispose()
   }
 }
 
