@@ -6,6 +6,10 @@
  * version header) live next to their providers, not here.
  */
 
+// A type-only import: erased at build, so this module never value-imports the
+// eager core `/services` barrel.
+import type { FailurePolicy } from '@adonisjs-lasagna/saas-tenancy/services'
+
 /** The built-in provider selected when a tenant does not choose one. */
 export const DEFAULT_AI_PROVIDER = 'claude'
 
@@ -411,3 +415,42 @@ export const AI_TOOL_CONFIRMATION_REQUIRED_METRIC = 'ai_tool_confirmation_requir
 export const AI_TOOL_CONFIRMATION_UNMATCHED_METRIC = 'ai_tool_confirmation_unmatched'
 export const AI_TOOL_ACTION_EXECUTED_METRIC = 'ai_tool_action_executed'
 export const AI_TOOL_ACTION_REPLAYED_METRIC = 'ai_tool_action_replayed'
+
+// --- Resilience: request-path Redis reads (Wave 1) ---
+// Every request-path Redis read routes through the kernel `ResilienceService.run`
+// via an injected `runResilient` closure, so a dependency outage degrades by a
+// named POLICY (not an ad-hoc per-call try/catch) and emits a uniform
+// `DependencyDegraded` event. The dependency name and the per-operation labels are
+// fixed constants; the per-operation default policy is a named constant a host can
+// override through `config.ai.resilience.<op>.policy`.
+
+/** The logical dependency name for every AI Redis read, passed to `ResilienceService.run`. */
+export const AI_RESILIENCE_DEPENDENCY_REDIS = 'redis'
+
+/**
+ * Default policy for the conversation-memory read: `fail-open`. A lost history
+ * degrades gracefully (the chat runs with no prior turns, bounded by the memory
+ * TTL); availability wins. Override via `config.ai.resilience.memory.policy`.
+ */
+export const DEFAULT_AI_RESILIENCE_MEMORY_POLICY: FailurePolicy = 'fail-open'
+
+/**
+ * Default policy for the idempotency read: `fail-open`. A skipped replay is safe
+ * (the stream simply runs again); a replay convenience must never take the service
+ * down. Override via `config.ai.resilience.idempotency.policy`.
+ */
+export const DEFAULT_AI_RESILIENCE_IDEMPOTENCY_POLICY: FailurePolicy = 'fail-open'
+
+/**
+ * Default policy for the per-key rate-limit consume: `fail-closed`. A blind cost
+ * limiter that passes is a denial-of-wallet hole, so an outage refuses the request
+ * (mapped to `rate_limit_unavailable`, 503). Override via
+ * `config.ai.resilience.rateLimit.policy`.
+ */
+export const DEFAULT_AI_RESILIENCE_RATELIMIT_POLICY: FailurePolicy = 'fail-closed'
+
+/** Operation labels for the resilience telemetry, one per request-path Redis read. Fixed, never inlined. */
+export const AI_RESILIENCE_OP_MEMORY_LOAD = 'ai.memory.load'
+export const AI_RESILIENCE_OP_IDEMPOTENCY_LOOKUP = 'ai.idempotency.lookup'
+export const AI_RESILIENCE_OP_IDEMPOTENCY_SAVE = 'ai.idempotency.save'
+export const AI_RESILIENCE_OP_RATE_LIMIT = 'ai.rate_limit.consume'

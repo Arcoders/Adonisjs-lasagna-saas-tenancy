@@ -58,6 +58,7 @@ test.group('AIException', () => {
       dimension_mismatch: false,
       embedding_quota_exhausted: false,
       tenant_scope_mismatch: false,
+      vector_store_unavailable: true,
       doc_fetch_blocked: false,
       ingestion_denied: false,
       retrieval_denied: false,

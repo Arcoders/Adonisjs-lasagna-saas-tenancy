@@ -4,8 +4,23 @@ import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import {
   AI_IDEMPOTENCY_KEY_MAX_LENGTH,
   AI_IDEMPOTENCY_MAX_BYTES,
+  AI_RESILIENCE_DEPENDENCY_REDIS,
+  AI_RESILIENCE_OP_IDEMPOTENCY_LOOKUP,
+  AI_RESILIENCE_OP_IDEMPOTENCY_SAVE,
   DEFAULT_AI_IDEMPOTENCY_TTL_MS,
+  DEFAULT_AI_RESILIENCE_IDEMPOTENCY_POLICY,
 } from '../constants.js'
+import { runResilientPassthrough, type RunResilient } from '../services/resilience_seam.js'
+import type { FailurePolicy } from '@adonisjs-lasagna/saas-tenancy/services'
+
+/**
+ * A unique sentinel the epoch read returns from its resilience fallback when the
+ * store could not answer (an outage under `fail-open`). Distinct from every real
+ * store value (`string | undefined | null`), so `#currentEpoch` maps it to `null`
+ * (no replays, the privacy-safe direction) while a healthy `undefined` / `null`
+ * still maps to `'0'` (never bumped).
+ */
+const EPOCH_STORE_OUTAGE = Symbol('ai_idempotency_epoch_store_outage')
 
 /**
  * Idempotent replay for completed streams (#5): unlike billing's dedup-only
@@ -120,6 +135,18 @@ export interface AiIdempotencyServiceOptions {
   maxBytes?: number
   /** Epoch value generator (test seam). Default: 8 random bytes, hex. */
   newEpoch?: () => string
+  /**
+   * The resilience seam (kernel `ResilienceService.run`), injected so the epoch and
+   * entry reads degrade by a named policy with uniform observability. Absent ⇒ a
+   * local passthrough with identical semantics (bare unit specs).
+   */
+  runResilient?: RunResilient
+  /**
+   * Outage policy for the idempotency READ (`lookup` / epoch). Default
+   * {@link DEFAULT_AI_RESILIENCE_IDEMPOTENCY_POLICY} (`fail-open`, resolving to no
+   * replay). `save` is always best-effort regardless, per its post-success contract.
+   */
+  resiliencePolicy?: FailurePolicy | undefined
 }
 
 /**
@@ -132,6 +159,8 @@ export default class AiIdempotencyService {
   readonly #ttlMs: number
   readonly #maxBytes: number
   readonly #newEpoch: () => string
+  readonly #runResilient: RunResilient
+  readonly #outagePolicy: FailurePolicy
 
   constructor(options: AiIdempotencyServiceOptions) {
     this.#store = options.store
@@ -139,6 +168,8 @@ export default class AiIdempotencyService {
     this.#ttlMs = options.ttlMs ?? DEFAULT_AI_IDEMPOTENCY_TTL_MS
     this.#maxBytes = options.maxBytes ?? AI_IDEMPOTENCY_MAX_BYTES
     this.#newEpoch = options.newEpoch ?? (() => randomBytes(8).toString('hex'))
+    this.#runResilient = options.runResilient ?? runResilientPassthrough
+    this.#outagePolicy = options.resiliencePolicy ?? DEFAULT_AI_RESILIENCE_IDEMPOTENCY_POLICY
   }
 
   /** The entry key for a scope under an epoch. Pure; exposed for key-scoping specs. */
@@ -154,15 +185,23 @@ export default class AiIdempotencyService {
    * store outage, unreadable epoch, corrupt JSON, unknown shape.
    */
   async lookup(scope: AiIdempotencyScope): Promise<CachedAiResponse | null> {
-    try {
-      const epoch = await this.#currentEpoch(scope.tenantId)
-      if (epoch === null) return null
-      const raw = await this.#store.get(scope.tenantId, this.entryKey(scope, epoch))
-      if (typeof raw !== 'string') return null
-      return parseCachedResponse(raw)
-    } catch {
-      return null
-    }
+    // Only the store reads are guarded by the resilience policy; `parseCachedResponse`
+    // stays outside it, so a corrupt cached JSON remains a plain miss (null) and never
+    // rides the resilience path. Default fail-open resolves an outage to no replay; a
+    // host `fail-closed` override lets the outage throw (a 503), which is the whole
+    // point of routing this through a policy instead of a swallow-everything catch.
+    const epoch = await this.#currentEpoch(scope.tenantId, this.#outagePolicy)
+    if (epoch === null) return null
+    const raw = await this.#runResilient<string | undefined | null>({
+      dependency: AI_RESILIENCE_DEPENDENCY_REDIS,
+      operation: AI_RESILIENCE_OP_IDEMPOTENCY_LOOKUP,
+      policy: this.#outagePolicy,
+      tenantId: scope.tenantId,
+      fallback: () => null,
+      run: () => this.#store.get(scope.tenantId, this.entryKey(scope, epoch)),
+    })
+    if (typeof raw !== 'string') return null
+    return parseCachedResponse(raw)
   }
 
   /**
@@ -171,15 +210,21 @@ export default class AiIdempotencyService {
    * must never fail a stream that already succeeded.
    */
   async save(scope: AiIdempotencyScope, response: CachedAiResponse): Promise<void> {
-    try {
-      const payload = JSON.stringify(response)
-      if (Buffer.byteLength(payload, 'utf8') > this.#maxBytes) return
-      const epoch = await this.#currentEpoch(scope.tenantId)
-      if (epoch === null) return
-      await this.#store.set(scope.tenantId, this.entryKey(scope, epoch), payload, this.#ttlMs)
-    } catch {
-      // Best-effort by contract.
-    }
+    const payload = JSON.stringify(response)
+    if (Buffer.byteLength(payload, 'utf8') > this.#maxBytes) return
+    // Save is best-effort by contract (it must never fail a stream that already
+    // succeeded), so it stays `fail-open` regardless of the configured read policy:
+    // both the epoch read and the write skip silently on an outage.
+    const epoch = await this.#currentEpoch(scope.tenantId, 'fail-open')
+    if (epoch === null) return
+    await this.#runResilient<void>({
+      dependency: AI_RESILIENCE_DEPENDENCY_REDIS,
+      operation: AI_RESILIENCE_OP_IDEMPOTENCY_SAVE,
+      policy: 'fail-open',
+      tenantId: scope.tenantId,
+      fallback: () => undefined,
+      run: () => this.#store.set(scope.tenantId, this.entryKey(scope, epoch), payload, this.#ttlMs),
+    })
   }
 
   /**
@@ -216,14 +261,18 @@ export default class AiIdempotencyService {
    * privacy-critical direction: after a purge, a store that cannot confirm the
    * epoch must yield NO replays rather than risk serving pre-purge entries.
    */
-  async #currentEpoch(tenantId: string): Promise<string | null> {
-    try {
-      const stored = await this.#store.get(tenantId, EPOCH_KEY)
-      if (stored === undefined || stored === null) return '0'
-      return typeof stored === 'string' ? stored : null
-    } catch {
-      return null
-    }
+  async #currentEpoch(tenantId: string, policy: FailurePolicy): Promise<string | null> {
+    const stored = await this.#runResilient<string | undefined | null | typeof EPOCH_STORE_OUTAGE>({
+      dependency: AI_RESILIENCE_DEPENDENCY_REDIS,
+      operation: AI_RESILIENCE_OP_IDEMPOTENCY_LOOKUP,
+      policy,
+      tenantId,
+      fallback: () => EPOCH_STORE_OUTAGE,
+      run: () => this.#store.get(tenantId, EPOCH_KEY),
+    })
+    if (stored === EPOCH_STORE_OUTAGE) return null
+    if (stored === undefined || stored === null) return '0'
+    return typeof stored === 'string' ? stored : null
   }
 }
 

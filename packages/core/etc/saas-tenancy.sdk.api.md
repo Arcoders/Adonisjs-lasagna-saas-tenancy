@@ -152,6 +152,9 @@ export type GuardMetricSink = (tenantId: string, name: string, value: number) =>
 export function indexSatellites(satellites: DiscoveredSatellite[]): Map<string, DiscoveredSatellite>;
 
 // @public
+export function isDependencyOutageError(err: unknown): boolean;
+
+// @public
 export function isProductionNodeEnv(): boolean;
 
 // @public

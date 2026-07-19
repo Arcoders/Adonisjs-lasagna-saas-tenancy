@@ -4,6 +4,7 @@ import type {
   TenantAccessAuthorizer,
   TenantModelContract,
 } from '@adonisjs-lasagna/saas-tenancy/types'
+import type { FailurePolicy } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { AIToolDefinition } from './types/ai_provider_contract.js'
 
 /**
@@ -171,6 +172,23 @@ export interface AIAuditConfig {
    * to the no-op sinks) and silences the `ai_audit` doctor check.
    */
   enabled?: boolean
+}
+
+/**
+ * Per-operation failure policy for the request-path Redis reads (Wave 1). Each
+ * read routes through the kernel `ResilienceService.run` via an injected closure,
+ * so a dependency outage degrades by this POLICY rather than an ad-hoc per-call
+ * `try/catch`. Every field is optional and defaults to today's semantics exactly,
+ * so an absent `resilience` block changes nothing; a `policy` that is neither
+ * `'fail-open'` nor `'fail-closed'` is a boot `fail()`.
+ */
+export interface AIResilienceConfig {
+  /** Conversation-memory read. Default `fail-open` (a lost history degrades gracefully, bounded by the TTL). */
+  memory?: { policy?: FailurePolicy }
+  /** Idempotency lookup / epoch read. Default `fail-open` (a skipped replay is safe; save stays best-effort regardless). */
+  idempotency?: { policy?: FailurePolicy }
+  /** Per-key rate-limit consume. Default `fail-closed` (a blind cost limiter must not pass; an outage is a 503 `rate_limit_unavailable`). */
+  rateLimit?: { policy?: FailurePolicy }
 }
 
 /**
@@ -469,6 +487,12 @@ export interface AiConfig {
   acknowledgeUnscopedRetrieval?: boolean
   /** The append-only audit block. On by default; set `enabled: false` to opt out. */
   audit?: AIAuditConfig
+  /**
+   * Per-operation failure policy for the request-path Redis reads. Absent ⇒ today's
+   * semantics exactly (memory / idempotency fail-open, rate-limit fail-closed). See
+   * {@link AIResilienceConfig}.
+   */
+  resilience?: AIResilienceConfig
   /**
    * The tool / function-calling block (WS-AI-11). Present when the host opts into
    * letting the model call server-defined tools. Default-deny; see {@link AIToolsConfig}.

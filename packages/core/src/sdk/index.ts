@@ -75,6 +75,17 @@ export { isProductionNodeEnv, readBooleanEnvFlag } from '../utils/env.js'
  */
 export { resolveLucidDb } from '../utils/lucid_db.js'
 
+/**
+ * Classify a caught database error as an infrastructure OUTAGE (the connection died,
+ * the pool is exhausted, the server is shutting down) versus a domain or query error.
+ * A satellite that funnels its raw SQL through one boundary uses this to turn a
+ * mid-query backend death into a clean, typed, retryable 503 instead of an opaque
+ * 500. Pure + bare-safe: a fixed allow-list of errno / driver-code / SQLSTATE /
+ * message signatures, no booted import. This is the single source of truth, so a
+ * satellite never re-implements the pg-outage signature list.
+ */
+export { isDependencyOutageError } from '../utils/dependency_outage.js'
+
 export type { CodemodsLike, LoggerLike } from './configure_kit.js'
 export {
   filterAlreadyPublished,

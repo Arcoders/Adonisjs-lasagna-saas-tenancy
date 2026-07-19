@@ -20,6 +20,7 @@ export const AI_ERROR_CODES = [
   'dimension_mismatch',
   'embedding_quota_exhausted',
   'tenant_scope_mismatch',
+  'vector_store_unavailable',
   // ingestion
   'doc_fetch_blocked',
   'ingestion_denied',
@@ -68,6 +69,10 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   dimension_mismatch: 400,
   embedding_quota_exhausted: 402,
   tenant_scope_mismatch: 500,
+  // A vector-store backend outage (the pg connection died mid-query) is a transient
+  // 503, like the reserve rail's rate_limit_unavailable: nothing is wrong with the
+  // request, retrying once the database recovers is exactly right.
+  vector_store_unavailable: 503,
   // A document URL the SSRF pin blocked (or could not fetch) is a 400; a denied
   // ingestion authorizer is a 403, like the access gate.
   doc_fetch_blocked: 400,
@@ -152,6 +157,9 @@ const RETRYABILITY: Record<AIErrorCode, 'fatal' | 'retryable'> = {
   dimension_mismatch: 'fatal',
   embedding_quota_exhausted: 'fatal',
   tenant_scope_mismatch: 'fatal',
+  // A backend outage is the one vector-store code that IS worth retrying (the query
+  // will succeed once the database is back), unlike the four permanent ones above.
+  vector_store_unavailable: 'retryable',
   // A blocked/unfetchable document URL and a denied ingestion are both permanent.
   doc_fetch_blocked: 'fatal',
   ingestion_denied: 'fatal',

@@ -4,10 +4,15 @@ import AIException from '../exceptions/ai_exception.js'
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import {
   AI_MEMORY_KEY_PREFIX,
+  AI_RESILIENCE_DEPENDENCY_REDIS,
+  AI_RESILIENCE_OP_MEMORY_LOAD,
+  DEFAULT_AI_RESILIENCE_MEMORY_POLICY,
   DEFAULT_MEMORY_MAX_TURNS,
   DEFAULT_MEMORY_TTL_MS,
 } from '../constants.js'
 import type { AiRedisMemory } from './redis_seam.js'
+import { runResilientPassthrough, type RunResilient } from './resilience_seam.js'
+import type { FailurePolicy } from '@adonisjs-lasagna/saas-tenancy/services'
 
 /**
  * Conversation memory (WS-AI-4, I2): per-(tenant, user, session) chat history,
@@ -81,6 +86,14 @@ export interface MintedMemorySession extends ResolvedMemorySession {
 export interface ConversationMemoryDeps {
   /** Raw Redis accessor (the `'redis'` binding), injected like the rate limiter's, for atomic list ops. */
   getRedis: () => Promise<AiRedisMemory>
+  /**
+   * The resilience seam (kernel `ResilienceService.run`), injected so the load read
+   * degrades by a named policy with uniform observability. Absent ⇒ a local
+   * passthrough with identical semantics (bare unit specs).
+   */
+  runResilient?: RunResilient
+  /** Outage policy for the memory read. Default {@link DEFAULT_AI_RESILIENCE_MEMORY_POLICY} (`fail-open`). */
+  resiliencePolicy?: FailurePolicy | undefined
   /** 32-byte session-MAC key from {@link deriveMemoryMacKey}. */
   macKey: Buffer
   /** enc_v2 write for a memory blob (kernel `writeSecret(_, 'aiConversationMemory')`). */
@@ -199,15 +212,25 @@ export default class ConversationMemoryService {
    * to `[]` (bounded by the TTL) rather than failing the chat.
    */
   async load(tenantId: string, storageKey: string): Promise<ConversationTurn[]> {
-    let raw: unknown[]
-    try {
-      const redis = await this.#deps.getRedis()
-      raw = await redis.lrange(storageKey, 0, -1)
-    } catch {
-      this.#metric(tenantId, AI_MEMORY_UNREADABLE_METRIC)
-      this.#deps.warn?.(`[ai] conversation memory unreadable for a session (store error)`)
-      return []
-    }
+    // Only the store read is guarded by the resilience policy; the decrypt/decode
+    // loop below stays OUTSIDE it, because a corrupt-blob drop is a data event
+    // (AI_MEMORY_UNDECRYPTABLE_METRIC), not a dependency outage, and the two must not
+    // be conflated. Default fail-open: an unreadable store degrades to no history.
+    const raw = await (this.#deps.runResilient ?? runResilientPassthrough)<unknown[]>({
+      dependency: AI_RESILIENCE_DEPENDENCY_REDIS,
+      operation: AI_RESILIENCE_OP_MEMORY_LOAD,
+      policy: this.#deps.resiliencePolicy ?? DEFAULT_AI_RESILIENCE_MEMORY_POLICY,
+      tenantId,
+      fallback: () => {
+        this.#metric(tenantId, AI_MEMORY_UNREADABLE_METRIC)
+        this.#deps.warn?.(`[ai] conversation memory unreadable for a session (store error)`)
+        return []
+      },
+      run: async () => {
+        const redis = await this.#deps.getRedis()
+        return redis.lrange(storageKey, 0, -1)
+      },
+    })
     if (!Array.isArray(raw) || raw.length === 0) return []
 
     const turns: ConversationTurn[] = []

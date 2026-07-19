@@ -1,6 +1,10 @@
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import AIException from '../exceptions/ai_exception.js'
-import { assertNever, tokenizeTenantId } from '@adonisjs-lasagna/saas-tenancy/sdk'
+import {
+  assertNever,
+  isDependencyOutageError,
+  tokenizeTenantId,
+} from '@adonisjs-lasagna/saas-tenancy/sdk'
 import { AI_EMBEDDINGS_TABLE } from '../constants.js'
 import type { RetrievalScope } from '../define_config.js'
 import type { TableLocation } from '@adonisjs-lasagna/saas-tenancy/services'
@@ -100,6 +104,41 @@ export default class VectorStoreService {
   constructor(private readonly deps: VectorStoreDeps) {}
 
   /**
+   * The one boundary every raw DB call funnels through, so a mid-query BACKEND
+   * OUTAGE (the pg connection died, the pool is exhausted, the server is shutting
+   * down) becomes a single typed, retryable `vector_store_unavailable` (503) instead
+   * of an opaque untyped 500 that every caller would otherwise have to map itself. A
+   * real query error (bad SQL, a constraint, a domain `AIException` thrown deeper in a
+   * transaction) is NOT an outage, so it propagates unchanged. Not a guard trip: an
+   * infrastructure outage is not a policy refusal of untrusted input, consistent with
+   * the resilience wave.
+   */
+  async #execOutageGuard<T>(op: () => Promise<T>): Promise<T> {
+    try {
+      return await op()
+    } catch (error) {
+      if (isDependencyOutageError(error)) {
+        throw new AIException(
+          'vector_store_unavailable',
+          'the AI vector store database is unavailable',
+          { cause: error }
+        )
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Funnel one raw query through {@link #execOutageGuard}. Takes a
+   * {@link VectorQueryClient}, so it covers BOTH the plain connection and an
+   * in-transaction `trx` (both satisfy the interface): every `rawQuery` in this file
+   * goes through here, and there is no other raw path.
+   */
+  #exec(client: VectorQueryClient, sql: string, bindings?: readonly unknown[]): Promise<unknown> {
+    return this.#execOutageGuard(() => client.rawQuery(sql, bindings))
+  }
+
+  /**
    * Store `chunks` (all under one `source`) idempotently. `ON CONFLICT (source,
    * content_hash) DO NOTHING` makes a re-ingest of identical content a no-op, so
    * a client retry or a concurrent duplicate cannot double-insert. When
@@ -120,65 +159,73 @@ export default class VectorStoreService {
     for (const chunk of chunks) this.#assertVector(tenant, chunk.embedding)
 
     const maxCount = opts.maxCount
-    return client.transaction(async (trx) => {
-      // Serialize only this tenant's count+insert critical section; released at
-      // commit. No table lock, no SERIALIZABLE retry storms.
-      await trx.rawQuery('SELECT pg_advisory_xact_lock(hashtext(?))', [
-        `ai_embeddings_cap:${tenant.id}`,
-      ])
+    // The transaction OPENER is guarded too, not just the queries inside it: an
+    // outage can strike while acquiring the connection / issuing BEGIN, before the
+    // first #exec runs. A domain AIException thrown inside (the embeddingCount cap)
+    // is not an outage, so it passes through unchanged.
+    return this.#execOutageGuard(() =>
+      client.transaction(async (trx) => {
+        // Serialize only this tenant's count+insert critical section; released at
+        // commit. No table lock, no SERIALIZABLE retry storms.
+        await this.#exec(trx, 'SELECT pg_advisory_xact_lock(hashtext(?))', [
+          `ai_embeddings_cap:${tenant.id}`,
+        ])
 
-      if (maxCount !== undefined && Number.isFinite(maxCount)) {
-        // safe-sql: `table` is a fixed module constant; no user input.
-        const countRes = await trx.rawQuery(`SELECT count(*)::int AS n FROM ${table}`)
-        const current = Number(rowsOf(countRes)[0]?.n ?? 0)
-        if (current + chunks.length > maxCount) {
-          emitAiGuardEvent('guard.ai_embedding_quota_exhausted', {
-            tenantId: tenant.id,
-            metadata: { current, requested: chunks.length, limit: maxCount },
-          })
-          throw new AIException(
-            'embedding_quota_exhausted',
-            `Refusing to store ${chunks.length} embedding(s): tenant is at ${current}/${maxCount} (plan limit embeddingCount).`
+        if (maxCount !== undefined && Number.isFinite(maxCount)) {
+          // safe-sql: `table` is a fixed module constant; no user input.
+          const countRes = await this.#exec(trx, `SELECT count(*)::int AS n FROM ${table}`)
+          const current = Number(rowsOf(countRes)[0]?.n ?? 0)
+          if (current + chunks.length > maxCount) {
+            emitAiGuardEvent('guard.ai_embedding_quota_exhausted', {
+              tenantId: tenant.id,
+              metadata: { current, requested: chunks.length, limit: maxCount },
+            })
+            throw new AIException(
+              'embedding_quota_exhausted',
+              `Refusing to store ${chunks.length} embedding(s): tenant is at ${current}/${maxCount} (plan limit embeddingCount).`
+            )
+          }
+        }
+
+        const valuesSql = chunks.map(() => '(?, ?, ?, ?::jsonb, ?, ?, ?, ?::vector)').join(', ')
+        const insertBindings: unknown[] = []
+        for (const chunk of chunks) {
+          insertBindings.push(
+            source,
+            chunk.contentHash,
+            chunk.content,
+            JSON.stringify(chunk.metadata ?? {}),
+            chunk.model,
+            this.deps.dimension,
+            chunk.actor,
+            toPgVector(chunk.embedding)
           )
         }
-      }
-
-      const valuesSql = chunks.map(() => '(?, ?, ?, ?::jsonb, ?, ?, ?, ?::vector)').join(', ')
-      const insertBindings: unknown[] = []
-      for (const chunk of chunks) {
-        insertBindings.push(
-          source,
-          chunk.contentHash,
-          chunk.content,
-          JSON.stringify(chunk.metadata ?? {}),
-          chunk.model,
-          this.deps.dimension,
-          chunk.actor,
-          toPgVector(chunk.embedding)
+        // safe-sql: `table` is a fixed module constant; every value is a ? bind and the placeholder groups carry no user data.
+        const insertRes = await this.#exec(
+          trx,
+          `INSERT INTO ${table} (source, content_hash, content, metadata, model, dim, actor, embedding) ` +
+            `VALUES ${valuesSql} ON CONFLICT (source, content_hash) DO NOTHING RETURNING content_hash`,
+          insertBindings
         )
-      }
-      // safe-sql: `table` is a fixed module constant; every value is a ? bind and the placeholder groups carry no user data.
-      const insertRes = await trx.rawQuery(
-        `INSERT INTO ${table} (source, content_hash, content, metadata, model, dim, actor, embedding) ` +
-          `VALUES ${valuesSql} ON CONFLICT (source, content_hash) DO NOTHING RETURNING content_hash`,
-        insertBindings
-      )
-      const inserted = rowsOf(insertRes).length
+        const inserted = rowsOf(insertRes).length
 
-      const hashes = chunks.map((chunk) => chunk.contentHash)
-      const inPlaceholders = hashes.map(() => '?').join(', ')
-      // safe-sql: `table` is a fixed module constant; `source` and every hash are ? binds and the placeholders carry no user data.
-      const idRes = await trx.rawQuery(
-        `SELECT id, content_hash FROM ${table} WHERE source = ? AND content_hash IN (${inPlaceholders})`,
-        [source, ...hashes]
-      )
-      const idByHash = new Map<string, string>()
-      for (const row of rowsOf(idRes)) idByHash.set(String(row.content_hash), String(row.id))
-      const ids = chunks
-        .map((chunk) => idByHash.get(chunk.contentHash))
-        .filter((id): id is string => typeof id === 'string')
-      return { ids, inserted }
-    })
+        const hashes = chunks.map((chunk) => chunk.contentHash)
+        const inPlaceholders = hashes.map(() => '?').join(', ')
+        // safe-sql: `table` is a fixed module constant; `source` and every hash are ? binds and the placeholders carry no user data.
+        const idRes = await this.#exec(
+          trx,
+          `SELECT id, content_hash FROM ${table} WHERE source = ? AND content_hash IN (${inPlaceholders})`,
+          [source, ...hashes]
+        )
+        const idByHash = new Map<string, string>()
+        for (const row of rowsOf(idRes)) idByHash.set(String(row.content_hash), String(row.id))
+        const ids = chunks
+          .map((chunk) => idByHash.get(chunk.contentHash))
+          .filter((id): id is string => typeof id === 'string')
+        return { ids, inserted }
+      })
+    )
   }
 
   /**
@@ -204,7 +251,8 @@ export default class VectorStoreService {
     const vec = toPgVector(query.vector)
     const scope = scopeClause(filter)
     // safe-sql: `table` is a fixed module constant; every value (the query vector, model, dim, the scope-predicate values, limit) is a ? bind and the scope placeholders carry no user data.
-    const res = await client.rawQuery(
+    const res = await this.#exec(
+      client,
       `SELECT id, content, metadata, (embedding <=> ?::vector) AS distance FROM ${table} ` +
         `WHERE model = ? AND dim = ?${scope.clause} ORDER BY embedding <=> ?::vector LIMIT ?`,
       [vec, query.model, this.deps.dimension, ...scope.bindings, vec, opts.limit]
@@ -221,7 +269,7 @@ export default class VectorStoreService {
   async count(tenant: TenantModelContract): Promise<number> {
     const { client, table } = await this.#target(tenant)
     // safe-sql: `table` is a fixed module constant; no user input.
-    const res = await client.rawQuery(`SELECT count(*)::int AS n FROM ${table}`)
+    const res = await this.#exec(client, `SELECT count(*)::int AS n FROM ${table}`)
     return Number(rowsOf(res)[0]?.n ?? 0)
   }
 
@@ -229,9 +277,11 @@ export default class VectorStoreService {
   async countByActor(tenant: TenantModelContract, actorHash: string): Promise<number> {
     const { client, table } = await this.#target(tenant)
     // safe-sql: `table` is a fixed module constant; `actor` is a ? bind.
-    const res = await client.rawQuery(`SELECT count(*)::int AS n FROM ${table} WHERE actor = ?`, [
-      actorHash,
-    ])
+    const res = await this.#exec(
+      client,
+      `SELECT count(*)::int AS n FROM ${table} WHERE actor = ?`,
+      [actorHash]
+    )
     return Number(rowsOf(res)[0]?.n ?? 0)
   }
 
@@ -239,9 +289,11 @@ export default class VectorStoreService {
   async countBySource(tenant: TenantModelContract, source: string): Promise<number> {
     const { client, table } = await this.#target(tenant)
     // safe-sql: `table` is a fixed module constant; `source` is a ? bind.
-    const res = await client.rawQuery(`SELECT count(*)::int AS n FROM ${table} WHERE source = ?`, [
-      source,
-    ])
+    const res = await this.#exec(
+      client,
+      `SELECT count(*)::int AS n FROM ${table} WHERE source = ?`,
+      [source]
+    )
     return Number(rowsOf(res)[0]?.n ?? 0)
   }
 
@@ -249,7 +301,7 @@ export default class VectorStoreService {
   async deleteBySource(tenant: TenantModelContract, source: string): Promise<number> {
     const { client, table } = await this.#target(tenant)
     // safe-sql: `table` is a fixed module constant; `source` is a ? bind.
-    const res = await client.rawQuery(`DELETE FROM ${table} WHERE source = ?`, [source])
+    const res = await this.#exec(client, `DELETE FROM ${table} WHERE source = ?`, [source])
     return rowCount(res)
   }
 
@@ -290,19 +342,22 @@ export default class VectorStoreService {
     const timeoutMs = this.deps.purgeStatementTimeoutMs
     let total = 0
     for (;;) {
-      const removed = await client.transaction(async (trx) => {
-        await trx.rawQuery('SELECT pg_advisory_xact_lock(hashtext(?))', [lockArg])
-        if (timeoutMs !== undefined && Number.isFinite(timeoutMs) && timeoutMs > 0) {
-          // safe-sql: SET LOCAL takes a literal (not a bind); the value is a config integer coerced + clamped at boot.
-          await trx.rawQuery(`SET LOCAL statement_timeout = ${Math.trunc(timeoutMs)}`)
-        }
-        // safe-sql: `table` is a fixed constant, the WHERE fragment a fixed literal, LIMIT a numeric constant; values are ? binds.
-        const res = await trx.rawQuery(
-          `DELETE FROM ${table} WHERE ctid IN (SELECT ctid FROM ${table}${where.clause} LIMIT ${PURGE_BATCH_SIZE})`,
-          [...where.bindings]
-        )
-        return rowCount(res)
-      })
+      const removed = await this.#execOutageGuard(() =>
+        client.transaction(async (trx) => {
+          await this.#exec(trx, 'SELECT pg_advisory_xact_lock(hashtext(?))', [lockArg])
+          if (timeoutMs !== undefined && Number.isFinite(timeoutMs) && timeoutMs > 0) {
+            // safe-sql: SET LOCAL takes a literal (not a bind); the value is a config integer coerced + clamped at boot.
+            await this.#exec(trx, `SET LOCAL statement_timeout = ${Math.trunc(timeoutMs)}`)
+          }
+          // safe-sql: `table` is a fixed constant, the WHERE fragment a fixed literal, LIMIT a numeric constant; values are ? binds.
+          const res = await this.#exec(
+            trx,
+            `DELETE FROM ${table} WHERE ctid IN (SELECT ctid FROM ${table}${where.clause} LIMIT ${PURGE_BATCH_SIZE})`,
+            [...where.bindings]
+          )
+          return rowCount(res)
+        })
+      )
       total += removed
       if (removed < PURGE_BATCH_SIZE) break
     }

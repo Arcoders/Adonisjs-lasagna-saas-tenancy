@@ -11,6 +11,7 @@ import {
   HookRegistry,
   MetricsService,
   QuotaService,
+  ResilienceService,
   TelemetryService,
   cacheFor,
   consumeRateLimit,
@@ -62,7 +63,7 @@ import {
 } from '../src/services/ai_compliance_controls.js'
 import { aiComplianceCheck } from '../src/services/ai_compliance_check.js'
 import { aiMembershipGateCheck } from '../src/services/ai_membership_gate_check.js'
-import { aiBudgetCheck, aiTokensBudgetPosture } from '../src/services/ai_budget_check.js'
+import { aiBudgetCheck, assertAiTokensBudgetOrAbort } from '../src/services/ai_budget_check.js'
 import {
   aiRetrievalGateCheck,
   aiRetrievalGatePosture,
@@ -133,10 +134,13 @@ export default definePlugin({
         },
       }
       const ai = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+      const resilience = new ResilienceService()
       return new AiIdempotencyService({
         store,
         macKey: deriveAiIdempotencyMacKey(requireAppKey()),
         ttlMs: ai?.idempotencyTtlMs,
+        runResilient: (opts) => resilience.run(opts),
+        resiliencePolicy: ai?.resilience?.idempotency?.policy,
       })
     })
     // The per-key request rate limiter (threat #4). Its redis-backed consumer is
@@ -148,9 +152,12 @@ export default definePlugin({
     app.container.singleton(AiRateLimiter, () => {
       const ai = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
       const getRedis = () => app.container.make('redis')
+      const resilience = new ResilienceService()
       return new AiRateLimiter({
         consume: (args) => consumeRateLimit({ getRedis, ...args }),
         policy: ai?.rateLimit,
+        runResilient: (opts) => resilience.run(opts),
+        resiliencePolicy: ai?.resilience?.rateLimit?.policy,
       })
     })
     // Conversation memory (WS-AI-4, I2). Encrypted at rest through the kernel's
@@ -166,8 +173,11 @@ export default definePlugin({
       const logger = await resolver.make('logger')
       const currentAppKey = requireAppKey()
       const oldAppKey = process.env.OLD_APP_KEY
+      const resilience = new ResilienceService()
       return new ConversationMemoryService({
         getRedis: () => app.container.make('redis'),
+        runResilient: (opts) => resilience.run(opts),
+        resiliencePolicy: ai?.resilience?.memory?.policy,
         macKey: deriveMemoryMacKey(currentAppKey),
         encryptMemory: (plain) => writeSecret(plain, 'aiConversationMemory'),
         decryptMemory: (cipher) => readSecret(cipher, 'aiConversationMemory'),
@@ -439,11 +449,11 @@ export default definePlugin({
       if (config.ai.embedding) compliance.register(aiEmbeddingRetentionControl)
     }
     if (config?.ai) {
-      const posture = aiTokensBudgetPosture(config)
-      if (posture?.severity === 'warn') {
-        const logger = await app.container.make('logger')
-        logger.warn(`[ai] ${posture.message}`)
-      }
+      // Wave 1: an unbudgeted, unacknowledged, non-dynamic aiTokens quota is now a
+      // FAIL-CLOSED boot abort (it was a warning that scrolled past). The acknowledge
+      // escape hatch and the info-only dynamic/operator-ceiling postures still let
+      // boot proceed, because they never reach the 'warn' severity this asserts on.
+      assertAiTokensBudgetOrAbort(config)
       const retrievalPosture = aiRetrievalGatePosture(config.ai)
       if (retrievalPosture?.severity === 'warn') {
         const logger = await app.container.make('logger')

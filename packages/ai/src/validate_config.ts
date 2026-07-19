@@ -5,6 +5,7 @@ import type {
   AIMemoryConfig,
   AIProviderConfig,
   AIProviderName,
+  AIResilienceConfig,
   AIRetrievalConfig,
   AIToolHostDefinition,
   AIToolsConfig,
@@ -126,6 +127,7 @@ export function assertAiConfig(config: AiConfig | undefined): void {
   assertRetrievalConfig(config.retrieval)
   assertMemoryConfig(config.memory)
   assertAuditConfig(config.audit)
+  assertResilienceConfig(config.resilience)
   assertToolsConfig(config.tools)
 }
 
@@ -258,6 +260,37 @@ function assertAuditConfig(audit: AIAuditConfig | undefined): void {
   }
   if (audit.enabled !== undefined && typeof audit.enabled !== 'boolean') {
     fail('[ai] config.ai.audit.enabled, when set, must be a boolean')
+  }
+}
+
+/**
+ * The resilience block (Wave 1), when present: each of `memory` / `idempotency` /
+ * `rateLimit` is an optional object whose only field is a `policy` that must be
+ * `'fail-open'` or `'fail-closed'`. Absent fields default to today's semantics, so a
+ * host only sets this to override a per-operation posture.
+ */
+function assertResilienceConfig(resilience: AIResilienceConfig | undefined): void {
+  if (resilience === undefined) return
+  if (typeof resilience !== 'object' || resilience === null) {
+    fail('[ai] config.ai.resilience, when set, must be an object')
+  }
+  assertResiliencePolicyBlock('memory', resilience.memory)
+  assertResiliencePolicyBlock('idempotency', resilience.idempotency)
+  assertResiliencePolicyBlock('rateLimit', resilience.rateLimit)
+}
+
+/** One `config.ai.resilience.<op>` block: an object whose optional `policy` is a valid FailurePolicy. */
+function assertResiliencePolicyBlock(name: string, block: { policy?: unknown } | undefined): void {
+  if (block === undefined) return
+  if (typeof block !== 'object' || block === null) {
+    fail(`[ai] config.ai.resilience.${name}, when set, must be an object`)
+  }
+  if (
+    block.policy !== undefined &&
+    block.policy !== 'fail-open' &&
+    block.policy !== 'fail-closed'
+  ) {
+    fail(`[ai] config.ai.resilience.${name}.policy, when set, must be 'fail-open' or 'fail-closed'`)
   }
 }
 
