@@ -75,6 +75,25 @@ export interface SatelliteManifest {
   perTenantMigrations?: string
 
   /**
+   * Ledger names an app inlined a per-tenant migration of THIS satellite under,
+   * before the fold via `perTenantMigrations` existed. Each entry maps a legacy
+   * `from` (the opaque migration name recorded in a tenant's `adonis_schema.name`
+   * when the app shipped its own byte-for-byte copy) to `migration` (the basename,
+   * no extension, of the satellite's own file inside its `perTenantMigrations`
+   * dir). The doctor's `migration_drift` check reads these to recognise a relocated
+   * migration — the object already exists, so it must NOT re-run the DDL — and
+   * `--reconcile-ledger` uses it to rewrite the ledger row `from → to` with zero DDL.
+   *
+   * A satellite may only alias INTO its OWN `perTenantMigrations` dir (`to`
+   * ownership is enforced when the fleet map is built); `from` is opaque and never
+   * touches the filesystem, so its safety comes entirely from the reconcile gates
+   * (physical existence + structural match + data-fingerprint equality), which bound
+   * a mis-declared `from` to at worst a no-op refusal. Validated with the same
+   * drop-invalid-entries posture as the rest of the manifest.
+   */
+  migrationAliases?: SatelliteMigrationAlias[]
+
+  /**
    * Core satellite bundles this satellite needs published first (e.g. billing
    * needs `quotas` for `tenant_plans`). Auto-resolved on the core-orchestrated
    * `--with=` path; printed as a prerequisite by the package's own configure hook.
@@ -144,6 +163,18 @@ export interface SatelliteDependency {
   range?: string
 }
 
+/**
+ * One declared migration relocation: the legacy ledger name `from` an app inlined a
+ * satellite migration under, and the `migration` basename (no extension) of the
+ * satellite's own file inside its `perTenantMigrations` dir that supersedes it.
+ */
+export interface SatelliteMigrationAlias {
+  /** The opaque legacy ledger name recorded in a tenant's `adonis_schema.name`. */
+  from: string
+  /** Basename (no extension, no path separators) inside `perTenantMigrations`. */
+  migration: string
+}
+
 /** A satellite discovered in the host app's dependency tree. */
 export interface DiscoveredSatellite {
   /** The npm package name (the key in the host's dependencies). */
@@ -192,6 +223,48 @@ function parseDependsOn(
           `string or { pkg, range? } — dropping ${JSON.stringify(entry)}`
       )
     }
+  }
+  return out.length > 0 ? out : undefined
+}
+
+/**
+ * Parse `migrationAliases`: an array of `{ from, migration }` objects. `from` is an
+ * opaque non-empty ledger name (may contain path separators — it mirrors a full
+ * migration name). `migration` must be a bare basename inside the satellite's own
+ * `perTenantMigrations` dir: non-empty, no path separators, no `..` segment (it is
+ * joined onto the satellite dir when the fleet map resolves `to`, so it must not
+ * escape). Both are NFC-normalized so a decomposed ledger name still matches. Invalid
+ * entries are dropped with a warning; an empty/invalid result yields `undefined`.
+ */
+function parseMigrationAliases(
+  value: unknown,
+  pkgName: string,
+  onWarn: (m: string) => void
+): SatelliteMigrationAlias[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) {
+    onWarn(`[lasagna] ${pkgName}: "lasagnaSatellite.migrationAliases" must be an array — dropping it`)
+    return undefined
+  }
+  const out: SatelliteMigrationAlias[] = []
+  for (const entry of value) {
+    const from = (entry as any)?.from
+    const migration = (entry as any)?.migration
+    const okFrom = typeof from === 'string' && from.length > 0
+    const okMigration =
+      typeof migration === 'string' &&
+      migration.length > 0 &&
+      !/[\\/]/.test(migration) &&
+      !migration.split(/[\\/]/).includes('..')
+    if (!okFrom || !okMigration) {
+      onWarn(
+        `[lasagna] ${pkgName}: a "lasagnaSatellite.migrationAliases" entry must be ` +
+          `{ from: <ledger name>, migration: <basename in perTenantMigrations> } — dropping ` +
+          `${JSON.stringify(entry)}`
+      )
+      continue
+    }
+    out.push({ from: from.normalize('NFC'), migration: migration.normalize('NFC') })
   }
   return out.length > 0 ? out : undefined
 }
@@ -298,6 +371,9 @@ export function readSatelliteManifest(
 
   const dependsOn = parseDependsOn(obj.dependsOn, pkgName, onWarn)
   if (dependsOn) manifest.dependsOn = dependsOn
+
+  const migrationAliases = parseMigrationAliases(obj.migrationAliases, pkgName, onWarn)
+  if (migrationAliases) manifest.migrationAliases = migrationAliases
 
   if (obj.satelliteApi !== undefined) {
     if (

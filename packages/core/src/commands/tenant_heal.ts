@@ -99,6 +99,7 @@ export default class HealTenant extends BaseCommand {
     const concurrency = resolveMigrationConcurrency(this.concurrency)
     let healed = 0
     let failed = 0
+    let needsReconcile = 0
 
     const healOne = async (tenant: TenantModelContract) => {
       try {
@@ -106,6 +107,18 @@ export default class HealTenant extends BaseCommand {
           fireHooks: true,
           ...(this.admin !== undefined ? { admin: this.admin } : {}),
         })
+        if (result.collisions.length > 0) {
+          // Not a failure and not a heal: the object(s) already exist (a relocated or
+          // inlined migration), so the tenant is healthy but its ledger is out of sync.
+          // Point the operator at the safe, zero-DDL reconcile path.
+          needsReconcile++
+          this.logger.warning(
+            `skipped "${tenant.name}" (${tenant.schemaName}): object already exists ` +
+              `(${result.collisions.join(', ')}) — run ` +
+              `\`node ace tenant:doctor --reconcile-ledger --check=migration_drift\` to reconcile`
+          )
+          return
+        }
         healed++
         this.logger.success(
           `healed "${tenant.name}" (${tenant.schemaName}) — provisioned=${result.provisioned} ` +
@@ -125,7 +138,8 @@ export default class HealTenant extends BaseCommand {
       await mapWithConcurrency(targets, concurrency, healOne)
     }
 
-    this.logger.info(`Done: ${healed} healed, ${failed} failed`)
+    const reconcileNote = needsReconcile > 0 ? `, ${needsReconcile} need reconcile` : ''
+    this.logger.info(`Done: ${healed} healed, ${failed} failed${reconcileNote}`)
     if (failed > 0) this.exitCode = 1
   }
 }

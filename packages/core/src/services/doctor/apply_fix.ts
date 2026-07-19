@@ -1,8 +1,12 @@
+import { getConfig } from '../../config.js'
 import { lazyLogger } from '../../utils/lazy_logger.js'
 import type { DoctorContext, DiagnosisIssue } from './types.js'
 import type { TenantModelContract } from '../../types/contracts.js'
+import type { ResolvedMigrationAlias } from '../../sdk/configure_kit.js'
 import { auditCliAction } from '../../commands/audit_cli_action.js'
 import { healTenant } from '../tenant_healer.js'
+import { reconcileTenantLedger } from './tenant_ledger_reconcile.js'
+import type { ExpectedStructure, CentralLike } from './tenant_ledger_reconcile.js'
 
 export interface ApplyFixOptions {
   /** Append-only audit action name for the mutation, e.g. `tenant:doctor:lifecycle_reconcile`. */
@@ -91,11 +95,114 @@ export async function applyHeal(
       fireHooks: true,
       ...(opts.admin !== undefined ? { admin: opts.admin } : {}),
     })
-    issue.meta = {
-      ...issue.meta,
-      fixed: true,
-      provisioned: result.provisioned,
-      migrated: result.migrated,
+    if (result.collisions.length > 0) {
+      // Heal hit a duplicate-object collision: the object(s) already exist, so the
+      // tenant is not broken but the migration could not apply. This is the relocated
+      // ledger state — NOT a heal success. Record it as unfixed and point the operator
+      // at the safe, zero-DDL reconcile path rather than leaving a misleading "fixed".
+      issue.meta = {
+        ...issue.meta,
+        fixed: false,
+        collisions: result.collisions,
+        fixError:
+          `object already exists (${result.collisions.join(', ')}) — likely a relocated or ` +
+          `inlined migration; run \`tenant:doctor --reconcile-ledger\` to reconcile the ledger`,
+      }
+    } else {
+      issue.meta = {
+        ...issue.meta,
+        fixed: true,
+        provisioned: result.provisioned,
+        migrated: result.migrated,
+      }
+    }
+  } catch (error: any) {
+    issue.meta = { ...issue.meta, fixed: false, fixError: error?.message ?? String(error) }
+  }
+}
+
+/** Inputs the drift check hands `applyReconcile` for one relocated `(from → to)` pair. */
+export interface ApplyReconcileParams {
+  from: string
+  to: string
+  /** The tenant's schema name (registry-derived). */
+  schema: string
+  /** The canonical source name set, computed once per run. */
+  source: Set<string>
+  /** The validated fleet alias map, keyed by `to`. */
+  aliasMap: Map<string, ResolvedMigrationAlias>
+  /** The precomputed structural probe for `to` (fleet-cached), or null on probe failure. */
+  expected: ExpectedStructure | null
+  admin?: string | undefined
+}
+
+/**
+ * The reconcile fix envelope: rewrite a tenant's `adonis_schema` row `from → to` with
+ * ZERO DDL through {@link reconcileTenantLedger}'s VERIFY-THEN-COMMIT gates, then record
+ * the outcome on `issue.meta`. Physical-identity: the fingerprint of every affected
+ * table is asserted byte-identical across the (name-only) write. Fail-closed: any gate
+ * miss records `fixed:false` with the refusal reason and never mutates the tenant.
+ */
+export async function applyReconcile(
+  ctx: DoctorContext,
+  issue: DiagnosisIssue,
+  params: ApplyReconcileParams
+): Promise<void> {
+  const tenantId = issue.tenantId
+  if (!tenantId) {
+    issue.meta = { ...issue.meta, fixed: false, fixError: 'issue carries no tenantId' }
+    return
+  }
+  try {
+    const { default: db } = await import('@adonisjs/lucid/services/db')
+    const central = db.connection(getConfig().centralConnectionName)
+    const outcome = await reconcileTenantLedger(
+      {
+        tenantId,
+        schema: params.schema,
+        from: params.from,
+        to: params.to,
+        source: params.source,
+        aliasMap: params.aliasMap,
+        expected: params.expected,
+        admin: params.admin,
+      },
+      {
+        repo: ctx.repo,
+        // The real Lucid client structurally provides rawQuery + transaction() (whose
+        // client provides commit/rollback/rawQuery); its overloaded transaction()
+        // signature is just not identical to the minimal CentralLike, so cast at the
+        // boundary. Unit tests pass an in-memory CentralLike directly.
+        central: central as unknown as CentralLike,
+        audit: async (entry) =>
+          auditCliAction(lazyLogger, {
+            tenantId: entry.tenantId,
+            action: entry.action,
+            adminId: entry.admin,
+            metadata: entry.metadata,
+          }),
+        onWarn: (m) => lazyLogger.warning(m),
+      }
+    )
+    if (outcome.status === 'reconciled') {
+      issue.meta = { ...issue.meta, fixed: true, reconciled: true, from: outcome.from, to: outcome.to }
+    } else if (outcome.status === 'already_reconciled') {
+      issue.meta = {
+        ...issue.meta,
+        fixed: true,
+        alreadyReconciled: true,
+        from: outcome.from,
+        to: outcome.to,
+      }
+    } else {
+      issue.meta = {
+        ...issue.meta,
+        fixed: false,
+        reconcileRefused: outcome.reason,
+        fixError: `reconcile refused: ${outcome.reason}`,
+        from: outcome.from,
+        to: outcome.to,
+      }
     }
   } catch (error: any) {
     issue.meta = { ...issue.meta, fixed: false, fixError: error?.message ?? String(error) }

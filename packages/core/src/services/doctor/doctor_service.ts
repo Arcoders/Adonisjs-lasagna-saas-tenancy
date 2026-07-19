@@ -80,10 +80,15 @@ export default class DoctorService {
       (c) => !selectedNames || selectedNames.has(c.name)
     )
 
+    // `--reconcile-ledger` is a SEPARATE, surgical escalation from `--fix`: it gates only
+    // the migration-drift check's zero-DDL ledger rewrite, so passing it alone reconciles
+    // relocations WITHOUT triggering heals or other checks' status fixes. `--fix` still
+    // gates every other repair (and heals behind-head migrations).
     const ctx: DoctorContext = {
       tenants,
       repo,
       attemptFix: options.fix === true,
+      reconcileLedger: options.reconcileLedger === true,
     }
 
     const reports: DiagnosisReport[] = []

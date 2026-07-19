@@ -66,7 +66,9 @@ test.group('probePgBouncerAtBoot (F3)', (group) => {
     const issues = await pgBouncerCheck.run({} as any)
     assert.lengthOf(issues, 1)
     assert.equal(issues[0]!.severity, 'info')
-    assert.equal(issues[0]!.code, 'pgbouncer_mode_transaction')
+    // Static code, mode in meta (a dynamic `code:` is banned by the fix-coverage census).
+    assert.equal(issues[0]!.code, 'pgbouncer_pooling_mode')
+    assert.equal((issues[0]!.meta as { mode?: string }).mode, 'transaction')
   })
 
   test('an unreachable database does not throw; the posture still resolves', async ({ assert }) => {

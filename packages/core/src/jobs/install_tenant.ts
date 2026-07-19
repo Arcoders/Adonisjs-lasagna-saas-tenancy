@@ -73,7 +73,19 @@ export default class InstallTenant extends Job<InstallTenantPayload> {
           logger.info({ tenantId: tenant.id }, 'Tenant queue initialized')
           await hooks.run('after', 'provision', { tenant })
           await TenantProvisioned.dispatch(tenant)
-          await healTenant(tenant, { fireHooks: true, audit: false })
+          const heal = await healTenant(tenant, { fireHooks: true, audit: false })
+          // A duplicate-object collision is benign for RE-healing an existing tenant
+          // (the object is already there), but on a FRESH provision it means the
+          // migration runner aborted at the colliding migration and never ran the ones
+          // after it — an active-but-unmigrated tenant, the exact 503 class this path
+          // exists to prevent. So a collision here is a genuine failure: fall through to
+          // the catch → `failed`, never a half-baked `active`.
+          if (heal.collisions.length > 0) {
+            throw new Error(
+              `Provisioning migration collided on existing object(s) [${heal.collisions.join(', ')}]; ` +
+                `the migration run was truncated, so the tenant is not fully migrated and will be marked failed.`
+            )
+          }
           tenant.status = 'active'
           await tenant.save()
           logger.info({ tenantId: tenant.id }, 'Tenant provisioned, migrated and active')

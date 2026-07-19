@@ -273,6 +273,8 @@ export interface SatelliteManifest {
     docs?: string;
     env?: string[];
     install?: string[];
+    // Warning: (ae-forgotten-export) The symbol "SatelliteMigrationAlias" needs to be exported by the entry point index.d.ts
+    migrationAliases?: SatelliteMigrationAlias[];
     migrations?: string;
     // Warning: (ae-forgotten-export) The symbol "SatelliteCoverageFloors" needs to be exported by the entry point index.d.ts
     minMergedCoverage?: SatelliteCoverageFloors;

@@ -536,6 +536,31 @@ already unreachable and the orphan schema is reclaimable. When legal retention f
 `tenant:gdpr:anonymize` masks the tenant's PII in place instead of dropping the schema; see
 [Compliance](/guides/compliance). See also [Schema-pg isolation](/guides/data-isolation/schema-pg).
 
+The status space is single-sourced from the `TENANT_STATUSES` tuple, and the request-path floor
+routes through one exhaustive classifier (`tenantLifecycleDisposition`), so adding a status is a
+compile error until every guard handles it. A tenant's full observable state is the product of
+`status`, the `deletedAt` soft-delete axis, and its storage/ledger reality; the reachable composites,
+their expected diagnosis, and their floor disposition are enumerated as data in `TENANT_STATE_MATRIX`
+and pinned by a completeness spec, so "diagnose every reachable state" is a build gate.
+
+### The doctor never harms the patient
+
+Every `tenant:doctor --fix` may only move a tenant toward health, and must never touch physical data
+destructively. This is machine-enforced, not aspirational: each fixable issue declares a do-no-harm
+effect class (`physical-identity` · `additive-only` · `status-only` · `operational-only`) in a
+`SafeFix` registry, a coverage guard asserts every issue code is either fixable-with-a-descriptor or
+explicitly surface-only, and a property harness drives each fix's worst pre-state on real Postgres and
+asserts health rises while the data fingerprint is preserved.
+
+A **relocated migration** is the load-bearing example. When an app inlined a satellite's per-tenant
+migration under a legacy ledger name, the object already exists, so re-running the DDL collides. The
+healer treats such a duplicate-object collision as benign and never quarantines the (healthy) tenant;
+the drift check recognises the relocation from the satellite's declared `migrationAliases` and routes
+it to `tenant:doctor --reconcile-ledger`, which rewrites the single `adonis_schema.name` row `from → to`
+with **zero DDL** through a VERIFY-THEN-COMMIT envelope that asserts the affected tables' row counts and
+columns are byte-identical before and after. Any precondition miss refuses and leaves the tenant
+untouched.
+
 Two registries fire around this lifecycle. The
 [`HookRegistry`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/core/src/services/hook_registry.ts)
 runs declarative before/after hooks on provision, destroy, backup, restore, clone, and migrate. The

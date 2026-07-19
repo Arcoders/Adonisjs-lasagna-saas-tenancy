@@ -9,6 +9,7 @@ import TenantNotFoundException from '../exceptions/tenant_not_found_exception.js
 import RequestMacroCollisionException from '../exceptions/request_macro_collision_exception.js'
 import { macroName, type MacroName } from '../sdk/brands.js'
 import TenantSuspendedException from '../exceptions/tenant_suspended_exception.js'
+import { tenantLifecycleDisposition } from '../middleware/tenant_lifecycle_disposition.js'
 import DependencyUnavailableException from '../exceptions/dependency_unavailable_exception.js'
 import { getConfig } from '../config.js'
 import type { ResolvedResolverCacheConfig } from '../types/config.js'
@@ -384,7 +385,11 @@ function assertTenantActive(
   options?: { allowInactive?: boolean }
 ): void {
   if (options?.allowInactive) return
-  if (tenant.isDeleted || tenant.isSuspended) {
+  // Reject only the `reject-suspended` dispositions (suspended / soft-deleted /
+  // deleted-status), preserving the historical behaviour that `request.tenant()` serves
+  // provisioning/failed tenants (the guard middleware gates those later). Exhaustive: a
+  // new TenantStatus is a compile error in tenantLifecycleDisposition until handled.
+  if (tenantLifecycleDisposition(tenant) === 'reject-suspended') {
     throw new TenantSuspendedException()
   }
 }

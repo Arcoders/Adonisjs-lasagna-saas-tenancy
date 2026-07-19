@@ -1,8 +1,16 @@
 import app from '@adonisjs/core/services/app'
 import { getConfig } from '../../../config.js'
-import { discoverSatellites, satelliteMigrationDirs } from '../../../sdk/configure_kit.js'
+import {
+  discoverSatellites,
+  satelliteMigrationDirs,
+  buildMigrationAliasMap,
+} from '../../../sdk/configure_kit.js'
+import type { ResolvedMigrationAlias } from '../../../sdk/configure_kit.js'
 import { assertSafeIdentifier } from '../../../isthmus/guarded_identifier.js'
-import { applyHeal } from '../apply_fix.js'
+import { lazyLogger } from '../../../utils/lazy_logger.js'
+import { applyHeal, applyReconcile } from '../apply_fix.js'
+import { classifyRelocation, probeExpectedStructure } from '../tenant_ledger_reconcile.js'
+import type { ExpectedStructure } from '../tenant_ledger_reconcile.js'
 import type { TenantModelContract } from '../../../types/contracts.js'
 import type { DoctorCheck, DiagnosisIssue } from '../types.js'
 
@@ -69,14 +77,19 @@ async function canonicalSourceNames(
  * head → `migration_behind` (warn, tenant, fixable → heal applies the pending
  * migrations). A ledger name with no matching source file → `migration_corrupt`
  * (warn, tenant, surface only — a removed/rolled-back/squashed migration is
- * ambiguous, never auto-fixed). Tenants with no `adonis_schema` (never migrated)
+ * ambiguous, never auto-fixed). A `pending`/`corrupt` PAIR that a satellite declares
+ * as a relocation (an inlined migration now folded under its canonical name) →
+ * `migration_relocated` (warn, tenant, fixable → `--reconcile-ledger` rewrites the
+ * ledger row with zero DDL); its `to` is removed from the heal set (heal would collide
+ * on the already-existing object) and its `from` from the corrupt set. Tenants with no
+ * `adonis_schema` (never migrated)
  * or no schema are left to `migration_state`/`schema_drift`; deleted and
  * provisioning tenants are skipped.
  */
 const migrationDriftCheck: DoctorCheck = {
   name: 'migration_drift',
   description:
-    'Compares each active/suspended tenant’s applied migrations against the source tree; flags tenants behind head (fixable) and corrupt ledger entries.',
+    'Compares each active/suspended tenant’s applied migrations against the source tree; flags tenants behind head (fixable→heal), relocated migrations (fixable→--reconcile-ledger), and corrupt ledger entries.',
 
   async run(ctx): Promise<DiagnosisIssue[]> {
     const candidates = ctx.tenants.filter(
@@ -111,6 +124,33 @@ const migrationDriftCheck: DoctorCheck = {
           message: `Could not compute the source migration set: ${error?.message ?? 'unknown'}`,
         },
       ]
+    }
+
+    // Build the fleet-shared, validated migration-alias map ONCE per run. A relocated
+    // migration (an app inlined a satellite's per-tenant migration under a legacy ledger
+    // name) is recognised here so it is NEVER passed to heal (which would collide), and
+    // is routed to the zero-DDL reconcile instead. Fail-closed: a malformed/malicious
+    // alias set drops the whole map (buildMigrationAliasMap), so relocations simply are
+    // not recognised and everything falls back to the ordinary behind/corrupt reporting.
+    const hostRoot = app.makePath()
+    const aliasMap = buildMigrationAliasMap(
+      hostRoot,
+      await discoverSatellites(hostRoot, (m) => lazyLogger.warn(m)),
+      (m) => lazyLogger.warn(m)
+    )
+    // The structural probe for a `to` (replays it into a throwaway schema) is expensive
+    // and identical fleet-wide, so cache it per `to`. Only computed when reconcile is
+    // actually opted-in (a hot rewrite); plain --fix previews and needs no probe.
+    // Cache ONLY a successful probe: a null (a TRANSIENT failure — a lost migration lock,
+    // a connection blip) must not poison every later tenant sharing that `to` with a
+    // spurious structural_probe_failed; re-probe on a miss instead.
+    const probeCache = new Map<string, ExpectedStructure>()
+    const expectedFor = async (to: string): Promise<ExpectedStructure | null> => {
+      const cached = probeCache.get(to)
+      if (cached) return cached
+      const probed = await probeExpectedStructure(to)
+      if (probed) probeCache.set(to, probed)
+      return probed
     }
 
     const central = db.connection(getConfig().centralConnectionName)
@@ -149,30 +189,96 @@ const migrationDriftCheck: DoctorCheck = {
       const pending = [...source].filter((name) => !ledger.has(name))
       const corrupt = [...ledger].filter((name) => !source.has(name))
 
-      if (pending.length > 0) {
+      // Relocation partition (B0 Layer 2): a `pending` name that is a declared, owned
+      // alias `to` whose `from` is present in the ledger (and hence in `corrupt`, since
+      // a valid `from` is not in source) is a RELOCATED migration, not genuine drift.
+      // Its `to` is removed from the heal set (heal would collide) and its `from` from
+      // the corrupt set; a single `migration_relocated` issue is emitted instead.
+      const relocatedTo = new Set<string>()
+      const relocatedFrom = new Set<string>()
+      const relocations: Array<{ from: string; to: string; alias: ResolvedMigrationAlias }> = []
+      for (const to of pending) {
+        const alias = aliasMap.get(to)
+        if (!alias) continue
+        const from = alias.from
+        if (!ledger.has(from)) continue
+        if (!classifyRelocation(from, to, source, aliasMap).ok) continue
+        relocatedTo.add(to)
+        relocatedFrom.add(from)
+        relocations.push({ from, to, alias })
+      }
+
+      const realPending = pending.filter((name) => !relocatedTo.has(name))
+      const realCorrupt = corrupt.filter((name) => !relocatedFrom.has(name))
+
+      for (const { from, to, alias } of relocations) {
+        const issue: DiagnosisIssue = {
+          code: 'migration_relocated',
+          severity: 'warn',
+          scope: 'tenant',
+          message:
+            `Tenant "${tenant.name}" has a relocated migration: the ledger records "${from}" but the ` +
+            `source tree now defines it as "${to}" (${alias.ownerSlug} satellite). The object already ` +
+            `exists — reconcile the ledger with --reconcile-ledger (zero DDL); never re-run the DDL.`,
+          tenantId: tenant.id,
+          fixable: true,
+          meta: { from, to, ownerSlug: alias.ownerSlug },
+        }
+        if (ctx.reconcileLedger === true) {
+          // HOT: opt-in reconcile. Compute the structural probe (cached), then run the
+          // zero-DDL VERIFY-THEN-COMMIT rewrite.
+          await applyReconcile(ctx, issue, {
+            from,
+            to,
+            schema: tenant.schemaName,
+            source,
+            aliasMap,
+            expected: await expectedFor(to),
+          })
+          // If the object was physically DROPPED (intact legacy ledger row, missing
+          // table), reconcile correctly refuses `physical_absent` — but that is genuine
+          // drift, not a relocation to rename, so route it to heal, which recreates the
+          // object (no collision, since it is absent). Without this, a relocated-but
+          // -object-dropped tenant would be suppressed from heal AND refused by reconcile,
+          // leaving it permanently unrepaired.
+          if ((issue.meta as { reconcileRefused?: string } | undefined)?.reconcileRefused === 'physical_absent') {
+            await applyHeal(issue)
+          }
+        } else {
+          // PREVIEW: plain --fix never writes the ledger; report the relocation only.
+          issue.meta = { ...issue.meta, reconcileRequired: true }
+        }
+        issues.push(issue)
+      }
+
+      if (realPending.length > 0) {
         const issue: DiagnosisIssue = {
           code: 'migration_behind',
           severity: 'warn',
           scope: 'tenant',
-          message: `Tenant "${tenant.name}" is behind head by ${pending.length} migration(s)`,
+          message: `Tenant "${tenant.name}" is behind head by ${realPending.length} migration(s)`,
           tenantId: tenant.id,
           fixable: true,
-          meta: { pending: pending.length, behindBy: pending.length, pendingNames: pending.slice(0, 10) },
+          meta: {
+            pending: realPending.length,
+            behindBy: realPending.length,
+            pendingNames: realPending.slice(0, 10),
+          },
         }
         if (ctx.attemptFix) await applyHeal(issue)
         issues.push(issue)
       }
 
-      if (corrupt.length > 0) {
+      if (realCorrupt.length > 0) {
         issues.push({
           code: 'migration_corrupt',
           severity: 'warn',
           scope: 'tenant',
           message:
-            `Tenant "${tenant.name}" has ${corrupt.length} applied migration(s) with no source file ` +
+            `Tenant "${tenant.name}" has ${realCorrupt.length} applied migration(s) with no source file ` +
             `(removed, rolled back, or squashed) — review before acting`,
           tenantId: tenant.id,
-          meta: { corrupt: corrupt.length, corruptNames: corrupt.slice(0, 10) },
+          meta: { corrupt: realCorrupt.length, corruptNames: realCorrupt.slice(0, 10) },
         })
       }
     }

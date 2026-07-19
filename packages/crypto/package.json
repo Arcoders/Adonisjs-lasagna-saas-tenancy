@@ -45,6 +45,12 @@
     "pluginApiVersion": 1,
     "migrations": "stubs/migrations",
     "perTenantMigrations": "build/tenant_migrations",
+    "migrationAliases": [
+      {
+        "from": "database/migrations/tenant/0013_create_crypto_wrapped_deks_table",
+        "migration": "1751500000000_create_crypto_wrapped_deks_table"
+      }
+    ],
     "minMergedCoverage": {
       "lines": 80,
       "functions": 80,

@@ -339,6 +339,9 @@ export interface ImpersonationStartResult {
 // @public
 export function installRouterMacros(routerInstance?: RouterLike, middlewareRegistry?: TenantMiddlewareRegistry): Promise<void>;
 
+// @public
+export function isKnownTenantStatus(s: string): s is TenantStatus;
+
 // @public (undocumented)
 export interface IsolationConfig {
     driver: IsolationDriverChoice;
@@ -753,6 +756,9 @@ export const tenancy: {
 export const TENANT_REPOSITORY: unique symbol;
 
 // @public
+export const TENANT_STATUSES: readonly ["provisioning", "active", "suspended", "failed", "deleted"];
+
+// @public
 export type TenantAccessAuthorizer = (ctx: HttpContext, tenant: TenantModelContract) => boolean | Promise<boolean>;
 
 // @public
@@ -1048,7 +1054,7 @@ export class TenantRestored extends BaseEvent {
 }
 
 // @public (undocumented)
-export type TenantStatus = 'provisioning' | 'active' | 'suspended' | 'failed' | 'deleted';
+export type TenantStatus = (typeof TENANT_STATUSES)[number];
 
 // @public
 export class TenantSuspended extends BaseEvent {

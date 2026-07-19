@@ -17,11 +17,19 @@ import type { TenantModelContract } from '../types/contracts.js'
  * absent; `migrated` is the number of migration files applied this run; `already`
  * is true when the tenant was fully healthy going in (no storage created, nothing
  * pending), i.e. an idempotent no-op re-run.
+ *
+ * `collisions` is the do-no-harm signal: the object names a pending migration tried
+ * to create that ALREADY EXIST in the tenant's schema (a duplicate-object collision
+ * during migrate). It is non-empty only when heal hit such a collision, which means
+ * the migration was relocated/inlined under a different ledger name and the object is
+ * already there. The tenant is NOT quarantined in that case (it is not broken); the
+ * caller surfaces the collision and routes the operator to `--reconcile-ledger`.
  */
 export interface HealTenantResult {
   provisioned: boolean
   migrated: number
   already: boolean
+  collisions: string[]
 }
 
 export interface HealTenantOptions {
@@ -100,10 +108,14 @@ async function storageExists(
  *
  * On failure in steps 2–4 the tenant is quarantined to `failed` (a status write only
  * — no data is touched) and the error is rethrown so the caller records the failure.
- * The one exception is benign migration-lock contention (a concurrent migrate was
- * holding Postgres's global migration advisory lock): that is rethrown WITHOUT
- * quarantining, because the lock is exactly what keeps the ledger uncorrupted and the
- * tenant itself is fine. Heal NEVER calls `destroy`/`reset`/`down`/rollback/`fresh`.
+ * Two failure classes are treated as benign and NEVER quarantine: (a) migration-lock
+ * contention (a concurrent migrate was holding Postgres's global migration advisory
+ * lock) is rethrown unchanged, because the lock is exactly what keeps the ledger
+ * uncorrupted and the tenant is fine; (b) a duplicate-object collision (a pending
+ * migration tried to create an object that already exists — a relocated/inlined
+ * migration) returns normally with `collisions` populated and the tenant left in its
+ * prior state, so a relocated-but-healthy tenant is never harmed and the caller can
+ * route to `--reconcile-ledger`. Heal NEVER calls `destroy`/`reset`/`down`/rollback/`fresh`.
  * Idempotent: a second run provisions nothing and applies zero migrations. The
  * absolute connection ceiling is unbypassable, so heal (even a fleet heal) can never
  * exhaust PostgreSQL.
@@ -126,6 +138,77 @@ function isBenignMigrationLockContention(error: unknown): boolean {
     code === 'E_UNABLE_RELEASE_LOCK' ||
     name === 'MigrationLocked'
   )
+}
+
+/**
+ * The Postgres SQLSTATEs for "the object this DDL creates already exists" — the
+ * whole `duplicate_*` family (Class 42). A pending migration that hits one of these
+ * is trying to `CREATE` an object the schema already has: not a broken tenant, but a
+ * tenant whose migration was relocated or inlined under a different ledger name, so
+ * the object is present without a matching ledger row (the relocation state the
+ * reconcile flow repairs). Treating these as benign is the UNIVERSAL half of the
+ * do-no-harm guarantee: it covers both DECLARED relocations (crypto/ai satellite
+ * aliases) and UNDECLARED ones (an app that inlined a satellite migration with no
+ * alias, or the orphan-tables-without-ledger "carivo class").
+ */
+const DUPLICATE_OBJECT_SQLSTATES = new Set([
+  '42P07', // duplicate_table
+  '42P06', // duplicate_schema
+  '42710', // duplicate_object (constraint / index via ADD, sequence, ...)
+  '42701', // duplicate_column (an inlined ALTER … ADD COLUMN that already ran)
+  '42723', // duplicate_function
+])
+
+/**
+ * Walk an error's cause chain collecting the first Postgres SQLSTATE it carries.
+ * Lucid/Knex may surface the pg error directly (its `.code` is the SQLSTATE) or wrap
+ * it, keeping the original under `.originalError` or `.cause`, so we look through a
+ * bounded number of links rather than only the top frame.
+ */
+function pgErrorCode(error: unknown): string | undefined {
+  let cur: any = error
+  for (let i = 0; i < 8 && cur && typeof cur === 'object'; i++) {
+    if (typeof cur.code === 'string' && cur.code.length > 0) return cur.code
+    cur = cur.originalError ?? cur.cause
+  }
+  return undefined
+}
+
+/**
+ * True when a migrate failure is a benign duplicate-object collision — the object it
+ * tried to create already exists (see {@link DUPLICATE_OBJECT_SQLSTATES}). Lucid runs
+ * each migration in its own transaction, so the colliding migration rolls back
+ * cleanly and any earlier migrations that committed are forward progress: the tenant
+ * is never left corrupt, just short one ledger row for an object it already has.
+ *
+ * Assumption + known limitation: this relies on Lucid wrapping each migration in a
+ * transaction. A migration that opts OUT (`static disableTransactions = true`, needed for
+ * `CREATE INDEX CONCURRENTLY` etc.) that creates one object and then collides on a later
+ * DDL statement leaves the first object un-rolled-back and unrecorded, so a re-heal would
+ * re-collide on that orphan and never converge. That combination (a non-transactional
+ * per-tenant migration + a partial-apply collision) is unsupported by the benign net;
+ * such migrations should be authored idempotently (`IF NOT EXISTS`).
+ */
+function isBenignDuplicateObjectCollision(error: unknown): boolean {
+  const code = pgErrorCode(error)
+  return code !== undefined && DUPLICATE_OBJECT_SQLSTATES.has(code)
+}
+
+/**
+ * Best-effort name of the object(s) a duplicate-object collision reports, for the
+ * caller's message and audit metadata. Prefers the pg error's own `.table`, else
+ * parses the `… "<name>" already exists` phrasing; falls back to a trimmed message so
+ * the collision is never invisible.
+ */
+function describeCollision(error: unknown): string {
+  const table = (error as { table?: string } | null)?.table
+  if (typeof table === 'string' && table.length > 0) return table
+  const message = (error as { message?: string } | null)?.message ?? String(error)
+  const match = message.match(
+    /(?:relation|table|schema|type|constraint|index|column|function)\s+"([^"]+)"\s+already exists/i
+  )
+  if (match?.[1]) return match[1]
+  return message.slice(0, 200)
 }
 
 export async function healTenant(
@@ -152,6 +235,7 @@ export async function healTenant(
 
   let provisioned = false
   let migrated = 0
+  const collisions: string[] = []
 
   try {
     if (isProvisionableDriver(driver)) {
@@ -207,20 +291,39 @@ export async function healTenant(
     if (isBenignMigrationLockContention(error)) {
       throw error
     }
-    // Quarantine: mark failed (status write only, no data touch) so the tenant is
-    // flagged for attention and re-healable, then rethrow so the caller records the
-    // failure. A non-transactional migration that half-applied cannot be made
-    // idempotent here; it is surfaced (quarantine + error), never retried in a loop.
-    fresh.status = 'failed'
-    await fresh.save()
-    throw error
+    // Do-no-harm: a duplicate-object collision means a pending migration tried to
+    // create an object the schema already has (a relocated/inlined migration recorded
+    // under a different ledger name, or an orphan table with no ledger row). The
+    // tenant is NOT broken, so it must NOT be quarantined. Surface the collision, leave
+    // the tenant in its prior state, and return — the caller routes the operator to
+    // `--reconcile-ledger`. Every OTHER migration failure still quarantines below.
+    if (isBenignDuplicateObjectCollision(error)) {
+      const object = describeCollision(error)
+      collisions.push(object)
+      lazyLogger.warn(
+        `[multitenancy] heal of tenant ${fresh.id}: object "${object}" already exists — ` +
+          `a migration was likely relocated or inlined; not quarantining. Run ` +
+          `\`tenant:doctor --reconcile-ledger\` to reconcile the ledger.`
+      )
+    } else {
+      // Quarantine: mark failed (status write only, no data touch) so the tenant is
+      // flagged for attention and re-healable, then rethrow so the caller records the
+      // failure. A non-transactional migration that half-applied cannot be made
+      // idempotent here; it is surfaced (quarantine + error), never retried in a loop.
+      fresh.status = 'failed'
+      await fresh.save()
+      throw error
+    }
   }
 
   // Recovery: a tenant that was 'failed' returns to service once its storage is
-  // healthy again (row 10 of the state matrix). Every other status is preserved —
+  // healthy again (the `failed_recoverable` row of TENANT_STATE_MATRIX). Every other
+  // status is preserved —
   // a 'suspended' tenant stays suspended (suspension is deliberate), and
   // 'provisioning' is finalized to 'active' by the onboarding caller (WS-7), not here.
-  if (fresh.status === 'failed') {
+  // Skipped on a collision: heal did not complete the migration, so the tenant is
+  // left in its prior state ("do no harm"), never promoted off the back of a partial run.
+  if (collisions.length === 0 && fresh.status === 'failed') {
     fresh.status = 'active'
     await fresh.save()
   }
@@ -230,9 +333,14 @@ export async function healTenant(
       tenantId: fresh.id,
       action: 'tenant:heal',
       adminId: opts.admin,
-      metadata: { provisioned, migrated },
+      metadata: { provisioned, migrated, ...(collisions.length > 0 ? { collisions } : {}) },
     })
   }
 
-  return { provisioned, migrated, already: !provisioned && migrated === 0 }
+  return {
+    provisioned,
+    migrated,
+    already: collisions.length === 0 && !provisioned && migrated === 0,
+    collisions,
+  }
 }

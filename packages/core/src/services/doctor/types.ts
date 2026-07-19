@@ -59,6 +59,14 @@ export interface DoctorContext {
   repo: TenantRepositoryContract
   /** Whether the user requested --fix; checks decide what to do per issue. */
   attemptFix: boolean
+  /**
+   * Whether the user requested `--reconcile-ledger`: opt-in escalation that lets the
+   * migration-drift check rewrite a relocated tenant's `adonis_schema` row (zero DDL,
+   * via the VERIFY-THEN-COMMIT reconcile). Plain `--fix` only PREVIEWS a relocation and
+   * never writes the ledger. Implies `attemptFix`. Optional (defaults to false when a
+   * caller — e.g. a check unit test — omits it); the doctor service always sets it.
+   */
+  reconcileLedger?: boolean
 }
 
 /**
@@ -100,6 +108,12 @@ export interface DoctorRunOptions {
   tenants?: string[] | undefined
   checks?: string[] | undefined
   fix?: boolean
+  /**
+   * Opt-in `--reconcile-ledger`: allow the migration-drift check to rewrite a relocated
+   * tenant's ledger row (zero DDL). Implies `fix`. Off by default so plain `--fix` never
+   * writes the ledger, only previews a relocation.
+   */
+  reconcileLedger?: boolean
 }
 
 /**

@@ -56,6 +56,12 @@
     "pluginApiVersion": 1,
     "migrations": "stubs/migrations",
     "perTenantMigrations": "build/tenant_migrations",
+    "migrationAliases": [
+      {
+        "from": "database/migrations/tenant/0014_create_ai_embeddings_table",
+        "migration": "1751414400000_create_ai_embeddings_table"
+      }
+    ],
     "minMergedCoverage": {
       "lines": 60,
       "functions": 60,

@@ -51,7 +51,7 @@ export type {
   RequestDataResolverConfig,
   RoutingConfig,
 } from './types/config.js'
-export { TENANT_REPOSITORY } from './types/contracts.js'
+export { TENANT_REPOSITORY, TENANT_STATUSES, isKnownTenantStatus } from './types/contracts.js'
 export type {
   TenantModelContract,
   TenantRepositoryContract,

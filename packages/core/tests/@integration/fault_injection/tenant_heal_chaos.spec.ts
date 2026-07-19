@@ -61,6 +61,17 @@ function acquireLockError(): Error {
   return e
 }
 
+/**
+ * A stand-in for a Postgres duplicate-object collision (SQLSTATE 42P07,
+ * duplicate_table), matched by SQLSTATE in the healer. This is what a relocated or
+ * inlined migration surfaces when its `CREATE TABLE` hits an object already present.
+ */
+function duplicateTableError(table: string): Error {
+  const e = new Error(`relation "${table}" already exists`)
+  ;(e as { code?: string }).code = '42P07'
+  return e
+}
+
 test.group('healTenant under injected migrate faults (fault injection, real Postgres)', () => {
   test('a genuine fault mid-migrate quarantines to failed without dropping the schema, then a later heal recovers it', async ({
     assert,
@@ -159,6 +170,59 @@ test.group('healTenant under injected migrate faults (fault injection, real Post
       assert.isTrue(await tableExists(schema, 'notes'), 'the per-tenant migration is applied on retry')
       assert.isEmpty(await duplicateLedgerRows(schema), 'the converged ledger has no duplicate rows')
       assert.equal(await tenantStatus(tenant.id), 'active', 'the tenant remains active after convergence')
+    } finally {
+      ;(driver as any).migrate = origMigrate
+      await central().rawQuery(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
+      await destroyTestTenant(tenant.id).catch(() => {})
+    }
+  })
+
+  test('a duplicate-object collision during migrate is benign — heal surfaces it, does NOT quarantine, and leaves the tenant in its prior state (the B0 Layer-1 universal net)', async ({
+    assert,
+  }) => {
+    const cfg = getConfig()
+    const tenant = await createTestTenant({ status: 'active', name: 'CollisionHeal' })
+    const schema = `${cfg.tenantSchemaPrefix}${tenant.id}`
+    const handle = { id: tenant.id } as TenantModelContract
+
+    // First migrate collides with an object that already exists (a relocated/inlined
+    // migration's CREATE TABLE), standing in for the Acme/carivo/Sahara relocation
+    // state; later calls succeed (the collision cleared / reconciled).
+    const driver = await getActiveDriver()
+    const origMigrate = (driver as any).migrate.bind(driver)
+    let migrateCalls = 0
+    ;(driver as any).migrate = async (...a: any[]) => {
+      migrateCalls++
+      if (migrateCalls === 1) throw duplicateTableError('ai_embeddings')
+      return origMigrate(...a)
+    }
+
+    try {
+      // Heal provisions the schema, then the migration collides. It must NOT throw and
+      // must NOT quarantine — the object already exists, so the tenant is not broken.
+      const result = await healTenant(handle, { fireHooks: false, audit: false })
+      assert.isNotEmpty(result.collisions, 'the collision is surfaced on the heal result')
+      assert.include(
+        result.collisions.join(','),
+        'ai_embeddings',
+        'the colliding object is named in the result'
+      )
+      assert.equal(
+        await tenantStatus(tenant.id),
+        'active',
+        'a relocated-but-healthy tenant is NEVER quarantined to failed on a collision'
+      )
+      assert.isTrue(
+        await schemaExists(schema),
+        'the schema provisioned before the collision survives — heal is non-destructive'
+      )
+
+      // Retry with the collision cleared: heal converges normally, no collision.
+      const retry = await healTenant(handle, { fireHooks: false, audit: false })
+      assert.isEmpty(retry.collisions, 'the retry has no collision once the object is reconciled')
+      assert.isTrue(await tableExists(schema, 'notes'), 'the per-tenant migration applies on retry')
+      assert.isEmpty(await duplicateLedgerRows(schema), 'the converged ledger has no duplicate rows')
+      assert.equal(await tenantStatus(tenant.id), 'active', 'the tenant remains active throughout')
     } finally {
       ;(driver as any).migrate = origMigrate
       await central().rawQuery(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)

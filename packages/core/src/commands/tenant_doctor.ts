@@ -56,6 +56,15 @@ export default class TenantDoctor extends BaseCommand {
   declare interactive: boolean
 
   @flags.boolean({
+    flagName: 'reconcile-ledger',
+    default: false,
+    description:
+      'Allow migration_drift to rewrite a relocated tenant’s adonis_schema row (zero DDL, ' +
+      'fail-closed). Without it, a relocation is only previewed. Independent of --fix.',
+  })
+  declare reconcileLedger: boolean
+
+  @flags.boolean({
     flagName: 'json',
     default: false,
     description: 'Emit a JSON report on stdout instead of the table',
@@ -107,6 +116,7 @@ export default class TenantDoctor extends BaseCommand {
       tenants: this.tenant,
       checks: this.check,
       fix: this.fix,
+      reconcileLedger: this.reconcileLedger,
     })
 
     if (this.json) {
@@ -122,6 +132,9 @@ export default class TenantDoctor extends BaseCommand {
   async #runWatch(doctor: DoctorService) {
     if (this.fix) {
       this.logger.warning('--fix is ignored in --watch mode (no auto-fixes inside a polling loop).')
+    }
+    if (this.reconcileLedger) {
+      this.logger.warning('--reconcile-ledger is ignored in --watch mode (no ledger writes in a loop).')
     }
     if (this.interactive) {
       this.logger.warning('--interactive is ignored in --watch mode.')
@@ -202,6 +215,7 @@ export default class TenantDoctor extends BaseCommand {
       tenants: this.tenant,
       checks: confirmed,
       fix: true,
+      reconcileLedger: this.reconcileLedger,
     })
     this.#renderReports(result)
 

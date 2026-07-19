@@ -31,7 +31,16 @@ const pgBouncerCheck: DoctorCheck = {
       return [{ code: 'pgbouncer_mode_unknown', severity: 'warn', message: posture.note }]
     }
 
-    return [{ code: `pgbouncer_mode_${posture.mode}`, severity: 'info', message: posture.note }]
+    // A STATIC code with the mode carried in meta, never an interpolated/template code
+    // string — a dynamic code is invisible to the fix-coverage census and cannot be triaged.
+    return [
+      {
+        code: 'pgbouncer_pooling_mode',
+        severity: 'info',
+        message: posture.note,
+        meta: { mode: posture.mode },
+      },
+    ]
   },
 }
 
