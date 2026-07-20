@@ -74,8 +74,8 @@ const memoryForMatrix = () =>
       throw new Error('the session guard must not reach Redis')
     },
     macKey: Buffer.alloc(32, 7),
-    encryptMemory: (p) => p,
-    decryptMemory: (c) => c,
+    encryptMemory: async (_tenantId, p) => p,
+    decryptMemory: async (_tenantId, c) => c,
     config: { maxTurns: 10 },
   })
 
@@ -363,6 +363,21 @@ const TRIP_MATRIX: Record<AiGuardId, TripRecipe> = {
       new VectorStoreService(
         fakeVectorEnv({ dimension: 3, count: 2, existing: [storedRow], insertedHashes: ['h'] }).deps
       ).insert(tenant, 'src', [embChunk([1, 2, 3])], { maxCount: 5 }),
+  },
+  'guard.ai_embedding_metadata_scope_conflict': {
+    trip: () =>
+      new VectorStoreService(fakeVectorEnv({ dimension: 3, encryptMetadata: true }).deps).search(
+        tenant,
+        { model: 'm', vector: [1, 2, 3] },
+        { limit: 8, filter: { kind: 'metadata', match: { a: 1 } } }
+      ),
+    expectThrow: /metadata is encrypted/,
+    happy: () =>
+      new VectorStoreService(fakeVectorEnv({ dimension: 3, encryptMetadata: true }).deps).search(
+        tenant,
+        { model: 'm', vector: [1, 2, 3] },
+        { limit: 8, filter: { kind: 'sources', sources: ['s'] } }
+      ),
   },
   'guard.ai_ingestion_denied': {
     trip: () =>

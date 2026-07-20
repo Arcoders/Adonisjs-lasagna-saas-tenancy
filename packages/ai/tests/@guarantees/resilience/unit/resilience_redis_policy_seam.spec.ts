@@ -35,8 +35,8 @@ test.group('resilience: the three request-path reads share one policy seam', () 
     const memory = new ConversationMemoryService({
       getRedis: async () => DOWN(),
       macKey: MAC,
-      encryptMemory: (p) => p,
-      decryptMemory: (c) => c,
+      encryptMemory: async (_t, p) => p,
+      decryptMemory: async (_t, c) => c,
       config: {},
     })
     const { storageKey } = memory.mintSession('t-1', 'principal-1')
@@ -118,8 +118,8 @@ test.group('resilience: the three request-path reads share one policy seam', () 
         }) as never,
       runResilient: spy,
       macKey: MAC,
-      encryptMemory: (p) => p,
-      decryptMemory: (c) => c,
+      encryptMemory: async (_t, p) => p,
+      decryptMemory: async (_t, c) => c,
       config: {},
     })
     const { storageKey } = memory.mintSession('t-2', 'principal-2')

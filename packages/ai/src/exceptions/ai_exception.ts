@@ -23,6 +23,10 @@ export const AI_ERROR_CODES = [
   'embedding_quota_exhausted',
   'tenant_scope_mismatch',
   'vector_store_unavailable',
+  // data at rest (Wave 5, gated): a metadata-scoped retrieval on an encryptMetadata
+  // corpus is unsatisfiable, and a content seal that fails must never write plaintext
+  'embedding_metadata_scope_conflict',
+  'embedding_seal_failed',
   // ingestion
   'doc_fetch_blocked',
   'ingestion_denied',
@@ -78,6 +82,13 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   // 503, like the reserve rail's rate_limit_unavailable: nothing is wrong with the
   // request, retrying once the database recovers is exactly right.
   vector_store_unavailable: 503,
+  // A metadata-scoped retrieval arriving while embeddings metadata is encrypted is
+  // unsatisfiable (the `metadata @> ?::jsonb` containment cannot run over ciphertext),
+  // so it is a permanent 400 refusal like rowscope_unsupported, never a silent zero-row
+  // answer. A content seal that fails at ingest is a transient 503 (usually a KeyProvider
+  // outage): fail closed, never write plaintext, and let the retry succeed once it recovers.
+  embedding_metadata_scope_conflict: 400,
+  embedding_seal_failed: 503,
   // A document URL the SSRF pin blocked (or could not fetch) is a 400; a denied
   // ingestion authorizer is a 403, like the access gate.
   doc_fetch_blocked: 400,
@@ -168,6 +179,12 @@ const RETRYABILITY: Record<AIErrorCode, 'fatal' | 'retryable'> = {
   // A backend outage is the one vector-store code that IS worth retrying (the query
   // will succeed once the database is back), unlike the four permanent ones above.
   vector_store_unavailable: 'retryable',
+  // A metadata-scope conflict never becomes satisfiable on a retry of the identical
+  // request (the corpus is still encrypted), so it is fatal. A seal failure is the
+  // opposite: the KeyProvider is down, the ingest is fine, retrying once it recovers is
+  // exactly right, so it is retryable (and it wrote no plaintext in the meantime).
+  embedding_metadata_scope_conflict: 'fatal',
+  embedding_seal_failed: 'retryable',
   // A blocked/unfetchable document URL and a denied ingestion are both permanent.
   doc_fetch_blocked: 'fatal',
   ingestion_denied: 'fatal',

@@ -63,8 +63,8 @@ function memoryService(getRedis: () => Promise<never>): ConversationMemoryServic
     getRedis,
     runResilient: (opts) => new ResilienceService().run(opts),
     macKey: MAC,
-    encryptMemory: (p) => p,
-    decryptMemory: (c) => c,
+    encryptMemory: async (_t, p) => p,
+    decryptMemory: async (_t, c) => c,
     config: {},
   })
 }

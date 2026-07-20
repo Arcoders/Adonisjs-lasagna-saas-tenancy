@@ -81,7 +81,13 @@
     "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/ai-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
   },
   "peerDependencies": {
+    "@adonisjs-lasagna/crypto": ">=0.1.0 <1.0.0",
     "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
     "@adonisjs/core": "^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@adonisjs-lasagna/crypto": {
+      "optional": true
+    }
   }
 }

@@ -19,14 +19,15 @@ import ConversationMemoryService, {
 let ready = false
 
 const MAC = Buffer.alloc(32, 5)
-const oldEnc = (plain: string) => `old:${plain}`
-const oldDec = (cipher: string) => {
+// Async + tenant-scoped fakes (the Wave-5 seam signature); these fakes ignore the tenant id.
+const oldEnc = async (_tenantId: string, plain: string) => `old:${plain}`
+const oldDec = async (_tenantId: string, cipher: string) => {
   if (!cipher.startsWith('old:')) throw new Error('not old-key ciphertext')
   return cipher.slice(4)
 }
 // The CURRENT key after rotation: it cannot read an `old:` blob.
-const newEnc = (plain: string) => `new:${plain}`
-const newDec = (cipher: string) => {
+const newEnc = async (_tenantId: string, plain: string) => `new:${plain}`
+const newDec = async (_tenantId: string, cipher: string) => {
   if (!cipher.startsWith('new:')) throw new Error('not current-key ciphertext')
   return cipher.slice(4)
 }

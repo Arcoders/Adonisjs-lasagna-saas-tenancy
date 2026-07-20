@@ -22,12 +22,43 @@ export interface FakeVectorEnvOptions {
   insertedHashes?: string[]
   /** Affected rows a DELETE reports. Default 0. */
   deleted?: number
+  /** Seal the `content` column at rest (Wave 5). Default false. */
+  encryptContent?: boolean
+  /** Seal the `metadata` column at rest (Wave 5). Default false. */
+  encryptMetadata?: boolean
+  /**
+   * A reversible fake content cipher (Wave 5). When provided, the store's
+   * `sealContent`/`openContent` seams are wired to it; `open` may throw to simulate a
+   * shredded or corrupt row. Absent ⇒ no seams (plaintext columns, today's behavior).
+   */
+  cipher?: {
+    seal: (tenantId: string, plaintext: string) => Promise<string>
+    open: (tenantId: string, ciphertext: string) => Promise<string>
+  }
 }
 
 export interface FakeVectorEnv {
   deps: VectorStoreDeps
   queries: Array<{ sql: string; bindings: readonly unknown[] }>
   connections: string[]
+  /** Best-effort per-tenant metrics the store emitted (Wave 5 content-undecryptable drop). */
+  metrics: Array<{ tenantId: string; name: string; value: number }>
+}
+
+/**
+ * A reversible fake content cipher for Wave-5 at-rest specs: `seal` prefixes `enc:`,
+ * `open` strips it. `shredded: true` makes `open` throw (a crypto-shred / corrupt row),
+ * so a spec can prove the fail-safe search drop and the fail-closed memory degrade.
+ */
+export function fakeContentCipher(opts: { shredded?: boolean } = {}) {
+  return {
+    seal: async (_tenantId: string, plaintext: string) => `enc:${plaintext}`,
+    open: async (_tenantId: string, ciphertext: string) => {
+      if (opts.shredded) throw new Error('dek_missing')
+      if (!ciphertext.startsWith('enc:')) throw new Error('not sealed at rest')
+      return ciphertext.slice(4)
+    },
+  }
 }
 
 function buildLocation(kind: NonNullable<FakeVectorEnvOptions['kind']>): TableLocation {
@@ -53,6 +84,7 @@ export function fakeVectorEnv(opts: FakeVectorEnvOptions = {}): FakeVectorEnv {
   const dimension = opts.dimension ?? 8
   const queries: FakeVectorEnv['queries'] = []
   const connections: string[] = []
+  const metrics: FakeVectorEnv['metrics'] = []
 
   const client: VectorQueryClient = {
     async rawQuery(sql, bindings = []) {
@@ -90,9 +122,13 @@ export function fakeVectorEnv(opts: FakeVectorEnvOptions = {}): FakeVectorEnv {
     getDb: async () => db,
     activeScopeTenantId: () => opts.activeScope,
     dimension,
+    emitMetric: (tenantId, name, value) => metrics.push({ tenantId, name, value }),
+    ...(opts.encryptContent !== undefined ? { encryptContent: opts.encryptContent } : {}),
+    ...(opts.encryptMetadata !== undefined ? { encryptMetadata: opts.encryptMetadata } : {}),
+    ...(opts.cipher ? { sealContent: opts.cipher.seal, openContent: opts.cipher.open } : {}),
   }
 
-  return { deps, queries, connections }
+  return { deps, queries, connections, metrics }
 }
 
 /** A deterministic finite vector of the given length (for store specs). */

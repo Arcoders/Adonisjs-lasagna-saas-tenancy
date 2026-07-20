@@ -251,6 +251,22 @@ export const AI_GUARD_REGISTRY = [
     nextReview: '2027-01-02',
   },
   {
+    id: 'guard.ai_embedding_metadata_scope_conflict',
+    pillar: 'guard',
+    bugClass: 'silent-wrong-answer',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_embedding_metadata_scope_conflict:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'invariant',
+      ref: 'Wave 5 data-at-rest: with encryptMetadata on, the metadata column holds enc_v2 ciphertext, so a metadata-containment (metadata @> ?::jsonb) retrieval scope cannot run; the store refuses it fail-closed rather than silently return zero rows, which would read as an empty corpus instead of the misconfiguration it is',
+    },
+    guardFile: 'src/services/vector_store_service.ts',
+    reviewed: '2026-07-19',
+    nextReview: '2027-01-19',
+  },
+  {
     id: 'guard.ai_ingestion_denied',
     pillar: 'guard',
     bugClass: 'missing-authorization',

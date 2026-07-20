@@ -20,8 +20,10 @@ const TENANT = '11111111-1111-4111-8111-111111110001'
 const MAC = Buffer.alloc(32, 9)
 
 // A reversible fake enc_v2, so a stored blob is provably ciphertext (never plaintext).
-const enc = (plain: string) => `enc:${Buffer.from(plain, 'utf8').toString('base64')}`
-const dec = (cipher: string) => {
+// Async + tenant-scoped to match the Wave-5 seam signature (the fake ignores the tenant id).
+const enc = async (_tenantId: string, plain: string) =>
+  `enc:${Buffer.from(plain, 'utf8').toString('base64')}`
+const dec = async (_tenantId: string, cipher: string) => {
   if (!cipher.startsWith('enc:')) throw new Error('not current-key ciphertext')
   return Buffer.from(cipher.slice(4), 'base64').toString('utf8')
 }
@@ -155,9 +157,10 @@ test.group('behavior — conversation memory service', () => {
     assert,
   }) => {
     const redis = new FakeRedisLists()
-    // "old key" ciphertext the CURRENT key cannot read.
+    // "old key" ciphertext the CURRENT key cannot read. `encOld` builds the stored blob
+    // directly (a sync test helper); `decOld` is the async grace SEAM.
     const encOld = (plain: string) => `old:${Buffer.from(plain, 'utf8').toString('base64')}`
-    const decOld = (cipher: string) => {
+    const decOld = async (_tenantId: string, cipher: string) => {
       if (!cipher.startsWith('old:')) throw new Error('not old-key ciphertext')
       return Buffer.from(cipher.slice(4), 'base64').toString('utf8')
     }
@@ -191,7 +194,7 @@ test.group('behavior — conversation memory service', () => {
     assert,
   }) => {
     const redis = new FakeRedisLists()
-    const decPrevAlsoFails = (): string => {
+    const decPrevAlsoFails = async (): Promise<string> => {
       throw new Error('previous key cannot read it either (grace expired / corruption)')
     }
     const { svc, metrics } = serviceWith(redis, { decryptMemoryPrevious: decPrevAlsoFails })

@@ -5,7 +5,7 @@ import {
   isDependencyOutageError,
   tokenizeTenantId,
 } from '@adonisjs-lasagna/saas-tenancy/sdk'
-import { AI_EMBEDDINGS_TABLE } from '../constants.js'
+import { AI_EMBEDDINGS_TABLE, AI_EMBEDDING_CONTENT_UNDECRYPTABLE_METRIC } from '../constants.js'
 import type { RetrievalScope } from '../define_config.js'
 import type { TableLocation } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
@@ -53,6 +53,26 @@ export interface VectorStoreDeps {
    * completion). Absent ⇒ the connection default applies (no per-batch timeout).
    */
   purgeStatementTimeoutMs?: number | undefined
+  /**
+   * Content-at-rest seal/open (Wave 5, GATED). Injected by the provider ONLY when the
+   * host selects `encryptContent`/`encryptMetadata` and the crypto peer is installed, so
+   * the store stays crypto-primitive-free. Absent ⇒ the columns are plaintext (today's
+   * behavior). `seal` produces enc_v2 ciphertext under the per-tenant embeddings DEK
+   * before a value is bound into the INSERT; `open` reverses it on the O(limit) rows a
+   * search returns. The vector column is NEVER sealed (ANN search needs it).
+   */
+  sealContent?: ((tenantId: string, plaintext: string) => Promise<string>) | undefined
+  openContent?: ((tenantId: string, ciphertext: string) => Promise<string>) | undefined
+  /** Seal the `content` column at rest. Default false. Only takes effect with {@link sealContent} wired. */
+  encryptContent?: boolean | undefined
+  /**
+   * Also seal the `metadata` column at rest. Default false. When true, a metadata-scoped
+   * retrieval is refused fail-closed (`guard.ai_embedding_metadata_scope_conflict`): the
+   * `metadata @> ?::jsonb` containment cannot run over ciphertext.
+   */
+  encryptMetadata?: boolean | undefined
+  /** Best-effort per-tenant metric sink (default MetricsService), for the content-undecryptable search drop (Wave 5). */
+  emitMetric?: ((tenantId: string, name: string, value: number) => void) | undefined
 }
 
 /**
@@ -158,6 +178,14 @@ export default class VectorStoreService {
     const { client, table } = await this.#target(tenant)
     for (const chunk of chunks) this.#assertVector(tenant, chunk.embedding)
 
+    // Wave 5: seal content (and, if configured, metadata) BEFORE opening the
+    // advisory-locked transaction, so a KeyProvider/KMS round-trip never runs while
+    // holding the per-tenant lock. A seal failure fails the ingest CLOSED (typed 503)
+    // with nothing written: plaintext must never land in a column declared encrypted.
+    // `content_hash` is untouched (it hashed caller plaintext upstream), so dedup holds.
+    const sealed = await this.#sealChunks(tenant.id, chunks)
+    const metaPlaceholder = this.deps.encryptMetadata === true ? 'to_jsonb(?::text)' : '?::jsonb'
+
     const maxCount = opts.maxCount
     // The transaction OPENER is guarded too, not just the queries inside it: an
     // outage can strike while acquiring the connection / issuing BEGIN, before the
@@ -187,14 +215,16 @@ export default class VectorStoreService {
           }
         }
 
-        const valuesSql = chunks.map(() => '(?, ?, ?, ?::jsonb, ?, ?, ?, ?::vector)').join(', ')
+        const valuesSql = chunks
+          .map(() => `(?, ?, ?, ${metaPlaceholder}, ?, ?, ?, ?::vector)`)
+          .join(', ')
         const insertBindings: unknown[] = []
-        for (const chunk of chunks) {
+        for (const [i, chunk] of chunks.entries()) {
           insertBindings.push(
             source,
             chunk.contentHash,
-            chunk.content,
-            JSON.stringify(chunk.metadata ?? {}),
+            sealed[i]!.content,
+            sealed[i]!.metadata,
             chunk.model,
             this.deps.dimension,
             chunk.actor,
@@ -245,6 +275,19 @@ export default class VectorStoreService {
   ): Promise<VectorMatch[]> {
     const filter = opts.filter ?? { kind: 'all' }
     if (filter.kind === 'sources' && filter.sources.length === 0) return []
+    // Wave 5 HARD CONSTRAINT: a metadata-scoped read cannot run over encrypted metadata
+    // (the `metadata @> ?::jsonb` containment has no meaning on ciphertext), so refuse it
+    // fail-closed rather than silently return zero rows (a silent wrong answer is worse
+    // than a loud refusal).
+    if (filter.kind === 'metadata' && this.deps.encryptMetadata === true) {
+      emitAiGuardEvent('guard.ai_embedding_metadata_scope_conflict', { tenantId: tenant.id })
+      throw new AIException(
+        'embedding_metadata_scope_conflict',
+        "Refusing a metadata-scoped retrieval: this tenant's embedding metadata is encrypted " +
+          'at rest, so a metadata containment filter cannot run. Use a source scope, or do not ' +
+          'enable config.ai.embedding.encryptMetadata.'
+      )
+    }
 
     const { client, table } = await this.#target(tenant)
     this.#assertVector(tenant, query.vector)
@@ -257,12 +300,7 @@ export default class VectorStoreService {
         `WHERE model = ? AND dim = ?${scope.clause} ORDER BY embedding <=> ?::vector LIMIT ?`,
       [vec, query.model, this.deps.dimension, ...scope.bindings, vec, opts.limit]
     )
-    return rowsOf(res).map((row) => ({
-      id: String(row.id),
-      content: String(row.content),
-      metadata: row.metadata,
-      distance: Number(row.distance),
-    }))
+    return this.#decodeMatches(tenant.id, rowsOf(res))
   }
 
   /** How many embedding rows the tenant currently stores (the #18 gauge source of truth). */
@@ -405,6 +443,96 @@ export default class VectorStoreService {
       default:
         return assertNever(location, 'table location kind')
     }
+  }
+
+  /**
+   * Seal each chunk's content (and metadata, if `encryptMetadata`) at rest under the
+   * per-tenant embeddings DEK, returning the exact strings to bind (Wave 5). With no
+   * seal wired, or the flags off, it returns caller plaintext / the serialized metadata
+   * JSON, byte-identical to before. A seal failure (a KeyProvider/KMS outage) is a typed
+   * FAIL-CLOSED 503 covering the whole batch: the ingest writes nothing rather than
+   * leaking plaintext into a column the operator declared encrypted.
+   */
+  async #sealChunks(
+    tenantId: string,
+    chunks: readonly EmbeddingInput[]
+  ): Promise<Array<{ content: string; metadata: string }>> {
+    const encContent = this.deps.encryptContent === true
+    const encMeta = this.deps.encryptMetadata === true
+    const seal = this.deps.sealContent
+
+    // Serialize metadata OUTSIDE the seal try/catch below. A JSON.stringify failure (a
+    // BigInt or a cycle in caller metadata) is a permanent caller fault, NOT an at-rest
+    // seal outage, so it must keep its prior propagation (an untyped fatal, exactly as
+    // before Wave 5) and must never be repackaged as a retryable `embedding_seal_failed`
+    // on the default (encryption-off) path.
+    const prepared = chunks.map((chunk) => ({
+      chunk,
+      metaJson: JSON.stringify(chunk.metadata ?? {}),
+    }))
+
+    // Default (or no seam wired): plaintext columns, byte-identical to before.
+    if (!seal || (!encContent && !encMeta)) {
+      return prepared.map(({ chunk, metaJson }) => ({ content: chunk.content, metadata: metaJson }))
+    }
+
+    try {
+      // Provision the tenant's embeddings DEK ONCE, sequentially, before fanning out. On a
+      // tenant's first encrypted ingest every chunk would otherwise provision the same DEK
+      // concurrently; crypto's provisioning lock is fail-OPEN, so N concurrent first-time
+      // seals race and all but one lose on the partial-UNIQUE (`dek_conflict`), failing the
+      // whole batch. One warm sequential seal makes the DEK live so the concurrent seals
+      // below only READ it. If a concurrent request won the provision race first, the DEK
+      // now exists, so a single retry of the warm-up read succeeds.
+      try {
+        await seal(tenantId, '')
+      } catch (warmupError) {
+        if ((warmupError as { code?: string } | null)?.code !== 'dek_conflict') throw warmupError
+        await seal(tenantId, '')
+      }
+      return await Promise.all(
+        prepared.map(async ({ chunk, metaJson }) => ({
+          content: encContent ? await seal(tenantId, chunk.content) : chunk.content,
+          metadata: encMeta ? await seal(tenantId, metaJson) : metaJson,
+        }))
+      )
+    } catch (error) {
+      throw new AIException(
+        'embedding_seal_failed',
+        'the AI embeddings content could not be sealed at rest; the ingest was refused so no plaintext is stored',
+        { cause: error }
+      )
+    }
+  }
+
+  /**
+   * Map raw search rows to {@link VectorMatch}es, opening any sealed content/metadata
+   * under the per-tenant embeddings DEK (Wave 5). Only the O(limit) returned rows are
+   * opened (the ANN index scan already ran). FAIL-SAFE: a row whose sealed value will not
+   * open (the tenant corpus was shredded, or one row is corrupt) is dropped from the
+   * result set with a content-free metric, never a 500 — a shredded-tenant corpus should
+   * read empty. With nothing sealed this is a plain identity map (today's behavior).
+   */
+  async #decodeMatches(
+    tenantId: string,
+    rows: Array<Record<string, unknown>>
+  ): Promise<VectorMatch[]> {
+    const encContent = this.deps.encryptContent === true
+    const encMeta = this.deps.encryptMetadata === true
+    const open = this.deps.openContent
+    const out: VectorMatch[] = []
+    for (const row of rows) {
+      try {
+        const content =
+          encContent && open ? await open(tenantId, String(row.content)) : String(row.content)
+        const metadata =
+          encMeta && open ? JSON.parse(await open(tenantId, String(row.metadata))) : row.metadata
+        out.push({ id: String(row.id), content, metadata, distance: Number(row.distance) })
+      } catch {
+        this.deps.emitMetric?.(tenantId, AI_EMBEDDING_CONTENT_UNDECRYPTABLE_METRIC, 1)
+      }
+    }
+    return out
   }
 
   /** Reject a vector whose length is not the index dimension, or that carries a non-finite value. */

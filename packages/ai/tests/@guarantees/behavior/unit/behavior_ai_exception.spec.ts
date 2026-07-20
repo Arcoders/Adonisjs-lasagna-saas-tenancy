@@ -11,6 +11,9 @@ test.group('AIException', () => {
     assert.equal(new AIException('rate_limit_unavailable', 'x').httpStatus, 503)
     assert.equal(new AIException('provider_unavailable', 'x').httpStatus, 503)
     assert.equal(new AIException('provider_not_allowed', 'x').httpStatus, 403)
+    // Wave 5 data-at-rest codes.
+    assert.equal(new AIException('embedding_metadata_scope_conflict', 'x').httpStatus, 400)
+    assert.equal(new AIException('embedding_seal_failed', 'x').httpStatus, 503)
   })
 
   test('classifies fatal vs retryable', ({ assert }) => {
@@ -60,6 +63,11 @@ test.group('AIException', () => {
       embedding_quota_exhausted: false,
       tenant_scope_mismatch: false,
       vector_store_unavailable: true,
+      // Wave 5: a metadata-scope conflict is fatal (the corpus stays encrypted on a
+      // retry); a seal failure is retryable (a KeyProvider outage recovers, and it wrote
+      // no plaintext).
+      embedding_metadata_scope_conflict: false,
+      embedding_seal_failed: true,
       doc_fetch_blocked: false,
       ingestion_denied: false,
       retrieval_denied: false,

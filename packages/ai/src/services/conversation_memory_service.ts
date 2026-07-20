@@ -96,16 +96,24 @@ export interface ConversationMemoryDeps {
   resiliencePolicy?: FailurePolicy | undefined
   /** 32-byte session-MAC key from {@link deriveMemoryMacKey}. */
   macKey: Buffer
-  /** enc_v2 write for a memory blob (kernel `writeSecret(_, 'aiConversationMemory')`). */
-  encryptMemory: (plaintext: string) => string
-  /** enc_v2 fail-closed read under the CURRENT APP_KEY (kernel `readSecret(_, 'aiConversationMemory')`). */
-  decryptMemory: (ciphertext: string) => string
+  /**
+   * Seal one memory blob to enc_v2 ciphertext. The seam is async and carries
+   * `tenantId` so a single service works for BOTH at-rest modes without knowing which
+   * (Wave 5): on the default `'app-key'` mode the provider wires it to
+   * `Promise.resolve(writeSecret(_, 'aiConversationMemory'))` (tenantId ignored,
+   * byte-identical to before); on `'tenant-dek'` it wires a per-tenant DEK seal. The
+   * service stays mode-agnostic: it passes the tenant id and gets ciphertext back.
+   */
+  encryptMemory: (tenantId: string, plaintext: string) => Promise<string>
+  /** enc_v2 fail-closed read (app-key mode: `readSecret`; tenant-dek: the tenant DEK). Async + tenant-scoped, mirroring {@link encryptMemory}. */
+  decryptMemory: (tenantId: string, ciphertext: string) => Promise<string>
   /**
    * Optional dual-key grace read under the previous APP_KEY (`OLD_APP_KEY`), so
-   * in-flight sessions survive a rotation window. Absent ⇒ a post-rotation blob
-   * simply degrades to empty, bounded by the TTL.
+   * in-flight sessions survive a rotation window. Wired ONLY on the `'app-key'` mode
+   * (tenant-dek handles KEK rotation inside the KeyProvider, so it needs no per-blob
+   * grace). Absent ⇒ a post-rotation blob simply degrades to empty, bounded by the TTL.
    */
-  decryptMemoryPrevious?: ((ciphertext: string) => string) | undefined
+  decryptMemoryPrevious?: ((tenantId: string, ciphertext: string) => Promise<string>) | undefined
   /** The memory config block; absent ⇒ {@link enabled} is false and the service is inert. */
   config?: { maxTurns?: number; maxChars?: number; ttlMs?: number } | undefined
   /** Best-effort per-tenant integer metric (default MetricsService); fire-and-forget, never on the reject path. */
@@ -240,7 +248,7 @@ export default class ConversationMemoryService {
         degraded = true
         continue
       }
-      const decoded = this.#decodeExchange(element, tenantId)
+      const decoded = await this.#decodeExchange(element, tenantId)
       if (decoded === null) {
         degraded = true
         continue
@@ -288,7 +296,8 @@ export default class ConversationMemoryService {
         this.#metric(tenantId, AI_MEMORY_PURGED_DROP_METRIC)
         return
       }
-      const cipher = this.#deps.encryptMemory(
+      const cipher = await this.#deps.encryptMemory(
+        tenantId,
         JSON.stringify({ v: 1, u: exchange.user, a: exchange.assistant })
       )
       const redis = await this.#deps.getRedis()
@@ -346,17 +355,22 @@ export default class ConversationMemoryService {
   /**
    * Decrypt one stored exchange under the current key, then the previous key
    * (rotation grace), returning its `{u, a}` or null when unreadable. Not a
-   * throw: `load` treats null as a dropped element and degrades.
+   * throw: `load` treats null as a dropped element and degrades. Async because the
+   * decrypt seam is (Wave 5): the tenant-dek mode resolves a per-tenant DEK, and the
+   * app-key mode is a resolved promise over the sync `readSecret`.
    */
-  #decodeExchange(element: string, tenantId: string): { u: string; a: string } | null {
+  async #decodeExchange(
+    element: string,
+    tenantId: string
+  ): Promise<{ u: string; a: string } | null> {
     let plain: string
     try {
-      plain = this.#deps.decryptMemory(element)
+      plain = await this.#deps.decryptMemory(tenantId, element)
     } catch {
       const previous = this.#deps.decryptMemoryPrevious
       if (!previous) return null
       try {
-        plain = previous(element)
+        plain = await previous(tenantId, element)
         this.#metric(tenantId, AI_MEMORY_DECRYPT_PREVIOUS_METRIC)
       } catch {
         return null

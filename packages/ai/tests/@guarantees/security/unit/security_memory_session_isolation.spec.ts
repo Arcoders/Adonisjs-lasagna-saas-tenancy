@@ -24,8 +24,8 @@ const svc = () =>
   new ConversationMemoryService({
     getRedis: async () => new FakeRedisLists(),
     macKey: MAC,
-    encryptMemory: (p) => p,
-    decryptMemory: (c) => c,
+    encryptMemory: async (_t, p) => p,
+    decryptMemory: async (_t, c) => c,
     config: { maxTurns: 5 },
   })
 

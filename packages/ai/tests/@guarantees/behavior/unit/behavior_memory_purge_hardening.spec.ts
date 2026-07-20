@@ -15,8 +15,9 @@ import { FakeRedisLists } from '../../../helpers/fake_redis_lists.js'
 
 const TENANT = '11111111-1111-4111-8111-111111110001'
 const MAC = Buffer.alloc(32, 9)
-const enc = (plain: string) => `enc:${Buffer.from(plain, 'utf8').toString('base64')}`
-const dec = (cipher: string) => {
+const enc = async (_tenantId: string, plain: string) =>
+  `enc:${Buffer.from(plain, 'utf8').toString('base64')}`
+const dec = async (_tenantId: string, cipher: string) => {
   if (!cipher.startsWith('enc:')) throw new Error('not ciphertext')
   return Buffer.from(cipher.slice(4), 'base64').toString('utf8')
 }

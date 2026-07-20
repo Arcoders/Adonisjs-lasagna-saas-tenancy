@@ -17,8 +17,8 @@ function memoryService(): ConversationMemoryService {
     macKey: Buffer.alloc(32, 5),
     // Identity-with-marker crypto: this spec exercises the real Redis LIST
     // semantics; the enc_v2 round-trip is covered in the unit tier.
-    encryptMemory: (plain) => `e:${plain}`,
-    decryptMemory: (cipher) => {
+    encryptMemory: async (_tenantId, plain) => `e:${plain}`,
+    decryptMemory: async (_tenantId, cipher) => {
       if (!cipher.startsWith('e:')) throw new Error('not ciphertext')
       return cipher.slice(2)
     },

@@ -58,8 +58,8 @@ function buildDeps(redis: FakeRedisLists, store?: AiIdempotencyStore) {
   const memory = new ConversationMemoryService({
     getRedis: async () => redis,
     macKey: Buffer.alloc(32, 4),
-    encryptMemory: (plain) => `e:${plain}`,
-    decryptMemory: (cipher) => {
+    encryptMemory: async (_tenantId, plain) => `e:${plain}`,
+    decryptMemory: async (_tenantId, cipher) => {
       if (!cipher.startsWith('e:')) throw new Error('not ciphertext')
       return cipher.slice(2)
     },

@@ -12,6 +12,7 @@ import type {
   AIToolsConfig,
 } from './define_config.js'
 import {
+  AI_MEMORY_ENCRYPTION_MODES,
   DEFAULT_AI_PROVIDER,
   MAX_AI_TOOL_ROUNDS,
   MAX_CONCURRENT_TOOL_LOOPS_PER_TENANT,
@@ -44,6 +45,16 @@ function fail(message: string): never {
     metadata: { reason: message.slice(0, 64) },
   })
   throw new Error(message)
+}
+
+/**
+ * The public face of the {@link fail} config-invalid choke (Wave 5), so the provider's
+ * boot-time crypto-peer check — which needs container access this pure validator lacks —
+ * routes a fail-closed abort through the SAME `guard.ai_config_invalid` emission + throw
+ * instead of a parallel one that could drift.
+ */
+export function failAiConfig(message: string): never {
+  return fail(message)
 }
 
 /**
@@ -248,6 +259,20 @@ function assertMemoryConfig(memory: AIMemoryConfig | undefined): void {
   assertPositiveInteger('memory.maxTurns', memory.maxTurns)
   assertPositiveInteger('memory.maxChars', memory.maxChars)
   assertPositiveInteger('memory.ttlMs', memory.ttlMs)
+  // The at-rest key strategy (Wave 5): a validated union, never a source literal. The
+  // default (`'app-key'`, today's behavior) needs no value; `'tenant-dek'` additionally
+  // fails boot closed when the crypto peer is absent, which the provider asserts (the
+  // config validator is pure and cannot resolve the container).
+  if (
+    memory.encryption !== undefined &&
+    !(AI_MEMORY_ENCRYPTION_MODES as readonly string[]).includes(memory.encryption)
+  ) {
+    fail(
+      `[ai] config.ai.memory.encryption, when set, must be one of ${AI_MEMORY_ENCRYPTION_MODES.join(
+        ' | '
+      )}`
+    )
+  }
 }
 
 /**
@@ -442,6 +467,16 @@ function assertEmbeddingConfig(embedding: AIEmbeddingConfig | undefined): void {
     typeof embedding.authorizeIngestion !== 'function'
   ) {
     fail('[ai] config.ai.embedding.authorizeIngestion, when set, must be a function (ctx, tenant)')
+  }
+  // Content-at-rest flags (Wave 5): booleans, default false. Enabling either requires the
+  // crypto peer; the provider asserts that at boot (fail-closed) since this pure validator
+  // cannot resolve the container. `encryptMetadata` additionally disables metadata-scoped
+  // retrieval, enforced fail-closed at the query boundary (guard.ai_embedding_metadata_scope_conflict).
+  if (embedding.encryptContent !== undefined && typeof embedding.encryptContent !== 'boolean') {
+    fail('[ai] config.ai.embedding.encryptContent, when set, must be a boolean')
+  }
+  if (embedding.encryptMetadata !== undefined && typeof embedding.encryptMetadata !== 'boolean') {
+    fail('[ai] config.ai.embedding.encryptMetadata, when set, must be a boolean')
   }
 }
 

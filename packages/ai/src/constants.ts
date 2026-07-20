@@ -560,3 +560,75 @@ export const AI_ANOMALY_METRIC = 'ai_anomaly'
 
 /** The per-tenant metric emitted when a scheduled/alerting verify finds a chain break. Fixed, never inlined. */
 export const AI_AUDIT_CHAIN_BROKEN_METRIC = 'ai_audit_chain_broken'
+
+// --- Data at rest (Wave 5, GATED default-off) ---
+// Two seams and their validated config fields, both defaulting to EXACTLY today's
+// behavior: conversation memory sealed under one fleet-wide APP_KEY, and embeddings
+// content/metadata stored plaintext. Selecting `tenant-dek` memory or `encryptContent`
+// embeddings is a SEPARATE per-host go (its own review); the plumbing here makes that a
+// config flip, not a code change. Both at-rest paths seal through the optional crypto
+// peer's per-`(subject × category)` DEK via its fail-closed field-encryption facade, so
+// the AI package never touches a raw DEK or a crypto primitive and a crypto-shred makes
+// the tenant's data cryptographically irrecoverable.
+
+/**
+ * The default conversation-memory encryption mode. `'app-key'` reproduces today
+ * byte-for-byte (one fleet-wide `HKDF(APP_KEY)` key, the `aiConversationMemory` secret
+ * class). Selecting `'tenant-dek'` is the strengthening: a per-tenant DEK so an APP_KEY
+ * leak no longer decrypts every tenant's history and a shred erases one tenant's memory.
+ * Tunable via `config.ai.memory.encryption`.
+ */
+export const DEFAULT_AI_MEMORY_ENCRYPTION = 'app-key'
+
+/** The validated union of memory encryption modes. A value outside it is a boot `fail()`. */
+export const AI_MEMORY_ENCRYPTION_MODES = ['app-key', 'tenant-dek'] as const
+
+/**
+ * The crypto DEK `CategoryKey` for conversation memory: one memory DEK per tenant on the
+ * recommended single-subject scope (`subject = tenantId`). It carries the
+ * {@link AI_MEMORY_SECRET_CLASS} domain-separation idiom onto the DEK side, so a memory
+ * DEK cannot open an embeddings value or a domain field value. Fixed constant.
+ */
+export const AI_MEMORY_DEK_CATEGORY = 'ai:conversation-memory'
+
+/**
+ * The crypto DEK `CategoryKey` for embeddings content-at-rest, distinct from the memory
+ * category so the two DEKs never cross. `subject = tenantId` (one embeddings DEK per
+ * tenant). Fixed constant.
+ */
+export const AI_EMBEDDINGS_DEK_CATEGORY = 'ai:embeddings-content'
+
+/**
+ * Default for `config.ai.embedding.encryptContent`. False reproduces today (the `content`
+ * column is plaintext). On, `content` seals to enc_v2 ciphertext under the embeddings DEK;
+ * `content_hash` is UNAFFECTED (it hashes caller plaintext upstream of storage), so a
+ * re-ingest still dedups. The vector column CANNOT be encrypted (ANN search needs it), so
+ * this defends a raw text-column dump, not vector inversion.
+ */
+export const DEFAULT_AI_EMBEDDING_ENCRYPT_CONTENT = false
+
+/**
+ * Default for `config.ai.embedding.encryptMetadata`. False keeps metadata plaintext and
+ * metadata-scoped retrieval working. On, the `metadata` column seals too, which DISABLES
+ * metadata-scoped retrieval (`metadata @> ?::jsonb` cannot run over ciphertext) — a
+ * `kind: 'metadata'` scope is then refused fail-closed with
+ * `guard.ai_embedding_metadata_scope_conflict` rather than silently returning zero rows.
+ */
+export const DEFAULT_AI_EMBEDDING_ENCRYPT_METADATA = false
+
+/**
+ * Per-tenant counter for a memory read whose per-tenant DEK could not be resolved (KMS/
+ * KeyProvider outage, or the DEK was shredded). Distinct from
+ * {@link AI_MEMORY_UNDECRYPTABLE_METRIC} so a KMS outage is not mistaken for a botched
+ * key rotation. The read still degrades to empty memory (fail-safe), matching today's
+ * store-outage posture. Content-free.
+ */
+export const AI_MEMORY_DEK_UNAVAILABLE_METRIC = 'ai_memory_dek_unavailable'
+
+/**
+ * Per-tenant counter for a search row whose sealed `content`/`metadata` would not open
+ * (the tenant corpus was shredded, or one row is corrupt). The row is dropped from the
+ * result set (fail-safe), consistent with the memory read posture: a shredded-tenant
+ * corpus reads empty, never 500. Content-free.
+ */
+export const AI_EMBEDDING_CONTENT_UNDECRYPTABLE_METRIC = 'ai_embedding_content_undecryptable'

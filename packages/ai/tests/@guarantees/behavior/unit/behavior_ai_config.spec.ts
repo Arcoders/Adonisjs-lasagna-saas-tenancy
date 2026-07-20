@@ -321,6 +321,61 @@ test.group('assertAiConfig — the embedding block (WS-AI-3)', () => {
       /authorizeIngestion, when set, must be a function/
     )
   })
+
+  test('accepts the content-at-rest flags when boolean (Wave 5)', ({ assert }) => {
+    assert.doesNotThrow(() =>
+      assertAiConfig(
+        withEmbedding({
+          apiKey: 'k',
+          baseUrl: 'https://x.example.com',
+          encryptContent: true,
+          encryptMetadata: false,
+        })
+      )
+    )
+  })
+
+  test('rejects non-boolean content-at-rest flags (Wave 5)', ({ assert }) => {
+    assert.throws(
+      () =>
+        assertAiConfig(
+          withEmbedding({ apiKey: 'k', baseUrl: 'https://x.example.com', encryptContent: 'yes' })
+        ),
+      /config\.ai\.embedding\.encryptContent, when set, must be a boolean/
+    )
+    assert.throws(
+      () =>
+        assertAiConfig(
+          withEmbedding({ apiKey: 'k', baseUrl: 'https://x.example.com', encryptMetadata: 1 })
+        ),
+      /config\.ai\.embedding\.encryptMetadata, when set, must be a boolean/
+    )
+  })
+})
+
+test.group('assertAiConfig — the memory block (Wave 5 encryption mode)', () => {
+  const withMemory = (memory: Record<string, unknown>): AiConfig =>
+    ({ ...validClaudeOnly(), memory }) as unknown as AiConfig
+
+  test('accepts both encryption modes and an omitted one (default app-key)', ({ assert }) => {
+    assert.doesNotThrow(() => assertAiConfig(withMemory({})))
+    assert.doesNotThrow(() => assertAiConfig(withMemory({ encryption: 'app-key' })))
+    assert.doesNotThrow(() => assertAiConfig(withMemory({ encryption: 'tenant-dek' })))
+  })
+
+  test('rejects an encryption mode outside the validated union', ({ assert }) => {
+    assert.throws(
+      () => assertAiConfig(withMemory({ encryption: 'kms' })),
+      /config\.ai\.memory\.encryption, when set, must be one of app-key \| tenant-dek/
+    )
+  })
+
+  test('still validates the existing memory bounds', ({ assert }) => {
+    assert.throws(
+      () => assertAiConfig(withMemory({ maxTurns: 0 })),
+      /config\.ai\.memory\.maxTurns must be a positive integer/
+    )
+  })
 })
 
 test.group('assertAiConfig — the tools block (WS-AI-11)', () => {

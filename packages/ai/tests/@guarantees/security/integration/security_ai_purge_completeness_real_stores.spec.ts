@@ -74,8 +74,8 @@ function memoryService(): ConversationMemoryService {
   return new ConversationMemoryService({
     getRedis: () => app.container.make('redis'),
     macKey: Buffer.alloc(32, 5),
-    encryptMemory: (plain) => `e:${plain}`,
-    decryptMemory: (cipher) => {
+    encryptMemory: async (_tenantId, plain) => `e:${plain}`,
+    decryptMemory: async (_tenantId, cipher) => {
       if (!cipher.startsWith('e:')) throw new Error('not ciphertext')
       return cipher.slice(2)
     },

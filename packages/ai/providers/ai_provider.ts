@@ -30,13 +30,24 @@ import { randomUUID } from 'node:crypto'
 import { safeFetch } from '@adonisjs-lasagna/saas-tenancy/safe-fetch'
 import { tenancy, writeSecret, readSecret, SECRET_CLASS } from '@adonisjs-lasagna/saas-tenancy'
 import { decryptWithAppKey } from '@adonisjs-lasagna/saas-tenancy/internal'
-import { assertAiConfig } from '../src/validate_config.js'
+import { assertAiConfig, failAiConfig } from '../src/validate_config.js'
 import type { AiConfig, MultitenancyConfigWithAi } from '../src/define_config.js'
-import { DEFAULT_AI_PROVIDER, DEFAULT_EMBEDDING_DIM } from '../src/constants.js'
+import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
+import {
+  AI_EMBEDDINGS_DEK_CATEGORY,
+  AI_MEMORY_DEK_CATEGORY,
+  AI_MEMORY_DEK_UNAVAILABLE_METRIC,
+  DEFAULT_AI_MEMORY_ENCRYPTION,
+  DEFAULT_AI_PROVIDER,
+  DEFAULT_EMBEDDING_DIM,
+} from '../src/constants.js'
 import AIProviderRegistry from '../src/services/ai_provider_registry.js'
 import EmbeddingProviderRegistry from '../src/services/embedding_provider_registry.js'
 import AiRateLimiter from '../src/services/ai_rate_limiter.js'
-import VectorStoreService, { type VectorDb } from '../src/services/vector_store_service.js'
+import VectorStoreService, {
+  type VectorDb,
+  type VectorStoreDeps,
+} from '../src/services/vector_store_service.js'
 import EmbeddingIngestionService from '../src/services/embedding_ingestion_service.js'
 import RetrievalService from '../src/services/retrieval_service.js'
 import AiAuditWriter, { type AuditDb } from '../src/services/ai_audit_writer.js'
@@ -65,6 +76,7 @@ import AiIdempotencyService, {
 } from '../src/gateway/idempotency.js'
 import ConversationMemoryService, {
   deriveMemoryMacKey,
+  type ConversationMemoryDeps,
 } from '../src/services/conversation_memory_service.js'
 import AiComplianceService from '../src/services/ai_compliance_service.js'
 import ToolExecutorService from '../src/services/tool_executor.js'
@@ -185,20 +197,17 @@ export default definePlugin({
       const ai = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
       const metrics = await resolver.make(MetricsService)
       const logger = await resolver.make('logger')
-      const currentAppKey = requireAppKey()
-      const oldAppKey = process.env.OLD_APP_KEY
       const resilience = new ResilienceService()
+      // Wave 5: the encrypt/decrypt seams are chosen by config.ai.memory.encryption. The
+      // session MAC key stays APP_KEY-derived in BOTH modes (it binds a session token to
+      // the principal; it is not the at-rest blob key).
+      const encryptionSeams = await buildMemoryEncryptionSeams(app, ai, metrics)
       return new ConversationMemoryService({
         getRedis: () => app.container.make('redis'),
         runResilient: (opts) => resilience.run(opts),
         resiliencePolicy: ai?.resilience?.memory?.policy,
-        macKey: deriveMemoryMacKey(currentAppKey),
-        encryptMemory: (plain) => writeSecret(plain, 'aiConversationMemory'),
-        decryptMemory: (cipher) => readSecret(cipher, 'aiConversationMemory'),
-        decryptMemoryPrevious:
-          oldAppKey && oldAppKey !== currentAppKey
-            ? (cipher) => decryptWithAppKey(cipher, oldAppKey, SECRET_CLASS.aiConversationMemory)
-            : undefined,
+        macKey: deriveMemoryMacKey(requireAppKey()),
+        ...encryptionSeams,
         config: ai?.memory,
         metric: (tenantId, name, value) => metrics.emitMetric(tenantId, name, value),
         warn: (message) => logger.warn(message),
@@ -224,14 +233,41 @@ export default definePlugin({
     // the Lucid db (via the `'lucid.db'` container alias, like `'redis'`, so no
     // direct lucid dependency), and the active tenancy scope id (the satellite
     // ContextSeal that raw SQL bypasses). Stateful only through the db: a singleton.
-    app.container.singleton(VectorStoreService, () => {
+    app.container.singleton(VectorStoreService, async () => {
       const ai = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+      const encryptContent = ai?.embedding?.encryptContent === true
+      const encryptMetadata = ai?.embedding?.encryptMetadata === true
+      // Wave 5: wire the content-at-rest seal/open seams ONLY when the host opted in and
+      // the crypto peer is present (boot already asserted it). The store stays
+      // crypto-primitive-free; with the flags off it binds/reads plaintext exactly as before.
+      let sealContent: VectorStoreDeps['sealContent']
+      let openContent: VectorStoreDeps['openContent']
+      let emitMetric: VectorStoreDeps['emitMetric']
+      if (encryptContent || encryptMetadata) {
+        const cipher = await resolveAiFieldCipher(app)
+        if (!cipher) {
+          failAiConfig(
+            '[ai] config.ai.embedding.encryptContent/encryptMetadata require the crypto satellite, which is not installed'
+          )
+        }
+        const metrics = await app.container.make(MetricsService)
+        sealContent = (tenantId, plain) =>
+          cipher.seal(tenantId, tenantId, AI_EMBEDDINGS_DEK_CATEGORY, plain)
+        openContent = (tenantId, ciph) =>
+          cipher.open(tenantId, tenantId, AI_EMBEDDINGS_DEK_CATEGORY, ciph)
+        emitMetric = (tenantId, name, value) => metrics.emitMetric(tenantId, name, value)
+      }
       return new VectorStoreService({
         getDriver: () => getActiveDriver(),
         getDb: async () => (await resolveLucidDb(app)) as unknown as VectorDb,
         activeScopeTenantId: () => tenancy.currentId(),
         dimension: ai?.embedding?.dimension ?? DEFAULT_EMBEDDING_DIM,
         purgeStatementTimeoutMs: ai?.purgeStatementTimeoutMs,
+        encryptContent,
+        encryptMetadata,
+        sealContent,
+        openContent,
+        emitMetric,
       })
     })
     // The ingestion orchestrator. It injects the store, the kernel quota
@@ -501,6 +537,10 @@ export default definePlugin({
       if (config.ai.embedding) compliance.register(aiEmbeddingRetentionControl)
     }
     if (config?.ai) {
+      // Wave 5: a host that selected tenant-dek memory or encrypted embeddings must have
+      // the optional crypto peer installed, or boot fails CLOSED (never a silent fallback
+      // to the fleet APP_KEY). A no-op for the default (app-key memory, plaintext embeddings).
+      await assertCryptoPeerForAtRest(app, config.ai)
       // Wave 1: an unbudgeted, unacknowledged, non-dynamic aiTokens quota is now a
       // FAIL-CLOSED boot abort (it was a warning that scrolled past). The acknowledge
       // escape hatch and the info-only dynamic/operator-ceiling postures still let
@@ -700,6 +740,138 @@ function requireAppKey(): string {
     throw new Error('[ai] APP_KEY is not set; the idempotency MAC key derives from it')
   }
   return appKey
+}
+
+// --- Data at rest (Wave 5, GATED) ---
+// The `crypto` satellite is an OPTIONAL peer: the AI package works without it (memory is
+// app-key sealed, embeddings are plaintext). So it is NEVER value-imported at module load
+// (a static import would make the AI provider fail to load whenever crypto is absent);
+// the at-rest paths resolve it lazily, and boot fails CLOSED if a host selected an at-rest
+// DEK without installing it. Mirrors the admin -> sso optional-peer pattern.
+
+/** Type-only handle on the optional crypto peer's public surface (erased at build). */
+type CryptoModule = typeof import('@adonisjs-lasagna/crypto')
+
+/** The narrow seal/open the at-rest paths need, over crypto's fail-closed field-encryption facade. */
+interface AiFieldCipher {
+  seal: (tenantId: string, subject: string, category: string, plaintext: string) => Promise<string>
+  open: (tenantId: string, subject: string, category: string, ciphertext: string) => Promise<string>
+}
+
+/** Load the optional crypto peer, or null when it is not installed. */
+async function loadCryptoModule(): Promise<CryptoModule | null> {
+  try {
+    return await import('@adonisjs-lasagna/crypto')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Resolve crypto's field-encryption core into the narrow {@link AiFieldCipher}, or null
+ * when crypto is not installed. The `{ id: tenantId }` tenant reference is all the
+ * wrapped-DEK store reads (it dereferences only `tenant.id`); the memory hot path holds
+ * no full tenant object and runs with no ambient tenancy scope, which is safe because the
+ * store's ContextSeal only fires when a scope IS bound (here it is not, so the
+ * caller-supplied tenant id is trusted).
+ */
+async function resolveAiFieldCipher(app: ApplicationService): Promise<AiFieldCipher | null> {
+  const mod = await loadCryptoModule()
+  if (!mod) return null
+  const crypto = await app.container.make(mod.CryptoService)
+  const tenantRef = (tenantId: string) => ({ id: tenantId }) as unknown as TenantModelContract
+  return {
+    seal: (tenantId, subject, category, plaintext) =>
+      crypto.encryptField(tenantRef(tenantId), subject, category, plaintext),
+    open: (tenantId, subject, category, ciphertext) =>
+      crypto.decryptField(tenantRef(tenantId), subject, category, ciphertext),
+  }
+}
+
+/**
+ * Boot gate (Wave 5): a host that selects `tenant-dek` memory or encrypted embeddings
+ * MUST have the crypto peer installed, or boot fails CLOSED through the same
+ * `guard.ai_config_invalid` choke the config validator uses. Selecting an at-rest DEK is a
+ * STRENGTHENING of the default, so there is no acknowledge escape hatch; a host that asked
+ * for tenant-DEK memory without crypto must never silently fall back to the fleet key.
+ */
+async function assertCryptoPeerForAtRest(app: ApplicationService, ai: AiConfig): Promise<void> {
+  const wantsMemoryDek = ai.memory?.encryption === 'tenant-dek'
+  const wantsEmbeddingCipher =
+    ai.embedding?.encryptContent === true || ai.embedding?.encryptMetadata === true
+  if (!wantsMemoryDek && !wantsEmbeddingCipher) return
+  if ((await loadCryptoModule()) === null) {
+    const which = wantsMemoryDek
+      ? 'config.ai.memory.encryption = "tenant-dek"'
+      : 'config.ai.embedding.encryptContent/encryptMetadata'
+    failAiConfig(
+      `[ai] ${which} requires the optional crypto satellite (@adonisjs-lasagna/crypto), which is not installed. ` +
+        'Install and configure it, or drop the at-rest setting; the AI package must not silently fall back to the fleet APP_KEY.'
+    )
+  }
+}
+
+/**
+ * Build the memory encrypt/decrypt/previous seams for the configured at-rest mode (Wave 5).
+ * `'app-key'` (default) reproduces today byte-for-byte: `writeSecret`/`readSecret` under the
+ * `aiConversationMemory` secret class, now wrapped in resolved promises and ignoring the
+ * tenant id (the fleet key is not per-tenant), plus the `OLD_APP_KEY` grace read.
+ * `'tenant-dek'` seals under a per-tenant memory DEK from crypto; a shredded/absent DEK
+ * degrades the read to empty (fail-safe), and a KeyProvider outage is surfaced via a
+ * distinct metric. No per-blob previous-key grace on that path (KEK rotation lives inside
+ * the KeyProvider), so `decryptMemoryPrevious` is unused there.
+ */
+async function buildMemoryEncryptionSeams(
+  app: ApplicationService,
+  ai: AiConfig | undefined,
+  metrics: MetricsService
+): Promise<
+  Pick<ConversationMemoryDeps, 'encryptMemory' | 'decryptMemory' | 'decryptMemoryPrevious'>
+> {
+  const mode = ai?.memory?.encryption ?? DEFAULT_AI_MEMORY_ENCRYPTION
+  if (mode === 'tenant-dek') {
+    const cipher = await resolveAiFieldCipher(app)
+    if (!cipher) {
+      // boot() already asserts this; defense in depth for a make() that beats boot.
+      failAiConfig(
+        '[ai] config.ai.memory.encryption = "tenant-dek" requires the crypto satellite, which is not installed'
+      )
+    }
+    return {
+      encryptMemory: (tenantId, plain) =>
+        cipher.seal(tenantId, tenantId, AI_MEMORY_DEK_CATEGORY, plain),
+      decryptMemory: async (tenantId, ciphertext) => {
+        try {
+          return await cipher.open(tenantId, tenantId, AI_MEMORY_DEK_CATEGORY, ciphertext)
+        } catch (error) {
+          // A shredded/absent DEK (`dek_missing`) is the EXPECTED crypto-erase outcome: the
+          // read degrades to empty and fires NO error metric (a shred is not a fault). Any
+          // other failure (a KMS / KeyProvider outage) is surfaced via the distinct
+          // DEK-unavailable metric so it is not mistaken for a botched rotation, then
+          // re-thrown so the turn still degrades fail-safe (today's store-outage posture).
+          if ((error as { code?: string } | null)?.code !== 'dek_missing') {
+            metrics.emitMetric(tenantId, AI_MEMORY_DEK_UNAVAILABLE_METRIC, 1)
+          }
+          throw error
+        }
+      },
+      decryptMemoryPrevious: undefined,
+    }
+  }
+
+  const currentAppKey = requireAppKey()
+  const oldAppKey = process.env.OLD_APP_KEY
+  return {
+    encryptMemory: (_tenantId, plain) =>
+      Promise.resolve(writeSecret(plain, 'aiConversationMemory')),
+    decryptMemory: (_tenantId, cipher) =>
+      Promise.resolve(readSecret(cipher, 'aiConversationMemory')),
+    decryptMemoryPrevious:
+      oldAppKey && oldAppKey !== currentAppKey
+        ? (_tenantId, cipher) =>
+            Promise.resolve(decryptWithAppKey(cipher, oldAppKey, SECRET_CLASS.aiConversationMemory))
+        : undefined,
+  }
 }
 
 /** Construct a built-in provider from its config block; custom names are host-registered. */

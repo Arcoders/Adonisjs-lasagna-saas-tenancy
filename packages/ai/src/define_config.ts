@@ -78,6 +78,31 @@ export interface AIEmbeddingConfig extends AIProviderConfig {
    * caller use AI at all"); this gates "may this caller write to the index".
    */
   authorizeIngestion?: TenantAccessAuthorizer
+  /**
+   * Encrypt the `content` column at rest under a per-tenant DEK (Wave 5, GATED).
+   * Default false (plaintext, today's behavior). Turning it on is a SEPARATE per-host
+   * go: it requires the optional crypto satellite (boot fails closed if it is selected
+   * without crypto installed) and seals `content` to enc_v2 ciphertext before insert,
+   * decrypting the O(limit) returned rows after the ANN scan. `content_hash` is
+   * UNAFFECTED (it hashes caller plaintext upstream of storage, so a re-ingest still
+   * dedups), and `source`/`actor` stay plaintext (they key purge and ACL).
+   *
+   * HONEST RESIDUAL: the embedding VECTOR cannot be encrypted (ANN search needs it) and
+   * stays approximately invertible to source text. This defends a raw `content` column
+   * dump (a `pg_dump`, a replica snapshot, a mis-scoped analytics read), NOT vector
+   * inversion; physical isolation remains the real embedding control.
+   */
+  encryptContent?: boolean
+  /**
+   * Also encrypt the `metadata` column at rest (Wave 5, GATED). Default false. This is
+   * MUTUALLY EXCLUSIVE with metadata-scoped retrieval: the `metadata @> ?::jsonb`
+   * containment predicate cannot run over ciphertext, so with this on a `RetrievalScope`
+   * of `kind: 'metadata'` is refused fail-closed with
+   * `guard.ai_embedding_metadata_scope_conflict` rather than silently returning zero
+   * rows. Leave false unless the host has no metadata-ACL retrieval and metadata secrecy
+   * is worth losing metadata-scoped search.
+   */
+  encryptMetadata?: boolean
 }
 
 /**
@@ -153,6 +178,22 @@ export interface AIMemoryConfig {
   maxChars?: number
   /** Sliding TTL for a session's memory in ms, refreshed each turn. Default 86400000 (24h). */
   ttlMs?: number
+  /**
+   * At-rest key strategy for stored memory (Wave 5, GATED). Default `'app-key'`
+   * reproduces today byte-for-byte: one fleet-wide `HKDF(APP_KEY)` key under the
+   * `aiConversationMemory` secret class. `'tenant-dek'` is the strengthening — a
+   * per-tenant DEK from the optional crypto satellite, so an APP_KEY leak no longer
+   * decrypts every tenant's history and a crypto-shred of one tenant's memory DEK makes
+   * that tenant's memory cryptographically irrecoverable (even from a pre-shred backup).
+   *
+   * Selecting `'tenant-dek'` is a SEPARATE per-host go: it lands on the memory hot path
+   * (every turn read/written) and boot FAILS CLOSED if it is selected without the crypto
+   * satellite installed. It raises the AT-REST bar, not the runtime bar (a live-process
+   * compromise still sees decrypted turns), and it retires the `OLD_APP_KEY` re-encrypt
+   * grace on that path (KEK rotation is handled inside the KeyProvider). See
+   * `design/ai-enterprise-hardening/05-data-at-rest.md`.
+   */
+  encryption?: 'app-key' | 'tenant-dek'
 }
 
 /**
