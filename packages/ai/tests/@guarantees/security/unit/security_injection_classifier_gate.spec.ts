@@ -57,7 +57,9 @@ function build(opts: BuildOpts = {}) {
       macKey: deriveAiIdempotencyMacKey('test-app-key'),
     }),
     liveness: new TenantLivenessWatcher(),
-    emitMetric: (tenantId, name, value) => metrics.push({ tenantId, name, value }),
+    emitMetric: (tenantId, name, value) => {
+      metrics.push({ tenantId, name, value })
+    },
     config: {
       allowedProviders: ['claude'],
       authorizeAIAccess: () => true,

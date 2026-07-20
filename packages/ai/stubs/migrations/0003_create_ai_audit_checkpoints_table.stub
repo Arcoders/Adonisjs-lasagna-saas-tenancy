@@ -8,8 +8,8 @@ export default class extends BaseSchema {
 
   async up() {
     // The retention checkpoint table (Wave 4, audit consumption 3.4). A per-tenant
-    // signed high-water mark an incremental verify seeds FROM, and what
-    // `tenant:ai:audit:archive` advances after a segment is exported to WORM/SIEM.
+    // signed high-water mark an incremental verify seeds FROM, and what the
+    // tenant:ai:audit:archive command advances after a segment is exported to WORM/SIEM.
     //
     // Deliberately NOT append-only (unlike ai_audit_logs): a checkpoint is UPSERTED
     // forward as the chain advances, so no immutability triggers guard it. It stores

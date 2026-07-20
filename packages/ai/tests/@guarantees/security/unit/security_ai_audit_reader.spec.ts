@@ -49,11 +49,19 @@ function dbRow(tenantId: string, seq: number, over: Record<string, unknown> = {}
   }
 }
 
+interface FakeReaderClient {
+  rawQuery(
+    sql: string,
+    bindings?: readonly unknown[]
+  ): Promise<{ rows: Array<Record<string, unknown>> }>
+  transaction<T>(cb: (c: FakeReaderClient) => Promise<T>): Promise<T>
+}
+
 function fakeReader(opts: FakeOpts = {}) {
   const queries: Array<{ sql: string; bindings: readonly unknown[] }> = []
   const pages = [...(opts.pages ?? [[]])]
-  const client = {
-    async rawQuery(sql: string, bindings: readonly unknown[] = []) {
+  const client: FakeReaderClient = {
+    async rawQuery(sql, bindings = []) {
       const flat = sql.replace(/\s+/g, ' ').trim()
       queries.push({ sql: flat, bindings })
       const s = flat.toLowerCase()
@@ -65,9 +73,9 @@ function fakeReader(opts: FakeOpts = {}) {
         }
         return { rows: all }
       }
-      return { rows: pages.length > 0 ? pages.shift() : [] }
+      return { rows: pages.shift() ?? [] }
     },
-    async transaction<T>(cb: (c: typeof client) => Promise<T>) {
+    async transaction(cb) {
       return cb(client)
     },
   }

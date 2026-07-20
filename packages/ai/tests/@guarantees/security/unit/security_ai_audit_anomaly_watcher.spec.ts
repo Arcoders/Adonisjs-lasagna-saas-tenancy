@@ -3,6 +3,7 @@ import type { IsthmusGuardTrippedPayload } from '@adonisjs-lasagna/saas-tenancy/
 import AiAuditAnomalyWatcher, {
   reportScheduledVerify,
   wireAiAuditAnomalyWatcher,
+  type GuardTrippedEventLike,
 } from '../../../../src/services/ai_audit_anomaly_watcher.js'
 import { MAX_AI_ANOMALY_TRACKED_KEYS } from '../../../../src/constants.js'
 import {
@@ -44,7 +45,9 @@ test.group('AiAuditAnomalyWatcher (Wave 4, 3.6)', (group) => {
     const watcher = new AiAuditAnomalyWatcher({
       threshold: 3,
       windowMs: 60_000,
-      emitMetric: (_t, name) => metrics.push(name),
+      emitMetric: (_t, name) => {
+        metrics.push(name)
+      },
     })
     watcher.record(TRIP, 1_000)
     watcher.record(TRIP, 1_100)
@@ -150,9 +153,9 @@ test.group('wireAiAuditAnomalyWatcher (Wave 4, 3.6)', () => {
   }) => {
     const recorded: string[] = []
     const watcher = { record: (trip: { guard: string }) => recorded.push(trip.guard) }
-    let handler: ((event: unknown) => void) | undefined
+    let handler: ((event: GuardTrippedEventLike) => void) | undefined
     const emitter = {
-      on: (_e: unknown, h: (event: unknown) => void) => {
+      on: (_e: unknown, h: (event: GuardTrippedEventLike) => void) => {
         handler = h
         return () => {}
       },
