@@ -67,6 +67,22 @@
       "project": ["**/*.ts"],
       "ignoreDependencies": ["pg"]
     },
+    "apps/rental": {
+      "entry": [
+        "adonisrc.ts",
+        "bin/**/*.ts",
+        "start/**/*.ts",
+        "config/**/*.ts",
+        "database/**/*.ts",
+        "app/**/*.ts",
+        "commands/**/*.ts",
+        "inertia/app/**/*.{ts,tsx}",
+        "inertia/pages/**/*.tsx",
+        "tests/**/*.ts"
+      ],
+      "project": ["**/*.{ts,tsx}"],
+      "ignoreDependencies": ["pg"]
+    },
     "benchmarks": {
       "entry": [
         "src/*/index.ts",
