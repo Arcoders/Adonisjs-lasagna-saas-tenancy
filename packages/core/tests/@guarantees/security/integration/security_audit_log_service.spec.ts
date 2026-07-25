@@ -97,6 +97,34 @@ test.group('AuditLogService — public API', (group) => {
     }
   })
 
+  // The 'ai' actor is first-class: an action the AI assistant took on behalf of a
+  // staff member, whose principal is the row's actor_id. Widening
+  // AuditActorType must round-trip through the service to a persisted
+  // actor_type='ai', so the exportable business trail can query "the assistant did
+  // this" instead of digging it out of metadata.
+  test("log() persists the first-class 'ai' actor type", async ({ assert }) => {
+    const t = await createTestTenant()
+    tenantIds.push(t.id)
+
+    const row = await new AuditLogService().log({
+      tenantId: t.id,
+      actorType: 'ai',
+      actorId: 'owner@example.test',
+      action: 'booking:cancel',
+      metadata: { via: 'ai_assistant', bookingReference: 'KRM-A1B2C3' },
+    })
+    assert.equal(row.actorType, 'ai')
+
+    const persisted = await db
+      .connection('backoffice')
+      .query()
+      .from('tenant_audit_logs')
+      .where('id', row.id)
+      .first()
+    assert.equal(persisted.actor_type, 'ai')
+    assert.equal(persisted.actor_id, 'owner@example.test')
+  })
+
   test('log() applies sane defaults when fields are omitted', async ({ assert }) => {
     const t = await createTestTenant()
     tenantIds.push(t.id)
