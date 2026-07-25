@@ -7,7 +7,7 @@ import type { DoctorContext } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * Wave 3 acceptance #6: the `ai_injection` doctor check reports the input-injection
+ * The `ai_injection` doctor check reports the input-injection
  * posture and NEVER fails a run. No classifier wired is the correct no-theater
  * default (info, structural boundary only); a wired classifier reports its
  * scanRetrieved + onError posture (info). Reporting the posture is the honest move;
@@ -20,7 +20,7 @@ function ai(over: Partial<AiConfig> = {}): AiConfig {
   return { allowedProviders: ['claude'], ...over }
 }
 
-test.group('ai_injection doctor check (Wave 3)', () => {
+test.group('ai_injection doctor check', () => {
   test('no config.ai at all reports nothing (AI not in use)', async ({ assert }) => {
     assert.isNull(aiInjectionPosture(undefined))
     assert.deepEqual(await aiInjectionCheck(() => undefined).run(emptyCtx), [])

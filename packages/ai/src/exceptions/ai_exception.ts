@@ -15,7 +15,7 @@ export const AI_ERROR_CODES = [
   'config_missing',
   'byok_endpoint_blocked',
   'invalid_request',
-  // injection defense (Wave 3): a host InjectionClassifier returned a block verdict
+  // injection defense: a host InjectionClassifier returned a block verdict
   'injection_detected',
   // vector store
   'rowscope_unsupported',
@@ -23,7 +23,7 @@ export const AI_ERROR_CODES = [
   'embedding_quota_exhausted',
   'tenant_scope_mismatch',
   'vector_store_unavailable',
-  // data at rest (Wave 5, gated): a metadata-scoped retrieval on an encryptMetadata
+  // data at rest (gated): a metadata-scoped retrieval on an encryptMetadata
   // corpus is unsatisfiable, and a content seal that fails must never write plaintext
   'embedding_metadata_scope_conflict',
   'embedding_seal_failed',
@@ -38,14 +38,14 @@ export const AI_ERROR_CODES = [
   'memory_session_invalid',
   // compliance / residency
   'residency_denied',
-  // tool / function calling (WS-AI-11)
+  // tool / function calling
   'tool_unknown',
   'tool_denied',
   'tool_input_invalid',
   'tool_action_disabled',
   'tool_budget_exhausted',
   'too_many_concurrent',
-  // Action-tool confirmation (WS-AI-11 Phase 3a)
+  // Action-tool confirmation
   'tool_confirmation_required',
   'tool_confirmation_invalid',
   'tool_action_unavailable',
@@ -103,7 +103,7 @@ const STATUS_BY_CODE: Record<AIErrorCode, number> = {
   // forged request (like a malformed Idempotency-Key), a permanent 400.
   memory_session_invalid: 400,
   // A request whose provider/embedding egress is not allowed by the tenant's
-  // residency posture (#7/#15) is a permanent 403, like the other authz gates.
+  // residency posture is a permanent 403, like the other authz gates.
   residency_denied: 403,
   // Tool-calling refusals: an unknown tool or invalid model-generated arguments
   // are permanent 400s; a denied authorization and a disabled action tool are

@@ -59,7 +59,7 @@ test.group('AIProviderRegistry: streaming-presence gate', () => {
  * older provider, so a v1 provider claiming a v2 capability would otherwise boot
  * and crash mid-stream. Tool support IS contract v2, so a provider declaring
  * `capabilities.tools` against a pre-v2 contract is incoherent and fails closed at
- * registration — while a v1 provider that makes no such claim stays welcome,
+ * registration. A v1 provider that makes no such claim stays welcome,
  * because every member v2 added is optional and the chat controller never hands a
  * tool turn to a provider that did not declare the capability.
  */
@@ -106,7 +106,7 @@ test.group('AIProviderRegistry: v2 tool-capability shape gate (EXT-3)', () => {
 
   test('the shipped providers satisfy their own gate', ({ assert }) => {
     // ClaudeProvider / OpenAICompatibleProvider declare capabilities.tools, so they
-    // must also declare contract v2 — the gate would otherwise refuse the built-ins.
+    // must also declare contract v2, or the gate would refuse the built-ins.
     const registry = new AIProviderRegistry()
     assert.doesNotThrow(() =>
       registry.register(new MockAIProvider({ name: 'deepseek', contractVersion: 2, tools: true }))

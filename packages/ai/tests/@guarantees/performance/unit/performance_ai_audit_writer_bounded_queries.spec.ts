@@ -8,7 +8,7 @@ import { fakeAuditEnv, sampleAuditRow } from '../../../helpers/fake_audit_db.js'
  * audit cost is O(1) per attributed action (the recording fake is the only
  * query-count vehicle in the package).
  */
-test.group('performance — AiAuditWriter bounded queries', () => {
+test.group('performance: AiAuditWriter bounded queries', () => {
   test('one append issues exactly the advisory lock + tail select + insert', async ({ assert }) => {
     const env = fakeAuditEnv()
     await new AiAuditWriter(env.deps).append(sampleAuditRow())

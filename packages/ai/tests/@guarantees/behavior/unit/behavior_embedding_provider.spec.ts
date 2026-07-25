@@ -123,7 +123,7 @@ test.group('OpenAICompatibleEmbeddingProvider', () => {
     )
   })
 
-  test('a model outside the allow-list is refused (G12) before any call', async ({ assert }) => {
+  test('a model outside the allow-list is refused before any call', async ({ assert }) => {
     const { deps, calls } = fakeFetch(() => jsonResponse(embeddingsBody([[0.1]])))
     const provider = new OpenAICompatibleEmbeddingProvider(
       params,

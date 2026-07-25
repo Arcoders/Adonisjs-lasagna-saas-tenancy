@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 /**
- * Docs-integrity for the AI satellite's TOOL surface (WS-AI-11).
+ * Docs-integrity for the AI satellite's TOOL surface.
  *
  * Core's `config_documented.spec.ts` walks TOP-LEVEL config keys, so it sees
  * `config.ai` and stops there. Everything under `config.ai.tools` is invisible to it:
@@ -120,7 +120,7 @@ test.group('Docs integrity: AI tools surface', () => {
 
   test('the tool error codes a host handles are documented', ({ assert }) => {
     // A host writing a client against the stream needs the codes by name: these are
-    // what arrive as an in-band `event: error`, or as a pre-flight status. The Phase 3a
+    // what arrive as an in-band `event: error`, or as a pre-flight status. The
     // action-confirmation codes are included so the mutating-tool surface cannot drift
     // back to being undocumented once it shipped.
     const page = read(TOOLS_DOC)
@@ -146,7 +146,7 @@ test.group('Docs integrity: AI tools surface', () => {
     assert.notMatch(
       page,
       /Tools ship post-1\.0/i,
-      'vector #12 still claims tools are post-1.0, but WS-AI-11 shipped'
+      'vector #12 still claims tools are post-1.0, but they shipped'
     )
     assert.notMatch(
       page,

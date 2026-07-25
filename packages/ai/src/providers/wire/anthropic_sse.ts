@@ -16,7 +16,7 @@ interface ToolBlock {
  * `message_delta` (`usage.output_tokens`), emitted as a `usage` fragment carrying
  * the incremental delta so the streaming service can settle real token counts. A
  * `tool_use` content block is accumulated across its `input_json_delta` chunks
- * (WS-AI-11) and emitted as one `tool_call` fragment per completed call when
+ * and emitted as one `tool_call` fragment per completed call when
  * `message_delta` reports `stop_reason: 'tool_use'`; a block that never reaches
  * `content_block_stop` is discarded rather than surfaced with partial arguments.
  * A round may carry both text and tool_use: the text streams live and the tool

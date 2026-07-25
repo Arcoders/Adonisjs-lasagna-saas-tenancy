@@ -14,7 +14,7 @@ import type { AiConfig, AIToolHostDefinition, AIToolsConfig } from '../../src/de
 import type { StreamFragment } from '../../src/types/ai_provider_contract.js'
 
 /**
- * The controller-level tool-loop harness (WS-AI-11 Phase 9c/9d): a REAL
+ * The controller-level tool-loop harness: a REAL
  * `AiChatController` + `StreamExtensionService` + `ToolExecutorService` + tool
  * loop, driven offline by `MockAIProvider`'s multi-round script. Only the tenancy
  * pair, the quota and the idempotency store are doubles, so a spec exercises the
@@ -50,7 +50,7 @@ export interface BuildToolChatOptions {
   tools?: Partial<AIToolsConfig>
   /** The provider's per-round script. Default: round 1 calls the tool, round 2 answers. */
   rounds?: StreamFragment[][]
-  /** Drop `config.ai.tools` entirely — the plain-chat control. */
+  /** Drop `config.ai.tools` entirely, the plain-chat control. */
   toolFree?: boolean
   /** Leave the executor dep unwired, as the route does for a host without tools. */
   wireExecutor?: boolean
@@ -60,7 +60,7 @@ export interface BuildToolChatOptions {
   store?: AiIdempotencyStore
   /** Share a watcher across calls (the concurrency-cap spec). */
   liveness?: TenantLivenessWatcher
-  /** Wire the Phase 3a confirmation MAC key + an in-memory action ledger into the executor. */
+  /** Wire the confirmation MAC key + an in-memory action ledger into the executor. */
   actionMachinery?: boolean
 }
 

@@ -51,18 +51,18 @@ export interface ToolExecutorDeps {
   runScoped: <T>(tenant: TenantModelContract, fn: () => Promise<T>) => Promise<T>
   activeScopeTenantId: () => string | undefined
   getToolsConfig: () => AIToolsConfig | undefined
-  /** The `op: 'tool'` audit sink (WS-AI-11 / WS-AI-7). Absent ⇒ no audit row. */
+  /** The `op: 'tool'` audit sink. Absent ⇒ no audit row. */
   toolAudit?: AiToolAuditSink | undefined
   /** Per-tenant integer metrics (core's `MetricsService.emitMetric`). Absent ⇒ no metrics. */
   emitMetric?: EmitMetric | undefined
   /**
-   * The confirmation MAC key (Phase 3a), derived from APP_KEY. ABSENT MEANS NO
+   * The confirmation MAC key, derived from APP_KEY. ABSENT MEANS NO
    * ACTION TOOL CAN RUN: without it nothing can be verified, and an unverifiable
    * mutation must not happen. Read tools never consult it.
    */
   confirmationMacKey?: Buffer | undefined
   /**
-   * The at-most-once fence (Phase 3a). Absent means no action tool can run, for the
+   * The at-most-once fence. Absent means no action tool can run, for the
    * same reason: an effect that cannot be fenced could fire twice.
    */
   actionLedger?: AiActionLedger | undefined
@@ -80,18 +80,18 @@ export interface RequestBoundExecutor extends ToolLoopExecutor {
 }
 
 /**
- * Executes one model-issued tool call under the full WS-AI-11 security gate order
- * (Phase 3), fulfilling the loop's {@link ToolLoopExecutor} seam. Stateful only
+ * Executes one model-issued tool call under the full security gate order,
+ * fulfilling the loop's {@link ToolLoopExecutor} seam. Stateful only
  * through its injected seams, so it registers as a container singleton and is
  * `container.make`-resolved, never `new`-ed ad hoc.
  *
  * `forRequest` binds a request's `ctx`, `tenant` and the FULL resolved tool set
  * (read + action, so the gate can tell an unknown tool from a disabled action one),
- * returning the {@link RequestBoundExecutor} the loop drives. `plan` runs the gate,
- * in order — resolve the tool (`tool_unknown`), refuse a disabled action
+ * returning the {@link RequestBoundExecutor} the loop drives. `plan` runs the gate
+ * in order: resolve the tool (`tool_unknown`), refuse a disabled action
  * (`tool_action_disabled`), authorize (`tool_denied`), validate arguments
  * (`tool_input_invalid`), re-assert the ambient tenancy scope (`tenant_scope_mismatch`,
- * the I7 confused-deputy defense), then decide an action's confirmation — WITHOUT
+ * the confused-deputy defense), then decide an action's confirmation, all WITHOUT
  * running the effect: it returns a `challenge` for the human or a `run` thunk. The
  * thunk runs the handler INSIDE `tenancy.run(tenant)` under a per-tool timeout that
  * actually unblocks the loop, fences the result as an untrusted `role: 'tool'` turn,
@@ -106,7 +106,7 @@ export default class ToolExecutorService {
   /**
    * Bind a request. The loop drives {@link RequestBoundExecutor.plan}; `execute` is
    * the read/compat shim that runs a call to completion. `confirmations` are the
-   * tokens the client presented on THIS request (Phase 3a); an empty list is the
+   * tokens the client presented on THIS request; an empty list is the
    * normal read-only case and also the first turn of an action, before the human has
    * agreed to anything.
    */
@@ -137,11 +137,11 @@ export default class ToolExecutorService {
   }
 
   /**
-   * Classify one call under the full WS-AI-11 gate WITHOUT running its effect
-   * (Phase 3a). Resolve the tool (`tool_unknown`), refuse a disabled action
+   * Classify one call under the full gate WITHOUT running its effect.
+   * Resolve the tool (`tool_unknown`), refuse a disabled action
    * (`tool_action_disabled`), authorize (`tool_denied`), validate arguments
    * (`tool_input_invalid`), re-assert the ambient tenancy scope (`tenant_scope_mismatch`,
-   * the I7 confused-deputy defense) — each a FATAL throw the loop renders in-band.
+   * the confused-deputy defense): each is a FATAL throw the loop renders in-band.
    * Then, for an action, decide confirmation: a `challenge` to put to the human, or
    * a verified token to run under. The returned `run` thunk carries the effect (the
    * ledger claim, the fail-closed intent audit, the scoped+timed handler, the fenced
@@ -171,7 +171,7 @@ export default class ToolExecutorService {
     // until the tool resolves, so a `tool_unknown` denial audits mode 'read'.
     let tool: AIToolHostDefinition | undefined
     try {
-      // Gate order — each throws its own AIException (+ Isthmus guard) on refusal.
+      // Gate order: each throws its own AIException (+ Isthmus guard) on refusal.
       const t = resolveKnownTool(fullSet, call.name, tenant.id)
       tool = t
       assertActionAllowed(t, tenant.id, toolsConfig)
@@ -183,11 +183,11 @@ export default class ToolExecutorService {
         tenantId: tenant.id,
       })
 
-      // The I7 / confused-deputy re-assertion, BEFORE any `runScoped` binds the scope
+      // The confused-deputy re-assertion, BEFORE any `runScoped` binds the scope
       // (mirrors `ai_audit_writer.append` and `vector_store #target`): reading the
       // active scope here reflects the caller's AMBIENT scope, so if the request is
       // already running inside a tenancy scope it must be this tenant's. Reading it
-      // inside the bind instead would compare the just-set scope to itself — a
+      // inside the bind instead would compare the just-set scope to itself, a
       // tautology. It stays in THIS try so a breach is audited (outcome 'error'),
       // then rethrown as a FATAL abort. An undefined ambient scope (the normal
       // streaming path, none bound) trusts the caller; the kernel ContextSeal remains
@@ -225,7 +225,7 @@ export default class ToolExecutorService {
       }
     } catch (error) {
       // A FATAL gate refusal (unknown / action-disabled / denied / invalid / a
-      // failed summary) or the I7 scope breach: meter the denial, audit it, and
+      // failed summary) or the scope breach: meter the denial, audit it, and
       // rethrow so the loop renders it in-band and aborts. A scope breach is the one
       // 'error' outcome; the rest are 'denied'. The precise code rides in `reason`.
       this.#metric(tenant.id, AI_TOOL_DENIALS_METRIC, 1)
@@ -240,8 +240,8 @@ export default class ToolExecutorService {
 
   /**
    * Run one already-planned call to completion. For a confirmed action it FIRST
-   * claims the fence and writes the fail-closed intent audit (a refusal there —
-   * a replay, or the intent write failing — is fatal: meter, audit, rethrow like a
+   * claims the fence and writes the fail-closed intent audit (a refusal there,
+   * either a replay or the intent write failing, is fatal: meter, audit, rethrow like a
    * gate refusal). Then it runs the handler inside `tenancy.run` under the per-tool
    * timeout, fences the result, closes the fence, and audits the outcome. A handler
    * that merely fails degrades to a bounded error result so the loop continues.
@@ -358,7 +358,7 @@ export default class ToolExecutorService {
   }
 
   /**
-   * The action-tool confirmation decision (Phase 3a), side-effect-free. Called only
+   * The action-tool confirmation decision, side-effect-free. Called only
    * for `mode: 'action'`. `resolveActionConfirmation` re-derives the binding from
    * THIS request and reads only `jti`/`exp` off the wire, so a token for another
    * tenant, user, tool or arguments simply is not this value; it throws the fatal
@@ -366,7 +366,7 @@ export default class ToolExecutorService {
    * either a `confirmed` token to run under or a `challenge` to put to the human. No
    * token at all is NOT an error: it is the first turn, and the challenge (with its
    * fail-closed, bounded, host-authored summary) is what the loop emits. NOTHING is
-   * claimed or audited here — the fence and the intent write live in `#runCall`, so a
+   * claimed or audited here: the fence and the intent write live in `#runCall`, so a
    * challenged round mutates nothing.
    */
   #planAction(
@@ -458,7 +458,7 @@ export default class ToolExecutorService {
   /**
    * Write one `op: 'tool'` audit row, best-effort (like the chat `#auditSafe`): a
    * read-tool audit failure must not fail the loop. The event carries only non-PII
-   * fields (never the arguments or the result). NOTE (Phase 3a): an action tool's
+   * fields (never the arguments or the result). NOTE: an action tool's
    * intent must instead be written FAIL-CLOSED before the effect; that path lands
    * with the action-tool confirmation flow.
    */
@@ -489,7 +489,7 @@ export default class ToolExecutorService {
 }
 
 /**
- * Fence a handler's return as an untrusted `role: 'tool'` result turn (WS-AI-11).
+ * Fence a handler's return as an untrusted `role: 'tool'` result turn.
  * The result is coerced to a string (`undefined`/`null` -> empty, non-string ->
  * JSON, non-serializable -> a safe placeholder), bounded to `maxChars`, and any
  * occurrence of the fence token inside it is neutralized so it cannot forge a
@@ -528,7 +528,7 @@ function serializeToolResult(result: unknown): string {
 /**
  * Neutralize the fence token inside a tool result (case-insensitive,
  * length-preserving), so a tool result cannot forge `</tool_result>` and break out
- * of its fenced `role: 'tool'` turn. Wave 3 makes it OBSERVABLE the same way the
+ * of its fenced `role: 'tool'` turn. It is OBSERVABLE the same way the
  * retrieved-context fence is: a real rewrite emits `guard.ai_injection_structural`
  * (tenant-less; the caller emits the per-tenant counter from `neutralized`) so a
  * tool probing for a fence breakout is no longer invisible. The neutralization
@@ -546,8 +546,8 @@ function neutralizeToolFence(text: string): { text: string; neutralized: boolean
 /**
  * Await `work()` but stop waiting the instant `signal` aborts (the per-tool
  * timeout, a client disconnect, or a liveness revoke). An `AbortSignal` is
- * cooperative — a handler that never inspects it would otherwise block the single
- * pump indefinitely — so this races the handler promise against the abort and
+ * cooperative, so a handler that never inspects it would otherwise block the single
+ * pump indefinitely. This races the handler promise against the abort and
  * rejects on abort (the caller degrades the call). The handler may keep running
  * detached; its late settlement is consumed here so it never surfaces as an
  * unhandled rejection. An already-aborted signal rejects before `work` even starts.

@@ -21,7 +21,7 @@ import type { AiConfig } from '../../../../src/define_config.js'
 import type { AIMessage, AIProviderContract } from '../../../../src/types/ai_provider_contract.js'
 
 /**
- * The fail-closed retrieval default (WS-AI-5, G2), mirroring the G4 mount gate.
+ * The fail-closed retrieval default, mirroring the mount gate.
  * With embeddings configured but NO `retrievalFilter` wired and NO
  * `acknowledgeUnscopedRetrieval`, BOTH retrieval entry points refuse with a 403
  * `retrieval_denied` and a `guard.ai_retrieval_denied` `{reason:

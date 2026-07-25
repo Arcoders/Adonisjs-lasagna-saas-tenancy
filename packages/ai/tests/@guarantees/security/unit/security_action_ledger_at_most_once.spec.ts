@@ -49,8 +49,8 @@ class FakeLedgerDb implements ActionLedgerDb {
             Date,
           ]
           const existing = this.rows.get(effectKey)
-          // The load-bearing branch: a LIVE row means the DO UPDATE's WHERE does not
-          // match, so no row comes back and the caller learns it did not win.
+          // The branch that decides everything: a LIVE row means the DO UPDATE's WHERE
+          // does not match, so no row comes back and the caller learns it did not win.
           if (existing && existing.expiresAt > now) return { rowCount: 0, rows: [] }
           this.rows.set(effectKey, {
             tenantId,
@@ -301,7 +301,7 @@ test.group('action ledger: fails closed', () => {
 test.group('action ledger: tenant scope', () => {
   test('a request bound to another tenant cannot fence this one effect', async ({ assert }) => {
     // Raw queries bypass the kernel ContextSeal, so the writer re-asserts. Same
-    // shape as AiAuditWriter.append; the I7 confused-deputy check the security
+    // shape as AiAuditWriter.append; the confused-deputy check the security
     // review already caught once as a tautology elsewhere.
     const db = new FakeLedgerDb()
     const ledger = ledgerWith(db, OTHER)

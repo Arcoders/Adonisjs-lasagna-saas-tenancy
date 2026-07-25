@@ -39,7 +39,7 @@ function verifierOver(rows: Array<Record<string, unknown>>) {
   return new AiAuditWriter(fakeAuditEnv({ verifyRows: rows }).deps)
 }
 
-test.group('behavior — AiAuditWriter verify', () => {
+test.group('behavior: AiAuditWriter verify', () => {
   test('an intact chain verifies clean', async ({ assert }) => {
     const result = await verifierOver(chainRows('t1', 3)).verify()
     assert.isTrue(result.ok)
@@ -85,7 +85,7 @@ test.group('behavior — AiAuditWriter verify', () => {
   })
 })
 
-test.group('behavior — AiAuditWriter checkpoint-aware verify (Wave 4, 3.3)', () => {
+test.group('behavior: AiAuditWriter checkpoint-aware verify', () => {
   /** The seed a checkpoint at `seq` yields: that row's stored checksum. */
   const seedAt = (rows: Array<Record<string, unknown>>, seq: number) => ({
     seq,

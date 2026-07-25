@@ -80,14 +80,14 @@ export const AI_FRAGMENT_MAX_CHARS = 16_384
  */
 export const AI_OUTPUT_REDACTED_METRIC = 'ai_output_redacted'
 
-// --- Injection defense (Wave 3) ---
+// --- Injection defense ---
 // The structural boundary (fence/delimiter neutralization + role separation) is
 // made OBSERVABLE, and a pluggable `InjectionClassifier` host seam runs on INPUT.
 // The metric names below are fixed, content-free per-tenant counters, never inlined.
 
 /**
  * Per-tenant counter of retrieved-document / tool-result fence-token forgeries the
- * structural boundary NEUTRALIZED (WS-AI Wave 3, LLM01). Content-free (a count,
+ * structural boundary NEUTRALIZED (LLM01). Content-free (a count,
  * never the token or the document): it makes the already-closed structural defense
  * observable so an operator can watch a corpus probing for a fence breakout by its
  * rate. Mirrors {@link AI_OUTPUT_REDACTED_METRIC}: a dedicated counter beside the
@@ -97,8 +97,8 @@ export const AI_OUTPUT_REDACTED_METRIC = 'ai_output_redacted'
 export const AI_INJECTION_STRUCTURAL_METRIC = 'ai_injection_structural'
 
 /**
- * Per-tenant counter of requests a host `config.ai.injection.classifier` BLOCKED
- * (Wave 3). Content-free: it makes the optional semantic detector's block rate
+ * Per-tenant counter of requests a host `config.ai.injection.classifier` BLOCKED.
+ * Content-free: it makes the optional semantic detector's block rate
  * observable so false positives are the operator's tuning signal, never the text.
  */
 export const AI_INJECTION_DETECTED_METRIC = 'ai_injection_detected'
@@ -106,7 +106,7 @@ export const AI_INJECTION_DETECTED_METRIC = 'ai_injection_detected'
 /**
  * Per-tenant counter of times a host injection classifier itself failed (threw or
  * returned a malformed verdict). The classifier is NOT the isolation boundary
- * (structural role separation plus I4 is), so its error is fail-OPEN by default and
+ * (structural role separation plus a tenant-pure context is), so its error is fail-OPEN by default and
  * this counter is how that accepted degradation stays visible; a host that sets
  * `onError: 'closed'` couples availability to the detector knowingly.
  */
@@ -131,7 +131,7 @@ export const AI_EMBEDDINGS_TABLE = 'ai_embeddings'
 export const DEFAULT_EMBEDDING_DIM = 1536
 
 /**
- * The exhaustion quota (#18) bounding how many embedding rows a tenant may store,
+ * The exhaustion quota bounding how many embedding rows a tenant may store,
  * checked against the per-plan `limits.embeddingCount` (Infinity when unset). A
  * durable gauge counted from the table itself, never a rolling-day `consume`
  * counter (which resets at midnight).
@@ -183,15 +183,15 @@ export const MAX_RETRIEVAL_LIMIT = 50
 export const DEFAULT_MAX_QUERY_CHARS = 4_000
 
 /**
- * Default max retrieved documents folded into one chat context block (#8 output
- * bounds). Retrieved content is untrusted data, so the block is bounded before
+ * Default max retrieved documents folded into one chat context block, one of the
+ * output bounds. Retrieved content is untrusted data, so the block is bounded before
  * it enters a prompt. Tunable via `config.ai.retrieval.maxContextItems`.
  */
 export const DEFAULT_MAX_CONTEXT_ITEMS = 8
 
 /**
  * Default max characters of the fenced retrieved context block injected into a
- * chat prompt (#8). The block is trimmed (lowest-ranked matches dropped first)
+ * chat prompt. The block is trimmed (lowest-ranked matches dropped first)
  * so the ASSEMBLED prompt never exceeds `maxPromptChars`. Tunable via
  * `config.ai.retrieval.maxContextChars`.
  */
@@ -222,7 +222,7 @@ export const DEFAULT_MEMORY_MAX_TURNS = 20
 /**
  * Default character budget for the replayed memory block. Memory is injected
  * AFTER retrieval with `min(this, maxPromptChars - assembledChars)`, so the
- * assembled prompt never exceeds `maxPromptChars` (#2/#8). Tunable via
+ * assembled prompt never exceeds `maxPromptChars`. Tunable via
  * `config.ai.memory.maxChars`.
  */
 export const DEFAULT_MEMORY_MAX_CHARS = 8_000
@@ -245,7 +245,7 @@ export const DEFAULT_MEMORY_TTL_MS = 86_400_000
 export const AI_AUDIT_TABLE = 'ai_audit_logs'
 
 /**
- * The action-tool at-most-once ledger (WS-AI-11 Phase 3a). Shares the `backoffice`
+ * The action-tool at-most-once ledger. Shares the `backoffice`
  * schema with the audit table for the same reasons, but is deliberately NOT
  * append-only: a claimed row is updated once when its effect settles, so the
  * triggers guarding the audit chain would be wrong on it. The audit row is the
@@ -263,7 +263,7 @@ export const AI_ACTION_LEDGER_TABLE = 'ai_action_ledger'
 export const AI_AUDIT_LOCK_PREFIX = 'ai_audit:'
 
 /**
- * Per-destination deadline for external audit anchoring (#6). After the
+ * Per-destination deadline for external audit anchoring. After the
  * canonical row commits, each row is fanned out best-effort to the host's audit
  * destinations (the kernel `AuditLogDestinationRegistry`); a slow or throwing
  * destination is bounded and isolated, never affecting the committed row or the
@@ -271,7 +271,7 @@ export const AI_AUDIT_LOCK_PREFIX = 'ai_audit:'
  */
 export const AI_AUDIT_ANCHOR_TIMEOUT_MS = 2_000
 
-// --- Tool / function calling (WS-AI-11) ---
+// --- Tool / function calling ---
 // The tool loop's ceilings. Each DEFAULT_* is `config.ai.tools.*`-overridable and
 // clamped to its MAX_* hard cap; a value at a call site is always one of these.
 
@@ -304,7 +304,7 @@ export const MAX_TOOL_CALLS_PER_REQUEST = 16
 
 /**
  * Default cap on a tenant's TOTAL concurrent in-flight AI streams, evaluated when
- * a tool loop tries to start (Phase 2a). A tool-loop request is admitted only
+ * a tool loop tries to start. A tool-loop request is admitted only
  * while the tenant's live stream count is below this; at or above it the loop is
  * refused pre-commit with a 429 `too_many_concurrent`, so a flood of expensive
  * multi-round loops cannot starve the tenant's connection pool or drain its
@@ -365,7 +365,7 @@ export const MAX_TOOL_DEFS = 64
 export const AI_TOOL_FENCE_TAG = 'tool_result'
 
 /**
- * Per-tenant integer metric names for tool calling (WS-AI-11), emitted best-effort
+ * Per-tenant integer metric names for tool calling, emitted best-effort
  * through the executor's / loop's `emitMetric` seam (never on the reject path). Guard
  * trips already bridge `ai_guard_rejections`; these give per-outcome and latency
  * visibility. Fixed names, never inlined.
@@ -377,7 +377,7 @@ export const AI_TOOL_BUDGET_EXHAUSTED_METRIC = 'ai_tool_budget_exhausted'
 export const AI_TOOL_LATENCY_METRIC = 'ai_tool_latency_ms'
 
 /**
- * How long a minted action-tool confirmation stays spendable (WS-AI-11 Phase 3a).
+ * How long a minted action-tool confirmation stays spendable.
  * Short on purpose: the token is a bearer capability for one mutation, and it
  * cannot be revoked, so its lifetime IS its revocation. Long enough for a human to
  * read a prompt and decide, not long enough to be worth capturing from a log.
@@ -435,7 +435,7 @@ export const AI_TOOL_ARGS_SUMMARY_MAX_CHARS = 500
 export const AI_TOOL_ARGS_CANONICAL_MAX_DEPTH = 8
 
 /**
- * Per-tenant integer metrics for the Phase 3a confirmation flow.
+ * Per-tenant integer metrics for the confirmation flow.
  *
  * `ai_tool_confirmation_unmatched` earns its place: a token was PRESENTED and did
  * not verify, which is deliberately NOT a guard trip (the model rephrasing a number
@@ -448,7 +448,7 @@ export const AI_TOOL_CONFIRMATION_UNMATCHED_METRIC = 'ai_tool_confirmation_unmat
 export const AI_TOOL_ACTION_EXECUTED_METRIC = 'ai_tool_action_executed'
 export const AI_TOOL_ACTION_REPLAYED_METRIC = 'ai_tool_action_replayed'
 
-// --- Resilience: request-path Redis reads (Wave 1) ---
+// --- Resilience: request-path Redis reads ---
 // Every request-path Redis read routes through the kernel `ResilienceService.run`
 // via an injected `runResilient` closure, so a dependency outage degrades by a
 // named POLICY (not an ad-hoc per-call try/catch) and emits a uniform
@@ -487,10 +487,10 @@ export const AI_RESILIENCE_OP_IDEMPOTENCY_LOOKUP = 'ai.idempotency.lookup'
 export const AI_RESILIENCE_OP_IDEMPOTENCY_SAVE = 'ai.idempotency.save'
 export const AI_RESILIENCE_OP_RATE_LIMIT = 'ai.rate_limit.consume'
 
-// --- Audit consumption pillar (Wave 4) ---
+// --- Audit consumption pillar ---
 // The read/query API, export, incremental verify, retention checkpoint, and anomaly
 // watcher. Every bound is a named constant here; no consumption path ever rewrites a
-// chained row (seq / checksum / prev_checksum) — it reads and appends new artifacts.
+// chained row (seq / checksum / prev_checksum); it reads and appends new artifacts.
 
 /**
  * Default page size for `AiAuditReader.query`. Small on purpose: the audit read is a
@@ -519,7 +519,7 @@ export const MAX_AI_AUDIT_PAGE = 1000
 export const DEFAULT_AI_AUDIT_EXPORT_BATCH_SIZE = 500
 
 /**
- * The retention checkpoint table (Wave 4, 3.4). A per-(tenant) signed high-water mark
+ * The retention checkpoint table. A per-(tenant) signed high-water mark
  * `{ last_seq, last_checksum }` an incremental verify seeds FROM. It shares the
  * `backoffice` schema with the audit table (qualified via `qualifyBackofficeTable` with
  * the injected schema, never a `'backoffice'` literal) but is NOT append-only: a
@@ -528,7 +528,7 @@ export const DEFAULT_AI_AUDIT_EXPORT_BATCH_SIZE = 500
 export const AI_AUDIT_CHECKPOINT_TABLE = 'ai_audit_checkpoints'
 
 /**
- * Default sliding window for the anomaly watcher (Wave 4, 3.6): guard-trip velocity is
+ * Default sliding window for the anomaly watcher: guard-trip velocity is
  * counted per `(tenant, principal, guard)` over this window. 60s balances catching a
  * burst against smoothing normal operation. Tunable via `config.ai.audit.anomaly.windowMs`,
  * clamped to {@link MAX_AI_ANOMALY_WINDOW_MS}.
@@ -561,7 +561,7 @@ export const AI_ANOMALY_METRIC = 'ai_anomaly'
 /** The per-tenant metric emitted when a scheduled/alerting verify finds a chain break. Fixed, never inlined. */
 export const AI_AUDIT_CHAIN_BROKEN_METRIC = 'ai_audit_chain_broken'
 
-// --- Data at rest (Wave 5, GATED default-off) ---
+// --- Data at rest (GATED default-off) ---
 // Two seams and their validated config fields, both defaulting to EXACTLY today's
 // behavior: conversation memory sealed under one fleet-wide APP_KEY, and embeddings
 // content/metadata stored plaintext. Selecting `tenant-dek` memory or `encryptContent`
@@ -610,7 +610,7 @@ export const DEFAULT_AI_EMBEDDING_ENCRYPT_CONTENT = false
 /**
  * Default for `config.ai.embedding.encryptMetadata`. False keeps metadata plaintext and
  * metadata-scoped retrieval working. On, the `metadata` column seals too, which DISABLES
- * metadata-scoped retrieval (`metadata @> ?::jsonb` cannot run over ciphertext) — a
+ * metadata-scoped retrieval (`metadata @> ?::jsonb` cannot run over ciphertext), so a
  * `kind: 'metadata'` scope is then refused fail-closed with
  * `guard.ai_embedding_metadata_scope_conflict` rather than silently returning zero rows.
  */

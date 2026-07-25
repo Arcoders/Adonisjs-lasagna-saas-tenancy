@@ -9,13 +9,13 @@ export interface AiToolsPosture {
 }
 
 /**
- * The single-voice reading of the tool-calling authorization posture (WS-AI-11,
- * I7), shared by the boot warning and the `ai_tools` doctor check so the two never
+ * The single-voice reading of the tool-calling authorization posture,
+ * shared by the boot warning and the `ai_tools` doctor check so the two never
  * drift. Returns null when there is nothing to report: tool calling is off (no
  * `config.ai.tools`), no tools are actually offered (neither a non-empty static
  * `registry` nor a `resolveTools` hook), or a per-tool `authorizeTool` ACL is wired.
  *
- * Tool calling is fail-closed (mirrors retrieval's G2 gate). With tools offered but
+ * Tool calling is fail-closed (mirrors retrieval's gate). With tools offered but
  * no `authorizeTool`:
  * - not acknowledged: every tool call is REFUSED (a 403 `tool_denied`) -> a `warn`
  *   telling the operator how to enable it.
@@ -62,8 +62,8 @@ export function aiToolsPosture(ai: AiConfig | undefined): AiToolsPosture | null 
  * so the check reports the live posture and unit-tests without an app.
  *
  * It reports the authorization posture ({@link aiToolsPosture}) plus, when
- * `config.ai.tools.actionTools.enabled` is set, the action-tool posture (WS-AI-11
- * Phase 3a) via {@link aiActionToolIssues}: a `warn` when actions cannot actually
+ * `config.ai.tools.actionTools.enabled` is set, the action-tool posture via
+ * {@link aiActionToolIssues}: a `warn` when actions cannot actually
  * run (audit off, or a static registry action tool missing `summarizeArgs` / setting
  * `requiresConfirmation: false`), and an honest `info` when they can. A `resolveTools`
  * hook is per-request and cannot be boot-checked, so only the static registry is read.
@@ -72,7 +72,7 @@ export function aiToolsCheck(getAiConfig: () => AiConfig | undefined): DoctorChe
   return {
     name: 'ai_tools',
     description:
-      'Reports the AI tool-calling posture (WS-AI-11): the authorizeTool per-tool ACL, the ' +
+      'Reports the AI tool-calling posture: the authorizeTool per-tool ACL, the ' +
       'acknowledged tenant-wide opt-in, the fail-closed default (tool calls refused), and the ' +
       'action-tool confirmation posture when actionTools.enabled is set.',
 
@@ -92,9 +92,9 @@ export function aiToolsCheck(getAiConfig: () => AiConfig | undefined): DoctorChe
 }
 
 /**
- * The action-tool posture (WS-AI-11 Phase 3a), reported only when the kill-switch is
- * on. It surfaces the two ways a switched-on action still cannot run — the same two
- * the gate enforces at plan time — plus an honest note when it can:
+ * The action-tool posture, reported only when the kill-switch is
+ * on. It surfaces the two ways a switched-on action still cannot run, the same two
+ * the gate enforces at plan time, plus an honest note when it can:
  *
  * - audit off: the confirmation + at-most-once machinery is wired only when audit is
  *   on (an action's intent must be recorded before it runs), so with audit off every
@@ -162,8 +162,8 @@ export function aiActionToolIssues(ai: AiConfig): DiagnosisIssue[] {
     severity: 'info',
     message:
       'config.ai.tools.actionTools.enabled is set: a well-formed action (mutating) tool now runs ' +
-      'after a human confirms it (WS-AI-11 Phase 3a). HONEST LIMIT: the confirmation stops an ' +
-      'AUTONOMOUS mutation, not prompt injection — an injection can propose an action AND author ' +
+      'after a human confirms it. HONEST LIMIT: the confirmation stops an ' +
+      'AUTONOMOUS mutation, not prompt injection; an injection can propose an action AND author ' +
       'text urging the human to confirm it, so keep action tools narrow and reversible. Only the ' +
       'static registry is boot-checked here; a resolveTools hook is per-request.',
   })

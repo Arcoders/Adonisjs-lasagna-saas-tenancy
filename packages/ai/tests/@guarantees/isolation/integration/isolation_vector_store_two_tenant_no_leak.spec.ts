@@ -151,7 +151,7 @@ test.group('vector store two-tenant isolation (real pgvector)', (group) => {
     assert.deepEqual(first.ids, again.ids)
   }).skip(() => !pgvectorReady, 'pgvector not available (local postgres:16-alpine); runs in CI')
 
-  test('the embeddingCount cap bites atomically at the plan limit (#18)', async ({ assert }) => {
+  test('the embeddingCount cap bites atomically at the plan limit', async ({ assert }) => {
     const store = storeAs('A')
     // Earlier tests in this group seeded tenant A's shared table, and the cap counts
     // existing rows. Reset to a known-empty table so the 2/2 bite is exact.

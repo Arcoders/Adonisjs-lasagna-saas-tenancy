@@ -26,7 +26,7 @@ import type {
 /**
  * Fault-injection tier: the AUDIT DB is down when a confirmed action tries to run.
  *
- * WS-AI-11 Phase 3a inverts the read-tool audit ordering for an action: its intent is
+ * An action inverts the read-tool audit ordering: its intent is
  * written FAIL-CLOSED, BEFORE the effect. A mutation that ran with no durable record of
  * intent is one nobody can account for, so if the intent write cannot land the action
  * must NOT happen. The unit specs prove that ordering with fakes; this proves it against

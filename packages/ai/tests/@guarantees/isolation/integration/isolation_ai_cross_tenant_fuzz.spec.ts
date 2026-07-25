@@ -119,7 +119,7 @@ async function runBounded<T>(
 const query = { model: 'm', vector: [1, 0, 0, 0] }
 
 test.group(
-  'AI cross-tenant fuzz — embeddings + memory isolation (1D, real pgvector + Redis)',
+  'AI cross-tenant fuzz: embeddings + memory isolation (1D, real pgvector + Redis)',
   (group) => {
     const memory = memoryService()
     const memKeys = new Map<number, string>()

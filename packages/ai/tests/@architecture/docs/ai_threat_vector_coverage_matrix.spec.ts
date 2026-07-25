@@ -147,9 +147,9 @@ const MATRIX: VectorCoverage[] = [
     vector: 12,
     name: 'Tool / agent confused-deputy',
     invariant: 'I7',
-    // WS-AI-11 landed, so this row is no longer a forward contract. The red spec is
+    // Tool calling shipped, so this row is no longer a forward contract. The red spec is
     // the gate itself (default-deny registry, per-tool authorization, and the I7
-    // re-assert of the AMBIENT scope before `tenancy.run` binds — the actual
+    // re-assert of the AMBIENT scope before `tenancy.run` binds, which is the actual
     // confused-deputy check). The chaos slot is the executor's fault behaviors: a
     // handler that ignores its abort signal, one that throws, and a failing audit
     // sink each degrade without breaking the pump or the scope.
@@ -207,7 +207,7 @@ function resolveOnDisk(repoRelative: string): boolean {
   return existsSync(join(REPO_ROOT, repoRelative))
 }
 
-test.group('architectural docs — AI threat-vector coverage matrix (1G)', () => {
+test.group('architectural docs: AI threat-vector coverage matrix', () => {
   test('the matrix has exactly 18 entries, one per vector 1..18', ({ assert }) => {
     assert.lengthOf(MATRIX, 18)
     const numbers = MATRIX.map((row) => row.vector).sort((a, b) => a - b)

@@ -13,7 +13,7 @@ import {
 } from '../../../../src/isthmus/ai_guard_audit.js'
 
 /**
- * The BYOK per-key request rate limiter (threat #4, denial of wallet). It is a
+ * The BYOK per-key request rate limiter (denial of wallet). It is a
  * DIFFERENT rail from the token cost reserve: it caps requests-per-window on a
  * provider key. Over the window is a fail-closed 429 that rides the guard
  * channel; a backend outage is a fail-closed 503 that does NOT (a dependency

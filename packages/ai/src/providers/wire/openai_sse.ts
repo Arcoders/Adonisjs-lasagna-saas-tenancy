@@ -14,7 +14,7 @@ interface ToolCallAccumulator {
  * and any OpenAI-compatible endpoint) into StreamFragments. Text arrives on
  * `choices[].delta.content`; the final `usage.completion_tokens` (when the caller
  * requested usage) is emitted as a `usage` fragment. Streamed
- * `choices[].delta.tool_calls[]` are accumulated by `index` (WS-AI-11) and
+ * `choices[].delta.tool_calls[]` are accumulated by `index` and
  * emitted as one `tool_call` fragment per call when `finish_reason` is
  * `'tool_calls'`; a call that never received an id and name is discarded rather
  * than surfaced partial. The `data: [DONE]` sentinel ends the stream; an error

@@ -106,7 +106,7 @@ const ctx = {} as unknown as HttpContext
 /**
  * The tool whose effect we can see. It writes, which is what makes "no partial
  * effect" observable at all, but it is declared `mode: 'read'` because an `action`
- * tool is refused outright until the Phase 3a confirmation flow lands, and this spec
+ * tool is refused outright until the confirmation flow lands, and this spec
  * is about the transport fault rather than the action gate. It resolves its
  * connection from the AMBIENT scope, so it can only write to the right schema if the
  * executor really bound the scope around it.

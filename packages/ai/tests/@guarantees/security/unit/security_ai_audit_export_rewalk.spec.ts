@@ -14,11 +14,11 @@ import {
 } from '../../../../src/utils/ai_audit_export.js'
 
 /**
- * Wave 4 acceptance (3.2): the export is a SELF-VERIFIABLE forensic artifact. Every
- * exported record carries `seq`, `checksum`, and `prevChecksum`, so an EXTERNAL tool
- * re-walks each tenant's rows recomputing the checksum and linking through the exported
- * prev-link, needing nothing from the live database. And a value planted in an audited
- * field cannot execute in an analyst's spreadsheet (CSV formula-injection escaping).
+ * The export is a self-verifiable forensic artifact. Every exported record carries
+ * `seq`, `checksum`, and `prevChecksum`, so an external tool re-walks each tenant's
+ * rows recomputing the checksum and linking through the exported prev-link, needing
+ * nothing from the live database. And a value planted in an audited field cannot
+ * execute in an analyst's spreadsheet (CSV formula-injection escaping).
  */
 
 const baseRow = (over: Partial<AiAuditRow> = {}): AiAuditRow => ({
@@ -91,7 +91,7 @@ function independentRewalk(records: AiAuditExportRecord[]): { ok: boolean; broke
   return { ok: true }
 }
 
-test.group('AI audit export — self-verifiable re-walk (Wave 4, 3.2)', () => {
+test.group('AI audit export: self-verifiable re-walk', () => {
   test('a multi-tenant export re-walks clean with an INDEPENDENT checksum re-implementation', ({
     assert,
   }) => {

@@ -9,12 +9,12 @@ export interface InjectionPosture {
 }
 
 /**
- * The single-voice reading of the input-injection posture (Wave 3, LLM01). Returns
+ * The single-voice reading of the input-injection posture. Returns
  * null when there is nothing to report (AI is not configured). Otherwise it always
  * reports `info`: whether a host `classifier` is wired, whether `scanRetrieved` is
  * on, and the `onError` posture. It NEVER warns, because the accepted default state
- * (no classifier, structural boundary only) is correct, not a misconfiguration —
- * shipping a bundled semantic ruleset as a default would be the theater the design
+ * (no classifier, structural boundary only) is correct, not a misconfiguration.
+ * Shipping a bundled semantic ruleset as a default would be the theater the design
  * rejects, so the honest move is to report the posture, not to fail a run over it.
  */
 export function aiInjectionPosture(ai: AiConfig | undefined): InjectionPosture | null {
@@ -39,7 +39,7 @@ export function aiInjectionPosture(ai: AiConfig | undefined): InjectionPosture |
     severity: 'info',
     message:
       'AI injection detection: a host classifier is wired (defense-in-depth, NEVER the isolation ' +
-      `control — structural role separation plus I4 is): scanRetrieved=${scanRetrieved}, ` +
+      `control; structural role separation and a tenant-pure context are what isolate): scanRetrieved=${scanRetrieved}, ` +
       `onError='${onError}'. A block verdict refuses with a 400 injection_detected before any spend; ` +
       `with onError='${onError}' a classifier outage ${onError === 'closed' ? 'refuses traffic' : 'lets input through'}.`,
   }

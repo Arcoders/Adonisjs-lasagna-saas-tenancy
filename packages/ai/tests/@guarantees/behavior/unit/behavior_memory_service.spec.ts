@@ -9,10 +9,10 @@ import ConversationMemoryService, {
 import { FakeRedisLists } from '../../../helpers/fake_redis_lists.js'
 
 /**
- * The conversation memory service (WS-AI-4) against a Map-backed ioredis double:
+ * The conversation memory service against a Map-backed ioredis double:
  * the atomic LIST append + bounded trim, the encrypt-on-write / decrypt-on-read
  * round-trip, the fail-SAFE degrade on a store outage, the OLD_APP_KEY rotation
- * grace, and the WS-AI-9 purge seams. Session identity (mint/resolve) is pure
+ * grace, and the purge seams. Session identity (mint/resolve) is pure
  * crypto and never touches Redis.
  */
 
@@ -20,7 +20,7 @@ const TENANT = '11111111-1111-4111-8111-111111110001'
 const MAC = Buffer.alloc(32, 9)
 
 // A reversible fake enc_v2, so a stored blob is provably ciphertext (never plaintext).
-// Async + tenant-scoped to match the Wave-5 seam signature (the fake ignores the tenant id).
+// Async + tenant-scoped to match the seam signature (the fake ignores the tenant id).
 const enc = async (_tenantId: string, plain: string) =>
   `enc:${Buffer.from(plain, 'utf8').toString('base64')}`
 const dec = async (_tenantId: string, cipher: string) => {
@@ -44,7 +44,7 @@ function serviceWith(redis: FakeRedisLists, extra: Partial<ConversationMemoryDep
   return { svc, metrics, warns }
 }
 
-test.group('behavior — conversation memory service', () => {
+test.group('behavior: conversation memory service', () => {
   test('mint then resolve returns the same storage key', ({ assert }) => {
     const { svc } = serviceWith(new FakeRedisLists())
     const minted = svc.mintSession(TENANT, 'user-a')
@@ -176,7 +176,7 @@ test.group('behavior — conversation memory service', () => {
     assert.deepEqual(metrics, [{ tenantId: TENANT, name: AI_MEMORY_DECRYPT_PREVIOUS_METRIC }])
   })
 
-  test('without a grace key, an unreadable blob is dropped (not thrown) and records the undecryptable metric (H1)', async ({
+  test('without a grace key, an unreadable blob is dropped (not thrown) and records the undecryptable metric', async ({
     assert,
   }) => {
     const redis = new FakeRedisLists()
@@ -185,12 +185,12 @@ test.group('behavior — conversation memory service', () => {
     redis.data.set(storageKey, ['corrupt-not-ciphertext'])
 
     assert.deepEqual(await svc.load(TENANT, storageKey), [])
-    // H1: the silent drop must surface as a counter, not only a warn, so a botched
+    // The silent drop must surface as a counter, not only a warn, so a botched
     // APP_KEY rotation dropping historical turns is visible on a metrics dashboard.
     assert.deepEqual(metrics, [{ tenantId: TENANT, name: AI_MEMORY_UNDECRYPTABLE_METRIC }])
   })
 
-  test('both keys failing drops the turn and records the undecryptable metric once (H1)', async ({
+  test('both keys failing drops the turn and records the undecryptable metric once', async ({
     assert,
   }) => {
     const redis = new FakeRedisLists()

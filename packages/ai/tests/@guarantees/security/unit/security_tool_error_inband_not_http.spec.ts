@@ -8,12 +8,12 @@ import {
 } from '../../../helpers/tool_chat_doubles.js'
 
 /**
- * The commit-point boundary for tool failures (WS-AI-11 / the spine's contract).
+ * The commit-point boundary for tool failures.
  * A tool loop streams, so by the time a tool is even called the SSE headers are
  * long flushed and an HTTP status is no longer available. Every mid-stream tool
  * refusal must therefore surface as an in-band `event: error` frame carrying ONLY
- * the classified code — never a status, never an upstream body, never a throw past
- * flushed headers — and the text already streamed must stand.
+ * the classified code: never a status, never an upstream body, never a throw past
+ * flushed headers, and the text already streamed must stand.
  *
  * The contrast matters as much: a refusal the controller can make BEFORE the first
  * byte (an unsupported provider, the concurrency cap) is still a real HTTP status
@@ -25,7 +25,7 @@ const alwaysCalls = [
   [{ data: 'pensando', tokens: 1 }, toolCallFragment('call-1', 'count_bookings', '{}')],
 ]
 
-test.group('security — a mid-stream tool failure is in-band, never an HTTP status', () => {
+test.group('security: a mid-stream tool failure is in-band, never an HTTP status', () => {
   test('exhausting the round budget ends in-band and the streamed text stands', async ({
     assert,
   }) => {
@@ -136,7 +136,7 @@ test.group('security — a mid-stream tool failure is in-band, never an HTTP sta
   })
 })
 
-test.group('security — a pre-commit tool refusal keeps a real HTTP status', () => {
+test.group('security: a pre-commit tool refusal keeps a real HTTP status', () => {
   test('a provider that does not support tools is refused 403 with headers unsent', async ({
     assert,
   }) => {

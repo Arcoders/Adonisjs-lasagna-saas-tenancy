@@ -11,7 +11,7 @@ test.group('AIException', () => {
     assert.equal(new AIException('rate_limit_unavailable', 'x').httpStatus, 503)
     assert.equal(new AIException('provider_unavailable', 'x').httpStatus, 503)
     assert.equal(new AIException('provider_not_allowed', 'x').httpStatus, 403)
-    // Wave 5 data-at-rest codes.
+    // Data-at-rest codes.
     assert.equal(new AIException('embedding_metadata_scope_conflict', 'x').httpStatus, 400)
     assert.equal(new AIException('embedding_seal_failed', 'x').httpStatus, 503)
   })
@@ -43,7 +43,7 @@ test.group('AIException', () => {
     // union, so a new code without a classification is a COMPILE error (it no longer
     // silently defaults to retryable, the footgun the old hand-maintained Set carried).
     // This runtime mirror still earns its place: it pins the exact isRetryable() value
-    // for each code, and in particular nails the three Phase 3a codes whose neighbours
+    // for each code, and in particular nails the three confirmation codes whose neighbours
     // classify oppositely: a missing (`tool_confirmation_required`) and a bad
     // (`tool_confirmation_invalid`) confirmation are FATAL (re-sending the identical
     // request cannot help), while the ledger being unreachable (`tool_action_unavailable`)
@@ -63,7 +63,7 @@ test.group('AIException', () => {
       embedding_quota_exhausted: false,
       tenant_scope_mismatch: false,
       vector_store_unavailable: true,
-      // Wave 5: a metadata-scope conflict is fatal (the corpus stays encrypted on a
+      // A metadata-scope conflict is fatal (the corpus stays encrypted on a
       // retry); a seal failure is retryable (a KeyProvider outage recovers, and it wrote
       // no plaintext).
       embedding_metadata_scope_conflict: false,

@@ -17,7 +17,7 @@ const cfg = {
   dimension: 8,
 } as unknown as AIEmbeddingConfig
 
-test.group('behavior — embedding provider registry (2A)', () => {
+test.group('behavior: embedding provider registry', () => {
   test('with no override, resolve builds the configured OpenAI-compatible provider', ({
     assert,
   }) => {

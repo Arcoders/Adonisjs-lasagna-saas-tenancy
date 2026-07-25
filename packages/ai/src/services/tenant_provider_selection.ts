@@ -15,8 +15,8 @@ type BuiltinKey = (typeof BUILTIN_KEYS)[number]
 
 /**
  * Resolve which provider a tenant streams through, behind the per-tenant
- * default-deny allow-list (G12). This is the single seam a future WS-AI-2 swaps
- * for per-tenant BYOK / residency storage: it already takes the tenant model, so
+ * default-deny allow-list. This is the single seam future per-tenant BYOK /
+ * residency storage swaps for: it already takes the tenant model, so
  * reading a per-tenant override here is a non-breaking change to the body, not
  * the signature. Pure (no container, no boot) so it unit-tests without an app.
  */
@@ -31,8 +31,8 @@ export function resolveTenantProviderSelection(
     )
   }
 
-  // WS-AI-2 reads a per-tenant provider / model override keyed by the tenant
-  // here; until then every tenant resolves the configured default.
+  // A future workstream reads a per-tenant provider / model override keyed by the
+  // tenant here; until then every tenant resolves the configured default.
   const provider = config.defaultProvider ?? DEFAULT_AI_PROVIDER
 
   // Default-deny: the resolved provider must be explicitly allow-listed.

@@ -13,10 +13,10 @@ import {
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * The G4 mount matrix, on the pure gate (the boot-unsafe `routes.ts` wrapper
- * only adds the router calls): every refusal names its reason in the
- * `guard.ai_route_mount` emission, the empty-array middleware trap is closed,
- * and the acknowledged posture mounts WITH a warning, never silently.
+ * The mount matrix, on the pure gate (the boot-unsafe `routes.ts` wrapper only adds
+ * the router calls): every refusal names its reason in the `guard.ai_route_mount`
+ * emission, the empty-array middleware trap is closed, and the acknowledged posture
+ * mounts WITH a warning, never silently.
  */
 
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve))
@@ -78,7 +78,7 @@ test.group('AI mount gate', (group) => {
     assert.equal(captured[0]?.metadata.reason, 'config_missing')
   })
 
-  test('no membership gate and no acknowledgement refuses to mount (G4)', async ({ assert }) => {
+  test('no membership gate and no acknowledgement refuses to mount', async ({ assert }) => {
     assert.throws(
       () => assertAiMountAllowed({ middleware: 'auth' }, aiWith()),
       /Refusing to mount AI routes without a membership gate/

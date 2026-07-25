@@ -18,7 +18,7 @@ import {
 } from './ai_audit_writer.js'
 
 /**
- * The read/query side of the AI audit trail (Wave 4). A SELECT-only companion to
+ * The read/query side of the AI audit trail. A SELECT-only companion to
  * {@link AiAuditWriter}, taking the SAME injected deps so it inherits the
  * qualified-table discipline (never a `'backoffice'` literal) and the
  * re-assert-before-raw-SQL ContextSeal backstop for free. It NEVER emits
@@ -168,7 +168,7 @@ export default class AiAuditReader {
   }
 
   /**
-   * Stream the chain out in `(tenant_id, seq)` order for export (Wave 4, 3.2), pulling
+   * Stream the chain out in `(tenant_id, seq)` order for export, pulling
    * KEYSET pages of {@link DEFAULT_AI_AUDIT_EXPORT_BATCH_SIZE} so an export of millions
    * of rows never buffers the whole table and never pays the O(n) OFFSET cost. Chain
    * order (not `created_at`) is load-bearing: only in `(tenant_id, seq)` order is the
@@ -241,8 +241,8 @@ export default class AiAuditReader {
   }
 
   /**
-   * Advance a tenant's retention checkpoint (Wave 4, 3.4), on the ADDITIVE checkpoint
-   * table — never a chain row. Upsert-forward: a later archive run overwrites the
+   * Advance a tenant's retention checkpoint, on the ADDITIVE checkpoint
+   * table, never a chain row. Upsert-forward: a later archive run overwrites the
    * high-water mark. This is the ONLY write this reader performs, and it touches no
    * `ai_audit_logs` row, so the chain-mutation invariant holds.
    */
@@ -267,7 +267,7 @@ export default class AiAuditReader {
       clauses.push('tenant_id = ?')
       bindings.push(filter.tenantId)
     }
-    // A malformed op/outcome is dropped, never concatenated — the union is closed.
+    // A malformed op/outcome is dropped, never concatenated: the union is closed.
     if (filter.op !== undefined && AI_AUDIT_OPS.has(filter.op)) {
       clauses.push('op = ?')
       bindings.push(filter.op)

@@ -17,7 +17,7 @@ import type { AiConfig } from '../../../../src/define_config.js'
 import type { AIMessage, AIProviderContract } from '../../../../src/types/ai_provider_contract.js'
 
 /**
- * RAG into /ai/chat (WS-AI-5): a `retrieve` ask embeds the query, searches under
+ * RAG into /ai/chat: a `retrieve` ask embeds the query, searches under
  * the document ACL, and folds the fenced matches into the context as a user turn
  * right before the question, then streams as usual. Non-RAG chat is untouched;
  * asking to retrieve with embeddings unconfigured is a 400.

@@ -3,7 +3,7 @@ import app from '@adonisjs/core/services/app'
 import { multitenancyAiRoutes } from '../../../../src/routes.js'
 
 /**
- * The G4 mount gate against the REAL booted app and router service. The kit
+ * The mount gate against the REAL booted app and router service. The kit
  * fixture declares no `config.ai`, so both refusal paths are provable without
  * mutating shared config (which the integration baseline guard would flag):
  * an absent middleware chain refuses first, and a present chain still refuses

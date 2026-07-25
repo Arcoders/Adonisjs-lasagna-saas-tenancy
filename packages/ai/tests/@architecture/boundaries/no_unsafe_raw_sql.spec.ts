@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { walkTsFiles } from '../../helpers/walk_ts_files.js'
 
 /**
- * The AI mirror of core's no_unsafe_raw_sql guard. The vector store (WS-AI-3) is
+ * The AI mirror of core's no_unsafe_raw_sql guard. The vector store is
  * the first raw SQL in this package (pgvector has no Lucid column type). Unlike
  * core, the AI package does not validate identifiers: it interpolates only fixed
  * module constants (the table name, a config-validated dimension), never user
@@ -40,7 +40,7 @@ function lineHasMarker(src: string, lineNumber: number) {
     .some((l) => SAFE_SQL_MARKER.test(l))
 }
 
-test.group('architectural — raw SQL interpolation must carry a safe-sql marker', () => {
+test.group('architectural: raw SQL interpolation must carry a safe-sql marker', () => {
   test('every interpolated rawQuery/raw site in src + tenant_migrations is annotated', ({
     assert,
   }) => {

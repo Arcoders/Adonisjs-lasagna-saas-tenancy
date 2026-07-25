@@ -25,7 +25,7 @@ export interface VectorDb {
   connection(name: string): VectorQueryClient
 }
 
-/** The isolation driver surface the store needs: just placement resolution (SEAM-1). */
+/** The isolation driver surface the store needs: just placement resolution. */
 export interface VectorStoreDriver {
   readonly name: string
   tableLocation(tenant: TenantModelContract): TableLocation
@@ -47,14 +47,14 @@ export interface VectorStoreDeps {
   /** The migrated `vector(N)` dimension every stored/queried vector must match. */
   dimension: number
   /**
-   * Per-BATCH `statement_timeout` (ms) for the WS-AI-9 batched purge (E4/E21).
+   * Per-BATCH `statement_timeout` (ms) for the batched purge.
    * Bounds a single lock-blocked or runaway batch so it fails cleanly and the
    * loop retries; it is NOT a wall clock on the whole erasure (that must run to
    * completion). Absent ⇒ the connection default applies (no per-batch timeout).
    */
   purgeStatementTimeoutMs?: number | undefined
   /**
-   * Content-at-rest seal/open (Wave 5, GATED). Injected by the provider ONLY when the
+   * Content-at-rest seal/open (GATED). Injected by the provider ONLY when the
    * host selects `encryptContent`/`encryptMetadata` and the crypto peer is installed, so
    * the store stays crypto-primitive-free. Absent ⇒ the columns are plaintext (today's
    * behavior). `seal` produces enc_v2 ciphertext under the per-tenant embeddings DEK
@@ -71,12 +71,12 @@ export interface VectorStoreDeps {
    * `metadata @> ?::jsonb` containment cannot run over ciphertext.
    */
   encryptMetadata?: boolean | undefined
-  /** Best-effort per-tenant metric sink (default MetricsService), for the content-undecryptable search drop (Wave 5). */
+  /** Best-effort per-tenant metric sink (default MetricsService), for the content-undecryptable search drop. */
   emitMetric?: ((tenantId: string, name: string, value: number) => void) | undefined
 }
 
 /**
- * Rows deleted per batch in the WS-AI-9 purge loop (E4/E12). A full-tenant or
+ * Rows deleted per batch in the purge loop. A full-tenant or
  * per-actor erasure of a multi-million-row HNSW table cannot be one `DELETE`
  * (a long lock, and a `statement_timeout` would roll it back and delete
  * nothing), so it runs as a `ctid IN (SELECT … LIMIT N)` loop, each batch a
@@ -109,12 +109,12 @@ export interface VectorMatch {
 }
 
 /**
- * The per-tenant vector store (WS-AI-3). It NEVER hardcodes a location: it asks
- * the active driver `tableLocation(tenant)` (SEAM-1) where the tenant's
+ * The per-tenant vector store. It NEVER hardcodes a location: it asks
+ * the active driver `tableLocation(tenant)` where the tenant's
  * embeddings physically live, and runs parameterized raw SQL on that connection
  * with the bare {@link AI_EMBEDDINGS_TABLE} name, which resolves into the tenant
  * schema/database through the connection's search_path. Two structural
- * guarantees back isolation (I1): a satellite ContextSeal (raw SQL bypasses the
+ * guarantees back isolation: a satellite ContextSeal (raw SQL bypasses the
  * kernel one) refuses a query whose tenant differs from the active scope, and
  * `rowscope-pg` is refused outright (logical isolation is too weak a placement
  * for inversion-sensitive embeddings). Stateful only through the injected db, so
@@ -163,7 +163,7 @@ export default class VectorStoreService {
    * content_hash) DO NOTHING` makes a re-ingest of identical content a no-op, so
    * a client retry or a concurrent duplicate cannot double-insert. When
    * `maxCount` is finite, the count check and the insert run inside one
-   * advisory-locked transaction (#18), so two concurrent ingests cannot both
+   * advisory-locked transaction, so two concurrent ingests cannot both
    * pass a stale count and overshoot the plan limit. Returns the ids of every
    * row (freshly inserted or already present), aligned to `chunks`, plus how
    * many were newly inserted.
@@ -178,7 +178,7 @@ export default class VectorStoreService {
     const { client, table } = await this.#target(tenant)
     for (const chunk of chunks) this.#assertVector(tenant, chunk.embedding)
 
-    // Wave 5: seal content (and, if configured, metadata) BEFORE opening the
+    // Seal content (and, if configured, metadata) BEFORE opening the
     // advisory-locked transaction, so a KeyProvider/KMS round-trip never runs while
     // holding the per-tenant lock. A seal failure fails the ingest CLOSED (typed 503)
     // with nothing written: plaintext must never land in a column declared encrypted.
@@ -260,9 +260,9 @@ export default class VectorStoreService {
 
   /**
    * Nearest `limit` rows for `query`, scoped by (model, dim) so a model swap can
-   * never mis-rank, and NARROWED by an optional `filter` (WS-AI-5, G2): the
+   * never mis-rank, and NARROWED by an optional `filter`: the
    * per-user document ACL the retrievalFilter hook resolved. The (model, dim)
-   * scope and the tenant placement (I1) are mandatory and always applied; the
+   * scope and the tenant placement are mandatory and always applied; the
    * filter only removes rows a user may not see, it can never widen the corpus.
    * A `sources` allow-list with no entries authorizes zero documents, so the
    * search returns without a query (an empty `IN ()` is not valid SQL, and a read
@@ -275,7 +275,7 @@ export default class VectorStoreService {
   ): Promise<VectorMatch[]> {
     const filter = opts.filter ?? { kind: 'all' }
     if (filter.kind === 'sources' && filter.sources.length === 0) return []
-    // Wave 5 HARD CONSTRAINT: a metadata-scoped read cannot run over encrypted metadata
+    // HARD CONSTRAINT: a metadata-scoped read cannot run over encrypted metadata
     // (the `metadata @> ?::jsonb` containment has no meaning on ciphertext), so refuse it
     // fail-closed rather than silently return zero rows (a silent wrong answer is worse
     // than a loud refusal).
@@ -303,7 +303,7 @@ export default class VectorStoreService {
     return this.#decodeMatches(tenant.id, rowsOf(res))
   }
 
-  /** How many embedding rows the tenant currently stores (the #18 gauge source of truth). */
+  /** How many embedding rows the tenant currently stores (the embedding-count gauge source of truth). */
   async count(tenant: TenantModelContract): Promise<number> {
     const { client, table } = await this.#target(tenant)
     // safe-sql: `table` is a fixed module constant; no user input.
@@ -335,7 +335,7 @@ export default class VectorStoreService {
     return Number(rowsOf(res)[0]?.n ?? 0)
   }
 
-  /** Delete every row under `source` (poisoning rollback, #3). Returns the row count removed. */
+  /** Delete every row under `source` (poisoning rollback). Returns the row count removed. */
   async deleteBySource(tenant: TenantModelContract, source: string): Promise<number> {
     const { client, table } = await this.#target(tenant)
     // safe-sql: `table` is a fixed module constant; `source` is a ? bind.
@@ -344,8 +344,8 @@ export default class VectorStoreService {
   }
 
   /**
-   * Delete every embedding for the tenant (the WS-AI-9 tenant-purge seam). Runs
-   * as a batched, advisory-locked loop (E4/E12/E15) so a huge index erases in
+   * Delete every embedding for the tenant (the tenant-purge seam). Runs
+   * as a batched, advisory-locked loop so a huge index erases in
    * bounded chunks without one long lock or a timeout that would roll the whole
    * thing back. Returns the total rows removed; idempotent, so a retry converges.
    */
@@ -354,9 +354,9 @@ export default class VectorStoreService {
   }
 
   /**
-   * Delete every embedding a principal ingested (per-user GDPR erasure, WS-AI-9).
+   * Delete every embedding a principal ingested (per-user GDPR erasure).
    * `actor` is the SHA-256 of the principal (the same one-way hash stored at
-   * ingest); the caller hashes the raw principal before calling (E1). Exact `?`
+   * ingest); the caller hashes the raw principal before calling. Exact `?`
    * equality, batched like {@link purgeTenant}. Returns the total rows removed.
    */
   async deleteByActor(tenant: TenantModelContract, actorHash: string): Promise<number> {
@@ -365,7 +365,7 @@ export default class VectorStoreService {
 
   /**
    * The batched-delete engine shared by {@link purgeTenant} and
-   * {@link deleteByActor} (E4/E12/E15/E21). Each iteration is one short
+   * {@link deleteByActor}. Each iteration is one short
    * transaction: take the per-tenant advisory lock (the same key ingestion uses,
    * so a batch never races an insert's cap check), optionally bound the batch
    * with `SET LOCAL statement_timeout`, then delete up to {@link PURGE_BATCH_SIZE}
@@ -447,7 +447,7 @@ export default class VectorStoreService {
 
   /**
    * Seal each chunk's content (and metadata, if `encryptMetadata`) at rest under the
-   * per-tenant embeddings DEK, returning the exact strings to bind (Wave 5). With no
+   * per-tenant embeddings DEK, returning the exact strings to bind. With no
    * seal wired, or the flags off, it returns caller plaintext / the serialized metadata
    * JSON, byte-identical to before. A seal failure (a KeyProvider/KMS outage) is a typed
    * FAIL-CLOSED 503 covering the whole batch: the ingest writes nothing rather than
@@ -464,7 +464,7 @@ export default class VectorStoreService {
     // Serialize metadata OUTSIDE the seal try/catch below. A JSON.stringify failure (a
     // BigInt or a cycle in caller metadata) is a permanent caller fault, NOT an at-rest
     // seal outage, so it must keep its prior propagation (an untyped fatal, exactly as
-    // before Wave 5) and must never be repackaged as a retryable `embedding_seal_failed`
+    // it was before) and must never be repackaged as a retryable `embedding_seal_failed`
     // on the default (encryption-off) path.
     const prepared = chunks.map((chunk) => ({
       chunk,
@@ -507,10 +507,10 @@ export default class VectorStoreService {
 
   /**
    * Map raw search rows to {@link VectorMatch}es, opening any sealed content/metadata
-   * under the per-tenant embeddings DEK (Wave 5). Only the O(limit) returned rows are
+   * under the per-tenant embeddings DEK. Only the O(limit) returned rows are
    * opened (the ANN index scan already ran). FAIL-SAFE: a row whose sealed value will not
    * open (the tenant corpus was shredded, or one row is corrupt) is dropped from the
-   * result set with a content-free metric, never a 500 — a shredded-tenant corpus should
+   * result set with a content-free metric, never a 500: a shredded-tenant corpus should
    * read empty. With nothing sealed this is a plain identity map (today's behavior).
    */
   async #decodeMatches(
@@ -559,7 +559,7 @@ function toPgVector(vector: readonly number[]): string {
 }
 
 /**
- * Translate a {@link RetrievalScope} into a parameterized WHERE fragment (WS-AI-5).
+ * Translate a {@link RetrievalScope} into a parameterized WHERE fragment.
  * Every user value is a `?` bind, never interpolated (the no_unsafe_raw_sql
  * guard, and correctness): `sources` is an explicit `IN (?, ?, …)` placeholder
  * list (built like the id-lookup in `insert`), `metadata` a single jsonb

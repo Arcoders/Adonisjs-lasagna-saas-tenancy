@@ -15,28 +15,26 @@ import { runResilientPassthrough, type RunResilient } from './resilience_seam.js
 import type { FailurePolicy } from '@adonisjs-lasagna/saas-tenancy/services'
 
 /**
- * Conversation memory (WS-AI-4, I2): per-(tenant, user, session) chat history,
+ * Conversation memory: per-(tenant, user, session) chat history,
  * encrypted at rest and TTL-bounded in Redis, replayed into the model context as
  * `user`/`assistant` turns (never `system`, so a poisoned turn is DATA, not an
- * instruction: #1/#10).
+ * instruction).
  *
- * Three structural properties carry the invariant, none of them a heuristic:
- *
- *  - **Encrypted at rest.** Every stored exchange is enc_v2 ciphertext produced
- *    by the injected {@link ConversationMemoryDeps.encryptMemory} (the kernel's
- *    `writeSecret(_, 'aiConversationMemory')`), so the service never touches the
- *    crypto primitives directly and the memory blob cannot be decrypted as any
- *    other secret class (its own HKDF context).
- *  - **Per-user isolation via an unforgeable session token.** A session is
- *    server-minted (`randomBytes`) and its token is `<sid>.<sessionMac>`, where
- *    `sessionMac` HMAC-binds the sid to a `userMac = HMAC(tenant, principal)`.
- *    {@link resolveSession} recomputes both against the CURRENT principal and
- *    `timingSafeEqual`s, so a supplied or leaked token cannot reach another
- *    principal's memory. A mismatch is a `guard.ai_memory_session_invalid`
- *    refusal (400), emitted before the throw.
- *  - **Race-free, bounded storage.** Each turn is an atomic `RPUSH` of one
- *    ciphertext element (no read-modify-write, so concurrent turns on one session
- *    never lose each other), then `LTRIM` to the turn cap and a sliding `PEXPIRE`.
+ * Three structural properties carry the guarantee, none of them a heuristic.
+ * First, everything is encrypted at rest: every stored exchange is enc_v2
+ * ciphertext produced by the injected {@link ConversationMemoryDeps.encryptMemory}
+ * (the kernel's `writeSecret(_, 'aiConversationMemory')`), so the service never
+ * touches the crypto primitives directly and the memory blob cannot be decrypted
+ * as any other secret class (its own HKDF context). Second, per-user isolation
+ * rides on an unforgeable session token: a session is server-minted (`randomBytes`)
+ * and its token is `<sid>.<sessionMac>`, where `sessionMac` HMAC-binds the sid to a
+ * `userMac = HMAC(tenant, principal)`. {@link resolveSession} recomputes both
+ * against the CURRENT principal and `timingSafeEqual`s, so a supplied or leaked
+ * token cannot reach another principal's memory; a mismatch is a
+ * `guard.ai_memory_session_invalid` refusal (400), emitted before the throw. Third,
+ * storage is race-free and bounded: each turn is an atomic `RPUSH` of one ciphertext
+ * element (no read-modify-write, so concurrent turns on one session never lose each
+ * other), then `LTRIM` to the turn cap and a sliding `PEXPIRE`.
  *
  * Reads fail SAFE, not closed: an unreadable list (a store outage, corruption, or
  * an APP_KEY rotation past the {@link ConversationMemoryDeps.decryptMemoryPrevious}
@@ -45,7 +43,7 @@ import type { FailurePolicy } from '@adonisjs-lasagna/saas-tenancy/services'
  * token forgery check fails closed.
  *
  * The two-segment storage key `ai:mem:<tenantId>:<userMac>:<sessionMac>` is the
- * WS-AI-9 purge seam: `SCAN ai:mem:<tenant>:*` erases a whole tenant and
+ * purge seam: `SCAN ai:mem:<tenant>:*` erases a whole tenant and
  * `ai:mem:<tenant>:<userMac>:*` erases one user (GDPR), while the macs stay
  * unforgeable and server-only.
  */
@@ -98,8 +96,8 @@ export interface ConversationMemoryDeps {
   macKey: Buffer
   /**
    * Seal one memory blob to enc_v2 ciphertext. The seam is async and carries
-   * `tenantId` so a single service works for BOTH at-rest modes without knowing which
-   * (Wave 5): on the default `'app-key'` mode the provider wires it to
+   * `tenantId` so a single service works for BOTH at-rest modes without knowing which:
+   * on the default `'app-key'` mode the provider wires it to
    * `Promise.resolve(writeSecret(_, 'aiConversationMemory'))` (tenantId ignored,
    * byte-identical to before); on `'tenant-dek'` it wires a per-tenant DEK seal. The
    * service stays mode-agnostic: it passes the tenant id and gets ciphertext back.
@@ -118,7 +116,7 @@ export interface ConversationMemoryDeps {
   config?: { maxTurns?: number; maxChars?: number; ttlMs?: number } | undefined
   /** Best-effort per-tenant integer metric (default MetricsService); fire-and-forget, never on the reject path. */
   metric?: (tenantId: string, name: string, value: number) => void
-  /** Best-effort metadata-only warn log (never content, G3). */
+  /** Best-effort metadata-only warn log (never content). */
   warn?: (message: string) => void
 }
 
@@ -126,18 +124,18 @@ export interface ConversationMemoryDeps {
 export const AI_MEMORY_UNREADABLE_METRIC = 'ai_memory_unreadable'
 export const AI_MEMORY_PERSIST_FAILED_METRIC = 'ai_memory_persist_failed'
 export const AI_MEMORY_DECRYPT_PREVIOUS_METRIC = 'ai_memory_decrypt_previous_used'
-/** A turn dropped because a WS-AI-9 purge tombstone post-dates the request (E5, re-population guard). */
+/** A turn dropped because a purge tombstone post-dates the request (the re-population guard). */
 export const AI_MEMORY_PURGED_DROP_METRIC = 'ai_memory_purged_drop'
 /**
  * A stored turn dropped during load because it could not be decrypted or parsed:
  * the APP_KEY rotation grace expired, the blob is corrupt, or it was tampered with.
  * `load` fails SAFE (it drops the turn and continues), so without this counter the
  * degradation is only WARN-logged and invisible to a metrics dashboard. Emitting it
- * makes a botched key rotation observable, not silent (WS-AI-8, H1).
+ * makes a botched key rotation observable, not silent.
  */
 export const AI_MEMORY_UNDECRYPTABLE_METRIC = 'ai_memory_undecryptable'
 
-/** The tombstone key segment: `ai:mem:tomb:<tenant>[:<userMac>]`, a purge high-water mark (E5). */
+/** The tombstone key segment: `ai:mem:tomb:<tenant>[:<userMac>]`, a purge high-water mark. */
 const AI_MEMORY_TOMBSTONE_INFIX = 'tomb'
 
 /**
@@ -193,7 +191,7 @@ export default class ConversationMemoryService {
   /**
    * Validate a client-supplied session token against the CURRENT (tenant,
    * principal) and return its storage key. A token whose MAC does not verify is a
-   * hijack or pre-seed attempt on another principal's memory (G6): emit
+   * hijack or pre-seed attempt on another principal's memory: emit
    * `guard.ai_memory_session_invalid` and refuse with a 400.
    */
   resolveSession(token: string, tenantId: string, principal: string): ResolvedMemorySession {
@@ -257,7 +255,7 @@ export default class ConversationMemoryService {
       turns.push({ role: 'assistant', content: decoded.a })
     }
     if (degraded) {
-      // H1: a metric, not just a warn, so a silent memory degradation (a botched
+      // A metric, not just a warn, so a silent memory degradation (a botched
       // APP_KEY rotation dropping every historical turn) is visible to operators.
       this.#metric(tenantId, AI_MEMORY_UNDECRYPTABLE_METRIC)
       this.#deps.warn?.(
@@ -281,7 +279,7 @@ export default class ConversationMemoryService {
     turnStartedAt?: number
   ): Promise<void> {
     try {
-      // Re-population guard (WS-AI-9 E5): SCAN has no snapshot isolation, so an
+      // Re-population guard: SCAN has no snapshot isolation, so an
       // in-flight turn can RPUSH after a purge already swept this session's
       // bucket, resurrecting erased history for the full memory TTL. A purge
       // stamps a tombstone (a high-water mark) FIRST; a turn whose request began
@@ -319,7 +317,7 @@ export default class ConversationMemoryService {
     }
   }
 
-  /** Erase one session's memory (used by the gateway and WS-AI-9). Best-effort. */
+  /** Erase one session's memory (used by the gateway and the purge path). Best-effort. */
   async clear(storageKey: string): Promise<void> {
     try {
       const redis = await this.#deps.getRedis()
@@ -330,11 +328,11 @@ export default class ConversationMemoryService {
   }
 
   /**
-   * Erase every session of one principal (GDPR per-user erasure, WS-AI-9). Stamps
-   * a per-user tombstone (E5) BEFORE scanning so an in-flight turn cannot
+   * Erase every session of one principal (GDPR per-user erasure). Stamps
+   * a per-user tombstone BEFORE scanning so an in-flight turn cannot
    * re-populate, then SCAN-deletes the user segment (never `KEYS`, which blocks
    * Redis). Returns the number of session keys removed so the operator can tell
-   * "erased N" from "no active data". Keyed off the RAW principal (E1): the
+   * "erased N" from "no active data". Keyed off the RAW principal: the
    * embeddings `actor` column is a SHA-256 of the principal, so the caller hashes
    * separately for the vector side; memory keys the raw value.
    */
@@ -345,7 +343,7 @@ export default class ConversationMemoryService {
     return this.#scanDelete(`${AI_MEMORY_KEY_PREFIX}:${tenantId}:${userMac}:*`)
   }
 
-  /** Erase every session of one tenant (tenant purge, WS-AI-9). Tombstone first (E5); returns keys removed. */
+  /** Erase every session of one tenant (tenant purge). Tombstone first; returns keys removed. */
   async purgeTenant(tenantId: string): Promise<number> {
     assertSafeIdentifier(tenantId, 'tenant id')
     await this.#writeTombstone(tenantId)
@@ -356,7 +354,7 @@ export default class ConversationMemoryService {
    * Decrypt one stored exchange under the current key, then the previous key
    * (rotation grace), returning its `{u, a}` or null when unreadable. Not a
    * throw: `load` treats null as a dropped element and degrades. Async because the
-   * decrypt seam is (Wave 5): the tenant-dek mode resolves a per-tenant DEK, and the
+   * decrypt seam is: the tenant-dek mode resolves a per-tenant DEK, and the
    * app-key mode is a resolved promise over the sync `readSecret`.
    */
   async #decodeExchange(
@@ -396,7 +394,7 @@ export default class ConversationMemoryService {
    * SCAN-delete every key matching `pattern` (an `ai:mem:...` glob), returning the
    * count removed. Loops to cursor `'0'` so a live keyspace is fully swept.
    *
-   * keyPrefix-correct (WS-AI-9 E2): ioredis applies a configured `keyPrefix` to
+   * keyPrefix-correct: ioredis applies a configured `keyPrefix` to
    * writes and to `del`/`unlink` args, but NOT to a `SCAN MATCH`. So the MATCH is
    * prefixed manually, and the prefix is stripped off each returned key before
    * `unlink` (which re-applies it). Otherwise a prefixed deployment would match
@@ -429,7 +427,7 @@ export default class ConversationMemoryService {
   }
 
   /**
-   * Stamp a purge high-water mark (E5). `ai:mem:tomb:<tenant>[:<userMac>]` = the
+   * Stamp a purge high-water mark. `ai:mem:tomb:<tenant>[:<userMac>]` = the
    * purge time in ms, TTL ≥ the memory TTL so it outlives any in-flight turn that
    * could re-populate. A plain `SET` (ioredis prefixes it uniformly with reads),
    * so it needs no keyPrefix handling. Fail-closed: a store error propagates, so a
@@ -443,7 +441,7 @@ export default class ConversationMemoryService {
     await redis.set(key, String(Date.now()), 'PX', this.#ttlMs())
   }
 
-  /** True when a purge tombstone (tenant- or user-scoped) post-dates this request's snapshot (E5). */
+  /** True when a purge tombstone (tenant- or user-scoped) post-dates this request's snapshot. */
   async #isTombstoned(
     tenantId: string,
     storageKey: string,
@@ -478,8 +476,8 @@ function timingSafeEqualHex(a: string, b: string): boolean {
 }
 
 /**
- * The configured ioredis `keyPrefix`, so a `SCAN MATCH` can be prefixed manually
- * (WS-AI-9 E2). A real ioredis always exposes `options.keyPrefix` (default `''`);
+ * The configured ioredis `keyPrefix`, so a `SCAN MATCH` can be prefixed manually.
+ * A real ioredis always exposes `options.keyPrefix` (default `''`);
  * a client with no `options` concept does not prefix, so `''`. Only a malformed
  * (present but non-string) keyPrefix is unresolvable, and a purge that could
  * silently miss prefixed keys must fail loudly, not return a false zero.

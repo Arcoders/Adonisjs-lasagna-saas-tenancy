@@ -63,7 +63,7 @@ export abstract class HttpAiProvider implements AIProviderContract {
   /**
    * A one-way SHA-256 fingerprint of the configured API key, never the key
    * itself (mirrors `hashAuditPrincipal`). Feeds the per-key rate-limit bucket
-   * (threat #4) and audit attribution. Memoized; safe to log.
+   * (the denial-of-wallet defense) and audit attribution. Memoized; safe to log.
    */
   get keyFingerprint(): string {
     if (this.#keyFingerprint === undefined) {
@@ -97,7 +97,7 @@ export abstract class HttpAiProvider implements AIProviderContract {
     yield* this.parseBody(streamBytes(res.body))
   }
 
-  /** The request model, defaulted from config then the built-in, checked against the allow-list (G12). */
+  /** The request model, defaulted from config then the built-in, checked against the allow-list. */
   protected resolveModel(request: AIStreamRequest): string {
     const model = request.model ?? this.cfg.defaultModel ?? this.builtinDefaultModel
     assertModelAllowed(this.name, model, this.cfg.allowedModels, 'stream')

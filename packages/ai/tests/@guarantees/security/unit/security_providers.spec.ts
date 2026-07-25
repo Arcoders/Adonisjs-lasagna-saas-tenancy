@@ -73,9 +73,7 @@ test.group('providers: SSRF boundary', () => {
     }
   })
 
-  test('a model outside the per-provider allow-list is rejected (G12 model scope)', async ({
-    assert,
-  }) => {
+  test('a model outside the per-provider allow-list is rejected', async ({ assert }) => {
     const { deps } = fakeFetch(() => sseResponse('data: [DONE]\n\n'))
     const provider = new DeepSeekProvider({ apiKey: 'k', allowedModels: ['deepseek-chat'] }, deps)
     try {

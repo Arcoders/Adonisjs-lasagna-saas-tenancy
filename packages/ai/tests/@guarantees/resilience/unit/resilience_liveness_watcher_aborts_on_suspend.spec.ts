@@ -7,9 +7,9 @@ import TenantLivenessWatcher, {
 } from '../../../../src/services/tenant_liveness_watcher.js'
 
 /**
- * G11 (TOCTOU suspend-mid-stream): the watcher turns a tenant lifecycle event
- * into an abort of exactly that tenant's live streams, with no leaks (dispose
- * prunes) and reversible wiring (the teardown removes every listener).
+ * A tenant suspended mid-stream is a TOCTOU hazard: the watcher turns a tenant
+ * lifecycle event into an abort of exactly that tenant's live streams, with no
+ * leaks (dispose prunes) and reversible wiring (the teardown removes every listener).
  */
 
 type Handler = (event: unknown) => void

@@ -8,7 +8,7 @@ import type {
 } from './define_config.js'
 
 /**
- * The public tool-authoring surface (WS-AI-11), exposed on the `./tools` subpath.
+ * The public tool-authoring surface, exposed on the `./tools` subpath.
  * It ships ONLY erased authoring types and pure helpers, so a host can import it
  * from `config/multitenancy.ts` (which loads before boot) exactly like the main
  * barrel: there is no Adonis service singleton, no container, and no router here.
@@ -69,7 +69,7 @@ export function defineAiTools(tools: AIToolHostDefinition[]): AIToolHostDefiniti
 
 /**
  * The ergonomic minimal path: a read-only tool in one call. Everything the full
- * {@link AIToolHostDefinition} surface exposes defaults safely — `mode` is
+ * {@link AIToolHostDefinition} surface exposes defaults safely: `mode` is
  * `'read'` (never a mutating action tool), the loop bounds come from the named
  * constants, and arguments are validated by the shipped JSON-Schema-subset
  * checker (no host `parseInput` needed). Reach for the full object form only when

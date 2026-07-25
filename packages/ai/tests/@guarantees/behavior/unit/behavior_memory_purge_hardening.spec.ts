@@ -6,11 +6,11 @@ import ConversationMemoryService, {
 import { FakeRedisLists } from '../../../helpers/fake_redis_lists.js'
 
 /**
- * WS-AI-9 memory purge hardening against the ioredis double: the purge seams
- * return a deleted-key COUNT (E18), erase correctly under a host `keyPrefix`
- * (E2, the silent-zero-delete footgun), reject an unsafe tenant id (E26), and a
+ * Memory purge hardening against the ioredis double: the purge seams
+ * return a deleted-key COUNT, erase correctly under a host `keyPrefix`
+ * (the silent-zero-delete footgun), reject an unsafe tenant id, and a
  * post-purge tombstone drops an in-flight turn that would re-populate erased
- * history (E5).
+ * history.
  */
 
 const TENANT = '11111111-1111-4111-8111-111111110001'
@@ -36,10 +36,8 @@ function serviceWith(redis: FakeRedisLists, extra: Partial<ConversationMemoryDep
   return { svc, metrics }
 }
 
-test.group('behavior — memory purge hardening (WS-AI-9)', () => {
-  test('purgeUser / purgeTenant return the number of session keys removed (E18)', async ({
-    assert,
-  }) => {
+test.group('behavior: memory purge hardening', () => {
+  test('purgeUser / purgeTenant return the number of session keys removed', async ({ assert }) => {
     const redis = new FakeRedisLists()
     const { svc } = serviceWith(redis)
     const a = svc.mintSession(TENANT, 'user-a')
@@ -51,7 +49,7 @@ test.group('behavior — memory purge hardening (WS-AI-9)', () => {
     assert.equal(await svc.purgeTenant(TENANT), 0) // already gone
   })
 
-  test('purgeTenant erases keys under a host keyPrefix (E2, no silent zero-delete)', async ({
+  test('purgeTenant erases keys under a host keyPrefix (no silent zero-delete)', async ({
     assert,
   }) => {
     const redis = new FakeRedisLists({ keyPrefix: 'app:' })
@@ -66,7 +64,7 @@ test.group('behavior — memory purge hardening (WS-AI-9)', () => {
     assert.isFalse(redis.data.has(`app:${storageKey}`))
   })
 
-  test('a malformed non-string keyPrefix fails the purge closed, never a false zero (E2)', async ({
+  test('a malformed non-string keyPrefix fails the purge closed, never a false zero', async ({
     assert,
   }) => {
     const redis = new FakeRedisLists()
@@ -75,12 +73,12 @@ test.group('behavior — memory purge hardening (WS-AI-9)', () => {
     await assert.rejects(() => svc.purgeTenant(TENANT), /keyPrefix/)
   })
 
-  test('purgeUser rejects an unsafe tenant id (E26)', async ({ assert }) => {
+  test('purgeUser rejects an unsafe tenant id', async ({ assert }) => {
     const { svc } = serviceWith(new FakeRedisLists())
     await assert.rejects(() => svc.purgeUser('not a uuid; drop table', 'user-a'))
   })
 
-  test('a tombstone drops an in-flight turn started before the purge (E5)', async ({ assert }) => {
+  test('a tombstone drops an in-flight turn started before the purge', async ({ assert }) => {
     const redis = new FakeRedisLists()
     const { svc, metrics } = serviceWith(redis)
     const { storageKey } = svc.mintSession(TENANT, 'user-a')

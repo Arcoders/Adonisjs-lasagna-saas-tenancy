@@ -9,7 +9,7 @@ import type { ConversationTurn } from '../../../../src/services/conversation_mem
 import { FakeSseSink } from '../../../helpers/fake_sse_sink.js'
 
 /**
- * The pure memory-context helpers (WS-AI-4): `injectMemoryTurns` prepends prior
+ * The pure memory-context helpers: `injectMemoryTurns` prepends prior
  * turns as bounded DATA after any leading system prompt, and
  * `reconstructAssistantText` inverts the SSE writer to recover the assistant's
  * text for persistence.
@@ -19,7 +19,7 @@ const u = (content: string): ConversationTurn => ({ role: 'user', content })
 const a = (content: string): ConversationTurn => ({ role: 'assistant', content })
 const big = { maxTurns: 50, maxChars: 100_000 }
 
-test.group('behavior — injectMemoryTurns', () => {
+test.group('behavior: injectMemoryTurns', () => {
   test('prepends prior turns before the current turn, keeping roles (never system)', ({
     assert,
   }) => {
@@ -32,7 +32,7 @@ test.group('behavior — injectMemoryTurns', () => {
     assert.isFalse(out.some((m) => m.role === 'system'))
   })
 
-  test('inserts AFTER a leading client system prompt (I4: a system turn keeps the lead)', ({
+  test('inserts AFTER a leading client system prompt (a system turn keeps the lead)', ({
     assert,
   }) => {
     const messages: AIMessage[] = [
@@ -113,7 +113,7 @@ test.group('behavior — injectMemoryTurns', () => {
   })
 })
 
-test.group('behavior — reconstructAssistantText', () => {
+test.group('behavior: reconstructAssistantText', () => {
   // The SSE serialization only reads data + event, so the cases supply just that
   // subset and we complete it to a valid StreamFragment (tokens is metering metadata
   // writeFragment never touches) at the write boundary.
@@ -146,12 +146,12 @@ test.group('behavior — reconstructAssistantText', () => {
     assert.equal(reconstructAssistantText(['event: done\ndata: x\n\n']), '')
   })
 
-  test('skips tool_call notices (WS-AI-11: memory holds the answer, never tool activity)', async ({
+  test('skips tool_call notices (memory holds the answer, never tool activity)', async ({
     assert,
   }) => {
     // A round that streamed some text, emitted a redacted tool_call notice, then
     // finished the answer. Persisted memory must be the natural-language answer
-    // only — never the {name,id} tool marker.
+    // only, never the {name,id} tool marker.
     const frames = await framesFor([
       { data: 'Tienes ' },
       { data: '{"name":"count_bookings","id":"c1"}', event: 'tool_call' },
@@ -166,7 +166,7 @@ test.group('behavior — reconstructAssistantText', () => {
     // The property that a deny-list cannot give: this event does not exist yet.
     // Memory feeds the next prompt, so a new control frame must be inert the day
     // it is added rather than the day someone remembers to skip it. The concrete
-    // case is the Phase 3a confirmation frame, whose data is a live signed
+    // case is the confirmation frame, whose data is a live signed
     // capability: reconstructed into memory it would be re-injected into the
     // model's context and could come back out as text.
     const frames = await framesFor([

@@ -4,7 +4,7 @@ import type { DoctorContext } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * The ai_memory doctor posture (WS-AI-4, gap I): memory binds a session to the
+ * The ai_memory doctor posture: memory binds a session to the
  * resolved principal, so an enabled-but-no-explicit-principal memory is surfaced
  * (info) so it never runs silently inert.
  */
@@ -15,7 +15,7 @@ const base = { allowedProviders: ['claude'] } as AiConfig
 // run context, so an empty one is all it needs.
 const emptyCtx = { tenants: [], repo: {} as any, attemptFix: false } as DoctorContext
 
-test.group('behavior — ai_memory doctor posture', () => {
+test.group('behavior: ai_memory doctor posture', () => {
   test('memory not configured reports nothing', ({ assert }) => {
     assert.isNull(aiMemoryPosture(base))
     assert.isNull(aiMemoryPosture(undefined))

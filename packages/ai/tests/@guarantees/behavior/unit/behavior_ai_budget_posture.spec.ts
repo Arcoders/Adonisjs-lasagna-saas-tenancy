@@ -99,7 +99,7 @@ test.group('aiTokens budget posture', () => {
 })
 
 /**
- * Wave 1.3: the same unbudgeted posture that USED to only warn at boot is now a
+ * The same unbudgeted posture that USED to only warn at boot is now a
  * FAIL-CLOSED boot abort. Only the `warn` severity aborts; every `info` posture
  * (acknowledged, dynamic plans, per-plan-without-ceiling) and the healthy posture
  * let boot proceed, so the abort never false-fires on a case a static read cannot

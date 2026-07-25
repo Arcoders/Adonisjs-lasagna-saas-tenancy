@@ -10,9 +10,9 @@ import {
 import type { AIToolHostDefinition } from '../../../../src/define_config.js'
 
 /**
- * The WIRING that makes the tool loop live (Phase 9c/9d): the chat controller
+ * The WIRING that makes the tool loop live: the chat controller
  * resolves the per-tenant registry behind the default-deny gate, advertises the
- * read subset, and drives the multi-round loop inside the SAME single pump — one
+ * read subset, and drives the multi-round loop inside the SAME single pump: one
  * SSE stream, monotonic ids, one terminal `done`. The loop, the gate, the input
  * validator and the executor each have their own specs; this pins that the
  * controller composes them, and that a host without tools keeps the byte-for-byte
@@ -51,7 +51,7 @@ test.group('chat controller tool loop', () => {
 
     await controller.chat(ctx)
 
-    // Round 1 advertises the tool stripped to its wire shape — never the handler.
+    // Round 1 advertises the tool stripped to its wire shape, never the handler.
     const advertised = provider.calls[0]!.request.tools
     assert.lengthOf(advertised!, 1)
     assert.deepEqual(Object.keys(advertised![0]!).sort(), ['description', 'inputSchema', 'name'])
@@ -127,7 +127,7 @@ test.group('chat controller tool loop', () => {
   test('a registry of only action tools advertises nothing and stays plain chat', async ({
     assert,
   }) => {
-    // Action tools are never advertised while the kill-switch is off (until Phase 3a),
+    // Action tools are never advertised while the kill-switch is off,
     // so a registry holding only one leaves nothing to offer: the controller must fall
     // back to the plain closure rather than build a loop that can never call anything.
     const deleteBooking: AIToolHostDefinition = {
@@ -177,7 +177,7 @@ test.group('chat controller tool loop', () => {
   })
 })
 
-test.group('chat controller — Phase 3a confirmation', () => {
+test.group('chat controller: confirmation flow', () => {
   /** A well-formed action tool: enabled, authorized (default hook), id-typed, summarizeable. */
   function cancelBooking(ran: { value: boolean }): AIToolHostDefinition {
     return {

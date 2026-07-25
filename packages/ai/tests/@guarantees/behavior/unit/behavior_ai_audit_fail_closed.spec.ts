@@ -31,7 +31,7 @@ const embedConfig = {
   embedding: { authorizeIngestion: () => true },
 } as unknown as AiConfig
 
-// Retrieval is fail-closed by default (C9); acknowledge the tenant-wide posture so
+// Retrieval is fail-closed by default; acknowledge the tenant-wide posture so
 // the request reaches the success path where the audit write matters.
 const retrieveConfig = {
   allowedProviders: ['claude'],
@@ -58,7 +58,7 @@ const okRetrieve = {
   },
 } as unknown as RetrievalService
 
-test.group('behavior — AI audit fail-closed at the pre-response controllers', () => {
+test.group('behavior: AI audit fail-closed at the pre-response controllers', () => {
   test('an audit-write outage on a completed embed is a fail-closed 503, not a silent 200', async ({
     assert,
   }) => {

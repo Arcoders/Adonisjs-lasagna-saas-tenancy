@@ -65,7 +65,7 @@ async function ingestCode(d: EmbeddingIngestionDeps): Promise<string> {
   }
 }
 
-test.group('EmbeddingIngestionService — fail-closed pre-flight', () => {
+test.group('EmbeddingIngestionService: fail-closed pre-flight', () => {
   test('a reserve backend outage is a fail-closed 503, and nothing is stored', async ({
     assert,
   }) => {

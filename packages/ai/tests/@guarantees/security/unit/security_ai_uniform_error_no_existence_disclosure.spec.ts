@@ -10,12 +10,11 @@ import {
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * Vector #17 (cross-tenant existence disclosure / side channel).
- * A caller must not be able to tell "this tenant does not exist / is not resolvable"
- * apart from "this tenant exists but you are not a member": both must be the SAME
- * uniform 403 with the SAME message, and neither may echo the tenant id. Otherwise an
- * attacker probes which tenant ids are real. This pins the uniform-error mitigation the
- * ARCHITECTURE claims for #17.
+ * Guards against cross-tenant existence disclosure (a side channel). A caller must not
+ * be able to tell "this tenant does not exist / is not resolvable" apart from "this
+ * tenant exists but you are not a member": both must be the SAME uniform 403 with the
+ * SAME message, and neither may echo the tenant id. Otherwise an attacker probes which
+ * tenant ids are real.
  */
 
 const SECRET_TENANT_ID = 'acme-prod-7f3a1c'
@@ -39,7 +38,7 @@ async function capture<T>(fn: () => Promise<T>): Promise<unknown> {
   }
 }
 
-test.group('AI uniform error — no cross-tenant existence disclosure (#17)', (group) => {
+test.group('AI uniform error: no cross-tenant existence disclosure', (group) => {
   group.each.setup(() => {
     __resetAiGuardCounters()
     __resetAiGuardRateLimit()

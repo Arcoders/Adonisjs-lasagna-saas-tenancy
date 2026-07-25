@@ -43,7 +43,7 @@ function errorText(err: unknown): string {
   return parts.join('\n')
 }
 
-test.group('AI no-content-leak in error / guard / audit surfaces (1F)', (group) => {
+test.group('AI no-content-leak in error / guard / audit surfaces', (group) => {
   let guards: IsthmusGuardTrippedPayload[] = []
 
   group.each.setup(() => {

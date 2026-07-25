@@ -10,8 +10,8 @@ import AIException from '../../../../src/exceptions/ai_exception.js'
 import type { AIToolHostDefinition, AIToolsConfig } from '../../../../src/define_config.js'
 
 /**
- * The I7 proof on a REAL database: two tenants in two schemas, one tool, and a
- * handler that resolves its own connection from the AMBIENT scope — exactly as a
+ * The isolation proof on a REAL database: two tenants in two schemas, one tool, and a
+ * handler that resolves its own connection from the AMBIENT scope, exactly as a
  * `TenantBaseModel` query does. So if the executor failed to bind the scope, or bound
  * the wrong tenant, the handler would read the wrong schema and the assertion would
  * catch it. Nothing here mocks the routing.
@@ -137,7 +137,7 @@ test.group('two-tenant tool isolation (real Postgres)', (group) => {
   test('a confused-deputy call under another tenant scope is refused before the handler', async ({
     assert,
   }) => {
-    // The real I7 attack shape: an executor bound to tenant A, invoked while the
+    // The real confused-deputy attack shape: an executor bound to tenant A, invoked while the
     // process is already inside tenant B's ambient scope. Serving it would read A's
     // data on B's behalf (or the reverse), so it must refuse rather than rebind.
     let ran = false

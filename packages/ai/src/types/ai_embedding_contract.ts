@@ -36,7 +36,7 @@ export interface AIEmbeddingCapabilities {
 /**
  * The contract every embedding provider satisfies. It mirrors
  * {@link AIProviderContract} but is non-streaming: one call turns text into
- * vectors. It is the public extension seam for the vector store (WS-AI-3): a
+ * vectors. It is the public extension seam for the vector store: a
  * host implements it to add an embedding backend, and the ingestion path
  * streams the request over the kernel's IP-pinned fetch so every AI-initiated
  * URL stays SSRF-checked.

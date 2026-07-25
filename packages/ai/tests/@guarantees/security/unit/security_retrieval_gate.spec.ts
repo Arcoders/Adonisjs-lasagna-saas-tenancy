@@ -11,8 +11,8 @@ import {
 import type { AiConfig, AIRetrievalConfig } from '../../../../src/define_config.js'
 
 /**
- * The retrieval scope gate (WS-AI-5, G2). The per-user document ACL is resolved
- * BEFORE any query embed or search. Retrieval is fail-closed, mirroring the G4
+ * The retrieval scope gate. The per-user document ACL is resolved
+ * BEFORE any query embed or search. Retrieval is fail-closed, mirroring the
  * mount gate: with NO `retrievalFilter` wired the retrieval is refused (403
  * `retrieval_denied` + `guard.ai_retrieval_denied`) UNLESS the host sets
  * `acknowledgeUnscopedRetrieval`, which opts into the whole tenant corpus

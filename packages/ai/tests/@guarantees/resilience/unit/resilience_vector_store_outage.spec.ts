@@ -7,7 +7,7 @@ import VectorStoreService, {
 import AIException from '../../../../src/exceptions/ai_exception.js'
 
 /**
- * Wave 1.2: every raw query in the vector store funnels through one `#exec`
+ * Every raw query in the vector store funnels through one `#exec`
  * boundary that classifies a mid-query BACKEND OUTAGE into a single typed,
  * retryable `vector_store_unavailable` (503), so a database failover or an admin
  * `pg_terminate_backend` no longer surfaces as an opaque untyped 500 that every

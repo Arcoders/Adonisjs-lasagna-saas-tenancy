@@ -36,7 +36,7 @@ import type { MultitenancyConfigWithAi } from './define_config.js'
  *
  *   multitenancyAiRoutes({ middleware: [middleware.tenantGuard(), middleware.auth()] })
  *
- * Fail-closed (G4): refuses to mount without a middleware chain, without
+ * Fail-closed: refuses to mount without a middleware chain, without
  * `config.ai`, or without a membership gate (`config.ai.authorizeAIAccess`)
  * unless the host explicitly sets `acknowledgeNoMembershipGate: true`, in
  * which case the acknowledged posture is logged and kept visible by the
@@ -45,8 +45,8 @@ import type { MultitenancyConfigWithAi } from './define_config.js'
  *
  * Endpoints (relative to the prefix, default `/ai`):
  *   POST /chat      SSE stream (`Idempotency-Key` and `Last-Event-ID` honoured)
- *   POST /embed     ingest embeddings into the tenant vector store (JSON, WS-AI-3)
- *   POST /retrieve  similarity search over the tenant vector store (JSON, WS-AI-5)
+ *   POST /embed     ingest embeddings into the tenant vector store (JSON)
+ *   POST /retrieve  similarity search over the tenant vector store (JSON)
  *
  * This module imports Adonis service singletons (router/app/logger), so it is
  * boot-unsafe BY DESIGN: import it from route files only, never from unit
@@ -72,7 +72,7 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
         // retrieval service lazily so non-RAG chat is unaffected when they are off
         // (making RetrievalService unconditionally would throw config_missing).
         retrieval: aiConfig?.embedding ? await app.container.make(RetrievalService) : undefined,
-        // The DB-backed audit sinks (WS-AI-7), on unless the host opted out; the
+        // The DB-backed audit sinks, on unless the host opted out; the
         // retrieval-audit sink follows the same lazy-embedding rule as `retrieval`.
         audit:
           aiConfig?.audit?.enabled !== false
@@ -82,11 +82,11 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
           aiConfig?.embedding && aiConfig?.audit?.enabled !== false
             ? await app.container.make(PgRetrievalAuditSink)
             : undefined,
-        // Conversation memory (WS-AI-4), resolved lazily like retrieval: only a
+        // Conversation memory, resolved lazily like retrieval: only a
         // host that configured config.ai.memory pays for it (the service itself
         // no-ops via `.enabled` if a stale reference is ever passed).
         memory: aiConfig?.memory ? await app.container.make(ConversationMemoryService) : undefined,
-        // The tool executor (WS-AI-11), resolved lazily like memory: only a host
+        // The tool executor, resolved lazily like memory: only a host
         // that configured config.ai.tools pays for it; absent leaves chat tool-free
         // with zero overhead (the plain provider.stream closure runs unchanged).
         tools: aiConfig?.tools ? await app.container.make(ToolExecutorService) : undefined,
@@ -128,7 +128,7 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
       })
       return controller.retrieve(ctx)
     })
-    // The audit read/query surface (Wave 4, 3.1): admin-gated (default-deny via
+    // The audit read/query surface: admin-gated (default-deny via
     // config.ai.audit.authorizeAudit), tenant-scoped, SELECT-only. Mounted only when
     // audit is on (a disabled-audit host has no chain to read); the AiAuditReader is
     // registered only in that case, so guard the resolve.

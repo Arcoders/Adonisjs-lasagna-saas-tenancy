@@ -9,7 +9,7 @@ function tool(inputSchema: Record<string, unknown>, parseInput?: (raw: unknown) 
 const objSchema = (properties: Record<string, unknown>, required?: string[]) =>
   tool({ type: 'object', properties, ...(required ? { required } : {}) })
 
-test.group('security — tool input validation (prototype-safe, dependency-free)', () => {
+test.group('security: tool input validation (prototype-safe, dependency-free)', () => {
   test('__proto__ and constructor in args never pollute Object.prototype', ({ assert }) => {
     const args = validateToolInput(
       '{"safe":"ok","__proto__":{"polluted":true},"constructor":{"x":1}}',

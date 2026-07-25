@@ -22,7 +22,7 @@ function rowsOf(res: unknown): Array<Record<string, unknown>> {
 }
 
 /**
- * The `ai_audit` doctor check (WS-AI-7). Audit is fail-closed and on by default,
+ * The `ai_audit` doctor check. Audit is fail-closed and on by default,
  * so a host that enables the AI satellite but forgets to run `migration:run` (the
  * satellite publishes the audit migration on configure) would see every AI request
  * 503 at runtime. This surfaces that early, at `tenant:doctor` time:

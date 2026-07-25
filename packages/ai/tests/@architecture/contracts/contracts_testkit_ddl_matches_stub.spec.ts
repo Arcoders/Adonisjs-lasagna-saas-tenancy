@@ -49,7 +49,7 @@ test.group('AI test-kit DDL stays in sync with the shipped migration stub', () =
     assert.includeMembers(
       columns,
       ['id', 'tenant_id', 'seq', 'checksum', 'op', 'outcome', 'principal_hash', 'occurred_at'],
-      'ai_audit_logs stub parse looks wrong — check the schema-builder regex'
+      'ai_audit_logs stub parse looks wrong: check the schema-builder regex'
     )
     for (const column of columns) {
       assert.match(

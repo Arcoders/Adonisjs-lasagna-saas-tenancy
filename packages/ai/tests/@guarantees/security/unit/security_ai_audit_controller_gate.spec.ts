@@ -8,9 +8,9 @@ import type { AiAuditQueryFilter } from '../../../../src/services/ai_audit_reade
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * Wave 4 acceptance (3.1): the audit read route is DEFAULT-DENY and TENANT-SCOPED.
- * With no `authorizeAudit` hook it 403s; a throwing or denying hook 403s; an allowing
- * hook returns rows scoped to the request tenant (never a foreign tenant's).
+ * The audit read route is default-deny and tenant-scoped. With no `authorizeAudit`
+ * hook it 403s; a throwing or denying hook 403s; an allowing hook returns rows scoped
+ * to the request tenant (never a foreign tenant's).
  */
 
 const tenant = { id: 'tenant-A' } as unknown as TenantModelContract
@@ -54,7 +54,7 @@ function controllerWith(audit: AiConfig['audit'], readerParts = fakeReader()) {
   }
 }
 
-test.group('AiAuditController — default-deny gate (Wave 4, 3.1)', () => {
+test.group('AiAuditController: default-deny gate', () => {
   test('no authorizeAudit hook is a 403 (default-deny, distinct from authorizeAIAccess)', async ({
     assert,
   }) => {
@@ -93,7 +93,7 @@ test.group('AiAuditController — default-deny gate (Wave 4, 3.1)', () => {
 
     assert.equal(sent().sentStatus, 200)
     assert.lengthOf(calls, 1)
-    // The filter is pinned to the request tenant — a client cannot read another tenant.
+    // The filter is pinned to the request tenant, so a client cannot read another tenant.
     assert.equal(calls[0]!.tenantId, 'tenant-A')
     assert.equal(calls[0]!.op, 'chat')
     assert.equal(calls[0]!.principalHash, 'p')

@@ -89,7 +89,7 @@ export interface StreamExtensionOptions {
   worstCase: number
   /** Response deadline in ms. The composed abort fires at the deadline (executeExtension's timer). */
   timeoutMs?: number | undefined
-  /** The I8 fragment guard; returning null aborts without writing the leaking bytes. */
+  /** The output-bound fragment guard; returning null aborts without writing the leaking bytes. */
   validateFragment: (fragment: StreamFragment) => StreamFragment | null
   /** G11: aborts the stream when the tenant is suspended or deleted mid-flight. */
   livenessSignal?: AbortSignal | undefined
@@ -199,7 +199,7 @@ interface StreamRun {
  * before any byte; the first fragment (or a clean empty end) is the commit point
  * after which nothing throws to the caller; the `finally` always settles the used
  * tokens and releases the remainder, fail-open so a transient Redis blip can
- * never break it (the I3-violating mistake this design guards against).
+ * never break it (the mistake this design guards against).
  */
 export default class StreamExtensionService {
   readonly #quota: StreamQuota
@@ -222,7 +222,7 @@ export default class StreamExtensionService {
    * Wrap the streamed call in an `ai.stream` span (tenant/provider/model
    * attributes only, never content) and emit integer usage metrics on the
    * outcome. The span attributes and every metric value are integers or short
-   * identifiers; no prompt or response text ever reaches telemetry (G3).
+   * identifiers; no prompt or response text ever reaches telemetry.
    */
   async stream(
     target: StreamTarget,
@@ -442,7 +442,7 @@ export default class StreamExtensionService {
   /**
    * The fail-open teardown: stop the heartbeat, settle the used tokens and release
    * the remainder, and dispose the writer and disconnect wiring. A transient Redis
-   * blip on settle or release must never throw out of here (the I3 invariant), so
+   * blip on settle or release must never throw out of here, so
    * every step swallows, and release runs exactly once.
    */
   async #settleAndRelease(run: StreamRun): Promise<void> {

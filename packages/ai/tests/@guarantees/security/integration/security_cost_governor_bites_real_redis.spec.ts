@@ -179,9 +179,7 @@ test.group('AI per-key rate limit bites on real Redis (integration)', (group) =>
     assert.isAbove(await redis.zcard(key), 0, 'the ext:ai bucket recorded the hits')
   })
 
-  test('two tenants sharing a provider fingerprint get independent buckets (T2)', async ({
-    assert,
-  }) => {
+  test('two tenants sharing a provider fingerprint get independent buckets', async ({ assert }) => {
     const fp = 'shared-fp-t2'
     const t1 = randomUUID()
     const t2 = randomUUID()

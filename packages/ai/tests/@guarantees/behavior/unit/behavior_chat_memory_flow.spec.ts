@@ -14,7 +14,7 @@ import { FakeRedisLists } from '../../../helpers/fake_redis_lists.js'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * The conversation-memory flow through the real chat controller (WS-AI-4): turn 1
+ * The conversation-memory flow through the real chat controller: turn 1
  * mints a session and hands back X-Ai-Session, the completed exchange is
  * persisted, turn 2's token replays the prior turns into the provider context, a
  * forged token is a 400 before any cost, and an idempotent replay re-emits the
@@ -78,7 +78,7 @@ function buildDeps(redis: FakeRedisLists, store?: AiIdempotencyStore) {
 
 const auth = { user: { id: 'u1' } }
 
-test.group('chat controller — conversation memory flow', () => {
+test.group('chat controller: conversation memory flow', () => {
   test('turn 1 mints X-Ai-Session and turn 2 replays the prior exchange into the context', async ({
     assert,
   }) => {

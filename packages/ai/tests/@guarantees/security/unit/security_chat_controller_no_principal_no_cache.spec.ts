@@ -9,10 +9,10 @@ import { fakeHttpContext } from '../../../helpers/fake_http_context.js'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * G7: an idempotent replay may only be shared within a known principal. A
- * request that presents an Idempotency-Key but resolves NO principal gets no
- * idempotency at all: the cache is neither read nor written, because a
- * principal-less cache slot would be shareable across unknown callers.
+ * An idempotent replay may only be shared within a known principal. A request that
+ * presents an Idempotency-Key but resolves NO principal gets no idempotency at all:
+ * the cache is neither read nor written, because a principal-less cache slot would be
+ * shareable across unknown callers.
  */
 
 const chatBody = { messages: [{ role: 'user', content: 'hola' }] }

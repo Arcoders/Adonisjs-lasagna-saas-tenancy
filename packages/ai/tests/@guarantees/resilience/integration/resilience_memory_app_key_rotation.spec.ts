@@ -19,7 +19,7 @@ import ConversationMemoryService, {
 let ready = false
 
 const MAC = Buffer.alloc(32, 5)
-// Async + tenant-scoped fakes (the Wave-5 seam signature); these fakes ignore the tenant id.
+// Async + tenant-scoped fakes matching the current seam signature; these fakes ignore the tenant id.
 const oldEnc = async (_tenantId: string, plain: string) => `old:${plain}`
 const oldDec = async (_tenantId: string, cipher: string) => {
   if (!cipher.startsWith('old:')) throw new Error('not old-key ciphertext')

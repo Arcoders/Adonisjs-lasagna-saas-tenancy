@@ -5,7 +5,7 @@ import { fakeHttpContext } from '../../../helpers/fake_http_context.js'
 import { buildToolChat, fakeTenant, toolChatBody } from '../../../helpers/tool_chat_doubles.js'
 import { MAX_CONCURRENT_TOOL_LOOPS_PER_TENANT } from '../../../../src/constants.js'
 
-test.group('security — per-tenant tool-loop concurrency cap (Phase 2a)', () => {
+test.group('security: per-tenant tool-loop concurrency cap', () => {
   test('refuses the (N+1)th concurrent acquire with a 429 too_many_concurrent', ({ assert }) => {
     const watcher = new TenantLivenessWatcher()
     const cap = 2
@@ -68,12 +68,12 @@ test.group('security — per-tenant tool-loop concurrency cap (Phase 2a)', () =>
 })
 
 /**
- * The cap is only a rail if the controller actually passes one (Phase 9c). A tool
+ * The cap is only a rail if the controller actually passes one. A tool
  * request must acquire CAPPED and be refused pre-commit at the ceiling; a plain
  * chat must keep acquiring uncapped, so wiring the cap cannot regress ordinary
  * chat into a 429 under load.
  */
-test.group('security — the chat controller wires the cap onto a tool request', () => {
+test.group('security: the chat controller wires the cap onto a tool request', () => {
   test('a tool request at the cap is refused 429 pre-commit, before any upstream call', async ({
     assert,
   }) => {

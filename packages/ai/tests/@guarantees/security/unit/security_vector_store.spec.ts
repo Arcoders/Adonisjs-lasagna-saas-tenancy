@@ -26,7 +26,7 @@ function rejectedIds() {
     .map((r) => r.id)
 }
 
-test.group('VectorStoreService — isolation guards', (group) => {
+test.group('VectorStoreService: isolation guards', (group) => {
   group.each.setup(() => {
     __resetAiGuardCounters()
     __resetAiGuardRateLimit()
@@ -34,7 +34,7 @@ test.group('VectorStoreService — isolation guards', (group) => {
     return () => __setAiGuardDispatcherForTests(undefined)
   })
 
-  test('refuses rowscope-pg placement (I1): logical isolation is too weak for embeddings', async ({
+  test('refuses rowscope-pg placement: logical isolation is too weak for embeddings', async ({
     assert,
   }) => {
     const store = new VectorStoreService(fakeVectorEnv({ kind: 'rowscope' }).deps)
@@ -85,7 +85,7 @@ test.group('VectorStoreService — isolation guards', (group) => {
   })
 })
 
-test.group('VectorStoreService — storage', (group) => {
+test.group('VectorStoreService: storage', (group) => {
   group.each.setup(() => {
     __resetAiGuardCounters()
     __resetAiGuardRateLimit()
@@ -105,7 +105,7 @@ test.group('VectorStoreService — storage', (group) => {
     }
   })
 
-  test('enforces the embeddingCount cap atomically before writing (#18)', async ({ assert }) => {
+  test('enforces the embeddingCount cap atomically before writing', async ({ assert }) => {
     const env = fakeVectorEnv({ dimension: 8, count: 5 })
     const store = new VectorStoreService(env.deps)
     await assert.rejects(
@@ -155,7 +155,7 @@ test.group('VectorStoreService — storage', (group) => {
     assert.match(q.sql, /LIMIT \?/i)
   })
 
-  test('deleteBySource removes a whole source (poisoning rollback, #3)', async ({ assert }) => {
+  test('deleteBySource removes a whole source (poisoning rollback)', async ({ assert }) => {
     const env = fakeVectorEnv({ deleted: 4 })
     const removed = await new VectorStoreService(env.deps).deleteBySource(tenant, 'poisoned-doc')
     assert.equal(removed, 4)

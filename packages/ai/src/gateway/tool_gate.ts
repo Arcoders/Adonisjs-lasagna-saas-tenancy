@@ -14,7 +14,7 @@ import {
 import { AI_TOOL_ARGS_SUMMARY_MAX_CHARS, MAX_TOOL_DEFS } from '../constants.js'
 
 /**
- * The tool authorization + capability gates (WS-AI-11, Phase 3), the security
+ * The tool authorization + capability gates, the security
  * core of tool calling. Each function is pure of the loop and the executor, so a
  * spec (and the guard-emission matrix) drives it directly; each emits its own
  * Isthmus guard on the line before it throws, mirroring `access_gate.ts`. Every
@@ -23,7 +23,7 @@ import { AI_TOOL_ARGS_SUMMARY_MAX_CHARS, MAX_TOOL_DEFS } from '../constants.js'
 
 /**
  * Resolve the FULL tool set available to a request, behind a per-tenant
- * default-deny (WS-AI-11, mirrors `allowedProviders`). Absent `config.ai.tools`
+ * default-deny (mirrors `allowedProviders`). Absent `config.ai.tools`
  * (or no `registry`/`resolveTools`) yields no tools. The static `registry` and
  * the dynamic `resolveTools` combine, first-wins by name; malformed entries are
  * dropped. This is the full set (read AND action) the executor gates a call
@@ -32,7 +32,7 @@ import { AI_TOOL_ARGS_SUMMARY_MAX_CHARS, MAX_TOOL_DEFS } from '../constants.js'
  * A `resolveTools` THROW is a refusal, not a 500 and not a silent tool-free chat:
  * the host's resolver is the per-tenant policy decision, so a resolver that cannot
  * decide (its policy backend is down) must not be read as "this tenant gets no
- * tools" — that would answer ungrounded as though tool calling were unavailable.
+ * tools", which would answer ungrounded as though tool calling were unavailable.
  * It denies with the pinned `tool_denied`, mirroring how `authorizeToolScope` and
  * `resolveRetrievalScope` treat their own host hooks failing.
  */
@@ -184,7 +184,7 @@ const ACTION_REFUSALS: Record<string, string> = {
   summary_empty:
     'Refusing the action: its summarizeArgs produced no text for a human to read before confirming',
   // `requiresConfirmation: false` is refused rather than honored, a deliberate
-  // narrowing of Phase 3a. The at-most-once fence is keyed by the confirmation
+  // narrowing. The at-most-once fence is keyed by the confirmation
   // token's own MAC, and what makes that correct is the token's random nonce: one
   // token, one effect. An auto-executing action has no token, so no nonce, and
   // nothing is left to key a fence by that behaves. Keyed by the arguments, a
@@ -200,8 +200,8 @@ const ACTION_REFUSALS: Record<string, string> = {
 }
 
 /**
- * The plan-phase outcome of an action tool's confirmation check (WS-AI-11 Phase
- * 3a). A `confirmed` carries the verified token (its MAC is the ledger + idempotency
+ * The plan-phase outcome of an action tool's confirmation check. A `confirmed`
+ * carries the verified token (its MAC is the ledger + idempotency
  * key); a `challenge` carries a FRESHLY minted token the loop puts to the human.
  * The fatal cases (no machinery, no principal, a presented-but-unmatched token) are
  * thrown, not returned.
@@ -211,7 +211,7 @@ export type ActionConfirmation =
   | { readonly kind: 'challenge'; readonly minted: MintedConfirmation }
 
 /**
- * Decide the confirmation state of THIS action call (WS-AI-11 Phase 3a). A read
+ * Decide the confirmation state of THIS action call. A read
  * tool never reaches here. Returns the state; the executor's plan phase runs no
  * effect off a `challenge`, so scanning a whole round through this cannot half-apply
  * it.
@@ -225,7 +225,7 @@ export type ActionConfirmation =
  * - `{ kind: 'challenge' }`: no token was presented at all. This is NOT a failure,
  *   it is the first turn of every action; the loop mints it into an SSE frame.
  * - `tool_confirmation_invalid` (403, thrown): a token WAS presented and none
- *   authorized this call. The client believed it had permission and did not — the
+ *   authorized this call. The client believed it had permission and did not; the
  *   shape both a stolen-token replay and the model rephrasing its arguments land in.
  * - `{ kind: 'confirmed' }`: a presented token authorizes this exact call.
  *
@@ -282,8 +282,8 @@ export function resolveActionConfirmation(
 }
 
 /**
- * Render the one line a human reads before confirming this action (WS-AI-11 Phase
- * 3a), by running the tool's host-authored `summarizeArgs` over the VALIDATED
+ * Render the one line a human reads before confirming this action, by running the
+ * tool's host-authored `summarizeArgs` over the VALIDATED
  * arguments. Fail-closed and bounded: a summarizer that throws, or returns anything
  * but a non-empty string, refuses the action rather than showing the human a blank
  * or a partial prompt they might rubber-stamp. `assertActionAllowed` has already
@@ -349,7 +349,7 @@ export function assertClaimUsable(
  * `guard.ai_tool_denied` and a `tool_denied` (403), never a 500. Returns the
  * `{ kind: 'allow', filter? }` scope on success.
  *
- * An ACTION tool ignores `acknowledgeUnauthorizedTools` (WS-AI-11 Phase 3a). That
+ * An ACTION tool ignores `acknowledgeUnauthorizedTools`. That
  * escape hatch exists so a host can try read tools out without wiring authorization
  * first, where tenant isolation still holds and the worst case is reading its own
  * data. Extending the same convenience to writes would mean one boolean, set once
@@ -390,10 +390,10 @@ export async function authorizeToolScope(
 }
 
 /**
- * The I7 / confused-deputy re-assertion, called by the executor BEFORE it binds
+ * The confused-deputy re-assertion, called by the executor BEFORE it binds
  * `tenancy.run(tenant)`: if the request is already running inside a tenancy scope
  * it MUST be this tenant's. Reading the AMBIENT scope before the bind (not after,
- * which would compare the just-set scope to itself — a tautology) is what makes the
+ * which would compare the just-set scope to itself, a tautology) is what makes the
  * check meaningful and faithfully mirrors the vector-store `#target` and
  * audit-writer `append` re-assert. A breach emits the CRITICAL
  * `guard.ai_tool_scope_mismatch` and throws `tenant_scope_mismatch`, so a

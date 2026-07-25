@@ -9,7 +9,7 @@ import { auditEntryToRecord, csvHeader, toCsvRow, toNdjsonLine } from '../utils/
 
 /**
  * Export the append-only AI audit hash chain in a form an external verifier can
- * re-walk (Wave 4, 3.2). Streams keyset-paged batches and writes incrementally with
+ * re-walk. Streams keyset-paged batches and writes incrementally with
  * backpressure, so a chain of millions of rows is never held in memory.
  *
  * Two departures from core's `tenant:audit:export`, each load-bearing:
@@ -17,7 +17,7 @@ import { auditEntryToRecord, csvHeader, toCsvRow, toNdjsonLine } from '../utils/
  *   SIEM and re-walkable line by line. `--format csv` offers the spreadsheet form with
  *   formula-injection escaping.
  * - `(tenant_id, seq)` chain order, NOT `created_at`: only in chain order is the file
- *   self-verifiable — an external tool re-walks each tenant's rows, recomputing the
+ *   self-verifiable, so an external tool re-walks each tenant's rows, recomputing the
  *   checksum and linking through the exported `prevChecksum`, needing nothing live.
  *
  * Fail-closed on a write error: destroy the partial file and exit non-zero, because a

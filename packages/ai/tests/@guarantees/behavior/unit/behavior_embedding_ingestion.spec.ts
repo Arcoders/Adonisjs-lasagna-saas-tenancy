@@ -119,7 +119,7 @@ test.group('EmbeddingIngestionService', () => {
     assert.equal(reservedWorstCase, 300)
   })
 
-  test('emits integer metrics that never carry chunk content (G3)', async ({ assert }) => {
+  test('emits integer metrics that never carry chunk content', async ({ assert }) => {
     const h = harness()
     await new EmbeddingIngestionService(h.deps).ingest(
       tenant,

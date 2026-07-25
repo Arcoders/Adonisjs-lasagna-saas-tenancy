@@ -7,7 +7,7 @@ import type { DoctorContext } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * The ai_retrieval_gate doctor check + its shared posture reading (WS-AI-5, G2).
+ * The ai_retrieval_gate doctor check + its shared posture reading.
  * The posture is read at RUN time through the injected getter, and the boot
  * warning and the check speak with one voice (both read aiRetrievalGatePosture).
  * Retrieval is fail-closed: unwired + unacknowledged is a `warn` (retrieval is

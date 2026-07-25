@@ -12,7 +12,7 @@ import {
 import { fakeVectorEnv, fakeContentCipher, vec } from '../../../helpers/fake_vector_db.js'
 
 /**
- * Wave 5 (data-at-rest, GATED): embeddings content-at-rest. The store seals `content`
+ * Embeddings content-at-rest (data-at-rest, GATED). The store seals `content`
  * (and optionally `metadata`) under an injected per-tenant seam before the bind, decrypts
  * the O(limit) rows a search returns, keeps `content_hash` on caller plaintext (so dedup
  * survives), refuses a metadata-scoped read over encrypted metadata, fails an ingest
@@ -46,7 +46,7 @@ function insertableEnv(over: Parameters<typeof fakeVectorEnv>[0] = {}) {
   })
 }
 
-test.group('VectorStoreService — content-at-rest (Wave 5)', () => {
+test.group('VectorStoreService: content-at-rest', () => {
   test('default-off: content is bound plaintext and metadata stays ?::jsonb (parity)', async ({
     assert,
   }) => {
@@ -128,7 +128,7 @@ test.group('VectorStoreService — content-at-rest (Wave 5)', () => {
   })
 })
 
-test.group('VectorStoreService — content-at-rest fail postures (Wave 5)', (group) => {
+test.group('VectorStoreService: content-at-rest fail postures', (group) => {
   group.each.setup(() => {
     __resetAiGuardCounters()
     __resetAiGuardRateLimit()
@@ -180,7 +180,7 @@ test.group('VectorStoreService — content-at-rest fail postures (Wave 5)', (gro
       }
     })
     // Fail-closed: sealing happens BEFORE the transaction, so no INSERT (and no advisory
-    // lock) ever ran — plaintext never touched the encrypted column.
+    // lock) ever ran; plaintext never touched the encrypted column.
     assert.isFalse(env.queries.some((q) => q.sql.toLowerCase().includes('insert into')))
     assert.isFalse(env.queries.some((q) => q.sql.toLowerCase().includes('pg_advisory_xact_lock')))
   })

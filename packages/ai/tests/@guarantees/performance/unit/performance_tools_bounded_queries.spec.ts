@@ -15,8 +15,8 @@ import type { AIStreamRequest, StreamFragment } from '../../../../src/types/ai_p
  *
  * This matters because a tool is the first place the satellite runs host code that
  * touches the tenant's database on a per-request path. If the executor's own
- * bookkeeping (audit, metrics) scaled with the result — one audit row per returned
- * row, say — a single "list my fleet" would fan out into an N+1 against the shared
+ * bookkeeping (audit, metrics) scaled with the result, say one audit row per returned
+ * row, then a single "list my fleet" would fan out into an N+1 against the shared
  * backoffice audit table, which is the one table every tenant contends on. The
  * handler's own query cost is the host's business; the SATELLITE's overhead must be
  * O(1) per call and O(rounds) per request, never O(rows).
@@ -63,7 +63,7 @@ async function drain(producer: (signal: AbortSignal) => AsyncIterable<StreamFrag
   return out
 }
 
-test.group('performance — the tool path is O(1) per call', () => {
+test.group('performance: the tool path is O(1) per call', () => {
   test('one call writes exactly one audit row, whatever the result size', async ({ assert }) => {
     for (const rows of [0, 1, 50, 5_000]) {
       const { audits, executor } = recordingExecutor([tool(rows)])
@@ -94,8 +94,8 @@ test.group('performance — the tool path is O(1) per call', () => {
   })
 
   test('a refused call costs one audit row and never runs the handler', async ({ assert }) => {
-    // The denial path must not be cheaper to observe than the happy path — an
-    // unaudited refusal is an invisible attack — nor more expensive.
+    // The denial path must not be cheaper to observe than the happy path (an
+    // unaudited refusal is an invisible attack), nor more expensive.
     let ran = false
     const guarded: AIToolHostDefinition = {
       ...tool(1),

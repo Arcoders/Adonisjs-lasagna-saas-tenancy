@@ -29,7 +29,7 @@ const svc = () =>
     config: { maxTurns: 5 },
   })
 
-test.group('security — memory session isolation', () => {
+test.group('security: memory session isolation', () => {
   test('a valid token round-trips to its own storage key', ({ assert }) => {
     const m = svc()
     const minted = m.mintSession(T1, 'user-a')
@@ -48,7 +48,7 @@ test.group('security — memory session isolation', () => {
     assert.equal((error as unknown as AIException).httpStatus, 400)
   })
 
-  test("a principal cannot replay another principal's token (G6)", ({ assert }) => {
+  test("a principal cannot replay another principal's token", ({ assert }) => {
     const m = svc()
     const minted = m.mintSession(T1, 'user-a')
     assert.throws(
@@ -76,7 +76,7 @@ test.group('security — memory session isolation', () => {
   })
 })
 
-test.group('security — memory session guard emission', (group) => {
+test.group('security: memory session guard emission', (group) => {
   let captured: IsthmusGuardTrippedPayload[] = []
   const settle = () => new Promise<void>((resolve) => setImmediate(resolve))
 

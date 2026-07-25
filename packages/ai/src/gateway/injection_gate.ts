@@ -19,8 +19,8 @@ export interface InjectionInput {
 
 /**
  * Run the host {@link AIInjectionConfig.classifier} over each input at the INPUT
- * pre-flight choke point (Wave 3, LLM01). This is DEFENSE-IN-DEPTH, never the
- * isolation control: the boundary is structural role separation plus I4, which holds
+ * pre-flight choke point (OWASP LLM01). This is DEFENSE-IN-DEPTH, never the
+ * isolation control: the boundary is structural role separation plus tenant isolation, which holds
  * whether or not a classifier is wired, so the fail posture is split deliberately.
  *
  * - A `block` verdict is fail-CLOSED: it trips `guard.ai_injection_detected`, bumps

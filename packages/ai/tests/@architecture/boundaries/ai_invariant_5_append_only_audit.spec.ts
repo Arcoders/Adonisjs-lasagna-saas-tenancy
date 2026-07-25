@@ -31,7 +31,7 @@ function stubSource(columns: readonly string[], triggers = TRIGGERS) {
   ].join('\n')
 }
 
-test.group('architectural — I5 append-only audit guard', () => {
+test.group('architectural: I5 append-only audit guard', () => {
   test('a stub with all four triggers and the exact allowlist passes', ({ assert }) => {
     const problems = auditAppendOnlyAudit([{ path: STUB, source: stubSource(ALLOWED_COLUMNS) }])
     assert.deepEqual(problems, [])

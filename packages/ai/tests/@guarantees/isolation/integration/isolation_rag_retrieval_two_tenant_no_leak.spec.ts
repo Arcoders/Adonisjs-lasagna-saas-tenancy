@@ -160,9 +160,7 @@ test.group('RAG retrieval two-tenant + filter isolation (real pgvector)', (group
     )
   }).skip(skip, 'pgvector not available (local postgres:16-alpine); runs in CI')
 
-  test('the SAME sources filter yields disjoint rows per tenant (I1 holds under a filter)', async ({
-    assert,
-  }) => {
+  test('the SAME sources filter yields disjoint rows per tenant', async ({ assert }) => {
     const filter = { kind: 'sources', sources: ['kb-eng'] } as const
     const a = await storeAs('A').search(tenantA, query, { limit: 10, filter })
     const b = await storeAs('B').search(tenantB, query, { limit: 10, filter })

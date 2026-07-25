@@ -23,7 +23,7 @@ import type { FailurePolicy } from '@adonisjs-lasagna/saas-tenancy/services'
 const EPOCH_STORE_OUTAGE = Symbol('ai_idempotency_epoch_store_outage')
 
 /**
- * Idempotent replay for completed streams (#5): unlike billing's dedup-only
+ * Idempotent replay for completed streams: unlike billing's dedup-only
  * ledger, this CACHES THE RESPONSE, so a client retry under the same
  * `Idempotency-Key` returns the same bytes without a second reservation or
  * provider charge.
@@ -41,7 +41,7 @@ const EPOCH_STORE_OUTAGE = Symbol('ai_idempotency_epoch_store_outage')
  * namespace. The MAC (HMAC-SHA256 under an HKDF key derived from APP_KEY)
  * binds tenant, principal, session and header together, so no scope
  * component ever appears in a cache key and a forged key cannot collide with
- * another principal's entry. The per-tenant `epoch` segment is the WS-AI-9
+ * another principal's entry. The per-tenant `epoch` segment is the
  * purge seam: bumping it makes every cached response unreachable at once and
  * the short TTL reaps the orphans.
  */
@@ -89,7 +89,7 @@ export interface AiIdempotencyScope {
   readonly tenantId: string
   /** The authenticated principal (config.ai.resolvePrincipal). Callers with no principal get no idempotency. */
   readonly principal: string
-  /** Optional conversation/session discriminator (WS-AI-4 owns real sessions). */
+  /** Optional conversation/session discriminator (conversation memory owns real sessions). */
   readonly sessionId?: string | null
   /** The validated Idempotency-Key header value. */
   readonly headerKey: string
@@ -106,7 +106,7 @@ export interface CachedAiResponse {
     readonly lastEventId: string | undefined
   }
   /**
-   * The conversation-memory session token minted on this turn (WS-AI-4), if any.
+   * The conversation-memory session token minted on this turn, if any.
    * Re-emitted as `X-Ai-Session` on replay so a client whose turn-1 connection
    * dropped after the mint still learns its session on retry (instead of
    * re-minting an empty one and losing the persisted turn).
@@ -228,12 +228,12 @@ export default class AiIdempotencyService {
   }
 
   /**
-   * The WS-AI-9 purge seam: rotate the tenant's epoch so every cached response
+   * The purge seam: rotate the tenant's epoch so every cached response
    * becomes unreachable immediately (their TTLs reap the bytes). Unlike the
    * cache ops this is FAIL-CLOSED: a GDPR purge that silently did nothing would
    * be a compliance bug, so the caller must see it.
    *
-   * Fail-closed VERIFIABLY (WS-AI-9 E3): a `set` that a misbehaving store
+   * Fail-closed VERIFIABLY: a `set` that a misbehaving store
    * silently no-ops resolves without throwing, leaving the old epoch resolving
    * and pre-purge responses replayable. So we read the epoch back and confirm
    * the new value landed; a store outage (the `set` or the read-back throws) or

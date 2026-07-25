@@ -12,10 +12,10 @@ import { fakeTenant } from '../../../helpers/stream_doubles.js'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * The retrieve choke point's own G1 forward contract: the retrieval audit event
- * field set is pinned EXACTLY (a parallel event to the chat/embed ones),
- * `actorHash` is one-way, and neither the query text nor a returned document ever
- * reaches a serialized event (only a `matchCount`).
+ * The retrieve choke point's own forward contract: the retrieval audit event field set
+ * is pinned EXACTLY (a parallel event to the chat/embed ones), `actorHash` is one-way,
+ * and neither the query text nor a returned document ever reaches a serialized event
+ * (only a `matchCount`).
  */
 const PINNED_FIELDS = [
   'actorHash',

@@ -18,11 +18,11 @@ import { fakeHttpContext } from '../../../helpers/fake_http_context.js'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * G11 end to end at the controller: a TenantSuspended event mid-stream fires
+ * End to end at the controller: a TenantSuspended event mid-stream fires
  * the liveness signal the controller acquired, the spine attributes the abort
  * to tenant_suspended, the terminal done frame names it, and the finally
- * still settled and released the reservation (G5: no cost dodge via
- * suspension timing).
+ * still settled and released the reservation, so suspension timing can't be
+ * used to dodge the cost.
  */
 
 type Handler = (event: unknown) => void

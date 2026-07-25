@@ -5,7 +5,7 @@ import ConversationMemoryService from '../../../../src/services/conversation_mem
 /**
  * Conversation memory against the REAL Redis the app is wired to: the atomic
  * LIST append survives concurrency (no lost turns, the race the design fixes),
- * two tenants sharing a principal land in disjoint keys, and the WS-AI-9 purge
+ * two tenants sharing a principal land in disjoint keys, and the purge
  * seams (per-user, per-tenant) erase on real infrastructure, not just a Map.
  */
 

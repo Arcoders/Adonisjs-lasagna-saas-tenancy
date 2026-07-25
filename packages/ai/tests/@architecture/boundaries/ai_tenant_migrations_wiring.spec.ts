@@ -11,7 +11,7 @@ const tsconfig = {
 }
 const listOne = () => ['1751414400000_create_ai_embeddings_table.ts']
 
-test.group('architectural — per-tenant migration wiring guard', () => {
+test.group('architectural: per-tenant migration wiring guard', () => {
   test('passes when include covers the source dir and a migration exists', ({ assert }) => {
     const problems = auditManifestMigrations('ai', 'build/tenant_migrations', tsconfig, listOne)
     assert.deepEqual(problems, [])

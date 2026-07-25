@@ -12,8 +12,8 @@ export const DEFAULT_EVENT = 'token'
 export const HEARTBEAT_FRAME = ':\n\n'
 
 /**
- * The SSE event carrying a human-in-the-loop action confirmation challenge
- * (WS-AI-11 Phase 3a). Its `data:` is a JSON `{ id, name, summary, token,
+ * The SSE event carrying a human-in-the-loop action confirmation challenge.
+ * Its `data:` is a JSON `{ id, name, summary, token,
  * expiresAt }`: the client shows `summary` to the human and, on agreement,
  * echoes `token` back in the `X-Ai-Tool-Confirmation` header. It is deliberately
  * NOT {@link DEFAULT_EVENT}, so `reconstructAssistantText` (which allow-lists

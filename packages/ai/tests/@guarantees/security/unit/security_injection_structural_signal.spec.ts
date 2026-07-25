@@ -11,22 +11,22 @@ import {
 import type { VectorMatch } from '../../../../src/services/vector_store_service.js'
 
 /**
- * Wave 3 acceptance #1: the structural prompt-injection boundary is made
- * OBSERVABLE without being changed. A retrieved document or tool result forging a
- * fence token is STILL neutralized (the existing boundary stays green), AND the
- * neutralization now emits `guard.ai_injection_structural` — the one deliberate
- * neutralize-and-observe guard — so an operator can see a corpus probing for a
- * fence breakout. A clean input rewrites nothing and emits nothing. The signal is
- * tenant-less at the pure builder (a neutralize-and-observe signal must not inflate
- * the per-tenant `ai_guard_rejections` reject bridge); the caller emits the
- * dedicated per-tenant counter, covered at the controller/executor level.
+ * Makes the structural prompt-injection boundary observable without changing it. A
+ * retrieved document or tool result forging a fence token is still neutralized (the
+ * existing boundary stays green), and the neutralization now emits
+ * `guard.ai_injection_structural`, the one deliberate neutralize-and-observe guard, so
+ * an operator can see a corpus probing for a fence breakout. A clean input rewrites
+ * nothing and emits nothing. The signal is tenant-less at the pure builder (a
+ * neutralize-and-observe signal must not inflate the per-tenant `ai_guard_rejections`
+ * reject bridge); the caller emits the dedicated per-tenant counter, covered at the
+ * controller/executor level.
  */
 
 const match = (content: string): VectorMatch => ({ id: 'm', content, metadata: {}, distance: 0.1 })
 const BIG = { maxItems: 10, maxChars: 100_000 }
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve))
 
-test.group('injection structural signal (Wave 3, 3a)', (group) => {
+test.group('injection structural signal', (group) => {
   let captured: IsthmusGuardTrippedPayload[] = []
 
   group.each.setup(() => {

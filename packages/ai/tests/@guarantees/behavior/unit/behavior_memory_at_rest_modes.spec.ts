@@ -6,13 +6,13 @@ import ConversationMemoryService, {
 import { FakeRedisLists } from '../../../helpers/fake_redis_lists.js'
 
 /**
- * Wave 5 (data-at-rest, GATED): the memory seam is async and carries `tenantId`, so ONE
+ * The memory seam is async and carries `tenantId`, so ONE
  * mode-agnostic service backs both `'app-key'` (fleet key, default) and `'tenant-dek'`
  * (a per-tenant DEK). This spec proves the two contract properties a per-tenant DEK path
  * relies on, at the seam level (the provider wires the real crypto DEK on top):
  *  - the tenant id reaches the seam, so the sealed blob is scoped to the right DEK;
  *  - a shredded/absent DEK (the seam throws) degrades a read to empty, fail-SAFE, exactly
- *    like today's store-outage posture — which is what makes a crypto-shred an erasure.
+ *    like today's store-outage posture, which is what makes a crypto-shred an erasure.
  *
  * The behavior-preserving proof for the sync->async change itself is the EXISTING memory
  * regression specs staying green; this spec only adds the tenant-scoped and shred cases.
@@ -60,7 +60,7 @@ function serviceWith(
   return { svc, metrics }
 }
 
-test.group('conversation memory — tenant-scoped at-rest seam (Wave 5)', () => {
+test.group('conversation memory: tenant-scoped at-rest seam', () => {
   test('the tenant id reaches the seam and round-trips under that tenant', async ({ assert }) => {
     const redis = new FakeRedisLists()
     const { svc } = serviceWith(redis, tenantScopedSeam())

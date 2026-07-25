@@ -101,7 +101,7 @@ export interface AiChatControllerDeps {
    * `config.ai.redactOutput` hook changed or aborted output. Defaults to a no-op.
    */
   emitMetric?: EmitMetric
-  /** The per-key request rate limiter (threat #4). Default: a disabled limiter. */
+  /** The per-key request rate limiter. Default: a disabled limiter. */
   rateLimiter?: AiRateLimiter
   /**
    * The retrieval service, for opt-in RAG. Present only when the host
@@ -122,7 +122,7 @@ export interface AiChatControllerDeps {
    */
   memory?: ConversationMemoryService | undefined
   /**
-   * The tool executor (WS-AI-11). Present only when the host configured
+   * The tool executor. Present only when the host configured
    * `config.ai.tools`; absent leaves chat tool-free with ZERO overhead (the
    * plain `provider.stream` closure runs byte-for-byte as before). When present
    * AND the per-tenant registry advertises at least one read tool, the request
@@ -138,7 +138,7 @@ export interface AiChatControllerDeps {
 }
 
 /**
- * A resolved tool-loop plan for one request (WS-AI-11): the FULL registry the
+ * A resolved tool-loop plan for one request: the FULL registry the
  * executor gates a call against, the read-only subset advertised to the model,
  * and the tools config block carrying the loop bounds. Absent means plain chat.
  */
@@ -182,12 +182,12 @@ export default class AiChatController {
     const principal = resolvePrincipal(ctx, ai)
     const principalHash = hashAuditPrincipal(principal)
 
-    // Action-tool confirmation tokens (WS-AI-11 Phase 3a). The client echoes them
+    // Action-tool confirmation tokens. The client echoes them
     // back in X-Ai-Tool-Confirmation to authorize an action a human agreed to. Their
     // presence SUPPRESSES the idempotency cache entirely (step 3 + step 4): the cache
     // key MACs {tenant, principal, session, headerKey} and NOT the token, so a client
-    // that keeps its Idempotency-Key across the confirming retry — what every HTTP
-    // retry layer does — would otherwise get a cache HIT and replay the SAME challenge
+    // that keeps its Idempotency-Key across the confirming retry (what every HTTP
+    // retry layer does) would otherwise get a cache HIT and replay the SAME challenge
     // frame forever, never reaching the executor. No error, no metric distinguishes
     // that livelock from working, so a confirming request must not be cacheable.
     const confirmations = parseToolConfirmationHeader(ctx.request.header('x-ai-tool-confirmation'))
@@ -235,7 +235,7 @@ export default class AiChatController {
     //    403 provider_not_allowed / 503 provider_unavailable / 500 config_missing).
     const provider = this.deps.registry.forTenant(tenant, ai)
 
-    // 5-residency. Data residency / no-train (#7/#15): the tenant posture may
+    // 5-residency. Data residency / no-train: the tenant posture may
     //    refuse this provider (a 403 `residency_denied`), before any reservation
     //    or rate-limit hit. Like the access gate, it propagates.
     await enforceChatResidency(tenant, provider.name, ai)
@@ -251,10 +251,10 @@ export default class AiChatController {
       idempotentReplay: false,
     }
 
-    // 5-injection. Input-side prompt-injection detection (Wave 3, LLM01),
+    // 5-injection. Input-side prompt-injection detection (OWASP LLM01),
     //    defense-in-depth and NEVER the isolation control (structural role
-    //    separation plus I4 is). A host classifier's block verdict refuses each
-    //    user turn HERE — before any memory mint, rate-limit hit or reserve — so a
+    //    separation plus tenant isolation is). A host classifier's block verdict refuses each
+    //    user turn HERE, before any memory mint, rate-limit hit or reserve, so a
     //    blocked request spends nothing and is audited failed_preflight with the
     //    pinned 400. The classifier's own error is fail-open by default; async is
     //    free because this runs on input, before the first streamed byte.
@@ -314,7 +314,7 @@ export default class AiChatController {
       throw error
     }
 
-    // 5c. Per-key request rate limit (threat #4), pre-flight so a 429/503 lands
+    // 5c. Per-key request rate limit, pre-flight so a 429/503 lands
     //     before any reservation or byte. A replay already returned above, so a
     //     cached response never consumes the provider key's rate budget. Wrapped
     //     like the reserve/retrieval preflights so a refusal returns the pinned
@@ -331,7 +331,7 @@ export default class AiChatController {
       throw error
     }
 
-    // 5d. Tool-loop planning (WS-AI-11). Only when the host opted into tools AND
+    // 5d. Tool-loop planning. Only when the host opted into tools AND
     //     the executor is wired (the route injects it solely then), so a non-tool
     //     chat pays ZERO overhead. Resolve the per-tenant registry behind the
     //     default-deny gate; when it advertises at least one read tool this request
@@ -345,7 +345,7 @@ export default class AiChatController {
         const fullSet = await resolveToolRegistry(ctx, tenant, ai.tools)
         const advertised = advertisedTools(fullSet, ai.tools)
         if (advertised.length > 0) {
-          // Phase 0's conditionally-required capability: a tool loop against a
+          // A conditionally-required capability: a tool loop against a
           // provider that does not declare `capabilities.tools` fails CLOSED
           // (403 provider_not_allowed), rather than advertising tools the provider
           // will silently drop and answering as if tool calling were unavailable.
@@ -410,8 +410,8 @@ export default class AiChatController {
       // 6a. RAG augmentation, on a cache MISS only: run the metered
       //     query embed + scoped search under the ALREADY-resolved document ACL
       //     (5a), and fold the fenced matches into the context as untrusted
-      //     user-role DATA (#10), bounded so the ASSEMBLED prompt stays within
-      //     maxPromptChars (#8). A retrieval failure (over budget, embed error)
+      //     user-role DATA, bounded so the ASSEMBLED prompt stays within
+      //     maxPromptChars. A retrieval failure (over budget, embed error)
       //     fails the request BEFORE the stream commits, with the pinned status.
       let messages: AIMessage[]
       try {
@@ -432,7 +432,7 @@ export default class AiChatController {
       // 6b. Conversation memory replay. Load the session's prior
       //     turns (a store/decrypt failure degrades to none, never fails the chat)
       //     and prepend them AFTER retrieval, bounded to the budget left under
-      //     maxPromptChars so the assembled prompt stays within it (#2/#8).
+      //     maxPromptChars so the assembled prompt stays within it.
       if (memory && memorySession) {
         const prior = await memory.load(tenant.id, memorySession.storageKey)
         messages = injectMemoryTurns(messages, prior, resolveMemoryBudget(messages, ai))
@@ -467,7 +467,7 @@ export default class AiChatController {
           maxToolsPerRound: toolPlan.toolsConfig.maxToolsPerRound,
           maxToolCallsPerRequest: toolPlan.toolsConfig.maxToolCallsPerRequest,
           surfaceToolArgs: toolPlan.toolsConfig.surfaceToolArgs,
-          // Invariant 2 (per-round rate limit): rounds >= 2 consult the limiter so
+          // Per-round rate limit: rounds >= 2 consult the limiter so
           // the denial-of-wallet rail counts every upstream call. A denial throws
           // an AIException; headers are already flushed, so the spine renders it as
           // an in-band `event: error` frame and the last text stands.
@@ -537,11 +537,11 @@ export default class AiChatController {
               fragments: result.fragments,
               lastEventId: result.lastEventId,
             },
-            // Carry the minted token so a turn-1 replay re-emits X-Ai-Session (gap A).
+            // Carry the minted token so a turn-1 replay re-emits X-Ai-Session.
             sessionToken: mintedSessionToken,
           })
         }
-        // Persist the completed exchange (WS-AI-4). Gated on !overflowed so the
+        // Persist the completed exchange. Gated on !overflowed so the
         // frames are complete; best-effort inside `append`, so it never fails an
         // already-sent response.
         if (memory && memorySession && !recorder.overflowed) {
@@ -615,7 +615,7 @@ export default class AiChatController {
   }
 
   /**
-   * The document-ACL preflight (WS-AI-5, G2): resolve the per-user retrieval scope
+   * The document-ACL preflight: resolve the per-user retrieval scope
    * BEFORE the rate limiter and any cost, so a RAG request refused by the ACL (or
    * the fail-closed default) spends nothing, matching /ai/retrieve. Returns
    * `undefined` when there is no `retrieve` ask (plain chat). A `retrieve` ask with
@@ -639,7 +639,7 @@ export default class AiChatController {
     }
     try {
       // The RAG query embed is a remote egress too: enforce residency before it,
-      // audited as a preflight failure if refused (E7).
+      // audited as a preflight failure if refused.
       await enforceEmbeddingResidency(tenant, ai)
       return await resolveRetrievalScope(ctx, tenant, ai)
     } catch (error) {
@@ -658,11 +658,11 @@ export default class AiChatController {
   }
 
   /**
-   * Apply the retrieval to the messages (WS-AI-5), AFTER the rate limiter so the
+   * Apply the retrieval to the messages, AFTER the rate limiter so the
    * metered query embed is rate-gated. Runs the embed + scoped search under the
    * ALREADY-resolved `scope`, folds the fenced matches into the messages as
-   * untrusted user-role DATA (#10) bounded to keep the assembled prompt within
-   * `maxPromptChars` (#8), and attributes the retrieval op (non-PII). Without a
+   * untrusted user-role DATA bounded to keep the assembled prompt within
+   * `maxPromptChars`, and attributes the retrieval op (non-PII). Without a
    * `retrieve` ask (scope `undefined`) the messages pass through unchanged. Any
    * retrieval failure is audited `failed_preflight` and rethrown.
    */
@@ -779,7 +779,7 @@ export default class AiChatController {
   #replay(ctx: HttpContext, cached: CachedAiResponse, lastEventId: string | undefined): void {
     const res = ctx.response.response
     res.setHeader('X-Ai-Idempotent-Replay', '1')
-    // Re-emit the minted session (WS-AI-4, gap A): a client whose turn-1 dropped
+    // Re-emit the minted session: a client whose turn-1 dropped
     // after the mint learns its session on replay instead of re-minting an empty one.
     if (cached.sessionToken) res.setHeader('X-Ai-Session', cached.sessionToken)
     httpStreamTarget(ctx).flushHeaders()
@@ -799,7 +799,7 @@ export default class AiChatController {
   }
 
   /**
-   * Persist the completed exchange to conversation memory (WS-AI-4). Stores the
+   * Persist the completed exchange to conversation memory. Stores the
    * request's last `user` turn (its actual question, not an injected memory or
    * retrieval block) paired with the reconstructed assistant answer. Skips when
    * there is no user turn or the answer is empty; `append` itself is best-effort,
@@ -842,7 +842,7 @@ export default class AiChatController {
   }
 }
 
-/** The interim I8 gate: a fragment over the byte bound aborts without writing it. */
+/** The interim output-bound gate: a fragment over the byte bound aborts without writing it. */
 export function boundedFragmentGate(fragment: StreamFragment): StreamFragment | null {
   return fragment.data.length > AI_FRAGMENT_MAX_CHARS ? null : fragment
 }
@@ -853,11 +853,11 @@ export interface RedactionStats {
 }
 
 /**
- * Compose the mandatory I8 output bound with an optional host `redactOutput`
- * hook. The bound always applies FIRST and LAST, so I8 holds even against a
+ * Compose the mandatory output bound with an optional host `redactOutput`
+ * hook. The bound always applies FIRST and LAST, so it holds even against a
  * misbehaving host hook (one that expands a chunk past the bound); the redactor
- * sits between as host-owned defense-in-depth, NEVER the isolation control (I4/I8
- * are the guarantee). Fail-closed: a redactor that throws, or returns a
+ * sits between as host-owned defense-in-depth, NEVER the isolation control.
+ * Fail-closed: a redactor that throws, or returns a
  * non-string, aborts the stream (returns null) rather than emitting unredacted
  * bytes. A `null` return is a deliberate host abort. `tokens` is preserved (the
  * provider generated them; redacting the display does not refund provider cost).
@@ -890,7 +890,7 @@ export function composeRedactionGate(
     }
     if (out === bounded.data) return bounded // unchanged: not a redaction
     stats.redactions += 1
-    // Re-apply the mandatory bound to the redacted text so I8 holds even if the
+    // Re-apply the mandatory bound to the redacted text so it holds even if the
     // hook expanded the chunk. Keep tokens (provider cost is unchanged).
     return bound({ ...bounded, data: out })
   }
@@ -918,7 +918,7 @@ function resolveWorstCase(requested: number | undefined, ai: AiConfig | undefine
 }
 
 /**
- * The per-tenant in-flight admission cap for a tool loop (Phase 2a): the config
+ * The per-tenant in-flight admission cap for a tool loop: the config
  * value clamped to the hard ceiling, defaulting when unset or malformed. Matches
  * the clamp discipline the loop/executor apply to their own bounds, and is only
  * ever consumed here (the liveness watcher receives an already-validated cap).
@@ -939,7 +939,7 @@ function resolveMaxConcurrent(toolsConfig: AIToolsConfig): number {
  * that is the smaller of `config.ai.memory.maxChars` and what remains of
  * `maxPromptChars` after the ALREADY-assembled messages (the current turn plus
  * any retrieval block). Injecting memory last, within this remainder, keeps the
- * assembled prompt inside `maxPromptChars` (#2/#8); retrieval keeps priority.
+ * assembled prompt inside `maxPromptChars`; retrieval keeps priority.
  */
 function resolveMemoryBudget(
   messages: AIMessage[],
@@ -976,7 +976,7 @@ function resolveRetrieveLimit(
 
 /**
  * Fold retrieved matches into the messages as a fenced, bounded, user-role DATA
- * block (#10, #8), inserted right before the final message (the user's question)
+ * block, inserted right before the final message (the user's question)
  * so the model reads the context adjacent to the ask. The block's character
  * budget is what remains of `maxPromptChars` after the existing messages, capped
  * by `maxContextChars`, so the ASSEMBLED prompt can never exceed `maxPromptChars`
@@ -1005,7 +1005,7 @@ function injectRetrievedContext(
   return { messages: withBlock, blockText: block.content }
 }
 
-/** Map every `user`-role turn to a classifiable input (Wave 3, `origin: 'user'`). */
+/** Map every `user`-role turn to a classifiable input (`origin: 'user'`). */
 function userTurnInputs(messages: AIMessage[]): InjectionInput[] {
   return messages
     .filter((message) => message.role === 'user')
@@ -1033,9 +1033,9 @@ function invalid(message: string): never {
  * Validate the chat body shape and bounds before any reservation or provider
  * call. Messages are required and non-empty; the combined content length is
  * bounded by `maxPromptChars`; the tunables must be well-typed. Error
- * messages name the field, never echo content (G3).
+ * messages name the field, never echo content.
  *
- * Tool-calling front door (WS-AI-11): `role` is checked against `MESSAGE_ROLES`
+ * Tool-calling front door: `role` is checked against `MESSAGE_ROLES`
  * (`system|user|assistant`) and `content` must be a non-empty string, and only
  * those two keys are read. So a client can never submit an `assistant.toolCalls`
  * turn or a `role: 'tool'` result: every tool turn is server-authored mid-loop,

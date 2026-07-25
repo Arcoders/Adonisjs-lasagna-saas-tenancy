@@ -9,7 +9,7 @@ export interface AiComplianceCheckDeps {
 }
 
 /**
- * The `ai_compliance` doctor check (WS-AI-9): the purge posture an operator must
+ * The `ai_compliance` doctor check: the purge posture an operator must
  * see before relying on right-to-erasure. It is strictly READ-ONLY: it PINGs
  * Redis and reads `options.keyPrefix`, but NEVER bumps the epoch (that would
  * invalidate live replay caches as a side effect of a health check). It warns
@@ -21,7 +21,7 @@ export function aiComplianceCheck(deps: AiComplianceCheckDeps): DoctorCheck {
   return {
     name: 'ai_compliance',
     description:
-      'Reports the WS-AI-9 purge posture: Redis reachability for memory / response-cache erasure, and any ' +
+      'Reports the purge posture: Redis reachability for memory / response-cache erasure, and any ' +
       'keyPrefix the prefix-aware SCAN must honor so a prefixed deployment does not silently erase nothing.',
     async run(): Promise<DiagnosisIssue[]> {
       if (!deps.getAiConfig()) return []
@@ -47,7 +47,7 @@ export function aiComplianceCheck(deps: AiComplianceCheckDeps): DoctorCheck {
             code: 'ai_compliance_redis_key_prefix',
             severity: 'info',
             message:
-              `Redis keyPrefix "${keyPrefix}" is set: the WS-AI-9 memory purge prepends it to its SCAN ` +
+              `Redis keyPrefix "${keyPrefix}" is set: the memory purge prepends it to its SCAN ` +
               'MATCH so a right-to-erasure is not a silent no-op. No action needed; this confirms the path is active.',
           },
         ]

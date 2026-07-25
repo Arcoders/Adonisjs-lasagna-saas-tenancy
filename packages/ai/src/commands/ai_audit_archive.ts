@@ -9,7 +9,7 @@ import AiAuditWriter from '../services/ai_audit_writer.js'
 import { auditEntryToRecord, csvHeader, toCsvRow, toNdjsonLine } from '../utils/ai_audit_export.js'
 
 /**
- * Archive a tenant's AI audit segment (Wave 4, 3.4), the DEFAULT retention path that
+ * Archive a tenant's AI audit segment, the DEFAULT retention path that
  * PRUNES NOTHING. It (1) verifies the tenant's chain, refusing if it is already broken;
  * (2) exports the segment to the operator's WORM/SIEM file in chain order; (3) persists
  * a signed high-water-mark checkpoint `{ tenantId, lastSeq, lastChecksum }` into the
@@ -17,7 +17,7 @@ import { auditEntryToRecord, csvHeader, toCsvRow, toNdjsonLine } from '../utils/
  * append-only invariant holds and a later incremental verify seeds from the checkpoint.
  *
  * Physical pruning (partition DETACH) is a SEPARATE, superuser-gated, off-by-default
- * path (design 3.4) and is deliberately NOT wired here: most hosts should archive-and
+ * path and is deliberately NOT wired here: most hosts should archive-and
  * -keep. Fail-closed: the checkpoint is written only after the export succeeds and the
  * chain verifies, because detaching or trusting a segment that was never anchored would
  * silently destroy evidence.

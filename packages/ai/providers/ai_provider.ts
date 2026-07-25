@@ -139,12 +139,12 @@ export default definePlugin({
   bind(app) {
     // Stateful, Map-backed: resolved via container.make, never new-ed ad hoc.
     app.container.singleton(AIProviderRegistry, () => new AIProviderRegistry())
-    // The embedding-provider override registry (WS-AI-8, 2A): a host registers its
+    // The embedding-provider override registry: a host registers its
     // own embedding provider (offline mock / local dev) and it supersedes the
     // configured default. Resolved at make-time by the ingestion/retrieval
     // singletons, so a late (boot-time) host registration always wins.
     app.container.singleton(EmbeddingProviderRegistry, () => new EmbeddingProviderRegistry())
-    // Live stream abort handles per tenant (G11). Stateful and cross-request,
+    // Live stream abort handles per tenant. Stateful and cross-request,
     // so it is a container singleton like the registry.
     app.container.singleton(TenantLivenessWatcher, () => new TenantLivenessWatcher())
     // Idempotent replay over the kernel's per-tenant cache namespace. The
@@ -169,7 +169,7 @@ export default definePlugin({
         resiliencePolicy: ai?.resilience?.idempotency?.policy,
       })
     })
-    // The per-key request rate limiter (threat #4). Its redis-backed consumer is
+    // The per-key request rate limiter (the denial-of-wallet threat). Its redis-backed consumer is
     // built HERE (the one sanctioned toucher of the eager core barrel); the
     // gateway sees only the injected AiRateLimiter. Redis is resolved through the
     // app container's `'redis'` binding (the same RedisManager singleton
@@ -186,7 +186,7 @@ export default definePlugin({
         resiliencePolicy: ai?.resilience?.rateLimit?.policy,
       })
     })
-    // Conversation memory (WS-AI-4, I2). Encrypted at rest through the kernel's
+    // Conversation memory. Encrypted at rest through the kernel's
     // fail-closed, domain-separated secret seam (writeSecret/readSecret bound to
     // the 'aiConversationMemory' class), stored as an atomic Redis LIST via the
     // same `'redis'` binding the rate limiter uses. The enc_v2 write/read pass in
@@ -198,7 +198,7 @@ export default definePlugin({
       const metrics = await resolver.make(MetricsService)
       const logger = await resolver.make('logger')
       const resilience = new ResilienceService()
-      // Wave 5: the encrypt/decrypt seams are chosen by config.ai.memory.encryption. The
+      // The encrypt/decrypt seams are chosen by config.ai.memory.encryption. The
       // session MAC key stays APP_KEY-derived in BOTH modes (it binds a session token to
       // the principal; it is not the at-rest blob key).
       const encryptionSeams = await buildMemoryEncryptionSeams(app, ai, metrics)
@@ -228,7 +228,7 @@ export default definePlugin({
         withSpan: (name, attrs, fn) => TelemetryService.withSpan(name, attrs, fn),
       })
     })
-    // The per-tenant vector store (WS-AI-3). It resolves placement from the active
+    // The per-tenant vector store. It resolves placement from the active
     // driver and runs raw SQL on the tenant connection, so it takes the driver,
     // the Lucid db (via the `'lucid.db'` container alias, like `'redis'`, so no
     // direct lucid dependency), and the active tenancy scope id (the satellite
@@ -237,7 +237,7 @@ export default definePlugin({
       const ai = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
       const encryptContent = ai?.embedding?.encryptContent === true
       const encryptMetadata = ai?.embedding?.encryptMetadata === true
-      // Wave 5: wire the content-at-rest seal/open seams ONLY when the host opted in and
+      // Wire the content-at-rest seal/open seams ONLY when the host opted in and
       // the crypto peer is present (boot already asserted it). The store stays
       // crypto-primitive-free; with the flags off it binds/reads plaintext exactly as before.
       let sealContent: VectorStoreDeps['sealContent']
@@ -293,7 +293,7 @@ export default definePlugin({
         config: embedding,
       })
     })
-    // The retrieval (RAG read) orchestrator (WS-AI-5). Same store + quota +
+    // The retrieval (RAG read) orchestrator. Same store + quota +
     // embedding provider as ingestion (so the query vector matches the corpus);
     // a read writes no rows, so it takes no `getLimit`. Bound as a singleton
     // like the ingestion service; the /retrieve and RAG-into-chat paths resolve
@@ -314,7 +314,7 @@ export default definePlugin({
         config: embedding,
       })
     })
-    // The append-only AI audit (WS-AI-7, I5). On by default; a host opts out with
+    // The append-only AI audit. On by default; a host opts out with
     // config.ai.audit.enabled = false. The writer resolves the shared backoffice
     // connection (via the `'lucid.db'` alias, like the vector store) + the active
     // tenancy scope (the ContextSeal raw SQL bypasses); the three sinks map the
@@ -328,14 +328,14 @@ export default definePlugin({
           connectionName,
           schemaName,
           activeScopeTenantId: () => tenancy.currentId(),
-          // External anchoring (#6): reuse the kernel audit destination registry
+          // External anchoring: reuse the kernel audit destination registry
           // the operator already configures, so kernel + AI audit share one
           // SIEM/WORM stream. Best-effort, after the canonical commit.
           getDestinations: () => app.container.make(AuditLogDestinationRegistry),
           runExtension: executeExtension,
         })
       })
-      // The at-most-once action ledger (WS-AI-11 Phase 3a). It fences a confirmed
+      // The at-most-once action ledger. It fences a confirmed
       // action's effect with a claim row in the shared backoffice schema, wired the
       // same way as the audit writer. Registered only when audit is on, because the
       // executor consults it only for action tools and those require audit (below).
@@ -360,14 +360,14 @@ export default definePlugin({
         PgRetrievalAuditSink,
         async (resolver) => new PgRetrievalAuditSink(await resolver.make(AiAuditWriter))
       )
-      // The tool-execution audit sink (WS-AI-11). Registered here so it resolves
-      // when the tool loop is wired live (Phase 9); it maps `op: 'tool'` rows onto
+      // The tool-execution audit sink. Registered here so it resolves
+      // when the tool loop is wired live; it maps `op: 'tool'` rows onto
       // the same fail-closed, hash-chained writer as chat / embed / retrieval.
       app.container.singleton(
         PgToolAuditSink,
         async (resolver) => new PgToolAuditSink(await resolver.make(AiAuditWriter))
       )
-      // The read/query + export side of the audit trail (Wave 4, 3.1/3.2). SELECT-only
+      // The read/query + export side of the audit trail. SELECT-only
       // over the chain table, plus the additive checkpoint table; the SAME injected
       // tenancy deps as the writer, so it inherits the qualified-table + re-assert
       // discipline. Consumed by the admin-gated ai_audit_controller and the export/
@@ -381,7 +381,7 @@ export default definePlugin({
           activeScopeTenantId: () => tenancy.currentId(),
         })
       })
-      // The anomaly watcher (Wave 4, 3.6): sliding-window guard-trip velocity. A
+      // The anomaly watcher: sliding-window guard-trip velocity. A
       // container singleton (stateful, cross-request), subscribed to the
       // IsthmusGuardTripped bus in ready(). Fail-open: onAnomaly if the host wired one,
       // else fan the summary to the host audit destinations (the SIEM anchor path).
@@ -398,20 +398,20 @@ export default definePlugin({
         })
       })
     }
-    // The tool executor (WS-AI-11). Stateful only through its injected seams — the
+    // The tool executor. Stateful only through its injected seams: the
     // SAME tenancy pair the vector store / audit writer take (`tenancy.run` /
-    // `tenancy.currentId`) — so it is a container singleton resolved via
+    // `tenancy.currentId`), so it is a container singleton resolved via
     // container.make, never new-ed ad hoc. It reads config.ai.tools at execution
     // time (per-request bounds), meters the per-outcome / latency integer metrics,
     // and writes one best-effort op:'tool' audit row per call when audit is on
     // (a disabled-audit host never registers PgToolAuditSink, so pass none). The
-    // chat controller resolves it lazily — only when config.ai.tools is present —
+    // chat controller resolves it lazily, only when config.ai.tools is present,
     // and drives it through `forRequest`.
     app.container.singleton(ToolExecutorService, async (resolver) => {
       const metrics = await resolver.make(MetricsService)
       const auditOn =
         app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai?.audit?.enabled !== false
-      // Action-tool confirmation machinery (Phase 3a) is wired ONLY when audit is on:
+      // Action-tool confirmation machinery is wired ONLY when audit is on:
       // an action's intent must be durably recorded before it runs, so with audit off
       // the fail-closed intent write would degrade to a no-op and an action must not be
       // able to run at all. With these two undefined every action refuses
@@ -426,7 +426,7 @@ export default definePlugin({
         actionLedger: auditOn ? await resolver.make(AiActionLedger) : undefined,
       })
     })
-    // The WS-AI-9 compliance orchestrator. Composes the purge seams (memory +
+    // The compliance orchestrator. Composes the purge seams (memory +
     // vector + idempotency epoch) into GDPR-grade erasure, records the admin
     // action via the KERNEL audit best-effort, and runs vector work inside
     // `tenancy.run` so the raw-SQL ContextSeal actively protects. Stateful only
@@ -443,13 +443,13 @@ export default definePlugin({
         memory,
         vectorStore,
         idempotency,
-        // Bind the tenant as the active scope so the vector ContextSeal protects (E16).
+        // Bind the tenant as the active scope so the vector ContextSeal protects.
         runScoped: (tenant, fn) => tenancy.run(tenant, fn),
         embeddingsEnabled: ai?.embedding !== undefined,
         getRedis: () => app.container.make('redis'),
-        // Best-effort kernel audit of the purge, alongside gdpr.anonymize / destroy (E20).
+        // Best-effort kernel audit of the purge, alongside gdpr.anonymize / destroy.
         auditLog: async (options) => (await app.container.make(AuditLogService)).log(options),
-        // Full AI-audit-chain verify only under --verify-chain (E10), and only when audit is on.
+        // Full AI-audit-chain verify only under --verify-chain, and only when audit is on.
         verifyAuditChain: auditEnabled
           ? async (tenantId) => (await app.container.make(AiAuditWriter)).verify(tenantId)
           : undefined,
@@ -477,7 +477,7 @@ export default definePlugin({
     // not-acknowledged, non-dynamic case (a static read cannot see a dynamic
     // per-tenant budget, so it must not hard-fail).
     doctor.register(aiBudgetCheck(() => app.config.get<MultitenancyConfigWithAi>('multitenancy')))
-    // Keep the retrieval authorization posture visible too (WS-AI-5, G2): with
+    // Keep the retrieval authorization posture visible too: with
     // embeddings configured but no per-user document ACL wired, retrieval is
     // fail-closed (refused) until the host wires retrievalFilter or acknowledges
     // the tenant-wide posture. The check always reports the live posture; the boot
@@ -485,7 +485,7 @@ export default definePlugin({
     doctor.register(
       aiRetrievalGateCheck(() => app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
     )
-    // Keep the audit posture visible (WS-AI-7): audit is fail-closed and on by
+    // Keep the audit posture visible: audit is fail-closed and on by
     // default, so an un-provisioned backoffice.ai_audit_logs table would 503 every
     // AI request at runtime. The ai_audit check probes the table (and the app
     // role) at diagnosis time; a config-only boot warning could not see the table.
@@ -496,22 +496,22 @@ export default definePlugin({
         ...backofficeWiring(app),
       })
     )
-    // Keep the conversation-memory posture visible (WS-AI-4, I2): memory binds a
+    // Keep the conversation-memory posture visible: memory binds a
     // session to the resolved principal, so an enabled-but-no-principal memory is
     // inert (stateless). The check reports the live posture; it is info-only, so
     // there is no boot warning.
     doctor.register(
       aiMemoryCheck(() => app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
     )
-    // Keep the input-injection posture visible (Wave 3, LLM01): info-only, reporting
+    // Keep the input-injection posture visible (LLM01): info-only, reporting
     // whether a host semantic classifier is wired (defense-in-depth, never the
-    // boundary), scanRetrieved, and the onError posture. No posture is a failure —
-    // the structural boundary (fence neutralization + role separation, I4) is always
+    // boundary), scanRetrieved, and the onError posture. No posture is a failure:
+    // the structural boundary (fence neutralization + role separation) is always
     // the isolation control, so this never warns.
     doctor.register(
       aiInjectionCheck(() => app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
     )
-    // Keep the tool-calling posture visible (WS-AI-11, I7): with tools offered but
+    // Keep the tool-calling posture visible: with tools offered but
     // no per-tool authorizeTool ACL, tool calling is fail-closed (refused) until the
     // host wires the hook or acknowledges the tenant-wide posture; the check also
     // flags an enabled-but-inert action-tool flag. The check always reports the live
@@ -519,7 +519,7 @@ export default definePlugin({
     doctor.register(
       aiToolsCheck(() => app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai)
     )
-    // Keep the WS-AI-9 purge posture visible (read-only): Redis reachability for
+    // Keep the purge posture visible (read-only): Redis reachability for
     // memory/cache erasure + a keyPrefix note. It never bumps the epoch.
     doctor.register(
       aiComplianceCheck({
@@ -527,9 +527,9 @@ export default definePlugin({
         getRedis: () => app.container.make('redis'),
       })
     )
-    // Register the AI compliance posture controls (WS-AI-9) into the shared
+    // Register the AI compliance posture controls into the shared
     // ComplianceReportService, so `tenant:compliance:report` surfaces AI residency,
-    // right-to-erasure, and the embeddings-survive-anonymize transparency (E24).
+    // right-to-erasure, and the embeddings-survive-anonymize transparency.
     if (config?.ai) {
       const compliance = await app.container.make(ComplianceReportService)
       compliance.register(aiDataResidencyControl)
@@ -537,11 +537,11 @@ export default definePlugin({
       if (config.ai.embedding) compliance.register(aiEmbeddingRetentionControl)
     }
     if (config?.ai) {
-      // Wave 5: a host that selected tenant-dek memory or encrypted embeddings must have
+      // A host that selected tenant-dek memory or encrypted embeddings must have
       // the optional crypto peer installed, or boot fails CLOSED (never a silent fallback
       // to the fleet APP_KEY). A no-op for the default (app-key memory, plaintext embeddings).
       await assertCryptoPeerForAtRest(app, config.ai)
-      // Wave 1: an unbudgeted, unacknowledged, non-dynamic aiTokens quota is now a
+      // An unbudgeted, unacknowledged, non-dynamic aiTokens quota is now a
       // FAIL-CLOSED boot abort (it was a warning that scrolled past). The acknowledge
       // escape hatch and the info-only dynamic/operator-ceiling postures still let
       // boot proceed, because they never reach the 'warn' severity this asserts on.
@@ -558,10 +558,10 @@ export default definePlugin({
       }
     }
 
-    // The vector store (WS-AI-3) is opt-in: only a host that configures embeddings
+    // The vector store is opt-in: only a host that configures embeddings
     // pays for the pgvector posture check and the per-tenant provisioning hook.
     if (config?.ai?.embedding) {
-      // Surface where embeddings live + that the app role is not a superuser (G14).
+      // Surface where embeddings live + that the app role is not a superuser.
       doctor.register(pgvectorExtensionCheck)
       // database-pg only: install pgvector in a NEW tenant's database at
       // provision time, BEFORE its separate `tenant:migrate` runs the embeddings
@@ -609,13 +609,13 @@ export default definePlugin({
     const metrics = await app.container.make(MetricsService)
     setAiGuardMetricSink((tenantId, name, value) => metrics.emitMetric(tenantId, name, value))
 
-    // WS-AI-9 auto-purge: erase a tenant's Redis-resident AI data (cache epoch +
+    // Auto-purge: erase a tenant's Redis-resident AI data (cache epoch +
     // conversation memory) when core destroys or anonymizes it, reusing core's
     // own lifecycle events rather than a parallel flow. On destroy the schema is
     // already dropped (so no vector call); on anonymize embeddings are kept by
-    // design (decision 1). The handlers are NON-throwing (the core command has
+    // design. The handlers are NON-throwing (the core command has
     // already committed) and emit `guard.ai_auto_purge_failed` + a metric on
-    // failure, so a silent GDPR erasure is impossible (E6/E19/E24).
+    // failure, so a silent GDPR erasure is impossible.
     if (app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai) {
       const compliance = await app.container.make(AiComplianceService)
       offTenantDeleted = emitter.on(TenantDeleted, async (event) => {
@@ -626,7 +626,7 @@ export default definePlugin({
       })
     }
 
-    // Anomaly watcher (Wave 4, 3.6): subscribe to the already-dispatched
+    // Anomaly watcher: subscribe to the already-dispatched
     // IsthmusGuardTripped bus and count guard-trip velocity. Only when audit is on
     // (a disabled-audit host has no consumption pillar). Fail-open, off the request
     // path; torn down in shutdown().
@@ -656,10 +656,10 @@ export default definePlugin({
 })
 
 /**
- * Fan an anomaly summary to the host audit destinations (Wave 4, 3.6), reusing the
+ * Fan an anomaly summary to the host audit destinations, reusing the
  * same anchor path the audit writer uses: map onto the kernel `AuditLogEntry` (the
  * first-class `ai` actor, action `ai:anomaly`, the content-free summary in metadata),
- * time-bounded and isolated per destination. Best-effort by construction — a throw
+ * time-bounded and isolated per destination. Best-effort by construction: a throw
  * here is swallowed by the watcher's fail-open delivery wrapper.
  */
 async function anchorAnomaly(app: ApplicationService, summary: AIAnomalySummary): Promise<void> {
@@ -742,7 +742,7 @@ function requireAppKey(): string {
   return appKey
 }
 
-// --- Data at rest (Wave 5, GATED) ---
+// --- Data at rest (GATED) ---
 // The `crypto` satellite is an OPTIONAL peer: the AI package works without it (memory is
 // app-key sealed, embeddings are plaintext). So it is NEVER value-imported at module load
 // (a static import would make the AI provider fail to load whenever crypto is absent);
@@ -789,7 +789,7 @@ async function resolveAiFieldCipher(app: ApplicationService): Promise<AiFieldCip
 }
 
 /**
- * Boot gate (Wave 5): a host that selects `tenant-dek` memory or encrypted embeddings
+ * Boot gate: a host that selects `tenant-dek` memory or encrypted embeddings
  * MUST have the crypto peer installed, or boot fails CLOSED through the same
  * `guard.ai_config_invalid` choke the config validator uses. Selecting an at-rest DEK is a
  * STRENGTHENING of the default, so there is no acknowledge escape hatch; a host that asked
@@ -812,7 +812,7 @@ async function assertCryptoPeerForAtRest(app: ApplicationService, ai: AiConfig):
 }
 
 /**
- * Build the memory encrypt/decrypt/previous seams for the configured at-rest mode (Wave 5).
+ * Build the memory encrypt/decrypt/previous seams for the configured at-rest mode.
  * `'app-key'` (default) reproduces today byte-for-byte: `writeSecret`/`readSecret` under the
  * `aiConversationMemory` secret class, now wrapped in resolved promises and ignoring the
  * tenant id (the fleet key is not per-tenant), plus the `OLD_APP_KEY` grace read.

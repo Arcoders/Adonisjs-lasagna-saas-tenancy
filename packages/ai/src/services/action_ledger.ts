@@ -4,7 +4,7 @@ import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import { AI_ACTION_LEDGER_TABLE, TOOL_ACTION_LEDGER_TTL_MS } from '../constants.js'
 
 /**
- * The at-most-once fence for confirmed action tools (WS-AI-11 Phase 3a).
+ * The at-most-once fence for confirmed action tools.
  *
  * The gap it closes is narrow and real: the response cache is side-effect-free on
  * replay, but a stream that dies AFTER the effect fired and BEFORE it completed is
@@ -200,7 +200,7 @@ export default class AiActionLedger {
   }
 
   /**
-   * Drop every record for one tenant (the WS-AI-9 purge seam). Fail-closed like the
+   * Drop every record for one tenant (the purge seam). Fail-closed like the
    * idempotency epoch bump: a purge that silently did nothing would be a compliance
    * bug, so the caller must see the failure.
    *

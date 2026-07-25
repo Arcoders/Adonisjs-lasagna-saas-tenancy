@@ -6,7 +6,7 @@ import type { AiAuditRow } from '../services/ai_audit_writer.js'
 import { resolveRequestTenant, authorizeAuditRead } from './access_gate.js'
 
 /**
- * The HTTP read/query surface for the AI audit trail (Wave 4, 3.1). Kept in the AI
+ * The HTTP read/query surface for the AI audit trail. Kept in the AI
  * satellite (admin must not hard-depend on AI), admin-gated DEFAULT-DENY through
  * `config.ai.audit.authorizeAudit`, and TENANT-SCOPED: it reads only the request
  * tenant's chain, so the reader's ContextSeal re-assert passes and one tenant can

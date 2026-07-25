@@ -251,7 +251,7 @@ test.group('assertAiConfig', () => {
   })
 })
 
-test.group('assertAiConfig — the embedding block (WS-AI-3)', () => {
+test.group('assertAiConfig: the embedding block', () => {
   const withEmbedding = (embedding: Record<string, unknown>): AiConfig =>
     ({ ...validClaudeOnly(), embedding }) as unknown as AiConfig
 
@@ -322,7 +322,7 @@ test.group('assertAiConfig — the embedding block (WS-AI-3)', () => {
     )
   })
 
-  test('accepts the content-at-rest flags when boolean (Wave 5)', ({ assert }) => {
+  test('accepts the content-at-rest flags when boolean', ({ assert }) => {
     assert.doesNotThrow(() =>
       assertAiConfig(
         withEmbedding({
@@ -335,7 +335,7 @@ test.group('assertAiConfig — the embedding block (WS-AI-3)', () => {
     )
   })
 
-  test('rejects non-boolean content-at-rest flags (Wave 5)', ({ assert }) => {
+  test('rejects non-boolean content-at-rest flags', ({ assert }) => {
     assert.throws(
       () =>
         assertAiConfig(
@@ -353,7 +353,7 @@ test.group('assertAiConfig — the embedding block (WS-AI-3)', () => {
   })
 })
 
-test.group('assertAiConfig — the memory block (Wave 5 encryption mode)', () => {
+test.group('assertAiConfig: the memory block (encryption mode)', () => {
   const withMemory = (memory: Record<string, unknown>): AiConfig =>
     ({ ...validClaudeOnly(), memory }) as unknown as AiConfig
 
@@ -378,7 +378,7 @@ test.group('assertAiConfig — the memory block (Wave 5 encryption mode)', () =>
   })
 })
 
-test.group('assertAiConfig — the tools block (WS-AI-11)', () => {
+test.group('assertAiConfig: the tools block', () => {
   const readTool = (over: Record<string, unknown> = {}) => ({
     name: 'count_bookings',
     description: 'count bookings by status',
@@ -516,7 +516,7 @@ test.group('assertAiConfig — the tools block (WS-AI-11)', () => {
   })
 })
 
-test.group('assertAiConfig — the injection block (Wave 3)', () => {
+test.group('assertAiConfig: the injection block', () => {
   const withInjection = (injection: Record<string, unknown>): AiConfig =>
     ({ ...validClaudeOnly(), injection }) as unknown as AiConfig
 
@@ -586,7 +586,7 @@ test.group('assertAiConfig — the injection block (Wave 3)', () => {
   })
 })
 
-test.group('assertAiConfig — the audit consumption block (Wave 4)', () => {
+test.group('assertAiConfig: the audit consumption block', () => {
   const withAudit = (audit: Record<string, unknown>): AiConfig =>
     ({ ...validClaudeOnly(), audit }) as unknown as AiConfig
 

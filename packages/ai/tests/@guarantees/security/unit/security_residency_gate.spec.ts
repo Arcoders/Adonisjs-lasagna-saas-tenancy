@@ -14,7 +14,7 @@ import {
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * WS-AI-9 residency / no-train gate (#7/#15, E7/E8/E17): request-time enforcement
+ * The residency / no-train gate: request-time enforcement
  * on chat provider selection AND embedding egress, fail-closed on a bad resolver,
  * emitting `guard.ai_residency_denied`. `local-only` refuses any non-loopback
  * endpoint; an explicit `allowedProviders` posture narrows chat providers only.
@@ -36,7 +36,7 @@ async function assertResidencyDenied(fn: () => Promise<void>) {
   }
 }
 
-test.group('security — residency gate (WS-AI-9)', (group) => {
+test.group('security: residency gate', (group) => {
   group.each.setup(() => {
     __resetAiGuardCounters()
     __resetAiGuardRateLimit()
@@ -72,7 +72,7 @@ test.group('security — residency gate (WS-AI-9)', (group) => {
     await assertResidencyDenied(() => enforceChatResidency(tenant, 'deepseek', ai))
   })
 
-  test('a resolver that throws is fail-closed (E8)', async () => {
+  test('a resolver that throws is fail-closed', async () => {
     const ai = cfg({
       residency: () => {
         throw new Error('residency backend down')
@@ -81,7 +81,7 @@ test.group('security — residency gate (WS-AI-9)', (group) => {
     await assertResidencyDenied(() => enforceChatResidency(tenant, 'claude', ai))
   })
 
-  test('a malformed resolver return is fail-closed (E8)', async () => {
+  test('a malformed resolver return is fail-closed', async () => {
     const ai = cfg({ residency: () => 42 as never })
     await assertResidencyDenied(() => enforceChatResidency(tenant, 'claude', ai))
   })
@@ -95,7 +95,7 @@ test.group('security — residency gate (WS-AI-9)', (group) => {
     assert.isEmpty(snapshotAiGuardCounters().rejected)
   })
 
-  test('local-only refuses a remote embedding backend (E7)', async () => {
+  test('local-only refuses a remote embedding backend', async () => {
     const ai = cfg({
       residency: () => ({ mode: 'local-only' }),
       embedding: { apiKey: 'k', baseUrl: 'https://api.openai.com/v1' } as never,

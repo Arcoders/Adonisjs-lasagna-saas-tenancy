@@ -95,7 +95,7 @@ const idemScope: AiIdempotencyScope = {
   headerKey: 'retry-1e',
 }
 
-test.group('AI purge-completeness across real stores (1E)', (group) => {
+test.group('AI purge-completeness across real stores', (group) => {
   let store: VectorStoreService
   let memory: ConversationMemoryService
   let idempotency: AiIdempotencyService

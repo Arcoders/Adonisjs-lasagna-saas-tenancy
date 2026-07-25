@@ -80,7 +80,7 @@ export function aiTokensBudgetPosture(
 }
 
 /**
- * The boot-time enforcement of the metering posture (Wave 1): a provably-unbudgeted,
+ * The boot-time enforcement of the metering posture: a provably-unbudgeted,
  * unacknowledged, non-dynamic `aiTokens` quota is a FAIL-CLOSED boot abort, not a
  * warning that scrolls past. This is the same default-deny posture the membership
  * mount uses: an AI cost surface must not run unmetered unless the operator says so

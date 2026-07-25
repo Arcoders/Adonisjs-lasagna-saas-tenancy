@@ -15,7 +15,7 @@ import {
 } from '../../../../src/constants.js'
 
 /**
- * The Phase 3a confirmation token: a bearer capability for exactly one mutation.
+ * The confirmation token: a bearer capability for exactly one mutation.
  *
  * The property these specs are built around is that the token carries no claims.
  * Verification re-derives every bound field from the request being served and reads
@@ -43,7 +43,7 @@ const withField = (patch: Partial<ToolConfirmationBinding>): ToolConfirmationBin
   ...patch,
 })
 
-test.group('Phase 3a confirmation token', () => {
+test.group('confirmation token', () => {
   test('a token minted for a binding authorizes that exact binding', ({ assert }) => {
     const minted = mintToolConfirmation(KEY, BINDING, NOW)
     const found = verifyToolConfirmation(KEY, [minted.token], BINDING, NOW + 1_000)
@@ -174,7 +174,7 @@ test.group('Phase 3a confirmation token', () => {
   })
 })
 
-test.group('Phase 3a confirmation header parsing', () => {
+test.group('confirmation header parsing', () => {
   test('reads a comma-separated list and a repeated header alike', ({ assert }) => {
     assert.deepEqual(parseToolConfirmationHeader('a,b'), ['a', 'b'])
     assert.deepEqual(parseToolConfirmationHeader(['a', 'b']), ['a', 'b'])
@@ -198,7 +198,7 @@ test.group('Phase 3a confirmation header parsing', () => {
   })
 })
 
-test.group('Phase 3a argument canonicalization', () => {
+test.group('argument canonicalization', () => {
   test('key order does not change the hash', ({ assert }) => {
     // The load-bearing one. The model re-proposes on the confirming turn and JSON key
     // order does not survive that round trip, so an order-sensitive hash would make

@@ -6,7 +6,7 @@ import {
 } from '../../../src/isthmus/ai_guard_registry.js'
 
 /**
- * WS-2 C1 — `AiGuardId` must stay a FINITE literal union, never widen to
+ * `AiGuardId` must stay a FINITE literal union, never widen to
  * `string`. The registry is declared `as const satisfies readonly …Shape[]` and
  * the O(1) lookup is a `Map` built OVER the literal. A naive
  * `Object.freeze(AI_GUARD_REGISTRY)` instead would widen the element type, so
@@ -21,7 +21,7 @@ type IsStringWidened<T extends string> = string extends T ? true : false
 const _aiGuardIdNotWidened: IsStringWidened<AiGuardId> = false
 void _aiGuardIdNotWidened
 
-test.group('AiGuardId union is finite (C1)', () => {
+test.group('AiGuardId union is finite', () => {
   test('every registry id resolves through the O(1) lookup', ({ assert }) => {
     assert.isAbove(AI_GUARD_REGISTRY.length, 0)
     for (const entry of AI_GUARD_REGISTRY) {

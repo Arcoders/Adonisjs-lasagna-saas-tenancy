@@ -10,10 +10,10 @@ import {
 import { MAX_AI_AUDIT_PAGE, MAX_AI_AUDIT_PAGE_SIZE } from '../../../../src/constants.js'
 
 /**
- * Wave 4 acceptance (3.1): the audit reader is tenant-isolated (a scope re-assert
- * before any raw read), SELECT-only over the chain table, clamped against OFFSET-DoS,
- * and every filter is `?`-bound (a hostile principalHash matches zero rows, never the
- * table). The `(tenant_id, seq)` keyset export streams in chain order.
+ * The audit reader stays tenant-isolated: it re-asserts scope before any raw read,
+ * runs SELECT-only over the chain table, clamps pagination against OFFSET-DoS, and
+ * binds every filter with `?` so a hostile principalHash matches zero rows rather than
+ * the whole table. Its `(tenant_id, seq)` keyset export streams in chain order.
  */
 
 interface FakeOpts {
@@ -88,7 +88,7 @@ function fakeReader(opts: FakeOpts = {}) {
   return { reader: new AiAuditReader(deps), queries }
 }
 
-test.group('AiAuditReader — scope isolation (Wave 4, 3.1)', (group) => {
+test.group('AiAuditReader: scope isolation', (group) => {
   let captured: IsthmusGuardTrippedPayload[] = []
   group.each.setup(() => {
     captured = []
@@ -140,7 +140,7 @@ test.group('AiAuditReader — scope isolation (Wave 4, 3.1)', (group) => {
   })
 })
 
-test.group('AiAuditReader — SELECT-only, clamped, ?-bound (Wave 4, 3.1)', () => {
+test.group('AiAuditReader: SELECT-only, clamped, ?-bound', () => {
   test('query emits a single SELECT with no INSERT/UPDATE/DELETE', async ({ assert }) => {
     const { reader, queries } = fakeReader()
     await reader.query({})
@@ -195,7 +195,7 @@ test.group('AiAuditReader — SELECT-only, clamped, ?-bound (Wave 4, 3.1)', () =
   })
 })
 
-test.group('AiAuditReader — keyset export + checkpoints (Wave 4, 3.2/3.4)', () => {
+test.group('AiAuditReader: keyset export + checkpoints', () => {
   test('exportStream pages by (tenant_id, seq) keyset in chain order', async ({ assert }) => {
     const { reader, queries } = fakeReader({
       pages: [[dbRow('t1', 1), dbRow('t1', 2)], [dbRow('t1', 3)]],

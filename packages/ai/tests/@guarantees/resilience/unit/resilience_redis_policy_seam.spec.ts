@@ -12,7 +12,7 @@ import {
 } from '../../../../src/constants.js'
 
 /**
- * Wave 1.1: every request-path Redis read routes through ONE injected resilience
+ * Every request-path Redis read routes through ONE injected resilience
  * policy seam, so a dependency outage degrades by a named POLICY, not three
  * independent ad-hoc `try/catch` blocks. This pins the postures the seam must
  * preserve (memory `fail-open` to [], idempotency `fail-open` to null, rate-limit

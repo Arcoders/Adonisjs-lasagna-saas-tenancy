@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 
 /**
  * The gateway's audit seam: the ONE attribution point every choke point routes
- * through. The real append-only audit is live (WS-AI-7): the `Pg*AuditSink`
+ * through. The real append-only audit is live: the `Pg*AuditSink`
  * implementations in `audit_sinks.ts` map each frozen event onto the hash-chained,
  * DB-trigger-immutable, fail-closed `AiAuditWriter`. The no-op defaults below remain
  * only as the audit-DISABLED fallback (a host that set `config.ai.audit.enabled =
@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto'
  * reviewed decision, and neither prompt nor response content can ever slip in
  * silently. `principalHash` is a one-way SHA-256 of the principal, so the
  * event attributes without storing an identifier that GDPR erasure would have
- * to chase into the immutable store (G1).
+ * to chase into the immutable store.
  */
 export interface AiGatewayAuditEvent {
   readonly tenantId: string
@@ -37,10 +37,10 @@ export const noopAuditSink: AiGatewayAuditSink = {
 }
 
 /**
- * The embed choke point's attribution event (WS-AI-3). A PARALLEL event, not an
+ * The embed choke point's attribution event. A PARALLEL event, not an
  * extension of {@link AiGatewayAuditEvent}, whose field set is frozen by its own
  * spec: an embed has no stream fragments, and it carries a `dimension` and an
- * `embeddingsCount` the chat event does not. Every field is non-PII (I5, G1):
+ * `embeddingsCount` the chat event does not. Every field is non-PII:
  * `actorHash` and `sourceHash` are one-way SHA-256, never the raw principal or
  * document key, and neither the embedded text nor a vector ever appears.
  */
@@ -67,10 +67,10 @@ export const noopEmbeddingAuditSink: AiEmbeddingAuditSink = {
 }
 
 /**
- * The retrieval choke point's attribution event (WS-AI-5). A PARALLEL event, not
+ * The retrieval choke point's attribution event. A PARALLEL event, not
  * an extension of the chat/embed ones, frozen by its own spec: a retrieval has no
  * stream fragments and no stored rows, but it carries a `matchCount` the others
- * do not. Every field is non-PII (I5, G1): `actorHash` is a one-way SHA-256, and
+ * do not. Every field is non-PII: `actorHash` is a one-way SHA-256, and
  * neither the query text, a returned document, nor a vector ever appears.
  */
 export interface AiRetrievalAuditEvent {
@@ -96,10 +96,10 @@ export const noopRetrievalAuditSink: AiRetrievalAuditSink = {
 }
 
 /**
- * The tool-execution choke point's attribution event (WS-AI-11). A PARALLEL event,
+ * The tool-execution choke point's attribution event. A PARALLEL event,
  * not an extension of the chat/embed/retrieval ones, frozen by its own spec: a tool
  * call carries a `toolName`, a `mode`, and the loop `round` the others do not. Every
- * field is non-PII (I5, G1): `principalHash` is a one-way SHA-256, `toolName`/`mode`/
+ * field is non-PII: `principalHash` is a one-way SHA-256, `toolName`/`mode`/
  * `round` are the tool identity and loop position, and NEITHER the model-generated
  * arguments NOR the tool's result ever appears (both are bounded/fenced elsewhere and
  * never audited). The `outcome` distinguishes a refusal (`denied`) from a handler
@@ -112,7 +112,7 @@ export interface AiToolAuditEvent {
   readonly toolName: string
   readonly mode: 'read' | 'action'
   /**
-   * `intent` is the action-tool row written BEFORE the effect (Phase 3a), and it is
+   * `intent` is the action-tool row written BEFORE the effect, and it is
    * the only outcome that is not a result. A read tool audits best-effort after,
    * because losing the record of a read costs a log line; a mutation that ran with
    * no durable record of intent is one nobody can account for, so the write comes

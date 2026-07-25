@@ -22,12 +22,12 @@ export interface FakeVectorEnvOptions {
   insertedHashes?: string[]
   /** Affected rows a DELETE reports. Default 0. */
   deleted?: number
-  /** Seal the `content` column at rest (Wave 5). Default false. */
+  /** Seal the `content` column at rest. Default false. */
   encryptContent?: boolean
-  /** Seal the `metadata` column at rest (Wave 5). Default false. */
+  /** Seal the `metadata` column at rest. Default false. */
   encryptMetadata?: boolean
   /**
-   * A reversible fake content cipher (Wave 5). When provided, the store's
+   * A reversible fake content cipher. When provided, the store's
    * `sealContent`/`openContent` seams are wired to it; `open` may throw to simulate a
    * shredded or corrupt row. Absent ⇒ no seams (plaintext columns, today's behavior).
    */
@@ -41,12 +41,12 @@ export interface FakeVectorEnv {
   deps: VectorStoreDeps
   queries: Array<{ sql: string; bindings: readonly unknown[] }>
   connections: string[]
-  /** Best-effort per-tenant metrics the store emitted (Wave 5 content-undecryptable drop). */
+  /** Best-effort per-tenant metrics the store emitted (content-undecryptable drop). */
   metrics: Array<{ tenantId: string; name: string; value: number }>
 }
 
 /**
- * A reversible fake content cipher for Wave-5 at-rest specs: `seal` prefixes `enc:`,
+ * A reversible fake content cipher for the at-rest specs: `seal` prefixes `enc:`,
  * `open` strips it. `shredded: true` makes `open` throw (a crypto-shred / corrupt row),
  * so a spec can prove the fail-safe search drop and the fail-closed memory degrade.
  */

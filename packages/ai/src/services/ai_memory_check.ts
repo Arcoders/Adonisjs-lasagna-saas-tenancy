@@ -9,11 +9,11 @@ export interface AiMemoryPosture {
 }
 
 /**
- * Assess the conversation-memory (WS-AI-4, I2) posture from the static config.
+ * Assess the conversation-memory posture from the static config.
  *
  * Memory binds every session to the resolved principal (`config.ai.resolvePrincipal`,
- * default the `@adonisjs/auth` user id): that binding IS the per-user isolation
- * (G6), so a request with no resolvable principal is deliberately stateless
+ * default the `@adonisjs/auth` user id): that binding IS the per-user isolation,
+ * so a request with no resolvable principal is deliberately stateless
  * (memory inert). When memory is enabled but no explicit `resolvePrincipal` is
  * wired, surface that it falls back to the auth user id and is inert without one.
  * That is an `info`, because the default works for most hosts and a static read cannot see
@@ -46,7 +46,7 @@ export function aiMemoryCheck(getAiConfig: () => AiConfig | undefined): DoctorCh
   return {
     name: 'ai_memory',
     description:
-      'Reports the conversation-memory posture (WS-AI-4): whether it is enabled and how its per-user ' +
+      'Reports the conversation-memory posture: whether it is enabled and how its per-user ' +
       'session isolation binds to the resolved principal, so an inert (no-principal) memory is visible.',
     run(): DiagnosisIssue[] {
       const posture = aiMemoryPosture(getAiConfig())

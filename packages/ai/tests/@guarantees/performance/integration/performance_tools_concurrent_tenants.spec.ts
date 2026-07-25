@@ -17,8 +17,8 @@ import type { AIToolHostDefinition, AIToolsConfig } from '../../../../src/define
  * must genuinely OVERLAP: nothing on the path may take a process-wide lock. A shared
  * mutex would keep every functional test green while quietly serialising the whole
  * fleet behind the slowest tenant's query, and the only symptom in production is
- * latency. Second, the Phase-2a admission cap must bound in-flight work PER TENANT —
- * a busy tenant is refused a new loop, and that refusal must not touch anyone else.
+ * latency. Second, the admission cap must bound in-flight work PER TENANT: a busy
+ * tenant is refused a new loop, and that refusal must not touch anyone else.
  */
 const N = 8
 const DELAY_MS = 50
@@ -122,7 +122,7 @@ test.group('tool execution across concurrent tenants (real Postgres)', (group) =
     }
 
     // Serial would be N x DELAY_MS (400ms at these numbers). The bound is deliberately
-    // loose — this is a "nothing is globally serialised" probe, not a benchmark, so it
+    // loose: this is a "nothing is globally serialised" probe, not a benchmark, so it
     // must not flake on a loaded machine while still failing hard on a real mutex.
     const serial = N * DELAY_MS
     assert.isBelow(

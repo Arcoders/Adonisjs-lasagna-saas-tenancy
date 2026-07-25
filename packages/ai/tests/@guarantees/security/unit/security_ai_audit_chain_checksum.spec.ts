@@ -6,7 +6,7 @@ import {
 } from '../../../../src/services/ai_audit_writer.js'
 import { sampleAuditRow } from '../../../helpers/fake_audit_db.js'
 
-test.group('security — AI audit chain checksum', () => {
+test.group('security: AI audit chain checksum', () => {
   test('is a deterministic 64-hex digest', ({ assert }) => {
     const row = sampleAuditRow()
     assert.equal(auditChecksum(row, 1, null), auditChecksum(row, 1, null))

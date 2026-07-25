@@ -41,7 +41,7 @@ test.group('ai provider DI wiring (integration)', () => {
     assert.isTrue(registry.has('claude'))
   })
 
-  test('the embedding-provider registry binds as a singleton, defaults to the configured provider, and honours a host override (2A)', async ({
+  test('the embedding-provider registry binds as a singleton, defaults to the configured provider, and honours a host override', async ({
     assert,
   }) => {
     new AiProvider(app).register?.()
@@ -86,9 +86,7 @@ test.group('ai provider DI wiring (integration)', () => {
     assert.instanceOf(store, VectorStoreService)
   })
 
-  test('registers a resolvable AiAuditWriter and the three audit sinks (WS-AI-7)', async ({
-    assert,
-  }) => {
+  test('registers a resolvable AiAuditWriter and the three audit sinks', async ({ assert }) => {
     new AiProvider(app).register?.()
     // Audit is on by default, so the writer + the three sinks bind and resolve
     // against the real container (the writer's backoffice connection + tenancy
@@ -100,9 +98,7 @@ test.group('ai provider DI wiring (integration)', () => {
     assert.instanceOf(await app.container.make(PgRetrievalAuditSink), PgRetrievalAuditSink)
   })
 
-  test('registers a resolvable AiComplianceService (WS-AI-9 purge orchestrator)', async ({
-    assert,
-  }) => {
+  test('registers a resolvable AiComplianceService (purge orchestrator)', async ({ assert }) => {
     new AiProvider(app).register?.()
     // Resolving proves its memory + vector + idempotency seams, the kernel audit
     // logger, tenancy.run and the redis lock are all makeable from the real

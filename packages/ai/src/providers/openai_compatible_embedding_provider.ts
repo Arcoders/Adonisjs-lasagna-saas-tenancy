@@ -78,7 +78,7 @@ export default class OpenAICompatibleEmbeddingProvider implements AIEmbeddingPro
     return parseOpenAiEmbeddings(await res.json(), model)
   }
 
-  /** The request model, defaulted from config then the built-in, checked against the allow-list (G12). */
+  /** The request model, defaulted from config then the built-in, checked against the allow-list. */
   #resolveModel(request: AIEmbeddingRequest): string {
     const model = request.model ?? this.#defaultModel
     if (typeof model !== 'string' || model.length === 0) {

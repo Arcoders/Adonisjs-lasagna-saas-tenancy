@@ -4,7 +4,7 @@ import { DEFAULT_MAX_TOOL_ARGS_CHARS, MAX_TOOL_ARGS_CHARS } from '../constants.j
 
 /**
  * Validate and safely reconstruct a model-generated tool-call argument string
- * (WS-AI-11, Phase 4), with ZERO runtime dependency (no ajv / zod / vine in the
+ * with ZERO runtime dependency (no ajv / zod / vine in the
  * package). Model output is untrusted input, so the pipeline is fail-closed:
  *
  * 1. **Bound before parse**: reject an `arguments` string longer than
@@ -22,7 +22,7 @@ import { DEFAULT_MAX_TOOL_ARGS_CHARS, MAX_TOOL_ARGS_CHARS } from '../constants.j
  *
  * On any failure it emits `guard.ai_tool_input_invalid` and throws
  * `AIException('tool_input_invalid')`, with a message that names the field or
- * keyword and NEVER echoes the attacker-supplied value (G3).
+ * keyword and NEVER echoes the attacker-supplied value.
  */
 export function validateToolInput(
   rawArgs: string,
@@ -176,9 +176,9 @@ function reconstructAndValidate(schema: unknown, value: unknown, path: string): 
       return value
     case undefined:
       // No declared type: accept the value once enum (if any) has passed, but if it
-      // is an object OR array still rebuild it prototype-safely — dropping any
+      // is an object OR array still rebuild it prototype-safely, dropping any
       // __proto__ / constructor / prototype own key at every level, exactly like the
-      // parseInput branch — so an untyped field is never a smuggled pollution gadget.
+      // parseInput branch, so an untyped field is never a smuggled pollution gadget.
       if (Array.isArray(value)) return deepSanitize(value)
       if (typeof value === 'object' && value !== null) {
         return reconstructObject(node, value, path)

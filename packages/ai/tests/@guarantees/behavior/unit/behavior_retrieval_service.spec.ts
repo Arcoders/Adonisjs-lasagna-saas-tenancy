@@ -206,7 +206,7 @@ test.group('RetrievalService', () => {
     )
   })
 
-  test('emits integer metrics (tokens + match count) that never carry the query text (G3)', async ({
+  test('emits integer metrics (tokens + match count) that never carry the query text', async ({
     assert,
   }) => {
     const h = harness()

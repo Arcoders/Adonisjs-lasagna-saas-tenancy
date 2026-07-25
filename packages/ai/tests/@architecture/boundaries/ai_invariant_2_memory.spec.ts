@@ -15,7 +15,7 @@ const cleanService = [
   "turns.push({ role: 'assistant', content: a })",
 ].join('\n')
 
-test.group('architectural — I2 conversation memory guard', () => {
+test.group('architectural: I2 conversation memory guard', () => {
   test('a clean memory service (encrypt + HMAC + data roles) passes', ({ assert }) => {
     const problems = auditMemoryInvariant([{ path: SERVICE, source: cleanService }])
     assert.deepEqual(problems, [])

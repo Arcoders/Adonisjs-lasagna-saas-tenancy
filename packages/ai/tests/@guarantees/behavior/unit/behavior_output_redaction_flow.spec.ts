@@ -96,7 +96,7 @@ function buildDeps(opts: BuildOptions) {
 
 const auth = { user: { id: 'u1' } }
 
-test.group('redactOutput coherence — client + idempotency replay', () => {
+test.group('redactOutput coherence: client + idempotency replay', () => {
   test('the client stream is redacted and the metric counts the change', async ({ assert }) => {
     let calls = 0
     const redact: RedactOutput = (_c, _t, chunk) => {
@@ -167,7 +167,7 @@ test.group('redactOutput coherence — client + idempotency replay', () => {
   })
 })
 
-test.group('redactOutput coherence — conversation memory', () => {
+test.group('redactOutput coherence: conversation memory', () => {
   test('memory persists the REDACTED assistant turn (the model never re-sees the raw output)', async ({
     assert,
   }) => {
@@ -208,7 +208,7 @@ test.group('redactOutput coherence — conversation memory', () => {
   })
 })
 
-test.group('redactOutput coherence — fail-closed + cost', () => {
+test.group('redactOutput coherence: fail-closed + cost', () => {
   test('a throwing redactor mid-stream aborts cleanly; prior tokens still settle', async ({
     assert,
   }) => {

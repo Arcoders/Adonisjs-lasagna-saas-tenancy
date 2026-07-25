@@ -2,8 +2,8 @@ import type { StreamFragment } from '../types/ai_provider_contract.js'
 
 /**
  * The per-fragment stage of the streaming pump, kept separate from the socket
- * and the quota so it unit-tests without either: it validates a fragment (the I8
- * guard), rejects a negative or non-finite token count, and tracks the running
+ * and the quota so it unit-tests without either: it validates a fragment (the
+ * output-bound guard), rejects a negative or non-finite token count, and tracks the running
  * token total and fragment count. The cumulative total is what the service hands
  * to `settle` (which clamps it to the reservation worst case) and what the budget
  * early-stop compares against, so the clamp itself lives in one place (the quota
@@ -19,7 +19,7 @@ export default class FragmentPipeline {
   ) {}
 
   /**
-   * Run the I8 validator and the token-sanity check. Returns the accepted
+   * Run the output-bound validator and the token-sanity check. Returns the accepted
    * fragment, or null to abort the stream (a leaking fragment or a bad token
    * count is never written).
    */

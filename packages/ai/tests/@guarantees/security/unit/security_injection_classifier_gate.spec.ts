@@ -22,17 +22,14 @@ import { fakeHttpContext } from '../../../helpers/fake_http_context.js'
 import type { AiConfig, AIInjectionConfig } from '../../../../src/define_config.js'
 
 /**
- * Wave 3 acceptance #2/#3: the input-side `InjectionClassifier` seam, driven
- * through the real controller pre-flight.
- *
- * - A `block` verdict is fail-CLOSED: a 400 `injection_detected` before any reserve
- *   or provider call (zero spend), headers unsent, `guard.ai_injection_detected`
- *   fired and the `ai_injection_detected` counter bumped.
- * - The classifier's OWN error is fail-OPEN by default (it is NOT the boundary):
- *   the request PROCEEDS and `ai_injection_detector_error` fires. A host that sets
- *   `onError: 'closed'` refuses instead, knowingly coupling availability.
- * - The load-bearing invariant: with NO `injection` block the classifier never
- *   runs and nothing about the stream changes — the boundary was never the classifier.
+ * Exercises the input-side `InjectionClassifier` seam through the real controller
+ * pre-flight. A `block` verdict fails closed: a 400 `injection_detected` before any
+ * reserve or provider call (zero spend), headers unsent, `guard.ai_injection_detected`
+ * fired and the `ai_injection_detected` counter bumped. The classifier's own error
+ * fails open by default (it is not the boundary), so the request proceeds and
+ * `ai_injection_detector_error` fires; a host that sets `onError: 'closed'` refuses
+ * instead, knowingly coupling availability. And with no `injection` block configured
+ * the classifier never runs and nothing about the stream changes.
  */
 
 const chatBody = { messages: [{ role: 'user', content: 'hola' }] }
@@ -73,7 +70,7 @@ function metricNames(metrics: { name: string }[]): string[] {
   return metrics.map((m) => m.name)
 }
 
-test.group('injection classifier gate (Wave 3, 3b/3c)', (group) => {
+test.group('injection classifier gate', (group) => {
   let captured: IsthmusGuardTrippedPayload[] = []
 
   group.each.setup(() => {
@@ -198,12 +195,12 @@ test.group('injection classifier gate (Wave 3, 3b/3c)', (group) => {
     assert.notInclude(metricNames(metrics), 'ai_injection_detector_error')
   })
 
-  test('LOAD-BEARING: with NO injection block the classifier never runs; the stream is unchanged', async ({
+  test('with no injection block the classifier never runs; the stream is unchanged', async ({
     assert,
   }) => {
-    // Acceptance #4 at the controller: turning the seam off changes nothing about the
-    // request path. The boundary was never the classifier (structural role separation
-    // plus I4 is), so an absent block is the correct, no-theater default.
+    // Turning the seam off changes nothing about the request path. The boundary was
+    // never the classifier (structural role separation is), so an absent block is the
+    // correct, no-theater default.
     const { controller, provider, metrics } = build({})
     const { ctx, res } = fakeHttpContext({ tenant: fakeTenant, body: chatBody })
 
@@ -221,7 +218,7 @@ test.group('injection classifier gate (Wave 3, 3b/3c)', (group) => {
  * posture split, without the controller. `enforceInjectionClassifier` is the one
  * choke every consumer routes through.
  */
-test.group('enforceInjectionClassifier — seam logic', () => {
+test.group('enforceInjectionClassifier: seam logic', () => {
   const ctx = {} as never
   const userInput: InjectionInput[] = [{ text: 'hi', origin: 'user' }]
 

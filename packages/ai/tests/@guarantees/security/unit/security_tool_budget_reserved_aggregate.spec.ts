@@ -13,7 +13,7 @@ import { MAX_AI_TOOL_ROUNDS } from '../../../../src/constants.js'
  * can never drift apart.
  */
 
-test.group('security — the tool-loop reservation covers the aggregate budget', () => {
+test.group('security: the tool-loop reservation covers the aggregate budget', () => {
   test('a tool request reserves perRound x maxRounds, not one round', async ({ assert }) => {
     const { controller, quota } = buildToolChat({ tools: { maxRounds: 3 } })
     const { ctx } = fakeHttpContext({ tenant: fakeTenant, body: toolChatBody })

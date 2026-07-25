@@ -42,7 +42,7 @@ const EXPECTED_KEYS = [
 const RAW_PRINCIPAL = 'user-secret-42'
 const RAW_SOURCE = 's3://tenant/private-doc.pdf'
 
-test.group('security — AI audit persisted row is non-PII', () => {
+test.group('security: AI audit persisted row is non-PII', () => {
   test('the chat sink maps a gateway event to a fixed non-PII row', async ({ assert }) => {
     const { writer, rows } = spyWriter()
     const principalHash = hashAuditPrincipal(RAW_PRINCIPAL)!

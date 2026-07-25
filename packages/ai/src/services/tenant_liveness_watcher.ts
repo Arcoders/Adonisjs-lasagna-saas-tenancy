@@ -4,7 +4,7 @@ import AIException from '../exceptions/ai_exception.js'
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 
 /**
- * The tenant-lifecycle events that revoke in-flight AI streams (G11, the
+ * The tenant-lifecycle events that revoke in-flight AI streams (the
  * TOCTOU suspend-mid-stream gap): a stream re-checks nothing itself; it holds
  * a liveness signal that this watcher aborts the instant the tenant stops
  * being servable. Maintenance events are deliberately excluded: maintenance is
@@ -34,7 +34,7 @@ export default class TenantLivenessWatcher {
    * disposed stream can no longer be aborted, and the per-tenant set is pruned
    * so the map never leaks finished streams).
    *
-   * Phase 2a (WS-AI-11): passing `maxConcurrent` gates this acquire on the
+   * Passing `maxConcurrent` gates this acquire on the
    * tenant's TOTAL live in-flight count. `handles.size` counts every kind of
    * stream (plain chat, embed, retrieve AND tool loops), so the cap is a
    * conservative admission gate: a new, expensive tool loop is admitted only
@@ -46,7 +46,7 @@ export default class TenantLivenessWatcher {
    * rather than starting one. No handle is created on refusal, so the count is
    * unchanged; the refusal is pre-commit (before the SSE headers flush), so it
    * never corrupts a live stream. The caller passes an already-validated positive
-   * cap (Phase 5). Honest limit: this bounds total in-flight, not tool loops
+   * cap. Honest limit: this bounds total in-flight, not tool loops
    * exactly, and is per-process / per-pod, like the liveness abort.
    *
    * A refusal emits `guard.ai_too_many_concurrent` so this rail is observable by

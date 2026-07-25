@@ -32,7 +32,7 @@ export interface AiRateLimitPolicy {
 /**
  * Build the BYOK per-key bucket key. Per-tenant is baked in so one tenant can
  * never exhaust another tenant's window; the `keyFingerprint` segment scopes the
- * limit to the specific provider key (threat #4), so a future per-tenant BYOK
+ * limit to the specific provider key, so a future per-tenant BYOK
  * key gets its own budget with no code change. Colon-delimited to match the
  * kernel's `ext:<surface>:<name>:<tenant>` convention; every segment is a
  * hex/uuid/name with no embedded colon.
@@ -42,8 +42,8 @@ export function aiRateLimitKey(op: string, tenantId: string, fingerprint: string
 }
 
 /**
- * The AI per-key request rate limiter (WS-AI-2, threat #4 BYOK exploitation /
- * denial of wallet). It is a DIFFERENT rail from the token cost reserve: this
+ * The AI per-key request rate limiter, the defense against BYOK exploitation and
+ * denial of wallet. It is a DIFFERENT rail from the token cost reserve: this
  * caps requests-per-window on a provider key, the reserve caps token spend. They
  * compose without double-counting (one counts requests, the other holds tokens).
  *

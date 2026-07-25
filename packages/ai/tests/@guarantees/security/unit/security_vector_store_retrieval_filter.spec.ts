@@ -11,7 +11,7 @@ import {
 import { fakeVectorEnv, vec } from '../../../helpers/fake_vector_db.js'
 
 /**
- * The retrievalFilter document-ACL WHERE clause (WS-AI-5, G2) on the vector
+ * The retrievalFilter document-ACL WHERE clause on the vector
  * store's search. The (model, dim) scope and the tenant placement stay mandatory;
  * the filter only NARROWS, never widens, and every filter value is a `?` bind
  * (never interpolated), so a scope value can neither be SQL nor escape the
@@ -33,7 +33,7 @@ function rejectedIds() {
 
 const searchHit = { id: 'r1', content: 'nearest', metadata: { team: 'eng' }, distance: 0.12 }
 
-test.group('VectorStoreService — retrievalFilter scope', (group) => {
+test.group('VectorStoreService: retrievalFilter scope', (group) => {
   group.each.setup(() => {
     __resetAiGuardCounters()
     __resetAiGuardRateLimit()
@@ -113,7 +113,7 @@ test.group('VectorStoreService — retrievalFilter scope', (group) => {
     assert.include(rejectedIds(), 'guard.ai_scope_mismatch')
   })
 
-  test('rowscope placement is refused for a filtered search too (I1)', async ({ assert }) => {
+  test('rowscope placement is refused for a filtered search too', async ({ assert }) => {
     const store = new VectorStoreService(fakeVectorEnv({ kind: 'rowscope' }).deps)
     await assert.rejects(
       () =>

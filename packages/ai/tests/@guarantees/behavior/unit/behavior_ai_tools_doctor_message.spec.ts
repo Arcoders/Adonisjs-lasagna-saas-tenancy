@@ -4,7 +4,7 @@ import type { DoctorContext } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { AiConfig, AIToolHostDefinition } from '../../../../src/define_config.js'
 
 /**
- * The ai_tools doctor check + its shared posture reading (WS-AI-11, I7). The
+ * The ai_tools doctor check + its shared posture reading. The
  * posture is read at RUN time through the injected getter, and the boot warning
  * and the check speak with one voice (both read aiToolsPosture). Tool calling is
  * fail-closed: tools offered but no authorizeTool and no acknowledgement is a
@@ -107,7 +107,7 @@ test.group('ai_tools doctor check', () => {
     assert.equal(issues[0]!.severity, 'info')
   })
 
-  test('actions enabled + audit on: an honest info that a confirmed action runs (Phase 3a)', async ({
+  test('actions enabled + audit on: an honest info that a confirmed action runs', async ({
     assert,
   }) => {
     const actionEnabled = ai({

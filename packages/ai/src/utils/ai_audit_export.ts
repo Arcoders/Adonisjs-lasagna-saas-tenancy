@@ -1,7 +1,7 @@
 import type { AiAuditEntry } from '../services/ai_audit_writer.js'
 
 /**
- * The flat, serialization-ready shape of one exported AI audit row (Wave 4, 3.2).
+ * The flat, serialization-ready shape of one exported AI audit row.
  * Every field is a string / number / boolean / null so the NDJSON and CSV emitters
  * share one record type. It carries the three chain fields (`seq`, `checksum`,
  * `prevChecksum`) so an EXTERNAL verifier can re-walk the file with no live database:

@@ -32,7 +32,7 @@ function actionTool(name: string): AIToolHostDefinition {
 /** Action tools switched on, the only config under which a write can ever run. */
 const ACTIONS_ON: AIToolsConfig = { actionTools: { enabled: true } }
 
-test.group('tool_gate — resolveToolRegistry (default-deny)', () => {
+test.group('tool_gate: resolveToolRegistry (default-deny)', () => {
   test('no tools config yields no tools', async ({ assert }) => {
     assert.deepEqual(await resolveToolRegistry(ctx, tenant, undefined), [])
     assert.deepEqual(await resolveToolRegistry(ctx, tenant, {}), [])
@@ -73,7 +73,7 @@ test.group('tool_gate — resolveToolRegistry (default-deny)', () => {
   })
 })
 
-test.group('tool_gate — advertisedTools', () => {
+test.group('tool_gate: advertisedTools', () => {
   test('with the kill-switch off, an action tool is never named to the model', ({ assert }) => {
     // Not merely refused later: unadvertised, so the model cannot propose it and no
     // human is ever shown a confirmation for a write the operator disabled.
@@ -116,7 +116,7 @@ test.group('tool_gate — advertisedTools', () => {
   })
 })
 
-test.group('tool_gate — assertActionAllowed (the kill-switch)', () => {
+test.group('tool_gate: assertActionAllowed (the kill-switch)', () => {
   test('a read tool never touches this gate', ({ assert }) => {
     assert.doesNotThrow(() => assertActionAllowed(tool('read'), 't1', {}))
     assert.doesNotThrow(() => assertActionAllowed(tool('read'), 't1', undefined))
@@ -163,7 +163,7 @@ test.group('tool_gate — assertActionAllowed (the kill-switch)', () => {
   })
 })
 
-test.group('tool_gate — isToolScope', () => {
+test.group('tool_gate: isToolScope', () => {
   test('validates the discriminated union, fail-closed on junk', ({ assert }) => {
     assert.isTrue(isToolScope({ kind: 'allow' }))
     assert.isTrue(isToolScope({ kind: 'allow', filter: { status: 'active' } }))
@@ -176,7 +176,7 @@ test.group('tool_gate — isToolScope', () => {
   })
 })
 
-test.group('tool_gate — authorizeToolScope (fail-closed)', () => {
+test.group('tool_gate: authorizeToolScope (fail-closed)', () => {
   test('absent hook denies unless acknowledged', async ({ assert }) => {
     await assert.rejects(() => authorizeToolScope(ctx, tenant, tool('read'), {}), /not authorized/)
     assert.deepEqual(

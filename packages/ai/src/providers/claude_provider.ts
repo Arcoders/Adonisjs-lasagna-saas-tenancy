@@ -25,7 +25,7 @@ export default class ClaudeProvider extends HttpAiProvider {
   // Claude serializes tool definitions and tool turns (toAnthropicTool /
   // toAnthropicMessage), so it declares the optional tool-calling capability.
   // The chat controller refuses a tool loop against a provider that does not
-  // (Phase 0's conditionally-required capability), never a silent drop.
+  // declare it (a conditionally-required capability), never a silent drop.
   override readonly capabilities: AICapabilities = { streaming: true, tools: true }
 
   constructor(cfg: AIProviderConfig, deps: AIProviderDeps = defaultAiProviderDeps) {

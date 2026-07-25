@@ -133,7 +133,7 @@ export interface AIProviderContract {
   /**
    * A stable, one-way fingerprint of the provider's active API key (never the
    * key itself), for the per-key request rate limit
-   * (`ext:ai:<op>:<tenant>:<keyFingerprint>`, threat #4) and audit attribution.
+   * (`ext:ai:<op>:<tenant>:<keyFingerprint>`, the denial-of-wallet defense) and audit attribution.
    * Optional: a provider that cannot expose one is keyed by its `name` instead.
    */
   readonly keyFingerprint?: string | undefined

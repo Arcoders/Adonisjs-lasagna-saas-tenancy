@@ -28,7 +28,7 @@ const ok = (executor = goodExecutor, gate = goodGate) =>
     { path: GATE, source: gate },
   ])
 
-test.group('architectural — I7 tool-scoping guard', () => {
+test.group('architectural: I7 tool-scoping guard', () => {
   test('the real shape passes', ({ assert }) => {
     assert.deepEqual(ok(), [])
   })
@@ -104,7 +104,7 @@ export async function resolveToolRegistry(ctx, tenant, toolsConfig) {
   })
 
   test('a moved executor fails loudly rather than silently passing', ({ assert }) => {
-    // If the file is renamed, the guard must go red so someone updates it — a scan
+    // If the file is renamed, the guard must go red so someone updates it. A scan
     // that finds nothing and reports OK is worse than no scan at all.
     const problems = auditToolScoping([{ path: GATE, source: goodGate }])
     assert.lengthOf(problems, 1)

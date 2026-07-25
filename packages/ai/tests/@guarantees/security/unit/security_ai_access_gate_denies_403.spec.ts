@@ -11,7 +11,7 @@ import {
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * The per-request AI membership gate (G4). Every denial is a 403
+ * The per-request AI membership gate. Every denial is a 403
  * `TenantAccessForbiddenException` plus a `guard.ai_access` emission whose
  * metadata names WHY (denied, hook_error, no_gate), and a throwing hook is a
  * denial (fail-closed), never a 500.

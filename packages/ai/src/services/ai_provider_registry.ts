@@ -53,7 +53,7 @@ export default class AIProviderRegistry {
   }
 
   /**
-   * The EXT-3 shape gate backing the v2 contract bump. `assertContractCompat` only
+   * The shape gate backing the v2 contract bump. `assertContractCompat` only
    * WARNS a provider built against an older contract, so on its own a v1 provider
    * claiming a v2 capability would boot and then crash mid-stream. This converts
    * that into a register-time failure.
@@ -61,7 +61,7 @@ export default class AIProviderRegistry {
    * What v2 actually changed for a provider: `AIMessage.role` widened to include
    * `'tool'`, and an assistant turn may now carry `toolCalls`. Every added member is
    * optional, so a v1 provider object still satisfies the v2 interface and stays
-   * welcome — the satellite simply never hands it a tool turn, because the chat
+   * welcome: the satellite simply never hands it a tool turn, because the chat
    * controller refuses a tool loop against a provider whose `capabilities.tools` is
    * not `true`. That leaves exactly one incoherent shape: a provider that CLAIMS
    * `capabilities.tools` while declaring a pre-v2 contract. Tool support IS the v2
@@ -133,7 +133,7 @@ export default class AIProviderRegistry {
   /**
    * Resolve the provider a tenant streams through, behind the default-deny
    * allow-list. The selection is isolated in
-   * {@link resolveTenantProviderSelection} (the WS-AI-2 seam). Throws
+   * {@link resolveTenantProviderSelection}. Throws
    * `provider_unavailable` if the selected provider is not registered (e.g. its
    * key was unconfigured so it was never registered).
    */

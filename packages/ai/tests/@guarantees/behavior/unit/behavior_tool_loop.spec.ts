@@ -255,7 +255,7 @@ test.group('tool_loop (through the streaming spine)', () => {
   })
 })
 
-test.group('tool_loop — planRound (Phase 3a confirmation)', () => {
+test.group('tool_loop: planRound (confirmation)', () => {
   test('an action awaiting confirmation emits a tool_confirmation_required frame and runs nothing', async ({
     assert,
   }) => {

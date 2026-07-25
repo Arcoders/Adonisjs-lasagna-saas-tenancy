@@ -8,7 +8,7 @@ import {
 } from '../constants.js'
 
 /**
- * Human-in-the-loop confirmation for action (mutating) tools (WS-AI-11 Phase 3a).
+ * Human-in-the-loop confirmation for action (mutating) tools.
  *
  * The shape of the whole thing: **the token is the capability, and it carries no
  * claims**. Everything it binds is re-derived from the request being served, and

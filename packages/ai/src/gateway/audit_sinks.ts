@@ -12,7 +12,7 @@ import type {
 } from './audit_seam.js'
 
 /**
- * The real audit sinks (WS-AI-7). Each implements one of the FROZEN sink
+ * The real audit sinks. Each implements one of the FROZEN sink
  * interfaces from `audit_seam.ts` and maps its non-PII event onto a shared
  * {@link AiAuditRow} (the `op` discriminator names the choke point; fields another
  * op does not carry take a neutral default), then hands it to the one
@@ -101,10 +101,10 @@ export class PgToolAuditSink implements AiToolAuditSink {
   constructor(private readonly writer: AiAuditWriter) {}
 
   async append(event: AiToolAuditEvent): Promise<void> {
-    // LOAD-BEARING chain-integrity reuse (WS-AI-11). `canonicalAuditFields` in
+    // LOAD-BEARING chain-integrity reuse. `canonicalAuditFields` in
     // ai_audit_writer.ts is a POSITIONAL array: adding an element would rebreak
     // every historical row's checksum. So a tool row must NOT introduce a new
-    // column — it reuses three neutral fields that no tool row otherwise needs:
+    // column; it reuses three neutral fields that no tool row otherwise needs:
     //   toolName -> model      (a tool row's "model" IS the invoked tool name)
     //   round    -> matchCount (the loop round, reusing retrieval's match counter)
     //   mode     -> provider   ('read' | 'action'; a tool row has no LLM provider)
@@ -137,8 +137,8 @@ export class PgToolAuditSink implements AiToolAuditSink {
 
 /**
  * Map a tool-event outcome onto the shared row's 3-value outcome, keeping the
- * precise category in `reason` (so the row's `outcome` enum — and its column CHECK,
- * if a host adds one — never has to grow): a refusal that never ran is a
+ * precise category in `reason` (so the row's `outcome` enum, and its column CHECK
+ * if a host adds one, never has to grow): a refusal that never ran is a
  * preflight-style refusal, a handler that ran then broke is an abort.
  */
 function toRowOutcome(outcome: AiToolAuditEvent['outcome']): AiAuditRow['outcome'] {

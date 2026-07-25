@@ -13,15 +13,15 @@ import {
 } from '../../../../src/isthmus/ai_guard_audit.js'
 
 /**
- * Wave 4 acceptance (3.5/3.6): the audit alerting observers. The anomaly watcher fires
- * exactly once when guard-trip velocity crosses the threshold within the window, is
- * fail-open (a throwing delivery never reaches the tripping request), and bounds its key
- * map. reportScheduledVerify raises a found chain break to guard.ai_audit_chain_broken.
+ * The audit alerting observers. The anomaly watcher fires exactly once when guard-trip
+ * velocity crosses the threshold within the window, is fail-open (a throwing delivery
+ * never reaches the tripping request), and bounds its key map. reportScheduledVerify
+ * raises a found chain break to guard.ai_audit_chain_broken.
  */
 
 const TRIP = { tenantId: 'tenant-1', principalHash: 'p', guard: 'guard.ai_scope_mismatch' }
 
-test.group('AiAuditAnomalyWatcher (Wave 4, 3.6)', (group) => {
+test.group('AiAuditAnomalyWatcher', (group) => {
   let captured: IsthmusGuardTrippedPayload[] = []
   const metrics: string[] = []
   group.each.setup(() => {
@@ -111,7 +111,7 @@ test.group('AiAuditAnomalyWatcher (Wave 4, 3.6)', (group) => {
   })
 })
 
-test.group('reportScheduledVerify (Wave 4, 3.5)', (group) => {
+test.group('reportScheduledVerify', (group) => {
   let captured: IsthmusGuardTrippedPayload[] = []
   group.each.setup(() => {
     captured = []
@@ -147,7 +147,7 @@ test.group('reportScheduledVerify (Wave 4, 3.5)', (group) => {
   })
 })
 
-test.group('wireAiAuditAnomalyWatcher (Wave 4, 3.6)', () => {
+test.group('wireAiAuditAnomalyWatcher', () => {
   test('records only guard.ai_* request trips, ignoring non-ai and its own alert signals', ({
     assert,
   }) => {

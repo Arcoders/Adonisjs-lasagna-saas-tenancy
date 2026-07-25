@@ -81,7 +81,7 @@ export async function authorizeAiAccess(
 }
 
 /**
- * The audit READ/query gate (Wave 4, 3.1), distinct from {@link authorizeAiAccess}:
+ * The audit READ/query gate, distinct from {@link authorizeAiAccess}:
  * "may this caller use AI" is NOT "may this caller read everyone's audit trail". An
  * audit trail exposed to the wrong reader is itself a disclosure, so this is
  * DEFAULT-DENY with NO acknowledge escape: an absent `config.ai.audit.authorizeAudit`

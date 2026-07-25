@@ -5,9 +5,9 @@ import AiIdempotencyService, {
 } from '../../../../src/gateway/idempotency.js'
 
 /**
- * G7 / #5 key scoping: the cache key is an HMAC binding tenant + principal +
- * session + header key together. Changing ANY scope component (or the epoch)
- * must move the entry, and no raw scope component may ever appear in a key.
+ * Key scoping: the cache key is an HMAC binding tenant + principal + session + header
+ * key together. Changing ANY scope component (or the epoch) must move the entry, and no
+ * raw scope component may ever appear in a key.
  */
 
 function service(): AiIdempotencyService {

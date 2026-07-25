@@ -10,13 +10,13 @@ import {
 } from '../../../../src/services/ai_audit_writer.js'
 
 /**
- * The G1 forward contract on the WS-AI-11 tool-audit seam. The event field set is
- * pinned EXACTLY (a new field is a reviewed decision, and neither the
- * model-generated arguments nor the tool result can slip in). The load-bearing
- * checksum-preserving mapping (toolName->model, round->matchCount, mode->provider,
- * op:'tool') is asserted here so a future maintainer never reads those columns as a
- * literal LLM model / match count / provider on a tool row, and so a tool row stays
- * writable through the SAME positional hash chain as chat / embed / retrieval.
+ * The forward contract on the tool-audit seam. The event field set is pinned EXACTLY
+ * (a new field is a reviewed decision, and neither the model-generated arguments nor
+ * the tool result can slip in). The checksum-preserving mapping (toolName->model,
+ * round->matchCount, mode->provider, op:'tool') is asserted here so a future maintainer
+ * never reads those columns as a literal LLM model / match count / provider on a tool
+ * row, and so a tool row stays writable through the SAME positional hash chain as chat
+ * / embed / retrieval.
  */
 
 const PINNED_FIELDS = [
@@ -66,7 +66,7 @@ test.group('tool audit seam non-PII contract', () => {
     assert.deepEqual(
       Object.keys(toolEvent()).sort(),
       PINNED_FIELDS,
-      'the tool audit event field set is FROZEN; extending it is a reviewed WS-AI-11 decision'
+      'the tool audit event field set is FROZEN; extending it is a reviewed decision'
     )
   })
 
@@ -119,7 +119,7 @@ test.group('tool audit seam non-PII contract', () => {
     await new PgToolAuditSink(writer).append(toolEvent())
     const row = rows[0]!
     // The canonical serialization must produce a stable string and a 64-hex
-    // checksum exactly as it does for every other op — proof the reuse did not
+    // checksum exactly as it does for every other op, proof the reuse did not
     // break the positional array (no new element, no undefined value).
     const canonical = canonicalAuditFields(row, 1)
     assert.isString(canonical)

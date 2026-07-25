@@ -20,8 +20,8 @@ import {
 import { TOOL_CONFIRMATION_EVENT } from './sse_constants.js'
 
 /**
- * A human-in-the-loop confirmation challenge for one proposed action call
- * (WS-AI-11 Phase 3a). Everything the client needs to ask the human and, on
+ * A human-in-the-loop confirmation challenge for one proposed action call.
+ * Everything the client needs to ask the human and, on
  * agreement, re-submit: the host-authored `summary`, the minted `token` (echoed
  * back in the `X-Ai-Tool-Confirmation` header), and its `expiresAt`. It carries no
  * tenant, principal, tool arguments, or model prose.
@@ -40,17 +40,17 @@ export interface ToolConfirmationChallenge {
 }
 
 /**
- * The plan-phase outcome for one model-issued tool call (WS-AI-11 Phase 3a).
- * `run` completes the call — the fenced, bounded `role: 'tool'` result turn to
+ * The plan-phase outcome for one model-issued tool call.
+ * `run` completes the call: the fenced, bounded `role: 'tool'` result turn to
  * re-inject next round, plus (for a confirmed action) the ledger claim and the
- * fail-closed intent audit — but runs NO effect until invoked, which is what lets
+ * fail-closed intent audit. It runs NO effect until invoked, which is what lets
  * the loop scan a whole round before executing anything. `challenge` puts the
  * action to the human and runs nothing.
  *
  * A FATAL refusal (an unknown tool, a denied authorization, invalid arguments, a
  * scope breach, a presented-but-unmatched confirmation) is THROWN by `plan`, not
  * returned; the loop lets it propagate so the spine emits the code as an in-band
- * `event: error` frame and ends the stream — and because it throws DURING the scan,
+ * `event: error` frame and ends the stream. Because it throws DURING the scan,
  * before any `run` fires, a round is never half-applied around it.
  */
 export type ToolCallPlan =
@@ -58,7 +58,7 @@ export type ToolCallPlan =
   | { readonly kind: 'challenge'; readonly challenge: ToolConfirmationChallenge }
 
 /**
- * The loop's seam onto Phase 3's tool executor. `plan` classifies one call WITHOUT
+ * The loop's seam onto the tool executor. `plan` classifies one call WITHOUT
  * running its effect (registry lookup, per-tool authorization, argument validation,
  * the confused-deputy re-assert, and the action confirmation decision), returning a
  * `run` thunk or a `challenge`. `signal` is the composed pump signal; the executor
@@ -71,7 +71,7 @@ export interface ToolLoopExecutor {
   plan(call: AIToolCall, signal: AbortSignal, round: number): Promise<ToolCallPlan>
 }
 
-/** The per-round rate-limit hook (invariant 2). Called before rounds >= 2; a throw ends the loop in-band. */
+/** The per-round rate-limit hook. Called before rounds >= 2; a throw ends the loop in-band. */
 export type OnBeforeRound = (round: number) => Promise<void>
 
 /** Everything {@link buildToolLoopProducer} needs. Ceilings are resolved values; the loop clamps defensively. */
@@ -86,9 +86,9 @@ export interface ToolLoopDeps {
    * overrides `maxTokens`/`tools`/`toolChoice`.
    */
   readonly baseRequest: AIStreamRequest
-  /** The tools advertised to the model each round (from config, default-deny; Phase 5). */
+  /** The tools advertised to the model each round (from config, default-deny). */
   readonly tools: readonly AIToolDefinition[]
-  /** The tool executor seam (Phase 3). */
+  /** The tool executor seam. */
   readonly executor: ToolLoopExecutor
   /** Per-round output-token cap: each round's `request.maxTokens`. The aggregate reservation is `this x maxRounds`. */
   readonly perRoundMaxTokens: number
@@ -149,7 +149,7 @@ export function buildToolLoopProducer(deps: ToolLoopDeps): StreamProducer {
     for (let round = 1; round <= maxRounds; round++) {
       if (signal.aborted) return
 
-      // (1) Per-round rate limit (invariant 2): rounds >= 2 consult the limiter so
+      // (1) Per-round rate limit: rounds >= 2 consult the limiter so
       //     the denial-of-wallet rail counts every upstream call. A denial throws
       //     an AIException that the spine renders in-band (headers already flushed).
       if (round >= 2 && deps.onBeforeRound) {
@@ -282,7 +282,7 @@ function isChallenge(
  * A `tool_confirmation_required` SSE frame carrying one challenge as JSON. It rides
  * its own reserved event (never {@link TOOL_CONFIRMATION_EVENT}'s default sibling),
  * so the loop's assistant-text accumulation and `reconstructAssistantText` both skip
- * it and the live token is never folded into persisted memory. `tokens: 0` — a
+ * it and the live token is never folded into persisted memory. `tokens: 0` because a
  * challenge is control, not generation. `JSON.stringify` escapes any newline in the
  * summary, so the frame stays a single `data:` line.
  */

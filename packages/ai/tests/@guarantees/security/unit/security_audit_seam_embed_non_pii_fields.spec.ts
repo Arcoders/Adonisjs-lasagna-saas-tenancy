@@ -12,10 +12,10 @@ import { fakeTenant } from '../../../helpers/stream_doubles.js'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * The embed choke point's own G1 forward contract: the embed audit event field
- * set is pinned EXACTLY (a parallel event to the chat one, so extending either
- * is an isolated reviewed decision), `actorHash`/`sourceHash` are one-way, and
- * no embedded text ever reaches a serialized event.
+ * The embed choke point's own forward contract: the embed audit event field set is
+ * pinned EXACTLY (a parallel event to the chat one, so extending either is an isolated
+ * reviewed decision), `actorHash`/`sourceHash` are one-way, and no embedded text ever
+ * reaches a serialized event.
  */
 const PINNED_FIELDS = [
   'actorHash',

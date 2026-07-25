@@ -4,7 +4,7 @@ import { test } from '@japa/runner'
 // tenant-scoped (never a global public.embeddings, never a hardcoded tenant_<id>).
 import { auditVectorPlacement } from '../../../../../scripts/check-ai-invariant-1.mjs'
 
-test.group('architectural — I1 vector placement guard', () => {
+test.group('architectural: I1 vector placement guard', () => {
   test('clean, driver-placed SQL passes', ({ assert }) => {
     const problems = auditVectorPlacement([
       {

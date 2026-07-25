@@ -16,10 +16,10 @@ import { fakeHttpContext } from '../../../helpers/fake_http_context.js'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * The G1 forward contract on the WS-AI-7 audit seam: the event field set is
- * pinned EXACTLY (a new field is a reviewed decision, and content can never
- * slip in silently), the principal is one-way hashed, and no prompt or
- * response text appears anywhere in a serialized event.
+ * The forward contract on the audit seam: the event field set is pinned EXACTLY (a new
+ * field is a reviewed decision, and content can never slip in silently), the principal
+ * is one-way hashed, and no prompt or response text appears anywhere in a serialized
+ * event.
  */
 
 const PINNED_FIELDS = [
@@ -90,7 +90,7 @@ test.group('audit seam non-PII contract', () => {
     assert.deepEqual(
       Object.keys(events[0]!).sort(),
       PINNED_FIELDS,
-      'the audit event field set is FROZEN; extending it is a reviewed WS-AI-7 decision'
+      'the audit event field set is FROZEN; extending it is a reviewed decision'
     )
     assert.equal(events[0]!.outcome, 'completed')
     assert.equal(events[0]!.tenantId, 't1')

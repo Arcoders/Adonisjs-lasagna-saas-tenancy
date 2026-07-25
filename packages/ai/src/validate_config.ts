@@ -28,7 +28,7 @@ import { emitAiGuardEvent } from './isthmus/ai_guard_audit.js'
 /** The built-in providers that require a matching config block when allow-listed. */
 const BUILTIN_PROVIDERS = ['claude', 'deepseek', 'kimi'] as const
 
-/** Ceiling for the idempotency replay TTL (5 min): bounds the post-purge residual-PII window (WS-AI-9). */
+/** Ceiling for the idempotency replay TTL (5 min): bounds the post-purge residual-PII window. */
 const MAX_IDEMPOTENCY_TTL_MS = 300_000
 /** Ceiling for a single purge batch's statement_timeout (10 min). */
 const MAX_PURGE_STATEMENT_TIMEOUT_MS = 600_000
@@ -48,8 +48,8 @@ function fail(message: string): never {
 }
 
 /**
- * The public face of the {@link fail} config-invalid choke (Wave 5), so the provider's
- * boot-time crypto-peer check — which needs container access this pure validator lacks —
+ * The public face of the {@link fail} config-invalid choke, so the provider's
+ * boot-time crypto-peer check (which needs container access this pure validator lacks)
  * routes a fail-closed abort through the SAME `guard.ai_config_invalid` emission + throw
  * instead of a parallel one that could drift.
  */
@@ -90,12 +90,12 @@ export function assertAiConfig(config: AiConfig | undefined): void {
   assertPositiveInteger('heartbeatMs', config.heartbeatMs)
   assertPositiveInteger('timeoutMs', config.timeoutMs)
   assertPositiveInteger('maxTokens', config.maxTokens)
-  // Cap the idempotency TTL (WS-AI-9 honest-limit #4): a completed response's raw
+  // Cap the idempotency TTL: a completed response's raw
   // frames are PII and only become UNREACHABLE (not deleted) on a purge, self-reaped
   // at this TTL. Keeping it short bounds that post-purge residual window.
   assertBoundedInteger('idempotencyTtlMs', config.idempotencyTtlMs, MAX_IDEMPOTENCY_TTL_MS)
   assertPositiveInteger('maxPromptChars', config.maxPromptChars)
-  // The per-batch purge statement timeout (E14): a positive integer, bounded so a
+  // The per-batch purge statement timeout: a positive integer, bounded so a
   // fat-finger cannot make a batch effectively unbounded; `SET LOCAL 0` (no timeout)
   // is rejected by the positive-integer floor.
   assertBoundedInteger(
@@ -145,7 +145,7 @@ export function assertAiConfig(config: AiConfig | undefined): void {
 }
 
 /**
- * The tool / function-calling block (WS-AI-11), when present: the hooks are
+ * The tool / function-calling block, when present: the hooks are
  * functions, each static `registry` entry is a well-formed tool definition, and
  * every bound is a positive integer no larger than its hard ceiling. The loop and
  * executor also clamp these defensively at runtime, but validating here makes an
@@ -210,7 +210,7 @@ function assertToolsConfig(tools: AIToolsConfig | undefined): void {
 /**
  * A static `registry` tool definition: a non-empty `name`, a non-empty
  * `description`, an object `inputSchema` (the JSON Schema shipped to the model), a
- * `handler` function, and — when set — a `mode` of `'read'` or `'action'`, a
+ * `handler` function, and, when set, a `mode` of `'read'` or `'action'`, a
  * boolean `requiresConfirmation`, and a `parseInput` function. Dynamic
  * (`resolveTools`) tools are validated at request time by `resolveToolRegistry`,
  * which drops a malformed entry rather than aborting the boot.
@@ -245,7 +245,7 @@ function assertToolDefinition(tool: unknown, index: number): void {
 }
 
 /**
- * The conversation memory block (WS-AI-4, I2), when present: the bounds are
+ * The conversation memory block, when present: the bounds are
  * positive integers, with `maxTurns` at least 1 (a zero-turn memory would store
  * but never replay). Presence of the block enables memory; the require-a-principal
  * posture is a runtime concern reported by the `ai_memory` doctor check, not a
@@ -259,7 +259,7 @@ function assertMemoryConfig(memory: AIMemoryConfig | undefined): void {
   assertPositiveInteger('memory.maxTurns', memory.maxTurns)
   assertPositiveInteger('memory.maxChars', memory.maxChars)
   assertPositiveInteger('memory.ttlMs', memory.ttlMs)
-  // The at-rest key strategy (Wave 5): a validated union, never a source literal. The
+  // The at-rest key strategy: a validated union, never a source literal. The
   // default (`'app-key'`, today's behavior) needs no value; `'tenant-dek'` additionally
   // fails boot closed when the crypto peer is absent, which the provider asserts (the
   // config validator is pure and cannot resolve the container).
@@ -276,7 +276,7 @@ function assertMemoryConfig(memory: AIMemoryConfig | undefined): void {
 }
 
 /**
- * The append-only audit block (WS-AI-7), when present: `enabled` is the only knob
+ * The append-only audit block, when present: `enabled` is the only knob
  * and must be a boolean. Audit is on by default (attribution is fail-closed), so a
  * host only sets this to opt out with `{ enabled: false }`.
  */
@@ -288,7 +288,7 @@ function assertAuditConfig(audit: AIAuditConfig | undefined): void {
   if (audit.enabled !== undefined && typeof audit.enabled !== 'boolean') {
     fail('[ai] config.ai.audit.enabled, when set, must be a boolean')
   }
-  // The read/query gate (Wave 4, 3.1): a function, boot-checked for its TYPE only; its
+  // The read/query gate: a function, boot-checked for its TYPE only; its
   // return value is the request-time fail-closed gate, never inspected here.
   if (audit.authorizeAudit !== undefined && typeof audit.authorizeAudit !== 'function') {
     fail(
@@ -321,7 +321,7 @@ function assertAuditConfig(audit: AIAuditConfig | undefined): void {
 }
 
 /**
- * The resilience block (Wave 1), when present: each of `memory` / `idempotency` /
+ * The resilience block, when present: each of `memory` / `idempotency` /
  * `rateLimit` is an optional object whose only field is a `policy` that must be
  * `'fail-open'` or `'fail-closed'`. Absent fields default to today's semantics, so a
  * host only sets this to override a per-operation posture.
@@ -352,9 +352,9 @@ function assertResiliencePolicyBlock(name: string, block: { policy?: unknown } |
 }
 
 /**
- * The injection block (Wave 3), when present: `classifier` must be a function (its
- * RETURN shape is a request-time gate, never inspected here, per discipline point
- * 4); `onError` must be `'open'` or `'closed'`; `scanRetrieved` must be a boolean.
+ * The injection block, when present: `classifier` must be a function (its
+ * RETURN shape is a request-time gate, never inspected here); `onError` must be
+ * `'open'` or `'closed'`; `scanRetrieved` must be a boolean.
  * Every branch routes through `fail()` (the single `guard.ai_config_invalid` choke).
  * The absent-classifier posture (structural boundary only) is the correct default,
  * surfaced by the `ai_injection` doctor check, not a config error.
@@ -380,8 +380,8 @@ function assertInjectionConfig(injection: AIInjectionConfig | undefined): void {
 }
 
 /**
- * The retrieval / RAG block (WS-AI-5), when present: `retrievalFilter` is the
- * per-user document ACL hook (G2), so it must be a function; the bounds are
+ * The retrieval / RAG block, when present: `retrievalFilter` is the
+ * per-user document ACL hook, so it must be a function; the bounds are
  * positive integers. The absent-hook posture (whole tenant corpus) is a
  * documented honest limit, surfaced by the `ai_retrieval_gate` doctor check, not
  * a config error.
@@ -402,7 +402,7 @@ function assertRetrievalConfig(retrieval: AIRetrievalConfig | undefined): void {
 }
 
 /**
- * The vector-store / embedding block (WS-AI-3), when present: a generic
+ * The vector-store / embedding block, when present: a generic
  * OpenAI-compatible provider needs a key and a base URL (there is no default
  * public endpoint), the dimension is baked into the `vector(N)` column so it
  * must be a pgvector-indexable integer (1..2000), and the bounds are positive
@@ -468,7 +468,7 @@ function assertEmbeddingConfig(embedding: AIEmbeddingConfig | undefined): void {
   ) {
     fail('[ai] config.ai.embedding.authorizeIngestion, when set, must be a function (ctx, tenant)')
   }
-  // Content-at-rest flags (Wave 5): booleans, default false. Enabling either requires the
+  // Content-at-rest flags: booleans, default false. Enabling either requires the
   // crypto peer; the provider asserts that at boot (fail-closed) since this pure validator
   // cannot resolve the container. `encryptMetadata` additionally disables metadata-scoped
   // retrieval, enforced fail-closed at the query boundary (guard.ai_embedding_metadata_scope_conflict).
@@ -569,7 +569,7 @@ function assertBoundedInteger(label: string, value: unknown, max: number): void 
 }
 
 /**
- * The per-tenant residency hook (WS-AI-9, #7 / #15), when present, must be a
+ * The per-tenant residency hook, when present, must be a
  * function. Its return shape (`{mode:'local-only'}` | `{allowedProviders}`) is
  * resolved and validated at request time, fail-closed, by the residency gate; a
  * malformed return there refuses remote egress rather than aborting the boot.

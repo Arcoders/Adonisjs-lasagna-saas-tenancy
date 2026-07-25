@@ -61,7 +61,7 @@ export interface AiAuditWriterDeps {
    */
   activeScopeTenantId: () => string | undefined
   /**
-   * External anchoring (WS-AI-7, #6): resolve the host's audit destination
+   * External anchoring: resolve the host's audit destination
    * registry so each committed row is fanned out to the operator's SIEM/WORM the
    * same way kernel audit is. Optional and injected (kept barrel-free), so a host
    * with no destinations pays nothing. Absent => no anchoring.
@@ -80,8 +80,8 @@ export interface AiAuditWriterDeps {
  * events). Principal and source are one-way SHA-256 hashes; no prompt, response,
  * query, document, or tool-argument/result text is ever carried. Fields not
  * applicable to an `op` take a neutral default (0 / false / null). A `tool` row
- * (WS-AI-11) reuses neutral fields rather than adding columns, so the positional
- * checksum chain in {@link canonicalAuditFields} stays byte-identical — see the
+ * reuses neutral fields rather than adding columns, so the positional
+ * checksum chain in {@link canonicalAuditFields} stays byte-identical. See the
  * load-bearing mapping note on `PgToolAuditSink`.
  */
 export interface AiAuditRow {
@@ -188,7 +188,7 @@ export interface AiAuditVerifyResult {
 }
 
 /**
- * A signed-off point in a tenant's chain the incremental verify (Wave 4, gap 3)
+ * A signed-off point in a tenant's chain the incremental verify
  * folds FROM instead of restarting at `seq = 0`. Persisted by `tenant:ai:audit:archive`
  * into the `ai_audit_checkpoints` table; the seed here is that stored `{ seq, checksum }`.
  */
@@ -301,7 +301,7 @@ export default class AiAuditWriter {
     const db = await this.deps.getDb()
     const client = db.connection(this.deps.connectionName)
     // A single-tenant seeded verify gets a real seq lower bound so the DB read cost is
-    // proportional to the tail, not to all history (gap 3). An all-tenants sweep cannot
+    // proportional to the tail, not to all history. An all-tenants sweep cannot
     // put a per-tenant seq bound in one query, so it reads the table ordered and seeds
     // (and skips pre-checkpoint rows) per tenant boundary in the fold below.
     const singleSeed = tenantId ? opts?.seedFor?.(tenantId) : undefined
@@ -416,7 +416,7 @@ export default class AiAuditWriter {
   }
 
   /**
-   * Fan the committed row out to every host audit destination (WS-AI-7, #6),
+   * Fan the committed row out to every host audit destination,
    * mapped onto the kernel `AuditLogEntry` shape so AI audit and kernel audit share
    * one SIEM/WORM stream. Each write is time-bounded and isolated (`allSettled`),
    * so a slow or throwing destination is contained. No destinations, or no

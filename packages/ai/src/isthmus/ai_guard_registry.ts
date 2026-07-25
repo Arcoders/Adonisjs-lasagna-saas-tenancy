@@ -516,7 +516,7 @@ export const AI_GUARD_REGISTRY = [
     severity: 'warn',
     evidence: {
       kind: 'invariant',
-      ref: 'LLM01 Wave 3: the retrieved-doc / tool-result fence neutralization + role separation already CLOSES a delimiter forgery; this guard is the one deliberate NEUTRALIZE-AND-OBSERVE divergence from the reject-semantics registry — it emits when a token forgery is neutralized (never blocks), so an operator can see a corpus probing for a fence breakout. failMode closed because the breakout is structurally closed regardless of the signal; severity warn like ai_rate_limited because forgeries appear in ordinary operation and are watched by rate',
+      ref: 'LLM01 Wave 3: the retrieved-doc / tool-result fence neutralization + role separation already CLOSES a delimiter forgery; this guard is the one deliberate NEUTRALIZE-AND-OBSERVE divergence from the reject-semantics registry, and it emits when a token forgery is neutralized (never blocks), so an operator can see a corpus probing for a fence breakout. failMode closed because the breakout is structurally closed regardless of the signal; severity warn like ai_rate_limited because forgeries appear in ordinary operation and are watched by rate',
     },
     guardFile: 'src/gateway/context_builder.ts',
     reviewed: '2026-07-19',
@@ -548,7 +548,7 @@ export const AI_GUARD_REGISTRY = [
     severity: 'critical',
     evidence: {
       kind: 'invariant',
-      ref: 'Wave 4 audit consumption (3.5): a scheduled / alerting verify found a chain break (checksum / seq gap / prev-link) — tampering that slipped past the append-only triggers. A SIGNAL guard (emits, does not throw: the verify already reported the break and exits 1), raised to critical so a broken audit chain pages an operator instead of scrolling past. failMode closed because the chain itself is the fail-closed control; the emission is alerting on an already-detected break',
+      ref: 'Wave 4 audit consumption (3.5): a scheduled / alerting verify found a chain break (checksum / seq gap / prev-link), tampering that slipped past the append-only triggers. A SIGNAL guard (emits, does not throw: the verify already reported the break and exits 1), raised to critical so a broken audit chain pages an operator instead of scrolling past. failMode closed because the chain itself is the fail-closed control; the emission is alerting on an already-detected break',
     },
     guardFile: 'src/services/ai_audit_anomaly_watcher.ts',
     reviewed: '2026-07-19',
@@ -564,7 +564,7 @@ export const AI_GUARD_REGISTRY = [
     severity: 'high',
     evidence: {
       kind: 'inherent-risk',
-      ref: 'Wave 4 audit consumption (3.6): guard-trip VELOCITY per (tenant, principal, guard) crossed the sliding-window threshold — a single principal driving a burst of scope-mismatch / rate-limit / injection trips. failMode OPEN because the watcher is an observer of already-dispatched events, off the request path (the guard it counts already did its fail-closed job): a velocity heuristic and alerting convenience layered on the real controls, never a control itself',
+      ref: 'Wave 4 audit consumption (3.6): guard-trip VELOCITY per (tenant, principal, guard) crossed the sliding-window threshold, a single principal driving a burst of scope-mismatch / rate-limit / injection trips. failMode OPEN because the watcher is an observer of already-dispatched events, off the request path (the guard it counts already did its fail-closed job): a velocity heuristic and alerting convenience layered on the real controls, never a control itself',
     },
     guardFile: 'src/services/ai_audit_anomaly_watcher.ts',
     reviewed: '2026-07-19',
