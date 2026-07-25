@@ -68,7 +68,10 @@ async function relocatedTenant() {
   const names = await ledgerNames(schema)
   const to = names.find((n) => n.includes('notes'))!
   const from = 'database/migrations/tenant/0099_legacy_notes'
-  await central().rawQuery(`UPDATE "${schema}".adonis_schema SET name = ? WHERE name = ?`, [from, to])
+  await central().rawQuery(`UPDATE "${schema}".adonis_schema SET name = ? WHERE name = ?`, [
+    from,
+    to,
+  ])
 
   return { tenant, schema, from, to, source: new Set(names) }
 }
@@ -96,7 +99,15 @@ test.group('reconcileTenantLedger against real Postgres', () => {
       ).rows[0].n
 
       const outcome = await reconcileTenantLedger(
-        { tenantId: tenant.id, schema, from, to, source, aliasMap: aliasMapFor(from, to), expected: await structureOf(schema, ['notes']) },
+        {
+          tenantId: tenant.id,
+          schema,
+          from,
+          to,
+          source,
+          aliasMap: aliasMapFor(from, to),
+          expected: await structureOf(schema, ['notes']),
+        },
         await deps()
       )
 
@@ -106,13 +117,21 @@ test.group('reconcileTenantLedger against real Postgres', () => {
       assert.notInclude(names, from, 'the legacy name is gone')
 
       const afterRow = await ledgerRow(schema, to)
-      assert.equal(afterRow.id, beforeRow.id, 'the ledger row id is preserved (identity, not re-insert)')
+      assert.equal(
+        afterRow.id,
+        beforeRow.id,
+        'the ledger row id is preserved (identity, not re-insert)'
+      )
       assert.equal(String(afterRow.batch), String(beforeRow.batch), 'batch preserved')
 
       const afterCount = (
         await central().rawQuery(`SELECT count(*)::int AS n FROM "${schema}".notes`)
       ).rows[0].n
-      assert.equal(afterCount, beforeCount, 'the table row count is unchanged (zero DDL, zero data change)')
+      assert.equal(
+        afterCount,
+        beforeCount,
+        'the table row count is unchanged (zero DDL, zero data change)'
+      )
     } finally {
       await cleanup(schema, tenant.id)
     }
@@ -126,12 +145,28 @@ test.group('reconcileTenantLedger against real Postgres', () => {
       const d = await deps()
       const expected = await structureOf(schema, ['notes'])
       const first = await reconcileTenantLedger(
-        { tenantId: tenant.id, schema, from, to, source, aliasMap: aliasMapFor(from, to), expected },
+        {
+          tenantId: tenant.id,
+          schema,
+          from,
+          to,
+          source,
+          aliasMap: aliasMapFor(from, to),
+          expected,
+        },
         d
       )
       assert.equal(first.status, 'reconciled')
       const second = await reconcileTenantLedger(
-        { tenantId: tenant.id, schema, from, to, source, aliasMap: aliasMapFor(from, to), expected },
+        {
+          tenantId: tenant.id,
+          schema,
+          from,
+          to,
+          source,
+          aliasMap: aliasMapFor(from, to),
+          expected,
+        },
         d
       )
       assert.equal(second.status, 'already_reconciled')
@@ -146,9 +181,19 @@ test.group('reconcileTenantLedger against real Postgres', () => {
     const { tenant, schema, from, to, source } = await relocatedTenant()
     try {
       // Expect a table that is NOT in the schema → stamp-a-lie is refused.
-      const expected: ExpectedStructure = { objects: new Map([['ghost_table', new Map([['id', 'int4']])]]) }
+      const expected: ExpectedStructure = {
+        objects: new Map([['ghost_table', new Map([['id', 'int4']])]]),
+      }
       const outcome = await reconcileTenantLedger(
-        { tenantId: tenant.id, schema, from, to, source, aliasMap: aliasMapFor(from, to), expected },
+        {
+          tenantId: tenant.id,
+          schema,
+          from,
+          to,
+          source,
+          aliasMap: aliasMapFor(from, to),
+          expected,
+        },
         await deps()
       )
       assert.equal(outcome.status, 'refused')
@@ -194,7 +239,15 @@ test.group('reconcileTenantLedger against real Postgres', () => {
         [to]
       )
       const outcome = await reconcileTenantLedger(
-        { tenantId: tenant.id, schema, from, to, source, aliasMap: aliasMapFor(from, to), expected: await structureOf(schema, ['notes']) },
+        {
+          tenantId: tenant.id,
+          schema,
+          from,
+          to,
+          source,
+          aliasMap: aliasMapFor(from, to),
+          expected: await structureOf(schema, ['notes']),
+        },
         await deps()
       )
       assert.equal(outcome.status, 'refused')

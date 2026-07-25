@@ -7,10 +7,7 @@ import IsthmusTenantMismatchException from '../../../../src/exceptions/isthmus_t
 import { setConfig } from '../../../../src/config.js'
 import { __resetConfigForTests } from '../../../../src/testing/config_reset.js'
 import { testConfig } from '../../../helpers/config.js'
-import {
-  createGuardAudit,
-  type GuardAuditEntry,
-} from '../../../../src/sdk/guard_audit.js'
+import { createGuardAudit, type GuardAuditEntry } from '../../../../src/sdk/guard_audit.js'
 import { tenancy, __configureTenancyForTests } from '../../../../src/tenancy.js'
 import TenantLogContext from '../../../../src/services/tenant_log_context.js'
 import BootstrapperRegistry from '../../../../src/services/bootstrapper_registry.js'

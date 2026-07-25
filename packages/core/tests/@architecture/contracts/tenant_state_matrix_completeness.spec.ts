@@ -3,10 +3,7 @@ import { TENANT_STATUSES } from '../../../src/types/contracts.js'
 import { TENANT_STATE_MATRIX } from '../../../src/services/doctor/tenant_state_matrix.js'
 import { tenantLifecycleDisposition } from '../../../src/middleware/tenant_lifecycle_disposition.js'
 import { builtInChecks } from '../../../src/services/doctor/checks/index.js'
-import {
-  SAFE_FIX_BY_CODE,
-  SURFACE_ONLY,
-} from '../../../src/services/doctor/safe_fix_registry.js'
+import { SAFE_FIX_BY_CODE, SURFACE_ONLY } from '../../../src/services/doctor/safe_fix_registry.js'
 
 /**
  * A4 — the curated composite state matrix must stay coherent with the live system: every
@@ -28,7 +25,11 @@ test.group('tenant state matrix completeness', () => {
   }) => {
     for (const row of TENANT_STATE_MATRIX) {
       const live = tenantLifecycleDisposition({ status: row.status, isDeleted: row.deletedAt })
-      assert.equal(row.disposition, live, `${row.id}: matrix says ${row.disposition}, floor says ${live}`)
+      assert.equal(
+        row.disposition,
+        live,
+        `${row.id}: matrix says ${row.disposition}, floor says ${live}`
+      )
     }
   })
 

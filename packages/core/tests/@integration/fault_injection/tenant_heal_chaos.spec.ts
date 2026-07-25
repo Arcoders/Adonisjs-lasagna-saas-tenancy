@@ -112,10 +112,16 @@ test.group('healTenant under injected migrate faults (fault injection, real Post
 
       // Second heal (fault cleared): carries the same tenant the rest of the way.
       const recovery = await healTenant(handle, { fireHooks: false, audit: false })
-      assert.isFalse(recovery.provisioned, 'recovery reuses the surviving schema, provisions nothing')
+      assert.isFalse(
+        recovery.provisioned,
+        'recovery reuses the surviving schema, provisions nothing'
+      )
       assert.isAbove(recovery.migrated, 0, 'recovery applies the migration that the fault blocked')
       assert.isTrue(await tableExists(schema, 'notes'), 'the per-tenant migration is now applied')
-      assert.isEmpty(await duplicateLedgerRows(schema), 'the recovered ledger has no duplicate rows')
+      assert.isEmpty(
+        await duplicateLedgerRows(schema),
+        'the recovered ledger has no duplicate rows'
+      )
       assert.equal(
         await tenantStatus(tenant.id),
         'active',
@@ -167,9 +173,19 @@ test.group('healTenant under injected migrate faults (fault injection, real Post
       const retry = await healTenant(handle, { fireHooks: false, audit: false })
       assert.isFalse(retry.provisioned, 'the retry reuses the schema from the first attempt')
       assert.isAbove(retry.migrated, 0, 'the retry applies the migration the contention blocked')
-      assert.isTrue(await tableExists(schema, 'notes'), 'the per-tenant migration is applied on retry')
-      assert.isEmpty(await duplicateLedgerRows(schema), 'the converged ledger has no duplicate rows')
-      assert.equal(await tenantStatus(tenant.id), 'active', 'the tenant remains active after convergence')
+      assert.isTrue(
+        await tableExists(schema, 'notes'),
+        'the per-tenant migration is applied on retry'
+      )
+      assert.isEmpty(
+        await duplicateLedgerRows(schema),
+        'the converged ledger has no duplicate rows'
+      )
+      assert.equal(
+        await tenantStatus(tenant.id),
+        'active',
+        'the tenant remains active after convergence'
+      )
     } finally {
       ;(driver as any).migrate = origMigrate
       await central().rawQuery(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
@@ -221,7 +237,10 @@ test.group('healTenant under injected migrate faults (fault injection, real Post
       const retry = await healTenant(handle, { fireHooks: false, audit: false })
       assert.isEmpty(retry.collisions, 'the retry has no collision once the object is reconciled')
       assert.isTrue(await tableExists(schema, 'notes'), 'the per-tenant migration applies on retry')
-      assert.isEmpty(await duplicateLedgerRows(schema), 'the converged ledger has no duplicate rows')
+      assert.isEmpty(
+        await duplicateLedgerRows(schema),
+        'the converged ledger has no duplicate rows'
+      )
       assert.equal(await tenantStatus(tenant.id), 'active', 'the tenant remains active throughout')
     } finally {
       ;(driver as any).migrate = origMigrate

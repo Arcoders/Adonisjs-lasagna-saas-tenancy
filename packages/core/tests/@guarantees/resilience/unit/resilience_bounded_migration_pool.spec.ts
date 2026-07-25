@@ -29,16 +29,20 @@ test.group('mapWithConcurrency', () => {
   test('never runs more than `limit` items in flight', async ({ assert }) => {
     let active = 0
     let peak = 0
-    await mapWithConcurrency(Array.from({ length: 30 }, (_, i) => i), 4, async () => {
-      active++
-      peak = Math.max(peak, active)
-      await new Promise((r) => setTimeout(r, 3))
-      active--
-    })
+    await mapWithConcurrency(
+      Array.from({ length: 30 }, (_, i) => i),
+      4,
+      async () => {
+        active++
+        peak = Math.max(peak, active)
+        await new Promise((r) => setTimeout(r, 3))
+        active--
+      }
+    )
     assert.isAtMost(peak, 4, 'the pool never exceeds the concurrency limit')
   })
 
-  test('per-item failure is the caller\'s to isolate; the batch still completes', async ({
+  test("per-item failure is the caller's to isolate; the batch still completes", async ({
     assert,
   }) => {
     const out = await mapWithConcurrency([1, 2, 3], 2, async (n) => {

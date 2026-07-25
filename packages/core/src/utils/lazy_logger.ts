@@ -12,9 +12,7 @@
  * `auditCliAction` helper expects, so it can stand in for `this.logger` off the CLI.
  */
 function lazyWarn(message: string): void {
-  void import('@adonisjs/core/services/logger')
-    .then((m) => m.default.warn(message))
-    .catch(() => {})
+  void import('@adonisjs/core/services/logger').then((m) => m.default.warn(message)).catch(() => {})
 }
 
 export const lazyLogger = {

@@ -102,6 +102,10 @@ test.group('Isthmus dispatch starvation (S3)', (group) => {
       captured.some((p) => p.id === 'guard.webhook_url'),
       'the concurrent alert is starved once the shared window is exhausted'
     )
-    assert.isAbove(droppedRateLimited('high'), 0, 'the exhaustion is recorded as rate-limited drops')
+    assert.isAbove(
+      droppedRateLimited('high'),
+      0,
+      'the exhaustion is recorded as rate-limited drops'
+    )
   })
 })

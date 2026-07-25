@@ -44,7 +44,12 @@ test.group('classifyRelocation — pure reconcile pre-gates', () => {
   })
 
   test('refuses when the alias declares a different from (no heuristic pairing)', ({ assert }) => {
-    const v = classifyRelocation(FROM, TO, source(TO), aliasMap('database/migrations/tenant/0099_other'))
+    const v = classifyRelocation(
+      FROM,
+      TO,
+      source(TO),
+      aliasMap('database/migrations/tenant/0099_other')
+    )
     assert.deepEqual(v, { ok: false, reason: 'alias_from_mismatch' })
   })
 
@@ -56,7 +61,11 @@ test.group('classifyRelocation — pure reconcile pre-gates', () => {
     const eCombining = 'e' + String.fromCodePoint(0x0301)
     const composed = `database/migrations/tenant/0013_caf${eAcute}`
     const decomposed = `database/migrations/tenant/0013_caf${eCombining}`
-    assert.notEqual(composed, decomposed, 'the two encodings are byte-distinct before normalization')
+    assert.notEqual(
+      composed,
+      decomposed,
+      'the two encodings are byte-distinct before normalization'
+    )
     const v = classifyRelocation(decomposed, TO, source(TO), aliasMap(composed))
     assert.isTrue(v.ok, 'NFC-normalized from matches the composed alias declaration')
   })

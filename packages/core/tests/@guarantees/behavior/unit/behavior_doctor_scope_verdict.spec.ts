@@ -38,7 +38,9 @@ test.group('DoctorService scope-aware verdict', (group) => {
 
   test('fail when a platform-scoped error is present', async ({ assert }) => {
     const svc = new DoctorService()
-    svc.register(fakeCheck('p', [{ code: 'e', severity: 'error', message: 'm', scope: 'platform' }]))
+    svc.register(
+      fakeCheck('p', [{ code: 'e', severity: 'error', message: 'm', scope: 'platform' }])
+    )
     const result = await svc.run({}, repo())
     assert.equal(result.status, 'fail')
     assert.equal(result.totals.platformError, 1)
@@ -68,7 +70,9 @@ test.group('DoctorService scope-aware verdict', (group) => {
   test('fail dominates degraded when both scopes have errors', async ({ assert }) => {
     const svc = new DoctorService()
     svc.register(fakeCheck('t', [{ code: 'e1', severity: 'error', message: 'm', tenantId: 'abc' }]))
-    svc.register(fakeCheck('p', [{ code: 'e2', severity: 'error', message: 'm', scope: 'platform' }]))
+    svc.register(
+      fakeCheck('p', [{ code: 'e2', severity: 'error', message: 'm', scope: 'platform' }])
+    )
     const result = await svc.run({}, repo())
     assert.equal(result.status, 'fail')
     assert.equal(result.totals.platformError, 1)

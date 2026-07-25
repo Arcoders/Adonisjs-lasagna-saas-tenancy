@@ -68,8 +68,15 @@ test.group('WarmPoolService (F2)', (group) => {
       ['a', 'b'],
       'exactly the declared tenants were warmed'
     )
-    assert.isTrue(connects.every((c) => c.bypassSoftCap === true), 'warming is an operational path')
-    assert.deepEqual(queries.sort(), ['a:SELECT 1', 'b:SELECT 1'], 'each warmed with a trivial query')
+    assert.isTrue(
+      connects.every((c) => c.bypassSoftCap === true),
+      'warming is an operational path'
+    )
+    assert.deepEqual(
+      queries.sort(),
+      ['a:SELECT 1', 'b:SELECT 1'],
+      'each warmed with a trivial query'
+    )
   })
 
   test('count pre-opens N connections per tenant', async ({ assert }) => {

@@ -71,17 +71,52 @@ export interface SafeFix {
  */
 export const SAFE_FIXES: readonly SafeFix[] = [
   // Heal (additive-only): provision-if-missing + migrate-up + seed; never destructive.
-  { code: 'tenant_failed', healthAxis: 'recoverability', effectClass: 'additive-only', envelope: 'heal' },
+  {
+    code: 'tenant_failed',
+    healthAxis: 'recoverability',
+    effectClass: 'additive-only',
+    envelope: 'heal',
+  },
   { code: 'schema_missing', healthAxis: 'storage', effectClass: 'additive-only', envelope: 'heal' },
-  { code: 'migrations_never_ran', healthAxis: 'storage', effectClass: 'additive-only', envelope: 'heal' },
-  { code: 'migration_behind', healthAxis: 'ledger-fidelity', effectClass: 'additive-only', envelope: 'heal' },
+  {
+    code: 'migrations_never_ran',
+    healthAxis: 'storage',
+    effectClass: 'additive-only',
+    envelope: 'heal',
+  },
+  {
+    code: 'migration_behind',
+    healthAxis: 'ledger-fidelity',
+    effectClass: 'additive-only',
+    envelope: 'heal',
+  },
   // Reconcile (physical-identity): rewrite one ledger row, zero DDL, data byte-identical.
-  { code: 'migration_relocated', healthAxis: 'ledger-fidelity', effectClass: 'physical-identity', envelope: 'reconcile' },
+  {
+    code: 'migration_relocated',
+    healthAxis: 'ledger-fidelity',
+    effectClass: 'physical-identity',
+    envelope: 'reconcile',
+  },
   // Status-only: a single lifecycle-status column write, no DDL, no data.
-  { code: 'provisioning_stalled', healthAxis: 'lifecycle', effectClass: 'status-only', envelope: 'status' },
-  { code: 'lifecycle_status_divergence', healthAxis: 'lifecycle', effectClass: 'status-only', envelope: 'status' },
+  {
+    code: 'provisioning_stalled',
+    healthAxis: 'lifecycle',
+    effectClass: 'status-only',
+    envelope: 'status',
+  },
+  {
+    code: 'lifecycle_status_divergence',
+    healthAxis: 'lifecycle',
+    effectClass: 'status-only',
+    envelope: 'status',
+  },
   // Operational-only: reset the runtime circuit; touches no tenant data or status.
-  { code: 'circuit_open', healthAxis: 'runtime-circuit', effectClass: 'operational-only', envelope: 'circuit' },
+  {
+    code: 'circuit_open',
+    healthAxis: 'runtime-circuit',
+    effectClass: 'operational-only',
+    envelope: 'circuit',
+  },
 ]
 
 export const SAFE_FIX_BY_CODE: ReadonlyMap<string, SafeFix> = new Map(
@@ -112,12 +147,24 @@ export const SURFACE_ONLY: ReadonlyMap<string, string> = new Map([
   ['app_role_superuser', 'infra: the app DB role is superuser — a security/ops hardening'],
   ['driver_contract', 'infra: the active driver does not support the probe — a config concern'],
   ['unknown_driver', 'infra: unrecognised isolation driver — a config concern'],
-  ['vector_extension_missing', 'infra: pgvector needs a privileged CREATE EXTENSION — an ops action'],
+  [
+    'vector_extension_missing',
+    'infra: pgvector needs a privileged CREATE EXTENSION — an ops action',
+  ],
   // Ambiguous — the correct action needs human intent.
-  ['migration_corrupt', 'ambiguous: a removed/rolled-back/squashed migration — review before acting'],
+  [
+    'migration_corrupt',
+    'ambiguous: a removed/rolled-back/squashed migration — review before acting',
+  ],
   ['schema_orphan', 'ambiguous: a schema with no tenant row — could be retained or leaked'],
-  ['lifecycle_deleted_without_timestamp', 'ambiguous: status=deleted with no deletedAt — needs review'],
-  ['schema_retention_expired', 'ambiguous: past-retention soft-deleted schema — a retention decision'],
+  [
+    'lifecycle_deleted_without_timestamp',
+    'ambiguous: status=deleted with no deletedAt — needs review',
+  ],
+  [
+    'schema_retention_expired',
+    'ambiguous: past-retention soft-deleted schema — a retention decision',
+  ],
   ['queue_failed_jobs', 'ambiguous: failed jobs — retry vs discard is an operator decision'],
   ['queue_delayed_backlog', 'ambiguous: a delayed-job backlog — an operator decision'],
   ['queue_stalled', 'ambiguous: stalled jobs — an operator decision'],

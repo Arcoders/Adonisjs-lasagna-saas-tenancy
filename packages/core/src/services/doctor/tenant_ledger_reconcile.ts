@@ -167,7 +167,9 @@ async function dataFingerprint(
     assertSafeIdentifier(table, 'table name')
     // ::bigint, not ::int — a table over 2^31 rows would raise "integer out of range" and
     // fail the reconcile closed. Read via Number (safe below 2^53, far beyond any table).
-    const countRes = await client.rawQuery(`SELECT count(*)::bigint AS n FROM "${schema}"."${table}"`)
+    const countRes = await client.rawQuery(
+      `SELECT count(*)::bigint AS n FROM "${schema}"."${table}"`
+    )
     const n = Number(rowsOf(countRes)[0]?.n ?? 0)
     const colRes = await client.rawQuery(
       `SELECT column_name FROM information_schema.columns
@@ -334,10 +336,10 @@ export async function reconcileTenantLedger(
       await trx.rollback()
       return refuse(from, to, 'contention')
     }
-    const tLock = await trx.rawQuery(
-      `SELECT pg_try_advisory_xact_lock(?, hashtext(?)) AS ok`,
-      [RECONCILE_LOCK_CLASS, tenantId]
-    )
+    const tLock = await trx.rawQuery(`SELECT pg_try_advisory_xact_lock(?, hashtext(?)) AS ok`, [
+      RECONCILE_LOCK_CLASS,
+      tenantId,
+    ])
     if (rowsOf(tLock)[0]?.ok !== true) {
       await trx.rollback()
       return refuse(from, to, 'contention')

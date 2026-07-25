@@ -51,107 +51,110 @@ function openTenantConnections(): number {
   return count
 }
 
-test.group('SchemaPgDriver — absolute ceiling under an operational bypass (fault injection)', (group) => {
-  let savedConfig: any
-  let driver: SchemaPgDriver
+test.group(
+  'SchemaPgDriver — absolute ceiling under an operational bypass (fault injection)',
+  (group) => {
+    let savedConfig: any
+    let driver: SchemaPgDriver
 
-  group.setup(async () => {
-    const reg = await app.container.make(IsolationDriverRegistry)
-    const active = reg.active()
-    if (active.name !== 'schema-pg') {
-      throw new Error(`ceiling fault test requires schema-pg driver (got '${active.name}')`)
-    }
-    driver = active as SchemaPgDriver
-  })
-
-  group.each.setup(async () => {
-    savedConfig = getConfig()
-    setConfig({
-      ...savedConfig,
-      isolation: {
-        ...(savedConfig.isolation ?? { driver: 'schema-pg' }),
-        driver: 'schema-pg',
-        // Soft cap OFF: only the absolute ceiling can refuse. Ceiling of 1 + long
-        // grace means the first connection is never evictable, so the second
-        // distinct tenant hits the ceiling.
-        enforceConnectionCap: false,
-        maxTenantConnectionsHardCeiling: 1,
-        evictionGracePeriodMs: 60_000,
-      },
-    })
-    await clearTenantConnections(driver)
-  })
-
-  group.each.teardown(async () => {
-    await clearTenantConnections(driver)
-    setConfig(savedConfig)
-  })
-
-  test('an operational bypassSoftCap connect over the ceiling is refused with a 503, no leak', async ({
-    assert,
-  }) => {
-    const a = await createTestTenant({ status: 'active' })
-    const b = await createTestTenant({ status: 'active' })
-    try {
-      const tenantA = { id: a.id } as unknown as TenantModelContract
-      await driver.provision(tenantA)
-      assert.equal(openTenantConnections(), 1, 'A occupies the single ceiling slot')
-
-      // B connects on an OPERATIONAL path (bypassSoftCap). The ceiling is
-      // unbypassable, so this must throw the typed 503 even though the soft cap is
-      // bypassed. Before the fix, the bypass skipped the ceiling and B would open
-      // a second real backend.
-      const tenantB = { id: b.id } as unknown as TenantModelContract
-      let threw: any
-      try {
-        await driver.connect(tenantB, { bypassSoftCap: true } as any)
-      } catch (error) {
-        threw = error
+    group.setup(async () => {
+      const reg = await app.container.make(IsolationDriverRegistry)
+      const active = reg.active()
+      if (active.name !== 'schema-pg') {
+        throw new Error(`ceiling fault test requires schema-pg driver (got '${active.name}')`)
       }
-      assert.instanceOf(
-        threw,
-        TenantConnectionLimitException,
-        `expected TenantConnectionLimitException, got ${threw?.code ?? threw?.message}`
-      )
-      assert.equal(threw?.code, TENANT_CONNECTION_LIMIT_CODE)
-      assert.equal(threw?.status, 503)
+      driver = active as SchemaPgDriver
+    })
 
-      assert.equal(
-        openTenantConnections(),
-        1,
-        'a refused operational connection leaks no second registration'
-      )
-    } finally {
-      await driver.destroy({ id: a.id } as unknown as TenantModelContract).catch(() => {})
-      await driver.destroy({ id: b.id } as unknown as TenantModelContract).catch(() => {})
-      await destroyTestTenant(a.id)
-      await destroyTestTenant(b.id)
-    }
-  })
+    group.each.setup(async () => {
+      savedConfig = getConfig()
+      setConfig({
+        ...savedConfig,
+        isolation: {
+          ...(savedConfig.isolation ?? { driver: 'schema-pg' }),
+          driver: 'schema-pg',
+          // Soft cap OFF: only the absolute ceiling can refuse. Ceiling of 1 + long
+          // grace means the first connection is never evictable, so the second
+          // distinct tenant hits the ceiling.
+          enforceConnectionCap: false,
+          maxTenantConnectionsHardCeiling: 1,
+          evictionGracePeriodMs: 60_000,
+        },
+      })
+      await clearTenantConnections(driver)
+    })
 
-  test('migrate() (an operational self-connect) is also refused at the ceiling', async ({
-    assert,
-  }) => {
-    const a = await createTestTenant({ status: 'active' })
-    const b = await createTestTenant({ status: 'active' })
-    try {
-      const tenantA = { id: a.id } as unknown as TenantModelContract
-      await driver.provision(tenantA)
-      assert.equal(openTenantConnections(), 1, 'A occupies the single ceiling slot')
+    group.each.teardown(async () => {
+      await clearTenantConnections(driver)
+      setConfig(savedConfig)
+    })
 
-      // migrate() self-connects with bypassSoftCap. The ceiling still applies, so
-      // an operational migration cannot exhaust the database either.
-      const tenantB = { id: b.id } as unknown as TenantModelContract
-      await assert.rejects(
-        () => driver.migrate(tenantB, { direction: 'up' } as any),
-        TenantConnectionLimitException as any
-      )
-      assert.equal(openTenantConnections(), 1, 'the refused migrate leaks no registration')
-    } finally {
-      await driver.destroy({ id: a.id } as unknown as TenantModelContract).catch(() => {})
-      await driver.destroy({ id: b.id } as unknown as TenantModelContract).catch(() => {})
-      await destroyTestTenant(a.id)
-      await destroyTestTenant(b.id)
-    }
-  })
-})
+    test('an operational bypassSoftCap connect over the ceiling is refused with a 503, no leak', async ({
+      assert,
+    }) => {
+      const a = await createTestTenant({ status: 'active' })
+      const b = await createTestTenant({ status: 'active' })
+      try {
+        const tenantA = { id: a.id } as unknown as TenantModelContract
+        await driver.provision(tenantA)
+        assert.equal(openTenantConnections(), 1, 'A occupies the single ceiling slot')
+
+        // B connects on an OPERATIONAL path (bypassSoftCap). The ceiling is
+        // unbypassable, so this must throw the typed 503 even though the soft cap is
+        // bypassed. Before the fix, the bypass skipped the ceiling and B would open
+        // a second real backend.
+        const tenantB = { id: b.id } as unknown as TenantModelContract
+        let threw: any
+        try {
+          await driver.connect(tenantB, { bypassSoftCap: true } as any)
+        } catch (error) {
+          threw = error
+        }
+        assert.instanceOf(
+          threw,
+          TenantConnectionLimitException,
+          `expected TenantConnectionLimitException, got ${threw?.code ?? threw?.message}`
+        )
+        assert.equal(threw?.code, TENANT_CONNECTION_LIMIT_CODE)
+        assert.equal(threw?.status, 503)
+
+        assert.equal(
+          openTenantConnections(),
+          1,
+          'a refused operational connection leaks no second registration'
+        )
+      } finally {
+        await driver.destroy({ id: a.id } as unknown as TenantModelContract).catch(() => {})
+        await driver.destroy({ id: b.id } as unknown as TenantModelContract).catch(() => {})
+        await destroyTestTenant(a.id)
+        await destroyTestTenant(b.id)
+      }
+    })
+
+    test('migrate() (an operational self-connect) is also refused at the ceiling', async ({
+      assert,
+    }) => {
+      const a = await createTestTenant({ status: 'active' })
+      const b = await createTestTenant({ status: 'active' })
+      try {
+        const tenantA = { id: a.id } as unknown as TenantModelContract
+        await driver.provision(tenantA)
+        assert.equal(openTenantConnections(), 1, 'A occupies the single ceiling slot')
+
+        // migrate() self-connects with bypassSoftCap. The ceiling still applies, so
+        // an operational migration cannot exhaust the database either.
+        const tenantB = { id: b.id } as unknown as TenantModelContract
+        await assert.rejects(
+          () => driver.migrate(tenantB, { direction: 'up' } as any),
+          TenantConnectionLimitException as any
+        )
+        assert.equal(openTenantConnections(), 1, 'the refused migrate leaks no registration')
+      } finally {
+        await driver.destroy({ id: a.id } as unknown as TenantModelContract).catch(() => {})
+        await driver.destroy({ id: b.id } as unknown as TenantModelContract).catch(() => {})
+        await destroyTestTenant(a.id)
+        await destroyTestTenant(b.id)
+      }
+    })
+  }
+)

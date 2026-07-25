@@ -99,7 +99,11 @@ export default class WarmPoolService {
     return repo.whereIn(ids)
   }
 
-  async #warmOne(driver: IsolationDriver, tenant: TenantModelContract, count: number): Promise<boolean> {
+  async #warmOne(
+    driver: IsolationDriver,
+    tenant: TenantModelContract,
+    count: number
+  ): Promise<boolean> {
     try {
       // Operational path: bypass the SOFT cap, but the absolute ceiling still
       // refuses (throws TenantConnectionLimitException), which the catch degrades.

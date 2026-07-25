@@ -109,7 +109,8 @@ test.group('doctor fix-coverage completeness (do-no-harm, machine-enforced)', ()
     const offenders: string[] = []
     for (const code of fixableEmittedCodes()) {
       if (!SAFE_FIX_BY_CODE.has(code)) offenders.push(`${code} (fixable but no SafeFix descriptor)`)
-      else if (SURFACE_ONLY.has(code)) offenders.push(`${code} (fixable but also listed surface-only)`)
+      else if (SURFACE_ONLY.has(code))
+        offenders.push(`${code} (fixable but also listed surface-only)`)
     }
     assert.deepEqual(
       offenders,
@@ -123,18 +124,31 @@ test.group('doctor fix-coverage completeness (do-no-harm, machine-enforced)', ()
   }) => {
     const emitted = emittedCodes()
     const dead = [...SAFE_FIX_BY_CODE.keys(), ...SURFACE_ONLY.keys()].filter((c) => !emitted.has(c))
-    assert.deepEqual(dead, [], `these registry codes are no longer emitted by any check: ${dead.join(', ')}`)
+    assert.deepEqual(
+      dead,
+      [],
+      `these registry codes are no longer emitted by any check: ${dead.join(', ')}`
+    )
   })
 
   test('a code is never BOTH fixable-registered and surface-only', ({ assert }) => {
     const both = [...SAFE_FIX_BY_CODE.keys()].filter((c) => SURFACE_ONLY.has(c))
-    assert.deepEqual(both, [], `these codes are declared both fixable and surface-only: ${both.join(', ')}`)
+    assert.deepEqual(
+      both,
+      [],
+      `these codes are declared both fixable and surface-only: ${both.join(', ')}`
+    )
   })
 
   test('every SafeFix declares a valid effect class + envelope, and reconcile is physical-identity', ({
     assert,
   }) => {
-    const classes = new Set(['operational-only', 'status-only', 'additive-only', 'physical-identity'])
+    const classes = new Set([
+      'operational-only',
+      'status-only',
+      'additive-only',
+      'physical-identity',
+    ])
     const envelopes = new Set(['circuit', 'status', 'heal', 'reconcile'])
     for (const fix of SAFE_FIXES) {
       assert.isTrue(classes.has(fix.effectClass), `${fix.code}: bad effectClass ${fix.effectClass}`)

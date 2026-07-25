@@ -18,7 +18,10 @@ test.group('Docs integrity: tenant statuses', () => {
     const enumMatch = doc.match(/status enum is `([a-z |]+)`/)
     assert.isNotNull(enumMatch, 'architecture.md must state the status enum as `a | b | ...`')
     const documented = new Set(
-      (enumMatch![1] ?? '').split('|').map((s) => s.trim()).filter(Boolean)
+      (enumMatch![1] ?? '')
+        .split('|')
+        .map((s) => s.trim())
+        .filter(Boolean)
     )
     const missing = TENANT_STATUSES.filter((s) => !documented.has(s))
     assert.deepEqual(

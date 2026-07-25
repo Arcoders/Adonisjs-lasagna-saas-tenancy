@@ -33,9 +33,14 @@ test.group('applyFix — the status-only safe-fix envelope', (group) => {
   }) => {
     const issue = issueFor(undefined)
     let mutated = false
-    await applyFix(ctxWith(mockTenantRepository()), issue, async () => {
-      mutated = true
-    }, { action: 'tenant:doctor:test' })
+    await applyFix(
+      ctxWith(mockTenantRepository()),
+      issue,
+      async () => {
+        mutated = true
+      },
+      { action: 'tenant:doctor:test' }
+    )
     assert.isFalse(mutated)
     assert.equal(issue.meta?.fixed, false)
     assert.match(String(issue.meta?.fixError), /no tenantId/)
@@ -47,9 +52,14 @@ test.group('applyFix — the status-only safe-fix envelope', (group) => {
     const tenant = buildTestTenant({ status: 'active', deletedAt: DateTime.utc() })
     const issue = issueFor(tenant.id)
     let mutated = false
-    await applyFix(ctxWith(mockTenantRepository([tenant])), issue, async () => {
-      mutated = true
-    }, { action: 'tenant:doctor:test' })
+    await applyFix(
+      ctxWith(mockTenantRepository([tenant])),
+      issue,
+      async () => {
+        mutated = true
+      },
+      { action: 'tenant:doctor:test' }
+    )
     assert.isFalse(mutated, 'a deleted tenant is never mutated')
     assert.equal(issue.meta?.fixed, false)
     assert.match(String(issue.meta?.fixError), /soft-deleted/)
@@ -61,9 +71,14 @@ test.group('applyFix — the status-only safe-fix envelope', (group) => {
     const tenant = buildTestTenant({ status: 'active', deletedAt: DateTime.utc() })
     const issue = issueFor(tenant.id)
     let mutated = false
-    await applyFix(ctxWith(mockTenantRepository([tenant])), issue, async () => {
-      mutated = true
-    }, { action: 'tenant:doctor:test', allowDeleted: true })
+    await applyFix(
+      ctxWith(mockTenantRepository([tenant])),
+      issue,
+      async () => {
+        mutated = true
+      },
+      { action: 'tenant:doctor:test', allowDeleted: true }
+    )
     assert.isTrue(mutated)
     assert.equal(issue.meta?.fixed, true)
   })
@@ -73,13 +88,21 @@ test.group('applyFix — the status-only safe-fix envelope', (group) => {
   }) => {
     // The run's snapshot said "provisioning"; the repo's fresh row is already "active"
     // (it finished under the run). A mutate that re-checks must see the fresh status.
-    const stale = buildTestTenant({ id: '11111111-1111-4111-8111-111111111111', status: 'provisioning' })
+    const stale = buildTestTenant({
+      id: '11111111-1111-4111-8111-111111111111',
+      status: 'provisioning',
+    })
     const fresh = buildTestTenant({ id: stale.id, status: 'active' })
     const issue = issueFor(stale.id)
     let seenStatus = ''
-    await applyFix(ctxWith(mockTenantRepository([fresh])), issue, async (t: TenantModelContract) => {
-      seenStatus = t.status
-    }, { action: 'tenant:doctor:test' })
+    await applyFix(
+      ctxWith(mockTenantRepository([fresh])),
+      issue,
+      async (t: TenantModelContract) => {
+        seenStatus = t.status
+      },
+      { action: 'tenant:doctor:test' }
+    )
     assert.equal(seenStatus, 'active', 'the mutate saw the fresh status, not the stale one')
     assert.equal(issue.meta?.fixed, true)
   })
@@ -89,9 +112,14 @@ test.group('applyFix — the status-only safe-fix envelope', (group) => {
   }) => {
     const tenant = buildTestTenant({ status: 'provisioning' })
     const issue = issueFor(tenant.id)
-    await applyFix(ctxWith(mockTenantRepository([tenant])), issue, async () => {
-      throw new Error('boom')
-    }, { action: 'tenant:doctor:test' })
+    await applyFix(
+      ctxWith(mockTenantRepository([tenant])),
+      issue,
+      async () => {
+        throw new Error('boom')
+      },
+      { action: 'tenant:doctor:test' }
+    )
     assert.equal(issue.meta?.fixed, false)
     assert.match(String(issue.meta?.fixError), /boom/)
   })
@@ -99,10 +127,15 @@ test.group('applyFix — the status-only safe-fix envelope', (group) => {
   test('the happy path records fixed:true after mutating the fresh row', async ({ assert }) => {
     const tenant = buildTestTenant({ status: 'provisioning' })
     const issue = issueFor(tenant.id)
-    await applyFix(ctxWith(mockTenantRepository([tenant])), issue, async (t: TenantModelContract) => {
-      t.status = 'failed'
-      await t.save()
-    }, { action: 'tenant:doctor:test' })
+    await applyFix(
+      ctxWith(mockTenantRepository([tenant])),
+      issue,
+      async (t: TenantModelContract) => {
+        t.status = 'failed'
+        await t.save()
+      },
+      { action: 'tenant:doctor:test' }
+    )
     assert.equal(tenant.status, 'failed')
     assert.equal(issue.meta?.fixed, true)
   })
@@ -110,7 +143,12 @@ test.group('applyFix — the status-only safe-fix envelope', (group) => {
 
 test.group('applyHeal — guard', () => {
   test('an issue with no tenantId is recorded fixed:false without healing', async ({ assert }) => {
-    const issue: DiagnosisIssue = { code: 'tenant_failed', severity: 'error', message: 'x', fixable: true }
+    const issue: DiagnosisIssue = {
+      code: 'tenant_failed',
+      severity: 'error',
+      message: 'x',
+      fixable: true,
+    }
     await applyHeal(issue)
     assert.equal(issue.meta?.fixed, false)
     assert.match(String(issue.meta?.fixError), /no tenantId/)

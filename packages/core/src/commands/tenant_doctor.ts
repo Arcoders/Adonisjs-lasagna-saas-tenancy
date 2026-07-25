@@ -2,7 +2,11 @@ import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import app from '@adonisjs/core/services/app'
 import DoctorService from '../services/doctor/doctor_service.js'
-import type { DiagnosisSeverity, DoctorRunResult, DoctorRunStatus } from '../services/doctor/types.js'
+import type {
+  DiagnosisSeverity,
+  DoctorRunResult,
+  DoctorRunStatus,
+} from '../services/doctor/types.js'
 
 const SEVERITY_COLOR: Record<DiagnosisSeverity, 'cyan' | 'yellow' | 'red'> = {
   info: 'cyan',
@@ -134,7 +138,9 @@ export default class TenantDoctor extends BaseCommand {
       this.logger.warning('--fix is ignored in --watch mode (no auto-fixes inside a polling loop).')
     }
     if (this.reconcileLedger) {
-      this.logger.warning('--reconcile-ledger is ignored in --watch mode (no ledger writes in a loop).')
+      this.logger.warning(
+        '--reconcile-ledger is ignored in --watch mode (no ledger writes in a loop).'
+      )
     }
     if (this.interactive) {
       this.logger.warning('--interactive is ignored in --watch mode.')

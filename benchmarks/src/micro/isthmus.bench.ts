@@ -24,7 +24,11 @@ export function runIsthmus(): BenchResult[] {
     severity: 'high' as const,
     event: 'isthmus:guard:bench:rejected',
   }
-  const COUNT_ONLY = { ...BROADCAST, id: 'guard.bench_count_only', dispatchPolicy: 'count-only' as const }
+  const COUNT_ONLY = {
+    ...BROADCAST,
+    id: 'guard.bench_count_only',
+    dispatchPolicy: 'count-only' as const,
+  }
 
   const broadcastAudit = createGuardAudit({ lookup: () => BROADCAST })
   broadcastAudit.setDispatcher(async () => {})
@@ -42,17 +46,25 @@ export function runIsthmus(): BenchResult[] {
   let now = 1
 
   return [
-    runMicro('emit (count-only, counters only)', () => countOnlyAudit.emit('guard.bench_count_only'), {
-      group: GROUP,
-    }),
+    runMicro(
+      'emit (count-only, counters only)',
+      () => countOnlyAudit.emit('guard.bench_count_only'),
+      {
+        group: GROUP,
+      }
+    ),
     runMicro('emit (broadcast, steady-state)', () => broadcastAudit.emit('guard.bench_broadcast'), {
       group: GROUP,
     }),
     runMicro('allow (rate-limiter window check)', () => rateAudit.allow('high', now++), {
       group: GROUP,
     }),
-    runMicro('tokenizeTenantId (foreign-id HMAC)', () => tokenizeTenantId(ids[tokIdx++ % ids.length]!), {
-      group: GROUP,
-    }),
+    runMicro(
+      'tokenizeTenantId (foreign-id HMAC)',
+      () => tokenizeTenantId(ids[tokIdx++ % ids.length]!),
+      {
+        group: GROUP,
+      }
+    ),
   ]
 }

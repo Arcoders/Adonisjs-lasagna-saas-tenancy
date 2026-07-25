@@ -185,7 +185,13 @@ export async function applyReconcile(
       }
     )
     if (outcome.status === 'reconciled') {
-      issue.meta = { ...issue.meta, fixed: true, reconciled: true, from: outcome.from, to: outcome.to }
+      issue.meta = {
+        ...issue.meta,
+        fixed: true,
+        reconciled: true,
+        from: outcome.from,
+        to: outcome.to,
+      }
     } else if (outcome.status === 'already_reconciled') {
       issue.meta = {
         ...issue.meta,

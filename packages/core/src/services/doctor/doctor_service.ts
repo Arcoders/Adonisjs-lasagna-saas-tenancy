@@ -133,8 +133,7 @@ export default class DoctorService {
     // a tenant error alone only degrades it; warnings/infos leave it ok. This is
     // what lets /admin/health/report answer 200-degraded for one tenant's problem
     // and reserve 503 for genuine infrastructure failure.
-    const status =
-      totals.platformError > 0 ? 'fail' : totals.tenantError > 0 ? 'degraded' : 'ok'
+    const status = totals.platformError > 0 ? 'fail' : totals.tenantError > 0 ? 'degraded' : 'ok'
 
     return { reports, status, totals }
   }

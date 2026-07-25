@@ -22,7 +22,11 @@ function sat(
     packageName: `@x/${name}`,
     root,
     version: '1.0.0',
-    manifest: { name, ...(perTenantMigrations ? { perTenantMigrations } : {}), migrationAliases: aliases },
+    manifest: {
+      name,
+      ...(perTenantMigrations ? { perTenantMigrations } : {}),
+      migrationAliases: aliases,
+    },
   }
 }
 
@@ -104,8 +108,12 @@ test.group('buildMigrationAliasMap — fleet map', () => {
 
   test('fail-closed: a duplicate `to` across satellites drops the ENTIRE map', ({ assert }) => {
     // Two satellites resolving the same to (same dir + migration) is a fleet collision.
-    const a = sat('a', join('/', 'pkgs', 'shared'), 'build/tm', [{ from: 'x', migration: '1751_x' }])
-    const b = sat('b', join('/', 'pkgs', 'shared'), 'build/tm', [{ from: 'y', migration: '1751_x' }])
+    const a = sat('a', join('/', 'pkgs', 'shared'), 'build/tm', [
+      { from: 'x', migration: '1751_x' },
+    ])
+    const b = sat('b', join('/', 'pkgs', 'shared'), 'build/tm', [
+      { from: 'y', migration: '1751_x' },
+    ])
     const warns: string[] = []
     const map = buildMigrationAliasMap(HOST, [a, b], (w) => warns.push(w))
     assert.equal(map.size, 0, 'the whole map is dropped on collision')
@@ -113,15 +121,21 @@ test.group('buildMigrationAliasMap — fleet map', () => {
   })
 
   test('fail-closed: a duplicate `from` across satellites drops the ENTIRE map', ({ assert }) => {
-    const a = sat('a', join('/', 'pkgs', 'a'), 'build/tm', [{ from: 'shared_from', migration: '1751_a' }])
-    const b = sat('b', join('/', 'pkgs', 'b'), 'build/tm', [{ from: 'shared_from', migration: '1751_b' }])
+    const a = sat('a', join('/', 'pkgs', 'a'), 'build/tm', [
+      { from: 'shared_from', migration: '1751_a' },
+    ])
+    const b = sat('b', join('/', 'pkgs', 'b'), 'build/tm', [
+      { from: 'shared_from', migration: '1751_b' },
+    ])
     const map = buildMigrationAliasMap(HOST, [a, b])
     assert.equal(map.size, 0)
   })
 
   test('fail-closed: a chain (a `to` is also a `from`) drops the ENTIRE map', ({ assert }) => {
     // Alias A's `to` equals alias B's `from` — a relocation chain, never allowed.
-    const a = sat('a', join('/', 'pkgs', 'a'), 'build/tm', [{ from: 'legacy', migration: '1751_a' }])
+    const a = sat('a', join('/', 'pkgs', 'a'), 'build/tm', [
+      { from: 'legacy', migration: '1751_a' },
+    ])
     const toA = expectedTo(a.root, 'build/tm', '1751_a')
     const b = sat('b', join('/', 'pkgs', 'b'), 'build/tm', [{ from: toA, migration: '1751_b' }])
     const map = buildMigrationAliasMap(HOST, [a, b])

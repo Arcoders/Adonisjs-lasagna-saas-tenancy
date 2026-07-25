@@ -88,10 +88,7 @@ test.group('ContextSeal — tenant-context mismatch fails closed', (group) => {
       // The foreign request id is emitted only as a non-reversible correlation token
       // (the precise id stays server-side in the exception + audit log), so the event
       // metadata carries the tokenized form, not the raw uuid.
-      assert.equal(
-        mismatches[0]!.payload.metadata.requestResolvedId,
-        tokenizeTenantId(tenantA.id)
-      )
+      assert.equal(mismatches[0]!.payload.metadata.requestResolvedId, tokenizeTenantId(tenantA.id))
     } finally {
       emitter.off(IsthmusGuardTripped, listener)
     }

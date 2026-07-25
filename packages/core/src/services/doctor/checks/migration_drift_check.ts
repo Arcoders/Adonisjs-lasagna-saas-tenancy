@@ -16,9 +16,7 @@ import type { DoctorCheck, DiagnosisIssue } from '../types.js'
 
 const lazyDb = () => import('@adonisjs/lucid/services/db').then((m) => m.default).catch(() => null)
 const lazyMigration = () =>
-  import('@adonisjs/lucid/migration')
-    .then((m) => m.MigrationRunner)
-    .catch(() => null)
+  import('@adonisjs/lucid/migration').then((m) => m.MigrationRunner).catch(() => null)
 
 // Monotonic suffix so the throwaway source-inspection connection never collides.
 let seq = 0
@@ -35,10 +33,7 @@ let seq = 0
  * migration is run, no ledger is touched — it only reads the files from disk, so it
  * cannot mutate a tenant.
  */
-async function canonicalSourceNames(
-  db: any,
-  MigrationRunner: any
-): Promise<Set<string>> {
+async function canonicalSourceNames(db: any, MigrationRunner: any): Promise<Set<string>> {
   const templateName = getConfig().isolation.templateConnectionName ?? 'tenant'
   const base = db.manager.get(templateName)?.config
   const basePaths: string[] = base?.migrations?.paths ?? ['database/migrations']
@@ -241,7 +236,10 @@ const migrationDriftCheck: DoctorCheck = {
           // object (no collision, since it is absent). Without this, a relocated-but
           // -object-dropped tenant would be suppressed from heal AND refused by reconcile,
           // leaving it permanently unrepaired.
-          if ((issue.meta as { reconcileRefused?: string } | undefined)?.reconcileRefused === 'physical_absent') {
+          if (
+            (issue.meta as { reconcileRefused?: string } | undefined)?.reconcileRefused ===
+            'physical_absent'
+          ) {
             await applyHeal(issue)
           }
         } else {

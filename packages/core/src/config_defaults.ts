@@ -121,8 +121,7 @@ export function resolveConfig(config: MultitenancyConfig): ResolvedMultitenancyC
         iso?.evictionGracePeriodMs ?? CONFIG_DEFAULTS.isolation.evictionGracePeriodMs,
       operationalConnectionBudget:
         iso?.operationalConnectionBudget ?? CONFIG_DEFAULTS.isolation.operationalConnectionBudget,
-      migrateOnProvision:
-        iso?.migrateOnProvision ?? CONFIG_DEFAULTS.isolation.migrateOnProvision,
+      migrateOnProvision: iso?.migrateOnProvision ?? CONFIG_DEFAULTS.isolation.migrateOnProvision,
     },
   }
 

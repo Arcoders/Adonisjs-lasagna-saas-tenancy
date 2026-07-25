@@ -85,7 +85,9 @@ let detected: PgBouncerPosture | undefined
  * here, and the probe changes no cap. Wired from `isolationWiring.ready()` behind
  * `app.booted()`.
  */
-export async function probePgBouncerAtBoot(deps: PgBouncerProbeDeps = {}): Promise<PgBouncerPosture> {
+export async function probePgBouncerAtBoot(
+  deps: PgBouncerProbeDeps = {}
+): Promise<PgBouncerPosture> {
   const posture = determinePgBouncerPosture(getConfig().isolation.pgBouncer)
   detected = posture
 
@@ -101,7 +103,10 @@ export async function probePgBouncerAtBoot(deps: PgBouncerProbeDeps = {}): Promi
   }
 
   const logger = await lazyLogger()
-  logger?.info({ pgBouncerMode: posture.mode, source: posture.source }, `multitenancy: ${posture.note}`)
+  logger?.info(
+    { pgBouncerMode: posture.mode, source: posture.source },
+    `multitenancy: ${posture.note}`
+  )
   return posture
 }
 

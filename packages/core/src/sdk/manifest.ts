@@ -243,7 +243,9 @@ function parseMigrationAliases(
 ): SatelliteMigrationAlias[] | undefined {
   if (value === undefined) return undefined
   if (!Array.isArray(value)) {
-    onWarn(`[lasagna] ${pkgName}: "lasagnaSatellite.migrationAliases" must be an array — dropping it`)
+    onWarn(
+      `[lasagna] ${pkgName}: "lasagnaSatellite.migrationAliases" must be an array — dropping it`
+    )
     return undefined
   }
   const out: SatelliteMigrationAlias[] = []
