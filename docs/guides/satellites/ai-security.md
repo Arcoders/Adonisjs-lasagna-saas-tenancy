@@ -162,6 +162,17 @@ mitigated but not eliminated, so decide how you bound each one.
   provider sees all content sent through it. Pinning and auditing reduce, but do
   not remove, that trust; the residency allow-list is how you bound where content
   may egress at all.
+- **At-rest encryption raises the at-rest bar, not the runtime bar, and is gated
+  off by default.** The optional per-tenant memory DEK (`memory.encryption:
+  'tenant-dek'`) and encrypted embeddings (`embedding.encryptContent`) shrink the
+  blast radius of a key leak from per-fleet to per-tenant and make a crypto-shred
+  cryptographically final, but the key is unwrapped into process memory to serve a
+  request, so a live-process compromise still sees plaintext. Encrypting the
+  embedding `content` column defends a raw column dump, not vector inversion (the
+  vector must stay searchable, so it stays approximately invertible), and `source`
+  and `actor` stay plaintext because they key purge and the ACL. Both features
+  default off; each is a separate per-host go with its own review, and both fail
+  closed at boot if selected without the crypto satellite installed.
 - **A uniform 403 is a deterministic property, not a timing guarantee.** The
   satellite returns the same 403 for a non-existent and an unauthorized tenant,
   and uses `timingSafeEqual` on the security-sensitive comparisons, but it does
@@ -186,7 +197,7 @@ emitter.on(IsthmusGuardTripped, ({ payload }) => {
 })
 ```
 
-The satellite ships 18 guards. Severity is the triage signal: `critical` is a
+The satellite ships 19 guards. Severity is the triage signal: `critical` is a
 would-be cross-tenant leak that was refused, `high` is a capability or
 authorization boundary, `warn` is a control that trips in normal operation and is
 watched by rate rather than per event.
@@ -207,6 +218,7 @@ watched by rate rather than per event.
 | `guard.ai_rate_limited` | warn | The per-key request rate limit was exceeded (#4, denial of wallet) |
 | `guard.ai_rowscope_refused` | warn | Embeddings were requested on `rowscope-pg`, the weakest placement (I1) |
 | `guard.ai_dimension_mismatch` | warn | An embedding's length does not match the migrated `vector(N)` dimension |
+| `guard.ai_embedding_metadata_scope_conflict` | warn | A metadata-scoped retrieval arrived while `encryptMetadata` is on, so the containment predicate cannot run over ciphertext; refused rather than silently matching zero rows |
 | `guard.ai_embedding_quota_exhausted` | warn | The per-plan `embeddingCount` cap was hit (#18) |
 | `guard.ai_ingestion_denied` | warn | The `authorizeIngestion` write gate denied a caller |
 | `guard.ai_retrieval_denied` | warn | The `retrievalFilter` document ACL denied, or is absent and unacknowledged (G2) |
@@ -239,10 +251,13 @@ document text ever reaches telemetry. The stream emits `ai_requests`,
 `ai_tokens_total`, `ai_errors`, `ai_stream_disconnects`; retrieval adds
 `ai_retrieval_tokens_total`, `ai_retrieval_matches`, `ai_retrieval_errors`;
 memory adds `ai_memory_unreadable`, `ai_memory_persist_failed`,
-`ai_memory_decrypt_previous_used`, `ai_memory_undecryptable`; compliance adds the
-`ai_purge_*` family and `ai_auto_purge_failures`; an optional `redactOutput` hook
-adds `ai_output_redacted` (how many output fragments it changed or aborted); and
-guard trips roll up on `ai_guard_rejections`.
+`ai_memory_decrypt_previous_used`, `ai_memory_undecryptable`, and (on the gated
+per-tenant DEK path) `ai_memory_dek_unavailable` when a KeyProvider outage degrades
+a read to empty; the gated encrypted-embeddings path adds
+`ai_embedding_content_undecryptable` when a row is dropped from a search because it
+will not open; compliance adds the `ai_purge_*` family and `ai_auto_purge_failures`;
+an optional `redactOutput` hook adds `ai_output_redacted` (how many output fragments
+it changed or aborted); and guard trips roll up on `ai_guard_rejections`.
 
 <Callout type="tip" title="The two metrics that mean 'act now'">
 `ai_memory_undecryptable` climbing usually means an `APP_KEY` rotation went past
@@ -298,6 +313,7 @@ closed until you make the call.
 - [ ] `node ace tenant:ai:audit:verify` on a cron, paging on a non-zero exit.
 - [ ] `Access-Control-Expose-Headers: X-Ai-Session` set for browser clients, if you use conversation memory.
 - [ ] `OLD_APP_KEY` kept in the environment across an `APP_KEY` rotation so memory decrypts through the grace window.
+- [ ] Decide whether per-tenant at-rest encryption is in scope: `memory.encryption: 'tenant-dek'` and `embedding.encryptContent` shrink a key leak's blast radius to one tenant and make a crypto-shred final, but both are gated off by default, need the crypto satellite, and are a separate per-host go (see the [AI guide](/guides/satellites/ai#conversation-memory)).
 - [ ] Alerting subscribed to `guard.ai_*` trips and to the `ai_memory_undecryptable` and `ai_auto_purge_failures` metrics.
 
 If you use [tools](/guides/satellites/ai-tools), add:
