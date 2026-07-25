@@ -19,6 +19,7 @@
     ".": "./build/src/index.js",
     "./provider": "./build/providers/ai_provider.js",
     "./routes": "./build/src/routes.js",
+    "./tools": "./build/src/tools.js",
     "./commands": "./build/src/commands/main.js",
     "./testing": "./build/src/testing/index.js"
   },
@@ -29,6 +30,9 @@
       ],
       "routes": [
         "./build/src/routes.d.ts"
+      ],
+      "tools": [
+        "./build/src/tools.d.ts"
       ],
       "commands": [
         "./build/src/commands/main.d.ts"
@@ -52,6 +56,12 @@
     "pluginApiVersion": 1,
     "migrations": "stubs/migrations",
     "perTenantMigrations": "build/tenant_migrations",
+    "migrationAliases": [
+      {
+        "from": "database/migrations/tenant/0014_create_ai_embeddings_table",
+        "migration": "1751414400000_create_ai_embeddings_table"
+      }
+    ],
     "minMergedCoverage": {
       "lines": 60,
       "functions": 60,
@@ -62,15 +72,22 @@
     "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/ai"
   },
   "scripts": {
-    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
     "typecheck": "tsc --noEmit",
     "test": "tsx bin/test.ts",
     "test:coverage": "c8 --temp-directory=../../coverage/.v8/ai-unit tsx bin/test.ts",
     "test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+    "test:fault:run": "tsx --tsconfig ../../tsconfig.json bin/test.fault.ts",
     "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/ai-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts"
   },
   "peerDependencies": {
+    "@adonisjs-lasagna/crypto": ">=0.1.0 <1.0.0",
     "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
     "@adonisjs/core": "^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@adonisjs-lasagna/crypto": {
+      "optional": true
+    }
   }
 }

@@ -15,6 +15,17 @@ function makeMockCtx(url: string, tenantOverrides: Record<string, boolean> = {})
     isDeleted: false,
     ...tenantOverrides,
   }
+  // The lifecycle floor now reads `status` (real tenants always have one); derive it
+  // from the is* flags this double sets, honoring an explicit override.
+  ;(tenant as any).status ??= tenant.isSuspended
+    ? 'suspended'
+    : tenant.isProvisioning
+      ? 'provisioning'
+      : tenant.isFailed
+        ? 'failed'
+        : tenant.isDeleted
+          ? 'deleted'
+          : 'active'
   return {
     request: {
       url: (_full: boolean) => url,

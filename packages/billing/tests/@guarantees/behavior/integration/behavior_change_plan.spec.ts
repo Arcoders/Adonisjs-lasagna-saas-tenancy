@@ -295,12 +295,12 @@ test.group('StripeDriver.changePlan (MockStripe, in-process)', (group) => {
 
     await driver.changePlan!(sub.id, { priceId: 'price_pro_monthly' })
     const after = await mock.subscriptions.retrieve(sub.id)
-    assert.equal(after?.items.data[0].price.id, 'price_pro_monthly', 'first item price swapped')
+    assert.equal(after?.items.data[0]?.price.id, 'price_pro_monthly', 'first item price swapped')
 
     // A retried identical change converges (same idempotency key): no throw, no drift.
     await driver.changePlan!(sub.id, { priceId: 'price_pro_monthly' })
     const again = await mock.subscriptions.retrieve(sub.id)
-    assert.equal(again?.items.data[0].price.id, 'price_pro_monthly')
+    assert.equal(again?.items.data[0]?.price.id, 'price_pro_monthly')
   })
 
   test('throws invalid_stripe_request when the subscription has no items', async ({ assert }) => {

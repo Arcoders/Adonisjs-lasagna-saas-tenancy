@@ -15,7 +15,7 @@ const cleanService = [
   "turns.push({ role: 'assistant', content: a })",
 ].join('\n')
 
-test.group('architectural — I2 conversation memory guard', () => {
+test.group('architectural: I2 conversation memory guard', () => {
   test('a clean memory service (encrypt + HMAC + data roles) passes', ({ assert }) => {
     const problems = auditMemoryInvariant([{ path: SERVICE, source: cleanService }])
     assert.deepEqual(problems, [])
@@ -26,7 +26,7 @@ test.group('architectural — I2 conversation memory guard', () => {
       { path: CONTEXT, source: "const turn = { role: 'system', content: memory }" },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /role:'system'/)
+    assert.match(problems[0]!, /role:'system'/)
   })
 
   test('a memory service that never encrypts is an I2 violation', ({ assert }) => {
@@ -37,7 +37,7 @@ test.group('architectural — I2 conversation memory guard', () => {
       },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /encrypt via encryptMemory/)
+    assert.match(problems[0]!, /encrypt via encryptMemory/)
   })
 
   test('a memory service that never HMAC-validates a session is an I2 violation', ({ assert }) => {
@@ -45,7 +45,7 @@ test.group('architectural — I2 conversation memory guard', () => {
       { path: SERVICE, source: 'const cipher = this.#deps.encryptMemory(x)\nif (a === b) throw e' },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /timingSafeEqual/)
+    assert.match(problems[0]!, /timingSafeEqual/)
   })
 
   test('a `role === "system"` comparison (not a construction) is not flagged', ({ assert }) => {

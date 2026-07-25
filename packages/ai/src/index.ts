@@ -6,9 +6,15 @@ export type {
   AIProviderConfig,
   AIProviderName,
   AIRetrievalConfig,
+  AIToolAuthorizer,
+  AIToolHostDefinition,
+  AIToolResolver,
+  AIToolsConfig,
   MultitenancyConfigWithAi,
   RetrievalFilter,
   RetrievalScope,
+  ToolContext,
+  ToolScope,
 } from './define_config.js'
 export type { AiAuditRow, AiAuditEntry } from './services/ai_audit_writer.js'
 export { assertAiConfig } from './validate_config.js'
@@ -26,6 +32,8 @@ export type {
   AIMessage,
   AIProviderContract,
   AIStreamRequest,
+  AIToolCall,
+  AIToolDefinition,
   StreamFragment,
 } from './types/ai_provider_contract.js'
 export type {

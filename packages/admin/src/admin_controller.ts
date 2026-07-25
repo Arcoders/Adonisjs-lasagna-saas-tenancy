@@ -129,7 +129,9 @@ export default class AdminController {
     await hooks.run('before', 'destroy', { tenant })
 
     const { DateTime } = await import('luxon')
+    // Invariant A: deletedAt and status move together (stamp + flip to 'deleted').
     tenant.deletedAt = DateTime.now()
+    tenant.status = 'deleted'
     await tenant.save()
 
     if (!keepSchema) {
@@ -156,7 +158,12 @@ export default class AdminController {
     if (!tenant) return response.notFound({ error: 'tenant_not_found' })
     if (!tenant.isDeleted) return response.ok({ data: serialize(tenant), unchanged: true })
 
+    // Invariant A mirror: un-deleting clears the timestamp AND returns the tenant to
+    // 'active', so we never leave a `deletedAt=null` + `status='deleted'` limbo.
+    // A restore whose schema was dropped then surfaces a healable drift by design
+    // (the operator runs `tenant:heal`).
     tenant.deletedAt = null
+    tenant.status = 'active'
     await tenant.save()
     // Dispatch a lifecycle event so the resolution cache drops the old "deleted"
     // entry on every pod right away. Otherwise a restored tenant keeps getting a
@@ -179,7 +186,10 @@ export default class AdminController {
   async healthReport({ response }: HttpContext) {
     const doctor = await app.container.make(DoctorService)
     const result = await doctor.run()
-    response.status(result.totals.error > 0 ? 503 : 200)
+    // Scope-aware, mirroring /readyz: only a platform-scoped failure (infra down)
+    // returns 503. A lone tenant's error degrades the report but keeps it reachable
+    // at 200, so one broken tenant never takes the whole operator console offline.
+    response.status(result.status === 'fail' ? 503 : 200)
     return response.send(result)
   }
 

@@ -48,6 +48,7 @@ try {
   const [io, client, adapter, ioredis] = await Promise.all([
     import('socket.io'),
     import('socket.io-client'),
+    // @ts-ignore: @socket.io/redis-adapter is an optional peer dependency (spec self-skips when absent)
     import('@socket.io/redis-adapter'),
     import('ioredis'),
   ])

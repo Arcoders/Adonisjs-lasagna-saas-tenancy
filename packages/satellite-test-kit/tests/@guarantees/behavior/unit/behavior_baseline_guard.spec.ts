@@ -55,8 +55,8 @@ test.group('baseline guard (generic)', () => {
     cfg.value = { a: 999 } // a spec swapped the config and never restored it
     assert.isTrue(guard.onGroupEnd('leaky-group'))
     assert.lengthOf(warns, 1)
-    assert.match(warns[0], /leaky-group/)
-    assert.match(warns[0], /config/)
+    assert.match(warns[0]!, /leaky-group/)
+    assert.match(warns[0]!, /config/)
     assert.strictEqual(cfg.value, baseline) // restored by identity to the boot baseline
   })
 
@@ -68,7 +68,7 @@ test.group('baseline guard (generic)', () => {
     chain.value = ['subdomain'] // a spec rewired the resolver chain and never restored it
     assert.isTrue(guard.onGroupEnd('leaky-group'))
     assert.deepEqual(chain.value, ['header'])
-    assert.match(warns[0], /resolver chain/)
+    assert.match(warns[0]!, /resolver chain/)
   })
 
   test('it snapshots once: a later group keeps the original baseline', ({ assert }) => {

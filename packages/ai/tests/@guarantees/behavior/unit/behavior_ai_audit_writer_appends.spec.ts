@@ -3,7 +3,7 @@ import AiAuditWriter, { auditChecksum } from '../../../../src/services/ai_audit_
 import AIException from '../../../../src/exceptions/ai_exception.js'
 import { fakeAuditEnv, sampleAuditRow } from '../../../helpers/fake_audit_db.js'
 
-test.group('behavior — AiAuditWriter append', () => {
+test.group('behavior: AiAuditWriter append', () => {
   test('the first append is seq 1 with a null prev and a matching checksum', async ({ assert }) => {
     const env = fakeAuditEnv()
     const entry = await new AiAuditWriter(env.deps).append(sampleAuditRow())

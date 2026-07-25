@@ -8,7 +8,12 @@ import type { TenantResolver } from '../services/resolvers/resolver.js'
 // here so the public `./types` surface and every `from '../types/config.js'`
 // import keep resolving exactly as before. Satellite config blocks (billing,
 // backup) are NOT declared here. See SatelliteConfigRegistry below.
-export type { IsolationConfig, IsolationDriverChoice } from './config/isolation.js'
+export type {
+  IsolationConfig,
+  IsolationDriverChoice,
+  WarmPoolConfig,
+  PgBouncerConfig,
+} from './config/isolation.js'
 
 /**
  * Open registry of satellite-contributed config blocks. Core declares it empty:
@@ -712,7 +717,15 @@ export type ResolvedQueueConfig = MultitenancyConfig['queue'] &
  * optional so their "unset" reads keep working.
  */
 export type ResolvedIsolationConfig = IsolationConfig &
-  Required<Pick<IsolationConfig, 'maxTenantConnections' | 'evictionGracePeriodMs'>>
+  Required<
+    Pick<
+      IsolationConfig,
+      | 'maxTenantConnections'
+      | 'evictionGracePeriodMs'
+      | 'operationalConnectionBudget'
+      | 'migrateOnProvision'
+    >
+  >
 
 /**
  * {@link ResolverCacheConfig} with `ttlMs` + `maxEntries` resolved. Only present

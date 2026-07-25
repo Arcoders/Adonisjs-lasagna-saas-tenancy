@@ -76,7 +76,7 @@ export default class SchemaPgDriver extends PooledPgDriver {
     const schema = this.schemaName(tenant)
     const { db } = await this.lucid()
     await db.rawQuery(`CREATE SCHEMA IF NOT EXISTS "${schema}"`)
-    await this.connect(tenant, { bypassHardCap: true })
+    await this.connect(tenant, { bypassSoftCap: true })
   }
 
   async destroy(tenant: TenantModelContract, opts: DestroyOptions = {}): Promise<void> {
@@ -93,6 +93,6 @@ export default class SchemaPgDriver extends PooledPgDriver {
     const { db } = await this.lucid()
     await db.rawQuery(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
     await db.rawQuery(`CREATE SCHEMA "${schema}"`)
-    await this.connect(tenant, { bypassHardCap: true })
+    await this.connect(tenant, { bypassSoftCap: true })
   }
 }

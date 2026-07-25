@@ -26,7 +26,7 @@ function gate(redact: RedactOutput | undefined, stats: RedactionStats) {
   return composeRedactionGate(boundedFragmentGate, redact, ctx, tenant, stats)
 }
 
-test.group('security — redactOutput composed gate (I8-preserving)', () => {
+test.group('security: redactOutput composed gate', () => {
   test('no hook: byte-identical to the mandatory bound (pass under, null over)', ({ assert }) => {
     const stats: RedactionStats = { redactions: 0 }
     const g = gate(undefined, stats)
@@ -115,7 +115,7 @@ test.group('security — redactOutput composed gate (I8-preserving)', () => {
   })
 })
 
-test.group('security — redactOutput config validation', () => {
+test.group('security: redactOutput config validation', () => {
   const base = {
     allowedProviders: ['claude'],
     defaultProvider: 'claude',
@@ -124,7 +124,10 @@ test.group('security — redactOutput config validation', () => {
 
   test('a function redactOutput is accepted', ({ assert }) => {
     assert.doesNotThrow(() =>
-      assertAiConfig({ ...base, redactOutput: (_c, _t, chunk) => chunk } as any)
+      assertAiConfig({
+        ...base,
+        redactOutput: ((_c, _t, chunk) => chunk) as RedactOutput,
+      } as any)
     )
   })
 

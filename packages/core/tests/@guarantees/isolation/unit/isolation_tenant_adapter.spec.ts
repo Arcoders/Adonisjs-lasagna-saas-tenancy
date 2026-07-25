@@ -475,7 +475,12 @@ test.group('TenantAdapter — ContextSeal (Isthmus) deep behavior', (group) => {
     assert.equal(captured.at(-1).event, 'isthmus:seal:tenant:mismatch')
     assert.equal(captured.at(-1).severity, 'critical')
     assert.equal(captured.at(-1).tenantId, UUID2)
-    assert.equal(captured.at(-1).metadata.requestResolvedId, UUID1)
+    // The FOREIGN request id (UUID1) is broadcast only as a non-reversible token,
+    // never raw: the public event fans out to every plugin, and the exception
+    // above (naming UUID1 + UUID2) is where the precise ids stay, server-side.
+    const requestResolved = captured.at(-1).metadata.requestResolvedId
+    assert.notEqual(requestResolved, UUID1, 'the raw foreign id must never be broadcast')
+    assert.match(requestResolved, /^ttok_/, 'the foreign id is tokenized in the broadcast')
   })
 
   test('null comparand is not cached: a late request.tenant() memo is picked up', async ({

@@ -30,10 +30,10 @@ test.group('ClaudeProvider', () => {
     const provider = new ClaudeProvider({ apiKey: 'sk-key' }, deps)
     const fragments = await collect(provider.stream(request, new AbortController().signal))
 
-    assert.equal(calls[0].url, 'https://api.anthropic.com/v1/messages')
-    assert.equal(calls[0].opts.headers?.['x-api-key'], 'sk-key')
-    assert.equal(calls[0].opts.headers?.['anthropic-version'], '2023-06-01')
-    assert.isTrue(calls[0].opts.streaming)
+    assert.equal(calls[0]!.url, 'https://api.anthropic.com/v1/messages')
+    assert.equal(calls[0]!.opts.headers?.['x-api-key'], 'sk-key')
+    assert.equal(calls[0]!.opts.headers?.['anthropic-version'], '2023-06-01')
+    assert.isTrue(calls[0]!.opts.streaming)
     assert.deepEqual(
       fragments.filter((f) => f.event !== 'usage').map((f) => f.data),
       ['Hi']
@@ -49,7 +49,7 @@ test.group('ClaudeProvider', () => {
     await collect(
       provider.stream({ ...request, model: 'claude-opus-4-8' }, new AbortController().signal)
     )
-    const body = JSON.parse(calls[0].opts.body as string)
+    const body = JSON.parse(calls[0]!.opts.body as string)
     assert.equal(body.model, 'claude-opus-4-8')
     assert.equal(body.max_tokens, 100)
     assert.isTrue(body.stream)
@@ -59,7 +59,7 @@ test.group('ClaudeProvider', () => {
     const { deps, calls } = fakeFetch(() => sseResponse(anthropicSse))
     const provider = new ClaudeProvider({ apiKey: 'k', baseUrl: 'https://proxy.example.com' }, deps)
     await collect(provider.stream(request, new AbortController().signal))
-    assert.equal(calls[0].url, 'https://proxy.example.com/v1/messages')
+    assert.equal(calls[0]!.url, 'https://proxy.example.com/v1/messages')
   })
 })
 
@@ -70,8 +70,8 @@ test.group('OpenAI-compatible providers (DeepSeek + Kimi)', () => {
     const { deps, calls } = fakeFetch(() => sseResponse(openaiSse))
     const provider = new DeepSeekProvider({ apiKey: 'ds-key' }, deps)
     const fragments = await collect(provider.stream(request, new AbortController().signal))
-    assert.equal(calls[0].url, 'https://api.deepseek.com/chat/completions')
-    assert.equal(calls[0].opts.headers?.['authorization'], 'Bearer ds-key')
+    assert.equal(calls[0]!.url, 'https://api.deepseek.com/chat/completions')
+    assert.equal(calls[0]!.opts.headers?.['authorization'], 'Bearer ds-key')
     assert.deepEqual(
       fragments.filter((f) => f.event !== 'usage').map((f) => f.data),
       ['Hi']
@@ -87,11 +87,11 @@ test.group('OpenAI-compatible providers (DeepSeek + Kimi)', () => {
     const kimi = await collect(
       new KimiProvider({ apiKey: 'k' }, kimiDeps).stream(request, new AbortController().signal)
     )
-    assert.equal(kimiCalls[0].url, 'https://api.moonshot.ai/v1/chat/completions')
-    assert.notEqual(dsCalls[0].url, kimiCalls[0].url)
+    assert.equal(kimiCalls[0]!.url, 'https://api.moonshot.ai/v1/chat/completions')
+    assert.notEqual(dsCalls[0]!.url, kimiCalls[0]!.url)
     // Same wire format => identical fragments through the shared adapter.
     assert.deepEqual(ds, kimi)
-    assert.equal(JSON.parse(dsCalls[0].opts.body as string).model, 'deepseek-chat')
-    assert.equal(JSON.parse(kimiCalls[0].opts.body as string).model, 'kimi-latest')
+    assert.equal(JSON.parse(dsCalls[0]!.opts.body as string).model, 'deepseek-chat')
+    assert.equal(JSON.parse(kimiCalls[0]!.opts.body as string).model, 'kimi-latest')
   })
 })

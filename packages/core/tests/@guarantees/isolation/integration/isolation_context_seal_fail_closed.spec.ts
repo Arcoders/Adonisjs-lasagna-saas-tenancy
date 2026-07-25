@@ -7,6 +7,7 @@ import {
 } from '@adonisjs-lasagna/saas-tenancy/services'
 import { IsthmusGuardTripped } from '@adonisjs-lasagna/saas-tenancy/events'
 import { tenancy } from '@adonisjs-lasagna/saas-tenancy'
+import { tokenizeTenantId } from '@adonisjs-lasagna/saas-tenancy/sdk'
 import { createTestTenant, destroyTestTenant } from '../../../helpers/tenant.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
@@ -84,7 +85,10 @@ test.group('ContextSeal — tenant-context mismatch fails closed', (group) => {
       assert.isAtLeast(mismatches.length, 1, 'the mismatch must be observable')
       assert.equal(mismatches[0]!.payload.severity, 'critical')
       assert.equal(mismatches[0]!.payload.tenantId, tenantB.id)
-      assert.equal(mismatches[0]!.payload.metadata.requestResolvedId, tenantA.id)
+      // The foreign request id is emitted only as a non-reversible correlation token
+      // (the precise id stays server-side in the exception + audit log), so the event
+      // metadata carries the tokenized form, not the raw uuid.
+      assert.equal(mismatches[0]!.payload.metadata.requestResolvedId, tokenizeTenantId(tenantA.id))
     } finally {
       emitter.off(IsthmusGuardTripped, listener)
     }

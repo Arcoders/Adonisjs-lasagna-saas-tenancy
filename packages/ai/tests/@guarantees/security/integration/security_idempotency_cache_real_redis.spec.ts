@@ -27,7 +27,7 @@ test.group('idempotency cache on real Redis (integration)', (group) => {
   let service: AiIdempotencyService
 
   group.setup(async () => {
-    new AiProvider(app).register()
+    new AiProvider(app).register?.()
     service = await app.container.make(AiIdempotencyService)
   })
 
@@ -41,7 +41,7 @@ test.group('idempotency cache on real Redis (integration)', (group) => {
     assert.isNull(await service.lookup(b), 'tenant B must never see tenant A entries')
   })
 
-  test('two principals in the same tenant with an identical key land in disjoint slots (T1)', async ({
+  test('two principals in the same tenant with an identical key land in disjoint slots', async ({
     assert,
   }) => {
     const tenantId = '11111111-1111-4111-8111-11111111e001'

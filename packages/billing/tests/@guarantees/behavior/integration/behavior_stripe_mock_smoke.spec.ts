@@ -50,7 +50,7 @@ test.group('Stripe driver call-site contract (stripe-mock)', (group) => {
     assert,
   }) => {
     const stripe = new Stripe('sk_test_123', {
-      host: MOCK_HOST,
+      host: MOCK_HOST!,
       port: Number(MOCK_PORT),
       protocol: 'http',
       // Fail fast on an unexpected non-2xx rather than burning the retry budget.

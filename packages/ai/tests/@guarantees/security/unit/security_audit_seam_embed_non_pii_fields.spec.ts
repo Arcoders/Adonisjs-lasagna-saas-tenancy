@@ -12,10 +12,10 @@ import { fakeTenant } from '../../../helpers/stream_doubles.js'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * The embed choke point's own G1 forward contract: the embed audit event field
- * set is pinned EXACTLY (a parallel event to the chat one, so extending either
- * is an isolated reviewed decision), `actorHash`/`sourceHash` are one-way, and
- * no embedded text ever reaches a serialized event.
+ * The embed choke point's own forward contract: the embed audit event field set is
+ * pinned EXACTLY (a parallel event to the chat one, so extending either is an isolated
+ * reviewed decision), `actorHash`/`sourceHash` are one-way, and no embedded text ever
+ * reaches a serialized event.
  */
 const PINNED_FIELDS = [
   'actorHash',
@@ -68,14 +68,14 @@ test.group('embed audit seam non-PII contract', () => {
 
     assert.lengthOf(events, 1)
     assert.deepEqual(
-      Object.keys(events[0]).sort(),
+      Object.keys(events[0]!).sort(),
       PINNED_FIELDS,
       'the embed audit event field set is FROZEN; extending it is a reviewed decision'
     )
-    assert.equal(events[0].outcome, 'completed')
-    assert.equal(events[0].tenantId, 't1')
-    assert.equal(events[0].embeddingsCount, 1)
-    assert.equal(events[0].dimension, 4)
+    assert.equal(events[0]!.outcome, 'completed')
+    assert.equal(events[0]!.tenantId, 't1')
+    assert.equal(events[0]!.embeddingsCount, 1)
+    assert.equal(events[0]!.dimension, 4)
   })
 
   test('actor and source are one-way hashed, never raw, and no content leaks', async ({
@@ -90,9 +90,9 @@ test.group('embed audit seam non-PII contract', () => {
 
     await buildController(sink).embed(ctx)
 
-    assert.equal(events[0].actorHash, hashAuditPrincipal('user-1'))
-    assert.equal(events[0].sourceHash, hashAuditPrincipal('my-doc'))
-    assert.match(events[0].actorHash!, /^[0-9a-f]{64}$/)
+    assert.equal(events[0]!.actorHash, hashAuditPrincipal('user-1'))
+    assert.equal(events[0]!.sourceHash, hashAuditPrincipal('my-doc'))
+    assert.match(events[0]!.actorHash!, /^[0-9a-f]{64}$/)
     const serialized = JSON.stringify(events)
     assert.notInclude(serialized, 'user-1')
     assert.notInclude(serialized, 'my-doc')
@@ -106,6 +106,6 @@ test.group('embed audit seam non-PII contract', () => {
       body: { source: 'my-doc', input: [SECRET] },
     })
     await buildController(sink).embed(ctx)
-    assert.isNull(events[0].actorHash)
+    assert.isNull(events[0]!.actorHash)
   })
 })

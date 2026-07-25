@@ -65,7 +65,7 @@ test.group('reporting rollup: equivalence with live aggregation', (group) => {
     assert.deepEqual(fromRollup, fromLive)
     // sanity: the data is non-trivial and newest-first
     assert.isAbove(fromLive.length, 0)
-    assert.equal(fromLive[0].period.slice(0, 7), `${Y}-03`)
+    assert.equal(fromLive[0]?.period.slice(0, 7), `${Y}-03`)
   })
 
   test('getTopTenants from rollup deep-equals live over a closed month window', async ({

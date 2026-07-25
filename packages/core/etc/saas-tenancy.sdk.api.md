@@ -88,6 +88,7 @@ export function filterAlreadyPublished(stubs: string[], existing: string[]): {
 export interface GuardAuditEntry {
     // (undocumented)
     readonly bugClass: string;
+    readonly dispatchPolicy?: 'broadcast' | 'count-only';
     // (undocumented)
     readonly event: string;
     // (undocumented)
@@ -151,6 +152,9 @@ export type GuardMetricSink = (tenantId: string, name: string, value: number) =>
 export function indexSatellites(satellites: DiscoveredSatellite[]): Map<string, DiscoveredSatellite>;
 
 // @public
+export function isDependencyOutageError(err: unknown): boolean;
+
+// @public
 export function isProductionNodeEnv(): boolean;
 
 // @public
@@ -165,7 +169,7 @@ export const ISTHMUS_BUDGETS: {
 };
 
 // @public
-export type IsthmusDropReason = 'rate_limited' | 'no_emitter';
+export type IsthmusDropReason = 'rate_limited' | 'no_emitter' | 'metadata_bounded';
 
 // @public
 export interface IsthmusGuardTrippedPayload {
@@ -206,6 +210,12 @@ export interface LoggerLike {
     // (undocumented)
     warning(message: string): void;
 }
+
+// @public
+export const MAX_ISTHMUS_METADATA_KEYS = 16;
+
+// @public (undocumented)
+export const MAX_ISTHMUS_METADATA_VALUE_LENGTH = 256;
 
 // @public
 export function migrationSlug(packageName: string): string;
@@ -266,6 +276,8 @@ export interface SatelliteManifest {
     docs?: string;
     env?: string[];
     install?: string[];
+    // Warning: (ae-forgotten-export) The symbol "SatelliteMigrationAlias" needs to be exported by the entry point index.d.ts
+    migrationAliases?: SatelliteMigrationAlias[];
     migrations?: string;
     // Warning: (ae-forgotten-export) The symbol "SatelliteCoverageFloors" needs to be exported by the entry point index.d.ts
     minMergedCoverage?: SatelliteCoverageFloors;
@@ -298,6 +310,12 @@ export interface SatelliteProviderContract {
 
 // @public
 export function satisfiesRange(version: string, range: string): boolean | null;
+
+// @public
+export const TENANT_TOKEN_PREFIX = "ttok_";
+
+// @public
+export function tokenizeTenantId(id: string): string;
 
 // (No @packageDocumentation comment for this package)
 

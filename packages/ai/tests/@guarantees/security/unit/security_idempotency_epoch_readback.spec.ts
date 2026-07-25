@@ -15,7 +15,7 @@ import AiIdempotencyService, {
 const TENANT = '11111111-1111-4111-8111-111111110001'
 const macKey = deriveAiIdempotencyMacKey('test-app-key')
 
-test.group('security — idempotency epoch read-back (WS-AI-9 E3)', () => {
+test.group('security: idempotency epoch read-back', () => {
   test('bumpEpoch confirms the rotation against a healthy store', async ({ assert }) => {
     const data = new Map<string, string>()
     const store: AiIdempotencyStore = {

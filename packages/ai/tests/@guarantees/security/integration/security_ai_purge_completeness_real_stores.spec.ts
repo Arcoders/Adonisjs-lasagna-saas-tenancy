@@ -74,8 +74,8 @@ function memoryService(): ConversationMemoryService {
   return new ConversationMemoryService({
     getRedis: () => app.container.make('redis'),
     macKey: Buffer.alloc(32, 5),
-    encryptMemory: (plain) => `e:${plain}`,
-    decryptMemory: (cipher) => {
+    encryptMemory: async (_tenantId, plain) => `e:${plain}`,
+    decryptMemory: async (_tenantId, cipher) => {
       if (!cipher.startsWith('e:')) throw new Error('not ciphertext')
       return cipher.slice(2)
     },
@@ -95,7 +95,7 @@ const idemScope: AiIdempotencyScope = {
   headerKey: 'retry-1e',
 }
 
-test.group('AI purge-completeness across real stores (1E)', (group) => {
+test.group('AI purge-completeness across real stores', (group) => {
   let store: VectorStoreService
   let memory: ConversationMemoryService
   let idempotency: AiIdempotencyService
@@ -117,13 +117,13 @@ test.group('AI purge-completeness across real stores (1E)', (group) => {
       await db.connection(conn).rawQuery(tableDdl())
     } catch {
       ready = false
-      return
+      return async () => {}
     }
     const audit = await setupRealAudit()
     ready = audit.ready
-    if (!ready) return
+    if (!ready) return async () => {}
 
-    new AiProvider(app).register()
+    new AiProvider(app).register?.()
     idempotency = await app.container.make(AiIdempotencyService)
     store = vectorStore()
     memory = memoryService()
@@ -200,6 +200,6 @@ test.group('AI purge-completeness across real stores (1E)', (group) => {
       'SELECT count(*) AS c FROM backoffice.ai_audit_logs WHERE tenant_id = ?',
       [tenant.id]
     )
-    assert.equal(Number(rowsOfResult(res)[0].c), 2)
+    assert.equal(Number(rowsOfResult(res)[0]!.c), 2)
   }).skip(() => !ready, 'pgvector/redis/postgres not available; runs in CI')
 })

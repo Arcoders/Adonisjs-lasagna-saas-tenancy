@@ -47,7 +47,7 @@ export function refusalThrowSites(src: string): number[] {
   return sites
 }
 
-test.group('architectural — no silent AI guard', () => {
+test.group('architectural: no silent AI guard', () => {
   test('every refusal throw site is registered-and-emitting or allowlisted', ({ assert }) => {
     const violations: string[] = []
     for (const file of walkTsFiles(SRC_ROOT)) {
@@ -124,7 +124,7 @@ test.group('architectural — no silent AI guard', () => {
   })
 })
 
-test.group('architectural — AI guard registry contract', () => {
+test.group('architectural: AI guard registry contract', () => {
   test('every guardFile exists and contains an emit call', ({ assert }) => {
     for (const entry of AI_GUARD_REGISTRY) {
       const full = join(AI_ROOT, entry.guardFile)
@@ -144,8 +144,9 @@ test.group('architectural — AI guard registry contract', () => {
     for (const file of walkTsFiles(SRC_ROOT)) {
       const src = readFileSync(file, 'utf8')
       for (const match of src.matchAll(/emitAiGuardEvent\(\s*'([^']+)'/g)) {
-        if (!ids.has(match[1])) {
-          strays.push(`${relative(AI_ROOT, file).replace(/\\/g, '/')}: ${match[1]}`)
+        const id = match[1]!
+        if (!ids.has(id)) {
+          strays.push(`${relative(AI_ROOT, file).replace(/\\/g, '/')}: ${id}`)
         }
       }
     }

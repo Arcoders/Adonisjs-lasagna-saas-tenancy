@@ -44,7 +44,7 @@ function controllerFor(secret: string, store: AiIdempotencyStore) {
   registry.register(
     new MockAIProvider({
       name: 'claude',
-      contractVersion: 1,
+      contractVersion: 2,
       fragments: [{ data: secret, tokens: 1 }],
     }),
     { activate: true }

@@ -17,6 +17,17 @@ function makeCtx(overrides: Record<string, any> = {}, headers: Record<string, st
     maintenanceMessage: null,
     ...overrides,
   }
+  // The lifecycle floor now reads `status` (real tenants always have one); derive it
+  // from the is* flags this double sets, honoring an explicit override.
+  ;(tenant as any).status ??= tenant.isSuspended
+    ? 'suspended'
+    : tenant.isProvisioning
+      ? 'provisioning'
+      : tenant.isFailed
+        ? 'failed'
+        : tenant.isDeleted
+          ? 'deleted'
+          : 'active'
   const lower: Record<string, string> = {}
   for (const [k, v] of Object.entries(headers)) lower[k.toLowerCase()] = v
   return {

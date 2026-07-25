@@ -213,13 +213,15 @@ export interface IsolationDriver {
    * storage. Implementations are expected to memoize within a connection
    * pool so repeated calls within a request reuse the same client.
    *
-   * `bypassHardCap` skips the opt-in connection-cap admission check: operational
-   * paths (provisioning, migrations, seeding) must not be refused by request-path
-   * backpressure. Drivers without a per-tenant pool ignore it.
+   * `bypassSoftCap` skips the opt-in SOFT connection-cap admission check
+   * (`enforceConnectionCap`): operational paths (provisioning, migrations,
+   * seeding) must not be refused by request-path backpressure. It does NOT skip
+   * the absolute `maxTenantConnectionsHardCeiling`, which is unbypassable so no
+   * path can exhaust the database. Drivers without a per-tenant pool ignore it.
    */
   connect(
     tenant: TenantModelContract,
-    opts?: { bypassHardCap?: boolean }
+    opts?: { bypassSoftCap?: boolean }
   ): Promise<QueryClientContract>
 
   /**

@@ -18,7 +18,23 @@ import type { DateTime } from 'luxon'
  */
 export const TENANT_REPOSITORY = Symbol.for('@adonisjs-lasagna/saas-tenancy/TENANT_REPOSITORY')
 
-export type TenantStatus = 'provisioning' | 'active' | 'suspended' | 'failed' | 'deleted'
+/**
+ * The single source of truth for the tenant lifecycle status space. The `TenantStatus`
+ * union is DERIVED from this tuple, so adding a status is a one-line change here that
+ * every exhaustive consumer picks up: the compile-time floor (`tenantLifecycleDisposition`
+ * + `assertNever`) fails to build until the new value is handled, the `/metrics`
+ * collector counts it, and the `check-tenant-statuses` CI guard requires it to be
+ * documented and present in the composite state matrix. Mirrors billing's
+ * `SUBSCRIPTION_STATUSES` pattern.
+ */
+export const TENANT_STATUSES = ['provisioning', 'active', 'suspended', 'failed', 'deleted'] as const
+
+export type TenantStatus = (typeof TENANT_STATUSES)[number]
+
+/** Type guard: is `s` one of the known tenant statuses? */
+export function isKnownTenantStatus(s: string): s is TenantStatus {
+  return (TENANT_STATUSES as readonly string[]).includes(s)
+}
 
 /**
  * Default shape of the optional `metadata` field on a tenant model. Apps

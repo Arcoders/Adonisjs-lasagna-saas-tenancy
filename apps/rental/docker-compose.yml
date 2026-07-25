@@ -1,0 +1,48 @@
+# Local infrastructure for Karimoto. Distinct host ports from the core demo
+# (55432/56379) so both can run side by side. One Postgres + one Redis is
+# plenty — the package fits 3 schemas inside one PG instance, and Redis uses
+# logical DBs 0/1/2 for default/queue/cache.
+services:
+  # pgvector image (Postgres 16 + the `vector` extension) so the AI satellite's
+  # per-tenant embedding store works locally. The extension is created into a
+  # dedicated `extensions` schema at provision time (never `public`), and each
+  # tenant connection appends that schema to its search_path.
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: karimoto_postgres
+    environment:
+      POSTGRES_USER: karimoto
+      POSTGRES_PASSWORD: karimoto
+      POSTGRES_DB: karimoto
+    ports:
+      - "55433:5432"
+    volumes:
+      - karimoto_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U karimoto -d karimoto"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: karimoto_redis
+    ports:
+      - "56380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # MailCatcher captures outgoing email (the tenant-welcome mailer). Web UI at
+  # http://localhost:1080, JSON API at http://localhost:1080/messages.
+  mailcatcher:
+    image: schickling/mailcatcher
+    container_name: karimoto_mailcatcher
+    ports:
+      - "1025:1025"
+      - "1080:1080"
+
+volumes:
+  karimoto_pgdata:

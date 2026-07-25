@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // The architectural specs import the repo-root `scripts/check-crypto-invariant-*.mjs`
+    // auditors to exercise their pure functions. Those are plain JS, so without this
+    // TypeScript reads them as implicit `any` and silently stops checking every call into
+    // them. Inferring from the source beats a hand-written .d.ts that drifts from it.
+    "allowJs": true,
+    "checkJs": false
+  },
+  // Typecheck config: this is what `npm run typecheck` uses, and it covers the TESTS as
+  // well as the source. `tsconfig.build.json` is the one that emits, and it deliberately
+  // narrows back to the shipped surface. Two files, because a single config cannot both
+  // emit only src and check everything, and skipping the check on tests is how a signature
+  // change ends up leaving specs quietly passing garbage.
+  "include": [
+    "src/**/*.ts",
+    "providers/**/*.ts",
+    "tenant_migrations/**/*.ts",
+    "configure.ts",
+    "tests/**/*.ts",
+    "bin/**/*.ts"
+  ]
+}

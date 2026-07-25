@@ -476,7 +476,9 @@ test.group('SsoService — callback token + id_token verification', () => {
 })
 
 test.group('SsoService — pluggable identity providers', (group) => {
-  group.each.teardown(() => identityProviderRegistry.clear())
+  group.each.teardown(() => {
+    identityProviderRegistry.clear()
+  })
 
   test('SsoService is the built-in oidc driver', ({ assert }) => {
     const svc = makeService()
@@ -490,7 +492,7 @@ test.group('SsoService — pluggable identity providers', (group) => {
     await svc.buildAuthUrl(enabledConfig)
     const stateEntry = [...store.values()][0]
     assert.isString(stateEntry)
-    assert.deepInclude(JSON.parse(stateEntry), { tenantId: 't-1', provider: 'oidc' })
+    assert.deepInclude(JSON.parse(stateEntry!), { tenantId: 't-1', provider: 'oidc' })
   })
 
   test('a non-oidc tenant config delegates to the registered driver', async ({ assert }) => {

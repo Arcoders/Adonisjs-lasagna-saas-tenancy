@@ -1,5 +1,12 @@
 import AIException from '../exceptions/ai_exception.js'
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
+import {
+  AI_RESILIENCE_DEPENDENCY_REDIS,
+  AI_RESILIENCE_OP_RATE_LIMIT,
+  DEFAULT_AI_RESILIENCE_RATELIMIT_POLICY,
+} from '../constants.js'
+import { runResilientPassthrough, type RunResilient } from './resilience_seam.js'
+import type { FailurePolicy } from '@adonisjs-lasagna/saas-tenancy/services'
 
 /**
  * The injected sliding-window consumer, structurally satisfied by core's
@@ -25,7 +32,7 @@ export interface AiRateLimitPolicy {
 /**
  * Build the BYOK per-key bucket key. Per-tenant is baked in so one tenant can
  * never exhaust another tenant's window; the `keyFingerprint` segment scopes the
- * limit to the specific provider key (threat #4), so a future per-tenant BYOK
+ * limit to the specific provider key, so a future per-tenant BYOK
  * key gets its own budget with no code change. Colon-delimited to match the
  * kernel's `ext:<surface>:<name>:<tenant>` convention; every segment is a
  * hex/uuid/name with no embedded colon.
@@ -35,8 +42,8 @@ export function aiRateLimitKey(op: string, tenantId: string, fingerprint: string
 }
 
 /**
- * The AI per-key request rate limiter (WS-AI-2, threat #4 BYOK exploitation /
- * denial of wallet). It is a DIFFERENT rail from the token cost reserve: this
+ * The AI per-key request rate limiter, the defense against BYOK exploitation and
+ * denial of wallet. It is a DIFFERENT rail from the token cost reserve: this
  * caps requests-per-window on a provider key, the reserve caps token spend. They
  * compose without double-counting (one counts requests, the other holds tokens).
  *
@@ -53,10 +60,29 @@ export function aiRateLimitKey(op: string, tenantId: string, fingerprint: string
 export default class AiRateLimiter {
   readonly #consume: AiRateLimitConsumer
   readonly #policy: AiRateLimitPolicy | undefined
+  readonly #runResilient: RunResilient
+  readonly #outagePolicy: FailurePolicy
 
-  constructor(deps: { consume: AiRateLimitConsumer; policy?: AiRateLimitPolicy | undefined }) {
+  constructor(deps: {
+    consume: AiRateLimitConsumer
+    policy?: AiRateLimitPolicy | undefined
+    /**
+     * The resilience seam (kernel `ResilienceService.run`), injected so the consume
+     * degrades by a named policy with uniform observability. Absent ⇒ a local
+     * passthrough with identical semantics (bare unit specs).
+     */
+    runResilient?: RunResilient
+    /**
+     * Outage policy for the consume. Default
+     * {@link DEFAULT_AI_RESILIENCE_RATELIMIT_POLICY} (`fail-closed`, so a blind
+     * limiter refuses); a host may set `fail-open` to allow on outage.
+     */
+    resiliencePolicy?: FailurePolicy | undefined
+  }) {
     this.#consume = deps.consume
     this.#policy = deps.policy
+    this.#runResilient = deps.runResilient ?? runResilientPassthrough
+    this.#outagePolicy = deps.resiliencePolicy ?? DEFAULT_AI_RESILIENCE_RATELIMIT_POLICY
   }
 
   /** Whether a per-key rate limit is configured. When false, `check` is a no-op. */
@@ -77,11 +103,25 @@ export default class AiRateLimiter {
     const key = aiRateLimitKey(params.op, params.tenantId, params.fingerprint)
     let count: number
     try {
-      ;({ count } = await this.#consume({ key, windowSeconds: policy.windowSeconds }))
+      // Only the store op is guarded. The `count > limit` comparison below is a DOMAIN
+      // decision, not an infrastructure failure, so it stays outside `run()` per the
+      // ResilienceRunOptions contract. Default fail-closed: an outage refuses; a host
+      // may configure fail-open, in which case the fallback's `count: 0` lets it pass.
+      ;({ count } = await this.#runResilient<{ count: number }>({
+        dependency: AI_RESILIENCE_DEPENDENCY_REDIS,
+        operation: AI_RESILIENCE_OP_RATE_LIMIT,
+        policy: this.#outagePolicy,
+        tenantId: params.tenantId,
+        fallback: () => ({ count: 0 }),
+        run: () => this.#consume({ key, windowSeconds: policy.windowSeconds }),
+      }))
     } catch {
-      // Backend outage: fail-closed, matching the reserve rail and the kernel
-      // rate-limit default. Not a guard trip (a dependency outage, not a policy
-      // refusal of untrusted input), so no IsthmusGuardTripped emission.
+      // Backend outage under fail-closed: map whatever the seam threw (the kernel
+      // DependencyUnavailableException, or the raw store error via the passthrough
+      // default) back to the AI code space, mirroring classifyReserveError's
+      // E_DEPENDENCY_UNAVAILABLE -> rate_limit_unavailable so the code space stays
+      // total. Not a guard trip (a dependency outage, not a policy refusal of
+      // untrusted input), so no IsthmusGuardTripped emission.
       throw new AIException('rate_limit_unavailable', 'the AI rate limiter backend is unavailable')
     }
 

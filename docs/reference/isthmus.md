@@ -107,10 +107,66 @@ dispatch increments the dropped counter with a reason:
 |---|---|---|
 | `multitenancy_isthmus_guarded_total` | `pillar`, `severity` | Guard trips, rolled up |
 | `multitenancy_isthmus_rejected_total` | `pillar`, `severity`, `id` | Guard trips, per guard |
-| `multitenancy_isthmus_dropped_total` | `severity`, `reason` | Dispatches suppressed (`rate_limited`) or failed (`no_emitter`) |
+| `multitenancy_isthmus_dropped_total` | `severity`, `reason` | Dispatches suppressed (`rate_limited`), failed (`no_emitter`), or broadcast with clipped metadata (`metadata_bounded`) |
 | `multitenancy_isthmus_index` | | Registered guard coverage: registered / (registered + allowlisted silent) |
 
 All four families render on the guarded [`/metrics` endpoint](/guides/health).
+
+## The listener trust boundary
+
+`IsthmusGuardTripped` is broadcast process-wide, and any plugin can subscribe to it. So
+the event is a disclosure surface, and the shield treats it as one:
+
+- **The event never carries a raw foreign tenant id.** A guard whose context involves a
+  *second* tenant (the ContextSeal's mismatched request id, a scope-mismatch's active
+  scope) tokenizes that id before it goes into `metadata`: the broadcast carries a
+  stable, non-reversible correlation token (`ttok_…`, an HMAC keyed off `APP_KEY`), not
+  the id. An operator still sees that the same foreign tenant recurs and can correlate
+  the two sides of one confusion event, without learning *which* tenant it is. The
+  precise ids stay server-side, in the typed exception the host catches and in the
+  tenant-scoped audit log.
+- **Metadata is bounded.** At the single emit seam, the metadata bag is clipped to at
+  most 16 keys and 256 characters per string value, so a guard fed attacker-influenced
+  input cannot push a large or high-cardinality bag onto every listener. A clip is
+  counted (`dropped{…, metadata_bounded}`), never silent. These bounds are fixed, not
+  host-configurable, for the same reason the dispatch budgets are.
+
+The `tenantId` field on the event is the tenant *of record* for the trip (the tenant
+whose context is active), by design, so a host can attribute the trip. It is never a
+foreign id.
+
+## Attacker-reachable guards (count-only)
+
+A guard reachable at high volume from unauthenticated or pre-tenant request input is
+classified `dispatchPolicy: 'count-only'` in its registry entry. It records on the
+counters but never broadcasts the event, so a flood of it can never consume its
+severity's shared dispatch window and starve a co-severity security guard's alerts for
+*other* tenants. `guard.tenant_identifier` is the kernel example: a lax custom resolver
+could feed unsafe ids on every request, so broadcasting would hand an attacker a way to
+suppress SSRF/RLS/webhook alerts.
+
+The signal is not lost. The trip still lands on `multitenancy_isthmus_rejected_total`
+(and the throwing path still throws, aborting the operation), so **alert on the counter,
+not the event, for a count-only guard**:
+
+```promql
+# A sustained rise in identifier rejections is a probe (or a broken custom resolver).
+rate(multitenancy_isthmus_rejected_total{id="guard.tenant_identifier"}[5m]) > 0
+```
+
+Per-tenant dispatch sub-budgets are deliberately rejected: an attacker with many ids
+would grow the window map without bound, trading one denial-of-service for another.
+
+## The connection ceiling is unbypassable
+
+The Isthmus shield extends to resource exhaustion. The absolute connection ceiling
+(`isolation.maxTenantConnectionsHardCeiling`) always refuses a new connection once
+reached, for *every* path including operational ones (provisioning, migrations,
+seeding). Only the soft cap (`enforceConnectionCap`) is bypassable, via the internal
+`bypassSoftCap` flag. Bulk/parallel operational paths draw from a ceiling-derived
+[`operationalConnectionBudget`](/reference/configuration#isolation), so no path can push
+the pool past the ceiling and exhaust PostgreSQL. See
+[Configuration](/reference/configuration#isolation) for the knobs.
 
 ## The audit-coverage Index
 
@@ -169,6 +225,32 @@ list and a subscription example.
   `no_emitter`).
 - **Fabricated evidence.** Registry entries cite a real CVE, incident, inherent risk,
   or invariant, or they do not exist.
+
+### Performance-optimization proposals rejected at the root
+
+Two speculative "make the Isthmus faster" roadmaps were validated against the source and
+mostly rejected, either because the premise was false or because the change would weaken
+a guarantee. Recorded here so they are not re-litigated:
+
+- **"The Isthmus adds 3–5 ms per request."** Unmeasured and misattributed. The
+  ContextSeal is a string compare over the request memo (nanoseconds), the counter and
+  limiter machinery runs only on a guard *trip*, and the RLS GUC is one bound-parameter
+  `set_config` per transaction. The only real per-request cost is a cold-connection
+  cliff on the *first* query for an idle tenant, which is connection registration, not
+  the Isthmus. Leanness is now a tested op-count invariant (`@guarantees/performance`),
+  not a guess.
+- **Hashing/interning/short-circuiting the seal compare.** The seal is already a
+  nanosecond `!==`; these add cost or risk to an I/O-bound path for no measurable gain.
+- **Batching audit writes with `COPY`.** Breaks the per-row hash-chain, the
+  `pg_advisory_xact_lock`, and the `UNIQUE(tenant_id, seq)` WORM guarantee. The ledger's
+  integrity is worth more than the write throughput.
+- **A resolution cache.** Already exists (`TenantResolutionCache`: id-keyed, TTL, LRU,
+  event-invalidated). Re-adding one is a no-op.
+- **`SharedArrayBuffer` sliding-window atomics.** Node is single-threaded per process
+  and each layer keeps its own window on purpose; shared atomics buy nothing and would
+  let one layer's burst consume another's budget.
+- **Object-pooling the event payload.** The payload is read by async listeners *after*
+  `emit()` returns, so reuse would hand a listener a mutated object.
 
 ## Read next
 

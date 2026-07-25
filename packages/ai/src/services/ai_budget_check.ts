@@ -1,6 +1,8 @@
 import type { DoctorCheck, DiagnosisIssue } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { MultitenancyConfigWithAi } from '../define_config.js'
 import { AI_TOKENS_QUOTA } from '../constants.js'
+import AIException from '../exceptions/ai_exception.js'
+import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 
 /** A budget posture: an issue naming the metering risk, or null when healthy. */
 export interface AiBudgetPosture {
@@ -74,6 +76,25 @@ export function aiTokensBudgetPosture(
       `${AI_TOKENS_QUOTA} has no per-plan budget and no plans.operatorCeiling.${AI_TOKENS_QUOTA}: the AI cost ` +
       `governor is inert and the endpoint runs unmetered (denial-of-wallet exposure). Budget it in config.plans ` +
       `or set config.ai.acknowledgeUnbudgetedAiTokens: true`,
+  }
+}
+
+/**
+ * The boot-time enforcement of the metering posture: a provably-unbudgeted,
+ * unacknowledged, non-dynamic `aiTokens` quota is a FAIL-CLOSED boot abort, not a
+ * warning that scrolls past. This is the same default-deny posture the membership
+ * mount uses: an AI cost surface must not run unmetered unless the operator says so
+ * IN WRITING (`config.ai.acknowledgeUnbudgetedAiTokens: true`, which downgrades the
+ * posture to `info` and lets boot proceed). ONLY the `warn` severity aborts: the
+ * dynamic-plan and operator-ceiling cases are `info` (a static read cannot see a
+ * dynamic budget) and must never false-abort. Emits `guard.ai_config_invalid` before
+ * throwing, so the abort rides the same operator-facing channel as a bad config shape.
+ */
+export function assertAiTokensBudgetOrAbort(config: MultitenancyConfigWithAi | undefined): void {
+  const posture = aiTokensBudgetPosture(config)
+  if (posture?.severity === 'warn') {
+    emitAiGuardEvent('guard.ai_config_invalid', { metadata: { reason: posture.code } })
+    throw new AIException('config_missing', `[ai] ${posture.message}`)
   }
 }
 

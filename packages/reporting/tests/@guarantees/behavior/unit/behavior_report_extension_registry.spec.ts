@@ -51,8 +51,16 @@ test.group('ReportExtensionRegistry', () => {
   })
 })
 
+// `contractVersion` is an optional property, so "absent" means the key is not
+// there at all, not a key holding undefined. Spread it in only when we have one,
+// otherwise the "absent version" case would be testing the wrong shape.
 function versioned(name: string, contractVersion?: number): ReportExtension {
-  return { name, description: name, contractVersion, execute: async () => ({ ok: name }) }
+  return {
+    name,
+    description: name,
+    ...(contractVersion === undefined ? {} : { contractVersion }),
+    execute: async () => ({ ok: name }),
+  }
 }
 
 test.group('ReportExtensionRegistry — contractVersion compatibility', () => {
@@ -80,7 +88,7 @@ test.group('ReportExtensionRegistry — contractVersion compatibility', () => {
     reg.register(versioned('legacy', 1))
     assert.isTrue(reg.has('legacy'))
     assert.lengthOf(warnings, 1)
-    assert.match(warnings[0], /built for extension contract v1/)
+    assert.match(warnings[0]!, /built for extension contract v1/)
   })
 
   test('absent version → warns (unversioned) but registers', ({ assert }) => {
@@ -89,6 +97,6 @@ test.group('ReportExtensionRegistry — contractVersion compatibility', () => {
     reg.register(versioned('unversioned', undefined))
     assert.isTrue(reg.has('unversioned'))
     assert.lengthOf(warnings, 1)
-    assert.match(warnings[0], /does not declare a contractVersion/)
+    assert.match(warnings[0]!, /does not declare a contractVersion/)
   })
 })

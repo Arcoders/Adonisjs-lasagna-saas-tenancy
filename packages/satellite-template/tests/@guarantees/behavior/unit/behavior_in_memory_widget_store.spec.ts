@@ -16,7 +16,7 @@ test.group('InMemoryWidgetStore (satellite template)', () => {
     await store.create({ tenantId: 't2', name: 'beta' })
     const t1 = await store.listForTenant('t1')
     assert.lengthOf(t1, 1)
-    assert.equal(t1[0].name, 'alpha')
+    assert.equal(t1[0]?.name, 'alpha')
   })
 
   test('setEnabled patches and get reflects it', async ({ assert }) => {

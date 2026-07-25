@@ -4,10 +4,11 @@ import { hashAuditPrincipal } from '../gateway/audit_seam.js'
 import type ConversationMemoryService from './conversation_memory_service.js'
 import type VectorStoreService from './vector_store_service.js'
 import type AiIdempotencyService from '../gateway/idempotency.js'
+import type { AiRedisLock } from './redis_seam.js'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
- * The WS-AI-9 compliance orchestrator: composes the existing purge seams into
+ * The compliance orchestrator: composes the existing purge seams into
  * GDPR-grade erasure of a tenant's or a principal's AI data.
  *
  * Design (locked across three reviews):
@@ -15,16 +16,16 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
  *    the raw response frames, and is verifiably fail-closed). Then memory, then
  *    embeddings. Every step is best-effort-CONTINUE with an HONEST per-step
  *    summary (`ok` | `failed` | `skipped`), so a failure in one store never
- *    silently skips the others and never falsely claims success (E22). All
+ *    silently skips the others and never falsely claims success. All
  *    deletes are idempotent, so a non-zero exit + retry converges.
  *  - Vector work runs inside `tenancy.run(tenant)` so the raw-SQL ContextSeal
- *    ACTIVELY protects against a wrong tenant (E16); a per-tenant Redis lock
- *    stops two concurrent purges double-firing the audit + counters (E15).
- *  - The admin action is recorded via the KERNEL audit best-effort (E20/decision
- *    4), never the fail-closed AI chain (which would throw AFTER data is gone).
+ *    ACTIVELY protects against a wrong tenant; a per-tenant Redis lock
+ *    stops two concurrent purges double-firing the audit + counters.
+ *  - The admin action is recorded via the KERNEL audit best-effort,
+ *    never the fail-closed AI chain (which would throw AFTER data is gone).
  *  - The auto-purge path (tenant lifecycle) is NON-throwing but emits
  *    `guard.ai_auto_purge_failed` + a metric, so a silent failed erasure is
- *    impossible (E6).
+ *    impossible.
  *
  * Stateful only through its injected seams (a container singleton), and it never
  * value-imports the eager core barrel: `tenancy.run` and the kernel audit arrive
@@ -64,9 +65,9 @@ export interface PurgeSummary {
 }
 
 export interface AiCompliancePurgeOptions {
-  /** The operator identity for the kernel audit row (E20). */
+  /** The operator identity for the kernel audit row. */
   readonly actorId?: string | null
-  /** Run a FULL audit-chain verify and fold its result into the audit metadata (E10). Default off (a full walk is O(n)). */
+  /** Run a FULL audit-chain verify and fold its result into the audit metadata. Default off (a full walk is O(n)). */
   readonly verifyChain?: boolean
 }
 
@@ -74,13 +75,13 @@ export interface AiComplianceDeps {
   readonly memory: ConversationMemoryService
   readonly vectorStore: VectorStoreService
   readonly idempotency: AiIdempotencyService
-  /** Run `fn` with `tenant` bound as the active tenancy scope (kernel `tenancy.run`), so the vector ContextSeal actively protects (E16). */
+  /** Run `fn` with `tenant` bound as the active tenancy scope (kernel `tenancy.run`), so the vector ContextSeal actively protects. */
   readonly runScoped: <T>(tenant: TenantModelContract, fn: () => Promise<T>) => Promise<T>
   /** Whether embeddings are configured; when false the vector step is skipped (no table to purge). */
   readonly embeddingsEnabled: boolean
-  /** Raw Redis accessor (the `'redis'` binding) for the per-tenant purge dedup lock (E15). */
-  readonly getRedis: () => Promise<any>
-  /** Best-effort kernel audit of the admin action (E20); absent ⇒ no audit row. */
+  /** Raw Redis accessor (the `'redis'` binding) for the per-tenant purge dedup lock. */
+  readonly getRedis: () => Promise<AiRedisLock>
+  /** Best-effort kernel audit of the admin action; absent ⇒ no audit row. */
   readonly auditLog?: (options: {
     tenantId: string
     actorType: 'admin'
@@ -88,7 +89,7 @@ export interface AiComplianceDeps {
     action: string
     metadata: Record<string, unknown>
   }) => Promise<unknown>
-  /** Full AI-audit-chain verify (AiAuditWriter.verify), used only under `verifyChain` (E10). */
+  /** Full AI-audit-chain verify (AiAuditWriter.verify), used only under `verifyChain`. */
   readonly verifyAuditChain?:
     | ((tenantId: string) => Promise<{ ok: boolean; checked: number }>)
     | undefined
@@ -179,10 +180,10 @@ export default class AiComplianceService {
   }
 
   /**
-   * The tenant-lifecycle auto-purge (E6/E19). Redis-resident data ONLY (cache
+   * The tenant-lifecycle auto-purge. Redis-resident data ONLY (cache
    * epoch + memory): on `tenant_deleted` the schema is already dropped (so no
-   * vector call), and on `tenant_anonymized` embeddings are kept by design
-   * (decision 1). NON-throwing (the core command already committed), but a
+   * vector call), and on `tenant_anonymized` embeddings are kept by design.
+   * NON-throwing (the core command already committed), but a
    * failure emits `guard.ai_auto_purge_failed` + a metric so it is never silent.
    */
   async autoPurge(
@@ -245,7 +246,7 @@ export default class AiComplianceService {
   }
 
   /**
-   * The `bumpEpoch` gate (decision 5): the cache-epoch rotation runs FIRST and
+   * The `bumpEpoch` gate: the cache-epoch rotation runs FIRST and
    * must succeed before any store is deleted. If it failed, the deletes are not
    * attempted: a clean abort (nothing half-done) that the operator retries, so
    * a purge never starts without first making pre-purge responses unreachable.
@@ -265,7 +266,7 @@ export default class AiComplianceService {
       steps.push({ step: name, status: 'ok', count: typeof count === 'number' ? count : undefined })
     } catch (error) {
       const code = error instanceof AIException ? error.aiCode : undefined
-      // Attach a partial deleted count when a mid-scan memory purge threw (E18).
+      // Attach a partial deleted count when a mid-scan memory purge threw.
       const partial = (error as { deletedCount?: number } | null)?.deletedCount
       steps.push({
         step: name,
@@ -287,7 +288,7 @@ export default class AiComplianceService {
       steps.push({ step: 'embeddings', status: 'ok', count })
     } catch (error) {
       const code = error instanceof AIException ? error.aiCode : undefined
-      // A rowscope tenant physically has no embeddings table (I1), so a refusal
+      // A rowscope tenant physically has no embeddings table, so a refusal
       // there is "nothing to purge", not a failure.
       const status: PurgeStepStatus = code === 'rowscope_unsupported' ? 'skipped' : 'failed'
       steps.push({ step: 'embeddings', status, code: code ?? 'error' })
@@ -314,7 +315,7 @@ export default class AiComplianceService {
     return { tenantId: tenant.id, scope, steps, ok }
   }
 
-  /** Best-effort kernel audit of the purge action (E20). A write failure warns + counts, never flips the purge. */
+  /** Best-effort kernel audit of the purge action. A write failure warns + counts, never flips the purge. */
   async #auditPurge(
     tenant: TenantModelContract,
     scope: PurgeScope,

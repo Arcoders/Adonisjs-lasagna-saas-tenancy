@@ -32,3 +32,8 @@ export { default as TenantAdapter } from '../../../packages/core/build/src/model
 export { withTenantScope } from '../../../packages/core/build/src/models/scoping.js'
 
 export { __configureTenancyForTests } from '../../../packages/core/build/src/tenancy.js'
+
+// Isthmus guard-audit + tenant-id tokenization: pure-CPU, bare-safe (no app), so
+// they price the shield's per-trip machinery without an Ignitor.
+export { createGuardAudit } from '../../../packages/core/build/src/sdk/guard_audit.js'
+export { tokenizeTenantId } from '../../../packages/core/build/src/sdk/tenant_token.js'

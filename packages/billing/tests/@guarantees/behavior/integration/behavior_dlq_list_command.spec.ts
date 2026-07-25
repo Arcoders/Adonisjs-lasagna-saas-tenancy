@@ -80,11 +80,11 @@ test.group('tenant:billing:dlq:list (integration)', (group) => {
 
     const parsed = parseJson(out)
     assert.equal(parsed.count, 1, 'only the failed row is reported')
-    assert.equal(parsed.events[0].event_id, 'evt_dlq_1')
-    assert.equal(parsed.events[0].provider, 'paddle')
-    assert.equal(parsed.events[0].event_type, 'subscription.upsert')
-    assert.equal(parsed.events[0].attempts, 7)
-    assert.isAbove(parsed.events[0].age_seconds as number, 0)
+    assert.equal(parsed.events[0]?.event_id, 'evt_dlq_1')
+    assert.equal(parsed.events[0]?.provider, 'paddle')
+    assert.equal(parsed.events[0]?.event_type, 'subscription.upsert')
+    assert.equal(parsed.events[0]?.attempts, 7)
+    assert.isAbove(parsed.events[0]?.age_seconds as number, 0)
 
     // Read-only: the failed row is untouched.
     const row = await BillingProcessedEvent.find('evt_dlq_1')

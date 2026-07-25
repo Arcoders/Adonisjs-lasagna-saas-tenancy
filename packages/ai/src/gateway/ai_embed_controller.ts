@@ -32,14 +32,14 @@ export interface AiEmbedControllerDeps {
   ingestion: EmbeddingIngestionService
   liveness: TenantLivenessWatcher
   config: AiConfig | undefined
-  /** The per-key request rate limiter (threat #4). Default: a disabled limiter. */
+  /** The per-key request rate limiter. Default: a disabled limiter. */
   rateLimiter?: AiRateLimiter
-  /** The WS-AI-7 attribution seam. Default: the no-op sink. */
+  /** The attribution seam. Default: the no-op sink. */
   audit?: AiEmbeddingAuditSink | undefined
 }
 
 /**
- * The `/ai/embed` ingest choke point (WS-AI-3), mirroring the chat controller's
+ * The `/ai/embed` ingest choke point, mirroring the chat controller's
  * sequence: authorize FIRST (a denied caller reserves nothing), then the write
  * gate, then validate the body, rate-limit the provider key, and hand a
  * validated request to the ingestion service (which owns reserve/embed/store/
@@ -54,7 +54,7 @@ export default class AiEmbedController {
     const ai = this.deps.config
 
     // 1. Tenant + membership gate + the ingestion write gate + data residency
-    //    (403s, before any cost). Residency (#7/#15) refuses shipping documents
+    //    (403s, before any cost). Residency refuses shipping documents
     //    to a remote embedding backend when the tenant is `local-only`, before
     //    the rate limiter, so a refused caller spends nothing.
     const tenant = await resolveRequestTenant(ctx)
@@ -74,7 +74,7 @@ export default class AiEmbedController {
 
     const liveness = this.deps.liveness.acquire(tenant.id)
     try {
-      // 3. Per-key request rate limit (threat #4), before any reservation or byte.
+      // 3. Per-key request rate limit, before any reservation or byte.
       await (this.deps.rateLimiter ?? DISABLED_AI_RATE_LIMITER).check({
         op: 'embed',
         tenantId: tenant.id,
@@ -169,7 +169,7 @@ function invalid(message: string): never {
  * Validate the embed body shape and bounds before any reservation or provider
  * call. `source` is required; `input` is an array of non-empty chunks bounded by
  * `maxChunkChars` and `maxBatchChunks`; a request must carry at least one of
- * `input` or `sourceUrl`. Error messages name the field, never echo content (G3).
+ * `input` or `sourceUrl`. Error messages name the field, never echo content.
  */
 function parseEmbedBody(raw: unknown, embedding: AIEmbeddingConfig | undefined): EmbedBody {
   if (typeof raw !== 'object' || raw === null) {

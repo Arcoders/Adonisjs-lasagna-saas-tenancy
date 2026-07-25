@@ -1,7 +1,11 @@
 import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import AIException from '../exceptions/ai_exception.js'
-import { assertNever } from '@adonisjs-lasagna/saas-tenancy/sdk'
-import { AI_EMBEDDINGS_TABLE } from '../constants.js'
+import {
+  assertNever,
+  isDependencyOutageError,
+  tokenizeTenantId,
+} from '@adonisjs-lasagna/saas-tenancy/sdk'
+import { AI_EMBEDDINGS_TABLE, AI_EMBEDDING_CONTENT_UNDECRYPTABLE_METRIC } from '../constants.js'
 import type { RetrievalScope } from '../define_config.js'
 import type { TableLocation } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
@@ -21,7 +25,7 @@ export interface VectorDb {
   connection(name: string): VectorQueryClient
 }
 
-/** The isolation driver surface the store needs: just placement resolution (SEAM-1). */
+/** The isolation driver surface the store needs: just placement resolution. */
 export interface VectorStoreDriver {
   readonly name: string
   tableLocation(tenant: TenantModelContract): TableLocation
@@ -43,16 +47,36 @@ export interface VectorStoreDeps {
   /** The migrated `vector(N)` dimension every stored/queried vector must match. */
   dimension: number
   /**
-   * Per-BATCH `statement_timeout` (ms) for the WS-AI-9 batched purge (E4/E21).
+   * Per-BATCH `statement_timeout` (ms) for the batched purge.
    * Bounds a single lock-blocked or runaway batch so it fails cleanly and the
    * loop retries; it is NOT a wall clock on the whole erasure (that must run to
    * completion). Absent ⇒ the connection default applies (no per-batch timeout).
    */
   purgeStatementTimeoutMs?: number | undefined
+  /**
+   * Content-at-rest seal/open (GATED). Injected by the provider ONLY when the
+   * host selects `encryptContent`/`encryptMetadata` and the crypto peer is installed, so
+   * the store stays crypto-primitive-free. Absent ⇒ the columns are plaintext (today's
+   * behavior). `seal` produces enc_v2 ciphertext under the per-tenant embeddings DEK
+   * before a value is bound into the INSERT; `open` reverses it on the O(limit) rows a
+   * search returns. The vector column is NEVER sealed (ANN search needs it).
+   */
+  sealContent?: ((tenantId: string, plaintext: string) => Promise<string>) | undefined
+  openContent?: ((tenantId: string, ciphertext: string) => Promise<string>) | undefined
+  /** Seal the `content` column at rest. Default false. Only takes effect with {@link sealContent} wired. */
+  encryptContent?: boolean | undefined
+  /**
+   * Also seal the `metadata` column at rest. Default false. When true, a metadata-scoped
+   * retrieval is refused fail-closed (`guard.ai_embedding_metadata_scope_conflict`): the
+   * `metadata @> ?::jsonb` containment cannot run over ciphertext.
+   */
+  encryptMetadata?: boolean | undefined
+  /** Best-effort per-tenant metric sink (default MetricsService), for the content-undecryptable search drop. */
+  emitMetric?: ((tenantId: string, name: string, value: number) => void) | undefined
 }
 
 /**
- * Rows deleted per batch in the WS-AI-9 purge loop (E4/E12). A full-tenant or
+ * Rows deleted per batch in the purge loop. A full-tenant or
  * per-actor erasure of a multi-million-row HNSW table cannot be one `DELETE`
  * (a long lock, and a `statement_timeout` would roll it back and delete
  * nothing), so it runs as a `ctid IN (SELECT … LIMIT N)` loop, each batch a
@@ -85,12 +109,12 @@ export interface VectorMatch {
 }
 
 /**
- * The per-tenant vector store (WS-AI-3). It NEVER hardcodes a location: it asks
- * the active driver `tableLocation(tenant)` (SEAM-1) where the tenant's
+ * The per-tenant vector store. It NEVER hardcodes a location: it asks
+ * the active driver `tableLocation(tenant)` where the tenant's
  * embeddings physically live, and runs parameterized raw SQL on that connection
  * with the bare {@link AI_EMBEDDINGS_TABLE} name, which resolves into the tenant
  * schema/database through the connection's search_path. Two structural
- * guarantees back isolation (I1): a satellite ContextSeal (raw SQL bypasses the
+ * guarantees back isolation: a satellite ContextSeal (raw SQL bypasses the
  * kernel one) refuses a query whose tenant differs from the active scope, and
  * `rowscope-pg` is refused outright (logical isolation is too weak a placement
  * for inversion-sensitive embeddings). Stateful only through the injected db, so
@@ -100,11 +124,46 @@ export default class VectorStoreService {
   constructor(private readonly deps: VectorStoreDeps) {}
 
   /**
+   * The one boundary every raw DB call funnels through, so a mid-query BACKEND
+   * OUTAGE (the pg connection died, the pool is exhausted, the server is shutting
+   * down) becomes a single typed, retryable `vector_store_unavailable` (503) instead
+   * of an opaque untyped 500 that every caller would otherwise have to map itself. A
+   * real query error (bad SQL, a constraint, a domain `AIException` thrown deeper in a
+   * transaction) is NOT an outage, so it propagates unchanged. Not a guard trip: an
+   * infrastructure outage is not a policy refusal of untrusted input, consistent with
+   * the resilience wave.
+   */
+  async #execOutageGuard<T>(op: () => Promise<T>): Promise<T> {
+    try {
+      return await op()
+    } catch (error) {
+      if (isDependencyOutageError(error)) {
+        throw new AIException(
+          'vector_store_unavailable',
+          'the AI vector store database is unavailable',
+          { cause: error }
+        )
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Funnel one raw query through {@link #execOutageGuard}. Takes a
+   * {@link VectorQueryClient}, so it covers BOTH the plain connection and an
+   * in-transaction `trx` (both satisfy the interface): every `rawQuery` in this file
+   * goes through here, and there is no other raw path.
+   */
+  #exec(client: VectorQueryClient, sql: string, bindings?: readonly unknown[]): Promise<unknown> {
+    return this.#execOutageGuard(() => client.rawQuery(sql, bindings))
+  }
+
+  /**
    * Store `chunks` (all under one `source`) idempotently. `ON CONFLICT (source,
    * content_hash) DO NOTHING` makes a re-ingest of identical content a no-op, so
    * a client retry or a concurrent duplicate cannot double-insert. When
    * `maxCount` is finite, the count check and the insert run inside one
-   * advisory-locked transaction (#18), so two concurrent ingests cannot both
+   * advisory-locked transaction, so two concurrent ingests cannot both
    * pass a stale count and overshoot the plan limit. Returns the ids of every
    * row (freshly inserted or already present), aligned to `chunks`, plus how
    * many were newly inserted.
@@ -119,73 +178,91 @@ export default class VectorStoreService {
     const { client, table } = await this.#target(tenant)
     for (const chunk of chunks) this.#assertVector(tenant, chunk.embedding)
 
-    const maxCount = opts.maxCount
-    return client.transaction(async (trx) => {
-      // Serialize only this tenant's count+insert critical section; released at
-      // commit. No table lock, no SERIALIZABLE retry storms.
-      await trx.rawQuery('SELECT pg_advisory_xact_lock(hashtext(?))', [
-        `ai_embeddings_cap:${tenant.id}`,
-      ])
+    // Seal content (and, if configured, metadata) BEFORE opening the
+    // advisory-locked transaction, so a KeyProvider/KMS round-trip never runs while
+    // holding the per-tenant lock. A seal failure fails the ingest CLOSED (typed 503)
+    // with nothing written: plaintext must never land in a column declared encrypted.
+    // `content_hash` is untouched (it hashed caller plaintext upstream), so dedup holds.
+    const sealed = await this.#sealChunks(tenant.id, chunks)
+    const metaPlaceholder = this.deps.encryptMetadata === true ? 'to_jsonb(?::text)' : '?::jsonb'
 
-      if (maxCount !== undefined && Number.isFinite(maxCount)) {
-        // safe-sql: `table` is a fixed module constant; no user input.
-        const countRes = await trx.rawQuery(`SELECT count(*)::int AS n FROM ${table}`)
-        const current = Number(rowsOf(countRes)[0]?.n ?? 0)
-        if (current + chunks.length > maxCount) {
-          emitAiGuardEvent('guard.ai_embedding_quota_exhausted', {
-            tenantId: tenant.id,
-            metadata: { current, requested: chunks.length, limit: maxCount },
-          })
-          throw new AIException(
-            'embedding_quota_exhausted',
-            `Refusing to store ${chunks.length} embedding(s): tenant is at ${current}/${maxCount} (plan limit embeddingCount).`
+    const maxCount = opts.maxCount
+    // The transaction OPENER is guarded too, not just the queries inside it: an
+    // outage can strike while acquiring the connection / issuing BEGIN, before the
+    // first #exec runs. A domain AIException thrown inside (the embeddingCount cap)
+    // is not an outage, so it passes through unchanged.
+    return this.#execOutageGuard(() =>
+      client.transaction(async (trx) => {
+        // Serialize only this tenant's count+insert critical section; released at
+        // commit. No table lock, no SERIALIZABLE retry storms.
+        await this.#exec(trx, 'SELECT pg_advisory_xact_lock(hashtext(?))', [
+          `ai_embeddings_cap:${tenant.id}`,
+        ])
+
+        if (maxCount !== undefined && Number.isFinite(maxCount)) {
+          // safe-sql: `table` is a fixed module constant; no user input.
+          const countRes = await this.#exec(trx, `SELECT count(*)::int AS n FROM ${table}`)
+          const current = Number(rowsOf(countRes)[0]?.n ?? 0)
+          if (current + chunks.length > maxCount) {
+            emitAiGuardEvent('guard.ai_embedding_quota_exhausted', {
+              tenantId: tenant.id,
+              metadata: { current, requested: chunks.length, limit: maxCount },
+            })
+            throw new AIException(
+              'embedding_quota_exhausted',
+              `Refusing to store ${chunks.length} embedding(s): tenant is at ${current}/${maxCount} (plan limit embeddingCount).`
+            )
+          }
+        }
+
+        const valuesSql = chunks
+          .map(() => `(?, ?, ?, ${metaPlaceholder}, ?, ?, ?, ?::vector)`)
+          .join(', ')
+        const insertBindings: unknown[] = []
+        for (const [i, chunk] of chunks.entries()) {
+          insertBindings.push(
+            source,
+            chunk.contentHash,
+            sealed[i]!.content,
+            sealed[i]!.metadata,
+            chunk.model,
+            this.deps.dimension,
+            chunk.actor,
+            toPgVector(chunk.embedding)
           )
         }
-      }
-
-      const valuesSql = chunks.map(() => '(?, ?, ?, ?::jsonb, ?, ?, ?, ?::vector)').join(', ')
-      const insertBindings: unknown[] = []
-      for (const chunk of chunks) {
-        insertBindings.push(
-          source,
-          chunk.contentHash,
-          chunk.content,
-          JSON.stringify(chunk.metadata ?? {}),
-          chunk.model,
-          this.deps.dimension,
-          chunk.actor,
-          toPgVector(chunk.embedding)
+        // safe-sql: `table` is a fixed module constant; every value is a ? bind and the placeholder groups carry no user data.
+        const insertRes = await this.#exec(
+          trx,
+          `INSERT INTO ${table} (source, content_hash, content, metadata, model, dim, actor, embedding) ` +
+            `VALUES ${valuesSql} ON CONFLICT (source, content_hash) DO NOTHING RETURNING content_hash`,
+          insertBindings
         )
-      }
-      // safe-sql: `table` is a fixed module constant; every value is a ? bind and the placeholder groups carry no user data.
-      const insertRes = await trx.rawQuery(
-        `INSERT INTO ${table} (source, content_hash, content, metadata, model, dim, actor, embedding) ` +
-          `VALUES ${valuesSql} ON CONFLICT (source, content_hash) DO NOTHING RETURNING content_hash`,
-        insertBindings
-      )
-      const inserted = rowsOf(insertRes).length
+        const inserted = rowsOf(insertRes).length
 
-      const hashes = chunks.map((chunk) => chunk.contentHash)
-      const inPlaceholders = hashes.map(() => '?').join(', ')
-      // safe-sql: `table` is a fixed module constant; `source` and every hash are ? binds and the placeholders carry no user data.
-      const idRes = await trx.rawQuery(
-        `SELECT id, content_hash FROM ${table} WHERE source = ? AND content_hash IN (${inPlaceholders})`,
-        [source, ...hashes]
-      )
-      const idByHash = new Map<string, string>()
-      for (const row of rowsOf(idRes)) idByHash.set(String(row.content_hash), String(row.id))
-      const ids = chunks
-        .map((chunk) => idByHash.get(chunk.contentHash))
-        .filter((id): id is string => typeof id === 'string')
-      return { ids, inserted }
-    })
+        const hashes = chunks.map((chunk) => chunk.contentHash)
+        const inPlaceholders = hashes.map(() => '?').join(', ')
+        // safe-sql: `table` is a fixed module constant; `source` and every hash are ? binds and the placeholders carry no user data.
+        const idRes = await this.#exec(
+          trx,
+          `SELECT id, content_hash FROM ${table} WHERE source = ? AND content_hash IN (${inPlaceholders})`,
+          [source, ...hashes]
+        )
+        const idByHash = new Map<string, string>()
+        for (const row of rowsOf(idRes)) idByHash.set(String(row.content_hash), String(row.id))
+        const ids = chunks
+          .map((chunk) => idByHash.get(chunk.contentHash))
+          .filter((id): id is string => typeof id === 'string')
+        return { ids, inserted }
+      })
+    )
   }
 
   /**
    * Nearest `limit` rows for `query`, scoped by (model, dim) so a model swap can
-   * never mis-rank, and NARROWED by an optional `filter` (WS-AI-5, G2): the
+   * never mis-rank, and NARROWED by an optional `filter`: the
    * per-user document ACL the retrievalFilter hook resolved. The (model, dim)
-   * scope and the tenant placement (I1) are mandatory and always applied; the
+   * scope and the tenant placement are mandatory and always applied; the
    * filter only removes rows a user may not see, it can never widen the corpus.
    * A `sources` allow-list with no entries authorizes zero documents, so the
    * search returns without a query (an empty `IN ()` is not valid SQL, and a read
@@ -198,30 +275,39 @@ export default class VectorStoreService {
   ): Promise<VectorMatch[]> {
     const filter = opts.filter ?? { kind: 'all' }
     if (filter.kind === 'sources' && filter.sources.length === 0) return []
+    // HARD CONSTRAINT: a metadata-scoped read cannot run over encrypted metadata
+    // (the `metadata @> ?::jsonb` containment has no meaning on ciphertext), so refuse it
+    // fail-closed rather than silently return zero rows (a silent wrong answer is worse
+    // than a loud refusal).
+    if (filter.kind === 'metadata' && this.deps.encryptMetadata === true) {
+      emitAiGuardEvent('guard.ai_embedding_metadata_scope_conflict', { tenantId: tenant.id })
+      throw new AIException(
+        'embedding_metadata_scope_conflict',
+        "Refusing a metadata-scoped retrieval: this tenant's embedding metadata is encrypted " +
+          'at rest, so a metadata containment filter cannot run. Use a source scope, or do not ' +
+          'enable config.ai.embedding.encryptMetadata.'
+      )
+    }
 
     const { client, table } = await this.#target(tenant)
     this.#assertVector(tenant, query.vector)
     const vec = toPgVector(query.vector)
     const scope = scopeClause(filter)
     // safe-sql: `table` is a fixed module constant; every value (the query vector, model, dim, the scope-predicate values, limit) is a ? bind and the scope placeholders carry no user data.
-    const res = await client.rawQuery(
+    const res = await this.#exec(
+      client,
       `SELECT id, content, metadata, (embedding <=> ?::vector) AS distance FROM ${table} ` +
         `WHERE model = ? AND dim = ?${scope.clause} ORDER BY embedding <=> ?::vector LIMIT ?`,
       [vec, query.model, this.deps.dimension, ...scope.bindings, vec, opts.limit]
     )
-    return rowsOf(res).map((row) => ({
-      id: String(row.id),
-      content: String(row.content),
-      metadata: row.metadata,
-      distance: Number(row.distance),
-    }))
+    return this.#decodeMatches(tenant.id, rowsOf(res))
   }
 
-  /** How many embedding rows the tenant currently stores (the #18 gauge source of truth). */
+  /** How many embedding rows the tenant currently stores (the embedding-count gauge source of truth). */
   async count(tenant: TenantModelContract): Promise<number> {
     const { client, table } = await this.#target(tenant)
     // safe-sql: `table` is a fixed module constant; no user input.
-    const res = await client.rawQuery(`SELECT count(*)::int AS n FROM ${table}`)
+    const res = await this.#exec(client, `SELECT count(*)::int AS n FROM ${table}`)
     return Number(rowsOf(res)[0]?.n ?? 0)
   }
 
@@ -229,9 +315,11 @@ export default class VectorStoreService {
   async countByActor(tenant: TenantModelContract, actorHash: string): Promise<number> {
     const { client, table } = await this.#target(tenant)
     // safe-sql: `table` is a fixed module constant; `actor` is a ? bind.
-    const res = await client.rawQuery(`SELECT count(*)::int AS n FROM ${table} WHERE actor = ?`, [
-      actorHash,
-    ])
+    const res = await this.#exec(
+      client,
+      `SELECT count(*)::int AS n FROM ${table} WHERE actor = ?`,
+      [actorHash]
+    )
     return Number(rowsOf(res)[0]?.n ?? 0)
   }
 
@@ -239,23 +327,25 @@ export default class VectorStoreService {
   async countBySource(tenant: TenantModelContract, source: string): Promise<number> {
     const { client, table } = await this.#target(tenant)
     // safe-sql: `table` is a fixed module constant; `source` is a ? bind.
-    const res = await client.rawQuery(`SELECT count(*)::int AS n FROM ${table} WHERE source = ?`, [
-      source,
-    ])
+    const res = await this.#exec(
+      client,
+      `SELECT count(*)::int AS n FROM ${table} WHERE source = ?`,
+      [source]
+    )
     return Number(rowsOf(res)[0]?.n ?? 0)
   }
 
-  /** Delete every row under `source` (poisoning rollback, #3). Returns the row count removed. */
+  /** Delete every row under `source` (poisoning rollback). Returns the row count removed. */
   async deleteBySource(tenant: TenantModelContract, source: string): Promise<number> {
     const { client, table } = await this.#target(tenant)
     // safe-sql: `table` is a fixed module constant; `source` is a ? bind.
-    const res = await client.rawQuery(`DELETE FROM ${table} WHERE source = ?`, [source])
+    const res = await this.#exec(client, `DELETE FROM ${table} WHERE source = ?`, [source])
     return rowCount(res)
   }
 
   /**
-   * Delete every embedding for the tenant (the WS-AI-9 tenant-purge seam). Runs
-   * as a batched, advisory-locked loop (E4/E12/E15) so a huge index erases in
+   * Delete every embedding for the tenant (the tenant-purge seam). Runs
+   * as a batched, advisory-locked loop so a huge index erases in
    * bounded chunks without one long lock or a timeout that would roll the whole
    * thing back. Returns the total rows removed; idempotent, so a retry converges.
    */
@@ -264,9 +354,9 @@ export default class VectorStoreService {
   }
 
   /**
-   * Delete every embedding a principal ingested (per-user GDPR erasure, WS-AI-9).
+   * Delete every embedding a principal ingested (per-user GDPR erasure).
    * `actor` is the SHA-256 of the principal (the same one-way hash stored at
-   * ingest); the caller hashes the raw principal before calling (E1). Exact `?`
+   * ingest); the caller hashes the raw principal before calling. Exact `?`
    * equality, batched like {@link purgeTenant}. Returns the total rows removed.
    */
   async deleteByActor(tenant: TenantModelContract, actorHash: string): Promise<number> {
@@ -275,7 +365,7 @@ export default class VectorStoreService {
 
   /**
    * The batched-delete engine shared by {@link purgeTenant} and
-   * {@link deleteByActor} (E4/E12/E15/E21). Each iteration is one short
+   * {@link deleteByActor}. Each iteration is one short
    * transaction: take the per-tenant advisory lock (the same key ingestion uses,
    * so a batch never races an insert's cap check), optionally bound the batch
    * with `SET LOCAL statement_timeout`, then delete up to {@link PURGE_BATCH_SIZE}
@@ -290,19 +380,22 @@ export default class VectorStoreService {
     const timeoutMs = this.deps.purgeStatementTimeoutMs
     let total = 0
     for (;;) {
-      const removed = await client.transaction(async (trx) => {
-        await trx.rawQuery('SELECT pg_advisory_xact_lock(hashtext(?))', [lockArg])
-        if (timeoutMs !== undefined && Number.isFinite(timeoutMs) && timeoutMs > 0) {
-          // safe-sql: SET LOCAL takes a literal (not a bind); the value is a config integer coerced + clamped at boot.
-          await trx.rawQuery(`SET LOCAL statement_timeout = ${Math.trunc(timeoutMs)}`)
-        }
-        // safe-sql: `table` is a fixed constant, the WHERE fragment a fixed literal, LIMIT a numeric constant; values are ? binds.
-        const res = await trx.rawQuery(
-          `DELETE FROM ${table} WHERE ctid IN (SELECT ctid FROM ${table}${where.clause} LIMIT ${PURGE_BATCH_SIZE})`,
-          [...where.bindings]
-        )
-        return rowCount(res)
-      })
+      const removed = await this.#execOutageGuard(() =>
+        client.transaction(async (trx) => {
+          await this.#exec(trx, 'SELECT pg_advisory_xact_lock(hashtext(?))', [lockArg])
+          if (timeoutMs !== undefined && Number.isFinite(timeoutMs) && timeoutMs > 0) {
+            // safe-sql: SET LOCAL takes a literal (not a bind); the value is a config integer coerced + clamped at boot.
+            await this.#exec(trx, `SET LOCAL statement_timeout = ${Math.trunc(timeoutMs)}`)
+          }
+          // safe-sql: `table` is a fixed constant, the WHERE fragment a fixed literal, LIMIT a numeric constant; values are ? binds.
+          const res = await this.#exec(
+            trx,
+            `DELETE FROM ${table} WHERE ctid IN (SELECT ctid FROM ${table}${where.clause} LIMIT ${PURGE_BATCH_SIZE})`,
+            [...where.bindings]
+          )
+          return rowCount(res)
+        })
+      )
       total += removed
       if (removed < PURGE_BATCH_SIZE) break
     }
@@ -320,7 +413,12 @@ export default class VectorStoreService {
   ): Promise<{ client: VectorQueryClient; table: string }> {
     const active = this.deps.activeScopeTenantId()
     if (active !== undefined && active !== tenant.id) {
-      emitAiGuardEvent('guard.ai_scope_mismatch', { tenantId: tenant.id, metadata: { active } })
+      // `active` is a FOREIGN tenant id; tokenize it so the broadcast event never
+      // fans a real cross-tenant id out to plugin listeners.
+      emitAiGuardEvent('guard.ai_scope_mismatch', {
+        tenantId: tenant.id,
+        metadata: { active: tokenizeTenantId(active) },
+      })
       throw new AIException(
         'tenant_scope_mismatch',
         'Refusing a vector-store query: the request tenant does not match the active tenancy scope.'
@@ -347,6 +445,96 @@ export default class VectorStoreService {
     }
   }
 
+  /**
+   * Seal each chunk's content (and metadata, if `encryptMetadata`) at rest under the
+   * per-tenant embeddings DEK, returning the exact strings to bind. With no
+   * seal wired, or the flags off, it returns caller plaintext / the serialized metadata
+   * JSON, byte-identical to before. A seal failure (a KeyProvider/KMS outage) is a typed
+   * FAIL-CLOSED 503 covering the whole batch: the ingest writes nothing rather than
+   * leaking plaintext into a column the operator declared encrypted.
+   */
+  async #sealChunks(
+    tenantId: string,
+    chunks: readonly EmbeddingInput[]
+  ): Promise<Array<{ content: string; metadata: string }>> {
+    const encContent = this.deps.encryptContent === true
+    const encMeta = this.deps.encryptMetadata === true
+    const seal = this.deps.sealContent
+
+    // Serialize metadata OUTSIDE the seal try/catch below. A JSON.stringify failure (a
+    // BigInt or a cycle in caller metadata) is a permanent caller fault, NOT an at-rest
+    // seal outage, so it must keep its prior propagation (an untyped fatal, exactly as
+    // it was before) and must never be repackaged as a retryable `embedding_seal_failed`
+    // on the default (encryption-off) path.
+    const prepared = chunks.map((chunk) => ({
+      chunk,
+      metaJson: JSON.stringify(chunk.metadata ?? {}),
+    }))
+
+    // Default (or no seam wired): plaintext columns, byte-identical to before.
+    if (!seal || (!encContent && !encMeta)) {
+      return prepared.map(({ chunk, metaJson }) => ({ content: chunk.content, metadata: metaJson }))
+    }
+
+    try {
+      // Provision the tenant's embeddings DEK ONCE, sequentially, before fanning out. On a
+      // tenant's first encrypted ingest every chunk would otherwise provision the same DEK
+      // concurrently; crypto's provisioning lock is fail-OPEN, so N concurrent first-time
+      // seals race and all but one lose on the partial-UNIQUE (`dek_conflict`), failing the
+      // whole batch. One warm sequential seal makes the DEK live so the concurrent seals
+      // below only READ it. If a concurrent request won the provision race first, the DEK
+      // now exists, so a single retry of the warm-up read succeeds.
+      try {
+        await seal(tenantId, '')
+      } catch (warmupError) {
+        if ((warmupError as { code?: string } | null)?.code !== 'dek_conflict') throw warmupError
+        await seal(tenantId, '')
+      }
+      return await Promise.all(
+        prepared.map(async ({ chunk, metaJson }) => ({
+          content: encContent ? await seal(tenantId, chunk.content) : chunk.content,
+          metadata: encMeta ? await seal(tenantId, metaJson) : metaJson,
+        }))
+      )
+    } catch (error) {
+      throw new AIException(
+        'embedding_seal_failed',
+        'the AI embeddings content could not be sealed at rest; the ingest was refused so no plaintext is stored',
+        { cause: error }
+      )
+    }
+  }
+
+  /**
+   * Map raw search rows to {@link VectorMatch}es, opening any sealed content/metadata
+   * under the per-tenant embeddings DEK. Only the O(limit) returned rows are
+   * opened (the ANN index scan already ran). FAIL-SAFE: a row whose sealed value will not
+   * open (the tenant corpus was shredded, or one row is corrupt) is dropped from the
+   * result set with a content-free metric, never a 500: a shredded-tenant corpus should
+   * read empty. With nothing sealed this is a plain identity map (today's behavior).
+   */
+  async #decodeMatches(
+    tenantId: string,
+    rows: Array<Record<string, unknown>>
+  ): Promise<VectorMatch[]> {
+    const encContent = this.deps.encryptContent === true
+    const encMeta = this.deps.encryptMetadata === true
+    const open = this.deps.openContent
+    const out: VectorMatch[] = []
+    for (const row of rows) {
+      try {
+        const content =
+          encContent && open ? await open(tenantId, String(row.content)) : String(row.content)
+        const metadata =
+          encMeta && open ? JSON.parse(await open(tenantId, String(row.metadata))) : row.metadata
+        out.push({ id: String(row.id), content, metadata, distance: Number(row.distance) })
+      } catch {
+        this.deps.emitMetric?.(tenantId, AI_EMBEDDING_CONTENT_UNDECRYPTABLE_METRIC, 1)
+      }
+    }
+    return out
+  }
+
   /** Reject a vector whose length is not the index dimension, or that carries a non-finite value. */
   #assertVector(tenant: TenantModelContract, vector: readonly number[]): void {
     const ok =
@@ -371,7 +559,7 @@ function toPgVector(vector: readonly number[]): string {
 }
 
 /**
- * Translate a {@link RetrievalScope} into a parameterized WHERE fragment (WS-AI-5).
+ * Translate a {@link RetrievalScope} into a parameterized WHERE fragment.
  * Every user value is a `?` bind, never interpolated (the no_unsafe_raw_sql
  * guard, and correctness): `sources` is an explicit `IN (?, ?, …)` placeholder
  * list (built like the id-lookup in `insert`), `metadata` a single jsonb

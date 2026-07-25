@@ -29,15 +29,34 @@ interface VectorCoverage {
   invariant?: string
   /** Repo-relative path to the RED/behavioral covering spec, or null with a reason. */
   redSpec: string | null
-  /** Repo-relative path to the chaos/resilience covering spec, or null with a reason. */
-  chaosSpec: string | null
-  /** REQUIRED whenever redSpec or chaosSpec is null: the honest-limit note. */
+  /**
+   * Repo-relative path(s) to the chaos/resilience covering spec(s), or null with a
+   * reason. An ARRAY when more than one fault spec covers the vector: the dedicated
+   * `@integration/fault_injection` tier can attach several distinct failures (a
+   * provider 429, a socket drop, a malformed SSE) to one streaming vector, so a
+   * single string is no longer expressive enough. Every listed path must exist on
+   * disk; an empty array is treated like `null` (a coverage gap needing a reason).
+   */
+  chaosSpec: string | readonly string[] | null
+  /** REQUIRED whenever redSpec or chaosSpec is null (or an empty array): the honest-limit note. */
   reason?: string
+}
+
+/** Normalize a chaosSpec (single path, array, or null) to a flat list of paths. */
+function chaosSpecPaths(chaosSpec: VectorCoverage['chaosSpec']): string[] {
+  if (chaosSpec === null) return []
+  return Array.isArray(chaosSpec) ? [...chaosSpec] : [chaosSpec as string]
+}
+
+/** True when the vector declares no chaos coverage at all (null or an empty array). */
+function hasNoChaosCoverage(chaosSpec: VectorCoverage['chaosSpec']): boolean {
+  return chaosSpec === null || (Array.isArray(chaosSpec) && chaosSpec.length === 0)
 }
 
 const AI = 'packages/ai/tests/@guarantees'
 const ARCH = 'packages/ai/tests/@architecture'
 const E2E = 'examples/api/tests/@integration/e2e/ai'
+const FAULT = 'packages/ai/tests/@integration/fault_injection'
 
 const MATRIX: VectorCoverage[] = [
   {
@@ -45,7 +64,11 @@ const MATRIX: VectorCoverage[] = [
     name: 'Memory injection / persistent contamination',
     invariant: 'I2',
     redSpec: `${AI}/security/unit/security_memory_session_isolation.spec.ts`,
-    chaosSpec: `${AI}/isolation/integration/isolation_ai_cross_tenant_fuzz.spec.ts`,
+    chaosSpec: [
+      `${AI}/isolation/integration/isolation_ai_cross_tenant_fuzz.spec.ts`,
+      // The memory read fails open through the real kernel ResilienceService on a Redis outage.
+      `${FAULT}/redis_down_request_path_reads_fail_open.spec.ts`,
+    ],
   },
   {
     vector: 2,
@@ -72,7 +95,11 @@ const MATRIX: VectorCoverage[] = [
     name: 'Token / response replay',
     invariant: 'I3',
     redSpec: `${AI}/security/unit/security_idempotency_key_hmac_scoped.spec.ts`,
-    chaosSpec: `${AI}/security/integration/security_idempotency_cache_real_redis.spec.ts`,
+    chaosSpec: [
+      `${AI}/security/integration/security_idempotency_cache_real_redis.spec.ts`,
+      // The idempotency lookup fails open to no-replay through the real ResilienceService on a Redis outage.
+      `${FAULT}/redis_down_request_path_reads_fail_open.spec.ts`,
+    ],
   },
   {
     vector: 6,
@@ -120,10 +147,14 @@ const MATRIX: VectorCoverage[] = [
     vector: 12,
     name: 'Tool / agent confused-deputy',
     invariant: 'I7',
-    redSpec: null,
-    chaosSpec: null,
-    reason:
-      'Tools and agents are post-1.0 (WS-AI-11). The I7 contract is fixed but unimplemented, so there is no tool-call path to attack in 1.0; the row is tracked here so it cannot be forgotten when WS-AI-11 lands.',
+    // Tool calling shipped, so this row is no longer a forward contract. The red spec is
+    // the gate itself (default-deny registry, per-tool authorization, and the I7
+    // re-assert of the AMBIENT scope before `tenancy.run` binds, which is the actual
+    // confused-deputy check). The chaos slot is the executor's fault behaviors: a
+    // handler that ignores its abort signal, one that throws, and a failing audit
+    // sink each degrade without breaking the pump or the scope.
+    redSpec: `${AI}/behavior/unit/behavior_tool_gate.spec.ts`,
+    chaosSpec: `${AI}/behavior/unit/behavior_tool_executor.spec.ts`,
   },
   {
     vector: 13,
@@ -176,7 +207,7 @@ function resolveOnDisk(repoRelative: string): boolean {
   return existsSync(join(REPO_ROOT, repoRelative))
 }
 
-test.group('architectural docs — AI threat-vector coverage matrix (1G)', () => {
+test.group('architectural docs: AI threat-vector coverage matrix', () => {
   test('the matrix has exactly 18 entries, one per vector 1..18', ({ assert }) => {
     assert.lengthOf(MATRIX, 18)
     const numbers = MATRIX.map((row) => row.vector).sort((a, b) => a - b)
@@ -190,7 +221,7 @@ test.group('architectural docs — AI threat-vector coverage matrix (1G)', () =>
   test('every mapped covering spec exists on disk', ({ assert }) => {
     const missing: string[] = []
     for (const row of MATRIX) {
-      for (const path of [row.redSpec, row.chaosSpec]) {
+      for (const path of [row.redSpec, ...chaosSpecPaths(row.chaosSpec)]) {
         if (path !== null && !resolveOnDisk(path)) {
           missing.push(`vector ${row.vector} (${row.name}) -> ${path}`)
         }
@@ -205,7 +236,7 @@ test.group('architectural docs — AI threat-vector coverage matrix (1G)', () =>
 
   test('a null redSpec or chaosSpec always carries an honest-limit reason', ({ assert }) => {
     const unexplained = MATRIX.filter(
-      (row) => (row.redSpec === null || row.chaosSpec === null) && !row.reason
+      (row) => (row.redSpec === null || hasNoChaosCoverage(row.chaosSpec)) && !row.reason
     ).map((row) => `vector ${row.vector} (${row.name})`)
     assert.deepEqual(
       unexplained,

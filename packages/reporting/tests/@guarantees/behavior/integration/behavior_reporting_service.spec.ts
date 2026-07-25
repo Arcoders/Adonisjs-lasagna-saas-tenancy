@@ -83,8 +83,8 @@ test.group('ReportingService.getAggregate (integration)', (group) => {
       until: `${Y}-06-30`,
     })
     const byBucket = Object.fromEntries(rows.map((r) => [r.period, r]))
-    assert.equal(byBucket[`${Y}-05-01`].totalRequests, 12)
-    assert.equal(byBucket[`${Y}-06-01`].totalRequests, 3)
+    assert.equal(byBucket[`${Y}-05-01`]?.totalRequests, 12)
+    assert.equal(byBucket[`${Y}-06-01`]?.totalRequests, 3)
   })
 
   test('week buckets split dates more than a week apart', async ({ assert }) => {
@@ -127,9 +127,9 @@ test.group('ReportingService.getTopTenants (integration)', (group) => {
 
     const top = await svc.getTopTenants({ since: `${Y}-02-01`, until: `${Y}-02-01`, limit: 2 })
     assert.lengthOf(top, 2)
-    assert.equal(top[0].tenantId, tenants[4]) // 50 requests
-    assert.equal(top[0].requests, 50)
-    assert.equal(top[1].tenantId, tenants[3]) // 40 requests
+    assert.equal(top[0]?.tenantId, tenants[4]) // 50 requests
+    assert.equal(top[0]?.requests, 50)
+    assert.equal(top[1]?.tenantId, tenants[3]) // 40 requests
   })
 })
 

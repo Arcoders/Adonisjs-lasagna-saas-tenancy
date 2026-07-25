@@ -12,11 +12,11 @@ import {
 } from '../../../../src/isthmus/ai_guard_audit.js'
 
 /**
- * WS-AI-9 compliance orchestrator: the E1 raw-vs-hash asymmetry (memory keys the
+ * The compliance orchestrator: the raw-vs-hash asymmetry (memory keys the
  * raw principal, embeddings its SHA-256 actor), the bumpEpoch GATE (a failed
- * rotation aborts the deletes), the honest per-step summary on a partial failure
- * (E22), the concurrent-purge lock (E15), and the non-throwing auto-purge that
- * emits `guard.ai_auto_purge_failed` (E6).
+ * rotation aborts the deletes), the honest per-step summary on a partial failure,
+ * the concurrent-purge lock, and the non-throwing auto-purge that
+ * emits `guard.ai_auto_purge_failed`.
  */
 
 const tenant = { id: 'tenant-c' } as unknown as TenantModelContract
@@ -103,7 +103,7 @@ function build(over: Partial<AiComplianceDeps> = {}) {
   }
 }
 
-test.group('behavior — AiComplianceService (WS-AI-9)', (group) => {
+test.group('behavior: AiComplianceService', (group) => {
   group.each.setup(() => {
     __resetAiGuardCounters()
     __resetAiGuardRateLimit()
@@ -115,7 +115,7 @@ test.group('behavior — AiComplianceService (WS-AI-9)', (group) => {
     __resetAiGuardRateLimit()
   })
 
-  test('purgeUser feeds the RAW principal to memory and its SHA-256 to embeddings (E1)', async ({
+  test('purgeUser feeds the RAW principal to memory and its SHA-256 to embeddings', async ({
     assert,
   }) => {
     const { svc, memory, vectorStore } = build()
@@ -190,12 +190,12 @@ test.group('behavior — AiComplianceService (WS-AI-9)', (group) => {
     )
   })
 
-  test('a concurrent purge is skipped by the per-tenant lock (E15)', async ({ assert }) => {
+  test('a concurrent purge is skipped by the per-tenant lock', async ({ assert }) => {
     const { svc, lockStore } = build()
     lockStore.add('ai:purge:lock:tenant-c') // a purge is already holding the lock
     const summary = await svc.purgeTenant(tenant)
     assert.isFalse(summary.ok)
-    assert.equal(summary.steps[0].code, 'purge_in_progress')
+    assert.equal(summary.steps[0]!.code, 'purge_in_progress')
   })
 
   test('a best-effort kernel-audit failure never flips the purge', async ({ assert }) => {
@@ -208,7 +208,7 @@ test.group('behavior — AiComplianceService (WS-AI-9)', (group) => {
     assert.isTrue(summary.ok) // the data ops succeeded; the audit is best-effort
   })
 
-  test('autoPurge is non-throwing and emits guard.ai_auto_purge_failed on failure (E6)', async ({
+  test('autoPurge is non-throwing and emits guard.ai_auto_purge_failed on failure', async ({
     assert,
   }) => {
     const { svc, idempotency, vectorStore } = build()

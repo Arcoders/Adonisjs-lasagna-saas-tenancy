@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 
 const HELPER = fileURLToPath(new URL('../../helpers/real_audit_pg.ts', import.meta.url))
 const STUB = fileURLToPath(
-  new URL('../../../stubs/migrations/create_ai_audit_logs_table.stub', import.meta.url)
+  new URL('../../../stubs/migrations/0001_create_ai_audit_logs_table.stub', import.meta.url)
 )
 
 const COLUMN_METHODS = [
@@ -35,7 +35,7 @@ const COLUMN_METHODS = [
 function schemaBuilderColumns(source: string): string[] {
   const up = source.split(/async up\(\)/)[1]?.split(/async down\(\)/)[0] ?? ''
   const col = new RegExp(`table\\.(?:${COLUMN_METHODS.join('|')})\\('([a-z_]+)'`, 'g')
-  return [...up.matchAll(col)].map((m) => m[1])
+  return [...up.matchAll(col)].map((m) => m[1]!)
 }
 
 test.group('AI test-kit DDL stays in sync with the shipped migration stub', () => {
@@ -49,7 +49,7 @@ test.group('AI test-kit DDL stays in sync with the shipped migration stub', () =
     assert.includeMembers(
       columns,
       ['id', 'tenant_id', 'seq', 'checksum', 'op', 'outcome', 'principal_hash', 'occurred_at'],
-      'ai_audit_logs stub parse looks wrong — check the schema-builder regex'
+      'ai_audit_logs stub parse looks wrong: check the schema-builder regex'
     )
     for (const column of columns) {
       assert.match(

@@ -4,7 +4,7 @@ import type { AiConfig, AIProviderConfig, ResidencyPosture } from '../define_con
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
- * The data-residency / no-train gate (WS-AI-9, #7 / #15). The SINGLE emission
+ * The data-residency / no-train gate. The SINGLE emission
  * site for `guard.ai_residency_denied` (so `no_silent_ai_guard` is satisfied by
  * one file), enforced at request time BEFORE any cost at two egress points:
  *
@@ -12,9 +12,9 @@ import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
  *    allow-list has already picked a provider;
  *  - the embedding egress (`enforceEmbeddingResidency`) used by `/ai/embed`,
  *    `/ai/retrieve`, and RAG-into-chat: the choke point the chat allow-list
- *    never sees (the embedding backend is configured separately, E7).
+ *    never sees (the embedding backend is configured separately).
  *
- * The per-tenant posture is resolved FAIL-CLOSED (E8, mirroring the retrieval
+ * The per-tenant posture is resolved FAIL-CLOSED (mirroring the retrieval
  * ACL): a resolver that throws or returns a malformed shape refuses remote
  * egress rather than letting a resolver bug silently permit it. Residency checks
  * provider IDENTITY (name + whether the effective endpoint is loopback), NOT a
@@ -116,7 +116,7 @@ export async function enforceChatResidency(
  * embed). `local-only` refuses a non-loopback embedding backend (so a
  * data-sovereign tenant never ships documents or a query to a remote embedder).
  * An `allowedProviders` posture does NOT narrow embeddings: the embedding
- * backend is deploy-global in 1.0 (honest limit #2), so only the `local-only`
+ * backend is deploy-global in 1.0, an honest limit, so only the `local-only`
  * posture constrains it.
  */
 export async function enforceEmbeddingResidency(

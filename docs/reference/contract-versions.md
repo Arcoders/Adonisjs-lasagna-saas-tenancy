@@ -69,6 +69,7 @@ level down: it answers "does this **extension** fit this **surface**?".
 | `ADMIN_CONTRACT_VERSION` | `1` | [custom actions](/guides/satellites/admin) | `adminActionRegistry` | `@adonisjs-lasagna/admin` |
 | `SSO_CONTRACT_VERSION` | `1` | [identity providers](/guides/satellites/sso) | `identityProviderRegistry` | `@adonisjs-lasagna/sso` |
 | `AI_CONTRACT_VERSION` | `1` | [AI providers](/guides/satellites/ai) | `AIProviderRegistry` | `@adonisjs-lasagna/ai` |
+| `CRYPTO_CONTRACT_VERSION` | `1` | [key providers](/guides/satellites/crypto) | `KeyProviderRegistry` | `@adonisjs-lasagna/crypto` |
 
 The two surfaces at `2` (`ISOLATION_CONTRACT_VERSION`, `RESOLVER_CONTRACT_VERSION`)
 each took one backward-incompatible revision; every other contract is still on its

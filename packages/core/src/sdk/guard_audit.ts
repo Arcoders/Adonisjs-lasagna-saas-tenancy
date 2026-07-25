@@ -62,6 +62,56 @@ export const ISTHMUS_BUDGETS = {
 } as const satisfies Record<IsthmusSeverity, number>
 
 /**
+ * Hard bounds on the metadata a guard-tripped event may broadcast. The event is
+ * broadcast process-wide and subscribable by any plugin, so an unbounded metadata
+ * bag is both a disclosure surface and a memory-amplification one: a guard fed
+ * attacker-influenced input could push a large or high-cardinality bag onto every
+ * listener. These are FIXED module constants, not host config, for the same
+ * reason the dispatch budgets are: a tunable bound on a security control's own
+ * telemetry is a widen-the-disclosure vector. Over-limit metadata is TRUNCATED
+ * (extra keys dropped, long string values clipped), never dropped wholesale, and
+ * the clip is counted (`dropped{severity,metadata_bounded}`) so nothing is
+ * silently lost. Call sites that carry a foreign tenant id in metadata tokenize
+ * it (`tokenizeTenantId`) rather than rely on this length clip.
+ */
+export const MAX_ISTHMUS_METADATA_KEYS = 16
+export const MAX_ISTHMUS_METADATA_VALUE_LENGTH = 256
+
+type IsthmusMetadata = Readonly<Record<string, string | number | boolean | null>>
+
+/**
+ * Enforce the metadata contract at the single emit seam. Returns the bounded bag
+ * and whether anything was clipped (so the caller counts it). Keeps at most
+ * {@link MAX_ISTHMUS_METADATA_KEYS} keys and clips each string value to
+ * {@link MAX_ISTHMUS_METADATA_VALUE_LENGTH}. Non-string primitives pass through:
+ * the payload type already forbids objects/functions, so there is nothing to
+ * recurse into and no unbounded value except a long string.
+ */
+function boundMetadata(metadata: IsthmusMetadata | undefined): {
+  bounded: IsthmusMetadata
+  clipped: boolean
+} {
+  if (!metadata) return { bounded: {}, clipped: false }
+  const keys = Object.keys(metadata)
+  if (keys.length === 0) return { bounded: {}, clipped: false }
+
+  let clipped = keys.length > MAX_ISTHMUS_METADATA_KEYS
+  const boundedKeys = clipped ? keys.slice(0, MAX_ISTHMUS_METADATA_KEYS) : keys
+
+  const out: Record<string, string | number | boolean | null> = {}
+  for (const key of boundedKeys) {
+    const value = metadata[key]
+    if (typeof value === 'string' && value.length > MAX_ISTHMUS_METADATA_VALUE_LENGTH) {
+      out[key] = value.slice(0, MAX_ISTHMUS_METADATA_VALUE_LENGTH)
+      clipped = true
+    } else {
+      out[key] = value as string | number | boolean | null
+    }
+  }
+  return { bounded: out, clipped }
+}
+
+/**
  * The minimal registry-entry shape the audit reads. Every layer's registry
  * (`ISTHMUS_REGISTRY`, `AI_GUARD_REGISTRY`, `CRYPTO_GUARD_REGISTRY`) yields
  * entries with at least these fields; the audit builds its payload from them.
@@ -72,6 +122,18 @@ export interface GuardAuditEntry {
   readonly bugClass: string
   readonly severity: IsthmusSeverity
   readonly event: string
+  /**
+   * Dispatch policy, declared once per guard in its registry. `'broadcast'` (the
+   * default when omitted) fans the `IsthmusGuardTripped` event out under the
+   * per-severity window. `'count-only'` classifies the guard as ATTACKER-REACHABLE
+   * at high volume from unauthenticated/pre-tenant request input: the trip is
+   * recorded on the counters (and the per-tenant metric bridge) but the event is
+   * NEVER broadcast, so a flood of it can never consume its severity's shared
+   * dispatch window and starve a co-severity security guard's alerts for OTHER
+   * tenants (S3). The counter carries the volume signal; alert on
+   * `multitenancy_isthmus_rejected_total` for a count-only guard.
+   */
+  readonly dispatchPolicy?: 'broadcast' | 'count-only'
 }
 
 /** Immutable counter snapshot for the exporter / specs (one seam, one reader). */
@@ -241,12 +303,20 @@ export function createGuardAudit<TId extends string>(
 
       // Count-only trip: fully recorded above (counters + metric bridge) but
       // never broadcast, so it touches no dispatch window and crowds out nothing.
-      if (emitOptions.dispatch === false) return
+      // Either the registry classifies this guard as attacker-reachable
+      // (`dispatchPolicy: 'count-only'`, an S3 hardening enforced here so it can
+      // never be forgotten at a call site), or the caller asked for count-only.
+      if (entry.dispatchPolicy === 'count-only' || emitOptions.dispatch === false) return
 
       if (!allow(entry.severity, Date.now())) {
         bump(droppedCounts, `${entry.severity} rate_limited`)
         return
       }
+
+      // Bound the metadata before it can be broadcast (the event fans out to
+      // every subscribed plugin). A clip is counted, not silently dropped.
+      const { bounded, clipped } = boundMetadata(emitOptions.metadata)
+      if (clipped) bump(droppedCounts, `${entry.severity} metadata_bounded`)
 
       const payload: IsthmusGuardTrippedPayload = {
         id: entry.id,
@@ -255,7 +325,7 @@ export function createGuardAudit<TId extends string>(
         severity: entry.severity,
         event: entry.event,
         tenantId: emitOptions.tenantId ?? null,
-        metadata: emitOptions.metadata ?? {},
+        metadata: bounded,
       }
       // Fire-and-forget: the reject path never waits on listeners. Any dispatch
       // failure (unwired emitter in a unit test / pre-boot phase, a throwing

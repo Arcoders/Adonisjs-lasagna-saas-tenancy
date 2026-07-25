@@ -1,8 +1,24 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "./build",
-    "rootDir": "./"
+    // The architectural specs import the repo-root `scripts/check-*.mjs` guards to
+    // exercise their pure auditors. Those are plain JS, so without this TypeScript
+    // reads them as implicit `any` and silently stops checking every call into them.
+    // Inferring from the source beats a hand-written .d.ts that drifts from it.
+    "allowJs": true,
+    "checkJs": false
   },
-  "include": ["src/**/*.ts", "providers/**/*.ts", "tenant_migrations/**/*.ts", "configure.ts"]
+  // Typecheck config: this is what `npm run typecheck` uses, and it covers the
+  // TESTS as well as the source. `tsconfig.build.json` is the one that emits, and it
+  // deliberately narrows back to the shipped surface. Two files, because a single
+  // config cannot both emit only src and check everything, and skipping the check on
+  // tests is how a signature change ends up leaving specs quietly passing garbage.
+  "include": [
+    "src/**/*.ts",
+    "providers/**/*.ts",
+    "tenant_migrations/**/*.ts",
+    "configure.ts",
+    "tests/**/*.ts",
+    "bin/**/*.ts"
+  ]
 }

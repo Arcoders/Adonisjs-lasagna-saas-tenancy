@@ -1,4 +1,5 @@
 import type { MultitenancyConfig, ResolvedMultitenancyConfig } from './types/config.js'
+import type { WarmPoolConfig } from './types/config/isolation.js'
 import { isProductionNodeEnv } from './utils/env.js'
 import { getStore } from './config_store.js'
 import { resolveConfig } from './config_defaults.js'
@@ -43,6 +44,19 @@ function deepFreeze<T>(value: T): T {
  */
 export function defineConfig(config: MultitenancyConfig): ResolvedMultitenancyConfig {
   return resolveConfig(config)
+}
+
+/**
+ * Typed sugar for the F2 warm-pool block (`isolation.warmPool`). Anchors the value
+ * to {@link WarmPoolConfig} at the call site (IDE autocomplete + `tsc` catch shape
+ * errors) exactly like `defineConfig`. Adds nothing at runtime, so a host can
+ * equally write the object literal; it exists for discoverability and parity with
+ * the other `define*` helpers. The tenant set stays operator-declared: pass a
+ * static `tenants` list or an authenticated `selectTenants` hook, never a value
+ * derived from a request.
+ */
+export function defineWarmPool(config: WarmPoolConfig): WarmPoolConfig {
+  return config
 }
 
 export function setConfig(config: MultitenancyConfig, options?: { inProduction?: boolean }): void {

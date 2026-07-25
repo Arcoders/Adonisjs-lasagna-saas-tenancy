@@ -48,7 +48,7 @@ function makeService(store: AiIdempotencyStore, overrides: { maxBytes?: number }
     store,
     macKey: deriveAiIdempotencyMacKey('app-key-under-test'),
     ttlMs: 60_000,
-    maxBytes: overrides.maxBytes,
+    ...(overrides.maxBytes !== undefined ? { maxBytes: overrides.maxBytes } : {}),
   })
 }
 

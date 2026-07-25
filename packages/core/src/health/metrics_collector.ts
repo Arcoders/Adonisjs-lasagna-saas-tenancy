@@ -6,13 +6,15 @@ import { resolveTenantRepository } from '../services/resolve_tenant_repository.j
 import { getConfig } from '../config.js'
 import { opCommittedKey, opHoldsKey, opAmtKey, periodToday } from '../services/quota/keys.js'
 import { snapshotIsthmusCounters } from '../isthmus/audit.js'
-import type { TenantStatus, TenantModelContract } from '../types/contracts.js'
+import { TENANT_STATUSES } from '../types/contracts.js'
+import type { TenantModelContract } from '../types/contracts.js'
 import type { MetricsSnapshot, QuotaCeilingStat } from './metrics_exporter.js'
 
 const lazyRedis = () =>
   import('@adonisjs/redis/services/main').then((m) => m.default).catch(() => null)
 
-const STATUSES: TenantStatus[] = ['provisioning', 'active', 'suspended', 'failed', 'deleted']
+// Single-sourced from the status tuple so a new status is counted automatically.
+const STATUSES = TENANT_STATUSES
 
 interface CollectOptions {
   /** Skip the tenants registry query (useful when DB is unreachable). */

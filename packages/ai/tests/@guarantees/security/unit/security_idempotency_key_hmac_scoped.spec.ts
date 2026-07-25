@@ -5,9 +5,9 @@ import AiIdempotencyService, {
 } from '../../../../src/gateway/idempotency.js'
 
 /**
- * G7 / #5 key scoping: the cache key is an HMAC binding tenant + principal +
- * session + header key together. Changing ANY scope component (or the epoch)
- * must move the entry, and no raw scope component may ever appear in a key.
+ * Key scoping: the cache key is an HMAC binding tenant + principal + session + header
+ * key together. Changing ANY scope component (or the epoch) must move the entry, and no
+ * raw scope component may ever appear in a key.
  */
 
 function service(): AiIdempotencyService {
@@ -70,7 +70,10 @@ test.group('idempotency key scoping', () => {
     const svc = service()
     assert.equal(
       svc.entryKey({ ...base, sessionId: null }, '0'),
-      svc.entryKey({ ...base, sessionId: undefined }, '0')
+      // The type's optional sessionId does not admit an explicit undefined under
+      // exactOptionalPropertyTypes, but the runtime normalizes undefined and null
+      // identically, which is exactly what this test pins, so pass it deliberately.
+      svc.entryKey({ ...base, sessionId: undefined } as unknown as AiIdempotencyScope, '0')
     )
   })
 

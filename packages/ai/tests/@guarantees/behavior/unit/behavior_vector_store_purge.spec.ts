@@ -4,7 +4,7 @@ import VectorStoreService from '../../../../src/services/vector_store_service.js
 import { fakeVectorEnv } from '../../../helpers/fake_vector_db.js'
 
 /**
- * WS-AI-9 vector purge (E4/E11/E12/E15): `purgeTenant` and `deleteByActor` run as
+ * Vector purge: `purgeTenant` and `deleteByActor` run as
  * advisory-locked, batched `ctid IN (SELECT … LIMIT N)` loops so a huge index
  * erases in bounded chunks. `deleteByActor` filters by the exact `actor` hash
  * (per-user GDPR erasure), never a broad pattern.
@@ -12,7 +12,7 @@ import { fakeVectorEnv } from '../../../helpers/fake_vector_db.js'
 
 const tenant = { id: 'tenant-a' } as unknown as TenantModelContract
 
-test.group('behavior — vector store purge (WS-AI-9)', () => {
+test.group('vector store purge', () => {
   test('purgeTenant takes the advisory lock and deletes by ctid batch', async ({ assert }) => {
     const env = fakeVectorEnv({ deleted: 5 })
     const removed = await new VectorStoreService(env.deps).purgeTenant(tenant)
@@ -40,9 +40,7 @@ test.group('behavior — vector store purge (WS-AI-9)', () => {
     assert.deepEqual(del!.bindings, ['sha256-of-principal'])
   })
 
-  test('a per-batch statement_timeout is set inside the batch transaction (E21)', async ({
-    assert,
-  }) => {
+  test('a per-batch statement_timeout is set inside the batch transaction', async ({ assert }) => {
     const env = fakeVectorEnv({ deleted: 1 })
     env.deps.purgeStatementTimeoutMs = 15000
     await new VectorStoreService(env.deps).purgeTenant(tenant)

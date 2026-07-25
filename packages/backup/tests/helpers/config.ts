@@ -1,5 +1,24 @@
 import { setConfig } from '@adonisjs-lasagna/saas-tenancy/config'
 import type { MultitenancyConfig } from '@adonisjs-lasagna/saas-tenancy/types'
+import type { BackupConfig } from '../../src/define_config.js'
+
+/**
+ * The backup block, exported on its own and typed as the required `BackupConfig`.
+ * Specs that build a variant spread this rather than `testConfig.backup`: the
+ * latter is `BackupConfig | undefined` through the satellite augmentation, and
+ * spreading it would silently turn every required key optional.
+ */
+export const testBackupConfig: BackupConfig = {
+  storagePath: '/tmp/backups',
+  metadataTtl: 86400,
+  pgConnection: {
+    host: '127.0.0.1',
+    port: 5432,
+    user: 'postgres',
+    password: 'postgres',
+    database: 'test',
+  },
+}
 
 /**
  * Package-local test config. Mirrors the core `tests/helpers/config.ts` but is
@@ -33,17 +52,7 @@ export const testConfig: MultitenancyConfig = {
     attempts: 3,
     redis: { host: '127.0.0.1', port: 6379, db: 1 },
   },
-  backup: {
-    storagePath: '/tmp/backups',
-    metadataTtl: 86400,
-    pgConnection: {
-      host: '127.0.0.1',
-      port: 5432,
-      user: 'postgres',
-      password: 'postgres',
-      database: 'test',
-    },
-  },
+  backup: testBackupConfig,
   cache: {
     ttl: 300,
     redis: { host: '127.0.0.1', port: 6379, db: 2 },

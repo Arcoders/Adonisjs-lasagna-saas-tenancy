@@ -150,12 +150,12 @@ test.group('Trial lifecycle (integration)', (group) => {
       await flushJobs()
 
       assert.lengthOf(captured, 1, 'exactly one TrialEnding emitted')
-      assert.equal(captured[0].tenantId, tenantId)
-      assert.equal(captured[0].subId, sub.id)
+      assert.equal(captured[0]?.tenantId, tenantId)
+      assert.equal(captured[0]?.subId, sub.id)
       // ceil(3d 1h) === 4 days. Just assert it's the small positive
       // integer the host renders in "your trial ends in N days".
-      assert.isAbove(captured[0].daysLeft, 0)
-      assert.isAtMost(captured[0].daysLeft, 4)
+      assert.isAbove(captured[0]!.daysLeft, 0)
+      assert.isAtMost(captured[0]!.daysLeft, 4)
     } finally {
       off()
     }

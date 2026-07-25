@@ -3,7 +3,7 @@ import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 import type { AIProviderName } from '../define_config.js'
 
 /**
- * The G12 model gate, shared by the streaming and embedding provider families:
+ * The model gate, shared by the streaming and embedding provider families:
  * a requested model outside the per-provider `allowedModels` is refused
  * (default-deny, one level below the provider gate). This is the single
  * registered guard site for `guard.ai_model_allowlist`, so both a chat stream

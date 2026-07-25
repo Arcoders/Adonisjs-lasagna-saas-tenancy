@@ -6,6 +6,8 @@ import { assertAiMountAllowed, type MultitenancyAiRoutesOptions } from './routes
 import AiChatController from './gateway/ai_chat_controller.js'
 import AiEmbedController from './gateway/ai_embed_controller.js'
 import AiRetrieveController from './gateway/ai_retrieve_controller.js'
+import AiAuditController from './gateway/ai_audit_controller.js'
+import AiAuditReader from './services/ai_audit_reader.js'
 import StreamExtensionService from './gateway/stream_extension.js'
 import AiIdempotencyService from './gateway/idempotency.js'
 import EmbeddingIngestionService from './services/embedding_ingestion_service.js'
@@ -14,6 +16,7 @@ import AIProviderRegistry from './services/ai_provider_registry.js'
 import TenantLivenessWatcher from './services/tenant_liveness_watcher.js'
 import AiRateLimiter from './services/ai_rate_limiter.js'
 import ConversationMemoryService from './services/conversation_memory_service.js'
+import ToolExecutorService from './services/tool_executor.js'
 import {
   PgChatAuditSink,
   PgEmbeddingAuditSink,
@@ -33,7 +36,7 @@ import type { MultitenancyConfigWithAi } from './define_config.js'
  *
  *   multitenancyAiRoutes({ middleware: [middleware.tenantGuard(), middleware.auth()] })
  *
- * Fail-closed (G4): refuses to mount without a middleware chain, without
+ * Fail-closed: refuses to mount without a middleware chain, without
  * `config.ai`, or without a membership gate (`config.ai.authorizeAIAccess`)
  * unless the host explicitly sets `acknowledgeNoMembershipGate: true`, in
  * which case the acknowledged posture is logged and kept visible by the
@@ -42,8 +45,8 @@ import type { MultitenancyConfigWithAi } from './define_config.js'
  *
  * Endpoints (relative to the prefix, default `/ai`):
  *   POST /chat      SSE stream (`Idempotency-Key` and `Last-Event-ID` honoured)
- *   POST /embed     ingest embeddings into the tenant vector store (JSON, WS-AI-3)
- *   POST /retrieve  similarity search over the tenant vector store (JSON, WS-AI-5)
+ *   POST /embed     ingest embeddings into the tenant vector store (JSON)
+ *   POST /retrieve  similarity search over the tenant vector store (JSON)
  *
  * This module imports Adonis service singletons (router/app/logger), so it is
  * boot-unsafe BY DESIGN: import it from route files only, never from unit
@@ -69,7 +72,7 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
         // retrieval service lazily so non-RAG chat is unaffected when they are off
         // (making RetrievalService unconditionally would throw config_missing).
         retrieval: aiConfig?.embedding ? await app.container.make(RetrievalService) : undefined,
-        // The DB-backed audit sinks (WS-AI-7), on unless the host opted out; the
+        // The DB-backed audit sinks, on unless the host opted out; the
         // retrieval-audit sink follows the same lazy-embedding rule as `retrieval`.
         audit:
           aiConfig?.audit?.enabled !== false
@@ -79,11 +82,19 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
           aiConfig?.embedding && aiConfig?.audit?.enabled !== false
             ? await app.container.make(PgRetrievalAuditSink)
             : undefined,
-        // Conversation memory (WS-AI-4), resolved lazily like retrieval: only a
+        // Conversation memory, resolved lazily like retrieval: only a
         // host that configured config.ai.memory pays for it (the service itself
         // no-ops via `.enabled` if a stale reference is ever passed).
         memory: aiConfig?.memory ? await app.container.make(ConversationMemoryService) : undefined,
-        // Per-tenant metrics sink for `ai_output_redacted` (the optional redactOutput hook).
+        // The tool executor, resolved lazily like memory: only a host
+        // that configured config.ai.tools pays for it; absent leaves chat tool-free
+        // with zero overhead (the plain provider.stream closure runs unchanged).
+        tools: aiConfig?.tools ? await app.container.make(ToolExecutorService) : undefined,
+        // The tool loop's drop/telemetry log (a maxToolsPerRound drop is logged,
+        // never silently capped). Routed to the app logger's warn.
+        log: (message) => logger.warn(message),
+        // Per-tenant metrics sink for `ai_output_redacted` (redactOutput) and the
+        // tool loop's `ai_tool_budget_exhausted`.
         emitMetric: (tenantId, name, value) => metrics.emitMetric(tenantId, name, value),
         config: aiConfig,
       })
@@ -116,6 +127,22 @@ export function multitenancyAiRoutes(options: MultitenancyAiRoutesOptions): void
         config: aiConfig,
       })
       return controller.retrieve(ctx)
+    })
+    // The audit read/query surface: admin-gated (default-deny via
+    // config.ai.audit.authorizeAudit), tenant-scoped, SELECT-only. Mounted only when
+    // audit is on (a disabled-audit host has no chain to read); the AiAuditReader is
+    // registered only in that case, so guard the resolve.
+    router.get('/audit', async (ctx) => {
+      const aiConfig = app.config.get<MultitenancyConfigWithAi>('multitenancy')?.ai
+      // Audit disabled ⇒ there is no chain to read; the reader is not even registered.
+      if (aiConfig?.audit?.enabled === false) {
+        return ctx.response.notFound({ error: 'ai_audit_disabled' })
+      }
+      const controller = new AiAuditController({
+        reader: await app.container.make(AiAuditReader),
+        config: aiConfig,
+      })
+      return controller.list(ctx)
     })
   })
   if (prefix) group.prefix(prefix)

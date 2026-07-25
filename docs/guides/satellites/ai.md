@@ -345,6 +345,44 @@ streamed and aborted the moment it crosses `ingestionMaxBytes` (default 1 MiB, s
 a huge public body cannot exhaust memory) and time-bounded by `ingestionTimeoutMs`
 (default 10s, so a hung upstream cannot pin a worker).
 
+**Content at rest is encryptable, gated, and off by default.** Two `embedding`
+flags, `encryptContent` and `encryptMetadata`, both default false (plaintext, as
+today). With `encryptContent` on, the store seals the `content` column to enc_v2
+ciphertext before the insert and decrypts only the rows a search returns (bounded
+by the retrieval `limit`, after the ANN index scan, so ranking cost is unchanged).
+The `content_hash` dedup key is unaffected because it hashes the caller's plaintext
+upstream of storage, so a re-ingest still deduplicates whether or not the column is
+encrypted. The `source` and `actor` columns stay plaintext by design, since they
+key document-scoped purge and the retrieval ACL. Like the memory DEK, this draws a
+per-tenant key from the optional [crypto satellite](/guides/satellites/crypto), so a
+crypto-shred erases a tenant's readable corpus text, and boot fails closed if you
+ask for it without crypto installed.
+
+`encryptMetadata` additionally seals the `metadata` column, but it is mutually
+exclusive with metadata-scoped retrieval: the `metadata @> ?::jsonb` containment
+predicate cannot run over ciphertext. So when it is on, a `{ kind: 'metadata' }`
+retrieval scope is refused fail-closed with `guard.ai_embedding_metadata_scope_conflict`
+rather than quietly matching zero rows. Leave it off unless the host has no
+metadata-ACL retrieval and metadata secrecy is worth losing that search path.
+
+An insert fails closed: if a seal fails (the DEK cannot be provisioned, or the
+KeyProvider is down) the ingest is refused with a 503 and no row is written, so a
+column the operator declared encrypted never receives plaintext. A search fails
+safe: a row whose content will not open (its tenant corpus was shredded, or a single
+row is corrupt) is dropped from the results and counted on the
+`ai_embedding_content_undecryptable` metric, so a shredded tenant reads empty rather
+than 500.
+
+<Callout type="warning" title="This defends a column dump, not vector inversion">
+An embedding vector cannot be encrypted, because ANN search has to compute distances
+over it, and a vector stays approximately invertible back to its source text. So
+`encryptContent` defends a raw `content` / `metadata` dump (a `pg_dump`, a replica
+snapshot, a mis-scoped analytics read); it does not defend the vector. Physical
+per-tenant isolation (**I1**) remains the real embedding control, which is why
+`rowscope-pg` is refused for embeddings outright. Both flags default off and turning
+either on is a separate per-host go.
+</Callout>
+
 ## Retrieval (RAG)
 
 Retrieval closes the read half of the vector store (WS-AI-5). Search is
@@ -475,6 +513,36 @@ write, HMAC on every session read, never a system-role memory turn). A configure
 `redactOutput` (see [Redact model output](#redact-model-output)) applies before
 persistence, so the assistant turn stored in memory is the redacted text: the
 model never re-sees output the host redacted.
+
+**Per-tenant encryption is available, gated, and off by default.** The at-rest key
+strategy is `config.ai.memory.encryption`. The default, `'app-key'`, is exactly the
+behavior above: one fleet-wide `HKDF(APP_KEY)` key under the `aiConversationMemory`
+secret class, byte-for-byte identical to today. Setting it to `'tenant-dek'` swaps
+that fleet key for a per-tenant DEK drawn from the optional
+[crypto satellite](/guides/satellites/crypto). The win is blast radius: an `APP_KEY`
+leak no longer decrypts every tenant's history, and a crypto-shred of one tenant's
+memory DEK makes that tenant's stored conversations cryptographically irrecoverable,
+even from a backup taken before the shred.
+
+Enabling `'tenant-dek'` is a deliberate per-host decision, not a default you drift
+into. It needs the crypto satellite installed, and boot fails closed if you select
+it without crypto rather than quietly falling back to the fleet key. It also lands
+on the memory hot path: this release resolves the DEK through crypto on every read
+and write (there is no in-process DEK cache yet), so each turn costs one extra
+key-store round-trip. A KeyProvider outage on read degrades to empty memory, the
+same fail-safe posture as a store outage, and surfaces on the `ai_memory_dek_unavailable`
+metric so a transient KMS blip is never mistaken for a botched rotation. On this
+path the `OLD_APP_KEY` dual-key grace is unused, because KEK rotation happens inside
+the KeyProvider. It raises the at-rest bar, not the runtime one: a live process with
+the DEK unwrapped in memory still sees decrypted turns.
+
+<Callout type="warning" title="tenant-dek is designed, shipped, and not yet flipped on">
+The seam and its config field ship defaulting to today's behavior, so nothing changes
+until a host opts in. Turning `'tenant-dek'` on for real is a separate go with its own
+review: it touches erasure semantics and the memory hot path, and the DEK-cache work
+that would remove the per-turn round-trip is deferred to that go. Until then, leave
+`encryption` unset (or `'app-key'`).
+</Callout>
 
 > Erasing a user's memory (`ai:mem:<tenant>:<userMac>:*`) or a whole tenant's is a
 > per-user / per-tenant `SCAN`+`DEL`, wired into the compliance purge in WS-AI-9.

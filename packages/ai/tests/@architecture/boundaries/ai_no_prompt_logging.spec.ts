@@ -6,7 +6,7 @@ import { auditNoPromptLogging } from '../../../../../scripts/check-ai-no-prompt-
 
 const FILE = 'packages/ai/src/gateway/ai_chat_controller.ts'
 
-test.group('architectural — #15 no-prompt-logging (no-train) guard', () => {
+test.group('architectural: #15 no-prompt-logging (no-train) guard', () => {
   test('a metadata-only log passes', ({ assert }) => {
     const clean = [
       'this.#deps.warn?.(`[ai] conversation memory persist failed for a session (store error)`)',

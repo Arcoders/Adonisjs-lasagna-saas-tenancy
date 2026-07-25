@@ -33,6 +33,12 @@ export const NUMERIC_CONFIG_FIELDS: readonly NumericConfigField[] = [
   { path: 'isolation.maxTenantConnections', enforce: true, min: 1 },
   { path: 'isolation.maxTenantConnectionsHardCeiling', enforce: true, min: 1 },
   { path: 'isolation.evictionGracePeriodMs', enforce: true, min: 0 },
+  // Upper bound mirrors MAX_OPERATIONAL_CONNECTION_BUDGET; the runtime clamp to
+  // the ceiling bounds it further.
+  { path: 'isolation.operationalConnectionBudget', enforce: true, min: 1, max: 64 },
+  // F2 warm pool: connections pre-opened per declared tenant. The absolute
+  // ceiling still caps the total open connections.
+  { path: 'isolation.warmPool.count', enforce: true, min: 1, max: 32 },
   { path: 'tenantReadReplicas.maxReplicaConnections', enforce: true, min: 1 },
   { path: 'circuitBreaker.threshold', enforce: true, min: 1, max: 100 },
   { path: 'circuitBreaker.resetTimeout', enforce: true, min: 1 },

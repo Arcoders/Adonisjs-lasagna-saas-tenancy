@@ -45,11 +45,12 @@ export class MyDriver implements IsolationDriver {
 
   async connect(
     tenant: TenantModelContract,
-    opts?: { bypassHardCap?: boolean }
+    opts?: { bypassSoftCap?: boolean }
   ): Promise<QueryClientContract> {
     // Open or register the runtime Lucid connection and return its client.
-    // `bypassHardCap` lets operational paths (provisioning, migrations) skip the
-    // optional connection-cap admission check; ignore it if you have no pool.
+    // `bypassSoftCap` lets operational paths (provisioning, migrations) skip the
+    // optional SOFT connection-cap admission check; ignore it if you have no
+    // pool. It does not skip the absolute ceiling, which stays unbypassable.
   }
 
   async disconnect(tenant: TenantModelContract): Promise<void> {

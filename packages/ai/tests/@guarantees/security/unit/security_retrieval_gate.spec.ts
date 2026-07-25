@@ -11,8 +11,8 @@ import {
 import type { AiConfig, AIRetrievalConfig } from '../../../../src/define_config.js'
 
 /**
- * The retrieval scope gate (WS-AI-5, G2). The per-user document ACL is resolved
- * BEFORE any query embed or search. Retrieval is fail-closed, mirroring the G4
+ * The retrieval scope gate. The per-user document ACL is resolved
+ * BEFORE any query embed or search. Retrieval is fail-closed, mirroring the
  * mount gate: with NO `retrievalFilter` wired the retrieval is refused (403
  * `retrieval_denied` + `guard.ai_retrieval_denied`) UNLESS the host sets
  * `acknowledgeUnscopedRetrieval`, which opts into the whole tenant corpus
@@ -27,7 +27,7 @@ const settle = () => new Promise<void>((resolve) => setImmediate(resolve))
 function config(overrides: Partial<AiConfig> = {}): AiConfig {
   return { ...overrides } as AiConfig
 }
-function withFilter(retrievalFilter: AIRetrievalConfig['retrievalFilter']): AiConfig {
+function withFilter(retrievalFilter: NonNullable<AIRetrievalConfig['retrievalFilter']>): AiConfig {
   return config({ retrieval: { retrievalFilter } })
 }
 
@@ -83,9 +83,9 @@ test.group('AI retrieval scope gate', (group) => {
       assert.equal((threw as AIException).httpStatus, 403)
       assert.isFalse((threw as AIException).isRetryable())
       assert.lengthOf(captured, 1)
-      assert.equal(captured[0].id, 'guard.ai_retrieval_denied')
-      assert.equal(captured[0].tenantId, 'tenant-1')
-      assert.equal(captured[0].metadata.reason, 'unscoped_unacknowledged')
+      assert.equal(captured[0]!.id, 'guard.ai_retrieval_denied')
+      assert.equal(captured[0]!.tenantId, 'tenant-1')
+      assert.equal(captured[0]!.metadata.reason, 'unscoped_unacknowledged')
     }
   })
 
@@ -148,9 +148,9 @@ test.group('AI retrieval scope gate', (group) => {
     assert.isFalse((threw as AIException).isRetryable())
     assert.equal((threw as AIException).originalError, aclDown)
     assert.lengthOf(captured, 1)
-    assert.equal(captured[0].id, 'guard.ai_retrieval_denied')
-    assert.equal(captured[0].tenantId, 'tenant-1')
-    assert.equal(captured[0].metadata.reason, 'hook_error')
+    assert.equal(captured[0]!.id, 'guard.ai_retrieval_denied')
+    assert.equal(captured[0]!.tenantId, 'tenant-1')
+    assert.equal(captured[0]!.metadata.reason, 'hook_error')
   })
 
   test('a hook returning an invalid scope shape is a fail-closed 403, reason "invalid_scope"', async ({
@@ -181,7 +181,7 @@ test.group('AI retrieval scope gate', (group) => {
       assert.instanceOf(threw, AIException, `scope ${JSON.stringify(bad)} must be refused`)
       assert.equal((threw as AIException).aiCode, 'retrieval_denied')
       assert.lengthOf(captured, 1)
-      assert.equal(captured[0].metadata.reason, 'invalid_scope')
+      assert.equal(captured[0]!.metadata.reason, 'invalid_scope')
     }
   })
 })

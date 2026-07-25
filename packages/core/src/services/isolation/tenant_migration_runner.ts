@@ -1,4 +1,5 @@
 import type { MigrateOptions, MigrateResult } from './driver.js'
+import { runWithinOperationalBudget } from './operational_budget.js'
 
 async function lucid() {
   const [{ default: db }, { default: app }, { MigrationRunner }] = await Promise.all([
@@ -55,17 +56,25 @@ export async function runTenantMigrations(
 
   if (extra.length === 0) return runAgainst(connectionName)
 
-  const base = db.manager.get(connectionName)?.config
-  const basePaths: string[] = base?.migrations?.paths ?? ['database/migrations']
-  const tempName = `__migpaths_${connectionName}_${seq++}`
-  const cloned = {
-    ...base,
-    migrations: { ...(base?.migrations ?? {}), paths: [...basePaths, ...extra] },
-  }
-  db.manager.add(tempName, cloned)
-  try {
-    return await runAgainst(tempName)
-  } finally {
-    if (db.manager.has(tempName)) await db.manager.release(tempName)
-  }
+  // The temp clone is a SECOND real pool on the tenant's database, registered
+  // outside the driver LRU's accounting. Gate concurrent temp clones by the
+  // operational connection budget (itself clamped to the absolute ceiling), so a
+  // parallel migration run can never open unbounded extra pools and grow past the
+  // ceiling. With no extra paths (the common case above) no clone is opened, so
+  // that path takes no permit.
+  return runWithinOperationalBudget(async () => {
+    const base = db.manager.get(connectionName)?.config
+    const basePaths: string[] = base?.migrations?.paths ?? ['database/migrations']
+    const tempName = `__migpaths_${connectionName}_${seq++}`
+    const cloned = {
+      ...base,
+      migrations: { ...(base?.migrations ?? {}), paths: [...basePaths, ...extra] },
+    }
+    db.manager.add(tempName, cloned)
+    try {
+      return await runAgainst(tempName)
+    } finally {
+      if (db.manager.has(tempName)) await db.manager.release(tempName)
+    }
+  })
 }

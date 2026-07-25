@@ -119,7 +119,7 @@ test.group('EmbeddingIngestionService', () => {
     assert.equal(reservedWorstCase, 300)
   })
 
-  test('emits integer metrics that never carry chunk content (G3)', async ({ assert }) => {
+  test('emits integer metrics that never carry chunk content', async ({ assert }) => {
     const h = harness()
     await new EmbeddingIngestionService(h.deps).ingest(
       tenant,
@@ -225,7 +225,7 @@ test.group('EmbeddingIngestionService', () => {
         _source: string,
         chunks: Array<{ model: string; contentHash: string }>
       ) {
-        hashByModel[chunks[0].model] = chunks[0].contentHash
+        hashByModel[chunks[0]!.model] = chunks[0]!.contentHash
         return { ids: ['id'], inserted: 1 }
       },
     } as unknown as VectorStoreService
@@ -251,7 +251,7 @@ test.group('EmbeddingIngestionService', () => {
     // A model swap re-embed is a distinct row key (not a swallowed no-op), while a
     // re-embed under the SAME model keeps a stable key (idempotent).
     assert.notEqual(hashByModel['model-a'], hashByModel['model-b'])
-    assert.match(hashByModel['model-a'], /^[0-9a-f]{64}$/)
+    assert.match(hashByModel['model-a']!, /^[0-9a-f]{64}$/)
   })
 
   test('releases the reservation even when embedding fails, and counts the error', async ({

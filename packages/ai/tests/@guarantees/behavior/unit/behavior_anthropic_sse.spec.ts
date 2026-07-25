@@ -95,4 +95,46 @@ test.group('anthropic_sse', () => {
       assert.notInclude((err as AIException).message, 'SECRET-KEY')
     }
   })
+
+  test('accumulates a tool_use block into a tool_call fragment on stop_reason tool_use', async ({
+    assert,
+  }) => {
+    const source = byteSource(
+      `event: content_block_start\ndata: ${JSON.stringify({
+        index: 0,
+        content_block: { type: 'tool_use', id: 'toolu_1', name: 'count_bookings', input: {} },
+      })}\n\n`,
+      `event: content_block_delta\ndata: ${JSON.stringify({ index: 0, delta: { type: 'input_json_delta', partial_json: '{"status":' } })}\n\n`,
+      `event: content_block_delta\ndata: ${JSON.stringify({ index: 0, delta: { type: 'input_json_delta', partial_json: '"active"}' } })}\n\n`,
+      `event: content_block_stop\ndata: ${JSON.stringify({ index: 0 })}\n\n`,
+      `event: message_delta\ndata: ${JSON.stringify({ delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 5 } })}\n\n`,
+      'event: message_stop\ndata: {}\n\n'
+    )
+    const fragments = await collect(parseAnthropicStream(source))
+    const calls = fragments.filter((f) => f.event === 'tool_call')
+    assert.lengthOf(calls, 1)
+    assert.deepEqual(calls[0]?.toolCall, {
+      id: 'toolu_1',
+      name: 'count_bookings',
+      arguments: '{"status":"active"}',
+    })
+    // usage still surfaces alongside the tool call.
+    assert.equal(fragments.find((f) => f.event === 'usage')?.tokens, 5)
+  })
+
+  test('discards a tool_use block that never reached content_block_stop', async ({ assert }) => {
+    const source = byteSource(
+      `event: content_block_start\ndata: ${JSON.stringify({
+        index: 0,
+        content_block: { type: 'tool_use', id: 'toolu_1', name: 'count_bookings', input: {} },
+      })}\n\n`,
+      `event: content_block_delta\ndata: ${JSON.stringify({ index: 0, delta: { type: 'input_json_delta', partial_json: '{"partial":' } })}\n\n`,
+      `event: message_delta\ndata: ${JSON.stringify({ delta: { stop_reason: 'tool_use' } })}\n\n`,
+      'event: message_stop\ndata: {}\n\n'
+    )
+    const calls = (await collect(parseAnthropicStream(source))).filter(
+      (f) => f.event === 'tool_call'
+    )
+    assert.lengthOf(calls, 0)
+  })
 })

@@ -137,10 +137,15 @@ test.group('Isthmus emit — chaos', (group) => {
   test('conservation law: dispatched + rate-limited drops === guard trips, per severity', async ({
     assert,
   }) => {
-    // One guard id per severity so the roll-up key maps 1:1.
+    // One BROADCAST guard id per severity so the roll-up key maps 1:1. The
+    // conservation identity `dispatched + rate_limited === trips` holds only for
+    // broadcast guards; a count-only guard (S3, e.g. `guard.tenant_identifier`) is
+    // counted but neither dispatched nor rate-limited, so it is deliberately not a
+    // representative here (its own conservation is pinned in the dispatch-starvation
+    // spec). `guard.redirect_host` is the high broadcast representative.
     const BY_SEVERITY: Record<IsthmusSeverity, IsthmusGuardId> = {
       critical: 'seal.tenant_context',
-      high: 'guard.tenant_identifier',
+      high: 'guard.redirect_host',
       warn: 'guard.metric_value',
       info: 'audit.scope_bypass',
     }

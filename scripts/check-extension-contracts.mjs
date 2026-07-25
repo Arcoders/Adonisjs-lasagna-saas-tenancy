@@ -87,7 +87,17 @@ const SURFACES = [
     constant: 'CAPABILITY_CONTRACT_VERSION',
     file: 'packages/core/src/services/capability_registry.ts',
   },
-  { key: 'ai', constant: 'AI_CONTRACT_VERSION', file: 'packages/ai/src/sdk/contract_version.ts' },
+  {
+    key: 'ai',
+    constant: 'AI_CONTRACT_VERSION',
+    file: 'packages/ai/src/sdk/contract_version.ts',
+    shapeGate: 'packages/ai/src/services/ai_provider_registry.ts',
+  },
+  {
+    key: 'crypto',
+    constant: 'CRYPTO_CONTRACT_VERSION',
+    file: 'packages/crypto/src/sdk/contract_version.ts',
+  },
 ]
 
 /**
@@ -162,7 +172,7 @@ for (const s of SURFACES) {
 
 // Meta-check: every `export const *_CONTRACT_VERSION` under a package's src MUST be a
 // registered surface (or an allowlisted non-surface), so a NEW extension surface can't
-// ship unguarded/undocumented — the exact gap that once left AI out of this table.
+// ship unguarded/undocumented — the exact gap that left AI + crypto out of this table.
 const known = new Set([...SURFACES.map((s) => s.constant), ...NON_SURFACE_CONTRACT_VERSIONS])
 const tracked = execSync('git ls-files -z -- "packages/**/src/**/*.ts"', {
   cwd: ROOT,

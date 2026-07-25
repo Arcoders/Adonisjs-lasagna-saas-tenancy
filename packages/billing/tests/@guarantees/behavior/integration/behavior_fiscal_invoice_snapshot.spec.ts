@@ -133,11 +133,11 @@ test.group('Fiscal invoice snapshot (integration)', (group) => {
 
     const rows = await BillingInvoiceSnapshot.query().where('tenantId', tenantId)
     assert.lengthOf(rows, 1)
-    assert.equal(rows[0].providerInvoiceId, 'in_fiscal_1')
-    assert.equal(rows[0].subtotalCents, 1000)
-    assert.equal(rows[0].taxCents, 200)
-    assert.equal(rows[0].totalCents, 1200)
-    assert.equal(rows[0].currency, 'eur')
+    assert.equal(rows[0]?.providerInvoiceId, 'in_fiscal_1')
+    assert.equal(rows[0]?.subtotalCents, 1000)
+    assert.equal(rows[0]?.taxCents, 200)
+    assert.equal(rows[0]?.totalCents, 1200)
+    assert.equal(rows[0]?.currency, 'eur')
   })
 
   test('is idempotent — a redelivered invoice does not duplicate the snapshot', async ({
@@ -212,9 +212,9 @@ test.group('Fiscal invoice snapshot (integration)', (group) => {
     await controller.index(list.ctx)
     const body = list.captured.json as { invoices: Array<Record<string, unknown>> }
     assert.lengthOf(body.invoices, 1, 'scoped to the requesting tenant only')
-    assert.equal(body.invoices[0].id, 'in_read_1')
-    assert.equal(body.invoices[0].tax, 200)
-    assert.equal(body.invoices[0].total, 1200)
+    assert.equal(body.invoices[0]?.id, 'in_read_1')
+    assert.equal(body.invoices[0]?.tax, 200)
+    assert.equal(body.invoices[0]?.total, 1200)
 
     const pdf = fakeHttpContext(tenant.id, { id: 'in_read_1' })
     await controller.pdf(pdf.ctx)

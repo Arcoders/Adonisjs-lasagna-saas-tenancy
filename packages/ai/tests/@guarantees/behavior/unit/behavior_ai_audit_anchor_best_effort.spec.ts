@@ -13,7 +13,7 @@ function registryOf(...destinations: AuditAnchorDestination[]): AuditAnchorRegis
   return { list: () => destinations }
 }
 
-test.group('behavior — AI audit anchoring is best-effort', () => {
+test.group('behavior: AI audit anchoring is best-effort', () => {
   test('a throwing destination is isolated; the canonical append still resolves', async ({
     assert,
   }) => {
@@ -52,12 +52,14 @@ test.group('behavior — AI audit anchoring is best-effort', () => {
     })
     await writer.append(sampleAuditRow({ principalHash: 'a'.repeat(64) }))
     assert.lengthOf(received, 1)
-    assert.equal(received[0].action, 'ai:chat')
-    assert.equal(received[0].actorType, 'system')
-    assert.equal(received[0].actorId, 'a'.repeat(64))
-    assert.isNull(received[0].ipAddress)
-    assert.equal((received[0].metadata as Record<string, unknown>).op, 'chat')
-    assert.exists((received[0].metadata as Record<string, unknown>).checksum)
+    assert.equal(received[0]!.action, 'ai:chat')
+    // The AI satellite's own rows anchor as the first-class 'ai' actor,
+    // not 'system', so "the assistant did this" stays queryable in the SIEM.
+    assert.equal(received[0]!.actorType, 'ai')
+    assert.equal(received[0]!.actorId, 'a'.repeat(64))
+    assert.isNull(received[0]!.ipAddress)
+    assert.equal((received[0]!.metadata as Record<string, unknown>).op, 'chat')
+    assert.exists((received[0]!.metadata as Record<string, unknown>).checksum)
     assert.notInclude(JSON.stringify(received[0]), 'user-')
   })
 

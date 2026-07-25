@@ -17,7 +17,7 @@ import type { AiConfig } from '../../../../src/define_config.js'
 import type { AIMessage, AIProviderContract } from '../../../../src/types/ai_provider_contract.js'
 
 /**
- * RAG into /ai/chat (WS-AI-5): a `retrieve` ask embeds the query, searches under
+ * RAG into /ai/chat: a `retrieve` ask embeds the query, searches under
  * the document ACL, and folds the fenced matches into the context as a user turn
  * right before the question, then streams as usual. Non-RAG chat is untouched;
  * asking to retrieve with embeddings unconfigured is a 400.
@@ -27,7 +27,7 @@ function capturingProvider(): { provider: AIProviderContract; seen: AIMessage[][
   const seen: AIMessage[][] = []
   const provider: AIProviderContract = {
     name: 'claude',
-    contractVersion: 1,
+    contractVersion: 2,
     capabilities: { streaming: true },
     async verifyConfig() {},
     async *stream(request) {
@@ -116,17 +116,17 @@ test.group('chat RAG flow', () => {
     await controller.chat(ctx)
 
     assert.lengthOf(seen, 1, 'the provider was called once')
-    const messages = seen[0]
+    const messages = seen[0]!
     assert.lengthOf(messages, 3, 'system + retrieved block + user question')
-    assert.equal(messages[0].role, 'system')
-    assert.equal(messages[1].role, 'user', 'the retrieved block is a user turn')
-    assert.include(messages[1].content, 'REFUNDS ARE 30 DAYS')
-    assert.match(messages[1].content, /<retrieved_context index="1">/)
-    assert.equal(messages[2].content, 'what is the refund policy?', 'the question stays last')
+    assert.equal(messages[0]!.role, 'system')
+    assert.equal(messages[1]!.role, 'user', 'the retrieved block is a user turn')
+    assert.include(messages[1]!.content, 'REFUNDS ARE 30 DAYS')
+    assert.match(messages[1]!.content, /<retrieved_context index="1">/)
+    assert.equal(messages[2]!.content, 'what is the refund policy?', 'the question stays last')
 
     assert.lengthOf(audit.events, 1)
-    assert.equal(audit.events[0].outcome, 'completed')
-    assert.equal(audit.events[0].matchCount, 1)
+    assert.equal(audit.events[0]!.outcome, 'completed')
+    assert.equal(audit.events[0]!.matchCount, 1)
   })
 
   test('no retrieve field: messages pass through unchanged and retrieval is never called', async ({
@@ -150,7 +150,7 @@ test.group('chat RAG flow', () => {
   }) => {
     // No retrieval service injected (mirrors the route not resolving it when
     // config.ai.embedding is absent).
-    const { controller, seen } = build({ retrieval: undefined })
+    const { controller, seen } = build({})
     const { ctx, responseFacade } = fakeHttpContext({
       tenant: fakeTenant,
       body: { messages: [{ role: 'user', content: 'q' }], retrieve: { query: 'x' } },

@@ -84,6 +84,12 @@ interface TripRecipe {
   happy?: () => unknown | Promise<unknown>
   /** The happy input may throw a NON-Isthmus downstream error (crypto/DB). */
   happyMayThrowNonGuard?: true
+  /**
+   * The guard is classified `dispatchPolicy: 'count-only'` (S3): it records on the
+   * counters but NEVER broadcasts the event. The trip test asserts no dispatch
+   * (rather than exactly one) while still requiring the counter bump + the throw.
+   */
+  countOnly?: true
 }
 
 interface ViaIntegration {
@@ -109,10 +115,13 @@ type GatingGuardId = Exclude<IsthmusGuardId, AuditGuardId>
 const TRIP_MATRIX: Record<GatingGuardId, Recipe> = {
   'guard.tenant_identifier': {
     // ASCII-only SAFE_IDENT fires before the NFKC clause; '℀' still trips it,
-    // as input diversity, not as distinct NFKC-clause coverage.
+    // as input diversity, not as distinct NFKC-clause coverage. Count-only (S3):
+    // attacker-reachable at volume, so it records on the counter but never
+    // broadcasts.
     trip: () => assertSafeIdentifier('tenant@bad', 'tenant id'),
     expectThrow: /Refusing to use unsafe tenant id/,
     happy: () => assertSafeIdentifier(UUID, 'tenant id'),
+    countOnly: true,
   },
   'guard.redirect_host': {
     trip: () =>
@@ -370,15 +379,23 @@ test.group('Isthmus guard emission matrix — trip + happy', (group) => {
       assert.isDefined(threw, `${id}: trip recipe did not throw`)
       assert.match((threw as Error).message, recipe.expectThrow, `${id}: exception message changed`)
 
-      assert.lengthOf(captured, 1, `${id}: expected exactly one dispatch`)
-      assert.equal(captured[0]!.id, id)
-      assert.equal(captured[0]!.severity, entry.severity)
-      assert.equal(captured[0]!.event, entry.event)
-      assert.equal(captured[0]!.pillar, entry.pillar)
+      if (recipe.countOnly) {
+        // A count-only guard (S3) records on the counters but never broadcasts, so
+        // a flood of it can never consume its severity's shared dispatch window.
+        assert.lengthOf(captured, 0, `${id}: a count-only guard must not broadcast`)
+      } else {
+        assert.lengthOf(captured, 1, `${id}: expected exactly one dispatch`)
+        assert.equal(captured[0]!.id, id)
+        assert.equal(captured[0]!.severity, entry.severity)
+        assert.equal(captured[0]!.event, entry.event)
+        assert.equal(captured[0]!.pillar, entry.pillar)
 
-      // Metadata values are short (truncated by the guards to <= 64 chars).
-      for (const value of Object.values(captured[0]!.metadata)) {
-        if (typeof value === 'string') assert.isAtMost(value.length, 64, `${id}: metadata too long`)
+        // Metadata values are short (truncated by the guards to <= 64 chars).
+        for (const value of Object.values(captured[0]!.metadata)) {
+          if (typeof value === 'string') {
+            assert.isAtMost(value.length, 64, `${id}: metadata too long`)
+          }
+        }
       }
 
       const snapshot = snapshotIsthmusCounters()

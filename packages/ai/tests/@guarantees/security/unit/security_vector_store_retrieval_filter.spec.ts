@@ -11,7 +11,7 @@ import {
 import { fakeVectorEnv, vec } from '../../../helpers/fake_vector_db.js'
 
 /**
- * The retrievalFilter document-ACL WHERE clause (WS-AI-5, G2) on the vector
+ * The retrievalFilter document-ACL WHERE clause on the vector
  * store's search. The (model, dim) scope and the tenant placement stay mandatory;
  * the filter only NARROWS, never widens, and every filter value is a `?` bind
  * (never interpolated), so a scope value can neither be SQL nor escape the
@@ -33,7 +33,7 @@ function rejectedIds() {
 
 const searchHit = { id: 'r1', content: 'nearest', metadata: { team: 'eng' }, distance: 0.12 }
 
-test.group('VectorStoreService — retrievalFilter scope', (group) => {
+test.group('VectorStoreService: retrievalFilter scope', (group) => {
   group.each.setup(() => {
     __resetAiGuardCounters()
     __resetAiGuardRateLimit()
@@ -48,13 +48,13 @@ test.group('VectorStoreService — retrievalFilter scope', (group) => {
     const store = new VectorStoreService(env.deps)
     const matches = await store.search(tenant, query, { limit: 5, filter: { kind: 'all' } })
 
-    const q = env.queries[0]
+    const q = env.queries[0]!
     assert.notMatch(q.sql, /source in/i)
     assert.notMatch(q.sql, /metadata @>/i)
-    assert.equal(q.bindings[1], 'm')
-    assert.equal(q.bindings[2], 8)
-    assert.equal(q.bindings[0], q.bindings[q.bindings.length - 2], 'the two vector binds match')
-    assert.equal(q.bindings[q.bindings.length - 1], 5, 'the last bind is the limit')
+    assert.equal(q.bindings[1]!, 'm')
+    assert.equal(q.bindings[2]!, 8)
+    assert.equal(q.bindings[0]!, q.bindings[q.bindings.length - 2]!, 'the two vector binds match')
+    assert.equal(q.bindings[q.bindings.length - 1]!, 5, 'the last bind is the limit')
     // The hit is mapped to a VectorMatch.
     assert.deepEqual(matches, [searchHit])
   })
@@ -69,7 +69,7 @@ test.group('VectorStoreService — retrievalFilter scope', (group) => {
       filter: { kind: 'sources', sources: ['doc-a', 'doc-b'] },
     })
 
-    const q = env.queries[0]
+    const q = env.queries[0]!
     assert.match(q.sql, /AND source IN \(\?, \?\)/i)
     // model, dim, then the two source binds, in order.
     assert.deepEqual(q.bindings.slice(1, 5), ['m', 8, 'doc-a', 'doc-b'])
@@ -96,7 +96,7 @@ test.group('VectorStoreService — retrievalFilter scope', (group) => {
       filter: { kind: 'metadata', match: { team: 'eng', level: 2 } },
     })
 
-    const q = env.queries[0]
+    const q = env.queries[0]!
     assert.match(q.sql, /AND metadata @> \?::jsonb/i)
     assert.include(q.bindings as unknown[], JSON.stringify({ team: 'eng', level: 2 }))
   })
@@ -113,7 +113,7 @@ test.group('VectorStoreService — retrievalFilter scope', (group) => {
     assert.include(rejectedIds(), 'guard.ai_scope_mismatch')
   })
 
-  test('rowscope placement is refused for a filtered search too (I1)', async ({ assert }) => {
+  test('rowscope placement is refused for a filtered search too', async ({ assert }) => {
     const store = new VectorStoreService(fakeVectorEnv({ kind: 'rowscope' }).deps)
     await assert.rejects(
       () =>

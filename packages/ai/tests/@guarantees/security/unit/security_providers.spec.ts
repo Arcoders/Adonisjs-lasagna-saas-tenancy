@@ -51,9 +51,9 @@ test.group('providers: SSRF boundary', () => {
     await collect(
       new DeepSeekProvider({ apiKey: 'k' }, deps).stream(request, new AbortController().signal)
     )
-    assert.isUndefined(calls[0].opts.trustedHost)
-    assert.isUndefined(calls[0].opts.allowLoopback)
-    assert.isTrue(calls[0].opts.streaming)
+    assert.isUndefined(calls[0]!.opts.trustedHost)
+    assert.isUndefined(calls[0]!.opts.allowLoopback)
+    assert.isTrue(calls[0]!.opts.streaming)
   })
 
   test('a pin rejection of a BYOK endpoint surfaces as byok_endpoint_blocked', async ({
@@ -73,9 +73,7 @@ test.group('providers: SSRF boundary', () => {
     }
   })
 
-  test('a model outside the per-provider allow-list is rejected (G12 model scope)', async ({
-    assert,
-  }) => {
+  test('a model outside the per-provider allow-list is rejected', async ({ assert }) => {
     const { deps } = fakeFetch(() => sseResponse('data: [DONE]\n\n'))
     const provider = new DeepSeekProvider({ apiKey: 'k', allowedModels: ['deepseek-chat'] }, deps)
     try {

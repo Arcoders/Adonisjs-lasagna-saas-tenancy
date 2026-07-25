@@ -14,7 +14,7 @@ import { FakeRedisLists } from '../../../helpers/fake_redis_lists.js'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * The conversation-memory flow through the real chat controller (WS-AI-4): turn 1
+ * The conversation-memory flow through the real chat controller: turn 1
  * mints a session and hands back X-Ai-Session, the completed exchange is
  * persisted, turn 2's token replays the prior turns into the provider context, a
  * forged token is a 400 before any cost, and an idempotent replay re-emits the
@@ -41,7 +41,7 @@ function buildDeps(redis: FakeRedisLists, store?: AiIdempotencyStore) {
   const { svc } = makeService(quota)
   const provider = new MockAIProvider({
     name: 'claude',
-    contractVersion: 1,
+    contractVersion: 2,
     fragments: [{ data: 'hi', tokens: 1 }],
   })
   const registry = new AIProviderRegistry()
@@ -58,8 +58,8 @@ function buildDeps(redis: FakeRedisLists, store?: AiIdempotencyStore) {
   const memory = new ConversationMemoryService({
     getRedis: async () => redis,
     macKey: Buffer.alloc(32, 4),
-    encryptMemory: (plain) => `e:${plain}`,
-    decryptMemory: (cipher) => {
+    encryptMemory: async (_tenantId, plain) => `e:${plain}`,
+    decryptMemory: async (_tenantId, cipher) => {
       if (!cipher.startsWith('e:')) throw new Error('not ciphertext')
       return cipher.slice(2)
     },
@@ -78,7 +78,7 @@ function buildDeps(redis: FakeRedisLists, store?: AiIdempotencyStore) {
 
 const auth = { user: { id: 'u1' } }
 
-test.group('chat controller — conversation memory flow', () => {
+test.group('chat controller: conversation memory flow', () => {
   test('turn 1 mints X-Ai-Session and turn 2 replays the prior exchange into the context', async ({
     assert,
   }) => {
@@ -93,7 +93,7 @@ test.group('chat controller — conversation memory flow', () => {
 
     const token = t1.res.headers['x-ai-session']
     assert.isString(token, 'turn 1 hands back a session token')
-    assert.deepEqual(provider.calls[0].request.messages, [{ role: 'user', content: 'first' }])
+    assert.deepEqual(provider.calls[0]!.request.messages, [{ role: 'user', content: 'first' }])
 
     const t2 = fakeHttpContext({
       tenant: fakeTenant,
@@ -103,7 +103,7 @@ test.group('chat controller — conversation memory flow', () => {
     await controller.chat(t2.ctx)
 
     assert.deepEqual(
-      provider.calls[1].request.messages,
+      provider.calls[1]!.request.messages,
       [
         { role: 'user', content: 'first' },
         { role: 'assistant', content: 'hi' },

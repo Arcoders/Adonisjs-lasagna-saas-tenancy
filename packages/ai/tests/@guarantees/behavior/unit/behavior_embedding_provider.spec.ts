@@ -34,10 +34,10 @@ test.group('OpenAICompatibleEmbeddingProvider', () => {
 
     const result = await provider.embed({ input: ['a', 'b'] }, new AbortController().signal)
 
-    assert.equal(calls[0].url, 'https://api.example.com/v1/embeddings')
-    assert.equal(calls[0].opts.headers?.['authorization'], 'Bearer sk-key')
-    assert.notProperty(calls[0].opts, 'streaming')
-    const body = JSON.parse(calls[0].opts.body as string)
+    assert.equal(calls[0]!.url, 'https://api.example.com/v1/embeddings')
+    assert.equal(calls[0]!.opts.headers?.['authorization'], 'Bearer sk-key')
+    assert.notProperty(calls[0]!.opts, 'streaming')
+    const body = JSON.parse(calls[0]!.opts.body as string)
     assert.equal(body.model, 'embed-1')
     assert.equal(body.encoding_format, 'float')
     assert.deepEqual(body.input, ['a', 'b'])
@@ -78,7 +78,7 @@ test.group('OpenAICompatibleEmbeddingProvider', () => {
       deps
     )
     await provider.embed({ input: ['x'] }, new AbortController().signal)
-    assert.equal(calls[0].url, 'https://byok.example.com/embeddings')
+    assert.equal(calls[0]!.url, 'https://byok.example.com/embeddings')
   })
 
   test('a non-2xx maps to a typed AIException (429 -> rate_limited, else provider_unavailable)', async ({
@@ -123,7 +123,7 @@ test.group('OpenAICompatibleEmbeddingProvider', () => {
     )
   })
 
-  test('a model outside the allow-list is refused (G12) before any call', async ({ assert }) => {
+  test('a model outside the allow-list is refused before any call', async ({ assert }) => {
     const { deps, calls } = fakeFetch(() => jsonResponse(embeddingsBody([[0.1]])))
     const provider = new OpenAICompatibleEmbeddingProvider(
       params,

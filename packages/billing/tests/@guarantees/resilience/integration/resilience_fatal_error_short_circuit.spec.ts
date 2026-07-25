@@ -133,8 +133,8 @@ test.group('Fatal-error short-circuit (integration)', (group) => {
       assert.match(ledger?.lastError ?? '', /Stripe API key was rejected/)
 
       assert.lengthOf(captured, 1, 'one dead-letter event')
-      assert.equal(captured[0].errorCode, 'authentication_failed')
-      assert.equal(captured[0].eventId, eventId)
+      assert.equal(captured[0]?.errorCode, 'authentication_failed')
+      assert.equal(captured[0]?.eventId, eventId)
     } finally {
       off()
     }

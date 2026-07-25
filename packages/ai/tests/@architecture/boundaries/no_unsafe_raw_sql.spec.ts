@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { walkTsFiles } from '../../helpers/walk_ts_files.js'
 
 /**
- * The AI mirror of core's no_unsafe_raw_sql guard. The vector store (WS-AI-3) is
+ * The AI mirror of core's no_unsafe_raw_sql guard. The vector store is
  * the first raw SQL in this package (pgvector has no Lucid column type). Unlike
  * core, the AI package does not validate identifiers: it interpolates only fixed
  * module constants (the table name, a config-validated dimension), never user
@@ -23,8 +23,8 @@ const ROOTS = ['src', 'tenant_migrations'].map((d) =>
 const TEMPLATE_RAW_SQL = /\.(?:rawQuery|raw)\(\s*`[^`]*\$\{[\s\S]*?`/g
 const SAFE_SQL_MARKER = /\/\/\s*safe-sql:/i
 
-function findInterpolatedRawSql(src) {
-  const hits = []
+function findInterpolatedRawSql(src: string): number[] {
+  const hits: number[] = []
   const re = new RegExp(TEMPLATE_RAW_SQL.source, 'g')
   let m
   while ((m = re.exec(src)) !== null) {
@@ -33,14 +33,14 @@ function findInterpolatedRawSql(src) {
   return hits
 }
 
-function lineHasMarker(src, lineNumber) {
+function lineHasMarker(src: string, lineNumber: number) {
   const lines = src.split('\n')
   return lines
     .slice(Math.max(0, lineNumber - 2), lineNumber + 1)
     .some((l) => SAFE_SQL_MARKER.test(l))
 }
 
-test.group('architectural — raw SQL interpolation must carry a safe-sql marker', () => {
+test.group('architectural: raw SQL interpolation must carry a safe-sql marker', () => {
   test('every interpolated rawQuery/raw site in src + tenant_migrations is annotated', ({
     assert,
   }) => {

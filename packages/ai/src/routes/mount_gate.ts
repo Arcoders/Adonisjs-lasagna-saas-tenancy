@@ -36,7 +36,7 @@ export interface MultitenancyAiRoutesOptions {
 /**
  * True when the middleware chain is effectively absent: undefined, null, an
  * empty string, or the dangerous EMPTY ARRAY (which `group.use` would accept
- * and silently guard nothing). Pure, so the G4 matrix unit-tests without the
+ * and silently guard nothing). Pure, so the mount-gate matrix unit-tests without the
  * router service.
  */
 export function isAbsentAiMiddleware(middleware: unknown): boolean {
@@ -64,12 +64,12 @@ export function aiMembershipGateRisk(ai: AiConfig | undefined): string | null {
   }
   return (
     'multitenancy/ai: config.ai.authorizeAIAccess is not set and acknowledgeNoMembershipGate ' +
-    'is not true. AI routes are default-deny (G4) and refuse to mount in this posture.'
+    'is not true. AI routes are default-deny and refuse to mount in this posture.'
   )
 }
 
 /**
- * The fail-closed mount gate (G4). Every refusal emits `guard.ai_route_mount`
+ * The fail-closed mount gate. Every refusal emits `guard.ai_route_mount`
  * before it throws, so a deploy that dies here still leaves an audit trace
  * (counted; usually a no_emitter drop, since the app has not booted). Returns
  * the acknowledged-posture warning for the caller to log when mounting is
@@ -101,7 +101,7 @@ export function assertAiMountAllowed(
   if (typeof ai.authorizeAIAccess !== 'function' && ai.acknowledgeNoMembershipGate !== true) {
     emitAiGuardEvent('guard.ai_route_mount', { metadata: { reason: 'no_membership_gate' } })
     throw new Error(
-      'multitenancyAiRoutes: Refusing to mount AI routes without a membership gate (G4). ' +
+      'multitenancyAiRoutes: Refusing to mount AI routes without a membership gate. ' +
         'Set config.ai.authorizeAIAccess (false/throw => 403), or acknowledge the posture ' +
         'explicitly with config.ai.acknowledgeNoMembershipGate = true if the host middleware ' +
         'chain already scopes access per principal.'

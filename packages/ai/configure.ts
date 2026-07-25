@@ -12,10 +12,9 @@ import {
 /**
  * `node ace configure @adonisjs-lasagna/ai` reads its own
  * `package.json#lasagnaSatellite` manifest and uses the shared toolkit so it
- * behaves identically to core's `configure --with=ai` path. The AI satellite
- * ships no migrations of its own in this release (the vector / memory / audit
- * tables are later workstreams), so `publishSatellite` is a no-op for
- * migrations; it still registers the provider.
+ * behaves identically to core's `configure --with=ai` path. The manifest points
+ * `migrations` at a directory, so every stub in `stubs/migrations` publishes
+ * without being listed here: today the audit chain and the action ledger.
  */
 export default async function configure(command: Configure) {
   const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..')

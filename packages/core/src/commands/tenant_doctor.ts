@@ -2,7 +2,11 @@ import { BaseCommand, flags } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import app from '@adonisjs/core/services/app'
 import DoctorService from '../services/doctor/doctor_service.js'
-import type { DiagnosisSeverity, DoctorRunResult } from '../services/doctor/types.js'
+import type {
+  DiagnosisSeverity,
+  DoctorRunResult,
+  DoctorRunStatus,
+} from '../services/doctor/types.js'
 
 const SEVERITY_COLOR: Record<DiagnosisSeverity, 'cyan' | 'yellow' | 'red'> = {
   info: 'cyan',
@@ -56,6 +60,15 @@ export default class TenantDoctor extends BaseCommand {
   declare interactive: boolean
 
   @flags.boolean({
+    flagName: 'reconcile-ledger',
+    default: false,
+    description:
+      'Allow migration_drift to rewrite a relocated tenant’s adonis_schema row (zero DDL, ' +
+      'fail-closed). Without it, a relocation is only previewed. Independent of --fix.',
+  })
+  declare reconcileLedger: boolean
+
+  @flags.boolean({
     flagName: 'json',
     default: false,
     description: 'Emit a JSON report on stdout instead of the table',
@@ -107,6 +120,7 @@ export default class TenantDoctor extends BaseCommand {
       tenants: this.tenant,
       checks: this.check,
       fix: this.fix,
+      reconcileLedger: this.reconcileLedger,
     })
 
     if (this.json) {
@@ -122,6 +136,11 @@ export default class TenantDoctor extends BaseCommand {
   async #runWatch(doctor: DoctorService) {
     if (this.fix) {
       this.logger.warning('--fix is ignored in --watch mode (no auto-fixes inside a polling loop).')
+    }
+    if (this.reconcileLedger) {
+      this.logger.warning(
+        '--reconcile-ledger is ignored in --watch mode (no ledger writes in a loop).'
+      )
     }
     if (this.interactive) {
       this.logger.warning('--interactive is ignored in --watch mode.')
@@ -202,6 +221,7 @@ export default class TenantDoctor extends BaseCommand {
       tenants: this.tenant,
       checks: confirmed,
       fix: true,
+      reconcileLedger: this.reconcileLedger,
     })
     this.#renderReports(result)
 
@@ -317,7 +337,7 @@ export default class TenantDoctor extends BaseCommand {
     table.render()
   }
 
-  #renderReports(result: { reports: any[]; totals: any }) {
+  #renderReports(result: { reports: any[]; totals: any; status?: DoctorRunStatus }) {
     const { reports, totals } = result
     if (reports.length === 0) {
       this.logger.info('No checks registered.')
@@ -362,6 +382,24 @@ export default class TenantDoctor extends BaseCommand {
       `${this.colors.red(`error: ${totals.error}`)}  ` +
       `fixable: ${totals.fixable}`
     this.logger.log(this.colors.bold('Summary  ') + summary)
+
+    if (result.status) {
+      // Tri-state verdict, mirroring /readyz and the health report: FAIL only on a
+      // platform-scoped error; a lone tenant error is DEGRADED (the platform is fine).
+      const verdict =
+        result.status === 'fail'
+          ? this.colors.red('FAIL')
+          : result.status === 'degraded'
+            ? this.colors.yellow('DEGRADED')
+            : this.colors.green('OK')
+      const split =
+        totals.platformError !== undefined
+          ? this.colors.dim(
+              `  (${totals.platformError} platform · ${totals.tenantError} tenant error(s))`
+            )
+          : ''
+      this.logger.log(this.colors.bold('Verdict  ') + verdict + split)
+    }
 
     if (!this.fix && totals.fixable > 0) {
       this.logger.log(this.colors.dim(`Re-run with --fix to apply auto-fixes.`))

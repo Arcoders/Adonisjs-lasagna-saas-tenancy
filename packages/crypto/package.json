@@ -1,0 +1,77 @@
+{
+  "name": "@adonisjs-lasagna/crypto",
+  "version": "0.1.0",
+  "description": "Field-level encryption mechanism for Lasagna: per-(subject x category) DEKs under a pluggable KeyProvider (env, AWS KMS, HashiCorp Vault), deterministic search HMAC, and O(1) crypto-shredding. The keystone of the data-protection satellites.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ismael Haytam Tanane",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "files": [
+    "build",
+    "stubs"
+  ],
+  "exports": {
+    ".": "./build/src/index.js",
+    "./provider": "./build/providers/crypto_provider.js",
+    "./commands": "./build/src/commands/main.js",
+    "./testing": "./build/src/testing/index.js"
+  },
+  "typesVersions": {
+    "*": {
+      "provider": [
+        "./build/providers/crypto_provider.d.ts"
+      ],
+      "commands": [
+        "./build/src/commands/main.d.ts"
+      ],
+      "testing": [
+        "./build/src/testing/index.d.ts"
+      ]
+    }
+  },
+  "main": "./build/src/index.js",
+  "types": "./build/src/index.d.ts",
+  "adonisjs": {
+    "configure": "./build/configure.js",
+    "commands": [
+      "./build/src/commands/main.js"
+    ]
+  },
+  "lasagnaSatellite": {
+    "name": "crypto",
+    "satelliteApi": 1,
+    "pluginApiVersion": 1,
+    "migrations": "stubs/migrations",
+    "perTenantMigrations": "build/tenant_migrations",
+    "migrationAliases": [
+      {
+        "from": "database/migrations/tenant/0013_create_crypto_wrapped_deks_table",
+        "migration": "1751500000000_create_crypto_wrapped_deks_table"
+      }
+    ],
+    "minMergedCoverage": {
+      "lines": 80,
+      "functions": 80,
+      "branches": 75
+    },
+    "provider": "@adonisjs-lasagna/crypto/provider",
+    "commands": "@adonisjs-lasagna/crypto/commands",
+    "docs": "https://arcoders.github.io/Adonisjs-lasagna-saas-tenancy/guides/satellites/crypto"
+  },
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('build',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && node -e \"require('fs').cpSync('src/commands/commands.json','build/src/commands/commands.json')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx bin/test.ts",
+    "test:coverage": "c8 --temp-directory=../../coverage/.v8/crypto-unit tsx bin/test.ts",
+    "test:integration:run": "tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+    "test:integration:coverage": "c8 --check-coverage=false --temp-directory=../../coverage/.v8/crypto-integration tsx --tsconfig ../../tsconfig.json bin/test.integration.ts",
+    "test:fault:run": "tsx --tsconfig ../../tsconfig.json bin/test.fault.ts"
+  },
+  "peerDependencies": {
+    "@adonisjs-lasagna/saas-tenancy": ">=0.3.0 <1.0.0",
+    "@adonisjs/core": "^7.0.0",
+    "@adonisjs/redis": "^10.0.0"
+  }
+}

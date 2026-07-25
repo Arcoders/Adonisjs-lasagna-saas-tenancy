@@ -7,6 +7,7 @@ import { memoizedTenantId, resolveTenantId } from '../extensions/request.js'
 import { emitIsthmusEvent } from '../isthmus/audit.js'
 import { isUuidV4 } from './isolation/identifier.js'
 import type TenantResolverRegistry from './resolvers/registry.js'
+import { tokenizeTenantId } from '../sdk/tenant_token.js'
 import { tenancy } from '../tenancy.js'
 
 /**
@@ -51,9 +52,13 @@ export default class TenantContextResolver {
         if (context) {
           const fromRequest = this.#comparandId(context.request)
           if (fromRequest && fromRequest !== fromTenancy) {
+            // The broadcast event fans out to every subscribed plugin, so the
+            // FOREIGN request id goes out only as a non-reversible correlation
+            // token. The precise ids stay server-side, in the exception the host
+            // catches (below) and the tenant-scoped audit log.
             emitIsthmusEvent('seal.tenant_context', {
               tenantId: fromTenancy,
-              metadata: { requestResolvedId: fromRequest },
+              metadata: { requestResolvedId: tokenizeTenantId(fromRequest) },
             })
             throw new IsthmusTenantMismatchException(fromTenancy, fromRequest)
           }

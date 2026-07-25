@@ -8,7 +8,7 @@ import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
  * The retrieve choke point authorizes FIRST (like embed): a caller denied by the
- * membership gate OR by the retrievalFilter document ACL (G2) never reaches the
+ * membership gate OR by the retrievalFilter document ACL never reaches the
  * retrieval service, so no reservation is taken and no query is embedded (a
  * denied caller spends nothing).
  */

@@ -26,6 +26,7 @@ const FeatureFlagsController = () => import('#app/controllers/demo/feature_flags
 const BrandingController = () => import('#app/controllers/demo/branding_controller')
 const SsoController = () => import('#app/controllers/demo/sso_controller')
 const BillingController = () => import('#app/controllers/demo/billing_controller')
+const CryptoController = () => import('#app/controllers/demo/crypto_controller')
 
 /* ─── Operational endpoints (livez / readyz / healthz / metrics) ─────────── */
 // `/livez` and `/readyz` stay public for k8s probes. `/metrics` leaks tenant
@@ -154,6 +155,12 @@ router
     // Billing (Stripe), added incrementally alongside the satellites above
     router.get('/billing', [BillingController, 'show'])
     router.post('/billing/checkout', [BillingController, 'checkout'])
+
+    // Crypto (@adonisjs-lasagna/crypto): field encryption, blind-index search, shred
+    router.post('/secure-notes', [CryptoController, 'create'])
+    router.post('/secure-notes/search', [CryptoController, 'search'])
+    router.get('/secure-notes/:subject', [CryptoController, 'show'])
+    router.post('/secure-notes/:subject/shred', [CryptoController, 'shred'])
   })
   .prefix('/demo')
   .use(middleware.tenantGuard())

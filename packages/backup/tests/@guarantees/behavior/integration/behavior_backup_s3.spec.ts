@@ -28,6 +28,9 @@ const ACCESS_KEY = process.env.AWS_ACCESS_KEY_ID ?? 'minioadmin'
 const SECRET_KEY = process.env.AWS_SECRET_ACCESS_KEY ?? 'minioadmin'
 
 function makeClient(): S3Client {
+  if (!ENDPOINT) {
+    throw new Error('BACKUP_S3_ENDPOINT must be set to build the S3 client')
+  }
   return new S3Client({
     region: REGION,
     endpoint: ENDPOINT,

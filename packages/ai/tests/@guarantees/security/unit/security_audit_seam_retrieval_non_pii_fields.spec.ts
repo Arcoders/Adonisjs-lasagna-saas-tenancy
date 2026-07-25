@@ -12,10 +12,10 @@ import { fakeTenant } from '../../../helpers/stream_doubles.js'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * The retrieve choke point's own G1 forward contract: the retrieval audit event
- * field set is pinned EXACTLY (a parallel event to the chat/embed ones),
- * `actorHash` is one-way, and neither the query text nor a returned document ever
- * reaches a serialized event (only a `matchCount`).
+ * The retrieve choke point's own forward contract: the retrieval audit event field set
+ * is pinned EXACTLY (a parallel event to the chat/embed ones), `actorHash` is one-way,
+ * and neither the query text nor a returned document ever reaches a serialized event
+ * (only a `matchCount`).
  */
 const PINNED_FIELDS = [
   'actorHash',
@@ -77,14 +77,14 @@ test.group('retrieval audit seam non-PII contract', () => {
 
     assert.lengthOf(events, 1)
     assert.deepEqual(
-      Object.keys(events[0]).sort(),
+      Object.keys(events[0]!).sort(),
       PINNED_FIELDS,
       'the retrieval audit event field set is FROZEN; extending it is a reviewed decision'
     )
-    assert.equal(events[0].outcome, 'completed')
-    assert.equal(events[0].tenantId, 't1')
-    assert.equal(events[0].matchCount, 1)
-    assert.equal(events[0].tokens, 7)
+    assert.equal(events[0]!.outcome, 'completed')
+    assert.equal(events[0]!.tenantId, 't1')
+    assert.equal(events[0]!.matchCount, 1)
+    assert.equal(events[0]!.tokens, 7)
   })
 
   test('the actor is one-way hashed and neither the query nor a document leaks', async ({
@@ -99,8 +99,8 @@ test.group('retrieval audit seam non-PII contract', () => {
 
     await buildController(sink).retrieve(ctx)
 
-    assert.equal(events[0].actorHash, hashAuditPrincipal('user-1'))
-    assert.match(events[0].actorHash!, /^[0-9a-f]{64}$/)
+    assert.equal(events[0]!.actorHash, hashAuditPrincipal('user-1'))
+    assert.match(events[0]!.actorHash!, /^[0-9a-f]{64}$/)
     const serialized = JSON.stringify(events)
     assert.notInclude(serialized, 'user-1')
     assert.notInclude(serialized, SECRET_QUERY)
@@ -111,6 +111,6 @@ test.group('retrieval audit seam non-PII contract', () => {
     const { sink, events } = capturingSink()
     const { ctx } = fakeHttpContext({ tenant: fakeTenant, body: { query: SECRET_QUERY } })
     await buildController(sink).retrieve(ctx)
-    assert.isNull(events[0].actorHash)
+    assert.isNull(events[0]!.actorHash)
   })
 })

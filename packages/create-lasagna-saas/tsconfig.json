@@ -1,9 +1,10 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "./build",
-    "rootDir": "./",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "bin/index.ts"]
+  // Typecheck config: it covers the tests too, so a signature change cannot leave a
+  // spec quietly passing the wrong shape. `tsconfig.build.json` is the one that
+  // emits, and it narrows back to the shipped surface.
+  "include": ["src/**/*.ts", "bin/**/*.ts", "tests/**/*.ts"]
 }

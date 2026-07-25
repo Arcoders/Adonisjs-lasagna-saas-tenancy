@@ -9,6 +9,7 @@ import { runTenantResolution } from './tenant_resolution.bench.js'
 import { runAdapterRouting } from './adapter_routing.bench.js'
 import { runConnectionLru } from './connection_lru.bench.js'
 import { runRowscopePredicate } from './rowscope_predicate.bench.js'
+import { runIsthmus } from './isthmus.bench.js'
 
 installBenchConfig()
 
@@ -17,6 +18,7 @@ const results: BenchResult[] = [
   ...runAdapterRouting(),
   ...runConnectionLru(),
   ...runRowscopePredicate(),
+  ...runIsthmus(),
 ]
 
 printResults('Tier 1 — micro hot-paths', results)

@@ -6,15 +6,15 @@ import {
 } from '../../../../src/services/ai_compliance_controls.js'
 
 /**
- * WS-AI-9 compliance posture controls: residency reports its configured/unset
+ * Compliance posture controls: residency reports its configured/unset
  * posture, right-to-erasure is satisfied by the purge command + auto-purge, and
  * the embedding-retention control is INFO (not "satisfied erasure") so an
- * operator is never misled that anonymize cleared the corpus (E24 / decision 1).
+ * operator is never misled that anonymize cleared the corpus.
  */
 
 const ctx = (ai: unknown) => ({ config: { ai } as never, db: {} as never })
 
-test.group('behavior — AI compliance controls (WS-AI-9)', () => {
+test.group('behavior: AI compliance controls', () => {
   test('residency reports satisfied when configured, info when unset', async ({ assert }) => {
     const on = await aiDataResidencyControl.detect(
       ctx({ residency: () => ({ mode: 'local-only' }) })
@@ -32,7 +32,7 @@ test.group('behavior — AI compliance controls (WS-AI-9)', () => {
     assert.includeMembers(aiRightToErasureControl.frameworks, ['gdpr:art17'])
   })
 
-  test('embedding retention is INFO with a host-responsibility, never satisfied erasure (E24)', async ({
+  test('embedding retention is INFO with a host-responsibility, never satisfied erasure', async ({
     assert,
   }) => {
     const r = await aiEmbeddingRetentionControl.detect(ctx({ embedding: {} }))

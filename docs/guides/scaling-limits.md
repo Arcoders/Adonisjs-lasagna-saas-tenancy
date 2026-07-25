@@ -105,19 +105,54 @@ If you keep the availability-favouring default (`enforceConnectionCap: false`)
 but still want a last-resort backstop, set
 `isolation.maxTenantConnectionsHardCeiling` to a value **generously above**
 `maxTenantConnections`. It is a second, absolute tier: once the pool reaches it,
-`connect()` refuses a new request-path tenant connection with a `503` **whether
+`connect()` refuses a new tenant connection with a `503` **whether
 or not `enforceConnectionCap` is on**, so a burst can grow past the soft cap for
 availability yet can never march all the way to PostgreSQL's `max_connections`
-and take the database down. Operational paths (provisioning, migrations) bypass
-it, exactly as they bypass the soft cap. Setting it *below* `maxTenantConnections`
+and take the database down. Unlike the soft cap, the absolute ceiling is
+**unbypassable**: operational paths (provisioning, migrations, seeding) do *not*
+bypass it, so no path can exhaust the database. Bulk or parallel operational work
+draws from `isolation.operationalConnectionBudget` (default `4`), a small budget
+clamped at runtime to the ceiling, so a parallel migration or warm-up can never
+push the pool past it. Setting the ceiling *below* `maxTenantConnections`
 is a misconfiguration (the pool would be refused before the LRU ever evicts an
 idle connection); the provider logs a boot warning if you do.
 
 ::: tip Use a connection pooler
 At higher tenant counts, front Postgres with **PgBouncer** (transaction
 pooling) so the package's per-tenant connections map onto a much smaller set of
-real server connections.
+real server connections. Set `isolation.pgBouncer.mode` to `'transaction'` (or
+`'session'`) so the posture is recorded and confirmed pooler-safe; the `tenant:doctor`
+`pgbouncer` check reports it. The tenant routing path is transaction-pooling-safe
+by construction (the tenant GUC is a bound-parameter `set_config` per transaction,
+with no reliance on cross-transaction server-side prepared statements). Detection
+is fail-closed: `'auto'` never *assumes* transaction pooling, and detection never
+raises a cap.
 :::
+
+### Warm pool: erase the cold-connection cliff for hot tenants
+
+An idle tenant pays a one-time cost on its first query: registering its connection
+and opening a physical connection. For a known set of hot tenants you can pay that
+at boot instead. Enable the **warm pool** with an operator-declared tenant set:
+
+```ts
+// config/multitenancy.ts
+import { defineWarmPool } from '@adonisjs-lasagna/saas-tenancy/config'
+
+isolation: {
+  driver: 'schema-pg',
+  warmPool: defineWarmPool({
+    enabled: true,
+    tenants: ['<hot-tenant-uuid>', '…'], // or selectTenants: () => topTenantsByTraffic()
+  }),
+}
+```
+
+The tenant set is always operator-declared (a static list or the `selectTenants`
+hook), never derived from request input, so it can never become an attacker-forced
+warm DoS. Warming runs through the capped `connect()` bounded by
+`operationalConnectionBudget` and refused by the absolute ceiling, and fails
+closed: a warm failure is logged and skipped, never thrown into boot or a request.
 
 ## Read replicas
 

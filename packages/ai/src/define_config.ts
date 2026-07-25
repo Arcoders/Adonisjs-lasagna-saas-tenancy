@@ -4,6 +4,8 @@ import type {
   TenantAccessAuthorizer,
   TenantModelContract,
 } from '@adonisjs-lasagna/saas-tenancy/types'
+import type { FailurePolicy } from '@adonisjs-lasagna/saas-tenancy/services'
+import type { AIToolDefinition } from './types/ai_provider_contract.js'
 
 /**
  * The shipped AI provider names. `(string & {})` keeps autocomplete for the
@@ -76,6 +78,31 @@ export interface AIEmbeddingConfig extends AIProviderConfig {
    * caller use AI at all"); this gates "may this caller write to the index".
    */
   authorizeIngestion?: TenantAccessAuthorizer
+  /**
+   * Encrypt the `content` column at rest under a per-tenant DEK (gated).
+   * Default false (plaintext, today's behavior). Turning it on is a SEPARATE per-host
+   * go: it requires the optional crypto satellite (boot fails closed if it is selected
+   * without crypto installed) and seals `content` to enc_v2 ciphertext before insert,
+   * decrypting the O(limit) returned rows after the ANN scan. `content_hash` is
+   * UNAFFECTED (it hashes caller plaintext upstream of storage, so a re-ingest still
+   * dedups), and `source`/`actor` stay plaintext (they key purge and ACL).
+   *
+   * HONEST RESIDUAL: the embedding VECTOR cannot be encrypted (ANN search needs it) and
+   * stays approximately invertible to source text. This defends a raw `content` column
+   * dump (a `pg_dump`, a replica snapshot, a mis-scoped analytics read), NOT vector
+   * inversion; physical isolation remains the real embedding control.
+   */
+  encryptContent?: boolean
+  /**
+   * Also encrypt the `metadata` column at rest (gated). Default false. This is
+   * MUTUALLY EXCLUSIVE with metadata-scoped retrieval: the `metadata @> ?::jsonb`
+   * containment predicate cannot run over ciphertext, so with this on a `RetrievalScope`
+   * of `kind: 'metadata'` is refused fail-closed with
+   * `guard.ai_embedding_metadata_scope_conflict` rather than silently returning zero
+   * rows. Leave false unless the host has no metadata-ACL retrieval and metadata secrecy
+   * is worth losing metadata-scoped search.
+   */
+  encryptMetadata?: boolean
 }
 
 /**
@@ -112,7 +139,7 @@ export type RetrievalFilter = (
  * The retrieval (RAG) block, present when a host opts into similarity
  * search over the vector store. `retrievalFilter` is the per-user document ACL;
  * the bounds cap a retrieval request and the size of a retrieved context
- * block folded into a chat prompt (#8, output bounds). Retrieval reuses the
+ * block folded into a chat prompt (an output bound). Retrieval reuses the
  * embedding provider from {@link AIEmbeddingConfig} to embed the query, so
  * `config.ai.embedding` must be present for retrieval to work.
  */
@@ -125,9 +152,9 @@ export interface AIRetrievalConfig {
   maxLimit?: number
   /** Max characters of the query text. A longer query is a 400 before any cost. Default 4000. */
   maxQueryChars?: number
-  /** Max retrieved documents folded into one chat context block (#8). Default 8. */
+  /** Max retrieved documents folded into one chat context block. Default 8. */
   maxContextItems?: number
-  /** Max characters of the fenced retrieved context block injected into a chat prompt (#8). Default 8000. */
+  /** Max characters of the fenced retrieved context block injected into a chat prompt. Default 8000. */
   maxContextChars?: number
 }
 
@@ -136,7 +163,7 @@ export interface AIRetrievalConfig {
  * per-(tenant,user,session) chat history. Memory is encrypted at rest (enc_v2,
  * its own secret class), TTL-bounded in Redis, and replayed into the context as
  * `user`/`assistant` turns (never `system`, so a poisoned turn cannot rewrite
- * the instructions: #1/#10). Sessions are server-minted and HMAC-bound to the
+ * the instructions). Sessions are server-minted and HMAC-bound to the
  * (tenant, {@link AiConfig.resolvePrincipal | principal}) pair, so a client
  * cannot supply or guess one to reach another principal's memory; the
  * `X-Ai-Session` response header hands the token back on the first turn. Absent
@@ -147,10 +174,26 @@ export interface AIRetrievalConfig {
 export interface AIMemoryConfig {
   /** Prior exchanges (user+assistant pairs) replayed into a chat context; older ones are dropped. Default 20. Must be >= 1. */
   maxTurns?: number
-  /** Character budget for the replayed memory block, folded within `maxPromptChars` (#8). Default 8000. */
+  /** Character budget for the replayed memory block, folded within `maxPromptChars`. Default 8000. */
   maxChars?: number
   /** Sliding TTL for a session's memory in ms, refreshed each turn. Default 86400000 (24h). */
   ttlMs?: number
+  /**
+   * At-rest key strategy for stored memory (gated). Default `'app-key'`
+   * reproduces today byte-for-byte: one fleet-wide `HKDF(APP_KEY)` key under the
+   * `aiConversationMemory` secret class. `'tenant-dek'` is the strengthening: a
+   * per-tenant DEK from the optional crypto satellite, so an APP_KEY leak no longer
+   * decrypts every tenant's history and a crypto-shred of one tenant's memory DEK makes
+   * that tenant's memory cryptographically irrecoverable (even from a pre-shred backup).
+   *
+   * Selecting `'tenant-dek'` is a SEPARATE per-host go: it lands on the memory hot path
+   * (every turn read/written) and boot FAILS CLOSED if it is selected without the crypto
+   * satellite installed. It raises the AT-REST bar, not the runtime bar (a live-process
+   * compromise still sees decrypted turns), and it retires the `OLD_APP_KEY` re-encrypt
+   * grace on that path (KEK rotation is handled inside the KeyProvider). See
+   * `design/ai-enterprise-hardening/05-data-at-rest.md`.
+   */
+  encryption?: 'app-key' | 'tenant-dek'
 }
 
 /**
@@ -170,10 +213,84 @@ export interface AIAuditConfig {
    * to the no-op sinks) and silences the `ai_audit` doctor check.
    */
   enabled?: boolean
+  /**
+   * The read/query authorization gate for the audit consumption API,
+   * a {@link TenantAccessAuthorizer}. DEFAULT-DENY and DISTINCT from
+   * {@link AiConfig.authorizeAIAccess}: "may use AI" is not "may read everyone's
+   * audit trail". Absent means the `/ai/audit` route refuses (an audit trail exposed
+   * to the wrong reader is itself a disclosure, so the safe default is deny). Return
+   * `false` or throw to deny with a 403.
+   */
+  authorizeAudit?: TenantAccessAuthorizer
+  /**
+   * The anomaly watcher: sliding-window guard-trip velocity per
+   * `(tenant, principal, guard)`. Absent means the watcher runs with named-constant
+   * defaults; set to tune the window/threshold. It is a velocity heuristic on already
+   * -tripped guards, never a control itself. See {@link AIAnomalyConfig}.
+   */
+  anomaly?: AIAnomalyConfig
+  /**
+   * Optional host delivery hook for an anomaly. Absent means anomalies
+   * fan to the host `AuditLogDestinationRegistry` (the same SIEM stream as every other
+   * audit signal). Fail-open and fire-and-forget: a throw is swallowed and never
+   * reaches the request that tripped the guard.
+   */
+  onAnomaly?: (anomaly: AIAnomalySummary) => void | Promise<void>
+  /**
+   * Optional in-process scheduled verify. The RECOMMENDED path is
+   * host-owned: `node ace tenant:ai:audit:verify --json || alert` in your own
+   * scheduler, zero new code. If you prefer wiring the core scheduler, `schedule` is a
+   * VALIDATED cron field (never a source literal); a scheduled verify that finds a
+   * break emits `guard.ai_audit_chain_broken` (critical).
+   */
+  verify?: { schedule?: string }
 }
 
 /**
- * A tenant's data-residency posture (#7 / #15), resolved per tenant. Either
+ * Anomaly-watcher tuning. Both bounds are clamped to named-constant
+ * ceilings at boot, so an out-of-range value can never widen the alarm past its cap.
+ */
+export interface AIAnomalyConfig {
+  /** Sliding window (ms) guard trips are counted over. Default 60000, clamped to 3600000. */
+  windowMs?: number
+  /** Trip count within one window that fires `guard.ai_anomaly`. Default 20, clamped to 10000. */
+  threshold?: number
+}
+
+/**
+ * The content-free summary handed to {@link AIAuditConfig.onAnomaly} and fanned to the
+ * host audit destinations on a breach. It names WHAT tripped and HOW OFTEN, never any
+ * prompt/response text: `principalHash` is the one-way hash, never a raw principal.
+ */
+export interface AIAnomalySummary {
+  readonly tenantId: string
+  readonly principalHash: string | null
+  readonly guard: string
+  readonly count: number
+  readonly windowMs: number
+  readonly firstAt: string
+  readonly lastAt: string
+}
+
+/**
+ * Per-operation failure policy for the request-path Redis reads. Each
+ * read routes through the kernel `ResilienceService.run` via an injected closure,
+ * so a dependency outage degrades by this POLICY rather than an ad-hoc per-call
+ * `try/catch`. Every field is optional and defaults to today's semantics exactly,
+ * so an absent `resilience` block changes nothing; a `policy` that is neither
+ * `'fail-open'` nor `'fail-closed'` is a boot `fail()`.
+ */
+export interface AIResilienceConfig {
+  /** Conversation-memory read. Default `fail-open` (a lost history degrades gracefully, bounded by the TTL). */
+  memory?: { policy?: FailurePolicy }
+  /** Idempotency lookup / epoch read. Default `fail-open` (a skipped replay is safe; save stays best-effort regardless). */
+  idempotency?: { policy?: FailurePolicy }
+  /** Per-key rate-limit consume. Default `fail-closed` (a blind cost limiter must not pass; an outage is a 503 `rate_limit_unavailable`). */
+  rateLimit?: { policy?: FailurePolicy }
+}
+
+/**
+ * A tenant's data-residency posture, resolved per tenant. Either
  * `local-only` (no remote egress: every provider and embedding backend whose
  * effective endpoint is not loopback is refused) or an explicit per-tenant
  * provider allow-list that narrows the global {@link AiConfig.allowedProviders}.
@@ -184,7 +301,7 @@ export type ResidencyPosture =
   | { readonly allowedProviders: readonly AIProviderName[] }
 
 /**
- * The per-tenant residency hook (#7 / #15), enforced at request time BEFORE any
+ * The per-tenant residency hook, enforced at request time BEFORE any
  * cost: on chat provider selection AND on embedding egress (embed / retrieve,
  * which have no other provider choke point). It is fail-closed (mirrors
  * {@link RetrievalFilter}): a throw or a malformed return refuses remote egress
@@ -218,6 +335,200 @@ export type RedactOutput = (
   tenant: TenantModelContract,
   chunk: string
 ) => string | null
+
+/**
+ * A verdict from a host {@link InjectionClassifier}. `block` refuses the request
+ * with a 400 `injection_detected`; `allow` proceeds. `reason` is a short, log-safe
+ * string for the operator, NEVER echoed to the client (a refusal must not teach an
+ * attacker what tripped it).
+ */
+export interface InjectionVerdict {
+  readonly action: 'allow' | 'block'
+  readonly reason?: string
+}
+
+/**
+ * The INPUT-side prompt-injection detection seam (LLM01), symmetric to
+ * {@link RedactOutput} on the output side. A host plugs in its own semantic policy
+ * (a corporate classifier, a hosted moderation endpoint, a fine-tuned guard model);
+ * the package ships NO bundled regex ruleset as a default, because a pattern wall
+ * masquerading as protection is the theater the design rejects.
+ *
+ * It is **never the isolation control**: the boundary is structural role separation
+ * plus the invariant that nothing cross-tenant is ever in the context, which holds
+ * whether the classifier ran, passed, failed, or was never configured. So it runs on
+ * INPUT before any spend and CAN be `async` at zero streaming-latency cost (the
+ * deliberate contrast with the sync, per-fragment `RedactOutput`), and its own error
+ * is fail-OPEN by default: an input detector's outage cannot cause a leak, so denying
+ * every request when a moderation endpoint has a bad minute is availability damage for
+ * no security gain. A host whose threat model prefers the stricter coupling sets
+ * {@link AIInjectionConfig.onError} to `'closed'`.
+ */
+export type InjectionClassifier = (
+  ctx: HttpContext,
+  tenant: TenantModelContract,
+  input: { readonly text: string; readonly origin: 'user' | 'retrieved' | 'tool' }
+) => InjectionVerdict | Promise<InjectionVerdict>
+
+/**
+ * The optional injection block. Absent means the structural boundary is the
+ * only defense (the correct, no-theater default); the `ai_injection` doctor check
+ * reports whichever posture is live.
+ */
+export interface AIInjectionConfig {
+  /** The host semantic classifier. Absent ⇒ no semantic detection (structural boundary only). */
+  classifier?: InjectionClassifier
+  /**
+   * Fail posture when the classifier itself throws or returns a malformed verdict.
+   * Default `'open'` (the classifier is NOT the boundary, so its outage must not deny
+   * traffic). `'closed'` couples availability to the detector, knowingly.
+   */
+  onError?: 'open' | 'closed'
+  /**
+   * Also run the classifier over the assembled retrieved-context block (`origin:
+   * 'retrieved'`). Default false: the structural fence + `user`-role separation
+   * already contain retrieved content as data, so this is opt-in extra latency.
+   */
+  scanRetrieved?: boolean
+}
+
+/**
+ * How {@link AIToolsConfig.authorizeTool} scopes a single tool call. A
+ * discriminated union so the intent is explicit and exhaustive: `deny` refuses the
+ * call, `allow` runs it, and an `allow` may carry a `filter` that narrows WHAT the
+ * tool may see (handed to the handler as {@link ToolContext.filter}, e.g. a
+ * per-user row scope). Fail-closed everywhere it is consumed: an absent hook or an
+ * invalid return is a deny unless the host opts into
+ * {@link AIToolsConfig.acknowledgeUnauthorizedTools}. Mirrors {@link RetrievalScope}.
+ */
+export type ToolScope =
+  | { readonly kind: 'allow'; readonly filter?: Record<string, unknown> }
+  | { readonly kind: 'deny' }
+
+/**
+ * The context a tool handler runs in. `tenant` and `ctx` are the request's
+ * resolved tenant and HTTP context; the handler runs INSIDE `tenancy.run(tenant)`
+ * (so a `TenantBaseModel` query hits the right schema) with the active scope
+ * re-asserted first, so a tool cannot query another tenant. `signal`
+ * aborts on client disconnect, the request deadline, OR the per-tool timeout.
+ * `filter` is the optional narrowing returned by `authorizeTool`.
+ */
+export interface ToolContext {
+  readonly tenant: TenantModelContract
+  readonly ctx: HttpContext
+  readonly signal: AbortSignal
+  readonly filter?: Record<string, unknown>
+  /**
+   * Present only for a confirmed action tool: a stable key for
+   * THIS effect, derived from the confirmation that authorized it. The satellite
+   * already fences the effect at most once, so a handler needs this only when its
+   * own downstream (a payment provider, an external API) wants an idempotency key
+   * of its own. Never present for a read tool.
+   */
+  readonly idempotencyKey?: string
+}
+
+/**
+ * A tool the host makes available to the model. Extends the wire-facing
+ * {@link AIToolDefinition} (name / description / inputSchema / mode) with the
+ * server-side executable surface: the `handler`, an optional per-tool
+ * `requiresConfirmation` (action tools), and an optional host
+ * `parseInput` validator (e.g. a vine schema, the app's OWN dependency, never the
+ * satellite's) that supersedes the shipped JSON-Schema-subset checker. `mode:
+ * 'action'` marks a mutating tool, a hard-gated capability refused until it is
+ * explicitly enabled and confirmed; read tools are the zero-config default.
+ */
+export interface AIToolHostDefinition extends AIToolDefinition {
+  readonly handler: (args: Record<string, unknown>, context: ToolContext) => Promise<unknown>
+  /**
+   * Skip the human confirmation for this action tool. Defaults to `true` for
+   * `mode: 'action'` (confirmation required) and is meaningless for a read tool.
+   *
+   * Setting it `false` is the sharpest edge in the package and it is deliberately
+   * awkward to reach: the tool still needs the kill-switch on, an explicit
+   * `authorizeTool` allow, a resolvable principal and the at-most-once fence. It
+   * skips only the human. Reserve it for a low-risk, reversible, narrowly-scoped
+   * mutation, and know that an indirect prompt injection can then perform it.
+   */
+  readonly requiresConfirmation?: boolean
+  /**
+   * Render the one line a human reads before confirming this action. MANDATORY for
+   * `mode: 'action'`: a tool without it is refused, per tool, rather than shipped
+   * with a weaker default.
+   *
+   * The reason is security, not ergonomics. The human's decision is only as good as
+   * what they are shown, so if the model wrote that text an injection could author
+   * its own confirmation prompt and the whole flow becomes a rubber stamp. This
+   * runs on the host's side of the boundary, over the VALIDATED arguments, so no
+   * model prose can reach it. Return something a person can actually judge
+   * ("Cancel booking BK-1042 for Ana Ruiz, refunding 450 MAD"), and remember it is
+   * shown to that user: it may name their own data but must not carry anything they
+   * should not see. Bounded to {@link AI_TOOL_ARGS_SUMMARY_MAX_CHARS}.
+   */
+  readonly summarizeArgs?: (args: Record<string, unknown>) => string
+  readonly parseInput?: (raw: unknown) => unknown
+}
+
+/** Resolve the tools available to THIS request (per-tenant default-deny). Absent ⇒ the static registry, or none. */
+export type AIToolResolver = (
+  ctx: HttpContext,
+  tenant: TenantModelContract
+) => AIToolHostDefinition[] | Promise<AIToolHostDefinition[]>
+
+/** The per-tool authorization hook, mirroring {@link RetrievalFilter}. Fail-closed (throw / invalid ⇒ deny). */
+export type AIToolAuthorizer = (
+  ctx: HttpContext,
+  tenant: TenantModelContract,
+  toolName: string
+) => ToolScope | Promise<ToolScope>
+
+/**
+ * The tool / function-calling block, present when a host opts into
+ * tool calling. Default-deny throughout: with no `registry`/`resolveTools` the
+ * model is offered no tools; with tools present but no `authorizeTool` and no
+ * `acknowledgeUnauthorizedTools`, every tool call is refused. Action (mutating)
+ * tools are OFF behind `actionTools.enabled`, and even switched on they need a
+ * per-tool `authorizeTool` allow, a host-authored `summarizeArgs`, a resolvable
+ * principal and a human confirmation. Every `max*`/`*Ms` bound is a named-constant
+ * default, clamped to a hard ceiling.
+ */
+export interface AIToolsConfig {
+  /** A static tool registry. Combined with `resolveTools` when both are present. */
+  registry?: AIToolHostDefinition[]
+  /** Per-request, per-tenant tool resolution (default-deny). Absent ⇒ the static registry, or none. */
+  resolveTools?: AIToolResolver
+  /** The per-tool authorization hook. Absent ⇒ deny unless `acknowledgeUnauthorizedTools`. */
+  authorizeTool?: AIToolAuthorizer
+  /** Opt into running READ tools with NO `authorizeTool` wired (tenant isolation still holds). Ignored by action tools. */
+  acknowledgeUnauthorizedTools?: boolean
+  /**
+   * The action-tool kill-switch. Default OFF: every `mode: 'action'` tool is
+   * unadvertised and refused, however it is registered. One flag turns all writes
+   * off.
+   *
+   * HONEST LIMIT: this is static app config read at boot, so flipping it needs a
+   * restart. There is no hot global off. A host that wants a runtime, per-tenant
+   * lever (a feature flag killing mutations for one company) wires it in its own
+   * `resolveTools` or `authorizeTool`, which are consulted per request.
+   */
+  actionTools?: { enabled?: boolean }
+  /** Max provider rounds. Default 4, clamped to 8. */
+  maxRounds?: number
+  /** Max tool calls executed per round. Default 4, clamped to 8. */
+  maxToolsPerRound?: number
+  /** Max total tool calls across one request. Default and hard cap 16. */
+  maxToolCallsPerRequest?: number
+  /** Per-tool execution deadline in ms. Default 5000, clamped to 30000. */
+  toolTimeoutMs?: number
+  /** Max characters of a fenced tool result. Default 4000, clamped to 16000. */
+  maxToolResultChars?: number
+  /** Max characters of a tool call's raw arguments (bounded before JSON.parse). Default 8000, clamped to 16000. */
+  maxToolArgsChars?: number
+  /** Max concurrent in-flight streams admitting a tool loop, per tenant. Default 8, clamped to 32. */
+  maxConcurrentPerTenant?: number
+  /** Surface tool-call arguments in the client `tool_call` notice. Default false (name + id only). */
+  surfaceToolArgs?: boolean
+}
 
 /**
  * AI satellite config. Opt-in via `--with=ai` and declaring `config.ai`.
@@ -298,8 +609,8 @@ export interface AiConfig {
    */
   maxPromptChars?: number
   /**
-   * Per-tenant, per-provider-key request rate limit (threat #4, denial of
-   * wallet). When set, each streamed request consumes one hit against
+   * Per-tenant, per-provider-key request rate limit (the denial-of-wallet
+   * threat). When set, each streamed request consumes one hit against
    * `ext:ai:<op>:<tenant>:<keyFingerprint>`; over `limit` in `windowSeconds` is
    * a 429, and a limiter-backend outage is a fail-closed 503. Absent leaves the
    * `aiTokens` cost reserve as the only cap. This is a DIFFERENT rail from the
@@ -331,7 +642,18 @@ export interface AiConfig {
   /** The append-only audit block. On by default; set `enabled: false` to opt out. */
   audit?: AIAuditConfig
   /**
-   * Per-tenant data residency / no-train posture (#7 / #15). When set, a request
+   * Per-operation failure policy for the request-path Redis reads. Absent ⇒ today's
+   * semantics exactly (memory / idempotency fail-open, rate-limit fail-closed). See
+   * {@link AIResilienceConfig}.
+   */
+  resilience?: AIResilienceConfig
+  /**
+   * The tool / function-calling block. Present when the host opts into
+   * letting the model call server-defined tools. Default-deny; see {@link AIToolsConfig}.
+   */
+  tools?: AIToolsConfig
+  /**
+   * Per-tenant data residency / no-train posture. When set, a request
    * whose selected provider (chat) or embedding backend (embed / retrieve) is
    * outside the tenant's posture is refused with a 403 `residency_denied` before
    * any reservation. See {@link ResidencyResolver}.
@@ -345,6 +667,13 @@ export interface AiConfig {
    * {@link RedactOutput}.
    */
   redactOutput?: RedactOutput
+  /**
+   * Optional INPUT-side prompt-injection detection (LLM01), defense-in-depth
+   * and NEVER the isolation control (structural role separation plus a tenant-pure context is). A host
+   * classifier's `block` verdict refuses the request with a 400 `injection_detected`
+   * before any spend; its own error is fail-open by default. See {@link AIInjectionConfig}.
+   */
+  injection?: AIInjectionConfig
   /**
    * Per-BATCH `statement_timeout` (ms) for the batched compliance purge. Bounds a
    * single lock-blocked or runaway delete batch so it fails cleanly and the loop

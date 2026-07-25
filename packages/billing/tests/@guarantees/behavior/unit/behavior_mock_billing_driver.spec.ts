@@ -52,8 +52,8 @@ test.group('MockBillingDriver — contract round-trip', () => {
       timestampSeconds: 100,
     })
     assert.lengthOf(driver.usage, 1)
-    assert.equal(driver.usage[0].quantity, 5)
-    assert.equal(driver.usage[0].eventName, 'api_calls')
+    assert.equal(driver.usage[0]?.quantity, 5)
+    assert.equal(driver.usage[0]?.eventName, 'api_calls')
   })
 
   test('listSubscriptions enumerates injected subscriptions, filtered by customer', async ({

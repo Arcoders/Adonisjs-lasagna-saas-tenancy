@@ -195,6 +195,8 @@ export {
   queueStuckCheck,
   schemaDriftCheck,
   migrationStateCheck,
+  migrationDriftCheck,
+  tenantLifecycleCheck,
   circuitBreakerCheck,
   provisioningStalledCheck,
   failedTenantsCheck,
@@ -205,13 +207,21 @@ export {
 } from './doctor/index.js'
 export type {
   DiagnosisSeverity,
+  DiagnosisScope,
   DiagnosisIssue,
   DiagnosisReport,
   DoctorCheck,
   DoctorContext,
   DoctorRunOptions,
   DoctorRunResult,
+  DoctorRunStatus,
 } from './doctor/index.js'
+// The keystone non-destructive remediation primitive. The doctor's `--fix`
+// heals, `tenant:heal`, and `isolation.migrateOnProvision` all compose it, so the
+// provision-up-only guarantees (never destroy/reset/rollback; idempotent;
+// quarantine-on-failure; TOCTOU-guarded) live in exactly one place.
+export { healTenant } from './tenant_healer.js'
+export type { HealTenantOptions, HealTenantResult } from './tenant_healer.js'
 export {
   ComplianceReportService,
   builtInControls,

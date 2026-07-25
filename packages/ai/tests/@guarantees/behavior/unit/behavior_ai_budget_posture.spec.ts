@@ -1,5 +1,10 @@
 import { test } from '@japa/runner'
-import { aiTokensBudgetPosture, aiBudgetCheck } from '../../../../src/services/ai_budget_check.js'
+import {
+  aiTokensBudgetPosture,
+  aiBudgetCheck,
+  assertAiTokensBudgetOrAbort,
+} from '../../../../src/services/ai_budget_check.js'
+import AIException from '../../../../src/exceptions/ai_exception.js'
 import type { MultitenancyConfigWithAi } from '../../../../src/define_config.js'
 
 /**
@@ -88,7 +93,52 @@ test.group('aiTokens budget posture', () => {
     const unbudgeted = aiBudgetCheck(() => config({ plans: { definitions: {} } }))
     const issues = await unbudgeted.run({} as never)
     assert.lengthOf(issues, 1)
-    assert.equal(issues[0].severity, 'warn')
-    assert.equal(issues[0].code, 'ai_budget_unbudgeted')
+    assert.equal(issues[0]!.severity, 'warn')
+    assert.equal(issues[0]!.code, 'ai_budget_unbudgeted')
+  })
+})
+
+/**
+ * The same unbudgeted posture that USED to only warn at boot is now a
+ * FAIL-CLOSED boot abort. Only the `warn` severity aborts; every `info` posture
+ * (acknowledged, dynamic plans, per-plan-without-ceiling) and the healthy posture
+ * let boot proceed, so the abort never false-fires on a case a static read cannot
+ * see through.
+ */
+test.group('aiTokens budget boot abort (fail-closed)', () => {
+  test('a completely unbudgeted, unacknowledged quota aborts boot with config_missing', ({
+    assert,
+  }) => {
+    let threw: unknown
+    try {
+      assertAiTokensBudgetOrAbort(config({ plans: { definitions: { free: { limits: {} } } } }))
+    } catch (err) {
+      threw = err
+    }
+    assert.instanceOf(threw, AIException)
+    assert.equal((threw as AIException).aiCode, 'config_missing')
+  })
+
+  test('the acknowledge escape hatch lets boot proceed', ({ assert }) => {
+    assert.doesNotThrow(() =>
+      assertAiTokensBudgetOrAbort(
+        config({ ai: { acknowledgeUnbudgetedAiTokens: true }, plans: { definitions: {} } })
+      )
+    )
+  })
+
+  test('an operator ceiling, dynamic plans, and no-ai all pass (never a false abort)', ({
+    assert,
+  }) => {
+    assert.doesNotThrow(() =>
+      assertAiTokensBudgetOrAbort(
+        config({ plans: { operatorCeiling: { aiTokens: 1000 }, definitions: {} } })
+      )
+    )
+    assert.doesNotThrow(() =>
+      assertAiTokensBudgetOrAbort(config({ plans: { definitions: {}, getPlan: () => 'free' } }))
+    )
+    assert.doesNotThrow(() => assertAiTokensBudgetOrAbort(config({ ai: false, plans: {} })))
+    assert.doesNotThrow(() => assertAiTokensBudgetOrAbort(undefined))
   })
 })

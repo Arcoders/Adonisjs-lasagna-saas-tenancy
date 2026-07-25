@@ -16,10 +16,10 @@ import { fakeHttpContext } from '../../../helpers/fake_http_context.js'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * The G1 forward contract on the WS-AI-7 audit seam: the event field set is
- * pinned EXACTLY (a new field is a reviewed decision, and content can never
- * slip in silently), the principal is one-way hashed, and no prompt or
- * response text appears anywhere in a serialized event.
+ * The forward contract on the audit seam: the event field set is pinned EXACTLY (a new
+ * field is a reviewed decision, and content can never slip in silently), the principal
+ * is one-way hashed, and no prompt or response text appears anywhere in a serialized
+ * event.
  */
 
 const PINNED_FIELDS = [
@@ -54,7 +54,7 @@ function buildController(sink: AiGatewayAuditSink) {
   registry.register(
     new MockAIProvider({
       name: 'claude',
-      contractVersion: 1,
+      contractVersion: 2,
       fragments: [{ data: COMPLETION, tokens: 4 }],
     }),
     { activate: true }
@@ -88,15 +88,15 @@ test.group('audit seam non-PII contract', () => {
 
     assert.lengthOf(events, 1)
     assert.deepEqual(
-      Object.keys(events[0]).sort(),
+      Object.keys(events[0]!).sort(),
       PINNED_FIELDS,
-      'the audit event field set is FROZEN; extending it is a reviewed WS-AI-7 decision'
+      'the audit event field set is FROZEN; extending it is a reviewed decision'
     )
-    assert.equal(events[0].outcome, 'completed')
-    assert.equal(events[0].tenantId, 't1')
-    assert.equal(events[0].provider, 'claude')
-    assert.equal(events[0].tokensSettled, 4)
-    assert.isFalse(events[0].idempotentReplay)
+    assert.equal(events[0]!.outcome, 'completed')
+    assert.equal(events[0]!.tenantId, 't1')
+    assert.equal(events[0]!.provider, 'claude')
+    assert.equal(events[0]!.tokensSettled, 4)
+    assert.isFalse(events[0]!.idempotentReplay)
   })
 
   test('the principal is one-way hashed, never raw', async ({ assert }) => {
@@ -110,8 +110,8 @@ test.group('audit seam non-PII contract', () => {
 
     await controller.chat(ctx)
 
-    assert.equal(events[0].principalHash, hashAuditPrincipal('user-1'))
-    assert.match(events[0].principalHash!, /^[0-9a-f]{64}$/)
+    assert.equal(events[0]!.principalHash, hashAuditPrincipal('user-1'))
+    assert.match(events[0]!.principalHash!, /^[0-9a-f]{64}$/)
     assert.notInclude(JSON.stringify(events[0]), 'user-1')
   })
 
@@ -142,7 +142,7 @@ test.group('audit seam non-PII contract', () => {
 
     await controller.chat(ctx)
 
-    assert.isNull(events[0].principalHash)
+    assert.isNull(events[0]!.principalHash)
     assert.isNull(hashAuditPrincipal(null))
   })
 })

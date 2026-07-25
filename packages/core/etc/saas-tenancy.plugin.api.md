@@ -365,8 +365,10 @@ export interface TenantSchedule {
     readonly timezone?: string;
 }
 
+// Warning: (ae-forgotten-export) The symbol "TENANT_STATUSES" needs to be exported by the entry point plugin.d.ts
+//
 // @public (undocumented)
-export type TenantStatus = 'provisioning' | 'active' | 'suspended' | 'failed' | 'deleted';
+export type TenantStatus = (typeof TENANT_STATUSES)[number];
 
 // (No @packageDocumentation comment for this package)
 

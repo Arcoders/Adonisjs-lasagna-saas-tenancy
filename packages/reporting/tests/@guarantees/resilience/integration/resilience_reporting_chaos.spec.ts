@@ -104,7 +104,7 @@ test.group('ReportingService chaos: SQL injection is neutralized', (group) => {
       since: `${Y}-02-01`,
       until: `${Y}-02-01`,
     })
-    assert.equal(rows[0].totalRequests, 7)
+    assert.equal(rows[0]?.totalRequests, 7)
   })
 
   test('a malicious custom metric name is rejected before any query', async ({ assert }) => {
@@ -167,10 +167,10 @@ test.group('ReportingService chaos: concurrency & edge data', (group) => {
     await seedMetric(t2, `${Y}-07-01`, { requests: 2_000_000_000, errors: 0 })
 
     const rows = await svc.getAggregate({ period: 'day', since: `${Y}-07-01`, until: `${Y}-07-01` })
-    assert.equal(rows[0].totalRequests, 4_000_000_000)
-    assert.equal(rows[0].totalErrors, 1_000_000_000)
-    assert.closeTo(rows[0].errorRate, 0.25, 1e-9)
-    assert.isTrue(Number.isFinite(rows[0].totalRequests))
+    assert.equal(rows[0]?.totalRequests, 4_000_000_000)
+    assert.equal(rows[0]?.totalErrors, 1_000_000_000)
+    assert.closeTo(rows[0]!.errorRate, 0.25, 1e-9)
+    assert.isTrue(Number.isFinite(rows[0]?.totalRequests))
   })
 
   test('cross-tenant fuzz: each tenant total is exactly its seeded value (no bleed)', async ({
@@ -214,6 +214,6 @@ test.group('ReportingService chaos: Postgres outage fails clean', (group) => {
     const t = randomUUID()
     await seedMetric(t, `${Y}-09-01`, { requests: 1 })
     const rows = await svc.getAggregate({ period: 'day', since: `${Y}-09-01`, until: `${Y}-09-01` })
-    assert.equal(rows[0].totalRequests, 1)
+    assert.equal(rows[0]?.totalRequests, 1)
   })
 })

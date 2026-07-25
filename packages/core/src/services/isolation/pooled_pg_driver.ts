@@ -182,7 +182,7 @@ export default abstract class PooledPgDriver implements ProvisionableDriver {
     return db.connection(roName)
   }
 
-  async connect(tenant: TenantModelContract, opts: { bypassHardCap?: boolean } = {}) {
+  async connect(tenant: TenantModelContract, opts: { bypassSoftCap?: boolean } = {}) {
     const { db } = await this.lucid()
     const name = this.connectionName(tenant.id)
 
@@ -200,15 +200,23 @@ export default abstract class PooledPgDriver implements ProvisionableDriver {
       return db.connection(name)
     }
 
-    // Admission control on the request-serving path. Provisioning/reset/migration
-    // pass bypassHardCap so onboarding is never refused by request-path backpressure
-    // (which would also orphan freshly created storage). Two tiers:
-    //   - the absolute ceiling (F1): ALWAYS refuses at/above
-    //     maxTenantConnectionsHardCeiling, so an availability-favouring pool can
-    //     never grow toward PostgreSQL max_connections;
-    //   - the soft cap: refuses only under enforceConnectionCap when no connection
-    //     is evictable.
-    if (!opts.bypassHardCap && (this.#lru.atHardCeiling() || this.#lru.atHardLimit())) {
+    // Admission control, in two INDEPENDENT tiers:
+    //   - the absolute ceiling: UNBYPASSABLE. It ALWAYS refuses at/above
+    //     maxTenantConnectionsHardCeiling, even for an operational path, so no
+    //     caller (provision, migrate, seed, doctor, a warm/parallel pool) can
+    //     ever grow the pool toward PostgreSQL max_connections. This is the
+    //     database's last-resort DoS backstop and must not have an escape hatch.
+    //   - the soft cap: bypassable via `bypassSoftCap`. Provisioning/reset/
+    //     migration pass it so onboarding is never refused by request-path
+    //     backpressure (which would also orphan freshly created storage). It
+    //     refuses only under enforceConnectionCap when no connection is evictable.
+    // Bulk/parallel operational paths (F1 migration pool, F2 warm pool) draw from
+    // a ceiling-derived operational budget, so their bypass of the soft cap can
+    // never push the pool past the unbypassable ceiling.
+    if (this.#lru.atHardCeiling()) {
+      throw new TenantConnectionLimitException()
+    }
+    if (!opts.bypassSoftCap && this.#lru.atHardLimit()) {
       throw new TenantConnectionLimitException()
     }
 
@@ -250,10 +258,11 @@ export default abstract class PooledPgDriver implements ProvisionableDriver {
   }
 
   async migrate(tenant: TenantModelContract, opts: MigrateOptions): Promise<MigrateResult> {
-    // Self-connect (bypassing the hard cap) so migrate() works regardless of
+    // Self-connect (bypassing the SOFT cap) so migrate() works regardless of
     // whether the caller pre-connected. An operational migration must never be
-    // refused by request-path backpressure.
-    await this.connect(tenant, { bypassHardCap: true })
+    // refused by request-path backpressure. The absolute ceiling still applies:
+    // migrate cannot exhaust the database either.
+    await this.connect(tenant, { bypassSoftCap: true })
     return runTenantMigrations(this.connectionName(tenant.id), opts)
   }
 

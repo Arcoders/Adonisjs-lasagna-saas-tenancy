@@ -9,6 +9,7 @@ import {
 } from '../extensions/request.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import { isUuidV4 } from '../services/isolation/identifier.js'
+import { tenantLifecycleDisposition } from './tenant_lifecycle_disposition.js'
 import CircuitBreakerService from '../services/circuit_breaker_service.js'
 import CircuitOpenException from '../exceptions/circuit_open_exception.js'
 import { tenancy } from '../tenancy.js'
@@ -101,8 +102,10 @@ export default class UniversalMiddleware {
     }
 
     if (!tenant) return null
-    if (tenant.isSuspended || tenant.isDeleted) return null
-    if (tenant.isProvisioning || tenant.isFailed) return null
+    // Any non-serve disposition (suspended / soft-deleted / deleted-status /
+    // provisioning / failed) degrades to central mode, as if the tenant did not exist.
+    // Exhaustive: a new TenantStatus is a compile error until it is classified.
+    if (tenantLifecycleDisposition(tenant) !== 'serve') return null
 
     // Connect BEFORE probing the breaker, mirroring the guarded path (where
     // `request.tenant()` connects first). The breaker probe runs `SELECT 1` on

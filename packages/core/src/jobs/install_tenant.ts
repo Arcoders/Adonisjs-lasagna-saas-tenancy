@@ -1,11 +1,13 @@
 import { Job } from '@adonisjs/queue'
 import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
+import { getConfig } from '../config.js'
 import { resolveTenantRepository } from '../services/resolve_tenant_repository.js'
 import TenantQueueService from '../services/tenant_queue_service.js'
 import HookRegistry from '../services/hook_registry.js'
 import { getActiveDriver } from '../services/isolation/active_driver.js'
 import { isProvisionableDriver } from '../services/isolation/driver.js'
+import { healTenant } from '../services/tenant_healer.js'
 import TenantLogContext from '../services/tenant_log_context.js'
 import TenantProvisioned from '../events/tenant_provisioned.js'
 
@@ -56,6 +58,40 @@ export default class InstallTenant extends Job<InstallTenantPayload> {
             'Driver owns no per-tenant storage; skipping provision step'
           )
         }
+
+        if (getConfig().isolation.migrateOnProvision === true) {
+          // Opt-in: migrate + seed BEFORE the tenant goes active, so a freshly
+          // onboarded tenant is never left active-but-unmigrated (the failure class
+          // that produced a 503 on "Run doctor"). Fire the provision hooks + event
+          // first because a seed migration can depend on them (e.g. the pgvector
+          // extension); healTenant then sees the just-created schema and only
+          // migrates + seeds — it does not re-provision or re-fire the provision
+          // hooks. audit:false: the tenant creation is already audited by its own
+          // create path. A failure here falls through to the catch → `failed`, never
+          // a half-baked active.
+          ;(await app.container.make(TenantQueueService)).getOrCreate(tenant.id)
+          logger.info({ tenantId: tenant.id }, 'Tenant queue initialized')
+          await hooks.run('after', 'provision', { tenant })
+          await TenantProvisioned.dispatch(tenant)
+          const heal = await healTenant(tenant, { fireHooks: true, audit: false })
+          // A duplicate-object collision is benign for RE-healing an existing tenant
+          // (the object is already there), but on a FRESH provision it means the
+          // migration runner aborted at the colliding migration and never ran the ones
+          // after it — an active-but-unmigrated tenant, the exact 503 class this path
+          // exists to prevent. So a collision here is a genuine failure: fall through to
+          // the catch → `failed`, never a half-baked `active`.
+          if (heal.collisions.length > 0) {
+            throw new Error(
+              `Provisioning migration collided on existing object(s) [${heal.collisions.join(', ')}]; ` +
+                `the migration run was truncated, so the tenant is not fully migrated and will be marked failed.`
+            )
+          }
+          tenant.status = 'active'
+          await tenant.save()
+          logger.info({ tenantId: tenant.id }, 'Tenant provisioned, migrated and active')
+          return
+        }
+
         tenant.status = 'active'
         await tenant.save()
       } catch (error) {

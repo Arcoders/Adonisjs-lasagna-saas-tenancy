@@ -15,7 +15,7 @@ import type { AIEmbeddingConfig } from '../define_config.js'
 import type { QuotaReservation } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
-/** The narrow QuotaService surface the non-streaming embed path needs (SEAM-3). */
+/** The narrow QuotaService surface the non-streaming embed path needs. */
 export interface IngestionQuota {
   reserve(tenant: TenantModelContract, quota: string, worstCase: number): Promise<QuotaReservation>
   settle(reservation: QuotaReservation, cumulativeUsed: number): Promise<void>
@@ -24,9 +24,9 @@ export interface IngestionQuota {
   getLimit(tenant: TenantModelContract, quota: string): Promise<number>
 }
 
-/** A validated ingest request. Content bounds + authorization are the controller's job (C6). */
+/** A validated ingest request. Content bounds + authorization are the controller's job. */
 export interface IngestionRequest {
-  /** The document / batch key: provenance root and the rollback-by-source unit (#3). */
+  /** The document / batch key: provenance root and the rollback-by-source unit. */
   readonly source: string
   /** Pre-chunked inline texts to embed (chunking a large doc is the host's job in 1.0). */
   readonly input: readonly string[]
@@ -56,7 +56,7 @@ export interface EmbeddingIngestionDeps {
   store: VectorStoreService
   provider: AIEmbeddingProviderContract
   quota: IngestionQuota
-  /** The kernel IP-pinned fetch (safeFetch), for the optional document fetch (#11). */
+  /** The kernel IP-pinned fetch (safeFetch), for the optional document fetch. */
   fetch: (url: string, opts: SafeFetchOptions) => Promise<Response>
   /** Integer metric sink (MetricsService.emitMetric). */
   emitMetric: (tenantId: string, name: string, value: number) => void
@@ -64,19 +64,19 @@ export interface EmbeddingIngestionDeps {
 }
 
 /**
- * The embedding-ingestion orchestrator (WS-AI-3). It runs the fail-closed cost
+ * The embedding-ingestion orchestrator. It runs the fail-closed cost
  * order: resolve the texts (inline + an optional SSRF-pinned document fetch),
  * reserve the worst-case `aiTokens` (a non-streaming call still costs money, so
  * it is metered like a completion), embed, store idempotently under the
  * embeddingCount cap, then settle the actual tokens and always release the hold.
  * Authorization, request-shape validation and idempotency are the controller's
- * (C6) responsibility; this service trusts a validated request and owns the
+ * responsibility; this service trusts a validated request and owns the
  * reserve/embed/store/settle machine.
  */
 export default class EmbeddingIngestionService {
   constructor(private readonly deps: EmbeddingIngestionDeps) {}
 
-  /** The provider key fingerprint (or its name) for the per-key rate-limit bucket (threat #4). */
+  /** The provider key fingerprint (or its name) for the per-key rate-limit bucket. */
   get providerFingerprint(): string {
     return this.deps.provider.keyFingerprint ?? this.deps.provider.name
   }
@@ -152,7 +152,7 @@ export default class EmbeddingIngestionService {
   }
 
   /**
-   * Fetch a document through the kernel SSRF-pinned fetch (#11). A private /
+   * Fetch a document through the kernel SSRF-pinned fetch. A private /
    * metadata / loopback URL is refused by the pin (SafeFetchError) and surfaced
    * as `doc_fetch_blocked`; the kernel guard is the enforcer, so this site is on
    * the no-silent allowlist rather than emitting a duplicate satellite guard.
@@ -160,7 +160,7 @@ export default class EmbeddingIngestionService {
    * The body is STREAMED (`streaming: true`) and drained under a running byte cap
    * so the transfer is aborted the instant it crosses `ingestionMaxBytes`; it is
    * never buffered whole first, so a hostile public host (one that passes the
-   * IP-pin, exactly threat #11's model) cannot OOM the worker with a multi-GB
+   * IP-pin) cannot OOM the worker with a multi-GB
    * body. A separate `ingestionTimeoutMs` bounds a slow / hung upstream.
    */
   async #fetchDocument(url: string, signal: AbortSignal): Promise<string> {

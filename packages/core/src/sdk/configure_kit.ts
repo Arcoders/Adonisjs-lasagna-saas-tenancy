@@ -199,6 +199,97 @@ export function indexSatellites(
 }
 
 /**
+ * One resolved migration relocation: the legacy ledger name (`from`) and the
+ * canonical satellite migration ledger name (`to`) it maps to, plus the declaring
+ * satellite for attribution. `to` is computed exactly as {@link satelliteMigrationDirs}
+ * computes a fold path (`<relative satellite dir>/<migration>`, forward-slashed), so
+ * it matches the `adonis_schema.name` Lucid records byte-for-byte.
+ */
+export interface ResolvedMigrationAlias {
+  from: string
+  to: string
+  /** The declaring satellite's npm package name. */
+  ownerPackage: string
+  /** The declaring satellite's manifest name (its slug). */
+  ownerSlug: string
+}
+
+/**
+ * Build the fleet-shared, validated migration-alias map from discovered satellites,
+ * keyed by the canonical `to` ledger name.
+ *
+ * Ownership by construction: each `to` is built from the DECLARING satellite's own
+ * `perTenantMigrations` dir, so a satellite can only relocate INTO a migration it
+ * ships. A satellite that declares aliases but no `perTenantMigrations` owns no
+ * target and its aliases are dropped.
+ *
+ * Fail-closed fleet-wide: ANY structural violation — a duplicate `from` or `to`
+ * across the whole fleet, or a chain where one alias's `to` is another's `from` —
+ * drops the ENTIRE map (returns empty), so a single malformed or malicious manifest
+ * can never drive a bad reconcile. The per-tenant reconcile envelope re-verifies
+ * physical existence, structural match, and data-fingerprint equality on top of this,
+ * so a mis-declared `from` is bounded to at worst a no-op refusal.
+ */
+export function buildMigrationAliasMap(
+  hostRoot: string,
+  satellites: DiscoveredSatellite[],
+  onWarn: (message: string) => void = () => {}
+): Map<string, ResolvedMigrationAlias> {
+  const resolved: ResolvedMigrationAlias[] = []
+  for (const sat of satellites) {
+    const aliases = sat.manifest.migrationAliases
+    if (!aliases || aliases.length === 0) continue
+    const dir = sat.manifest.perTenantMigrations
+    if (!dir) {
+      onWarn(
+        `[lasagna] ${sat.packageName}: declares migrationAliases but no perTenantMigrations — ` +
+          `dropping its aliases (it owns no target to relocate into)`
+      )
+      continue
+    }
+    const relDir = relative(hostRoot, join(sat.root, dir)).replace(/\\/g, '/')
+    for (const alias of aliases) {
+      const from = alias.from.normalize('NFC')
+      const to = `${relDir}/${alias.migration}`.normalize('NFC')
+      if (from === to) {
+        onWarn(`[lasagna] ${sat.packageName}: migration alias from === to (${from}) — dropping it`)
+        continue
+      }
+      resolved.push({ from, to, ownerPackage: sat.packageName, ownerSlug: sat.manifest.name })
+    }
+  }
+
+  if (resolved.length === 0) return new Map()
+
+  const froms = new Set<string>()
+  const tos = new Set<string>()
+  for (const r of resolved) {
+    if (froms.has(r.from) || tos.has(r.to)) {
+      onWarn(
+        `[lasagna] migration-alias collision on ` +
+          `${froms.has(r.from) ? `from "${r.from}"` : `to "${r.to}"`} — dropping the ENTIRE ` +
+          `alias map fleet-wide (fail-closed)`
+      )
+      return new Map()
+    }
+    froms.add(r.from)
+    tos.add(r.to)
+  }
+  // No chain/cycle: a relocation target must never also be a relocation source.
+  for (const r of resolved) {
+    if (tos.has(r.from) || froms.has(r.to)) {
+      onWarn(
+        `[lasagna] migration-alias chain detected (a "to" is also a "from") — dropping the ` +
+          `ENTIRE alias map fleet-wide (fail-closed)`
+      )
+      return new Map()
+    }
+  }
+
+  return new Map(resolved.map((r) => [r.to, r]))
+}
+
+/**
  * A filesystem-safe slug for a package name, used to namespace the migrations a
  * satellite publishes (`@adonisjs-lasagna/billing` becomes `adonisjs_lasagna_billing`).
  */

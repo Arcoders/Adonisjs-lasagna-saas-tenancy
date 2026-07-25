@@ -81,6 +81,51 @@ export async function authorizeAiAccess(
 }
 
 /**
+ * The audit READ/query gate, distinct from {@link authorizeAiAccess}:
+ * "may this caller use AI" is NOT "may this caller read everyone's audit trail". An
+ * audit trail exposed to the wrong reader is itself a disclosure, so this is
+ * DEFAULT-DENY with NO acknowledge escape: an absent `config.ai.audit.authorizeAudit`
+ * hook refuses, a hook that throws refuses (fail-closed, never a 500), and a falsy
+ * return refuses. Each refusal emits `guard.ai_access` (reason `audit_*`) and throws a
+ * 403, mirroring the membership gate's shape.
+ */
+export async function authorizeAuditRead(
+  ctx: HttpContext,
+  tenant: TenantModelContract,
+  ai: AiConfig | undefined
+): Promise<void> {
+  const hook = ai?.audit?.authorizeAudit
+  if (!hook) {
+    emitAiGuardEvent('guard.ai_access', {
+      tenantId: tenant.id,
+      metadata: { reason: 'audit_no_gate' },
+    })
+    throw new TenantAccessForbiddenException()
+  }
+
+  let allowed: unknown
+  try {
+    allowed = await hook(ctx, tenant)
+  } catch (error) {
+    emitAiGuardEvent('guard.ai_access', {
+      tenantId: tenant.id,
+      metadata: { reason: 'audit_hook_error' },
+    })
+    throw new TenantAccessForbiddenException(TenantAccessForbiddenException.message, {
+      cause: error,
+    })
+  }
+
+  if (!allowed) {
+    emitAiGuardEvent('guard.ai_access', {
+      tenantId: tenant.id,
+      metadata: { reason: 'audit_denied' },
+    })
+    throw new TenantAccessForbiddenException()
+  }
+}
+
+/**
  * The ingestion WRITE gate, distinct from {@link authorizeAiAccess}
  * ("may this caller use AI at all"): it decides "may this caller WRITE to the
  * tenant's vector index". Opt-in via `config.ai.embedding.authorizeIngestion`;

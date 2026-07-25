@@ -8,6 +8,7 @@ import TenantAccessForbiddenException from '../exceptions/tenant_access_forbidde
 import TenantMaintenanceException from '../exceptions/tenant_maintenance_exception.js'
 import CircuitBreakerService from '../services/circuit_breaker_service.js'
 import AuthorizerRegistry from '../services/authorizer_registry.js'
+import { tenantLifecycleDisposition } from './tenant_lifecycle_disposition.js'
 import { mapTenantQueryError } from '../extensions/request.js'
 import { tenancy } from '../tenancy.js'
 import app from '@adonisjs/core/services/app'
@@ -35,7 +36,12 @@ export default class TenantGuardMiddleware {
 
     const tenant = await request.tenant()
 
-    if (tenant.isSuspended || tenant.isDeleted) {
+    // The exhaustive lifecycle floor. `reject-suspended` (suspended / soft-deleted /
+    // deleted-status) is a 403 decided BEFORE the authorizer; `reject-not-ready`
+    // (provisioning / failed) is a 503 decided AFTER it. Both branches route through
+    // the one classifier so a new TenantStatus is a compile error until it is handled.
+    const disposition = tenantLifecycleDisposition(tenant)
+    if (disposition === 'reject-suspended') {
       throw new TenantSuspendedException()
     }
 
@@ -79,7 +85,7 @@ export default class TenantGuardMiddleware {
       throw new TenantAccessForbiddenException()
     }
 
-    if (tenant.isProvisioning || tenant.isFailed) {
+    if (disposition === 'reject-not-ready') {
       throw new TenantNotReadyException()
     }
 

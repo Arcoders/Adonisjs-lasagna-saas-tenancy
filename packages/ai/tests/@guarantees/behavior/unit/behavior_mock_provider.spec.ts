@@ -23,7 +23,7 @@ test.group('MockAIProvider', () => {
       ['he', 'llo']
     )
     assert.lengthOf(provider.calls, 1)
-    assert.strictEqual(provider.calls[0].request, request)
+    assert.strictEqual(provider.calls[0]!.request, request)
   })
 
   test('stops yielding once the signal is aborted', async ({ assert }) => {

@@ -5,7 +5,7 @@ import { test } from '@japa/runner'
 // reach the socket).
 import { auditOutputBounds } from '../../../../../scripts/check-ai-invariant-8.mjs'
 
-test.group('architectural — I8 output-bound guard', () => {
+test.group('architectural: I8 output-bound guard', () => {
   test('a spine call that wires validateFragment passes', ({ assert }) => {
     const problems = auditOutputBounds([
       {

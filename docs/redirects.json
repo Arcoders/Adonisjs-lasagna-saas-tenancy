@@ -76,7 +76,5 @@
   "/docs/satellites/websockets": "/guides/satellites/websockets",
   "/testing/TESTING": "/guides/testing",
   "/testing/COVERAGE_MATRIX": "/guides/testing",
-  "/guides/satellites/crypto": "/guides/satellites/",
-  "/docs/satellites/crypto": "/guides/satellites/",
   "/reference/upgrade-to-1.0": "/reference/upgrade-to-0.3"
 }

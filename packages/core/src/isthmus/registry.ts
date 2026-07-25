@@ -49,6 +49,17 @@ interface IsthmusRegistryEntryShape {
   readonly phase: IsthmusPhase
   readonly event: IsthmusEventName
   readonly severity: IsthmusSeverity
+  /**
+   * Dispatch policy (S3). Omit (the default `'broadcast'`) for a guard whose trip
+   * is low-volume and whose `IsthmusGuardTripped` event a host may want in real
+   * time. Set `'count-only'` for a guard reachable at HIGH VOLUME from
+   * unauthenticated/pre-tenant request input: it records on the counters but never
+   * broadcasts, so an attacker cannot flood it to exhaust its severity's shared
+   * dispatch window and suppress a co-severity security guard's alerts for other
+   * tenants. Enforced in the shared emit machinery, so the classification cannot
+   * be bypassed at a call site.
+   */
+  readonly dispatchPolicy?: 'broadcast' | 'count-only'
   /** Required, non-empty: why this guard exists. */
   readonly evidence: IsthmusEvidence
   /** Path of the module containing the throw site(s), relative to packages/core/. */
@@ -67,6 +78,13 @@ export const ISTHMUS_REGISTRY = [
     phase: 'runtime',
     event: 'isthmus:guard:identifier:rejected',
     severity: 'high',
+    // Attacker-reachable at volume: a lax custom resolver could feed unsafe ids
+    // that reach a driver (throw path) or an attribution seam (degrade path) on
+    // every request. Count-only so a flood records on the counter but can never
+    // consume the shared `high` dispatch window and suppress another tenant's
+    // high-severity alerts (S3). The near-miss still surfaces: the throw aborts
+    // the operation and the trip lands on `multitenancy_isthmus_rejected_total`.
+    dispatchPolicy: 'count-only',
     evidence: {
       kind: 'inherent-risk',
       ref: 'tenant ids are interpolated into quoted PG DDL (CREATE SCHEMA/DROP DATABASE) and Redis key segments; a homoglyph or quote reaches raw SQL',

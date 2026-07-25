@@ -30,14 +30,14 @@ test.group('StreamExtensionService: observability', () => {
     const { svc, capture } = makeObservableService()
     await svc.stream(new FakeStreamTarget(), fragmentsProducer([{ data: 'hi', tokens: 3 }]), opts())
     assert.lengthOf(capture.spans, 1)
-    assert.equal(capture.spans[0].name, 'ai.stream')
-    assert.deepEqual(capture.spans[0].attrs, {
+    assert.equal(capture.spans[0]!.name, 'ai.stream')
+    assert.deepEqual(capture.spans[0]!.attrs, {
       'tenant.id': 't1',
       'provider': 'claude',
       'model': 'claude-opus-4-8',
     })
     // No attribute key is anything but the allow-list (no prompt/response content).
-    for (const key of Object.keys(capture.spans[0].attrs))
+    for (const key of Object.keys(capture.spans[0]!.attrs))
       assert.isTrue(SPAN_ATTR_ALLOWLIST.has(key))
   })
 

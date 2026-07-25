@@ -9,7 +9,7 @@ import {
   ALLOWED_COLUMNS,
 } from '../../../../../scripts/check-ai-invariant-5.mjs'
 
-const STUB = 'packages/ai/stubs/migrations/create_ai_audit_logs_table.stub'
+const STUB = 'packages/ai/stubs/migrations/0001_create_ai_audit_logs_table.stub'
 const SINKS = 'src/gateway/audit_sinks.ts'
 
 const TRIGGERS = `
@@ -20,7 +20,7 @@ const TRIGGERS = `
   CREATE TRIGGER ai_audit_logs_no_truncate BEFORE TRUNCATE ON backoffice.ai_audit_logs FOR EACH STATEMENT EXECUTE FUNCTION backoffice.ai_audit_logs_no_mutate();
 `
 
-function stubSource(columns, triggers = TRIGGERS) {
+function stubSource(columns: readonly string[], triggers = TRIGGERS) {
   const colLines = columns.map((c) => `      table.string('${c}').nullable()`).join('\n')
   return [
     `this.schema.withSchema('backoffice').createTable('ai_audit_logs', (table) => {`,
@@ -31,7 +31,7 @@ function stubSource(columns, triggers = TRIGGERS) {
   ].join('\n')
 }
 
-test.group('architectural — I5 append-only audit guard', () => {
+test.group('architectural: I5 append-only audit guard', () => {
   test('a stub with all four triggers and the exact allowlist passes', ({ assert }) => {
     const problems = auditAppendOnlyAudit([{ path: STUB, source: stubSource(ALLOWED_COLUMNS) }])
     assert.deepEqual(problems, [])
@@ -43,7 +43,7 @@ test.group('architectural — I5 append-only audit guard', () => {
       { path: STUB, source: stubSource(ALLOWED_COLUMNS, noTruncate) },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /TRUNCATE/)
+    assert.match(problems[0]!, /TRUNCATE/)
   })
 
   test('an unknown column is a violation', ({ assert }) => {
@@ -51,7 +51,7 @@ test.group('architectural — I5 append-only audit guard', () => {
       { path: STUB, source: stubSource([...ALLOWED_COLUMNS, 'extra_col']) },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /reviewed non-PII allowlist/)
+    assert.match(problems[0]!, /reviewed non-PII allowlist/)
   })
 
   test('a missing allowlisted column is a violation', ({ assert }) => {
@@ -59,7 +59,7 @@ test.group('architectural — I5 append-only audit guard', () => {
       { path: STUB, source: stubSource(ALLOWED_COLUMNS.filter((c) => c !== 'checksum')) },
     ])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /missing from the audit table/)
+    assert.match(problems[0]!, /missing from the audit table/)
   })
 
   test('the one-way hash columns are allowed', ({ assert }) => {
@@ -79,7 +79,7 @@ test.group('architectural — I5 append-only audit guard', () => {
     const source = `const row = { tenant_id: e.tenantId, content: e.messageText }`
     const problems = auditAppendOnlyAudit([{ path: SINKS, source }])
     assert.lengthOf(problems, 1)
-    assert.match(problems[0], /PII-stem key/)
+    assert.match(problems[0]!, /PII-stem key/)
   })
 
   test('a comment naming a PII stem in the sinks is not flagged', ({ assert }) => {

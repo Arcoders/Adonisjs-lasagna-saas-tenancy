@@ -1,0 +1,30 @@
+{{{
+  exports({ to: app.migrationsPath(`${Date.now()}_create_ai_audit_checkpoints_table.ts`) })
+}}}
+import { BaseSchema } from '@adonisjs/lucid/schema'
+
+export default class extends BaseSchema {
+  protected tableName = 'ai_audit_checkpoints'
+
+  async up() {
+    // The retention checkpoint table (Wave 4, audit consumption 3.4). A per-tenant
+    // signed high-water mark an incremental verify seeds FROM, and what the
+    // tenant:ai:audit:archive command advances after a segment is exported to WORM/SIEM.
+    //
+    // Deliberately NOT append-only (unlike ai_audit_logs): a checkpoint is UPSERTED
+    // forward as the chain advances, so no immutability triggers guard it. It stores
+    // only the chain's public coordinates (seq + checksum), never any audited content,
+    // so it carries no PII and needs no erasure path. It lives in the shared backoffice
+    // schema alongside ai_audit_logs.
+    this.schema.withSchema('backoffice').createTable(this.tableName, (table) => {
+      table.uuid('tenant_id').primary()
+      table.bigInteger('last_seq').notNullable()
+      table.specificType('last_checksum', 'char(64)').notNullable()
+      table.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(this.now())
+    })
+  }
+
+  async down() {
+    this.schema.withSchema('backoffice').dropTable(this.tableName)
+  }
+}

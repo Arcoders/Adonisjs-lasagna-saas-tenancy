@@ -74,10 +74,10 @@ test.group('AiEmbedController', () => {
       dimension: 4,
     })
     assert.lengthOf(events, 1)
-    assert.equal(events[0].outcome, 'completed')
-    assert.equal(events[0].embeddingsCount, 1)
-    assert.equal(events[0].tokens, 9)
-    assert.match(events[0].actorHash!, /^[0-9a-f]{64}$/)
+    assert.equal(events[0]!.outcome, 'completed')
+    assert.equal(events[0]!.embeddingsCount, 1)
+    assert.equal(events[0]!.tokens, 9)
+    assert.match(events[0]!.actorHash!, /^[0-9a-f]{64}$/)
   })
 
   test('an AIException from ingestion maps to its status and audits failed', async ({ assert }) => {
@@ -100,8 +100,8 @@ test.group('AiEmbedController', () => {
 
     assert.equal(responseFacade.sentStatus, 402)
     assert.deepEqual(responseFacade.sentBody, { error: 'embedding_quota_exhausted' })
-    assert.equal(events[0].outcome, 'failed_preflight')
-    assert.equal(events[0].reason, 'embedding_quota_exhausted')
+    assert.equal(events[0]!.outcome, 'failed_preflight')
+    assert.equal(events[0]!.reason, 'embedding_quota_exhausted')
   })
 
   test('a malformed body is rejected before the ingestion runs', async ({ assert }) => {

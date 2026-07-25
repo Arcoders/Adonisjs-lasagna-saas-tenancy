@@ -14,7 +14,7 @@ import { fakeHttpContext } from '../../../helpers/fake_http_context.js'
 import type { AiConfig } from '../../../../src/define_config.js'
 
 /**
- * G5 (drop the connection, dodge the settle) at the controller: a client
+ * Drop the connection, dodge the settle, at the controller: a client
  * hangup mid-stream travels the real `onRequestDisconnect` seam (a `close`
  * on the raw request while the response is unfinished), aborts the pump as
  * client_disconnect, and the finally STILL settles what was streamed.
@@ -23,7 +23,7 @@ import type { AiConfig } from '../../../../src/define_config.js'
 function disconnectingProvider(onFirstFragment: () => void): AIProviderContract {
   return {
     name: 'claude',
-    contractVersion: 1,
+    contractVersion: 2,
     capabilities: { streaming: true },
     async verifyConfig() {},
     async *stream(_request, signal): AsyncIterable<StreamFragment> {

@@ -1,0 +1,92 @@
+{
+  "commands": [
+    {
+      "commandName": "tenant:crypto:rekek",
+      "description": "Re-wrap every DEK under the current KEK generation (KEK rotation; never re-encrypts field data)",
+      "help": "Env provider: set OLD_APP_KEY to the previous key and APP_KEY to the new one, run, then drop OLD_APP_KEY once zero rows remain on the old generation. `node ace tenant:crypto:rekek --json || alert`",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "tenant",
+          "flagName": "tenant",
+          "required": false,
+          "type": "string",
+          "description": "Rotate a single tenant (uuid); omit to rotate every tenant"
+        },
+        {
+          "name": "dryRun",
+          "flagName": "dry-run",
+          "required": false,
+          "type": "boolean",
+          "description": "Classify and report what would be re-wrapped, writing nothing"
+        },
+        {
+          "name": "json",
+          "flagName": "json",
+          "required": false,
+          "type": "boolean",
+          "description": "Emit a JSON result"
+        }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_crypto_rekek.js"
+    },
+    {
+      "commandName": "tenant:crypto:shred",
+      "description": "Crypto-shred a (subject × category): destroy its DEK so all ciphertext under it is irrecoverable (gated by governance)",
+      "help": "tenant:crypto:shred --tenant <uuid> --subject <id> --category <key> [--dry-run] [--force]. Refused for a legal-obligation category in retention, an absent governance resolver, or an unwired WORM ledger.",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "tenant",
+          "flagName": "tenant",
+          "required": false,
+          "type": "string",
+          "description": "Tenant id (uuid) (required)"
+        },
+        {
+          "name": "subject",
+          "flagName": "subject",
+          "required": false,
+          "type": "string",
+          "description": "Data-subject id to shred (required)"
+        },
+        {
+          "name": "category",
+          "flagName": "category",
+          "required": false,
+          "type": "string",
+          "description": "Processing category key to shred (required)"
+        },
+        {
+          "name": "dryRun",
+          "flagName": "dry-run",
+          "required": false,
+          "type": "boolean",
+          "description": "Check the governance gate + preconditions and report, destroying nothing"
+        },
+        {
+          "name": "force",
+          "flagName": "force",
+          "required": false,
+          "type": "boolean",
+          "alias": "y",
+          "description": "Required for a real shred (it is irreversible; skips the confirmation)"
+        },
+        {
+          "name": "json",
+          "flagName": "json",
+          "required": false,
+          "type": "boolean",
+          "description": "Emit a JSON result"
+        }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "tenant_crypto_shred.js"
+    }
+  ]
+}

@@ -214,10 +214,10 @@ test.group('Dunning state machine (integration)', (group) => {
       await flushJobs()
 
       assert.lengthOf(captured, 2)
-      assert.isFalse(captured[0].final)
-      assert.isFalse(captured[1].final)
-      assert.equal(captured[0].attempts, 1)
-      assert.equal(captured[1].attempts, 2)
+      assert.isFalse(captured[0]?.final)
+      assert.isFalse(captured[1]?.final)
+      assert.equal(captured[0]?.attempts, 1)
+      assert.equal(captured[1]?.attempts, 2)
 
       const refreshed = await BillingSubscription.find(seed.subId)
       assert.equal(refreshed?.status, 'active', 'status preserved across non-final retries')

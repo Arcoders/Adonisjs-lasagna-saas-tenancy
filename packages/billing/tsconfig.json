@@ -1,8 +1,9 @@
 {
   "extends": "../../tsconfig.json",
-  "compilerOptions": {
-    "outDir": "./build",
-    "rootDir": "./"
-  },
-  "include": ["src/**/*.ts", "providers/**/*.ts", "configure.ts"]
+  // Typecheck config: this is what `npm run typecheck` uses, and it covers the TESTS as
+  // well as the source. `tsconfig.build.json` is the one that emits, and it deliberately
+  // narrows back to the shipped surface. Two files, because a single config cannot both
+  // emit only src and check everything, and skipping the check on tests is how a
+  // signature change ends up leaving specs quietly passing garbage.
+  "include": ["src/**/*.ts", "providers/**/*.ts", "configure.ts", "tests/**/*.ts", "bin/**/*.ts"]
 }

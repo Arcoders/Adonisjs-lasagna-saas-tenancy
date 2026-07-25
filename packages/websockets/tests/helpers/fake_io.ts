@@ -81,7 +81,7 @@ export class FakeIo implements IoServer {
       this.#handshake(socket, (err) => {
         if (err) {
           const code = (err as Error & { data?: { code?: string } }).data?.code
-          return resolve({ ok: false, code, error: err })
+          return resolve({ ok: false, error: err, ...(code !== undefined ? { code } : {}) })
         }
         this.sockets.push(socket)
         this.#connection?.(socket)

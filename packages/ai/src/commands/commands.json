@@ -87,6 +87,100 @@
       "args": [],
       "options": { "startApp": true },
       "filePath": "tenant_ai_purge.js"
+    },
+    {
+      "commandName": "tenant:ai:audit:export",
+      "description": "Export the append-only AI audit chain (NDJSON | CSV) in (tenant_id, seq) order for external re-verification",
+      "help": "NDJSON (default) streams into a SIEM; CSV escapes formula injection. `node ace tenant:ai:audit:export --tenant <uuid> --out chain.ndjson`",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "tenant",
+          "flagName": "tenant",
+          "required": false,
+          "type": "string",
+          "description": "Export a single tenant (uuid); omit for every tenant"
+        },
+        {
+          "name": "from",
+          "flagName": "from",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 lower bound on occurred_at (inclusive)"
+        },
+        {
+          "name": "to",
+          "flagName": "to",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 upper bound on occurred_at (inclusive)"
+        },
+        {
+          "name": "format",
+          "flagName": "format",
+          "required": false,
+          "type": "string",
+          "description": "Output format: ndjson | csv"
+        },
+        {
+          "name": "out",
+          "flagName": "out",
+          "required": false,
+          "type": "string",
+          "description": "Write to this file instead of stdout (overwritten if it exists)"
+        }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "ai_audit_export.js"
+    },
+    {
+      "commandName": "tenant:ai:audit:archive",
+      "description": "Archive a tenant AI audit segment: verify, export to WORM/SIEM in chain order, then advance a signed checkpoint (prunes nothing)",
+      "help": "The default retention path prunes nothing. `node ace tenant:ai:audit:archive --tenant <uuid> --out worm.ndjson`",
+      "namespace": "tenant",
+      "aliases": [],
+      "flags": [
+        {
+          "name": "tenant",
+          "flagName": "tenant",
+          "required": false,
+          "type": "string",
+          "description": "Tenant (uuid) to archive (required; a checkpoint is per-tenant)"
+        },
+        {
+          "name": "from",
+          "flagName": "from",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 lower bound on occurred_at (inclusive)"
+        },
+        {
+          "name": "to",
+          "flagName": "to",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 upper bound on occurred_at (inclusive)"
+        },
+        {
+          "name": "format",
+          "flagName": "format",
+          "required": false,
+          "type": "string",
+          "description": "Export format: ndjson | csv"
+        },
+        {
+          "name": "out",
+          "flagName": "out",
+          "required": false,
+          "type": "string",
+          "description": "The WORM/SIEM destination file (required)"
+        }
+      ],
+      "args": [],
+      "options": { "startApp": true },
+      "filePath": "ai_audit_archive.js"
     }
   ]
 }

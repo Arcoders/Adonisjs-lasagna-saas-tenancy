@@ -9,7 +9,7 @@ import type { QuotaReservation } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { TenantModelContract } from '@adonisjs-lasagna/saas-tenancy/types'
 
 /**
- * The narrow QuotaService surface a query embed needs (SEAM-3): reserve/settle/
+ * The narrow QuotaService surface a query embed needs: reserve/settle/
  * release. Unlike ingestion it needs no `getLimit`: a read writes no rows, so
  * it never touches the `embeddingCount` cap.
  */
@@ -27,7 +27,7 @@ export interface RetrievalRequest {
   readonly model?: string | undefined
   /** How many nearest matches to return (already clamped to `maxLimit` by the caller). */
   readonly limit: number
-  /** The per-user document ACL the retrievalFilter hook resolved (G2). */
+  /** The per-user document ACL the retrievalFilter hook resolved. */
   readonly scope: RetrievalScope
 }
 
@@ -49,10 +49,10 @@ export interface RetrievalServiceDeps {
 }
 
 /**
- * The retrieval (RAG read) orchestrator (WS-AI-5). It runs the same fail-closed
+ * The retrieval (RAG read) orchestrator. It runs the same fail-closed
  * cost order as ingestion, minus the write: reserve the worst-case `aiTokens`
  * for a single query embed (a retrieval read still costs an embedding call, so
- * it is metered like a completion, G5), embed the query, search the tenant's
+ * it is metered like a completion), embed the query, search the tenant's
  * vector store under the resolved document ACL scope, then settle the actual
  * tokens and always release the hold. The query is embedded with the SAME
  * provider the corpus was, and the search filters on the provider-reported
@@ -66,7 +66,7 @@ export interface RetrievalServiceDeps {
 export default class RetrievalService {
   constructor(private readonly deps: RetrievalServiceDeps) {}
 
-  /** The provider key fingerprint (or its name) for the per-key rate-limit bucket (threat #4). */
+  /** The provider key fingerprint (or its name) for the per-key rate-limit bucket. */
   get providerFingerprint(): string {
     return this.deps.provider.keyFingerprint ?? this.deps.provider.name
   }

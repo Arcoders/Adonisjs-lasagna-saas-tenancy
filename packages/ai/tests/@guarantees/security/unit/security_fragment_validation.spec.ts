@@ -19,7 +19,7 @@ function opts(overrides: Partial<StreamExtensionOptions> = {}): StreamExtensionO
   }
 }
 
-test.group('StreamExtensionService: fragment validation (I8)', () => {
+test.group('StreamExtensionService: fragment validation', () => {
   test('a rejected fragment aborts and its bytes are never written', async ({ assert }) => {
     const { svc, quota } = service()
     const target = new FakeStreamTarget()

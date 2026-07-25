@@ -19,6 +19,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { readJsonc } from './read-jsonc.mjs'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -85,7 +86,16 @@ function run() {
     if (!out) continue
     checked++
     const pkgDir = join(repoRoot, dirname(rel))
-    const tsconfig = JSON.parse(readFileSync(join(pkgDir, 'tsconfig.json'), 'utf8'))
+    // The config that GOVERNS EMISSION is what matters here, and since the
+    // typecheck/build split that is tsconfig.build.json, not tsconfig.json. The
+    // typecheck config no longer carries outDir (it must not emit), so reading it
+    // would test the wrong file. Fall back to tsconfig.json for a package that has
+    // not split. Both are JSONC: they carry comments documenting the split.
+    const buildConfigPath = join(pkgDir, 'tsconfig.build.json')
+    const tsconfigPath = existsSync(buildConfigPath)
+      ? buildConfigPath
+      : join(pkgDir, 'tsconfig.json')
+    const tsconfig = readJsonc(tsconfigPath)
     const listTsFiles = (srcRel) => {
       const abs = join(pkgDir, srcRel)
       if (!existsSync(abs)) return null

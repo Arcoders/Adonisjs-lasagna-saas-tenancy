@@ -82,16 +82,16 @@ test.group('Metered/usage-based billing (integration)', (group) => {
 
     const events = mock.meterEvents()
     assert.lengthOf(events, 1)
-    assert.equal(events[0].event_name, 'api_request')
-    assert.equal(events[0].payload.value, '5')
-    assert.equal(events[0].payload.stripe_customer_id, providerCustomerId)
-    assert.equal(events[0].key, 'manual-key-1')
+    assert.equal(events[0]?.event_name, 'api_request')
+    assert.equal(events[0]?.payload.value, '5')
+    assert.equal(events[0]?.payload.stripe_customer_id, providerCustomerId)
+    assert.equal(events[0]?.key, 'manual-key-1')
 
     const audit = await BillingUsageEvent.query().where('tenant_id', tenant.id)
     assert.lengthOf(audit, 1)
-    assert.equal(audit[0].status, 'sent')
-    assert.equal(audit[0].quantity, 5)
-    assert.equal(audit[0].idempotencyKey, 'manual-key-1')
+    assert.equal(audit[0]?.status, 'sent')
+    assert.equal(audit[0]?.quantity, 5)
+    assert.equal(audit[0]?.idempotencyKey, 'manual-key-1')
   })
 
   test('reportUsage with same idempotency key is idempotent (G-6)', async ({ assert }) => {
@@ -167,8 +167,8 @@ test.group('Metered/usage-based billing (integration)', (group) => {
     const rowsB = await BillingUsageEvent.query().where('tenant_id', tenantB.id)
     assert.lengthOf(rowsA, 1, 'tenant A keeps its own usage row')
     assert.lengthOf(rowsB, 1, 'tenant B keeps its own usage row despite the shared key')
-    assert.equal(rowsA[0].quantity, 3)
-    assert.equal(rowsB[0].quantity, 7)
+    assert.equal(rowsA[0]?.quantity, 3)
+    assert.equal(rowsB[0]?.quantity, 7)
 
     // The same idempotency_key now legitimately appears for both tenants.
     const allWithKey = await BillingUsageEvent.query().where('idempotency_key', sharedKey)
@@ -179,7 +179,7 @@ test.group('Metered/usage-based billing (integration)', (group) => {
       .where('tenant_id', tenantA.id)
       .where('idempotency_key', sharedKey)
     assert.lengthOf(lookupA, 1)
-    assert.equal(lookupA[0].tenantId, tenantA.id)
+    assert.equal(lookupA[0]?.tenantId, tenantA.id)
   })
 
   test('reportUsage recovers a pending audit row left by a prior DB blip (G-6)', async ({
@@ -316,14 +316,14 @@ test.group('Metered/usage-based billing (integration)', (group) => {
       await listener.drainAll()
 
       assert.lengthOf(dispatched, 1, 'exactly one batch job dispatched')
-      assert.equal(dispatched[0].tenantId, tenant.id)
-      assert.equal(dispatched[0].meterEventName, 'api_request')
-      assert.equal(dispatched[0].quantity, 8, 'sum of all amounts')
+      assert.equal(dispatched[0]?.tenantId, tenant.id)
+      assert.equal(dispatched[0]?.meterEventName, 'api_request')
+      assert.equal(dispatched[0]?.quantity, 8, 'sum of all amounts')
       // SECURITY: the listener seals a stable, unique-per-flush
       // idempotency key into the payload. It must be present and scoped to the
       // (tenant, meter) so the job never recomputes one from wall-clock.
       assert.match(
-        dispatched[0].idempotencyKey ?? '',
+        dispatched[0]?.idempotencyKey ?? '',
         new RegExp(`^${tenant.id}:api_request:`),
         'a per-flush idempotency key is sealed at dispatch'
       )
@@ -419,15 +419,15 @@ test.group('Metered/usage-based billing (integration)', (group) => {
 
     const reported = mock.meterEvents()
     assert.lengthOf(reported, 1, 'batch job forwarded one meter event to Stripe')
-    assert.equal(reported[0].event_name, 'api_request')
-    assert.equal(reported[0].payload.value, '7', 'aggregated quantity reached Stripe')
-    assert.equal(reported[0].payload.stripe_customer_id, providerCustomerId)
+    assert.equal(reported[0]?.event_name, 'api_request')
+    assert.equal(reported[0]?.payload.value, '7', 'aggregated quantity reached Stripe')
+    assert.equal(reported[0]?.payload.stripe_customer_id, providerCustomerId)
 
     const audit = await BillingUsageEvent.query().where('tenant_id', tenant.id)
     assert.lengthOf(audit, 1, 'one audit row written by the batch job')
-    assert.equal(audit[0].status, 'sent')
-    assert.equal(audit[0].quantity, 7)
-    assert.equal(audit[0].meterEventName, 'api_request')
+    assert.equal(audit[0]?.status, 'sent')
+    assert.equal(audit[0]?.quantity, 7)
+    assert.equal(audit[0]?.meterEventName, 'api_request')
   })
 
   test('auto-bridge: a batch job whose tenant no longer exists drops cleanly', async ({

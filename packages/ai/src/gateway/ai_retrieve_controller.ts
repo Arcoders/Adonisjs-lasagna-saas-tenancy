@@ -29,16 +29,16 @@ export interface AiRetrieveControllerDeps {
   retrieval: RetrievalService
   liveness: TenantLivenessWatcher
   config: AiConfig | undefined
-  /** The per-key request rate limiter (threat #4). Default: a disabled limiter. */
+  /** The per-key request rate limiter. Default: a disabled limiter. */
   rateLimiter?: AiRateLimiter
-  /** The WS-AI-7 attribution seam. Default: the no-op sink. */
+  /** The attribution seam. Default: the no-op sink. */
   audit?: AiRetrievalAuditSink | undefined
 }
 
 /**
- * The `/ai/retrieve` choke point (WS-AI-5), mirroring the embed controller's
+ * The `/ai/retrieve` choke point, mirroring the embed controller's
  * sequence: authorize FIRST (a denied caller spends nothing), then resolve the
- * per-user document ACL (G2) BEFORE any cost, then validate the body, rate-limit
+ * per-user document ACL BEFORE any cost, then validate the body, rate-limit
  * the provider key, and hand a scoped request to the retrieval service (which
  * owns reserve/embed/search/settle). Returns JSON matches, not SSE.
  * Instantiated per request (stateless).
@@ -50,7 +50,7 @@ export default class AiRetrieveController {
     const ai = this.deps.config
 
     // 1. Tenant + membership gate + the per-user document ACL + data residency
-    //    (403s, before any cost). Residency (#7/#15) refuses shipping the query
+    //    (403s, before any cost). Residency refuses shipping the query
     //    to a remote embedding backend when the tenant is `local-only`, before
     //    the rate limiter, so a refused caller spends nothing.
     const tenant = await resolveRequestTenant(ctx)
@@ -65,7 +65,7 @@ export default class AiRetrieveController {
 
     const liveness = this.deps.liveness.acquire(tenant.id)
     try {
-      // 3. Per-key request rate limit (threat #4), before any reservation or byte.
+      // 3. Per-key request rate limit, before any reservation or byte.
       await (this.deps.rateLimiter ?? DISABLED_AI_RATE_LIMITER).check({
         op: 'retrieve',
         tenantId: tenant.id,
@@ -145,7 +145,7 @@ function invalid(message: string): never {
  * call. `query` is a required non-empty string bounded by `maxQueryChars`;
  * `limit` is an optional positive integer clamped to `maxLimit` (defaulting to
  * `defaultLimit`); `model` is an optional per-request override. Error messages
- * name the field, never echo the query (G3).
+ * name the field, never echo the query.
  */
 function parseRetrieveBody(raw: unknown, retrieval: AIRetrievalConfig | undefined): RetrieveBody {
   if (typeof raw !== 'object' || raw === null) {

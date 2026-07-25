@@ -43,9 +43,12 @@ test.group('provisioningStalledCheck', (group) => {
       status: 'provisioning',
       createdAt: DateTime.utc().minus({ hours: 2 }),
     })
+    // The safe-fix envelope re-reads the tenant from the repo before mutating (TOCTOU
+    // guard), so the repo must know it. The mock returns the same instance, so the
+    // reconciled status is observable on `tenant`.
     const issues = (await provisioningStalledCheck.run({
       tenants: [tenant],
-      repo: mockTenantRepository(),
+      repo: mockTenantRepository([tenant]),
       attemptFix: true,
     })) as any[]
 

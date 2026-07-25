@@ -5,7 +5,7 @@ import { test } from '@japa/runner'
 // content is fenced in a user turn by buildRetrievalContext).
 import { auditSystemPromptPurity } from '../../../../../scripts/check-ai-invariant-4.mjs'
 
-test.group('architectural — I4 system-prompt purity guard', () => {
+test.group('architectural: I4 system-prompt purity guard', () => {
   test('a user-role retrieved-context message passes', ({ assert }) => {
     const problems = auditSystemPromptPurity([
       { path: 'src/gateway/context_builder.ts', source: "return { role: 'user', content }" },

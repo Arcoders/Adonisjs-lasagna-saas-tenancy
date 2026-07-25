@@ -75,6 +75,17 @@ export { isProductionNodeEnv, readBooleanEnvFlag } from '../utils/env.js'
  */
 export { resolveLucidDb } from '../utils/lucid_db.js'
 
+/**
+ * Classify a caught database error as an infrastructure OUTAGE (the connection died,
+ * the pool is exhausted, the server is shutting down) versus a domain or query error.
+ * A satellite that funnels its raw SQL through one boundary uses this to turn a
+ * mid-query backend death into a clean, typed, retryable 503 instead of an opaque
+ * 500. Pure + bare-safe: a fixed allow-list of errno / driver-code / SQLSTATE /
+ * message signatures, no booted import. This is the single source of truth, so a
+ * satellite never re-implements the pg-outage signature list.
+ */
+export { isDependencyOutageError } from '../utils/dependency_outage.js'
+
 export type { CodemodsLike, LoggerLike } from './configure_kit.js'
 export {
   filterAlreadyPublished,
@@ -97,7 +108,12 @@ export {
  * public event lazily). The public event stays `IsthmusGuardTripped` on
  * `/events`; the vocabulary types stay on `/types`.
  */
-export { createGuardAudit, ISTHMUS_BUDGETS } from './guard_audit.js'
+export {
+  createGuardAudit,
+  ISTHMUS_BUDGETS,
+  MAX_ISTHMUS_METADATA_KEYS,
+  MAX_ISTHMUS_METADATA_VALUE_LENGTH,
+} from './guard_audit.js'
 export type {
   GuardAuditEntry,
   GuardAuditInstance,
@@ -107,6 +123,15 @@ export type {
   GuardMetricSink,
   CreateGuardAuditOptions,
 } from './guard_audit.js'
+
+/**
+ * Turn a tenant id into a stable, non-reversible correlation token safe to place
+ * in a broadcast guard-tripped event's metadata. A satellite guard that carries a
+ * FOREIGN tenant id in its metadata (a scope-mismatch's `active`) tokenizes it,
+ * so the publicly-subscribable event never fans a real cross-tenant id out to
+ * plugin listeners; the precise ids stay server-side. Bare-safe.
+ */
+export { tokenizeTenantId, TENANT_TOKEN_PREFIX } from './tenant_token.js'
 
 /**
  * The Isthmus vocabulary types the guard-audit surface refers to (a satellite's

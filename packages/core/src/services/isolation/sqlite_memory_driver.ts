@@ -89,7 +89,7 @@ export default class SqliteMemoryDriver implements ProvisionableDriver {
     await this.connect(tenant)
   }
 
-  async connect(tenant: TenantModelContract, _opts: { bypassHardCap?: boolean } = {}) {
+  async connect(tenant: TenantModelContract, _opts: { bypassSoftCap?: boolean } = {}) {
     const { db } = await lucid()
     const name = this.connectionName(tenant.id)
 

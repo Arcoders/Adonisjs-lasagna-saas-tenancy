@@ -251,6 +251,22 @@ export const AI_GUARD_REGISTRY = [
     nextReview: '2027-01-02',
   },
   {
+    id: 'guard.ai_embedding_metadata_scope_conflict',
+    pillar: 'guard',
+    bugClass: 'silent-wrong-answer',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_embedding_metadata_scope_conflict:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'invariant',
+      ref: 'Wave 5 data-at-rest: with encryptMetadata on, the metadata column holds enc_v2 ciphertext, so a metadata-containment (metadata @> ?::jsonb) retrieval scope cannot run; the store refuses it fail-closed rather than silently return zero rows, which would read as an empty corpus instead of the misconfiguration it is',
+    },
+    guardFile: 'src/services/vector_store_service.ts',
+    reviewed: '2026-07-19',
+    nextReview: '2027-01-19',
+  },
+  {
     id: 'guard.ai_ingestion_denied',
     pillar: 'guard',
     bugClass: 'missing-authorization',
@@ -346,6 +362,214 @@ export const AI_GUARD_REGISTRY = [
     reviewed: '2026-07-03',
     nextReview: '2027-01-03',
   },
+  {
+    id: 'guard.ai_tool_unknown',
+    pillar: 'guard',
+    bugClass: 'capability-exposure',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_tool_unknown:rejected',
+    severity: 'high',
+    evidence: {
+      kind: 'invariant',
+      ref: 'WS-AI-11 default-deny: a model naming a tool outside the tenant registry is refused before any execution; registering a tool never auto-exposes it, the provider allow-list one level down',
+    },
+    guardFile: 'src/gateway/tool_gate.ts',
+    reviewed: '2026-07-16',
+    nextReview: '2027-01-16',
+  },
+  {
+    id: 'guard.ai_tool_denied',
+    pillar: 'guard',
+    bugClass: 'missing-authorization',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_tool_denied:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'invariant',
+      ref: 'WS-AI-11 I7: the per-tool authorizeTool hook resolves before execution; an absent hook, a throw, or a deny/invalid scope fails closed (never a 500) so a tool cannot run unauthorized; severity warn because tool denials are normal operations',
+    },
+    guardFile: 'src/gateway/tool_gate.ts',
+    reviewed: '2026-07-16',
+    nextReview: '2027-01-16',
+  },
+  {
+    id: 'guard.ai_tool_input_invalid',
+    pillar: 'guard',
+    bugClass: 'untrusted-input-schema',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_tool_input_invalid:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'inherent-risk',
+      ref: 'WS-AI-11 #12: tool arguments are model-generated untrusted input; they are bounded, JSON-parsed, prototype-safe reconstructed and schema-checked before execution, so an oversized payload, a __proto__ pollution attempt or a schema mismatch is rejected before the handler runs',
+    },
+    guardFile: 'src/gateway/tool_input.ts',
+    reviewed: '2026-07-16',
+    nextReview: '2027-01-16',
+  },
+  {
+    id: 'guard.ai_tool_scope_mismatch',
+    pillar: 'guard',
+    bugClass: 'cross-tenant-leak',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_tool_scope_mismatch:rejected',
+    severity: 'critical',
+    evidence: {
+      kind: 'invariant',
+      ref: 'WS-AI-11 I7 / #12 confused deputy: before the executor binds tenancy.run(tenant), assertActiveToolScope re-asserts that any ambient tenancy scope already active equals the request tenant (read BEFORE the bind, mirroring the vector-store #target / audit-writer append re-assert), so a confused-deputy call running inside another tenant scope cannot reach this tenant handler; the kernel ContextSeal backstops each query',
+    },
+    guardFile: 'src/gateway/tool_gate.ts',
+    reviewed: '2026-07-16',
+    nextReview: '2027-01-16',
+  },
+  {
+    id: 'guard.ai_tool_budget_exhausted',
+    pillar: 'guard',
+    bugClass: 'denial-of-wallet',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_tool_budget_exhausted:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'inherent-risk',
+      ref: 'WS-AI-11 #12/#13: the tool loop caps rounds and total tool calls under one aggregate token reservation; hitting a ceiling stops the loop in-band rather than letting the model drive an unbounded, wallet-draining call chain; severity warn because a loop ceiling is a bounded, monitored condition',
+    },
+    guardFile: 'src/gateway/tool_loop.ts',
+    reviewed: '2026-07-16',
+    nextReview: '2027-01-16',
+  },
+  {
+    id: 'guard.ai_tool_action_disabled',
+    pillar: 'guard',
+    bugClass: 'unguarded-mutation',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_tool_action_disabled:rejected',
+    severity: 'high',
+    evidence: {
+      kind: 'invariant',
+      ref: 'WS-AI-11 LLM06: a mode:action (mutating) tool is off by default and refused at execution unless explicitly enabled and human-confirmed (Phase 3a), so an indirect prompt injection can propose a write but never perform one',
+    },
+    guardFile: 'src/gateway/tool_gate.ts',
+    reviewed: '2026-07-16',
+    nextReview: '2027-01-16',
+  },
+  {
+    id: 'guard.ai_too_many_concurrent',
+    pillar: 'guard',
+    bugClass: 'denial-of-wallet',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_too_many_concurrent:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'inherent-risk',
+      ref: 'WS-AI-11 Phase 2a: the per-tenant admission cap on concurrent in-flight streams, the anti-flood half of the denial-of-wallet rail. A tenant already at its cap is refused a NEW tool loop before the reserve rather than starting one. Severity warn for the same reason as its sibling ai_rate_limited: an admission cap trips in normal operation under load and is monitored by rate, not per event. Honest limit (the acquire docstring says the same): this bounds TOTAL in-flight streams, not tool loops exactly, and is per-process',
+    },
+    guardFile: 'src/services/tenant_liveness_watcher.ts',
+    reviewed: '2026-07-17',
+    nextReview: '2027-01-17',
+  },
+  {
+    id: 'guard.ai_tool_confirmation_unmatched',
+    pillar: 'guard',
+    bugClass: 'unguarded-mutation',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_tool_confirmation_unmatched:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'inherent-risk',
+      ref: 'WS-AI-11 Phase 3a: a confirmation token was presented for an action and none authorized the call, or it authorized one that already fired. Severity warn, the ai_rate_limited posture, because this fires in ordinary operation: the model re-proposing different arguments after a human confirmed the first version lands here, and so does an ordinary client retry of a spent token. It is watched by rate rather than per event. Silence would be worse than noise here: without this signal a redaction layer eating every token and a model rephrasing a number are indistinguishable, and both read as the feature quietly not working',
+    },
+    guardFile: 'src/gateway/tool_gate.ts',
+    reviewed: '2026-07-17',
+    nextReview: '2027-01-17',
+  },
+  {
+    id: 'guard.ai_action_ledger_unavailable',
+    pillar: 'guard',
+    bugClass: 'unguarded-mutation',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_action_ledger_unavailable:rejected',
+    severity: 'high',
+    evidence: {
+      kind: 'invariant',
+      ref: 'WS-AI-11 Phase 3a: the at-most-once fence for a confirmed action tool could not be written, so the effect is refused. A mutation whose exactly-one-execution cannot be recorded must not be executed: the alternative is a stream that dies after the effect and before completion, whose retry mutates a second time. Severity high because it means action tools are DOWN for this tenant, which is correct but is an availability event an operator must see',
+    },
+    guardFile: 'src/services/action_ledger.ts',
+    reviewed: '2026-07-17',
+    nextReview: '2027-01-17',
+  },
+  {
+    id: 'guard.ai_injection_structural',
+    pillar: 'guard',
+    bugClass: 'prompt-injection-structural',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_injection_structural:rejected',
+    severity: 'warn',
+    evidence: {
+      kind: 'invariant',
+      ref: 'LLM01 Wave 3: the retrieved-doc / tool-result fence neutralization + role separation already CLOSES a delimiter forgery; this guard is the one deliberate NEUTRALIZE-AND-OBSERVE divergence from the reject-semantics registry, and it emits when a token forgery is neutralized (never blocks), so an operator can see a corpus probing for a fence breakout. failMode closed because the breakout is structurally closed regardless of the signal; severity warn like ai_rate_limited because forgeries appear in ordinary operation and are watched by rate',
+    },
+    guardFile: 'src/gateway/context_builder.ts',
+    reviewed: '2026-07-19',
+    nextReview: '2027-01-19',
+  },
+  {
+    id: 'guard.ai_injection_detected',
+    pillar: 'guard',
+    bugClass: 'prompt-injection-semantic',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_injection_detected:rejected',
+    severity: 'high',
+    evidence: {
+      kind: 'invariant',
+      ref: 'LLM01 Wave 3: an optional host InjectionClassifier (defense-in-depth, NEVER the boundary) returned a block verdict on an input turn, refused before the reserve with a 400 injection_detected and zero spend. The classifier is not the isolation control (structural role separation plus I4 is), so its own error is fail-open by default; only a block verdict, or an onError:closed detector outage, trips this',
+    },
+    guardFile: 'src/gateway/injection_gate.ts',
+    reviewed: '2026-07-19',
+    nextReview: '2027-01-19',
+  },
+  {
+    id: 'guard.ai_audit_chain_broken',
+    pillar: 'guard',
+    bugClass: 'audit-integrity',
+    failMode: 'closed',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_audit_chain_broken:rejected',
+    severity: 'critical',
+    evidence: {
+      kind: 'invariant',
+      ref: 'Wave 4 audit consumption (3.5): a scheduled / alerting verify found a chain break (checksum / seq gap / prev-link), tampering that slipped past the append-only triggers. A SIGNAL guard (emits, does not throw: the verify already reported the break and exits 1), raised to critical so a broken audit chain pages an operator instead of scrolling past. failMode closed because the chain itself is the fail-closed control; the emission is alerting on an already-detected break',
+    },
+    guardFile: 'src/services/ai_audit_anomaly_watcher.ts',
+    reviewed: '2026-07-19',
+    nextReview: '2027-01-19',
+  },
+  {
+    id: 'guard.ai_anomaly',
+    pillar: 'guard',
+    bugClass: 'abnormal-guard-velocity',
+    failMode: 'open',
+    phase: 'runtime',
+    event: 'isthmus:guard:ai_anomaly:rejected',
+    severity: 'high',
+    evidence: {
+      kind: 'inherent-risk',
+      ref: 'Wave 4 audit consumption (3.6): guard-trip VELOCITY per (tenant, principal, guard) crossed the sliding-window threshold, a single principal driving a burst of scope-mismatch / rate-limit / injection trips. failMode OPEN because the watcher is an observer of already-dispatched events, off the request path (the guard it counts already did its fail-closed job): a velocity heuristic and alerting convenience layered on the real controls, never a control itself',
+    },
+    guardFile: 'src/services/ai_audit_anomaly_watcher.ts',
+    reviewed: '2026-07-19',
+    nextReview: '2027-01-19',
+  },
 ] as const satisfies readonly AiGuardRegistryEntryShape[]
 
 /** Compile-time union of all registered AI guard ids. */
@@ -354,9 +578,16 @@ export type AiGuardId = (typeof AI_GUARD_REGISTRY)[number]['id']
 /** A single registry entry, literal-narrowed. */
 export type AiGuardRegistryEntry = (typeof AI_GUARD_REGISTRY)[number]
 
+// O(1) id lookup, mirroring the kernel's `BY_ID` (packages/core/src/isthmus/
+// registry.ts) exactly. Built once at module load from the literal, so
+// `aiGuardEntry` on the emit hot path is a Map.get, not an O(n) scan.
+const BY_ID = new Map<AiGuardId, AiGuardRegistryEntry>(
+  AI_GUARD_REGISTRY.map((entry) => [entry.id, entry])
+)
+
 /** Look up a registry entry by id. Ids are compile-checked, so a miss is a programming error. */
 export function aiGuardEntry(id: AiGuardId): AiGuardRegistryEntry {
-  const entry = AI_GUARD_REGISTRY.find((candidate) => candidate.id === id)
+  const entry = BY_ID.get(id)
   if (!entry) {
     throw new Error(`[ai] unknown AI guard id: ${id}`)
   }

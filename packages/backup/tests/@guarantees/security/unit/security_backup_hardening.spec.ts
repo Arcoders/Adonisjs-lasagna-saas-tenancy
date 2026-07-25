@@ -116,14 +116,14 @@ test.group('B-BACKUP — at-rest encryption advisory', () => {
   test('flags S3 backups for bucket-level SSE', ({ assert }) => {
     const issues = evaluateBackupEncryption({ s3: { enabled: true } })
     assert.lengthOf(issues, 1)
-    assert.equal(issues[0].code, 'backup_s3_encryption_unverified')
+    assert.equal(issues[0]?.code, 'backup_s3_encryption_unverified')
   })
 
   test('flags local backups for disk encryption + permissions', ({ assert }) => {
     const issues = evaluateBackupEncryption({ storagePath: '/var/backups' })
     assert.lengthOf(issues, 1)
-    assert.equal(issues[0].code, 'backup_local_encryption_unverified')
-    assert.include(issues[0].message, '/var/backups')
+    assert.equal(issues[0]?.code, 'backup_local_encryption_unverified')
+    assert.include(issues[0]?.message, '/var/backups')
   })
 
   test('returns nothing when backup is not configured', ({ assert }) => {

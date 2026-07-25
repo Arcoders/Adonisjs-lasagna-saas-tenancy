@@ -10,6 +10,7 @@ export default defineConfig({
     () => import('@adonisjs-lasagna/billing/commands'),
     () => import('@adonisjs-lasagna/reporting/commands'),
     () => import('@adonisjs-lasagna/ai/commands'),
+    () => import('@adonisjs-lasagna/crypto/commands'),
   ],
 
   providers: [
@@ -31,6 +32,7 @@ export default defineConfig({
     () => import('@adonisjs-lasagna/websockets/provider'),
     () => import('@adonisjs-lasagna/reporting/provider'),
     () => import('@adonisjs-lasagna/ai/provider'),
+    () => import('@adonisjs-lasagna/crypto/provider'),
     () => import('#app/providers/app_provider'),
   ],
 

@@ -13,7 +13,7 @@ import {
 } from '../../../../src/isthmus/ai_guard_audit.js'
 
 /**
- * The BYOK per-key request rate limiter (threat #4, denial of wallet). It is a
+ * The BYOK per-key request rate limiter (denial of wallet). It is a
  * DIFFERENT rail from the token cost reserve: it caps requests-per-window on a
  * provider key. Over the window is a fail-closed 429 that rides the guard
  * channel; a backend outage is a fail-closed 503 that does NOT (a dependency
@@ -92,9 +92,9 @@ test.group('AI per-key rate limiter', (group) => {
     )
 
     assert.lengthOf(captured, 1, 'a policy denial rides the guard channel')
-    assert.equal(captured[0].id, 'guard.ai_rate_limited')
-    assert.equal(captured[0].severity, 'warn')
-    assert.equal(captured[0].tenantId, 't1')
+    assert.equal(captured[0]!.id, 'guard.ai_rate_limited')
+    assert.equal(captured[0]!.severity, 'warn')
+    assert.equal(captured[0]!.tenantId, 't1')
 
     const snapshot = snapshotAiGuardCounters()
     assert.equal(snapshot.rejected.find((r) => r.id === 'guard.ai_rate_limited')?.value, 1)

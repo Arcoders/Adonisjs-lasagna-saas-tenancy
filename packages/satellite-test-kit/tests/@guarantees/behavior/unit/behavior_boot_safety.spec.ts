@@ -41,8 +41,8 @@ function importSpecifiers(source: string): string[] {
   const fromRe = /\b(?:import|export)\b[^;]*?\bfrom\s*['"]([^'"]+)['"]/g
   const sideRe = /\bimport\s+['"]([^'"]+)['"]/g
   let match: RegExpExecArray | null
-  while ((match = fromRe.exec(code)) !== null) specs.push(match[1])
-  while ((match = sideRe.exec(code)) !== null) specs.push(match[1])
+  while ((match = fromRe.exec(code)) !== null) specs.push(match[1]!)
+  while ((match = sideRe.exec(code)) !== null) specs.push(match[1]!)
   return specs
 }
 

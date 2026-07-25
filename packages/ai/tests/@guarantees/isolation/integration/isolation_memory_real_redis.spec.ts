@@ -5,7 +5,7 @@ import ConversationMemoryService from '../../../../src/services/conversation_mem
 /**
  * Conversation memory against the REAL Redis the app is wired to: the atomic
  * LIST append survives concurrency (no lost turns, the race the design fixes),
- * two tenants sharing a principal land in disjoint keys, and the WS-AI-9 purge
+ * two tenants sharing a principal land in disjoint keys, and the purge
  * seams (per-user, per-tenant) erase on real infrastructure, not just a Map.
  */
 
@@ -17,8 +17,8 @@ function memoryService(): ConversationMemoryService {
     macKey: Buffer.alloc(32, 5),
     // Identity-with-marker crypto: this spec exercises the real Redis LIST
     // semantics; the enc_v2 round-trip is covered in the unit tier.
-    encryptMemory: (plain) => `e:${plain}`,
-    decryptMemory: (cipher) => {
+    encryptMemory: async (_tenantId, plain) => `e:${plain}`,
+    decryptMemory: async (_tenantId, cipher) => {
       if (!cipher.startsWith('e:')) throw new Error('not ciphertext')
       return cipher.slice(2)
     },
@@ -31,7 +31,7 @@ test.group('conversation memory on real Redis (integration)', (group) => {
 
   group.setup(async () => {
     try {
-      const redis = await app.container.make('redis')
+      const redis = (await app.container.make('redis')) as { ping: () => Promise<unknown> }
       await redis.ping()
       ready = true
     } catch {

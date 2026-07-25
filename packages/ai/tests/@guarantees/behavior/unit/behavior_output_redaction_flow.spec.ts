@@ -52,7 +52,7 @@ function buildDeps(opts: BuildOptions) {
   const { svc } = makeService(quota)
   const provider = new MockAIProvider({
     name: 'claude',
-    contractVersion: 1,
+    contractVersion: 2,
     fragments: opts.fragments,
   })
   const registry = new AIProviderRegistry()
@@ -71,8 +71,8 @@ function buildDeps(opts: BuildOptions) {
     ? new ConversationMemoryService({
         getRedis: async () => opts.redis ?? new FakeRedisLists(),
         macKey: Buffer.alloc(32, 4),
-        encryptMemory: (plain) => `e:${plain}`,
-        decryptMemory: (cipher) => {
+        encryptMemory: async (_tenantId, plain) => `e:${plain}`,
+        decryptMemory: async (_tenantId, cipher) => {
           if (!cipher.startsWith('e:')) throw new Error('not ciphertext')
           return cipher.slice(2)
         },
@@ -87,14 +87,16 @@ function buildDeps(opts: BuildOptions) {
     liveness: new TenantLivenessWatcher(),
     config,
     memory,
-    emitMetric: (tenantId, name, value) => metrics.push({ tenantId, name, value }),
+    emitMetric: (tenantId, name, value) => {
+      metrics.push({ tenantId, name, value })
+    },
   })
   return { controller, provider, quota, metrics }
 }
 
 const auth = { user: { id: 'u1' } }
 
-test.group('redactOutput coherence — client + idempotency replay', () => {
+test.group('redactOutput coherence: client + idempotency replay', () => {
   test('the client stream is redacted and the metric counts the change', async ({ assert }) => {
     let calls = 0
     const redact: RedactOutput = (_c, _t, chunk) => {
@@ -165,7 +167,7 @@ test.group('redactOutput coherence — client + idempotency replay', () => {
   })
 })
 
-test.group('redactOutput coherence — conversation memory', () => {
+test.group('redactOutput coherence: conversation memory', () => {
   test('memory persists the REDACTED assistant turn (the model never re-sees the raw output)', async ({
     assert,
   }) => {
@@ -195,7 +197,7 @@ test.group('redactOutput coherence — conversation memory', () => {
     await controller.chat(t2.ctx)
 
     assert.deepEqual(
-      provider.calls[1].request.messages,
+      provider.calls[1]!.request.messages,
       [
         { role: 'user', content: 'first' },
         { role: 'assistant', content: 'hi [redacted]' },
@@ -206,7 +208,7 @@ test.group('redactOutput coherence — conversation memory', () => {
   })
 })
 
-test.group('redactOutput coherence — fail-closed + cost', () => {
+test.group('redactOutput coherence: fail-closed + cost', () => {
   test('a throwing redactor mid-stream aborts cleanly; prior tokens still settle', async ({
     assert,
   }) => {

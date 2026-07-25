@@ -1,12 +1,12 @@
 import { test } from '@japa/runner'
-// H2 anti-drift guard (WS-AI-8): the provider request builders must never emit a
+// H2 anti-drift guard: the provider request builders must never emit a
 // provider prompt-cache directive that is not tenant-namespaced. Exercise the pure
 // auditor that the repo-root `npm run check` runs against the real model-provider files.
 import { auditNoProviderPromptCache } from '../../../../../scripts/check-ai-no-provider-prompt-cache.mjs'
 
 const FILE = 'packages/ai/src/providers/claude_provider.ts'
 
-test.group('architectural — H2 no provider prompt-cache', () => {
+test.group('architectural: H2 no provider prompt-cache', () => {
   test('a plain request body with no cache directive passes', ({ assert }) => {
     const clean = [
       'return { model: this.deps.model, max_tokens: max, messages, stream: true }',

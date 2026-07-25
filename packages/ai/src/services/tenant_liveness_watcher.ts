@@ -1,8 +1,10 @@
 import type { Emitter } from '@adonisjs/core/events'
 import { TenantSuspended, TenantDeleted } from '@adonisjs-lasagna/saas-tenancy/events'
+import AIException from '../exceptions/ai_exception.js'
+import { emitAiGuardEvent } from '../isthmus/ai_guard_audit.js'
 
 /**
- * The tenant-lifecycle events that revoke in-flight AI streams (G11, the
+ * The tenant-lifecycle events that revoke in-flight AI streams (the
  * TOCTOU suspend-mid-stream gap): a stream re-checks nothing itself; it holds
  * a liveness signal that this watcher aborts the instant the tenant stops
  * being servable. Maintenance events are deliberately excluded: maintenance is
@@ -31,10 +33,43 @@ export default class TenantLivenessWatcher {
    * block; dispose is idempotent and only detaches this stream's handle (a
    * disposed stream can no longer be aborted, and the per-tenant set is pruned
    * so the map never leaks finished streams).
+   *
+   * Passing `maxConcurrent` gates this acquire on the
+   * tenant's TOTAL live in-flight count. `handles.size` counts every kind of
+   * stream (plain chat, embed, retrieve AND tool loops), so the cap is a
+   * conservative admission gate: a new, expensive tool loop is admitted only
+   * while the tenant is below the cap under ANY load, which is what protects the
+   * connection pool and bounds denial-of-wallet. Only the tool-loop request
+   * passes a cap; plain chat / embed / retrieve acquire uncapped and count toward
+   * the total but are never themselves refused (the cheap paths stay inert). So a
+   * tenant already busy is refused a NEW tool loop with a 429 `too_many_concurrent`
+   * rather than starting one. No handle is created on refusal, so the count is
+   * unchanged; the refusal is pre-commit (before the SSE headers flush), so it
+   * never corrupts a live stream. The caller passes an already-validated positive
+   * cap. Honest limit: this bounds total in-flight, not tool loops
+   * exactly, and is per-process / per-pod, like the liveness abort.
+   *
+   * A refusal emits `guard.ai_too_many_concurrent` so this rail is observable by
+   * rate the way its sibling `guard.ai_rate_limited` already is: both halves of
+   * the denial-of-wallet defense (flood and spend) now leave the same kind of
+   * trace, and an operator can tell "the cap is biting" from "nobody is asking".
    */
-  acquire(tenantId: string): { signal: AbortSignal; dispose: () => void } {
-    const controller = new AbortController()
+  acquire(
+    tenantId: string,
+    opts: { maxConcurrent?: number } = {}
+  ): { signal: AbortSignal; dispose: () => void } {
     let handles = this.#controllers.get(tenantId)
+    if (opts.maxConcurrent !== undefined && (handles?.size ?? 0) >= opts.maxConcurrent) {
+      emitAiGuardEvent('guard.ai_too_many_concurrent', {
+        tenantId,
+        metadata: { inFlight: handles?.size ?? 0, cap: opts.maxConcurrent },
+      })
+      throw new AIException(
+        'too_many_concurrent',
+        'too many concurrent AI streams for this tenant to start a tool loop; retry after one completes'
+      )
+    }
+    const controller = new AbortController()
     if (!handles) {
       handles = new Set()
       this.#controllers.set(tenantId, handles)

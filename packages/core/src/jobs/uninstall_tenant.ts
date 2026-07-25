@@ -40,7 +40,11 @@ export default class UninstallTenant extends Job<UninstallTenantPayload> {
 
       const driver = await getActiveDriver()
       await driver.destroy(tenant)
+      // Invariant A: deletedAt and status move together. Stamp the timestamp AND
+      // flip status to 'deleted' so the two lifecycle axes never diverge (an
+      // active-but-deleted tenant is exactly what tripped the doctor).
       tenant.deletedAt = DateTime.now()
+      tenant.status = 'deleted'
       await tenant.save()
       logger.info({ tenantId: tenant.id }, 'Tenant uninstalled successfully')
 

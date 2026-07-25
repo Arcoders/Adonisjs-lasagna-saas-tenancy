@@ -21,12 +21,13 @@ ships with: <code>node ace list:commands | grep -E 'tenant|backoffice|migration:
 | `tenant:suspend <id>` | Block all API access without dropping the schema. `--admin=<id>` attributes the audit row (default: `system`). |
 | `tenant:destroy <id>` | Soft-delete and tear down. `--force` skips prompt; `--keep-schema` preserves storage during retention; `--admin=<id>` attributes the audit row (default: `system`). If the schema drop fails after the soft-delete, the tenant is already unreachable and the orphan schema is reclaimable with `tenant:purge-expired --include-orphans`. |
 | `tenant:reprovision <id>` | Re-run provisioning for a `failed` or stuck-`provisioning` tenant (idempotent `driver.provision`, then `active`). Unlike `tenant:activate` (which only flips status), this re-creates the schema. No-op on an active tenant; refuses a soft-deleted one. `--force`, `--admin=<id>`. |
+| `tenant:heal` | Non-destructively bring tenant(s) to a healthy, fully-migrated, seeded state: provision the schema if missing, apply all pending migrations, run the `after:migrate` seeders, and recover a `failed` tenant to `active`. Provision-up-only (never drops/resets/rolls back), idempotent, quarantines to `failed` on error, and audits every heal. Unlike `tenant:reprovision`, it works on `active` tenants and also migrates + seeds. `--tenant=<id>` (repeatable; omit to heal the whole fleet), `--concurrency=N` (clamped to `isolation.operationalConnectionBudget`), `--dry-run`, `--admin=<id>`, `-y`. |
 
 ## Migrations
 
 | Command | What it does |
 |---|---|
-| `migration:tenant:run` / `tenant:migrate` | Run pending migrations against one or all tenants. `--dry-run`, `--disable-locks`, `--verbose`. |
+| `migration:tenant:run` / `tenant:migrate` | Run pending migrations against one or all tenants. `--dry-run`, `--disable-locks`, `--verbose`, `--concurrency=N` (migrate up to N tenants in parallel, default 1; clamped to `isolation.operationalConnectionBudget` so it never breaches the connection ceiling; per-tenant failures are isolated and reflected in the exit code). |
 | `migration:tenant:rollback` / `tenant:migrate:rollback` | Roll back the last migration batch. |
 | `tenant:migrate:fresh` | DROP and recreate per-tenant storage, then re-run migrations. **Destructive.** `--force`, `--seed`. |
 | `tenant:seed` | `db:seed` per tenant. `--files` cherry-picks specific seeders, `--continue-on-error` keeps going. |
@@ -75,10 +76,23 @@ node ace plugin:doctor --json
 
 ## Doctor
 
-`tenant:doctor` is the operational health command. Nine built-in
+`tenant:doctor` is the operational health command. Thirteen built-in
 checks (plus `backup_recency` and `backup_encryption` when the backup
 satellite is installed), `--fix` to auto-recover, `--json` for CI gates,
 `--watch` for a live TUI.
+
+Each issue carries a **scope** (`platform` or `tenant`), and a run has a
+tri-state **verdict**: `fail` when any platform-scoped error is present,
+`degraded` when only tenant-scoped errors are, otherwise `ok`. The admin
+`GET /admin/health/report` maps that verdict the same way `/readyz` does — 503
+only on `fail`, 200 for `ok`/`degraded` — so one broken tenant (say, one that
+was never migrated) degrades the report without taking the whole operator
+console offline. `--fix` heals fixable tenant issues: `schema_missing`,
+`migrations_never_ran`, `migration_behind`, and `tenant_failed` all route
+through `tenant:heal` (provision-if-missing → migrate → seed → recover), while
+`lifecycle_status_divergence` reconciles a soft-deleted tenant's `status` and
+`circuit_open`/`provisioning_stalled` keep their existing repairs. Every `--fix`
+mutation is now re-read-guarded (no TOCTOU) and written to the audit log.
 
 <Terminal src="/casts/doctor.cast.json" />
 
@@ -232,7 +246,19 @@ Available when `--with=ai` is configured. Full reference in the
 | Command | What it does |
 |---|---|
 | `tenant:ai:audit:verify` | Re-walk the append-only AI audit hash chain and report the first tamper (a broken checksum, a `seq` gap, or a broken prev-link) that got past the DB triggers. Exit 1 on the first break, so it gates a cron or a post-incident check. Flags: `--tenant=<id>` (omit for all), `--json`. |
+| `tenant:ai:audit:export` | Export the append-only AI audit chain as NDJSON or CSV in `(tenant_id, seq)` order so an external tool can re-verify it offline (it recomputes each checksum and links through the exported `prevChecksum`, needing nothing live). Flags: `--tenant=<uuid>` (omit for all), `--from` / `--to` (ISO 8601 bounds on `occurred_at`), `--format=ndjson\|csv`, `--out=<file>` (defaults to stdout). Fail-closed: a write error destroys the partial file and exits non-zero. |
+| `tenant:ai:audit:archive` | Archive a tenant's AI audit segment: verify the chain, export it to a WORM/SIEM destination in chain order, then advance a signed checkpoint. It prunes nothing, since detaching live rows is deliberately not wired here. Flags: `--tenant=<uuid>` (required, the checkpoint is per-tenant), `--from` / `--to` (ISO 8601 bounds), `--format=ndjson\|csv`, `--out=<file>` (required). Fail-closed: the checkpoint advances only after the export succeeds and the chain verifies. |
 | `tenant:ai:purge` | Erase a tenant's AI data for GDPR: conversation memory, the response-cache epoch, and embeddings. Scopes: `--tenant=<uuid> --force` (all), `--tenant=<uuid> --principal=<id>` (one user, Art.17), `--tenant=<uuid> --source=<key>` (one document). `--dry-run` previews the counts and writes nothing; `--verify-chain` also re-walks the audit chain; `--actor=<id>` sets the audited operator. The immutable, non-PII audit chain intentionally survives. |
+
+## Crypto
+
+Available when `--with=crypto` is configured. Full reference in the
+[Crypto satellite](/guides/satellites/crypto#crypto-shredding-erasure).
+
+| Command | What it does |
+|---|---|
+| `tenant:crypto:shred` | Crypto-shred a subject's data for a category: tombstone its wrapped-DEK row so every value sealed under that DEK becomes unrecoverable (O(1) erasure, I6). Gated on governance (a legal hold or absent `erasabilityResolver` refuses, I7) and audited to the WORM ledger (PENDING before, COMMITTED after). Flags: `--tenant=<id> --subject=<id> --category=<key>`, `--dry-run` (runs the gate + preconditions, destroys nothing), `--force` (gates the irreversible run), `--json`. A refusal exits non-zero with the reason. |
+| `tenant:crypto:rekek` | Rotate the KEK: re-wrap every live DEK under the current KEK generation, without re-encrypting any field data (the DEK bytes and `keyId` are unchanged, so sealed values keep decrypting; cost is O(number of DEKs)). Idempotent and resumable; a failed row is reported, not silently skipped. For the `env` provider, set `OLD_APP_KEY` (env only) alongside the new `APP_KEY` for the dual-key read window. Flags: `--tenant=<id>`, `--dry-run`, `--json`. Exit 1 if any DEK failed to re-wrap. |
 
 
 ## REPL

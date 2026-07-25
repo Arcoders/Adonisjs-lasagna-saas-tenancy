@@ -42,7 +42,7 @@ mitigation holds.
 | 9 | Hallucination "exfiltration" | Grounding in retrieved sources; a quality control, not isolation. Cross-tenant leakage is 0 by construction (see [Honest limits](#honest-limits)) | — | [RAG context integrity](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/security/unit/security_chat_rag_context_integrity.spec.ts) |
 | 10 | Indirect prompt injection via RAG content | Retrieved content is untrusted **data, not instructions** (role + fenced delimiter); harmless because foreign data is never in context (I4) | I4 | [RAG context integrity](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/security/unit/security_chat_rag_context_integrity.spec.ts) |
 | 11 | SSRF via AI-initiated fetch or BYOK endpoint | Every AI-initiated URL and the BYOK endpoint pass the kernel's `safeFetch`, which pins the validated IP for the connection (no DNS rebind) and refuses redirects (no 302 bypass), and blocks loopback / RFC-1918 / CGN / metadata / IPv6 transition | — | [ingestion SSRF](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/behavior/unit/behavior_embedding_ingestion.spec.ts) |
-| 12 | Tool / agent confused-deputy | Tools run inside `tenancy.run()` behind a default-deny allow-list, every call audited. **Tools ship post-1.0 (WS-AI-11)**; I7 is fixed but unimplemented, so there is no tool-call path to attack in 1.0 | I7 | — (post-1.0) |
+| 12 | Tool / agent confused-deputy | Tools run inside `tenancy.run()` behind a default-deny registry and a per-tool `authorizeTool` hook; the executor re-asserts the ambient tenancy scope *before* binding, so a call arriving under another tenant's scope is refused rather than served; arguments are whitelist-reconstructed, results are fenced `tool`-role data, and every call is audited `op: 'tool'`. Action (mutating) tools stay off behind a kill-switch and, once on, run only after a human confirms a signed challenge | I7 | [tool gate](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/behavior/unit/behavior_tool_gate.spec.ts) |
 | 13 | Cost amplification / denial-of-wallet | Reserve/settle across the whole run + a per-request token cap + an operator-global ceiling so one tenant cannot bankrupt a shared managed account | I3 | [budget posture](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/behavior/unit/behavior_ai_budget_posture.spec.ts) |
 | 14 | Audit log as a sensitive-data store | Audit stores only non-PII metadata (counts, ids, model, one-way hashes); GDPR erasure never has to chase content into the immutable log | I5, G1 | [non-PII row](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/security/unit/security_ai_audit_persisted_row_non_pii.spec.ts) |
 | 15 | PII to provider / training | Residency allow-list (`local-only`); a `check-ai-no-prompt-logging-for-training` guard keeps prompts/responses/documents/memory out of application logs | — | [residency gate](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/security/unit/security_residency_gate.spec.ts) |
@@ -50,11 +50,10 @@ mitigation holds.
 | 17 | Cross-tenant existence disclosure / side channel | Uniform error responses, no "tenant X not found"; `timingSafeEqual` on the security-sensitive comparisons | — | [uniform error](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/security/unit/security_ai_uniform_error_no_existence_disclosure.spec.ts) |
 | 18 | Vector-store resource exhaustion | A per-plan `embeddingCount` quota enforced atomically (advisory-locked count + insert) before the write; per-tenant limits | I1 | [reserve fail-closed](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/packages/ai/tests/@guarantees/security/unit/security_embedding_reserve_failclosed.spec.ts) |
 
-Vectors 9, 12 and 17 carry no chaos/fault spec by design, each for a stated
-reason: hallucination is a quality property not an isolation fault, tools are
-post-1.0, and a uniform 403 is a deterministic property asserted by its red spec
-rather than a fault to inject. Those reasons are recorded in the coverage matrix
-so the gap is auditable, not silent.
+Vectors 9 and 17 carry no chaos/fault spec by design, each for a stated reason:
+hallucination is a quality property not an isolation fault, and a uniform 403 is a
+deterministic property asserted by its red spec rather than a fault to inject. Those
+reasons are recorded in the coverage matrix so the gap is auditable, not silent.
 
 ## The eight invariants
 
@@ -70,7 +69,7 @@ satellite holds structurally, and where one can be pinned by a source scan, a
 | **I4** | The model's context is tenant-pure | The system prompt carries no other tenant's data; RAG retrieval is tenant-scoped. Prompt injection is harmless by isolation, not "detected" | [`check-ai-invariant-4`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/scripts/check-ai-invariant-4.mjs) |
 | **I5** | Every op is append-only audited with attribution | Immutability at the DB level (`BEFORE UPDATE`/`DELETE`/`TRUNCATE` triggers) + a per-tenant `seq`+`checksum` chain; non-PII metadata only | [`check-ai-invariant-5`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/scripts/check-ai-invariant-5.mjs) |
 | **I6** | Provider credentials are per-tenant, encrypted, never logged | BYOK keys live encrypted; the key never appears in a prompt, error, metric or span; rotation reuses `tenant:secrets:reencrypt` | Secret-crypto discipline (no AI-specific guard) |
-| **I7** | Tool / function calling is tenant-scoped and least-privilege | An agent tool runs inside the active `tenancy.run()` scope behind a default-deny allow-list. A forward invariant: tools ship post-1.0 (WS-AI-11) | Post-1.0 (unimplemented) |
+| **I7** | Tool / function calling is tenant-scoped and least-privilege | A tool runs inside the active `tenancy.run()` scope behind a default-deny registry, with the ambient scope re-asserted before the bind and a per-tool authorization hook that denies unless the host wires it. Mutating tools are refused until explicitly enabled, and even then run only after a human confirms a signed challenge bound to the tenant, user, tool and arguments | [`check-ai-invariant-7`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/scripts/check-ai-invariant-7.mjs) |
 | **I8** | Output is bounded and the system prompt never leaks | Every streamed response path applies an output bound; the system prompt is never disclosed in an error or log | [`check-ai-invariant-8`](https://github.com/Arcoders/Adonisjs-lasagna-saas-tenancy/blob/master/scripts/check-ai-invariant-8.mjs) |
 
 ## OWASP LLM Top 10 (2025) coverage
@@ -78,9 +77,8 @@ satellite holds structurally, and where one can be pinned by a source scan, a
 The 18 vectors above are Lasagna's own taxonomy. This table crosswalks them to the
 industry-standard [OWASP Top 10 for LLM Applications (2025)](https://genai.owasp.org/),
 so a security review can map its checklist onto what the satellite enforces. The
-posture is stated honestly per row: some categories are closed by construction, one
-(LLM06) is a forward contract for post-1.0 tools, and a couple carry documented
-residuals in [Honest limits](#honest-limits).
+posture is stated honestly per row: some categories are closed by construction, and a
+couple carry documented residuals in [Honest limits](#honest-limits).
 
 | OWASP (2025) | Vectors | Invariant(s) | How the satellite addresses it |
 |---|---|---|---|
@@ -89,7 +87,7 @@ residuals in [Honest limits](#honest-limits).
 | **LLM03** Supply Chain | provider trust | I6 | No model artifacts are loaded (providers are remote APIs); per-tenant encrypted BYOK keys; SSRF-pinned egress. Provider-SDK trust is a stated residual. |
 | **LLM04** Data & Model Poisoning | #3 | I1 | Ingestion is authorized with per-row provenance (source, actor) and rollback-by-source; physical tenant isolation bounds the blast radius. |
 | **LLM05** Improper Output Handling | #8 | I8 | A mandatory per-fragment output bound on every response path, plus the optional host `redactOutput` DLP seam (below). |
-| **LLM06** Excessive Agency | #12 | I7 | Tools/agents ship post-1.0 (WS-AI-11); the I7 contract (tenant-scoped, default-deny, audited) is fixed but unimplemented, so there is no agent-action surface in 1.0. |
+| **LLM06** Excessive Agency | #12 | I7 | Least agency by default: the registry is default-deny, `authorizeTool` denies unless wired, and every call is scoped, argument-validated and audited. Agency is bounded by construction — mutating (`action`) tools run only after a human confirms a signed challenge, behind a kill-switch that is off by default, so a write is never the model's decision alone; and the loop is capped in rounds, calls per round, calls per request, per-tool timeout, and concurrent loops per tenant. Confirmation stops autonomy, not the injection itself: the mitigation is agency, not persuasion. See [AI tools](/guides/satellites/ai-tools). |
 | **LLM07** System Prompt Leakage | #8 | I4, I8 | The system prompt carries no secret, key, or tenant data (authorization lives in code, not the prompt); output handling never discloses it. |
 | **LLM08** Vector & Embedding Weaknesses | #3, #16, #18 | I1 | Physically tenant-scoped vectors via `tableLocation` + ContextSeal + `guard.ai_scope_mismatch`; `rowscope-pg` refused; a per-plan `embeddingCount` quota. |
 | **LLM09** Misinformation | #9 | — | Cross-tenant leakage is 0 by construction (I4); the residual is model hallucination, a quality risk, not isolation. Documented as an honest limit. |
@@ -164,6 +162,17 @@ mitigated but not eliminated, so decide how you bound each one.
   provider sees all content sent through it. Pinning and auditing reduce, but do
   not remove, that trust; the residency allow-list is how you bound where content
   may egress at all.
+- **At-rest encryption raises the at-rest bar, not the runtime bar, and is gated
+  off by default.** The optional per-tenant memory DEK (`memory.encryption:
+  'tenant-dek'`) and encrypted embeddings (`embedding.encryptContent`) shrink the
+  blast radius of a key leak from per-fleet to per-tenant and make a crypto-shred
+  cryptographically final, but the key is unwrapped into process memory to serve a
+  request, so a live-process compromise still sees plaintext. Encrypting the
+  embedding `content` column defends a raw column dump, not vector inversion (the
+  vector must stay searchable, so it stays approximately invertible), and `source`
+  and `actor` stay plaintext because they key purge and the ACL. Both features
+  default off; each is a separate per-host go with its own review, and both fail
+  closed at boot if selected without the crypto satellite installed.
 - **A uniform 403 is a deterministic property, not a timing guarantee.** The
   satellite returns the same 403 for a non-existent and an unauthorized tenant,
   and uses `timingSafeEqual` on the security-sensitive comparisons, but it does
@@ -188,7 +197,7 @@ emitter.on(IsthmusGuardTripped, ({ payload }) => {
 })
 ```
 
-The satellite ships 18 guards. Severity is the triage signal: `critical` is a
+The satellite ships 19 guards. Severity is the triage signal: `critical` is a
 would-be cross-tenant leak that was refused, `high` is a capability or
 authorization boundary, `warn` is a control that trips in normal operation and is
 watched by rate rather than per event.
@@ -209,6 +218,7 @@ watched by rate rather than per event.
 | `guard.ai_rate_limited` | warn | The per-key request rate limit was exceeded (#4, denial of wallet) |
 | `guard.ai_rowscope_refused` | warn | Embeddings were requested on `rowscope-pg`, the weakest placement (I1) |
 | `guard.ai_dimension_mismatch` | warn | An embedding's length does not match the migrated `vector(N)` dimension |
+| `guard.ai_embedding_metadata_scope_conflict` | warn | A metadata-scoped retrieval arrived while `encryptMetadata` is on, so the containment predicate cannot run over ciphertext; refused rather than silently matching zero rows |
 | `guard.ai_embedding_quota_exhausted` | warn | The per-plan `embeddingCount` cap was hit (#18) |
 | `guard.ai_ingestion_denied` | warn | The `authorizeIngestion` write gate denied a caller |
 | `guard.ai_retrieval_denied` | warn | The `retrievalFilter` document ACL denied, or is absent and unacknowledged (G2) |
@@ -241,10 +251,13 @@ document text ever reaches telemetry. The stream emits `ai_requests`,
 `ai_tokens_total`, `ai_errors`, `ai_stream_disconnects`; retrieval adds
 `ai_retrieval_tokens_total`, `ai_retrieval_matches`, `ai_retrieval_errors`;
 memory adds `ai_memory_unreadable`, `ai_memory_persist_failed`,
-`ai_memory_decrypt_previous_used`, `ai_memory_undecryptable`; compliance adds the
-`ai_purge_*` family and `ai_auto_purge_failures`; an optional `redactOutput` hook
-adds `ai_output_redacted` (how many output fragments it changed or aborted); and
-guard trips roll up on `ai_guard_rejections`.
+`ai_memory_decrypt_previous_used`, `ai_memory_undecryptable`, and (on the gated
+per-tenant DEK path) `ai_memory_dek_unavailable` when a KeyProvider outage degrades
+a read to empty; the gated encrypted-embeddings path adds
+`ai_embedding_content_undecryptable` when a row is dropped from a search because it
+will not open; compliance adds the `ai_purge_*` family and `ai_auto_purge_failures`;
+an optional `redactOutput` hook adds `ai_output_redacted` (how many output fragments
+it changed or aborted); and guard trips roll up on `ai_guard_rejections`.
 
 <Callout type="tip" title="The two metrics that mean 'act now'">
 `ai_memory_undecryptable` climbing usually means an `APP_KEY` rotation went past
@@ -300,10 +313,20 @@ closed until you make the call.
 - [ ] `node ace tenant:ai:audit:verify` on a cron, paging on a non-zero exit.
 - [ ] `Access-Control-Expose-Headers: X-Ai-Session` set for browser clients, if you use conversation memory.
 - [ ] `OLD_APP_KEY` kept in the environment across an `APP_KEY` rotation so memory decrypts through the grace window.
+- [ ] Decide whether per-tenant at-rest encryption is in scope: `memory.encryption: 'tenant-dek'` and `embedding.encryptContent` shrink a key leak's blast radius to one tenant and make a crypto-shred final, but both are gated off by default, need the crypto satellite, and are a separate per-host go (see the [AI guide](/guides/satellites/ai#conversation-memory)).
 - [ ] Alerting subscribed to `guard.ai_*` trips and to the `ai_memory_undecryptable` and `ai_auto_purge_failures` metrics.
+
+If you use [tools](/guides/satellites/ai-tools), add:
+
+- [ ] `authorizeTool` wired (or `acknowledgeUnauthorizedTools: true` recorded), so a tool call is authorized per caller and per tool rather than merely resolved. The `ai_tools` doctor check warns until you make the call.
+- [ ] `config.ai.tools.actionTools` left disabled unless you have read the [action-tool posture](/guides/satellites/ai-tools#action-tools-mutating). Enabling it turns on human-confirmed writes: each `mode: 'action'` tool then needs `summarizeArgs`, an `authorizeTool` allow, a resolvable principal and audit on, and every call waits for a human to confirm a signed challenge before it runs. Scrub `X-Ai-Tool-Confirmation` from your access/proxy logs.
+- [ ] Each tool's `inputSchema` declares every argument it accepts, since the validator rebuilds arguments from that whitelist — an argument you forget to declare never reaches the handler.
+- [ ] `maxConcurrentPerTenant` reviewed against your connection pool, and — for high-concurrency or action deployments — `isolation.enforceConnectionCap` enabled so a cross-tenant flood cannot exhaust it.
+- [ ] Alerting subscribed to the `ai_tool_denied` and `ai_tool_budget_exhausted` metrics: a rising denial rate is either a misconfigured authorizer or someone probing the registry.
 
 ## Read next
 
+- [AI tools](/guides/satellites/ai-tools) — the authoring guide for vector #12 / I7: registry, authorization, bounds, and the action-tool posture.
 - [AI satellite](/guides/satellites/ai) — the how-to for config, routes, and every feature referenced here.
 - [Security](/guides/security) — the kernel's guarantees, the host's responsibilities, and the vulnerability-reporting process (which covers this satellite too).
 - [Isthmus guard registry](/reference/isthmus) — the guard taxonomy, severities, and budget semantics the `guard.ai_*` ids ride on.

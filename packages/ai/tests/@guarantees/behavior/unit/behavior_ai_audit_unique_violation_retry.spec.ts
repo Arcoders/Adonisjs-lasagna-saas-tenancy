@@ -9,7 +9,7 @@ import {
 } from '../../../../src/isthmus/ai_guard_audit.js'
 import { fakeAuditEnv, sampleAuditRow } from '../../../helpers/fake_audit_db.js'
 
-test.group('behavior — AiAuditWriter unique-violation retry + fail-closed', (group) => {
+test.group('behavior: AiAuditWriter unique-violation retry + fail-closed', (group) => {
   group.each.setup(() => {
     __resetAiGuardCounters()
     __resetAiGuardRateLimit()

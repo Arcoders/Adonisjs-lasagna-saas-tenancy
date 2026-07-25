@@ -2,7 +2,7 @@ import type { ComplianceControl } from '@adonisjs-lasagna/saas-tenancy/services'
 import type { MultitenancyConfigWithAi } from '../define_config.js'
 
 /**
- * AI compliance posture controls (WS-AI-9), surfaced by `tenant:compliance:report`
+ * AI compliance posture controls, surfaced by `tenant:compliance:report`
  * the same way the kernel controls are (satellites `register()` into the shared
  * `ComplianceReportService`). They are registered in `AiProvider.boot()` only
  * when `config.ai` is present, so `detect()` can assume the AI block exists.
@@ -13,7 +13,7 @@ function ai(config: unknown): MultitenancyConfigWithAi['ai'] {
   return (config as MultitenancyConfigWithAi).ai
 }
 
-/** Is per-tenant data residency / no-train configured (#7 / #15)? */
+/** Is per-tenant data residency / no-train configured? */
 export const aiDataResidencyControl: ComplianceControl = {
   id: 'ai-data-residency',
   title: 'AI data residency & no-train',
@@ -26,7 +26,7 @@ export const aiDataResidencyControl: ComplianceControl = {
           'config.ai.residency pins per-tenant egress; a provider or embedding backend outside ' +
           'the posture (or any remote host under local-only) is refused (residency_denied) before any cost.',
         hostResponsibility:
-          'Residency is enforced by provider identity, not endpoint geography — place any BYOK baseUrl in-region yourself.',
+          'Residency is enforced by provider identity, not endpoint geography, so place any BYOK baseUrl in-region yourself.',
       }
     }
     return {
@@ -39,7 +39,7 @@ export const aiDataResidencyControl: ComplianceControl = {
   },
 }
 
-/** Is a right-to-erasure path available for AI data (#16, G1)? */
+/** Is a right-to-erasure path available for AI data? */
 export const aiRightToErasureControl: ComplianceControl = {
   id: 'ai-right-to-erasure',
   title: 'AI right-to-erasure (purge)',
@@ -58,8 +58,8 @@ export const aiRightToErasureControl: ComplianceControl = {
 }
 
 /**
- * Retention transparency (E24): embeddings survive `tenant:gdpr:anonymize` by
- * design (decision 1), so this control is INFO, never "satisfied erasure". It
+ * Retention transparency: embeddings survive `tenant:gdpr:anonymize` by
+ * design, so this control is INFO, never "satisfied erasure". It
  * exists so an operator is not misled into thinking anonymize cleared the corpus.
  */
 export const aiEmbeddingRetentionControl: ComplianceControl = {

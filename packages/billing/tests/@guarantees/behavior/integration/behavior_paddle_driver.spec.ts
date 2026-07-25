@@ -136,9 +136,9 @@ test.group('PaddleDriver (stubbed fetch)', (group) => {
     }
 
     assert.deepEqual(ids, ['sub_1', 'sub_2'])
-    assert.match(urls[0], /^https:\/\/sandbox-api\.paddle\.com\/subscriptions\?/)
-    assert.match(urls[0], /per_page=100/)
-    assert.match(urls[0], /customer_id=ctm_1/)
+    assert.match(urls[0]!, /^https:\/\/sandbox-api\.paddle\.com\/subscriptions\?/)
+    assert.match(urls[0]!, /per_page=100/)
+    assert.match(urls[0]!, /customer_id=ctm_1/)
     assert.equal(
       urls[1],
       'https://sandbox-api.paddle.com/subscriptions?after=sub_1&per_page=100',
@@ -154,7 +154,7 @@ test.group('PaddleDriver (stubbed fetch)', (group) => {
   test('ensureCustomer POSTs to /customers (sandbox base url) and maps the id', async ({
     assert,
   }) => {
-    let captured: { url: string; method?: string } | null = null
+    let captured: { url: string; method?: string | undefined } | null = null
     stub((url, init) => {
       captured = { url, method: init?.method }
       return jsonResponse({ data: { id: 'ctm_123' } })
@@ -223,8 +223,8 @@ test.group('PaddleDriver (stubbed fetch)', (group) => {
     const d = new PaddleDriver()
     await d.cancelSubscription('sub_1')
     await d.cancelSubscription('sub_1', { atPeriodEnd: true })
-    assert.equal(bodies[0].effective_from, 'immediately')
-    assert.equal(bodies[1].effective_from, 'next_billing_period')
+    assert.equal(bodies[0]?.effective_from, 'immediately')
+    assert.equal(bodies[1]?.effective_from, 'next_billing_period')
   })
 
   test('a non-2xx response surfaces a mapped billing error', async ({ assert }) => {

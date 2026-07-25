@@ -26,7 +26,7 @@ export type {
   IsthmusEvidence,
   IsthmusGuardTrippedPayload,
 } from './isthmus.js'
-export { TENANT_REPOSITORY } from './contracts.js'
+export { TENANT_REPOSITORY, TENANT_STATUSES, isKnownTenantStatus } from './contracts.js'
 export type {
   EachOptions,
   TenantModelContract,

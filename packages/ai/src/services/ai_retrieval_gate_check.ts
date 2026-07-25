@@ -9,13 +9,13 @@ export interface RetrievalGatePosture {
 }
 
 /**
- * The single-voice reading of the retrieval document-ACL posture (WS-AI-5, G2),
+ * The single-voice reading of the retrieval document-ACL posture,
  * shared by the boot warning and the `ai_retrieval_gate` doctor check so the two
  * never drift. Returns null when there is nothing to report: retrieval is not
  * usable (no embedding provider configured, so the retrieval routes cannot run),
  * or a per-user document ACL is wired.
  *
- * Retrieval is fail-closed (mirrors the G4 mount gate). With embeddings on but no
+ * Retrieval is fail-closed (mirrors the mount gate). With embeddings on but no
  * `retrievalFilter`:
  * - not acknowledged: retrieval is REFUSED (every `/ai/retrieve` and RAG chat 403s)
  *   -> a `warn` telling the operator how to enable it.
